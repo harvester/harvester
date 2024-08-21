@@ -34,6 +34,7 @@ type Interface interface {
 	Addon() AddonController
 	KeyPair() KeyPairController
 	Preference() PreferenceController
+	ResourceQuota() ResourceQuotaController
 	Setting() SettingController
 	SupportBundle() SupportBundleController
 	Upgrade() UpgradeController
@@ -66,6 +67,10 @@ func (v *version) KeyPair() KeyPairController {
 
 func (v *version) Preference() PreferenceController {
 	return generic.NewController[*v1beta1.Preference, *v1beta1.PreferenceList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Preference"}, "preferences", true, v.controllerFactory)
+}
+
+func (v *version) ResourceQuota() ResourceQuotaController {
+	return generic.NewController[*v1beta1.ResourceQuota, *v1beta1.ResourceQuotaList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "ResourceQuota"}, "resourcequotas", true, v.controllerFactory)
 }
 
 func (v *version) Setting() SettingController {

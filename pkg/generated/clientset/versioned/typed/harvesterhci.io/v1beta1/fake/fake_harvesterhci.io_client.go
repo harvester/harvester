@@ -40,6 +40,10 @@ func (c *FakeHarvesterhciV1beta1) Preferences(namespace string) v1beta1.Preferen
 	return &FakePreferences{c, namespace}
 }
 
+func (c *FakeHarvesterhciV1beta1) ResourceQuotas(namespace string) v1beta1.ResourceQuotaInterface {
+	return &FakeResourceQuotas{c, namespace}
+}
+
 func (c *FakeHarvesterhciV1beta1) Settings() v1beta1.SettingInterface {
 	return &FakeSettings{c}
 }
