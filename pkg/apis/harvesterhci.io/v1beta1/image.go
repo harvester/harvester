@@ -38,7 +38,7 @@ type VirtualMachineImageSpec struct {
 	DisplayName string `json:"displayName"`
 
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=download;upload;export-from-volume;restore
+	// +kubebuilder:validation:Enum=download;upload;export-from-volume;restore;clone
 	SourceType VirtualMachineImageSourceType `json:"sourceType"`
 
 	// +optional
@@ -62,6 +62,21 @@ type VirtualMachineImageSpec struct {
 	// +kubebuilder:validation:Maximum:=10
 	// +kubebuilder:validation:Optional
 	Retry int `json:"retry" default:"3"`
+
+	// +optional
+	SecurityParameters *VirtualMachineImageSecurityParameters `json:"securityParameters,omitempty"`
+}
+
+type VirtualMachineImageSecurityParameters struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=encrypt;decrypt
+	CryptoOperation VirtualMachineImageCryptoOperationType `json:"cryptoOperation"`
+
+	// +kubebuilder:validation:Required
+	SourceImageName string `json:"sourceImageName"`
+
+	// +kubebuilder:validation:Required
+	SourceImageNamespace string `json:"sourceImageNamespace"`
 }
 
 // +enum
@@ -72,6 +87,14 @@ const (
 	VirtualMachineImageSourceTypeUpload       VirtualMachineImageSourceType = "upload"
 	VirtualMachineImageSourceTypeExportVolume VirtualMachineImageSourceType = "export-from-volume"
 	VirtualMachineImageSourceTypeRestore      VirtualMachineImageSourceType = "restore"
+	VirtualMachineImageSourceTypeClone        VirtualMachineImageSourceType = "clone"
+)
+
+type VirtualMachineImageCryptoOperationType string
+
+const (
+	VirtualMachineImageCryptoOperationTypeEncrypt VirtualMachineImageCryptoOperationType = "encrypt"
+	VirtualMachineImageCryptoOperationTypeDecrypt VirtualMachineImageCryptoOperationType = "decrypt"
 )
 
 type VirtualMachineImageStatus struct {

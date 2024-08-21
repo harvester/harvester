@@ -9459,6 +9459,28 @@
           }
         }
       },
+      "harvesterhci.io.v1beta1.VirtualMachineImageSecurityParameters": {
+        "type": "object",
+        "required": [
+          "cryptoOperation",
+          "sourceImageName",
+          "sourceImageNamespace"
+        ],
+        "properties": {
+          "cryptoOperation": {
+            "type": "string",
+            "default": ""
+          },
+          "sourceImageName": {
+            "type": "string",
+            "default": ""
+          },
+          "sourceImageNamespace": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      },
       "harvesterhci.io.v1beta1.VirtualMachineImageSpec": {
         "type": "object",
         "required": [
@@ -9490,10 +9512,14 @@
             "format": "int32",
             "default": 0
           },
+          "securityParameters": {
+            "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineImageSecurityParameters"
+          },
           "sourceType": {
             "type": "string",
             "default": "",
             "enum": [
+              "clone",
               "download",
               "export-from-volume",
               "restore",

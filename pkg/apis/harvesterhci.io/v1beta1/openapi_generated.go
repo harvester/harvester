@@ -113,6 +113,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineBackupStatus":                                       schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImage":                                              schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImage(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageList":                                          schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageList(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageSecurityParameters":                            schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSecurityParameters(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageSpec":                                          schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSpec(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageStatus":                                        schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineRestore":                                            schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineRestore(ref),
@@ -4327,6 +4328,40 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageList(ref common.R
 	}
 }
 
+func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSecurityParameters(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"cryptoOperation": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"sourceImageName": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"sourceImageNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"cryptoOperation", "sourceImageName", "sourceImageNamespace"},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -4348,11 +4383,11 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSpec(ref common.R
 					},
 					"sourceType": {
 						SchemaProps: spec.SchemaProps{
-							Description: "\n\nPossible enum values:\n - `\"download\"`\n - `\"export-from-volume\"`\n - `\"restore\"`\n - `\"upload\"`",
+							Description: "\n\nPossible enum values:\n - `\"clone\"`\n - `\"download\"`\n - `\"export-from-volume\"`\n - `\"restore\"`\n - `\"upload\"`",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
-							Enum:        []interface{}{"download", "export-from-volume", "restore", "upload"}},
+							Enum:        []interface{}{"clone", "download", "export-from-volume", "restore", "upload"}},
 					},
 					"pvcName": {
 						SchemaProps: spec.SchemaProps{
@@ -4404,10 +4439,17 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSpec(ref common.R
 							Format:  "int32",
 						},
 					},
+					"securityParameters": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageSecurityParameters"),
+						},
+					},
 				},
 				Required: []string{"displayName", "sourceType"},
 			},
 		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageSecurityParameters"},
 	}
 }
 
