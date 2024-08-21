@@ -43,6 +43,8 @@ var (
 	}
 	skipHashCheckSettings = []string{
 		settings.AutoRotateRKE2CertsSettingName,
+		settings.LogLevelSettingName,
+		settings.KubeconfigDefaultTokenTTLMinutesSettingName,
 	}
 )
 
