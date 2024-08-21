@@ -33,7 +33,7 @@ var (
 	UpgradeCheckerEnabled                  = NewSetting("upgrade-checker-enabled", "true")
 	UpgradeCheckerURL                      = NewSetting("upgrade-checker-url", "https://harvester-upgrade-responder.rancher.io/v1/checkupgrade")
 	ReleaseDownloadURL                     = NewSetting("release-download-url", "https://releases.rancher.com/harvester")
-	LogLevel                               = NewSetting("log-level", "info") // options are info, debug and trace
+	LogLevel                               = NewSetting(LogLevelSettingName, "info") // options are info, debug and trace
 	SSLCertificates                        = NewSetting(SSLCertificatesSettingName, "{}")
 	SSLParameters                          = NewSetting(SSLParametersName, "{}")
 	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{}")
@@ -92,6 +92,7 @@ const (
 	SupportBundleNodeCollectionTimeoutName            = "support-bundle-node-collection-timeout"
 	UpgradeConfigSettingName                          = "upgrade-config"
 	LonghornV2DataEngineSettingName                   = "longhorn-v2-data-engine-enabled"
+	LogLevelSettingName                               = "log-level"
 )
 
 func init() {
