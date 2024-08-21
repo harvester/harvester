@@ -3,6 +3,8 @@ package setting
 import (
 	"fmt"
 
+	"github.com/sirupsen/logrus"
+
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	harvSettings "github.com/harvester/harvester/pkg/settings"
 )
@@ -22,13 +24,27 @@ func (h *Handler) syncKubeconfigTTL(setting *harvesterv1.Setting) error {
 	}
 
 	// if a custom ttl is set in harvester
-	if len(setting.Value) > 0 {
-		rancherKubeconfigTTLSetting.Value = setting.Value
-		rancherAuthTokenMaxTTLSetting.Value = setting.Value
-	} else { // apply default setting
-		rancherKubeconfigTTLSetting.Value = setting.Default
-		rancherAuthTokenMaxTTLSetting.Value = setting.Default
+	changed := false
+	targetValue := setting.Value
+	// apply default setting
+	if len(setting.Value) == 0 {
+		targetValue = setting.Default
 	}
+
+	if rancherKubeconfigTTLSetting.Value != targetValue {
+		rancherKubeconfigTTLSetting.Value = targetValue
+		changed = true
+	}
+	if rancherAuthTokenMaxTTLSetting.Value != targetValue {
+		rancherAuthTokenMaxTTLSetting.Value = targetValue
+		changed = true
+	}
+
+	if !changed {
+		return nil
+	}
+
+	logrus.Infof("Rancher setting %s and %s will be set to %v", harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName, AuthTokenMaxTTLSettinName, targetValue)
 
 	if _, err := h.rancherSettings.Update(rancherKubeconfigTTLSetting); err != nil {
 		return fmt.Errorf("unable to update rancher setting %s: %v", rancherKubeconfigTTLSetting.Name, err)
