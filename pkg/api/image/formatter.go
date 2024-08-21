@@ -104,6 +104,11 @@ func (h Handler) downloadImage(rw http.ResponseWriter, req *http.Request) error 
 		return fmt.Errorf("failed to get VMImage with name(%s), ns(%s), error: %w", name, namespace, err)
 	}
 
+	// Only forbid encrypted image. But, permit decrypted image.
+	if vmImage.Spec.SecurityParameters != nil && vmImage.Spec.SecurityParameters.CryptoOperation == apisv1beta1.VirtualMachineImageCryptoOperationTypeEncrypt {
+		return fmt.Errorf("encrypted image is not supported for download")
+	}
+
 	biName, err := util.GetBackingImageName(h.BackingImageCache, vmImage)
 	if err != nil {
 		return fmt.Errorf("failed to get backing image name for VMImage %s/%s, error: %w", namespace, name, err)

@@ -71,9 +71,19 @@ const (
 	HTTPSProxyEnv = "HTTPS_PROXY"
 	NoProxyEnv    = "NO_PROXY"
 
-	LonghornOptionBackingImageName = "backingImage"
-	LonghornOptionMigratable       = "migratable"
-	AddonValuesAnnotation          = "harvesterhci.io/addon-defaults"
+	LonghornOptionBackingImageName           = "backingImage"
+	LonghornOptionBackingImageDataSourceName = "backingImageDataSourceType"
+	LonghornOptionMigratable                 = "migratable"
+	LonghornOptionEncrypted                  = "encrypted"
+	AddonValuesAnnotation                    = "harvesterhci.io/addon-defaults"
+
+	// CSI constants
+	CSIProvisionerSecretNameKey      = "csi.storage.k8s.io/provisioner-secret-name"
+	CSIProvisionerSecretNamespaceKey = "csi.storage.k8s.io/provisioner-secret-namespace"
+	CSINodePublishSecretNameKey      = "csi.storage.k8s.io/node-publish-secret-name"
+	CSINodePublishSecretNamespaceKey = "csi.storage.k8s.io/node-publish-secret-namespace"
+	CSINodeStageSecretNameKey        = "csi.storage.k8s.io/node-stage-secret-name"
+	CSINodeStageSecretNamespaceKey   = "csi.storage.k8s.io/node-stage-secret-namespace"
 
 	LabelUpgradeReadMessage          = prefix + "/read-message"
 	LabelUpgradeState                = prefix + "/upgradeState"

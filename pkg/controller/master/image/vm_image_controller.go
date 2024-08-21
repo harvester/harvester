@@ -259,6 +259,7 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 			MinNumberOfCopies: numOfCopies,
 		},
 	}
+
 	switch image.Spec.SourceType {
 	case harvesterv1.VirtualMachineImageSourceTypeDownload:
 		bi.Spec.SourceParameters[lhv1beta2.DataSourceTypeDownloadParameterURL] = image.Spec.URL
@@ -272,6 +273,30 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 		bi.Spec.SourceParameters[lhmanager.DataSourceTypeExportFromVolumeParameterExportType] = lhmanager.DataSourceTypeExportFromVolumeParameterExportTypeRAW
 	case harvesterv1.VirtualMachineImageSourceTypeRestore:
 		bi.Spec.SourceParameters[lhv1beta2.DataSourceTypeRestoreParameterBackupURL] = image.Spec.URL
+	case harvesterv1.VirtualMachineImageSourceTypeClone:
+		bi.Spec.SourceParameters[lhv1beta2.DataSourceTypeCloneParameterEncryption] = string(image.Spec.SecurityParameters.CryptoOperation)
+
+		sourceImage, err := h.images.Get(image.Spec.SecurityParameters.SourceImageNamespace, image.Spec.SecurityParameters.SourceImageName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get source vmimage %s/%s, error: %s", image.Spec.SecurityParameters.SourceImageNamespace, image.Spec.SecurityParameters.SourceImageName, err.Error())
+		}
+
+		sourceBiName, err := util.GetBackingImageName(h.backingImageCache, sourceImage)
+		if err != nil {
+			return fmt.Errorf("failed to get source backing image name for vmimage %s/%s, error: %s", sourceImage.Namespace, sourceImage.Name, err.Error())
+		}
+
+		bi.Spec.SourceParameters[lhv1beta2.DataSourceTypeCloneParameterBackingImage] = sourceBiName
+
+		targetImage := image
+
+		if image.Spec.SecurityParameters.CryptoOperation == harvesterv1.VirtualMachineImageCryptoOperationTypeDecrypt {
+			// if try to decrypt image, we should get the storage class of source virtual machine image.
+			targetImage = sourceImage
+		}
+
+		bi.Spec.SourceParameters[lhv1beta2.DataSourceTypeCloneParameterSecret] = targetImage.Spec.StorageClassParameters[util.CSINodePublishSecretNameKey]
+		bi.Spec.SourceParameters[lhv1beta2.DataSourceTypeCloneParameterSecretNamespace] = targetImage.Spec.StorageClassParameters[util.CSINodePublishSecretNamespaceKey]
 	}
 
 	_, err = h.backingImages.Create(bi)
