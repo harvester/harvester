@@ -348,7 +348,7 @@ func (ndc *ControllerHandler) CheckVMISchedulingRequirements(originalNode *corev
 		return nil, fmt.Errorf("error listing nodes from nodeCache: %v", err)
 	}
 	for _, vmi := range vmiList {
-		var possibleNodes []string
+		var possibleNodes, validNodes []*corev1.Node
 		if vmi.Spec.Affinity != nil && vmi.Spec.Affinity.NodeAffinity != nil && vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
 			nodeAffinitySelector, err := nodeaffinity.NewNodeSelector(vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution)
 			if err != nil {
@@ -357,16 +357,34 @@ func (ndc *ControllerHandler) CheckVMISchedulingRequirements(originalNode *corev
 			// identify if nodeAffinity can be met by other nodes and node is ready
 			for _, v := range nodeList {
 				if nodeAffinitySelector.Match(v) && v.Name != originalNode.Name && isNodeReady(v) {
-					possibleNodes = append(possibleNodes, v.Name)
+					possibleNodes = append(possibleNodes, v)
 				}
 			}
+
+			validNodes = filterNodesForNodeSelector(possibleNodes, vmi)
 			// no valid node found that could meet the requirements
-			if len(possibleNodes) == 0 {
+			if len(validNodes) == 0 {
 				impactedVMS = append(impactedVMS, namespacedVMName(vmi))
 			}
 		}
 	}
 	return impactedVMS, nil
+}
+
+// filterNodesForNodeSelector will filter nodes for vmi node selector requirement match
+func filterNodesForNodeSelector(possibleNodes []*corev1.Node, vmi *kubevirtv1.VirtualMachineInstance) []*corev1.Node {
+	var validNodes []*corev1.Node
+	// VM's may also have node selector, which is used when defining specific hostnames
+	if vmi.Spec.NodeSelector != nil && len(vmi.Spec.NodeSelector) > 0 {
+		vmiNodeSelector := labels.SelectorFromSet(vmi.Spec.NodeSelector)
+		for _, v := range possibleNodes {
+			nodeLabels := labels.Set(v.GetLabels())
+			if vmiNodeSelector.Matches(nodeLabels) {
+				validNodes = append(validNodes, v)
+			}
+		}
+	}
+	return validNodes
 }
 
 func isNodeReady(node *corev1.Node) bool {
