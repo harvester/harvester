@@ -3,11 +3,13 @@ package image
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhmanager "github.com/longhorn/longhorn-manager/manager"
 	"github.com/longhorn/longhorn-manager/types"
+	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/rancher/norman/condition"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
@@ -235,6 +237,13 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 		return err
 	}
 
+	// use target storage class's numberOfReplicas as minNumberOfCopies for image HA
+	numOfCopiesStr := image.Spec.StorageClassParameters[longhorntypes.OptionNumberOfReplicas]
+	numOfCopies, err := strconv.Atoi(numOfCopiesStr)
+	if err != nil {
+		return err
+	}
+
 	bi := &lhv1beta2.BackingImage{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      biName,
@@ -244,9 +253,10 @@ func (h *vmImageHandler) createBackingImage(image *harvesterv1.VirtualMachineIma
 			},
 		},
 		Spec: lhv1beta2.BackingImageSpec{
-			SourceType:       lhv1beta2.BackingImageDataSourceType(image.Spec.SourceType),
-			SourceParameters: map[string]string{},
-			Checksum:         image.Spec.Checksum,
+			SourceType:        lhv1beta2.BackingImageDataSourceType(image.Spec.SourceType),
+			SourceParameters:  map[string]string{},
+			Checksum:          image.Spec.Checksum,
+			MinNumberOfCopies: numOfCopies,
 		},
 	}
 	switch image.Spec.SourceType {
