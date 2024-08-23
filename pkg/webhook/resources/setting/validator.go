@@ -89,7 +89,11 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.NTPServersSettingName:                             validateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
+<<<<<<< HEAD
 	settings.UpgradeConfigSettingName:                          validateUpgradeConfig,
+=======
+	settings.AdditionalGuestMemoryOverheadRatioName:            validateAdditionalGuestMemoryOverheadRatio,
+>>>>>>> Add new settings
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -109,7 +113,11 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
+<<<<<<< HEAD
 	settings.UpgradeConfigSettingName:                          validateUpdateUpgradeConfig,
+=======
+	settings.AdditionalGuestMemoryOverheadRatioName:            validateUpdateAdditionalGuestMemoryOverheadRatio,
+>>>>>>> Add new settings
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -1319,4 +1327,19 @@ func validateUpgradeConfig(setting *v1beta1.Setting) error {
 
 func validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateUpgradeConfig(newSetting)
+}
+
+func validateAdditionalGuestMemoryOverheadRatio(newSetting *v1beta1.Setting) error {
+	if err := settings.ValidateAdditionalGuestMemoryOverheadRatioHelper(newSetting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), "default")
+	}
+
+	if err := settings.ValidateAdditionalGuestMemoryOverheadRatioHelper(newSetting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), "value")
+	}
+	return nil
+}
+
+func validateUpdateAdditionalGuestMemoryOverheadRatio(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateAdditionalGuestMemoryOverheadRatio(newSetting)
 }

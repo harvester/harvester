@@ -30,6 +30,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	node := management.CoreFactory.Core().V1().Node()
 	rkeControlPlane := management.RKEFactory.Rke().V1().RKEControlPlane()
 	rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
+	kubevirt := management.VirtFactory.Kubevirt().V1().KubeVirt()
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -61,6 +62,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		rkeControlPlaneCache: rkeControlPlane.Cache(),
 		rancherSettings:      rancherSettings,
 		rancherSettingsCache: rancherSettings.Cache(),
+		kubeVirtConfig:       kubevirt,
+		kubeVirtConfigCache:  kubevirt.Cache(),
 
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
