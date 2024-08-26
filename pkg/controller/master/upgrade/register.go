@@ -3,7 +3,11 @@ package upgrade
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/rest"
+
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 )
 
 const (
@@ -40,11 +44,22 @@ func Register(ctx context.Context, management *config.Management, options config
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	lhSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
 
+	virtSubsrcConfig := rest.CopyConfig(management.RestConfig)
+	virtSubsrcConfig.GroupVersion = &schema.GroupVersion{Group: "subresources.kubevirt.io", Version: "v1"}
+	virtSubsrcConfig.APIPath = "/apis"
+	virtSubsrcConfig.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	virtSubresourceClient, err := rest.RESTClientFor(virtSubsrcConfig)
+	if err != nil {
+		return err
+	}
+
 	controller := &upgradeHandler{
 		ctx:               ctx,
 		jobClient:         jobs,
 		jobCache:          jobs.Cache(),
 		nodeCache:         nodes.Cache(),
+		secretClient:      secrets,
+		secretCache:       secrets.Cache(),
 		namespace:         options.Namespace,
 		upgradeClient:     upgrades,
 		upgradeCache:      upgrades.Cache(),
@@ -64,6 +79,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		clusterCache:      clusters.Cache(),
 		lhSettingClient:   lhSettings,
 		lhSettingCache:    lhSettings.Cache(),
+		vmRestClient:      virtSubresourceClient,
 	}
 	upgrades.OnChange(ctx, upgradeControllerName, controller.OnChanged)
 	upgrades.OnRemove(ctx, upgradeControllerName, controller.OnRemove)
