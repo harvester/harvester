@@ -137,6 +137,7 @@ func (v *storageClassValidator) validateSetUniqueDefault(newObj runtime.Object) 
 func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error {
 	newSC := newObj.(*storagev1.StorageClass)
 
+	// Use util.LonghornOptionEncrypted as the key to check if the storage class is encrypted
 	if value, ok := newSC.Parameters[util.LonghornOptionEncrypted]; !ok {
 		return nil
 	} else if value != "true" {

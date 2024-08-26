@@ -69,7 +69,7 @@ func (c StorageClassCache) List(selector labels.Selector) ([]*storagev1.StorageC
 	return result, err
 }
 
-func (c StorageClassClient) WithImpersonation(impersonate rest.ImpersonationConfig) (generic.NonNamespacedClientInterface[*storagev1.StorageClass, *storagev1.StorageClassList], error) {
+func (c StorageClassClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.NonNamespacedClientInterface[*storagev1.StorageClass, *storagev1.StorageClassList], error) {
 	//TODO implement me
 	panic("implement me")
 }

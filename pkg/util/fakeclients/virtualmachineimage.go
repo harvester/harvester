@@ -33,12 +33,12 @@ func (c VirtualMachineImageClient) GroupVersionKind() schema.GroupVersionKind {
 	panic("implement me")
 }
 
-func (c VirtualMachineImageClient) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
+func (c VirtualMachineImageClient) AddGenericHandler(_ context.Context, _ string, _ generic.Handler) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c VirtualMachineImageClient) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
+func (c VirtualMachineImageClient) AddGenericRemoveHandler(_ context.Context, _ string, _ generic.Handler) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -48,22 +48,22 @@ func (c VirtualMachineImageClient) Updater() generic.Updater {
 	panic("implement me")
 }
 
-func (c VirtualMachineImageClient) OnChange(ctx context.Context, name string, sync generic.ObjectHandler[*harvesterv1.VirtualMachineImage]) {
+func (c VirtualMachineImageClient) OnChange(_ context.Context, _ string, _ generic.ObjectHandler[*harvesterv1.VirtualMachineImage]) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c VirtualMachineImageClient) OnRemove(ctx context.Context, name string, sync generic.ObjectHandler[*harvesterv1.VirtualMachineImage]) {
+func (c VirtualMachineImageClient) OnRemove(_ context.Context, _ string, _ generic.ObjectHandler[*harvesterv1.VirtualMachineImage]) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c VirtualMachineImageClient) Enqueue(namespace, name string) {
+func (c VirtualMachineImageClient) Enqueue(_, _ string) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c VirtualMachineImageClient) EnqueueAfter(namespace, name string, duration time.Duration) {
+func (c VirtualMachineImageClient) EnqueueAfter(_, _ string, _ time.Duration) {
 	// do nothing
 }
 
