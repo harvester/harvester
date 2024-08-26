@@ -90,7 +90,7 @@ In Harvester, the `MTU` is propagated from `Vlanconfig` to `NAD`.
 
 User configures the `MTU` on the [Uplink](https://docs.harvesterhci.io/v1.3/networking/index#how-to-create-a-new-cluster-network) when creating `Vlanconfig`.
 
-![vlanconfig-nad-relationship](./20240820-mtu-and-network-information-propagation/vlanconfig-nad-relationship.png)
+![vlanconfig-nad-relationship](./20240820-mtu-and-network-information-propagation/vlanconfig-nad-relationship1.png)
 
 ### Bridge CNI Specification
 
@@ -144,6 +144,24 @@ spec:
   
 ```
 
+### CNI Limitations
+
+https://github.com/containernetworking/cni/blob/main/SPEC.md#section-1-network-configuration-format
+
+CNI defines a network configuration format for administrators. It contains directives for both the container runtime as well as the plugins to consume. At plugin execution time, this configuration format is interpreted by the runtime and transformed in to a form to be passed to the plugins.
+
+In general, the network configuration is intended to be static. It can conceptually be thought of as being "on disk", though the CNI specification does not actually require this.
+
+
+
+https://github.com/containernetworking/cni/blob/main/SPEC.md#add-add-container-to-network-or-apply-modifications
+
+
+If an interface of the requested name already exists in the container, the CNI plugin MUST return with an error.
+
+A runtime should not call ADD twice (without an intervening DEL) for the same (CNI_CONTAINERID, CNI_IFNAME) tuple. This implies that a given container ID may be added to a specific network more than once only if each addition is done with a different interface name.
+
+
 ### Harvester UI sets Fields
 
 When configuring [Vlan Network](https://docs.harvesterhci.io/v1.3/networking/harvester-network#vlan-network) from Harvester UI, below fields are touched:
@@ -193,6 +211,103 @@ After `Clusternetwork` and `Vlanconfig` is created, all following `NAD`s will in
 Step 2: Change the MTU to 9000, step by step on each `Vlanconfig`.
 
 Issue/limitation: MTU on the existing `NAD`s are not updated automatically.
+
+##### Story 2.1: Change the MTU of the StorageNetwork
+
+The StorageNetwork aims to add a second nic&ip for Longhorn related PODs, then LH can use this network for fast and dedicated data-path. There will be only east-west traffic between different Longhorn nodes, it utilize the external switches to get traffic switched between different Harvester nodes, but it will not beyond the L2 range.
+
+![storage-network-with-default-mtu](./20240820-mtu-and-network-information-propagation/storage-network-with-default-mtu.png)
+
+LH pods may have east-west communications all the time when there are active volumes/replicas/...
+
+Setting a different MTU touches many network elements, and in the middle state, different MTU on different bridge/bare-metal-server/Vlanconfig/NAD/POD will have issues.
+
+For example: LH POD1 has MTU 9000, POD2 has MTU 1500, communication between those 2 PODs will break.
+
+The options are:
+
+Option A:
+
+```
+(1) Stop all workloads e.g. VMs, addons (using PVC)
+(2) Delete the LH storage network, wait LH restart
+(3) Apply apply new MTU to bridge/bare-metal-server/vlanconfig
+(4) Re-create the StorageNetwork
+(5) Re-apply the StorageNetwork
+```
+
+Option B:
+
+```
+(1) Stop all workloads; assume LH will have no communications on StorageNetwork, but may not work
+(2) Apply new MTU to bridge/bare-metal-server/vlanconfig
+(3) Manually update the NAD
+(4) Manually delete (to replace) all LH related PODs, the new PODs will get nics&ips with new MTU
+```
+
+Most probably, A is the only reliable option. Service interruption is inevitable.
+
+![apply-new-mtu-on-the-whole-path.png](./20240820-mtu-and-network-information-propagation/apply-new-mtu-on-the-whole-path.png)
+
+After all operations, the StoageNetwork has new MTU on the whole path.
+
+![recreate-storage-network](./20240820-mtu-and-network-information-propagation/recreate-storage-network.png)
+
+
+##### Story 2.2: Change the MTU of the VM Network
+
+VM network is more complex than StorageNetwork.
+
+There may be east-west (vm - vm) communications and south-north (vm - others/external) communications at the same time.
+
+When there are east-west communications, the above option A applies.
+
+![vm-network-with-default-mtu](./20240820-mtu-and-network-information-propagation/vm-network-with-default-mtu.png)
+
+When there are only south-north communications, there is a possibility to update the MTU on the fly with the minimal service interruption.
+
+```
+(1) Migration VMs from the Vlanconfig1 related nodes
+(2) Delete the Vlanconfig1
+(3) Apply new MTU to bridge/bare-metal-server
+(4) Create net storagenetwork
+(5) Create new Vlanconfig
+(6) Create new NAD
+(7.1) Stop VM1
+(7.2) Change VM1's network configuration, select the new NAD
+or
+(7) Change VM1's network configuration, select the new NAD
+(8) After VM1 is rebooted, it has new MTU and carried by the related underlayer network
+
+(9) Repeat (1)..(8).
+
+note: VM can't migrate from clusternetwork A to clusternetwork B.
+
+```
+
+There are still open questions like there should be redundant (aggregated) ports on the switches to have 2 sets of MTU in parallel.
+
+If different vlans are used in the migration, the VM IP may change as well, DHCP server may also need some additional changes.
+
+A group of nodes are excluded from current clusternetwork.
+
+![exclude-a-group-of-nodes](./20240820-mtu-and-network-information-propagation/exclude-a-group-of-nodes.png)
+
+Create a new clusternetwork to get the new MTU, then deploy workloads on it.
+
+![recreate-storagenetwork-vlanconfig-nad-vm](./20240820-mtu-and-network-information-propagation/recreate-storagenetwork-vlanconfig-nad-vm.png)
+
+##### Short Summary
+
+From those scenairos, we know: it is quite complicated to change the MTU on an existing cluster:
+
+(1) A detailed plan and test on the (external) infrastructure is vital; user needs to make sure the new MTU can be applied and work as expected before changing them on Harvester.
+
+(2) Service interruption is inevitable.
+
+(3) User needs to stop VM and/or StorageNetwork at first; then apply MTU on each node and test them; finally recreate StorageNetwork; restart VM.
+
+A detailed user guide document is needed.
 
 #### Story 3: Set the NAD with a different MTU than the Vlanconfig
 
