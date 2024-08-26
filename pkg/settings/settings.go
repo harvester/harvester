@@ -58,7 +58,7 @@ var (
 	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
 	NTPServers             = NewSetting(NTPServersSettingName, "")
 	WhiteListedSettings    = []string{"server-version", "default-storage-class", "harvester-csi-ccm-versions", "default-vm-termination-grace-period-seconds"}
-	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}}`)
+	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "restoreVM": false}`)
 )
 
 const (
@@ -365,6 +365,8 @@ type ImagePreloadOption struct {
 type UpgradeConfig struct {
 	// Options for the Image Preload phase of Harvester Upgrade
 	PreloadOption ImagePreloadOption `json:"imagePreloadOption,omitempty"`
+	// set true to restore vm to the pre-upgrade state, this option only works under single node.
+	RestoreVM bool `json:"restoreVM,omitempty"`
 }
 
 func DecodeConfig[T any](value string) (*T, error) {
