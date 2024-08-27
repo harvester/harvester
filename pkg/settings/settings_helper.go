@@ -188,26 +188,46 @@ const (
 	AdditionalGuestMemoryOverheadRatioMinValue = 1
 	AdditionalGuestMemoryOverheadRatioMaxValue = 10
 
-	AdditionalGuestMemoryOverheadRatioDefault = "1.5" // 1.5
+	AdditionalGuestMemoryOverheadRatioDefault = "1.5" // After kubevirt computes the overhead, it will further multiple with this factor
 )
 
-func ValidateAdditionalGuestMemoryOverheadRatioHelper(value string) error {
-	if value == "" {
-		return nil
+type AdditionalGuestMemoryOverheadRatioConfig struct {
+	value string  `json:"value"`
+	ratio float64 `json:"ratio"` // converted from configured string
+}
+
+func NewAdditionalGuestMemoryOverheadRatioConfig(value string) (*AdditionalGuestMemoryOverheadRatioConfig, error) {
+	agmorc := AdditionalGuestMemoryOverheadRatioConfig{
+		value: value,
+	}
+	if agmorc.value == "" {
+		return &agmorc, nil
 	}
 
-	ratio, err := strconv.ParseFloat(value, 64)
+	ratio, err := strconv.ParseFloat(agmorc.value, 64)
 	if err != nil {
-		return fmt.Errorf("value %v can't be converted to float64, error:%w", value, err)
+		return nil, fmt.Errorf("value %v can't be converted to float64, error:%w", agmorc.value, err)
 	}
-
 	if ratio < AdditionalGuestMemoryOverheadRatioMinValue {
-		return fmt.Errorf("value %v can't be less than %v", value, AdditionalGuestMemoryOverheadRatioMinValue)
+		return nil, fmt.Errorf("value %v can't be less than %v", agmorc.value, AdditionalGuestMemoryOverheadRatioMinValue)
 	}
-
 	if ratio > AdditionalGuestMemoryOverheadRatioMaxValue {
-		return fmt.Errorf("value %v can't be greater than %v", value, AdditionalGuestMemoryOverheadRatioMaxValue)
+		return nil, fmt.Errorf("value %v can't be greater than %v", agmorc.value, AdditionalGuestMemoryOverheadRatioMaxValue)
 	}
+	agmorc.ratio = ratio
+	return &agmorc, nil
+}
 
-	return nil
+func (agmorc *AdditionalGuestMemoryOverheadRatioConfig) Ratio() float64 {
+	return agmorc.ratio
+}
+
+func ValidateAdditionalGuestMemoryOverheadRatioHelper(value string) error {
+	_, err := NewAdditionalGuestMemoryOverheadRatioConfig(value)
+	return err
+}
+
+// empty or
+func (agmorc *AdditionalGuestMemoryOverheadRatioConfig) IsEmpty() bool {
+	return agmorc.value == "" || agmorc.ratio == 0.0
 }

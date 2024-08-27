@@ -24,6 +24,9 @@ const (
 	networkGroup      = "network.harvesterhci.io"
 	keyClusterNetwork = networkGroup + "/clusternetwork"
 
+	memory10M          = 10485760
+	memory100M         = 104857600
+	memory256M         = 268435456
 	memory512M         = 536870912
 	memory1G           = 1073741824
 	memoryReserved128M = 134217728
@@ -196,6 +199,12 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 	if err != nil || overcommit == nil {
 		return patchOps, err
 	}
+	agmorc, err := m.getAdditionalGuestMemoryOverheadRatioConfig()
+	if err != nil {
+		logrus.Warnf("fail to get %v, fallback to legacy reserved memory strategy", settings.AdditionalGuestMemoryOverheadRatioName)
+		agmorc = nil
+		err = nil
+	}
 
 	if !cpu.IsZero() {
 		newRequest := cpu.MilliValue() * int64(100) / int64(overcommit.CPU)
@@ -207,7 +216,7 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 		}
 	}
 	if !mem.IsZero() {
-		memPatch, err := generateMemoryPatch(vm, mem, overcommit, requestsMissing, requestsToMutate)
+		memPatch, err := generateMemoryPatch(vm, mem, overcommit, agmorc, requestsMissing, requestsToMutate)
 		if err != nil {
 			return patchOps, err
 		}
@@ -251,7 +260,7 @@ func computeReservedMemory(mem, reservedMemory *resource.Quantity) {
 	reservedMemory.Set(memoryReserved1G)
 }
 
-func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, overcommit *settings.Overcommit, requestsMissing bool, requestsToMutate v1.ResourceList) (types.PatchOps, error) {
+func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, overcommit *settings.Overcommit, agmorc *settings.AdditionalGuestMemoryOverheadRatioConfig, requestsMissing bool, requestsToMutate v1.ResourceList) (types.PatchOps, error) {
 	// Truncate to MiB
 	var patchOps types.PatchOps
 	var err error
@@ -261,29 +270,40 @@ func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, 
 	// Reserve 100MiB (104857600 Bytes) for QEMU on guest memory
 	// Ref: https://github.com/harvester/harvester/issues/1234
 	// TODO: handle hugepage memory
-	reservedMemory := *resource.NewQuantity(104857600, resource.BinarySI)
+	reservedMemory := *resource.NewQuantity(memory100M, resource.BinarySI)
+	useReservedMemeory := true
+
+	// user has set AnnotationReservedMemory, then use it anyway
 	if vm.Annotations != nil && vm.Annotations[util.AnnotationReservedMemory] != "" {
 		reservedMemory, err = resource.ParseQuantity(vm.Annotations[util.AnnotationReservedMemory])
 		if err != nil {
-			return patchOps, err
+			return patchOps, fmt.Errorf("annotation %v can't be converted to memory unit", vm.Annotations[util.AnnotationReservedMemory])
 		}
 		// already checked on validator: reservedMemory < mem
 		if reservedMemory.Value() >= mem.Value() {
-			return patchOps, fmt.Errorf("reservedMemory cannot be equal or greater than limits.memory %v %v", reservedMemory.Value(), mem.Value())
+			return patchOps, fmt.Errorf("reservedMemory can't be equal or greater than limits.memory  %v %v", reservedMemory.Value(), mem.Value())
 		}
 	} else {
-		// if user does not specify the value, then compute it dynamically
-		computeReservedMemory(mem, &reservedMemory)
+		// if user has set a valid AdditionalGuestMemoryOverheadRatio value
+		if agmorc != nil && !agmorc.IsEmpty() {
+			useReservedMemeory = false
+		}
 	}
+
+	// when AnnotationReservedMemory is set, or AdditionalGuestMemoryOverheadRatioConfig is not set
+	// if AdditionalGuestMemoryOverheadRatioConfig and AdditionalGuestMemoryOverheadRatioConfig are both set
+	// then the VM will benefit from both
 	guestMemory := *mem
-	guestMemory.Sub(reservedMemory)
-	if guestMemory.Value() < 268435456 {
-		// some test cases use a small value to test, but for production such VM make no sense, add a warning here
-		logrus.Warnf("vm %s/%s guest memory is under the suggested minimum requirement(256Mi), original: %v, reserved: %v, final: %v", vm.Namespace, vm.Name, mem.Value(), reservedMemory.Value(), guestMemory.Value())
+	if useReservedMemeory {
+		guestMemory.Sub(reservedMemory)
 	}
-	if guestMemory.Value() < 10485760 {
+	if guestMemory.Value() < memory256M {
+		// some test cases use a small value to test, but for production such VM make no sense, add a warning here
+		logrus.Warnf("vm %s/%s guest memory is under the suggested minimum requirement(256Mi), original: %v, final: %v", vm.Namespace, vm.Name, mem.Value(), guestMemory.Value())
+	}
+	if guestMemory.Value() < memory10M {
 		// should not be < 10 Mi
-		return patchOps, fmt.Errorf("guest memory is under the minimum requirement (10 Mi), original: %v, reserved: %v, final: %v", mem.Value(), reservedMemory.Value(), guestMemory.Value())
+		return patchOps, fmt.Errorf("guest memory is under the minimum requirement (10 Mi), original: %v, final: %v", mem.Value(), guestMemory.Value())
 	}
 
 	// Needed to avoid issue due to overcommit when GPU or HostDevices are passed to a VM.
@@ -309,7 +329,7 @@ func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, 
 }
 
 func (m *vmMutator) getOvercommit() (*settings.Overcommit, error) {
-	s, err := m.setting.Get("overcommit-config")
+	s, err := m.setting.Get(settings.OvercommitConfigSettingName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
@@ -328,6 +348,21 @@ func (m *vmMutator) getOvercommit() (*settings.Overcommit, error) {
 		return overcommit, err
 	}
 	return overcommit, nil
+}
+
+func (m *vmMutator) getAdditionalGuestMemoryOverheadRatioConfig() (*settings.AdditionalGuestMemoryOverheadRatioConfig, error) {
+	s, err := m.setting.Get(settings.AdditionalGuestMemoryOverheadRatioName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	value := s.Value
+	if value == "" {
+		value = s.Default
+	}
+	return settings.NewAdditionalGuestMemoryOverheadRatioConfig(value)
 }
 
 func (m *vmMutator) patchAffinity(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {

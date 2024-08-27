@@ -89,11 +89,8 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.NTPServersSettingName:                             validateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
-<<<<<<< HEAD
 	settings.UpgradeConfigSettingName:                          validateUpgradeConfig,
-=======
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateAdditionalGuestMemoryOverheadRatio,
->>>>>>> Add new settings
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -113,11 +110,8 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
-<<<<<<< HEAD
 	settings.UpgradeConfigSettingName:                          validateUpdateUpgradeConfig,
-=======
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateUpdateAdditionalGuestMemoryOverheadRatio,
->>>>>>> Add new settings
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -264,12 +258,12 @@ func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
 
 	if setting.Default != "{}" {
 		if err := validateHTTPProxyHelper(setting.Default, nodes); err != nil {
-			return werror.NewInvalidError(err.Error(), "default")
+			return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 		}
 	}
 
 	if err := validateHTTPProxyHelper(setting.Value, nodes); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
 }
@@ -322,7 +316,7 @@ func validateNoProxy(noProxy string, nodes []*corev1.Node) error {
 		missedIPs := gocommon.MapKeys(missedNodes)
 		slices.Sort(missedIPs)
 		msg := fmt.Sprintf("noProxy should contain the node's IP addresses or CIDR. The node(s) %s are not covered.", strings.Join(missedIPs, ", "))
-		return werror.NewInvalidError(msg, "value")
+		return werror.NewInvalidError(msg, settings.KeywordValue)
 	}
 
 	return nil
@@ -353,11 +347,11 @@ func validateOvercommitConfigHelper(field, value string) error {
 }
 
 func validateOvercommitConfig(setting *v1beta1.Setting) error {
-	if err := validateOvercommitConfigHelper("default", setting.Default); err != nil {
+	if err := validateOvercommitConfigHelper(settings.KeywordDefault, setting.Default); err != nil {
 		return err
 	}
 
-	return validateOvercommitConfigHelper("value", setting.Value)
+	return validateOvercommitConfigHelper(settings.KeywordValue, setting.Value)
 }
 
 func validateUpdateOvercommitConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
@@ -378,11 +372,11 @@ func validateVMForceResetPolicyHelper(value string) error {
 
 func validateVMForceResetPolicy(setting *v1beta1.Setting) error {
 	if err := validateVMForceResetPolicyHelper(setting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := validateVMForceResetPolicyHelper(setting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 
 	return nil
@@ -415,29 +409,29 @@ func (v *settingValidator) validateBackupTargetFields(target *settings.BackupTar
 	switch target.Type {
 	case settings.S3BackupType:
 		if target.SecretAccessKey == "" || target.AccessKeyID == "" {
-			return werror.NewInvalidError("S3 backup target should have access key and access key id", "value")
+			return werror.NewInvalidError("S3 backup target should have access key and access key id", settings.KeywordValue)
 		}
 
 		if target.BucketName == "" || target.BucketRegion == "" {
-			return werror.NewInvalidError("S3 backup target should have bucket name and region ", "value")
+			return werror.NewInvalidError("S3 backup target should have bucket name and region ", settings.KeywordValue)
 		}
 
 	case settings.NFSBackupType:
 		if target.Endpoint == "" {
-			return werror.NewInvalidError("NFS backup target should have endpoint", "value")
+			return werror.NewInvalidError("NFS backup target should have endpoint", settings.KeywordValue)
 		}
 
 		if target.SecretAccessKey != "" || target.AccessKeyID != "" {
-			return werror.NewInvalidError("NFS backup target should not have access key or access key id", "value")
+			return werror.NewInvalidError("NFS backup target should not have access key or access key id", settings.KeywordValue)
 		}
 
 		if target.BucketName != "" || target.BucketRegion != "" {
-			return werror.NewInvalidError("NFS backup target should not have bucket name or region", "value")
+			return werror.NewInvalidError("NFS backup target should not have bucket name or region", settings.KeywordValue)
 		}
 
 	default:
 		// do not check target.IsDefaultBackupTarget again, direct return error
-		return werror.NewInvalidError("Invalid backup target type", "value")
+		return werror.NewInvalidError("Invalid backup target type", settings.KeywordValue)
 	}
 
 	return nil
@@ -453,7 +447,7 @@ func validateBackupTargetHelper(setting *v1beta1.Setting) (*settings.BackupTarge
 	if setting.Default != "" {
 		defaultTarget, err := settings.DecodeBackupTarget(setting.Default)
 		if err != nil {
-			return nil, werror.NewInvalidError(err.Error(), "default")
+			return nil, werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 		}
 		target = defaultTarget
 	}
@@ -461,7 +455,7 @@ func validateBackupTargetHelper(setting *v1beta1.Setting) (*settings.BackupTarge
 	if setting.Value != "" {
 		valueTarget, err := settings.DecodeBackupTarget(setting.Value)
 		if err != nil {
-			return nil, werror.NewInvalidError(err.Error(), "value")
+			return nil, werror.NewInvalidError(err.Error(), settings.KeywordValue)
 		}
 		target = valueTarget
 	}
@@ -525,7 +519,7 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	// NFS: https://github.com/longhorn/backupstore/blob/56ddc538b85950b02c37432e4854e74f2647ca61/nfs/nfs.go#L46-L81
 	endpoint := util.ConstructEndpoint(target)
 	if _, err := backupstore.GetBackupStoreDriver(endpoint); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
 }
@@ -622,12 +616,12 @@ func validateNTPServersHelper(value string) error {
 func validateNTPServers(setting *v1beta1.Setting) error {
 	if err := validateNTPServersHelper(setting.Default); err != nil {
 		log.Errorf(err.Error())
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := validateNTPServersHelper(setting.Value); err != nil {
 		log.Errorf(err.Error())
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
 }
@@ -668,11 +662,11 @@ func validateVipPoolsConfigHelper(value string) error {
 
 func validateVipPoolsConfig(setting *v1beta1.Setting) error {
 	if err := validateVipPoolsConfigHelper(setting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := validateVipPoolsConfigHelper(setting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
 }
@@ -698,11 +692,11 @@ func validateSupportBundleTimeoutHelper(value string) error {
 
 func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
 	if err := validateSupportBundleTimeoutHelper(setting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := validateSupportBundleTimeoutHelper(setting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
 }
@@ -728,11 +722,11 @@ func validateSupportBundleExpirationHelper(value string) error {
 
 func validateSupportBundleExpiration(setting *v1beta1.Setting) error {
 	if err := validateSupportBundleExpirationHelper(setting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := validateSupportBundleExpirationHelper(setting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
 }
@@ -758,11 +752,11 @@ func validateSupportBundleNodeCollectionTimeoutHelper(value string) error {
 
 func validateSupportBundleNodeCollectionTimeout(setting *v1beta1.Setting) error {
 	if err := validateSupportBundleNodeCollectionTimeoutHelper(setting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := validateSupportBundleNodeCollectionTimeoutHelper(setting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
 }
@@ -803,10 +797,10 @@ func validateSSLCertificatesHelper(field, value string) error {
 }
 
 func validateSSLCertificates(setting *v1beta1.Setting) error {
-	if err := validateSSLCertificatesHelper("default", setting.Default); err != nil {
+	if err := validateSSLCertificatesHelper(settings.KeywordDefault, setting.Default); err != nil {
 		return err
 	}
-	return validateSSLCertificatesHelper("value", setting.Value)
+	return validateSSLCertificatesHelper(settings.KeywordValue, setting.Value)
 }
 
 func validateUpdateSSLCertificates(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
@@ -834,11 +828,11 @@ func validateSSLParametersHelper(field, value string) error {
 }
 
 func validateSSLParameters(setting *v1beta1.Setting) error {
-	if err := validateSSLParametersHelper("default", setting.Default); err != nil {
+	if err := validateSSLParametersHelper(settings.KeywordDefault, setting.Default); err != nil {
 		return err
 	}
 
-	if err := validateSSLParametersHelper("value", setting.Value); err != nil {
+	if err := validateSSLParametersHelper(settings.KeywordValue, setting.Value); err != nil {
 		return err
 	}
 
@@ -917,11 +911,11 @@ func validateSupportBundleImageHelper(value string) error {
 func validateSupportBundleImage(setting *v1beta1.Setting) error {
 	if setting.Default != "{}" {
 		if err := validateSupportBundleImageHelper(setting.Default); err != nil {
-			return werror.NewInvalidError(err.Error(), "default")
+			return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 		}
 	}
 	if err := validateSupportBundleImageHelper(setting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 
 	return nil
@@ -935,13 +929,13 @@ func (v *settingValidator) validateVolumeSnapshotClass(setting *v1beta1.Setting)
 	if setting.Default != "" {
 		_, err := v.snapshotClassCache.Get(setting.Default)
 		if err != nil {
-			return werror.NewInvalidError(err.Error(), "default")
+			return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 		}
 	}
 	if setting.Value != "" {
 		_, err := v.snapshotClassCache.Get(setting.Value)
 		if err != nil {
-			return werror.NewInvalidError(err.Error(), "value")
+			return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 		}
 	}
 	return nil
@@ -963,11 +957,11 @@ func validateContainerdRegistryHelper(value string) error {
 
 func validateContainerdRegistry(setting *v1beta1.Setting) error {
 	if err := validateContainerdRegistryHelper(setting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := validateContainerdRegistryHelper(setting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
 }
@@ -1001,11 +995,11 @@ func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) erro
 	}
 
 	if err := v.validateStorageNetworkHelper(setting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := v.validateStorageNetworkHelper(setting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 
 	return v.checkStorageNetworkValueVaild()
@@ -1021,11 +1015,11 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 	}
 
 	if err := v.validateStorageNetworkHelper(newSetting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := v.validateStorageNetworkHelper(newSetting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 
 	return v.checkStorageNetworkValueVaild()
@@ -1135,16 +1129,16 @@ func (v *settingValidator) checkStorageNetworkValueVaild() error {
 	for _, vm := range vms {
 		isStopped, err := vmUtil.IsVMStopped(vm, v.vmiCache)
 		if err != nil {
-			return werror.NewInvalidError(err.Error(), "value")
+			return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 		}
 
 		if !isStopped {
-			return werror.NewInvalidError("Please stop all VMs before configuring the storage-network setting", "value")
+			return werror.NewInvalidError("Please stop all VMs before configuring the storage-network setting", settings.KeywordValue)
 		}
 	}
 
 	if err := v.checkOnlineVolume(); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 
 	return nil
@@ -1187,11 +1181,11 @@ func validateDefaultVMTerminationGracePeriodSecondsHelper(value string) error {
 
 func validateDefaultVMTerminationGracePeriodSeconds(setting *v1beta1.Setting) error {
 	if err := validateDefaultVMTerminationGracePeriodSecondsHelper(setting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := validateDefaultVMTerminationGracePeriodSecondsHelper(setting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
 }
@@ -1224,11 +1218,11 @@ func validateAutoRotateRKE2CertsHelper(value string) error {
 
 func validateAutoRotateRKE2Certs(setting *v1beta1.Setting) error {
 	if err := validateAutoRotateRKE2CertsHelper(setting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := validateAutoRotateRKE2CertsHelper(setting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
 }
@@ -1259,11 +1253,11 @@ func validateKubeConfigTTLSettingHelper(value string) error {
 
 func validateKubeConfigTTLSetting(newSetting *v1beta1.Setting) error {
 	if err := validateKubeConfigTTLSettingHelper(newSetting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := validateKubeConfigTTLSettingHelper(newSetting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
 }
@@ -1331,11 +1325,11 @@ func validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting
 
 func validateAdditionalGuestMemoryOverheadRatio(newSetting *v1beta1.Setting) error {
 	if err := settings.ValidateAdditionalGuestMemoryOverheadRatioHelper(newSetting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), "default")
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
 	if err := settings.ValidateAdditionalGuestMemoryOverheadRatioHelper(newSetting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), "value")
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
 }

@@ -16,6 +16,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -52,7 +53,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			memory: nil,
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "256Mi"}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"896Mi"}}`, // 1Gi - 128Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"924Mi"}}`, // 1Gi - 100Mi
 			},
 			setting: "",
 		},
@@ -69,7 +70,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			memory: nil,
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "1Gi"}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"3687Mi"}}`, // 4Gi * 90%
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"3996Mi"}}`, // 4Gi - 100Mi
 			},
 			setting: "",
 		},
@@ -86,7 +87,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			memory: nil,
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "4Gi"}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"15Gi"}}`, // 16Gi - 1Gi
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"16284Mi"}}`, // 16Gi - 100Mi
 			},
 			setting: "",
 		},
@@ -116,7 +117,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			},
 			memory: nil,
 			patchOps: []string{
-				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"896Mi"}}`, // 1Gi - 128Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"924Mi"}}`, // 1Gi - 100Mi
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"500m","memory":"256Mi"}}`,
 			},
 		},
@@ -130,7 +131,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			},
 			memory: nil,
 			patchOps: []string{
-				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"896Mi"}}`, // 1Gi - 128Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"924Mi"}}`, // 1Gi - 100Mi
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"100m","memory":"102Mi"}}`,
 			},
 			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
@@ -147,7 +148,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 				Guest: resource.NewQuantity(int64(math.Pow(2, 40)), resource.BinarySI), // 1Ti
 			},
 			patchOps: []string{
-				`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "896Mi"}`, // 1Gi - 128Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "924Mi"}`, // 1Gi - 100Mi
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"100m","memory":"102Mi"}}`,
 			},
 			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
@@ -364,7 +365,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 
 			_, err = mutator.(*vmMutator).patchResourceOvercommit(vm)
 			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), "reservedMemory cannot be equal or greater than limits.memory")
+			assert.Contains(t, err.Error(), "reservedMemory can't be equal or greater than limits.memory")
 		})
 	}
 
@@ -404,6 +405,263 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			_, err = mutator.(*vmMutator).patchResourceOvercommit(vm)
 			assert.NotNil(t, err)
 			assert.Contains(t, err.Error(), "guest memory is under the minimum requirement")
+		})
+	}
+}
+
+func TestPatchResourceOvercommitWithAdditionalGuestMemoryOverheadRatio(t *testing.T) {
+	type testStruct struct {
+		name                 string
+		resourceReq          kubevirtv1.ResourceRequirements
+		memory               *kubevirtv1.Memory
+		patchOps             []string
+		overcommitSetting    string
+		overheadRatio        string
+		invalidOverheadRatio bool
+	}
+
+	tests1 := []testStruct{
+		{
+			name: "has invalid OvercommitWithAdditionalGuestMemoryOverheadRatio then use default reserved memory",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 32)), resource.BinarySI), // 4Gi
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(1000, resource.DecimalSI),
+				},
+			},
+			memory: nil,
+			patchOps: []string{
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "1Gi"}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"3996Mi"}}`, // 4Gi - 100Mi
+			},
+			overcommitSetting:    "",
+			overheadRatio:        "invalid",
+			invalidOverheadRatio: true,
+		},
+	}
+
+	tests2 := []testStruct{
+		{
+			name: "has invalid OvercommitWithAdditionalGuestMemoryOverheadRatioand and reserved memory annotation then use reserved memory annotation",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 33)), resource.BinarySI), // 8Gi
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(1000, resource.DecimalSI),
+				},
+			},
+			memory: nil,
+			patchOps: []string{
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "2Gi"}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"7Gi"}}`, // 8Gi - 1Gi
+			},
+			overcommitSetting:    "",
+			overheadRatio:        "invalid",
+			invalidOverheadRatio: true,
+		},
+	}
+
+	tests3 := []testStruct{
+		{
+			// has valid OvercommitWithAdditionalGuestMemoryOverheadRatio and no reserved memory annotation
+			name: "has valid OvercommitWithAdditionalGuestMemoryOverheadRatio 1",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 32)), resource.BinarySI), // 4Gi
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(1000, resource.DecimalSI),
+				},
+			},
+			memory: nil,
+			patchOps: []string{
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "1Gi"}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"4Gi"}}`, // 4Gi
+			},
+			overcommitSetting:    "",
+			overheadRatio:        settings.AdditionalGuestMemoryOverheadRatioDefault,
+			invalidOverheadRatio: false,
+		},
+	}
+
+	tests4 := []testStruct{
+		{
+			name: "has valid OvercommitWithAdditionalGuestMemoryOverheadRatio and reserved memory annotation then use reserved memory",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 32)), resource.BinarySI), // 4Gi
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(1000, resource.DecimalSI),
+				},
+			},
+			memory: nil,
+			patchOps: []string{
+				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "1Gi"}`,
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"3Gi"}}`, // 3Gi
+			},
+			overcommitSetting:    "",
+			overheadRatio:        settings.AdditionalGuestMemoryOverheadRatioDefault,
+			invalidOverheadRatio: false,
+		},
+	}
+
+	setConfig := func(c *fake.Clientset, tc *testStruct) {
+		setting := &harvesterv1.Setting{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: settings.OvercommitConfigSettingName,
+			},
+			Default: `{"cpu":200,"memory":400,"storage":800}`,
+		}
+		if tc.overcommitSetting != "" {
+			setting.Value = tc.overcommitSetting
+		}
+		err := c.Tracker().Add(setting)
+		assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+
+		// invalid AdditionalGuestMemoryOverheadRatioConfig
+		if tc.invalidOverheadRatio {
+			_, err := settings.NewAdditionalGuestMemoryOverheadRatioConfig(tc.overheadRatio)
+			assert.NotNil(t, err)
+		} else {
+			setting := &harvesterv1.Setting{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: settings.AdditionalGuestMemoryOverheadRatioName,
+				},
+				Default: settings.AdditionalGuestMemoryOverheadRatioDefault,
+			}
+			err := c.Tracker().Add(setting)
+			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+		}
+	}
+
+	// has invalid OvercommitWithAdditionalGuestMemoryOverheadRatio then use default reserved memory
+	for _, tc := range tests1 {
+		t.Run(tc.name, func(t *testing.T) {
+			// arrage
+			clientset := fake.NewSimpleClientset()
+			setConfig(clientset, &tc) // #nosec G601
+			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+			vm := &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{},
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: tc.resourceReq,
+								Memory:    tc.memory,
+							},
+						},
+					},
+				},
+			}
+
+			// act
+			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
+
+			// assert
+			assert.Nil(t, err, tc.name)
+			assert.Equal(t, tc.patchOps, actual)
+		})
+	}
+
+	// has invalid OvercommitWithAdditionalGuestMemoryOverheadRatioand and reserved memory annotation then use reserved memory annotation
+	for _, tc := range tests2 {
+		t.Run(tc.name, func(t *testing.T) {
+			// arrage
+			clientset := fake.NewSimpleClientset()
+			setConfig(clientset, &tc) // #nosec G601
+			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"harvesterhci.io/reservedMemory": "1Gi",
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{},
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: tc.resourceReq,
+								Memory:    tc.memory,
+							},
+						},
+					},
+				},
+			}
+
+			// act
+			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
+
+			// assert
+			assert.Nil(t, err, tc.name)
+			assert.Equal(t, tc.patchOps, actual)
+		})
+	}
+
+	// has valid OvercommitWithAdditionalGuestMemoryOverheadRatio and no reserved memory annotation
+	for _, tc := range tests3 {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			setConfig(clientset, &tc) // #nosec G601
+			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{},
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: tc.resourceReq,
+								Memory:    tc.memory,
+							},
+						},
+					},
+				},
+			}
+
+			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
+			assert.Nil(t, err, tc.name)
+			assert.Equal(t, tc.patchOps, actual)
+		})
+	}
+
+	// has valid OvercommitWithAdditionalGuestMemoryOverheadRatio and reserved memory annotation then use reserved memory
+	for _, tc := range tests4 {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			setConfig(clientset, &tc) // #nosec G601
+			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"harvesterhci.io/reservedMemory": "1Gi",
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{},
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: tc.resourceReq,
+								Memory:    tc.memory,
+							},
+						},
+					},
+				},
+			}
+
+			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
+			assert.Nil(t, err, tc.name)
+			assert.Equal(t, tc.patchOps, actual)
 		})
 	}
 }

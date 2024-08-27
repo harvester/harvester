@@ -90,6 +90,10 @@ const (
 	SupportBundleNodeCollectionTimeoutName            = "support-bundle-node-collection-timeout"
 	UpgradeConfigSettingName                          = "upgrade-config"
 	AdditionalGuestMemoryOverheadRatioName            = "additional-guest-memory-overhead-ratio"
+
+	// settings have `default` and `value` used in may places
+	KeywordDefault = "default"
+	KeywordValue   = "value"
 )
 
 func init() {
