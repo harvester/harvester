@@ -184,6 +184,8 @@ type BackupInfo struct {
 	Checksum          string
 	Labels            map[string]string
 	CompressionMethod string `json:",omitempty"`
+	Secret            string
+	SecretNamespace   string
 }
 
 func InspectBackupBackingImage(backupURL string) (*BackupInfo, error) {
@@ -217,5 +219,7 @@ func fillFullBackupBackingImageInfo(backupBackingImage *BackupBackingImage, dest
 		Checksum:          backupBackingImage.Checksum,
 		Labels:            backupBackingImage.Labels,
 		CompressionMethod: backupBackingImage.CompressionMethod,
+		Secret:            backupBackingImage.Secret,
+		SecretNamespace:   backupBackingImage.SecretNamespace,
 	}
 }

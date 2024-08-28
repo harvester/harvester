@@ -73,8 +73,8 @@ require (
 	github.com/kube-logging/logging-operator/pkg/sdk v0.9.1
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1
-	github.com/longhorn/backupstore v0.0.0-20240811043357-5c2b7879457f
-	github.com/longhorn/longhorn-manager v1.7.0-rc4
+	github.com/longhorn/backupstore v0.0.0-20240823072635-7afd6aa10d3e
+	github.com/longhorn/longhorn-manager v1.7.1-rc1
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.5.0
@@ -100,23 +100,23 @@ require (
 	github.com/tidwall/gjson v1.9.3
 	github.com/urfave/cli v1.22.15
 	go.uber.org/multierr v1.11.0
-	golang.org/x/crypto v0.25.0
-	golang.org/x/net v0.27.0
-	golang.org/x/sync v0.7.0
-	golang.org/x/text v0.16.0
+	golang.org/x/crypto v0.26.0
+	golang.org/x/net v0.28.0
+	golang.org/x/sync v0.8.0
+	golang.org/x/text v0.17.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.15.1
-	k8s.io/api v0.30.3
+	k8s.io/api v0.31.0
 	k8s.io/apiextensions-apiserver v0.30.1
-	k8s.io/apimachinery v0.30.3
+	k8s.io/apimachinery v0.31.0
 	k8s.io/apiserver v0.30.3
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/component-helpers v0.30.3
 	k8s.io/kube-openapi v0.30.0
 	k8s.io/kubectl v0.30.1
 	k8s.io/kubelet v0.26.13
-	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
+	k8s.io/utils v0.0.0-20240821151609-f90d01438635
 	kubevirt.io/api v1.1.1
 	kubevirt.io/client-go v1.1.1
 	kubevirt.io/containerized-data-importer-api v1.57.0-alpha1
@@ -140,7 +140,7 @@ require (
 	github.com/adrg/xdg v0.4.0 // indirect
 	github.com/alessio/shellescape v1.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
-	github.com/aws/aws-sdk-go v1.52.2 // indirect
+	github.com/aws/aws-sdk-go v1.55.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.12.0 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
@@ -223,13 +223,13 @@ require (
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
-	github.com/longhorn/backing-image-manager v1.7.0-rc3 // indirect
-	github.com/longhorn/go-common-libs v0.0.0-20240811024046-b6ddc3efb72e // indirect
+	github.com/longhorn/backing-image-manager v1.7.1-dev-20240825.0.20240827014225-8e6b2068cbe4 // indirect
+	github.com/longhorn/go-common-libs v0.0.0-20240821134112-907f57efd48f // indirect
 	github.com/longhorn/go-iscsi-helper v0.0.0-20240811043302-df8de353dd58 // indirect
-	github.com/longhorn/go-spdk-helper v0.0.0-20240811121608-9383fa59dd7c // indirect
-	github.com/longhorn/longhorn-engine v1.7.0-rc3 // indirect
-	github.com/longhorn/longhorn-instance-manager v1.7.0-rc3 // indirect
-	github.com/longhorn/longhorn-share-manager v1.7.0-rc3 // indirect
+	github.com/longhorn/go-spdk-helper v0.0.0-20240820144231-33c0873802ff // indirect
+	github.com/longhorn/longhorn-engine v1.7.1-dev-20240825.0.20240827003924-735156f051b5 // indirect
+	github.com/longhorn/longhorn-instance-manager v1.7.1-dev-20240825 // indirect
+	github.com/longhorn/longhorn-share-manager v1.7.0 // indirect
 	github.com/longhorn/types v0.0.0-20240725040629-473d671316c4 // indirect
 	github.com/machadovilaca/operator-observability v0.0.20 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -307,7 +307,7 @@ require (
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
 	golang.org/x/sys v0.24.0 // indirect
-	golang.org/x/term v0.22.0 // indirect
+	golang.org/x/term v0.23.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
@@ -322,10 +322,10 @@ require (
 	k8s.io/gengo v0.0.0-20240310015720-9cff6334dab4 // indirect
 	k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70 // indirect
 	k8s.io/klog v1.0.0 // indirect
-	k8s.io/klog/v2 v2.120.1 // indirect
+	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-aggregator v0.30.1 // indirect
 	k8s.io/kubernetes v1.30.3 // indirect
-	k8s.io/mount-utils v0.30.3 // indirect
+	k8s.io/mount-utils v0.31.0 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
 	modernc.org/libc v1.49.3 // indirect
