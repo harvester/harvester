@@ -10,6 +10,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	lhbackup "github.com/longhorn/go-common-libs/backup"
+
 	"github.com/longhorn/backupstore"
 	"github.com/longhorn/backupstore/common"
 	"github.com/longhorn/backupstore/types"
@@ -31,6 +33,8 @@ type BackupBackingImage struct {
 	CompressionMethod string
 	CreatedTime       string
 	CompleteTime      string
+	Secret            string
+	SecretNamespace   string
 
 	ProcessingBlocks *common.ProcessingBlocks
 
@@ -41,6 +45,7 @@ type BackupConfig struct {
 	Name            string
 	DestURL         string
 	ConcurrentLimit int32
+	Parameters      map[string]string
 }
 
 type RestoreConfig struct {
@@ -180,6 +185,8 @@ func performBackup(bsDriver backupstore.BackupStoreDriver, config *BackupConfig,
 	backupBackingImage.Blocks = common.SortBackupBlocks(backupBackingImage.Blocks, backupBackingImage.Size, mappings.BlockSize)
 	backupBackingImage.CompleteTime = util.Now()
 	backupBackingImage.BlockCount = totalBlockCounts
+	backupBackingImage.Secret = config.Parameters[lhbackup.LonghornBackupBackingImageParameterSecret]
+	backupBackingImage.SecretNamespace = config.Parameters[lhbackup.LonghornBackupBackingImageParameterSecretNamespace]
 	if err := saveBackingImageConfig(bsDriver, backupBackingImage); err != nil {
 		return progress.Progress, "", err
 	}
