@@ -109,7 +109,14 @@ type Backend interface {
 }
 
 type BackendFactory interface {
-	Create(volumeName, address string, dataServerProtocol DataServerProtocol, engineReplicaTimeout time.Duration) (Backend, error)
+	Create(volumeName, address string, dataServerProtocol DataServerProtocol,
+		sharedTimeouts SharedTimeouts) (Backend, error)
+}
+
+type SharedTimeouts interface {
+	Increment()
+	Decrement()
+	CheckAndDecrement(duration time.Duration) time.Duration
 }
 
 type Controller interface {

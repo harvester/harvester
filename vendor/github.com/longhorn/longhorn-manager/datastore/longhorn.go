@@ -471,6 +471,11 @@ func (s *DataStore) ValidateV2DataEngineEnabled(dataEngineEnabled bool) (ims []*
 				continue
 			}
 
+			if val, ok := node.Labels[types.NodeDisableV2DataEngineLabelKey]; ok && val == types.NodeDisableV2DataEngineLabelKeyTrue {
+				// V2 data engine is disabled on this node, don't worry about hugepages
+				continue
+			}
+
 			if dataEngineEnabled {
 				capacity, ok := node.Status.Capacity["hugepages-2Mi"]
 				if !ok {
@@ -617,6 +622,14 @@ func (s *DataStore) GetSettingExactRO(sName types.SettingName) (*longhorn.Settin
 	}
 
 	return resultRO, nil
+}
+
+func (s *DataStore) GetSettingApplied(sName types.SettingName) (bool, error) {
+	resultRO, err := s.getSettingRO(string(sName))
+	if err != nil {
+		return false, err
+	}
+	return resultRO.Status.Applied, nil
 }
 
 // GetSetting will automatically fill the non-existing setting if it's a valid
