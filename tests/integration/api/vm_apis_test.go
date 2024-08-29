@@ -267,11 +267,14 @@ var _ = Describe("verify vm APIs", func() {
 			_, err = vmController.Get(vmNamespace, vmName, metav1.GetOptions{})
 			MustNotError(err)
 
-			By("when deleting the virtual machine with removeDisks query parameter")
-			vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
-			queryParams := fmt.Sprintf("?removedDisks=%s", testVMRemoveDiskName)
-			respCode, respBody, err = helper.DeleteObject(vmURL + queryParams)
-			MustRespCodeIs(http.StatusOK, "delete action", err, respCode, respBody)
+			By("when deleting the virtual machine with removeDisks query parameter", func() {
+				vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
+				queryParams := fmt.Sprintf("?removedDisks=%s", testVMRemoveDiskName)
+				MustFinallyBeTrue(func() bool {
+					respCode, respBody, err = helper.DeleteObject(vmURL + queryParams)
+					return CheckRespCodeIs(http.StatusOK, "delete action", err, respCode, respBody)
+				}, 10*time.Second, 3*time.Second)
+			})
 
 			By("then the virtual machine is deleted")
 			MustVMDeleted(vmController, vmNamespace, vmName)
