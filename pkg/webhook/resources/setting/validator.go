@@ -243,6 +243,27 @@ func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
 		return err
 	}
 
+<<<<<<< HEAD
+=======
+func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	if setting.Default != "{}" {
+		if err := validateHTTPProxyHelper(setting.Default, nodes); err != nil {
+			return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+		}
+	}
+
+	// Validate the value only if it is not the default value.
+	if setting.Value != setting.Default {
+		if err := validateHTTPProxyHelper(setting.Value, nodes); err != nil {
+			return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+		}
+	}
+>>>>>>> b8d68360 (http-proxy doesn't allow it to be reset to its default value)
 	return nil
 }
 
