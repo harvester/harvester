@@ -17,7 +17,7 @@ import (
 	// Although we don't use following drivers directly, we need to import them to register drivers.
 	// NFS Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/nfs/nfs.go#L47-L51
 	// S3 Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/s3/s3.go#L33-L37
-	gocommon "github.com/harvester/go-common"
+	"github.com/harvester/go-common/ds"
 	"github.com/longhorn/backupstore"
 	_ "github.com/longhorn/backupstore/nfs" //nolint
 	_ "github.com/longhorn/backupstore/s3"  //nolint
@@ -290,7 +290,7 @@ func validateNoProxy(noProxy string, nodes []*corev1.Node) error {
 		}
 	}
 	// 2. Check if the node's IP addresses are set in 'noProxy'.
-	noProxyParts := gocommon.SliceMapFunc(strings.Split(noProxy, ","),
+	noProxyParts := ds.SliceMapFunc(strings.Split(noProxy, ","),
 		func(v string, _ int) string { return strings.TrimSpace(v) })
 	for _, part := range noProxyParts {
 		_, ipNet, err := net.ParseCIDR(part)
@@ -309,9 +309,9 @@ func validateNoProxy(noProxy string, nodes []*corev1.Node) error {
 			}
 		}
 	}
-	if slices.Index(gocommon.MapValues(foundMap), false) != -1 {
-		missedNodes := gocommon.MapFilterFunc(foundMap, func(v bool, _ string) bool { return v == false })
-		missedIPs := gocommon.MapKeys(missedNodes)
+	if slices.Index(ds.MapValues(foundMap), false) != -1 {
+		missedNodes := ds.MapFilterFunc(foundMap, func(v bool, _ string) bool { return v == false })
+		missedIPs := ds.MapKeys(missedNodes)
 		slices.Sort(missedIPs)
 		msg := fmt.Sprintf("noProxy should contain the node's IP addresses or CIDR. The node(s) %s are not covered.", strings.Join(missedIPs, ", "))
 		return werror.NewInvalidError(msg, "value")
@@ -600,7 +600,7 @@ func validateNTPServersHelper(value string) error {
 		}
 	}
 
-	duplicates := gocommon.SliceFindDuplicates(ntpSettings.NTPServers)
+	duplicates := ds.SliceFindDuplicates(ntpSettings.NTPServers)
 	if len(duplicates) > 0 {
 		errMsg := fmt.Sprintf("duplicate NTP server: %v", duplicates)
 		logrus.Errorf(errMsg)
