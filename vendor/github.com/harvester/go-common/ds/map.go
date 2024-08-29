@@ -1,4 +1,4 @@
-package gocommon
+package ds
 
 // MapFilterFunc iterates over elements of map, returning a map of all elements
 // the function f returns truthy for. The function f is invoked with three

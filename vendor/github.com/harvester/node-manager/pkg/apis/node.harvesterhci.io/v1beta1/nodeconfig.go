@@ -22,10 +22,16 @@ type NodeConfig struct {
 }
 
 type NodeConfigSpec struct {
-	NTPConfig *NTPConfig `json:"ntpConfigs,omitempty"`
+	NTPConfig      *NTPConfig      `json:"ntpConfigs,omitempty"`
+	LonghornConfig *LonghornConfig `json:"longhornConfig,omitempty"`
 }
+
 type NTPConfig struct {
 	NTPServers string `json:"ntpServers"`
+}
+
+type LonghornConfig struct {
+	EnableV2DataEngine bool `json:"enableV2DataEngine,omitempty"`
 }
 
 type NodeConfigStatus struct {
