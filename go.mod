@@ -64,9 +64,9 @@ require (
 	github.com/gobuffalo/flect v1.0.2
 	github.com/gorilla/mux v1.8.1
 	github.com/guonaihong/gout v0.1.3
-	github.com/harvester/go-common v0.0.0-20240627083535-c1208a490f89
+	github.com/harvester/go-common v0.0.0-20240822134235-198df47889ca
 	github.com/harvester/harvester-network-controller v0.3.1
-	github.com/harvester/node-manager v0.3.0
+	github.com/harvester/node-manager v0.3.1
 	github.com/iancoleman/strcase v0.2.0
 	github.com/k3s-io/helm-controller v0.16.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.3.0
@@ -150,7 +150,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/containerd/containerd v1.7.12 // indirect
-	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -184,7 +183,6 @@ require (
 	github.com/go-openapi/swag v0.22.10 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
-	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/glog v1.2.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -266,7 +264,7 @@ require (
 	github.com/prometheus/client_golang v1.18.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.47.0 // indirect
-	github.com/prometheus/procfs v0.12.0 // indirect
+	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rancher/aks-operator v1.9.0-rc.9 // indirect
 	github.com/rancher/eks-operator v1.9.0-rc.9 // indirect
 	github.com/rancher/gke-operator v1.9.0-rc.8 // indirect
