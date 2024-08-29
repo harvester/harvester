@@ -21,16 +21,21 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/storage/names"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	apiutil "github.com/harvester/harvester/pkg/api/util"
 	volumeapi "github.com/harvester/harvester/pkg/api/volume"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/builder"
@@ -80,6 +85,8 @@ type vmActionHandler struct {
 	vmImages                  ctlharvesterv1.VirtualMachineImageClient
 	vmImageCache              ctlharvesterv1.VirtualMachineImageCache
 	storageClassCache         ctlstoragev1.StorageClassCache
+	resourceQuotaClient       ctlharvesterv1.ResourceQuotaClient
+	clientSet                 kubernetes.Clientset
 }
 
 func (h vmActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -100,6 +107,11 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 	action := vars["action"]
 	namespace := vars["namespace"]
 	name := vars["name"]
+
+	user, ok := request.UserFrom(r.Context())
+	if !ok {
+		return apierror.NewAPIError(validation.Unauthorized, "failed to get user from request")
+	}
 
 	switch action {
 	case ejectCdRom:
@@ -227,6 +239,24 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 		}
 	case dismissInsufficientResourceQuota:
 		return h.dismissInsufficientResourceQuota(name, namespace)
+	case updateResourceQuotaAction:
+		if ok, err := apiutil.CanUpdateResourceQuota(h.clientSet, namespace, user.GetName()); err != nil {
+			return apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to check permission: %v", err))
+		} else if !ok {
+			return apierror.NewAPIError(validation.PermissionDenied, "User does not have permission to update resource quota")
+		}
+		var updateResourceQuotaInput UpdateResourceQuotaInput
+		if err := json.NewDecoder(r.Body).Decode(&updateResourceQuotaInput); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v ", err))
+		}
+		return h.updateResourceQuota(namespace, name, updateResourceQuotaInput)
+	case deleteResourceQuotaAction:
+		if ok, err := apiutil.CanUpdateResourceQuota(h.clientSet, namespace, user.GetName()); err != nil {
+			return apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to check permission: %v", err))
+		} else if !ok {
+			return apierror.NewAPIError(validation.PermissionDenied, "User does not have permission to update resource quota")
+		}
+		return h.deleteResourceQuota(namespace, name)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -1372,4 +1402,72 @@ func convertNodeSelectorRequirementToSelector(req corev1.NodeSelectorRequirement
 	default:
 		return &labels.Requirement{}, fmt.Errorf("unsupported operator: %v", req.Operator)
 	}
+}
+
+func (h *vmActionHandler) updateResourceQuota(namespace, name string, input UpdateResourceQuotaInput) error {
+	totalSnapshotSizeQuotaQuantity, err := resource.ParseQuantity(input.TotalSnapshotSizeQuota)
+	if err != nil {
+		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to parse totalSnapshotSizeQuota: %v", err))
+	}
+	totalSnapshotSizeQuotaInt64, ok := totalSnapshotSizeQuotaQuantity.AsInt64()
+	if !ok {
+		return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to parse totalSnapshotSizeQuota as int64")
+	}
+
+	resourceQuota, err := h.resourceQuotaClient.Get(namespace, util.DefaultResourceQuotaName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			if totalSnapshotSizeQuotaInt64 == 0 {
+				return nil
+			}
+			resourceQuota = &harvesterv1.ResourceQuota{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace,
+					Name:      util.DefaultResourceQuotaName,
+				},
+				Spec: harvesterv1.ResourceQuotaSpec{
+					SnapshotLimit: harvesterv1.SnapshotLimit{
+						VMTotalSnapshotSizeQuota: map[string]int64{
+							name: totalSnapshotSizeQuotaInt64,
+						},
+					},
+				},
+			}
+			_, err = h.resourceQuotaClient.Create(resourceQuota)
+			return err
+		}
+		return err
+	}
+
+	resourceQuotaCopy := resourceQuota.DeepCopy()
+	if resourceQuotaCopy.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota == nil {
+		resourceQuotaCopy.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota = map[string]int64{}
+	}
+	resourceQuotaCopy.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota[name] = totalSnapshotSizeQuotaInt64
+	if !reflect.DeepEqual(resourceQuota, resourceQuotaCopy) {
+		_, err = h.resourceQuotaClient.Update(resourceQuotaCopy)
+		return err
+	}
+	return nil
+}
+
+func (h *vmActionHandler) deleteResourceQuota(namespace, name string) error {
+	resourceQuota, err := h.resourceQuotaClient.Get(namespace, util.DefaultResourceQuotaName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	resourceQuotaCopy := resourceQuota.DeepCopy()
+	if resourceQuotaCopy.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota == nil {
+		return nil
+	}
+	delete(resourceQuotaCopy.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota, name)
+	if !reflect.DeepEqual(resourceQuota, resourceQuotaCopy) {
+		_, err = h.resourceQuotaClient.Update(resourceQuotaCopy)
+		return err
+	}
+	return nil
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/namespace"
 	"github.com/harvester/harvester/pkg/webhook/resources/node"
 	"github.com/harvester/harvester/pkg/webhook/resources/persistentvolumeclaim"
+	"github.com/harvester/harvester/pkg/webhook/resources/resourcequota"
 	"github.com/harvester/harvester/pkg/webhook/resources/setting"
 	"github.com/harvester/harvester/pkg/webhook/resources/storageclass"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
@@ -26,6 +27,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinebackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineimage"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinerestore"
+	"github.com/harvester/harvester/pkg/webhook/resources/volumesnapshot"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	"github.com/harvester/harvester/pkg/webhook/util"
 )
@@ -82,6 +84,8 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache(),
 			clients.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
+			clients.LonghornFactory.Longhorn().V1beta2().Engine().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota().Cache(),
 		),
 		virtualmachinerestore.NewValidator(
 			clients.Core.Namespace().Cache(),
@@ -119,6 +123,13 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		namespace.NewValidator(clients.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()),
 		addon.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache()),
 		version.NewValidator(),
+		volumesnapshot.NewValidator(
+			clients.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
+			clients.LonghornFactory.Longhorn().V1beta2().Engine().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
+		),
+		resourcequota.NewValidator(),
 	}
 
 	router := webhook.NewRouter()
