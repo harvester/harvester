@@ -228,28 +228,46 @@ func validateDeleteSetting(oldObj runtime.Object) error {
 	return nil
 }
 
-func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
-	if setting.Value == "" {
+func validateHTTPProxyHelper(value string, nodes []*corev1.Node) error {
+	if value == "" {
 		return nil
 	}
 
 	httpProxyConfig := &util.HTTPProxyConfig{}
-	if err := json.Unmarshal([]byte(setting.Value), httpProxyConfig); err != nil {
-		message := fmt.Sprintf("failed to unmarshal the setting value, %v", err)
-		return werror.NewInvalidError(message, "value")
-	}
-
-	// Make sure the node's IP addresses is set in 'noProxy'. These IP
-	// addresses can be specified individually or via CIDR address.
-	nodes, err := v.nodeCache.List(labels.Everything())
-	if err != nil {
-		return werror.NewInvalidError(err.Error(), "")
-	}
-	err = validateNoProxy(httpProxyConfig.NoProxy, nodes)
-	if err != nil {
+	if err := json.Unmarshal([]byte(value), httpProxyConfig); err != nil {
 		return err
 	}
 
+	// Make sure the node's IP addresses are set in `NoProxy` if `HTTPProxy`
+	// or `HTTPSProxy` are configured. These IP addresses can be specified
+	// individually or via CIDR address.
+	if httpProxyConfig.HTTPProxy != "" || httpProxyConfig.HTTPSProxy != "" {
+		err := validateNoProxy(httpProxyConfig.NoProxy, nodes)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	if setting.Default != "{}" {
+		if err := validateHTTPProxyHelper(setting.Default, nodes); err != nil {
+			return werror.NewInvalidError(err.Error(), "default")
+		}
+	}
+
+	// Validate the value only if it is not the default value.
+	if setting.Value != setting.Default {
+		if err := validateHTTPProxyHelper(setting.Value, nodes); err != nil {
+			return werror.NewInvalidError(err.Error(), "value")
+		}
+	}
 	return nil
 }
 
