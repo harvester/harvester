@@ -52,6 +52,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	vmImages := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	storageClasses := scaled.StorageFactory.Storage().V1().StorageClass()
 	nads := scaled.CniFactory.K8s().V1().NetworkAttachmentDefinition()
+	resourceQuotas := scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota()
 
 	copyConfig := rest.CopyConfig(server.RESTConfig)
 	copyConfig.GroupVersion = &kubevirtSubResouceGroupVersion
@@ -90,11 +91,14 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		vmImages:                  vmImages,
 		vmImageCache:              vmImages.Cache(),
 		storageClassCache:         storageClasses.Cache(),
+		resourceQuotaClient:       resourceQuotas,
+		clientSet:                 *scaled.Management.ClientSet,
 	}
 
 	vmformatter := vmformatter{
 		vmiCache:      vmis.Cache(),
 		vmBackupCache: backups.Cache(),
+		clientSet:     *scaled.Management.ClientSet,
 	}
 
 	vmStore := &vmStore{
@@ -127,6 +131,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				cloneVM:                          &actionHandler,
 				forceStopVM:                      &actionHandler,
 				dismissInsufficientResourceQuota: &actionHandler,
+				updateResourceQuotaAction:        &actionHandler,
+				deleteResourceQuotaAction:        &actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
 				startVM:    {},
@@ -163,6 +169,10 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				},
 				forceStopVM:                      {},
 				dismissInsufficientResourceQuota: {},
+				updateResourceQuotaAction: {
+					Input: "updateResourceQuotaInput",
+				},
+				deleteResourceQuotaAction: {},
 			}
 		},
 		Formatter: vmformatter.formatter,

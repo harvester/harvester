@@ -118,4 +118,6 @@ const (
 	AWSEndpoints       = "AWS_ENDPOINTS"
 	AWSCERT            = "AWS_CERT"
 	VirtualHostedStyle = "VIRTUAL_HOSTED_STYLE"
+
+	DefaultResourceQuotaName = "default-resource-quota"
 )
