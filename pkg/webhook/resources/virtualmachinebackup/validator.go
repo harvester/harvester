@@ -6,17 +6,20 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
 )
 
 const (
@@ -29,22 +32,28 @@ func NewValidator(
 	setting ctlharvesterv1.SettingCache,
 	vmrestores ctlharvesterv1.VirtualMachineRestoreCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
+	engineCache ctllonghornv1.EngineCache,
+	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache,
 ) types.Validator {
 	return &virtualMachineBackupValidator{
-		vms:        vms,
-		setting:    setting,
-		vmrestores: vmrestores,
-		pvcCache:   pvcCache,
+		vms:                vms,
+		setting:            setting,
+		vmrestores:         vmrestores,
+		pvcCache:           pvcCache,
+		engineCache:        engineCache,
+		resourceQuotaCache: resourceQuotaCache,
 	}
 }
 
 type virtualMachineBackupValidator struct {
 	types.DefaultValidator
 
-	vms        ctlkubevirtv1.VirtualMachineCache
-	setting    ctlharvesterv1.SettingCache
-	vmrestores ctlharvesterv1.VirtualMachineRestoreCache
-	pvcCache   ctlcorev1.PersistentVolumeClaimCache
+	vms                ctlkubevirtv1.VirtualMachineCache
+	setting            ctlharvesterv1.SettingCache
+	vmrestores         ctlharvesterv1.VirtualMachineRestoreCache
+	pvcCache           ctlcorev1.PersistentVolumeClaimCache
+	engineCache        ctllonghornv1.EngineCache
+	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache
 }
 
 func (v *virtualMachineBackupValidator) Resource() types.Resource {
@@ -76,6 +85,9 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 		vm, err := v.vms.Get(newVMBackup.Namespace, newVMBackup.Spec.Source.Name)
 		if err != nil {
 			return werror.NewInvalidError(err.Error(), fieldSourceName)
+		}
+		if err = v.checkTotalSnapshotSize(vm); err != nil {
+			return err
 		}
 		if err = v.checkBackupVolumeSnapshotClass(vm, newVMBackup); err != nil {
 			return werror.NewInvalidError(err.Error(), fieldSourceName)
@@ -174,6 +186,27 @@ func (v *virtualMachineBackupValidator) Delete(_ *types.Request, obj runtime.Obj
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func (v *virtualMachineBackupValidator) checkTotalSnapshotSize(vm *kubevirtv1.VirtualMachine) error {
+	resourceQuota, err := v.resourceQuotaCache.Get(vm.Namespace, util.DefaultResourceQuotaName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return werror.NewInternalError(fmt.Sprintf("failed to get resource quota %s/%s, err: %s", vm.Namespace, util.DefaultResourceQuotaName, err))
+	}
+
+	if resourceQuota.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota != nil {
+		if err := webhookutil.CheckTotalSnapshotSizeOnVM(v.pvcCache, v.engineCache, vm, resourceQuota.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota[vm.Name]); err != nil {
+			return err
+		}
+	}
+
+	if err := webhookutil.CheckTotalSnapshotSizeOnNamespace(v.pvcCache, v.engineCache, vm.Namespace, resourceQuota.Spec.SnapshotLimit.NamespaceTotalSnapshotSizeQuota); err != nil {
+		return err
 	}
 	return nil
 }

@@ -46,3 +46,7 @@ type CloneInput struct {
 type FindMigratableNodesOutput struct {
 	Nodes []string `json:"nodes"`
 }
+
+type UpdateResourceQuotaInput struct {
+	TotalSnapshotSizeQuota string `json:"totalSnapshotSizeQuota"`
+}
