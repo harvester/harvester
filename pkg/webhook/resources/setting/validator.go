@@ -262,8 +262,11 @@ func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
 		}
 	}
 
-	if err := validateHTTPProxyHelper(setting.Value, nodes); err != nil {
-		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	// Validate the value only if it is not the default value.
+	if setting.Value != setting.Default {
+		if err := validateHTTPProxyHelper(setting.Value, nodes); err != nil {
+			return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+		}
 	}
 	return nil
 }
