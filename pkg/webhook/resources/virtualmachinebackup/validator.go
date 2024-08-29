@@ -5,7 +5,6 @@ import (
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -81,7 +80,7 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 
 	// If VMBackup is from metadata in backup target, we don't check whether the VM is existent,
 	// because the related VM may not exist in a new cluster.
-	if newVMBackup.Status == nil {
+	if newVMBackup.Namespace != "" && newVMBackup.Spec.Source.Name != "" {
 		vm, err := v.vms.Get(newVMBackup.Namespace, newVMBackup.Spec.Source.Name)
 		if err != nil {
 			return werror.NewInvalidError(err.Error(), fieldSourceName)
@@ -175,16 +174,12 @@ func (v *virtualMachineBackupValidator) Delete(_ *types.Request, obj runtime.Obj
 		return fmt.Errorf("can't get vmrestores from index %s with vmbackup %s/%s, err: %w", indexeres.VMRestoreByVMBackupNamespaceAndName, vmBackup.Namespace, vmBackup.Name, err)
 	}
 	for _, vmRestore := range vmRestores {
-		if vmRestore.DeletionTimestamp != nil || vmRestore.Status == nil {
+		if vmRestore.DeletionTimestamp != nil {
 			continue
 		}
-		for _, cond := range vmRestore.Status.Conditions {
-			// we use the same condition for backup and restore
-			if cond.Type == v1beta1.BackupConditionProgressing {
-				if cond.Status == corev1.ConditionTrue {
-					return fmt.Errorf("vmrestore %s/%s is in progress", vmRestore.Namespace, vmRestore.Name)
-				}
-			}
+		// we use the same condition for backup and restore
+		if v1beta1.BackupConditionProgressing.IsTrue(vmRestore) {
+			return fmt.Errorf("vmrestore %s/%s is in progress", vmRestore.Namespace, vmRestore.Name)
 		}
 	}
 	return nil
