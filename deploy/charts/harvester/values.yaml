@@ -456,12 +456,12 @@ harvester-load-balancer:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/harvester-load-balancer
-    tag: v0.4.0
+    tag: v0.4.1
   webhook:
     image:
       imagePullPolicy: IfNotPresent
       repository: rancher/harvester-load-balancer-webhook
-      tag: v0.4.0
+      tag: v0.4.1
 
 kube-vip:
   enabled: false
