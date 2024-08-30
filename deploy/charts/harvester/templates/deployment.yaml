@@ -160,6 +160,13 @@ spec:
       serviceAccountName: harvester
       affinity:
 {{ include "harvester.apiAffinity" (dict "root" . "component" "webhook-server") | indent 8 }}
+      tolerations:
+      - effect: NoExecute
+        key: node.kubernetes.io/unreachable
+        operator: Exists
+      - effect: NoSchedule
+        key: node.kubernetes.io/unreachable
+        operator: Exists
       containers:
       - env:
         - name: HARVESTER_WEBHOOK_SERVER_HTTPS_PORT
