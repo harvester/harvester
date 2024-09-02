@@ -18,7 +18,16 @@ const (
 func (h *Handler) syncHTTPProxy(setting *harvesterv1.Setting) error {
 	// Add envs to the backup secret used by Longhorn backups
 	var httpProxyConfig util.HTTPProxyConfig
-	if err := json.Unmarshal([]byte(setting.Value), &httpProxyConfig); err != nil {
+	value := setting.Value
+	if value == "" {
+		value = setting.Default
+		// We need to check again because `Default` is allowed to be empty
+		// as well.
+		if value == "" {
+			value = "{}"
+		}
+	}
+	if err := json.Unmarshal([]byte(value), &httpProxyConfig); err != nil {
 		return err
 	}
 	backupConfig := map[string]string{
