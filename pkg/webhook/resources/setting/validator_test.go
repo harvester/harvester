@@ -351,6 +351,114 @@ func Test_validateNoProxy_2(t *testing.T) {
 	}
 }
 
+func Test_validateHTTPProxyHelper(t *testing.T) {
+	nodes := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node0",
+			},
+			Status: corev1.NodeStatus{
+				Addresses: []corev1.NodeAddress{
+					{
+						Type:    corev1.NodeInternalIP,
+						Address: "192.168.0.30",
+					},
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node1",
+			},
+			Status: corev1.NodeStatus{
+				Addresses: []corev1.NodeAddress{
+					{
+						Type:    corev1.NodeInternalIP,
+						Address: "192.168.0.31",
+					},
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node2",
+			},
+			Status: corev1.NodeStatus{
+				Addresses: []corev1.NodeAddress{
+					{
+						Type:    corev1.NodeInternalIP,
+						Address: "192.168.0.32",
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		value       string
+		expectedErr bool
+	}{
+		{
+			name:        "empty string",
+			value:       "",
+			expectedErr: false,
+		},
+		{
+			name:        "empty JSON object",
+			value:       "{}",
+			expectedErr: false,
+		},
+		{
+			name:        "empty httpProxy/httpsProxy/noProxy",
+			value:       `{"httpProxy": "", "httpsProxy": "", "noProxy": ""}`,
+			expectedErr: false,
+		},
+		{
+			name:        "empty httpProxy/httpsProxy",
+			value:       `{"httpProxy": "", "httpsProxy": "", "noProxy": "xyz"}`,
+			expectedErr: false,
+		},
+		{
+			name:        "not empty httpProxy/noProxy - failure",
+			value:       `{"httpProxy": "foo", "httpsProxy": "", "noProxy": "xyz"}`,
+			expectedErr: true,
+		},
+		{
+			name:        "not empty httpsProxy/noProxy - failure",
+			value:       `{"httpProxy": "", "httpsProxy": "bar", "noProxy": "xyz"}`,
+			expectedErr: true,
+		},
+		{
+			name:        "not empty httpProxy/httpsProxy/noProxy - failure",
+			value:       `{"httpProxy": "foo", "httpsProxy": "bar", "noProxy": "xyz"}`,
+			expectedErr: true,
+		},
+		{
+			name:        "not empty httpProxy/noProxy - success",
+			value:       `{"httpProxy": "foo", "httpsProxy": "", "noProxy": "192.168.0.0/24"}`,
+			expectedErr: false,
+		},
+		{
+			name:        "not empty httpsProxy/noProxy - success",
+			value:       `{"httpProxy": "", "httpsProxy": "bar", "noProxy": "192.168.0.0/24"}`,
+			expectedErr: false,
+		},
+		{
+			name:        "not empty httpProxy/httpsProxy/noProxy - success",
+			value:       `{"httpProxy": "foo", "httpsProxy": "bar", "noProxy": "192.168.0.0/24"}`,
+			expectedErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateHTTPProxyHelper(tt.value, nodes)
+			assert.Equal(t, tt.expectedErr, err != nil)
+		})
+	}
+}
+
 func Test_validateKubeconfigTTLSetting(t *testing.T) {
 	tests := []struct {
 		name        string

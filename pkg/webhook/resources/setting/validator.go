@@ -232,6 +232,7 @@ func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
 		return werror.NewInvalidError(message, "value")
 	}
 
+<<<<<<< HEAD
 	// Make sure the node's IP addresses is set in 'noProxy'. These IP
 	// addresses can be specified individually or via CIDR address.
 	nodes, err := v.nodeCache.List(labels.Everything())
@@ -241,6 +242,16 @@ func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
 	err = validateNoProxy(httpProxyConfig.NoProxy, nodes)
 	if err != nil {
 		return err
+=======
+	// Make sure the node's IP addresses are set in `NoProxy` if `HTTPProxy`
+	// or `HTTPSProxy` are configured. These IP addresses can be specified
+	// individually or via CIDR address.
+	if httpProxyConfig.HTTPProxy != "" || httpProxyConfig.HTTPSProxy != "" {
+		err := validateNoProxy(httpProxyConfig.NoProxy, nodes)
+		if err != nil {
+			return err
+		}
+>>>>>>> 09fdcc53 (Validate `NoProxy` only if `HTTPProxy` or `HTTPSProxy` are configured)
 	}
 
 <<<<<<< HEAD
