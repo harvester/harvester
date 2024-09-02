@@ -241,11 +241,14 @@ func validateHTTPProxyHelper(value string, nodes []*corev1.Node) error {
 		return err
 	}
 
-	// Make sure the node's IP addresses is set in 'noProxy'. These IP
-	// addresses can be specified individually or via CIDR address.
-	err := validateNoProxy(httpProxyConfig.NoProxy, nodes)
-	if err != nil {
-		return err
+	// Make sure the node's IP addresses are set in `NoProxy` if `HTTPProxy`
+	// or `HTTPSProxy` are configured. These IP addresses can be specified
+	// individually or via CIDR address.
+	if httpProxyConfig.HTTPProxy != "" || httpProxyConfig.HTTPSProxy != "" {
+		err := validateNoProxy(httpProxyConfig.NoProxy, nodes)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
