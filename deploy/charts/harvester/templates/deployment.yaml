@@ -144,6 +144,10 @@ metadata:
     app.kubernetes.io/name: harvester-webhook
     app.kubernetes.io/component: webhook-server
 spec:
+{{- if .Values.webhook.strategy }}
+  strategy:
+{{ toYaml .Values.webhook.strategy | indent 4 }}
+{{- end }}
   selector:
     matchLabels:
 {{ include "harvester.immutableLabels" . | indent 6 }}
