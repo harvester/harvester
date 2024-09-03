@@ -143,8 +143,8 @@ tolerations: []
 ##
 strategy:
   rollingUpdate:
-    maxSurge: 2
-    maxUnavailable: 2
+    maxSurge: 1
+    maxUnavailable: 1
   type: RollingUpdate
 
 ## Specify the parameter of containers.
@@ -444,6 +444,13 @@ webhook:
     tag: v1.3-head
 
   httpsPort: 9443
+
+  ## Specify the update strategy of the harvester-webhook workload.
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
 
 upgrade:
   image:
