@@ -8,6 +8,7 @@ import (
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 )
@@ -19,6 +20,8 @@ const (
 	VMBackupSnapshotByPVCNamespaceAndName = "harvesterhci.io/vmbackup-snapshot-by-pvc-namespace-and-name"
 	VolumeByReplicaCountIndex             = "harvesterhci.io/volume-by-replica-count"
 	ImageByExportSourcePVCIndex           = "harvesterhci.io/image-by-export-source-pvc"
+	ScheduleVMBackupBySourceVM            = "harvesterhci.io/svmbackup-by-source-vm"
+	ScheduleVMBackupByCronGranularity     = "harvesterhci.io/svmbackup-by-cron-granularity"
 )
 
 func RegisterIndexers(clients *clients.Clients) {
@@ -41,6 +44,10 @@ func RegisterIndexers(clients *clients.Clients) {
 
 	vmInformer := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	vmInformer.AddIndexer(indexeresutil.VMByPVCIndex, indexeresutil.VMByPVC)
+
+	svmBackupCache := clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache()
+	svmBackupCache.AddIndexer(ScheduleVMBackupBySourceVM, scheduleVMBackupBySourceVM)
+	svmBackupCache.AddIndexer(ScheduleVMBackupByCronGranularity, scheduleVMBackupByCronGranularity)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
@@ -89,4 +96,21 @@ func imageByExportSourcePVC(obj *harvesterv1.VirtualMachineImage) ([]string, err
 	}
 
 	return []string{fmt.Sprintf("%s/%s", obj.Spec.PVCNamespace, obj.Spec.PVCName)}, nil
+}
+
+func scheduleVMBackupBySourceVM(obj *harvesterv1.ScheduleVMBackup) ([]string, error) {
+	return []string{fmt.Sprintf("%s/%s", obj.Namespace, obj.Spec.VMBackupSpec.Source.Name)}, nil
+}
+
+func scheduleVMBackupByCronGranularity(obj *harvesterv1.ScheduleVMBackup) ([]string, error) {
+	if obj == nil {
+		return []string{}, nil
+	}
+
+	granularity, err := util.GetCronGranularity(obj)
+	if err != nil {
+		return []string{}, err
+	}
+
+	return []string{granularity.String()}, nil
 }

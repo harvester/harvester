@@ -51,6 +51,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.FromGV(harvesterv1.SchemeGroupVersion, "Preference", harvesterv1.Preference{}),
 			crd.FromGV(harvesterv1.SchemeGroupVersion, "SupportBundle", harvesterv1.SupportBundle{}),
 			crd.FromGV(harvesterv1.SchemeGroupVersion, "ResourceQuota", harvesterv1.ResourceQuota{}),
+			crd.FromGV(harvesterv1.SchemeGroupVersion, "ScheduleVMBackup", harvesterv1.ScheduleVMBackup{}),
 			// The BackingImage struct is not compatible with wrangler schemas generation, pass nil as the workaround.
 			// The expected CRD will be applied by Longhorn chart.
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "BackingImage", nil),
@@ -58,6 +59,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Backup", lhv1beta2.Backup{}),
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "BackupBackingImage", lhv1beta2.BackupBackingImage{}),
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Engine", lhv1beta2.Engine{}),
+			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Snapshot", lhv1beta2.Snapshot{}),
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Volume", lhv1beta2.Volume{}),
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Setting", lhv1beta2.Setting{}),
 			crd.FromGV(provisioningv1.SchemeGroupVersion, "Cluster", provisioningv1.Cluster{}),

@@ -36,6 +36,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		backingImages:     backingImages,
 		backingImageCache: backingImages.Cache(),
 	}
+
 	images.OnChange(ctx, vmImageControllerName, vmImageHandler.OnChanged)
 	images.OnRemove(ctx, vmImageControllerName, vmImageHandler.OnRemove)
 
