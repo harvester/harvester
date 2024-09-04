@@ -17,6 +17,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/nodedrain"
 	"github.com/harvester/harvester/pkg/controller/master/rancher"
+	"github.com/harvester/harvester/pkg/controller/master/schedulevmbackup"
 	"github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle"
@@ -54,6 +55,7 @@ var registerFuncs = []registerFunc{
 	storagenetwork.Register,
 	nodedrain.Register,
 	mcmsettings.Register,
+	schedulevmbackup.Register,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {
