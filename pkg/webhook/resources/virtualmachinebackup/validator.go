@@ -65,6 +65,7 @@ func (v *virtualMachineBackupValidator) Resource() types.Resource {
 		ObjectType: &v1beta1.VirtualMachineBackup{},
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Create,
+			admissionregv1.Update,
 			admissionregv1.Delete,
 		},
 	}
@@ -162,6 +163,20 @@ func (v *virtualMachineBackupValidator) checkBackupTarget() error {
 
 	if backupTarget.IsDefaultBackupTarget() {
 		return fmt.Errorf("backup target is not set")
+	}
+
+	return nil
+}
+
+func (v *virtualMachineBackupValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+	newVMBackup := newObj.(*v1beta1.VirtualMachineBackup)
+	oldVMBackup := oldObj.(*v1beta1.VirtualMachineBackup)
+
+	oldAnnotations := oldVMBackup.GetAnnotations()
+	newAnnotations := newVMBackup.GetAnnotations()
+
+	if oldAnnotations[util.AnnotationSVMBackupID] != newAnnotations[util.AnnotationSVMBackupID] {
+		return werror.NewBadRequest(fmt.Sprintf("annotation %s isn't allowed for updating", util.AnnotationSVMBackupID))
 	}
 
 	return nil

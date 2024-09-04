@@ -19,6 +19,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/controller-gen/args"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -50,6 +51,7 @@ func main() {
 					harvesterv1.SupportBundle{},
 					harvesterv1.Addon{},
 					harvesterv1.ResourceQuota{},
+					harvesterv1.ScheduleVMBackup{},
 				},
 				GenerateTypes:   true,
 				GenerateClients: true,
@@ -112,6 +114,7 @@ func main() {
 					longhornv1.BackupBackingImage{},
 					longhornv1.Replica{},
 					longhornv1.Engine{},
+					longhornv1.Snapshot{},
 				},
 				GenerateClients: true,
 			},
@@ -135,6 +138,13 @@ func main() {
 					corev1.PersistentVolume{},
 					corev1.ResourceQuota{},
 				},
+			},
+			batchv1.GroupName: {
+				Types: []interface{}{
+					batchv1.CronJob{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
 			},
 			catalogv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{

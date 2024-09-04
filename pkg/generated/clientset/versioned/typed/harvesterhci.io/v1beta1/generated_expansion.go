@@ -26,6 +26,8 @@ type PreferenceExpansion interface{}
 
 type ResourceQuotaExpansion interface{}
 
+type ScheduleVMBackupExpansion interface{}
+
 type SettingExpansion interface{}
 
 type SupportBundleExpansion interface{}
