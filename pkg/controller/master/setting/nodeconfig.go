@@ -79,8 +79,10 @@ func (h *Handler) nodeOnChanged(_ string, node *corev1.Node) (*corev1.Node, erro
 		return nil, err
 	}
 	ntpSettings := &util.NTPSettings{}
-	if err := json.Unmarshal([]byte(ntpServersSetting.Value), ntpSettings); err != nil {
-		return nil, fmt.Errorf("failed to parse NTP settings: %v", err)
+	if ntpServersSetting.Value != "" {
+		if err := json.Unmarshal([]byte(ntpServersSetting.Value), ntpSettings); err != nil {
+			return nil, fmt.Errorf("failed to parse NTP settings: %v", err)
+		}
 	}
 	ntpServers := util.ReGenerateNTPServers(ntpSettings)
 
