@@ -1,0 +1,34 @@
+pull_request_rules:
+- name: Automatically open v1.4 backport PR
+  conditions:
+    - base=main
+    - label="backport-to/v1.4"
+  actions:
+    backport:
+      branches:
+        - v1.4
+      assignees:
+        - "{{ author }}"
+
+- name: Automatically open v1.3 backport PR
+  conditions:
+    - base=main
+    - label="backport-to/v1.3"
+  actions:
+    backport:
+      branches:
+        - v1.3
+      assignees:
+        - "{{ author }}"
+
+- name: Automatically open v1.2 backport PR
+  conditions:
+    - base=main
+    - label="backport-to/v1.2"
+  actions:
+    backport:
+      branches:
+        - v1.2
+      assignees:
+        - "{{ author }}"
+
