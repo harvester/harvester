@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 
+	batchv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1"
 	catalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1"
 	clusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1"
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
@@ -42,6 +43,7 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
+	BatchV1() batchv1.BatchV1Interface
 	CatalogV1() catalogv1.CatalogV1Interface
 	ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface
 	HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta1Interface
@@ -60,6 +62,7 @@ type Interface interface {
 // Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
+	batchV1             *batchv1.BatchV1Client
 	catalogV1           *catalogv1.CatalogV1Client
 	clusterV1beta1      *clusterv1beta1.ClusterV1beta1Client
 	harvesterhciV1beta1 *harvesterhciv1beta1.HarvesterhciV1beta1Client
@@ -73,6 +76,11 @@ type Clientset struct {
 	snapshotV1          *snapshotv1.SnapshotV1Client
 	storageV1           *storagev1.StorageV1Client
 	upgradeV1           *upgradev1.UpgradeV1Client
+}
+
+// BatchV1 retrieves the BatchV1Client
+func (c *Clientset) BatchV1() batchv1.BatchV1Interface {
+	return c.batchV1
 }
 
 // CatalogV1 retrieves the CatalogV1Client
@@ -184,6 +192,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
+	cs.batchV1, err = batchv1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.catalogV1, err = catalogv1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -257,6 +269,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
+	cs.batchV1 = batchv1.New(c)
 	cs.catalogV1 = catalogv1.New(c)
 	cs.clusterV1beta1 = clusterv1beta1.New(c)
 	cs.harvesterhciV1beta1 = harvesterhciv1beta1.New(c)

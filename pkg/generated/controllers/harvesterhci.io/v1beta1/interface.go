@@ -35,6 +35,7 @@ type Interface interface {
 	KeyPair() KeyPairController
 	Preference() PreferenceController
 	ResourceQuota() ResourceQuotaController
+	ScheduleVMBackup() ScheduleVMBackupController
 	Setting() SettingController
 	SupportBundle() SupportBundleController
 	Upgrade() UpgradeController
@@ -71,6 +72,10 @@ func (v *version) Preference() PreferenceController {
 
 func (v *version) ResourceQuota() ResourceQuotaController {
 	return generic.NewController[*v1beta1.ResourceQuota, *v1beta1.ResourceQuotaList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "ResourceQuota"}, "resourcequotas", true, v.controllerFactory)
+}
+
+func (v *version) ScheduleVMBackup() ScheduleVMBackupController {
+	return generic.NewController[*v1beta1.ScheduleVMBackup, *v1beta1.ScheduleVMBackupList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "ScheduleVMBackup"}, "schedulevmbackups", true, v.controllerFactory)
 }
 
 func (v *version) Setting() SettingController {

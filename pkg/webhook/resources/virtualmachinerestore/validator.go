@@ -20,6 +20,7 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
@@ -43,6 +44,7 @@ func NewValidator(
 	setting ctlharvesterv1.SettingCache,
 	vmBackup ctlharvesterv1.VirtualMachineBackupCache,
 	vmRestore ctlharvesterv1.VirtualMachineRestoreCache,
+	svmbackup ctlharvesterv1.ScheduleVMBackupCache,
 	vmims ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache,
 ) types.Validator {
@@ -51,6 +53,7 @@ func NewValidator(
 		setting:       setting,
 		vmBackup:      vmBackup,
 		vmRestore:     vmRestore,
+		svmbackup:     svmbackup,
 		snapshotClass: snapshotClass,
 
 		vmrCalculator: resourcequota.NewCalculator(nss, pods, rqs, vmims),
@@ -64,6 +67,7 @@ type restoreValidator struct {
 	setting       ctlharvesterv1.SettingCache
 	vmBackup      ctlharvesterv1.VirtualMachineBackupCache
 	vmRestore     ctlharvesterv1.VirtualMachineRestoreCache
+	svmbackup     ctlharvesterv1.ScheduleVMBackupCache
 	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache
 
 	vmrCalculator *resourcequota.Calculator
@@ -94,6 +98,11 @@ func (v *restoreValidator) Create(_ *types.Request, newObj runtime.Object) error
 	vmBackup, err := v.getVMBackup(newRestore)
 	if err != nil {
 		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
+	}
+
+	svmbackup := util.ResolveSVMBackupRef(v.svmbackup, vmBackup)
+	if svmbackup != nil && !svmbackup.Spec.Suspend {
+		return werror.NewInternalError(fmt.Sprintf("Source schedule %s/%s is running", svmbackup.Namespace, svmbackup.Name))
 	}
 
 	if err := v.checkVolumeSnapshotClass(vmBackup); err != nil {

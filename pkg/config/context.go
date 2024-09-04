@@ -28,6 +28,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	ctlharvesterappsv1 "github.com/harvester/harvester/pkg/generated/controllers/apps"
+	ctlharvbatchv1 "github.com/harvester/harvester/pkg/generated/controllers/batch"
 	cluster "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
@@ -64,6 +65,7 @@ type Scaled struct {
 	VirtFactory              *kubevirt.Factory
 	HarvesterFactory         *ctlharvesterv1.Factory
 	HarvesterCoreFactory     *ctlharvcorev1.Factory
+	HarvesterBatchFactory    *ctlharvbatchv1.Factory
 	HarvesterStorageFactory  *ctlharvstoragev1.Factory
 	CoreFactory              *corev1.Factory
 	AppsFactory              *appsv1.Factory
@@ -89,6 +91,7 @@ type Management struct {
 	VirtFactory               *kubevirt.Factory
 	HarvesterFactory          *ctlharvesterv1.Factory
 	HarvesterCoreFactory      *ctlharvcorev1.Factory
+	HarvesterBatchFactory     *ctlharvbatchv1.Factory
 	HarvesterStorageFactory   *ctlharvstoragev1.Factory
 	LoggingFactory            *loggingv1.Factory
 	CoreFactory               *corev1.Factory
@@ -142,6 +145,13 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 	}
 	scaled.HarvesterCoreFactory = harvesterCoreFactory
 	scaled.starters = append(scaled.starters, harvesterCoreFactory)
+
+	harvesterBatchFactory, err := ctlharvbatchv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	scaled.HarvesterBatchFactory = harvesterBatchFactory
+	scaled.starters = append(scaled.starters, harvesterBatchFactory)
 
 	harvesterStorageFactory, err := ctlharvstoragev1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
@@ -259,6 +269,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.HarvesterCoreFactory = harvCore
 	management.starters = append(management.starters, harvCore)
+
+	harvBatch, err := ctlharvbatchv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.HarvesterBatchFactory = harvBatch
+	management.starters = append(management.starters, harvBatch)
 
 	harvStorage, err := ctlharvstoragev1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {

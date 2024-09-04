@@ -32,6 +32,7 @@ var (
 	KeyPairResourceName                       = "keypairs"
 	PreferenceResourceName                    = "preferences"
 	ResourceQuotaResourceName                 = "resourcequotas"
+	ScheduleVMBackupResourceName              = "schedulevmbackups"
 	SettingResourceName                       = "settings"
 	SupportBundleResourceName                 = "supportbundles"
 	UpgradeResourceName                       = "upgrades"
@@ -73,6 +74,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&PreferenceList{},
 		&ResourceQuota{},
 		&ResourceQuotaList{},
+		&ScheduleVMBackup{},
+		&ScheduleVMBackupList{},
 		&Setting{},
 		&SettingList{},
 		&SupportBundle{},
