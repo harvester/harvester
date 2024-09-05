@@ -31,6 +31,8 @@ const (
 
 	// From `maximumChainLength` in longhorn-engine/pkg/replica/replica.go
 	MaxSnapshotNum = 250
+
+	DefaultMinNumberOfCopies = 3
 )
 
 type SettingType string
@@ -1463,7 +1465,7 @@ var (
 		Type:        SettingTypeInt,
 		Required:    true,
 		ReadOnly:    false,
-		Default:     "3",
+		Default:     strconv.Itoa(DefaultMinNumberOfCopies),
 		ValueIntRange: map[string]int{
 			ValueIntRangeMinimum: 1,
 		},
