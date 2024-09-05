@@ -728,6 +728,10 @@ func (c *InstanceManagerClient) engineInstanceUpgrade(req *EngineInstanceUpgrade
 		args = append(args, "--replica", GetBackendReplicaURL(addr))
 	}
 
+	if req.Engine.Spec.RevisionCounterDisabled {
+		args = append(args, "--disableRevCounter")
+	}
+
 	if req.EngineCLIAPIVersion >= 6 {
 		args = append(args,
 			"--size", strconv.FormatInt(req.Engine.Spec.VolumeSize, 10),
