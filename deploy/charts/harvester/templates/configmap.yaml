@@ -161,7 +161,7 @@ data:
       echo "Stopping ${service}."
       if ! chroot $HOST_DIR systemctl stop $service; then
         echo "Error: failed to stop ${service}."
-        exit 1
+        exit 11
       fi
       echo "Stopped ${service}."
 
@@ -170,7 +170,7 @@ data:
       echo "Starting ${service}."
       if ! chroot $HOST_DIR systemctl start $service; then
         echo "Error: failed to start ${service}."
-        exit 1
+        exit 12
       fi
       echo "Started ${service}."
     }
@@ -180,11 +180,21 @@ data:
       local expect_label_value=$2
       local interval=5
       local elapsed=0
+      local start_time=$(date +%s)
 
-      while [ $elapsed -lt $WAIT_LABEL_TIMEOUT ]; do
+      while true; do
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
+
+        if [ $elapsed -ge $WAIT_LABEL_TIMEOUT ]; then
+          echo "Error: timeout, elapsed ${elapsed}s"
+          exit 21
+        fi
+
         if ! labels=$($KUBECTL get node "$node_name" --show-labels); then
-          echo "Error: failed to get labels in $node_name"
-          exit 1
+          echo "Warning: failed to get labels for $node_name, retrying in 3s..."
+          sleep 3
+          continue
         fi
         if echo "$labels" | grep -q "cpumanager=$expect_label_value"; then
           echo "End update cpu-manager-policy"
@@ -192,10 +202,7 @@ data:
         fi
         echo "Value in label cpumanager is not $expect_label_value, wait ${interval}s..."
         sleep $interval
-        elapsed=$((elapsed + interval))
       done
-      echo "Error: timeout, elapsed ${elapsed}s"
-      exit 1
     }
 
     echo "Start update cpu-manager-policy option..."
@@ -215,7 +222,7 @@ data:
 
     if ! $KUBECTL get node "$NODE_NAME" --show-labels | grep -q "cpumanager="; then
       echo "Error: There is no label cpumanager in node $NODE_NAME."
-      exit 1
+      exit 2
     fi
 
     printf 'kubelet-arg+:\n- "cpu-manager-policy=%s"' "$NODE_POLICY" > $CPU_MANAGER_CONFIG_FILE
@@ -226,7 +233,7 @@ data:
       manage_service "rke2-agent"
     else
       echo "Error: Neither rke2-server nor rke2-agent are running."
-      exit 1
+      exit 3
     fi
 
     if [ "$NODE_POLICY" = "$STATIC_POLICY" ]; then
