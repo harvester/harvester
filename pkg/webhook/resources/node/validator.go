@@ -5,15 +5,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rancher/wrangler/v3/pkg/condition"
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/selection"
+
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
@@ -195,28 +193,6 @@ func checkMasterNodeJobs(node *corev1.Node, nodeCache v1.NodeCache, jobCache ctl
 	return nil
 }
 
-func getCPUManagerRunningJobNamesOnNodes(jobCache ctlbatchv1.JobCache, nodeNames []string) ([]string, error) {
-	if len(nodeNames) == 0 {
-		return []string{}, werror.NewInternalError("nodeNames size should > 0")
-	}
-	requirement, err := labels.NewRequirement(util.LabelCPUManagerUpdateNode, selection.In, nodeNames)
-	if err != nil {
-		return []string{}, werror.NewInternalError(fmt.Sprintf("failed to create requirement: %s", err.Error()))
-	}
-	labelSelector := labels.NewSelector().Add(*requirement)
-	jobs, err := jobCache.List("", labelSelector)
-	if err != nil {
-		return []string{}, err
-	}
-	runningJobNames := []string{}
-	for _, job := range jobs {
-		if !condition.Cond(batchv1.JobComplete).IsTrue(job) && !condition.Cond(batchv1.JobFailed).IsTrue(job) {
-			runningJobNames = append(runningJobNames, job.Name)
-		}
-	}
-	return runningJobNames, nil
-}
-
 func checkCPUPinningVMIs(node *corev1.Node, policy ctlnode.CPUManagerPolicy, vmiCache ctlkubevirtv1.VirtualMachineInstanceCache) error {
 	if policy != ctlnode.CPUManagerNonePolicy {
 		return nil
@@ -233,4 +209,16 @@ func checkCPUPinningVMIs(node *corev1.Node, policy ctlnode.CPUManagerPolicy, vmi
 		}
 	}
 	return nil
+}
+
+func getCPUManagerRunningJobNamesOnNodes(jobCache ctlbatchv1.JobCache, nodeNames []string) ([]string, error) {
+	jobs, err := ctlnode.GetCPUManagerRunningJobsOnNodes(jobCache, nodeNames)
+	if err != nil {
+		return []string{}, err
+	}
+	jobNames := make([]string, len(jobs))
+	for i, job := range jobs {
+		jobNames[i] = job.Name
+	}
+	return jobNames, nil
 }
