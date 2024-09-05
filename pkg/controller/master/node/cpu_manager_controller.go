@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/go-errors/errors"
 	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
@@ -16,7 +17,10 @@ import (
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/config"
@@ -41,6 +45,8 @@ const (
 	CPUManagerWaitLabelTimeoutInSec int64  = 300 // 5 min
 	CPUManagerJobTimeoutInSec       int64  = CPUManagerWaitLabelTimeoutInSec * 2
 	CPUManagerJobTTLInSec           int32  = 86400 * 7 // 7 day
+
+	CPUManagerJobPrefix string = "update-cpu-manager"
 )
 
 type CPUManagerPolicy string
@@ -58,6 +64,7 @@ type cpuManagerNodeHandler struct {
 	appCache   catalogv1.AppCache
 	nodeCache  ctlcorev1.NodeCache
 	nodeClient ctlcorev1.NodeClient
+	jobCache   ctlbatchv1.JobCache
 	jobClient  ctlbatchv1.JobClient
 	namespace  string
 }
@@ -67,9 +74,11 @@ func CPUManagerRegister(ctx context.Context, management *config.Management, opti
 	app := management.CatalogFactory.Catalog().V1().App()
 	job := management.BatchFactory.Batch().V1().Job()
 	node := management.CoreFactory.Core().V1().Node()
+	pod := management.CoreFactory.Core().V1().Pod()
 
 	cpuManagerNodeHandler := &cpuManagerNodeHandler{
 		appCache:   app.Cache(),
+		jobCache:   job.Cache(),
 		jobClient:  job,
 		nodeCache:  node.Cache(),
 		nodeClient: node,
@@ -78,6 +87,7 @@ func CPUManagerRegister(ctx context.Context, management *config.Management, opti
 
 	node.OnChange(ctx, CPUManagerControllerName, cpuManagerNodeHandler.OnNodeChanged)
 	job.OnChange(ctx, CPUManagerControllerName, cpuManagerNodeHandler.OnJobChanged)
+	pod.OnChange(ctx, CPUManagerControllerName, cpuManagerNodeHandler.OnPodChanged)
 
 	return nil
 }
@@ -108,17 +118,39 @@ func (h *cpuManagerNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*cor
 	}
 
 	newNode := node.DeepCopy()
-	job, err := h.submitJob(cpuManagerStatus, node)
-	logrus.WithFields(logrus.Fields{
-		"node_name": node.Name,
-		"job_name":  job.Name,
-		"policy":    cpuManagerStatus.Policy,
-	}).Info("Submit cpu manager job")
+	runningJobs, err := getCPUManagerRunningJobOnNode(h.jobCache, node.Name)
 	if err != nil {
-		logrus.WithField("node_name", node.Name).WithError(err).Error("Submit cpu manager job failed")
-		setUpdateStatus(newNode, toFailedStatus(cpuManagerStatus))
+		logrus.WithField("node_name", node.Name).WithError(err).Error("Failed to get cpu manager running job on node")
+		return node, err
+	}
+	numOfRunningJobs := len(runningJobs)
+	if numOfRunningJobs > 0 {
+		// This scenario should be prevented by the existing validator, which ensures no CPU manager jobs
+		// run concurrently on the same node. However, if it does occur, log the event for further investigation.
+		if numOfRunningJobs > 1 {
+			jobNames := make([]string, len(runningJobs))
+			for i, job := range runningJobs {
+				jobNames[i] = job.Name
+			}
+			logrus.WithFields(logrus.Fields{
+				"node_name":    node.Name,
+				"running_jobs": strings.Join(jobNames, ", "),
+			}).Warnf("Multiple CPU manager jobs are running simultaneously on the same node")
+		}
+		setUpdateStatus(newNode, toRunningStatus(cpuManagerStatus, runningJobs[0]))
 	} else {
-		setUpdateStatus(newNode, toRunningStatus(cpuManagerStatus, job))
+		job, err := h.submitJob(cpuManagerStatus, node)
+		if err != nil {
+			logrus.WithField("node_name", node.Name).WithError(err).Error("Failed to submit cpu manager job")
+			setUpdateStatus(newNode, toFailedStatus(cpuManagerStatus))
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"node_name": node.Name,
+				"job_name":  job.Name,
+				"policy":    cpuManagerStatus.Policy,
+			}).Info("Submit cpu manager job")
+			setUpdateStatus(newNode, toRunningStatus(cpuManagerStatus, job))
+		}
 	}
 
 	if reflect.DeepEqual(newNode, node) {
@@ -128,7 +160,7 @@ func (h *cpuManagerNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*cor
 }
 
 func (h *cpuManagerNodeHandler) OnJobChanged(_ string, job *batchv1.Job) (*batchv1.Job, error) {
-	if job == nil || job.Labels == nil || job.DeletionTimestamp != nil {
+	if job == nil || job.Labels == nil {
 		return job, nil
 	}
 
@@ -151,7 +183,58 @@ func (h *cpuManagerNodeHandler) OnJobChanged(_ string, job *batchv1.Job) (*batch
 		return nil, h.updateCPUManagerStatus(node, job, CPUManagerFailedStatus)
 	}
 
+	// someone delete the cpu manager job
+	if job.DeletionTimestamp != nil {
+		logrus.WithField("job_name", job.Name).Warn("CPU Manager job was deleted before it finished")
+		return nil, h.updateCPUManagerStatus(node, job, CPUManagerFailedStatus)
+	}
+
 	return job, nil
+}
+
+func (h *cpuManagerNodeHandler) OnPodChanged(_ string, pod *corev1.Pod) (*corev1.Pod, error) {
+	if pod == nil || pod.Labels == nil || pod.DeletionTimestamp != nil {
+		return pod, nil
+	}
+	jobName, found := pod.Labels[batchv1.JobNameLabel]
+	exitCode := int32(0)
+	if len(pod.Status.ContainerStatuses) > 0 && pod.Status.ContainerStatuses[0].State.Terminated != nil {
+		exitCode = pod.Status.ContainerStatuses[0].State.Terminated.ExitCode
+	}
+	if found && strings.HasPrefix(jobName, CPUManagerJobPrefix) && exitCode > 0 {
+
+		logFields := logrus.Fields{
+			"job_name":            jobName,
+			"pod_name":            pod.Name,
+			"container_name":      pod.Status.ContainerStatuses[0].Name,
+			"container_exit_code": exitCode,
+		}
+
+		job, err := h.jobCache.Get(h.namespace, jobName)
+		if err != nil && !apierrors.IsNotFound(err) {
+			logrus.WithFields(logFields).WithError(err).Error("Failed to get cpu manager job from cache")
+			return nil, err
+		} else if job == nil {
+			logrus.WithFields(logFields).Info("CPU Manager job was not found")
+			return pod, nil
+		}
+		if job.DeletionTimestamp != nil {
+			logrus.WithFields(logFields).Info("CPU Manager job is going to be deleted")
+			return pod, nil
+		}
+		newJob := job.DeepCopy()
+		newJob.Labels[util.LabelCPUManagerExitCode] = strconv.Itoa(int(exitCode))
+		if reflect.DeepEqual(newJob, job) {
+			return pod, nil
+		}
+		// Log container exit code that is not zero. This helps in troubleshooting,
+		// especially in cases where a pod may have been evicted,
+		// making it difficult to determine why an update to the CPU manager policy failed.
+		logrus.WithFields(logFields).Error("container exit code is not 0, update exit code to cpu manager job")
+		_, err = h.jobClient.Update(newJob)
+		return nil, err
+	}
+	return pod, nil
 }
 
 func (h *cpuManagerNodeHandler) updateCPUManagerStatus(node *corev1.Node, job *batchv1.Job, status CPUManagerStatus) error {
@@ -167,11 +250,15 @@ func (h *cpuManagerNodeHandler) updateCPUManagerStatus(node *corev1.Node, job *b
 		"policy":    updateStatus.Policy,
 	}).Infof("cpu manager job %s", status)
 
-	if _, err := h.nodeClient.Update(setUpdateStatus(node, updateStatus)); err != nil {
+	newNode := node.DeepCopy()
+	setUpdateStatus(newNode, updateStatus)
+	if reflect.DeepEqual(newNode, node) {
+		return nil
+	}
+	if _, err := h.nodeClient.Update(newNode); err != nil {
 		logrus.WithField("node_name", node.Name).WithError(err).Errorf("failed to update node cpu manager %s status", status)
 		return err
 	}
-
 	return nil
 }
 
@@ -220,7 +307,7 @@ func (h *cpuManagerNodeHandler) getJob(policy CPUManagerPolicy, node *corev1.Nod
 	}
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: name.SafeConcatName(node.Name, "update-cpu-manager-"),
+			GenerateName: name.SafeConcatName(CPUManagerJobPrefix, node.Name) + "-",
 			Namespace:    h.namespace,
 			Labels:       labels,
 			OwnerReferences: []metav1.OwnerReference{
@@ -318,4 +405,34 @@ func (h *cpuManagerNodeHandler) submitJob(updateStatus *CPUManagerUpdateStatus, 
 	}
 
 	return job, nil
+}
+
+func getCPUManagerRunningJobOnNode(jobCache ctlbatchv1.JobCache, nodeName string) ([]*batchv1.Job, error) {
+	jobs, err := GetCPUManagerRunningJobsOnNodes(jobCache, []string{nodeName})
+	if err != nil {
+		return []*batchv1.Job{}, err
+	}
+	return jobs, nil
+}
+
+func GetCPUManagerRunningJobsOnNodes(jobCache ctlbatchv1.JobCache, nodeNames []string) ([]*batchv1.Job, error) {
+	if len(nodeNames) == 0 {
+		return []*batchv1.Job{}, fmt.Errorf("nodeNames size should > 0")
+	}
+	requirement, err := labels.NewRequirement(util.LabelCPUManagerUpdateNode, selection.In, nodeNames)
+	if err != nil {
+		return []*batchv1.Job{}, fmt.Errorf(fmt.Sprintf("failed to create requirement: %s", err.Error()))
+	}
+	labelSelector := labels.NewSelector().Add(*requirement)
+	jobs, err := jobCache.List("", labelSelector)
+	if err != nil {
+		return []*batchv1.Job{}, err
+	}
+	runningJobs := []*batchv1.Job{}
+	for _, job := range jobs {
+		if !condition.Cond(batchv1.JobComplete).IsTrue(job) && !condition.Cond(batchv1.JobFailed).IsTrue(job) {
+			runningJobs = append(runningJobs, job)
+		}
+	}
+	return runningJobs, nil
 }
