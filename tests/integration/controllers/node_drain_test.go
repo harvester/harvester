@@ -5,7 +5,6 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
-	rancherCorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,9 +18,7 @@ var _ = ginkgo.Describe("verify node drain apis", func() {
 	var nodeController ctlcorev1.NodeController
 
 	ginkgo.BeforeEach(func() {
-		coreFactory, err := rancherCorev1.NewFactoryFromConfig(kubeConfig)
-		dsl.MustNotError(err)
-		nodeController = coreFactory.Core().V1().Node()
+		nodeController = scaled.Management.CoreFactory.Core().V1().Node()
 
 		gomega.Eventually(func() error {
 			nodeList, err := nodeController.List(metav1.ListOptions{})

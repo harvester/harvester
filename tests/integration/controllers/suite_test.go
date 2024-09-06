@@ -152,7 +152,20 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	kubeConfig, err = clientcmd.NewDefaultClientConfig(RawKubeConfig, &clientcmd.ConfigOverrides{}).ClientConfig()
 	cfg = kubeConfig
 
-	testCtx = context.TODO()
+	clientFactory, err := client.NewSharedClientFactory(kubeConfig, nil)
+	dsl.MustNotError(err)
+
+	cacheFactory := cache.NewSharedCachedFactory(clientFactory, nil)
+	scf := controller.NewSharedControllerFactory(cacheFactory, &controller.SharedControllerFactoryOptions{})
+
+	factoryOpts := &generic.FactoryOptions{
+		SharedControllerFactory: scf,
+	}
+
+	if testCtx == nil {
+		testCtx, scaled, err = config.SetupScaled(context.Background(), cfg, factoryOpts)
+		dsl.MustNotError(err)
+	}
 })
 
 var _ = ginkgo.SynchronizedAfterSuite(func() {}, func() {
