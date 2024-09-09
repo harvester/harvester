@@ -125,15 +125,7 @@ func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 	toUpdate := node.DeepCopy()
 	switch action {
 	case enableMaintenanceModeAction:
-		var maintenanceInput MaintenanceModeInput
-		if err := json.NewDecoder(req.Body).Decode(&maintenanceInput); err != nil {
-			return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v ", err))
-		}
-
-		if maintenanceInput.Force == "true" {
-			logrus.Infof("forced drain requested for node %s", node.Name)
-		}
-		return h.enableMaintenanceMode(toUpdate, maintenanceInput.Force)
+		return h.enableMaintenanceMode(req, toUpdate)
 	case disableMaintenanceModeAction:
 		return h.disableMaintenanceMode(name)
 	case cordonAction:
@@ -201,7 +193,23 @@ func (h ActionHandler) cordonUncordonNode(node *corev1.Node, actionName string, 
 	return err
 }
 
-func (h ActionHandler) enableMaintenanceMode(node *corev1.Node, force string) error {
+func (h ActionHandler) enableMaintenanceMode(req *http.Request, node *corev1.Node) error {
+	// api based test runs enableMaintenanceMode directly, and addition of maintenance possible
+	// ensures that enableMaintenanceMode cannot be called in environment where this may not be possible
+	err := h.maintenancePossible(node)
+	if err != nil {
+		return err
+	}
+
+	var maintenanceInput MaintenanceModeInput
+	if err := json.NewDecoder(req.Body).Decode(&maintenanceInput); err != nil {
+		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v ", err))
+	}
+
+	if maintenanceInput.Force == "true" {
+		logrus.Infof("forced drain requested for node %s", node.Name)
+	}
+
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		nodeObj, err := h.nodeClient.Get(node.Name, metav1.GetOptions{})
 		if err != nil {
@@ -212,7 +220,7 @@ func (h ActionHandler) enableMaintenanceMode(node *corev1.Node, force string) er
 			nodeObj.Annotations = make(map[string]string)
 		}
 		nodeObj.Annotations[drainhelper.DrainAnnotation] = "true"
-		if force == "true" {
+		if maintenanceInput.Force == "true" {
 			nodeObj.Annotations[drainhelper.ForcedDrain] = "true"
 		}
 		_, err = h.nodeClient.Update(nodeObj)
