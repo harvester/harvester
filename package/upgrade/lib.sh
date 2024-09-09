@@ -611,3 +611,14 @@ EOF
   # wait status only when enabled and already AddonDeploySuccessful
   wait_for_addon_upgrade_deployment $name $namespace $enabled $curstatus
 }
+
+upgrade_nvidia_driver_toolkit_addon()
+{
+  # patch nvidia-driver-toolkit with existing location before performing upgrade
+  CURRENTENDPOINT=$(kubectl get addons.harvester nvidia-driver-toolkit -n harvester-system -o yaml | yq .spec.valuesContent | yq '.driverLocation // "empty"')
+  if [ ${CURRENTENDPOINT} != "empty" ]
+  then
+    sed -i "s|HTTPENDPOINT/NVIDIA-Linux-x86_64-vgpu-kvm.run|${CURRENTENDPOINT}|" /usr/local/share/addons/nvidia-driver-toolkit.yaml
+  fi
+  upgrade_addon nvidia-driver-toolkit harvester-system
+}
