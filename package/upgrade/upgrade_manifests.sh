@@ -752,7 +752,7 @@ upgrade_addon_rancher_logging()
 upgrade_addons()
 {
   wait_for_addons_crd
-  addons="vm-import-controller pcidevices-controller harvester-seeder nvidia-driver-toolkit"
+  addons="vm-import-controller pcidevices-controller harvester-seeder"
   for addon in $addons; do
     upgrade_addon $addon "harvester-system"
   done
@@ -761,6 +761,7 @@ upgrade_addons()
   # from v1.2.0, they are upgraded per following
   upgrade_addon_rancher_monitoring
   upgrade_addon_rancher_logging
+  upgrade_nvidia_driver_toolkit_addon
 }
 
 reuse_vlan_cn() {
