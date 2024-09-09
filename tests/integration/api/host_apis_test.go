@@ -152,11 +152,9 @@ var _ = Describe("verify host APIs", func() {
 				}, "30s", "5s").ShouldNot(HaveOccurred())
 			})
 
-			By("enable maintenance mode of the host", func() {
-				MustFinallyBeTrue(func() bool {
-					respCode, respBody, err = helper.PostObjectAction(nodeObjectAPI, nodeapi.MaintenanceModeInput{Force: ""}, "enableMaintenanceMode")
-					return CheckRespCodeIs(http.StatusNoContent, "post enableMaintenanceMode action", err, respCode, respBody)
-				}, 30*time.Second, 5*time.Second)
+			By("attempting to enable maintenance mode on controlplane host", func() {
+				respCode, respBody, err = helper.PostObjectAction(nodeObjectAPI, nodeapi.MaintenanceModeInput{Force: ""}, "enableMaintenanceMode")
+				MustRespCodeIs(http.StatusInternalServerError, "enable maintenance", err, respCode, respBody)
 			})
 
 			By("then the node maintain-status is not set", func() {
