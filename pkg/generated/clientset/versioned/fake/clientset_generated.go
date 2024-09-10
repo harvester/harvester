@@ -40,6 +40,8 @@ import (
 	fakemanagementv3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3/fake"
 	monitoringv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/monitoring.coreos.com/v1"
 	fakemonitoringv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/monitoring.coreos.com/v1/fake"
+	networkv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/network.harvesterhci.io/v1beta1"
+	fakenetworkv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/network.harvesterhci.io/v1beta1/fake"
 	networkingv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/networking.k8s.io/v1"
 	fakenetworkingv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/networking.k8s.io/v1/fake"
 	snapshotv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1"
@@ -153,6 +155,11 @@ func (c *Clientset) ManagementV3() managementv3.ManagementV3Interface {
 // MonitoringV1 retrieves the MonitoringV1Client
 func (c *Clientset) MonitoringV1() monitoringv1.MonitoringV1Interface {
 	return &fakemonitoringv1.FakeMonitoringV1{Fake: &c.Fake}
+}
+
+// NetworkV1beta1 retrieves the NetworkV1beta1Client
+func (c *Clientset) NetworkV1beta1() networkv1beta1.NetworkV1beta1Interface {
+	return &fakenetworkv1beta1.FakeNetworkV1beta1{Fake: &c.Fake}
 }
 
 // NetworkingV1 retrieves the NetworkingV1Client
