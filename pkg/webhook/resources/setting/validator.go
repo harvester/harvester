@@ -34,13 +34,19 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	mapset "github.com/deckarep/golang-set/v2"
+
+	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester-network-controller/pkg/utils"
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/containerd"
+	nodectl "github.com/harvester/harvester/pkg/controller/master/node"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	storagenetworkctl "github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1b2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
+	ctlnetworkv1 "github.com/harvester/harvester/pkg/generated/controllers/network.harvesterhci.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -129,6 +135,9 @@ func NewValidator(
 	featureCache mgmtv3.FeatureCache,
 	lhVolumeCache ctllhv1b2.VolumeCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
+	cnCache ctlnetworkv1.ClusterNetworkCache,
+	vcCache ctlnetworkv1.VlanConfigCache,
+	vsCache ctlnetworkv1.VlanStatusCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
@@ -141,6 +150,9 @@ func NewValidator(
 		featureCache:       featureCache,
 		lhVolumeCache:      lhVolumeCache,
 		pvcCache:           pvcCache,
+		cnCache:            cnCache,
+		vcCache:            vcCache,
+		vsCache:            vsCache,
 	}
 
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
@@ -171,6 +183,9 @@ type settingValidator struct {
 	featureCache       mgmtv3.FeatureCache
 	lhVolumeCache      ctllhv1b2.VolumeCache
 	pvcCache           ctlcorev1.PersistentVolumeClaimCache
+	cnCache            ctlnetworkv1.ClusterNetworkCache
+	vcCache            ctlnetworkv1.VlanConfigCache
+	vsCache            ctlnetworkv1.VlanStatusCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -992,7 +1007,19 @@ func (v *settingValidator) validateStorageNetworkHelper(value string) error {
 		return err
 	}
 
-	return v.checkStorageNetworkRangeValid(&config)
+	if err := v.checkStorageNetworkRangeValid(&config); err != nil {
+		return err
+	}
+
+	if err := v.checkVlanStatusReady(&config); err != nil {
+		return err
+	}
+
+	if err := v.checkVCSpansAllNodes(&config); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) error {
@@ -1176,6 +1203,88 @@ func (v *settingValidator) checkStorageNetworkValueVaild() error {
 
 	if err := v.checkOnlineVolume(); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+
+	return nil
+}
+
+func (v *settingValidator) checkVlanStatusReady(config *storagenetworkctl.Config) error {
+	_, err := v.cnCache.Get(config.ClusterNetwork)
+	if err != nil {
+		return fmt.Errorf("cluster network %s not found because %v", config.ClusterNetwork, err)
+	}
+
+	vsList, err := v.vsCache.List(labels.Set{
+		utils.KeyClusterNetworkLabel: config.ClusterNetwork,
+	}.AsSelector())
+	if err != nil {
+		return err
+	}
+
+	if len(vsList) == 0 {
+		return fmt.Errorf("vlan status not present for cluster network %s", config.ClusterNetwork)
+	}
+
+	for _, vs := range vsList {
+		if networkv1.Ready.IsFalse(vs.Status) {
+			return fmt.Errorf("vs %s status is not Ready", vs.Name)
+		}
+	}
+
+	return nil
+}
+
+func getMatchNodes(vc *networkv1.VlanConfig) ([]string, error) {
+	if vc.Annotations == nil || vc.Annotations[utils.KeyMatchedNodes] == "" {
+		return nil, fmt.Errorf("vlan config annotations is absent for matched nodes")
+	}
+
+	var matchedNodes []string
+	if err := json.Unmarshal([]byte(vc.Annotations[utils.KeyMatchedNodes]), &matchedNodes); err != nil {
+		return nil, err
+	}
+
+	return matchedNodes, nil
+}
+
+func (v *settingValidator) checkVCSpansAllNodes(config *storagenetworkctl.Config) error {
+	matchedNodes := mapset.NewSet[string]()
+
+	vcs, err := v.vcCache.List(labels.Set{
+		utils.KeyClusterNetworkLabel: config.ClusterNetwork,
+	}.AsSelector())
+	if err != nil {
+		return err
+	}
+
+	if len(vcs) == 0 {
+		return fmt.Errorf("vlan config not present for cluster network %s", config.ClusterNetwork)
+	}
+
+	for _, vc := range vcs {
+		vnodes, err := getMatchNodes(vc)
+		if err != nil {
+			return err
+		}
+		matchedNodes.Append(vnodes...)
+	}
+
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	//check if vlanconfig contains all the nodes in the cluster
+	for _, node := range nodes {
+		//skip witness nodes which do not run LH Pods
+		isManagement := nodectl.IsManagementRole(node)
+		if nodectl.IsWitnessNode(node, isManagement) {
+			continue
+		}
+
+		if !matchedNodes.Contains(node.Name) {
+			return fmt.Errorf("vlanconfig does not span %s", node.Name)
+		}
 	}
 
 	return nil

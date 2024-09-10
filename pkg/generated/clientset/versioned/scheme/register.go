@@ -19,6 +19,7 @@ limitations under the License.
 package scheme
 
 import (
+	networkv1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	k8scnicncfiov1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	loggingv1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
@@ -54,6 +55,7 @@ var localSchemeBuilder = runtime.SchemeBuilder{
 	longhornv1beta2.AddToScheme,
 	managementv3.AddToScheme,
 	monitoringv1.AddToScheme,
+	networkv1beta1.AddToScheme,
 	networkingv1.AddToScheme,
 	snapshotv1.AddToScheme,
 	storagev1.AddToScheme,
