@@ -290,7 +290,7 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 			managementNumber++
 		}
 
-		witnessPromoted = witnessPromoted || isWitnessNode(node, isManagement)
+		witnessPromoted = witnessPromoted || IsWitnessNode(node, isManagement)
 
 		// return if there are already enough management nodes or total amount of nodes
 		if managementNumber == func() int {
@@ -378,7 +378,7 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 	return promoteNode
 }
 
-func isWitnessNode(node *corev1.Node, isManagement bool) bool {
+func IsWitnessNode(node *corev1.Node, isManagement bool) bool {
 	_, found := node.Labels[HarvesterWitnessNodeLabelKey]
 	if !found {
 		return false

@@ -18,6 +18,7 @@ import (
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io"
+	ctlnetwork "github.com/harvester/harvester/pkg/generated/controllers/network.harvesterhci.io"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
 )
 
@@ -35,6 +36,7 @@ type Clients struct {
 	ClusterFactory           *ctlclusterv1.Factory
 	RancherManagementFactory *rancherv3.Factory
 	CoreFactory              *ctrlcorev1.Factory
+	HarvesterNetworkFactory  *ctlnetwork.Factory
 }
 
 func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, error) {
@@ -130,6 +132,15 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		return nil, err
 	}
 
+	harvesterNetworkFactory, err := ctlnetwork.NewFactoryFromConfigWithOptions(rest, (*ctlnetwork.FactoryOptions)(clients.FactoryOptions))
+	if err != nil {
+		return nil, err
+	}
+
+	if err = harvesterNetworkFactory.Start(ctx, threadiness); err != nil {
+		return nil, err
+	}
+
 	return &Clients{
 		Clients:                  *clients,
 		HarvesterFactory:         harvesterFactory,
@@ -143,5 +154,6 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		ClusterFactory:           clusterFactory,
 		RancherManagementFactory: rancherFactory,
 		CoreFactory:              coreFactory,
+		HarvesterNetworkFactory:  harvesterNetworkFactory,
 	}, nil
 }

@@ -26,6 +26,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	capi "sigs.k8s.io/cluster-api/api/v1beta1"
 
+	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
@@ -172,6 +173,15 @@ func main() {
 				Types: []interface{}{
 					appsv1.ControllerRevision{},
 				},
+			},
+			networkv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					networkv1.VlanConfig{},
+					networkv1.VlanStatus{},
+					networkv1.ClusterNetwork{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
 			},
 		},
 	})
