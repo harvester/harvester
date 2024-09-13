@@ -4,15 +4,15 @@ import (
 	"fmt"
 
 	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	fleetcontrollers "github.com/rancher/rancher/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	ctlfleetv1 "github.com/harvester/harvester/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func NewValidator(clusterCache fleetcontrollers.ClusterCache) types.Validator {
+func NewValidator(clusterCache ctlfleetv1.ClusterCache) types.Validator {
 	return &bundleDeploymentValidator{
 		clusterCache: clusterCache,
 	}
@@ -20,7 +20,7 @@ func NewValidator(clusterCache fleetcontrollers.ClusterCache) types.Validator {
 
 type bundleDeploymentValidator struct {
 	types.DefaultValidator
-	clusterCache fleetcontrollers.ClusterCache
+	clusterCache ctlfleetv1.ClusterCache
 }
 
 func (v *bundleDeploymentValidator) Resource() types.Resource {

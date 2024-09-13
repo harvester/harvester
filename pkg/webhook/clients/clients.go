@@ -3,7 +3,6 @@ package clients
 import (
 	"context"
 
-	ctlfleetv1 "github.com/rancher/rancher/pkg/generated/controllers/fleet.cattle.io"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
 	"github.com/rancher/wrangler/v3/pkg/clients"
 	ctrlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
@@ -14,6 +13,7 @@ import (
 
 	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core"
+	ctlfleetv1 "github.com/harvester/harvester/pkg/generated/controllers/fleet.cattle.io"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
