@@ -26,6 +26,8 @@ import (
 	fakecatalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1/fake"
 	clusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1"
 	fakeclusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1/fake"
+	fleetv1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/fleet.cattle.io/v1alpha1"
+	fakefleetv1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/fleet.cattle.io/v1alpha1/fake"
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	fakeharvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1/fake"
 	k8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
@@ -120,6 +122,11 @@ func (c *Clientset) CatalogV1() catalogv1.CatalogV1Interface {
 // ClusterV1beta1 retrieves the ClusterV1beta1Client
 func (c *Clientset) ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface {
 	return &fakeclusterv1beta1.FakeClusterV1beta1{Fake: &c.Fake}
+}
+
+// FleetV1alpha1 retrieves the FleetV1alpha1Client
+func (c *Clientset) FleetV1alpha1() fleetv1alpha1.FleetV1alpha1Interface {
+	return &fakefleetv1alpha1.FakeFleetV1alpha1{Fake: &c.Fake}
 }
 
 // HarvesterhciV1beta1 retrieves the HarvesterhciV1beta1Client

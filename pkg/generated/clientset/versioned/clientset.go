@@ -25,6 +25,7 @@ import (
 	batchv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1"
 	catalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1"
 	clusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1"
+	fleetv1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/fleet.cattle.io/v1alpha1"
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	k8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
@@ -47,6 +48,7 @@ type Interface interface {
 	BatchV1() batchv1.BatchV1Interface
 	CatalogV1() catalogv1.CatalogV1Interface
 	ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface
+	FleetV1alpha1() fleetv1alpha1.FleetV1alpha1Interface
 	HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta1Interface
 	K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface
 	KubevirtV1() kubevirtv1.KubevirtV1Interface
@@ -67,6 +69,7 @@ type Clientset struct {
 	batchV1             *batchv1.BatchV1Client
 	catalogV1           *catalogv1.CatalogV1Client
 	clusterV1beta1      *clusterv1beta1.ClusterV1beta1Client
+	fleetV1alpha1       *fleetv1alpha1.FleetV1alpha1Client
 	harvesterhciV1beta1 *harvesterhciv1beta1.HarvesterhciV1beta1Client
 	k8sCniCncfIoV1      *k8scnicncfiov1.K8sCniCncfIoV1Client
 	kubevirtV1          *kubevirtv1.KubevirtV1Client
@@ -94,6 +97,11 @@ func (c *Clientset) CatalogV1() catalogv1.CatalogV1Interface {
 // ClusterV1beta1 retrieves the ClusterV1beta1Client
 func (c *Clientset) ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface {
 	return c.clusterV1beta1
+}
+
+// FleetV1alpha1 retrieves the FleetV1alpha1Client
+func (c *Clientset) FleetV1alpha1() fleetv1alpha1.FleetV1alpha1Interface {
+	return c.fleetV1alpha1
 }
 
 // HarvesterhciV1beta1 retrieves the HarvesterhciV1beta1Client
@@ -212,6 +220,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
+	cs.fleetV1alpha1, err = fleetv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.harvesterhciV1beta1, err = harvesterhciv1beta1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -284,6 +296,7 @@ func New(c rest.Interface) *Clientset {
 	cs.batchV1 = batchv1.New(c)
 	cs.catalogV1 = catalogv1.New(c)
 	cs.clusterV1beta1 = clusterv1beta1.New(c)
+	cs.fleetV1alpha1 = fleetv1alpha1.New(c)
 	cs.harvesterhciV1beta1 = harvesterhciv1beta1.New(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.New(c)
 	cs.kubevirtV1 = kubevirtv1.New(c)
