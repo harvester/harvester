@@ -1092,10 +1092,38 @@ func (v *settingValidator) getSystemVolumes() (map[string]struct{}, error) {
 	return systemVolumes, nil
 }
 
+func (v *settingValidator) getVClusterVolumes() (map[string]struct{}, error) {
+	sets := labels.Set{
+		util.LablelVClusterAppNameKey: util.LablelVClusterAppNameValue,
+	}
+
+	pvcs, err := v.pvcCache.List(util.VClusterNamespace, sets.AsSelector())
+	if err != nil {
+		return nil, err
+	}
+
+	vClusterVolumes := make(map[string]struct{})
+	for _, pvc := range pvcs {
+		if pvc.Spec.VolumeName == "" {
+			continue
+		}
+		logrus.Debugf("Get vCluster volume %v", pvc.Spec.VolumeName)
+		vClusterVolumes[pvc.Spec.VolumeName] = struct{}{}
+	}
+
+	return vClusterVolumes, nil
+}
+
 func (v *settingValidator) checkOnlineVolume() error {
 	systemVolumes, err := v.getSystemVolumes()
 	if err != nil {
 		logrus.Errorf("getSystemVolumes err %v", err)
+		return err
+	}
+
+	vClusterVolumes, err := v.getVClusterVolumes()
+	if err != nil {
+		logrus.Errorf("getVClusterVolumes err %v", err)
 		return err
 	}
 
@@ -1109,11 +1137,14 @@ func (v *settingValidator) checkOnlineVolume() error {
 		if _, found := systemVolumes[volume.Name]; found {
 			continue
 		}
-
-		if volume.Status.State != lhv1beta2.VolumeStateDetached {
-			logrus.Errorf("volume %v in state %v", volume.Name, volume.Status.State)
-			return fmt.Errorf("please stop all workloads before configuring the storage-network setting")
+		if volume.Status.State == lhv1beta2.VolumeStateDetached {
+			continue
 		}
+		if _, found := vClusterVolumes[volume.Name]; found {
+			return fmt.Errorf("please stop vcluster before configuring the storage-network setting")
+		}
+		logrus.Errorf("volume %v in state %v", volume.Name, volume.Status.State)
+		return fmt.Errorf("please stop all workloads before configuring the storage-network setting")
 	}
 
 	return nil
