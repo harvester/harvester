@@ -142,4 +142,8 @@ const (
 	LabelCPUManagerUpdateNode        = prefix + "/cpu-manager-update-node"
 	LabelCPUManagerUpdatePolicy      = prefix + "/cpu-manager-update-policy"
 	LabelCPUManagerExitCode          = prefix + "/cpu-manager-exit-code"
+
+	VClusterNamespace          = "rancher-vcluster"
+	LablelVClusterAppNameKey   = "app"
+	LablelVClusterAppNameValue = "vcluster"
 )
