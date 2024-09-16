@@ -1,8 +1,6 @@
 package schedulevmbackup
 
 import (
-	"fmt"
-
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -11,8 +9,8 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
-	utilCatalog "github.com/harvester/harvester/pkg/util/catalog"
 )
 
 const (
@@ -37,11 +35,8 @@ func deleteCronJob(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup)
 // In OnCronjobChanged(), controller will create VMBackup for VM backup/snapshot
 func createCronJob(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup) (*batchv1.CronJob, error) {
 	backoffLimit := int32(cronJobBackoffLimit)
-	jobImage, err := utilCatalog.FetchAppChartImage(h.appCache, h.namespace,
-		releaseAppHarvesterName, []string{"generalJob", "image"})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get harvester image (%s): %v", jobImage.ImageName(), err)
-	}
+	// TODO: change to get image from harvester chart
+	jobImage := settings.Image{Repository: "registry.suse.com/bci/bci-base", Tag: "15.5", ImagePullPolicy: corev1.PullIfNotPresent}
 
 	cronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{

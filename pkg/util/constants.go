@@ -169,4 +169,10 @@ const (
 
 	HarvesterNodeRoleLabelPrefix = "node-role.harvesterhci.io/"
 	HarvesterWitnessNodeLabelKey = HarvesterNodeRoleLabelPrefix + "witness"
+
+	HarvesterBundleName               = "harvester-app"
+	HarvesterCRDBundleName            = "harvester-crd-app"
+	SystemUpgradeControllerBundleName = "system-upgrade-controller-app"
+	RancherMonitoringBundleName       = "rancher-monitoring-app"
+	RancherLoggingBundleName          = "rancher-logging-app"
 )

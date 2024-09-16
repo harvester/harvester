@@ -31,7 +31,6 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			createHelmChartCRD(),
 			createLonghornVolumeCRD(),
 			createLonghornReplicaCRD(),
-			createClusterRepoCRD(),
 		).
 		BatchWait()
 }
@@ -89,11 +88,4 @@ func createLonghornVolumeCRD() wcrd.CRD {
 
 func createLonghornReplicaCRD() wcrd.CRD {
 	return crd.FromGV(lhv1beta2.SchemeGroupVersion, "Replica", lhv1beta2.Replica{})
-}
-
-func createClusterRepoCRD() wcrd.CRD {
-	clusterrepo := crd.FromGV(catalogv1.SchemeGroupVersion, "ClusterRepo", catalogv1.ClusterRepo{})
-	clusterrepo.PluralName = "clusterrepos"
-	clusterrepo.SingularName = "clusterrepo"
-	return clusterrepo
 }

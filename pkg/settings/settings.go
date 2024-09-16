@@ -17,24 +17,25 @@ var (
 	provider       Provider
 	InjectDefaults string
 
-	AdditionalCA                           = NewSetting(AdditionalCASettingName, "")
-	APIUIVersion                           = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
-	ClusterRegistrationURL                 = NewSetting("cluster-registration-url", "")
-	ServerVersion                          = NewSetting("server-version", "dev")
-	UIIndex                                = NewSetting(UIIndexSettingName, DefaultDashboardUIURL)
-	UIPath                                 = NewSetting(UIPathSettingName, "/usr/share/harvester/harvester")
-	UISource                               = NewSetting(UISourceSettingName, "auto") // Options are 'auto', 'external' or 'bundled'
-	UIPluginIndex                          = NewSetting(UIPluginIndexSettingName, DefaultUIPluginURL)
-	VolumeSnapshotClass                    = NewSetting(VolumeSnapshotClassSettingName, "longhorn")
-	BackupTargetSet                        = NewSetting(BackupTargetSettingName, "")
-	UpgradableVersions                     = NewSetting("upgradable-versions", "")
-	UpgradeCheckerEnabled                  = NewSetting("upgrade-checker-enabled", "true")
-	UpgradeCheckerURL                      = NewSetting("upgrade-checker-url", "https://harvester-upgrade-responder.rancher.io/v1/checkupgrade")
-	ReleaseDownloadURL                     = NewSetting("release-download-url", "https://releases.rancher.com/harvester")
-	LogLevel                               = NewSetting(LogLevelSettingName, "info") // options are info, debug and trace
-	SSLCertificates                        = NewSetting(SSLCertificatesSettingName, "{}")
-	SSLParameters                          = NewSetting(SSLParametersName, "{}")
-	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{}")
+	AdditionalCA           = NewSetting(AdditionalCASettingName, "")
+	APIUIVersion           = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
+	ClusterRegistrationURL = NewSetting("cluster-registration-url", "")
+	ServerVersion          = NewSetting("server-version", "dev")
+	UIIndex                = NewSetting(UIIndexSettingName, DefaultDashboardUIURL)
+	UIPath                 = NewSetting(UIPathSettingName, "/usr/share/harvester/harvester")
+	UISource               = NewSetting(UISourceSettingName, "auto") // Options are 'auto', 'external' or 'bundled'
+	UIPluginIndex          = NewSetting(UIPluginIndexSettingName, DefaultUIPluginURL)
+	VolumeSnapshotClass    = NewSetting(VolumeSnapshotClassSettingName, "longhorn")
+	BackupTargetSet        = NewSetting(BackupTargetSettingName, "")
+	UpgradableVersions     = NewSetting("upgradable-versions", "")
+	UpgradeCheckerEnabled  = NewSetting("upgrade-checker-enabled", "true")
+	UpgradeCheckerURL      = NewSetting("upgrade-checker-url", "https://harvester-upgrade-responder.rancher.io/v1/checkupgrade")
+	ReleaseDownloadURL     = NewSetting("release-download-url", "https://releases.rancher.com/harvester")
+	LogLevel               = NewSetting(LogLevelSettingName, "info") // options are info, debug and trace
+	SSLCertificates        = NewSetting(SSLCertificatesSettingName, "{}")
+	SSLParameters          = NewSetting(SSLParametersName, "{}")
+	// Please remember to change "support-bundle-kit" in values.yaml as well
+	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{\"repository\":\"rancher/support-bundle-kit\",\"tag\":\"master-head\",\"imagePullPolicy\":\"IfNotPresent\"}")
 	SupportBundleNamespaces                = NewSetting("support-bundle-namespaces", "")
 	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10")                                                                  // Unit is minute. 0 means disable timeout.
 	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, supportBundleUtil.SupportBundleExpirationDefaultStr)                // Unit is minute.

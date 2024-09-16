@@ -7,24 +7,24 @@ import (
 	"github.com/sirupsen/logrus"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
-	ManagedChartNamespace     = "fleet-local"
 	HarvesterManagedChartName = "harvester"
 	NDMName                   = "harvester-node-disk-manager"
 )
 
 func (h *Handler) syncNDMAutoProvisionPaths(setting *harvesterv1.Setting) error {
-	mChart, err := h.managedChartCache.Get(ManagedChartNamespace, HarvesterManagedChartName)
+	bundle, err := h.bundleCache.Get(util.FleetLocalNamespaceName, util.HarvesterBundleName)
 	if err != nil {
 		return err
 	}
-	mChartCopy := mChart.DeepCopy()
+	bundleCopy := bundle.DeepCopy()
 
-	NDMValues, ok := mChartCopy.Spec.Values.Data[NDMName]
+	NDMValues, ok := bundleCopy.Spec.Helm.Values.Data[NDMName]
 	if !ok {
-		return fmt.Errorf("NDM chart value not found in ManagedChart")
+		return fmt.Errorf("NDM chart value not found in Bundle")
 	}
 
 	NDMValuesMap, ok := NDMValues.(map[string]interface{})
@@ -38,10 +38,10 @@ func (h *Handler) syncNDMAutoProvisionPaths(setting *harvesterv1.Setting) error 
 	}
 
 	NDMValuesMap["autoProvisionFilter"] = autoProvFilters
-	mChartCopy.Spec.Values.Data[NDMName] = NDMValuesMap
+	bundleCopy.Spec.Helm.Values.Data[NDMName] = NDMValuesMap
 
-	logrus.Debugf("NDM values to be updated to ManagedChart: %v", mChartCopy.Spec.Values.Data[NDMName])
-	if _, err := h.managedCharts.Update(mChartCopy); err != nil {
+	logrus.Debugf("NDM values to be updated to Bundle: %v", bundleCopy.Spec.Helm.Values.Data[NDMName])
+	if _, err := h.bundleClient.Update(bundleCopy); err != nil {
 		return err
 	}
 

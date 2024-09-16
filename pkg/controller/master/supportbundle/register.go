@@ -19,8 +19,6 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	daemonsets := management.AppsFactory.Apps().V1().DaemonSet()
 	services := management.CoreFactory.Core().V1().Service()
-	appCache := management.CatalogFactory.Catalog().V1().App().Cache()
-	managedChartCache := management.RancherManagementFactory.Management().V3().ManagedChart().Cache()
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 
 	handler := &Handler{
@@ -31,8 +29,6 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		deployments:             deployments,
 		daemonSets:              daemonsets,
 		services:                services,
-		appCache:                appCache,
-		managedChartCache:       managedChartCache,
 		settings:                settings,
 		settingCache:            settings.Cache(),
 		manager: &Manager{

@@ -22,15 +22,13 @@ func Register(ctx context.Context, management *config.Management, options config
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
 	services := management.CoreFactory.Core().V1().Service()
 	lhs := management.LonghornFactory.Longhorn().V1beta2().Setting()
-	apps := management.CatalogFactory.Catalog().V1().App()
-	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	ingresses := management.NetworkingFactory.Networking().V1().Ingress()
 	helmChartConfigs := management.HelmFactory.Helm().V1().HelmChartConfig()
 	nodeConfigs := management.NodeConfigFactory.Node().V1beta1().NodeConfig()
 	node := management.CoreFactory.Core().V1().Node()
 	rkeControlPlane := management.RKEFactory.Rke().V1().RKEControlPlane()
-	rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 	kubevirt := management.VirtFactory.Kubevirt().V1().KubeVirt()
+	bundles := management.FleetFactory.Fleet().V1alpha1().Bundle()
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -50,9 +48,6 @@ func Register(ctx context.Context, management *config.Management, options config
 		configmaps:           configmaps,
 		configmapCache:       configmaps.Cache(),
 		serviceCache:         services.Cache(),
-		apps:                 apps,
-		managedCharts:        managedCharts,
-		managedChartCache:    managedCharts.Cache(),
 		helmChartConfigs:     helmChartConfigs,
 		helmChartConfigCache: helmChartConfigs.Cache(),
 		nodeConfigs:          nodeConfigs,
@@ -60,10 +55,10 @@ func Register(ctx context.Context, management *config.Management, options config
 		nodeClient:           node,
 		nodeCache:            node.Cache(),
 		rkeControlPlaneCache: rkeControlPlane.Cache(),
-		rancherSettings:      rancherSettings,
-		rancherSettingsCache: rancherSettings.Cache(),
 		kubeVirtConfig:       kubevirt,
 		kubeVirtConfigCache:  kubevirt.Cache(),
+		bundleClient:         bundles,
+		bundleCache:          bundles.Cache(),
 
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
@@ -90,14 +85,12 @@ func Register(ctx context.Context, management *config.Management, options config
 		harvSettings.NTPServersSettingName:           controller.syncNodeConfig,
 		harvSettings.LonghornV2DataEngineSettingName: controller.syncNodeConfig,
 		"auto-rotate-rke2-certs":                     controller.syncAutoRotateRKE2Certs,
-		harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName: controller.syncKubeconfigTTL,
-		harvSettings.AdditionalGuestMemoryOverheadRatioName:      controller.syncAdditionalGuestMemoryOverheadRatio,
+		harvSettings.AdditionalGuestMemoryOverheadRatioName: controller.syncAdditionalGuestMemoryOverheadRatio,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
 	}
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
-	apps.OnChange(ctx, controllerName, controller.appOnChanged)
 	node.OnChange(ctx, controllerName, controller.nodeOnChanged)
 	return nil
 }

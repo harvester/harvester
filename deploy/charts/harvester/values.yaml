@@ -507,6 +507,7 @@ kube-vip:
     vip_leaderelection: "false"
     enable_service_security: "true"
 
+# Please remember to change SupportBundleImage in settings.go as well
 support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent

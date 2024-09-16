@@ -7,8 +7,6 @@ import (
 	ctlhelmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
-	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
-	ctlappsv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,15 +19,12 @@ import (
 var _ = ginkgo.Describe("verify helm chart is create and addon gets to desired state", func() {
 
 	var a *harvesterv1.Addon
-	var app *catalogv1.App
 	var addonController ctlharvesterv1.AddonController
 	var helmController ctlhelmv1.HelmChartController
 	var jobController ctlbatchv1.JobController
-	var appController ctlappsv1.AppController
 
 	var jobName string
 
-	const managedChartKey = "catalog.cattle.io/managed"
 	ginkgo.BeforeEach(func() {
 		a = &harvesterv1.Addon{
 			ObjectMeta: metav1.ObjectMeta{
@@ -47,22 +42,10 @@ var _ = ginkgo.Describe("verify helm chart is create and addon gets to desired s
 			},
 		}
 
-		app = &catalogv1.App{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "demo-addon-create",
-				Namespace: "default",
-			},
-			Spec: catalogv1.ReleaseSpec{
-				Chart: &catalogv1.Chart{
-					Metadata: &catalogv1.Metadata{},
-				},
-			},
-		}
 		gomega.Eventually(func() error {
 			addonController = scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().Addon()
 			helmController = scaled.Management.HelmFactory.Helm().V1().HelmChart()
 			jobController = scaled.Management.BatchFactory.Batch().V1().Job()
-			appController = scaled.Management.CatalogFactory.Catalog().V1().App()
 			_, err := addonController.Create(a)
 			return err
 		}).ShouldNot(gomega.HaveOccurred())
@@ -163,29 +146,6 @@ var _ = ginkgo.Describe("verify helm chart is create and addon gets to desired s
 				return nil
 			}, "60s", "5s").ShouldNot(gomega.HaveOccurred())
 		})
-
-		ginkgo.By("creating an app is created", func() {
-			gomega.Eventually(func() error {
-				_, err := appController.Create(app)
-				return err
-			}, "30s", "5s").ShouldNot(gomega.HaveOccurred())
-		})
-
-		ginkgo.By("ensuring app is patched", func() {
-			gomega.Eventually(func() error {
-				appObj, err := appController.Get(app.Namespace, app.Name, metav1.GetOptions{})
-				if err != nil {
-					return err
-				}
-
-				if val, ok := appObj.Spec.Chart.Metadata.Annotations[managedChartKey]; ok && val == "true" {
-					return nil
-				}
-
-				return fmt.Errorf("waiting for key to be added to annotations on app")
-			}, "30s", "5s").ShouldNot(gomega.HaveOccurred())
-		})
-
 	})
 
 	ginkgo.AfterEach(func() {

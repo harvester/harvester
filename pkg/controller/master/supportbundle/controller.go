@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
-	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
@@ -15,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle/types"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
@@ -31,8 +28,6 @@ type Handler struct {
 	deployments             ctlappsv1.DeploymentClient
 	daemonSets              ctlappsv1.DaemonSetClient
 	services                ctlcorev1.ServiceClient
-	appCache                catalogv1.AppCache
-	managedChartCache       mgmtv3.ManagedChartCache
 	settings                v1beta1.SettingClient
 	settingCache            v1beta1.SettingCache
 
@@ -50,12 +45,7 @@ func (h *Handler) OnSupportBundleChanged(_ string, sb *harvesterv1.SupportBundle
 
 		imageStr := settings.SupportBundleImage.Get()
 		if imageStr == "{}" || imageStr == "" {
-			err := h.updateSupportBundleImageSetting()
-			if err != nil {
-				return nil, err
-			}
-			h.supportBundleController.Enqueue(sb.Namespace, sb.Name)
-			return nil, nil
+			return nil, fmt.Errorf("support bundle image should not be empty")
 		}
 
 		var image settings.Image
@@ -113,20 +103,6 @@ func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.Su
 
 	logrus.Infof("[%s] support bundle is deleted", sb.Name)
 	return nil, nil
-}
-
-func (h *Handler) updateSupportBundleImageSetting() error {
-	harvesterManagedChart, err := h.managedChartCache.Get(settingctl.ManagedChartNamespace, settingctl.HarvesterManagedChartName)
-	if err != nil {
-		return err
-	}
-
-	app, err := h.appCache.Get(harvesterManagedChart.Spec.DefaultNamespace, harvesterManagedChart.Spec.ReleaseName)
-	if err != nil {
-		return err
-	}
-
-	return settingctl.UpdateSupportBundleImage(h.settings, h.settingCache, app)
 }
 
 func (h *Handler) checkManagerStatus(sb *harvesterv1.SupportBundle) (*harvesterv1.SupportBundle, error) {

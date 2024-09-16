@@ -21,7 +21,6 @@ import (
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
 	"github.com/harvester/harvester/pkg/config"
-	"github.com/harvester/harvester/pkg/controller/master/rancher"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -30,7 +29,18 @@ const (
 	defaultTickerInterval = time.Second
 
 	port = "6443"
+
+	vipConfigmapName = "vip"
 )
+
+type VIPConfig struct {
+	Enabled        string             `json:"enabled,omitempty"`
+	ServiceType    corev1.ServiceType `json:"serviceType,omitempty"`
+	IP             string             `json:"ip,omitempty"`
+	Mode           string             `json:"mode,omitempty"`
+	HwAddress      string             `json:"hwAddress,omitempty"`
+	LoadBalancerIP string             `json:"loadBalancerIP,omitempty"`
+}
 
 type GenerateHandler struct {
 	context                  context.Context
@@ -133,12 +143,12 @@ func (h *GenerateHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (h *GenerateHandler) getServerURL() (string, error) {
-	vipCm, err := h.configMapCache.Get(h.namespace, rancher.VipConfigmapName)
+	vipCm, err := h.configMapCache.Get(h.namespace, vipConfigmapName)
 	if err != nil {
 		return "", err
 	}
 
-	vipConfig := rancher.VIPConfig{}
+	vipConfig := VIPConfig{}
 	if err := mapstructure.Decode(vipCm.Data, &vipConfig); err != nil {
 		return "", err
 	}

@@ -11,7 +11,6 @@ import (
 
 	cniv1 "github.com/containernetworking/cni/pkg/types"
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
-	ctlmgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,6 +19,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
+	ctlfleetv1 "github.com/harvester/harvester/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -106,8 +106,8 @@ type Handler struct {
 	alertmanagerCache                 ctlmonitoringv1.AlertmanagerCache
 	deployments                       v1.DeploymentClient
 	deploymentCache                   v1.DeploymentCache
-	managedCharts                     ctlmgmtv3.ManagedChartClient
-	managedChartCache                 ctlmgmtv3.ManagedChartCache
+	bundles                           ctlfleetv1.BundleClient
+	bundleCache                       ctlfleetv1.BundleCache
 	networkAttachmentDefinitions      ctlcniv1.NetworkAttachmentDefinitionClient
 	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache
 }
@@ -120,7 +120,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	prometheus := management.MonitoringFactory.Monitoring().V1().Prometheus()
 	alertmanager := management.MonitoringFactory.Monitoring().V1().Alertmanager()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
-	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
+	bundles := management.FleetFactory.Fleet().V1alpha1().Bundle()
 	networkAttachmentDefinitions := management.CniFactory.K8s().V1().NetworkAttachmentDefinition()
 
 	controller := &Handler{
@@ -135,8 +135,8 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		alertmanagerCache:                 alertmanager.Cache(),
 		deployments:                       deployments,
 		deploymentCache:                   deployments.Cache(),
-		managedCharts:                     managedCharts,
-		managedChartCache:                 managedCharts.Cache(),
+		bundles:                           bundles,
+		bundleCache:                       bundles.Cache(),
 		networkAttachmentDefinitions:      networkAttachmentDefinitions,
 		networkAttachmentDefinitionsCache: networkAttachmentDefinitions.Cache(),
 	}
@@ -537,8 +537,8 @@ func (h *Handler) checkGrafanaStatusAndStart() error {
 }
 
 func (h *Handler) checkRancherMonitoringStatusAndStart() error {
-	// check managedchart fleet-local/rancher-monitoring paused
-	monitoring, err := h.managedChartCache.Get(util.FleetLocalNamespaceName, util.RancherMonitoring)
+	// check fleet bundle fleet-local/rancher-monitoring-app paused
+	monitoring, err := h.bundleCache.Get(util.FleetLocalNamespaceName, util.RancherMonitoringBundleName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("rancher monitoring not found. skip")
@@ -555,7 +555,7 @@ func (h *Handler) checkRancherMonitoringStatusAndStart() error {
 		monitoringCopy.Spec.Paused = false
 		delete(monitoringCopy.Annotations, PausedStorageNetworkAnnotation)
 
-		if _, err := h.managedCharts.Update(monitoringCopy); err != nil {
+		if _, err := h.bundles.Update(monitoringCopy); err != nil {
 			return fmt.Errorf("rancher monitoring error %v", err)
 		}
 		return nil
@@ -619,7 +619,7 @@ func (h *Handler) checkPodStatusAndStart() error {
 
 func (h *Handler) checkRancherMonitoringStatusAndStop() error {
 	// check managedchart fleet-local/rancher-monitoring paused
-	monitoring, err := h.managedChartCache.Get(util.FleetLocalNamespaceName, util.RancherMonitoring)
+	monitoring, err := h.bundleCache.Get(util.FleetLocalNamespaceName, util.RancherMonitoringBundleName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("rancher monitoring not found. skip")
@@ -636,7 +636,7 @@ func (h *Handler) checkRancherMonitoringStatusAndStop() error {
 		monitoringCopy.Annotations[PausedStorageNetworkAnnotation] = "false"
 		monitoringCopy.Spec.Paused = true
 
-		if _, err := h.managedCharts.Update(monitoringCopy); err != nil {
+		if _, err := h.bundles.Update(monitoringCopy); err != nil {
 			return fmt.Errorf("rancher monitoring error %v", err)
 		}
 		return nil

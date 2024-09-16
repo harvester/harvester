@@ -31,6 +31,7 @@ import (
 	ctlharvbatchv1 "github.com/harvester/harvester/pkg/generated/controllers/batch"
 	cluster "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core"
+	ctlfleetv1 "github.com/harvester/harvester/pkg/generated/controllers/fleet.cattle.io"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	cniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	"github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
@@ -113,6 +114,7 @@ type Management struct {
 	ClusterFactory            *cluster.Factory
 	NodeConfigFactory         *ctlnodeharvester.Factory
 	RKEFactory                *rkev1.Factory
+	FleetFactory              *ctlfleetv1.Factory
 
 	ClientSet  *kubernetes.Clientset
 	RestConfig *rest.Config
@@ -429,6 +431,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.ControllerRevisionFactory = controllerRevision
 	management.starters = append(management.starters, controllerRevision)
+
+	fleetFactory, err := ctlfleetv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.FleetFactory = fleetFactory
+	management.starters = append(management.starters, fleetFactory)
 
 	return management, nil
 }

@@ -36,7 +36,6 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/controller/master/addon"
-	"github.com/harvester/harvester/pkg/controller/master/mcmsettings"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	"github.com/harvester/harvester/pkg/server"
 	"github.com/harvester/harvester/tests/framework/cluster"
@@ -57,7 +56,7 @@ var (
 	scaled           *config.Scaled
 	testEnv          *envtest.Environment
 	scheme           = runtime.NewScheme()
-	crdList          = []string{"./manifest/helm-crd.yaml", "./manifest/app-crd.yaml", "./manifest/ranchersettings-crd.yaml", "./manifest/clusterrepos-crd.yaml", "../../../deploy/charts/harvester-crd/templates/harvesterhci.io_addons.yaml"}
+	crdList          = []string{"./manifest/helm-crd.yaml", "./manifest/app-crd.yaml", "./manifest/ranchersettings-crd.yaml", "../../../deploy/charts/harvester-crd/templates/harvesterhci.io_addons.yaml"}
 )
 
 const (
@@ -226,10 +225,6 @@ func startControllers(ctx context.Context, restConfig *rest.Config, opts *ctlhar
 	_ = batch.ControllerFactory().SharedCacheFactory().WaitForCacheSync(ctx)
 
 	if err = addon.Register(testCtx, m, config.Options{}); err != nil {
-		return err
-	}
-
-	if err = mcmsettings.Register(testCtx, m, config.Options{}); err != nil {
 		return err
 	}
 
