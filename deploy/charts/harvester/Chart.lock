@@ -28,9 +28,9 @@ dependencies:
   version: 0.1.1
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
-  version: 0.3.1
+  version: 0.3.2
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
   version: 0.2.0
-digest: sha256:ada6ea7901ab264b0172ecfa9337f1c4f8ef30b36f30cd355805ae99826e20a1
-generated: "2024-09-05T10:09:29.719077+08:00"
+digest: sha256:1efb85b267a67dc927464cffc9863bbf7d39eda3e350bf4d95d170954c085e27
+generated: "2024-09-16T15:43:33.452262924+10:00"

@@ -53,7 +53,7 @@ dependencies:
     repository: file://dependency_charts/whereabouts
     condition: whereabouts.enabled
   - name: harvester-node-manager
-    version: 0.3.1
+    version: 0.3.2
     repository: https://charts.harvesterhci.io
   - name: snapshot-validation-webhook
     version: 0.2.0
