@@ -40,7 +40,6 @@ func init() {
 
 	RootCmd.PersistentFlags().BoolVar(&logDebug, "debug", debug, "set logging level to debug")
 	RootCmd.PersistentFlags().BoolVar(&logTrace, "trace", trace, "set logging level to trace")
-
-	RootCmd.Flags().StringVar(&KubeConfigPath, "kubeconfig", os.Getenv("KUBECONFIG"), "Path to the kubeconfig file")
-	RootCmd.Flags().StringVar(&KubeContext, "kubecontext", os.Getenv("KUBECONTEXT"), "Context name")
+	RootCmd.PersistentFlags().StringVar(&KubeConfigPath, "kubeconfig", os.Getenv("KUBECONFIG"), "Path to the kubeconfig file")
+	RootCmd.PersistentFlags().StringVar(&KubeContext, "kubecontext", os.Getenv("KUBECONTEXT"), "Context name")
 }
