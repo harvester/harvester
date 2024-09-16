@@ -244,9 +244,9 @@ service:
 
     ## Specify the port of HTTP endpoint,
     ## this port will be closed if set to 0.
-    ## defaults to "0".
+    ## defaults to "80".
     ##
-    httpPort: 0
+    httpPort: 80
 
     ## Specify the session affinity,
     ## defaults to "ClientIP".
