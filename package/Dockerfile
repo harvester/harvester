@@ -1,4 +1,4 @@
-FROM registry.suse.com/bci/bci-base:15.5
+FROM registry.suse.com/bci/bci-base:15.6
 
 # nfs-client is needed by the dep https://github.com/longhorn/backupstore to check backup store availability.
 RUN zypper -n rm container-suseconnect && \
