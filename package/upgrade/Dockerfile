@@ -1,4 +1,4 @@
-FROM registry.suse.com/bci/bci-base:15.5
+FROM registry.suse.com/bci/bci-base:15.6
 
 ARG ARCH=amd64
 ENV ARCH=${ARCH}
