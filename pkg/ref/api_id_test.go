@@ -7,6 +7,7 @@ import (
 )
 
 func TestParse(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		ref string
 	}
@@ -51,6 +52,7 @@ func TestParse(t *testing.T) {
 }
 
 func TestConstruct(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		namespace string
 		name      string

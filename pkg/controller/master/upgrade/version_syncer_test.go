@@ -11,6 +11,7 @@ import (
 )
 
 func TestGetUpgradableVersions(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		newVersions    []harvesterv1.Version
 		currentVersion string
@@ -223,17 +224,21 @@ func TestGetUpgradableVersions(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		var actual output
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var actual output
 
-		for i := range tc.given.newVersions {
-			actual.canUpgrades = append(actual.canUpgrades, canUpgrade(tc.given.currentVersion, &tc.given.newVersions[i]))
-		}
+			for i := range tc.given.newVersions {
+				actual.canUpgrades = append(actual.canUpgrades, canUpgrade(tc.given.currentVersion, &tc.given.newVersions[i]))
+			}
 
-		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
+			assert.Equal(t, tc.expected, actual, "case %q", tc.name)
+		})
 	}
 }
 
 func Test_formatQuantityToGi(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		qs string
 	}

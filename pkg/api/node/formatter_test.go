@@ -18,7 +18,6 @@ import (
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
-	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -493,9 +492,11 @@ var (
 )
 
 func Test_listUnhealthyVM(t *testing.T) {
+	t.Parallel()
+	testNode := testNode.DeepCopy()
 	assert := require.New(t)
-	typedObjects := []runtime.Object{workingVolume, workingVM, workingReplica1, workingReplica2, workingReplica3, failingVolume, failingVM,
-		failingReplica1, failingReplica2, failingReplica3, failingVM2, failingVolume2, failingReplica12, failingReplica22, failingReplica32}
+	typedObjects := []runtime.Object{workingVolume.DeepCopy(), workingVM.DeepCopy(), workingReplica1.DeepCopy(), workingReplica2.DeepCopy(), workingReplica3.DeepCopy(), failingVolume.DeepCopy(), failingVM.DeepCopy(),
+		failingReplica1.DeepCopy(), failingReplica2.DeepCopy(), failingReplica3.DeepCopy(), failingVM2.DeepCopy(), failingVolume2.DeepCopy(), failingReplica12.DeepCopy(), failingReplica22.DeepCopy(), failingReplica32.DeepCopy()}
 	client := fake.NewSimpleClientset(typedObjects...)
 	k8sclientset := k8sfake.NewSimpleClientset(testNode)
 
@@ -517,15 +518,18 @@ func Test_listUnhealthyVM(t *testing.T) {
 }
 
 func Test_powerActionNotPossible(t *testing.T) {
+	t.Parallel()
+	testNode := testNode.DeepCopy()
 	assert := require.New(t)
 
-	err := harvesterv1beta1.AddToScheme(scheme.Scheme)
+	newScheme := runtime.NewScheme()
+	err := harvesterv1beta1.AddToScheme(newScheme)
 	assert.NoError(err, "expected no error building scheme")
 
 	typedObjects := []runtime.Object{}
 	client := fake.NewSimpleClientset(typedObjects...)
 	k8sclientset := k8sfake.NewSimpleClientset(testNode)
-	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme)
+	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(newScheme)
 
 	h := ActionHandler{
 		nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
@@ -541,15 +545,18 @@ func Test_powerActionNotPossible(t *testing.T) {
 }
 
 func Test_powerActionPossible(t *testing.T) {
+	t.Parallel()
+	testNode := testNode.DeepCopy()
 	assert := require.New(t)
 
-	err := harvesterv1beta1.AddToScheme(scheme.Scheme)
+	newScheme := runtime.NewScheme()
+	err := harvesterv1beta1.AddToScheme(newScheme)
 	assert.NoError(err, "expected no error building scheme")
 
-	typedObjects := []runtime.Object{seederAddon}
+	typedObjects := []runtime.Object{seederAddon.DeepCopy()}
 	client := fake.NewSimpleClientset(typedObjects...)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode)
-	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, dynamicInventoryObj)
+	k8sclientset := k8sfake.NewSimpleClientset(testNode.DeepCopy())
+	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(newScheme, dynamicInventoryObj.DeepCopy())
 
 	h := ActionHandler{
 		nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
@@ -564,11 +571,14 @@ func Test_powerActionPossible(t *testing.T) {
 }
 
 func Test_powerAction(t *testing.T) {
+	t.Parallel()
+	testNode := testNode.DeepCopy()
 	assert := require.New(t)
 
+	newScheme := runtime.NewScheme()
 	powerOperation := "shutdown"
 	k8sclientset := k8sfake.NewSimpleClientset(testNode)
-	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, dynamicInventoryObj)
+	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(newScheme, dynamicInventoryObj.DeepCopy())
 	h := ActionHandler{
 		nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
 		nodeClient:    fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
@@ -586,6 +596,8 @@ func Test_powerAction(t *testing.T) {
 }
 
 func Test_invalidPowerAction(t *testing.T) {
+	t.Parallel()
+	testNode := testNode.DeepCopy()
 	assert := require.New(t)
 
 	powerOperation := "something"
@@ -601,8 +613,10 @@ func Test_invalidPowerAction(t *testing.T) {
 }
 
 func Test_listUnmigratableVM(t *testing.T) {
+	t.Parallel()
+	testNode := testNode.DeepCopy()
 	assert := require.New(t)
-	typedObjects := []runtime.Object{workingVM, vmWithContainerDisk, vmWithCDROM}
+	typedObjects := []runtime.Object{workingVM.DeepCopy(), vmWithContainerDisk.DeepCopy(), vmWithCDROM.DeepCopy()}
 	client := fake.NewSimpleClientset(typedObjects...)
 	k8sclientset := k8sfake.NewSimpleClientset(testNode, testNode2)
 
@@ -624,6 +638,8 @@ func Test_listUnmigratableVM(t *testing.T) {
 }
 
 func Test_vmWithPCIDevices(t *testing.T) {
+	t.Parallel()
+	testNode := testNode.DeepCopy()
 	assert := require.New(t)
 	typedObjects := []runtime.Object{workingVM, vmWithPCIDevice}
 	client := fake.NewSimpleClientset(typedObjects...)

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/yaml"
 
@@ -50,7 +52,9 @@ var (
 	testCtxCancel         context.CancelFunc
 	harvester             *server.HarvesterServer
 
+	RawKubeConfig    clientcmdapi.Config
 	KubeClientConfig clientcmd.ClientConfig
+	kubeConfig       *rest.Config
 	testCluster      cluster.Cluster
 	options          config.Options
 	cfg              *rest.Config
@@ -72,7 +76,7 @@ func TestAPI(t *testing.T) {
 	ginkgo.RunSpecs(t, "api suite")
 }
 
-var _ = ginkgo.BeforeSuite(func() {
+var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	testCtx, testCtxCancel = context.WithCancel(context.Background())
 	var err error
 
@@ -134,9 +138,37 @@ var _ = ginkgo.BeforeSuite(func() {
 	err = startControllers(testCtx, kubeConfig, factoryOpts)
 	dsl.MustNotError(err)
 
+	rawConf, err := KubeClientConfig.RawConfig()
+	dsl.MustNotError(err)
+
+	b, err := json.Marshal(rawConf)
+	dsl.MustNotError(err)
+
+	return b
+}, func(kubeConf []byte) {
+	err := json.Unmarshal(kubeConf, &RawKubeConfig)
+	dsl.MustNotError(err)
+
+	kubeConfig, err = clientcmd.NewDefaultClientConfig(RawKubeConfig, &clientcmd.ConfigOverrides{}).ClientConfig()
+	cfg = kubeConfig
+
+	clientFactory, err := client.NewSharedClientFactory(kubeConfig, nil)
+	dsl.MustNotError(err)
+
+	cacheFactory := cache.NewSharedCachedFactory(clientFactory, nil)
+	scf := controller.NewSharedControllerFactory(cacheFactory, &controller.SharedControllerFactoryOptions{})
+
+	factoryOpts := &generic.FactoryOptions{
+		SharedControllerFactory: scf,
+	}
+
+	if testCtx == nil {
+		testCtx, scaled, err = config.SetupScaled(context.Background(), cfg, factoryOpts)
+		dsl.MustNotError(err)
+	}
 })
 
-var _ = ginkgo.AfterSuite(func() {
+var _ = ginkgo.SynchronizedAfterSuite(func() {}, func() {
 
 	testCtx.Done()
 	ginkgo.By("tearing down test cluster")
