@@ -6,6 +6,7 @@ import (
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
@@ -23,6 +24,7 @@ const (
 	ScheduleVMBackupBySourceVM            = "harvesterhci.io/svmbackup-by-source-vm"
 	ScheduleVMBackupByCronGranularity     = "harvesterhci.io/svmbackup-by-cron-granularity"
 	ImageByStorageClass                   = "harvesterhci.io/image-by-storage-class"
+	VMInstanceMigrationByVM               = "harvesterhci.io/vmim-by-vm"
 )
 
 func RegisterIndexers(clients *clients.Clients) {
@@ -53,6 +55,9 @@ func RegisterIndexers(clients *clients.Clients) {
 
 	scInformer := clients.StorageFactory.Storage().V1().StorageClass().Cache()
 	scInformer.AddIndexer(indexeresutil.StorageClassBySecretIndex, indexeresutil.StorageClassBySecret)
+
+	vmimCache := clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache()
+	vmimCache.AddIndexer(VMInstanceMigrationByVM, vmInstanceMigrationByVM)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
@@ -126,4 +131,8 @@ func imageByStorageClass(obj *harvesterv1.VirtualMachineImage) ([]string, error)
 		return []string{}, nil
 	}
 	return []string{sc}, nil
+}
+
+func vmInstanceMigrationByVM(obj *kubevirtv1.VirtualMachineInstanceMigration) ([]string, error) {
+	return []string{fmt.Sprintf("%s/%s", obj.Namespace, obj.Spec.VMIName)}, nil
 }
