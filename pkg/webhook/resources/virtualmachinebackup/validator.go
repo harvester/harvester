@@ -34,6 +34,7 @@ func NewValidator(
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	engineCache ctllonghornv1.EngineCache,
 	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache,
+	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 ) types.Validator {
 	return &virtualMachineBackupValidator{
 		vms:                vms,
@@ -42,6 +43,7 @@ func NewValidator(
 		pvcCache:           pvcCache,
 		engineCache:        engineCache,
 		resourceQuotaCache: resourceQuotaCache,
+		vmimCache:          vmimCache,
 	}
 }
 
@@ -54,6 +56,7 @@ type virtualMachineBackupValidator struct {
 	pvcCache           ctlcorev1.PersistentVolumeClaimCache
 	engineCache        ctllonghornv1.EngineCache
 	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache
+	vmimCache          ctlkubevirtv1.VirtualMachineInstanceMigrationCache
 }
 
 func (v *virtualMachineBackupValidator) Resource() types.Resource {
@@ -85,6 +88,9 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 	if newVMBackup.Status == nil {
 		vm, err := v.vms.Get(newVMBackup.Namespace, newVMBackup.Spec.Source.Name)
 		if err != nil {
+			return werror.NewInvalidError(err.Error(), fieldSourceName)
+		}
+		if err = v.checkVMInstanceMigration(vm); err != nil {
 			return werror.NewInvalidError(err.Error(), fieldSourceName)
 		}
 		if err = v.checkTotalSnapshotSize(vm); err != nil {
@@ -222,6 +228,26 @@ func (v *virtualMachineBackupValidator) checkTotalSnapshotSize(vm *kubevirtv1.Vi
 
 	if err := webhookutil.CheckTotalSnapshotSizeOnNamespace(v.pvcCache, v.engineCache, vm.Namespace, resourceQuota.Spec.SnapshotLimit.NamespaceTotalSnapshotSizeQuota); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (v *virtualMachineBackupValidator) checkVMInstanceMigration(vm *kubevirtv1.VirtualMachine) error {
+	srcVM := fmt.Sprintf("%s/%s", vm.Namespace, vm.Name)
+	vmims, err := v.vmimCache.GetByIndex(indexeres.VMInstanceMigrationByVM, srcVM)
+	if err != nil {
+		return err
+	}
+
+	if len(vmims) == 0 {
+		return nil
+	}
+
+	for _, vmim := range vmims {
+		if !vmim.IsRunning() {
+			continue
+		}
+		return fmt.Errorf("vm %s is in migration", srcVM)
 	}
 	return nil
 }

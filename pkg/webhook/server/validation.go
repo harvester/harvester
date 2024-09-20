@@ -93,6 +93,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
 			clients.LonghornFactory.Longhorn().V1beta2().Engine().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache(),
 		),
 		virtualmachinerestore.NewValidator(
 			clients.Core.Namespace().Cache(),
