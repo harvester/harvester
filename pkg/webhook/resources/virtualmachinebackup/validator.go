@@ -29,12 +29,14 @@ func NewValidator(
 	setting ctlharvesterv1.SettingCache,
 	vmrestores ctlharvesterv1.VirtualMachineRestoreCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
+	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 ) types.Validator {
 	return &virtualMachineBackupValidator{
 		vms:        vms,
 		setting:    setting,
 		vmrestores: vmrestores,
 		pvcCache:   pvcCache,
+		vmimCache:  vmimCache,
 	}
 }
 
@@ -45,6 +47,7 @@ type virtualMachineBackupValidator struct {
 	setting    ctlharvesterv1.SettingCache
 	vmrestores ctlharvesterv1.VirtualMachineRestoreCache
 	pvcCache   ctlcorev1.PersistentVolumeClaimCache
+	vmimCache  ctlkubevirtv1.VirtualMachineInstanceMigrationCache
 }
 
 func (v *virtualMachineBackupValidator) Resource() types.Resource {
@@ -75,6 +78,9 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 	if newVMBackup.Status == nil {
 		vm, err := v.vms.Get(newVMBackup.Namespace, newVMBackup.Spec.Source.Name)
 		if err != nil {
+			return werror.NewInvalidError(err.Error(), fieldSourceName)
+		}
+		if err = v.checkVMInstanceMigration(vm); err != nil {
 			return werror.NewInvalidError(err.Error(), fieldSourceName)
 		}
 		if err = v.checkBackupVolumeSnapshotClass(vm, newVMBackup); err != nil {
@@ -174,6 +180,26 @@ func (v *virtualMachineBackupValidator) Delete(_ *types.Request, obj runtime.Obj
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func (v *virtualMachineBackupValidator) checkVMInstanceMigration(vm *kubevirtv1.VirtualMachine) error {
+	srcVM := fmt.Sprintf("%s/%s", vm.Namespace, vm.Name)
+	vmims, err := v.vmimCache.GetByIndex(indexeres.VMInstanceMigrationByVM, srcVM)
+	if err != nil {
+		return err
+	}
+
+	if len(vmims) == 0 {
+		return nil
+	}
+
+	for _, vmim := range vmims {
+		if !vmim.IsRunning() {
+			continue
+		}
+		return fmt.Errorf("vm %s is in migration", srcVM)
 	}
 	return nil
 }

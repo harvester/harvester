@@ -6,6 +6,7 @@ import (
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/indexeres"
@@ -19,6 +20,7 @@ const (
 	VMBackupSnapshotByPVCNamespaceAndName = "harvesterhci.io/vmbackup-snapshot-by-pvc-namespace-and-name"
 	VolumeByReplicaCountIndex             = "harvesterhci.io/volume-by-replica-count"
 	ImageByExportSourcePVCIndex           = "harvesterhci.io/image-by-export-source-pvc"
+	VMInstanceMigrationByVM               = "harvesterhci.io/vmim-by-vm"
 )
 
 func RegisterIndexers(clients *clients.Clients) {
@@ -38,6 +40,9 @@ func RegisterIndexers(clients *clients.Clients) {
 
 	vmImageInformer := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()
 	vmImageInformer.AddIndexer(ImageByExportSourcePVCIndex, imageByExportSourcePVC)
+
+	vmimCache := clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache()
+	vmimCache.AddIndexer(VMInstanceMigrationByVM, vmInstanceMigrationByVM)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
@@ -86,4 +91,8 @@ func imageByExportSourcePVC(obj *harvesterv1.VirtualMachineImage) ([]string, err
 	}
 
 	return []string{fmt.Sprintf("%s/%s", obj.Spec.PVCNamespace, obj.Spec.PVCName)}, nil
+}
+
+func vmInstanceMigrationByVM(obj *kubevirtv1.VirtualMachineInstanceMigration) ([]string, error) {
+	return []string{fmt.Sprintf("%s/%s", obj.Namespace, obj.Spec.VMIName)}, nil
 }
