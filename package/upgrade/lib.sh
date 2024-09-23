@@ -553,8 +553,8 @@ upgrade_addon_rancher_logging_with_patch_fluentbit_eventrouter_image()
   if [ $EXIT_CODE != 0 ]; then
     echo "eventrouter is not found, need not patch"
   else
-    if [[ "rancher/harvester-eventrouter:v0.2.0" > $tag ]]; then
-      echo "eventrouter image is $tag, will patch to v0.2.0"
+    if [[ "rancher/harvester-eventrouter:v0.3.2" > $tag ]]; then
+      echo "eventrouter image is $tag, will patch to v0.3.2"
       fixeventrouter=true
     else
       echo "eventrouter image is updated, need not patch"
@@ -577,7 +577,7 @@ upgrade_addon_rancher_logging_with_patch_fluentbit_eventrouter_image()
   fi
 
   if [[ $fixeventrouter == true ]]; then
-    yq -e '.eventTailer.workloadOverrides.containers[0].image = "rancher/harvester-eventrouter:v0.2.0"' -i $valuesfile
+    yq -e '.eventTailer.workloadOverrides.containers[0].image = "rancher/harvester-eventrouter:v0.3.2"' -i $valuesfile
   fi
 
   # add 4 spaces to each line
