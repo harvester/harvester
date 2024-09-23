@@ -236,6 +236,8 @@ upgrade_rancher() {
   cd $UPGRADE_TMP_DIR/rancher
 
   ./helm get values rancher -n cattle-system -o yaml >values.yaml
+  # Remove extraEnv fields from values.yaml. We don't want config like CATTLE_SHELL_IMAGE to overwrite shell-image setting.
+  yq -i 'del(.extraEnv)' values.yaml
   echo "Rancher values:"
   cat values.yaml
 
