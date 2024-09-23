@@ -2,6 +2,7 @@ package schedulevmbackup
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	ctlv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -146,7 +147,9 @@ func (v *scheuldeVMBackupValidator) Create(_ *types.Request, newObj runtime.Obje
 	}
 
 	if len(svmbackups) != 0 {
-		return werror.NewInvalidError(fmt.Sprintf("VM %s already has backup schedule", srcVM), fieldVMBackup)
+		//we should only find one existing schedule
+		msg := fmt.Sprintf("VM %s already has %s schedule", srcVM, svmbackups[0].Spec.VMBackupSpec.Type)
+		return werror.NewInvalidError(msg, fieldVMBackup)
 	}
 
 	if newSVMBackup.Spec.VMBackupSpec.Type == v1beta1.Snapshot {
@@ -166,6 +169,10 @@ func (v *scheuldeVMBackupValidator) Update(_ *types.Request, oldObj runtime.Obje
 
 	if !newSVMBackup.DeletionTimestamp.IsZero() {
 		return nil
+	}
+
+	if !reflect.DeepEqual(oldSVMBackup.Spec.VMBackupSpec, newSVMBackup.Spec.VMBackupSpec) {
+		return werror.NewInvalidError("source vm can't be changed", fieldVMBackup)
 	}
 
 	if newSVMBackup.Spec.MaxFailure >= newSVMBackup.Spec.Retain {

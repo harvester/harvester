@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"go.uber.org/multierr"
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,9 +22,9 @@ const (
 	scheduleVMBackupKindName = "ScheduleVMBackup"
 	timeFormat               = "20060102.1504"
 
-	reachMaxFailure = "Reach Max Failure"
-
+	reachMaxFailure  = "Reach Max Failure"
 	proactiveSuspend = "Proactive Schedule Suspend"
+	lhbackupNotSync  = "Longhorn Backup Not Synced"
 )
 
 const (
@@ -331,6 +332,10 @@ func handleReachMaxFailure(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleV
 	return updateSuspendState(h, svmbackup, true, reachMaxFailure, msg)
 }
 
+func handleLHBackupNotSynced(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup, msg string) error {
+	return updateSuspendState(h, svmbackup, true, lhbackupNotSync, msg)
+}
+
 func handleSuspend(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup) error {
 	return updateSuspendState(h, svmbackup, true, proactiveSuspend, proactiveSuspend)
 }
@@ -385,6 +390,56 @@ func updateCronExpression(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVM
 
 	_, err = h.cronJobsClient.Update(cronJobCpy)
 	return err
+}
+
+func lhBackupInFinalState(lhBackup *lhv1beta2.Backup) bool {
+	switch lhBackup.Status.State {
+	case lhv1beta2.BackupStateNew, lhv1beta2.BackupStatePending, lhv1beta2.BackupStateInProgress:
+		return false
+	default:
+		return true
+	}
+}
+
+// If NFS backup target is unreachable, this can make the volumesnapshot already in error state,
+// however, the related lhbackup is still in processing. The backup controller will hold one LH va ticket
+// and make following snapshot and backup creation stuck. We should suspend the schedule and delete the LH backup
+// as soon as we find this situation
+func checkLHBackupUnexpectedProcessing(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup, vmbackup *harvesterv1.VirtualMachineBackup) error {
+	if vmbackup.Spec.Type == harvesterv1.Snapshot {
+		return nil
+	}
+
+	if backup.IsBackupProgressing(vmbackup) {
+		return nil
+	}
+
+	for i := range vmbackup.Status.VolumeBackups {
+		vb := &vmbackup.Status.VolumeBackups[i]
+		if vb.LonghornBackupName == nil {
+			continue
+		}
+
+		lhBackup, err := h.lhbackupCache.Get(util.LonghornSystemNamespaceName, *vb.LonghornBackupName)
+		if err != nil {
+			return err
+		}
+
+		if lhBackupInFinalState(lhBackup) {
+			continue
+		}
+
+		if err := h.lhbackupClient.Delete(lhBackup.Namespace, lhBackup.Name, &metav1.DeleteOptions{}); err != nil {
+			return err
+		}
+
+		msg := fmt.Sprintf("vmbackup %s/%s vb %s in error state but lhbackup %s still in processing,"+
+			" usually caused by backup target not reachable",
+			vmbackup.Namespace, vmbackup.Name, *vb.Name, lhBackup.Name)
+		return handleLHBackupNotSynced(h, svmbackup, msg)
+	}
+
+	return nil
 }
 
 func newVMBackups(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup, timestamp string) (*harvesterv1.VirtualMachineBackup, error) {
