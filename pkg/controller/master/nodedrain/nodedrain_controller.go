@@ -383,6 +383,8 @@ func filterNodesForNodeSelector(possibleNodes []*corev1.Node, vmi *kubevirtv1.Vi
 				validNodes = append(validNodes, v)
 			}
 		}
+	} else {
+		return possibleNodes
 	}
 	return validNodes
 }
