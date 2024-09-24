@@ -66,6 +66,8 @@ spec:
               echo '[INFO] deleting kubevirt ...';
               kubectl delete kubevirt --wait --all;
               {{ end }}
+              echo 'delete harvester webhooks harvester-validator'
+              kubectl delete ValidatingWebhookConfiguration -n harvester-system harvester-validator --force || echo 'kubectl failed'
               exit
 {{- if .Values.jobs.preDelete.containers.kubectl.resources }}
           resources:
