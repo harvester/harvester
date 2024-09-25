@@ -288,16 +288,19 @@ upgrade_rancher() {
   wait_helm_release cattle-fleet-system fleet-crd fleet-crd-$REPO_FLEET_CRD_CHART_VERSION $REPO_FLEET_CRD_APP_VERSION deployed
   wait_helm_release cattle-system rancher-webhook rancher-webhook-$REPO_RANCHER_WEBHOOK_CHART_VERSION $REPO_RANCHER_WEBHOOK_APP_VERSION deployed
   echo "Wait for Rancher dependencies rollout..."
-  wait_rollout cattle-fleet-local-system deployment fleet-agent
   wait_rollout cattle-fleet-system deployment fleet-controller
   wait_rollout cattle-system deployment rancher-webhook
+  # fleet-agnet is deployed as statefulset after fleet v0.10.1
+  # v0.9.2: https://github.com/rancher/fleet/blob/e75c1fb498e3137ba39c2bdc4d59c9122f5ef9c6/internal/cmd/controller/agent/manifest.go#L136-L145
+  # v0.10.1: https://github.com/rancher/fleet/blob/62de718a20e1377d5a8702876077762ed9a37f27/internal/cmd/controller/agentmanagement/agent/manifest.go#L152-L161
+  wait_rollout cattle-fleet-local-system statefulset fleet-agent
   echo "Wait for cluster settling down..."
   wait_capi_cluster fleet-local local $pre_generation
-  wait_for_deployment cattle-fleet-local-system fleet-agent
+  wait_for_statefulset cattle-fleet-local-system fleet-agent
   pre_patch_timestamp=$(fleet_agent_timestamp)
   patch_fleet_cluster
   wait_for_fleet_agent $pre_patch_timestamp
-  wait_rollout cattle-fleet-local-system deployment fleet-agent
+  wait_rollout cattle-fleet-local-system statefulset fleet-agent
 }
 
 update_local_rke_state_secret() {
@@ -865,22 +868,22 @@ EOF
   rm -f $patch_manifest
 }
 
-# wait for deployment will wait until deployment exists
-wait_for_deployment() {
+# wait for statefulset will wait until statefulset exists
+wait_for_statefulset() {
   local namespace=$1
   local name=$2
-  local found=$(kubectl get deployment -n $namespace -o json | jq -r --arg DEPLOYMENT $name '.items[].metadata | select (.name == $DEPLOYMENT) | .name')
+  local found=$(kubectl get statefulset -n $namespace -o json | jq -r --arg DEPLOYMENT $name '.items[].metadata | select (.name == $DEPLOYMENT) | .name')
   while [ -z $found ]
   do
-    echo "waiting for deployment $name to be created in namespace $namespace, sleeping for 10 seconds"
+    echo "waiting for statefulset $name to be created in namespace $namespace, sleeping for 10 seconds"
     sleep 10
-    found=$(kubectl get deployment -n $namespace -o json | jq -r --arg DEPLOYMENT $name '.items[].metadata | select (.name == $DEPLOYMENT) | .name')
+    found=$(kubectl get statefulset -n $namespace -o json | jq -r --arg DEPLOYMENT $name '.items[].metadata | select (.name == $DEPLOYMENT) | .name')
   done
 }
 
 fleet_agent_timestamp(){
-  wait_for_deployment cattle-fleet-local-system fleet-agent &> /dev/null
-  local temptime=$(kubectl get deploy -n cattle-fleet-local-system fleet-agent -o json | jq -r .metadata.creationTimestamp)
+  wait_for_statefulset cattle-fleet-local-system fleet-agent &> /dev/null
+  local temptime=$(kubectl get statefulset -n cattle-fleet-local-system fleet-agent -o json | jq -r .metadata.creationTimestamp)
   if [ -z "$temptime" ]; then
     # if kubectl happens to fail due to deployment is just deleted, echo 0 to continue
     echo "0"
