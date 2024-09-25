@@ -135,8 +135,13 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 		return h.abortMigration(namespace, name)
 	case findMigratableNodes:
 		return h.findMigratableNodes(rw, namespace, name)
-	case startVM, stopVM, restartVM:
+	case startVM, restartVM:
 		if err := h.subresourceOperate(r.Context(), vmResource, namespace, name, action); err != nil {
+			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
+		}
+	case stopVM:
+		// To align behavior with kubevirt v1.1.1, we set runStrategy to Halted when stopping a VM.
+		if err := h.stopVM(namespace, name); err != nil {
 			return fmt.Errorf("%s virtual machine %s/%s failed, %v", action, namespace, name, err)
 		}
 	case pauseVM, unpauseVM, softReboot:
@@ -316,6 +321,22 @@ func (h *vmActionHandler) subresourceOperate(ctx context.Context, resource, name
 	}
 
 	return h.virtSubresourceRestClient.Put().Namespace(namespace).Resource(resource).SubResource(subresourece).Name(name).Do(ctx).Error()
+}
+
+func (h *vmActionHandler) stopVM(namespace, name string) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return fmt.Errorf("failed to get virtual machine %s/%s: %v", namespace, name, err)
+	}
+
+	vmCopy := vm.DeepCopy()
+	runStrategy := kubevirtv1.RunStrategyHalted
+	vmCopy.Spec.RunStrategy = &runStrategy
+	if !reflect.DeepEqual(vm, vmCopy) {
+		_, err = h.vms.Update(vmCopy)
+		return err
+	}
+	return nil
 }
 
 func ejectCdRomFromVM(vm *kubevirtv1.VirtualMachine, diskNames []string) error {
