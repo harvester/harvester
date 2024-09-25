@@ -40,18 +40,6 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "invalid encryption value",
-			storageClass: &storagev1.StorageClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "sc2",
-				},
-				Parameters: map[string]string{
-					util.LonghornOptionEncrypted: "false",
-				},
-			},
-			expectError: true,
-		},
-		{
 			name: "secret not found",
 			storageClass: &storagev1.StorageClass{
 				ObjectMeta: metav1.ObjectMeta{
@@ -65,6 +53,43 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 					util.CSINodeStageSecretNamespaceKey:   "default",
 					util.CSINodePublishSecretNameKey:      "non-existent-secret",
 					util.CSINodePublishSecretNamespaceKey: "default",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "encryption disabled",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "sc4",
+				},
+				Parameters: map[string]string{
+					util.LonghornOptionEncrypted: "false",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid encryption value",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "sc2",
+				},
+				Parameters: map[string]string{
+					util.LonghornOptionEncrypted: "invalid-value-here",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "missing parameters for encryption",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "sc5",
+				},
+				Parameters: map[string]string{
+					util.LonghornOptionEncrypted:     "true",
+					util.CSIProvisionerSecretNameKey: "non-existent-secret",
 				},
 			},
 			expectError: true,
