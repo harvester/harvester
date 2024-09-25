@@ -2,6 +2,7 @@ package storageclass
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
@@ -138,12 +139,43 @@ func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error 
 	newSC := newObj.(*storagev1.StorageClass)
 
 	// Use util.LonghornOptionEncrypted as the key to check if the storage class is encrypted
-	if value, ok := newSC.Parameters[util.LonghornOptionEncrypted]; !ok {
+	value, ok := newSC.Parameters[util.LonghornOptionEncrypted]
+	if !ok {
 		return nil
-	} else if value != "true" {
-		return werror.NewInvalidError(fmt.Sprintf("storage class %s is not for encryption or decryption", newSC.Name), fmt.Sprintf("spec.parameters[%s] must be true", util.LonghornOptionEncrypted))
 	}
 
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		return werror.NewInvalidError("invalid value for `encrypted`", "spec.parameters")
+	}
+
+	if !enabled {
+		return nil
+	}
+
+	secretName, secretNamespace, missingParams, err := v.findMissingEncryptionParams(newSC)
+	if err != nil {
+		return err
+	}
+
+	if len(missingParams) != 0 {
+		return werror.NewInvalidError(fmt.Sprintf("storage class must contain %s", strings.Join(missingParams, ", ")), "spec.parameters")
+	}
+
+	if secretName != "" && secretNamespace != "" {
+		_, err := v.secretCache.Get(secretNamespace, secretName)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
+			}
+			return werror.NewInvalidError(err.Error(), "")
+		}
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) findMissingEncryptionParams(newSC *storagev1.StorageClass) (string, string, []string, error) {
 	var (
 		secretName      string
 		secretNamespace string
@@ -173,25 +205,11 @@ func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error 
 		}
 
 		if secretName != name || secretNamespace != namespace {
-			return werror.NewInvalidError(fmt.Sprintf("secret names and namespaces in %s and %s are different from others", pair[0], pair[1]), "")
+			return "", "", nil, werror.NewInvalidError(fmt.Sprintf("secret names and namespaces in %s and %s are different from others", pair[0], pair[1]), "")
 		}
 	}
 
-	if len(missingParams) != 0 {
-		return werror.NewInvalidError(fmt.Sprintf("storage class must contain %s", strings.Join(missingParams, ", ")), "spec.parameters")
-	}
-
-	if secretName != "" && secretNamespace != "" {
-		_, err := v.secretCache.Get(secretNamespace, secretName)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
-			}
-			return werror.NewInvalidError(err.Error(), "")
-		}
-	}
-
-	return nil
+	return secretName, secretNamespace, missingParams, nil
 }
 
 func (v *storageClassValidator) validateVMImageUsage(sc *storagev1.StorageClass) error {
