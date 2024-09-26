@@ -362,6 +362,17 @@ harvester-network-controller:
       pullPolicy: IfNotPresent
       tag: master-head
 
+harvester-networkfs-manager:
+  ## Specify to install harvester node disk manager,
+  ## defaults to "false".
+  enabled: false
+
+  image:
+    repository: rancher/harvester-networkfs-manager
+    pullPolicy: IfNotPresent 
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: main-head
+
 harvester-node-disk-manager:
   ## Specify to install harvester node disk manager,
   ## defaults to "false".
