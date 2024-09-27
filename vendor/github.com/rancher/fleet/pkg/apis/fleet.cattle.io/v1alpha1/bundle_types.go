@@ -98,6 +98,7 @@ type BundleSpec struct {
 
 	// Resources contains the resources that were read from the bundle's
 	// path. This includes the content of downloaded helm charts.
+	// +nullable
 	Resources []BundleResource `json:"resources,omitempty"`
 
 	// Targets refer to the clusters which will be deployed to.
@@ -128,10 +129,13 @@ type BundleRef struct {
 // BundleResource represents the content of a single resource from the bundle, like a YAML manifest.
 type BundleResource struct {
 	// Name of the resource, can include the bundle's internal path.
+	// +nullable
 	Name string `json:"name,omitempty"`
 	// The content of the resource, can be compressed.
+	// +nullable
 	Content string `json:"content,omitempty"`
 	// Encoding is either empty or "base64+gz".
+	// +nullable
 	Encoding string `json:"encoding,omitempty"`
 }
 
@@ -164,6 +168,7 @@ type RolloutStrategy struct {
 // Partition defines a separate rollout strategy for a set of clusters.
 type Partition struct {
 	// A user-friendly name given to the partition used for Display (optional).
+	// +nullable
 	Name string `json:"name,omitempty"`
 	// A number or percentage of clusters that can be unavailable in this
 	// partition before this partition is treated as done.
@@ -176,6 +181,7 @@ type Partition struct {
 	// A cluster group name to include in this partition
 	ClusterGroup string `json:"clusterGroup,omitempty"`
 	// Selector matching cluster group labels to include in this partition
+	// +nullable
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
 }
 
@@ -258,6 +264,7 @@ type BundleSummary struct {
 	DesiredReady int `json:"desiredReady"`
 	// NonReadyClusters is a list of states, which is filled for a bundle
 	// that is not ready.
+	// +nullable
 	NonReadyResources []NonReadyResource `json:"nonReadyResources,omitempty"`
 }
 
@@ -275,8 +282,10 @@ type NonReadyResource struct {
 	// +nullable
 	Message string `json:"message,omitempty"`
 	// ModifiedStatus lists the state for each modified resource.
+	// +nullable
 	ModifiedStatus []ModifiedStatus `json:"modifiedStatus,omitempty"`
 	// NonReadyStatus lists the state for each non-ready resource.
+	// +nullable
 	NonReadyStatus []NonReadyStatus `json:"nonReadyStatus,omitempty"`
 }
 
@@ -338,6 +347,7 @@ type BundleStatus struct {
 	// ResourceKey lists resources, which will likely be deployed. The
 	// actual list of resources on a cluster might differ, depending on the
 	// helm chart, value templating, etc..
+	// +nullable
 	ResourceKey []ResourceKey `json:"resourceKey,omitempty"`
 	// OCIReference is the OCI reference used to store contents, this is
 	// only for informational purposes.
