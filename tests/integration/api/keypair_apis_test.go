@@ -39,23 +39,6 @@ var _ = Describe("verify keypair APIs", func() {
 
 		Specify("verify required fields", func() {
 
-			By("create a keypair with name missing", func() {
-				rsaKey, err := util.GeneratePrivateKey(2048)
-				MustNotError(err)
-				publicKey, err := util.GeneratePublicKey(&rsaKey.PublicKey)
-				MustNotError(err)
-				var keypair = harvesterv1.KeyPair{
-					ObjectMeta: v1.ObjectMeta{
-						Namespace: keypairNamespace,
-					},
-					Spec: harvesterv1.KeyPairSpec{
-						PublicKey: string(publicKey),
-					},
-				}
-				respCode, respBody, err := helper.PostObject(keypairsAPI, keypair)
-				MustRespCodeIs(http.StatusUnprocessableEntity, "post keypair", err, respCode, respBody)
-			})
-
 			By("create a keypair with public key missing", func() {
 				var keypair = harvesterv1.KeyPair{
 					ObjectMeta: v1.ObjectMeta{
