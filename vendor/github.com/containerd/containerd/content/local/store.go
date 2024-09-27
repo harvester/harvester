@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -32,9 +31,10 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/filters"
 	"github.com/containerd/containerd/log"
+	"github.com/containerd/containerd/pkg/randutil"
 	"github.com/sirupsen/logrus"
 
-	digest "github.com/opencontainers/go-digest"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -473,7 +473,7 @@ func (s *store) Writer(ctx context.Context, opts ...content.WriterOpt) (content.
 			lockErr = nil
 			break
 		}
-		time.Sleep(time.Millisecond * time.Duration(rand.Intn(1<<count)))
+		time.Sleep(time.Millisecond * time.Duration(randutil.Intn(1<<count)))
 	}
 
 	if lockErr != nil {
@@ -505,6 +505,7 @@ func (s *store) resumeStatus(ref string, total int64, digester digest.Digester) 
 		return status, fmt.Errorf("provided total differs from status: %v != %v", total, status.Total)
 	}
 
+	//nolint:dupword
 	// TODO(stevvooe): slow slow slow!!, send to goroutine or use resumable hashes
 	fp, err := os.Open(data)
 	if err != nil {
