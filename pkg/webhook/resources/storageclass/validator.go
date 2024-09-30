@@ -54,6 +54,18 @@ func (v *storageClassValidator) Update(_ *types.Request, _ runtime.Object, newOb
 	return v.validateSetUniqueDefault(newObj)
 }
 
+<<<<<<< HEAD
+=======
+func (v *storageClassValidator) Delete(_ *types.Request, obj runtime.Object) error {
+	sc := obj.(*storagev1.StorageClass)
+	err := v.validateHarvesterLonghornSC(sc)
+	if err != nil {
+		return err
+	}
+	return v.validateVMImageUsage(sc)
+}
+
+>>>>>>> 7c00f127 (Deny to delete the harvester-longhorn sc)
 // Harvester rejects setting dataLocality as strict-local, because it makes volume non migrateable,
 // beside, strict-local volumes only could have one replica, it make Longhorn block node drain
 // https://longhorn.io/docs/1.5.3/references/settings/#node-drain-policy
@@ -106,3 +118,113 @@ func (v *storageClassValidator) validateSetUniqueDefault(newObj runtime.Object) 
 
 	return nil
 }
+<<<<<<< HEAD
+=======
+
+func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error {
+	newSC := newObj.(*storagev1.StorageClass)
+
+	// Use util.LonghornOptionEncrypted as the key to check if the storage class is encrypted
+	value, ok := newSC.Parameters[util.LonghornOptionEncrypted]
+	if !ok {
+		return nil
+	}
+
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		return werror.NewInvalidError("invalid value for `encrypted`", "spec.parameters")
+	}
+
+	if !enabled {
+		return nil
+	}
+
+	secretName, secretNamespace, missingParams, err := v.findMissingEncryptionParams(newSC)
+	if err != nil {
+		return err
+	}
+
+	if len(missingParams) != 0 {
+		return werror.NewInvalidError(fmt.Sprintf("storage class must contain %s", strings.Join(missingParams, ", ")), "spec.parameters")
+	}
+
+	if secretName != "" && secretNamespace != "" {
+		_, err := v.secretCache.Get(secretNamespace, secretName)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
+			}
+			return werror.NewInvalidError(err.Error(), "")
+		}
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) findMissingEncryptionParams(newSC *storagev1.StorageClass) (string, string, []string, error) {
+	var (
+		secretName      string
+		secretNamespace string
+		missingParams   []string
+	)
+
+	for _, pair := range pairs {
+		name, nameExists := newSC.Parameters[pair[0]]
+		namespace, namespaceExists := newSC.Parameters[pair[1]]
+
+		if !nameExists {
+			missingParams = append(missingParams, pair[0])
+		}
+
+		if !namespaceExists {
+			missingParams = append(missingParams, pair[1])
+		}
+
+		if !nameExists || !namespaceExists {
+			continue
+		}
+
+		if secretName == "" && secretNamespace == "" {
+			secretName = name
+			secretNamespace = namespace
+			continue
+		}
+
+		if secretName != name || secretNamespace != namespace {
+			return "", "", nil, werror.NewInvalidError(fmt.Sprintf("secret names and namespaces in %s and %s are different from others", pair[0], pair[1]), "")
+		}
+	}
+
+	return secretName, secretNamespace, missingParams, nil
+}
+
+func (v *storageClassValidator) validateVMImageUsage(sc *storagev1.StorageClass) error {
+	vmimages, err := v.vmimagesCache.GetByIndex(indexeres.ImageByStorageClass, sc.Name)
+	if err != nil {
+		return err
+	}
+
+	usedVMImages := make([]string, 0, len(vmimages))
+	for _, vmimage := range vmimages {
+		usedVMImages = append(usedVMImages, vmimage.Name)
+	}
+
+	if len(usedVMImages) > 0 {
+		return werror.NewInvalidError(fmt.Sprintf("storage class %s is used by virtual machine images: %s", sc.Name, usedVMImages), "")
+	}
+
+	return nil
+}
+
+// The `harvester-longhorn` SC is created from helm chart and monitored by the managedchart, also used by rancher-monitoring.
+// It should not be deleted accidentally.
+func (v *storageClassValidator) validateHarvesterLonghornSC(sc *storagev1.StorageClass) error {
+	if sc.Name == util.StorageClassHarvesterLonghorn && sc.Annotations != nil {
+		if sc.Annotations[util.HelmReleaseNamespaceAnnotation] == util.HarvesterSystemNamespaceName && sc.Annotations[util.HelmReleaseNameAnnotation] == util.HarvesterChartReleaseName {
+			return werror.NewInvalidError(fmt.Sprintf("storage class %s is reserved by Harvester and can't be deleted", sc.Name), "")
+		}
+	}
+
+	return nil
+}
+>>>>>>> 7c00f127 (Deny to delete the harvester-longhorn sc)
