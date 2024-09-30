@@ -2,7 +2,6 @@ package upgradelog
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/cisco-open/operator-tools/pkg/volume"
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
@@ -402,21 +401,15 @@ func prepareLogDownloaderSvc(upgradeLog *harvesterv1.UpgradeLog) *corev1.Service
 	}
 }
 
-// Returns the name of the log-archive PVC, which is created by the fluentd StatefulSet.
-//
-//	The name will look like: <upgradelog>-infra-log-archive-<upgradelog>-infra-fluentd-0
-//	For instance: hvst-upgrade-bczl4-upgradelog-infra-log-archive-hvst-upgrade-bczl4-upgradelog-infra-fluentd-0.
-//
-// TODO: As of rancher-logging v4.4.0, we use the PVC created by the fluentd StatefulSet, not making it ourselves. After v4.6.0, we need to revisit here and perhaps update the implementation because the upstream behavior changes.
+// Returns the name of the log-archive PVC. If an alternative name is set in the annotation, return it instead.
+// For backward compatibility, the returned name is constructed by concatenating the upgrade log name and "log-archive".
 func GetUpgradeLogPvcName(upgradeLog *harvesterv1.UpgradeLog) string {
-	return strings.Join([]string{
-		upgradeLog.Name,
-		util.UpgradeLogInfraComponent,
-		util.UpgradeLogArchiveComponent,
-		upgradeLog.Name,
-		util.UpgradeLogInfraComponent,
-		"fluentd-0",
-	}, "-")
+	logArchiveAltName, ok := upgradeLog.Annotations[util.AnnotationUpgradeLogLogArchiveAltName]
+	if ok {
+		return logArchiveAltName
+	}
+
+	return name.SafeConcatName(upgradeLog.Name, util.UpgradeLogArchiveComponent)
 }
 
 func setOperatorDeployedCondition(upgradeLog *harvesterv1.UpgradeLog, status corev1.ConditionStatus, reason, message string) {
