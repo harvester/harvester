@@ -1499,9 +1499,5 @@ func (v *settingValidator) isSingleNode() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if len(nodes) == 1 {
-		return true, nil
-
-	}
-	return false, nil
+	return len(nodes) == 1, nil
 }
