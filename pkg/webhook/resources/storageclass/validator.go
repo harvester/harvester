@@ -79,6 +79,10 @@ func (v *storageClassValidator) Update(_ *types.Request, _ runtime.Object, newOb
 
 func (v *storageClassValidator) Delete(_ *types.Request, obj runtime.Object) error {
 	sc := obj.(*storagev1.StorageClass)
+	err := v.validateHarvesterLonghornSC(sc)
+	if err != nil {
+		return err
+	}
 	return v.validateVMImageUsage(sc)
 }
 
@@ -225,6 +229,18 @@ func (v *storageClassValidator) validateVMImageUsage(sc *storagev1.StorageClass)
 
 	if len(usedVMImages) > 0 {
 		return werror.NewInvalidError(fmt.Sprintf("storage class %s is used by virtual machine images: %s", sc.Name, usedVMImages), "")
+	}
+
+	return nil
+}
+
+// The `harvester-longhorn` SC is created from helm chart and monitored by the managedchart, also used by rancher-monitoring.
+// It should not be deleted accidentally.
+func (v *storageClassValidator) validateHarvesterLonghornSC(sc *storagev1.StorageClass) error {
+	if sc.Name == util.StorageClassHarvesterLonghorn && sc.Annotations != nil {
+		if sc.Annotations[util.HelmReleaseNamespaceAnnotation] == util.HarvesterSystemNamespaceName && sc.Annotations[util.HelmReleaseNameAnnotation] == util.HarvesterChartReleaseName {
+			return werror.NewInvalidError(fmt.Sprintf("storage class %s is reserved by Harvester and can't be deleted", sc.Name), "")
+		}
 	}
 
 	return nil
