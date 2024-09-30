@@ -137,6 +137,28 @@ func Test_storageClassValidator_Delete(t *testing.T) {
 			},
 			expectError: true,
 		},
+		{
+			name: "storage class harvester-longhorn can't be deleted",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.StorageClassHarvesterLonghorn,
+					Annotations: map[string]string{
+						util.HelmReleaseNameAnnotation:      util.HarvesterChartReleaseName,
+						util.HelmReleaseNamespaceAnnotation: util.HarvesterSystemNamespaceName,
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "storage class can be deleted",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "customized",
+				},
+			},
+			expectError: false,
+		},
 	}
 
 	harvesterClientSet := harvesterFake.NewSimpleClientset(&v1beta1.VirtualMachineImage{
