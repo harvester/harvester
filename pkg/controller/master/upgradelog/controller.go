@@ -616,6 +616,26 @@ func (h *handler) OnPvcChange(_ string, pvc *corev1.PersistentVolumeClaim) (*cor
 		return pvc, nil
 	}
 
+	// Add the PVC's name to the UpgradeLog annotation for tracking.
+	// This is useful for the log downloader to know which PVC to download logs from.
+	// For the PVC created by the fluentd StatefulSet, its name will look like:
+	// hvst-upgrade-bczl4-upgradelog-infra-log-archive-hvst-upgrade-bczl4-upgradelog-infra-fluentd-0
+	upgradeLogToUpdate := upgradeLog.DeepCopy()
+	if upgradeLogToUpdate.Annotations == nil {
+		upgradeLogToUpdate.Annotations = make(map[string]string, 1)
+	}
+	upgradeLogToUpdate.Annotations[util.AnnotationUpgradeLogLogArchiveAltName] = pvc.Name
+	if !reflect.DeepEqual(upgradeLog, upgradeLogToUpdate) {
+		logrus.WithFields(logrus.Fields{
+			"namespace": upgradeLogToUpdate.Namespace,
+			"name":      upgradeLogToUpdate.Name,
+			"kind":      upgradeLogToUpdate.Kind,
+		}).Info("updating log-archive pvc name annotation")
+		if _, err := h.upgradeLogClient.Update(upgradeLogToUpdate); err != nil {
+			return pvc, err
+		}
+	}
+
 	newOwnerRef := metav1.OwnerReference{
 		Name:       upgradeLog.Name,
 		APIVersion: upgradeLog.APIVersion,
