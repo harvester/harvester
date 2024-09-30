@@ -146,4 +146,11 @@ const (
 	VClusterNamespace          = "rancher-vcluster"
 	LablelVClusterAppNameKey   = "app"
 	LablelVClusterAppNameValue = "vcluster"
+
+	StorageClassHarvesterLonghorn = "harvester-longhorn" // the initial & default storageclass
+	HarvesterChartReleaseName     = "harvester"          // the release name
+
+	// copied from helm pkg/action/validate.go
+	HelmReleaseNameAnnotation      = "meta.helm.sh/release-name"
+	HelmReleaseNamespaceAnnotation = "meta.helm.sh/release-namespace"
 )
