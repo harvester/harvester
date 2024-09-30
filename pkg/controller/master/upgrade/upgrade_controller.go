@@ -73,7 +73,7 @@ const (
 	skipVersionCheckAnnotation          = "harvesterhci.io/skip-version-check"
 	defaultImagePreloadConcurrency      = 1
 
-	preUpgradeVMsSecretName = "pre-upgrade-vms"
+	preUpgradeVMsAnnotation = "harvesterhci.io/pre-upgrade-vms"
 
 	vmReady condition.Cond = "Ready"
 )
@@ -88,8 +88,6 @@ type upgradeHandler struct {
 	ctx               context.Context
 	namespace         string
 	nodeCache         ctlcorev1.NodeCache
-	secretClient      ctlcorev1.SecretClient
-	secretCache       ctlcorev1.SecretCache
 	jobClient         v1.JobClient
 	jobCache          v1.JobCache
 	upgradeClient     ctlharvesterv1.UpgradeClient
@@ -114,6 +112,8 @@ type upgradeHandler struct {
 	lhSettingClient ctllhv1.SettingClient
 	lhSettingCache  ctllhv1.SettingCache
 
+	kubeVirtCache kubevirtctrl.KubeVirtCache
+
 	vmRestClient rest.Interface
 }
 
@@ -130,16 +130,16 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 	if harvesterv1.UpgradeCompleted.GetStatus(upgrade) == "" {
 		logrus.Infof("Initialize upgrade %s/%s", upgrade.Namespace, upgrade.Name)
 
-		if err := h.storeVMState(upgrade); err != nil {
-			return nil, err
-		}
-
 		if err := h.resetLatestUpgradeLabel(upgrade.Name); err != nil {
 			return nil, err
 		}
 
 		toUpdate := upgrade.DeepCopy()
 		initStatus(toUpdate)
+
+		if err := h.storeVMState(toUpdate); err != nil {
+			return nil, err
+		}
 
 		if !upgrade.Spec.LogEnabled {
 			logrus.Info("Upgrade observability is administratively disabled")
@@ -221,16 +221,15 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			return nil, h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
 		}
 
-		// try to restore vm to the state before upgrade
-		// moved the restoreVMState call after the image-cleanup annotation check,
-		// ensuring the function is called only once
-		h.restoreVMState(upgrade)
-
 		// repo VM is required for the image cleaning procedure, bring it up if it's down
 		logrus.Info("Try to start repo VM for image pruning")
 		if err := repo.startVM(); err != nil {
 			return upgrade, err
 		}
+
+		// moved the restoreVMState call after the start repo vm as we need to make sure kubevirt is up and running
+		// thus we can bring up the vm to the state before upgrade
+		h.restoreVMState(upgrade)
 
 		if err := h.cleanupImages(upgrade, repo); err != nil {
 			logrus.Warningf("Unable to cleanup images: %s", err.Error())
@@ -246,6 +245,8 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 	// upgrade failed
 	if harvesterv1.UpgradeCompleted.IsFalse(upgrade) {
 		// try to restore vm to the state before upgrade
+		// we didn't wait for KubeVirt to reach the Deployed phase because the upgrade failed,
+		// as a result, some services might not be ready and may never fully start.
 		h.restoreVMState(upgrade)
 		// clean upgrade repo VMs.
 		return nil, h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
@@ -756,27 +757,29 @@ func (h *upgradeHandler) setReplicaReplenishmentValue(value int) error {
 }
 
 // storeVMState stores VM state only in single-node environments.
-// This method stores VM only when Ready=true, meaning it only saves VMs info
-// in running state to the secret.
+// this method stores information of VMs with Ready=true (i.e. running state) in the upgrade annotation
 func (h *upgradeHandler) storeVMState(upgrade *harvesterv1.Upgrade) error {
+	logFields := logrus.Fields{
+		"namespace": upgrade.Namespace,
+		"name":      upgrade.Name,
+	}
 	isSingleNodeRestoreVM, err := h.isSingleNodeRestoreVM(upgrade)
 	if err != nil {
 		return err
 	}
 	if !isSingleNodeRestoreVM {
-		logrus.WithFields(logrus.Fields{
-			"namespace": upgrade.Namespace,
-			"name":      upgrade.Name,
-		}).Info("Skip store VM state")
+		logrus.WithFields(logFields).Info("Skip store VM state")
+		return nil
+	}
+
+	if upgrade.Annotations != nil && upgrade.Annotations[preUpgradeVMsAnnotation] != "" {
+		logrus.WithFields(logFields).Infof("Skip store VM state since %s is already set", preUpgradeVMsAnnotation)
 		return nil
 	}
 
 	vms, err := h.vmCache.List(corev1.NamespaceAll, labels.Everything())
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"namespace": upgrade.Namespace,
-			"name":      upgrade.Name,
-		}).WithError(err).Error("Failed to list all VMs")
+		logrus.WithFields(logFields).WithError(err).Error("Failed to list all VMs")
 		return err
 	}
 
@@ -792,26 +795,15 @@ func (h *upgradeHandler) storeVMState(upgrade *harvesterv1.Upgrade) error {
 	}
 	runningVMsJSON, err := json.Marshal(runningVMs)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"namespace": upgrade.Namespace,
-			"name":      upgrade.Name,
-		}).WithError(err).Error("Failed to marshal PreUpgradeRunningVM list to json")
+		logrus.WithFields(logFields).WithError(err).Error("Failed to marshal PreUpgradeRunningVM list to json")
 		return err
 	}
 
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: harvesterSystemNamespace,
-			Name:      preUpgradeVMsSecretName,
-			OwnerReferences: []metav1.OwnerReference{
-				upgradeReference(upgrade),
-			},
-		},
-		Data: map[string][]byte{
-			"vms": runningVMsJSON,
-		},
+	if upgrade.Annotations == nil {
+		upgrade.Annotations = make(map[string]string)
 	}
-	return h.createOrUpdateSecret(secret)
+	upgrade.Annotations[preUpgradeVMsAnnotation] = string(runningVMsJSON)
+	return nil
 }
 
 // restoreVMState attempts to restore all VMs to their pre-upgrade state.
@@ -819,53 +811,35 @@ func (h *upgradeHandler) storeVMState(upgrade *harvesterv1.Upgrade) error {
 // that all VMs will successfully return to their previous state. If any VM fails to start,
 // the error is logged, but the process continues without interruption.
 func (h *upgradeHandler) restoreVMState(upgrade *harvesterv1.Upgrade) {
+	logFields := logrus.Fields{
+		"namespace": upgrade.Namespace,
+		"name":      upgrade.Name,
+	}
 	// ignore the error here as the method should be no-op if there is
 	// something wrong in isSingleNodeRestoreVM, and we want to proceed
 	// to the next step: cleanup jobs, stop repo vm... after upgrade success/failed.
 	isSingleNodeRestoreVM, _ := h.isSingleNodeRestoreVM(upgrade)
 	if !isSingleNodeRestoreVM {
-		logrus.WithFields(logrus.Fields{
-			"namespace": upgrade.Namespace,
-			"name":      upgrade.Name,
-		}).Info("Skip restore VM")
+		logrus.WithFields(logFields).Info("Skip restore VM")
 		return
 	}
 
-	secret, err := h.secretCache.Get(harvesterSystemNamespace, preUpgradeVMsSecretName)
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"namespace": harvesterSystemNamespace,
-			"name":      preUpgradeVMsSecretName,
-		}).WithError(err).Error("Get secret failed")
-		return
-	}
-
-	vms, ok := secret.Data["vms"]
-	if !ok {
-		logrus.WithFields(logrus.Fields{
-			"namespace": harvesterSystemNamespace,
-			"name":      preUpgradeVMsSecretName,
-		}).Error("There is no \"vms\" entry in secret data")
+	if upgrade.Annotations == nil || upgrade.Annotations[preUpgradeVMsAnnotation] == "" {
+		logrus.WithFields(logFields).Infof("Skip restore VM state since %s is not set", preUpgradeVMsAnnotation)
 		return
 	}
 
 	preUpgradeRunningVMs := []PreUpgradeRunningVM{}
-	err = json.Unmarshal(vms, &preUpgradeRunningVMs)
+	err := json.Unmarshal([]byte(upgrade.Annotations[preUpgradeVMsAnnotation]), &preUpgradeRunningVMs)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"namespace": harvesterSystemNamespace,
-			"name":      preUpgradeVMsSecretName,
-		}).WithError(err).Error("Failed to unmarshal json")
+		logrus.WithFields(logFields).WithError(err).Error("Failed to unmarshal json to PreUpgradeRunningVM list")
 		return
 	}
 
-	for _, preUpgradeRunningVM := range preUpgradeRunningVMs {
-		vm, err := h.vmCache.Get(preUpgradeRunningVM.Namespace, preUpgradeRunningVM.Name)
+	for _, vmInfo := range preUpgradeRunningVMs {
+		vm, err := h.vmCache.Get(vmInfo.Namespace, vmInfo.Name)
 		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"namespace": preUpgradeRunningVM.Namespace,
-				"name":      preUpgradeRunningVM.Name,
-			}).WithError(err).Error("Failed to get VM from cache")
+			logrus.WithFields(logFields).WithError(err).Errorf("Failed to get VM %s/%s from cache", vmInfo.Namespace, vmInfo.Name)
 			continue
 		}
 		// the vm is already in running state
@@ -873,19 +847,8 @@ func (h *upgradeHandler) restoreVMState(upgrade *harvesterv1.Upgrade) {
 			continue
 		}
 		if err = h.startVM(context.Background(), vm); err != nil {
-			logrus.WithFields(logrus.Fields{
-				"namespace": preUpgradeRunningVM.Namespace,
-				"name":      preUpgradeRunningVM.Name,
-			}).WithError(err).Error("Failed to start vm after upgrade")
+			logrus.WithFields(logFields).WithError(err).Errorf("Failed to start vm %s/%s after upgrade", vmInfo.Namespace, vmInfo.Name)
 		}
-	}
-
-	// cleanup secret after restore vm finished
-	if err = h.secretClient.Delete(harvesterSystemNamespace, preUpgradeVMsSecretName, &metav1.DeleteOptions{}); err != nil {
-		logrus.WithFields(logrus.Fields{
-			"namespace": harvesterSystemNamespace,
-			"name":      preUpgradeVMsSecretName,
-		}).WithError(err).Error("Delete secret failed")
 	}
 }
 
@@ -907,35 +870,6 @@ func (h *upgradeHandler) isSingleNodeRestoreVM(upgrade *harvesterv1.Upgrade) (bo
 		return false, err
 	}
 	return singleNode != "" && upgradeConfig.RestoreVM, nil
-}
-
-func (h *upgradeHandler) createOrUpdateSecret(toUpdate *corev1.Secret) error {
-	secret, err := h.secretCache.Get(toUpdate.Namespace, toUpdate.Name)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
-
-		logrus.Infof("create secret %s/%s", toUpdate.Namespace, toUpdate.Name)
-		if _, err := h.secretClient.Create(toUpdate); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	secretCpy := secret.DeepCopy()
-	secretCpy.Data = toUpdate.Data
-
-	if !reflect.DeepEqual(secret, secretCpy) {
-		logrus.WithFields(logrus.Fields{
-			"namespace": toUpdate.Namespace,
-			"name":      toUpdate.Name,
-		}).Info("Update secret")
-		if _, err := h.secretClient.Update(secretCpy); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (h *upgradeHandler) startVM(ctx context.Context, vm *kubevirtv1.VirtualMachine) error {
