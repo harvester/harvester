@@ -524,8 +524,9 @@ func TestHandler_OnPvcChange(t *testing.T) {
 		upgradeLog *harvesterv1.UpgradeLog
 	}
 	type output struct {
-		pvc *corev1.PersistentVolumeClaim
-		err error
+		pvc        *corev1.PersistentVolumeClaim
+		upgradeLog *harvesterv1.UpgradeLog
+		err        error
 	}
 	var testCases = []struct {
 		name     string
@@ -545,6 +546,8 @@ func TestHandler_OnPvcChange(t *testing.T) {
 					Build(),
 			},
 			expected: output{
+				upgradeLog: newTestUpgradeLogBuilder().
+					WithAnnotation(util.AnnotationUpgradeLogLogArchiveAltName, testPvcName).Build(),
 				pvc: newTestPvcBuilder().
 					OwnerReference(testLoggingName, testLoggingUID).
 					OwnerReference(testUpgradeLogName, "").
@@ -597,9 +600,10 @@ func TestHandler_OnPvcChange(t *testing.T) {
 		}
 
 		var handler = &handler{
-			namespace:       util.HarvesterSystemNamespaceName,
-			pvcClient:       fakeclients.PersistentVolumeClaimClient(k8sclientset.CoreV1().PersistentVolumeClaims),
-			upgradeLogCache: fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs),
+			namespace:        util.HarvesterSystemNamespaceName,
+			pvcClient:        fakeclients.PersistentVolumeClaimClient(k8sclientset.CoreV1().PersistentVolumeClaims),
+			upgradeLogCache:  fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs),
+			upgradeLogClient: fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
 		}
 
 		var actual output
@@ -612,6 +616,15 @@ func TestHandler_OnPvcChange(t *testing.T) {
 
 		if tc.expected.pvc != nil {
 			assert.Equal(t, tc.expected.pvc.OwnerReferences, actual.pvc.OwnerReferences, "case %q", tc.name)
+		}
+
+		if tc.expected.upgradeLog != nil {
+			var err error
+			actual.upgradeLog, err = handler.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, testUpgradeLogName)
+			assert.Nil(t, err)
+			emptyConditionsTime(tc.expected.upgradeLog.Status.Conditions)
+			emptyConditionsTime(actual.upgradeLog.Status.Conditions)
+			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
 		}
 	}
 }
