@@ -36,6 +36,10 @@ const (
 	// Add to rancher-monitoring addon to record grafana pv name
 	AnnotationGrafanaPVName = prefix + "/grafana-pv-name"
 
+	// Add to harvester-longhorn storageclass to protect it
+	// For any storageclass created & protected by controller, the controller can utilize this annotation
+	AnnotationIsReservedStorageClass = prefix + "/is-reserved-storageclass"
+
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
 	ContainerdRegistryFileName   = "registries.yaml"
 
@@ -103,33 +107,6 @@ const (
 	APIServerCAKey                           = "apiServerCA"
 
 	RKEControlPlaneRoleLabel = "rke.cattle.io/control-plane-role"
-<<<<<<< HEAD
-=======
-
-	LabelMaintainModeStrategy                          = prefix + "/maintain-mode-strategy"
-	AnnotationMaintainModeStrategyNodeName             = prefix + "/maintain-mode-strategy-node-name"
-	MaintainModeStrategyMigrate                        = "Migrate"
-	MaintainModeStrategyShutdownAndRestartAfterEnable  = "ShutdownAndRestartAfterEnable"
-	MaintainModeStrategyShutdownAndRestartAfterDisable = "ShutdownAndRestartAfterDisable"
-	MaintainModeStrategyShutdown                       = "Shutdown"
-
-	// s3 backup target constants
-	AWSAccessKey       = "AWS_ACCESS_KEY_ID"
-	AWSSecretKey       = "AWS_SECRET_ACCESS_KEY"
-	AWSEndpoints       = "AWS_ENDPOINTS"
-	AWSCERT            = "AWS_CERT"
-	VirtualHostedStyle = "VIRTUAL_HOSTED_STYLE"
-
-	DefaultResourceQuotaName = "default-resource-quota"
-
-	AnnotationCPUManagerUpdateStatus = prefix + "/cpu-manager-update-status"
-	LabelCPUManagerUpdateNode        = prefix + "/cpu-manager-update-node"
-	LabelCPUManagerUpdatePolicy      = prefix + "/cpu-manager-update-policy"
-	LabelCPUManagerExitCode          = prefix + "/cpu-manager-exit-code"
-
-	VClusterNamespace          = "rancher-vcluster"
-	LablelVClusterAppNameKey   = "app"
-	LablelVClusterAppNameValue = "vcluster"
 
 	StorageClassHarvesterLonghorn = "harvester-longhorn" // the initial & default storageclass
 	HarvesterChartReleaseName     = "harvester"          // the release name
@@ -137,5 +114,4 @@ const (
 	// copied from helm pkg/action/validate.go
 	HelmReleaseNameAnnotation      = "meta.helm.sh/release-name"
 	HelmReleaseNamespaceAnnotation = "meta.helm.sh/release-namespace"
->>>>>>> 7c00f127 (Deny to delete the harvester-longhorn sc)
 )
