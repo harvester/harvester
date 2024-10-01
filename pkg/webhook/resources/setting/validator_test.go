@@ -843,9 +843,10 @@ func Test_validateNTPServers(t *testing.T) {
 
 func Test_validateUpgradeConfig(t *testing.T) {
 	tests := []struct {
-		name        string
-		args        *v1beta1.Setting
-		expectedErr bool
+		name         string
+		args         *v1beta1.Setting
+		isSingleNode bool
+		expectedErr  bool
 	}{
 		{
 			name: "empty config - default",
@@ -991,11 +992,47 @@ func Test_validateUpgradeConfig(t *testing.T) {
 			},
 			expectedErr: false,
 		},
+		{
+			name: "enable restoreVM under single node cluster",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":2}}, "restoreVM": true}`,
+			},
+			isSingleNode: true,
+			expectedErr:  false,
+		},
+		{
+			name: "disable restoreVM under single node cluster",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":2}}, "restoreVM": false}`,
+			},
+			isSingleNode: true,
+			expectedErr:  false,
+		},
+		{
+			name: "enable restoreVM under multi node cluster",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":2}}, "restoreVM": true}`,
+			},
+			isSingleNode: false,
+			expectedErr:  true,
+		},
+		{
+			name: "disable restoreVM under multi node cluster",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":2}}, "restoreVM": false}`,
+			},
+			isSingleNode: false,
+			expectedErr:  false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateUpgradeConfig(tt.args)
+			err := validateUpgradeConfigFields(tt.args, tt.isSingleNode)
 			assert.Equal(t, tt.expectedErr, err != nil)
 		})
 	}
