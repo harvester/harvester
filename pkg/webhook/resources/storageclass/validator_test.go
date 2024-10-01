@@ -138,7 +138,43 @@ func Test_storageClassValidator_Delete(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name: "storage class harvester-longhorn can't be deleted",
+			name: "storage class any with AnnotationIsReservedStorageClass true can't be deleted",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "any",
+					Annotations: map[string]string{
+						util.AnnotationIsReservedStorageClass: "true",
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "storage class any with AnnotationIsReservedStorageClass false can be deleted",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "any",
+					Annotations: map[string]string{
+						util.AnnotationIsReservedStorageClass: "false",
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "storage class harvester-longhorn with AnnotationIsReservedStorageClass false can be deleted too",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.StorageClassHarvesterLonghorn,
+					Annotations: map[string]string{
+						util.AnnotationIsReservedStorageClass: "false",
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "storage class harvester-longhorn without AnnotationIsReservedStorageClass can't be deleted",
 			storageClass: &storagev1.StorageClass{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: util.StorageClassHarvesterLonghorn,
@@ -151,10 +187,10 @@ func Test_storageClassValidator_Delete(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name: "storage class can be deleted",
+			name: "storage class others without AnnotationIsReservedStorageClass can be deleted",
 			storageClass: &storagev1.StorageClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "customized",
+					Name: "others",
 				},
 			},
 			expectError: false,
