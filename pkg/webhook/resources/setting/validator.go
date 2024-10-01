@@ -95,7 +95,6 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.NTPServersSettingName:                             validateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
-	settings.UpgradeConfigSettingName:                          validateUpgradeConfig,
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateAdditionalGuestMemoryOverheadRatio,
 }
 
@@ -116,7 +115,6 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
-	settings.UpgradeConfigSettingName:                          validateUpdateUpgradeConfig,
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateUpdateAdditionalGuestMemoryOverheadRatio,
 }
 
@@ -166,6 +164,9 @@ func NewValidator(
 
 	validateSettingFuncs[settings.HTTPProxySettingName] = validator.validateHTTPProxy
 	validateSettingUpdateFuncs[settings.HTTPProxySettingName] = validator.validateUpdateHTTPProxy
+
+	validateSettingFuncs[settings.UpgradeConfigSettingName] = validator.validateUpgradeConfig
+	validateSettingUpdateFuncs[settings.UpgradeConfigSettingName] = validator.validateUpdateUpgradeConfig
 
 	return validator
 }
@@ -1433,7 +1434,16 @@ func validateUpgradeConfigHelper(setting *v1beta1.Setting) (*settings.UpgradeCon
 	return config, nil
 }
 
-func validateUpgradeConfigFields(upgradeConfig *settings.UpgradeConfig) error {
+func validateUpgradeConfigFields(setting *v1beta1.Setting, isSingleNode bool) error {
+	upgradeConfig, err := validateUpgradeConfigHelper(setting)
+	if err != nil {
+		return err
+	}
+
+	if upgradeConfig == nil {
+		return nil
+	}
+
 	strategyType := upgradeConfig.PreloadOption.Strategy.Type
 
 	// Validate the image preload strategy type field
@@ -1449,24 +1459,24 @@ func validateUpgradeConfigFields(upgradeConfig *settings.UpgradeConfig) error {
 		return fmt.Errorf("invalid image preload concurrency: %d", concurrency)
 	}
 
+	// Validate the restore VM field
+	if upgradeConfig.RestoreVM && !isSingleNode {
+		return fmt.Errorf("restoreVM is only supported in single node cluster")
+	}
+
 	return nil
 }
 
-func validateUpgradeConfig(setting *v1beta1.Setting) error {
-	upgradeConfig, err := validateUpgradeConfigHelper(setting)
+func (v *settingValidator) validateUpgradeConfig(setting *v1beta1.Setting) error {
+	isSingleNode, err := v.isSingleNode()
 	if err != nil {
 		return err
 	}
-
-	if upgradeConfig == nil {
-		return nil
-	}
-
-	return validateUpgradeConfigFields(upgradeConfig)
+	return validateUpgradeConfigFields(setting, isSingleNode)
 }
 
-func validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
-	return validateUpgradeConfig(newSetting)
+func (v *settingValidator) validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return v.validateUpgradeConfig(newSetting)
 }
 
 func validateAdditionalGuestMemoryOverheadRatio(newSetting *v1beta1.Setting) error {
@@ -1482,4 +1492,16 @@ func validateAdditionalGuestMemoryOverheadRatio(newSetting *v1beta1.Setting) err
 
 func validateUpdateAdditionalGuestMemoryOverheadRatio(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateAdditionalGuestMemoryOverheadRatio(newSetting)
+}
+
+func (v *settingValidator) isSingleNode() (bool, error) {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return false, err
+	}
+	if len(nodes) == 1 {
+		return true, nil
+
+	}
+	return false, nil
 }
