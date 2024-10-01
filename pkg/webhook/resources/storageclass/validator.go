@@ -21,6 +21,10 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
+const (
+	errorMessageReservedStorageClass = "storage class %s is reserved by Harvester and can't be deleted"
+)
+
 var pairs = [][2]string{
 	{util.CSIProvisionerSecretNameKey, util.CSIProvisionerSecretNamespaceKey},
 	{util.CSINodeStageSecretNameKey, util.CSINodeStageSecretNamespaceKey},
@@ -79,11 +83,19 @@ func (v *storageClassValidator) Update(_ *types.Request, _ runtime.Object, newOb
 
 func (v *storageClassValidator) Delete(_ *types.Request, obj runtime.Object) error {
 	sc := obj.(*storagev1.StorageClass)
-	err := v.validateHarvesterLonghornSC(sc)
-	if err != nil {
-		return err
+
+	validators := []func(*storagev1.StorageClass) error{
+		v.validateReservedStorageClass,
+		v.validateVMImageUsage,
 	}
-	return v.validateVMImageUsage(sc)
+
+	for _, validator := range validators {
+		if err := validator(sc); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Harvester rejects setting dataLocality as strict-local, because it makes volume non migrateable,
@@ -234,12 +246,24 @@ func (v *storageClassValidator) validateVMImageUsage(sc *storagev1.StorageClass)
 	return nil
 }
 
-// The `harvester-longhorn` SC is created from helm chart and monitored by the managedchart, also used by rancher-monitoring.
+// Protect the SC with AnnotationIsReservedStorageClass as "true".
+// The legacy `harvester-longhorn` SC is created from helm chart and monitored by the managedchart, also used by rancher-monitoring.
 // It should not be deleted accidentally.
-func (v *storageClassValidator) validateHarvesterLonghornSC(sc *storagev1.StorageClass) error {
-	if sc.Name == util.StorageClassHarvesterLonghorn && sc.Annotations != nil {
+func (v *storageClassValidator) validateReservedStorageClass(sc *storagev1.StorageClass) error {
+	isReserved := sc.Annotations[util.AnnotationIsReservedStorageClass]
+	if isReserved == "true" {
+		return werror.NewInvalidError(fmt.Sprintf(errorMessageReservedStorageClass, sc.Name), "")
+	}
+
+	// if set as false, directly return
+	if isReserved == "false" {
+		return nil
+	}
+
+	// Legacy harvester-longhorn may have no AnnotationIsReservedStorageClass, when it is deployed via helm (managedchart is on top of helm) then deny.
+	if sc.Name == util.StorageClassHarvesterLonghorn {
 		if sc.Annotations[util.HelmReleaseNamespaceAnnotation] == util.HarvesterSystemNamespaceName && sc.Annotations[util.HelmReleaseNameAnnotation] == util.HarvesterChartReleaseName {
-			return werror.NewInvalidError(fmt.Sprintf("storage class %s is reserved by Harvester and can't be deleted", sc.Name), "")
+			return werror.NewInvalidError(fmt.Sprintf(errorMessageReservedStorageClass, sc.Name), "")
 		}
 	}
 
