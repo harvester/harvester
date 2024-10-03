@@ -57,7 +57,7 @@ jobs:
 
     - name: Declare branch and sha_short
       run: |
-        echo "sha_short=$(git rev-parse --short "$GITHUB_SHA")" >> "$GITHUB_ENV"
+        echo "sha_short=$(git rev-parse --short=8 "$GITHUB_SHA")" >> "$GITHUB_ENV"
         echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_ENV"
         if [ "${{ matrix.arch }}" == "x64" ]; then
           echo "arch=amd64" >> "$GITHUB_ENV"
@@ -190,7 +190,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Declare branch and sha_short
+    - name: Declare branch
       run: |
         echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_ENV"
 
@@ -400,7 +400,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Declare branch and sha_short
+    - name: Declare branch
       run: |
         echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_ENV"
 
