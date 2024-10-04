@@ -20,8 +20,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Upload source
+      uses: actions/upload-artifact@v4
       with:
-        ref: ${{ github.sha }}
+        name: source_${{ matrix.arch }}_stage
+        path: .
 
     # Build binaries
     - name: Run make ci
@@ -49,10 +53,11 @@ jobs:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: Download source
+      uses: actions/download-artifact@v4
       with:
-        ref: ${{ github.sha }}
+        name: source_${{ matrix.arch }}_stage
+        path: .
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -191,10 +196,11 @@ jobs:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: Download source
+      uses: actions/download-artifact@v4
       with:
-        ref: ${{ github.sha }}
+        name: source_${{ matrix.arch }}_stage
+        path: .
 
     - name: Declare branch and sha_short
       run: |
@@ -287,10 +293,11 @@ jobs:
       contents: write # for github prerelease action
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: Download source
+      uses: actions/download-artifact@v4
       with:
-        ref: ${{ github.sha }}
+        name: source_${{ matrix.arch }}_stage
+        path: .
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -405,10 +412,11 @@ jobs:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: Download source
+      uses: actions/download-artifact@v4
       with:
-        ref: ${{ github.sha }}
+        name: source_${{ matrix.arch }}_stage
+        path: .
 
     - name: Declare branch and sha_short
       run: |
