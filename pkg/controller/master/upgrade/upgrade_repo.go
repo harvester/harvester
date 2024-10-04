@@ -218,7 +218,7 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 									BootOrder: &bootOrder,
 									DiskDevice: kubevirtv1.DiskDevice{
 										CDRom: &kubevirtv1.CDRomTarget{
-											Bus: "sata",
+											Bus: "scsi",
 										},
 									},
 									Name: "disk-0",
@@ -226,7 +226,7 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 								{
 									DiskDevice: kubevirtv1.DiskDevice{
 										CDRom: &kubevirtv1.CDRomTarget{
-											Bus: "sata",
+											Bus: "scsi",
 										},
 									},
 									Name: "cloudinitdisk",
@@ -248,9 +248,6 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 									Name:  "default",
 								},
 							},
-						},
-						Machine: &kubevirtv1.Machine{
-							Type: "q35",
 						},
 						Resources: kubevirtv1.ResourceRequirements{
 							Limits: corev1.ResourceList{
