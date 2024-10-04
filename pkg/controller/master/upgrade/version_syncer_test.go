@@ -320,6 +320,7 @@ func fakeHTTPEndpoint(resp CheckUpgradeResponse) *httptest.Server {
 		resp: resp,
 	}
 	r.HandleFunc("/{version}/version.yaml", responder.versionResponder)
+	r.HandleFunc("/{version}/version-arm64.yaml", responder.versionResponder)
 	s := httptest.NewUnstartedServer(r)
 	return s
 }
