@@ -21,13 +21,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Upload source
-      uses: actions/upload-artifact@v4
-      with:
-        name: source_${{ matrix.arch }}_stage
-        path: .
-        include-hidden-files: true
-
     # Build binaries
     - name: Run make ci
       if: ${{ matrix.arch == 'x64' }}
@@ -54,16 +47,9 @@ jobs:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
     steps:
-    - name: Download source
-      uses: actions/download-artifact@v4
-      with:
-        name: source_${{ matrix.arch }}_stage
-        path: .
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    - name: Add executable permission
-      run: |
-          chmod -R +x ./scripts
-        
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
     - name: Set up Docker Buildx
@@ -201,16 +187,9 @@ jobs:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
     steps:
-    - name: Download source
-      uses: actions/download-artifact@v4
-      with:
-        name: source_${{ matrix.arch }}_stage
-        path: .
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    - name: Add executable permission
-      run: |
-          chmod -R +x ./scripts
-        
     - name: Declare branch and sha_short
       run: |
         echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_ENV"
@@ -302,15 +281,8 @@ jobs:
       contents: write # for github prerelease action
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
     steps:
-    - name: Download source
-      uses: actions/download-artifact@v4
-      with:
-        name: source_${{ matrix.arch }}_stage
-        path: .
-
-    - name: Add executable permission
-      run: |
-          chmod -R +x ./scripts
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -425,15 +397,8 @@ jobs:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
     steps:
-    - name: Download source
-      uses: actions/download-artifact@v4
-      with:
-        name: source_${{ matrix.arch }}_stage
-        path: .
-
-    - name: Add executable permission
-      run: |
-          chmod -R +x ./scripts
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Declare branch and sha_short
       run: |
