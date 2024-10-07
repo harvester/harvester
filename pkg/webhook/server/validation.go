@@ -79,6 +79,8 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.ClusterFactory.Cluster().V1beta1().Machine().Cache(),
 			clients.RancherManagementFactory.Management().V3().ManagedChart().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Version().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
 			&http.Client{
 				Transport: transport,
