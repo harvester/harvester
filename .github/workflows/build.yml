@@ -26,6 +26,7 @@ jobs:
       with:
         name: source_${{ matrix.arch }}_stage
         path: .
+        include-hidden-files: true
 
     # Build binaries
     - name: Run make ci
