@@ -56,6 +56,8 @@ func NewValidator(
 	machines ctlclusterv1.MachineCache,
 	managedChartCache mgmtv3.ManagedChartCache,
 	versionCache ctlharvesterv1.VersionCache,
+	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
+	svmbackupCache ctlharvesterv1.ScheduleVMBackupCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	httpClient *http.Client,
 	bearToken string,
@@ -68,6 +70,8 @@ func NewValidator(
 		machines:          machines,
 		managedChartCache: managedChartCache,
 		versionCache:      versionCache,
+		vmBackupCache:     vmBackupCache,
+		svmbackupCache:    svmbackupCache,
 		vmiCache:          vmiCache,
 		httpClient:        httpClient,
 		bearToken:         bearToken,
@@ -84,6 +88,8 @@ type upgradeValidator struct {
 	machines          ctlclusterv1.MachineCache
 	managedChartCache mgmtv3.ManagedChartCache
 	versionCache      ctlharvesterv1.VersionCache
+	vmBackupCache     ctlharvesterv1.VirtualMachineBackupCache
+	svmbackupCache    ctlharvesterv1.ScheduleVMBackupCache
 	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
 	httpClient        *http.Client
 	bearToken         string
@@ -161,6 +167,14 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
 		return werror.NewBadRequest(fmt.Sprintf("cluster %s/%s status is %s, please wait for it to be provisioned", util.FleetLocalNamespaceName, util.LocalClusterName, cluster.Status.Phase))
 	}
 
+	if err := v.checkVMBackups(); err != nil {
+		return err
+	}
+
+	if err := v.checkScheduleVMBackups(); err != nil {
+		return err
+	}
+
 	if err := v.checkManagedCharts(); err != nil {
 		return err
 	}
@@ -222,6 +236,39 @@ func (v *upgradeValidator) checkManagedCharts() error {
 	}
 
 	return nil
+}
+
+// Since volume snapshot/backup will hold one additional LH VA tickets, it can block VM live migration.
+// We should check if there is any vmbackup under processing before upgrade
+func (v *upgradeValidator) checkVMBackups() error {
+	vmBackups, err := v.vmBackupCache.GetByIndex(indexeres.VMBackupByIsProgressing, strconv.FormatBool(true))
+	if err != nil {
+		return err
+	}
+
+	if len(vmBackups) == 0 {
+		return nil
+	}
+
+	return werror.NewBadRequest(fmt.Sprintf("please wait until all vmbackups are stopped, for example %s/%s is under processing",
+		vmBackups[0].Namespace, vmBackups[0].Name))
+}
+
+// Since volume snapshot/backup will hold one additional LH VA tickets, it can block VM live migration,
+// and an active schedule could start a vmbackup at any time.
+// we should check if there is any running schedule before upgrade
+func (v *upgradeValidator) checkScheduleVMBackups() error {
+	svmbackups, err := v.svmbackupCache.GetByIndex(indexeres.ScheduleVMBackupBySuspended, strconv.FormatBool(false))
+	if err != nil {
+		return err
+	}
+
+	if len(svmbackups) == 0 {
+		return nil
+	}
+
+	return werror.NewBadRequest(fmt.Sprintf("please suspend all backup/snapshot schedule, for example %s/%s is running",
+		svmbackups[0].Namespace, svmbackups[0].Name))
 }
 
 func (v *upgradeValidator) checkNodes(version *v1beta1.Version) error {
