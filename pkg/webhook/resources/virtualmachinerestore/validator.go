@@ -17,8 +17,10 @@ import (
 	ctlbackup "github.com/harvester/harvester/pkg/controller/master/backup"
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
+	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
@@ -47,14 +49,16 @@ func NewValidator(
 	svmbackup ctlharvesterv1.ScheduleVMBackupCache,
 	vmims ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache,
+	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache,
 ) types.Validator {
 	return &restoreValidator{
-		vms:           vms,
-		setting:       setting,
-		vmBackup:      vmBackup,
-		vmRestore:     vmRestore,
-		svmbackup:     svmbackup,
-		snapshotClass: snapshotClass,
+		vms:                               vms,
+		setting:                           setting,
+		vmBackup:                          vmBackup,
+		vmRestore:                         vmRestore,
+		svmbackup:                         svmbackup,
+		snapshotClass:                     snapshotClass,
+		networkAttachmentDefinitionsCache: networkAttachmentDefinitionsCache,
 
 		vmrCalculator: resourcequota.NewCalculator(nss, pods, rqs, vmims),
 	}
@@ -63,12 +67,13 @@ func NewValidator(
 type restoreValidator struct {
 	types.DefaultValidator
 
-	vms           ctlkubevirtv1.VirtualMachineCache
-	setting       ctlharvesterv1.SettingCache
-	vmBackup      ctlharvesterv1.VirtualMachineBackupCache
-	vmRestore     ctlharvesterv1.VirtualMachineRestoreCache
-	svmbackup     ctlharvesterv1.ScheduleVMBackupCache
-	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache
+	vms                               ctlkubevirtv1.VirtualMachineCache
+	setting                           ctlharvesterv1.SettingCache
+	vmBackup                          ctlharvesterv1.VirtualMachineBackupCache
+	vmRestore                         ctlharvesterv1.VirtualMachineRestoreCache
+	svmbackup                         ctlharvesterv1.ScheduleVMBackupCache
+	snapshotClass                     ctlsnapshotv1.VolumeSnapshotClassCache
+	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache
 
 	vmrCalculator *resourcequota.Calculator
 }
@@ -106,6 +111,10 @@ func (v *restoreValidator) Create(_ *types.Request, newObj runtime.Object) error
 	}
 
 	if err := v.checkVolumeSnapshotClass(vmBackup); err != nil {
+		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
+	}
+
+	if err := v.checkNetwork(vmBackup); err != nil {
 		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
 	}
 
@@ -238,6 +247,19 @@ func (v *restoreValidator) checkSnapshot(vmRestore *v1beta1.VirtualMachineRestor
 		// We don't allow users to use "delete" policy for replacing a VM when the backup type is snapshot.
 		// This will also remove the VMBackup when VMRestore is finished.
 		return fmt.Errorf("Delete policy with backup type snapshot for replacing VM is not supported")
+	}
+	return nil
+}
+
+func (v *restoreValidator) checkNetwork(vmBackup *v1beta1.VirtualMachineBackup) error {
+	for _, network := range vmBackup.Status.SourceSpec.Spec.Template.Spec.Networks {
+		if network.Multus != nil {
+			namespace, name := ref.Parse(network.Multus.NetworkName)
+			_, err := v.networkAttachmentDefinitionsCache.Get(namespace, name)
+			if err != nil {
+				return fmt.Errorf(fmt.Sprintf("Failed to get network attachment definition %s, err: %v", network.Multus.NetworkName, err))
+			}
+		}
 	}
 	return nil
 }
