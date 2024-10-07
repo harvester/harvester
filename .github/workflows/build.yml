@@ -60,6 +60,10 @@ jobs:
         name: source_${{ matrix.arch }}_stage
         path: .
 
+    - name: Add executable permission
+      run: |
+          chmod -R +x ./scripts
+        
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
     - name: Set up Docker Buildx
@@ -203,6 +207,10 @@ jobs:
         name: source_${{ matrix.arch }}_stage
         path: .
 
+    - name: Add executable permission
+      run: |
+          chmod -R +x ./scripts
+        
     - name: Declare branch and sha_short
       run: |
         echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_ENV"
@@ -299,6 +307,10 @@ jobs:
       with:
         name: source_${{ matrix.arch }}_stage
         path: .
+
+    - name: Add executable permission
+      run: |
+          chmod -R +x ./scripts
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -418,6 +430,10 @@ jobs:
       with:
         name: source_${{ matrix.arch }}_stage
         path: .
+
+    - name: Add executable permission
+      run: |
+          chmod -R +x ./scripts
 
     - name: Declare branch and sha_short
       run: |
