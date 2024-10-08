@@ -41,6 +41,10 @@ const (
 	// Add to rancher-monitoring addon to record grafana pv name
 	AnnotationGrafanaPVName = prefix + "/grafana-pv-name"
 
+	// Add to harvester-longhorn storageclass to protect it
+	// For any storageclass created & protected by controller, the controller can utilize this annotation
+	AnnotationIsReservedStorageClass = prefix + "/is-reserved-storageclass"
+
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
 	ContainerdRegistryFileName   = "registries.yaml"
 
@@ -92,18 +96,19 @@ const (
 	LabelUpgradeState                = prefix + "/upgradeState"
 	UpgradeStateLoggingInfraPrepared = "LoggingInfraPrepared"
 
-	AnnotationArchiveName         = prefix + "/archiveName"
-	LabelUpgradeLog               = prefix + "/upgradeLog"
-	LabelUpgradeLogComponent      = prefix + "/upgradeLogComponent"
-	UpgradeLogInfraComponent      = "infra"
-	UpgradeLogShipperComponent    = "shipper"
-	UpgradeLogAggregatorComponent = "aggregator"
-	UpgradeLogDownloaderComponent = "downloader"
-	UpgradeLogFlowComponent       = "clusterflow"
-	UpgradeLogArchiveComponent    = "log-archive"
-	UpgradeLogOperatorComponent   = "operator"
-	UpgradeLogOutputComponent     = "clusteroutput"
-	UpgradeLogPackagerComponent   = "packager"
+	AnnotationArchiveName                 = prefix + "/archiveName"
+	LabelUpgradeLog                       = prefix + "/upgradeLog"
+	LabelUpgradeLogComponent              = prefix + "/upgradeLogComponent"
+	UpgradeLogInfraComponent              = "infra"
+	UpgradeLogShipperComponent            = "shipper"
+	UpgradeLogAggregatorComponent         = "aggregator"
+	UpgradeLogDownloaderComponent         = "downloader"
+	UpgradeLogFlowComponent               = "clusterflow"
+	UpgradeLogArchiveComponent            = "log-archive"
+	UpgradeLogOperatorComponent           = "operator"
+	UpgradeLogOutputComponent             = "clusteroutput"
+	UpgradeLogPackagerComponent           = "packager"
+	AnnotationUpgradeLogLogArchiveAltName = prefix + "/logArchiveAltName"
 
 	UpgradeNodeDrainTaintKey   = "kubevirt.io/drain"
 	UpgradeNodeDrainTaintValue = "draining"
@@ -142,4 +147,15 @@ const (
 	LabelCPUManagerUpdateNode        = prefix + "/cpu-manager-update-node"
 	LabelCPUManagerUpdatePolicy      = prefix + "/cpu-manager-update-policy"
 	LabelCPUManagerExitCode          = prefix + "/cpu-manager-exit-code"
+
+	VClusterNamespace          = "rancher-vcluster"
+	LablelVClusterAppNameKey   = "app"
+	LablelVClusterAppNameValue = "vcluster"
+
+	StorageClassHarvesterLonghorn = "harvester-longhorn" // the initial & default storageclass
+	HarvesterChartReleaseName     = "harvester"          // the release name
+
+	// copied from helm pkg/action/validate.go
+	HelmReleaseNameAnnotation      = "meta.helm.sh/release-name"
+	HelmReleaseNamespaceAnnotation = "meta.helm.sh/release-namespace"
 )

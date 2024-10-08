@@ -143,8 +143,8 @@ tolerations: []
 ##
 strategy:
   rollingUpdate:
-    maxSurge: 2
-    maxUnavailable: 2
+    maxSurge: 1
+    maxUnavailable: 1
   type: RollingUpdate
 
 ## Specify the parameter of containers.
@@ -362,6 +362,17 @@ harvester-network-controller:
       pullPolicy: IfNotPresent
       tag: master-head
 
+harvester-networkfs-manager:
+  ## Specify to install harvester node disk manager,
+  ## defaults to "false".
+  enabled: false
+
+  image:
+    repository: rancher/harvester-networkfs-manager
+    pullPolicy: IfNotPresent 
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: main-head
+
 harvester-node-disk-manager:
   ## Specify to install harvester node disk manager,
   ## defaults to "false".
@@ -446,6 +457,13 @@ webhook:
 
   httpsPort: 9443
 
+  ## Specify the update strategy of the harvester-webhook workload.
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+
 upgrade:
   image:
     repository: rancher/harvester-upgrade
@@ -495,7 +513,7 @@ generalJob:
     # In the Golang limitation, we couldn't parse like "tag": 12.20.
     # So, we must use "tag": "12.20" instead.
     # More details in PR-4896 (https://github.com/harvester/harvester/pull/4896)
-    tag: 15.5
+    tag: 15.6
 
 whereabouts:
   enabled: true

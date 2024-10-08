@@ -40,18 +40,6 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "invalid encryption value",
-			storageClass: &storagev1.StorageClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "sc2",
-				},
-				Parameters: map[string]string{
-					util.LonghornOptionEncrypted: "false",
-				},
-			},
-			expectError: true,
-		},
-		{
 			name: "secret not found",
 			storageClass: &storagev1.StorageClass{
 				ObjectMeta: metav1.ObjectMeta{
@@ -65,6 +53,43 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 					util.CSINodeStageSecretNamespaceKey:   "default",
 					util.CSINodePublishSecretNameKey:      "non-existent-secret",
 					util.CSINodePublishSecretNamespaceKey: "default",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "encryption disabled",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "sc4",
+				},
+				Parameters: map[string]string{
+					util.LonghornOptionEncrypted: "false",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid encryption value",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "sc2",
+				},
+				Parameters: map[string]string{
+					util.LonghornOptionEncrypted: "invalid-value-here",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "missing parameters for encryption",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "sc5",
+				},
+				Parameters: map[string]string{
+					util.LonghornOptionEncrypted:     "true",
+					util.CSIProvisionerSecretNameKey: "non-existent-secret",
 				},
 			},
 			expectError: true,
@@ -111,6 +136,64 @@ func Test_storageClassValidator_Delete(t *testing.T) {
 				},
 			},
 			expectError: true,
+		},
+		{
+			name: "storage class any with AnnotationIsReservedStorageClass true can't be deleted",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "any",
+					Annotations: map[string]string{
+						util.AnnotationIsReservedStorageClass: "true",
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "storage class any with AnnotationIsReservedStorageClass false can be deleted",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "any",
+					Annotations: map[string]string{
+						util.AnnotationIsReservedStorageClass: "false",
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "storage class harvester-longhorn with AnnotationIsReservedStorageClass false can be deleted too",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.StorageClassHarvesterLonghorn,
+					Annotations: map[string]string{
+						util.AnnotationIsReservedStorageClass: "false",
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "storage class harvester-longhorn without AnnotationIsReservedStorageClass can't be deleted",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.StorageClassHarvesterLonghorn,
+					Annotations: map[string]string{
+						util.HelmReleaseNameAnnotation:      util.HarvesterChartReleaseName,
+						util.HelmReleaseNamespaceAnnotation: util.HarvesterSystemNamespaceName,
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "storage class others without AnnotationIsReservedStorageClass can be deleted",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "others",
+				},
+			},
+			expectError: false,
 		},
 	}
 

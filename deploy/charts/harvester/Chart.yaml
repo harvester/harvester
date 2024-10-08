@@ -30,8 +30,12 @@ dependencies:
     version: 0.5.1
     repository: https://charts.harvesterhci.io
     condition: harvester-network-controller.enabled
+  - name: harvester-networkfs-manager
+    version: 0.1.0
+    repository: https://charts.harvesterhci.io
+    condition: harvester-networkfs-manager.enabled
   - name: harvester-node-disk-manager
-    version: 0.7.2
+    version: 0.7.4
     repository: https://charts.harvesterhci.io
     condition: harvester-node-disk-manager.enabled
   - name: csi-snapshotter

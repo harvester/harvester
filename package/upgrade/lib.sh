@@ -127,36 +127,11 @@ check_version()
     return
   fi
 
-  local current_version="${UPGRADE_PREVIOUS_VERSION#v}"
-  local min_upgradable_version="${REPO_HARVESTER_MIN_UPGRADABLE_VERSION#v}"
-
-  local is_rc=0
-  [[ "$current_version" =~ "-rc" ]] && is_rc=1
-
-  echo "Current version: $current_version"
-  echo "Minimum upgradable version: $min_upgradable_version"
-
-  if [ "$is_rc" = "1" ]; then
-    local current_version_rc_stripped="${current_version%-rc*}"
-    if [ "$current_version_rc_stripped" = "$min_upgradable_version" ]; then
-      echo "Current version is not supported. Abort the upgrade."
-      exit 1
-    fi
-  fi
-
-  if [ -z "$min_upgradable_version" ]; then
-    echo "No restriction."
-  else
-    local versions_to_compare="$min_upgradable_version
-$current_version"
-
-    # Current Harvester version should be newer or equal to minimum upgradable version
-    if [ "$versions_to_compare" = "$(sort -V <<< "$versions_to_compare")" ]; then
-      echo "Current version is supported."
-    else
-      echo "Current version is not supported. Abort the upgrade."
-      exit 1
-    fi
+  local ret=0
+  upgrade-helper version-guard "$HARVESTER_UPGRADE_NAME" || ret=$?
+  if [ $ret -ne 0 ]; then
+    echo "Version checking failed. Abort."
+    exit $ret
   fi
 }
 
@@ -542,8 +517,8 @@ upgrade_addon_rancher_logging_with_patch_eventrouter_image()
   if [ $EXIT_CODE != 0 ]; then
     echo "eventrouter is not found, need not patch"
   else
-    if [[ "rancher/harvester-eventrouter:v0.3.1" > $tag ]]; then
-      echo "eventrouter image is $tag, will patch to v0.3.1"
+    if [[ "rancher/harvester-eventrouter:v0.3.2" > $tag ]]; then
+      echo "eventrouter image is $tag, will patch to v0.3.2"
       fixeventrouter=true
     else
       echo "eventrouter image is updated, need not patch"
@@ -561,7 +536,7 @@ upgrade_addon_rancher_logging_with_patch_eventrouter_image()
   cat $valuesfile
 
   if [[ $fixeventrouter == true ]]; then
-    yq -e '.eventTailer.workloadOverrides.containers[0].image = "rancher/harvester-eventrouter:v0.3.1"' -i $valuesfile
+    yq -e '.eventTailer.workloadOverrides.containers[0].image = "rancher/harvester-eventrouter:v0.3.2"' -i $valuesfile
   fi
 
   # add 4 spaces to each line

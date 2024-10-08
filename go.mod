@@ -63,6 +63,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/cisco-open/operator-tools v0.29.0
 	github.com/containernetworking/cni v1.1.2
+	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/docker/go-units v0.5.0
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful/v3 v3.11.3
@@ -98,12 +99,14 @@ require (
 	github.com/rancher/rancher/pkg/apis v0.0.0
 	github.com/rancher/steve v0.0.0-20240709130809-47871606146c
 	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20230803010539-04a0b9ef5858
+	github.com/rancher/wrangler v1.1.2
 	github.com/rancher/wrangler/v3 v3.0.0
+	github.com/robfig/cron v1.2.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
-	github.com/tidwall/gjson v1.9.3
+	github.com/tidwall/gjson v1.14.2
 	github.com/urfave/cli v1.22.15
 	go.uber.org/multierr v1.11.0
 	golang.org/x/crypto v0.26.0
@@ -143,6 +146,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/RoaringBitmap/roaring v1.9.4 // indirect
+	github.com/achanda/go-sysctl v0.0.0-20160222034550-6be7678c45d2 // indirect
 	github.com/adrg/xdg v0.4.0 // indirect
 	github.com/alessio/shellescape v1.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
@@ -213,7 +217,7 @@ require (
 	github.com/iancoleman/orderedmap v0.2.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/insomniacslk/dhcp v0.0.0-20230908212754-65c27093e38a // indirect
+	github.com/insomniacslk/dhcp v0.0.0-20240710054256-ddd8a41251c9 // indirect
 	github.com/jinzhu/copier v0.3.5 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jmoiron/sqlx v1.3.5 // indirect
@@ -276,10 +280,8 @@ require (
 	github.com/rancher/kubernetes-provider-detector v0.1.5 // indirect
 	github.com/rancher/remotedialer v0.4.0 // indirect
 	github.com/rancher/rke v1.6.0-rc9 // indirect
-	github.com/rancher/wrangler v1.1.2 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/robfig/cron v1.2.0 // indirect
 	github.com/rubenv/sql-migrate v1.5.2 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect

@@ -1,4 +1,4 @@
-package main
+package vmlivemigratedetector
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	"github.com/harvester/harvester/cmd/upgradehelper/cmd"
 	"github.com/harvester/harvester/pkg/upgradehelper/vmlivemigratedetector"
 )
 
@@ -27,8 +28,8 @@ If there is no place to go, it can optionally shut down the VMs.
 	Run: func(_ *cobra.Command, args []string) {
 		ctx := context.Context(context.Background())
 		options := vmlivemigratedetector.DetectorOptions{
-			KubeConfigPath: kubeConfigPath,
-			KubeContext:    kubeContext,
+			KubeConfigPath: cmd.KubeConfigPath,
+			KubeContext:    cmd.KubeContext,
 			Shutdown:       shutdown,
 			NodeName:       args[0],
 		}
@@ -42,7 +43,7 @@ If there is no place to go, it can optionally shut down the VMs.
 func init() {
 	vmLiveMigrateDetectorCmd.Flags().BoolVar(&shutdown, "shutdown", false, "Shutdown non-migratable VMs")
 
-	rootCmd.AddCommand(vmLiveMigrateDetectorCmd)
+	cmd.RootCmd.AddCommand(vmLiveMigrateDetectorCmd)
 }
 
 func run(ctx context.Context, options vmlivemigratedetector.DetectorOptions) error {

@@ -2,6 +2,7 @@ package storageclass
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
@@ -18,6 +19,10 @@ import (
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
+)
+
+const (
+	errorMessageReservedStorageClass = "storage class %s is reserved by Harvester and can't be deleted"
 )
 
 var pairs = [][2]string{
@@ -78,7 +83,19 @@ func (v *storageClassValidator) Update(_ *types.Request, _ runtime.Object, newOb
 
 func (v *storageClassValidator) Delete(_ *types.Request, obj runtime.Object) error {
 	sc := obj.(*storagev1.StorageClass)
-	return v.validateVMImageUsage(sc)
+
+	validators := []func(*storagev1.StorageClass) error{
+		v.validateReservedStorageClass,
+		v.validateVMImageUsage,
+	}
+
+	for _, validator := range validators {
+		if err := validator(sc); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Harvester rejects setting dataLocality as strict-local, because it makes volume non migrateable,
@@ -138,12 +155,43 @@ func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error 
 	newSC := newObj.(*storagev1.StorageClass)
 
 	// Use util.LonghornOptionEncrypted as the key to check if the storage class is encrypted
-	if value, ok := newSC.Parameters[util.LonghornOptionEncrypted]; !ok {
+	value, ok := newSC.Parameters[util.LonghornOptionEncrypted]
+	if !ok {
 		return nil
-	} else if value != "true" {
-		return werror.NewInvalidError(fmt.Sprintf("storage class %s is not for encryption or decryption", newSC.Name), fmt.Sprintf("spec.parameters[%s] must be true", util.LonghornOptionEncrypted))
 	}
 
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		return werror.NewInvalidError("invalid value for `encrypted`", "spec.parameters")
+	}
+
+	if !enabled {
+		return nil
+	}
+
+	secretName, secretNamespace, missingParams, err := v.findMissingEncryptionParams(newSC)
+	if err != nil {
+		return err
+	}
+
+	if len(missingParams) != 0 {
+		return werror.NewInvalidError(fmt.Sprintf("storage class must contain %s", strings.Join(missingParams, ", ")), "spec.parameters")
+	}
+
+	if secretName != "" && secretNamespace != "" {
+		_, err := v.secretCache.Get(secretNamespace, secretName)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
+			}
+			return werror.NewInvalidError(err.Error(), "")
+		}
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) findMissingEncryptionParams(newSC *storagev1.StorageClass) (string, string, []string, error) {
 	var (
 		secretName      string
 		secretNamespace string
@@ -173,25 +221,11 @@ func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error 
 		}
 
 		if secretName != name || secretNamespace != namespace {
-			return werror.NewInvalidError(fmt.Sprintf("secret names and namespaces in %s and %s are different from others", pair[0], pair[1]), "")
+			return "", "", nil, werror.NewInvalidError(fmt.Sprintf("secret names and namespaces in %s and %s are different from others", pair[0], pair[1]), "")
 		}
 	}
 
-	if len(missingParams) != 0 {
-		return werror.NewInvalidError(fmt.Sprintf("storage class must contain %s", strings.Join(missingParams, ", ")), "spec.parameters")
-	}
-
-	if secretName != "" && secretNamespace != "" {
-		_, err := v.secretCache.Get(secretNamespace, secretName)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
-			}
-			return werror.NewInvalidError(err.Error(), "")
-		}
-	}
-
-	return nil
+	return secretName, secretNamespace, missingParams, nil
 }
 
 func (v *storageClassValidator) validateVMImageUsage(sc *storagev1.StorageClass) error {
@@ -207,6 +241,30 @@ func (v *storageClassValidator) validateVMImageUsage(sc *storagev1.StorageClass)
 
 	if len(usedVMImages) > 0 {
 		return werror.NewInvalidError(fmt.Sprintf("storage class %s is used by virtual machine images: %s", sc.Name, usedVMImages), "")
+	}
+
+	return nil
+}
+
+// Protect the SC with AnnotationIsReservedStorageClass as "true".
+// The legacy `harvester-longhorn` SC is created from helm chart and monitored by the managedchart, also used by rancher-monitoring.
+// It should not be deleted accidentally.
+func (v *storageClassValidator) validateReservedStorageClass(sc *storagev1.StorageClass) error {
+	isReserved := sc.Annotations[util.AnnotationIsReservedStorageClass]
+	if isReserved == "true" {
+		return werror.NewInvalidError(fmt.Sprintf(errorMessageReservedStorageClass, sc.Name), "")
+	}
+
+	// if set as false, directly return
+	if isReserved == "false" {
+		return nil
+	}
+
+	// Legacy harvester-longhorn may have no AnnotationIsReservedStorageClass, when it is deployed via helm (managedchart is on top of helm) then deny.
+	if sc.Name == util.StorageClassHarvesterLonghorn {
+		if sc.Annotations[util.HelmReleaseNamespaceAnnotation] == util.HarvesterSystemNamespaceName && sc.Annotations[util.HelmReleaseNameAnnotation] == util.HarvesterChartReleaseName {
+			return werror.NewInvalidError(fmt.Sprintf(errorMessageReservedStorageClass, sc.Name), "")
+		}
 	}
 
 	return nil

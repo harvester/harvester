@@ -2,6 +2,7 @@ package resourcequota
 
 import (
 	"encoding/json"
+	"fmt"
 	"runtime"
 
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
@@ -21,8 +22,9 @@ import (
 )
 
 var resourceQuotaConversion = map[string]string{
-	"limitsCpu":    "limits.cpu",
-	"limitsMemory": "limits.memory",
+	"limitsCpu":       string(corev1.ResourceLimitsCPU),
+	"limitsMemory":    string(corev1.ResourceLimitsMemory),
+	"requestsStorage": string(corev1.ResourceRequestsStorage),
 }
 
 type Calculator struct {
@@ -92,8 +94,7 @@ func (c *Calculator) CheckIfVMCanStartByResourceQuota(vm *kubevirtv1.VirtualMach
 	}
 
 	// get resource quota limits from ResourceQuota
-	selector := labels.Set{util.LabelManagementDefaultResourceQuota: "true"}.AsSelector()
-	rqs, err := c.rqCache.List(vm.Namespace, selector)
+	rqs, err := c.getResourceQuota(vm)
 	if err != nil {
 		return err
 	} else if len(rqs) == 0 {
@@ -119,11 +120,20 @@ func (c *Calculator) getNamespaceResourceQuota(vm *kubevirtv1.VirtualMachine) (*
 		return nil, err
 	}
 
-	if resourceQuota.Limit.LimitsCPU == "" && resourceQuota.Limit.LimitsMemory == "" {
+	if resourceQuota.Limit.LimitsCPU == "" && resourceQuota.Limit.LimitsMemory == "" && resourceQuota.Limit.RequestsStorage == "" {
 		return nil, nil
 	}
 
 	return resourceQuota, nil
+}
+
+func (c *Calculator) getResourceQuota(vm *kubevirtv1.VirtualMachine) ([]*corev1.ResourceQuota, error) {
+	selector := labels.Set{util.LabelManagementDefaultResourceQuota: "true"}.AsSelector()
+	rqs, err := c.rqCache.List(vm.Namespace, selector)
+	if err != nil {
+		return nil, err
+	}
+	return rqs, nil
 }
 
 // containsEnoughResourceQuotaToStartVM checks if the VM can be started based on the namespace resource quota limits
@@ -132,7 +142,7 @@ func (c *Calculator) containsEnoughResourceQuotaToStartVM(
 	namespaceResourceQuota *v3.NamespaceResourceQuota,
 	rq *corev1.ResourceQuota) error {
 	// get running migrations' used resource
-	vmimsCPU, vmimsMem, err := c.getRunningVMIMResources(rq)
+	vmimsCPU, vmimsMem, _, err := c.getRunningVMIMResources(rq)
 	if err != nil {
 		return err
 	}
@@ -192,15 +202,16 @@ func (c *Calculator) calculateVMActualOverhead(vm *kubevirtv1.VirtualMachine) *r
 	return &memoryOverhead
 }
 
-func (c *Calculator) getRunningVMIMResources(rq *corev1.ResourceQuota) (cpu, mem resource.Quantity, err error) {
+func (c *Calculator) getRunningVMIMResources(rq *corev1.ResourceQuota) (cpu, mem, storage resource.Quantity, err error) {
 	vms, err := GetResourceListFromMigratingVMs(rq)
 	if err != nil {
-		return cpu, mem, err
+		return cpu, mem, storage, err
 	}
 
 	for _, rl := range vms {
 		cpu.Add(*rl.Name(corev1.ResourceLimitsCPU, resource.DecimalSI))
 		mem.Add(*rl.Name(corev1.ResourceLimitsMemory, resource.BinarySI))
+		storage.Add(*rl.Name(corev1.ResourceRequestsStorage, resource.BinarySI))
 	}
 
 	return
@@ -208,6 +219,76 @@ func (c *Calculator) getRunningVMIMResources(rq *corev1.ResourceQuota) (cpu, mem
 
 func (c *Calculator) getVMPods(namespace, vmName string) ([]*corev1.Pod, error) {
 	return c.podCache.GetByIndex(indexeresutil.PodByVMNameIndex, ref.Construct(namespace, vmName))
+}
+
+func (c *Calculator) CheckStorageResourceQuota(vm *kubevirtv1.VirtualMachine, oldVM *kubevirtv1.VirtualMachine) error {
+	nrq, err := c.getNamespaceResourceQuota(vm)
+	if err != nil {
+		return err
+	} else if nrq == nil {
+		logrus.Debugf("CheckStorageResourceQuota: skipping check, resource quota not found in the namespace %s", vm.Namespace)
+		return nil
+	}
+
+	rqs, err := c.getResourceQuota(vm)
+	if err != nil {
+		return err
+	} else if len(rqs) == 0 {
+		logrus.Debugf("CheckStorageResourceQuota: not found any default resource quota in the namespace %s", vm.Namespace)
+		return nil
+	}
+
+	rq := rqs[0]
+
+	_, _, vmimsStorage, err := c.getRunningVMIMResources(rq)
+	if err != nil {
+		return err
+	}
+
+	usedStorage := rq.Status.Used.Name(corev1.ResourceRequestsStorage, resource.BinarySI)
+	usedStorage.Sub(vmimsStorage)
+
+	// Calculate the storage quantity of the VM.
+	vmStorage, err := calculateVMStorageQuantity(vm)
+	if err != nil {
+		return err
+	}
+
+	// Calculate the storage quantity of the old VM.
+	// Then compare both storage quantity to assess whether the namespace
+	// resource quota can be exceeded at all. This is only the case when the
+	// storage requirements of the new VM is greater than those of the old
+	// one.
+	if oldVM != nil {
+		oldVMStorage, err := calculateVMStorageQuantity(oldVM)
+		if err != nil {
+			return err
+		}
+		// If the storage quantity of the VM is smaller than the old
+		// one, then exit immediately because the namespace resource
+		// quota cannot be exceeded in this case.
+		if vmStorage.Cmp(oldVMStorage) != 1 {
+			return nil
+		}
+		// Use the difference of the storage quantities as only this value
+		// is decisive for the further assessment.
+		vmStorage.Sub(oldVMStorage)
+	}
+
+	actualRq, err := convertNamespaceResourceLimitToResourceList(&nrq.Limit)
+	if err != nil {
+		return err
+	}
+	actualStorage := actualRq.Name(corev1.ResourceRequestsStorage, resource.BinarySI)
+
+	if !actualStorage.IsZero() {
+		actualStorage.Sub(*usedStorage)
+		if actualStorage.Cmp(vmStorage) == -1 {
+			return storageInsufficientResourceError()
+		}
+	}
+
+	return nil
 }
 
 func convertNamespaceResourceLimitToResourceList(limit *v3.ResourceQuotaLimit) (corev1.ResourceList, error) {
@@ -319,4 +400,25 @@ func isEmptyQuota(rq *corev1.ResourceQuota) bool {
 		return true
 	}
 	return false
+}
+
+func calculateVMStorageQuantity(vm *kubevirtv1.VirtualMachine) (resource.Quantity, error) {
+	storage := *resource.NewQuantity(0, resource.BinarySI)
+
+	volumeClaimTemplates, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplates == "" {
+		return storage, nil
+	}
+
+	var pvcs []*corev1.PersistentVolumeClaim
+	err := json.Unmarshal([]byte(volumeClaimTemplates), &pvcs)
+	if err != nil {
+		return storage, fmt.Errorf("failed to unmarshal the volumeClaimTemplates annotation: %w", err)
+	}
+
+	for _, pvc := range pvcs {
+		storage.Add(*pvc.Spec.Resources.Requests.Storage())
+	}
+
+	return storage, nil
 }

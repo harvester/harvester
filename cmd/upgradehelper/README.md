@@ -5,10 +5,11 @@ A collection of useful helpers for Harvester upgrades.
 subcommands are listed below:
 
 - vm-live-migrate-detector
+- version-guard
 
 ## vm-live-migrate-detector
 
-A simple command line tool that helps detect if the VMs on a specific node can be live-migrated to other nodes considering the following:
+A simple subcommand that helps detect if the VMs on a specific node can be live-migrated to other nodes considering the following:
 
 - Node selectors: If a VM is running on a specific node and has a node selector configured, the VM is considered non-live-migratable
 - PCIe devices: If a VM has PCIe devices attached, it is considered non-live-migratable
@@ -18,32 +19,31 @@ Besides detecting the live-migratability of the VMs on the node, the tool can al
 
 ### Usage
 
-```
-$ vm-live-migrate-detector --help
+```shell
+$ upgrade-helper vm-live-migrate-detector --help
 A simple VM detector and executor for Harvester upgrades
 
 The detector accepts a node name and inferences the possible places the VMs on top of it could be live migrated to.
 If there is no place to go, it can optionally shut down the VMs.
 
 Usage:
-  vm-live-migrate-detector NODENAME [flags]
+  upgrade-helper vm-live-migrate-detector NODENAME [flags]
 
 Flags:
-      --debug                set logging level to debug
-  -h, --help                 help for vm-live-migrate-detector
-      --kubeconfig string    Path to the kubeconfig file (default "/home/rancher/.kube/config")
-      --kubecontext string   Context name
-      --shutdown             Shutdown non-migratable VMs
-      --trace                set logging level to trace
-  -v, --version              version for vm-live-migrate-detector
+  -h, --help       help for vm-live-migrate-detector
+      --shutdown   Shutdown non-migratable VMs
+
+Global Flags:
+      --debug   set logging level to debug
+      --trace   set logging level to trace
 ```
 
 Given a node name, it can iterate all the VMs that are running on top of the node, and return with a list of non-live-migratable VMs.
 
-```
+```shell
 $ export KUBECONFIG=/tmp/kubeconfig
 
-$ vm-live-migrate-detector harvester-z5hd8
+$ upgrade-helper vm-live-migrate-detector harvester-z5hd8
 INFO[0000] Starting VM Live Migrate Detector
 INFO[0000] Checking vms on node harvester-z5hd8...
 INFO[0000] default/test-vm
@@ -52,11 +52,31 @@ INFO[0000] Non-migratable VM(s): [default/test-vm]
 
 It can help you shut down those non-live-migratable VMs if you have the `--shutdown` flag specified.
 
-```
-$ vm-live-migrate-detector harvester-z5hd8 --shutdown
+```shell
+$ upgrade-helper vm-live-migrate-detector harvester-z5hd8 --shutdown
 INFO[0000] Starting VM Live Migrate Detector
 INFO[0000] Checking vms on node harvester-z5hd8...
 INFO[0000] default/test-vm
 INFO[0000] Non-migratable VM(s): [default/test-vm]
 INFO[0000] vm default/test-vm was administratively stopped
+```
+
+## version-guard
+
+A subcommand that checks whether the version can be upgraded to. The validating criteria includes:
+
+- Disallow any downgrade
+- Disallow upgrades from any formal release version lower than the minimal upgrade requirement of the targeting formal release version
+- Disallow upgrades from any dev version to any formal release version (if the strict mode is enabled)
+- Disallow upgrades from any dev version to any prerelease version (if the strict mode is enabled)
+- Allow upgrades from any lower prerelease version to any higher one within the same release version but not across different release versions
+
+Any other upgrade paths not explicitly mentioned above are allowed.
+
+### Usage
+
+```shell
+$ export KUBECONFIG=/tmp/kubeconfig
+
+$ upgrade-helper version-guard hvst-upgrade-gqbg5
 ```

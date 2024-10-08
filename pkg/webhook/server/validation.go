@@ -93,6 +93,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
 			clients.LonghornFactory.Longhorn().V1beta2().Engine().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache(),
 		),
 		virtualmachinerestore.NewValidator(
 			clients.Core.Namespace().Cache(),
@@ -117,6 +118,9 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.RancherManagementFactory.Management().V3().Feature().Cache(),
 			clients.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
 			clients.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
+			clients.HarvesterNetworkFactory.Network().V1beta1().ClusterNetwork().Cache(),
+			clients.HarvesterNetworkFactory.Network().V1beta1().VlanConfig().Cache(),
+			clients.HarvesterNetworkFactory.Network().V1beta1().VlanStatus().Cache(),
 		),
 		templateversion.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate().Cache(),

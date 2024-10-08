@@ -498,7 +498,7 @@ EOF
 # system-reserved/kube-reserved is required if we want to set cpu-manager-policy to static
 set_reserved_resource() {
   local cores=$(chroot $HOST_DIR nproc)
-  local reserverdCPU=$(calculateCPUReservedInMilliCPU $cores $MAX_PODS)
+  local reservedCPU=$(calculateCPUReservedInMilliCPU $cores $MAX_PODS)
   # make system:kube cpu reservation ration 2:3
   local systemReservedCPU=$((reservedCPU * 2 * 2 / 5))
   local kubeReservedCPU=$((reservedCPU * 2 * 3 / 5))
