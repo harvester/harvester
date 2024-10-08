@@ -81,6 +81,12 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache(),
 			clients.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
+<<<<<<< HEAD
+=======
+			clients.LonghornFactory.Longhorn().V1beta2().Engine().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache(),
+>>>>>>> 9d5b63eb (enhancement: vmbackp webhook check if the vm is under migration)
 		),
 		virtualmachinerestore.NewValidator(
 			clients.Core.Namespace().Cache(),
