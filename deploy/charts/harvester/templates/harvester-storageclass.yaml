@@ -3,8 +3,9 @@ kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
   name: harvester-longhorn
-{{- if .Values.storageClass.defaultStorageClass }}
   annotations:
+    harvesterhci.io/is-reserved-storageclass: "true"
+{{- if .Values.storageClass.defaultStorageClass }}
     storageclass.kubernetes.io/is-default-class: "true"
 {{- end }}
 provisioner: driver.longhorn.io
