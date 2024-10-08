@@ -63,4 +63,120 @@ func Test_UpdateSupportBundleImage(t *testing.T) {
 
 	assert.Nil(t, err, "failed to get setting")
 	assert.Equal(t, "{\"repository\":\"test-repository\",\"tag\":\"v3.3\",\"imagePullPolicy\":\"IfNotPresent\"}", s.Default)
+
+	// image tag is empty, do not update
+	err = UpdateSupportBundleImage(
+		fakeclients.HarvesterSettingClient(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		&catalogv1.App{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test.name",
+				Namespace: namespace,
+			},
+			Spec: catalogv1.ReleaseSpec{
+				Chart: &catalogv1.Chart{
+					Values: map[string]interface{}{
+						"support-bundle-kit": map[string]interface{}{
+							"image": map[string]interface{}{
+								"repository":      "",
+								"tag":             "",
+								"imagePullPolicy": "IfNotPresent",
+							},
+						},
+					},
+				},
+			},
+		},
+	)
+	assert.Nil(t, err, "failed to update setting")
+	s, err = clientset.HarvesterhciV1beta1().Settings().Get(
+		context.TODO(),
+		settings.SupportBundleImageName,
+		metav1.GetOptions{})
+
+	assert.Nil(t, err, "failed to get setting")
+	// keeps unchanged
+	assert.Equal(t, "{\"repository\":\"test-repository\",\"tag\":\"v3.3\",\"imagePullPolicy\":\"IfNotPresent\"}", s.Default)
+
+	// image map is empty, do not update
+	err = UpdateSupportBundleImage(
+		fakeclients.HarvesterSettingClient(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		&catalogv1.App{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test.name",
+				Namespace: namespace,
+			},
+			Spec: catalogv1.ReleaseSpec{
+				Chart: &catalogv1.Chart{
+					Values: map[string]interface{}{
+						"support-bundle-kit": map[string]interface{}{
+							"image": map[string]interface{}{},
+						},
+					},
+				},
+			},
+		},
+	)
+	assert.Nil(t, err, "failed to update setting")
+	s, err = clientset.HarvesterhciV1beta1().Settings().Get(
+		context.TODO(),
+		settings.SupportBundleImageName,
+		metav1.GetOptions{})
+
+	assert.Nil(t, err, "failed to get setting")
+	// keeps unchanged
+	assert.Equal(t, "{\"repository\":\"test-repository\",\"tag\":\"v3.3\",\"imagePullPolicy\":\"IfNotPresent\"}", s.Default)
+
+	// invalid key from app
+	err = UpdateSupportBundleImage(
+		fakeclients.HarvesterSettingClient(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		&catalogv1.App{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test.name",
+				Namespace: namespace,
+			},
+			Spec: catalogv1.ReleaseSpec{
+				Chart: &catalogv1.Chart{
+					Values: map[string]interface{}{
+						"support-bundle-kit-error-name": map[string]interface{}{
+							"image": map[string]interface{}{},
+						},
+					},
+				},
+			},
+		},
+	)
+	assert.Nil(t, err, "failed to update setting")
+	s, err = clientset.HarvesterhciV1beta1().Settings().Get(
+		context.TODO(),
+		settings.SupportBundleImageName,
+		metav1.GetOptions{})
+
+	assert.Nil(t, err, "failed to get setting")
+	// keeps unchanged
+	assert.Equal(t, "{\"repository\":\"test-repository\",\"tag\":\"v3.3\",\"imagePullPolicy\":\"IfNotPresent\"}", s.Default)
+
+	// empty chart from app
+	err = UpdateSupportBundleImage(
+		fakeclients.HarvesterSettingClient(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		&catalogv1.App{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test.name",
+				Namespace: namespace,
+			},
+			Spec: catalogv1.ReleaseSpec{},
+		},
+	)
+	assert.Nil(t, err, "failed to update setting")
+	s, err = clientset.HarvesterhciV1beta1().Settings().Get(
+		context.TODO(),
+		settings.SupportBundleImageName,
+		metav1.GetOptions{})
+
+	assert.Nil(t, err, "failed to get setting")
+	// keeps unchanged
+	assert.Equal(t, "{\"repository\":\"test-repository\",\"tag\":\"v3.3\",\"imagePullPolicy\":\"IfNotPresent\"}", s.Default)
 }

@@ -19,6 +19,13 @@ const (
 )
 
 func UpdateSupportBundleImage(settingClient v1beta1.SettingClient, settingCache v1beta1.SettingCache, app *catalogv1api.App) error {
+	if app.Spec.Chart == nil {
+		logrus.WithFields(logrus.Fields{
+			"namespace": app.Namespace,
+			"name":      app.Name,
+		}).Warning("app has empty chart, skip to update the support-bundle-image setting")
+		return nil
+	}
 	// merge template and chart
 	values, err := chartutil.CoalesceValues(
 		&chart.Chart{
@@ -36,11 +43,24 @@ func UpdateSupportBundleImage(settingClient v1beta1.SettingClient, settingCache 
 	var supportBundleYaml map[string]interface{}
 	v, ok := values[SupportBundleRepository]
 	if !ok {
-		logrus.Warningf("cant't find %s in apps %s/%s", SupportBundleRepository, app.Namespace, app.Name)
+		logrus.WithFields(logrus.Fields{
+			"namespace": app.Namespace,
+			"name":      app.Name,
+		}).Warningf("app chart values cant't find %s, skip to update the support-bundle-image setting", SupportBundleRepository)
 		return nil
 	}
 	if supportBundleYaml, ok = v.(map[string]interface{}); !ok {
-		logrus.Warningf("unknown %s yaml struct %+v in apps %s/%s", SupportBundleRepository, v, app.Namespace, app.Name)
+		logrus.WithFields(logrus.Fields{
+			"namespace": app.Namespace,
+			"name":      app.Name,
+		}).Warningf("unknown %s yaml struct %+v, skip to update the support-bundle-image setting", SupportBundleRepository, v)
+		return nil
+	}
+	if len(supportBundleYaml) == 0 {
+		logrus.WithFields(logrus.Fields{
+			"namespace": app.Namespace,
+			"name":      app.Name,
+		}).Warning("supportBundleYaml map is empty, skip to convert to support-bundle-image setting")
 		return nil
 	}
 
@@ -50,16 +70,22 @@ func UpdateSupportBundleImage(settingClient v1beta1.SettingClient, settingCache 
 	if err := mapstructure.Decode(supportBundleYaml, &supportBundle); err != nil {
 		return err
 	}
-
+	if supportBundle.Image.ImageName() == "" {
+		logrus.WithFields(logrus.Fields{
+			"namespace": app.Namespace,
+			"name":      app.Name,
+		}).Warning("the converted imagename is empty, skip to update the support-bundle-image setting")
+		return nil
+	}
 	imageBytes, err := json.Marshal(&supportBundle.Image)
 	if err != nil {
 		return err
 	}
-
 	supportBundleImage, err := settingCache.Get(settings.SupportBundleImageName)
 	if err != nil {
 		return err
 	}
+
 	supportBundleImageCpy := supportBundleImage.DeepCopy()
 	supportBundleImageCpy.Default = string(imageBytes)
 
