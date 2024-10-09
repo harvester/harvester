@@ -1,12 +1,16 @@
 package storageclass
 
 import (
+	"fmt"
 	"testing"
 
+	lhcrypto "github.com/longhorn/longhorn-manager/csi/crypto"
+	lhtypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	corefake "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -16,28 +20,301 @@ import (
 )
 
 func Test_storageClassValidator_validateEncryption(t *testing.T) {
+
+	normalSC := storagev1.StorageClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "sc1",
+		},
+		Parameters: map[string]string{
+			util.LonghornOptionEncrypted:          "true",
+			util.CSIProvisionerSecretNameKey:      "test-secret",
+			util.CSIProvisionerSecretNamespaceKey: "default",
+			util.CSINodeStageSecretNameKey:        "test-secret",
+			util.CSINodeStageSecretNamespaceKey:   "default",
+			util.CSINodePublishSecretNameKey:      "test-secret",
+			util.CSINodePublishSecretNamespaceKey: "default",
+		},
+	}
+	emptySecretSc := storagev1.StorageClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "sc1",
+		},
+		Parameters: map[string]string{
+			util.LonghornOptionEncrypted:          "true",
+			util.CSIProvisionerSecretNameKey:      "",
+			util.CSIProvisionerSecretNamespaceKey: "",
+			util.CSINodeStageSecretNameKey:        "",
+			util.CSINodeStageSecretNamespaceKey:   "",
+			util.CSINodePublishSecretNameKey:      "",
+			util.CSINodePublishSecretNamespaceKey: "",
+		},
+	}
+
 	tests := []struct {
 		name         string
+		secret       *corev1.Secret
 		storageClass *storagev1.StorageClass
 		expectError  bool
 	}{
 		{
 			name: "valid encryption parameters",
-			storageClass: &storagev1.StorageClass{
+			secret: &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "sc1",
+					Name:      "test-secret",
+					Namespace: "default",
 				},
-				Parameters: map[string]string{
-					util.LonghornOptionEncrypted:          "true",
-					util.CSIProvisionerSecretNameKey:      "test-secret",
-					util.CSIProvisionerSecretNamespaceKey: "default",
-					util.CSINodeStageSecretNameKey:        "test-secret",
-					util.CSINodeStageSecretNamespaceKey:   "default",
-					util.CSINodePublishSecretNameKey:      "test-secret",
-					util.CSINodePublishSecretNamespaceKey: "default",
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte("test-value"),
 				},
 			},
-			expectError: false,
+			storageClass: &normalSC,
+			expectError:  false,
+		},
+		{
+			name: "empty secret name and namespace",
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte("test-value"),
+				},
+			},
+			storageClass: &emptySecretSc,
+			expectError:  true,
+		},
+		{
+			name: fmt.Sprintf("invalid secret: missing %s", lhtypes.CryptoKeyHash),
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte("test-value"),
+				},
+			},
+			storageClass: &normalSC,
+			expectError:  true,
+		},
+		{
+			name: fmt.Sprintf("invalid secret: missing %s", lhtypes.CryptoKeyCipher),
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte("test-value"),
+				},
+			},
+			storageClass: &normalSC,
+			expectError:  true,
+		},
+		{
+			name: fmt.Sprintf("invalid secret: missing %s", lhtypes.CryptoKeySize),
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte("test-value"),
+				},
+			},
+			storageClass: &normalSC,
+			expectError:  true,
+		},
+		{
+			name: fmt.Sprintf("invalid secret: missing %s", lhtypes.CryptoPBKDF),
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte("test-value"),
+				},
+			},
+			storageClass: &normalSC,
+			expectError:  true,
+		},
+		{
+			name: fmt.Sprintf("invalid secret: missing %s", lhtypes.CryptoKeyProvider),
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:   []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher: []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:   []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:     []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyValue:  []byte("test-value"),
+				},
+			},
+			storageClass: &normalSC,
+			expectError:  true,
+		},
+		{
+			name: fmt.Sprintf("invalid secret: missing %s", lhtypes.CryptoKeyValue),
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+				},
+			},
+			storageClass: &normalSC,
+			expectError:  true,
+		},
+		{
+			name: fmt.Sprintf("invalid secret: %s is empty", lhtypes.CryptoKeyValue),
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte(""),
+				},
+			},
+			storageClass: &normalSC,
+			expectError:  true,
+		},
+		{
+			name: fmt.Sprintf("invalid secret: %s is wrong", lhtypes.CryptoKeyHash),
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte("test"),
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte("test"),
+				},
+			},
+			storageClass: &normalSC,
+			expectError:  true,
+		},
+		{
+			name: fmt.Sprintf("invalid secret: %s is wrong", lhtypes.CryptoKeyCipher),
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher:   []byte("test"),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte("test-value"),
+				},
+			},
+			storageClass: &normalSC,
+			expectError:  true,
+		},
+		{
+			name: fmt.Sprintf("invalid secret: %s is wrong", lhtypes.CryptoKeySize),
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:     []byte("test"),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte("test-value"),
+				},
+			},
+			storageClass: &normalSC,
+			expectError:  true,
+		},
+		{
+			name: fmt.Sprintf("invalid secret: %s is wrong", lhtypes.CryptoPBKDF),
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:       []byte("test"),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte("test-value"),
+				},
+			},
+			storageClass: &normalSC,
+			expectError:  true,
+		},
+		{
+			name: fmt.Sprintf("invalid secret: %s is wrong", lhtypes.CryptoKeyProvider),
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("test"),
+					lhtypes.CryptoKeyValue:    []byte("test-value"),
+				},
+			},
+			storageClass: &normalSC,
+			expectError:  true,
 		},
 		{
 			name: "secret not found",
@@ -96,14 +373,7 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 		},
 	}
 
-	coreclientset := corefake.NewSimpleClientset(
-		&corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-secret",
-				Namespace: "default",
-			},
-		},
-	)
+	coreclientset := corefake.NewSimpleClientset()
 	harvesterClientSet := harvesterFake.NewSimpleClientset()
 	fakeVMIMageCache := fakeclients.VirtualMachineImageCache(harvesterClientSet.HarvesterhciV1beta1().VirtualMachineImages)
 	fakeSecretCache := fakeclients.SecretCache(coreclientset.CoreV1().Secrets)
@@ -112,11 +382,19 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.secret != nil {
+				coreclientset.Tracker().Add(tc.secret)
+			}
+
 			err := validator.validateEncryption(tc.storageClass)
 			if tc.expectError {
 				assert.NotNil(t, err, tc.name)
 			} else {
 				assert.Nil(t, err, tc.name)
+			}
+
+			if tc.secret != nil {
+				coreclientset.Tracker().Delete(schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}, tc.secret.Namespace, tc.secret.Name)
 			}
 		})
 	}
