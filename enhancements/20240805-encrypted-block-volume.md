@@ -395,8 +395,10 @@ Before the creation of an encrypted virtual machine is processed by Harvester co
   If it's encrypted, it shows LUKS header information. Otherwise, it shows invalid LUKS device.
   ![](./20240805-encrypted-block-volume/06.png)
 
-  Then, you could use wrong password to `lukeOpen` it.  
+  Then, you could use wrong password to `lukeOpen` it. If passphrase is wrong, it shows `No key available with this passphrase`. If passphrase is correct, it shows `which is in use (already mapped or mounted)` because CSI driver have mounted it. The mounted path is in `/dev/mapper` on the same host.
   ![](./20240805-encrypted-block-volume/07.png)
+- Verify that VM image is encrypted.
+  Suggest that only start one VM without extra disks. After vm starts, there is only one disk in `/dev/longhorn`. Use the same method as in the previous step to verify it.
   
 
 ### Limitations
