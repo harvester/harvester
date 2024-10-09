@@ -5,10 +5,13 @@ import (
 	"strconv"
 	"strings"
 
+	lhcrypto "github.com/longhorn/longhorn-manager/csi/crypto"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	lhtypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -179,12 +182,47 @@ func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error 
 	}
 
 	if secretName != "" && secretNamespace != "" {
-		_, err := v.secretCache.Get(secretNamespace, secretName)
+		secret, err := v.secretCache.Get(secretNamespace, secretName)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
 			}
 			return werror.NewInvalidError(err.Error(), "")
+		}
+
+		if err := v.validateEncryptionSecret(secret, secretNamespace, secretName); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) validateEncryptionSecret(secret *corev1.Secret, secretNamespace string, secretName string) error {
+	invalid := false
+	requiredFields := map[string]string{
+		lhtypes.CryptoKeyCipher:   lhcrypto.CryptoKeyDefaultCipher,
+		lhtypes.CryptoKeyHash:     lhcrypto.CryptoKeyDefaultHash,
+		lhtypes.CryptoKeySize:     lhcrypto.CryptoKeyDefaultSize,
+		lhtypes.CryptoPBKDF:       lhcrypto.CryptoDefaultPBKDF,
+		lhtypes.CryptoKeyProvider: "secret",
+		lhtypes.CryptoKeyValue:    "",
+	}
+
+	for field, defaultValue := range requiredFields {
+		value, ok := secret.Data[field]
+		if !ok {
+			return werror.NewInvalidError(fmt.Sprintf("secret %s/%s is not a valid encryption secret, missing field: %s", secretNamespace, secretName, field), "")
+		}
+
+		if field == lhtypes.CryptoKeyValue {
+			invalid = string(value) == ""
+		} else {
+			invalid = string(value) != defaultValue
+		}
+
+		if invalid {
+			return werror.NewInvalidError(fmt.Sprintf("secret %s/%s is not a valid encryption secret, invalid field: %s", secretNamespace, secretName, field), "")
 		}
 	}
 
