@@ -363,10 +363,8 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 			return nil, fmt.Errorf("PV %s is not from CSI driver, cannot take a %s", pv.Name, backup.Spec.Type)
 		}
 
-		lhvolume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, pv.Name)
-		if err != nil {
-			return nil, err
-		}
+		storageCapacity := pv.Spec.Capacity[corev1.ResourceStorage]
+		volumeSize := storageCapacity.Value()
 
 		volumeBackupName := fmt.Sprintf("%s-volume-%s", backup.Name, pvcName)
 
@@ -384,7 +382,7 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 				Spec: pvc.Spec,
 			},
 			ReadyToUse: pointer.BoolPtr(false),
-			VolumeSize: lhvolume.Spec.Size,
+			VolumeSize: volumeSize,
 		}
 
 		volumeBackups = append(volumeBackups, vb)
