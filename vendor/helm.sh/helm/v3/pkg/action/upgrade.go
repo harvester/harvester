@@ -46,7 +46,6 @@ type Upgrade struct {
 
 	ChartPathOptions
 
-	Adopt bool
 	// Install is a purely informative flag that indicates whether this upgrade was done in "install" mode.
 	//
 	// Applications may use this to determine whether this Upgrade operation was done as part of a
@@ -75,6 +74,9 @@ type Upgrade struct {
 	DryRun bool
 	// DryRunOption controls whether the operation is prepared, but not executed with options on whether or not to interact with the remote cluster.
 	DryRunOption string
+	// HideSecret can be set to true when DryRun is enabled in order to hide
+	// Kubernetes Secrets in the output. It cannot be used outside of DryRun.
+	HideSecret bool
 	// Force will, if set to `true`, ignore certain warnings and perform the upgrade anyway.
 	//
 	// This should be used with caution.
@@ -83,6 +85,8 @@ type Upgrade struct {
 	ResetValues bool
 	// ReuseValues will re-use the user's last supplied values.
 	ReuseValues bool
+	// ResetThenReuseValues will reset the values to the chart's built-ins then merge with user's last supplied values.
+	ResetThenReuseValues bool
 	// Recreate will (if true) recreate pods after a rollback.
 	Recreate bool
 	// MaxHistory limits the maximum number of revisions saved per release
@@ -109,6 +113,8 @@ type Upgrade struct {
 	Lock sync.Mutex
 	// Enable DNS lookups when rendering templates
 	EnableDNS bool
+	// TakeOwnership will ignore the check for helm annotations and take ownership of the resources.
+	TakeOwnership bool
 }
 
 type resultMessage struct {
@@ -190,6 +196,11 @@ func (u *Upgrade) prepareUpgrade(name string, chart *chart.Chart, vals map[strin
 		return nil, nil, errMissingChart
 	}
 
+	// HideSecret must be used with dry run. Otherwise, return an error.
+	if !u.isDryRun() && u.HideSecret {
+		return nil, nil, errors.New("Hiding Kubernetes secrets requires a dry-run mode")
+	}
+
 	// finds the last non-deleted release with the given name
 	lastRelease, err := u.cfg.Releases.Last(name)
 	if err != nil {
@@ -258,7 +269,7 @@ func (u *Upgrade) prepareUpgrade(name string, chart *chart.Chart, vals map[strin
 		interactWithRemote = true
 	}
 
-	hooks, manifestDoc, notesTxt, err := u.cfg.renderResources(chart, valuesToRender, "", "", u.SubNotes, false, false, u.PostRenderer, interactWithRemote, u.EnableDNS)
+	hooks, manifestDoc, notesTxt, err := u.cfg.renderResources(chart, valuesToRender, "", "", u.SubNotes, false, false, u.PostRenderer, interactWithRemote, u.EnableDNS, u.HideSecret)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -328,7 +339,7 @@ func (u *Upgrade) performUpgrade(ctx context.Context, originalRelease, upgradedR
 		}
 	}
 
-	toBeUpdated, err := existingResourceConflict(toBeCreated, upgradedRelease.Name, upgradedRelease.Namespace, u.Adopt)
+	toBeUpdated, err := existingResourceConflict(toBeCreated, upgradedRelease.Name, upgradedRelease.Namespace, u.TakeOwnership)
 	if err != nil {
 		return nil, errors.Wrap(err, "Unable to continue with update")
 	}
@@ -549,6 +560,15 @@ func (u *Upgrade) reuseValues(chart *chart.Chart, current *release.Release, newV
 		newVals = chartutil.CoalesceTables(newVals, current.Config)
 
 		chart.Values = oldVals
+
+		return newVals, nil
+	}
+
+	// If the ResetThenReuseValues flag is set, we use the new chart's values, but we copy the old config's values over the new config's values.
+	if u.ResetThenReuseValues {
+		u.cfg.Log("merging values from old release to new values")
+
+		newVals = chartutil.CoalesceTables(newVals, current.Config)
 
 		return newVals, nil
 	}

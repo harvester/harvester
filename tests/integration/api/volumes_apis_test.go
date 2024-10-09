@@ -40,25 +40,6 @@ var _ = Describe("verify volume APIs", func() {
 				volumeMode = corev1.PersistentVolumeFilesystem
 			)
 
-			By("create a volume with name missing", func() {
-				var volume = corev1.PersistentVolumeClaim{
-					ObjectMeta: v1.ObjectMeta{
-						Namespace: namespace,
-					},
-					Spec: corev1.PersistentVolumeClaimSpec{
-						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-						VolumeMode:  &volumeMode,
-						Resources: corev1.VolumeResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceStorage: resource.MustParse("1Gi"),
-							},
-						},
-					},
-				}
-				respCode, respBody, err := helper.PostObject(volumeAPI, volume)
-				MustRespCodeIs(http.StatusUnprocessableEntity, "post volume", err, respCode, respBody)
-			})
-
 			By("create a volume with size missing", func() {
 				var volume = corev1.PersistentVolumeClaim{
 					ObjectMeta: v1.ObjectMeta{

@@ -15,6 +15,9 @@ const (
 	// LabelController is the name of the upgrade controller.
 	LabelController = GroupName + `/controller`
 
+	// LabelExclusive is set if the plan should not run concurrent with other plans.
+	LabelExclusive = GroupName + `/exclusive`
+
 	// LabelNode is the node being upgraded.
 	LabelNode = GroupName + `/node`
 

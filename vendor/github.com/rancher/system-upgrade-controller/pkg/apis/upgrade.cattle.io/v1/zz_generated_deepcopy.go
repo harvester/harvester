@@ -62,6 +62,11 @@ func (in *ContainerSpec) DeepCopyInto(out *ContainerSpec) {
 		*out = make([]VolumeSpec, len(*in))
 		copy(*out, *in)
 	}
+	if in.SecurityContext != nil {
+		in, out := &in.SecurityContext, &out.SecurityContext
+		*out = new(corev1.SecurityContext)
+		(*in).DeepCopyInto(*out)
+	}
 	return
 }
 

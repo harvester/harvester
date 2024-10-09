@@ -240,16 +240,21 @@ type GitRepoDisplay struct {
 // GitRepoResource contains metadata about the resources of a bundle.
 type GitRepoResource struct {
 	// APIVersion is the API version of the resource.
+	// +nullable
 	APIVersion string `json:"apiVersion,omitempty"`
 	// Kind is the k8s kind of the resource.
+	// +nullable
 	Kind string `json:"kind,omitempty"`
 	// Type is the type of the resource, e.g. "apiextensions.k8s.io.customresourcedefinition" or "configmap".
 	Type string `json:"type,omitempty"`
 	// ID is the name of the resource, e.g. "namespace1/my-config" or "backingimagemanagers.storage.io".
+	// +nullable
 	ID string `json:"id,omitempty"`
 	// Namespace of the resource.
+	// +nullable
 	Namespace string `json:"namespace,omitempty"`
 	// Name of the resource.
+	// +nullable
 	Name string `json:"name,omitempty"`
 	// IncompleteState is true if a bundle summary has 10 or more non-ready
 	// resources or a non-ready resource has more 10 or more non-ready or
@@ -262,14 +267,17 @@ type GitRepoResource struct {
 	// Transitioning is true if any Transitioning in the PerClusterState is true.
 	Transitioning bool `json:"transitioning,omitempty"`
 	// Message is the first message from the PerClusterStates.
+	// +nullable
 	Message string `json:"message,omitempty"`
 	// PerClusterState is a list of states for each cluster. Derived from the summaries non-ready resources.
+	// +nullable
 	PerClusterState []ResourcePerClusterState `json:"perClusterState,omitempty"`
 }
 
 // ResourcePerClusterState is generated for each non-ready resource of the bundles.
 type ResourcePerClusterState struct {
 	// State is the state of the resource.
+	// +nullable
 	State string `json:"state,omitempty"`
 	// Error is true if the resource is in an error state, copied from the bundle's summary for non-ready resources.
 	Error bool `json:"error,omitempty"`
@@ -277,10 +285,14 @@ type ResourcePerClusterState struct {
 	// copied from the bundle's summary for non-ready resources.
 	Transitioning bool `json:"transitioning,omitempty"`
 	// Message combines the messages from the bundle's summary. Messages are joined with the delimiter ';'.
+	// +nullable
 	Message string `json:"message,omitempty"`
 	// Patch for modified resources.
+	// +nullable
+	// +kubebuilder:validation:XPreserveUnknownFields
 	Patch *GenericMap `json:"patch,omitempty"`
 	// ClusterID is the id of the cluster.
+	// +nullable
 	ClusterID string `json:"clusterId,omitempty"`
 }
 

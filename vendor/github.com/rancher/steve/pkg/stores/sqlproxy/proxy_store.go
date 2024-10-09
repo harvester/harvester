@@ -15,20 +15,6 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/rancher/apiserver/pkg/apierror"
-	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/lasso/pkg/cache/sql/informer"
-	"github.com/rancher/lasso/pkg/cache/sql/informer/factory"
-	"github.com/rancher/lasso/pkg/cache/sql/partition"
-	"github.com/rancher/steve/pkg/attributes"
-	"github.com/rancher/steve/pkg/resources/common"
-	metricsStore "github.com/rancher/steve/pkg/stores/metrics"
-	"github.com/rancher/steve/pkg/stores/sqlpartition/listprocessor"
-	"github.com/rancher/steve/pkg/stores/sqlproxy/tablelistconvert"
-	"github.com/rancher/wrangler/v3/pkg/data"
-	"github.com/rancher/wrangler/v3/pkg/schemas"
-	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
-	"github.com/rancher/wrangler/v3/pkg/summary"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -42,9 +28,28 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/rancher/apiserver/pkg/apierror"
+	"github.com/rancher/apiserver/pkg/types"
+	"github.com/rancher/lasso/pkg/cache/sql/informer"
+	"github.com/rancher/lasso/pkg/cache/sql/informer/factory"
+	"github.com/rancher/lasso/pkg/cache/sql/partition"
+	"github.com/rancher/wrangler/v3/pkg/data"
+	"github.com/rancher/wrangler/v3/pkg/schemas"
+	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
+	"github.com/rancher/wrangler/v3/pkg/summary"
+
+	"github.com/rancher/steve/pkg/attributes"
+	"github.com/rancher/steve/pkg/resources/common"
+	metricsStore "github.com/rancher/steve/pkg/stores/metrics"
+	"github.com/rancher/steve/pkg/stores/sqlpartition/listprocessor"
+	"github.com/rancher/steve/pkg/stores/sqlproxy/tablelistconvert"
 )
 
-const watchTimeoutEnv = "CATTLE_WATCH_TIMEOUT_SECONDS"
+const (
+	watchTimeoutEnv      = "CATTLE_WATCH_TIMEOUT_SECONDS"
+	errNamespaceRequired = "metadata.namespace or apiOp.namespace are required"
+)
 
 var (
 	paramScheme               = runtime.NewScheme()
@@ -483,20 +488,27 @@ func (s *Store) Create(apiOp *types.APIRequest, schema *types.APISchema, params 
 	}
 
 	name := types.Name(input)
-	ns := types.Namespace(input)
-	if name == "" && input.String("metadata", "generateName") == "" {
-		input.SetNested(schema.ID[0:1]+"-", "metadata", "generatedName")
+	namespace := types.Namespace(input)
+	generateName := input.String("metadata", "generateName")
+
+	if name == "" && generateName == "" {
+		input.SetNested(schema.ID[0:1]+"-", "metadata", "generateName")
 	}
-	if ns == "" && apiOp.Namespace != "" {
-		ns = apiOp.Namespace
-		input.SetNested(ns, "metadata", "namespace")
+
+	if attributes.Namespaced(schema) && namespace == "" {
+		if apiOp.Namespace == "" {
+			return nil, nil, apierror.NewAPIError(validation.InvalidBodyContent, errNamespaceRequired)
+		}
+
+		namespace = apiOp.Namespace
+		input.SetNested(namespace, "metadata", "namespace")
 	}
 
 	gvk := attributes.GVK(schema)
 	input["apiVersion"], input["kind"] = gvk.ToAPIVersionAndKind()
 
 	buffer := WarningBuffer{}
-	k8sClient, err := metricsStore.Wrap(s.clientGetter.TableClient(apiOp, schema, ns, &buffer))
+	k8sClient, err := metricsStore.Wrap(s.clientGetter.TableClient(apiOp, schema, namespace, &buffer))
 	if err != nil {
 		return nil, nil, err
 	}

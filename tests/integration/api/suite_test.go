@@ -148,12 +148,8 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	By("tearing down harvester runtime")
-	err := runtime.Destruct(context.Background(), kubeConfig)
-	MustNotError(err)
-
 	By("tearing down test cluster")
-	err = cluster.Stop(GinkgoWriter)
+	err := cluster.Stop(GinkgoWriter)
 	MustNotError(err)
 
 	By("tearing down harvester server")

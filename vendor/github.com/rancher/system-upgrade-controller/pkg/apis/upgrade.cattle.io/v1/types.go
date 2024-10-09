@@ -17,6 +17,8 @@ var (
 	PlanLatestResolved = condition.Cond("LatestResolved")
 	// PlanSpecValidated indicates that the plan spec has been validated.
 	PlanSpecValidated = condition.Cond("Validated")
+	// PlanComplete indicates that the latest version of the plan has completed on all selected nodes.
+	PlanComplete = condition.Cond("Complete")
 )
 
 // +genclient
@@ -44,10 +46,13 @@ type PlanSpec struct {
 
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 
-	Prepare *ContainerSpec `json:"prepare,omitempty"`
-	Cordon  bool           `json:"cordon,omitempty"`
-	Drain   *DrainSpec     `json:"drain,omitempty"`
-	Upgrade *ContainerSpec `json:"upgrade,omitempty" wrangler:"required"`
+	Exclusive bool `json:"exclusive,omitempty"`
+
+	Prepare          *ContainerSpec                `json:"prepare,omitempty"`
+	Cordon           bool                          `json:"cordon,omitempty"`
+	Drain            *DrainSpec                    `json:"drain,omitempty"`
+	Upgrade          *ContainerSpec                `json:"upgrade,omitempty" wrangler:"required"`
+	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 }
 
 // PlanStatus represents the resulting state from processing Plan events.
@@ -60,12 +65,13 @@ type PlanStatus struct {
 
 // ContainerSpec is a simplified container template.
 type ContainerSpec struct {
-	Image   string                 `json:"image,omitempty"`
-	Command []string               `json:"command,omitempty"`
-	Args    []string               `json:"args,omitempty"`
-	Env     []corev1.EnvVar        `json:"envs,omitempty"`
-	EnvFrom []corev1.EnvFromSource `json:"envFrom,omitempty"`
-	Volumes []VolumeSpec           `json:"volumes,omitempty"`
+	Image           string                  `json:"image,omitempty"`
+	Command         []string                `json:"command,omitempty"`
+	Args            []string                `json:"args,omitempty"`
+	Env             []corev1.EnvVar         `json:"envs,omitempty"`
+	EnvFrom         []corev1.EnvFromSource  `json:"envFrom,omitempty"`
+	Volumes         []VolumeSpec            `json:"volumes,omitempty"`
+	SecurityContext *corev1.SecurityContext `json:"securityContext,omitempty"`
 }
 
 type VolumeSpec struct {
@@ -89,6 +95,7 @@ type DrainSpec struct {
 
 // SecretSpec describes a secret to be mounted for prepare/upgrade containers.
 type SecretSpec struct {
-	Name string `json:"name,omitempty"`
-	Path string `json:"path,omitempty"`
+	Name          string `json:"name,omitempty"`
+	Path          string `json:"path,omitempty"`
+	IgnoreUpdates bool   `json:"ignoreUpdates,omitempty"`
 }

@@ -76,21 +76,6 @@ var _ = Describe("verify vm APIs", func() {
 
 		Specify("verify vm api", func() {
 
-			// create
-			By("create a virtual machine should fail if name missing")
-			MustFinallyBeTrue(func() bool {
-				vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name("").
-					NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
-					PVCDisk(testVMBlankDiskName, testVMDefaultDiskBus, false, false, 1, testVMDiskSize, "", nil).
-					VM()
-				MustNotError(err)
-				respCode, _, err := helper.PostObject(vmsAPI, vm)
-				MustNotError(err)
-				// 404 is because the api server is up but ready to serve with watching the metadata controllers
-				Expect(respCode).To(BeElementOf([]int{http.StatusUnprocessableEntity, http.StatusNotFound}))
-				return respCode == http.StatusUnprocessableEntity
-			}, 1*time.Minute, 3*time.Second)
-
 			By("when create a virtual machine with cloud-init")
 			vmName := testVMGenerateName + fuzz.String(5)
 			vmCloudInit := &VMCloudInit{
