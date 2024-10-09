@@ -5,10 +5,13 @@ import (
 	"strconv"
 	"strings"
 
+	lhcrypto "github.com/longhorn/longhorn-manager/csi/crypto"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	lhtypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -169,29 +172,60 @@ func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error 
 		return nil
 	}
 
-	secretName, secretNamespace, missingParams, err := v.findMissingEncryptionParams(newSC)
+	err = v.validateEncryptionParams(newSC)
 	if err != nil {
 		return err
 	}
 
-	if len(missingParams) != 0 {
-		return werror.NewInvalidError(fmt.Sprintf("storage class must contain %s", strings.Join(missingParams, ", ")), "spec.parameters")
+	secretName, secretNamespace := newSC.Parameters[pairs[0][0]], newSC.Parameters[pairs[0][1]]
+
+	secret, err := v.secretCache.Get(secretNamespace, secretName)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
+		}
+		return werror.NewInvalidError(err.Error(), "")
 	}
 
-	if secretName != "" && secretNamespace != "" {
-		_, err := v.secretCache.Get(secretNamespace, secretName)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
-			}
-			return werror.NewInvalidError(err.Error(), "")
+	if err := v.validateEncryptionSecret(secret, secretNamespace, secretName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) validateEncryptionSecret(secret *corev1.Secret, secretNamespace string, secretName string) error {
+	invalid := false
+	requiredFields := map[string]string{
+		lhtypes.CryptoKeyCipher:   lhcrypto.CryptoKeyDefaultCipher,
+		lhtypes.CryptoKeyHash:     lhcrypto.CryptoKeyDefaultHash,
+		lhtypes.CryptoKeySize:     lhcrypto.CryptoKeyDefaultSize,
+		lhtypes.CryptoPBKDF:       lhcrypto.CryptoDefaultPBKDF,
+		lhtypes.CryptoKeyProvider: "secret",
+		lhtypes.CryptoKeyValue:    "",
+	}
+
+	for field, defaultValue := range requiredFields {
+		value, ok := secret.Data[field]
+		if !ok {
+			return werror.NewInvalidError(fmt.Sprintf("secret %s/%s is not a valid encryption secret, missing field: %s", secretNamespace, secretName, field), "")
+		}
+
+		if field == lhtypes.CryptoKeyValue {
+			invalid = string(value) == ""
+		} else {
+			invalid = string(value) != defaultValue
+		}
+
+		if invalid {
+			return werror.NewInvalidError(fmt.Sprintf("secret %s/%s is not a valid encryption secret, invalid field: %s", secretNamespace, secretName, field), "")
 		}
 	}
 
 	return nil
 }
 
-func (v *storageClassValidator) findMissingEncryptionParams(newSC *storagev1.StorageClass) (string, string, []string, error) {
+func (v *storageClassValidator) validateEncryptionParams(newSC *storagev1.StorageClass) error {
 	var (
 		secretName      string
 		secretNamespace string
@@ -221,11 +255,19 @@ func (v *storageClassValidator) findMissingEncryptionParams(newSC *storagev1.Sto
 		}
 
 		if secretName != name || secretNamespace != namespace {
-			return "", "", nil, werror.NewInvalidError(fmt.Sprintf("secret names and namespaces in %s and %s are different from others", pair[0], pair[1]), "")
+			return werror.NewInvalidError(fmt.Sprintf("secret names and namespaces in %s and %s are different from others", pair[0], pair[1]), "")
 		}
 	}
 
-	return secretName, secretNamespace, missingParams, nil
+	if len(missingParams) != 0 {
+		return werror.NewInvalidError(fmt.Sprintf("storage class must contain %s", strings.Join(missingParams, ", ")), "spec.parameters")
+	}
+
+	if secretName == "" || secretNamespace == "" {
+		return werror.NewInvalidError("storage class must contain secret name and namespace", "spec.parameters")
+	}
+
+	return nil
 }
 
 func (v *storageClassValidator) validateVMImageUsage(sc *storagev1.StorageClass) error {
