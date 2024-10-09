@@ -150,6 +150,10 @@ func (s Setting) Set(value string) error {
 	return nil
 }
 
+func (s Setting) GetDefault() string {
+	return s.Default
+}
+
 func (s Setting) Get() string {
 	if provider == nil {
 		s := settings[s.Name]

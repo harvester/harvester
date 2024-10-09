@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -36,13 +37,24 @@ func LoadCSIDriverConfig(settingCache ctlharvesterv1.SettingCache) (map[string]s
 	if err != nil {
 		return nil, fmt.Errorf("can't get %s setting, err: %w", settings.CSIDriverConfigSettingName, err)
 	}
-	csiDriverConfigSettingValue := csiDriverConfigSetting.Default
-	if csiDriverConfigSetting.Value != "" {
-		csiDriverConfigSettingValue = csiDriverConfigSetting.Value
-	}
+	csiDriverConfigSettingDefault := csiDriverConfigSetting.Default
 	csiDriverConfig := make(map[string]settings.CSIDriverInfo)
-	if err := json.Unmarshal([]byte(csiDriverConfigSettingValue), &csiDriverConfig); err != nil {
+	if err := json.Unmarshal([]byte(csiDriverConfigSettingDefault), &csiDriverConfig); err != nil {
 		return nil, fmt.Errorf("can't parse %s setting, err: %w", settings.CSIDriverConfigSettingName, err)
+	}
+	if csiDriverConfigSetting.Value != "" {
+		csiDriverConfigSettingValue := csiDriverConfigSetting.Value
+		tmpDriverConfig := make(map[string]settings.CSIDriverInfo)
+		if err := json.Unmarshal([]byte(csiDriverConfigSettingValue), &tmpDriverConfig); err != nil {
+			return nil, fmt.Errorf("can't parse %s setting, err: %w", settings.CSIDriverConfigSettingName, err)
+		}
+		for key, val := range tmpDriverConfig {
+			if _, ok := csiDriverConfig[key]; !ok {
+				csiDriverConfig[key] = val
+			} else {
+				logrus.Infof("CSI driver %s is already configured in the Default setting, skip it", key)
+			}
+		}
 	}
 	return csiDriverConfig, nil
 }

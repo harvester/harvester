@@ -363,10 +363,8 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 			return nil, fmt.Errorf("PV %s is not from CSI driver, cannot take a %s", pv.Name, backup.Spec.Type)
 		}
 
-		lhvolume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, pv.Name)
-		if err != nil {
-			return nil, err
-		}
+		storageCapacity := pv.Spec.Capacity[corev1.ResourceStorage]
+		volumeSize := storageCapacity.Value()
 
 		volumeBackupName := fmt.Sprintf("%s-volume-%s", backup.Name, pvcName)
 
@@ -384,7 +382,7 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 				Spec: pvc.Spec,
 			},
 			ReadyToUse: pointer.BoolPtr(false),
-			VolumeSize: lhvolume.Spec.Size,
+			VolumeSize: volumeSize,
 		}
 
 		volumeBackups = append(volumeBackups, vb)
@@ -396,8 +394,18 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 // getCSIDriverMap retrieves VolumeSnapshotClassName for each csi driver
 func (h *Handler) getCSIDriverMap(backup *harvesterv1.VirtualMachineBackup) (map[string]string, map[string]snapshotv1.VolumeSnapshotClass, error) {
 	csiDriverConfig := map[string]settings.CSIDriverInfo{}
-	if err := json.Unmarshal([]byte(settings.CSIDriverConfig.Get()), &csiDriverConfig); err != nil {
+	if err := json.Unmarshal([]byte(settings.CSIDriverConfig.GetDefault()), &csiDriverConfig); err != nil {
+		return nil, nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, settings.CSIDriverConfig.GetDefault())
+	}
+	tmpDriverConfig := map[string]settings.CSIDriverInfo{}
+	if err := json.Unmarshal([]byte(settings.CSIDriverConfig.Get()), &tmpDriverConfig); err != nil {
 		return nil, nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, settings.CSIDriverConfig.Get())
+	}
+
+	for key, val := range tmpDriverConfig {
+		if _, ok := csiDriverConfig[key]; !ok {
+			csiDriverConfig[key] = val
+		}
 	}
 
 	csiDriverVolumeSnapshotClassNameMap := map[string]string{}
