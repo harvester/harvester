@@ -41,6 +41,8 @@ var (
 		// The Longhorn storage over-provisioning percentage is set to 100, whereas Harvester uses 200.
 		// This needs to be synchronized when Harvester starts.
 		settings.OvercommitConfigSettingName,
+		// always run this when Harvester POD starts
+		settings.AdditionalGuestMemoryOverheadRatioName,
 	}
 	skipHashCheckSettings = []string{
 		settings.AutoRotateRKE2CertsSettingName,
