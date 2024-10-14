@@ -11,11 +11,21 @@ import (
 
 func Check(upgrade *v1beta1.Upgrade, strictMode bool, minUpgradableVersionStr string) error {
 
-	currentVersion, err := version.NewHarvesterVersion(upgrade.Status.PreviousVersion)
+	repoInfo, err := getRepoInfo(upgrade)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"namespace": upgrade.Namespace,
+			"name":      upgrade.Name,
+		}).Error("failed to retrieve repo info")
+		return err
+	}
+
+	upgradeVersion, err := version.NewHarvesterVersion(repoInfo.Release.Harvester)
 	if err != nil {
 		return err
 	}
-	upgradeVersion, err := version.NewHarvesterVersion(upgrade.Spec.Version)
+
+	currentVersion, err := version.NewHarvesterVersion(upgrade.Status.PreviousVersion)
 	if err != nil {
 		return err
 	}
@@ -27,15 +37,6 @@ func Check(upgrade *v1beta1.Upgrade, strictMode bool, minUpgradableVersionStr st
 			return err
 		}
 	} else {
-		repoInfo, err := getRepoInfo(upgrade)
-		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"namespace": upgrade.Namespace,
-				"name":      upgrade.Name,
-			}).Error("failed to retrieve repo info")
-			return err
-		}
-
 		minUpgradableVersion, err = version.NewHarvesterVersion(repoInfo.Release.MinUpgradableVersion)
 		// When the error is ErrInvalidVersion, let the nil minUpgradableVersion slip through the check since it's a
 		// valid scenario. It implies "upgrade with no restrictions."
