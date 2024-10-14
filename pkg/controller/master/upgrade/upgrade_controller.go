@@ -299,7 +299,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		toUpdate.Status.RepoInfo = repoInfoStr
 
 		// Upgrade Eligibility Check
-		isEligible, reason := upgradeEligibilityCheck(upgrade)
+		isEligible, reason := upgradeEligibilityCheck(toUpdate)
 
 		if !isEligible {
 			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, reason, "")
