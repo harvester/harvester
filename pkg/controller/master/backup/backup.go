@@ -866,6 +866,10 @@ func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		Status:             corev1.ConditionTrue,
 		LastTransitionTime: currentTime().Format(time.RFC3339),
 	})
+	if !reflect.DeepEqual(vmBackup.Status, vmBackupCopy.Status) {
+		_, err = h.vmBackups.Update(vmBackupCopy)
+		return err
+	}
 	return nil
 }
 
