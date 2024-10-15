@@ -3,12 +3,13 @@ package v1beta2
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 const (
-	NodeConditionTypeReady              = "Ready"
-	NodeConditionTypeMountPropagation   = "MountPropagation"
-	NodeConditionTypeMultipathd         = "Multipathd"
-	NodeConditionTypeRequiredPackages   = "RequiredPackages"
-	NodeConditionTypeNFSClientInstalled = "NFSClientInstalled"
-	NodeConditionTypeSchedulable        = "Schedulable"
+	NodeConditionTypeReady               = "Ready"
+	NodeConditionTypeMountPropagation    = "MountPropagation"
+	NodeConditionTypeMultipathd          = "Multipathd"
+	NodeConditionTypeKernelModulesLoaded = "KernelModulesLoaded"
+	NodeConditionTypeRequiredPackages    = "RequiredPackages"
+	NodeConditionTypeNFSClientInstalled  = "NFSClientInstalled"
+	NodeConditionTypeSchedulable         = "Schedulable"
 )
 
 const (
@@ -22,8 +23,9 @@ const (
 	NodeConditionReasonMultipathdIsRunning       = "MultipathdIsRunning"
 	NodeConditionReasonUnknownOS                 = "UnknownOS"
 	NodeConditionReasonNamespaceExecutorErr      = "NamespaceExecutorErr"
+	NodeConditionReasonKernelModulesNotLoaded    = "KernelModulesNotLoaded"
 	NodeConditionReasonPackagesNotInstalled      = "PackagesNotInstalled"
-	NodeConditionReasonKernelConfigIsNotFound    = "KernelConfigIsNotFound"
+	NodeConditionReasonCheckKernelConfigFailed   = "CheckKernelConfigFailed"
 	NodeConditionReasonNFSClientIsNotFound       = "NFSClientIsNotFound"
 	NodeConditionReasonKubernetesNodeCordoned    = "KubernetesNodeCordoned"
 )
