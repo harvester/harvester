@@ -128,6 +128,8 @@ const (
 	ConfigMapResourceVersionKey = "configmap-resource-version"
 	UpdateSettingFromLonghorn   = "update-setting-from-longhorn"
 
+	DeleteCustomResourceOnly = "delete-custom-resource-only"
+
 	KubernetesStatusLabel = "KubernetesStatus"
 	KubernetesReplicaSet  = "ReplicaSet"
 	KubernetesStatefulSet = "StatefulSet"

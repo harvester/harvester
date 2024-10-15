@@ -3271,6 +3271,7 @@ func (x *EngineBackupRestoreResponse) GetErrors() map[string]string {
 	return nil
 }
 
+// Deprecated: retained for compatibility with v1.7.x and earlier versions.
 type EngineBackupRestoreFinishRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

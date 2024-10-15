@@ -6,18 +6,18 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 
 	"github.com/longhorn/go-common-libs/types"
 )
 
 // GetKernelRelease returns the kernel release string.
 func GetKernelRelease() (string, error) {
-	utsname := &syscall.Utsname{}
-	if err := syscall.Uname(utsname); err != nil {
+	utsname := &unix.Utsname{}
+	if err := unix.Uname(utsname); err != nil {
 		logrus.WithError(err).Warn("Failed to get kernel release")
 		return "", err
 	}
