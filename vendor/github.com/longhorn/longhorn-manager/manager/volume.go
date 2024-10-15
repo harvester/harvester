@@ -808,6 +808,10 @@ func (m *VolumeManager) EngineUpgrade(volumeName, image string) (v *longhorn.Vol
 		return nil, fmt.Errorf("cannot do live upgrade for a unhealthy volume %v", v.Name)
 	}
 
+	if v.Status.State == longhorn.VolumeStateAttached && v.Spec.DataLocality == longhorn.DataLocalityStrictLocal {
+		return nil, fmt.Errorf("cannot do live upgrade for an attached strict-local volume %v", v.Name)
+	}
+
 	oldImage := v.Spec.Image
 	v.Spec.Image = image
 
