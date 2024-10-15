@@ -3,6 +3,7 @@ package virtualmachineimage
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
@@ -19,6 +20,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
+	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -32,7 +34,8 @@ func NewValidator(
 	ssar authorizationv1client.SelfSubjectAccessReviewInterface,
 	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache,
 	secretCache ctlcorev1.SecretCache,
-	storageClassCache ctlstoragev1.StorageClassCache) types.Validator {
+	storageClassCache ctlstoragev1.StorageClassCache,
+	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache) types.Validator {
 	return &virtualMachineImageValidator{
 		vmimages:               vmimages,
 		pvcCache:               pvcCache,
@@ -40,6 +43,7 @@ func NewValidator(
 		vmTemplateVersionCache: vmTemplateVersionCache,
 		secretCache:            secretCache,
 		storageClassCache:      storageClassCache,
+		vmBackupCache:          vmBackupCache,
 	}
 }
 
@@ -52,6 +56,7 @@ type virtualMachineImageValidator struct {
 	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache
 	secretCache            ctlcorev1.SecretCache
 	storageClassCache      ctlstoragev1.StorageClassCache
+	vmBackupCache          ctlharvesterv1.VirtualMachineBackupCache
 }
 
 func (v *virtualMachineImageValidator) Resource() types.Resource {
@@ -300,5 +305,18 @@ func (v *virtualMachineImageValidator) Delete(_ *types.Request, oldObj runtime.O
 		}
 	}
 
+	vmBackups, err := v.vmBackupCache.GetByIndex(indexeres.VMBackupByStorageClassNameIndex, image.Status.StorageClassName)
+	if err != nil {
+		message := fmt.Sprintf("Failed to get VMBackups by storageClassName %s: %v", image.Status.StorageClassName, err)
+		return werror.NewInternalError(message)
+	}
+
+	if len(vmBackups) > 0 {
+		vmBackupNamespaceAndNames := []string{}
+		for _, vmBackup := range vmBackups {
+			vmBackupNamespaceAndNames = append(vmBackupNamespaceAndNames, fmt.Sprintf("%s/%s", vmBackup.Namespace, vmBackup.Name))
+		}
+		return werror.NewInvalidError(fmt.Sprintf("Cannot delete image %s/%s: being used by VMBackups %s", image.Namespace, image.Spec.DisplayName, strings.Join(vmBackupNamespaceAndNames, ",")), "")
+	}
 	return nil
 }
