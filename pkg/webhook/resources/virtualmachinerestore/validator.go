@@ -321,7 +321,7 @@ func (v *restoreValidator) checkBackupTarget(vmBackup *v1beta1.VirtualMachineBac
 		return fmt.Errorf("backup target is not set")
 	}
 
-	if !ctlbackup.IsBackupTargetSame(vmBackup.Status.BackupTarget, backupTarget) {
+	if !util.IsBackupTargetSame(vmBackup.Status.BackupTarget, backupTarget) {
 		return fmt.Errorf("backup target %+v is not matched in vmBackup %s/%s", backupTarget, vmBackup.Namespace, vmBackup.Name)
 	}
 
