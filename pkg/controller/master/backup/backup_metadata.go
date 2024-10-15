@@ -19,6 +19,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/utils/pointer"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -173,6 +174,19 @@ func (h *MetadataHandler) createVMImageIfNotExist(imageMetadata VirtualMachineIm
 	if _, err := h.vmImageCache.Get(imageMetadata.Namespace, imageMetadata.Name); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	} else if err == nil {
+		return nil
+	}
+
+	if sameDisplayNameImages, err := h.vmImageCache.List(imageMetadata.Namespace, labels.SelectorFromSet(map[string]string{
+		util.LabelImageDisplayName: imageMetadata.DisplayName,
+	})); err != nil {
+		return err
+	} else if len(sameDisplayNameImages) > 0 {
+		logrus.WithFields(logrus.Fields{
+			"namespace":   imageMetadata.Namespace,
+			"name":        imageMetadata.Name,
+			"displayName": imageMetadata.DisplayName,
+		}).Warn("skip create vm image, because there is already an image with the same display name")
 		return nil
 	}
 
