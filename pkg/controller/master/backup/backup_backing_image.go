@@ -129,7 +129,7 @@ func (h *backupBackingImageHandler) OnBackupBackingImageChange(_ string, backupB
 	}
 
 	shouldUpload := true
-	destPath := getVMImageMetadataFilePath(vmImage.Namespace, vmImage.Name)
+	destPath := util.GetVMImageMetadataFilePath(vmImage.Namespace, vmImage.Name)
 	if bsDriver.FileExists(destPath) {
 		if remoteVMImageMetadata, err := loadVMImageMetadataInBackupTarget(destPath, bsDriver); err != nil {
 			return nil, err
