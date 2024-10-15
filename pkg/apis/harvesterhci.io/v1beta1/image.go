@@ -114,6 +114,9 @@ type VirtualMachineImageStatus struct {
 	StorageClassName string `json:"storageClassName,omitempty"`
 
 	// +optional
+	BackupTarget *BackupTarget `json:"backupTarget,omitempty"`
+
+	// +optional
 	// +kubebuilder:default:=0
 	// +kubebuilder:validation:Minimum:=0
 	Failed int `json:"failed"`
