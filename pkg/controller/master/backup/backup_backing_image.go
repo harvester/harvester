@@ -143,14 +143,18 @@ func (h *backupBackingImageHandler) OnBackupBackingImageChange(_ string, backupB
 		if err := bsDriver.Write(destPath, bytes.NewReader(data)); err != nil {
 			return nil, err
 		}
-	}
 
-	vmImageCopy := vmImage.DeepCopy()
-	harvesterv1.MetadataReady.True(vmImageCopy)
-	if !reflect.DeepEqual(vmImage, vmImageCopy) {
-		_, err = h.vmImages.Update(vmImageCopy)
-		return nil, err
+		vmImageCopy := vmImage.DeepCopy()
+		harvesterv1.MetadataReady.True(vmImageCopy)
+		vmImageCopy.Status.BackupTarget = &harvesterv1.BackupTarget{
+			Endpoint:     target.Endpoint,
+			BucketName:   target.BucketName,
+			BucketRegion: target.BucketRegion,
+		}
+		if !reflect.DeepEqual(vmImage, vmImageCopy) {
+			_, err = h.vmImages.Update(vmImageCopy)
+			return nil, err
+		}
 	}
-
 	return nil, nil
 }

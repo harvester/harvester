@@ -24,6 +24,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -41,6 +42,7 @@ type vmImageHandler struct {
 	backingImages     ctllhv1.BackingImageClient
 	backingImageCache ctllhv1.BackingImageCache
 	pvcCache          ctlcorev1.PersistentVolumeClaimCache
+	secretCache       ctlcorev1.SecretCache
 }
 
 func (h *vmImageHandler) OnChanged(_ string, image *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
@@ -147,7 +149,7 @@ func (h *vmImageHandler) OnRemove(_ string, image *harvesterv1.VirtualMachineIma
 	if err := h.deleteBackingImageAndStorageClass(image); err != nil {
 		return image, err
 	}
-	return image, nil
+	return image, h.deleteVMImageMetadata(image)
 }
 
 func (h *vmImageHandler) initialize(image *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
@@ -396,4 +398,46 @@ func handleFail(image *harvesterv1.VirtualMachineImage, cond condition.Cond, err
 		harvesterv1.ImageRetryLimitExceeded.Message(image, errMsg)
 	}
 	return image
+}
+
+func (h *vmImageHandler) deleteVMImageMetadata(image *harvesterv1.VirtualMachineImage) error {
+	target, err := settings.DecodeBackupTarget(settings.BackupTargetSet.Get())
+	if err != nil {
+		return err
+	}
+
+	// when backup target has been reset to default, skip following
+	if target.IsDefaultBackupTarget() {
+		logrus.WithFields(logrus.Fields{
+			"namespace": image.Namespace,
+			"name":      image.Name,
+		}).Debugf("skip deleting vm image metadata, because backup target setting is default")
+		return nil
+	}
+
+	if !util.IsBackupTargetSame(image.Status.BackupTarget, target) {
+		logrus.WithFields(logrus.Fields{
+			"namespace":            image.Namespace,
+			"name":                 image.Name,
+			"status.backupTarget":  image.Status.BackupTarget,
+			"setting.backupTarget": target,
+		}).Debugf("skip deleting vm image metadata, because status backup target is different from backup target setting")
+		return nil
+	}
+
+	bsDriver, err := util.GetBackupStoreDriver(h.secretCache, target)
+	if err != nil {
+		return err
+	}
+
+	destURL := util.GetVMImageMetadataFilePath(image.Namespace, image.Name)
+	if exist := bsDriver.FileExists(destURL); exist {
+		logrus.WithFields(logrus.Fields{
+			"namespace":    image.Namespace,
+			"name":         image.Name,
+			"backupTarget": image.Status.BackupTarget,
+		}).Debugf("delete vm image metadata in backup target")
+		return bsDriver.Remove(destURL)
+	}
+	return nil
 }
