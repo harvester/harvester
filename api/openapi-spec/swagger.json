@@ -9545,6 +9545,9 @@
           "appliedUrl": {
             "type": "string"
           },
+          "backupTarget": {
+            "$ref": "#/components/schemas/harvesterhci.io.v1beta1.BackupTarget"
+          },
           "conditions": {
             "type": "array",
             "items": {
