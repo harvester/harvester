@@ -194,7 +194,8 @@ func Test_virtualMachineImageValidator_CheckImageSecurityParameters(t *testing.T
 	fakeVMIMageCache := fakeclients.VirtualMachineImageCache(harvesterClientSet.HarvesterhciV1beta1().VirtualMachineImages)
 	fakeSecretCache := fakeclients.SecretCache(coreclientset.CoreV1().Secrets)
 	fakeStorageClassCache := fakeclients.StorageClassCache(coreclientset.StorageV1().StorageClasses)
-	validator := NewValidator(fakeVMIMageCache, nil, nil, nil, fakeSecretCache, fakeStorageClassCache).(*virtualMachineImageValidator)
+	fakeVMBackupCache := fakeclients.VMBackupCache(harvesterClientSet.HarvesterhciV1beta1().VirtualMachineBackups)
+	validator := NewValidator(fakeVMIMageCache, nil, nil, nil, fakeSecretCache, fakeStorageClassCache, fakeVMBackupCache).(*virtualMachineImageValidator)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
