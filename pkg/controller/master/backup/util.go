@@ -14,7 +14,6 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/settings"
 )
 
 const (
@@ -34,10 +33,6 @@ func IsBackupProgressing(backup *harvesterv1.VirtualMachineBackup) bool {
 
 func isBackupMissingStatus(backup *harvesterv1.VirtualMachineBackup) bool {
 	return backup.Status == nil || backup.Status.SourceSpec == nil || backup.Status.VolumeBackups == nil
-}
-
-func IsBackupTargetSame(vmBackupTarget *harvesterv1.BackupTarget, target *settings.BackupTarget) bool {
-	return vmBackupTarget.Endpoint == target.Endpoint && vmBackupTarget.BucketName == target.BucketName && vmBackupTarget.BucketRegion == target.BucketRegion
 }
 
 func isBackupTargetOnAnnotation(backup *harvesterv1.VirtualMachineBackup) bool {
@@ -228,8 +223,4 @@ func getSecretRefName(vmName string, secretName string) string {
 
 func getVMBackupMetadataFilePath(vmBackupNamespace, vmBackupName string) string {
 	return filepath.Join(vmBackupMetadataFolderPath, vmBackupNamespace, fmt.Sprintf("%s.cfg", vmBackupName))
-}
-
-func getVMImageMetadataFilePath(vmImageNamespace, vmImageName string) string {
-	return filepath.Join(vmImageMetadataFolderPath, vmImageNamespace, fmt.Sprintf("%s.cfg", vmImageName))
 }

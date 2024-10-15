@@ -33,7 +33,6 @@ import (
 
 const (
 	vmBackupMetadataFolderPath   = "harvester/vmbackups/"
-	vmImageMetadataFolderPath    = "harvester/vmimages/"
 	backupMetadataControllerName = "harvester-backup-metadata-controller"
 )
 
@@ -144,18 +143,18 @@ func (h *MetadataHandler) syncVMImage(target *settings.BackupTarget) error {
 		return err
 	}
 
-	namespaceFolders, err := bsDriver.List(filepath.Join(vmImageMetadataFolderPath))
+	namespaceFolders, err := bsDriver.List(filepath.Join(util.VMImageMetadataFolderPath))
 	if err != nil {
 		return err
 	}
 
 	for _, namespaceFolder := range namespaceFolders {
-		fileNames, err := bsDriver.List(filepath.Join(vmImageMetadataFolderPath, namespaceFolder))
+		fileNames, err := bsDriver.List(filepath.Join(util.VMImageMetadataFolderPath, namespaceFolder))
 		if err != nil {
 			return err
 		}
 		for _, fileName := range fileNames {
-			imageMetadata, err := loadVMImageMetadataInBackupTarget(filepath.Join(vmImageMetadataFolderPath, namespaceFolder, fileName), bsDriver)
+			imageMetadata, err := loadVMImageMetadataInBackupTarget(filepath.Join(util.VMImageMetadataFolderPath, namespaceFolder, fileName), bsDriver)
 			if err != nil {
 				return err
 			}
