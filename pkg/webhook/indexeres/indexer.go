@@ -14,6 +14,7 @@ import (
 
 const (
 	VMBackupBySourceUIDIndex              = "harvesterhci.io/vmbackup-by-source-uid"
+	VMBackupByStorageClassNameIndex       = "harvesterhci.io/vmbackup-by-storage-class-name"
 	VMRestoreByTargetNamespaceAndName     = "harvesterhci.io/vmrestore-by-target-namespace-and-name"
 	VMRestoreByVMBackupNamespaceAndName   = "harvesterhci.io/vmrestore-by-vmbackup-namespace-and-name"
 	VMBackupSnapshotByPVCNamespaceAndName = "harvesterhci.io/vmbackup-snapshot-by-pvc-namespace-and-name"
@@ -25,6 +26,7 @@ func RegisterIndexers(clients *clients.Clients) {
 	vmBackupCache := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()
 	vmBackupCache.AddIndexer(VMBackupBySourceUIDIndex, vmBackupBySourceUID)
 	vmBackupCache.AddIndexer(VMBackupSnapshotByPVCNamespaceAndName, vmBackupSnapshotByPVCNamespaceAndName)
+	vmBackupCache.AddIndexer(VMBackupByStorageClassNameIndex, vmBackupByStorageClassName)
 
 	vmRestoreCache := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache()
 	vmRestoreCache.AddIndexer(VMRestoreByTargetNamespaceAndName, vmRestoreByTargetNamespaceAndName)
@@ -58,6 +60,18 @@ func vmBackupSnapshotByPVCNamespaceAndName(obj *harvesterv1.VirtualMachineBackup
 		result = append(result, fmt.Sprintf("%s/%s", pvc.ObjectMeta.Namespace, pvc.ObjectMeta.Name))
 	}
 	return result, nil
+}
+
+func vmBackupByStorageClassName(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
+	storageClassNames := []string{}
+	if obj.Status == nil {
+		return storageClassNames, nil
+	}
+
+	for _, volumeBackup := range obj.Status.VolumeBackups {
+		storageClassNames = append(storageClassNames, *volumeBackup.PersistentVolumeClaim.Spec.StorageClassName)
+	}
+	return storageClassNames, nil
 }
 
 func vmRestoreByTargetNamespaceAndName(obj *harvesterv1.VirtualMachineRestore) ([]string, error) {
