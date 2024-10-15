@@ -106,6 +106,16 @@ spec:
             properties:
               appliedUrl:
                 type: string
+              backupTarget:
+                description: BackupTarget is where VM Backup stores
+                properties:
+                  bucketName:
+                    type: string
+                  bucketRegion:
+                    type: string
+                  endpoint:
+                    type: string
+                type: object
               conditions:
                 items:
                   properties:

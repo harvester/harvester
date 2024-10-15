@@ -4489,6 +4489,11 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageStatus(ref common
 							Format: "",
 						},
 					},
+					"backupTarget": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.BackupTarget"),
+						},
+					},
 					"failed": {
 						SchemaProps: spec.SchemaProps{
 							Default: 0,
@@ -4519,7 +4524,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageStatus(ref common
 			},
 		},
 		Dependencies: []string{
-			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition"},
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.BackupTarget", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition"},
 	}
 }
 
