@@ -208,7 +208,7 @@ func (h *Handler) OnBackupRemove(_ string, vmBackup *harvesterv1.VirtualMachineB
 	// when we delete VM Backup and its backup target is not same as current backup target,
 	// VolumeSnapshot and VolumeSnapshotContent may not be deleted immediately.
 	// We should force delete them to avoid that users re-config backup target back and associated LH Backup may be deleted.
-	if !IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
+	if !util.IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
 		if err := h.forceDeleteVolumeSnapshotAndContent(vmBackup.Namespace, vmBackup.Status.VolumeBackups); err != nil {
 			return nil, err
 		}
@@ -790,7 +790,7 @@ func (h *Handler) deleteVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		return nil
 	}
 
-	if !IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
+	if !util.IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
 		return nil
 	}
 
@@ -825,7 +825,7 @@ func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		return nil
 	}
 
-	if !IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
+	if !util.IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
 		return nil
 	}
 
