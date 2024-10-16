@@ -6,6 +6,7 @@ import (
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/indexeres"
@@ -19,6 +20,13 @@ const (
 	VMBackupSnapshotByPVCNamespaceAndName = "harvesterhci.io/vmbackup-snapshot-by-pvc-namespace-and-name"
 	VolumeByReplicaCountIndex             = "harvesterhci.io/volume-by-replica-count"
 	ImageByExportSourcePVCIndex           = "harvesterhci.io/image-by-export-source-pvc"
+<<<<<<< HEAD
+=======
+	ScheduleVMBackupBySourceVM            = "harvesterhci.io/svmbackup-by-source-vm"
+	ScheduleVMBackupByCronGranularity     = "harvesterhci.io/svmbackup-by-cron-granularity"
+	ImageByStorageClass                   = "harvesterhci.io/image-by-storage-class"
+	VMInstanceMigrationByVM               = "harvesterhci.io/vmim-by-vm"
+>>>>>>> 9d5b63eb (enhancement: vmbackp webhook check if the vm is under migration)
 )
 
 func RegisterIndexers(clients *clients.Clients) {
@@ -38,6 +46,23 @@ func RegisterIndexers(clients *clients.Clients) {
 
 	vmImageInformer := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()
 	vmImageInformer.AddIndexer(ImageByExportSourcePVCIndex, imageByExportSourcePVC)
+<<<<<<< HEAD
+=======
+	vmImageInformer.AddIndexer(ImageByStorageClass, imageByStorageClass)
+
+	vmInformer := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
+	vmInformer.AddIndexer(indexeresutil.VMByPVCIndex, indexeresutil.VMByPVC)
+
+	svmBackupCache := clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache()
+	svmBackupCache.AddIndexer(ScheduleVMBackupBySourceVM, scheduleVMBackupBySourceVM)
+	svmBackupCache.AddIndexer(ScheduleVMBackupByCronGranularity, scheduleVMBackupByCronGranularity)
+
+	scInformer := clients.StorageFactory.Storage().V1().StorageClass().Cache()
+	scInformer.AddIndexer(indexeresutil.StorageClassBySecretIndex, indexeresutil.StorageClassBySecret)
+
+	vmimCache := clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache()
+	vmimCache.AddIndexer(VMInstanceMigrationByVM, vmInstanceMigrationByVM)
+>>>>>>> 9d5b63eb (enhancement: vmbackp webhook check if the vm is under migration)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
@@ -87,3 +112,35 @@ func imageByExportSourcePVC(obj *harvesterv1.VirtualMachineImage) ([]string, err
 
 	return []string{fmt.Sprintf("%s/%s", obj.Spec.PVCNamespace, obj.Spec.PVCName)}, nil
 }
+<<<<<<< HEAD
+=======
+
+func scheduleVMBackupBySourceVM(obj *harvesterv1.ScheduleVMBackup) ([]string, error) {
+	return []string{fmt.Sprintf("%s/%s", obj.Namespace, obj.Spec.VMBackupSpec.Source.Name)}, nil
+}
+
+func scheduleVMBackupByCronGranularity(obj *harvesterv1.ScheduleVMBackup) ([]string, error) {
+	if obj == nil {
+		return []string{}, nil
+	}
+
+	granularity, err := util.GetCronGranularity(obj)
+	if err != nil {
+		return []string{}, err
+	}
+
+	return []string{granularity.String()}, nil
+}
+
+func imageByStorageClass(obj *harvesterv1.VirtualMachineImage) ([]string, error) {
+	sc, ok := obj.Annotations[util.AnnotationStorageClassName]
+	if !ok {
+		return []string{}, nil
+	}
+	return []string{sc}, nil
+}
+
+func vmInstanceMigrationByVM(obj *kubevirtv1.VirtualMachineInstanceMigration) ([]string, error) {
+	return []string{fmt.Sprintf("%s/%s", obj.Namespace, obj.Spec.VMIName)}, nil
+}
+>>>>>>> 9d5b63eb (enhancement: vmbackp webhook check if the vm is under migration)

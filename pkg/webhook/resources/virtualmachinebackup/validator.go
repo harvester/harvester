@@ -29,22 +29,47 @@ func NewValidator(
 	setting ctlharvesterv1.SettingCache,
 	vmrestores ctlharvesterv1.VirtualMachineRestoreCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
+<<<<<<< HEAD
 ) types.Validator {
 	return &virtualMachineBackupValidator{
 		vms:        vms,
 		setting:    setting,
 		vmrestores: vmrestores,
 		pvcCache:   pvcCache,
+=======
+	engineCache ctllonghornv1.EngineCache,
+	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache,
+	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
+) types.Validator {
+	return &virtualMachineBackupValidator{
+		vms:                vms,
+		setting:            setting,
+		vmrestores:         vmrestores,
+		pvcCache:           pvcCache,
+		engineCache:        engineCache,
+		resourceQuotaCache: resourceQuotaCache,
+		vmimCache:          vmimCache,
+>>>>>>> 9d5b63eb (enhancement: vmbackp webhook check if the vm is under migration)
 	}
 }
 
 type virtualMachineBackupValidator struct {
 	types.DefaultValidator
 
+<<<<<<< HEAD
 	vms        ctlkubevirtv1.VirtualMachineCache
 	setting    ctlharvesterv1.SettingCache
 	vmrestores ctlharvesterv1.VirtualMachineRestoreCache
 	pvcCache   ctlcorev1.PersistentVolumeClaimCache
+=======
+	vms                ctlkubevirtv1.VirtualMachineCache
+	setting            ctlharvesterv1.SettingCache
+	vmrestores         ctlharvesterv1.VirtualMachineRestoreCache
+	pvcCache           ctlcorev1.PersistentVolumeClaimCache
+	engineCache        ctllonghornv1.EngineCache
+	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache
+	vmimCache          ctlkubevirtv1.VirtualMachineInstanceMigrationCache
+>>>>>>> 9d5b63eb (enhancement: vmbackp webhook check if the vm is under migration)
 }
 
 func (v *virtualMachineBackupValidator) Resource() types.Resource {
@@ -77,6 +102,15 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 		if err != nil {
 			return werror.NewInvalidError(err.Error(), fieldSourceName)
 		}
+<<<<<<< HEAD
+=======
+		if err = v.checkVMInstanceMigration(vm); err != nil {
+			return werror.NewInvalidError(err.Error(), fieldSourceName)
+		}
+		if err = v.checkTotalSnapshotSize(vm); err != nil {
+			return err
+		}
+>>>>>>> 9d5b63eb (enhancement: vmbackp webhook check if the vm is under migration)
 		if err = v.checkBackupVolumeSnapshotClass(vm, newVMBackup); err != nil {
 			return werror.NewInvalidError(err.Error(), fieldSourceName)
 		}
@@ -177,3 +211,47 @@ func (v *virtualMachineBackupValidator) Delete(_ *types.Request, obj runtime.Obj
 	}
 	return nil
 }
+<<<<<<< HEAD
+=======
+
+func (v *virtualMachineBackupValidator) checkTotalSnapshotSize(vm *kubevirtv1.VirtualMachine) error {
+	resourceQuota, err := v.resourceQuotaCache.Get(vm.Namespace, util.DefaultResourceQuotaName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return werror.NewInternalError(fmt.Sprintf("failed to get resource quota %s/%s, err: %s", vm.Namespace, util.DefaultResourceQuotaName, err))
+	}
+
+	if resourceQuota.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota != nil {
+		if err := webhookutil.CheckTotalSnapshotSizeOnVM(v.pvcCache, v.engineCache, vm, resourceQuota.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota[vm.Name]); err != nil {
+			return err
+		}
+	}
+
+	if err := webhookutil.CheckTotalSnapshotSizeOnNamespace(v.pvcCache, v.engineCache, vm.Namespace, resourceQuota.Spec.SnapshotLimit.NamespaceTotalSnapshotSizeQuota); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (v *virtualMachineBackupValidator) checkVMInstanceMigration(vm *kubevirtv1.VirtualMachine) error {
+	srcVM := fmt.Sprintf("%s/%s", vm.Namespace, vm.Name)
+	vmims, err := v.vmimCache.GetByIndex(indexeres.VMInstanceMigrationByVM, srcVM)
+	if err != nil {
+		return err
+	}
+
+	if len(vmims) == 0 {
+		return nil
+	}
+
+	for _, vmim := range vmims {
+		if !vmim.IsRunning() {
+			continue
+		}
+		return fmt.Errorf("vm %s is in migration", srcVM)
+	}
+	return nil
+}
+>>>>>>> 9d5b63eb (enhancement: vmbackp webhook check if the vm is under migration)
