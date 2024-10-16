@@ -15,6 +15,7 @@ import (
 	_ "github.com/longhorn/backupstore/nfs" //nolint
 	_ "github.com/longhorn/backupstore/s3"  //nolint
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -37,11 +38,12 @@ const (
 )
 
 type VirtualMachineImageMetadata struct {
-	Name                   string            `json:"name"`
-	Namespace              string            `json:"namespace"`
-	URL                    string            `json:"url"`
-	DisplayName            string            `json:"displayName,omitempty"`
-	Description            string            `json:"description,omitempty"`
+	Name        string `json:"name"`
+	Namespace   string `json:"namespace"`
+	URL         string `json:"url"`
+	DisplayName string `json:"displayName,omitempty"`
+	Description string `json:"description,omitempty"`
+	// Checksum is from the backup backing image status
 	Checksum               string            `json:"checksum,omitempty"`
 	StorageClassParameters map[string]string `json:"storageClassParameters,omitempty"`
 }
@@ -67,6 +69,7 @@ type MetadataHandler struct {
 	vmBackupCache        ctlharvesterv1.VirtualMachineBackupCache
 	vmImages             ctlharvesterv1.VirtualMachineImageClient
 	vmImageCache         ctlharvesterv1.VirtualMachineImageCache
+	storageClassCache    ctlstoragev1.StorageClassCache
 }
 
 // RegisterBackupMetadata register the setting controller and resync vm backup metadata when backup target change
@@ -78,6 +81,7 @@ func RegisterBackupMetadata(ctx context.Context, management *config.Management, 
 	secrets := management.CoreFactory.Core().V1().Secret()
 	longhornSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
+	storageClass := management.StorageFactory.Storage().V1().StorageClass()
 
 	backupMetadataController := &MetadataHandler{
 		ctx:                  ctx,
@@ -91,6 +95,7 @@ func RegisterBackupMetadata(ctx context.Context, management *config.Management, 
 		vmBackupCache:        vmBackups.Cache(),
 		vmImages:             vmImages,
 		vmImageCache:         vmImages.Cache(),
+		storageClassCache:    storageClass.Cache(),
 	}
 
 	settings.OnChange(ctx, backupMetadataControllerName, backupMetadataController.OnBackupTargetChange)
@@ -261,6 +266,20 @@ func (h *MetadataHandler) createVMBackupIfNotExist(backupMetadata VirtualMachine
 		return err
 	} else if err == nil {
 		return nil
+	}
+
+	for _, volumeBackup := range backupMetadata.VolumeBackups {
+		if volumeBackup.PersistentVolumeClaim.Spec.StorageClassName == nil {
+			continue
+		}
+		if _, err := h.storageClassCache.Get(*volumeBackup.PersistentVolumeClaim.Spec.StorageClassName); err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"namespace":     backupMetadata.Namespace,
+				"name":          backupMetadata.Name,
+				"storageClasss": *volumeBackup.PersistentVolumeClaim.Spec.StorageClassName,
+			}).Warn("skip creating vm backup, because the storage class is not found")
+			return nil
+		}
 	}
 
 	if err := h.createNamespaceIfNotExist(backupMetadata.Namespace); err != nil {
