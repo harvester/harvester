@@ -17,7 +17,7 @@ questions:
     label: Longhorn Manager Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.manager.tag
-    default: v1.7.1-rc1
+    default: v1.7.2-rc2
     description: "Tag for the Longhorn Manager image."
     type: string
     label: Longhorn Manager Image Tag
@@ -29,19 +29,19 @@ questions:
     label: Longhorn Engine Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.engine.tag
-    default: v1.7.1-rc1
+    default: v1.7.2-rc2
     description: "Tag for the Longhorn Engine image."
     type: string
     label: Longhorn Engine Image Tag
     group: "Longhorn Images Settings"
   - variable: image.longhorn.ui.repository
-    default:  longhornio/longhorn-ui
+    default: longhornio/longhorn-ui
     description: "Repository for the Longhorn UI image."
     type: string
     label: Longhorn UI Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.ui.tag
-    default: v1.7.1-rc1
+    default: v1.7.2-rc2
     description: "Tag for the Longhorn UI image."
     type: string
     label: Longhorn UI Image Tag
@@ -53,7 +53,7 @@ questions:
     label: Longhorn Instance Manager Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.instanceManager.tag
-    default: v1.7.1-rc1
+    default: v1.7.2-rc2
     description: "Tag for the Longhorn Instance Manager image."
     type: string
     label: Longhorn Instance Manager Image Tag
@@ -65,7 +65,7 @@ questions:
     label: Longhorn Share Manager Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.shareManager.tag
-    default: v1.7.1-rc1
+    default: v1.7.2-rc2
     description: "Tag for the Longhorn Share Manager image."
     type: string
     label: Longhorn Share Manager Image Tag
@@ -77,7 +77,7 @@ questions:
     label: Longhorn Backing Image Manager Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.backingImageManager.tag
-    default: v1.7.1-rc1
+    default: v1.7.2-rc2
     description: "Tag for the Backing Image Manager image. When unspecified, Longhorn uses the default value."
     type: string
     label: Longhorn Backing Image Manager Image Tag
@@ -89,7 +89,7 @@ questions:
     label: Longhorn Support Bundle Kit Image Repository
     group: "Longhorn Images Settings"
   - variable: image.longhorn.supportBundleKit.tag
-    default: v0.0.41
+    default: v0.0.43
     description: "Tag for the Longhorn Support Bundle Manager image."
     type: string
     label: Longhorn Support Bundle Kit Image Tag
@@ -101,7 +101,7 @@ questions:
     label: Longhorn CSI Attacher Image Repository
     group: "Longhorn CSI Driver Images"
   - variable: image.csi.attacher.tag
-    default: v4.6.1
+    default: v4.7.0
     description: "Tag for the CSI attacher image. When unspecified, Longhorn uses the default value."
     type: string
     label: Longhorn CSI Attacher Image Tag
@@ -113,7 +113,7 @@ questions:
     label: Longhorn CSI Provisioner Image Repository
     group: "Longhorn CSI Driver Images"
   - variable: image.csi.provisioner.tag
-    default: v4.0.1
+    default: v4.0.1-20241007
     description: "Tag for the CSI Provisioner image. When unspecified, Longhorn uses the default value."
     type: string
     label: Longhorn CSI Provisioner Image Tag
@@ -125,7 +125,7 @@ questions:
     label: Longhorn CSI Node Driver Registrar Image Repository
     group: "Longhorn CSI Driver Images"
   - variable: image.csi.nodeDriverRegistrar.tag
-    default: v2.11.1
+    default: v2.12.0
     description: "Tag for the CSI Node Driver Registrar image. When unspecified, Longhorn uses the default value."
     type: string
     label: Longhorn CSI Node Driver Registrar Image Tag
@@ -137,7 +137,7 @@ questions:
     label: Longhorn CSI Driver Resizer Image Repository
     group: "Longhorn CSI Driver Images"
   - variable: image.csi.resizer.tag
-    default: v1.11.1
+    default: v1.12.0
     description: "Tag for the CSI Resizer image. When unspecified, Longhorn uses the default value."
     type: string
     label: Longhorn CSI Driver Resizer Image Tag
@@ -149,7 +149,7 @@ questions:
     label: Longhorn CSI Driver Snapshotter Image Repository
     group: "Longhorn CSI Driver Images"
   - variable: image.csi.snapshotter.tag
-    default: v7.0.2
+    default: v7.0.2-20241007
     description: "Tag for the CSI Snapshotter image. When unspecified, Longhorn uses the default value."
     type: string
     label: Longhorn CSI Driver Snapshotter Image Tag
@@ -161,23 +161,11 @@ questions:
     label: Longhorn CSI Liveness Probe Image Repository
     group: "Longhorn CSI Driver Images"
   - variable: image.csi.livenessProbe.tag
-    default: v2.13.1
+    default: v2.14.0
     description: "Tag for the CSI liveness probe image. When unspecified, Longhorn uses the default value."
     type: string
     label: Longhorn CSI Liveness Probe Image Tag
     group: "Longhorn CSI Driver Images"
-  - variable: image.openshift.oauthProxy.repository
-    default: longhornio/openshift-origin-oauth-proxy
-    description: "Repository for the OAuth Proxy image. This setting applies only to OpenShift users"
-    type: string
-    label: OpenShift OAuth Proxy Image Repository
-    group: "OpenShift Images"
-  - variable: image.openshift.oauthProxy.tag
-    default: 4.15
-    description: "Tag for the OAuth Proxy image. This setting applies only to OpenShift users. Specify OCP/OKD version 4.1 or later."
-    type: string
-    label: OpenShift OAuth Proxy Image Tag
-    group: "OpenShift Images"
 - variable: privateRegistry.registryUrl
   label: Private registry URL
   description: "URL of a private registry. When unspecified, Longhorn uses the default system registry."
