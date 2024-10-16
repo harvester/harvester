@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/longhorn/backupstore"
+
 	// Although we don't use following drivers directly, we need to import them to register drivers.
 	// NFS Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/nfs/nfs.go#L47-L51
 	// S3 Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/s3/s3.go#L33-L37
@@ -214,6 +215,11 @@ func (h *MetadataHandler) createVMImageIfNotExist(imageMetadata VirtualMachineIm
 	}); err != nil {
 		return err
 	}
+	logrus.WithFields(logrus.Fields{
+		"namespace":   imageMetadata.Namespace,
+		"name":        imageMetadata.Name,
+		"displayName": imageMetadata.DisplayName,
+	}).Info("create vm image from backup target")
 	return nil
 }
 
@@ -305,6 +311,10 @@ func (h *MetadataHandler) createVMBackupIfNotExist(backupMetadata VirtualMachine
 	}); err != nil {
 		return err
 	}
+	logrus.WithFields(logrus.Fields{
+		"namespace": backupMetadata.Namespace,
+		"name":      backupMetadata.Name,
+	}).Info("create vm backup from backup target")
 	return nil
 }
 
