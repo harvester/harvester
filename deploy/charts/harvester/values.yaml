@@ -386,6 +386,13 @@ harvester-node-disk-manager:
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
     tag: master-head
+  
+  webhook:
+    image:
+      repository: rancher/harvester-node-disk-manager-webhook
+      pullPolicy: IfNotPresent
+      # Overrides the image tag whose default is the chart appVersion.
+      tag: master-head
 
 csi-snapshotter:
   ## Specify whether to install the csi-snapshotter
