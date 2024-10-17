@@ -36,6 +36,10 @@ const (
 	// Add to rancher-monitoring addon to record grafana pv name
 	AnnotationGrafanaPVName = prefix + "/grafana-pv-name"
 
+	// Add to harvester-longhorn storageclass to protect it
+	// For any storageclass created & protected by controller, the controller can utilize this annotation
+	AnnotationIsReservedStorageClass = prefix + "/is-reserved-storageclass"
+
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
 	ContainerdRegistryFileName   = "registries.yaml"
 
@@ -103,4 +107,11 @@ const (
 	APIServerCAKey                           = "apiServerCA"
 
 	RKEControlPlaneRoleLabel = "rke.cattle.io/control-plane-role"
+
+	StorageClassHarvesterLonghorn = "harvester-longhorn" // the initial & default storageclass
+	HarvesterChartReleaseName     = "harvester"          // the release name
+
+	// copied from helm pkg/action/validate.go
+	HelmReleaseNameAnnotation      = "meta.helm.sh/release-name"
+	HelmReleaseNamespaceAnnotation = "meta.helm.sh/release-namespace"
 )
