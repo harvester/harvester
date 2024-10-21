@@ -412,10 +412,13 @@ func IdentifyNonMigratableVMS(vmiList []*kubevirtv1.VirtualMachineInstance) map[
 	nonMigratableVM := make(map[string][]string)
 	for _, vmi := range vmiList {
 		for _, condition := range vmi.Status.Conditions {
-			if condition.Type == kubevirtv1.VirtualMachineInstanceIsMigratable && condition.Status == corev1.ConditionFalse {
-				result := nonMigratableVM[condition.Reason]
-				result = append(result, namespacedVMName(vmi))
-				nonMigratableVM[condition.Reason] = result
+			if condition.Type == kubevirtv1.VirtualMachineInstanceIsMigratable {
+				// a host-pinned VM may have condition True, but MigrationMethod is BlockMigration
+				if condition.Status == corev1.ConditionFalse || (condition.Status == corev1.ConditionTrue && vmi.Status.MigrationMethod != kubevirtv1.LiveMigration) {
+					result := nonMigratableVM[condition.Reason]
+					result = append(result, namespacedVMName(vmi))
+					nonMigratableVM[condition.Reason] = result
+				}
 			}
 		}
 	}

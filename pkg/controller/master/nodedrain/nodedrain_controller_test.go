@@ -629,3 +629,42 @@ func Test_virtualMachineContainsHostName(t *testing.T) {
 	assert.NoError(err)
 	assert.Len(nonMigratableVMIs, 1, "expected to find 1 VMI")
 }
+
+func Test_nonMigrableVirtualMachine(t *testing.T) {
+	assert := require.New(t)
+
+	vmis := []*kubevirtv1.VirtualMachineInstance{
+		{
+			Status: kubevirtv1.VirtualMachineInstanceStatus{
+				MigrationMethod: kubevirtv1.BlockMigration,
+				Conditions: []kubevirtv1.VirtualMachineInstanceCondition{
+					{
+						Status: corev1.ConditionFalse,
+						Type:   kubevirtv1.VirtualMachineInstanceIsMigratable,
+						Reason: "IsMigratable condition is false",
+					},
+				},
+			},
+		},
+		{
+			Spec: kubevirtv1.VirtualMachineInstanceSpec{
+				NodeSelector: map[string]string{
+					"kubernetes.io/hostname": "harvester-any",
+				},
+			},
+			Status: kubevirtv1.VirtualMachineInstanceStatus{
+				MigrationMethod: kubevirtv1.BlockMigration,
+				Conditions: []kubevirtv1.VirtualMachineInstanceCondition{
+					{
+						Status: corev1.ConditionTrue,
+						Type:   kubevirtv1.VirtualMachineInstanceIsMigratable,
+						Reason: "VM is pinned to node",
+					},
+				},
+			},
+		},
+	}
+
+	nonMigratableVMIs := IdentifyNonMigratableVMS(vmis)
+	assert.Len(nonMigratableVMIs, 2, "expected to find 2 VMI")
+}
