@@ -93,6 +93,7 @@ func newTestVirtualMachineImage() *harvesterv1.VirtualMachineImage {
 }
 
 func TestUpgradeHandler_OnChanged(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		key     string
 		upgrade *harvesterv1.Upgrade
@@ -189,72 +190,76 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		var clientset = fake.NewSimpleClientset(tc.given.upgrade, tc.given.version, tc.given.vmi)
-		var nodes []runtime.Object
-		for _, node := range tc.given.nodes {
-			nodes = append(nodes, node)
-		}
-		var k8sclientset = k8sfake.NewSimpleClientset(nodes...)
-		var handler = &upgradeHandler{
-			namespace:        harvesterSystemNamespace,
-			nodeCache:        fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-			planClient:       fakeclients.PlanClient(clientset.UpgradeV1().Plans),
-			upgradeClient:    fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
-			upgradeCache:     fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
-			upgradeLogClient: fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
-			versionCache:     fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
-			vmClient:         fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
-			vmImageClient:    fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
-			vmImageCache:     fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
-		}
-		var actual output
-		actual.upgrade, actual.err = handler.OnChanged(tc.given.key, tc.given.upgrade)
-		if tc.expected.vmi != nil {
-			exist, err := fakeImageExist(handler.vmImageCache, tc.expected.vmi.Spec.DisplayName)
-			assert.Nil(t, err)
-			assert.True(t, exist, "case %q: fail to find image: %s", tc.name, tc.expected.vmi.Spec.DisplayName)
-		}
-
-		if tc.expected.plan != nil {
-			var err error
-			actual.plan, err = handler.planClient.Get(upgradeNamespace, tc.expected.plan.Name, metav1.GetOptions{})
-			assert.Nil(t, err)
-			//skip hash comparison
-			actual.plan.Status.LatestHash = ""
-			tc.expected.plan.Status.LatestHash = ""
-		}
-
-		if tc.expected.upgrade != nil {
-			emptyConditionsTime(tc.expected.upgrade.Status.Conditions)
-			emptyConditionsTime(actual.upgrade.Status.Conditions)
-
-			// A Generated image ID is unpredictable. Verify
-			// the image is there and compare the display name.
-			imageID := actual.upgrade.Status.ImageID
-			if imageID != "" && tc.expected.vmi != nil {
-				tokens := strings.Split(imageID, "/")
-				assert.True(t, len(tokens) == 2)
-				vmi, err := handler.vmImageCache.Get(tokens[0], tokens[1])
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var clientset = fake.NewSimpleClientset(tc.given.upgrade, tc.given.version, tc.given.vmi)
+			var nodes []runtime.Object
+			for _, node := range tc.given.nodes {
+				nodes = append(nodes, node)
+			}
+			var k8sclientset = k8sfake.NewSimpleClientset(nodes...)
+			var handler = &upgradeHandler{
+				namespace:        harvesterSystemNamespace,
+				nodeCache:        fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+				planClient:       fakeclients.PlanClient(clientset.UpgradeV1().Plans),
+				upgradeClient:    fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+				upgradeCache:     fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+				upgradeLogClient: fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
+				versionCache:     fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
+				vmClient:         fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+				vmImageClient:    fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+				vmImageCache:     fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			}
+			var actual output
+			actual.upgrade, actual.err = handler.OnChanged(tc.given.key, tc.given.upgrade)
+			if tc.expected.vmi != nil {
+				exist, err := fakeImageExist(handler.vmImageCache, tc.expected.vmi.Spec.DisplayName)
 				assert.Nil(t, err)
-				assert.Equal(t, vmi.Spec.DisplayName, tc.expected.vmi.Spec.DisplayName)
-
-				actual.upgrade.Status.ImageID = ""
+				assert.True(t, exist, "case %q: fail to find image: %s", tc.name, tc.expected.vmi.Spec.DisplayName)
 			}
 
-			assert.Equal(t, tc.expected.upgrade, actual.upgrade, "case %q", tc.name)
-		}
+			if tc.expected.plan != nil {
+				var err error
+				actual.plan, err = handler.planClient.Get(upgradeNamespace, tc.expected.plan.Name, metav1.GetOptions{})
+				assert.Nil(t, err)
+				//skip hash comparison
+				actual.plan.Status.LatestHash = ""
+				tc.expected.plan.Status.LatestHash = ""
+			}
 
-		if tc.expected.upgradeLog != nil {
-			var err error
-			actual.upgradeLog, err = handler.upgradeLogClient.Get(upgradeNamespace, tc.expected.upgradeLog.Name, metav1.GetOptions{})
-			assert.Nil(t, err)
+			if tc.expected.upgrade != nil {
+				emptyConditionsTime(tc.expected.upgrade.Status.Conditions)
+				emptyConditionsTime(actual.upgrade.Status.Conditions)
 
-			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
-		}
+				// A Generated image ID is unpredictable. Verify
+				// the image is there and compare the display name.
+				imageID := actual.upgrade.Status.ImageID
+				if imageID != "" && tc.expected.vmi != nil {
+					tokens := strings.Split(imageID, "/")
+					assert.True(t, len(tokens) == 2)
+					vmi, err := handler.vmImageCache.Get(tokens[0], tokens[1])
+					assert.Nil(t, err)
+					assert.Equal(t, vmi.Spec.DisplayName, tc.expected.vmi.Spec.DisplayName)
+
+					actual.upgrade.Status.ImageID = ""
+				}
+
+				assert.Equal(t, tc.expected.upgrade, actual.upgrade, "case %q", tc.name)
+			}
+
+			if tc.expected.upgradeLog != nil {
+				var err error
+				actual.upgradeLog, err = handler.upgradeLogClient.Get(upgradeNamespace, tc.expected.upgradeLog.Name, metav1.GetOptions{})
+				assert.Nil(t, err)
+
+				assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
+			}
+		})
 	}
 }
 
 func Test_isVersionUpgradable(t *testing.T) {
+	t.Parallel()
 	var testCases = []struct {
 		name                 string
 		currentVersion       string
@@ -305,12 +310,15 @@ func Test_isVersionUpgradable(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		err := isVersionUpgradable(tc.currentVersion, tc.minUpgradableVersion)
-		if tc.isUpgradable {
-			assert.Nil(t, err, "case %q", tc.name)
-		} else {
-			assert.NotNil(t, err, "case %q", tc.name)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := isVersionUpgradable(tc.currentVersion, tc.minUpgradableVersion)
+			if tc.isUpgradable {
+				assert.Nil(t, err, "case %q", tc.name)
+			} else {
+				assert.NotNil(t, err, "case %q", tc.name)
+			}
+		})
 	}
 }
 
@@ -562,35 +570,39 @@ func TestUpgradeHandler_prepareNodesForUpgrade(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		var clientset = fake.NewSimpleClientset(tc.given.upgrade)
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var clientset = fake.NewSimpleClientset(tc.given.upgrade)
 
-		var nodes []runtime.Object
-		for _, node := range tc.given.nodes {
-			nodes = append(nodes, node)
-		}
-		var k8sclientset = k8sfake.NewSimpleClientset(nodes...)
+			var nodes []runtime.Object
+			for _, node := range tc.given.nodes {
+				nodes = append(nodes, node)
+			}
+			var k8sclientset = k8sfake.NewSimpleClientset(nodes...)
 
-		var handler = &upgradeHandler{
-			nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-			upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
-			upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
-			planClient:    fakeclients.PlanClient(clientset.UpgradeV1().Plans),
-		}
+			var handler = &upgradeHandler{
+				nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+				upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+				upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+				planClient:    fakeclients.PlanClient(clientset.UpgradeV1().Plans),
+			}
+			//
+			var err error
+			//err = settings.UpgradeConfigSet.Set(tc.given.setting.Value)
+			//assert.Nil(t, err, "case %q", tc.name)
 
-		var err error
-		err = settings.UpgradeConfigSet.Set(tc.given.setting.Value)
-		assert.Nil(t, err, "case %q", tc.name)
+			var actual output
+			setting, _ := settings.DecodeConfig[settings.UpgradeConfig](tc.given.setting.Value)
+			actual.upgrade, actual.err = handler.prepareNodesForUpgrade(tc.given.upgrade, "", setting)
+			assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
+			assert.Equal(t, tc.expected.upgrade, actual.upgrade, "case %q", tc.name)
 
-		var actual output
-		actual.upgrade, actual.err = handler.prepareNodesForUpgrade(tc.given.upgrade, "")
-		assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
-		assert.Equal(t, tc.expected.upgrade, actual.upgrade, "case %q", tc.name)
-
-		if tc.expected.plan != nil {
-			actual.plan, err = handler.planClient.Get(sucNamespace, tc.expected.plan.Name, metav1.GetOptions{})
-			assert.Nil(t, err, "case %q", tc.name)
-			assert.Equal(t, tc.expected.plan.Spec.Concurrency, actual.plan.Spec.Concurrency, "case %q", tc.name)
-		}
+			if tc.expected.plan != nil {
+				actual.plan, err = handler.planClient.Get(sucNamespace, tc.expected.plan.Name, metav1.GetOptions{})
+				assert.Nil(t, err, "case %q", tc.name)
+				assert.Equal(t, tc.expected.plan.Spec.Concurrency, actual.plan.Spec.Concurrency, "case %q", tc.name)
+			}
+		})
 	}
 }
 

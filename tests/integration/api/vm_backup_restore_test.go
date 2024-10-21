@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/onsi/ginkgo/v2"
+	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -14,9 +16,11 @@ import (
 	apivm "github.com/harvester/harvester/pkg/api/vm"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/builder"
-	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/generated/controllers/longhorn.io"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/tests/framework/env"
 	"github.com/harvester/harvester/tests/framework/fuzz"
@@ -26,7 +30,6 @@ import (
 var _ = Describe("verify vm backup & restore APIs", func() {
 	if env.IsE2ETestsEnabled() {
 		var (
-			scaled            *config.Scaled
 			backupController  ctlharvesterv1.VirtualMachineBackupController
 			restoreController ctlharvesterv1.VirtualMachineRestoreController
 			vmController      ctlkubevirtv1.VirtualMachineController
@@ -39,16 +42,32 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 		)
 
 		BeforeEach(func() {
-			scaled = harvester.Scaled()
-			backupController = scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
-			restoreController = scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore()
-			vmController = scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
-			vmiController = scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
-			settingController = scaled.LonghornFactory.Longhorn().V1beta2().Setting()
-			podController = scaled.CoreFactory.Core().V1().Pod()
-			svcController = scaled.CoreFactory.Core().V1().Service()
-			backupNamespace = testVMNamespace
+			coreFactory, err := core.NewFactoryFromConfig(kubeConfig)
+			MustNotError(err)
+			virtFactory, err := kubevirt.NewFactoryFromConfig(kubeConfig)
+			MustNotError(err)
+			harvFactory, err := harvesterhci.NewFactoryFromConfig(kubeConfig)
+			MustNotError(err)
+			longFactory, err := longhorn.NewFactoryFromConfig(kubeConfig)
+			MustNotError(err)
+
+			backupController = harvFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
+			restoreController = harvFactory.Harvesterhci().V1beta1().VirtualMachineRestore()
+			vmController = virtFactory.Kubevirt().V1().VirtualMachine()
+			vmiController = virtFactory.Kubevirt().V1().VirtualMachineInstance()
+			settingController = longFactory.Longhorn().V1beta2().Setting()
+			podController = coreFactory.Core().V1().Pod()
+			svcController = coreFactory.Core().V1().Service()
+			nsController := coreFactory.Core().V1().Namespace()
+
+			backupNamespace = fmt.Sprintf("%s-%d", testVMNamespace, ginkgo.GinkgoParallelProcess())
 			vmBackupTarget = fmt.Sprintf("nfs://harvester-nfs-svc.%s:/opt/backupstore", backupNamespace)
+
+			_, _ = nsController.Create(&corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: backupNamespace,
+				},
+			})
 		})
 
 		Cleanup(func() {
@@ -127,7 +146,7 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 
 				By("when create a VM using a PVC")
 				vmName := testVMGenerateName + fuzz.String(5)
-				vm, err := NewDefaultTestVMBuilder(testVMBackupLabels).Name(vmName).
+				vm, err := NewDefaultTestVMBuilder(testVMBackupLabels).Namespace(backupNamespace).Name(vmName).
 					NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
 					PVCDisk("root-disk", testVMDefaultDiskBus, false, false, 1, "2Gi", "", nil).
 					Run(true).VM()

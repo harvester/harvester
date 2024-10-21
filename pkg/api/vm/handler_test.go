@@ -20,6 +20,8 @@ import (
 )
 
 func TestMigrateAction(t *testing.T) {
+	t.Parallel()
+
 	type input struct {
 		namespace  string
 		name       string
@@ -171,44 +173,48 @@ func TestMigrateAction(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		var clientset = fake.NewSimpleClientset()
-		var coreclientset = corefake.NewSimpleClientset()
-		if tc.given.vmInstance != nil {
-			err := clientset.Tracker().Add(tc.given.vmInstance)
-			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		for _, node := range fakeNodeList {
-			err := coreclientset.Tracker().Add(node)
-			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-		}
+			var clientset = fake.NewSimpleClientset()
+			var coreclientset = corefake.NewSimpleClientset()
+			if tc.given.vmInstance != nil {
+				err := clientset.Tracker().Add(tc.given.vmInstance)
+				assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+			}
 
-		var handler = &vmActionHandler{
-			nodeCache: fakeclients.NodeCache(coreclientset.CoreV1().Nodes),
-			vmis:      fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
-			vmiCache:  fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
-			vmims:     fakeclients.VirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
-			vmimCache: fakeclients.VirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
-		}
+			for _, node := range fakeNodeList {
+				err := coreclientset.Tracker().Add(node)
+				assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+			}
 
-		var actual output
-		var err error
-		actual.err = handler.migrate(context.Background(), tc.given.namespace, tc.given.name, tc.given.nodeName)
-		actual.vmInstanceMigrations, err = handler.vmimCache.List(tc.given.namespace, labels.Everything())
-		assert.Nil(t, err, "List should return no error")
+			var handler = &vmActionHandler{
+				nodeCache: fakeclients.NodeCache(coreclientset.CoreV1().Nodes),
+				vmis:      fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
+				vmiCache:  fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+				vmims:     fakeclients.VirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+				vmimCache: fakeclients.VirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+			}
 
-		assert.Equal(t, tc.expected.vmInstanceMigrations, actual.vmInstanceMigrations, "case %q", tc.name)
-		if tc.expected.err != nil && actual.err != nil {
-			//errors from pkg/errors track stacks so we only compare the error string here
-			assert.Equal(t, tc.expected.err.Error(), actual.err.Error(), "case %q", tc.name)
-		} else {
-			assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
-		}
+			var actual output
+			var err error
+			actual.err = handler.migrate(context.Background(), tc.given.namespace, tc.given.name, tc.given.nodeName)
+			actual.vmInstanceMigrations, err = handler.vmimCache.List(tc.given.namespace, labels.Everything())
+			assert.Nil(t, err, "List should return no error")
+
+			assert.Equal(t, tc.expected.vmInstanceMigrations, actual.vmInstanceMigrations, "case %q", tc.name)
+			if tc.expected.err != nil && actual.err != nil {
+				//errors from pkg/errors track stacks so we only compare the error string here
+				assert.Equal(t, tc.expected.err.Error(), actual.err.Error(), "case %q", tc.name)
+			} else {
+				assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
+			}
+		})
 	}
-
 }
 
 func TestAbortMigrateAction(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		namespace           string
 		name                string
@@ -338,41 +344,45 @@ func TestAbortMigrateAction(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		var clientset = fake.NewSimpleClientset()
-		if tc.given.vmInstance != nil {
-			err := clientset.Tracker().Add(tc.given.vmInstance)
-			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-		}
-		if tc.given.vmInstanceMigration != nil {
-			err := clientset.Tracker().Add(tc.given.vmInstanceMigration)
-			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var clientset = fake.NewSimpleClientset()
+			if tc.given.vmInstance != nil {
+				err := clientset.Tracker().Add(tc.given.vmInstance)
+				assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+			}
+			if tc.given.vmInstanceMigration != nil {
+				err := clientset.Tracker().Add(tc.given.vmInstanceMigration)
+				assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+			}
 
-		var handler = &vmActionHandler{
-			vmis:      fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
-			vmiCache:  fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
-			vmims:     fakeclients.VirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
-			vmimCache: fakeclients.VirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
-		}
+			var handler = &vmActionHandler{
+				vmis:      fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
+				vmiCache:  fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+				vmims:     fakeclients.VirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+				vmimCache: fakeclients.VirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+			}
 
-		var actual output
-		var err error
-		actual.err = handler.abortMigration(tc.given.namespace, tc.given.name)
-		actual.vmInstanceMigrations, err = handler.vmimCache.List(tc.given.namespace, labels.Everything())
-		assert.Nil(t, err, "List should return no error")
+			var actual output
+			var err error
+			actual.err = handler.abortMigration(tc.given.namespace, tc.given.name)
+			actual.vmInstanceMigrations, err = handler.vmimCache.List(tc.given.namespace, labels.Everything())
+			assert.Nil(t, err, "List should return no error")
 
-		assert.Equal(t, tc.expected.vmInstanceMigrations, actual.vmInstanceMigrations, "case %q", tc.name)
-		if tc.expected.err != nil && actual.err != nil {
-			//errors from pkg/errors track stacks so we only compare the error string here
-			assert.Equal(t, tc.expected.err.Error(), actual.err.Error(), "case %q", tc.name)
-		} else {
-			assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
-		}
+			assert.Equal(t, tc.expected.vmInstanceMigrations, actual.vmInstanceMigrations, "case %q", tc.name)
+			if tc.expected.err != nil && actual.err != nil {
+				//errors from pkg/errors track stacks so we only compare the error string here
+				assert.Equal(t, tc.expected.err.Error(), actual.err.Error(), "case %q", tc.name)
+			} else {
+				assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
+			}
+		})
 	}
 
 }
 
 func TestAddVolume(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		namespace string
 		name      string
@@ -427,6 +437,7 @@ func TestAddVolume(t *testing.T) {
 }
 
 func TestRemoveVolume(t *testing.T) {
+	t.Parallel()
 	type input struct {
 		namespace string
 		name      string
@@ -483,31 +494,36 @@ func TestRemoveVolume(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		var clientset = fake.NewSimpleClientset()
-		var coreclientset = corefake.NewSimpleClientset()
-		if tc.given.vm != nil {
-			err := clientset.Tracker().Add(tc.given.vm)
-			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var clientset = fake.NewSimpleClientset()
+			var coreclientset = corefake.NewSimpleClientset()
+			if tc.given.vm != nil {
+				err := clientset.Tracker().Add(tc.given.vm)
+				assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+			}
 
-		var handler = &vmActionHandler{
-			vmCache:  fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
-			pvcCache: fakeclients.PersistentVolumeClaimCache(coreclientset.CoreV1().PersistentVolumeClaims),
-		}
+			var handler = &vmActionHandler{
+				vmCache:  fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+				pvcCache: fakeclients.PersistentVolumeClaimCache(coreclientset.CoreV1().PersistentVolumeClaims),
+			}
 
-		var actual output
-		actual.err = handler.removeVolume(context.Background(), tc.given.namespace, tc.given.name, tc.given.input)
+			var actual output
+			actual.err = handler.removeVolume(context.Background(), tc.given.namespace, tc.given.name, tc.given.input)
 
-		if tc.expected.err != nil && actual.err != nil {
-			//errors from pkg/errors track stacks so we only compare the error string here
-			assert.Equal(t, tc.expected.err.Error(), actual.err.Error(), "case %q", tc.name)
-		} else {
-			assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
-		}
+			if tc.expected.err != nil && actual.err != nil {
+				//errors from pkg/errors track stacks so we only compare the error string here
+				assert.Equal(t, tc.expected.err.Error(), actual.err.Error(), "case %q", tc.name)
+			} else {
+				assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
+			}
+		})
+
 	}
 }
 
 func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		vmi *kubevirtv1.VirtualMachineInstance
 	}
@@ -696,15 +712,16 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 			},
 		},
 	}
-	var coreclientset = corefake.NewSimpleClientset()
-	for _, node := range fakeNodeList {
-		err := coreclientset.Tracker().Add(node)
-		assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-	}
-	var nodeCache = fakeclients.NodeCache(coreclientset.CoreV1().Nodes)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var coreclientset = corefake.NewSimpleClientset()
+			for _, node := range fakeNodeList {
+				err := coreclientset.Tracker().Add(node.DeepCopy())
+				assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+			}
+			var nodeCache = fakeclients.NodeCache(coreclientset.CoreV1().Nodes)
 			h := &vmActionHandler{
 				nodeCache: nodeCache,
 			}

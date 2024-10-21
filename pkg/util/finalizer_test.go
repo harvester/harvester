@@ -13,6 +13,7 @@ const (
 )
 
 func Test_AddFinalizer(t *testing.T) {
+	t.Parallel()
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test",
@@ -30,6 +31,7 @@ func Test_AddFinalizer(t *testing.T) {
 }
 
 func Test_RemoveFinalizer(t *testing.T) {
+	t.Parallel()
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test",

@@ -117,6 +117,7 @@ sigGu6RstlytNkq8d3Ozq/jqbStvCoVvXpHVWw==
 )
 
 func TestCAValidation(t *testing.T) {
+	t.Parallel()
 	tests := map[string]struct {
 		pem   string
 		valid bool
@@ -133,12 +134,16 @@ func TestCAValidation(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		err := ValidateCABundle([]byte(test.pem))
-		assert.Equal(t, err, test.err)
+		t.Run(test.pem, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateCABundle([]byte(test.pem))
+			assert.Equal(t, err, test.err)
+		})
 	}
 }
 
 func TestPublicCertificateValidation(t *testing.T) {
+	t.Parallel()
 	tests := map[string]struct {
 		pem   string
 		valid bool
@@ -165,6 +170,7 @@ func TestPublicCertificateValidation(t *testing.T) {
 }
 
 func TestPrivateKeyValidation(t *testing.T) {
+	t.Parallel()
 	tests := map[string]struct {
 		pem   string
 		valid bool
@@ -185,7 +191,10 @@ func TestPrivateKeyValidation(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		err := ValidatePrivateKey([]byte(test.pem))
-		assert.Equal(t, err, test.err)
+		t.Run(test.pem, func(t *testing.T) {
+			t.Parallel()
+			err := ValidatePrivateKey([]byte(test.pem))
+			assert.Equal(t, err, test.err)
+		})
 	}
 }

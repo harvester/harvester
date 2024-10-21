@@ -58,6 +58,7 @@ var (
 )
 
 func Test_defaultDrainHelper(t *testing.T) {
+	t.Parallel()
 	assert := require.New(t)
 	cfg := &rest.Config{
 		Host: "localhost",
@@ -73,8 +74,11 @@ func Test_defaultDrainHelper(t *testing.T) {
 }
 
 func Test_meetsControlPlaneRequirementsHA(t *testing.T) {
+	t.Parallel()
 	assert := require.New(t)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
+	testNode := testNode.DeepCopy()
+	cpNode2 := cpNode2.DeepCopy()
+	k8sclientset := k8sfake.NewSimpleClientset(testNode, cpNode1.DeepCopy(), cpNode2, cpNode3.DeepCopy())
 
 	nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
 	err := DrainPossible(nodeCache, testNode)
@@ -85,8 +89,11 @@ func Test_meetsControlPlaneRequirementsHA(t *testing.T) {
 }
 
 func Test_failsControlPlaneRequirementsHA(t *testing.T) {
+	t.Parallel()
+	cpNode1 := cpNode1.DeepCopy()
+	cpNode2 := cpNode2.DeepCopy()
 	assert := require.New(t)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
+	k8sclientset := k8sfake.NewSimpleClientset(testNode.DeepCopy(), cpNode1, cpNode2, cpNode3.DeepCopy())
 
 	cpNode1.Annotations = map[string]string{
 		ctlnode.MaintainStatusAnnotationKey: ctlnode.MaintainStatusRunning,
@@ -103,8 +110,10 @@ func Test_failsControlPlaneRequirementsHA(t *testing.T) {
 }
 
 func Test_failsControlPlaneRequirementsSingleNode(t *testing.T) {
+	t.Parallel()
+	cpNode1 := cpNode1.DeepCopy()
 	assert := require.New(t)
-	nodeObjects := []runtime.Object{testNode, cpNode2}
+	nodeObjects := []runtime.Object{testNode.DeepCopy(), cpNode2.DeepCopy()}
 
 	k8sclientset := k8sfake.NewSimpleClientset(nodeObjects...)
 
@@ -116,14 +125,17 @@ func Test_failsControlPlaneRequirementsSingleNode(t *testing.T) {
 }
 
 func Test_meetsWorkerRequirement(t *testing.T) {
+	t.Parallel()
+	testNode := testNode.DeepCopy()
 	assert := require.New(t)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
+	k8sclientset := k8sfake.NewSimpleClientset(testNode, cpNode1.DeepCopy(), cpNode2.DeepCopy(), cpNode3.DeepCopy())
 	nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
 	err := DrainPossible(nodeCache, testNode)
 	assert.NoError(err, "expected no error while place worker node in drain")
 }
 
 func Test_maintainModeStrategyFilter_Skip(t *testing.T) {
+	t.Parallel()
 	assert := require.New(t)
 	status := maintainModeStrategyFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Name:      "foo",
@@ -137,6 +149,7 @@ func Test_maintainModeStrategyFilter_Skip(t *testing.T) {
 }
 
 func Test_maintainModeStrategyFilter_Okay_1(t *testing.T) {
+	t.Parallel()
 	assert := require.New(t)
 	status := maintainModeStrategyFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Name:      "foo",
@@ -147,6 +160,7 @@ func Test_maintainModeStrategyFilter_Okay_1(t *testing.T) {
 }
 
 func Test_maintainModeStrategyFilter_Okay_2(t *testing.T) {
+	t.Parallel()
 	assert := require.New(t)
 	status := maintainModeStrategyFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Name:      "foo",
