@@ -23,3 +23,8 @@ func IsManagementRole(node *corev1.Node) bool {
 
 	return false
 }
+
+func IsWitnessNode(node *corev1.Node, isManagement bool) bool {
+	_, found := node.Labels[HarvesterWitnessNodeLabelKey]
+	return found
+}
