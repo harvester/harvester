@@ -6,6 +6,13 @@ import (
 	"net/http"
 	"time"
 
+	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/kube"
+	"helm.sh/helm/v3/pkg/storage"
+	"helm.sh/helm/v3/pkg/storage/driver"
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/harvester/harvester/pkg/config"
 	harvSettings "github.com/harvester/harvester/pkg/settings"
 )
@@ -29,6 +36,14 @@ func Register(ctx context.Context, management *config.Management, options config
 	rkeControlPlane := management.RKEFactory.Rke().V1().RKEControlPlane()
 	kubevirt := management.VirtFactory.Kubevirt().V1().KubeVirt()
 	bundles := management.FleetFactory.Fleet().V1alpha1().Bundle()
+
+	restClientGetter := cli.New().RESTClientGetter()
+	kubeClient := kube.New(restClientGetter)
+	var kubeInterface kubernetes.Interface
+	kubeInterface = management.ClientSet
+	driverSecret := driver.NewSecrets(kubeInterface.CoreV1().Secrets(""))
+	store := storage.Init(driverSecret)
+
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -69,6 +84,12 @@ func Register(ctx context.Context, management *config.Management, options config
 				},
 			},
 		},
+
+		helmConfiguration: action.Configuration{
+			RESTClientGetter: restClientGetter,
+			Releases:         store,
+			KubeClient:       kubeClient,
+		},
 	}
 
 	syncers = map[string]syncerFunc{
@@ -86,6 +107,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		harvSettings.LonghornV2DataEngineSettingName: controller.syncNodeConfig,
 		"auto-rotate-rke2-certs":                     controller.syncAutoRotateRKE2Certs,
 		harvSettings.AdditionalGuestMemoryOverheadRatioName: controller.syncAdditionalGuestMemoryOverheadRatio,
+		harvSettings.SupportBundleImageName:                 controller.syncSupportBundleImage,
+		harvSettings.GeneralJobImageName:                    controller.syncGeneralJobImage,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
 	}

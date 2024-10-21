@@ -35,7 +35,7 @@ var (
 	SSLCertificates        = NewSetting(SSLCertificatesSettingName, "{}")
 	SSLParameters          = NewSetting(SSLParametersName, "{}")
 	// Please remember to change "support-bundle-kit" in values.yaml as well
-	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{\"repository\":\"rancher/support-bundle-kit\",\"tag\":\"master-head\",\"imagePullPolicy\":\"IfNotPresent\"}")
+	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{}")
 	SupportBundleNamespaces                = NewSetting("support-bundle-namespaces", "")
 	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10")                                                                  // Unit is minute. 0 means disable timeout.
 	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, supportBundleUtil.SupportBundleExpirationDefaultStr)                // Unit is minute.
@@ -59,6 +59,7 @@ var (
 	NTPServers             = NewSetting(NTPServersSettingName, "")
 	WhiteListedSettings    = []string{"server-version", "default-storage-class", "harvester-csi-ccm-versions", "default-vm-termination-grace-period-seconds"}
 	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "restoreVM": false}`)
+	GeneralJobImage        = NewSetting(GeneralJobImageName, "{}")
 )
 
 const (
@@ -94,6 +95,7 @@ const (
 	LonghornV2DataEngineSettingName                   = "longhorn-v2-data-engine-enabled"
 	LogLevelSettingName                               = "log-level"
 	AdditionalGuestMemoryOverheadRatioName            = "additional-guest-memory-overhead-ratio"
+	GeneralJobImageName                               = "general-job-image"
 
 	// settings have `default` and `value` string used in many places, replace them with const
 	KeywordDefault = "default"

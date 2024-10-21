@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-errors/errors"
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -23,6 +24,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -62,11 +64,13 @@ type CPUManagerUpdateStatus struct {
 // cpuManagerNodeHandler updates cpu manager status of a node in its annotations, so that
 // we can tell whether the node is under modifing cpu manager policy or not and its current policy.
 type cpuManagerNodeHandler struct {
-	nodeCache  ctlcorev1.NodeCache
-	nodeClient ctlcorev1.NodeClient
-	jobCache   ctlbatchv1.JobCache
-	jobClient  ctlbatchv1.JobClient
-	namespace  string
+	nodeCache         ctlcorev1.NodeCache
+	nodeClient        ctlcorev1.NodeClient
+	nodeController    ctlcorev1.NodeController
+	jobCache          ctlbatchv1.JobCache
+	jobClient         ctlbatchv1.JobClient
+	settingController v1beta1.SettingController
+	namespace         string
 }
 
 // CPUManagerRegister registers the node controller
@@ -74,13 +78,16 @@ func CPUManagerRegister(ctx context.Context, management *config.Management, opti
 	job := management.BatchFactory.Batch().V1().Job()
 	node := management.CoreFactory.Core().V1().Node()
 	pod := management.CoreFactory.Core().V1().Pod()
+	setting := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 
 	cpuManagerNodeHandler := &cpuManagerNodeHandler{
-		jobCache:   job.Cache(),
-		jobClient:  job,
-		nodeCache:  node.Cache(),
-		nodeClient: node,
-		namespace:  options.Namespace,
+		jobCache:          job.Cache(),
+		jobClient:         job,
+		nodeCache:         node.Cache(),
+		nodeClient:        node,
+		nodeController:    node,
+		settingController: setting,
+		namespace:         options.Namespace,
 	}
 
 	node.OnChange(ctx, CPUManagerControllerName, cpuManagerNodeHandler.OnNodeChanged)
@@ -137,7 +144,15 @@ func (h *cpuManagerNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*cor
 		}
 		setUpdateStatus(newNode, toRunningStatus(cpuManagerStatus, runningJobs[0]))
 	} else {
-		job, err := h.submitJob(cpuManagerStatus, node)
+		image := settings.GetImage(settings.GeneralJobImage)
+		if image == nil {
+			logrus.Info("general job image is not set, trigger setting controller to get the image")
+			h.settingController.Enqueue(settings.GeneralJobImageName)
+			h.nodeController.EnqueueAfter(node.Name, time.Second*5)
+			return node, nil
+		}
+
+		job, err := h.submitJob(cpuManagerStatus, node, image)
 		if err != nil {
 			logrus.WithField("node_name", node.Name).WithError(err).Error("Failed to submit cpu manager job")
 			setUpdateStatus(newNode, toFailedStatus(cpuManagerStatus))
@@ -391,10 +406,7 @@ func (h *cpuManagerNodeHandler) getJob(policy CPUManagerPolicy, node *corev1.Nod
 	}
 }
 
-func (h *cpuManagerNodeHandler) submitJob(updateStatus *CPUManagerUpdateStatus, node *corev1.Node) (*batchv1.Job, error) {
-	// TODO: change to get image from harvester chart
-	image := settings.Image{Repository: "registry.suse.com/bci/bci-base", Tag: "15.5", ImagePullPolicy: corev1.PullIfNotPresent}
-
+func (h *cpuManagerNodeHandler) submitJob(updateStatus *CPUManagerUpdateStatus, node *corev1.Node, image *settings.Image) (*batchv1.Job, error) {
 	job, err := h.jobClient.Create(h.getJob(updateStatus.Policy, node, image.ImageName()))
 	if err != nil {
 		return nil, err

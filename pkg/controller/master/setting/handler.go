@@ -16,6 +16,7 @@ import (
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/slice"
+	"helm.sh/helm/v3/pkg/action"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -81,6 +82,8 @@ type Handler struct {
 	kubeVirtConfigCache  kubevirtv1.KubeVirtCache
 	bundleClient         ctlfleetv1.BundleClient
 	bundleCache          ctlfleetv1.BundleCache
+
+	helmConfiguration action.Configuration
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {

@@ -80,7 +80,8 @@ type validateSettingFunc func(setting *v1beta1.Setting) error
 
 var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.VMForceResetPolicySettingName:                     validateVMForceResetPolicy,
-	settings.SupportBundleImageName:                            validateSupportBundleImage,
+	settings.SupportBundleImageName:                            validateImage,
+	settings.GeneralJobImageName:                               validateImage,
 	settings.SupportBundleTimeoutSettingName:                   validateSupportBundleTimeout,
 	settings.SupportBundleExpirationSettingName:                validateSupportBundleExpiration,
 	settings.SupportBundleNodeCollectionTimeoutName:            validateSupportBundleNodeCollectionTimeout,
@@ -100,7 +101,8 @@ type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1b
 
 var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.VMForceResetPolicySettingName:                     validateUpdateVMForceResetPolicy,
-	settings.SupportBundleImageName:                            validateUpdateSupportBundleImage,
+	settings.SupportBundleImageName:                            validateUpdateImage,
+	settings.GeneralJobImageName:                               validateUpdateImage,
 	settings.SupportBundleTimeoutSettingName:                   validateUpdateSupportBundleTimeout,
 	settings.SupportBundleExpirationSettingName:                validateUpdateSupportBundle,
 	settings.SupportBundleNodeCollectionTimeoutName:            validateUpdateSupportBundleNodeCollectionTimeout,
@@ -909,7 +911,7 @@ func hasVMRestoreInCreatingOrDeletingProgress(vmRestores []*v1beta1.VirtualMachi
 	return false
 }
 
-func validateSupportBundleImageHelper(value string) error {
+func validateImageHelper(value string) error {
 	if value == "" {
 		return nil
 	}
@@ -925,21 +927,21 @@ func validateSupportBundleImageHelper(value string) error {
 	return nil
 }
 
-func validateSupportBundleImage(setting *v1beta1.Setting) error {
+func validateImage(setting *v1beta1.Setting) error {
 	if setting.Default != "{}" {
-		if err := validateSupportBundleImageHelper(setting.Default); err != nil {
+		if err := validateImageHelper(setting.Default); err != nil {
 			return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 		}
 	}
-	if err := validateSupportBundleImageHelper(setting.Value); err != nil {
+	if err := validateImageHelper(setting.Value); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 
 	return nil
 }
 
-func validateUpdateSupportBundleImage(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
-	return validateSupportBundleImage(newSetting)
+func validateUpdateImage(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateImage(newSetting)
 }
 
 func (v *settingValidator) validateVolumeSnapshotClass(setting *v1beta1.Setting) error {

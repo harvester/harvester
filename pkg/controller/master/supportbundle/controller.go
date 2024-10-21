@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
-	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,13 +21,7 @@ import (
 type Handler struct {
 	supportBundles          v1beta1.SupportBundleClient
 	supportBundleController v1beta1.SupportBundleController
-	nodeCache               ctlcorev1.NodeCache
-	podCache                ctlcorev1.PodCache
-	deployments             ctlappsv1.DeploymentClient
-	daemonSets              ctlappsv1.DaemonSetClient
-	services                ctlcorev1.ServiceClient
-	settings                v1beta1.SettingClient
-	settingCache            v1beta1.SettingCache
+	settingController       v1beta1.SettingController
 
 	manager *Manager
 }
@@ -45,7 +37,10 @@ func (h *Handler) OnSupportBundleChanged(_ string, sb *harvesterv1.SupportBundle
 
 		imageStr := settings.SupportBundleImage.Get()
 		if imageStr == "{}" || imageStr == "" {
-			return nil, fmt.Errorf("support bundle image should not be empty")
+			logrus.Info("support bundle image is not set, trigger setting controller to get the image")
+			h.settingController.Enqueue(settings.SupportBundleImageName)
+			h.supportBundleController.EnqueueAfter(sb.Namespace, sb.Name, time.Second*5)
+			return sb, nil
 		}
 
 		var image settings.Image

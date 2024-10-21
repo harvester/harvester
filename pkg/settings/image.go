@@ -1,9 +1,12 @@
 package settings
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/shopspring/decimal"
+	"github.com/sirupsen/logrus"
+
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -47,4 +50,22 @@ func (i Image) GetTag() string {
 	}
 
 	return tag
+}
+
+func GetImage(setting Setting) *Image {
+	imageStr := setting.Get()
+	if imageStr == "{}" || imageStr == "" {
+		return nil
+	}
+
+	var image Image
+	err := json.Unmarshal([]byte(imageStr), &image)
+	if err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"setting": setting.Name,
+			"image":   imageStr,
+		}).Errorf("fail to parse image")
+		return nil
+	}
+	return &image
 }

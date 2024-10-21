@@ -3,8 +3,6 @@ package schedulevmbackup
 import (
 	"context"
 
-	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
-
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvbatchv1 "github.com/harvester/harvester/pkg/generated/controllers/batch/v1"
@@ -34,11 +32,7 @@ type svmbackupHandler struct {
 	vmBackupClient       ctlharvesterv1.VirtualMachineBackupClient
 	vmBackupCache        ctlharvesterv1.VirtualMachineBackupCache
 	snapshotCache        ctlsnapshotv1.VolumeSnapshotCache
-	lhsnapshotClient     ctllonghornv2.SnapshotClient
-	lhsnapshotCache      ctllonghornv2.SnapshotCache
-	settingCache         ctlharvesterv1.SettingCache
-	secretCache          ctlcorev1.SecretCache
-	namespace            string
+	settingController    ctlharvesterv1.SettingController
 	lhbackupCache        ctllonghornv2.BackupCache
 	lhbackupClient       ctllonghornv2.BackupClient
 	snapshotContentCache ctlsnapshotv1.VolumeSnapshotContentCache
@@ -49,9 +43,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	cronJobs := management.HarvesterBatchFactory.Batch().V1().CronJob()
 	vmBackups := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
 	snapshots := management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
-	lhsnapshots := management.LonghornFactory.Longhorn().V1beta2().Snapshot()
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
-	secrets := management.CoreFactory.Core().V1().Secret()
 	lhbackups := management.LonghornFactory.Longhorn().V1beta2().Backup()
 	snapshotContents := management.SnapshotFactory.Snapshot().V1().VolumeSnapshotContent()
 
@@ -65,11 +57,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		vmBackupClient:       vmBackups,
 		vmBackupCache:        vmBackups.Cache(),
 		snapshotCache:        snapshots.Cache(),
-		lhsnapshotClient:     lhsnapshots,
-		lhsnapshotCache:      lhsnapshots.Cache(),
-		settingCache:         settings.Cache(),
-		secretCache:          secrets.Cache(),
-		namespace:            options.Namespace,
+		settingController:    settings,
 		lhbackupCache:        lhbackups.Cache(),
 		lhbackupClient:       lhbackups,
 		snapshotContentCache: snapshotContents.Cache(),

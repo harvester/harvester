@@ -1,6 +1,8 @@
 package schedulevmbackup
 
 import (
+	"time"
+
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -33,10 +35,8 @@ func deleteCronJob(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup)
 
 // The cronjob actually doesn't do anything in its own job, it's utilized to trigger OnCronjobChanged()
 // In OnCronjobChanged(), controller will create VMBackup for VM backup/snapshot
-func createCronJob(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup) (*batchv1.CronJob, error) {
+func createCronJob(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup, jobImage *settings.Image) (*batchv1.CronJob, error) {
 	backoffLimit := int32(cronJobBackoffLimit)
-	// TODO: change to get image from harvester chart
-	jobImage := settings.Image{Repository: "registry.suse.com/bci/bci-base", Tag: "15.5", ImagePullPolicy: corev1.PullIfNotPresent}
 
 	cronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
@@ -90,7 +90,15 @@ func (h *svmbackupHandler) OnChanged(_ string, svmbackup *harvesterv1.ScheduleVM
 
 	_, err := getCronJob(h, svmbackup)
 	if errors.IsNotFound(err) {
-		if _, err := createCronJob(h, svmbackup); err != nil {
+		image := settings.GetImage(settings.GeneralJobImage)
+		if image == nil {
+			logrus.Info("general job image is not set, trigger setting controller to get the image")
+			h.settingController.Enqueue(settings.GeneralJobImageName)
+			h.svmbackupController.EnqueueAfter(svmbackup.Namespace, svmbackup.Name, time.Second*5)
+			return svmbackup, nil
+		}
+
+		if _, err := createCronJob(h, svmbackup, image); err != nil {
 			return nil, err
 		}
 
