@@ -29,5 +29,8 @@ func Init(ctx context.Context, mgmtCtx *config.Management, options config.Option
 	if err := createTemplates(mgmtCtx, publicNamespace); err != nil {
 		return err
 	}
-	return createSecrets(mgmtCtx)
+	if err := createSecrets(mgmtCtx); err != nil {
+		return err
+	}
+	return createServices(mgmtCtx)
 }
