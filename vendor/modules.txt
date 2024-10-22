@@ -567,7 +567,7 @@ github.com/longhorn/longhorn-instance-manager/pkg/client
 github.com/longhorn/longhorn-instance-manager/pkg/meta
 github.com/longhorn/longhorn-instance-manager/pkg/types
 github.com/longhorn/longhorn-instance-manager/pkg/util
-# github.com/longhorn/longhorn-manager v1.7.2-rc2
+# github.com/longhorn/longhorn-manager v1.7.2
 ## explicit; go 1.22.2
 github.com/longhorn/longhorn-manager/csi/crypto
 github.com/longhorn/longhorn-manager/datastore

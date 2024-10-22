@@ -1201,8 +1201,8 @@ github.com/longhorn/longhorn-engine v1.7.1 h1:RzEdH7WJnb9ff8lcYdZm4u6TPHBeKuPSSy
 github.com/longhorn/longhorn-engine v1.7.1/go.mod h1:xKviPtL0DjgfbZHg/p5Gq/eZb/nuOTmuoMqSywq9vcM=
 github.com/longhorn/longhorn-instance-manager v1.7.1 h1:5Li49BvtP4Sp4zT09GIbp/tQuXg5kmEsEvJBYsspAAs=
 github.com/longhorn/longhorn-instance-manager v1.7.1/go.mod h1:gQcrmwg2t4iXlw7VtwAo9Y3xG4MPwnJ4FpTQa3KgWmc=
-github.com/longhorn/longhorn-manager v1.7.2-rc2 h1:ZVoC3bpZYrQS6udEN0UgVDWOSpstzmd/kOA5MfDcoho=
-github.com/longhorn/longhorn-manager v1.7.2-rc2/go.mod h1:QvOuwQP3TqICQHyJcPynjtAhF3TMCFeygVIpf9q7/cI=
+github.com/longhorn/longhorn-manager v1.7.2 h1:hf0phTtk8Odq+zoVYO5JuHbKJOi4nK+iugUJ1FQw56M=
+github.com/longhorn/longhorn-manager v1.7.2/go.mod h1:QvOuwQP3TqICQHyJcPynjtAhF3TMCFeygVIpf9q7/cI=
 github.com/longhorn/longhorn-share-manager v1.7.1 h1:mZNmE0/pLtACeW39Cs3UT4bEYqP0EF9u/+8FFKP2Ot8=
 github.com/longhorn/longhorn-share-manager v1.7.1/go.mod h1:pMJFbw3YwdzPxJQiAh3QESgOs/z7YKGAcTGGcV2Z2qg=
 github.com/longhorn/types v0.0.0-20241007141758-3640f2357238 h1:zo3jTRYbH1KtO2TwgIt3eb4wTLGAfN/SAzWJsOwY+Pc=
