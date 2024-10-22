@@ -441,25 +441,35 @@ func (ndc *ControllerHandler) CheckVMISchedulingRequirements(originalNode *corev
 	if err != nil {
 		return nil, fmt.Errorf("error listing nodes from nodeCache: %v", err)
 	}
+	var validNodes []*corev1.Node
+	for i, v := range nodeList {
+		if v.Name == originalNode.Name {
+			validNodes = append(nodeList[:i], nodeList[i+1:]...)
+			break
+		}
+	}
 	for _, vmi := range vmiList {
-		var possibleNodes, validNodes []*corev1.Node
+		var possibleNodes, matchingNodes []*corev1.Node
 		if vmi.Spec.Affinity != nil && vmi.Spec.Affinity.NodeAffinity != nil && vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
 			nodeAffinitySelector, err := nodeaffinity.NewNodeSelector(vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution)
 			if err != nil {
 				return nil, fmt.Errorf("error generating nodeAffinitySelector from node scheduling requirements: %v", err)
 			}
 			// identify if nodeAffinity can be met by other nodes and node is ready
-			for _, v := range nodeList {
-				if nodeAffinitySelector.Match(v) && v.Name != originalNode.Name && isNodeReady(v) {
+			for _, v := range validNodes {
+				if nodeAffinitySelector.Match(v) && isNodeReady(v) {
 					possibleNodes = append(possibleNodes, v)
 				}
 			}
-
-			validNodes = filterNodesForNodeSelector(possibleNodes, vmi)
-			// no valid node found that could meet the requirements
-			if len(validNodes) == 0 {
-				impactedVMS = append(impactedVMS, namespacedVMName(vmi))
-			}
+		} else {
+			possibleNodes = validNodes
+		}
+		// for VM's using masquerade network no additional network specific affinity rules are added
+		// as a result this check is skipped
+		matchingNodes = filterNodesForNodeSelector(possibleNodes, vmi)
+		// no valid node found that could meet the requirements
+		if len(matchingNodes) == 0 {
+			impactedVMS = append(impactedVMS, namespacedVMName(vmi))
 		}
 	}
 	return impactedVMS, nil
