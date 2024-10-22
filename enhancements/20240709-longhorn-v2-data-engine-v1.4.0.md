@@ -1,4 +1,4 @@
-# Support the Longhorn V2 Data Engine (v1.4.0, Preview)
+# Support the Longhorn V2 Data Engine (v1.4.0, Experimental)
 
 ## Summary
 
