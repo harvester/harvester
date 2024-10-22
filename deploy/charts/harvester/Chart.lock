@@ -18,8 +18,8 @@ dependencies:
   repository: file://dependency_charts/csi-snapshotter
   version: 0.2.0
 - name: longhorn
-  repository: file://dependency_charts/longhorn
-  version: 1.7.2-rc2
+  repository: https://charts.longhorn.io
+  version: 1.7.2
 - name: kube-vip
   repository: https://kube-vip.github.io/helm-charts
   version: 0.6.1
@@ -35,5 +35,5 @@ dependencies:
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
   version: 0.2.0
-digest: sha256:115d461521413a0a6420a0c0878ccba1892c282aae4559e00ad11ad018ff42f5
-generated: "2024-10-17T13:18:40.248171796+08:00"
+digest: sha256:25417fcef799dbe7fb5c1553c1d358b29854d8a7a73f40c53cef408ecd213605
+generated: "2024-10-21T11:11:12.897894+08:00"
