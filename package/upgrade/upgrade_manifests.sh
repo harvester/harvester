@@ -44,6 +44,66 @@ wait_managed_chart() {
   done
 }
 
+# This function is to fix upgrade failure from v1.3.2 to v1.4.0,
+# so this can be removed after v1.4.0 is released and just use wait_managed_chart.
+# https://github.com/harvester/harvester/issues/6851
+# https://github.com/harvester/harvester/issues/6664
+wait_harvester_managed_chart() {
+  namespace=$1
+  name=$2
+  version=$3
+  generation=$4
+  state=$5
+
+  echo "Waiting for ManagedChart $namespace/$name from generation $generation"
+  echo "Target version: $version, Target state: $state"
+
+  while [ true ]; do
+    current_chart=$(kubectl get managedcharts.management.cattle.io $name -n $namespace -o yaml)
+    current_version=$(echo "$current_chart" | yq e '.spec.version' -)
+    current_observed_generation=$(echo "$current_chart" | yq e '.status.observedGeneration' -)
+    current_state=$(echo "$current_chart" | yq e '.status.display.state' -)
+    echo "Current version: $current_version, Current state: $current_state, Current generation: $current_observed_generation"
+
+    if [ "$current_version" = "$version" ]; then
+      if [ "$current_observed_generation" -gt "$generation" ]; then
+        summary_state=$(echo "$current_chart" | yq e ".status.summary.$state" -)
+        if [ "$summary_state" = "1" ]; then
+          break
+        fi
+      fi
+    fi
+
+    harvester_deploy_image=$(kubectl get deployment -n harvester-system harvester -o json | jq -r '.spec.template.spec.containers[] | select(.name == "apiserver").image')
+    harvester_deploy_image_tag="${harvester_deploy_image##*:}"
+    secret_validation=$(kubectl get validatingwebhookconfiguration harvester-validator -o yaml | yq -r '.webhooks[].rules[] | select(.resources[] == "secrets")')
+
+    # When upgrading from v1.3.2, harvester chart may be rollback.
+    # To avoid upgrade failure, we need to remove the secret validation in webhook rule and unused longhorn services.
+    if [ "$harvester_deploy_image_tag" == "v1.3.2" ]; then
+      # v1.3.2 harvester-webhook doesn't support secret validation
+      if [ -n "$secret_validation" ]; then
+        current_webhook_config=$(kubectl get validatingwebhookconfiguration harvester-validator -o json)
+        updated_webhook_config=$(echo "$current_webhook_config" | jq 'del(.webhooks[].rules[] | select(.resources[] == "secrets"))')
+        echo "$updated_webhook_config" | kubectl apply -f -
+      fi
+
+      if kubectl get service longhorn-engine-service -n longhorn-system > /dev/null 2>&1; then
+        echo "Remove longhorn-engine-service"
+        kubectl delete service longhorn-engine-service -n longhorn-system
+      fi
+
+      if kubectl get service longhorn-replica-service -n longhorn-system > /dev/null 2>&1; then
+        echo "Remove longhorn-replica-service"
+        kubectl delete service longhorn-replica-service -n longhorn-system
+      fi
+    fi
+
+    sleep 5
+    echo "Sleep for 5 seconds to retry"
+  done
+}
+
 wait_helm_release() {
   # Wait for helm release to be deployed to a specified version
   namespace=$1
@@ -577,7 +637,7 @@ EOF
   pause_managed_chart harvester "false"
   pause_managed_chart harvester-crd "false"
 
-  wait_managed_chart fleet-local harvester $REPO_HARVESTER_CHART_VERSION $pre_generation_harvester ready
+  wait_harvester_managed_chart fleet-local harvester $REPO_HARVESTER_CHART_VERSION $pre_generation_harvester ready
   wait_managed_chart fleet-local harvester-crd $REPO_HARVESTER_CHART_VERSION $pre_generation_harvester_crd ready
 
   wait_kubevirt harvester-system kubevirt $REPO_KUBEVIRT_VERSION
