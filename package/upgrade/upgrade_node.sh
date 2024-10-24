@@ -627,6 +627,18 @@ EOF
   GRUBENV_FILE="/oem/grubcustom"
   chroot $HOST_DIR /bin/bash -c "if ! [ -f ${GRUBENV_FILE} ]; then touch ${GRUBENV_FILE}; fi" 
 
+  multiPathEnabled=$(yq '.os.externalStorageConfig.enabled // false' ${HOST_DIR}/oem/harvester.config)
+  if [ ${multiPathEnabled} == false ]
+  then
+    thirdPartyArgs=$(chroot $HOST_DIR grub2-editenv /oem/grubenv list |grep third_party_kernel_args | awk -F"third_party_kernel_args=" '{print $2}')
+    if [[ ${thirdPartyArgs} != *"multipath=off"* ]]
+    then
+      thirdPartyArgs="${thirdPartyArgs} multipath=off"
+      thirdPartyArgs=$(echo ${thirdPartyArgs} | xargs)
+      chroot $HOST_DIR grub2-editenv /oem/grubenv set third_party_kernel_args="${thirdPartyArgs}"
+    fi
+  fi
+
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
 
