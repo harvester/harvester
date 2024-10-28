@@ -7,7 +7,7 @@ RUN zypper rm -y container-suseconnect && \
     zypper in -y curl e2fsprogs rsync awk zstd jq helm zip unzip nginx && zypper clean -a
 
 ENV KUBECTL_VERSION v1.29.9
-RUN curl -sfL https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl > /usr/bin/kubectl && \
+RUN curl -sfL https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl > /usr/bin/kubectl && \
     chmod +x /usr/bin/kubectl
 
 RUN curl -sfL https://github.com/kubevirt/kubevirt/releases/download/v1.3.1/virtctl-v1.3.1-linux-${ARCH} -o /usr/bin/virtctl && chmod +x /usr/bin/virtctl && \
