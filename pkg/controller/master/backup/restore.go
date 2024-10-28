@@ -925,7 +925,7 @@ func (h *RestoreHandler) startVM(vm *kubevirtv1.VirtualMachine) error {
 		vmi, err := h.vmiCache.Get(vm.Namespace, vm.Name)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				return nil
+				return h.restClient.Put().Namespace(vm.Namespace).Resource("virtualmachines").SubResource("start").Name(vm.Name).Do(h.context).Error()
 			}
 			return err
 		}
