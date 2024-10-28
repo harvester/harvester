@@ -348,10 +348,9 @@ func (ndc *ControllerHandler) CheckVMISchedulingRequirements(originalNode *corev
 		return nil, fmt.Errorf("error listing nodes from nodeCache: %v", err)
 	}
 	var validNodes []*corev1.Node
-	for i, v := range nodeList {
-		if v.Name == originalNode.Name {
-			validNodes = append(nodeList[:i], nodeList[i+1:]...)
-			break
+	for _, v := range nodeList {
+		if v.Name != originalNode.Name && isNodeReady(v) {
+			validNodes = append(validNodes, v)
 		}
 	}
 	for _, vmi := range vmiList {
@@ -363,7 +362,7 @@ func (ndc *ControllerHandler) CheckVMISchedulingRequirements(originalNode *corev
 			}
 			// identify if nodeAffinity can be met by other nodes and node is ready
 			for _, v := range validNodes {
-				if nodeAffinitySelector.Match(v) && isNodeReady(v) {
+				if nodeAffinitySelector.Match(v) {
 					possibleNodes = append(possibleNodes, v)
 				}
 			}
