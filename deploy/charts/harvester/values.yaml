@@ -511,7 +511,7 @@ support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
-    tag: v0.0.44
+    tag: v0.0.46
 
 generalJob:
   image:
