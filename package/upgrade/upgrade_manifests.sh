@@ -88,14 +88,14 @@ wait_harvester_managed_chart() {
         echo "$updated_webhook_config" | kubectl apply -f -
       fi
 
-      if kubectl get service longhorn-engine-service -n longhorn-system > /dev/null 2>&1; then
-        echo "Remove longhorn-engine-service"
-        kubectl delete service longhorn-engine-service -n longhorn-system
+      if kubectl get service longhorn-engine-manager -n longhorn-system > /dev/null 2>&1; then
+        echo "Remove longhorn-engine-manager"
+        kubectl delete service longhorn-engine-manager -n longhorn-system
       fi
 
-      if kubectl get service longhorn-replica-service -n longhorn-system > /dev/null 2>&1; then
-        echo "Remove longhorn-replica-service"
-        kubectl delete service longhorn-replica-service -n longhorn-system
+      if kubectl get service longhorn-replica-manager -n longhorn-system > /dev/null 2>&1; then
+        echo "Remove longhorn-replica-manager"
+        kubectl delete service longhorn-replica-manager -n longhorn-system
       fi
     fi
 
