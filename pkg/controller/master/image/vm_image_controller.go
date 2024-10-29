@@ -21,6 +21,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/ref"
@@ -397,6 +398,9 @@ func handleFail(image *harvesterv1.VirtualMachineImage, cond condition.Cond, err
 		harvesterv1.ImageRetryLimitExceeded.False(image)
 		harvesterv1.ImageRetryLimitExceeded.Message(image, errMsg)
 	}
+	harvesterv1beta1.ImageImported.Unknown(image)
+	harvesterv1beta1.ImageImported.Reason(image, err.Error())
+	harvesterv1beta1.ImageImported.Message(image, err.Error())
 	return image
 }
 

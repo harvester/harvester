@@ -6,6 +6,7 @@ import (
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/rancher/norman/condition"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -23,11 +24,21 @@ type backingImageHandler struct {
 	backingImageCache ctllhv1.BackingImageCache
 }
 
+func backingImageHasReadyDisk(backingImage *lhv1beta2.BackingImage) bool {
+	for _, status := range backingImage.Status.DiskFileStatusMap {
+		if status.State == lhv1beta2.BackingImageStateReady {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta2.BackingImage) (*lhv1beta2.BackingImage, error) {
 	if backingImage == nil || backingImage.DeletionTimestamp != nil {
 		return nil, nil
 	}
-	if backingImage.Annotations[util.AnnotationImageID] == "" || len(backingImage.Status.DiskFileStatusMap) != 1 {
+	// LH introduces image HA since v1.7, we should check if backingImage.Status.DiskFileStatusMap not exists yet
+	if backingImage.Annotations[util.AnnotationImageID] == "" || len(backingImage.Status.DiskFileStatusMap) < 1 {
 		return nil, nil
 	}
 	namespace, name := ref.Parse(backingImage.Annotations[util.AnnotationImageID])
@@ -56,12 +67,25 @@ func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta2.Backin
 	// for that new field.  Another, simpler, alternative would be to just
 	// drop the ImageImported.IsUnknown check entirely, and let the following
 	// loop run through on every OnChanged event.
-	if !harvesterv1beta1.ImageImported.IsUnknown(vmImage) && vmImage.Status.VirtualSize == backingImage.Status.VirtualSize {
+
+	// Found LH restruct DiskFileStatusMap in https://github.com/harvester/harvester/issues/6894,
+	// if Harvester finds the restruct, it should keep sync with LH backing image
+	if !harvesterv1beta1.ImageImported.IsUnknown(vmImage) && vmImage.Status.VirtualSize == backingImage.Status.VirtualSize &&
+		backingImageHasReadyDisk(backingImage) {
 		return nil, nil
 	}
+
+	// Todo: LH has bi HA from v1.7, Harvester should consider have the file map structure
 	toUpdate := vmImage.DeepCopy()
-	for _, status := range backingImage.Status.DiskFileStatusMap {
+	for diskUUID, status := range backingImage.Status.DiskFileStatusMap {
 		if status.State == lhv1beta2.BackingImageStateFailed {
+			if harvesterv1beta1.ImageImported.IsTrue(toUpdate) {
+				logrus.WithFields(logrus.Fields{
+					"namespace": toUpdate.Namespace,
+					"name":      toUpdate.Name,
+					"diskUUID":  diskUUID,
+				}).Info("image turns into failed from imported complete")
+			}
 			toUpdate = handleFail(toUpdate, condition.Cond(harvesterv1beta1.ImageImported), fmt.Errorf(status.Message))
 			toUpdate.Status.Progress = status.Progress
 		} else if status.State == lhv1beta2.BackingImageStateReady {
@@ -80,6 +104,9 @@ func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta2.Backin
 			toUpdate.Status.Progress = status.Progress
 			toUpdate.Status.Size = backingImage.Status.Size
 			toUpdate.Status.VirtualSize = backingImage.Status.VirtualSize
+			toUpdate.Status.Failed = 0
+			// vmi is ready if there is one ready file in backing image file map
+			break
 		} else if status.Progress != toUpdate.Status.Progress {
 			harvesterv1beta1.ImageImported.Unknown(toUpdate)
 			harvesterv1beta1.ImageImported.Reason(toUpdate, "Importing")
