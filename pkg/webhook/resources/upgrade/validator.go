@@ -20,11 +20,9 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 	kubeletconfigv1 "k8s.io/kubelet/config/v1beta1"
 	kubeletstatsv1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
-	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1beta1"
 	ctlfleetv1 "github.com/harvester/harvester/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -52,8 +50,6 @@ func NewValidator(
 	upgrades ctlharvesterv1.UpgradeCache,
 	nodes v1.NodeCache,
 	lhVolumes ctllhv1.VolumeCache,
-	clusters ctlclusterv1.ClusterCache,
-	machines ctlclusterv1.MachineCache,
 	bundleCache ctlfleetv1.BundleCache,
 	versionCache ctlharvesterv1.VersionCache,
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
@@ -66,8 +62,6 @@ func NewValidator(
 		upgrades:       upgrades,
 		nodes:          nodes,
 		lhVolumes:      lhVolumes,
-		clusters:       clusters,
-		machines:       machines,
 		bundleCache:    bundleCache,
 		versionCache:   versionCache,
 		vmBackupCache:  vmBackupCache,
@@ -84,8 +78,6 @@ type upgradeValidator struct {
 	upgrades       ctlharvesterv1.UpgradeCache
 	nodes          v1.NodeCache
 	lhVolumes      ctllhv1.VolumeCache
-	clusters       ctlclusterv1.ClusterCache
-	machines       ctlclusterv1.MachineCache
 	bundleCache    ctlfleetv1.BundleCache
 	versionCache   ctlharvesterv1.VersionCache
 	vmBackupCache  ctlharvesterv1.VirtualMachineBackupCache
@@ -158,15 +150,6 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
 		return werror.NewBadRequest("there are degraded volumes, please check all volumes are healthy")
 	}
 
-	cluster, err := v.clusters.Get(util.FleetLocalNamespaceName, util.LocalClusterName)
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("can't find %s/%s cluster, err: %+v", util.FleetLocalNamespaceName, util.LocalClusterName, err))
-	}
-
-	if cluster.Status.Phase != string(clusterv1.ClusterPhaseProvisioned) {
-		return werror.NewBadRequest(fmt.Sprintf("cluster %s/%s status is %s, please wait for it to be provisioned", util.FleetLocalNamespaceName, util.LocalClusterName, cluster.Status.Phase))
-	}
-
 	if err := v.checkVMBackups(); err != nil {
 		return err
 	}
@@ -180,10 +163,6 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
 	}
 
 	if err := v.checkNodes(version); err != nil {
-		return err
-	}
-
-	if err := v.checkMachines(); err != nil {
 		return err
 	}
 
@@ -354,21 +333,6 @@ func (v *upgradeValidator) checkDiskSpace(node *corev1.Node, minFreeDiskSpace ui
 	return nil
 }
 
-func (v *upgradeValidator) checkMachines() error {
-	machines, err := v.machines.List(util.FleetLocalNamespaceName, labels.Everything())
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("can't list machines, err: %+v", err))
-	}
-
-	for _, machine := range machines {
-		if machine.Status.GetTypedPhase() != clusterv1.MachinePhaseRunning {
-			return werror.NewInternalError(fmt.Sprintf("machine %s/%s is not running", machine.Namespace, machine.Name))
-		}
-	}
-
-	return nil
-}
-
 func (v *upgradeValidator) checkSingleReplicaVolumes() error {
 	// Upgrade should be rejected if any single-replica volume exists
 	nodes, err := v.nodes.List(labels.Everything())
@@ -437,15 +401,6 @@ func (v *upgradeValidator) Delete(_ *types.Request, oldObj runtime.Object) error
 		if skipWebhook, ok := oldUpgrade.Annotations[skipWebhookAnnotation]; ok && strings.ToLower(skipWebhook) == "true" {
 			return nil
 		}
-	}
-
-	cluster, err := v.clusters.Get(util.FleetLocalNamespaceName, util.LocalClusterName)
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("can't find %s/%s cluster, err: %+v", util.FleetLocalNamespaceName, util.LocalClusterName, err))
-	}
-
-	if cluster.Status.Phase == string(clusterv1.ClusterPhaseProvisioning) {
-		return werror.NewBadRequest(fmt.Sprintf("cluster %s/%s status is provisioning, please wait for it to be provisioned", util.FleetLocalNamespaceName, util.LocalClusterName))
 	}
 
 	// If fleet-local/local cluster.provisioning.cattle.io is upgrading, deny removing upgrade CR request.
