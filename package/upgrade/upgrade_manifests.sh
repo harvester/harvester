@@ -903,6 +903,56 @@ wait_for_fleet_agent(){
   done
 }
 
+upgrade_harvester_csi_rbac() {
+
+  # only versions before v1.4.0 that upgrading to v1.4.0 need this patch
+  if [[ ! "${UPGRADE_PREVIOUS_VERSION%%-rc*}" < "v1.4.0" ]]; then
+    echo "Only versions before v1.4.0 need this patch."
+    return
+  fi
+
+  if kubectl get clusterrole harvesterhci.io:csi-driver 2> /dev/null; then
+    echo "Upgrade ClusterRole harvesterhci.io:csi-driver ..."
+
+    cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: apiserver
+    app.kubernetes.io/name: harvester
+    app.kubernetes.io/part-of: harvester
+  name: harvesterhci.io:csi-driver
+rules:
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - harvesterhci.io
+  resources:
+  - networkfilesystems
+  - networkfilesystems/status
+  verbs:
+  - '*'
+- apiGroups:
+  - longhorn.io
+  resources:
+  - volumes
+  - volumes/status
+  verbs:
+  - get
+  - list
+EOF
+  else
+    echo "ClusterRole harvesterhci.io:csi-driver not found, skip updating."
+  fi
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -923,5 +973,6 @@ upgrade_monitoring
 upgrade_logging_event_audit
 apply_extra_manifests
 upgrade_addons
+upgrade_harvester_csi_rbac
 # wait fleet bundles upto 90 seconds
 wait_for_fleet_bundles 9
