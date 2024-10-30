@@ -7,7 +7,6 @@ import (
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/filter"
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/output"
-	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	"github.com/rancher/wrangler/v3/pkg/name"
 	appsv1 "k8s.io/api/apps/v1"
@@ -36,33 +35,72 @@ func upgradeLogReference(upgradeLog *harvesterv1.UpgradeLog) metav1.OwnerReferen
 	}
 }
 
-func prepareOperator(upgradeLog *harvesterv1.UpgradeLog) *mgmtv3.ManagedChart {
+func prepareBundleConfigMap(upgradeLog *harvesterv1.UpgradeLog) *corev1.ConfigMap {
 	operatorName := name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent)
-	return &mgmtv3.ManagedChart{
+	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
 				util.LabelUpgradeLog:          upgradeLog.Name,
 				util.LabelUpgradeLogComponent: util.UpgradeLogOperatorComponent,
 			},
 			Name:      operatorName,
-			Namespace: util.FleetLocalNamespaceName,
+			Namespace: util.DefaultFleetControllerConfigMapNamespace,
 		},
-		Spec: mgmtv3.ManagedChartSpec{
-			Chart:            util.RancherLoggingName,
-			ReleaseName:      operatorName,
-			DefaultNamespace: util.CattleLoggingSystemNamespaceName,
-			RepoName:         "harvester-charts",
-			Targets: []v1alpha1.BundleTarget{
-				{
-					ClusterName: "local",
-					ClusterSelector: &metav1.LabelSelector{
-						MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      "provisioning.cattle.io/unmanaged-system-agent",
-								Operator: metav1.LabelSelectorOpDoesNotExist,
+		Data: map[string]string{
+			"rancher-logging-fleet.yaml": fmt.Sprintf(`defaultNamespace: %s
+helm:
+  repo: http://harvester-cluster-repo.cattle-system.svc/charts
+  chart: %s
+  releaseName: %s
+targets:
+- clusterName: local
+`, util.CattleLoggingSystemNamespaceName, util.RancherLoggingName, operatorName),
+		},
+	}
+}
+
+func prepareBundleJob(upgradeLog *harvesterv1.UpgradeLog) *batchv1.Job {
+	operatorName := name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent)
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				util.LabelUpgradeLog:          upgradeLog.Name,
+				util.LabelUpgradeLogComponent: util.UpgradeLogOperatorComponent,
+			},
+			Name:      operatorName,
+			Namespace: util.DefaultFleetControllerConfigMapNamespace,
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					RestartPolicy: corev1.RestartPolicyNever,
+					Containers: []corev1.Container{
+						{
+							Name:    fmt.Sprintf("%s-fleet", util.RancherLoggingName),
+							Image:   "rancher/fleet:v0.10.2",
+							Command: []string{"/bin/sh", "-c", "fleet apply rancher-logging /app"},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "config-volume",
+									MountPath: "/app/fleet.yaml",
+									SubPath:   "rancher-logging-fleet.yaml",
+								},
 							},
 						},
 					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "config-volume",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: operatorName,
+									},
+								},
+							},
+						},
+					},
+					ServiceAccountName: "fleet-controller",
 				},
 			},
 		},
