@@ -51,7 +51,7 @@ wait_helm_release() {
   chart=$3
   app_version=$4
   status=$5
-
+  echo "wait helm release $namespace $release_name $chart $app_version $status"
   while [ true ]; do
     last_history=$(helm history $release_name -n $namespace -o yaml | yq e '.[-1]' -)
 
@@ -82,8 +82,150 @@ wait_rollout() {
   namespace=$1
   resource_type=$2
   name=$3
+  echo "wait rollout -n $namespace $resource_type $name"
 
   kubectl rollout status --watch=true -n $namespace $resource_type $name
+}
+
+wait_rollout_with_loop() {
+  local namespace=$1
+  local resource_type=$2
+  local name=$3
+  echo "wait rollout -n $namespace $resource_type $name"
+
+  # if resource is new and not created yet, need to wait, otherwise, it will return right now and no error returned
+  while [ true ]; do
+    local obj=$(kubectl get -n $namespace $resource_type $name)
+    if [ -z "$obj" ]; then
+      echo "resource was not created, continue"
+      sleep 2
+    else
+      break
+    fi
+  done
+
+  kubectl rollout status --watch=true -n $namespace $resource_type $name
+}
+
+wait_cluster_local_and_fleet() {
+  wait_cluster_local_is_imported
+  wait_fleet_agent_is_redeployed
+  wait_cluster_local_is_ready
+}
+
+debug_cluster_local_and_fleet() {
+  # for better debugging
+  echo "cluster.fleet local conditions"
+  kubectl get cluster.fleet -n fleet-local local -ojsonpath="{.status.conditions}" || echo "cluster.fleet local is not found"
+
+  echo ""
+  echo ""
+  echo "fleet-controller pods creationTimestamp"
+  kubectl -n cattle-fleet-system get pods -l "app=fleet-controller" -ojsonpath="{.items[].metadata.creationTimestamp}" || echo "fleet-controller pods are not found"
+
+  echo ""
+  echo "fleet-agent pods creationTimestamp"
+  kubectl -n cattle-fleet-local-system get pods -l "app=fleet-agent" -ojsonpath="{.items[].metadata.creationTimestamp}" || echo "fleet-agent pods are not found"
+  echo ""
+}
+
+wait_cluster_local_is_imported() {
+  echo "wait until cluster.fleet local is Imported after fleet-controller is upgraded"
+  # take a look the possible ready pods
+  kubectl -n cattle-fleet-system get pods -l "app=fleet-controller" || echo "fleet-controller pods are not found"
+  local oldstamp=$(get_fleet_controller_timestamp)
+  while [ true ]; do
+    local tempupdatetime=$(kubectl get cluster.fleet -n fleet-local local -oyaml | yq -e '.status.conditions | map(select(.type=="Imported")) | .[0] | .lastUpdateTime')
+    local tempstatus=$(kubectl get cluster.fleet -n fleet-local local -oyaml | yq -e '.status.conditions | map(select(.type=="Imported")) | .[0] | .status')
+    if [ -z "$tempupdatetime" ]; then
+      echo "cluster.fleet -n fleet-local local condition Imported is not found, continue"
+      sleep 2
+    else
+      local tempstamp=$(date -u -d "$tempupdatetime" +'%s')
+      if [ "$tempstamp" -ge "$oldstamp" ]; then
+        echo "cluster.fleet -n fleet-local local condition Imported is updated, $tempstamp >= $oldstamp, status is $tempstatus"
+        break
+      else
+        echo "cluster.fleet -n fleet-local local condition Imported is not updated, $tempstamp < $oldstamp, status is $tempstatus, continue"
+        sleep 2
+      fi
+    fi
+    unset tempupdatetime
+    unset tempstatus
+    unset tempstamp
+  done
+  echo "cluster.fleet local is Imported"
+  debug_cluster_local_and_fleet
+}
+
+wait_cluster_local_is_ready() {
+  echo "wait until cluster.fleet local is Ready after fleet-controller is upgraded"
+  while [ true ]; do
+    local tempstatus=$(kubectl get cluster.fleet -n fleet-local local -oyaml | yq -e '.status.conditions | map(select(.type=="Ready")) | .[0] | .status')
+    if [ -z "$tempstatus" ]; then
+      echo "cluster.fleet -n fleet-local local condition Ready is not found, continue"
+      sleep 2
+    else
+      if [ "$tempstatus" = "True" ]; then
+        echo "cluster.fleet -n fleet-local local condition Ready is true"
+        break
+      else
+        echo "cluster.fleet -n fleet-local local condition Ready is false, continue"
+        sleep 2
+      fi
+    fi
+    unset tempstatus
+  done
+  echo "cluster.fleet local is Ready"
+  debug_cluster_local_and_fleet
+}
+
+wait_fleet_agent_is_redeployed() {
+  echo "wait until fleet-agent is redeployed after fleet-controller is upgraded"
+  # take a look the possible ready pods
+  kubectl -n cattle-fleet-system get pods -l "app=fleet-controller" || echo "fleet-controller pods are not found"
+  local oldstamp=$(get_fleet_controller_timestamp)
+  while [ true ]; do
+    local tempcreatetime=$(kubectl -n cattle-fleet-local-system get pods -l "app=fleet-agent" -o jsonpath='{range .items[*]}{.status.containerStatuses[*].ready.true}{.metadata.creationTimestamp}{ "\n"}{end}')
+    if [ -z "$tempcreatetime" ]; then
+      echo "fleet-agent pod is not found, continue"
+      sleep 2
+    else
+      local tempstamp=$(date -u -d "$tempcreatetime" +'%s')
+      if [ "$tempstamp" -ge "$oldstamp" ]; then
+        echo "fleet-agent is new, $tempstamp >= $oldstamp"
+        break
+      else
+        echo "fleet-agent is old, $tempstamp < $oldstamp, continue"
+        sleep 2
+      fi
+    fi
+    unset tempcreatetime
+    unset tempstamp
+  done
+  echo "fleet-agent is redeployed"
+  kubectl -n cattle-fleet-local-system get pods
+  debug_cluster_local_and_fleet
+  # let new fleet-agent run for some time
+  sleep 5
+}
+
+# only pick the ready pod
+get_fleet_controller_timestamp() {
+  while [ true ]; do
+    local tempcreatetime=$(kubectl -n cattle-fleet-system get pods -l "app=fleet-controller" -o jsonpath='{range .items[*]}{.status.containerStatuses[*].ready.true}{.metadata.creationTimestamp}{ "\n"}{end}')
+    if [ -z "$tempcreatetime" ]; then
+      # did not get, continue
+      sleep 1
+    else
+      # when unlucky, there are >1 pods are ready, the return is like `2024-10-24T12:57:54Z\n2024-10-24T12:57:54Z\n2024-10-24T12:57:54Z`
+      # take the first one
+      local firsttime=${tempcreatetime:0:20}
+      local tempstamp=$(date -u -d "$firsttime" +'%s')
+      echo "$tempstamp"
+      break
+    fi
+  done
 }
 
 wait_capi_cluster() {
@@ -275,6 +417,8 @@ upgrade_rancher() {
   kubectl delete settings.management.cattle.io chart-default-branch
 
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
+  echo "Rancher patch file to be run via helm upgrade"
+  cat values.yaml
   ./helm upgrade rancher ./*.tgz --namespace cattle-system -f values.yaml --wait
 
   # Wait until new version ready
@@ -293,14 +437,20 @@ upgrade_rancher() {
   # fleet-agnet is deployed as statefulset after fleet v0.10.1
   # v0.9.2: https://github.com/rancher/fleet/blob/e75c1fb498e3137ba39c2bdc4d59c9122f5ef9c6/internal/cmd/controller/agent/manifest.go#L136-L145
   # v0.10.1: https://github.com/rancher/fleet/blob/62de718a20e1377d5a8702876077762ed9a37f27/internal/cmd/controller/agentmanagement/agent/manifest.go#L152-L161
-  wait_rollout cattle-fleet-local-system statefulset fleet-agent
+  wait_rollout_with_loop cattle-fleet-local-system statefulset fleet-agent
   echo "Wait for cluster settling down..."
   wait_capi_cluster fleet-local local $pre_generation
+
+  # Following patch is not enough
   wait_for_statefulset cattle-fleet-local-system fleet-agent
   pre_patch_timestamp=$(fleet_agent_timestamp)
   patch_fleet_cluster
   wait_for_fleet_agent $pre_patch_timestamp
-  wait_rollout cattle-fleet-local-system statefulset fleet-agent
+  wait_rollout_with_loop cattle-fleet-local-system statefulset fleet-agent
+
+  # After fleet-controller POD is restarted, it will check until the local cluster is imported, after that, redeploy the fleet-agent
+  # Need to wait until fleet-controller assumes the cluster is ready, avoid fleet-agent is accidentally re-deployed and influence related managedcharts
+  wait_cluster_local_and_fleet
 }
 
 update_local_rke_state_secret() {
@@ -864,6 +1014,7 @@ patch_fleet_cluster() {
   }
 }
 EOF
+  echo "patch cluster.fleet local to new generation $new_generation"
   kubectl patch -n fleet-local cluster.fleet local  --type=merge --patch-file $patch_manifest
   rm -f $patch_manifest
 }
@@ -895,12 +1046,14 @@ fleet_agent_timestamp(){
 wait_for_fleet_agent(){
   local timestamp=$1
   local newtimestamp=$(fleet_agent_timestamp)
+  echo "wait for fleet-agent, current timestamp $timestamp"
   while [ $timestamp -ge $newtimestamp ]
   do
     echo "waiting for fleet-agent creation timestamp to be updated"
     sleep 10
     newtimestamp=$(fleet_agent_timestamp)
   done
+  echo "end with new timestamp $newtimestamp"
 }
 
 upgrade_harvester_csi_rbac() {
