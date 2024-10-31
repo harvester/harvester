@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
@@ -19,6 +20,7 @@ import (
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -643,7 +645,16 @@ func Test_vmWithPCIDevices(t *testing.T) {
 	resp := []ListUnhealthyVM{}
 	err = json.NewDecoder(fakeHTTP.Body).Decode(&resp)
 	assert.NoError(err, "expected no error parsing json response")
-	assert.Len(resp[0].VMs, 1, "expected to find two vms")
+	// return message is: [{"message":"The following VMs cannot be migrated due to NodeSchedulingRequirementsNotMet condition","vms":["default/healthy-vm","default/pcidevice-vm"]},{"message":"The following VMs cannot be migrated due to HostDeviceNotLiveMigratable condition","vms":["default/pcidevice-vm"]}]
+	// note: the list sequence is random, as it was converted from a map
+	for i := range resp {
+		if strings.Contains(resp[i].Message, kubevirtv1.VirtualMachineInstanceReasonHostDeviceNotMigratable) {
+			assert.Len(resp[i].VMs, 1, "expected to find 1 vms")
+		}
+		if strings.Contains(resp[i].Message, util.NodeSchedulingRequirementsNotMetKey) {
+			assert.Len(resp[i].VMs, 2, "expected to find 2 vms")
+		}
+	}
 }
 
 func Test_vmMigrationPossible(t *testing.T) {

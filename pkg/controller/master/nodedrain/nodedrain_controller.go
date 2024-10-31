@@ -26,14 +26,10 @@ import (
 )
 
 const (
-	nodeDrainController                 = "node-drain-controller"
-	defaultWorkloadType                 = "VirtualMachineInstance"
-	defaultSingleCPCount                = 1
-	defaultHACPCount                    = 3
-	LastHealthyReplicaKey               = "LastHealthyReplica"
-	ContainerDiskOrCDRomKey             = "CDRomOrContainerDiskPresent"
-	NodeSchedulingRequirementsNotMetKey = "NodeSchedulingRequirementsNotMet"
-	MaintainModeStrategyKey             = "MaintainModeStrategy"
+	nodeDrainController  = "node-drain-controller"
+	defaultWorkloadType  = "VirtualMachineInstance"
+	defaultSingleCPCount = 1
+	defaultHACPCount     = 3
 )
 
 // ControllerHandler to drain nodes.
@@ -157,7 +153,7 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 				}
 			}
 
-			shutdownVMs[MaintainModeStrategyKey] = maintainModeStrategyVMs
+			shutdownVMs[util.MaintainModeStrategyKey] = maintainModeStrategyVMs
 		}
 
 		// Shutdown ALL VMs on that node forcibly? This is activated by a
@@ -334,7 +330,7 @@ func (ndc *ControllerHandler) FindNonMigratableVMS(node *corev1.Node) (map[strin
 	}
 
 	if len(impactedVMDetails) > 0 {
-		result[LastHealthyReplicaKey] = impactedVMDetails
+		result[util.LastHealthyReplicaKey] = impactedVMDetails
 	}
 
 	// list all VMI's currently scheduled on this node
@@ -350,7 +346,7 @@ func (ndc *ControllerHandler) FindNonMigratableVMS(node *corev1.Node) (map[strin
 
 	cdromOrContainerDiskVMs, err := findVMSwithCDROMOrContainerDisk(vmiList)
 	if len(cdromOrContainerDiskVMs) > 0 {
-		result[ContainerDiskOrCDRomKey] = cdromOrContainerDiskVMs
+		result[util.ContainerDiskOrCDRomKey] = cdromOrContainerDiskVMs
 	}
 
 	for k, v := range IdentifyNonMigratableVMS(vmiList) {
@@ -363,7 +359,7 @@ func (ndc *ControllerHandler) FindNonMigratableVMS(node *corev1.Node) (map[strin
 	}
 
 	if len(unschedulableVMs) > 0 {
-		result[NodeSchedulingRequirementsNotMetKey] = unschedulableVMs
+		result[util.NodeSchedulingRequirementsNotMetKey] = unschedulableVMs
 	}
 
 	return result, nil
