@@ -13,7 +13,7 @@ dependencies:
   version: 0.1.0
 - name: harvester-node-disk-manager
   repository: https://charts.harvesterhci.io
-  version: 0.7.5
+  version: 0.7.7
 - name: csi-snapshotter
   repository: file://dependency_charts/csi-snapshotter
   version: 0.2.0
@@ -35,5 +35,5 @@ dependencies:
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
   version: 0.2.0
-digest: sha256:25417fcef799dbe7fb5c1553c1d358b29854d8a7a73f40c53cef408ecd213605
-generated: "2024-10-21T11:11:12.897894+08:00"
+digest: sha256:29195bfeab365b94ebf38b193026ccebde3242236e111d4fef628a51898d7f74
+generated: "2024-10-31T23:11:46.376659421+08:00"
