@@ -158,4 +158,10 @@ const (
 	// copied from helm pkg/action/validate.go
 	HelmReleaseNameAnnotation      = "meta.helm.sh/release-name"
 	HelmReleaseNamespaceAnnotation = "meta.helm.sh/release-namespace"
+
+	// moved from nodedrain_controller for public usage
+	ContainerDiskOrCDRomKey             = "CDRomOrContainerDiskPresent"
+	NodeSchedulingRequirementsNotMetKey = "NodeSchedulingRequirementsNotMet"
+	MaintainModeStrategyKey             = "MaintainModeStrategy"
+	LastHealthyReplicaKey               = "LastHealthyReplica"
 )
