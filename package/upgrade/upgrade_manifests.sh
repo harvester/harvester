@@ -120,11 +120,13 @@ debug_cluster_local_and_fleet() {
 
   echo ""
   echo ""
-  echo "fleet-controller pods creationTimestamp"
+  echo "fleet-controller pods and creationTimestamp"
+  kubectl -n cattle-fleet-system get pods -l "app=fleet-controller" -owide || echo "fleet-controller pods are not found"
   kubectl -n cattle-fleet-system get pods -l "app=fleet-controller" -ojsonpath="{.items[].metadata.creationTimestamp}" || echo "fleet-controller pods are not found"
 
   echo ""
-  echo "fleet-agent pods creationTimestamp"
+  echo "fleet-agent pods and creationTimestamp"
+  kubectl -n cattle-fleet-local-system get pods -l "app=fleet-agent" -owide || echo "fleet-agent pods are not found"
   kubectl -n cattle-fleet-local-system get pods -l "app=fleet-agent" -ojsonpath="{.items[].metadata.creationTimestamp}" || echo "fleet-agent pods are not found"
   echo ""
 }
@@ -158,25 +160,30 @@ wait_cluster_local_is_imported() {
   debug_cluster_local_and_fleet
 }
 
+# wait at most 60 seconds
 wait_cluster_local_is_ready() {
   echo "wait until cluster.fleet local is Ready after fleet-controller is upgraded"
-  while [ true ]; do
+  local i=0
+  while [[ "$i" -lt 30 ]]; do
     local tempstatus=$(kubectl get cluster.fleet -n fleet-local local -oyaml | yq -e '.status.conditions | map(select(.type=="Ready")) | .[0] | .status')
     if [ -z "$tempstatus" ]; then
       echo "cluster.fleet -n fleet-local local condition Ready is not found, continue"
       sleep 2
+      i=$((i + 1))
     else
       if [ "$tempstatus" = "True" ]; then
         echo "cluster.fleet -n fleet-local local condition Ready is true"
-        break
+        debug_cluster_local_and_fleet
+        return 0
       else
         echo "cluster.fleet -n fleet-local local condition Ready is false, continue"
         sleep 2
+        i=$((i + 1))
       fi
     fi
     unset tempstatus
   done
-  echo "cluster.fleet local is Ready"
+  echo "cluster.fleet local is not Ready, skip waiting"
   debug_cluster_local_and_fleet
 }
 
@@ -423,7 +430,7 @@ upgrade_rancher() {
 
   # Wait until new version ready
   until [ "$(get_running_rancher_version)" = "$REPO_RANCHER_VERSION" ]; do
-    echo "Wait for Rancher to be upgraded..."
+    echo "Wait for Rancher to be upgraded to $REPO_RANCHER_VERSION..."
     sleep 5
   done
 
@@ -431,6 +438,14 @@ upgrade_rancher() {
   wait_helm_release cattle-fleet-system fleet fleet-$REPO_FLEET_CHART_VERSION $REPO_FLEET_APP_VERSION deployed
   wait_helm_release cattle-fleet-system fleet-crd fleet-crd-$REPO_FLEET_CRD_CHART_VERSION $REPO_FLEET_CRD_APP_VERSION deployed
   wait_helm_release cattle-system rancher-webhook rancher-webhook-$REPO_RANCHER_WEBHOOK_CHART_VERSION $REPO_RANCHER_WEBHOOK_APP_VERSION deployed
+
+  # wait Rancher depoyment is ready
+  echo "Wait for Rancher deployment rollout..."
+  wait_rollout cattle-system deployment rancher
+  echo "Rancher deployment and pods"
+  kubectl get -n cattle-system deployment rancher -owide
+  kubectl get pods -n cattle-system -l "app=rancher" -owide
+
   echo "Wait for Rancher dependencies rollout..."
   wait_rollout cattle-fleet-system deployment fleet-controller
   wait_rollout cattle-system deployment rancher-webhook
