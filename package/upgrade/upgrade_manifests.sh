@@ -235,6 +235,91 @@ get_fleet_controller_timestamp() {
   done
 }
 
+# Helm stores history to secret, the bigger .spec.maxHistory avoids secret deletion when upgrading
+patch_managedchart_max_history() {
+  local chart=$1
+  local maxHistory=$2
+  local namespace="fleet-local"
+
+  if [[ -z $chart ]]; then
+    echo "no target managedchart, skip patch"
+    return 0
+  fi;
+
+  if [[ -z $maxHistory ]]; then
+    echo "no maxHistory, skip patch"
+    return 0
+  fi;
+
+  echo "patch managedchart $chart maxHistory to $maxHistory"
+  echo "the curent .spec.maxHistory"
+  kubectl get managedchart -n $namespace $chart -ojsonpath="{.spec.maxHistory}" || echo "managedchart $chart not found"
+
+cat > mcc-harvester-patch.yaml << EOF
+spec:
+  maxHistory: $maxHistory
+EOF
+  echo ""
+  echo "the patch file"
+  cat ./mcc-harvester-patch.yaml
+  kubectl patch managedchart -n $namespace $chart --patch-file ./mcc-harvester-patch.yaml --type merge
+  echo "the patched .spec.maxHistory"
+  kubectl get managedchart -n $namespace $chart -ojsonpath="{.spec.maxHistory}" || echo "managedchart $chart not found"
+  echo ""
+}
+
+wait_managedchart_ready() {
+  local chart=$1
+  if [[ -z $chart ]]; then
+    echo "no target managedchart, skip wait"
+  fi;
+
+  # wait at most 60 seconds
+  echo "wait managedchart $chart to be ready"
+  local i=0
+  while [[ "$i" -lt 30 ]]; do
+    local ready=$(kubectl get managedchart -n fleet-local $chart -ojsonpath="{.status.summary.ready}")
+    if [ -z "$ready" ]; then
+      echo "chart is not found, continue"
+      sleep 2
+      i=$((i + 1))
+    else
+      if [ "$ready" = "0" ]; then
+        echo " ready is 0, continue"
+        sleep 2
+        i=$((i + 1))
+      else
+        echo " ready is $ready"
+        break
+      fi
+    fi
+    unset ready
+  done
+}
+
+patch_harvester_managedchart_max_history_with_wait() {
+  local maxHistory=$1
+  if [[ -z $maxHistory ]]; then
+    echo "maxHistory is not assigned, fallback to default value 10"
+    maxHistory=10
+  fi;
+  patch_managedchart_max_history harvester-crd $maxHistory
+  patch_managedchart_max_history harvester $maxHistory
+  # let fleet sync the change of .spec.maxHistory
+  sleep 5
+  wait_managedchart_ready harvester-crd
+  wait_managedchart_ready harvester
+}
+
+patch_harvester_managedchart_max_history_to_default_without_wait() {
+  local maxHistory=10
+  patch_managedchart_max_history harvester-crd $maxHistory
+  patch_managedchart_max_history harvester $maxHistory
+  # let fleet sync the change of .spec.maxHistory
+  sleep 5
+  echo "do not wait for managedchart"
+}
+
 wait_capi_cluster() {
   # Wait for cluster to settle down
   namespace=$1
@@ -745,6 +830,9 @@ EOF
   wait_managed_chart fleet-local harvester $REPO_HARVESTER_CHART_VERSION $pre_generation_harvester ready
   wait_managed_chart fleet-local harvester-crd $REPO_HARVESTER_CHART_VERSION $pre_generation_harvester_crd ready
 
+  # harvester is ready, reset the maxHistory to default value, helm is safe to delete the release history stored in secret
+  patch_harvester_managedchart_max_history_to_default_without_wait
+
   wait_kubevirt harvester-system kubevirt $REPO_KUBEVIRT_VERSION
 }
 
@@ -868,6 +956,9 @@ EOF
 }
 
 pause_all_charts() {
+  # increase the maxHistory to 30 for harvester-crd and harvester when upgrade
+  patch_harvester_managedchart_max_history_with_wait 30
+
   local charts="harvester harvester-crd rancher-monitoring-crd rancher-logging-crd"
   for chart in $charts; do
     pause_managed_chart $chart "true"
