@@ -363,9 +363,9 @@ harvester-network-controller:
       tag: master-head
 
 harvester-networkfs-manager:
-  ## Specify to install harvester node disk manager,
-  ## defaults to "false".
-  enabled: false
+  ## Specify to install harvester networkfs manager,
+  ## defaults to "true".
+  enabled: true
 
   image:
     repository: rancher/harvester-networkfs-manager
