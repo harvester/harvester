@@ -108,6 +108,7 @@ wait_rollout_with_loop() {
 }
 
 wait_cluster_local_and_fleet() {
+  wait_new_fileds_in_cluster_fleet_crd
   wait_cluster_local_is_imported
   wait_fleet_agent_is_redeployed
   wait_cluster_local_is_ready
@@ -318,6 +319,24 @@ patch_harvester_managedchart_max_history_to_default_without_wait() {
   # let fleet sync the change of .spec.maxHistory
   sleep 5
   echo "do not wait for managedchart"
+}
+
+wait_new_fileds_in_cluster_fleet_crd() {
+  while [ true ]; do
+    local crd=$(kubectl get crd clusters.fleet.cattle.io -o json)
+    local newfield="agentTLSMode"
+
+    if echo "$crd" | jq -e ".spec.versions[].schema.openAPIV3Schema.properties.status.properties | has(\"$newfield\")" > /dev/null; then
+      echo "new field agentTLSMode is found in clusters.fleet.cattle.io crd"
+      break
+    else
+      echo "wait for new field agentTLSMode in clusters.fleet.cattle.io crd"
+      sleep 2
+    fi
+
+    unset crd
+    unset newfield
+  done
 }
 
 wait_capi_cluster() {
