@@ -50,13 +50,8 @@ func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta2.Backin
 	// been imported, and we think we know everything about it, i.e. we've
 	// now been through a series of progress updates during image download,
 	// and those are finally done, so let's not worry about further updates.
-	// The problem with this logic is that when we add new fields (e.g.
-	// VirtualSize), existing images won't pick up those newly added fields
-	// if we return here immediately.  So, now there's an additional check
-	// for that new field.  Another, simpler, alternative would be to just
-	// drop the ImageImported.IsUnknown check entirely, and let the following
-	// loop run through on every OnChanged event.
-	if !harvesterv1beta1.ImageImported.IsUnknown(vmImage) && vmImage.Status.VirtualSize == backingImage.Status.VirtualSize {
+	// TODO: Improve image to keep sync with LH backing image #6936
+	if !harvesterv1beta1.ImageImported.IsUnknown(vmImage) {
 		return nil, nil
 	}
 	toUpdate := vmImage.DeepCopy()
@@ -65,9 +60,6 @@ func (h *backingImageHandler) OnChanged(_ string, backingImage *lhv1beta2.Backin
 			toUpdate = handleFail(toUpdate, condition.Cond(harvesterv1beta1.ImageImported), fmt.Errorf(status.Message))
 			toUpdate.Status.Progress = status.Progress
 		} else if status.State == lhv1beta2.BackingImageStateReady {
-			// We can't set ImageImported to True until we know the VirtualSize,
-			// which will happen only after stats.State == lhv1beta2.BackingImageStateReady
-			// (it's not there yet for lhv1beta2.BackingImageStateReadyForTransfer)
 			harvesterv1beta1.ImageImported.True(toUpdate)
 			harvesterv1beta1.ImageImported.Reason(toUpdate, "Imported")
 			harvesterv1beta1.ImageImported.Message(toUpdate, status.Message)
