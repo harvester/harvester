@@ -109,15 +109,17 @@ wait_rollout_with_loop() {
 
 wait_cluster_local_and_fleet() {
   wait_new_fileds_in_cluster_fleet_crd
+  wait_new_fileds_in_fleet_controller_configmap
   wait_cluster_local_is_imported
   wait_fleet_agent_is_redeployed
   wait_cluster_local_is_ready
+  wait_apiServerURL_in_fleet_controller_configmap
 }
 
 debug_cluster_local_and_fleet() {
   # for better debugging
-  echo "cluster.fleet local conditions"
-  kubectl get cluster.fleet -n fleet-local local -ojsonpath="{.status.conditions}" || echo "cluster.fleet local is not found"
+  echo "cluster.fleet local status"
+  kubectl get cluster.fleet -n fleet-local local -ojsonpath="{.status}" || echo "cluster.fleet local is not found"
 
   echo ""
   echo ""
@@ -336,6 +338,42 @@ wait_new_fileds_in_cluster_fleet_crd() {
 
     unset crd
     unset newfield
+  done
+}
+
+wait_new_fileds_in_fleet_controller_configmap() {
+  while [ true ]; do
+    local configmap=$(kubectl get configmap fleet-controller -n cattle-fleet-system -ojsonpath="{.data.config}")
+    local newfield="agentTLSMode"
+
+    if echo "$configmap" | yq -e ". | has(\"$newfield\")" > /dev/null; then
+      echo "new field agentTLSMode is found in cattle-fleet-system/fleet-controller configmap"
+      break
+    else
+      echo "wait for new field agentTLSMode in cattle-fleet-system/fleet-controller configmap"
+      sleep 2
+    fi
+
+    unset configmap
+    unset newfield
+  done
+}
+
+wait_apiServerURL_in_fleet_controller_configmap() {
+  while [ true ]; do
+    local configmap=$(kubectl get configmap fleet-controller -n cattle-fleet-system -ojsonpath="{.data.config}")
+    local apiServerField="apiServerURL"
+
+    if [ -n "$(echo "$configmap" | yq -e ".${apiServerField}")" ]; then
+      echo "apiServerURL field is not empty in cattle-fleet-system/fleet-controller configmap"
+      break
+    else
+      echo "apiServerURL field is empty in cattle-fleet-system/fleet-controller configmap"
+      sleep 2
+    fi
+
+    unset configmap
+    unset apiServerField
   done
 }
 
