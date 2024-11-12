@@ -451,7 +451,7 @@ wait_longhorn_manager() {
 
 wait_longhorn_instance_manager_aio() {
   node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
-  if [ $node_count -le 2 ]; then
+  if [ $node_count -lt 2 ]; then
     echo "Skip waiting instance-manager (aio), node count: $node_count"
     return
   fi
@@ -468,7 +468,7 @@ wait_longhorn_instance_manager_aio() {
   im_image_checksum="imi-${im_image_checksum:0:8}"
 
   # Wait for instance-manager (aio) pods upgraded to new version first.
-  kubectl get nodes -o json | jq -r '.items[].metadata.name' | while read -r node; do
+  kubectl get nodes.longhorn.io -n longhorn-system -o json | jq -r '.items[].metadata.name' | while read -r node; do
     echo "Checking instance-manager (aio) pod on node $node..."
     while [ true ]; do
       im_count=$(kubectl get instancemanager.longhorn.io --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio,longhorn.io/instance-manager-image=$im_image_checksum -n longhorn-system -o json | jq -r '.items | length')
