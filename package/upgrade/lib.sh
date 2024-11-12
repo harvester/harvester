@@ -16,7 +16,7 @@ download_file()
   echo "Downloading the file from \"$url\" to \"$output\"..."
   local i=0
   while [[ "$i" -lt 100 ]]; do
-    curl -sSfL "$url" -o "$output" && break
+    curl -sSfL "$url" -o "$output" --create-dirs && break
     echo "Failed to download the requested file from \"$url\" to \"$output\" with error code: $?, retrying ($i)..."
     sleep 10
     i=$((i + 1))
