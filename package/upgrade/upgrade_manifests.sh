@@ -110,10 +110,10 @@ wait_rollout_with_loop() {
 wait_cluster_local_and_fleet() {
   wait_new_fileds_in_cluster_fleet_crd
   wait_new_fileds_in_fleet_controller_configmap
+  wait_apiServerURL_in_fleet_controller_configmap
   wait_cluster_local_is_imported
   wait_fleet_agent_is_redeployed
   wait_cluster_local_is_ready
-  wait_apiServerURL_in_fleet_controller_configmap
 }
 
 debug_cluster_local_and_fleet() {

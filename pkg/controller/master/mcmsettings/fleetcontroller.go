@@ -36,7 +36,7 @@ func (h *mcmSettingsHandler) watchInternalEndpointSettings(_ string, setting *mg
 		return setting, nil
 	}
 
-	logrus.Debugf("reconcilling fleet-controller config for setting %s", setting.Name)
+	logrus.Infof("reconcilling fleet-controller config for setting %s", setting.Name)
 
 	fleetControllerConfig, err := h.configMapCache.Get(util.DefaultFleetControllerConfigMapNamespace, util.DefaultFleetControllerConfigMapName)
 	if err != nil {
