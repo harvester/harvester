@@ -4,6 +4,7 @@ Harvester
 [![Go Report Card](https://goreportcard.com/badge/github.com/harvester/harvester)](https://goreportcard.com/report/github.com/harvester/harvester)
 [![Releases](https://img.shields.io/github/release/harvester/harvester.svg)](https://github.com/harvester/harvester/releases)
 [![Slack](https://img.shields.io/badge/slack-join-brightgreen)](https://slack.rancher.io/)
+[![Gurubase](https://img.shields.io/badge/Gurubase-Ask%20Harvester%20Guru-006BFF)](https://gurubase.io/g/harvester)
 
 [Harvester](https://harvesterhci.io/) is a modern, open, interoperable, [hyperconverged infrastructure (HCI)](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) solution built on Kubernetes. 
 It is an open-source alternative designed for operators seeking a [cloud-native](https://about.gitlab.com/topics/cloud-native/) HCI solution. Harvester runs on bare metal servers and provides integrated virtualization and distributed storage capabilities. 
