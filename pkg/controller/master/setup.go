@@ -36,6 +36,7 @@ var registerFuncs = []registerFunc{
 	node.RemoveRegister,
 	node.VolumeDetachRegister,
 	node.CPUManagerRegister,
+	node.SystemAgentRegister,
 	machine.ControlPlaneRegister,
 	setting.Register,
 	template.Register,

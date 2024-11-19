@@ -27,6 +27,9 @@ const (
 	LabelNodeNameKey                 = "kubevirt.io/nodeName"
 	RotateRKE2CertsSecretName        = "harvester-rotate-rke2-certs"
 	RotateRKE2CertsLastTimestampName = "rotate-rke2-certs-last-timestamp"
+	SystemAgentPlanSecretName        = "harvester-system-agent-plan"
+	SystemAgentPlanServerPlanName    = "server.plan"
+	SystemAgentPlanAgentPlanName     = "agent.plan"
 
 	AnnotationStorageClassName          = prefix + "/storageClassName"
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
