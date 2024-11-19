@@ -110,10 +110,11 @@ wait_rollout_with_loop() {
 wait_cluster_local_and_fleet() {
   wait_new_fileds_in_cluster_fleet_crd
   wait_new_fileds_in_fleet_controller_configmap
+  restore_fleet_controller_configmap
   wait_cluster_local_is_imported
   wait_fleet_agent_is_redeployed
   wait_cluster_local_is_ready
-  wait_apiServerURL_in_fleet_controller_configmap
+  #wait_apiServerURL_in_fleet_controller_configmap
 }
 
 debug_cluster_local_and_fleet() {
@@ -359,6 +360,100 @@ wait_new_fileds_in_fleet_controller_configmap() {
   done
 }
 
+# refer issue https://github.com/harvester/harvester/issues/6851
+save_fleet_controller_configmap()
+{
+  local name=fleet-controller
+  local namespace=cattle-fleet-system
+  local valuesfile="configmap-values-temp.yaml"
+  rm -f $valuesfile
+  local EXIT_CODE=0
+  kubectl get configmap -n $namespace $name -ojsonpath="{.data.config}" > $valuesfile || EXIT_CODE=1
+
+  if [[ "$EXIT_CODE" != 0 ]]; then
+    echo "config field on configmap $name -n $namespace is empty, skip saving"
+    # unset var
+    FLEET_APISERVERURL=""
+    FLEET_APISERVERCA=""
+    return 0
+  fi
+
+  # local var will escape yq filed none-exsting error
+  local apiServerURL=$(yq -e '.apiServerURL' $valuesfile)
+  local apiServerCA=$(yq -e '.apiServerCA' $valuesfile)
+  FLEET_APISERVERURL=$apiServerURL
+  FLEET_APISERVERCA=$apiServerCA
+  echo "saved apiServerURL $FLEET_APISERVERURL"
+  echo "saved apiServerCA $FLEET_APISERVERCA"
+  rm -f $valuesfile
+}
+
+# refer issue https://github.com/harvester/harvester/issues/6851
+restore_fleet_controller_configmap()
+{
+  if [[ -z "$FLEET_APISERVERURL" && -z "$FLEET_APISERVERCA" ]]; then
+    echo "both apiServerURL and apiServerCA saved values are empty, skip restoring"
+    return 0
+  fi
+
+  local name=fleet-controller
+  local namespace=cattle-fleet-system
+  local valuesfile="configmap-values-temp.yaml"
+  rm -f $valuesfile
+  local EXIT_CODE=0
+  kubectl get configmap -n $namespace $name -ojsonpath="{.data.config}" > $valuesfile || EXIT_CODE=1
+
+  if [[ "$EXIT_CODE" != 0 ]]; then
+    echo "config field on configmap $name -n $namespace is empty or configmap is not existing, skip restoring"
+    return 0
+  fi
+
+  # local var will escape yq filed none-exsting error
+  local apiServerURL=$(yq -e '.apiServerURL' $valuesfile)
+  local apiServerCA=$(yq -e '.apiServerCA' $valuesfile)
+
+  local patchURL=false
+  local patchCA=false
+  if [[ ! -z "$FLEET_APISERVERURL" && "$apiServerURL" != "$FLEET_APISERVERURL" ]]; then
+    patchURL=true
+    echo "restore apiServerURL from $apiServerURL to $FLEET_APISERVERURL"
+    PATCH_URL=$FLEET_APISERVERURL yq e '.apiServerURL = strenv(PATCH_URL)' -i $valuesfile
+  fi
+
+  if [[ ! -z "$FLEET_APISERVERCA" && "$apiServerCA" != "$FLEET_APISERVERCA" ]]; then
+    patchCA=true
+    echo "restore apiServerCA from $apiServerCA to $FLEET_APISERVERCA"
+    PATCH_CA=$FLEET_APISERVERCA yq e '.apiServerCA = strenv(PATCH_CA)' -i $valuesfile
+  fi
+
+  if [[ "$patchURL" == false &&  "$patchCA" == false ]]; then
+    echo "apiServerURL $apiServerURL and apiServerCA $apiServerCA have already been same with saved values"
+    return 0
+  fi
+
+  # add 4 spaces to each line
+  sed -i -e 's/^/    /' $valuesfile
+  local newvalues=$(<$valuesfile)
+  rm -f $valuesfile
+
+  local patchfile="configmap-patch-temp.yaml"
+  rm -f $patchfile
+
+cat > $patchfile <<EOF
+data:
+  config: |
+$newvalues
+EOF
+
+  echo "the configmap will be restored to"
+  cat ./$patchfile
+
+  kubectl patch configmap -n $namespace $name --patch-file ./$patchfile --type merge
+  rm -f ./$patchfile
+  echo "sleep 20s for fleet-controller to work on new configmap"
+  sleep 20
+}
+
 wait_apiServerURL_in_fleet_controller_configmap() {
   while [ true ]; do
     local configmap=$(kubectl get configmap fleet-controller -n cattle-fleet-system -ojsonpath="{.data.config}")
@@ -564,6 +659,8 @@ upgrade_rancher() {
   kubectl delete clusterrepos.catalog.cattle.io rancher-rke2-charts
   kubectl delete clusterrepos.catalog.cattle.io rancher-partner-charts
   kubectl delete settings.management.cattle.io chart-default-branch
+
+  save_fleet_controller_configmap
 
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
   echo "Rancher patch file to be run via helm upgrade"
