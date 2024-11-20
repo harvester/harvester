@@ -178,10 +178,6 @@ var _ = SynchronizedBeforeSuite(
 	})
 
 var _ = SynchronizedAfterSuite(func() {}, func() {
-	By("tearing down test cluster")
-	err := cluster.Stop(GinkgoWriter)
-	MustNotError(err)
-
 	By("tearing down harvester server")
 	if testCtxCancel != nil {
 		testCtxCancel()

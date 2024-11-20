@@ -56,7 +56,7 @@ RUN GO111MODULE=on go install github.com/onsi/ginkgo/v2/ginkgo@v2.21.0
 RUN  GO111MODULE=on go install k8s.io/code-generator/cmd/openapi-gen@v0.23.7
 
 # install kind
-RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.14.0/kind-linux-amd64 && chmod +x /usr/bin/kind
+RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.25.0/kind-linux-amd64 && chmod +x /usr/bin/kind
 
 # install codecov
 RUN curl -Lo /usr/bin/codecov https://uploader.codecov.io/latest/linux/codecov && chmod +x /usr/bin/codecov

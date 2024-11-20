@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -169,11 +170,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 })
 
 var _ = ginkgo.SynchronizedAfterSuite(func() {}, func() {
-
 	testCtx.Done()
-	ginkgo.By("tearing down test cluster")
-	err := cluster.Stop(ginkgo.GinkgoWriter)
-	dsl.MustNotError(err)
 
 	ginkgo.By("tearing down harvester server")
 	if testCtxCancel != nil {
@@ -204,6 +201,9 @@ func applyObj(obj []apiextensionsv1.CustomResourceDefinition) error {
 
 	for i := range obj {
 		if _, err := apiClient.ApiextensionsV1().CustomResourceDefinitions().Create(testCtx, &obj[i], metav1.CreateOptions{}); err != nil {
+			if strings.Contains(err.Error(), "already exists") {
+				continue
+			}
 			return err
 		}
 	}

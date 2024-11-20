@@ -45,7 +45,7 @@ var _ = ginkgo.Describe("verify helm chart is create and addon gets to desired s
 				},
 			},
 			Spec: harvesterv1.AddonSpec{
-				Chart:   "vm-import-controller",
+				Chart:   "vm-import-controller-case1",
 				Repo:    "http://harvester-cluster-repo.cattle-system.svc",
 				Version: "v0.1.0",
 				Enabled: true,
@@ -227,7 +227,7 @@ var _ = ginkgo.Describe("addon and helm chart deletion", func() {
 			},
 		},
 		Spec: harvesterv1.AddonSpec{
-			Chart:   "vm-import-controller",
+			Chart:   "vm-import-controller-case2",
 			Repo:    "http://harvester-cluster-repo.cattle-system.svc",
 			Version: "v0.1.0",
 			Enabled: true,
@@ -320,7 +320,7 @@ var _ = ginkgo.Describe("verify helm chart redeploy", func() {
 			},
 		},
 		Spec: harvesterv1.AddonSpec{
-			Chart:   "vm-import-controller",
+			Chart:   "vm-import-controller-case3",
 			Repo:    "http://harvester-cluster-repo.cattle-system.svc",
 			Version: "v0.1.0",
 			Enabled: true,
@@ -427,7 +427,7 @@ var _ = ginkgo.Describe("perform addon upgrade", func() {
 			},
 		},
 		Spec: harvesterv1.AddonSpec{
-			Chart:   "vm-import-controller",
+			Chart:   "vm-import-controller-case4",
 			Repo:    "http://harvester-cluster-repo.cattle-system.svc",
 			Version: "v0.1.0",
 			Enabled: true,
@@ -487,7 +487,6 @@ var _ = ginkgo.Describe("perform addon upgrade", func() {
 					return err
 				}
 				aObj.Spec.Version = "0.2.0"
-				aObj.Spec.Chart = "vm-import-controller-2"
 				aObj.Spec.Repo = "http://harvester-cluster-repo.cattle-system.svc.cluster.local"
 				_, err = addonController.Update(aObj)
 				return err
@@ -548,7 +547,7 @@ var _ = ginkgo.Describe("verify helm chart is create and addon gets to failed st
 				},
 			},
 			Spec: harvesterv1.AddonSpec{
-				Chart:   "vm-import-controller",
+				Chart:   "vm-import-controller-case5",
 				Repo:    "http://harvester-cluster-repo.cattle-system.svc",
 				Version: "v0.1.0",
 				Enabled: true,
@@ -643,7 +642,7 @@ var _ = ginkgo.Describe("enable and disable successful addon", func() {
 				},
 			},
 			Spec: harvesterv1.AddonSpec{
-				Chart:   "vm-import-controller",
+				Chart:   "vm-import-controller-case6",
 				Repo:    "http://harvester-cluster-repo.cattle-system.svc",
 				Version: "v0.1.0",
 				Enabled: true,
@@ -749,7 +748,7 @@ var _ = ginkgo.Describe("enable and disable failed addon", func() {
 				},
 			},
 			Spec: harvesterv1.AddonSpec{
-				Chart:   "vm-import-controller",
+				Chart:   "vm-import-controller-case7",
 				Repo:    "http://harvester-cluster-repo.cattle-system.svc",
 				Version: "v0.0.1", // non-existing version, make sure addon will fail
 				Enabled: true,
@@ -867,7 +866,7 @@ var _ = ginkgo.Describe("test addon upgrade fail", func() {
 			},
 		},
 		Spec: harvesterv1.AddonSpec{
-			Chart:   "vm-import-controller",
+			Chart:   "vm-import-controller-case8",
 			Repo:    "http://harvester-cluster-repo.cattle-system.svc",
 			Version: "v0.1.0",
 			Enabled: true,
@@ -941,14 +940,13 @@ var _ = ginkgo.Describe("test addon upgrade fail", func() {
 			}, "30s", "5s").ShouldNot(gomega.HaveOccurred())
 		})
 
-		ginkgo.By("update addon", func() {
+		ginkgo.By("update addon version", func() {
 			gomega.Eventually(func() error {
 				aObj, err := addonController.Get(a.Namespace, a.Name, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 				aObj.Spec.Version = "0.2.0"
-				aObj.Spec.Chart = "vm-import-controller-2"
 				aObj.Spec.Repo = "http://harvester-cluster-repo.cattle-system.svc.cluster.local"
 				_, err = addonController.Update(aObj)
 				return err
