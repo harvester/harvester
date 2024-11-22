@@ -114,7 +114,6 @@ wait_cluster_local_and_fleet() {
   wait_cluster_local_is_imported
   wait_fleet_agent_is_redeployed
   wait_cluster_local_is_ready
-  #wait_apiServerURL_in_fleet_controller_configmap
 }
 
 debug_cluster_local_and_fleet() {
@@ -322,7 +321,7 @@ save_fleet_controller_configmap()
     return 0
   fi
 
-  # local var will escape yq filed none-exsting error
+  # local var will escape yq field none-exsting error
   local apiServerURL=$(yq -e '.apiServerURL' $valuesfile)
   local apiServerCA=$(yq -e '.apiServerCA' $valuesfile)
   FLEET_APISERVERURL=$apiServerURL
@@ -352,10 +351,9 @@ restore_fleet_controller_configmap()
     return 0
   fi
 
-  # local var will escape yq filed none-exsting error
+  # local var will escape yq field none-exsting error
   local apiServerURL=$(yq -e '.apiServerURL' $valuesfile)
   local apiServerCA=$(yq -e '.apiServerCA' $valuesfile)
-
   local patchURL=false
   local patchCA=false
   if [[ ! -z "$FLEET_APISERVERURL" && "$apiServerURL" != "$FLEET_APISERVERURL" ]]; then
@@ -396,24 +394,6 @@ EOF
   rm -f ./$patchfile
   echo "sleep 20s for fleet-controller to work on new configmap"
   sleep 20
-}
-
-wait_apiServerURL_in_fleet_controller_configmap() {
-  while [ true ]; do
-    local configmap=$(kubectl get configmap fleet-controller -n cattle-fleet-system -ojsonpath="{.data.config}")
-    local apiServerField="apiServerURL"
-
-    if [ -n "$(echo "$configmap" | yq -e ".${apiServerField}")" ]; then
-      echo "apiServerURL field is not empty in cattle-fleet-system/fleet-controller configmap"
-      break
-    else
-      echo "apiServerURL field is empty in cattle-fleet-system/fleet-controller configmap"
-      sleep 2
-    fi
-
-    unset configmap
-    unset apiServerField
-  done
 }
 
 wait_capi_cluster() {
