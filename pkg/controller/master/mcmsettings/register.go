@@ -6,7 +6,6 @@ import (
 	ctlcatalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	ctlrancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
-	"github.com/rancher/wrangler/v3/pkg/relatedresource"
 
 	"github.com/harvester/harvester/pkg/config"
 )
@@ -38,7 +37,5 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	}
 
 	clusterRepoController.OnChange(ctx, clusterRepoHandler, h.patchClusterRepos)
-	rancherSettingController.OnChange(ctx, rancherSettingsHandler, h.watchInternalEndpointSettings)
-	relatedresource.WatchClusterScoped(ctx, watchFleetController, h.watchFleetControllerConfigMap, rancherSettingController, configMapController)
 	return nil
 }
