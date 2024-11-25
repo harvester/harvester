@@ -62,7 +62,9 @@ kubevirt:
       ## Specify kubevirt feature gates
       vmStateStorageClass: "vmstate-persistence"
       developerConfiguration:
-        featureGates: ["LiveMigration", "HotplugVolumes", "HostDevices", "GPU", "CPUManager", "VMPersistentState"]
+        featureGates: ["LiveMigration", "HotplugVolumes", "HostDevices", "GPU", "CPUManager", "VMPersistentState", "VMLiveUpdateFeatures"]
+
+      vmRolloutStrategy: "LiveUpdate"
 
       ## Specify the network configuration of VirtualMachineInstance.
       ##
@@ -102,6 +104,10 @@ kubevirt:
           resourceName: virt-handler
           resourceType: DaemonSet
           type: strategic
+
+    workloadUpdateStrategy:
+      workloadUpdateMethods:
+        - LiveMigrate
 
 ###########################################################################
 ###########################################################################
@@ -365,7 +371,7 @@ harvester-networkfs-manager:
 
   image:
     repository: rancher/harvester-networkfs-manager
-    pullPolicy: IfNotPresent 
+    pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
     tag: main-head
 
@@ -382,7 +388,7 @@ harvester-node-disk-manager:
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
     tag: master-head
-  
+
   webhook:
     image:
       repository: rancher/harvester-node-disk-manager-webhook
