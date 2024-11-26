@@ -98,10 +98,6 @@ func vmBackupByIsProgressing(obj *harvesterv1.VirtualMachineBackup) ([]string, e
 
 func vmBackupByStorageClassName(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
 	storageClassNames := []string{}
-	if obj.Status == nil {
-		return storageClassNames, nil
-	}
-
 	for _, volumeBackup := range obj.Status.VolumeBackups {
 		storageClassNames = append(storageClassNames, *volumeBackup.PersistentVolumeClaim.Spec.StorageClassName)
 	}
