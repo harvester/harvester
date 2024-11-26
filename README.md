@@ -4,7 +4,6 @@ Harvester
 [![Go Report Card](https://goreportcard.com/badge/github.com/harvester/harvester)](https://goreportcard.com/report/github.com/harvester/harvester)
 [![Releases](https://img.shields.io/github/release/harvester/harvester.svg)](https://github.com/harvester/harvester/releases)
 [![Slack](https://img.shields.io/badge/slack-join-brightgreen)](https://slack.rancher.io/)
-[![Gurubase](https://img.shields.io/badge/Gurubase-Ask%20Harvester%20Guru-006BFF)](https://gurubase.io/g/harvester)
 
 [Harvester](https://harvesterhci.io/) is a modern, open, interoperable, [hyperconverged infrastructure (HCI)](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) solution built on Kubernetes. 
 It is an open-source alternative designed for operators seeking a [cloud-native](https://about.gitlab.com/topics/cloud-native/) HCI solution. Harvester runs on bare metal servers and provides integrated virtualization and distributed storage capabilities. 
@@ -128,6 +127,8 @@ Harvester is 100% open-source software. The project source code is spread across
 If you need any help with Harvester, please join us at either our [Slack](https://slack.rancher.io/) #harvester channel or [forums](https://forums.rancher.com/) where most of our team hangs out at.
 
 If you have any feedback or questions, feel free to [file an issue](https://github.com/harvester/harvester/issues/new/choose).
+
+You can also [Ask Harvester Guru](https://gurubase.io/g/harvester), it is a Harvester-focused AI to answer your questions.
 
 
 ## License
