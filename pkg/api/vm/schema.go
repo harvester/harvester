@@ -36,6 +36,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	server.BaseSchemas.MustImportAndCustomize(AddVolumeInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(RemoveVolumeInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(CloneInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(CPUAndMemoryHotplugInput{}, nil)
 
 	vms := scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 	vmis := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
@@ -133,6 +134,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				dismissInsufficientResourceQuota: &actionHandler,
 				updateResourceQuotaAction:        &actionHandler,
 				deleteResourceQuotaAction:        &actionHandler,
+				cpuAndMemoryHotplug:              &actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
 				startVM:    {},
@@ -173,6 +175,9 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 					Input: "updateResourceQuotaInput",
 				},
 				deleteResourceQuotaAction: {},
+				cpuAndMemoryHotplug: {
+					Input: "cpuAndMemoryHotplugInput",
+				},
 			}
 		},
 		Formatter: vmformatter.formatter,

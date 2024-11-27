@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/storage/names"
@@ -263,6 +264,12 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 			return apierror.NewAPIError(validation.PermissionDenied, "User does not have permission to update resource quota")
 		}
 		return h.deleteResourceQuota(namespace, name)
+	case cpuAndMemoryHotplug:
+		var input CPUAndMemoryHotplugInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		return h.cpuAndMemoryHotplug(namespace, name, input)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -1481,4 +1488,77 @@ func (h *vmActionHandler) deleteResourceQuota(namespace, name string) error {
 		return err
 	}
 	return nil
+}
+
+func (h *vmActionHandler) cpuAndMemoryHotplug(namespace, name string, input CPUAndMemoryHotplugInput) error {
+	if input.Sockets == 0 && input.Memory == "" {
+		return nil
+	}
+
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	vmi, err := h.vmiCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	patchOps := []string{}
+	if input.Sockets != 0 {
+		maxSockets := vm.Spec.Template.Spec.Domain.CPU.MaxSockets
+		if maxSockets != 0 && input.Sockets > maxSockets {
+			return fmt.Errorf("cpu hotplug value %d is greater than the max sockets value %d", input.Sockets, maxSockets)
+		}
+
+		maxSockets = vmi.Spec.Domain.CPU.MaxSockets
+		if maxSockets != 0 && input.Sockets > maxSockets {
+			return fmt.Errorf("cpu hotplug value %d is greater than the max sockets value %d", input.Sockets, maxSockets)
+		}
+
+		sockets := vm.Spec.Template.Spec.Domain.CPU.Sockets
+		if input.Sockets < sockets {
+			return fmt.Errorf("cpu hotplug value %d is less than the current sockets value %d", input.Sockets, sockets)
+		}
+
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/cpu/sockets", "value": %d}`, input.Sockets))
+	}
+
+	if input.Memory != "" {
+		memory, err := resource.ParseQuantity(input.Memory)
+		if err != nil {
+			return fmt.Errorf("failed to parse memory quantity: %v", err)
+		}
+
+		maxGuest := vm.Spec.Template.Spec.Domain.Memory.MaxGuest
+		if maxGuest != nil && memory.Cmp(*maxGuest) > 0 {
+			return fmt.Errorf("memory hotplug value %s is greater than the max guest value %s", memory.String(), maxGuest.String())
+		}
+
+		maxGuest = vmi.Spec.Domain.Memory.MaxGuest
+		if maxGuest != nil && memory.Cmp(*maxGuest) > 0 {
+			return fmt.Errorf("memory hotplug value %s is greater than the max guest value %s", memory.String(), maxGuest.String())
+		}
+
+		guest := vm.Spec.Template.Spec.Domain.Memory.Guest
+		if guest != nil && memory.Cmp(*guest) < 0 {
+			return fmt.Errorf("memory hotplug value %s is less than the current guest value %s", memory.String(), guest.String())
+		}
+
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, memory.String()))
+	}
+
+	if len(patchOps) == 0 {
+		return nil
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"namespace": namespace,
+		"name":      name,
+		"patchOps":  patchOps,
+	}).Info("patch cpu and memory hotplug")
+	patchData := fmt.Sprintf("[%s]", strings.Join(patchOps, ","))
+	_, err = h.vms.Patch(namespace, name, k8stypes.JSONPatchType, []byte(patchData))
+	return err
 }
