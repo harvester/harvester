@@ -46,6 +46,7 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
+	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 )
 
 const (
@@ -409,15 +410,8 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 	}
 
 	// functions in formatter only return bool, the disk.Name is also needed, check them directly here
-	for _, disk := range vmi.Spec.Domain.Devices.Disks {
-		if disk.CDRom != nil {
-			return fmt.Errorf("Disk %s is CD-ROM, needs to be ejected before migration", disk.Name)
-		}
-	}
-	for _, volume := range vmi.Spec.Volumes {
-		if volume.VolumeSource.ContainerDisk != nil {
-			return fmt.Errorf("Volume %s is container disk, needs to be removed before migration", volume.Name)
-		}
+	if virtualmachineinstance.VMContainsCDRomOrContainerDisk(vmi) {
+		return fmt.Errorf("VM %s contains CD-ROM or container disk, needs to be ejected before migration", vmName)
 	}
 
 	if ok, err := h.isMigratableNode(nodeName, vmi); err != nil {
