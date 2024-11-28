@@ -42,6 +42,13 @@ func GetAllNonLiveMigratableVMINames(vmis []*kubevirtv1.VirtualMachineInstance, 
 		if !migratable {
 			logrus.Infof("%s considered non-live migratable due to node affinities", vmiNamespacedName)
 			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmiNamespacedName)
+			continue
+		}
+
+		// container-disk or cdrom device
+		if VMContainsCDRomOrContainerDisk(vmi) {
+			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmiNamespacedName)
+			continue
 		}
 	}
 
@@ -83,4 +90,23 @@ func migratableByNodeAffinity(vmi *kubevirtv1.VirtualMachineInstance, nodes []*c
 	}
 
 	return migratable, nil
+}
+
+func VMContainsCDRomOrContainerDisk(vmi *kubevirtv1.VirtualMachineInstance) bool {
+	if vmi == nil {
+		return false
+	}
+
+	for _, disk := range vmi.Spec.Domain.Devices.Disks {
+		if disk.CDRom != nil {
+			return true
+		}
+	}
+
+	for _, volume := range vmi.Spec.Volumes {
+		if volume.VolumeSource.ContainerDisk != nil {
+			return true
+		}
+	}
+	return false
 }
