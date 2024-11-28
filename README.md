@@ -128,7 +128,7 @@ If you need any help with Harvester, please join us at either our [Slack](https:
 
 If you have any feedback or questions, feel free to [file an issue](https://github.com/harvester/harvester/issues/new/choose).
 
-You can also [Ask Harvester Guru](https://gurubase.io/g/harvester), it is a Harvester-focused AI to answer your questions.
+You can also [ask Harvester Guru](https://gurubase.io/g/harvester) your questions.
 
 
 ## License
