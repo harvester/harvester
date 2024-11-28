@@ -21,6 +21,7 @@ import (
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
+	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 )
 
 const (
@@ -294,7 +295,7 @@ func (ndc *ControllerHandler) FindNonMigratableVMS(node *corev1.Node) (map[strin
 func findVMSwithCDROMOrContainerDisk(vmiList []*kubevirtv1.VirtualMachineInstance) ([]string, error) {
 	var impactedVMI []string
 	for _, vmi := range vmiList {
-		if vmContainsCDRomOrContainerDisk(vmi) {
+		if virtualmachineinstance.VMContainsCDRomOrContainerDisk(vmi) {
 			impactedVMI = append(impactedVMI, namespacedVMName(vmi))
 		}
 	}
@@ -309,21 +310,6 @@ func ActionHelper(nodeCache ctlcorev1.NodeCache, virtualMachineInstanceCache ctl
 		longhornVolumeCache:         longhornVolumeCache,
 		longhornReplicaCache:        longhornReplicaCache,
 	}
-}
-
-func vmContainsCDRomOrContainerDisk(vmi *kubevirtv1.VirtualMachineInstance) bool {
-	for _, disk := range vmi.Spec.Domain.Devices.Disks {
-		if disk.CDRom != nil {
-			return true
-		}
-	}
-
-	for _, volume := range vmi.Spec.Volumes {
-		if volume.VolumeSource.ContainerDisk != nil {
-			return true
-		}
-	}
-	return false
 }
 
 // IdentifyNonMigratableVMS finds VMI's with kubevirtv1.VirtualMachineInstanceIsMigratable condition
