@@ -1,6 +1,7 @@
 package templateversion
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/sirupsen/logrus"
@@ -11,14 +12,16 @@ import (
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
 const (
-	fieldTemplateID      = "spec.templateId"
-	fieldKeyPairIDs      = "spec.keyPairIds"
-	fieldResourcesLimits = "spec.vm.spec.template.spec.domain.resources.limits"
+	fieldTemplateID                     = "spec.templateId"
+	fieldKeyPairIDs                     = "spec.keyPairIds"
+	fieldResourcesLimits                = "spec.vm.spec.template.spec.domain.resources.limits"
+	fieldVolumeClaimTemplatesAnnotation = "spec.vm.metadata.annoataions[\"harvesterhci.io/volumeClaimTemplates\"]"
 )
 
 func NewValidator(templateCache ctlharvesterv1.VirtualMachineTemplateCache, templateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache, keypairs ctlharvesterv1.KeyPairCache) types.Validator {
@@ -72,6 +75,19 @@ func (v *templateVersionValidator) Create(_ *types.Request, newObj runtime.Objec
 				field := fmt.Sprintf("%s[%d]", fieldKeyPairIDs, i)
 				return werror.NewInvalidError(message, field)
 			}
+		}
+	}
+
+	// Check JSON data in the annotations. This must be valid JSON data, as
+	// otherwise the IndexFunc of the cache couldn't process the VMTemplateVersion
+	volumeClaimTemplateString, ok := vmTemplVersion.Spec.VM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
+	if ok && volumeClaimTemplateString != "" {
+		var volumeClaimTemplates []corev1.PersistentVolumeClaim
+		if err := json.Unmarshal([]byte(volumeClaimTemplateString), &volumeClaimTemplates); err != nil {
+			return werror.NewInvalidError(
+				fmt.Sprintf("Invalid JSON data in annotation %s", util.AnnotationVolumeClaimTemplates),
+				fieldVolumeClaimTemplatesAnnotation,
+			)
 		}
 	}
 
