@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mitchellh/mapstructure"
+	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	ctlappsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -62,6 +64,7 @@ type Handler struct {
 	podClient                ctlcorev1.PodClient
 	Deployments              ctlappsv1.DeploymentClient
 	Namespace                string
+	RancherTokenController   rancherv3.TokenController
 }
 
 type VIPConfig struct {
@@ -77,6 +80,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	if options.RancherEmbedded {
 		rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 		rancherUsers := management.RancherManagementFactory.Management().V3().User()
+		rancherTokens := management.RancherManagementFactory.Management().V3().Token()
 		ingresses := management.NetworkingFactory.Networking().V1().Ingress()
 		secrets := management.CoreFactory.Core().V1().Secret()
 		services := management.CoreFactory.Core().V1().Service()
@@ -89,6 +93,7 @@ func Register(ctx context.Context, management *config.Management, options config
 			RancherSettingController: rancherSettings,
 			RancherSettingCache:      rancherSettings.Cache(),
 			RancherUserCache:         rancherUsers.Cache(),
+			RancherTokenController:   rancherTokens,
 			ingresses:                ingresses,
 			Services:                 services,
 			Configmaps:               configmaps,
@@ -104,6 +109,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
 		secrets.OnChange(ctx, controllerRancherName, h.TLSSecretOnChange)
 		deployments.OnChange(ctx, controllerCAPIDeployment, h.PatchCAPIDeployment)
+		rancherTokens.OnChange(ctx, controllerRancherName, h.RancherTokenOnChange)
 		if err := h.registerExposeService(); err != nil {
 			return err
 		}
@@ -111,6 +117,7 @@ func Register(ctx context.Context, management *config.Management, options config
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -247,4 +254,32 @@ func (h *Handler) restartKubevipPods() error {
 	}
 
 	return nil
+}
+
+// RancherTokenOnChange updates the expiresAt field of the token.
+// Although we have embedded rancher, we don't start the rancher's token controller.
+// So, we should have our own handler to update the token.
+func (h *Handler) RancherTokenOnChange(_ string, token *v3.Token) (*v3.Token, error) {
+	if token == nil || token.DeletionTimestamp != nil {
+		return nil, nil
+	}
+
+	if token.TTLMillis != 0 && token.ExpiresAt == "" {
+		//compute and save expiresAt
+		newToken := token.DeepCopy()
+		var err error
+
+		created := newToken.ObjectMeta.CreationTimestamp.Time
+		ttlDuration := time.Duration(newToken.TTLMillis) * time.Millisecond
+		expiresAtTime := created.Add(ttlDuration)
+		newToken.ExpiresAt = expiresAtTime.UTC().Format(time.RFC3339)
+
+		if newToken, err = h.RancherTokenController.Update(newToken); err != nil {
+			return token, err
+		}
+
+		token = newToken
+	}
+
+	return token, nil
 }
