@@ -2,10 +2,10 @@ package storageclass
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
-	lhcrypto "github.com/longhorn/longhorn-manager/csi/crypto"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhtypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -28,11 +28,18 @@ const (
 	errorMessageReservedStorageClass = "storage class %s is reserved by Harvester and can't be deleted"
 )
 
-var pairs = [][2]string{
-	{util.CSIProvisionerSecretNameKey, util.CSIProvisionerSecretNamespaceKey},
-	{util.CSINodeStageSecretNameKey, util.CSINodeStageSecretNamespaceKey},
-	{util.CSINodePublishSecretNameKey, util.CSINodePublishSecretNamespaceKey},
-}
+var (
+	availableCiphers  = []string{"aes-xts-plain", "aes-xts-plain64", "aes-cbc-plain", "aes-cbc-plain64", "aes-cbc-essiv:sha256"}
+	availablePBKDFs   = []string{"argon2i", "argon2id", "pbkdf2"}
+	availableHash     = []string{"sha256", "sha384", "sha512"}
+	availableKeySizes = []string{"256", "384", "512"}
+
+	pairs = [][2]string{
+		{util.CSIProvisionerSecretNameKey, util.CSIProvisionerSecretNamespaceKey},
+		{util.CSINodeStageSecretNameKey, util.CSINodeStageSecretNamespaceKey},
+		{util.CSINodePublishSecretNameKey, util.CSINodePublishSecretNamespaceKey},
+	}
+)
 
 func NewValidator(storageClassCache ctlstoragev1.StorageClassCache, secretCache ctlcorev1.SecretCache, vmimagesCache ctlharvesterv1.VirtualMachineImageCache) types.Validator {
 	return &storageClassValidator{
@@ -196,25 +203,34 @@ func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error 
 
 func (v *storageClassValidator) validateEncryptionSecret(secret *corev1.Secret, secretNamespace string, secretName string) error {
 	invalid := false
-	requiredFields := map[string]string{
-		lhtypes.CryptoKeyCipher:   lhcrypto.CryptoKeyDefaultCipher,
-		lhtypes.CryptoKeyHash:     lhcrypto.CryptoKeyDefaultHash,
-		lhtypes.CryptoKeySize:     lhcrypto.CryptoKeyDefaultSize,
-		lhtypes.CryptoPBKDF:       lhcrypto.CryptoDefaultPBKDF,
-		lhtypes.CryptoKeyProvider: "secret",
-		lhtypes.CryptoKeyValue:    "",
+	requiredFields := map[string][]string{
+		lhtypes.CryptoKeyCipher:   availableCiphers,
+		lhtypes.CryptoKeyHash:     availableHash,
+		lhtypes.CryptoKeySize:     availableKeySizes,
+		lhtypes.CryptoPBKDF:       availablePBKDFs,
+		lhtypes.CryptoKeyProvider: {"secret"},
+		lhtypes.CryptoKeyValue:    {""},
 	}
 
-	for field, defaultValue := range requiredFields {
+	for field, availableValue := range requiredFields {
 		value, ok := secret.Data[field]
 		if !ok {
 			return werror.NewInvalidError(fmt.Sprintf("secret %s/%s is not a valid encryption secret, missing field: %s", secretNamespace, secretName, field), "")
 		}
 
-		if field == lhtypes.CryptoKeyValue {
-			invalid = string(value) == ""
-		} else {
-			invalid = string(value) != defaultValue
+		switch field {
+		case lhtypes.CryptoKeyProvider:
+			if string(value) != availableValue[0] {
+				invalid = true
+			}
+		case lhtypes.CryptoKeyValue:
+			if string(value) == availableValue[0] {
+				invalid = true
+			}
+		default:
+			if !slices.Contains(availableValue, string(value)) {
+				invalid = true
+			}
 		}
 
 		if invalid {
