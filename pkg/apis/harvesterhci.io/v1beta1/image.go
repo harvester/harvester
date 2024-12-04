@@ -17,6 +17,7 @@ var (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:shortName=vmimage;vmimages,scope=Namespaced
+// +kubebuilder:printcolumn:name="BACKEND",type="string",JSONPath=`.spec.backend`
 // +kubebuilder:printcolumn:name="DISPLAY-NAME",type=string,JSONPath=`.spec.displayName`
 // +kubebuilder:printcolumn:name="SIZE",type=integer,JSONPath=`.status.size`
 // +kubebuilder:printcolumn:name="VIRTUALSIZE",type=integer,JSONPath=`.status.virtualSize`
@@ -31,6 +32,11 @@ type VirtualMachineImage struct {
 }
 
 type VirtualMachineImageSpec struct {
+	// +optional
+	// +kubebuilder:default=backingimage
+	// +kubebuilder:validation:Enum=backingimage;cdi
+	Backend VMIBackend `json:"backend"`
+
 	// +optional
 	Description string `json:"description,omitempty"`
 
@@ -95,6 +101,14 @@ type VirtualMachineImageCryptoOperationType string
 const (
 	VirtualMachineImageCryptoOperationTypeEncrypt VirtualMachineImageCryptoOperationType = "encrypt"
 	VirtualMachineImageCryptoOperationTypeDecrypt VirtualMachineImageCryptoOperationType = "decrypt"
+)
+
+// +enum
+type VMIBackend string
+
+const (
+	VMIBackendBackingImage VMIBackend = "backingimage"
+	VMIBackendCDI          VMIBackend = "cdi"
 )
 
 type VirtualMachineImageStatus struct {
