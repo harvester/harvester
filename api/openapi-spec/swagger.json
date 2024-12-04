@@ -9488,6 +9488,14 @@
           "sourceType"
         ],
         "properties": {
+          "backend": {
+            "type": "string",
+            "default": "",
+            "enum": [
+              "backingimage",
+              "cdi"
+            ]
+          },
           "checksum": {
             "type": "string",
             "default": ""
