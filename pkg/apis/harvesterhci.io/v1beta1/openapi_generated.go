@@ -4368,6 +4368,14 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSpec(ref common.R
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
+					"backend": {
+						SchemaProps: spec.SchemaProps{
+							Description: "\n\nPossible enum values:\n - `\"backingimage\"`\n - `\"cdi\"`",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+							Enum:        []interface{}{"backingimage", "cdi"}},
+					},
 					"description": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},

@@ -100,3 +100,7 @@ func GetImageDefaultStorageClassParameters() map[string]string {
 		LonghornOptionMigratable:                "true",
 	}
 }
+
+func GetVMIBackend(vmi *harvesterv1.VirtualMachineImage) harvesterv1.VMIBackend {
+	return vmi.Spec.Backend
+}
