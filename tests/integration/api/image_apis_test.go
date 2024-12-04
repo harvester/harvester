@@ -43,6 +43,7 @@ var _ = Describe("verify image APIs", func() {
 						Namespace:    imageNamespace,
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend:    harvesterv1.VMIBackendBackingImage,
 						SourceType: harvesterv1.VirtualMachineImageSourceTypeDownload,
 						URL:        "http://harvesterhci.io/test.img",
 					},
@@ -60,6 +61,7 @@ var _ = Describe("verify image APIs", func() {
 							Namespace:    imageNamespace,
 						},
 						Spec: harvesterv1.VirtualMachineImageSpec{
+							Backend:     harvesterv1.VMIBackendBackingImage,
 							DisplayName: imageDisplayName,
 							URL:         "http://harvesterhci.io/test.img",
 						},
@@ -87,6 +89,7 @@ var _ = Describe("verify image APIs", func() {
 						},
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend:     harvesterv1.VMIBackendBackingImage,
 						Description: "test description",
 						DisplayName: imageDisplayName,
 						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
@@ -130,6 +133,7 @@ var _ = Describe("verify image APIs", func() {
 						},
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend:     harvesterv1.VMIBackendBackingImage,
 						Description: "test description",
 						DisplayName: imageDisplayName,
 						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
@@ -173,6 +177,7 @@ var _ = Describe("verify image APIs", func() {
 						},
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend:     harvesterv1.VMIBackendBackingImage,
 						Description: "test description",
 						DisplayName: imageDisplayName,
 						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
@@ -192,6 +197,7 @@ var _ = Describe("verify image APIs", func() {
 						},
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend:     harvesterv1.VMIBackendBackingImage,
 						Description: "test description update",
 						DisplayName: imageDisplayName,
 						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
@@ -256,6 +262,7 @@ var _ = Describe("verify image APIs", func() {
 						Namespace: imageNamespace,
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend:     harvesterv1.VMIBackendBackingImage,
 						DisplayName: imageDisplayName,
 						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
 						URL:         "http://harvesterhci.io/test.img",
@@ -289,6 +296,7 @@ var _ = Describe("verify image APIs", func() {
 						Namespace: imageNamespace,
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend:     harvesterv1.VMIBackendBackingImage,
 						DisplayName: imageDisplayName,
 						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
 						URL:         "http://harvesterhci.io/test.img",
@@ -324,6 +332,7 @@ var _ = Describe("verify image APIs", func() {
 						Namespace: imageNamespace,
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend:     harvesterv1.VMIBackendBackingImage,
 						DisplayName: imageDisplayName,
 						SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
 						URL:         cirrosURL,

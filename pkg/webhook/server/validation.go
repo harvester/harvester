@@ -70,7 +70,6 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.Core.PersistentVolumeClaim().Cache(),
 			clients.K8s.AuthorizationV1().SelfSubjectAccessReviews(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion().Cache(),
-			clients.Core.Secret().Cache(),
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()),
 		upgrade.NewValidator(

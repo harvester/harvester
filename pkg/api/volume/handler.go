@@ -96,6 +96,7 @@ func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDis
 			Annotations:  map[string]string{},
 		},
 		Spec: harvesterv1.VirtualMachineImageSpec{
+			Backend:      harvesterv1.VMIBackendBackingImage,
 			DisplayName:  imageDisplayName,
 			SourceType:   harvesterv1.VirtualMachineImageSourceTypeExportVolume,
 			PVCName:      pvcName,

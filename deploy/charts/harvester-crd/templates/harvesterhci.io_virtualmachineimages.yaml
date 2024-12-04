@@ -18,6 +18,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .spec.backend
+      name: BACKEND
+      type: string
     - jsonPath: .spec.displayName
       name: DISPLAY-NAME
       type: string
@@ -53,6 +56,12 @@ spec:
             type: object
           spec:
             properties:
+              backend:
+                default: backingimage
+                enum:
+                - backingimage
+                - cdi
+                type: string
               checksum:
                 type: string
               description:
