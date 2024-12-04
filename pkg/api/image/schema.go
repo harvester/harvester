@@ -9,17 +9,18 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/schemas"
 
 	"github.com/harvester/harvester/pkg/config"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
-	imgHandler := Handler{
+	imgHandler := harvesterServer.NewHandler(Handler{
 		httpClient:                  http.Client{},
 		Images:                      scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage(),
 		ImageCache:                  scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 		BackingImageDataSources:     scaled.LonghornFactory.Longhorn().V1beta2().BackingImageDataSource(),
 		BackingImageDataSourceCache: scaled.LonghornFactory.Longhorn().V1beta2().BackingImageDataSource().Cache(),
 		BackingImageCache:           scaled.LonghornFactory.Longhorn().V1beta2().BackingImage().Cache(),
-	}
+	})
 
 	t := schema.Template{
 		ID: "harvesterhci.io.virtualmachineimage",

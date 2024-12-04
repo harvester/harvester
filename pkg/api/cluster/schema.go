@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/steve/pkg/server"
 
 	"github.com/harvester/harvester/pkg/config"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 const (
@@ -39,7 +40,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		schema.ResourceMethods = []string{"GET"}
 		schema.CollectionMethods = []string{"GET"}
 		schema.LinkHandlers = map[string]http.Handler{
-			deviceCapacity: handler,
+			deviceCapacity: harvesterServer.NewHandler(handler),
 		}
 	})
 	return nil
