@@ -18,33 +18,33 @@ var (
 	InjectDefaults string
 
 	AdditionalCA                           = NewSetting(AdditionalCASettingName, "")
-	APIUIVersion                           = NewSetting("api-ui-version", "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
-	ClusterRegistrationURL                 = NewSetting("cluster-registration-url", "")
-	ServerVersion                          = NewSetting("server-version", "dev")
+	APIUIVersion                           = NewSetting(APIUIVersionSettingName, "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
+	ClusterRegistrationURL                 = NewSetting(ClusterRegistrationURLSettingName, "")
+	ServerVersion                          = NewSetting(ServerVersionSettingName, "dev")
 	UIIndex                                = NewSetting(UIIndexSettingName, DefaultDashboardUIURL)
 	UIPath                                 = NewSetting(UIPathSettingName, "/usr/share/harvester/harvester")
 	UISource                               = NewSetting(UISourceSettingName, "auto") // Options are 'auto', 'external' or 'bundled'
 	UIPluginIndex                          = NewSetting(UIPluginIndexSettingName, DefaultUIPluginURL)
 	VolumeSnapshotClass                    = NewSetting(VolumeSnapshotClassSettingName, "longhorn")
 	BackupTargetSet                        = NewSetting(BackupTargetSettingName, "")
-	UpgradableVersions                     = NewSetting("upgradable-versions", "")
-	UpgradeCheckerEnabled                  = NewSetting("upgrade-checker-enabled", "true")
-	UpgradeCheckerURL                      = NewSetting("upgrade-checker-url", "https://harvester-upgrade-responder.rancher.io/v1/checkupgrade")
-	ReleaseDownloadURL                     = NewSetting("release-download-url", "https://releases.rancher.com/harvester")
+	UpgradableVersions                     = NewSetting(UpgradableVersionsSettingName, "")
+	UpgradeCheckerEnabled                  = NewSetting(UpgradeCheckerEnabledSettingName, "true")
+	UpgradeCheckerURL                      = NewSetting(UpgradeCheckerURLSettingName, "https://harvester-upgrade-responder.rancher.io/v1/checkupgrade")
+	ReleaseDownloadURL                     = NewSetting(ReleaseDownloadURLSettingName, "https://releases.rancher.com/harvester")
 	LogLevel                               = NewSetting(LogLevelSettingName, "info") // options are info, debug and trace
 	SSLCertificates                        = NewSetting(SSLCertificatesSettingName, "{}")
 	SSLParameters                          = NewSetting(SSLParametersName, "{}")
 	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{}")
-	SupportBundleNamespaces                = NewSetting("support-bundle-namespaces", "")
+	SupportBundleNamespaces                = NewSetting(SupportBundleNamespacesSettingName, "")
 	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10")                                                                  // Unit is minute. 0 means disable timeout.
 	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, supportBundleUtil.SupportBundleExpirationDefaultStr)                // Unit is minute.
 	SupportBundleNodeCollectionTimeout     = NewSetting(SupportBundleNodeCollectionTimeoutName, supportBundleUtil.SupportBundleNodeCollectionTimeoutDefaultStr) // Unit is minute.
-	DefaultStorageClass                    = NewSetting("default-storage-class", "longhorn")
+	DefaultStorageClass                    = NewSetting(DefaultStorageClassSettingName, "longhorn")
 	HTTPProxy                              = NewSetting(HTTPProxySettingName, "{}")
 	VMForceResetPolicySet                  = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
 	OvercommitConfig                       = NewSetting(OvercommitConfigSettingName, `{"cpu":1600,"memory":150,"storage":200}`)
 	VipPools                               = NewSetting(VipPoolsConfigSettingName, "")
-	AutoDiskProvisionPaths                 = NewSetting("auto-disk-provision-paths", "")
+	AutoDiskProvisionPaths                 = NewSetting(AutoDiskProvisionPathsSettingName, "")
 	CSIDriverConfig                        = NewSetting(CSIDriverConfigSettingName, `{"driver.longhorn.io":{"volumeSnapshotClassName":"longhorn-snapshot","backupVolumeSnapshotClassName":"longhorn"}}`)
 	ContainerdRegistry                     = NewSetting(ContainerdRegistrySettingName, "")
 	StorageNetwork                         = NewSetting(StorageNetworkName, "")
@@ -56,7 +56,7 @@ var (
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
 	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
 	NTPServers             = NewSetting(NTPServersSettingName, "")
-	WhiteListedSettings    = []string{"server-version", "default-storage-class", "harvester-csi-ccm-versions", "default-vm-termination-grace-period-seconds"}
+	WhiteListedSettings    = []string{ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
 	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "restoreVM": false}`)
 )
 
@@ -93,6 +93,16 @@ const (
 	LonghornV2DataEngineSettingName                   = "longhorn-v2-data-engine-enabled"
 	LogLevelSettingName                               = "log-level"
 	AdditionalGuestMemoryOverheadRatioName            = "additional-guest-memory-overhead-ratio"
+	ClusterRegistrationURLSettingName                 = "cluster-registration-url"
+	AutoDiskProvisionPathsSettingName                 = "auto-disk-provision-paths"
+	APIUIVersionSettingName                           = "api-ui-version"
+	ServerVersionSettingName                          = "server-version"
+	UpgradableVersionsSettingName                     = "upgradable-versions"
+	UpgradeCheckerEnabledSettingName                  = "upgrade-checker-enabled"
+	UpgradeCheckerURLSettingName                      = "upgrade-checker-url"
+	ReleaseDownloadURLSettingName                     = "release-download-url"
+	SupportBundleNamespacesSettingName                = "support-bundle-namespaces"
+	DefaultStorageClassSettingName                    = "default-storage-class"
 
 	// settings have `default` and `value` string used in many places, replace them with const
 	KeywordDefault = "default"
