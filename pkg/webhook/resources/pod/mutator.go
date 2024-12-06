@@ -12,6 +12,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	harvSettings "github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -90,7 +91,7 @@ func (m *podMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 }
 
 func (m *podMutator) httpProxyPatches(pod *corev1.Pod) (types.PatchOps, error) {
-	proxySetting, err := m.setttingCache.Get("http-proxy")
+	proxySetting, err := m.setttingCache.Get(harvSettings.HTTPProxySettingName)
 	if err != nil || proxySetting.Value == "" {
 		if errors.IsNotFound(err) {
 			return nil, nil
