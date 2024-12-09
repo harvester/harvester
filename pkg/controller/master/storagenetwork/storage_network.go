@@ -24,6 +24,7 @@ import (
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlmonitoringv1 "github.com/harvester/harvester/pkg/generated/controllers/monitoring.coreos.com/v1"
+	whereaboutscniv1 "github.com/harvester/harvester/pkg/generated/controllers/whereabouts.cni.cncf.io/v1alpha1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -55,6 +56,7 @@ const (
 	MsgStopPod               = "Stopping Pods"
 	MsgWaitForVolumes        = "Waiting for all volumes detached: %s"
 	MsgUpdateLonghornSetting = "Update Longhorn setting"
+	MsgIPAssignmentFailure   = "IP allocation failure for Longhorn Pods"
 
 	longhornStorageNetworkName = "storage-network"
 )
@@ -100,6 +102,7 @@ type Handler struct {
 	longhornSettings                  ctllhv1.SettingClient
 	longhornSettingCache              ctllhv1.SettingCache
 	longhornVolumeCache               ctllhv1.VolumeCache
+	longhornNodeCache                 ctllhv1.NodeCache
 	prometheus                        ctlmonitoringv1.PrometheusClient
 	prometheusCache                   ctlmonitoringv1.PrometheusCache
 	alertmanager                      ctlmonitoringv1.AlertmanagerClient
@@ -110,6 +113,8 @@ type Handler struct {
 	managedChartCache                 ctlmgmtv3.ManagedChartCache
 	networkAttachmentDefinitions      ctlcniv1.NetworkAttachmentDefinitionClient
 	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache
+	whereaboutsCNIIPPoolCache         whereaboutscniv1.IPPoolCache
+	settingsController                ctlharvesterv1.SettingController
 }
 
 // register the setting controller and reconsile longhorn setting when storage network changed
@@ -117,11 +122,13 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	longhornSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	longhornVolumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
+	longhornNodes := management.LonghornFactory.Longhorn().V1beta2().Node()
 	prometheus := management.MonitoringFactory.Monitoring().V1().Prometheus()
 	alertmanager := management.MonitoringFactory.Monitoring().V1().Alertmanager()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	networkAttachmentDefinitions := management.CniFactory.K8s().V1().NetworkAttachmentDefinition()
+	whereaboutsCNI := management.WhereaboutsCNIFactory.Whereabouts().V1alpha1()
 
 	controller := &Handler{
 		ctx:                               ctx,
@@ -129,6 +136,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		longhornSettings:                  longhornSettings,
 		longhornSettingCache:              longhornSettings.Cache(),
 		longhornVolumeCache:               longhornVolumes.Cache(),
+		longhornNodeCache:                 longhornNodes.Cache(),
 		prometheus:                        prometheus,
 		prometheusCache:                   prometheus.Cache(),
 		alertmanager:                      alertmanager,
@@ -139,6 +147,8 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		managedChartCache:                 managedCharts.Cache(),
 		networkAttachmentDefinitions:      networkAttachmentDefinitions,
 		networkAttachmentDefinitionsCache: networkAttachmentDefinitions.Cache(),
+		whereaboutsCNIIPPoolCache:         whereaboutsCNI.IPPool().Cache(),
+		settingsController:                settings,
 	}
 
 	settings.OnChange(ctx, ControllerName, controller.OnStorageNetworkChange)
@@ -397,6 +407,46 @@ func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
 	return nil
 }
 
+func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	lhnodes, err := h.longhornNodeCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return fmt.Errorf("failed to list longhorn node cache %v", err)
+	}
+
+	MinAllocatableIPAddrs := 0
+	nodeNum := 1
+	// Formula - https://docs.harvesterhci.io/v1.4/advanced/storagenetwork/
+	//Number of Images to download/upload and pod count during upgrade is dynamic, so skipped in the formula calculated.
+	for _, lhNode := range lhnodes {
+		MinAllocatableIPAddrs = MinAllocatableIPAddrs + nodeNum + len(lhNode.Spec.Disks)
+	}
+
+	var config Config
+
+	if err := json.Unmarshal([]byte(setting.Value), &config); err != nil {
+		return fmt.Errorf("parsing value error %v", err)
+	}
+
+	ipprefix := strings.Split(config.Range, "/")
+	ippoolName := ipprefix[0] + "-" + ipprefix[1]
+
+	ippool, err := h.whereaboutsCNIIPPoolCache.Get(util.KubeSystemNamespace, ippoolName)
+	if err != nil {
+		return fmt.Errorf("wherabouts IPPool not found for pool %s error %v", ippoolName, err)
+	}
+
+	if len(ippool.Spec.Allocations) >= MinAllocatableIPAddrs {
+		return nil
+	}
+
+	return fmt.Errorf("whereabouts cni IP allocation failure for IPPool %s retrying again... required %d allocated %d",
+		ippoolName, MinAllocatableIPAddrs, len(ippool.Spec.Allocations))
+}
+
 func (h *Handler) handleLonghornSettingPostConfig(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	// check if we need to restart monitoring pods
 	if err := h.checkPodStatusAndStart(); err != nil {
@@ -409,6 +459,16 @@ func (h *Handler) handleLonghornSettingPostConfig(setting *harvesterv1.Setting) 
 	settingCopy := setting.DeepCopy()
 	if err := h.removeOldNad(settingCopy); err != nil {
 		return setting, fmt.Errorf("remove old nad error %v", err)
+	}
+
+	err := h.validateIPAddressesAllocations(setting)
+	if err != nil {
+		setting, err := h.setConfiguredCondition(setting, false, ReasonInProgress, MsgIPAssignmentFailure)
+		if err != nil {
+			return setting, fmt.Errorf("update status error %v", err)
+		}
+		h.settingsController.Enqueue(setting.Name)
+		return setting, err
 	}
 
 	updatedSetting, err := h.setConfiguredCondition(settingCopy, true, ReasonCompleted, "")
