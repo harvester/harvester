@@ -78,17 +78,9 @@ func (v *templateVersionValidator) Create(_ *types.Request, newObj runtime.Objec
 		}
 	}
 
-	// Check JSON data in the annotations. This must be valid JSON data, as
-	// otherwise the IndexFunc of the cache couldn't process the VMTemplateVersion
-	volumeClaimTemplateString, ok := vmTemplVersion.Spec.VM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
-	if ok && volumeClaimTemplateString != "" {
-		var volumeClaimTemplates []corev1.PersistentVolumeClaim
-		if err := json.Unmarshal([]byte(volumeClaimTemplateString), &volumeClaimTemplates); err != nil {
-			return werror.NewInvalidError(
-				fmt.Sprintf("Invalid JSON data in annotation %s", util.AnnotationVolumeClaimTemplates),
-				fieldVolumeClaimTemplatesAnnotation,
-			)
-		}
+	err := validateVolumeClaimTemplateString(vmTemplVersion)
+	if err != nil {
+		return err
 	}
 
 	template := vmTemplVersion.Spec.VM.Spec.Template
@@ -139,5 +131,24 @@ func (v *templateVersionValidator) Delete(request *types.Request, oldObj runtime
 		return werror.NewBadRequest("Cannot delete the default templateVersion")
 	}
 
+	return nil
+}
+
+func validateVolumeClaimTemplateString(vmTemplateVersion *v1beta1.VirtualMachineTemplateVersion) error {
+	// Check JSON data in the annotations. This must be valid JSON data, as
+	// otherwise the IndexFunc of the cache couldn't process the VMTemplateVersion
+	annotations := vmTemplateVersion.Spec.VM.ObjectMeta.Annotations
+	if annotations != nil {
+		volumeClaimTemplateString, ok := annotations[util.AnnotationVolumeClaimTemplates]
+		if ok && volumeClaimTemplateString != "" {
+			var volumeClaimTemplates []corev1.PersistentVolumeClaim
+			if err := json.Unmarshal([]byte(volumeClaimTemplateString), &volumeClaimTemplates); err != nil {
+				return werror.NewInvalidError(
+					fmt.Sprintf("Invalid JSON data in annotation %s", util.AnnotationVolumeClaimTemplates),
+					fieldVolumeClaimTemplatesAnnotation,
+				)
+			}
+		}
+	}
 	return nil
 }
