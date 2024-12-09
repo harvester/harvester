@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"regexp"
@@ -54,9 +55,11 @@ import (
 	vmUtil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
 )
 
 const (
+	minSNPrefixLength                 = 16
 	mcmFeature                        = "multi-cluster-management"
 	labelAppNameKey                   = "app.kubernetes.io/name"
 	labelAppNameValuePrometheus       = "prometheus"
@@ -137,6 +140,7 @@ func NewValidator(
 	cnCache ctlnetworkv1.ClusterNetworkCache,
 	vcCache ctlnetworkv1.VlanConfigCache,
 	vsCache ctlnetworkv1.VlanStatusCache,
+	lhNodeCache ctllhv1b2.NodeCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
@@ -152,6 +156,7 @@ func NewValidator(
 		cnCache:            cnCache,
 		vcCache:            vcCache,
 		vsCache:            vsCache,
+		lhNodeCache:        lhNodeCache,
 	}
 
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
@@ -188,6 +193,7 @@ type settingValidator struct {
 	cnCache            ctlnetworkv1.ClusterNetworkCache
 	vcCache            ctlnetworkv1.VlanConfigCache
 	vsCache            ctlnetworkv1.VlanStatusCache
+	lhNodeCache        ctllhv1b2.NodeCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -1309,14 +1315,113 @@ func (v *settingValidator) checkStorageNetworkVlanValid(config *storagenetworkct
 	return nil
 }
 
+func isOverlap(IP1 string, IP2 string) (bool, error) {
+	if IP1 == "" || IP2 == "" {
+		return false, nil
+	}
+
+	Prefix1, err := netip.ParsePrefix(IP1)
+	if err != nil {
+		return false, err
+	}
+
+	Prefix2, err := netip.ParsePrefix(IP2)
+	if err != nil {
+		return false, err
+	}
+
+	if Prefix1.Overlaps(Prefix2) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func validateIncludeExcludeRanges(config *storagenetworkctl.Config, includePrefixLen int) error {
+	IP1 := ""
+
+	for _, excludeIP := range config.Exclude {
+		_, network, err := net.ParseCIDR(excludeIP)
+		if err != nil {
+			return err
+		}
+
+		excludePrefixLen, _ := network.Mask.Size()
+		if excludePrefixLen < minSNPrefixLength {
+			return fmt.Errorf("min supported prefix lenth for storage network is %d, exclude Range PrefixLen received %d", minSNPrefixLength, excludePrefixLen)
+		}
+
+		//validate if include and exclude overlap
+		overlap, err := isOverlap(config.Range, excludeIP)
+		if err != nil {
+			return err
+		}
+
+		if !overlap {
+			return fmt.Errorf("exclude range %s do not overlap include range %s", excludeIP, config.Range)
+		}
+
+		if excludePrefixLen <= includePrefixLen {
+			return fmt.Errorf("exclude Range %s includes include Range %s, no allocatable ip addresses", excludeIP, config.Range)
+		}
+
+		IP2 := IP1
+		IP1 = excludeIP
+
+		//validate if exclude ranges have overlapping subnets within them
+		overlap, err = isOverlap(IP1, IP2)
+		if err != nil {
+			return err
+		}
+
+		if overlap {
+			return fmt.Errorf("exclude ranges have overlapping subnets %s %s", IP1, IP2)
+		}
+	}
+
+	return nil
+}
+
 func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkctl.Config) error {
 	ip, network, err := net.ParseCIDR(config.Range)
 	if err != nil {
 		return err
 	}
 	if !network.IP.Equal(ip) {
-		return fmt.Errorf("Range should be subnet CIDR %v", network)
+		return fmt.Errorf("range should be subnet CIDR %v", network)
 	}
+
+	prefixLen, _ := network.Mask.Size()
+	if prefixLen < minSNPrefixLength {
+		return fmt.Errorf("min supported prefix lenth for storage network is %d, include Range PrefixLen received %d", minSNPrefixLength, prefixLen)
+	}
+
+	if err = validateIncludeExcludeRanges(config, prefixLen); err != nil {
+		return err
+	}
+
+	lhnodes, err := v.lhNodeCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	MinAllocatableIPAddrs := 0
+
+	// Formula - https://docs.harvesterhci.io/v1.4/advanced/storagenetwork/
+	//Number of Images to download/upload is dynamic, so skipped in the formula calculated.
+	for _, lhNode := range lhnodes {
+		MinAllocatableIPAddrs = MinAllocatableIPAddrs + 2 + (len(lhNode.Spec.Disks) * 2)
+	}
+
+	count, err := webhookutil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	if err != nil {
+		return err
+	}
+
+	if count < MinAllocatableIPAddrs {
+		return fmt.Errorf("allocatable IP address range is < %d,allocate sufficient range", MinAllocatableIPAddrs)
+	}
+
 	return nil
 }
 

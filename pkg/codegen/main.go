@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	whereaboutscniv1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	storagesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
@@ -83,6 +84,13 @@ func main() {
 				GenerateTypes:   false,
 				GenerateClients: true,
 			},
+			whereaboutscniv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					whereaboutscniv1.IPPool{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
 			networkingv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
 					networkingv1.Ingress{},
@@ -108,6 +116,7 @@ func main() {
 			},
 			longhornv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
+					longhornv1.Node{},
 					longhornv1.BackingImage{},
 					longhornv1.BackingImageDataSource{},
 					longhornv1.Volume{},

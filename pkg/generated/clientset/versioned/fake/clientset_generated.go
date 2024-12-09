@@ -50,6 +50,8 @@ import (
 	fakestoragev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1/fake"
 	upgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
 	fakeupgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1/fake"
+	whereaboutsv1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1"
+	fakewhereaboutsv1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -180,4 +182,9 @@ func (c *Clientset) StorageV1() storagev1.StorageV1Interface {
 // UpgradeV1 retrieves the UpgradeV1Client
 func (c *Clientset) UpgradeV1() upgradev1.UpgradeV1Interface {
 	return &fakeupgradev1.FakeUpgradeV1{Fake: &c.Fake}
+}
+
+// WhereaboutsV1alpha1 retrieves the WhereaboutsV1alpha1Client
+func (c *Clientset) WhereaboutsV1alpha1() whereaboutsv1alpha1.WhereaboutsV1alpha1Interface {
+	return &fakewhereaboutsv1alpha1.FakeWhereaboutsV1alpha1{Fake: &c.Fake}
 }

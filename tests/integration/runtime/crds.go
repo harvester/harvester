@@ -29,6 +29,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			createAppCRD(),
 			createPlanCRD(),
 			createHelmChartCRD(),
+			createLonghornNodeCRD(),
 			createLonghornVolumeCRD(),
 			createLonghornReplicaCRD(),
 			createClusterRepoCRD(),
@@ -81,6 +82,10 @@ func createHelmChartCRD() wcrd.CRD {
 		WithColumn("Repo", ".spec.repo").
 		WithColumn("HelmVersion", ".spec.helmVersion").
 		WithColumn("Bootstrap", ".spec.bootstrap")
+}
+
+func createLonghornNodeCRD() wcrd.CRD {
+	return crd.FromGV(lhv1beta2.SchemeGroupVersion, "Node", lhv1beta2.Node{})
 }
 
 func createLonghornVolumeCRD() wcrd.CRD {

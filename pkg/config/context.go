@@ -41,6 +41,7 @@ import (
 	snapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
 	ctlharvstoragev1 "github.com/harvester/harvester/pkg/generated/controllers/storage.k8s.io"
 	"github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io"
+	whereaboutcniv1 "github.com/harvester/harvester/pkg/generated/controllers/whereabouts.cni.cncf.io"
 )
 
 type (
@@ -72,6 +73,7 @@ type Scaled struct {
 	BatchFactory             *batchv1.Factory
 	RbacFactory              *rbacv1.Factory
 	CniFactory               *cniv1.Factory
+	WhereaboutsCNIFactory    *whereaboutcniv1.Factory
 	LoggingFactory           *loggingv1.Factory
 	SnapshotFactory          *snapshotv1.Factory
 	StorageFactory           *storagev1.Factory
@@ -96,6 +98,7 @@ type Management struct {
 	LoggingFactory            *loggingv1.Factory
 	CoreFactory               *corev1.Factory
 	CniFactory                *cniv1.Factory
+	WhereaboutsCNIFactory     *whereaboutcniv1.Factory
 	AppsFactory               *appsv1.Factory
 	BatchFactory              *batchv1.Factory
 	RbacFactory               *rbacv1.Factory
@@ -194,6 +197,13 @@ func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.Fac
 	}
 	scaled.CniFactory = cni
 	scaled.starters = append(scaled.starters, cni)
+
+	whereaboutscni, err := whereaboutcniv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	scaled.WhereaboutsCNIFactory = whereaboutscni
+	scaled.starters = append(scaled.starters, whereaboutscni)
 
 	logging, err := loggingv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
@@ -297,6 +307,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.CniFactory = cni
 	management.starters = append(management.starters, cni)
+
+	whereaboutscni, err := whereaboutcniv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.WhereaboutsCNIFactory = whereaboutscni
+	management.starters = append(management.starters, whereaboutscni)
 
 	apps, err := appsv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
