@@ -26,7 +26,7 @@ const (
 	// combination of recommendations from longhorn and kubevirt docs
 	// https://kubevirt.io/user-guide/operations/node_maintenance/
 	//https://longhorn.io/docs/1.3.1/volumes-and-nodes/maintenance/#updating-the-node-os-or-container-runtime
-	defaultSkipPodLabels      = "app!=csi-attacher,app!=csi-provisioner"
+	defaultSkipPodLabels      = "app!=csi-attacher,app!=csi-provisioner,kubevirt.io!=hotplug-disk"
 	defaultGracePeriodSeconds = 180
 	defaultTimeOut            = 240 * time.Second
 	DrainAnnotation           = "harvesterhci.io/drain-requested"
