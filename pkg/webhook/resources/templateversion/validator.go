@@ -21,7 +21,7 @@ const (
 	fieldTemplateID                     = "spec.templateId"
 	fieldKeyPairIDs                     = "spec.keyPairIds"
 	fieldResourcesLimits                = "spec.vm.spec.template.spec.domain.resources.limits"
-	fieldVolumeClaimTemplatesAnnotation = "spec.vm.metadata.annoataions[\"harvesterhci.io/volumeClaimTemplates\"]"
+	fieldVolumeClaimTemplatesAnnotation = "spec.vm.metadata.annotations[\"harvesterhci.io/volumeClaimTemplates\"]"
 )
 
 func NewValidator(templateCache ctlharvesterv1.VirtualMachineTemplateCache, templateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache, keypairs ctlharvesterv1.KeyPairCache) types.Validator {
