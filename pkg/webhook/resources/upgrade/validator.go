@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/go-units"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
@@ -42,7 +41,6 @@ const (
 	skipWebhookAnnotation                     = "harvesterhci.io/skipWebhook"
 	rkeInternalIPAnnotation                   = "rke2.io/internal-ip"
 	managedChartNamespace                     = "fleet-local"
-	defaultMinFreeDiskSpace            uint64 = 30 * 1024 * 1024 * 1024 // 30GB
 	defaultNewImageSize                uint64 = 13 * 1024 * 1024 * 1024 // 13GB, this value aggregates all tarball image sizes. It may change in the future.
 	defaultImageGCHighThresholdPercent        = 85.0                    // default value in kubelet config
 	freeSystemPartitionMsg                    = "df -h '/usr/local/'"
@@ -277,14 +275,14 @@ func (v *upgradeValidator) checkNodes(version *v1beta1.Version) error {
 		return werror.NewInternalError(fmt.Sprintf("can't list nodes, err: %+v", err))
 	}
 
-	minFreeDiskSpace := defaultMinFreeDiskSpace
-	if version != nil {
-		if value, ok := version.Annotations[versionWebhook.MinFreeDiskSpaceGBAnnotation]; ok {
-			v, err := strconv.ParseUint(value, 10, 64)
+	skipGarbageCollection := false
+	if version != nil && version.Annotations != nil {
+		if value, ok := version.Annotations[versionWebhook.SkipGarbageCollectionThreadholdCheckAnnotation]; ok {
+			v, err := strconv.ParseBool(value)
 			if err != nil {
-				return werror.NewBadRequest(fmt.Sprintf("invalid value %s for %s annotation in version %s/%s", value, versionWebhook.MinFreeDiskSpaceGBAnnotation, version.Namespace, version.Name))
+				return werror.NewBadRequest(fmt.Sprintf("invalid value %s for %s annotation in version %s/%s", value, versionWebhook.SkipGarbageCollectionThreadholdCheckAnnotation, version.Namespace, version.Name))
 			}
-			minFreeDiskSpace = v * 1024 * 1024 * 1024
+			skipGarbageCollection = v
 		}
 	}
 
@@ -302,15 +300,17 @@ func (v *upgradeValidator) checkNodes(version *v1beta1.Version) error {
 			return werror.NewBadRequest(fmt.Sprintf("node %s is unschedulable, please wait for it to be schedulable", node.Name))
 		}
 
-		if err := v.checkDiskSpace(node, minFreeDiskSpace); err != nil {
-			return err
+		if !skipGarbageCollection {
+			if err := v.checkDiskSpace(node); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func (v *upgradeValidator) checkDiskSpace(node *corev1.Node, minFreeDiskSpace uint64) error {
+func (v *upgradeValidator) checkDiskSpace(node *corev1.Node) error {
 	internalIP, ok := node.Annotations[rkeInternalIPAnnotation]
 	if !ok {
 		return werror.NewInternalError(fmt.Sprintf("node %s doesn't have %s annotation", node.Name, rkeInternalIPAnnotation))
@@ -345,12 +345,6 @@ func (v *upgradeValidator) checkDiskSpace(node *corev1.Node, minFreeDiskSpace ui
 			node.Name, usedPercent, strconv.FormatFloat(imageGCHighThresholdPercent, 'f', -1, 64)))
 	}
 
-	if *summary.Node.Fs.AvailableBytes < minFreeDiskSpace {
-		min := units.BytesSize(float64(minFreeDiskSpace))
-		avail := units.BytesSize(float64(*summary.Node.Fs.AvailableBytes))
-		return werror.NewBadRequest(fmt.Sprintf("Node %q has insufficient free system partition space %s (%s). The upgrade requires at least %s of free system partition space on each node.",
-			node.Name, avail, freeSystemPartitionMsg, min))
-	}
 	return nil
 }
 
