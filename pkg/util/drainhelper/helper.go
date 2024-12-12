@@ -152,7 +152,7 @@ func DrainPossible(nodeCache ctlcorev1.NodeCache, node *corev1.Node) error {
 }
 
 func maintainModeStrategyFilter(pod corev1.Pod) drain.PodDeleteStatus {
-	// Ignore VMs that should not be migrated in maintenance mode. These
+	// Ignore Pods of VMs that should not be migrated in maintenance mode. These
 	// VMs are forcibly shut down when maintenance mode is activated.
 	// They are identified by the maintenance-mode strategy label
 	// `harvesterhci.io/maintain-mode-strategy` having any of these values:
@@ -180,5 +180,7 @@ func maintainModeStrategyFilter(pod corev1.Pod) drain.PodDeleteStatus {
 	// VMs which don't have the maintenance-mode strategy label set or have it set
 	// to any value other than the ones named above, the behavior will be the same
 	// as the default.
+	// It's ok as well to mark all other pods for deletion here, because if they
+	// shouldn't be deleted, a different filter should mark them to be skipped.
 	return drain.MakePodDeleteStatusOkay()
 }

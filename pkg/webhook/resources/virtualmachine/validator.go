@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
@@ -236,6 +239,10 @@ func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 		return err
 	}
 
+	if err := checkMaintenanceModeStrategyIsValid(vm, nil); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -281,6 +288,10 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 	}
 
 	if err := v.checkForDuplicateMacAddrs(newVM); err != nil {
+		return err
+	}
+
+	if err := checkMaintenanceModeStrategyIsValid(newVM, oldVM); err != nil {
 		return err
 	}
 
@@ -643,6 +654,44 @@ func (v *vmValidator) checkEmptyMemory(vm *kubevirtv1.VirtualMachine) error {
 	limitMem := vm.Spec.Template.Spec.Domain.Resources.Limits.Memory()
 	if guestMem.IsZero() && limitMem.IsZero() {
 		return werror.NewInvalidError("either memory.guest or resources.limits.memory must be set", "spec.template.spec.domain")
+	}
+	return nil
+}
+
+func checkMaintenanceModeStrategyIsValid(newVM, oldVM *kubevirtv1.VirtualMachine) error {
+	labels := newVM.ObjectMeta.Labels
+	newStrategy, ok := labels[util.LabelMaintainModeStrategy]
+	if ok {
+		// Don't deny updates on an existing VM with an invalid maintenance-mode
+		// strategy label, if the label stays the same, but complain with a warning.
+		// If the maintenance-mode strategy label is updated, its new value needs to
+		// be valid regardless.
+		if oldVM != nil {
+			oldVMLabels := oldVM.ObjectMeta.Labels
+			oldStrategy, ok := oldVMLabels[util.LabelMaintainModeStrategy]
+			if ok && oldStrategy == newStrategy {
+				if !slices.Contains(util.ValidMaintenanceModeStrategyValues, oldStrategy) {
+					logrus.WithFields(logrus.Fields{
+						"name":      oldVM.Name,
+						"namespace": oldVM.Namespace,
+					}).Warnf("invalid maintenance-mode strategy for VM, behavior will be equivalent to default `%v`", util.MaintainModeStrategyMigrate)
+
+					return nil
+				}
+			}
+		}
+
+		if !slices.Contains(util.ValidMaintenanceModeStrategyValues, newStrategy) {
+			return werror.NewInvalidError(
+				fmt.Sprintf("invalid maintenance mode strategy: %v", newStrategy),
+				fmt.Sprintf("metadata.labels[%v]", util.LabelMaintainModeStrategy),
+			)
+		}
+	} else {
+		return werror.NewInvalidError(
+			fmt.Sprintf("label `%v` not found", util.LabelMaintainModeStrategy),
+			fmt.Sprintf("metadata.labels[%v]", util.LabelMaintainModeStrategy),
+		)
 	}
 	return nil
 }

@@ -176,13 +176,25 @@ const (
 
 	RKEControlPlaneRoleLabel = "rke.cattle.io/control-plane-role"
 
-	LabelMaintainModeStrategy                          = prefix + "/maintain-mode-strategy"
-	AnnotationMaintainModeStrategyNodeName             = prefix + "/maintain-mode-strategy-node-name"
+	LabelMaintainModeStrategy              = prefix + "/maintain-mode-strategy"
+	AnnotationMaintainModeStrategyNodeName = prefix + "/maintain-mode-strategy-node-name"
+
 	MaintainModeStrategyMigrate                        = "Migrate"
 	MaintainModeStrategyShutdownAndRestartAfterEnable  = "ShutdownAndRestartAfterEnable"
 	MaintainModeStrategyShutdownAndRestartAfterDisable = "ShutdownAndRestartAfterDisable"
 	MaintainModeStrategyShutdown                       = "Shutdown"
+)
 
+var (
+	ValidMaintenanceModeStrategyValues = []string{
+		MaintainModeStrategyMigrate,
+		MaintainModeStrategyShutdownAndRestartAfterEnable,
+		MaintainModeStrategyShutdownAndRestartAfterDisable,
+		MaintainModeStrategyShutdown,
+	}
+)
+
+const (
 	// s3 backup target constants
 	AWSAccessKey       = "AWS_ACCESS_KEY_ID"
 	AWSSecretKey       = "AWS_SECRET_ACCESS_KEY"

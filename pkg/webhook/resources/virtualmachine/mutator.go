@@ -88,6 +88,11 @@ func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patch
 		return nil, err
 	}
 
+	patchOps, err = m.ensureMaintenanceModeStrategyIsSet(vm, patchOps)
+	if err != nil {
+		return nil, err
+	}
+
 	return patchOps, nil
 }
 
@@ -133,6 +138,11 @@ func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runti
 	}
 
 	patchOps, err = m.patchInterfaceMacAddress(newVM, patchOps)
+	if err != nil {
+		return nil, err
+	}
+
+	patchOps, err = m.ensureMaintenanceModeStrategyIsSet(newVM, patchOps)
 	if err != nil {
 		return nil, err
 	}
@@ -644,6 +654,59 @@ func (m *vmMutator) patchInterfaceMacAddress(vm *kubevirtv1.VirtualMachine, patc
 			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/devices/interfaces/%d/macAddress", "value": "%s"}`, idx, mac))
 		}
 	}
+	return patchOps, nil
+}
 
+func (m *vmMutator) ensureMaintenanceModeStrategyIsSet(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
+	// If the maintenante-mode strategy label is not set, add it with the default
+	// value of `Migrate`.
+	labels := vm.ObjectMeta.Labels
+	strategy, ok := labels[util.LabelMaintainModeStrategy]
+	if !ok {
+		strategy = util.MaintainModeStrategyMigrate
+		logrus.WithFields(logrus.Fields{
+			"namespace": vm.Namespace,
+			"name":      vm.Name,
+		}).Infof("no maintenance mode strategy specified for VM, applying default strategy `Migrate`")
+		patch, err := json.Marshal(
+			util.PatchStringValue{
+				Op:    "replace",
+				Path:  "/metadata/labels/harvesterhci.io~1maintain-mode-strategy", // `~1` is escaped encoding for `/` in JSON
+				Value: strategy,
+			},
+		)
+		if err != nil {
+			return patchOps, err
+		}
+
+		patchOps = append(patchOps, string(patch[:]))
+	}
+
+	// If the value under .spec.template.metadata.labels does not match the
+	// maintenance mode strategy label, or isn't set, then adjust it to match.
+	templateLabels := vm.Spec.Template.ObjectMeta.Labels
+	templateStrategy, ok := templateLabels[util.LabelMaintainModeStrategy]
+	if ok && strategy != templateStrategy {
+		logrus.WithFields(logrus.Fields{
+			"namespace": vm.Namespace,
+			"name":      vm.Name,
+			"strategy":  strategy,
+		}).Infof("maintenance mode strategy label in template does not match maintenance mode strategy label, applying %v", strategy)
+	}
+
+	if !ok || strategy != templateStrategy {
+		patch, err := json.Marshal(
+			util.PatchStringValue{
+				Op:    "replace",
+				Path:  "/spec/template/metadata/labels/harvesterhci.io~1maintain-mode-strategy",
+				Value: strategy,
+			},
+		)
+		if err != nil {
+			return patchOps, err
+		}
+
+		patchOps = append(patchOps, string(patch[:]))
+	}
 	return patchOps, nil
 }

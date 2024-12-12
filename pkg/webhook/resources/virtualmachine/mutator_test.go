@@ -18,6 +18,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -26,6 +27,102 @@ const (
 	replaceOP        = "replace"
 	nodeAffinityPath = "/spec/template/spec/affinity"
 )
+
+func TestEnsureMaintenanceModeStrategyLabelIsSet(t *testing.T) {
+	tests := []struct {
+		name           string
+		labels         map[string]string
+		templateLabels map[string]string
+		patchOps       types.PatchOps
+	}{
+		{
+			name:           "maintenance mode strategy label is not set, nothing set for template",
+			labels:         map[string]string{},
+			templateLabels: map[string]string{},
+			patchOps: types.PatchOps{
+				`{"op":"replace","path":"/metadata/labels/harvesterhci.io~1maintain-mode-strategy","value":"Migrate"}`,
+				`{"op":"replace","path":"/spec/template/metadata/labels/harvesterhci.io~1maintain-mode-strategy","value":"Migrate"}`,
+			},
+		},
+		{
+			name:   "maintenance mode strategy label is not set, strategy is set for template",
+			labels: map[string]string{},
+			templateLabels: map[string]string{
+				util.LabelMaintainModeStrategy: "foobar",
+			},
+			patchOps: types.PatchOps{
+				`{"op":"replace","path":"/metadata/labels/harvesterhci.io~1maintain-mode-strategy","value":"Migrate"}`,
+				`{"op":"replace","path":"/spec/template/metadata/labels/harvesterhci.io~1maintain-mode-strategy","value":"Migrate"}`,
+			},
+		},
+		{
+			name: "maintenance mode strategy label is set, nothing set for template",
+			labels: map[string]string{
+				util.LabelMaintainModeStrategy: "foobar",
+			},
+			templateLabels: map[string]string{},
+			patchOps: types.PatchOps{
+				`{"op":"replace","path":"/spec/template/metadata/labels/harvesterhci.io~1maintain-mode-strategy","value":"foobar"}`,
+			},
+		},
+		{
+			name: "maintenance mode strategy label is set, strategy is set for template to same value",
+			labels: map[string]string{
+				util.LabelMaintainModeStrategy: "foobar",
+			},
+			templateLabels: map[string]string{
+				util.LabelMaintainModeStrategy: "foobar",
+			},
+			patchOps: types.PatchOps{},
+		},
+		{
+			name: "a maintenance mode strategy label is set, strategy is set for template to different value",
+			labels: map[string]string{
+				util.LabelMaintainModeStrategy: "foobar",
+			},
+			templateLabels: map[string]string{
+				util.LabelMaintainModeStrategy: "barfoo",
+			},
+			patchOps: types.PatchOps{
+				`{"op":"replace","path":"/spec/template/metadata/labels/harvesterhci.io~1maintain-mode-strategy","value":"foobar"}`,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: tc.labels,
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: tc.templateLabels,
+						},
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Memory: &kubevirtv1.Memory{
+									Guest: resource.NewQuantity(int64(math.Pow(2, 30)), resource.BinarySI), // 1Gi
+								},
+							},
+						},
+					},
+				},
+			}
+
+			// act
+			actual, err := mutator.(*vmMutator).ensureMaintenanceModeStrategyIsSet(vm, types.PatchOps{})
+
+			// assert
+			assert.Nil(t, err, tc.name)
+			assert.Equal(t, tc.patchOps, actual)
+		})
+	}
+}
 
 func TestPatchResourceOvercommit(t *testing.T) {
 	tests := []struct {
