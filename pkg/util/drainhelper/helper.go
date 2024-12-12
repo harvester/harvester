@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"k8s.io/apimachinery/pkg/selection"
@@ -146,14 +147,31 @@ func DrainPossible(nodeCache ctlcorev1.NodeCache, node *corev1.Node) error {
 func maintainModeStrategyFilter(pod corev1.Pod) drain.PodDeleteStatus {
 	// Ignore VMs that should not be migrated in maintenance mode. These
 	// VMs are forcibly shut down when maintenance mode is activated.
+	// They are identified by the maintenance-mode strategy label
+	// `harvesterhci.io/maintain-mode-strategy` having any of these values:
+	// - ShutdownAndRestartAfterEnable
+	// - ShutdownAndRestartAfterDisable
+	// - Shutdown
 	value, ok := pod.Labels[util.LabelMaintainModeStrategy]
-	if ok && value != util.MaintainModeStrategyMigrate {
+	if ok && slices.Contains([]string{
+		util.MaintainModeStrategyShutdownAndRestartAfterEnable,
+		util.MaintainModeStrategyShutdownAndRestartAfterDisable,
+		util.MaintainModeStrategyShutdown,
+	}, value) {
 		logrus.WithFields(logrus.Fields{
-			"namespace": pod.Namespace,
-			"pod_name":  pod.Name,
-		}).Infof("migration of pod owned by VM %s is skipped because of the label %s",
-			pod.Labels[util.LabelVMName], util.LabelMaintainModeStrategy)
+			"kind":           "pod",
+			"namespace":      pod.Namespace,
+			"name":           pod.Name,
+			"label":          util.LabelMaintainModeStrategy,
+			"value":          value,
+			util.LabelVMName: pod.Labels[util.LabelVMName],
+		}).Infof("migration of VM pod skipped because of label")
 		return drain.MakePodDeleteStatusSkip()
 	}
+
+	// The default setting for the maintenance-mode strategy label is `Migrate`.
+	// VMs which don't have the maintenance-mode strategy label set or have it set
+	// to any value other than the ones named above, the behavior will be the same
+	// as the default.
 	return drain.MakePodDeleteStatusOkay()
 }
