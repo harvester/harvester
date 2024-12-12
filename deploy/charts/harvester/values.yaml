@@ -550,3 +550,11 @@ snapshot-validation-webhook:
 enableLonghornNetworkPolicy: true
 
 enableGoCoverDir: false
+
+# these cluster network configuration are used by node promotion controller.
+# their values must match those provided during Harvester installation, and
+# cannot be modified post-installation.
+promote:
+  clusterPodCIDR: 10.52.0.0/16
+  clusterServiceCIDR: 10.53.0.0/16
+  clusterDNS: 10.53.0.10
