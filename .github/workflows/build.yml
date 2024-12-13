@@ -378,15 +378,12 @@ jobs:
           cache-control: public,no-cache,proxy-revalidate
 
     - name: upload-kernel-initrd-releases
-      uses: softprops/action-gh-release@v2
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
-      with:
-        draft: true
-        prerelease: true
-        files: |
-          dist/artifacts/harvester*initrd-${{ env.arch }}
-          dist/artifacts/harvester*vmlinuz-${{ env.arch }}
-          dist/artifacts/harvester*images-list-${{ env.arch }}.txt
+      run: |
+        gh release create ${{ github.ref_name }} --draft --notes "Draft release for ${{ github.ref_name }}"
+        gh release upload ${{ github.ref_name }} dist/artifacts/harvester*initrd-${{ env.arch }}
+        gh release upload ${{ github.ref_name }} dist/artifacts/harvester*vmlinuz-${{ env.arch }}
+        gh release upload ${{ github.ref_name }} dist/artifacts/harvester*images-list-${{ env.arch }}.txt
 
   manifest-cluster-repo-image:
     name: Manifest harvester-cluster-repo image
