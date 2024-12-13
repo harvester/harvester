@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+	"strings"
 
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -14,6 +16,7 @@ import (
 
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
@@ -21,6 +24,7 @@ import (
 	"github.com/harvester/harvester/pkg/util/resourcequota"
 	vmUtil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
+	indexerwebhook "github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
 )
@@ -34,12 +38,14 @@ func NewValidator(
 	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 	vmCache ctlkubevirtv1.VirtualMachineCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
+	nadCache ctlcniv1.NetworkAttachmentDefinitionCache,
 ) types.Validator {
 	return &vmValidator{
 		pvcCache:      pvcCache,
 		vmBackupCache: vmBackupCache,
 		vmCache:       vmCache,
 		vmiCache:      vmiCache,
+		nadCache:      nadCache,
 
 		rqCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache),
 	}
@@ -51,6 +57,7 @@ type vmValidator struct {
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
 	vmCache       ctlkubevirtv1.VirtualMachineCache
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
+	nadCache      ctlcniv1.NetworkAttachmentDefinitionCache
 
 	rqCalculator *resourcequota.Calculator
 }
@@ -69,6 +76,139 @@ func (v *vmValidator) Resource() types.Resource {
 	}
 }
 
+func (v *vmValidator) getClusterNetworkForNad(nwName string) (clusterNetwork string, err error) {
+	words := strings.Split(nwName, "/")
+	var namespace, name string
+	switch len(words) {
+	case 1:
+		namespace, name = "default", words[0]
+	case 2:
+		namespace, name = words[0], words[1]
+	default:
+		return clusterNetwork, fmt.Errorf("invalid network name %s", nwName)
+	}
+
+	nad, err := v.nadCache.Get(namespace, name)
+	if err != nil {
+		return clusterNetwork, err
+	}
+	clusterNetwork, ok := nad.Labels[keyClusterNetwork]
+	if !ok {
+		return clusterNetwork, err
+	}
+
+	return clusterNetwork, nil
+}
+
+func (v *vmValidator) getVMInterfaceInfo(vms []*kubevirtv1.VirtualMachine) (MacAddrPerCluster map[string]map[string]string, err error) {
+	MacAddrPerCluster = make(map[string]map[string]string) //map[clusterName]map[macaddr]intfName
+
+	for _, vm := range vms {
+		vmName := vm.Namespace + "/" + vm.Name
+
+		if vm.Spec.Template == nil {
+			return MacAddrPerCluster, fmt.Errorf("vm %s template is nil", vm.Name)
+		}
+
+		vmCluster := make(map[string]string) // map[netIntfName]clusterNetwork
+		vmNetworks := vm.Spec.Template.Spec.Networks
+		for _, vmNetwork := range vmNetworks {
+			if vmNetwork.Multus == nil || vmNetwork.Multus.NetworkName == "" {
+				continue
+			}
+			cn, err := v.getClusterNetworkForNad(vmNetwork.Multus.NetworkName)
+			if err != nil {
+				return MacAddrPerCluster, err
+			}
+			vmCluster[vmNetwork.Name] = cn
+		}
+
+		vmInterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
+
+		var macAddrs map[string]string
+		for _, vmInterface := range vmInterfaces {
+			if vmInterface.MacAddress == "" {
+				continue
+			}
+
+			clusNet := vmCluster[vmInterface.Name]
+			if _, exists := MacAddrPerCluster[clusNet]; !exists {
+				macAddrs = make(map[string]string)
+			} else {
+				macAddrs = MacAddrPerCluster[clusNet]
+			}
+			macAddrs[vmInterface.MacAddress] = vmInterface.Name + "+" + vmName
+			MacAddrPerCluster[clusNet] = macAddrs
+		}
+	}
+
+	return MacAddrPerCluster, nil
+}
+
+func (v *vmValidator) checkForDuplicateMacAddrs(vm *kubevirtv1.VirtualMachine) (err error) {
+	var newVMs []*kubevirtv1.VirtualMachine
+	var oldVMsInfo map[string]map[string]string
+	var oldVMsList []*kubevirtv1.VirtualMachine
+
+	//get map[clustername]map[mac]string info for new vm
+	newVMs = append(newVMs, vm)
+	newVMsInfo, err := v.getVMInterfaceInfo(newVMs)
+	if err != nil {
+		return err
+	}
+
+	//newVMsInfo will be empty when new vms are created without any mac address config
+	//skip processing further as there is no mac address configuration from user
+	if len(newVMsInfo) == 0 {
+		return nil
+	}
+
+	if vm.Spec.Template == nil {
+		return fmt.Errorf("vm %s template is nil", vm.Name)
+	}
+
+	vmInterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
+
+	for _, vmInterface := range vmInterfaces {
+		oldVMs, err := v.vmCache.GetByIndex(indexerwebhook.VMByMacAddress, vmInterface.MacAddress)
+		if err != nil {
+			return err
+		}
+
+		oldVMsList = append(oldVMsList, oldVMs...)
+	}
+
+	//No matching mac addresses,skip duplicate mac address check
+	if len(oldVMsList) == 0 {
+		return nil
+	}
+
+	oldVMsInfo, err = v.getVMInterfaceInfo(oldVMsList)
+	if err != nil {
+		return err
+	}
+
+	for cn, macs := range newVMsInfo {
+		if othermacs, exists := oldVMsInfo[cn]; exists {
+			if comparemacs(macs, othermacs) { //duplicate present
+				return fmt.Errorf("duplicate mac address present for vm %s for cluster network %s", vm.Name, cn)
+			}
+		}
+	}
+
+	return nil
+}
+
+func comparemacs(macList1 map[string]string, macList2 map[string]string) bool {
+	for mac1, newvmIntfName := range macList1 {
+		if oldVMIntfName, exists := macList2[mac1]; exists && oldVMIntfName != newvmIntfName { //skip same vms during vm migration,restore cases
+			return true
+		}
+	}
+
+	return false
+}
+
 func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	vm := newObj.(*kubevirtv1.VirtualMachine)
 	if vm == nil {
@@ -80,6 +220,10 @@ func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	}
 
 	if err := v.checkStorageResourceQuota(vm, nil); err != nil {
+		return err
+	}
+
+	if err := v.checkForDuplicateMacAddrs(vm); err != nil {
 		return err
 	}
 
@@ -113,7 +257,19 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 	}
 
 	// Check resize volumes
-	return v.checkResizeVolumes(oldVM, newVM)
+	if err := v.checkResizeVolumes(oldVM, newVM); err != nil {
+		return err
+	}
+
+	if oldVM.Spec.Template != nil && newVM.Spec.Template != nil && reflect.DeepEqual(oldVM.Spec.Template.Spec.Domain.Devices.Interfaces, newVM.Spec.Template.Spec.Domain.Devices.Interfaces) {
+		return nil
+	}
+
+	if err := v.checkForDuplicateMacAddrs(newVM); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
