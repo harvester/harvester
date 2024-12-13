@@ -29,6 +29,7 @@ const (
 	ScheduleVMBackupBySuspended           = "harvesterhci.io/svmbackup-by-suspended"
 	ImageByStorageClass                   = "harvesterhci.io/image-by-storage-class"
 	VMInstanceMigrationByVM               = "harvesterhci.io/vmim-by-vm"
+	VMByMacAddress                        = "harvesterhci.io/vm-by-macaddr"
 )
 
 func RegisterIndexers(clients *clients.Clients) {
@@ -65,6 +66,9 @@ func RegisterIndexers(clients *clients.Clients) {
 
 	vmimCache := clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache()
 	vmimCache.AddIndexer(VMInstanceMigrationByVM, vmInstanceMigrationByVM)
+
+	vmCache := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
+	vmCache.AddIndexer(VMByMacAddress, vmByMacaddrs)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
@@ -164,4 +168,21 @@ func imageByStorageClass(obj *harvesterv1.VirtualMachineImage) ([]string, error)
 
 func vmInstanceMigrationByVM(obj *kubevirtv1.VirtualMachineInstanceMigration) ([]string, error) {
 	return []string{fmt.Sprintf("%s/%s", obj.Namespace, obj.Spec.VMIName)}, nil
+}
+
+func vmByMacaddrs(obj *kubevirtv1.VirtualMachine) (vmmacs []string, err error) {
+	if obj.Spec.Template == nil {
+		return vmmacs, fmt.Errorf("vm %s template is nil", obj.Name)
+	}
+
+	vmInterfaces := obj.Spec.Template.Spec.Domain.Devices.Interfaces
+
+	for _, vmInterface := range vmInterfaces {
+		if vmInterface.MacAddress == "" {
+			continue
+		}
+		vmmacs = append(vmmacs, vmInterface.MacAddress)
+	}
+
+	return vmmacs, nil
 }
