@@ -486,10 +486,18 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 	if err != nil {
 		return err
 	}
+
 	migrationUID := getMigrationUID(vmi)
 	for _, vmim := range vmims {
 		if migrationUID == string(vmim.UID) {
-			if !vmim.IsRunning() {
+			// already aborted/deleted
+			if vmim.DeletionTimestamp != nil {
+				return nil
+			}
+			// TBD, this logic is different with canAbortMigrate(), should be unified
+			// vmim should always be allowed to be deleted, unless kubevirt denies it
+			// otherwise, Harvester should delete it, and syncVM to re-render the UI
+			if vmim.Status.Phase == kubevirtv1.MigrationSucceeded || vmim.Status.Phase == kubevirtv1.MigrationFailed {
 				return fmt.Errorf("cannot abort the migration as it is in %q phase", vmim.Status.Phase)
 			}
 			// Migration is aborted by deleting the VMIM object

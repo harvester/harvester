@@ -1,7 +1,6 @@
 package migration
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 const (
 	StateMigrating         = "Migrating"
 	StateAbortingMigration = "Aborting migration"
+	StatePending           = "Pending"
 )
 
 // The handler adds the AnnotationMigrationUID annotation to the VMI when vmim starts.
@@ -40,14 +40,27 @@ func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanc
 
 	abortRequested := isAbortRequest(vmim)
 
+	errWraper := func(uid, state, phase string, err error) error {
+		return fmt.Errorf("fail to set vmim UID %v state %v to vmi in phase %v, %w", uid, state, phase, err)
+	}
+
 	// debug log shows, after vmim was deleted, the OnChange here may be called two times
 	logrus.Debugf("syncing vmim %s/%s/%s phase %v abortRequested %v deleted %t", vmim.Namespace, vmim.Name, vmi.Name, vmim.Status.Phase, abortRequested, vmim.DeletionTimestamp != nil)
 	if vmim.Status.Phase == kubevirtv1.MigrationPending && !abortRequested {
+		if err := h.setVmiMigrationUIDAnnotationAndSyncVM(vmi, string(vmim.UID), StatePending); err != nil {
+			return vmim, errWraper(string(vmim.UID), StatePending, string(vmim.Status.Phase), err)
+		}
 		return vmim, h.scaleResourceQuota(vmi)
 	} else if vmim.Status.Phase != kubevirtv1.MigrationFailed && abortRequested {
-		return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateAbortingMigration)
+		if err := h.setVmiMigrationUIDAnnotationAndSyncVM(vmi, string(vmim.UID), StateAbortingMigration); err != nil {
+			return vmim, errWraper(string(vmim.UID), StateAbortingMigration, string(vmim.Status.Phase), err)
+		}
+		return vmim, nil
 	} else if vmim.Status.Phase == kubevirtv1.MigrationScheduling {
-		return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateMigrating)
+		if err := h.setVmiMigrationUIDAnnotationAndSyncVM(vmi, string(vmim.UID), StateMigrating); err != nil {
+			return vmim, errWraper(string(vmim.UID), StateMigrating, string(vmim.Status.Phase), err)
+		}
+		return vmim, nil
 	} else if vmi.Annotations[util.AnnotationMigrationUID] == string(vmim.UID) && vmim.Status.Phase == kubevirtv1.MigrationFailed {
 		// There are cases when VMIM failed but the status is not reported in VMI.status.migrationState
 		// https://github.com/kubevirt/kubevirt/issues/5503
@@ -60,30 +73,38 @@ func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanc
 	return vmim, nil
 }
 
-func (h *Handler) setVmiMigrationUIDAnnotation(vmi *kubevirtv1.VirtualMachineInstance, UID string, state string) error {
-	if vmi.Annotations[util.AnnotationMigrationUID] == UID &&
-		vmi.Annotations[util.AnnotationMigrationState] == state {
-		return nil
+func (h *Handler) setVmiMigrationUIDAnnotationAndSyncVM(vmi *kubevirtv1.VirtualMachineInstance, UID string, state string) error {
+	ts := vmi.Annotations[util.AnnotationMigrationStateTimestamp]
+	checkTs := true
+	// a new UID or new state
+	if vmi.Annotations[util.AnnotationMigrationUID] != UID ||
+		vmi.Annotations[util.AnnotationMigrationState] != state {
+		toUpdate := vmi.DeepCopy()
+		if toUpdate.Annotations == nil {
+			toUpdate.Annotations = make(map[string]string)
+		}
+		if UID != "" {
+			toUpdate.Annotations[util.AnnotationMigrationUID] = UID
+			toUpdate.Annotations[util.AnnotationMigrationState] = state
+			// update the new ts to vmi
+			toUpdate.Annotations[util.AnnotationMigrationStateTimestamp] = time.Now().Format(time.RFC3339)
+			checkTs = false
+		} else {
+			delete(toUpdate.Annotations, util.AnnotationMigrationUID)
+			delete(toUpdate.Annotations, util.AnnotationMigrationState)
+			delete(toUpdate.Annotations, util.AnnotationMigrationStateTimestamp)
+		}
+		if _, err := h.vmis.Update(toUpdate); err != nil {
+			return err
+		}
 	}
-	toUpdate := vmi.DeepCopy()
-	if toUpdate.Annotations == nil {
-		toUpdate.Annotations = make(map[string]string)
-	}
-	if UID != "" {
-		toUpdate.Annotations[util.AnnotationMigrationUID] = UID
-		toUpdate.Annotations[util.AnnotationMigrationState] = state
-	} else {
-		delete(toUpdate.Annotations, util.AnnotationMigrationUID)
-		delete(toUpdate.Annotations, util.AnnotationMigrationState)
-	}
-	if err := util.VirtClientUpdateVmi(context.Background(), h.restClient, h.namespace, vmi.Namespace, vmi.Name, toUpdate); err != nil {
-		return err
-	}
-	return h.syncVM(vmi)
+	// state/UID does not change, check if VM needs to be updated
+	return h.syncVM(vmi, checkTs, ts)
 }
 
 // syncVM update vm so that UI gets websocket message with updated actions
-func (h *Handler) syncVM(vmi *kubevirtv1.VirtualMachineInstance) error {
+// checkTs: true: check the vm.annotation AnnotationTimestamp with the input ts, false: do not
+func (h *Handler) syncVM(vmi *kubevirtv1.VirtualMachineInstance, checkTs bool, ts string) error {
 	vm, err := h.vmCache.Get(vmi.Namespace, vmi.Name)
 	if err != nil {
 		return err
@@ -92,10 +113,23 @@ func (h *Handler) syncVM(vmi *kubevirtv1.VirtualMachineInstance) error {
 	if toUpdateVM.Annotations == nil {
 		toUpdateVM.Annotations = make(map[string]string)
 	}
-	toUpdateVM.Annotations[util.AnnotationTimestamp] = time.Now().Format(time.RFC3339)
-
-	_, err = h.vms.Update(toUpdateVM)
-	return err
+	// update vm object timestamp anyway
+	if !checkTs {
+		// get the current timestamp directly
+		toUpdateVM.Annotations[util.AnnotationTimestamp] = time.Now().Format(time.RFC3339)
+		_, err = h.vms.Update(toUpdateVM)
+		return err
+	}
+	// check ts to decide if update is required
+	// mainly for the case: setVmiMigrationUIDAnnotationAndSyncVM updated vmi but failed to update vm
+	// then the timestamp on vmi is newer than on vm, following code will be executed
+	curTs := toUpdateVM.Annotations[util.AnnotationTimestamp]
+	if curTs < ts {
+		toUpdateVM.Annotations[util.AnnotationTimestamp] = time.Now().Format(time.RFC3339)
+		_, err = h.vms.Update(toUpdateVM)
+		return err
+	}
+	return nil
 }
 
 // scaleResourceQuota scales the resource quota of the namespace to allow the migration to succeed
@@ -162,6 +196,7 @@ func (h *Handler) scaleResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInstan
 		return err
 	}
 	_, err = h.rqs.Update(rqToUpdate)
+	fmt.Println("scaled")
 	return err
 }
 
@@ -239,7 +274,7 @@ func (h *Handler) resetHarvesterMigrationStateInVmiAndSyncVM(vmi *kubevirtv1.Vir
 		return fmt.Errorf("fail to reset vmi migration %w", err)
 	}
 	// without syncing VM, the UI may still show the actions deduced from old VM/VMI status combination
-	if err := h.syncVM(vmi); err != nil {
+	if err := h.syncVM(vmi, false, ""); err != nil {
 		return fmt.Errorf("fail to reset vmi migration to vm %w", err)
 	}
 	return nil

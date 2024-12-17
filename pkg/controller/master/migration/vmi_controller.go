@@ -1,8 +1,6 @@
 package migration
 
 import (
-	"context"
-
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -22,6 +20,7 @@ type Handler struct {
 	namespace  string
 	rqs        ctlharvcorev1.ResourceQuotaClient
 	rqCache    ctlharvcorev1.ResourceQuotaCache
+	vmis       ctlvirtv1.VirtualMachineInstanceClient
 	vmiCache   ctlvirtv1.VirtualMachineInstanceCache
 	vms        ctlvirtv1.VirtualMachineClient
 	vmCache    ctlvirtv1.VirtualMachineCache
@@ -73,7 +72,7 @@ func (h *Handler) resetHarvesterMigrationStateInVMI(vmi *kubevirtv1.VirtualMachi
 		delete(toUpdate.Spec.NodeSelector, corev1.LabelHostname)
 	}
 
-	if err := util.VirtClientUpdateVmi(context.Background(), h.restClient, h.namespace, vmi.Namespace, vmi.Name, toUpdate); err != nil {
+	if _, err := h.vmis.Update(toUpdate); err != nil {
 		return err
 	}
 	return nil

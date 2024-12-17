@@ -236,7 +236,7 @@ func isReady(vmi *kubevirtv1.VirtualMachineInstance) bool {
 
 func canAbortMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
 	if vmi != nil &&
-		vmi.Annotations[util.AnnotationMigrationState] == migration.StateMigrating {
+		vmi.Annotations[util.AnnotationMigrationState] == migration.StateMigrating || vmi.Annotations[util.AnnotationMigrationState] == migration.StatePending {
 		return true
 	}
 	return false

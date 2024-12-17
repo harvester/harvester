@@ -8,6 +8,7 @@ const (
 	AnnotationMigrationTarget           = prefix + "/migrationTargetNodeName"
 	AnnotationMigrationUID              = prefix + "/migrationUID"
 	AnnotationMigrationState            = prefix + "/migrationState"
+	AnnotationMigrationStateTimestamp   = prefix + "/migrationStateTimestamp" // timestamp when entering this state
 	AnnotationTimestamp                 = prefix + "/timestamp"
 	AnnotationVolumeClaimTemplates      = prefix + "/volumeClaimTemplates"
 	AnnotationUpgradePatched            = prefix + "/upgrade-patched"
