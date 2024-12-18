@@ -18,4 +18,16 @@ parameters:
   fromBackup: ""
   baseImage: ""
   migratable: "true"
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: vmstate-persistence
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: "{{ .Values.storageClass.reclaimPolicy }}"
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "{{ .Values.storageClass.replicaCount }}"
+  staleReplicaTimeout: "30"
 {{- end -}}
