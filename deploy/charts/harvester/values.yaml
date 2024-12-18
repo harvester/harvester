@@ -60,8 +60,9 @@ kubevirt:
     ##
     configuration:
       ## Specify kubevirt feature gates
+      vmStateStorageClass: "vmstate-persistence"
       developerConfiguration:
-        featureGates: ["LiveMigration", "HotplugVolumes", "HostDevices", "GPU", "CPUManager"]
+        featureGates: ["LiveMigration", "HotplugVolumes", "HostDevices", "GPU", "CPUManager", "VMPersistentState"]
 
       ## Specify the network configuration of VirtualMachineInstance.
       ##
