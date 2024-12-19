@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -14,11 +16,13 @@ import (
 
 	"github.com/harvester/harvester/pkg/builder"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
 	VirtualMachineCreatorNodeDriver = "docker-machine-driver-harvester"
+	HarvesterLabelPrefix            = "harvesterhci.io"
 )
 
 // hostLabelsReconcileMapping defines the mapping for reconciliation of node labels to virtual machine instance annotations
@@ -27,12 +31,79 @@ var hostLabelsReconcileMapping = []string{
 }
 
 type VMIController struct {
+	podClient           ctlcorev1.PodClient
+	podCache            ctlcorev1.PodCache
 	vmClient            kubevirtctrl.VirtualMachineClient
 	virtualMachineCache kubevirtctrl.VirtualMachineCache
 	vmiClient           kubevirtctrl.VirtualMachineInstanceClient
 	nodeCache           ctlcorev1.NodeCache
 	pvcClient           ctlcorev1.PersistentVolumeClaimClient
 	recorder            record.EventRecorder
+}
+
+// SyncHarvesterVMILabelsToPod ensures that all Harvester labels (i.e. those
+// with the harvesterhci.io/ prefix) from the VirtualMachineInstance are synced
+// to the Pod
+func (h *VMIController) SyncHarvesterVMILabelsToPod(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
+	if vmi == nil || vmi.DeletionTimestamp != nil {
+		return vmi, nil
+	}
+
+	logrus.Debugf("Syncing labels %v for VMI %v to Pod", vmi.Labels, vmi.Name)
+
+	harvesterVMILabels := map[string]string{}
+	for label := range vmi.Labels {
+		if strings.HasPrefix(label, HarvesterLabelPrefix) {
+			harvesterVMILabels[label] = vmi.Labels[label]
+		}
+	}
+
+	activePods := vmi.Status.ActivePods
+	if len(activePods) < 1 {
+		logrus.Debugf("VMI %v does not have active Pods", vmi.Name)
+		return vmi, nil
+	}
+
+	nodeName := vmi.Status.NodeName
+	if nodeName == "" {
+		logrus.Debugf("Could not identify which node VMI %v runs on", vmi.Name)
+		return vmi, nil
+	}
+
+	pods, err := h.podCache.GetByIndex(indexeres.PodByNodeNameIndex, nodeName)
+	if err != nil {
+		return vmi, fmt.Errorf("failed to find pods for VMI %v, %v", vmi.Name, err)
+	}
+
+	var toUpdate = make([]*corev1.Pod, 0)
+	for _, pod := range pods {
+		for active := range activePods {
+			if pod.UID == active {
+				toUpdate = append(toUpdate, pod.DeepCopy())
+			}
+		}
+	}
+
+	for _, pod := range toUpdate {
+		// delete Harvester labels from Pod, if they are deleted from VMI
+		for podLabel := range pod.Labels {
+			_, ok := harvesterVMILabels[podLabel]
+			if strings.HasPrefix(podLabel, HarvesterLabelPrefix) && !ok {
+				delete(pod.Labels, podLabel)
+			}
+		}
+
+		// copy labels from VMI to Pod
+		for label := range harvesterVMILabels {
+			pod.Labels[label] = harvesterVMILabels[label]
+		}
+
+		_, err := h.podClient.Update(pod)
+		if err != nil {
+			return vmi, fmt.Errorf("failed to sync Harvester VMI labels to pod, %v", err)
+		}
+	}
+	return vmi, nil
 }
 
 // ReconcileFromHostLabels handles the propagation of metadata from node labels to VirtualMachineInstance annotations.
