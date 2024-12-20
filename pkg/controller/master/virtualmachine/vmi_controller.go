@@ -2,7 +2,9 @@ package virtualmachine
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -11,13 +13,15 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/builder"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/harvester/harvester/pkg/indexeres"
+	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/indexeres"
 )
 
 const (
@@ -41,6 +45,17 @@ type VMIController struct {
 	recorder            record.EventRecorder
 }
 
+// Golang standard library's "maps" module contains the "Keys" function only for
+// Golang <v1.21 and >= v1.23
+// This function returns a sequence of keys of a map
+func mapKeys(m map[apitypes.UID]string) []apitypes.UID {
+	keys := make([]apitypes.UID, 0)
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 // SyncHarvesterVMILabelsToPod ensures that all Harvester labels (i.e. those
 // with the harvesterhci.io/ prefix) from the VirtualMachineInstance are synced
 // to the Pod
@@ -52,57 +67,57 @@ func (h *VMIController) SyncHarvesterVMILabelsToPod(_ string, vmi *kubevirtv1.Vi
 	logrus.Debugf("Syncing labels %v for VMI %v to Pod", vmi.Labels, vmi.Name)
 
 	harvesterVMILabels := map[string]string{}
-	for label := range vmi.Labels {
+	for label, value := range vmi.Labels {
 		if strings.HasPrefix(label, HarvesterLabelPrefix) {
-			harvesterVMILabels[label] = vmi.Labels[label]
+			harvesterVMILabels[label] = value
 		}
 	}
 
-	activePods := vmi.Status.ActivePods
-	if len(activePods) < 1 {
+	activePodUIDs := vmi.Status.ActivePods
+	if len(activePodUIDs) < 1 {
 		logrus.Debugf("VMI %v does not have active Pods", vmi.Name)
 		return vmi, nil
 	}
 
-	nodeName := vmi.Status.NodeName
-	if nodeName == "" {
-		logrus.Debugf("Could not identify which node VMI %v runs on", vmi.Name)
-		return vmi, nil
+	vmName, ok := vmi.Labels["harvesterhci.io/vmName"]
+	if !ok {
+		return vmi, fmt.Errorf("failed to determind VM name of VMI %v", vmi.Name)
 	}
 
-	pods, err := h.podCache.GetByIndex(indexeres.PodByNodeNameIndex, nodeName)
-	if err != nil {
+	pods, err := h.podCache.GetByIndex(indexeres.PodByVMNameIndex, ref.Construct(vmi.Namespace, vmName))
+	if err != nil || len(pods) < 1 {
 		return vmi, fmt.Errorf("failed to find pods for VMI %v, %v", vmi.Name, err)
 	}
 
-	var toUpdate = make([]*corev1.Pod, 0)
 	for _, pod := range pods {
-		for active := range activePods {
-			if pod.UID == active {
-				toUpdate = append(toUpdate, pod.DeepCopy())
-			}
+		// TODO: Replace with maps.Keys(activePodUIDs) after migrating to Golang
+		// v1.23
+		if !slices.Contains(mapKeys(activePodUIDs), pod.UID) {
+			continue
 		}
-	}
 
-	for _, pod := range toUpdate {
+		newLabels := maps.Clone(pod.Labels)
 		// delete Harvester labels from Pod, if they are deleted from VMI
-		for podLabel := range pod.Labels {
-			_, ok := harvesterVMILabels[podLabel]
-			if strings.HasPrefix(podLabel, HarvesterLabelPrefix) && !ok {
-				delete(pod.Labels, podLabel)
+
+		maps.DeleteFunc(newLabels, func(k, _ string) bool {
+			if _, ok := harvesterVMILabels[k]; !ok && strings.HasPrefix(k, HarvesterLabelPrefix) {
+				return true
+			}
+			return false
+		})
+
+		maps.Copy(newLabels, harvesterVMILabels)
+
+		if !maps.Equal(pod.Labels, newLabels) {
+			newPod := pod.DeepCopy()
+			newPod.Labels = newLabels
+			_, err := h.podClient.Update(newPod)
+			if err != nil {
+				return vmi, fmt.Errorf("failed to sync Harvester VMI labels to pod, %v", err)
 			}
 		}
-
-		// copy labels from VMI to Pod
-		for label := range harvesterVMILabels {
-			pod.Labels[label] = harvesterVMILabels[label]
-		}
-
-		_, err := h.podClient.Update(pod)
-		if err != nil {
-			return vmi, fmt.Errorf("failed to sync Harvester VMI labels to pod, %v", err)
-		}
 	}
+
 	return vmi, nil
 }
 
