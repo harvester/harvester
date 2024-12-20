@@ -10,5 +10,5 @@ spec:
   enabled: false
   valuesContent: |
     image:
-      tag: v0.3.2
+      tag: v0.3.4
     fullnameOverride: harvester-vm-import-controller
