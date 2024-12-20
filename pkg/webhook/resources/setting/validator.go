@@ -64,6 +64,7 @@ const (
 	labelAppNameValueGrafana          = "grafana"
 	labelAppNameValueImportController = "harvester-vm-import-controller"
 	maxTTLDurationMinutes             = 52560000 //specifies max duration allowed for kubeconfig TTL setting, and corresponds to 100 years
+	mgmtClusterNetwork                = "mgmt"
 )
 
 var certs = getSystemCerts()
@@ -1210,6 +1211,11 @@ func (v *settingValidator) checkStorageNetworkValueVaild() error {
 }
 
 func (v *settingValidator) checkVlanStatusReady(config *storagenetworkctl.Config) error {
+	//mgmt cluster
+	if config.ClusterNetwork == mgmtClusterNetwork {
+		return nil
+	}
+
 	_, err := v.cnCache.Get(config.ClusterNetwork)
 	if err != nil {
 		return fmt.Errorf("cluster network %s not found because %v", config.ClusterNetwork, err)
@@ -1249,6 +1255,11 @@ func getMatchNodes(vc *networkv1.VlanConfig) ([]string, error) {
 }
 
 func (v *settingValidator) checkVCSpansAllNodes(config *storagenetworkctl.Config) error {
+	//mgmt cluster
+	if config.ClusterNetwork == mgmtClusterNetwork {
+		return nil
+	}
+
 	matchedNodes := mapset.NewSet[string]()
 
 	vcs, err := v.vcCache.List(labels.Set{
