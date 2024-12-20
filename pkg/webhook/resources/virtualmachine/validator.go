@@ -661,35 +661,35 @@ func (v *vmValidator) checkEmptyMemory(vm *kubevirtv1.VirtualMachine) error {
 func checkMaintenanceModeStrategyIsValid(newVM, oldVM *kubevirtv1.VirtualMachine) error {
 	labels := newVM.ObjectMeta.Labels
 	newStrategy, ok := labels[util.LabelMaintainModeStrategy]
-	if ok {
-		// Don't deny updates on an existing VM with an invalid maintenance-mode
-		// strategy label, if the label stays the same, but complain with a warning.
-		// If the maintenance-mode strategy label is updated, its new value needs to
-		// be valid regardless.
-		if oldVM != nil {
-			oldVMLabels := oldVM.ObjectMeta.Labels
-			oldStrategy, ok := oldVMLabels[util.LabelMaintainModeStrategy]
-			if ok && oldStrategy == newStrategy {
-				if !slices.Contains(util.ValidMaintenanceModeStrategyValues, oldStrategy) {
-					logrus.WithFields(logrus.Fields{
-						"name":      oldVM.Name,
-						"namespace": oldVM.Namespace,
-					}).Warnf("invalid maintenance-mode strategy for VM, behavior will be equivalent to default `%v`", util.MaintainModeStrategyMigrate)
-
-					return nil
-				}
-			}
-		}
-
-		if !slices.Contains(util.ValidMaintenanceModeStrategyValues, newStrategy) {
-			return werror.NewInvalidError(
-				fmt.Sprintf("invalid maintenance mode strategy: %v", newStrategy),
-				fmt.Sprintf("metadata.labels[%v]", util.LabelMaintainModeStrategy),
-			)
-		}
-	} else {
+	if !ok {
 		return werror.NewInvalidError(
 			fmt.Sprintf("label `%v` not found", util.LabelMaintainModeStrategy),
+			fmt.Sprintf("metadata.labels[%v]", util.LabelMaintainModeStrategy),
+		)
+	}
+
+	// Don't deny updates on an existing VM with an invalid maintenance-mode
+	// strategy label, if the label stays the same, but complain with a warning.
+	// If the maintenance-mode strategy label is updated, its new value needs to
+	// be valid regardless.
+	if oldVM != nil {
+		oldVMLabels := oldVM.ObjectMeta.Labels
+		oldStrategy, ok := oldVMLabels[util.LabelMaintainModeStrategy]
+		if ok && oldStrategy == newStrategy {
+			if !slices.Contains(util.ValidMaintenanceModeStrategyValues, oldStrategy) {
+				logrus.WithFields(logrus.Fields{
+					"name":      oldVM.Name,
+					"namespace": oldVM.Namespace,
+				}).Warnf("invalid maintenance-mode strategy for VM, behavior will be equivalent to default `%v`", util.MaintainModeStrategyMigrate)
+
+				return nil
+			}
+		}
+	}
+
+	if !slices.Contains(util.ValidMaintenanceModeStrategyValues, newStrategy) {
+		return werror.NewInvalidError(
+			fmt.Sprintf("invalid maintenance mode strategy: %v", newStrategy),
 			fmt.Sprintf("metadata.labels[%v]", util.LabelMaintainModeStrategy),
 		)
 	}
