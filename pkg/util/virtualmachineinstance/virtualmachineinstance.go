@@ -34,7 +34,7 @@ func GetAllNonLiveMigratableVMINames(vmis []*kubevirtv1.VirtualMachineInstance, 
 
 		// PCIe devices
 		if vmi.Spec.Domain.Devices.HostDevices != nil {
-			logrus.Infof("%s considered non-live migratable due to pcie devices", vmiNamespacedName)
+			logrus.Infof("%s considered non-live migratable due to pcie or usb devices", vmiNamespacedName)
 			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmiNamespacedName)
 			continue
 		}
@@ -53,11 +53,42 @@ func GetAllNonLiveMigratableVMINames(vmis []*kubevirtv1.VirtualMachineInstance, 
 		// container-disk or cdrom device
 		if VMContainsCDRomOrContainerDisk(vmi) {
 			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmiNamespacedName)
+			logrus.Infof("%s considered non-live migratable due to CD-ROM or container disk", vmiNamespacedName)
 			continue
 		}
 	}
 
 	return nonLiveMigratableVMINames, nil
+}
+
+func ValidateVMMigratable(vmi *kubevirtv1.VirtualMachineInstance) error {
+	vmiNamespacedName := fmt.Sprintf("%s/%s", vmi.Namespace, vmi.Name)
+
+	if !vmi.IsRunning() {
+		return fmt.Errorf("VM %s considered non-live migratable due to running", vmiNamespacedName)
+	}
+
+	// The VM is already in migrating state
+	if vmi.Annotations[util.AnnotationMigrationUID] != "" {
+		return fmt.Errorf("VM %s considered non-live migratable due to migration state", vmiNamespacedName)
+	}
+
+	// Node selectors
+	if vmi.Spec.NodeSelector != nil && vmi.Spec.NodeSelector[corev1.LabelHostname] != "" {
+		return fmt.Errorf("VM %s considered non-live migratable due to node selectors", vmiNamespacedName)
+	}
+
+	// PCIe devices
+	if vmi.Spec.Domain.Devices.HostDevices != nil {
+		return fmt.Errorf("VM %s considered non-live migratable due to pcie or usb devices", vmiNamespacedName)
+	}
+
+	// container-disk or cdrom device
+	if VMContainsCDRomOrContainerDisk(vmi) {
+		return fmt.Errorf("VM %s considered non-live migratable due to CD-ROM or container disk", vmiNamespacedName)
+	}
+
+	return nil
 }
 
 func migratableByNodeAffinity(vmi *kubevirtv1.VirtualMachineInstance, nodes []*corev1.Node) (bool, error) {
