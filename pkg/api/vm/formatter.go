@@ -73,6 +73,8 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	resource.AddAction(request, addVolume)
 	resource.AddAction(request, removeVolume)
 	resource.AddAction(request, cloneVM)
+	resource.AddAction(request, migrate)
+	resource.AddAction(request, findMigratableNodes)
 
 	if canEjectCdRom(vm) {
 		resource.AddAction(request, ejectCdRom)
@@ -101,11 +103,6 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	if vf.canUnPause(vmi) {
 		resource.AddAction(request, unpauseVM)
-	}
-
-	if canMigrate(vmi) {
-		resource.AddAction(request, migrate)
-		resource.AddAction(request, findMigratableNodes)
 	}
 
 	if canAbortMigrate(vmi) {
@@ -223,28 +220,6 @@ func (vf *vmformatter) canStop(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.Vi
 		default:
 			// skip to other condition
 		}
-	}
-
-	return true
-}
-
-func canMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
-	if vmi == nil {
-		return false
-	}
-
-	if !vmi.IsRunning() {
-		return false
-	}
-
-	// The VM is already in migrating state
-	if vmi.Annotations[util.AnnotationMigrationUID] != "" {
-		return false
-	}
-
-	// The VM is set to run on a specific node
-	if vmi.Spec.NodeSelector != nil && vmi.Spec.NodeSelector[corev1.LabelHostname] != "" {
-		return false
 	}
 
 	return true

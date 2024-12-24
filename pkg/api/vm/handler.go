@@ -405,13 +405,9 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 	if !isReady(vmi) {
 		return errors.New("Can't migrate the VM, the VM is not in ready status")
 	}
-	if !canMigrate(vmi) {
-		return errors.New("The VM is not migratable")
-	}
 
-	// functions in formatter only return bool, the disk.Name is also needed, check them directly here
-	if virtualmachineinstance.VMContainsCDRomOrContainerDisk(vmi) {
-		return fmt.Errorf("VM %s contains CD-ROM or container disk, needs to be ejected before migration", vmName)
+	if err := virtualmachineinstance.ValidateVMMigratable(vmi); err != nil {
+		return err
 	}
 
 	if ok, err := h.isMigratableNode(nodeName, vmi); err != nil {
@@ -512,8 +508,8 @@ func (h *vmActionHandler) findMigratableNodes(rw http.ResponseWriter, namespace,
 		return err
 	}
 
-	if !canMigrate(vmi) {
-		return errors.New("The VM is not migratable")
+	if err := virtualmachineinstance.ValidateVMMigratable(vmi); err != nil {
+		return err
 	}
 
 	nodes, err := h.findMigratableNodesByVMI(vmi)
