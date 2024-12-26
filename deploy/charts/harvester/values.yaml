@@ -371,7 +371,7 @@ harvester-networkfs-manager:
     repository: rancher/harvester-networkfs-manager
     pullPolicy: IfNotPresent 
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v0.1.1
+    tag: v0.1.2
 
 harvester-node-disk-manager:
   ## Specify to install harvester node disk manager,
