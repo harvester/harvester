@@ -1,4 +1,15 @@
 pull_request_rules:
+- name: Automatically open v1.5 backport PR
+  conditions:
+    - base=master
+    - label="backport-to/v1.5"
+  actions:
+    backport:
+      branches:
+        - v1.5
+      assignees:
+        - "{{ author }}"
+
 - name: Automatically open v1.4 backport PR
   conditions:
     - base=master
@@ -18,17 +29,6 @@ pull_request_rules:
     backport:
       branches:
         - v1.3
-      assignees:
-        - "{{ author }}"
-
-- name: Automatically open v1.2 backport PR
-  conditions:
-    - base=master
-    - label="backport-to/v1.2"
-  actions:
-    backport:
-      branches:
-        - v1.2
       assignees:
         - "{{ author }}"
 
