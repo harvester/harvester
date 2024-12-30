@@ -43,16 +43,27 @@ pull_request_rules:
     merge:
       method: rebase
 
-- name: Automatically approve Renovate/Backport PRs
+- name: Automatically approve Renovate PRs
   conditions:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
   - or:
     - author = renovate[bot]
+  actions:
+    review:
+      type: APPROVE
+
+# Mergify can't approve its own PRs, so we need to use a bot account
+- name: Automatically approve Backport PRs
+  conditions:
+  - check-success="Build binaries (x64)"
+  - check-success="Build binaries (arm64)"
+  - or:
     - author = mergify[bot]
   actions:
     review:
       type: APPROVE
+      bot_account: harvesterhci-io-github-bot
 
 - name: Ask to resolve conflict
   conditions:
