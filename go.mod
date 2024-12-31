@@ -6,7 +6,7 @@ replace (
 	github.com/containerd/containerd => github.com/containerd/containerd v1.6.18
 	github.com/docker/distribution => github.com/docker/distribution v2.8.0+incompatible // oras dep requires a replace is set
 	github.com/docker/docker => github.com/docker/docker v20.10.9+incompatible // oras dep requires a replace is set
-	github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.7.7
+	github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.9.1
 	github.com/knative/pkg => github.com/rancher/pkg v0.0.0-20190514055449-b30ab9de040e
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200521150516-05eb9880269c
