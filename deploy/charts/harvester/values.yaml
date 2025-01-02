@@ -351,16 +351,16 @@ harvester-network-controller:
     repository: rancher/harvester-network-controller
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v0.5.5
+    tag: v0.5.6
   helper:
     image:
       repository: rancher/harvester-network-helper
-      tag: v0.5.5
+      tag: v0.5.6
   webhook:
     image:
       repository: rancher/harvester-network-webhook
       pullPolicy: IfNotPresent
-      tag: v0.5.5
+      tag: v0.5.6
 
 harvester-networkfs-manager:
   ## Specify to install harvester networkfs manager,
