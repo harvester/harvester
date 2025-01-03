@@ -4,10 +4,14 @@ on:
   issues:
     types: [ labeled ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
 jobs:
-  create-backport-issue:
-    name: Create Issue  
-    if: contains(github.event.label.name, 'backport-needed/') || contains(github.event.label.name, 'require-ui/')
+  create-issue:
+    name: Create Issue
+    if: contains(join(github.event.issue.labels.*.name, ', '), 'backport-needed/') || contains(join(github.event.issue.labels.*.name, ', '), 'require-ui/')
     runs-on: ubuntu-latest
     env:
       EVENT: ${{ toJson(github.event) }}
@@ -26,11 +30,11 @@ jobs:
           pip install -r .github/workflows/bot/requirements.txt
 
       - name: Create Backport Issue
-        if: contains(github.event.label.name, 'backport-needed/')
+        if: contains(join(github.event.issue.labels.*.name, ', '), 'backport-needed/')
         run: |
           python .github/workflows/bot.py "$EVENT"
       
       - name: Create GUI Issue
-        if: contains(github.event.label.name, 'require-ui/')
+        if: contains(join(github.event.issue.labels.*.name, ', '), 'require-ui/')
         run: |
           python .github/workflows/bot.py "$EVENT"
