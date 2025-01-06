@@ -394,6 +394,9 @@ func (client *SyncClient) DownloadToDst(srcFilePath, dstFilePath string) error {
 		}
 	}
 	dst, err := os.Create(dstFilePath)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create the dst file before download")
+	}
 	defer dst.Close()
 
 	httpClient := &http.Client{Timeout: 0}

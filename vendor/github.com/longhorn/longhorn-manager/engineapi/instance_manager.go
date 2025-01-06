@@ -91,11 +91,22 @@ func CheckInstanceManagerProxySupport(im *longhorn.InstanceManager) error {
 	return nil
 }
 
-// NewInstanceManagerClient creates a new instance manager client
-func NewInstanceManagerClient(im *longhorn.InstanceManager) (*InstanceManagerClient, error) {
-	// Do not check the major version here. Since IM cannot get the major version without using this client to call VersionGet().
-	if im.Status.CurrentState != longhorn.InstanceManagerStateRunning || im.Status.IP == "" {
-		return nil, fmt.Errorf("invalid Instance Manager %v, state: %v, IP: %v", im.Name, im.Status.CurrentState, im.Status.IP)
+// NewInstanceManagerClient creates a new instance manager client. Usually, we only want to attempt to communicate with
+// an instance manager in state running. However, sometimes it makes sense to make a best effort attempt to communicate
+// with an instance manager in state unknown. It should be safe to do so, since Kubernetes should not reassign the pod's
+// IP address until it is at least terminating, which puts the instance manager in state error. However, there is an
+// increased chance of failure.
+func NewInstanceManagerClient(im *longhorn.InstanceManager, allowUnknown bool) (*InstanceManagerClient, error) {
+	// Do not check the major version here since IM cannot get the major version without using this client to call
+	// VersionGet().
+
+	if im.Status.IP == "" {
+		return nil, fmt.Errorf("invalid instance manager %v, state %v, IP %v", im.Name, im.Status.CurrentState, im.Status.IP)
+	}
+	if im.Status.CurrentState == longhorn.InstanceManagerStateUnknown && allowUnknown {
+		logrus.Warnf("Communicating with instance manager %v, state %v, IP %v", im.Name, im.Status.CurrentState, im.Status.IP)
+	} else if im.Status.CurrentState != longhorn.InstanceManagerStateRunning {
+		return nil, fmt.Errorf("invalid instance manager %v, state %v, IP %v", im.Name, im.Status.CurrentState, im.Status.IP)
 	}
 
 	// TODO: Initialize the following gRPC clients are similar. This can be simplified via factory method.
@@ -721,6 +732,10 @@ func (c *InstanceManagerClient) engineInstanceUpgrade(req *EngineInstanceUpgrade
 	args := []string{"controller", req.Engine.Spec.VolumeName, "--frontend", frontend, "--upgrade"}
 	for _, addr := range req.Engine.Spec.UpgradedReplicaAddressMap {
 		args = append(args, "--replica", GetBackendReplicaURL(addr))
+	}
+
+	if req.Engine.Spec.RevisionCounterDisabled {
+		args = append(args, "--disableRevCounter")
 	}
 
 	if req.EngineCLIAPIVersion >= 6 {

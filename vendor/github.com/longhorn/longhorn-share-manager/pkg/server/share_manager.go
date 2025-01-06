@@ -16,7 +16,7 @@ import (
 	"github.com/longhorn/longhorn-share-manager/pkg/types"
 	"github.com/longhorn/longhorn-share-manager/pkg/volume"
 
-	commonUtils "github.com/longhorn/go-common-libs/utils"
+	lhKubernetes "github.com/longhorn/go-common-libs/kubernetes"
 )
 
 const waitBetweenChecks = time.Second * 5
@@ -248,7 +248,7 @@ func (m *ShareManager) hasHealthyVolume() error {
 	mounter := mount.New("")
 	mountPoints, _ := mounter.List()
 	for _, mp := range mountPoints {
-		if mp.Path == mountPath && commonUtils.IsMountPointReadOnly(mp) {
+		if mp.Path == mountPath && lhKubernetes.IsMountPointReadOnly(mp) {
 			return fmt.Errorf(ReadOnlyErr, mountPath)
 		}
 	}

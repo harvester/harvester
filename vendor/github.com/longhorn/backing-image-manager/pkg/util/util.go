@@ -95,9 +95,9 @@ func DetectGRPCServerAvailability(address string, waitIntervalInSecond int, shou
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		grpcOpts := []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
+			grpc.WithBlock(), // nolint: staticcheck
 		}
-		conn, err := grpc.DialContext(ctx, address, grpcOpts...)
+		conn, err := grpc.DialContext(ctx, address, grpcOpts...) // nolint: staticcheck
 		defer cancel()
 		if !shouldAvailable {
 			if err != nil {

@@ -44,6 +44,7 @@ const (
 	ErrorReplicaScheduleEngineImageNotReady              = "none of the node candidates contains a ready engine image"
 	ErrorReplicaScheduleHardNodeAffinityNotSatisfied     = "hard affinity cannot be satisfied"
 	ErrorReplicaScheduleSchedulingFailed                 = "replica scheduling failed"
+	ErrorReplicaScheduleEvictReplicaFailed               = "evict replica failed"
 )
 
 type DiskType string

@@ -35,8 +35,8 @@ func CheckDeviceValid(devicePath string) bool {
 }
 
 func CheckMountValid(mountPath string) bool {
-	notMnt, err := mount.IsNotMountPoint(mount.New(""), mountPath)
-	return err == nil && !notMnt
+	isMountPoint, err := mount.New("").IsMountPoint(mountPath)
+	return err == nil && isMountPoint
 }
 
 func MountVolume(devicePath, mountPath, fsType string, mountOptions []string) error {

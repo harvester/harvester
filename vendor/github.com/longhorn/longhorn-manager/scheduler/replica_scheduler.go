@@ -108,6 +108,52 @@ func (rcs *ReplicaScheduler) ScheduleReplica(replica *longhorn.Replica, replicas
 	return replica, nil, nil
 }
 
+// FindDiskCandidates identifies suitable disks on eligible nodes for the replica.
+//
+// Parameters:
+// - replica: The replica for which to find disk candidates.
+// - replicas: The map of existing replicas.
+// - volume: The volume associated with the replica.
+//
+// Returns:
+// - Map of disk candidates (disk UUID to Disk).
+// - MultiError for non-fatal errors encountered.
+// - Error for any fatal errors encountered.
+func (rcs *ReplicaScheduler) FindDiskCandidates(replica *longhorn.Replica, replicas map[string]*longhorn.Replica, volume *longhorn.Volume) (map[string]*Disk, util.MultiError, error) {
+	nodesInfo, err := rcs.getNodeInfo()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	nodeCandidates, multiError := rcs.getNodeCandidates(nodesInfo, replica)
+	if len(nodeCandidates) == 0 {
+		logrus.Errorf("There's no available node for replica %v, size %v", replica.ObjectMeta.Name, replica.Spec.VolumeSize)
+		return nil, multiError, nil
+	}
+
+	nodeDisksMap := map[string]map[string]struct{}{}
+	for _, node := range nodeCandidates {
+		disks := map[string]struct{}{}
+		for diskName, diskStatus := range node.Status.DiskStatus {
+			diskSpec, exists := node.Spec.Disks[diskName]
+			if !exists {
+				continue
+			}
+			if !diskSpec.AllowScheduling || diskSpec.EvictionRequested {
+				continue
+			}
+			if types.GetCondition(diskStatus.Conditions, longhorn.DiskConditionTypeSchedulable).Status != longhorn.ConditionStatusTrue {
+				continue
+			}
+			disks[diskStatus.DiskUUID] = struct{}{}
+		}
+		nodeDisksMap[node.Name] = disks
+	}
+
+	diskCandidates, multiError := rcs.getDiskCandidates(nodeCandidates, nodeDisksMap, replicas, volume, true, false)
+	return diskCandidates, multiError, nil
+}
+
 func (rcs *ReplicaScheduler) getNodeCandidates(nodesInfo map[string]*longhorn.Node, schedulingReplica *longhorn.Replica) (nodeCandidates map[string]*longhorn.Node, multiError util.MultiError) {
 	if schedulingReplica.Spec.HardNodeAffinity != "" {
 		node, exist := nodesInfo[schedulingReplica.Spec.HardNodeAffinity]
@@ -145,19 +191,6 @@ func (rcs *ReplicaScheduler) getNodeCandidates(nodesInfo map[string]*longhorn.No
 	}
 
 	return nodeCandidates, nil
-}
-
-// getNodesWithEvictingReplicas returns nodes that have replicas being evicted
-func getNodesWithEvictingReplicas(replicas map[string]*longhorn.Replica, nodeInfo map[string]*longhorn.Node) map[string]*longhorn.Node {
-	nodesWithEvictingReplicas := map[string]*longhorn.Node{}
-	for _, r := range replicas {
-		if r.Spec.EvictionRequested {
-			if node, ok := nodeInfo[r.Spec.NodeID]; ok {
-				nodesWithEvictingReplicas[r.Spec.NodeID] = node
-			}
-		}
-	}
-	return nodesWithEvictingReplicas
 }
 
 // getDiskCandidates returns a map of the most appropriate disks a replica can be scheduled to (assuming it can be

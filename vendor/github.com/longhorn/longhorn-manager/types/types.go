@@ -128,6 +128,8 @@ const (
 	ConfigMapResourceVersionKey = "configmap-resource-version"
 	UpdateSettingFromLonghorn   = "update-setting-from-longhorn"
 
+	DeleteCustomResourceOnly = "delete-custom-resource-only"
+
 	KubernetesStatusLabel = "KubernetesStatus"
 	KubernetesReplicaSet  = "ReplicaSet"
 	KubernetesStatefulSet = "StatefulSet"
@@ -205,6 +207,9 @@ const (
 
 	CniNetworkNone          = ""
 	StorageNetworkInterface = "lhnet1"
+
+	KubeAPIQPS   = 50
+	KubeAPIBurst = 100
 )
 
 const (
@@ -745,6 +750,13 @@ func ValidateDataLocalityAndReplicaCount(mode longhorn.DataLocality, count int) 
 	return nil
 }
 
+func ValidateDataLocalityAndAccessMode(locality longhorn.DataLocality, migratable bool, mode longhorn.AccessMode) error {
+	if mode == longhorn.AccessModeReadWriteMany && !migratable && locality == longhorn.DataLocalityStrictLocal {
+		return fmt.Errorf("access mode %v (migratable: %v) is incompatible with data locality %v mode", mode, migratable, longhorn.DataLocalityStrictLocal)
+	}
+	return nil
+}
+
 func ValidateReplicaAutoBalance(option longhorn.ReplicaAutoBalance) error {
 	switch option {
 	case longhorn.ReplicaAutoBalanceIgnored,
@@ -959,21 +971,23 @@ func UnmarshalToNodeTags(s string) ([]string, error) {
 	return res, nil
 }
 
-func CreateDefaultDisk(dataPath string, storageReservedPercentage int64) (map[string]longhorn.DiskSpec, error) {
-	fileInfo, err := os.Stat(dataPath)
+func IsPotentialBlockDisk(path string) bool {
+	fileInfo, err := os.Stat(path)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, errors.Wrapf(err, "failed to stat %v for creating default disk", dataPath)
-		}
-
-		// Longhorn is unable to create block-type disk automatically
-		if strings.HasPrefix(dataPath, "/dev/") {
-			return nil, errors.Wrapf(err, "creating default block-type disk %v is not supported", dataPath)
-		}
+		logrus.WithError(err).Warnf("Failed to get file info for %v", path)
+		return strings.HasPrefix(path, "/dev/")
 	}
 
 	// Block-type disk
 	if fileInfo != nil && (fileInfo.Mode()&os.ModeDevice) == os.ModeDevice {
+		return true
+	}
+
+	return false
+}
+
+func CreateDefaultDisk(dataPath string, storageReservedPercentage int64) (map[string]longhorn.DiskSpec, error) {
+	if IsPotentialBlockDisk(dataPath) {
 		return map[string]longhorn.DiskSpec{
 			DefaultDiskPrefix + util.RandomID(): {
 				Type:              longhorn.DiskTypeBlock,

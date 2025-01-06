@@ -21,8 +21,6 @@ type LonghornFormatter struct {
 	*logrus.TextFormatter
 
 	LogsDir string
-
-	logFiles []*os.File
 }
 
 type LonghornWriter struct {
