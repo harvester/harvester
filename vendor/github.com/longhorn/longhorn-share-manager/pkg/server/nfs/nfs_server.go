@@ -25,7 +25,7 @@ NFS_Core_Param
     RQUOTA_Port = 0;
     Enable_NLM = false;
     Enable_RQUOTA = false;
-    Enable_UDP = false;   
+    Enable_UDP = false;
     fsid_device = false;
     Protocols = 4;
 }
@@ -163,7 +163,9 @@ func getUpdatedGaneshConfig(config []byte) []byte {
 		LogPath: logPath,
 	}
 
-	template.Must(template.New("Ganesha_Config").Parse(string(config))).Execute(&tmplBuf, tmplVals)
+	if err := template.Must(template.New("Ganesha_Config").Parse(string(config))).Execute(&tmplBuf, tmplVals); err != nil {
+		logrus.WithError(err).Warn("Failed to parse ganesha config")
+	}
 
 	return tmplBuf.Bytes()
 }

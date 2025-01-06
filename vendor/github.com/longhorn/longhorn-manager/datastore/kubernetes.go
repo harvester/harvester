@@ -42,6 +42,11 @@ const (
 	PodProbeTimeoutSeconds           = PodProbePeriodSeconds - 1
 	PodProbePeriodSeconds            = 5
 	PodLivenessProbeFailureThreshold = 3
+
+	IMPodProbeInitialDelay             = 3
+	IMPodProbeTimeoutSeconds           = IMPodProbePeriodSeconds - 1
+	IMPodProbePeriodSeconds            = 5
+	IMPodLivenessProbeFailureThreshold = 6
 )
 
 func labelMapToLabelSelector(labels map[string]string) (labels.Selector, error) {
@@ -525,9 +530,7 @@ func (s *DataStore) ListPodsBySelectorRO(selector labels.Selector) ([]*corev1.Po
 	}
 
 	res := make([]*corev1.Pod, len(podList))
-	for idx, item := range podList {
-		res[idx] = item
-	}
+	copy(res, podList)
 	return res, nil
 }
 

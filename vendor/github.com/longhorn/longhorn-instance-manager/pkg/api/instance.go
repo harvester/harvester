@@ -39,7 +39,7 @@ func RPCToInstance(obj *rpc.InstanceResponse) *Instance {
 		Name: obj.Spec.Name,
 		Type: obj.Spec.Type,
 		//lint:ignore SA1019 replaced with DataEngine
-		BackendStoreDriver: obj.Spec.BackendStoreDriver.String(),
+		BackendStoreDriver: obj.Spec.BackendStoreDriver.String(), // nolint: staticcheck
 		DataEngine:         dataEngines[obj.Spec.DataEngine.String()],
 		PortCount:          obj.Spec.PortCount,
 		PortArgs:           obj.Spec.PortArgs,

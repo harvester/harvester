@@ -29,6 +29,12 @@ const BACKUP_LOCK LockType = 1
 const RESTORE_LOCK LockType = 1
 const DELETION_LOCK LockType = 2
 
+type Operation string
+
+const BackupOperationCreateRestore Operation = "create/restore"
+const BackupOperationDelete Operation = "delete"
+const BackupOperationUndefined Operation = "undefined"
+
 type FileLock struct {
 	Name       string
 	Type       LockType
@@ -80,6 +86,14 @@ func (lock *FileLock) canAcquire() bool {
 func (lock *FileLock) Lock() error {
 	lock.mutex.Lock()
 	defer lock.mutex.Unlock()
+
+	operation := BackupOperationUndefined
+	if lock.Type == BACKUP_LOCK || lock.Type == RESTORE_LOCK {
+		operation = BackupOperationCreateRestore
+	} else if lock.Type == DELETION_LOCK {
+		operation = BackupOperationDelete
+	}
+
 	if lock.Acquired {
 		atomic.AddInt32(&lock.count, 1)
 		_ = saveLock(lock)
@@ -107,16 +121,16 @@ func (lock *FileLock) Lock() error {
 	if !lock.canAcquire() {
 		file := getLockFilePath(lock.volume, lock.Name)
 		_ = removeLock(lock)
-		return fmt.Errorf("failed lock %v type %v acquisition", file, lock.Type)
+		return fmt.Errorf("failed to acquire lock %v when performing backup %v, please try again later.", file, operation)
 	}
 
 	file := getLockFilePath(lock.volume, lock.Name)
-	log.Infof("Acquired lock %v type %v on backupstore", file, lock.Type)
+	log.Infof("Acquired lock %v for backup %v on backupstore", file, operation)
 	lock.Acquired = true
 	atomic.AddInt32(&lock.count, 1)
 	if err := saveLock(lock); err != nil {
 		_ = removeLock(lock)
-		return errors.Wrapf(err, "failed to store updated lock %v type %v after acquisition", file, lock.Type)
+		return errors.Wrapf(err, "failed to store updated lock %v when performing backup %v, please try again later", file, operation)
 	}
 
 	// enable lock refresh
@@ -133,7 +147,7 @@ func (lock *FileLock) Lock() error {
 				if lock.Acquired {
 					if err := saveLock(lock); err != nil {
 						// nothing we can do here, that's why the lock acquisition time is 2x lock refresh interval
-						log.WithError(err).Warnf("Failed to refresh acquired lock %v type %v", file, lock.Type)
+						log.WithError(err).Warnf("Failed to refresh acquired lock %v when performing backup %v, please try again later", file, operation)
 					}
 				}
 				lock.mutex.Unlock()

@@ -195,7 +195,7 @@ func (m *BackupMonitor) monitorBackups() {
 
 // linerTimer runs a periodically liner timer to sync backup status from engine/replica
 func (m *BackupMonitor) linerTimer() {
-	wait.PollUntil(BackupMonitorSyncPeriod, func() (done bool, err error) {
+	if err := wait.PollUntilContextCancel(m.ctx, BackupMonitorSyncPeriod, false, func(context.Context) (done bool, err error) {
 		currentBackupStatus, err := m.syncBackupStatusFromEngineReplica()
 		if err != nil {
 			currentBackupStatus.State = longhorn.BackupStateError
@@ -203,7 +203,9 @@ func (m *BackupMonitor) linerTimer() {
 		}
 		m.syncCallBack(currentBackupStatus)
 		return false, nil
-	}, m.ctx.Done())
+	}); err != nil {
+		m.logger.WithError(err).Error("Failed to sync backup status")
+	}
 }
 
 // exponentialBackOffTimer runs a exponential backoff timer to sync backup status from engine/replica
@@ -218,7 +220,7 @@ func (m *BackupMonitor) exponentialBackOffTimer() bool {
 		retryCount    = 0
 	)
 	// The exponential backoff timer 2s/4s/8s/16s/.../10mins
-	backoffMgr := wait.NewExponentialBackoffManager(initBackoff, maxBackoff, resetDuration, backoffFactor, jitter, clock)
+	backoffMgr := wait.NewExponentialBackoffManager(initBackoff, maxBackoff, resetDuration, backoffFactor, jitter, clock) // nolint: staticcheck
 	defer backoffMgr.Backoff().Stop()
 
 	ctx, cancel := context.WithTimeout(context.Background(), BackupMonitorMaxRetryPeriod)

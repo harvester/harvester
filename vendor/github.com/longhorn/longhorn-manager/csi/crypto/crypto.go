@@ -145,6 +145,16 @@ func ResizeEncryptoDevice(volume, passphrase string) error {
 	return err
 }
 
+// IsDeviceMappedToNullPath determines if encrypted device is already open at a null path. The command 'cryptsetup status [crypted_device]' show "device:  (null)"
+func IsDeviceMappedToNullPath(device string) (bool, error) {
+	devPath, mappedFile, err := DeviceEncryptionStatus(device)
+	if err != nil {
+		return false, err
+	}
+
+	return mappedFile != "" && strings.Compare(devPath, "(null)") == 0, nil
+}
+
 // IsDeviceOpen determines if encrypted device is already open.
 func IsDeviceOpen(device string) (bool, error) {
 	_, mappedFile, err := DeviceEncryptionStatus(device)

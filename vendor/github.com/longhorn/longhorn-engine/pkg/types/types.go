@@ -136,7 +136,8 @@ type Replica struct {
 }
 
 type ReplicaSalvageInfo struct {
-	LastModifyTime int64
+	Address        string
+	LastModifyTime time.Time
 	HeadFileSize   int64
 }
 

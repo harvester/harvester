@@ -37,15 +37,18 @@ type ProcessingBlocks struct {
 
 type Backup struct {
 	sync.Mutex
-	Name              string
-	VolumeName        string
-	SnapshotName      string
-	SnapshotCreatedAt string
-	CreatedTime       string
-	Size              int64 `json:",string"`
-	Labels            map[string]string
-	IsIncremental     bool
-	CompressionMethod string
+	Name                  string
+	VolumeName            string
+	SnapshotName          string
+	SnapshotCreatedAt     string
+	CreatedTime           string
+	Size                  int64 `json:",string"`
+	Labels                map[string]string
+	Parameters            map[string]string
+	IsIncremental         bool
+	CompressionMethod     string
+	NewlyUploadedDataSize int64 `json:",string"`
+	ReUploadedDataSize    int64 `json:",string"`
 
 	ProcessingBlocks *ProcessingBlocks
 

@@ -92,8 +92,8 @@ func (s *ShareManagerServer) FilesystemTrim(ctx context.Context, req *Filesystem
 	log.Infof("Trimming mounted filesystem %v", mountPath)
 
 	mounter := mount.New("")
-	notMounted, err := mount.IsNotMountPoint(mounter, mountPath)
-	if notMounted {
+	isMountPoint, err := mounter.IsMountPoint(mountPath)
+	if !isMountPoint {
 		return &emptypb.Empty{}, grpcstatus.Errorf(grpccodes.InvalidArgument, "%v is not a mount point", mountPath)
 	}
 	if err != nil {
@@ -136,11 +136,11 @@ func (s *ShareManagerServer) unmount(vol volume.Volume) error {
 	mountPath := types.GetMountPath(vol.Name)
 
 	mounter := mount.New("")
-	notMounted, err := mount.IsNotMountPoint(mounter, mountPath)
+	isMountPoint, err := mounter.IsMountPoint(mountPath)
 	if err != nil {
 		return errors.Wrapf(err, "failed to check mount point %v", mountPath)
 	}
-	if notMounted {
+	if !isMountPoint {
 		return nil
 	}
 
@@ -256,12 +256,12 @@ func (s *ShareManagerServer) Mount(ctx context.Context, req *emptypb.Empty) (res
 	}()
 
 	mounter := mount.New("")
-	notMounted, err := mount.IsNotMountPoint(mounter, mountPath)
+	isMountPoint, err := mounter.IsMountPoint(mountPath)
 	if err != nil {
 		err = errors.Wrapf(err, "failed to check mount point %v", mountPath)
 		return &emptypb.Empty{}, grpcstatus.Errorf(grpccodes.Internal, err.Error())
 	}
-	if notMounted {
+	if !isMountPoint {
 		log.Info("Mounting volume")
 		err = s.mount(vol, devicePath, mountPath)
 		if err != nil {

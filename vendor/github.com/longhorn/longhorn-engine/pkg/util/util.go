@@ -50,25 +50,17 @@ func ParseAddresses(name string) (string, string, string, int, error) {
 }
 
 func GetGRPCAddress(address string) string {
-	if strings.HasPrefix(address, "tcp://") {
-		address = strings.TrimPrefix(address, "tcp://")
-	}
+	address = strings.TrimPrefix(address, "tcp://")
 
-	if strings.HasPrefix(address, "http://") {
-		address = strings.TrimPrefix(address, "http://")
-	}
+	address = strings.TrimPrefix(address, "http://")
 
-	if strings.HasSuffix(address, "/v1") {
-		address = strings.TrimSuffix(address, "/v1")
-	}
+	address = strings.TrimSuffix(address, "/v1")
 
 	return address
 }
 
 func GetPortFromAddress(address string) (int, error) {
-	if strings.HasSuffix(address, "/v1") {
-		address = strings.TrimSuffix(address, "/v1")
-	}
+	address = strings.TrimSuffix(address, "/v1")
 
 	_, strPort, err := net.SplitHostPort(address)
 	if err != nil {

@@ -101,6 +101,7 @@ const (
 	SettingNameRecurringFailedJobsHistoryLimit                          = SettingName("recurring-failed-jobs-history-limit")
 	SettingNameRecurringJobMaxRetention                                 = SettingName("recurring-job-max-retention")
 	SettingNameSupportBundleFailedHistoryLimit                          = SettingName("support-bundle-failed-history-limit")
+	SettingNameSupportBundleNodeCollectionTimeout                       = SettingName("support-bundle-node-collection-timeout")
 	SettingNameDeletingConfirmationFlag                                 = SettingName("deleting-confirmation-flag")
 	SettingNameEngineReplicaTimeout                                     = SettingName("engine-replica-timeout")
 	SettingNameSnapshotDataIntegrity                                    = SettingName("snapshot-data-integrity")
@@ -183,6 +184,7 @@ var (
 		SettingNameRecurringFailedJobsHistoryLimit,
 		SettingNameRecurringJobMaxRetention,
 		SettingNameSupportBundleFailedHistoryLimit,
+		SettingNameSupportBundleNodeCollectionTimeout,
 		SettingNameDeletingConfirmationFlag,
 		SettingNameEngineReplicaTimeout,
 		SettingNameSnapshotDataIntegrity,
@@ -291,6 +293,7 @@ var (
 		SettingNameRecurringFailedJobsHistoryLimit:                          SettingDefinitionRecurringFailedJobsHistoryLimit,
 		SettingNameRecurringJobMaxRetention:                                 SettingDefinitionRecurringJobMaxRetention,
 		SettingNameSupportBundleFailedHistoryLimit:                          SettingDefinitionSupportBundleFailedHistoryLimit,
+		SettingNameSupportBundleNodeCollectionTimeout:                       SettingDefinitionSupportBundleNodeCollectionTimeout,
 		SettingNameDeletingConfirmationFlag:                                 SettingDefinitionDeletingConfirmationFlag,
 		SettingNameEngineReplicaTimeout:                                     SettingDefinitionEngineReplicaTimeout,
 		SettingNameSnapshotDataIntegrity:                                    SettingDefinitionSnapshotDataIntegrity,
@@ -991,6 +994,17 @@ var (
 		Default:  "1",
 	}
 
+	SettingDefinitionSupportBundleNodeCollectionTimeout = SettingDefinition{
+		DisplayName: "Timeout for Support Bundle Node Collection",
+		Description: "In minutes. The timeout for collecting node bundles for support bundle generation. The default value is 30.\n\n" +
+			"When the timeout is reached, the support bundle generation will proceed without requiring the collection of node bundles. \n\n",
+		Category: SettingCategoryGeneral,
+		Type:     SettingTypeInt,
+		Required: true,
+		ReadOnly: false,
+		Default:  "30",
+	}
+
 	SettingDefinitionDeletingConfirmationFlag = SettingDefinition{
 		DisplayName: "Deleting Confirmation Flag",
 		Description: "This flag is designed to prevent Longhorn from being accidentally uninstalled which will lead to data lost. \n\n" +
@@ -1423,6 +1437,8 @@ func ValidateSetting(name, value string) (err error) {
 		fallthrough
 	case SettingNameSupportBundleFailedHistoryLimit:
 		fallthrough
+	case SettingNameSupportBundleNodeCollectionTimeout:
+		fallthrough
 	case SettingNameBackupstorePollInterval:
 		fallthrough
 	case SettingNameRecurringSuccessfulJobsHistoryLimit:
@@ -1434,7 +1450,7 @@ func ValidateSetting(name, value string) (err error) {
 	case SettingNameV2DataEngineHugepageLimit:
 		value, err := strconv.Atoi(value)
 		if err != nil {
-			errors.Wrapf(err, "value %v is not a number", value)
+			return errors.Wrapf(err, "value %v is not a number", value)
 		}
 		if value < 0 {
 			return fmt.Errorf("the value %v shouldn't be less than 0", value)

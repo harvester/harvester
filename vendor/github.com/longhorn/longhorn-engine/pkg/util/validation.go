@@ -67,8 +67,6 @@ func IsQualifiedName(value string) []string {
 
 const dns1123LabelFmt string = "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
 
-var dns1123LabelRegexp = regexp.MustCompile("^" + dns1123LabelFmt + "$")
-
 const dns1123SubdomainFmt = dns1123LabelFmt + "(\\." + dns1123LabelFmt + ")*"
 const dns1123SubdomainErrorMsg string = "a DNS-1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"
 

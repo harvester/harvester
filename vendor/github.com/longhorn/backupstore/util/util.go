@@ -353,7 +353,7 @@ func EnsureMountPoint(Kind, mountPoint string, mounter mount.Interface, log logr
 func MountWithTimeout(mounter mount.Interface, source string, target string, fstype string,
 	options []string, sensitiveOptions []string, interval, timeout time.Duration) error {
 	mountComplete := false
-	err := wait.PollImmediate(interval, timeout, func() (bool, error) {
+	err := wait.PollUntilContextTimeout(context.Background(), interval, timeout, true, func(context.Context) (bool, error) {
 		err := mounter.MountSensitiveWithoutSystemd(source, target, fstype, options, sensitiveOptions)
 		mountComplete = true
 		return true, err

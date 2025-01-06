@@ -2,14 +2,18 @@ package utils
 
 import (
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/constraints"
 
 	"github.com/longhorn/go-common-libs/types"
 )
@@ -98,4 +102,40 @@ func GenerateRandomNumber(lower, upper int64) (int64, error) {
 		return 0, err
 	}
 	return (lower + randNum.Int64()), nil
+}
+
+// ConvertTypeToString converts the given value to string.
+func ConvertTypeToString[T any](value T) string {
+	v := reflect.ValueOf(value)
+
+	switch v.Kind() {
+	case reflect.String:
+		return v.String()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return strconv.FormatInt(v.Int(), 10)
+	case reflect.Float32, reflect.Float64:
+		return strconv.FormatFloat(v.Float(), 'f', -1, 64)
+	case reflect.Bool:
+		return strconv.FormatBool(v.Bool())
+	default:
+		return fmt.Sprintf("Unsupported type: %v", v.Kind())
+	}
+}
+
+// SortKeys sorts the keys of a map in ascending order.
+func SortKeys[K constraints.Ordered, V any](mapObj map[K]V) ([]K, error) {
+	if mapObj == nil {
+		return nil, fmt.Errorf("input object cannot be nil")
+	}
+
+	keys := make([]K, 0, len(mapObj))
+	for key := range mapObj {
+		keys = append(keys, key)
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i] < keys[j]
+	})
+
+	return keys, nil
 }

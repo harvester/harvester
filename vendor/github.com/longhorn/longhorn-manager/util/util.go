@@ -71,8 +71,9 @@ const (
 
 	DiskConfigFile = "longhorn-disk.cfg"
 
-	SizeAlignment     = 2 * 1024 * 1024
-	MinimalVolumeSize = 10 * 1024 * 1024
+	SizeAlignment        = 2 * MiB
+	MinimalVolumeSize    = 10 * MiB
+	MinimalVolumeSizeXFS = 300 * MiB // See https://github.com/longhorn/longhorn/issues/8488
 
 	MaxExt4VolumeSize = 16 * TiB
 	MaxXfsVolumeSize  = 8*EiB - 1
@@ -455,15 +456,13 @@ func RunAsync(wg *sync.WaitGroup, f func()) {
 }
 
 type filteredLoggingHandler struct {
-	filteredPaths  map[string]struct{}
 	handler        http.Handler
 	loggingHandler http.Handler
 }
 
-func FilteredLoggingHandler(filteredPaths map[string]struct{}, writer io.Writer, router http.Handler) http.Handler {
+func FilteredLoggingHandler(writer io.Writer, router http.Handler) http.Handler {
 
 	return filteredLoggingHandler{
-		filteredPaths:  filteredPaths,
 		handler:        router,
 		loggingHandler: handlers.CombinedLoggingHandler(writer, router),
 	}
@@ -472,7 +471,7 @@ func FilteredLoggingHandler(filteredPaths map[string]struct{}, writer io.Writer,
 func (h filteredLoggingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case "GET":
-		if _, exists := h.filteredPaths[req.URL.Path]; exists {
+		if logrus.GetLevel() < logrus.DebugLevel {
 			h.handler.ServeHTTP(w, req)
 			return
 		}
@@ -734,7 +733,7 @@ func TrimFilesystem(volumeName string, encryptedDevice bool) error {
 		return err
 	}
 
-	_, err = nsexec.Execute([]string{}, lhtypes.BinaryFstrim, []string{validMountpoint}, lhtypes.ExecuteDefaultTimeout)
+	_, err = nsexec.Execute([]string{}, lhtypes.BinaryFstrim, []string{validMountpoint}, time.Hour)
 	if err != nil {
 		return errors.Wrapf(err, "cannot find volume %v mount info on host", volumeName)
 	}

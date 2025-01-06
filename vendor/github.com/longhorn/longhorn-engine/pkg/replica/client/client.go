@@ -91,7 +91,7 @@ func NewReplicaClient(address, volumeName, instanceName string) (*ReplicaClient,
 // for the longhorn-manager which executes these command as binaries invocations
 func (c *ReplicaClient) getReplicaServiceClient() (ptypes.ReplicaServiceClient, error) {
 	err := c.replicaServiceContext.once.Do(func() error {
-		cc, err := grpc.Dial(c.replicaServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()),
+		cc, err := grpc.NewClient(c.replicaServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()),
 			ptypes.WithIdentityValidationClientInterceptor(c.volumeName, c.instanceName))
 		if err != nil {
 			return err
@@ -112,7 +112,7 @@ func (c *ReplicaClient) getReplicaServiceClient() (ptypes.ReplicaServiceClient, 
 // for the longhorn-manager which executes these command as binaries invocations
 func (c *ReplicaClient) getSyncServiceClient() (ptypes.SyncAgentServiceClient, error) {
 	err := c.syncServiceContext.once.Do(func() error {
-		cc, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()),
+		cc, err := grpc.NewClient(c.syncAgentServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()),
 			ptypes.WithIdentityValidationClientInterceptor(c.volumeName, c.instanceName))
 		if err != nil {
 			return err
