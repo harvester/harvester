@@ -29,6 +29,9 @@ const (
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
 
+	// vm migration metrics
+	AnnotationMigrationMetrics = prefix + "/migrationMetrics"
+
 	// AnnotationMigratingPrefix is used to store the migrating vm in the annotation of ResourceQuota
 	// eg: harvesterhci.io/migrating-vm1: jsonOfResourceList, harvesterhci.io/migrating-vm2: jsonOfResourceList
 	AnnotationMigratingPrefix = prefix + "/migrating-"
@@ -73,6 +76,8 @@ const (
 	// kubevirt create a CRD object automatically: type kubevirt, name kubevirt, namespace: harvester-system
 	// this object stores all kubevirt related configuration
 	KubeVirtObjectName = "kubevirt"
+
+	KubeVirtPrometheusMetricsEndpointName = "kubevirt-prometheus-metrics"
 
 	HTTPProxyEnv  = "HTTP_PROXY"
 	HTTPSProxyEnv = "HTTPS_PROXY"

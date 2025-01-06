@@ -2,6 +2,7 @@ package migration
 
 import (
 	"context"
+	"net/http"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
@@ -19,15 +20,18 @@ import (
 
 // Handler resets vmi annotations and nodeSelector when a migration completes
 type Handler struct {
-	namespace  string
-	rqs        ctlharvcorev1.ResourceQuotaClient
-	rqCache    ctlharvcorev1.ResourceQuotaCache
-	vmiCache   ctlvirtv1.VirtualMachineInstanceCache
-	vms        ctlvirtv1.VirtualMachineClient
-	vmCache    ctlvirtv1.VirtualMachineCache
-	podCache   ctlcorev1.PodCache
-	pods       ctlcorev1.PodClient
-	restClient rest.Interface
+	namespace     string
+	rqs           ctlharvcorev1.ResourceQuotaClient
+	rqCache       ctlharvcorev1.ResourceQuotaCache
+	vmiCache      ctlvirtv1.VirtualMachineInstanceCache
+	vms           ctlvirtv1.VirtualMachineClient
+	vmCache       ctlvirtv1.VirtualMachineCache
+	podCache      ctlcorev1.PodCache
+	pods          ctlcorev1.PodClient
+	endpointCache ctlcorev1.EndpointsCache
+	restClient    rest.Interface
+	vmims         ctlvirtv1.VirtualMachineInstanceMigrationController
+	httpClient    http.Client
 }
 
 func (h *Handler) OnVmiChanged(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
