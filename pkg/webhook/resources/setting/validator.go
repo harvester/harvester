@@ -137,6 +137,7 @@ func NewValidator(
 	cnCache ctlnetworkv1.ClusterNetworkCache,
 	vcCache ctlnetworkv1.VlanConfigCache,
 	vsCache ctlnetworkv1.VlanStatusCache,
+	lhNodeCache ctllhv1b2.NodeCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
@@ -152,6 +153,7 @@ func NewValidator(
 		cnCache:            cnCache,
 		vcCache:            vcCache,
 		vsCache:            vsCache,
+		lhNodeCache:        lhNodeCache,
 	}
 
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
@@ -188,6 +190,7 @@ type settingValidator struct {
 	cnCache            ctlnetworkv1.ClusterNetworkCache
 	vcCache            ctlnetworkv1.VlanConfigCache
 	vsCache            ctlnetworkv1.VlanStatusCache
+	lhNodeCache        ctllhv1b2.NodeCache
 }
 
 func (v *settingValidator) Resource() types.Resource {

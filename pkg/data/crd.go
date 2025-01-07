@@ -62,6 +62,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Snapshot", lhv1beta2.Snapshot{}),
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Volume", lhv1beta2.Volume{}),
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Setting", lhv1beta2.Setting{}),
+			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Node", lhv1beta2.Node{}),
 			crd.FromGV(provisioningv1.SchemeGroupVersion, "Cluster", provisioningv1.Cluster{}),
 			crd.FromGV(fleetv1alpha1.SchemeGroupVersion, "Cluster", fleetv1alpha1.Cluster{}),
 			crd.FromGV(clusterv1.GroupVersion, "Cluster", clusterv1.Cluster{}),
