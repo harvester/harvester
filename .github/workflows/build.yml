@@ -32,12 +32,6 @@ jobs:
       if: ${{ matrix.arch == 'arm64' }}
       run: make arm
 
-    - name: Upload binaries
-      uses: actions/upload-artifact@v4
-      with:
-        name: binaries_${{ matrix.arch }}_artifact
-        path: ./bin/*
-
   build-push-images:
     name: Build and push images
     runs-on: runs-on,runner=4cpu-linux-${{ matrix.arch }},run-id=${{ github.run_id }}
@@ -68,22 +62,6 @@ jobs:
           echo "arch=arm64" >> "$GITHUB_ENV"
         fi
 
-    - name: Download binaries
-      uses: actions/download-artifact@v4
-      with:
-        name: binaries_${{ matrix.arch }}_artifact
-        path: ./bin/
-
-    - name: Add executable permission
-      run: |
-        chmod +x ./bin/*
-
-    - name: Copy bin folder to package
-      run: |
-        cp -r ./bin/harvester ./package/
-        cp -r ./bin/harvester-webhook ./package/
-        cp -r ./bin/upgrade-helper ./package/upgrade/
-
     - name: Read Secrets
       uses: rancher-eio/read-vault-secrets@main
       with:
@@ -102,11 +80,13 @@ jobs:
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       uses: docker/build-push-action@v5
       with:
-        context: package/
+        context: .
         push: true
         platforms: linux/${{ env.arch }}
         tags: rancher/harvester:${{ env.branch }}-head-${{ env.arch }}
         file: package/Dockerfile
+        sbom: true
+        provenance: mode=max
         build-args: |
           ARCH=${{ env.arch }}
           VERSION=${{ env.branch }}-${{ env.sha_short }}-head
@@ -115,11 +95,13 @@ jobs:
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
       uses: docker/build-push-action@v5
       with:
-        context: package/
+        context: .
         push: true
         platforms: linux/${{ env.arch }}
         tags: rancher/harvester:${{ github.ref_name }}-${{ env.arch }}
         file: package/Dockerfile
+        sbom: true
+        provenance: mode=max
         build-args: |
           ARCH=${{ env.arch }}
           VERSION=${{ github.ref_name }}
@@ -129,11 +111,13 @@ jobs:
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       uses: docker/build-push-action@v5
       with:
-        context: package/
+        context: .
         push: true
         platforms: linux/${{ env.arch }}
         tags: rancher/harvester-webhook:${{ env.branch }}-head-${{ env.arch }}
         file: package/Dockerfile.webhook
+        sbom: true
+        provenance: mode=max
         build-args: |
           ARCH=${{ env.arch }}
           VERSION=${{ env.branch }}-${{ env.sha_short }}-head
@@ -142,11 +126,13 @@ jobs:
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
       uses: docker/build-push-action@v5
       with:
-        context: package/
+        context: .
         push: true
         platforms: linux/${{ env.arch }}
         tags: rancher/harvester-webhook:${{ github.ref_name }}-${{ env.arch }}
         file: package/Dockerfile.webhook
+        sbom: true
+        provenance: mode=max
         build-args: |
           ARCH=${{ env.arch }}
           VERSION=${{ github.ref_name }}
@@ -159,11 +145,13 @@ jobs:
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       uses: docker/build-push-action@v5
       with:
-        context: package/upgrade
+        context: .
         push: true
         platforms: linux/${{ env.arch }}
         tags: rancher/harvester-upgrade:${{ env.branch }}-head-${{ env.arch }}
         file: package/upgrade/Dockerfile
+        sbom: true
+        provenance: mode=max
         build-args: |
           ARCH=${{ env.arch }}
           VERSION=${{ env.branch }}-${{ env.sha_short }}-head
@@ -172,11 +160,13 @@ jobs:
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
       uses: docker/build-push-action@v5
       with:
-        context: package/upgrade
+        context: .
         push: true
         platforms: linux/${{ env.arch }}
         tags: rancher/harvester-upgrade:${{ github.ref_name }}-${{ env.arch }}
         file: package/upgrade/Dockerfile
+        sbom: true
+        provenance: mode=max
         build-args: |
           ARCH=${{ env.arch }}
           VERSION=${{ github.ref_name }}
@@ -342,6 +332,8 @@ jobs:
         platforms: linux/${{ env.arch }}
         tags: rancher/harvester-cluster-repo:${{ env.branch }}-head-${{ env.arch }}
         file: dist/harvester-cluster-repo/Dockerfile
+        sbom: true
+        provenance: mode=max
 
     - name: docker-publish-harvester-cluster-repo-with-tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -352,6 +344,8 @@ jobs:
         platforms: linux/${{ env.arch }}
         tags: rancher/harvester-cluster-repo:${{ github.ref_name }}-${{ env.arch }}
         file: dist/harvester-cluster-repo/Dockerfile
+        sbom: true
+        provenance: mode=max
 
     - name: Login to Google Cloud
       uses: 'google-github-actions/auth@v2'

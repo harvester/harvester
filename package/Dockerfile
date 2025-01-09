@@ -1,3 +1,17 @@
+FROM registry.suse.com/bci/golang:1.22 AS builder
+
+WORKDIR /app
+
+# Copy the build script and source code
+COPY scripts/build /app/scripts/build
+COPY . /app
+
+# Make the build script executable
+RUN chmod +x /app/scripts/build
+
+# Run the build script
+RUN /app/scripts/build
+
 FROM registry.suse.com/bci/bci-base:15.6
 
 # nfs-client is needed by the dep https://github.com/longhorn/backupstore to check backup store availability.
@@ -41,7 +55,10 @@ RUN mkdir -p /usr/share/harvester/harvester && \
     curl -sL https://releases.rancher.com/harvester-ui/plugin/harvester-${HARVESTER_UI_PLUGIN_BUNDLED_VERSION}.tar.gz | tar xvzf - --strip-components=1 && \
     cd /var/lib/harvester/harvester
 
-COPY entrypoint.sh harvester /usr/bin/
+# Copy the built binaries from the builder stage
+COPY --from=builder /app/bin/harvester /usr/bin/harvester
+
+COPY package/entrypoint.sh /usr/bin/
 RUN chmod +x /usr/bin/entrypoint.sh
 
 VOLUME /var/lib/harvester/harvester

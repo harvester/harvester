@@ -12,17 +12,13 @@ ${SCRIPTS_DIR}/generate-addons
 
 source $SCRIPTS_DIR/version
 
-cd $UPGRADE_DIR
-
-
+cd $TOP_DIR
 
 IMAGE=${REPO}/harvester-upgrade:${TAG}
-DOCKERFILE=Dockerfile
+DOCKERFILE="${UPGRADE_DIR}/Dockerfile"
 if [ -e ${DOCKERFILE}.${ARCH} ]; then
     DOCKERFILE=${DOCKERFILE}.${ARCH}
 fi
-
-cp ../../bin/upgrade-helper .
 
 docker build -f ${DOCKERFILE} --build-arg ARCH=${ARCH} -t ${IMAGE} .
 echo Built ${IMAGE}

@@ -1,3 +1,17 @@
+FROM registry.suse.com/bci/golang:1.22 AS builder
+
+WORKDIR /app
+
+# Copy the build script and source code
+COPY scripts/build /app/scripts/build
+COPY . /app
+
+# Make the build script executable
+RUN chmod +x /app/scripts/build
+
+# Run the build script
+RUN /app/scripts/build
+
 FROM registry.suse.com/bci/bci-base:15.6
 
 RUN zypper -n rm container-suseconnect && \
@@ -13,8 +27,10 @@ ENV TINI_URL_amd64=https://github.com/krallin/tini/releases/download/${TINI_VERS
 
 RUN curl -sLf ${!TINI_URL} > /usr/bin/tini && chmod +x /usr/bin/tini
 
-COPY entrypoint-webhook.sh  /usr/bin/entrypoint.sh
-COPY harvester-webhook /usr/bin/
+# Copy the built binaries from the builder stage
+COPY --from=builder /app/bin/harvester-webhook /usr/bin/harvester-webhook
+
+COPY package/entrypoint-webhook.sh  /usr/bin/entrypoint.sh
 RUN chmod +x /usr/bin/entrypoint.sh
 
 ENTRYPOINT ["entrypoint.sh"]

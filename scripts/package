@@ -9,19 +9,11 @@ source $SCRIPTS_DIR/version
 
 cd $TOP_DIR
 
-mkdir -p dist/artifacts
-cp bin/harvester dist/artifacts/harvester${SUFFIX}
-
-cd $PACKAGE_DIR
-
 IMAGE=${REPO}/harvester:${TAG}
-DOCKERFILE=Dockerfile
+DOCKERFILE="${PACKAGE_DIR}/Dockerfile"
 if [ -e ${DOCKERFILE}.${ARCH} ]; then
   DOCKERFILE=${DOCKERFILE}.${ARCH}
 fi
-
-rm -rf ./harvester
-cp ../bin/harvester .
 
 BUILD_ARGS="--build-arg VERSION=${VERSION} --build-arg ARCH=${ARCH}"
 if [ -n "${HARVESTER_UI_VERSION}" ]; then
