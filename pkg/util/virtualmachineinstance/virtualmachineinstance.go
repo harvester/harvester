@@ -79,8 +79,13 @@ func ValidateVMMigratable(vmi *kubevirtv1.VirtualMachineInstance) error {
 	}
 
 	// PCIe devices
-	if vmi.Spec.Domain.Devices.HostDevices != nil {
-		return fmt.Errorf("VM %s considered non-live migratable due to pcie or usb devices", vmiNamespacedName)
+	if len(vmi.Spec.Domain.Devices.HostDevices) != 0 {
+		return fmt.Errorf("VM %s considered non-live migratable due to PCIe or USB devices", vmiNamespacedName)
+	}
+
+	// vGPU devices
+	if len(vmi.Spec.Domain.Devices.GPUs) != 0 {
+		return fmt.Errorf("VM %s considered non-live migratable due to vGPU devices", vmiNamespacedName)
 	}
 
 	// container-disk or cdrom device
