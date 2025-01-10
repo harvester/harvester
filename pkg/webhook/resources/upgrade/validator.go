@@ -39,6 +39,7 @@ import (
 const (
 	upgradeStateLabel                         = "harvesterhci.io/upgradeState"
 	skipWebhookAnnotation                     = "harvesterhci.io/skipWebhook"
+	skipSingleReplicaDetachedVol              = "harvesterhci.io/skipSingleReplicaDetachedVol"
 	rkeInternalIPAnnotation                   = "rke2.io/internal-ip"
 	managedChartNamespace                     = "fleet-local"
 	defaultNewImageSize                uint64 = 13 * 1024 * 1024 * 1024 // 13GB, this value aggregates all tarball image sizes. It may change in the future.
@@ -143,10 +144,10 @@ func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error
 		}
 	}
 
-	return v.checkResources(version)
+	return v.checkResources(version, newUpgrade)
 }
 
-func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
+func (v *upgradeValidator) checkResources(version *v1beta1.Version, upgrade *v1beta1.Upgrade) error {
 	hasDegradedVolume, err := v.hasDegradedVolume()
 	if err != nil {
 		return werror.NewInternalError(err.Error())
@@ -185,7 +186,7 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
 		return err
 	}
 
-	if err := v.checkSingleReplicaVolumes(); err != nil {
+	if err := v.checkSingleReplicaVolumes(upgrade); err != nil {
 		return err
 	}
 
@@ -363,7 +364,53 @@ func (v *upgradeValidator) checkMachines() error {
 	return nil
 }
 
-func (v *upgradeValidator) checkSingleReplicaVolumes() error {
+func skipSingleReplicaDetachedVolCheck(upgrade *v1beta1.Upgrade) bool {
+	var annotations = upgrade.GetAnnotations()
+	if annotations == nil || annotations[skipSingleReplicaDetachedVol] == "" {
+		return false
+	}
+	return true
+}
+
+func checkActiveSingleReplicaVols(singleReplicaVols []*lhv1beta2.Volume) error {
+	volumeNames := make([]string, 0, len(singleReplicaVols))
+	for _, volume := range singleReplicaVols {
+		switch volume.Status.State {
+		case lhv1beta2.VolumeStateCreating, lhv1beta2.VolumeStateAttached, lhv1beta2.VolumeStateAttaching:
+			pvcNamespace := volume.Status.KubernetesStatus.Namespace
+			pvcName := volume.Status.KubernetesStatus.PVCName
+			volumeNames = append(volumeNames, pvcNamespace+"/"+pvcName)
+		}
+	}
+
+	if len(volumeNames) > 0 {
+		return werror.NewInvalidError(
+			fmt.Sprintf("Following PVCs with active single-replica volume, please consider shutdown the corresponding workload before upgrade: %s", strings.Join(volumeNames, ", ")), "",
+		)
+	}
+	return nil
+}
+
+func checkAllSingleReplicaVols(singleReplicaVols []*lhv1beta2.Volume) error {
+	volumeNames := make([]string, 0, len(singleReplicaVols))
+	for _, volume := range singleReplicaVols {
+		// If the pvc is bound only until it's used, the related volume can be never created,
+		// in this case, we will not iterate such pvc,
+		// so it's still safe to directly access `volume.Status.KubernetesStatus` fields
+		pvcNamespace := volume.Status.KubernetesStatus.Namespace
+		pvcName := volume.Status.KubernetesStatus.PVCName
+		volumeNames = append(volumeNames, pvcNamespace+"/"+pvcName)
+	}
+
+	if len(volumeNames) > 0 {
+		return werror.NewInvalidError(
+			fmt.Sprintf("Following PVCs with single-replica volume, even the volume is detached, upgrade may have potential data integrity concerns: %s", strings.Join(volumeNames, ", ")), "",
+		)
+	}
+	return nil
+}
+
+func (v *upgradeValidator) checkSingleReplicaVolumes(upgrade *v1beta1.Upgrade) error {
 	// Upgrade should be rejected if any single-replica volume exists
 	nodes, err := v.nodes.List(labels.Everything())
 	if err != nil {
@@ -381,23 +428,12 @@ func (v *upgradeValidator) checkSingleReplicaVolumes() error {
 		return err
 	}
 
-	volumeNames := make([]string, 0, len(singleReplicaVolumes))
-	for _, volume := range singleReplicaVolumes {
-		switch volume.Status.State {
-		case lhv1beta2.VolumeStateCreating, lhv1beta2.VolumeStateAttached, lhv1beta2.VolumeStateAttaching:
-			pvcNamespace := volume.Status.KubernetesStatus.Namespace
-			pvcName := volume.Status.KubernetesStatus.PVCName
-			volumeNames = append(volumeNames, pvcNamespace+"/"+pvcName)
-		}
+	checkFunc := checkAllSingleReplicaVols
+	if skipSingleReplicaDetachedVolCheck(upgrade) {
+		checkFunc = checkActiveSingleReplicaVols
 	}
 
-	if len(volumeNames) > 0 {
-		return werror.NewInvalidError(
-			fmt.Sprintf("The backing volumes of the following PVCs have single replica configured, please consider shutdown the corresponding workload before upgrade: %s", strings.Join(volumeNames, ", ")), "",
-		)
-	}
-
-	return nil
+	return checkFunc(singleReplicaVolumes)
 }
 
 func (v *upgradeValidator) checkNonLiveMigratableVMs() error {
