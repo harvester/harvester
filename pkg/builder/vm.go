@@ -150,7 +150,7 @@ func (v *VMBuilder) Memory(memory string) *VMBuilder {
 }
 
 func (v *VMBuilder) CPU(cores int) *VMBuilder {
-	v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Cores = uint32(cores)
+	v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Cores = uint32(cores) // nolint:gosec
 	if len(v.VirtualMachine.Spec.Template.Spec.Domain.Resources.Limits) == 0 {
 		v.VirtualMachine.Spec.Template.Spec.Domain.Resources.Limits = corev1.ResourceList{}
 	}
