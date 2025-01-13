@@ -13,6 +13,7 @@ import (
 const (
 	deviceCapacity   = "deviceCapacity"
 	localClusterName = "local"
+	machineTypes     = "machineTypes"
 )
 
 type Cluster struct {
@@ -40,6 +41,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		schema.CollectionMethods = []string{"GET"}
 		schema.LinkHandlers = map[string]http.Handler{
 			deviceCapacity: handler,
+			machineTypes:   handler,
 		}
 	})
 	return nil
