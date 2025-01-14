@@ -71,7 +71,7 @@ type Handler struct {
 	longhornSettingCache ctllhv1.SettingCache
 	configmaps           ctlcorev1.ConfigMapClient
 	configmapCache       ctlcorev1.ConfigMapCache
-	serviceCache         ctlcorev1.ServiceCache
+	endpointCache        ctlcorev1.EndpointsCache
 	apps                 catalogv1.AppClient
 	managedCharts        ctlmgmtv3.ManagedChartClient
 	managedChartCache    ctlmgmtv3.ManagedChartCache

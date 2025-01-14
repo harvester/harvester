@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -15,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
@@ -45,6 +47,8 @@ const (
 	defaultNewImageSize                uint64 = 13 * 1024 * 1024 * 1024 // 13GB, this value aggregates all tarball image sizes. It may change in the future.
 	defaultImageGCHighThresholdPercent        = 85.0                    // default value in kubelet config
 	freeSystemPartitionMsg                    = "df -h '/usr/local/'"
+	minCertsExpirationInDayAnnotation         = "harvesterhci.io/minCertsExpirationInDay"
+	defaultMinCertsExpirationInDay            = 7
 )
 
 func NewValidator(
@@ -58,6 +62,7 @@ func NewValidator(
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
 	svmbackupCache ctlharvesterv1.ScheduleVMBackupCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
+	endpointCache v1.EndpointsCache,
 	httpClient *http.Client,
 	bearToken string,
 ) types.Validator {
@@ -72,6 +77,7 @@ func NewValidator(
 		vmBackupCache:     vmBackupCache,
 		svmbackupCache:    svmbackupCache,
 		vmiCache:          vmiCache,
+		endpointCache:     endpointCache,
 		httpClient:        httpClient,
 		bearToken:         bearToken,
 	}
@@ -90,6 +96,7 @@ type upgradeValidator struct {
 	vmBackupCache     ctlharvesterv1.VirtualMachineBackupCache
 	svmbackupCache    ctlharvesterv1.ScheduleVMBackupCache
 	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
+	endpointCache     v1.EndpointsCache
 	httpClient        *http.Client
 	bearToken         string
 }
@@ -190,7 +197,11 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version, upgrade *v1b
 		return err
 	}
 
-	return v.checkNonLiveMigratableVMs()
+	if err := v.checkNonLiveMigratableVMs(); err != nil {
+		return err
+	}
+
+	return v.checkCerts(version)
 }
 
 func (v *upgradeValidator) hasDegradedVolume() (bool, error) {
@@ -543,4 +554,39 @@ func (v *upgradeValidator) getKubeletStatsSummary(nodeName, kubeletURL string) (
 		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't parse json response %s, err: %+v", nodeName, string(body), err))
 	}
 	return summary, nil
+}
+
+func (v *upgradeValidator) checkCerts(version *v1beta1.Version) error {
+	kubernetesIPs, err := util.GetKubernetesIps(v.endpointCache)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("can't get list of kubernetes ip, err: %+v", err))
+	}
+	if len(kubernetesIPs) == 0 {
+		err = fmt.Errorf("cluster ip is empty")
+		logrus.WithFields(logrus.Fields{
+			"namespace": metav1.NamespaceDefault,
+			"name":      "kubernetes",
+		}).WithError(err).Error("cluster ip is empty in the endpoints")
+		return werror.NewInternalError(fmt.Sprintf("can't get kubernetes ip, err: %+v", err))
+	}
+
+	earliestExpiringCert, err := util.GetAddrsEarliestExpiringCert(kubernetesIPs)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("can't get earliest expiring cert, err: %+v", err))
+	}
+
+	minCertsExpirationInDay := defaultMinCertsExpirationInDay
+	if value, ok := version.Annotations[minCertsExpirationInDayAnnotation]; ok {
+		minCertsExpirationInDay, err = strconv.Atoi(value)
+		if err != nil {
+			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, minCertsExpirationInDayAnnotation))
+		}
+	}
+
+	expirationDate := time.Now().AddDate(0, 0, minCertsExpirationInDay)
+	if earliestExpiringCert.NotAfter.Before(expirationDate) {
+		return werror.NewBadRequest(fmt.Sprintf(
+			"earliest expiring cert for default/kubernetes ClusterIP is %s, it will expire in %s days. Please rotate RKE2 certificates.", earliestExpiringCert.NotAfter, strconv.Itoa(minCertsExpirationInDay)))
+	}
+	return nil
 }
