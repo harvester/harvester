@@ -1,8 +1,6 @@
 package setting
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -40,21 +38,21 @@ func (h *Handler) syncAutoRotateRKE2Certs(setting *harvesterv1.Setting) error {
 		return nil
 	}
 
-	kubernetesIP, err := h.getKubernetesIP()
+	kubernetesIPs, err := util.GetKubernetesIps(h.endpointCache)
 	if err != nil {
 		return err
 	}
-	if kubernetesIP == "" {
+	if len(kubernetesIPs) == 0 {
 		err = fmt.Errorf("cluster ip is empty")
 		logrus.WithFields(logrus.Fields{
 			"name":              setting.Name,
 			"service.namespace": metav1.NamespaceDefault,
 			"service.name":      "kubernetes",
-		}).WithError(err).Error("cluster ip is empty in the service")
+		}).WithError(err).Error("cluster ip is empty in the endpoints")
 		return err
 	}
 
-	earliestExpiringCert, err := h.getEarliestExpiringCert(fmt.Sprintf("%s:443", kubernetesIP))
+	earliestExpiringCert, err := util.GetAddrsEarliestExpiringCert(kubernetesIPs)
 	if err != nil {
 		return err
 	}
@@ -95,45 +93,6 @@ func (h *Handler) syncAutoRotateRKE2Certs(setting *harvesterv1.Setting) error {
 	}).Info("RKE2 certificate is not expiring, reconcile setting again")
 	h.settingController.EnqueueAfter(setting.Name, reconcileAfter)
 	return nil
-}
-
-func (h *Handler) getKubernetesIP() (string, error) {
-	svc, err := h.serviceCache.Get(metav1.NamespaceDefault, "kubernetes")
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"namespace": metav1.NamespaceDefault,
-			"name":      "kubernetes",
-		}).WithError(err).Error("serviceCache.Get")
-		return "", err
-	}
-
-	return svc.Spec.ClusterIP, nil
-}
-
-func (h *Handler) getEarliestExpiringCert(addr string) (*x509.Certificate, error) {
-	conf := &tls.Config{
-		InsecureSkipVerify: true,
-	}
-
-	conn, err := tls.Dial("tcp", addr, conf)
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"addr": addr,
-			"conf": conf,
-		}).WithError(err).Error("tls.Dial")
-		return nil, err
-	}
-	defer conn.Close()
-
-	var earliestExpiringCert *x509.Certificate
-	certs := conn.ConnectionState().PeerCertificates
-	for _, cert := range certs {
-		if earliestExpiringCert == nil || earliestExpiringCert.NotAfter.After(cert.NotAfter) {
-			earliestExpiringCert = cert
-		}
-	}
-
-	return earliestExpiringCert, nil
 }
 
 func (h *Handler) rotateRKE2Certs(setting *harvesterv1.Setting) (time.Duration, error) {
