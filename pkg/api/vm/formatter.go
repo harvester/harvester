@@ -73,7 +73,6 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	resource.AddAction(request, addVolume)
 	resource.AddAction(request, removeVolume)
 	resource.AddAction(request, cloneVM)
-	resource.AddAction(request, migrate)
 	resource.AddAction(request, findMigratableNodes)
 
 	if canEjectCdRom(vm) {
@@ -103,6 +102,10 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	if vf.canUnPause(vmi) {
 		resource.AddAction(request, unpauseVM)
+	}
+
+	if canMigrate(vmi) {
+		resource.AddAction(request, migrate)
 	}
 
 	if canAbortMigrate(vmi) {
@@ -234,9 +237,27 @@ func isReady(vmi *kubevirtv1.VirtualMachineInstance) bool {
 	return false
 }
 
+// canMigrate does not check the dynamic migration conditions like available target node
+// but make sure migrate/abortMigration are mutually exclusive or both not available when vmi is nil
+func canMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
+	if vmi == nil {
+		return false
+	}
+	if vmi.DeletionTimestamp != nil {
+		return false
+	}
+	if vmi.Annotations[util.AnnotationMigrationState] != "" {
+		return false
+	}
+	return true
+}
+
 func canAbortMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
-	if vmi != nil &&
-		vmi.Annotations[util.AnnotationMigrationState] == migration.StateMigrating || vmi.Annotations[util.AnnotationMigrationState] == migration.StatePending {
+	if vmi == nil {
+		return false
+	}
+	state := vmi.Annotations[util.AnnotationMigrationState]
+	if state == migration.StateMigrating || state == migration.StateScheduling {
 		return true
 	}
 	return false

@@ -1,6 +1,9 @@
 package migration
 
 import (
+	"fmt"
+	"time"
+
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -63,6 +66,63 @@ func (h *Handler) OnVmiChanged(_ string, vmi *kubevirtv1.VirtualMachineInstance)
 	return vmi, nil
 }
 
+func (h *Handler) setVmiMigrationUIDAnnotationAndSyncVM(vmi *kubevirtv1.VirtualMachineInstance, UID string, state string) error {
+	ts := vmi.Annotations[util.AnnotationMigrationStateTimestamp]
+	checkTs := true
+	// a new UID or new state
+	if vmi.Annotations[util.AnnotationMigrationUID] != UID ||
+		vmi.Annotations[util.AnnotationMigrationState] != state {
+		toUpdate := vmi.DeepCopy()
+		if toUpdate.Annotations == nil {
+			toUpdate.Annotations = make(map[string]string)
+		}
+		if UID != "" {
+			toUpdate.Annotations[util.AnnotationMigrationUID] = UID
+			toUpdate.Annotations[util.AnnotationMigrationState] = state
+			// update the new ts to vmi
+			toUpdate.Annotations[util.AnnotationMigrationStateTimestamp] = time.Now().Format(time.RFC3339)
+			checkTs = false
+		} else {
+			delete(toUpdate.Annotations, util.AnnotationMigrationUID)
+			delete(toUpdate.Annotations, util.AnnotationMigrationState)
+			delete(toUpdate.Annotations, util.AnnotationMigrationStateTimestamp)
+		}
+		if _, err := h.vmis.Update(toUpdate); err != nil {
+			return err
+		}
+	}
+	// state/UID does not change, check if VM needs to be updated
+	return h.syncVM(vmi, checkTs, ts)
+}
+
+// syncVM update vm so that UI gets websocket message with updated actions
+// checkTs: true: check the vm.annotation AnnotationTimestamp with the input ts, false: do not
+func (h *Handler) syncVM(vmi *kubevirtv1.VirtualMachineInstance, checkTs bool, ts string) error {
+	vm, err := h.vmCache.Get(vmi.Namespace, vmi.Name)
+	if err != nil {
+		return err
+	}
+
+	curTs := vm.Annotations[util.AnnotationTimestamp]
+	// update vm object timestamp anyway
+	// or
+	// check ts to decide if update is required
+	// mainly for the case: setVmiMigrationUIDAnnotationAndSyncVM updated vmi but failed to update vm
+	// then the timestamp on vmi is newer than on vm, following code will be executed
+	if !checkTs || curTs < ts {
+		toUpdateVM := vm.DeepCopy()
+		if toUpdateVM.Annotations == nil {
+			toUpdateVM.Annotations = make(map[string]string)
+		}
+		// get the current timestamp directly
+		toUpdateVM.Annotations[util.AnnotationTimestamp] = time.Now().Format(time.RFC3339)
+		_, err = h.vms.Update(toUpdateVM)
+		return err
+	}
+
+	return nil
+}
+
 func (h *Handler) resetHarvesterMigrationStateInVMI(vmi *kubevirtv1.VirtualMachineInstance) error {
 	toUpdate := vmi.DeepCopy()
 	delete(toUpdate.Annotations, util.AnnotationMigrationUID)
@@ -74,6 +134,22 @@ func (h *Handler) resetHarvesterMigrationStateInVMI(vmi *kubevirtv1.VirtualMachi
 
 	if _, err := h.vmis.Update(toUpdate); err != nil {
 		return err
+	}
+	return nil
+}
+
+// https://github.com/harvester/harvester/issues/6193
+// The UI VM page is anchored on VM object, only when VM object's resorceVersion is changed
+// then UI will update the VM action menu
+// VM's migration is done mainly between vmi and vmim
+// Propagate the changes to VM when necessary to keep UI updated
+func (h *Handler) resetHarvesterMigrationStateInVmiAndSyncVM(vmi *kubevirtv1.VirtualMachineInstance) error {
+	if err := h.resetHarvesterMigrationStateInVMI(vmi); err != nil {
+		return fmt.Errorf("fail to reset vmi migration %w", err)
+	}
+	// without syncing VM, the UI may still show the actions deduced from old VM/VMI status combination
+	if err := h.syncVM(vmi, false, ""); err != nil {
+		return fmt.Errorf("fail to reset vmi migration to vm %w", err)
 	}
 	return nil
 }
