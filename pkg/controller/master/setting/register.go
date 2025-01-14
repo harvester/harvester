@@ -20,7 +20,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
-	services := management.CoreFactory.Core().V1().Service()
+	endpoints := management.CoreFactory.Core().V1().Endpoints()
 	lhs := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	ingresses := management.NetworkingFactory.Networking().V1().Ingress()
@@ -48,7 +48,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		longhornSettingCache: lhs.Cache(),
 		configmaps:           configmaps,
 		configmapCache:       configmaps.Cache(),
-		serviceCache:         services.Cache(),
+		endpointCache:        endpoints.Cache(),
 		managedCharts:        managedCharts,
 		managedChartCache:    managedCharts.Cache(),
 		helmChartConfigs:     helmChartConfigs,
