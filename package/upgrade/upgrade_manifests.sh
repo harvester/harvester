@@ -876,7 +876,7 @@ upgrade_harvester() {
   cat >harvester-crd.yaml <<EOF
 spec:
   version: $REPO_HARVESTER_CHART_VERSION
-  timeoutSeconds: 60
+  timeoutSeconds: 600
 EOF
   kubectl patch managedcharts.management.cattle.io harvester-crd -n fleet-local --patch-file ./harvester-crd.yaml --type merge
 
@@ -934,7 +934,7 @@ upgrade_managedchart_monitoring_crd() {
   cat >"$nm".yaml <<EOF
 spec:
   version: $REPO_MONITORING_CHART_VERSION
-  timeoutSeconds: 60
+  timeoutSeconds: 600
 EOF
 
   kubectl patch managedcharts.management.cattle.io "$nm" -n fleet-local --patch-file ./"$nm".yaml --type merge
@@ -968,7 +968,7 @@ upgrade_managedchart_logging_crd() {
   cat >"$nm".yaml <<EOF
 spec:
   version: $REPO_LOGGING_CHART_VERSION
-  timeoutSeconds: 60
+  timeoutSeconds: 600
 EOF
 
   kubectl patch managedcharts.management.cattle.io "$nm" -n fleet-local --patch-file ./"$nm".yaml --type merge
