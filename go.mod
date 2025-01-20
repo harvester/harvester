@@ -54,7 +54,7 @@ replace (
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/cisco-open/operator-tools v0.29.0
-	github.com/containernetworking/cni v1.2.0-rc1
+	github.com/containernetworking/cni v1.2.0
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful/v3 v3.12.1
@@ -68,7 +68,7 @@ require (
 	github.com/iancoleman/strcase v0.2.0
 	github.com/k3s-io/helm-controller v0.16.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.0
-	github.com/k8snetworkplumbingwg/whereabouts v0.7.0
+	github.com/k8snetworkplumbingwg/whereabouts v0.8.0
 	github.com/kube-logging/logging-operator/pkg/sdk v0.9.1
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1

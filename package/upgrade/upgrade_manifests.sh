@@ -1286,6 +1286,20 @@ EOF
   fi
 }
 
+apply_whereabouts_manifests()
+{
+  echo "Applying whereabouts manifests"
+
+  shopt -s nullglob
+
+  for manifest in /usr/local/share/extra_manifests/whereabouts/*.yaml; do
+      echo "Applying $manifest"
+      kubectl apply -f "$manifest"
+  done
+
+  shopt -u nullglob
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -1298,6 +1312,7 @@ update_local_rke_state_secret
 upgrade_harvester_cluster_repo
 upgrade_network
 ensure_ingress_class_name
+apply_whereabouts_manifests
 upgrade_harvester
 sync_containerd_registry_to_rancher
 wait_longhorn_upgrade
