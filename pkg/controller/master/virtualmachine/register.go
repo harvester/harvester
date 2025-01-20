@@ -10,8 +10,7 @@ import (
 const (
 	vmControllerCreatePVCsFromAnnotationControllerName           = "VMController.CreatePVCsFromAnnotation"
 	vmiControllerReconcileFromHostLabelsControllerName           = "VMIController.ReconcileFromHostLabels"
-	vmiControllerSetDefaultManagementNetworkMac                  = "VMIController.SetDefaultManagementNetworkMacAddress"
-	vmiControllerSyncControllerRevision                          = "VMIController.SyncControllerRevision"
+	vmiControllerSyncMacAddressAndControllerRevision             = "VMIController.SyncMacAddressAndControllerRevision"
 	vmControllerStoreRunStrategyControllerName                   = "VMController.StoreRunStrategyToAnnotation"
 	vmControllerSyncLabelsToVmi                                  = "VMController.SyncLabelsToVmi"
 	vmControllerSetHaltIfInsufficientResourceQuotaControllerName = "VMController.SetHaltIfInsufficientResourceQuota"
@@ -92,14 +91,13 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	// register the vmi network controller upon the VMI changes
 	var virtualMachineInstanceController = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	var vmNetworkCtl = &VMNetworkController{
-		vmClient: vmClient,
-		vmCache:  vmCache,
-		//vmiClient:     virtualMachineInstanceController,
+		vmClient:      vmClient,
+		vmCache:       vmCache,
 		crClient:      crClient,
 		crCache:       crClientCache,
 		vmiController: virtualMachineInstanceController,
 	}
-	virtualMachineInstanceController.OnChange(ctx, vmiControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SyncMacAddressAndControllerRevision)
+	virtualMachineInstanceController.OnChange(ctx, vmiControllerSyncMacAddressAndControllerRevision, vmNetworkCtl.SyncMacAddressAndControllerRevision)
 
 	return nil
 }

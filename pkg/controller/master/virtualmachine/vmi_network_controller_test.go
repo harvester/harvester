@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/stretchr/testify/assert"
@@ -15,13 +16,17 @@ import (
 	k8sfakeclient "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	vmwatch "kubevirt.io/kubevirt/pkg/virt-controller/watch"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	virtualmachinetype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
-func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
+func TestSyncMacAddressAndControllerRevision(t *testing.T) {
 	type input struct {
 		key string
 		vmi *kubevirtv1.VirtualMachineInstance
@@ -29,9 +34,23 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 		cr  *appsv1.ControllerRevision
 	}
 	type output struct {
-		vmi *kubevirtv1.VirtualMachineInstance
-		vm  *kubevirtv1.VirtualMachine
-		err error
+		vmi     *kubevirtv1.VirtualMachineInstance
+		vm      *kubevirtv1.VirtualMachine
+		err     error
+		vmMacs  map[string]string
+		vmiMacs map[string]string
+		crMacs  map[string]string
+	}
+
+	defaultNetwork := "default"
+	secondNetwork := "data"
+	vmiMacs := map[string]string{
+		defaultNetwork: "00:00:00:00:00",
+		secondNetwork:  "00:01:02:03:04",
+	}
+	vmMacs := map[string]string{
+		defaultNetwork: "00:00:00:00:dd",
+		secondNetwork:  "00:01:02:03:ee",
 	}
 
 	var testCases = []struct {
@@ -80,7 +99,7 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 			},
 		},
 		{
-			name: "set mac address",
+			name: "vmi has same mac when vm set related mac",
 			given: input{
 				key: "default/test",
 				vm: &kubevirtv1.VirtualMachine{
@@ -95,17 +114,25 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 							Spec: kubevirtv1.VirtualMachineInstanceSpec{
 								Networks: []kubevirtv1.Network{
 									{
-										Name: "default",
+										Name: defaultNetwork,
 										NetworkSource: kubevirtv1.NetworkSource{
 											Pod: &kubevirtv1.PodNetwork{},
 										},
+									},
+									{
+										Name: "data",
 									},
 								},
 								Domain: kubevirtv1.DomainSpec{
 									Devices: kubevirtv1.Devices{
 										Interfaces: []kubevirtv1.Interface{
 											{
-												Name: "default",
+												Name:       defaultNetwork,
+												MacAddress: vmMacs[defaultNetwork],
+											},
+											{
+												Name:       secondNetwork,
+												MacAddress: vmMacs[secondNetwork],
 											},
 										},
 									},
@@ -128,13 +155,89 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 						Interfaces: []kubevirtv1.VirtualMachineInstanceNetworkInterface{
 							{
 								IP:   "172.16.0.100",
-								MAC:  "00:00:00:00:00",
-								Name: "default",
+								MAC:  vmMacs[defaultNetwork],
+								Name: defaultNetwork,
 							},
 							{
-								IP:   "172.16.0.101",
-								MAC:  "00:01:02:03:04",
-								Name: "nic-1",
+								IP:   "172.16.1.100",
+								MAC:  vmMacs[secondNetwork],
+								Name: secondNetwork,
+							},
+						},
+						Phase:                      kubevirtv1.Running,
+						VirtualMachineRevisionName: "test-random-id",
+					},
+				},
+			},
+			expected: output{
+				err:     nil,
+				vmiMacs: vmMacs,
+				vmMacs:  vmMacs,
+				crMacs:  vmMacs,
+			},
+		},
+		{
+			name: "save vmi mac address back to vm when vm does not set related mac",
+			given: input{
+				key: "default/test",
+				vm: &kubevirtv1.VirtualMachine{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Generation: 2, // simulate the mac is backfilled to vm
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Networks: []kubevirtv1.Network{
+									{
+										Name: defaultNetwork,
+										NetworkSource: kubevirtv1.NetworkSource{
+											Pod: &kubevirtv1.PodNetwork{},
+										},
+									},
+									{
+										Name: secondNetwork,
+									},
+								},
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										Interfaces: []kubevirtv1.Interface{
+											{
+												Name: defaultNetwork,
+											},
+											{
+												Name: secondNetwork,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Status: kubevirtv1.VirtualMachineStatus{
+						ObservedGeneration: 1, // upstream will update the ObservedGeneration to be same as Generation
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+						UID:       "fake-vmi-uid",
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						Interfaces: []kubevirtv1.VirtualMachineInstanceNetworkInterface{
+							{
+								IP:   "172.16.0.100",
+								MAC:  vmiMacs[defaultNetwork],
+								Name: defaultNetwork,
+							},
+							{
+								IP:   "172.16.1.100",
+								MAC:  vmiMacs[secondNetwork],
+								Name: secondNetwork,
 							},
 						},
 						Phase:                      kubevirtv1.Running,
@@ -149,6 +252,58 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 				},
 			},
 			expected: output{
+				err:     nil,
+				vmiMacs: vmiMacs,
+				vmMacs:  vmiMacs,
+				crMacs:  vmiMacs,
+			},
+		},
+		{
+			name: "do not save vmi mac address back to vm when vm has set mac but vm has different mac",
+			given: input{
+				key: "default/test",
+				vm: &kubevirtv1.VirtualMachine{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:  "default",
+						Name:       "test",
+						UID:        "fake-vm-uid",
+						Generation: 1,
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Networks: []kubevirtv1.Network{
+									{
+										Name: defaultNetwork,
+										NetworkSource: kubevirtv1.NetworkSource{
+											Pod: &kubevirtv1.PodNetwork{},
+										},
+									},
+									{
+										Name: secondNetwork,
+									},
+								},
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										Interfaces: []kubevirtv1.Interface{
+											{
+												Name:       defaultNetwork,
+												MacAddress: vmMacs[defaultNetwork],
+											},
+											{
+												Name:       secondNetwork,
+												MacAddress: vmMacs[secondNetwork],
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Status: kubevirtv1.VirtualMachineStatus{
+						ObservedGeneration: 1,
+					},
+				},
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
@@ -160,55 +315,31 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 						Interfaces: []kubevirtv1.VirtualMachineInstanceNetworkInterface{
 							{
 								IP:   "172.16.0.100",
-								MAC:  "00:00:00:00:00",
-								Name: "default",
+								MAC:  vmiMacs[defaultNetwork],
+								Name: defaultNetwork,
 							},
 							{
-								IP:   "172.16.0.101",
-								MAC:  "00:01:02:03:04",
-								Name: "nic-1",
+								IP:   "172.16.1.100",
+								MAC:  vmiMacs[secondNetwork],
+								Name: secondNetwork,
 							},
 						},
 						Phase:                      kubevirtv1.Running,
 						VirtualMachineRevisionName: "test-random-id",
 					},
 				},
-				vm: &kubevirtv1.VirtualMachine{
+				cr: &appsv1.ControllerRevision{
 					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-random-id",
 						Namespace: "default",
-						Name:      "test",
-						UID:       "fake-vm-uid",
-					},
-					Spec: kubevirtv1.VirtualMachineSpec{
-						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-							Spec: kubevirtv1.VirtualMachineInstanceSpec{
-								Networks: []kubevirtv1.Network{
-									{
-										Name: "default",
-										NetworkSource: kubevirtv1.NetworkSource{
-											Pod: &kubevirtv1.PodNetwork{},
-										},
-									},
-								},
-								Domain: kubevirtv1.DomainSpec{
-									Devices: kubevirtv1.Devices{
-										Interfaces: []kubevirtv1.Interface{
-											{
-												Name:       "default",
-												MacAddress: "00:00:00:00:00",
-											},
-											{
-												Name:       "nic-1",
-												MacAddress: "00:01:02:03:04",
-											},
-										},
-									},
-								},
-							},
-						},
 					},
 				},
-				err: nil,
+			},
+			expected: output{
+				err:     nil,
+				vmiMacs: vmiMacs,
+				vmMacs:  vmMacs,
+				crMacs:  vmMacs,
 			},
 		},
 	}
@@ -226,37 +357,51 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 		}
 
 		if tc.given.cr != nil && tc.given.vm != nil {
-			specString, err := json.Marshal(tc.given.vm.Spec)
+			vmspec := tc.given.vm.Spec
+			bts, err := patchVMRevisionViaVMSpec(&vmspec)
 			assert.Nil(t, err, "expect no error trying to marshal vmspec")
-			tc.given.cr.Data.Raw = specString
+			tc.given.cr.Data.Raw = bts
+
 			err = k8sfake.Tracker().Add(tc.given.cr)
 			assert.Nil(t, err, "mock resource should add into fake controller tracker")
 		}
 
 		var ctrl = &VMNetworkController{
-			vmClient:  fakeVMClient(clientset.KubevirtV1().VirtualMachines),
-			vmCache:   fakeVMCache(clientset.KubevirtV1().VirtualMachines),
-			vmiClient: fakeVMIClient(clientset.KubevirtV1().VirtualMachineInstances),
-			crCache:   fakeclients.ControllerRevisionCache(k8sfake.AppsV1().ControllerRevisions),
-			crClient:  fakeclients.ControllerRevisionClient(k8sfake.AppsV1().ControllerRevisions),
+			vmClient:      fakeVMClient(clientset.KubevirtV1().VirtualMachines),
+			vmCache:       fakeVMCache(clientset.KubevirtV1().VirtualMachines),
+			vmiController: fakeVMIClient(clientset.KubevirtV1().VirtualMachineInstances),
+			crCache:       fakeclients.ControllerRevisionCache(k8sfake.AppsV1().ControllerRevisions),
+			crClient:      fakeclients.ControllerRevisionClient(k8sfake.AppsV1().ControllerRevisions),
 		}
 
-		var actual output
-		actual.vmi, actual.err = ctrl.SetDefaultNetworkMacAddress(tc.given.key, tc.given.vmi)
-		assert.Nil(t, actual.err, "error during reconcile of SetDefaultNetworkMacAddress %v %s", actual.err, tc.name)
-		if tc.given.vmi != nil && tc.given.vm != nil {
-			actual.vm, actual.err = ctrl.vmClient.Get(tc.given.vm.Namespace, tc.given.vm.Name, metav1.GetOptions{})
-			assert.Nil(t, actual.err, "mock resource should get from fake VM controller, error: %v", actual.err)
-			for _, vmIface := range actual.vm.Spec.Template.Spec.Domain.Devices.Interfaces {
-				for _, iface := range tc.given.vmi.Status.Interfaces {
-					if iface.Name == vmIface.Name {
-						assert.Equal(t, iface.MAC, vmIface.MacAddress)
-					}
-				}
+		_, err := ctrl.SyncMacAddressAndControllerRevision(tc.given.key, tc.given.vmi)
+		assert.Nil(t, err, "error during reconcile of SetDefaultNetworkMacAddress %v %s", err, tc.name)
+		if tc.given.vmi != nil && tc.given.vm != nil && tc.given.vmi.DeletionTimestamp != nil && tc.given.vm.DeletionTimestamp != nil {
+			vm, err := ctrl.vmClient.Get(tc.given.vm.Namespace, tc.given.vm.Name, metav1.GetOptions{})
+			assert.Nil(t, err, "mock resource should get from fake VM controller, error: %v", err)
+			vmi, err := ctrl.vmiController.Get(tc.given.vmi.Namespace, tc.given.vmi.Name, metav1.GetOptions{})
+			assert.Nil(t, err, "mock resource should get from fake VMI controller, error: %v", err)
+			// vm has expected MACs
+			for _, vmIface := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
+				mac := tc.expected.vmMacs[vmIface.Name]
+				assert.Equal(t, vmIface.MacAddress, mac, "case %q", tc.name)
+			}
+			// vmi has expected MACs
+			for _, vmiIface := range vmi.Status.Interfaces {
+				mac := tc.expected.vmiMacs[vmiIface.Name]
+				assert.Equal(t, vmiIface.MAC, mac, "case %q", tc.name)
+			}
+			// ControllerRevision has expected MACs
+			crObj, err := ctrl.crClient.Get(tc.given.cr.Namespace, tc.given.cr.Name, metav1.GetOptions{})
+			assert.Nil(t, err, "mock resource should get from fake ControllerRevisionClient, error: %v", err)
+			revisionSpec := &vmwatch.VirtualMachineRevisionData{}
+			err = json.Unmarshal(crObj.Data.Raw, revisionSpec)
+			assert.Nil(t, err, "mock resource should be successfully json Unmarshaled, error: %v", err)
+			for _, rcIface := range revisionSpec.Spec.Template.Spec.Domain.Devices.Interfaces {
+				mac := tc.expected.crMacs[rcIface.Name]
+				assert.Equal(t, rcIface.MacAddress, mac, "case %q", tc.name)
 			}
 		}
-
-		assert.Equal(t, tc.expected.vmi, actual.vmi, "case %q", tc.name)
 	}
 }
 
@@ -351,5 +496,45 @@ func (c fakeVMIClient) Patch(namespace, name string, pt types.PatchType, data []
 }
 
 func (c fakeVMIClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*kubevirtv1.VirtualMachineInstance, *kubevirtv1.VirtualMachineInstanceList], error) {
+	panic("implement me")
+}
+
+func (c fakeVMIClient) Informer() cache.SharedIndexInformer {
+	panic("implement me")
+}
+
+func (c fakeVMIClient) GroupVersionKind() schema.GroupVersionKind {
+	panic("implement me")
+}
+
+func (c fakeVMIClient) AddGenericHandler(_ context.Context, _ string, _ generic.Handler) {
+	panic("implement me")
+}
+
+func (c fakeVMIClient) AddGenericRemoveHandler(_ context.Context, _ string, _ generic.Handler) {
+	panic("implement me")
+}
+
+func (c fakeVMIClient) Updater() generic.Updater {
+	panic("implement me")
+}
+
+func (c fakeVMIClient) OnChange(_ context.Context, _ string, _ generic.ObjectHandler[*kubevirtv1.VirtualMachineInstance]) {
+	panic("implement me")
+}
+
+func (c fakeVMIClient) OnRemove(_ context.Context, _ string, _ generic.ObjectHandler[*kubevirtv1.VirtualMachineInstance]) {
+	panic("implement me")
+}
+
+func (c fakeVMIClient) Enqueue(_, _ string) {
+	panic("implement me")
+}
+
+func (c fakeVMIClient) EnqueueAfter(_, _ string, _ time.Duration) {
+	// do nothing
+}
+
+func (c fakeVMIClient) Cache() generic.CacheInterface[*kubevirtv1.VirtualMachineInstance] {
 	panic("implement me")
 }
