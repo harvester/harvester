@@ -103,8 +103,8 @@ github.com/containerd/errdefs v0.1.0 h1:m0wCRBiu1WJT/Fr+iOoQHMQS/eP5myQ8lCv4Dz5Z
 github.com/containerd/errdefs v0.1.0/go.mod h1:YgWiiHtLmSeBrvpw+UfPijzbLaB77mEG1WwJTDETIV0=
 github.com/containerd/log v0.1.0 h1:TCJt7ioM2cr/tfR8GPbGf9/VRAX8D2B4PjzCpfX540I=
 github.com/containerd/log v0.1.0/go.mod h1:VRRf09a7mHDIRezVKTRCrOq78v577GXq3bSa3EhrzVo=
-github.com/containernetworking/cni v1.2.0-rc1 h1:AKI3+pXtgY4PDLN9+50o9IaywWVuey0Jkw3Lvzp0HCY=
-github.com/containernetworking/cni v1.2.0-rc1/go.mod h1:Lt0TQcZQVDju64fYxUhDziTgXCDe3Olzi9I4zZJLWHg=
+github.com/containernetworking/cni v1.2.0 h1:fEjhlfWwWAXEvlcMQu/i6z8DA0Kbu7EcmR5+zb6cm5I=
+github.com/containernetworking/cni v1.2.0/go.mod h1:/r+vA/7vrynNfbvSP9g8tIKEoy6win7sALJAw4ZiJks=
 github.com/coreos/go-semver v0.3.1 h1:yi21YpKnrx1gt5R+la8n5WgS0kCrsPp33dmEyHReZr4=
 github.com/coreos/go-semver v0.3.1/go.mod h1:irMmmIw/7yzSRPWryHsK7EYSg09caPQL03VsM8rvUec=
 github.com/coreos/go-systemd/v22 v22.5.0 h1:RrqgGjYQKalulkV8NGVIfkXQf6YYmOyiJKk8iXXhfZs=
@@ -402,8 +402,8 @@ github.com/k3s-io/helm-controller v0.16.1 h1:4sdJSYdAeTvMjjq3Pt1ZcyenRTJIAvKojTW
 github.com/k3s-io/helm-controller v0.16.1/go.mod h1:AcSxEhOIUgeVvBTnJOAwcezBZXtYew/RhKwO5xp3RlM=
 github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.0 h1:47q2PIbDYHmOaqLxgGnvpLq96v9UKDsJfNW6j/KbfpQ=
 github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.0/go.mod h1:KDX0bPKeuhMakcNzLf2sWXKPNZ30wH01bsY/KJZLxFY=
-github.com/k8snetworkplumbingwg/whereabouts v0.7.0 h1:4755HVQQw6wA6hv/T+7RsZzb3I0MWzqvxqHJtfKM6Ao=
-github.com/k8snetworkplumbingwg/whereabouts v0.7.0/go.mod h1:k09GIMEZh0yZWd98S0vFmpOZcKsC+dazjaEpGKwKPuI=
+github.com/k8snetworkplumbingwg/whereabouts v0.8.0 h1:IRaQohTPmZVBmDf7nkSaajfuYc72QOIMF1ju2+z5zis=
+github.com/k8snetworkplumbingwg/whereabouts v0.8.0/go.mod h1:LulyZ7TWe7ur2pKWwXcH8dYRixH5HQ6F79mkiRxZq+E=
 github.com/karrick/godirwalk v1.17.0 h1:b4kY7nqDdioR/6qnbHQyDvmA17u5G1cZ6J+CZXwSWoI=
 github.com/karrick/godirwalk v1.17.0/go.mod h1:j4mkqPuvaLI8mp1DroR3P6ad7cyYd4c1qeJ3RV7ULlk=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
