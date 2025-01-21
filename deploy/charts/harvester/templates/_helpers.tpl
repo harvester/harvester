@@ -123,3 +123,35 @@ Get Support-bundle-kit image environment for updating the default values per cur
 {{- end -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Get a dynamic storageclass.kubernetes.io/is-default-class value for harvester-longhorn storageclass.
+*/}}
+{{- define "harvester.annotations.defaultstorageclass" -}}
+{{- if .Values.storageClass.defaultStorageClass }}
+ {{- $allscs := (lookup "storage.k8s.io/v1" "StorageClass" "" "") -}}
+ {{- if eq (len $allscs ) 0 -}}
+storageclass.kubernetes.io/is-default-class: "true"
+ {{- else -}}
+ {{- $scname := "" -}}
+ {{- range $index, $cursc := $allscs.items -}}
+ {{- range $k, $v := $cursc.metadata.annotations -}}
+ {{- if eq $k "storageclass.kubernetes.io/is-default-class" -}}
+ {{- if eq $v "true" -}}
+ {{- $scname = $cursc.metadata.name -}}
+ {{- end -}}
+ {{- end -}}
+ {{- end -}}
+ {{- end -}}
+ {{- if eq $scname "" }}
+storageclass.kubernetes.io/is-default-class: "true"
+ {{- else if eq $scname "harvester-longhorn" -}}
+storageclass.kubernetes.io/is-default-class: "true"
+ {{- else -}}
+storageclass.kubernetes.io/is-default-class: "false"
+ {{- end }}
+ {{- end }}
+{{- else -}}
+storageclass.kubernetes.io/is-default-class: "false"
+{{- end }}
+{{- end }}
