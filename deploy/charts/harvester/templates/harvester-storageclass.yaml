@@ -5,9 +5,7 @@ metadata:
   name: harvester-longhorn
   annotations:
     harvesterhci.io/is-reserved-storageclass: "true"
-{{- if .Values.storageClass.defaultStorageClass }}
-    storageclass.kubernetes.io/is-default-class: "true"
-{{- end }}
+{{ include "harvester.annotations.defaultstorageclass" . | indent 4 }}
 provisioner: driver.longhorn.io
 allowVolumeExpansion: true
 reclaimPolicy: "{{ .Values.storageClass.reclaimPolicy }}"
