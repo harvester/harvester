@@ -287,9 +287,6 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 	bridgeConfig.Bridge = config.ClusterNetwork + BridgeSuffix
 	bridgeConfig.IPAM.Range = config.Range
 
-	if config.Vlan == 0 {
-		config.Vlan = DefaultPVID
-	}
 	bridgeConfig.Vlan = config.Vlan
 
 	if len(config.Exclude) > 0 {
