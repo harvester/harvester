@@ -1303,9 +1303,14 @@ func (v *settingValidator) checkVCSpansAllNodes(config *storagenetworkctl.Config
 }
 
 func (v *settingValidator) checkStorageNetworkVlanValid(config *storagenetworkctl.Config) error {
-	if config.Vlan < 1 || config.Vlan > 4094 {
-		return fmt.Errorf("The valid value range for VLAN IDs is 1 to 4094")
+	if config.Vlan < 0 || config.Vlan > 4094 {
+		return fmt.Errorf("The valid value range for VLAN IDs is 0 to 4094")
 	}
+
+	if config.Vlan <= 1 && config.ClusterNetwork == mgmtClusterNetwork {
+		return fmt.Errorf("storage network with vlan id %d not allowed on %s cluster", config.Vlan, config.ClusterNetwork)
+	}
+
 	return nil
 }
 
