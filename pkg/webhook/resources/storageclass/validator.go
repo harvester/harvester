@@ -154,7 +154,7 @@ func (v *storageClassValidator) validateSetUniqueDefault(newObj runtime.Object) 
 		// return set default error
 		// when find another have storageclass.kubernetes.io/is-default-class annotation and value is true.
 		if v, ok := sc.Annotations[util.AnnotationIsDefaultStorageClassName]; ok && v == "true" {
-			return werror.NewInvalidError("default storage class %s already exists, please reset it first", sc.Name)
+			return werror.NewInvalidError(fmt.Sprintf("default storage class %s already exists, please reset it first before set %s as default", sc.Name, newSC.Name), "")
 		}
 	}
 
