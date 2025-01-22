@@ -382,7 +382,11 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        gh release create ${{ github.ref_name }} --draft --notes "Draft release for ${{ github.ref_name }}"
+        if gh release view ${{ github.ref_name }} > /dev/null; then
+          echo ${{ github.ref_name }} release exists
+        else
+          gh release create ${{ github.ref_name }} --draft --notes "Draft release for ${{ github.ref_name }}"
+        fi
         gh release upload ${{ github.ref_name }} dist/artifacts/harvester*initrd-${{ env.arch }}
         gh release upload ${{ github.ref_name }} dist/artifacts/harvester*vmlinuz-${{ env.arch }}
         gh release upload ${{ github.ref_name }} dist/artifacts/harvester*images-list-${{ env.arch }}.txt
