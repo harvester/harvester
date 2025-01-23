@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -67,14 +68,18 @@ func (d *VMLiveMigrateDetector) Run(ctx context.Context) error {
 		return fmt.Errorf("please specify a node name")
 	}
 
-	// Get all VMs running on the specified node
-	labelSelector := metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"kubevirt.io/nodeName": d.nodeName,
-		},
+	// Get all VMs running on the specified node, except for the upgrade-related ones
+	nodeReq, err := labels.NewRequirement("kubevirt.io/nodeName", selection.Equals, []string{d.nodeName})
+	if err != nil {
+		return err
 	}
+	notUpgradeReq, err := labels.NewRequirement("harvesterhci.io/upgrade", selection.DoesNotExist, nil)
+	if err != nil {
+		return err
+	}
+	selector := labels.NewSelector().Add(*nodeReq).Add(*notUpgradeReq)
 	listOptions := metav1.ListOptions{
-		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
+		LabelSelector: selector.String(),
 	}
 	vmiList, err := d.virtClient.VirtualMachineInstance("").List(ctx, listOptions)
 	if err != nil {
