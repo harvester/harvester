@@ -22,9 +22,9 @@ Deque generalizes a queue and a stack, to efficiently add and remove items at ei
 
 ## Ring-buffer Performance
 
-This deque implementation is optimized for CPU and GC performance. The circular buffer automatically re-sizes by powers of two, growing when additional capacity is needed and shrinking when only a quarter of the capacity is used, and uses bitwise arithmetic for all calculations. Since growth is by powers of two, adding elements will only cause O(log n) allocations. A minimum capacity can be set so that there is no resizing at or below that specified amount.
+This deque implementation is optimized for CPU and GC performance. The circular buffer automatically re-sizes by powers of two, growing when additional capacity is needed and shrinking when only a quarter of the capacity is used, and uses bitwise arithmetic for all calculations. Since growth is by powers of two, adding elements will only cause O(log n) allocations. A base capacity can be set, with `SetBaseCap`, so that there is no resizing at or below that specified amount. The Deque can also be grown, using `Grow`, to ensure sufficient storage for n additional items, to prevent resizing when adding a number of itmes.
 
-The ring-buffer implementation improves memory and time performance with fewer GC pauses, compared to implementations based on slices and linked lists. By wrapping around the buffer, previously used space is reused, making allocation unnecessary until all buffer capacity is used. If the deque is only filled and then completely emptied before being filled again, then the ring structure offers little benefit for memory reuse over a slice.
+The ring-buffer implementation improves memory and time performance with fewer GC pauses, compared to implementations based on slices or linked lists. By wrapping around the buffer, previously used space is reused, making allocation unnecessary until all buffer capacity is used. The ring buffer implementation performs best when resizes are infrequest, as is the case when items moving in and out of the Deque are balanced or when the base capacity is large enough to rarely require a resize.
 
 For maximum speed, this deque implementation leaves concurrency safety up to the application to provide, however the application chooses, if needed at all.
 
@@ -34,9 +34,9 @@ Since it is OK for the deque to contain a `nil` value, it is necessary to either
 
 ## Generics
 
-Deque uses generics to create a Deque that contains items of the type specified. To create a Deque that holds a specific type, provide a type argument to New or with the variable declaration. For example:
+Deque uses generics to create a Deque that contains items of the type specified. To create a Deque that holds a specific type, provide a type argument with the `Deque` variable declaration. For example:
 ```go
-    stringDeque := deque.New[string]()
+    stringDeque := new(deque.Deque[string])
     var intDeque deque.Deque[int]
 ```
 

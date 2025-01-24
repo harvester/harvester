@@ -2,6 +2,11 @@ package types
 
 const OsReleaseFilePath = "/etc/os-release"
 const SysClassBlockDirectory = "/sys/class/block/"
+const SysBootDirectory = "/boot/"
+const SysProcDirectory = "/proc/"
+const SysEtcDirectory = "/etc/"
+
+const SysKernelConfigGz = "config.gz"
 
 const OSDistroTalosLinux = "talos"
 

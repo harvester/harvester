@@ -5663,6 +5663,13 @@ func schema_pkg_apis_k8scnicncfio_v1_NetworkSelectionElement(ref common.Referenc
 							},
 						},
 					},
+					"ipam-claim-reference": {
+						SchemaProps: spec.SchemaProps{
+							Description: "IPAMClaimReference container the IPAMClaim name where the IPs for this attachment will be located.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"name"},
 			},
@@ -5712,6 +5719,12 @@ func schema_pkg_apis_k8scnicncfio_v1_NetworkStatus(ref common.ReferenceCallback)
 							Format: "",
 						},
 					},
+					"mtu": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
 					"default": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"boolean"},
@@ -5727,6 +5740,20 @@ func schema_pkg_apis_k8scnicncfio_v1_NetworkStatus(ref common.ReferenceCallback)
 					"device-info": {
 						SchemaProps: spec.SchemaProps{
 							Ref: ref("github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1.DeviceInfo"),
+						},
+					},
+					"gateway": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
 						},
 					},
 				},
@@ -5784,6 +5811,12 @@ func schema_pkg_apis_k8scnicncfio_v1_PciDevice(ref common.ReferenceCallback) com
 						},
 					},
 					"pf-pci-address": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"representor-device": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
@@ -5866,6 +5899,12 @@ func schema_pkg_apis_k8scnicncfio_v1_VdpaDevice(ref common.ReferenceCallback) co
 						},
 					},
 					"pf-pci-address": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"representor-device": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",

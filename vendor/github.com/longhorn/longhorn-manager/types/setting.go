@@ -2,8 +2,6 @@ package types
 
 import (
 	"fmt"
-	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -12,19 +10,20 @@ import (
 	"github.com/pkg/errors"
 	"github.com/robfig/cron"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 
 	corev1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/longhorn/longhorn-manager/meta"
+	"github.com/longhorn/longhorn-manager/util"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
-	DefaultSettingYAMLFileName = "default-setting.yaml"
+	DefaultSettingYAMLFileName  = "default-setting.yaml"
+	DefaultResourceYAMLFileName = "default-resource.yaml"
 
 	ValueEmpty   = "none"
 	ValueUnknown = "unknown"
@@ -33,6 +32,8 @@ const (
 	MaxSnapshotNum = 250
 
 	DefaultMinNumberOfCopies = 3
+
+	DefaultBackupstorePollInterval = 300 * time.Second
 )
 
 type SettingType string
@@ -50,8 +51,6 @@ const (
 type SettingName string
 
 const (
-	SettingNameBackupTarget                                             = SettingName("backup-target")
-	SettingNameBackupTargetCredentialSecret                             = SettingName("backup-target-credential-secret")
 	SettingNameAllowRecurringJobWhileVolumeDetached                     = SettingName("allow-recurring-job-while-volume-detached")
 	SettingNameCreateDefaultDiskLabeledNodes                            = SettingName("create-default-disk-labeled-nodes")
 	SettingNameDefaultDataPath                                          = SettingName("default-data-path")
@@ -73,7 +72,6 @@ const (
 	SettingNameDefaultReplicaCount                                      = SettingName("default-replica-count")
 	SettingNameDefaultDataLocality                                      = SettingName("default-data-locality")
 	SettingNameDefaultLonghornStaticStorageClass                        = SettingName("default-longhorn-static-storage-class")
-	SettingNameBackupstorePollInterval                                  = SettingName("backupstore-poll-interval")
 	SettingNameTaintToleration                                          = SettingName("taint-toleration")
 	SettingNameSystemManagedComponentsNodeSelector                      = SettingName("system-managed-components-node-selector")
 	SettingNameCRDAPIVersion                                            = SettingName("crd-api-version")
@@ -132,18 +130,25 @@ const (
 	SettingNameV2DataEngine                                             = SettingName("v2-data-engine")
 	SettingNameV2DataEngineHugepageLimit                                = SettingName("v2-data-engine-hugepage-limit")
 	SettingNameV2DataEngineGuaranteedInstanceManagerCPU                 = SettingName("v2-data-engine-guaranteed-instance-manager-cpu")
+	SettingNameV2DataEngineCPUMask                                      = SettingName("v2-data-engine-cpu-mask")
 	SettingNameV2DataEngineLogLevel                                     = SettingName("v2-data-engine-log-level")
 	SettingNameV2DataEngineLogFlags                                     = SettingName("v2-data-engine-log-flags")
+	SettingNameV2DataEngineFastReplicaRebuilding                        = SettingName("v2-data-engine-fast-replica-rebuilding")
 	SettingNameFreezeFilesystemForSnapshot                              = SettingName("freeze-filesystem-for-snapshot")
 	SettingNameAutoCleanupSnapshotWhenDeleteBackup                      = SettingName("auto-cleanup-when-delete-backup")
 	SettingNameDefaultMinNumberOfBackingImageCopies                     = SettingName("default-min-number-of-backing-image-copies")
+	SettingNameBackupExecutionTimeout                                   = SettingName("backup-execution-timeout")
 	SettingNameRWXVolumeFastFailover                                    = SettingName("rwx-volume-fast-failover")
+	// These three backup target parameters are used in the "longhorn-default-resource" ConfigMap
+	// to update the default BackupTarget resource.
+	// Longhorn won't create the Setting resources for these three parameters.
+	SettingNameBackupTarget                 = SettingName("backup-target")
+	SettingNameBackupTargetCredentialSecret = SettingName("backup-target-credential-secret")
+	SettingNameBackupstorePollInterval      = SettingName("backupstore-poll-interval")
 )
 
 var (
 	SettingNameList = []SettingName{
-		SettingNameBackupTarget,
-		SettingNameBackupTargetCredentialSecret,
 		SettingNameAllowRecurringJobWhileVolumeDetached,
 		SettingNameCreateDefaultDiskLabeledNodes,
 		SettingNameDefaultDataPath,
@@ -165,7 +170,6 @@ var (
 		SettingNameDefaultReplicaCount,
 		SettingNameDefaultDataLocality,
 		SettingNameDefaultLonghornStaticStorageClass,
-		SettingNameBackupstorePollInterval,
 		SettingNameTaintToleration,
 		SettingNameSystemManagedComponentsNodeSelector,
 		SettingNameCRDAPIVersion,
@@ -220,8 +224,10 @@ var (
 		SettingNameV2DataEngine,
 		SettingNameV2DataEngineHugepageLimit,
 		SettingNameV2DataEngineGuaranteedInstanceManagerCPU,
+		SettingNameV2DataEngineCPUMask,
 		SettingNameV2DataEngineLogLevel,
 		SettingNameV2DataEngineLogFlags,
+		SettingNameV2DataEngineFastReplicaRebuilding,
 		SettingNameReplicaDiskSoftAntiAffinity,
 		SettingNameAllowEmptyNodeSelectorVolume,
 		SettingNameAllowEmptyDiskSelectorVolume,
@@ -229,6 +235,7 @@ var (
 		SettingNameFreezeFilesystemForSnapshot,
 		SettingNameAutoCleanupSnapshotWhenDeleteBackup,
 		SettingNameDefaultMinNumberOfBackingImageCopies,
+		SettingNameBackupExecutionTimeout,
 		SettingNameRWXVolumeFastFailover,
 	}
 )
@@ -242,7 +249,7 @@ const (
 	SettingCategoryScheduling   = SettingCategory("scheduling")
 	SettingCategoryDangerZone   = SettingCategory("danger Zone")
 	SettingCategorySnapshot     = SettingCategory("snapshot")
-	SettingCategoryV2DataEngine = SettingCategory("v2 data engine (Preview Feature)")
+	SettingCategoryV2DataEngine = SettingCategory("v2 data engine (Experimental Feature)")
 )
 
 type SettingDefinition struct {
@@ -262,8 +269,6 @@ var settingDefinitionsLock sync.RWMutex
 
 var (
 	settingDefinitions = map[SettingName]SettingDefinition{
-		SettingNameBackupTarget:                                             SettingDefinitionBackupTarget,
-		SettingNameBackupTargetCredentialSecret:                             SettingDefinitionBackupTargetCredentialSecret,
 		SettingNameAllowRecurringJobWhileVolumeDetached:                     SettingDefinitionAllowRecurringJobWhileVolumeDetached,
 		SettingNameCreateDefaultDiskLabeledNodes:                            SettingDefinitionCreateDefaultDiskLabeledNodes,
 		SettingNameDefaultDataPath:                                          SettingDefinitionDefaultDataPath,
@@ -285,7 +290,6 @@ var (
 		SettingNameDefaultReplicaCount:                                      SettingDefinitionDefaultReplicaCount,
 		SettingNameDefaultDataLocality:                                      SettingDefinitionDefaultDataLocality,
 		SettingNameDefaultLonghornStaticStorageClass:                        SettingDefinitionDefaultLonghornStaticStorageClass,
-		SettingNameBackupstorePollInterval:                                  SettingDefinitionBackupstorePollInterval,
 		SettingNameTaintToleration:                                          SettingDefinitionTaintToleration,
 		SettingNameSystemManagedComponentsNodeSelector:                      SettingDefinitionSystemManagedComponentsNodeSelector,
 		SettingNameCRDAPIVersion:                                            SettingDefinitionCRDAPIVersion,
@@ -340,8 +344,10 @@ var (
 		SettingNameV2DataEngine:                                             SettingDefinitionV2DataEngine,
 		SettingNameV2DataEngineHugepageLimit:                                SettingDefinitionV2DataEngineHugepageLimit,
 		SettingNameV2DataEngineGuaranteedInstanceManagerCPU:                 SettingDefinitionV2DataEngineGuaranteedInstanceManagerCPU,
+		SettingNameV2DataEngineCPUMask:                                      SettingDefinitionV2DataEngineCPUMask,
 		SettingNameV2DataEngineLogLevel:                                     SettingDefinitionV2DataEngineLogLevel,
 		SettingNameV2DataEngineLogFlags:                                     SettingDefinitionV2DataEngineLogFlags,
+		SettingNameV2DataEngineFastReplicaRebuilding:                        SettingDefinitionV2DataEngineFastReplicaRebuilding,
 		SettingNameReplicaDiskSoftAntiAffinity:                              SettingDefinitionReplicaDiskSoftAntiAffinity,
 		SettingNameAllowEmptyNodeSelectorVolume:                             SettingDefinitionAllowEmptyNodeSelectorVolume,
 		SettingNameAllowEmptyDiskSelectorVolume:                             SettingDefinitionAllowEmptyDiskSelectorVolume,
@@ -349,25 +355,8 @@ var (
 		SettingNameFreezeFilesystemForSnapshot:                              SettingDefinitionFreezeFilesystemForSnapshot,
 		SettingNameAutoCleanupSnapshotWhenDeleteBackup:                      SettingDefinitionAutoCleanupSnapshotWhenDeleteBackup,
 		SettingNameDefaultMinNumberOfBackingImageCopies:                     SettingDefinitionDefaultMinNumberOfBackingImageCopies,
+		SettingNameBackupExecutionTimeout:                                   SettingDefinitionBackupExecutionTimeout,
 		SettingNameRWXVolumeFastFailover:                                    SettingDefinitionRWXVolumeFastFailover,
-	}
-
-	SettingDefinitionBackupTarget = SettingDefinition{
-		DisplayName: "Backup Target",
-		Description: "The endpoint used to access the backupstore. NFS, CIFS and S3 are supported.",
-		Category:    SettingCategoryBackup,
-		Type:        SettingTypeString,
-		Required:    false,
-		ReadOnly:    false,
-	}
-
-	SettingDefinitionBackupTargetCredentialSecret = SettingDefinition{
-		DisplayName: "Backup Target Credential Secret",
-		Description: "The name of the Kubernetes secret associated with the backup target.",
-		Category:    SettingCategoryBackup,
-		Type:        SettingTypeString,
-		Required:    false,
-		ReadOnly:    false,
 	}
 
 	SettingDefinitionAllowRecurringJobWhileVolumeDetached = SettingDefinition{
@@ -380,19 +369,6 @@ var (
 		Required: true,
 		ReadOnly: false,
 		Default:  "false",
-	}
-
-	SettingDefinitionBackupstorePollInterval = SettingDefinition{
-		DisplayName: "Backupstore Poll Interval",
-		Description: "In seconds. The backupstore poll interval determines how often Longhorn checks the backupstore for new backups. Set to 0 to disable the polling.",
-		Category:    SettingCategoryBackup,
-		Type:        SettingTypeInt,
-		Required:    true,
-		ReadOnly:    false,
-		Default:     "300",
-		ValueIntRange: map[string]int{
-			ValueIntRangeMinimum: 0,
-		},
 	}
 
 	SettingDefinitionFailedBackupTTL = SettingDefinition{
@@ -408,6 +384,19 @@ var (
 		Default:  "1440",
 		ValueIntRange: map[string]int{
 			ValueIntRangeMinimum: 0,
+		},
+	}
+
+	SettingDefinitionBackupExecutionTimeout = SettingDefinition{
+		DisplayName: "Backup Execution Timeout",
+		Description: "Number of minutes that Longhorn allows for the backup execution. The default value is 1.",
+		Category:    SettingCategoryBackup,
+		Type:        SettingTypeInt,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "1",
+		ValueIntRange: map[string]int{
+			ValueIntRangeMinimum: 1,
 		},
 	}
 
@@ -1346,7 +1335,7 @@ var (
 
 	SettingDefinitionV2DataEngine = SettingDefinition{
 		DisplayName: "V2 Data Engine",
-		Description: "This setting allows users to activate v2 data engine which is based on SPDK. Currently, it is in the preview phase and should not be utilized in a production environment.\n\n" +
+		Description: "This setting allows users to activate v2 data engine which is based on SPDK. Currently, it is in the experimental phase and should not be utilized in a production environment.\n\n" +
 			"  - DO NOT CHANGE THIS SETTING WITH ATTACHED VOLUMES. Longhorn will block this setting update when there are attached v2 volumes. \n\n" +
 			"  - When the V2 Data Engine is enabled, each instance-manager pod utilizes 1 CPU core. This high CPU usage is attributed to the spdk_tgt process running within each instance-manager pod. The spdk_tgt process is responsible for handling input/output (IO) operations and requires intensive polling. As a result, it consumes 100% of a dedicated CPU core to efficiently manage and process the IO requests, ensuring optimal performance and responsiveness for storage operations. \n\n",
 		Category: SettingCategoryDangerZone,
@@ -1371,7 +1360,7 @@ var (
 
 	SettingDefinitionV2DataEngineGuaranteedInstanceManagerCPU = SettingDefinition{
 		DisplayName: "Guaranteed Instance Manager CPU for V2 Data Engine",
-		Description: "Number of millicpus on each node to be reserved for each instance manager pod when the V2 Data Engine is enabled. By default, the Storage Performance Development Kit (SPDK) target daemon within each instance manager pod uses 1 CPU core. Configuring a minimum CPU usage value is essential for maintaining engine and replica stability, especially during periods of high node workload. \n\n" +
+		Description: "Number of millicpus on each node to be reserved for each instance manager pod when the V2 Data Engine is enabled. The Storage Performance Development Kit (SPDK) target daemon within each instance manager pod uses 1 or multiple CPU cores. Configuring a minimum CPU usage value is essential for maintaining engine and replica stability, especially during periods of high node workload. \n\n" +
 			"WARNING: \n\n" +
 			"  - Value 0 means unsetting CPU requests for instance manager pods for v2 data engine. \n\n" +
 			"  - This integer value is range from 1000 to 8000. \n\n" +
@@ -1385,6 +1374,16 @@ var (
 			ValueIntRangeMinimum: 1000,
 			ValueIntRangeMaximum: 8000,
 		},
+	}
+
+	SettingDefinitionV2DataEngineCPUMask = SettingDefinition{
+		DisplayName: "CPU Mask for V2 Data Engine",
+		Description: "CPU cores on which the Storage Performance Development Kit (SPDK) target daemon should run. The SPDK target daemon is located in each Instance Manager pod. Ensure that the number of cores is less than or equal to the guaranteed Instance Manager CPUs for the V2 Data Engine. The default value is 0x1. \n\n",
+		Category:    SettingCategoryDangerZone,
+		Type:        SettingTypeString,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "0x1",
 	}
 
 	SettingDefinitionReplicaDiskSoftAntiAffinity = SettingDefinition{
@@ -1446,6 +1445,16 @@ var (
 		Required:    false,
 		ReadOnly:    false,
 		Default:     "",
+	}
+
+	SettingDefinitionV2DataEngineFastReplicaRebuilding = SettingDefinition{
+		DisplayName: "V2 Data Engine Fast Replica Rebuilding",
+		Description: "This setting enables the fast replica rebuilding feature for v2 data engine. It relies on the snapshot checksums, so setting the snapshot-data-integrity to **enable** or **fast-check** is a prerequisite.",
+		Category:    SettingCategoryV2DataEngine,
+		Type:        SettingTypeBool,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "false",
 	}
 
 	SettingDefinitionAutoCleanupSnapshotWhenDeleteBackup = SettingDefinition{
@@ -1564,7 +1573,7 @@ func isValidChoice(choices []string, value string) bool {
 func GetCustomizedDefaultSettings(defaultSettingCM *corev1.ConfigMap) (defaultSettings map[string]string, err error) {
 	defaultSettingYAMLData := []byte(defaultSettingCM.Data[DefaultSettingYAMLFileName])
 
-	defaultSettings, err = getDefaultSettingFromYAML(defaultSettingYAMLData)
+	defaultSettings, err = util.GetDataContentFromYAML(defaultSettingYAMLData)
 	if err != nil {
 		return nil, err
 	}
@@ -1617,17 +1626,6 @@ func GetCustomizedDefaultSettings(defaultSettingCM *corev1.ConfigMap) (defaultSe
 	}
 	if err := ValidateCPUReservationValues(SettingNameV2DataEngineGuaranteedInstanceManagerCPU, v2DataEngineGuaranteedInstanceManagerCPU); err != nil {
 		logrus.WithError(err).Error("Customized settings V2DataEngineGuaranteedInstanceManagerCPU is invalid, will give up using it")
-		defaultSettings = map[string]string{}
-	}
-
-	return defaultSettings, nil
-}
-
-func getDefaultSettingFromYAML(defaultSettingYAMLData []byte) (map[string]string, error) {
-	defaultSettings := map[string]string{}
-
-	if err := yaml.Unmarshal(defaultSettingYAMLData, &defaultSettings); err != nil {
-		logrus.WithError(err).Errorf("Failed to unmarshal customized default settings from yaml data %v, will give up using them", string(defaultSettingYAMLData))
 		defaultSettings = map[string]string{}
 	}
 
@@ -1779,7 +1777,7 @@ func validateString(sName SettingName, definition SettingDefinition, value strin
 	}
 
 	// multi-choices
-	if definition.Choices != nil && len(definition.Choices) > 0 {
+	if len(definition.Choices) > 0 {
 		if !isValidChoice(definition.Choices, value) {
 			return fmt.Errorf("value %v is not a valid choice, available choices %v", value, definition.Choices)
 		}
@@ -1805,25 +1803,6 @@ func validateString(sName SettingName, definition SettingDefinition, value strin
 	case SettingNameSystemManagedComponentsNodeSelector:
 		if _, err := UnmarshalNodeSelector(value); err != nil {
 			return errors.Wrapf(err, "the value of %v is invalid", sName)
-		}
-
-	case SettingNameBackupTarget:
-		u, err := url.Parse(value)
-		if err != nil {
-			return errors.Wrapf(err, "failed to parse %v as url", value)
-		}
-
-		// Check whether have $ or , have been set in BackupTarget path
-		regStr := `[\$\,]`
-		if u.Scheme == "cifs" {
-			// The $ in SMB/CIFS URIs means that the share is hidden.
-			regStr = `[\,]`
-		}
-
-		reg := regexp.MustCompile(regStr)
-		findStr := reg.FindAllString(u.Path, -1)
-		if len(findStr) != 0 {
-			return fmt.Errorf("value %s, contains %v", value, strings.Join(findStr, " or "))
 		}
 
 	case SettingNameStorageNetwork:

@@ -401,3 +401,12 @@ func (s *DataStore) GetLonghornSnapshotUncached(name string) (*longhorn.Snapshot
 func (s *DataStore) GetAllLonghornBackingImages() (runtime.Object, error) {
 	return s.lhClient.LonghornV1beta2().BackingImages(s.namespace).List(context.TODO(), metav1.ListOptions{})
 }
+
+// GetAllLonghornBackupTargets returns an uncached list of BackupTargets in
+// Longhorn namespace directly from the API server.
+// Using cached informers should be preferred but current lister doesn't have a
+// field selector.
+// Direct retrieval from the API server should only be used for one-shot tasks.
+func (s *DataStore) GetAllLonghornBackupTargets() (runtime.Object, error) {
+	return s.lhClient.LonghornV1beta2().BackupTargets(s.namespace).List(context.TODO(), metav1.ListOptions{})
+}

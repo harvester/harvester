@@ -302,6 +302,9 @@ type VolumeSpec struct {
 	// Setting that freezes the filesystem on the root partition before a snapshot is created.
 	// +optional
 	FreezeFilesystemForSnapshot FreezeFilesystemForSnapshot `json:"freezeFilesystemForSnapshot"`
+	// The backup target name that the volume will be backed up to or is synced.
+	// +optional
+	BackupTargetName string `json:"backupTargetName"`
 }
 
 // VolumeStatus defines the observed state of the Longhorn volume

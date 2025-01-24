@@ -11,9 +11,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 
 	lhns "github.com/longhorn/go-common-libs/ns"
 
@@ -28,7 +30,10 @@ const (
 	LonghornKindVolumeAttachment    = "VolumeAttachment"
 	LonghornKindEngine              = "Engine"
 	LonghornKindReplica             = "Replica"
+	LonghornKindBackupTarget        = "BackupTarget"
+	LonghornKindBackupVolume        = "BackupVolume"
 	LonghornKindBackup              = "Backup"
+	LonghornKindBackupBackingImage  = "BackupBackingImage"
 	LonghornKindSnapshot            = "Snapshot"
 	LonghornKindEngineImage         = "EngineImage"
 	LonghornKindInstanceManager     = "InstanceManager"
@@ -38,6 +43,7 @@ const (
 	LonghornKindRecurringJob        = "RecurringJob"
 	LonghornKindSetting             = "Setting"
 	LonghornKindSupportBundle       = "SupportBundle"
+	LonghornKindSystemBackup        = "SystemBackup"
 	LonghornKindSystemRestore       = "SystemRestore"
 	LonghornKindOrphan              = "Orphan"
 
@@ -48,6 +54,7 @@ const (
 	LonghornKindSettingList      = "SettingList"
 	LonghornKindVolumeList       = "VolumeList"
 	LonghornKindBackingImageList = "BackingImageList"
+	LonghornKindBackupTargetList = "BackupTargetList"
 
 	KubernetesKindClusterRole           = "ClusterRole"
 	KubernetesKindClusterRoleBinding    = "ClusterRoleBinding"
@@ -130,6 +137,9 @@ const (
 
 	DeleteCustomResourceOnly = "delete-custom-resource-only"
 
+	// const value `DeleteBackupTargetFromLonghorn` is used for annotation to note that deleting backup target is by Longhorn during uninstalling.
+	DeleteBackupTargetFromLonghorn = "delete-backup-target-from-longhorn"
+
 	KubernetesStatusLabel = "KubernetesStatus"
 	KubernetesReplicaSet  = "ReplicaSet"
 	KubernetesStatefulSet = "StatefulSet"
@@ -158,6 +168,7 @@ const (
 	LonghornLabelManagedBy                  = "managed-by"
 	LonghornLabelSnapshotForCloningVolume   = "for-cloning-volume"
 	LonghornLabelBackingImageDataSource     = "backing-image-data-source"
+	LonghornLabelBackupTarget               = "backup-target"
 	LonghornLabelBackupVolume               = "backup-volume"
 	LonghornLabelRecurringJob               = "job"
 	LonghornLabelRecurringJobGroup          = "job-group"
@@ -198,12 +209,13 @@ const (
 
 	DefaultDiskPrefix = "default-disk-"
 
-	DeprecatedProvisionerName          = "rancher.io/longhorn"
-	DepracatedDriverName               = "io.rancher.longhorn"
-	DefaultStorageClassConfigMapName   = "longhorn-storageclass"
-	DefaultDefaultSettingConfigMapName = "longhorn-default-setting"
-	DefaultStorageClassName            = "longhorn"
-	ControlPlaneName                   = "longhorn-manager"
+	DeprecatedProvisionerName           = "rancher.io/longhorn"
+	DepracatedDriverName                = "io.rancher.longhorn"
+	DefaultStorageClassConfigMapName    = "longhorn-storageclass"
+	DefaultDefaultSettingConfigMapName  = "longhorn-default-setting"
+	DefaultDefaultResourceConfigMapName = "longhorn-default-resource"
+	DefaultStorageClassName             = "longhorn"
+	ControlPlaneName                    = "longhorn-manager"
 
 	DefaultRecurringJobConcurrency = 10
 
@@ -214,6 +226,12 @@ const (
 
 	KubeAPIQPS   = 50
 	KubeAPIBurst = 100
+
+	CSISidecarMetricsPort         = 8000
+	CSISidecarPortNameAttacher    = "csi-attacher"
+	CSISidecarPortNameProvisioner = "csi-provisioner"
+	CSISidecarPortNameResizer     = "csi-resizer"
+	CSISidecarPortNameSnapshotter = "csi-snapshotter"
 )
 
 const (
@@ -233,6 +251,7 @@ const (
 
 	BackupStoreTypeS3     = "s3"
 	BackupStoreTypeCIFS   = "cifs"
+	BackupStoreTypeNFS    = "nfs"
 	BackupStoreTypeAZBlob = "azblob"
 
 	AWSIAMRoleAnnotation = "iam.amazonaws.com/role"
@@ -531,6 +550,13 @@ func GetBackingImageLabels() map[string]string {
 	return labels
 }
 
+func GetBackingImageWithBackupTargetLabels(backupTargetName, backingImageName string) map[string]string {
+	return map[string]string{
+		LonghornLabelBackingImage: backingImageName,
+		LonghornLabelBackupTarget: backupTargetName,
+	}
+}
+
 func GetBackingImageManagerLabels(nodeID, diskUUID string) map[string]string {
 	labels := GetBaseLabelsForSystemManagedComponent()
 	labels[GetLonghornLabelComponentKey()] = LonghornLabelBackingImageManager
@@ -556,6 +582,19 @@ func GetBackingImageDataSourceLabels(name, nodeID, diskUUID string) map[string]s
 		labels[GetLonghornLabelKey(LonghornLabelNode)] = nodeID
 	}
 	return labels
+}
+
+func GetBackupVolumeWithBackupTargetLabels(backupTargetName, volumeName string) map[string]string {
+	return map[string]string{
+		LonghornLabelBackupVolume: volumeName,
+		LonghornLabelBackupTarget: backupTargetName,
+	}
+}
+
+func GetBackupTargetLabels(backupTargetName string) map[string]string {
+	return map[string]string{
+		LonghornLabelBackupTarget: backupTargetName,
+	}
 }
 
 func GetBackupVolumeLabels(volumeName string) map[string]string {
@@ -702,6 +741,14 @@ func GetShareManagerNameFromShareManagerPodName(podName string) string {
 	return strings.TrimPrefix(podName, shareManagerPrefix)
 }
 
+func GetBackupVolumeNameFromVolumeName(volumeName string) string {
+	return volumeName + "-" + util.RandomID()
+}
+
+func GetBackupBackingImageNameFromBIName(backingImageName string) string {
+	return backingImageName + "-" + util.RandomID()
+}
+
 func ValidateEngineImageChecksumName(name string) bool {
 	matched, _ := regexp.MatchString(fmt.Sprintf("^%s[a-fA-F0-9]{%d}$", engineImagePrefix, ImageChecksumNameLength), name)
 	return matched
@@ -747,8 +794,16 @@ func GetReplicaMountedDataPath(dataPath string) string {
 	return dataPath
 }
 
+func ErrorRecordNotFoundButLvolFound(err error) bool {
+	return strings.Contains(err.Error(), "lvol found")
+}
+
 func ErrorIsNotFound(err error) bool {
 	return strings.Contains(err.Error(), "cannot find")
+}
+
+func ErrorIsInProgress(err error) bool {
+	return strings.Contains(err.Error(), "in progress")
 }
 
 func ErrorIsStopped(err error) bool {
@@ -797,7 +852,8 @@ func ValidateV2DataEngineLogFlags(flags string) error {
 		return nil
 	}
 
-	pattern := "^[a-zA-Z,]+$"
+	// A valid string is like "all,bdev_raid,vbdev_zone_block"
+	pattern := "^(([a-zA-Z]+_?)+[a-zA-Z]+,?)+$"
 	reg := regexp.MustCompile(pattern)
 
 	if !reg.MatchString(flags) {
@@ -810,6 +866,13 @@ func ValidateV2DataEngineLogFlags(flags string) error {
 func ValidateDataLocalityAndReplicaCount(mode longhorn.DataLocality, count int) error {
 	if mode == longhorn.DataLocalityStrictLocal && count != 1 {
 		return fmt.Errorf("replica count should be 1 in data locality %v mode", longhorn.DataLocalityStrictLocal)
+	}
+	return nil
+}
+
+func ValidateDataLocalityAndAccessMode(locality longhorn.DataLocality, migratable bool, mode longhorn.AccessMode) error {
+	if mode == longhorn.AccessModeReadWriteMany && !migratable && locality == longhorn.DataLocalityStrictLocal {
+		return fmt.Errorf("access mode %v (migratable: %v) is incompatible with data locality %v mode", mode, migratable, longhorn.DataLocalityStrictLocal)
 	}
 	return nil
 }
@@ -942,7 +1005,7 @@ func LabelsToString(labels map[string]string) string {
 	return res
 }
 
-func CreateDisksFromAnnotation(annotation string) (map[string]longhorn.DiskSpec, error) {
+func CreateDisksFromAnnotation(annotation string, storageReservedPercentage int64) (map[string]longhorn.DiskSpec, error) {
 	validDisks := map[string]longhorn.DiskSpec{}
 	existDiskID := map[string]string{}
 
@@ -982,6 +1045,17 @@ func CreateDisksFromAnnotation(annotation string) (map[string]longhorn.DiskSpec,
 		if disk.StorageReserved < 0 || disk.StorageReserved > diskStat.StorageMaximum {
 			return nil, fmt.Errorf("the storageReserved setting of disk %v is not valid, should be positive and no more than storageMaximum and storageAvailable", disk.Path)
 		}
+		if disk.StorageReserved == 0 {
+			if disk.Type == longhorn.DiskTypeBlock {
+				size, err := getBlockDeviceSize(ReplicaHostPrefix + disk.Path)
+				if err != nil {
+					return nil, err
+				}
+				disk.StorageReserved = int64(size) * storageReservedPercentage / 100
+			} else {
+				disk.StorageReserved = diskStat.StorageMaximum * storageReservedPercentage / 100
+			}
+		}
 		tags, err := util.ValidateTags(disk.Tags)
 		if err != nil {
 			return nil, err
@@ -995,6 +1069,21 @@ func CreateDisksFromAnnotation(annotation string) (map[string]longhorn.DiskSpec,
 	}
 
 	return validDisks, nil
+}
+
+func getBlockDeviceSize(devicePath string) (uint64, error) {
+	file, err := os.Open(devicePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to open block device at %s: %w", devicePath, err)
+	}
+	defer file.Close()
+	var size uint64
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, file.Fd(), 0x80081272, uintptr(unsafe.Pointer(&size)))
+	if errno != 0 {
+		return 0, fmt.Errorf("failed to get block device size for %s: errno=%v", devicePath, errno)
+	}
+
+	return size, nil
 }
 
 func GetNodeTagsFromAnnotation(annotation string) ([]string, error) {
@@ -1062,6 +1151,10 @@ func IsPotentialBlockDisk(path string) bool {
 
 func CreateDefaultDisk(dataPath string, storageReservedPercentage int64) (map[string]longhorn.DiskSpec, error) {
 	if IsPotentialBlockDisk(dataPath) {
+		size, err := getBlockDeviceSize(dataPath)
+		if err != nil {
+			return nil, err
+		}
 		return map[string]longhorn.DiskSpec{
 			DefaultDiskPrefix + util.RandomID(): {
 				Type:              longhorn.DiskTypeBlock,
@@ -1069,7 +1162,7 @@ func CreateDefaultDisk(dataPath string, storageReservedPercentage int64) (map[st
 				DiskDriver:        longhorn.DiskDriverAuto,
 				AllowScheduling:   true,
 				EvictionRequested: false,
-				StorageReserved:   0,
+				StorageReserved:   int64(size) * storageReservedPercentage / 100,
 				Tags:              []string{},
 			},
 		}, nil
@@ -1251,4 +1344,12 @@ func MergeStringMaps(baseMap, overwriteMap map[string]string) map[string]string 
 		result[k] = v
 	}
 	return result
+}
+
+func GetBackingImageMonitorName(imName string) string {
+	return fmt.Sprintf("backing-image-monitor-%s", imName)
+}
+
+func GetV2BackingImageWithDiskUUIDName(biName, v2DiskUUID string) string {
+	return fmt.Sprintf("%v-%v", biName, v2DiskUUID)
 }

@@ -30,6 +30,9 @@ const (
 
 type BackingImageDiskFileStatus struct {
 	// +optional
+	// +kubebuilder:validation:Enum=v1;v2
+	DataEngine DataEngineType `json:"dataEngine"`
+	// +optional
 	State BackingImageState `json:"state"`
 	// +optional
 	Progress int `json:"progress"`
@@ -42,6 +45,9 @@ type BackingImageDiskFileStatus struct {
 type BackingImageDiskFileSpec struct {
 	// +optional
 	EvictionRequested bool `json:"evictionRequested"`
+	// +optional
+	// +kubebuilder:validation:Enum=v1;v2
+	DataEngine DataEngineType `json:"dataEngine"`
 }
 
 // BackingImageSpec defines the desired state of the Longhorn backing image
@@ -67,6 +73,10 @@ type BackingImageSpec struct {
 	Secret string `json:"secret"`
 	// +optional
 	SecretNamespace string `json:"secretNamespace"`
+	// +kubebuilder:validation:Enum=v1;v2
+	// +optional
+	// +kubebuilder:default:=v1
+	DataEngine DataEngineType `json:"dataEngine"`
 }
 
 // BackingImageStatus defines the observed state of the Longhorn backing image status
@@ -77,9 +87,12 @@ type BackingImageStatus struct {
 	UUID string `json:"uuid"`
 	// +optional
 	Size int64 `json:"size"`
-	// Virtual size of image, which may be larger than physical size. Will be zero until known (e.g. while a backing image is uploading)
+	// Virtual size of image in bytes, which may be larger than physical size. Will be zero until known (e.g. while a backing image is uploading)
 	// +optional
 	VirtualSize int64 `json:"virtualSize"`
+	// Real size of image in bytes, which may be smaller than the size when the file is a sparse file. Will be zero until known (e.g. while a backing image is uploading)
+	// +optional
+	RealSize int64 `json:"realSize"`
 	// +optional
 	Checksum string `json:"checksum"`
 	// +optional
@@ -88,6 +101,11 @@ type BackingImageStatus struct {
 	// +optional
 	// +nullable
 	DiskLastRefAtMap map[string]string `json:"diskLastRefAtMap"`
+	// It is pending -> in-progress -> ready/failed
+	// +optional
+	V2FirstCopyStatus BackingImageState `json:"v2FirstCopyStatus"`
+	// +optional
+	V2FirstCopyDisk string `json:"v2FirstCopyDisk"`
 }
 
 // +genclient
