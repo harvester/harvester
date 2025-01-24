@@ -78,7 +78,7 @@ const (
 	MaxExt4VolumeSize = 16 * TiB
 	MaxXfsVolumeSize  = 8*EiB - 1
 
-	RandomIDLenth = 8
+	RandomIDLength = 8
 
 	DeterministicUUIDNamespace = "08958d54-65cd-4d87-8627-9831a1eab170" // Arbitrarily generated.
 )
@@ -185,7 +185,7 @@ func WaitForDevice(dev string, timeout int) error {
 }
 
 func RandomID() string {
-	return UUID()[:RandomIDLenth]
+	return UUID()[:RandomIDLength]
 }
 
 // DeterministicUUID returns a string representation of a version 5 UUID based on the provided string. The output is
@@ -198,7 +198,7 @@ func DeterministicUUID(data string) string {
 }
 
 func ValidateRandomID(id string) bool {
-	regex := fmt.Sprintf(`^[a-zA-Z0-9]{%d}$`, RandomIDLenth)
+	regex := fmt.Sprintf(`^[a-zA-Z0-9]{%d}$`, RandomIDLength)
 	validName := regexp.MustCompile(regex)
 	return validName.MatchString(id)
 }
@@ -460,15 +460,13 @@ func RunAsync(wg *sync.WaitGroup, f func()) {
 }
 
 type filteredLoggingHandler struct {
-	filteredPaths  map[string]struct{}
 	handler        http.Handler
 	loggingHandler http.Handler
 }
 
-func FilteredLoggingHandler(filteredPaths map[string]struct{}, writer io.Writer, router http.Handler) http.Handler {
+func FilteredLoggingHandler(writer io.Writer, router http.Handler) http.Handler {
 
 	return filteredLoggingHandler{
-		filteredPaths:  filteredPaths,
 		handler:        router,
 		loggingHandler: handlers.CombinedLoggingHandler(writer, router),
 	}
@@ -477,7 +475,7 @@ func FilteredLoggingHandler(filteredPaths map[string]struct{}, writer io.Writer,
 func (h filteredLoggingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case "GET":
-		if _, exists := h.filteredPaths[req.URL.Path]; exists {
+		if logrus.GetLevel() < logrus.DebugLevel {
 			h.handler.ServeHTTP(w, req)
 			return
 		}
@@ -878,4 +876,17 @@ func GetDataEngineForDiskType(diskType longhorn.DiskType) longhorn.DataEngineTyp
 	}
 	return longhorn.DataEngineTypeV1
 
+}
+
+// GetDataContentFromYAML unmarshals the data content YAML data into a map
+func GetDataContentFromYAML(configMapYAMLData []byte) (map[string]string, error) {
+	customizedDataMap := map[string]string{}
+
+	if err := yaml.Unmarshal(configMapYAMLData, &customizedDataMap); err != nil {
+		logrus.WithError(err).Errorf("Failed to unmarshal customized data content from yaml data %v, will give up using them", string(configMapYAMLData))
+		customizedDataMap = map[string]string{}
+		return nil, err
+	}
+
+	return customizedDataMap, nil
 }

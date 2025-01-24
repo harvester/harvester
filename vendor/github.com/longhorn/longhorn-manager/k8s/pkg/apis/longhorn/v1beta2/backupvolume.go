@@ -4,10 +4,17 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // BackupVolumeSpec defines the desired state of the Longhorn backup volume
 type BackupVolumeSpec struct {
+	// The backup target name that the backup volume was synced.
+	// +optional
+	// +nullable
+	BackupTargetName string `json:"backupTargetName"`
 	// The time to request run sync the remote backup volume.
 	// +optional
 	// +nullable
 	SyncRequestedAt metav1.Time `json:"syncRequestedAt"`
+	// The volume name that the backup volume was used to backup.
+	// +optional
+	VolumeName string `json:"volumeName"`
 }
 
 // BackupVolumeStatus defines the observed state of the Longhorn backup volume
@@ -62,6 +69,7 @@ type BackupVolumeStatus struct {
 // +kubebuilder:resource:shortName=lhbv
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="BackupTarget",type=string,JSONPath=`.spec.backupTargetName`,description="The backup target name"
 // +kubebuilder:printcolumn:name="CreatedAt",type=string,JSONPath=`.status.createdAt`,description="The backup volume creation time"
 // +kubebuilder:printcolumn:name="LastBackupName",type=string,JSONPath=`.status.lastBackupName`,description="The backup volume last backup name"
 // +kubebuilder:printcolumn:name="LastBackupAt",type=string,JSONPath=`.status.lastBackupAt`,description="The backup volume last backup time"

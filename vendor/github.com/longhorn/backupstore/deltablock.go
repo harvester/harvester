@@ -425,7 +425,8 @@ func backupBlock(bsDriver BackupStoreDriver, config *DeltaBackupConfig,
 		return errors.Wrapf(err, "failed to get transfer data size during saving blocks")
 	}
 
-	if err := bsDriver.Write(blkFile, rs); err != nil {
+	err = bsDriver.Write(blkFile, rs)
+	if err != nil {
 		return errors.Wrapf(err, "failed to write data during saving blocks")
 	}
 

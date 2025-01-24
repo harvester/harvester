@@ -35,6 +35,7 @@ API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-at
 API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,GatewayRequest
 API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,IPRequest
 API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,PortMappingsRequest
+API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkStatus,Gateway
 API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkStatus,IPs
 API rule violation: list_type_missing,github.com/openshift/api/operator/v1,DNSSpec,Servers
 API rule violation: list_type_missing,github.com/openshift/api/operator/v1,DNSStatus,Conditions
@@ -123,6 +124,7 @@ API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachme
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,BandwidthRequest
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,CNIArgs
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,GatewayRequest
+API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,IPAMClaimReference
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,IPRequest
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,InfinibandGUIDRequest
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,InterfaceRequest
@@ -134,10 +136,12 @@ API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachme
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,PciDevice,PciAddress
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,PciDevice,PfPciAddress
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,PciDevice,RdmaDevice
+API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,PciDevice,RepresentorDevice
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,PciDevice,Vhostnet
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,VdpaDevice,ParentDevice
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,VdpaDevice,PciAddress
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,VdpaDevice,PfPciAddress
+API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,VdpaDevice,RepresentorDevice
 API rule violation: names_match,github.com/openshift/api/operator/v1,DefaultNetworkDefinition,OpenShiftSDNConfig
 API rule violation: names_match,k8s.io/api/core/v1,AzureDiskVolumeSource,DataDiskURI
 API rule violation: names_match,k8s.io/api/core/v1,ContainerStatus,LastTerminationState

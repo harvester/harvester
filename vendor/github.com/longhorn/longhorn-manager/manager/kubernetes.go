@@ -10,6 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/longhorn/backupstore"
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
@@ -35,12 +36,28 @@ func (m *VolumeManager) PVCreate(name, pvName, fsType, secretNamespace, secretNa
 		pvName = v.Name
 	}
 
-	if storageClassName == "" {
-		if backupVolumeName := v.Labels[types.LonghornLabelBackupVolume]; backupVolumeName != "" {
-			backupVolume, _ := m.ds.GetBackupVolumeRO(backupVolumeName)
-			if backupVolume != nil {
-				storageClassName = backupVolume.Status.StorageClassName
+	if storageClassName == "" && v.Spec.FromBackup != "" {
+		bName, canonicalBVName, _, err := backupstore.DecodeBackupURL(v.Spec.FromBackup)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to get backup and volume name from backup URL %v", v.Spec.FromBackup)
+		}
+		backupTargetName := v.Labels[types.LonghornLabelBackupTarget]
+		backup, err := m.ds.GetBackupRO(bName)
+		if err != nil && !datastore.ErrorIsNotFound(err) {
+			return nil, errors.Wrapf(err, "failed to get backup %v", bName)
+		}
+		if backup != nil {
+			backupTargetName = backup.Status.BackupTargetName
+			if backupTargetName == "" {
+				backupTargetName = backup.Labels[types.LonghornLabelBackupTarget]
+				if backupTargetName == "" {
+					return nil, fmt.Errorf("failed to get backup target name for backup %v", bName)
+				}
 			}
+		}
+		backupVolume, _ := m.ds.GetBackupVolumeByBackupTargetAndVolumeRO(backupTargetName, canonicalBVName)
+		if backupVolume != nil {
+			storageClassName = backupVolume.Status.StorageClassName
 		}
 	}
 

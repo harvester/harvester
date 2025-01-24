@@ -240,7 +240,7 @@ func (cli *BackingImageManagerClient) Watch() (*api.BackingImageStream, error) {
 	return api.NewBackingImageStream(conn, cancel, stream), nil
 }
 
-func (cli *BackingImageManagerClient) BackupCreate(name, uuid, checksum, backupTargetURL string, labels, credential map[string]string, compressionMethod string, concurrentLimit int) error {
+func (cli *BackingImageManagerClient) BackupCreate(name, uuid, checksum, backupTargetURL string, labels, credential map[string]string, compressionMethod string, concurrentLimit int, parameters map[string]string) error {
 	if name == "" || uuid == "" || checksum == "" {
 		return fmt.Errorf("failed to create backup backing image: missing required parameter")
 	}
@@ -269,6 +269,7 @@ func (cli *BackingImageManagerClient) BackupCreate(name, uuid, checksum, backupT
 		Credential:        credential,
 		CompressionMethod: compressionMethod,
 		ConcurrentLimit:   int32(concurrentLimit),
+		Parameters:        parameters,
 	})
 	return err
 }

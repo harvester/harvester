@@ -13,7 +13,8 @@ const (
 	DiskPathInContainer              = "/data/"
 	DataSourceDirectoryName          = "/tmp/"
 
-	DefaultSectorSize = 512
+	DefaultSectorSize     = 512
+	DefaultLinuxBlcokSize = 512
 
 	DefaultManagerPort              = 8000
 	DefaultDataSourceServerPort     = 8000
@@ -69,6 +70,9 @@ const (
 	DataSourceTypeRestoreParameterBackupURL       = "backup-url"
 	DataSourceTypeRestoreParameterConcurrentLimit = "concurrent-limit"
 	DataSourceTypeFileType                        = "file-type"
+	DataSourceTypeParameterDataEngine             = "data-engine"
+	DataEnginev1                                  = "v1"
+	DataEnginev2                                  = "v2"
 
 	DataSourceTypeExportFromVolumeParameterVolumeSize                = "volume-size"
 	DataSourceTypeExportFromVolumeParameterSnapshotName              = "snapshot-name"

@@ -9,6 +9,21 @@ import (
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
+// RemoveCondition deletes the condition with the given conditionType from the conditions list
+func RemoveCondition(conditions []longhorn.Condition, conditionType string) []longhorn.Condition {
+	if conditions == nil {
+		return nil
+	}
+
+	result := []longhorn.Condition{}
+	for _, condition := range conditions {
+		if condition.Type != conditionType {
+			result = append(result, condition)
+		}
+	}
+	return result
+}
+
 // GetCondition returns a copy of conditions[conditionType], and automatically fill the unknown condition
 func GetCondition(conditions []longhorn.Condition, conditionType string) longhorn.Condition {
 	if conditions == nil {

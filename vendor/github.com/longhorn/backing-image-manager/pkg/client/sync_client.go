@@ -186,7 +186,7 @@ func (client *SyncClient) Fetch(srcFilePath, dstFilePath, uuid, diskUUID, expect
 	return nil
 }
 
-func (client *SyncClient) DownloadFromURL(downloadURL, filePath, uuid, diskUUID, expectedChecksum string) error {
+func (client *SyncClient) DownloadFromURL(downloadURL, filePath, uuid, diskUUID, expectedChecksum, dataEngine string) error {
 	httpClient := &http.Client{Timeout: 0}
 
 	requestURL := fmt.Sprintf("http://%s/v1/files", client.Remote)
@@ -201,6 +201,7 @@ func (client *SyncClient) DownloadFromURL(downloadURL, filePath, uuid, diskUUID,
 	q.Add("uuid", uuid)
 	q.Add("disk-uuid", diskUUID)
 	q.Add("expected-checksum", expectedChecksum)
+	q.Add("data-engine", dataEngine)
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := httpClient.Do(req)
@@ -220,7 +221,7 @@ func (client *SyncClient) DownloadFromURL(downloadURL, filePath, uuid, diskUUID,
 	return nil
 }
 
-func (client *SyncClient) CloneFromBackingImage(sourceBackingImage, sourceBackingImageUUID, encryption, filePath, uuid, diskUUID, expectedChecksum string, credential map[string]string) error {
+func (client *SyncClient) CloneFromBackingImage(sourceBackingImage, sourceBackingImageUUID, encryption, filePath, uuid, diskUUID, expectedChecksum string, credential map[string]string, dataEngine string) error {
 	httpClient := &http.Client{Timeout: 0}
 	encodedCredential, err := json.Marshal(credential)
 	if err != nil {
@@ -242,6 +243,7 @@ func (client *SyncClient) CloneFromBackingImage(sourceBackingImage, sourceBackin
 	q.Add("uuid", uuid)
 	q.Add("disk-uuid", diskUUID)
 	q.Add("expected-checksum", expectedChecksum)
+	q.Add("data-engine", dataEngine)
 
 	req.URL.RawQuery = q.Encode()
 
@@ -262,7 +264,7 @@ func (client *SyncClient) CloneFromBackingImage(sourceBackingImage, sourceBackin
 	return nil
 }
 
-func (client *SyncClient) RestoreFromBackupURL(backupURL, concurrentLimit, filePath, uuid, diskUUID, expectedChecksum string, credential map[string]string) error {
+func (client *SyncClient) RestoreFromBackupURL(backupURL, concurrentLimit, filePath, uuid, diskUUID, expectedChecksum string, credential map[string]string, dataEngine string) error {
 	httpClient := &http.Client{Timeout: 0}
 	encodedCredential, err := json.Marshal(credential)
 	if err != nil {
@@ -283,6 +285,7 @@ func (client *SyncClient) RestoreFromBackupURL(backupURL, concurrentLimit, fileP
 	q.Add("disk-uuid", diskUUID)
 	q.Add("expected-checksum", expectedChecksum)
 	q.Add("concurrent-limit", concurrentLimit)
+	q.Add("data-engine", dataEngine)
 
 	req.URL.RawQuery = q.Encode()
 
@@ -363,7 +366,7 @@ func (client *SyncClient) Upload(src, dst, uuid, diskUUID, expectedChecksum stri
 	return nil
 }
 
-func (client *SyncClient) Receive(filePath, uuid, diskUUID, expectedChecksum, fileType string, receiverPort int, size int64) error {
+func (client *SyncClient) Receive(filePath, uuid, diskUUID, expectedChecksum, fileType string, receiverPort int, size int64, dataEngine string) error {
 	httpClient := &http.Client{Timeout: 0}
 
 	requestURL := fmt.Sprintf("http://%s/v1/files", client.Remote)
@@ -380,6 +383,7 @@ func (client *SyncClient) Receive(filePath, uuid, diskUUID, expectedChecksum, fi
 	q.Add("file-type", fileType)
 	q.Add("port", strconv.Itoa(receiverPort))
 	q.Add("size", strconv.FormatInt(size, 10))
+	q.Add("data-engine", dataEngine)
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := httpClient.Do(req)

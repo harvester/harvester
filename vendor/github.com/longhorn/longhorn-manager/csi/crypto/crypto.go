@@ -8,12 +8,16 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	"github.com/longhorn/longhorn-manager/types"
+
 	lhns "github.com/longhorn/go-common-libs/ns"
 	lhtypes "github.com/longhorn/go-common-libs/types"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
 	mapperFilePathPrefix = "/dev/mapper"
+	mapperV2VolumeSuffix = "-encrypted"
 
 	CryptoKeyDefaultCipher = "aes-xts-plain64"
 	CryptoKeyDefaultHash   = "sha256"
@@ -69,7 +73,13 @@ func (cp *EncryptParams) GetPBKDF() string {
 }
 
 // VolumeMapper returns the path for mapped encrypted device.
-func VolumeMapper(volume string) string {
+func VolumeMapper(volume, dataEngine string) string {
+	if types.IsDataEngineV2(longhorn.DataEngineType(dataEngine)) {
+		// v2 volume will use a dm device as default to control IO path when attaching.
+		// This dm device will be created with the same name as the volume name.
+		// The encrypted volume will be created with the volume name with "-encrypted" suffix to resolve the naming conflict.
+		return path.Join(mapperFilePathPrefix, getEncryptVolumeName(volume, dataEngine))
+	}
 	return path.Join(mapperFilePathPrefix, volume)
 }
 
@@ -95,9 +105,10 @@ func EncryptVolume(devicePath, passphrase string, cryptoParams *EncryptParams) e
 }
 
 // OpenVolume opens volume so that it can be used by the client.
-func OpenVolume(volume, devicePath, passphrase string) error {
-	if isOpen, _ := IsDeviceOpen(VolumeMapper(volume)); isOpen {
-		logrus.Infof("Device %s is already opened at %s", devicePath, VolumeMapper(volume))
+// devicePath is the path of the volume on the host that will be opened for instance '/dev/longhorn/volume1'
+func OpenVolume(volume, dataEngine, devicePath, passphrase string) error {
+	if isOpen, _ := IsDeviceOpen(VolumeMapper(volume, dataEngine)); isOpen {
+		logrus.Infof("Device %s is already opened at %s", devicePath, VolumeMapper(volume, dataEngine))
 		return nil
 	}
 
@@ -107,29 +118,38 @@ func OpenVolume(volume, devicePath, passphrase string) error {
 		return err
 	}
 
-	logrus.Infof("Opening device %s with LUKS on %s", devicePath, volume)
-	_, err = nsexec.LuksOpen(volume, devicePath, passphrase, lhtypes.LuksTimeout)
+	encryptVolumeName := getEncryptVolumeName(volume, dataEngine)
+	logrus.Infof("Opening device %s with LUKS on %s", devicePath, encryptVolumeName)
+	_, err = nsexec.LuksOpen(encryptVolumeName, devicePath, passphrase, lhtypes.LuksTimeout)
 	if err != nil {
-		logrus.WithError(err).Warnf("Failed to open LUKS device %s", devicePath)
+		logrus.WithError(err).Warnf("Failed to open LUKS device %s to %s", devicePath, encryptVolumeName)
 	}
 	return err
 }
 
+func getEncryptVolumeName(volume, dataEngine string) string {
+	if types.IsDataEngineV2(longhorn.DataEngineType(dataEngine)) {
+		return volume + mapperV2VolumeSuffix
+	}
+	return volume
+}
+
 // CloseVolume closes encrypted volume so it can be detached.
-func CloseVolume(volume string) error {
+func CloseVolume(volume, dataEngine string) error {
 	namespaces := []lhtypes.Namespace{lhtypes.NamespaceMnt, lhtypes.NamespaceIpc}
 	nsexec, err := lhns.NewNamespaceExecutor(lhtypes.ProcessNone, lhtypes.HostProcDirectory, namespaces)
 	if err != nil {
 		return err
 	}
 
-	logrus.Infof("Closing LUKS device %s", volume)
-	_, err = nsexec.LuksClose(volume, lhtypes.LuksTimeout)
+	encryptVolumeName := getEncryptVolumeName(volume, dataEngine)
+	logrus.Infof("Closing LUKS device %s", encryptVolumeName)
+	_, err = nsexec.LuksClose(encryptVolumeName, lhtypes.LuksTimeout)
 	return err
 }
 
-func ResizeEncryptoDevice(volume, passphrase string) error {
-	if isOpen, err := IsDeviceOpen(VolumeMapper(volume)); err != nil {
+func ResizeEncryptoDevice(volume, dataEngine, passphrase string) error {
+	if isOpen, err := IsDeviceOpen(VolumeMapper(volume, dataEngine)); err != nil {
 		return err
 	} else if !isOpen {
 		return fmt.Errorf("volume %v encrypto device is closed for resizing", volume)
@@ -141,7 +161,8 @@ func ResizeEncryptoDevice(volume, passphrase string) error {
 		return err
 	}
 
-	_, err = nsexec.LuksResize(volume, passphrase, lhtypes.LuksTimeout)
+	encryptVolumeName := getEncryptVolumeName(volume, dataEngine)
+	_, err = nsexec.LuksResize(encryptVolumeName, passphrase, lhtypes.LuksTimeout)
 	return err
 }
 
