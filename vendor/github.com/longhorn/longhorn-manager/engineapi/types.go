@@ -1,12 +1,14 @@
 package engineapi
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	iscsidevtypes "github.com/longhorn/go-iscsi-helper/types"
 	spdkdevtypes "github.com/longhorn/go-spdk-helper/pkg/types"
+	imapi "github.com/longhorn/longhorn-instance-manager/pkg/api"
 
 	emeta "github.com/longhorn/longhorn-engine/pkg/meta"
 	etypes "github.com/longhorn/longhorn-engine/pkg/types"
@@ -87,7 +89,7 @@ type EngineClient interface {
 
 	ReplicaList(*longhorn.Engine) (map[string]*Replica, error)
 	ReplicaAdd(engine *longhorn.Engine, replicaName, url string, isRestoreVolume, fastSync bool, localSync *etypes.FileLocalSync, replicaFileSyncHTTPClientTimeout, grpcTimeoutSeconds int64) error
-	ReplicaRemove(engine *longhorn.Engine, url string) error
+	ReplicaRemove(engine *longhorn.Engine, url, replicaName string) error
 	ReplicaRebuildStatus(*longhorn.Engine) (map[string]*longhorn.RebuildStatus, error)
 	ReplicaRebuildVerify(engine *longhorn.Engine, replicaName, url string) error
 	ReplicaModeUpdate(engine *longhorn.Engine, url string, mode string) error
@@ -108,6 +110,12 @@ type EngineClient interface {
 
 	BackupRestore(engine *longhorn.Engine, backupTarget, backupName, backupVolume, lastRestored string, credential map[string]string, concurrentLimit int) error
 	BackupRestoreStatus(engine *longhorn.Engine) (map[string]*longhorn.RestoreStatus, error)
+
+	SPDKBackingImageCreate(name, backingImageUUID, diskUUID, checksum, fromAddress, srcDiskUUID string, size uint64) (*imapi.BackingImage, error)
+	SPDKBackingImageDelete(name, diskUUID string) error
+	SPDKBackingImageGet(name, diskUUID string) (*imapi.BackingImage, error)
+	SPDKBackingImageList() (map[string]longhorn.BackingImageV2CopyInfo, error)
+	SPDKBackingImageWatch(ctx context.Context) (*imapi.BackingImageStream, error)
 
 	CleanupBackupMountPoints() error
 
@@ -164,6 +172,8 @@ type BackupVolume struct {
 	BackingImageName     string             `json:"backingImageName"`
 	BackingImageChecksum string             `json:"backingImageChecksum"`
 	StorageClassName     string             `json:"storageClassName"`
+	BackupTargetName     string             `json:"backupTargetName"`
+	VolumeName           string             `json:"volumeName"`
 }
 
 type Backup struct {
@@ -184,6 +194,7 @@ type Backup struct {
 	Parameters             map[string]string    `json:"parameters"`
 	NewlyUploadedDataSize  string               `json:"newlyUploadedDataSize"`
 	ReUploadedDataSize     string               `json:"reUploadedDataSize"`
+	BackupTargetName       string               `json:"backupTargetName"`
 }
 
 type ConfigMetadata struct {

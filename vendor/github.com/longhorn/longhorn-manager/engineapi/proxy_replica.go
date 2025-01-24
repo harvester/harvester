@@ -12,8 +12,8 @@ func (p *Proxy) ReplicaAdd(e *longhorn.Engine, replicaName, replicaAddress strin
 		int(replicaFileSyncHTTPClientTimeout), fastSync, localSync, grpcTimeoutSeconds)
 }
 
-func (p *Proxy) ReplicaRemove(e *longhorn.Engine, address string) (err error) {
-	return p.grpcClient.ReplicaRemove(string(e.Spec.DataEngine), p.DirectToURL(e), e.Name, address, "")
+func (p *Proxy) ReplicaRemove(e *longhorn.Engine, address, replicaName string) (err error) {
+	return p.grpcClient.ReplicaRemove(string(e.Spec.DataEngine), p.DirectToURL(e), e.Name, address, replicaName)
 }
 
 func (p *Proxy) ReplicaList(e *longhorn.Engine) (replicas map[string]*Replica, err error) {

@@ -43,6 +43,11 @@ const (
 	PodProbeTimeoutSeconds           = PodProbePeriodSeconds - 1
 	PodProbePeriodSeconds            = 5
 	PodLivenessProbeFailureThreshold = 3
+
+	IMPodProbeInitialDelay             = 3
+	IMPodProbeTimeoutSeconds           = IMPodProbePeriodSeconds - 1
+	IMPodProbePeriodSeconds            = 5
+	IMPodLivenessProbeFailureThreshold = 6
 )
 
 func labelMapToLabelSelector(labels map[string]string) (labels.Selector, error) {
@@ -282,7 +287,7 @@ func (s *DataStore) UpdateLease(lease *coordinationv1.Lease) (*coordinationv1.Le
 	return s.kubeClient.CoordinationV1().Leases(s.namespace).Update(context.TODO(), lease, metav1.UpdateOptions{})
 }
 
-func (s *DataStore) ClearDelinquentAndStaleStateIfVolumeIsDelinquent(volumeName string) (err error) {
+func (s *DataStore) ClearDelinquentAndStaleStateIfVolumeIsDelinquent(volumeName string, nodeName string) (err error) {
 	defer func() {
 		err = errors.Wrapf(err, "failed to ClearDelinquentAndStaleStateIfVolumeIsDelinquent")
 	}()
@@ -299,6 +304,10 @@ func (s *DataStore) ClearDelinquentAndStaleStateIfVolumeIsDelinquent(volumeName 
 	if holder == "" {
 		// Empty holder means not delinquent.
 		// Ref: IsRWXVolumeDelinquent() function
+		return nil
+	}
+	if nodeName != "" && nodeName != holder {
+		// If a node is specified, only clear state for it.
 		return nil
 	}
 	if !(lease.Spec.AcquireTime).IsZero() {
@@ -888,6 +897,103 @@ func (s *DataStore) UpdateSecret(namespace string, secret *corev1.Secret) (*core
 // DeleteSecret deletes the Secret for the given name and namespace
 func (s *DataStore) DeleteSecret(namespace, name string) error {
 	return s.kubeClient.CoreV1().Secrets(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+}
+
+// HandleSecretsForAWSIAMRoleAnnotation handles AWS IAM Role Annotation when a BackupTarget is created or updated with a Secret.
+func (s *DataStore) HandleSecretsForAWSIAMRoleAnnotation(backupTargetURL, oldSecretName, newSecretName string, isBackupTargetURLChanged bool) (err error) {
+	isSameSecretName := oldSecretName == newSecretName
+	if isSameSecretName && !isBackupTargetURLChanged {
+		return nil
+	}
+
+	isArnExists := false
+	if !isSameSecretName {
+		isArnExists, _, err = s.updateSecretForAWSIAMRoleAnnotation(backupTargetURL, oldSecretName, true)
+		if err != nil {
+			return err
+		}
+	}
+	_, isValidSecret, err := s.updateSecretForAWSIAMRoleAnnotation(backupTargetURL, newSecretName, false)
+	if err != nil {
+		return err
+	}
+	// kubernetes_secret_controller will not reconcile the secret that does not exist such as named "", so we remove AWS IAM role annotation of pods if new secret name is "".
+	if !isValidSecret && isArnExists {
+		if err = s.removePodsAWSIAMRoleAnnotation(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// updateSecretForAWSIAMRoleAnnotation adds the AWS IAM Role annotation to make an update to reconcile in kubernetes secret controller and returns
+//
+//	isArnExists = true if annotation had been added to the secret for first parameter,
+//	isValidSecret = true if this secret is valid for second parameter.
+//	err != nil if there is an error occurred.
+func (s *DataStore) updateSecretForAWSIAMRoleAnnotation(backupTargetURL, secretName string, isOldSecret bool) (isArnExists bool, isValidSecret bool, err error) {
+	if secretName == "" {
+		return false, false, nil
+	}
+
+	secret, err := s.GetSecret(s.namespace, secretName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, false, nil
+		}
+		return false, false, err
+	}
+	if secret.Data == nil {
+		return false, false, fmt.Errorf("secret data is nil for secret %s", secretName)
+	}
+
+	if isOldSecret {
+		if secret.Annotations != nil {
+			delete(secret.Annotations, types.GetLonghornLabelKey(string(types.LonghornLabelBackupTarget)))
+		}
+		isArnExists = secret.Data[types.AWSIAMRoleArn] != nil
+	} else {
+		if secret.Annotations == nil {
+			secret.Annotations = make(map[string]string)
+		}
+		secret.Annotations[types.GetLonghornLabelKey(string(types.LonghornLabelBackupTarget))] = backupTargetURL
+	}
+
+	if _, err = s.UpdateSecret(s.namespace, secret); err != nil {
+		return false, false, err
+	}
+	return isArnExists, true, nil
+}
+
+func (s *DataStore) removePodsAWSIAMRoleAnnotation() error {
+	managerPods, err := s.ListManagerPods()
+	if err != nil {
+		return err
+	}
+
+	instanceManagerPods, err := s.ListInstanceManagerPods()
+	if err != nil {
+		return err
+	}
+	pods := append(managerPods, instanceManagerPods...)
+
+	for _, pod := range pods {
+		if pod.Annotations == nil {
+			continue
+		}
+		_, exist := pod.Annotations[types.AWSIAMRoleAnnotation]
+		if !exist {
+			continue
+		}
+		delete(pod.Annotations, types.AWSIAMRoleAnnotation)
+		if _, err := s.UpdatePod(pod); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 // GetPriorityClass gets the PriorityClass from the index for the

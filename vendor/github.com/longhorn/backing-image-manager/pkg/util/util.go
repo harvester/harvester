@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -23,6 +24,8 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+
+	"github.com/longhorn/backing-image-manager/pkg/types"
 )
 
 const (
@@ -151,6 +154,7 @@ type SyncingFileConfig struct {
 	UUID             string `json:"uuid"`
 	Size             int64  `json:"size"`
 	VirtualSize      int64  `json:"virtualSize"`
+	RealSize         int64  `json:"realSize"`
 	ExpectedChecksum string `json:"expectedChecksum"`
 	CurrentChecksum  string `json:"currentChecksum"`
 	ModificationTime string `json:"modificationTime"`
@@ -311,6 +315,18 @@ func ConvertFromQcow2ToRaw(sourcePath, targetPath string) error {
 		return err
 	}
 	return nil
+}
+
+func GetFileRealSize(filePath string) (int64, error) {
+	var stat syscall.Stat_t
+	err := syscall.Stat(filePath, &stat)
+	if err != nil {
+		return 0, err
+	}
+	fmt.Printf("stat.Blksize: %v\n", stat.Blksize)
+
+	// 512 is defined in the Linux kernel and remains consistent across all distributions.
+	return stat.Blocks * types.DefaultLinuxBlcokSize, nil
 }
 
 func FileModificationTime(filePath string) string {
