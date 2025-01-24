@@ -64,24 +64,28 @@ func RPCToInstanceList(obj *rpc.InstanceListResponse) map[string]*Instance {
 }
 
 type InstanceStatus struct {
-	State           string          `json:"state"`
-	ErrorMsg        string          `json:"errorMsg"`
-	Conditions      map[string]bool `json:"conditions"`
-	PortStart       int32           `json:"portStart"`
-	PortEnd         int32           `json:"portEnd"`
-	TargetPortStart int32           `json:"targetPortStart"`
-	TargetPortEnd   int32           `json:"targetPortEnd"`
+	State                  string          `json:"state"`
+	ErrorMsg               string          `json:"errorMsg"`
+	Conditions             map[string]bool `json:"conditions"`
+	PortStart              int32           `json:"portStart"`
+	PortEnd                int32           `json:"portEnd"`
+	TargetPortStart        int32           `json:"targetPortStart"`
+	TargetPortEnd          int32           `json:"targetPortEnd"`
+	StandbyTargetPortStart int32           `json:"standbyTargetPortStart"`
+	StandbyTargetPortEnd   int32           `json:"standbyTargetPortEnd"`
 }
 
 func RPCToInstanceStatus(obj *rpc.InstanceStatus) InstanceStatus {
 	return InstanceStatus{
-		State:           obj.State,
-		ErrorMsg:        obj.ErrorMsg,
-		Conditions:      obj.Conditions,
-		PortStart:       obj.PortStart,
-		PortEnd:         obj.PortEnd,
-		TargetPortStart: obj.TargetPortStart,
-		TargetPortEnd:   obj.TargetPortEnd,
+		State:                  obj.State,
+		ErrorMsg:               obj.ErrorMsg,
+		Conditions:             obj.Conditions,
+		PortStart:              obj.PortStart,
+		PortEnd:                obj.PortEnd,
+		TargetPortStart:        obj.TargetPortStart,
+		TargetPortEnd:          obj.TargetPortEnd,
+		StandbyTargetPortStart: obj.StandbyTargetPortStart,
+		StandbyTargetPortEnd:   obj.StandbyTargetPortEnd,
 	}
 }
 

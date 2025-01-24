@@ -1,7 +1,10 @@
 package sys
 
 import (
+	"bufio"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,6 +15,8 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/longhorn/go-common-libs/types"
+
+	commonio "github.com/longhorn/go-common-libs/io"
 )
 
 // GetKernelRelease returns the kernel release string.
@@ -126,4 +131,75 @@ func getSystemBlockDeviceInfo(sysClassBlockDirectory string, readDirFn func(stri
 		}
 	}
 	return deviceInfo, nil
+}
+
+// GetBootKernelConfigMap reads the kernel config into a key-value map. It tries to read kernel config from
+// ${bootDir}/config-${kernelVersion}, and comments are ignored. If the bootDir is empty, it points to /boot by default.
+func GetBootKernelConfigMap(bootDir, kernelVersion string) (configMap map[string]string, err error) {
+	if kernelVersion == "" {
+		return nil, fmt.Errorf("kernelVersion cannot be empty")
+	}
+	if bootDir == "" {
+		bootDir = types.SysBootDirectory
+	}
+
+	defer func() {
+		err = errors.Wrapf(err, "failed to get kernel config map from %s", bootDir)
+	}()
+
+	configPath := filepath.Join(bootDir, "config-"+kernelVersion)
+	configContent, err := commonio.ReadFileContent(configPath)
+	if err != nil {
+		return nil, err
+	}
+	return parseKernelModuleConfigMap(strings.NewReader(configContent))
+}
+
+// GetProcKernelConfigMap reads the kernel config into a key-value map. It tries to read kernel config from
+// procfs mounted at procDir from the view of processName in namespace. If the procDir is empty, it points to /proc by
+// default.
+func GetProcKernelConfigMap(procDir string) (configMap map[string]string, err error) {
+	if procDir == "" {
+		procDir = types.SysProcDirectory
+	}
+
+	defer func() {
+		err = errors.Wrapf(err, "failed to get kernel config map from %s", procDir)
+	}()
+
+	configPath := filepath.Join(procDir, types.SysKernelConfigGz)
+	configFile, err := os.Open(configPath)
+	if err != nil {
+		return nil, err
+	}
+	defer configFile.Close()
+	gzReader, err := gzip.NewReader(configFile)
+	if err != nil {
+		return nil, err
+	}
+	defer gzReader.Close()
+	return parseKernelModuleConfigMap(gzReader)
+}
+
+// parseKernelModuleConfigMap parses the kernel config into key-value map. All commented items will be ignored.
+func parseKernelModuleConfigMap(contentReader io.Reader) (map[string]string, error) {
+	configMap := map[string]string{}
+
+	scanner := bufio.NewScanner(contentReader)
+	for scanner.Scan() {
+		config := scanner.Text()
+		if !strings.HasPrefix(config, "CONFIG_") {
+			continue
+		}
+		key, val, parsable := strings.Cut(config, "=")
+		if !parsable {
+			return nil, fmt.Errorf("failed to parse kernel config %s", config)
+		}
+		configMap[strings.TrimSpace(key)] = strings.TrimSpace(val)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return configMap, nil
 }

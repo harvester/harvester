@@ -177,7 +177,7 @@ func (e *EngineBinary) ReplicaAdd(engine *longhorn.Engine, replicaName, url stri
 
 // ReplicaRemove calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy
-func (e *EngineBinary) ReplicaRemove(engine *longhorn.Engine, url string) error {
+func (e *EngineBinary) ReplicaRemove(engine *longhorn.Engine, url, replicaName string) error {
 	if err := ValidateReplicaURL(url); err != nil {
 		return err
 	}
@@ -353,11 +353,11 @@ func (e *EngineBinary) ReplicaModeUpdate(engine *longhorn.Engine, url, mode stri
 }
 
 func (e *EngineBinary) MetricsGet(*longhorn.Engine) (*Metrics, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
+	return nil, errors.New(ErrNotImplement)
 }
 
 func (e *EngineBinary) RemountReadOnlyVolume(*longhorn.Engine) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 // addFlags always adds required flags to args. In addition, if the engine version is high enough, it adds additional

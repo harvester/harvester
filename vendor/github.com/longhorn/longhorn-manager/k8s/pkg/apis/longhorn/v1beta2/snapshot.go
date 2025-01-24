@@ -17,7 +17,6 @@ const (
 type SnapshotSpec struct {
 	// the volume that this snapshot belongs to.
 	// This field is immutable after creation.
-	// Required
 	Volume string `json:"volume"`
 	// require creating a new snapshot
 	// +optional

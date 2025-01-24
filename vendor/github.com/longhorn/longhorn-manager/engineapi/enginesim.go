@@ -1,12 +1,15 @@
 package engineapi
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	etypes "github.com/longhorn/longhorn-engine/pkg/types"
+	imapi "github.com/longhorn/longhorn-instance-manager/pkg/api"
 
 	"github.com/longhorn/longhorn-manager/datastore"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
@@ -104,11 +107,11 @@ func (e *EngineSimulator) IsGRPC() bool {
 }
 
 func (e *EngineSimulator) Start(*longhorn.InstanceManager, logrus.FieldLogger, *datastore.DataStore) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) Stop(*longhorn.InstanceManager) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) ReplicaList(*longhorn.Engine) (map[string]*Replica, error) {
@@ -142,7 +145,7 @@ func (e *EngineSimulator) ReplicaAdd(engine *longhorn.Engine, replicaName, url s
 	return nil
 }
 
-func (e *EngineSimulator) ReplicaRemove(engine *longhorn.Engine, addr string) error {
+func (e *EngineSimulator) ReplicaRemove(engine *longhorn.Engine, addr, replicaName string) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 
@@ -166,120 +169,140 @@ func (e *EngineSimulator) SimulateStopReplica(addr string) error {
 
 func (e *EngineSimulator) SnapshotCreate(engine *longhorn.Engine, name string, labels map[string]string,
 	freezeFilesystem bool) (string, error) {
-	return "", fmt.Errorf(ErrNotImplement)
+	return "", errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) SnapshotList(engine *longhorn.Engine) (map[string]*longhorn.SnapshotInfo, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
+	return nil, errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) SnapshotGet(engine *longhorn.Engine, name string) (*longhorn.SnapshotInfo, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
+	return nil, errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) SnapshotDelete(engine *longhorn.Engine, name string) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) SnapshotRevert(engine *longhorn.Engine, name string) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) SnapshotPurge(*longhorn.Engine) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) SnapshotPurgeStatus(*longhorn.Engine) (map[string]*longhorn.PurgeStatus, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
+	return nil, errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) SnapshotBackup(engine *longhorn.Engine, snapshotName, backupName, backupTarget,
 	backingImageName, backingImageChecksum, compressionMethod string, concurrentLimit int, storageClassName string,
 	labels, credential, parameters map[string]string) (string, string, error) {
-	return "", "", fmt.Errorf(ErrNotImplement)
+	return "", "", errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) SnapshotBackupStatus(engine *longhorn.Engine, backupName, replicaAddress,
 	replicaName string) (*longhorn.EngineBackupStatus, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
+	return nil, errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) VersionGet(engine *longhorn.Engine, clientOnly bool) (*EngineVersion, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
+	return nil, errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) VolumeGet(*longhorn.Engine) (*Volume, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
+	return nil, errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) VolumeExpand(*longhorn.Engine) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) BackupRestore(engine *longhorn.Engine, backupTarget, backupName, backupVolume, lastRestored string, credential map[string]string, concurrentLimit int) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) SnapshotClone(engine *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName,
 	fromEngineName string, fileSyncHTTPClientTimeout, grpcTimeoutSeconds int64) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) BackupRestoreStatus(*longhorn.Engine) (map[string]*longhorn.RestoreStatus, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
+	return nil, errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) SnapshotCloneStatus(*longhorn.Engine) (map[string]*longhorn.SnapshotCloneStatus, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
+	return nil, errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) ReplicaRebuildStatus(*longhorn.Engine) (map[string]*longhorn.RebuildStatus, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
+	return nil, errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) VolumeFrontendStart(*longhorn.Engine) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 func (e *EngineSimulator) VolumeFrontendShutdown(*longhorn.Engine) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) VolumeUnmapMarkSnapChainRemovedSet(*longhorn.Engine) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) VolumeSnapshotMaxCountSet(*longhorn.Engine) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) VolumeSnapshotMaxSizeSet(*longhorn.Engine) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) ReplicaRebuildVerify(engine *longhorn.Engine, replicaName, url string) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) SnapshotHash(engine *longhorn.Engine, snapshotName string, rehash bool) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) SnapshotHashStatus(engine *longhorn.Engine, snapshotName string) (map[string]*longhorn.HashStatus, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
+	return nil, errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) ReplicaModeUpdate(engine *longhorn.Engine, url, mode string) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) MetricsGet(*longhorn.Engine) (*Metrics, error) {
-	return nil, fmt.Errorf(ErrNotImplement)
+	return nil, errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) CleanupBackupMountPoints() error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) RemountReadOnlyVolume(*longhorn.Engine) error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
+}
+
+func (e *EngineSimulator) SPDKBackingImageCreate(name, backingImageUUID, diskUUID, checksum, fromAddress, srcDiskUUID string, size uint64) (*imapi.BackingImage, error) {
+	return nil, errors.New(ErrNotImplement)
+}
+
+func (e *EngineSimulator) SPDKBackingImageDelete(name, diskUUID string) error {
+	return errors.New(ErrNotImplement)
+}
+
+func (e *EngineSimulator) SPDKBackingImageGet(name, diskUUID string) (*imapi.BackingImage, error) {
+	return nil, errors.New(ErrNotImplement)
+}
+
+func (e *EngineSimulator) SPDKBackingImageList() (map[string]longhorn.BackingImageV2CopyInfo, error) {
+	return nil, errors.New(ErrNotImplement)
+}
+
+func (e *EngineSimulator) SPDKBackingImageWatch(ctx context.Context) (*imapi.BackingImageStream, error) {
+	return nil, errors.New(ErrNotImplement)
 }

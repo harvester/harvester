@@ -3,11 +3,12 @@ package client
 import (
 	"context"
 
-	rpc "github.com/longhorn/types/pkg/generated/smrpc"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	rpc "github.com/longhorn/types/pkg/generated/smrpc"
 
 	"github.com/longhorn/longhorn-share-manager/pkg/types"
 )
@@ -44,6 +45,14 @@ func (c *ShareManagerClient) FilesystemTrim(encryptedDevice bool) error {
 	defer cancel()
 
 	_, err := c.client.FilesystemTrim(ctx, &rpc.FilesystemTrimRequest{EncryptedDevice: encryptedDevice})
+	return err
+}
+
+func (c *ShareManagerClient) FilesystemResize() error {
+	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
+	defer cancel()
+
+	_, err := c.client.FilesystemResize(ctx, &emptypb.Empty{})
 	return err
 }
 

@@ -204,10 +204,13 @@ func (c *ProxyClient) ReplicaRemove(dataEngine, serviceAddress, engineName, repl
 	input := map[string]string{
 		"serviceAddress": serviceAddress,
 		"engineName":     engineName,
-		"replicaAddress": replicaAddress,
 	}
 	if err := validateProxyMethodParameters(input); err != nil {
 		return errors.Wrap(err, "failed to remove replica for volume")
+	}
+
+	if replicaAddress == "" && replicaName == "" {
+		return fmt.Errorf("failed to remove replica for volume: replica address and name are both empty")
 	}
 
 	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]

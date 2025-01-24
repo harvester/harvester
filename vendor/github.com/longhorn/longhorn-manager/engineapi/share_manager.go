@@ -39,6 +39,10 @@ func (c *ShareManagerClient) FilesystemTrim(encryptedDevice bool) error {
 	return c.grpcClient.FilesystemTrim(encryptedDevice)
 }
 
+func (c *ShareManagerClient) FilesystemResize() error {
+	return c.grpcClient.FilesystemResize()
+}
+
 func (c *ShareManagerClient) Unmount() error {
 	return c.grpcClient.Unmount()
 }
