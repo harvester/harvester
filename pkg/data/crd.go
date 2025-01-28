@@ -72,6 +72,8 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.FromGV(monitoringv1.SchemeGroupVersion, "Alertmanager", monitoringv1.Alertmanager{}),
 			crd.FromGV(loggingv1.GroupVersion, "ClusterFlow", loggingv1.ClusterFlow{}),
 			crd.FromGV(loggingv1.GroupVersion, "ClusterOutput", loggingv1.ClusterOutput{}),
+			crd.FromGV(loggingv1.GroupVersion, "Flow", loggingv1.ClusterFlow{}),
+			crd.FromGV(loggingv1.GroupVersion, "Output", loggingv1.ClusterOutput{}),
 			crd.FromGV(nodev1.SchemeGroupVersion, "NodeConfig", nodev1.NodeConfig{}),
 			crd.FromGV(rkev1.SchemeGroupVersion, "RKEControlPlane", rkev1.RKEControlPlane{}),
 		).
