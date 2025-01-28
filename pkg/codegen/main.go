@@ -63,6 +63,8 @@ func main() {
 					loggingv1.Logging{},
 					loggingv1.ClusterFlow{},
 					loggingv1.ClusterOutput{},
+					loggingv1.Flow{},
+					loggingv1.Output{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
@@ -249,6 +251,8 @@ func loggingWorkaround() {
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/logging.banzaicloud.io_client.go",
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_clusterflow.go",
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_clusteroutput.go",
+		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_flow.go",
+		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_output.go",
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_logging.go",
 	}
 
