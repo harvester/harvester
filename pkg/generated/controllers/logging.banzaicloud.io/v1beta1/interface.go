@@ -33,7 +33,9 @@ func init() {
 type Interface interface {
 	ClusterFlow() ClusterFlowController
 	ClusterOutput() ClusterOutputController
+	Flow() FlowController
 	Logging() LoggingController
+	Output() OutputController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -54,6 +56,14 @@ func (v *version) ClusterOutput() ClusterOutputController {
 	return generic.NewController[*v1beta1.ClusterOutput, *v1beta1.ClusterOutputList](schema.GroupVersionKind{Group: "logging.banzaicloud.io", Version: "v1beta1", Kind: "ClusterOutput"}, "clusteroutputs", true, v.controllerFactory)
 }
 
+func (v *version) Flow() FlowController {
+	return generic.NewController[*v1beta1.Flow, *v1beta1.FlowList](schema.GroupVersionKind{Group: "logging.banzaicloud.io", Version: "v1beta1", Kind: "Flow"}, "flows", true, v.controllerFactory)
+}
+
 func (v *version) Logging() LoggingController {
 	return generic.NewNonNamespacedController[*v1beta1.Logging, *v1beta1.LoggingList](schema.GroupVersionKind{Group: "logging.banzaicloud.io", Version: "v1beta1", Kind: "Logging"}, "loggings", v.controllerFactory)
+}
+
+func (v *version) Output() OutputController {
+	return generic.NewController[*v1beta1.Output, *v1beta1.OutputList](schema.GroupVersionKind{Group: "logging.banzaicloud.io", Version: "v1beta1", Kind: "Output"}, "outputs", true, v.controllerFactory)
 }
