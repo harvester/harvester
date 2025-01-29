@@ -141,7 +141,13 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.Core.Secret().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()),
 		namespace.NewValidator(clients.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()),
-		addon.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache()),
+		addon.NewValidator(
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache(),
+			clients.LoggingFactory.Logging().V1beta1().Flow().Cache(),
+			clients.LoggingFactory.Logging().V1beta1().Output().Cache(),
+			clients.LoggingFactory.Logging().V1beta1().ClusterFlow().Cache(),
+			clients.LoggingFactory.Logging().V1beta1().ClusterOutput().Cache(),
+		),
 		version.NewValidator(),
 		volumesnapshot.NewValidator(
 			clients.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
