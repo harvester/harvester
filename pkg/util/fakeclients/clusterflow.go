@@ -50,8 +50,18 @@ type ClusterFlowCache func() loggingv1type.ClusterFlowInterface
 func (c ClusterFlowCache) Get(_, _ string) (*loggingv1.ClusterFlow, error) {
 	panic("implement me")
 }
-func (c ClusterFlowCache) List(_ string, _ labels.Selector) ([]*loggingv1.ClusterFlow, error) {
-	panic("implement me")
+func (c ClusterFlowCache) List(namespace string, selector labels.Selector) ([]*loggingv1.ClusterFlow, error) {
+	list, err := c().List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*loggingv1.ClusterFlow, 0, len(list.Items))
+	for i := range list.Items {
+		if list.Items[i].Namespace == namespace {
+			result = append(result, &list.Items[i])
+		}
+	}
+	return result, err
 }
 func (c ClusterFlowCache) AddIndexer(_ string, _ generic.Indexer[*loggingv1.ClusterFlow]) {
 	panic("implement me")

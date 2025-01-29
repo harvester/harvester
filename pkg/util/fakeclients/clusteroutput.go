@@ -16,9 +16,9 @@ import (
 
 type ClusterOutputClient func() loggingv1type.ClusterOutputInterface
 
-func (c ClusterOutputClient) Create(clusterOutput *loggingv1.ClusterOutput) (*loggingv1.ClusterOutput, error) {
-	clusterOutput.Namespace = ""
-	return c().Create(context.TODO(), clusterOutput, metav1.CreateOptions{})
+func (c ClusterOutputClient) Create(ClusterOutput *loggingv1.ClusterOutput) (*loggingv1.ClusterOutput, error) {
+	ClusterOutput.Namespace = ""
+	return c().Create(context.TODO(), ClusterOutput, metav1.CreateOptions{})
 }
 func (c ClusterOutputClient) Update(*loggingv1.ClusterOutput) (*loggingv1.ClusterOutput, error) {
 	panic("implement me")
@@ -50,8 +50,18 @@ type ClusterOutputCache func() loggingv1type.ClusterOutputInterface
 func (c ClusterOutputCache) Get(_, _ string) (*loggingv1.ClusterOutput, error) {
 	panic("implement me")
 }
-func (c ClusterOutputCache) List(_ string, _ labels.Selector) ([]*loggingv1.ClusterOutput, error) {
-	panic("implement me")
+func (c ClusterOutputCache) List(namespace string, selector labels.Selector) ([]*loggingv1.ClusterOutput, error) {
+	list, err := c().List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*loggingv1.ClusterOutput, 0, len(list.Items))
+	for i := range list.Items {
+		if list.Items[i].Namespace == namespace {
+			result = append(result, &list.Items[i])
+		}
+	}
+	return result, err
 }
 func (c ClusterOutputCache) AddIndexer(_ string, _ generic.Indexer[*loggingv1.ClusterOutput]) {
 	panic("implement me")
