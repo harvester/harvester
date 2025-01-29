@@ -13,6 +13,9 @@ import (
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlloggingv1 "github.com/harvester/harvester/pkg/generated/controllers/logging.banzaicloud.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/logging"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -22,16 +25,24 @@ const (
 	vClusterAddonNamespace = "rancher-vcluster"
 )
 
-func NewValidator(addons ctlharvesterv1.AddonCache) types.Validator {
+func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache) types.Validator {
 	return &addonValidator{
-		addons: addons,
+		addons:             addons,
+		flowCache:          flowCache,
+		outputCache:        outputCache,
+		clusterFlowCache:   clusterFlowCache,
+		clusterOutputCache: clusterOutputCache,
 	}
 }
 
 type addonValidator struct {
 	types.DefaultValidator
 
-	addons ctlharvesterv1.AddonCache
+	addons             ctlharvesterv1.AddonCache
+	flowCache          ctlloggingv1.FlowCache
+	outputCache        ctlloggingv1.OutputCache
+	clusterFlowCache   ctlloggingv1.ClusterFlowCache
+	clusterOutputCache ctlloggingv1.ClusterOutputCache
 }
 
 func (v *addonValidator) Resource() types.Resource {
@@ -52,12 +63,7 @@ func (v *addonValidator) Resource() types.Resource {
 func (v *addonValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	newAddon := newObj.(*v1beta1.Addon)
 
-	addons, err := v.addons.List(metav1.NamespaceAll, labels.Everything())
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("cannot list addons, err: %+v", err))
-	}
-
-	return validateNewAddon(newAddon, addons)
+	return v.validateNewAddon(newAddon)
 }
 
 // Do not allow some fields to be changed, or set to non-existing values
@@ -65,10 +71,15 @@ func (v *addonValidator) Update(_ *types.Request, oldObj runtime.Object, newObj 
 	newAddon := newObj.(*v1beta1.Addon)
 	oldAddon := oldObj.(*v1beta1.Addon)
 
-	return validateUpdatedAddon(newAddon, oldAddon)
+	return v.validateUpdatedAddon(newAddon, oldAddon)
 }
 
-func validateNewAddon(newAddon *v1beta1.Addon, addonList []*v1beta1.Addon) error {
+func (v *addonValidator) validateNewAddon(newAddon *v1beta1.Addon) error {
+	addonList, err := v.addons.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("cannot list addons, err: %+v", err))
+	}
+
 	for _, addon := range addonList {
 		if addon.Spec.Chart == newAddon.Spec.Chart {
 			return werror.NewConflict(fmt.Sprintf("addon with Chart %q has been created, cannot create a new one", addon.Spec.Chart))
@@ -78,7 +89,7 @@ func validateNewAddon(newAddon *v1beta1.Addon, addonList []*v1beta1.Addon) error
 	return nil
 }
 
-func validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
+func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
 	if newAddon.Spec.Chart != oldAddon.Spec.Chart {
 		return werror.NewBadRequest("chart field cannot be changed.")
 	}
@@ -90,6 +101,15 @@ func validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) erro
 	if newAddon.Name == vClusterAddonName && newAddon.Namespace == vClusterAddonNamespace && newAddon.Spec.Enabled {
 		return validateVClusterAddon(newAddon)
 	}
+
+	if newAddon.Name == util.RancherLoggingName && newAddon.Spec.Enabled {
+		if newAddon.Annotations != nil && newAddon.Annotations[util.AnnotationSkipRancherLoggingAddonWebhookCheck] == "true" {
+			return nil
+		}
+
+		return v.validateRancherLoggingAddon(newAddon)
+	}
+
 	return nil
 }
 
@@ -116,4 +136,18 @@ func validateVClusterAddon(newAddon *v1beta1.Addon) error {
 	}
 
 	return werror.NewBadRequest(fmt.Sprintf("invalid fqdn %s provided for %s addon", addonContent.Hostname, vClusterAddonName))
+}
+
+func (v *addonValidator) validateRancherLoggingAddon(newAddon *v1beta1.Addon) error {
+	loger := logging.NewLogging(v.flowCache, v.outputCache, v.clusterFlowCache, v.clusterOutputCache)
+
+	if err := loger.FlowsDangling(newAddon.Namespace); err != nil {
+		return werror.NewBadRequest(fmt.Sprintf("%s, fix or delete it before enabling addon", err.Error()))
+	}
+
+	if err := loger.ClusterFlowsDangling(newAddon.Namespace); err != nil {
+		return werror.NewBadRequest(fmt.Sprintf("%s, fix or delete it before enabling addon", err.Error()))
+	}
+
+	return nil
 }
