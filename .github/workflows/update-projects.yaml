@@ -19,8 +19,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
     - run: |
-      echo "is-harvester-member teams: ${{ steps.is-harvester-member.outputs.teams }}"
-      echo "is-harvester-member outcome: ${{ steps.is-harvester-member.outcome }}"
+        echo "is-harvester-member teams: ${{ steps.is-harvester-member.outputs.teams }}"
+        echo "is-harvester-member outcome: ${{ steps.is-harvester-member.outcome }}"
 
     - name: Get Issue
       uses: octokit/request-action@v2.x
