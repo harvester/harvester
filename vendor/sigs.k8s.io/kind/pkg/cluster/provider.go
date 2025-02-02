@@ -17,7 +17,6 @@ limitations under the License.
 package cluster
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -35,6 +34,7 @@ import (
 	"sigs.k8s.io/kind/pkg/cluster/internal/kubeconfig"
 	internalproviders "sigs.k8s.io/kind/pkg/cluster/internal/providers"
 	"sigs.k8s.io/kind/pkg/cluster/internal/providers/docker"
+	"sigs.k8s.io/kind/pkg/cluster/internal/providers/nerdctl"
 	"sigs.k8s.io/kind/pkg/cluster/internal/providers/podman"
 )
 
@@ -103,8 +103,8 @@ var NoNodeProviderDetectedError = errors.NewWithoutStack("failed to detect any s
 // Pass the returned ProviderOption to NewProvider to pass the auto-detect Docker
 // or Podman option explicitly (in the future there will be more options)
 //
-// NOTE: The kind *cli* also checks `KIND_EXPERIMENTAL_PROVIDER` for "podman" or
-// "docker" currently and does not auto-detect / respects this if set.
+// NOTE: The kind *cli* also checks `KIND_EXPERIMENTAL_PROVIDER` for "podman",
+// "nerctl" or "docker" currently and does not auto-detect / respects this if set.
 //
 // This will be replaced with some other mechanism in the future (likely when
 // podman support is GA), in the meantime though your tool may wish to match this.
@@ -115,6 +115,9 @@ func DetectNodeProvider() (ProviderOption, error) {
 	// auto-detect based on each node provider's IsAvailable() function
 	if docker.IsAvailable() {
 		return ProviderWithDocker(), nil
+	}
+	if nerdctl.IsAvailable() {
+		return ProviderWithNerdctl(""), nil
 	}
 	if podman.IsAvailable() {
 		return ProviderWithPodman(), nil
@@ -144,7 +147,7 @@ func ProviderWithLogger(logger log.Logger) ProviderOption {
 	})
 }
 
-// providerLoggerOption is a trivial ProviderOption adapter
+// providerRuntimeOption is a trivial ProviderOption adapter
 // we use a type specific to logging options so we can handle them first
 type providerRuntimeOption func(p *Provider)
 
@@ -165,6 +168,13 @@ func ProviderWithDocker() ProviderOption {
 func ProviderWithPodman() ProviderOption {
 	return providerRuntimeOption(func(p *Provider) {
 		p.provider = podman.NewProvider(p.logger)
+	})
+}
+
+// ProviderWithNerdctl configures the provider to use the nerdctl runtime
+func ProviderWithNerdctl(binaryName string) ProviderOption {
+	return providerRuntimeOption(func(p *Provider) {
+		p.provider = nerdctl.NewProvider(p.logger, binaryName)
 	})
 }
 
@@ -235,7 +245,7 @@ func (p *Provider) CollectLogs(name, dir string) error {
 		return errors.Wrap(err, "failed to create logs directory")
 	}
 	// write kind version
-	if err := ioutil.WriteFile(
+	if err := os.WriteFile(
 		filepath.Join(dir, "kind-version.txt"),
 		[]byte(version.DisplayVersion()),
 		0666, // match os.Create

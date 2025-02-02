@@ -18,6 +18,10 @@ var _ = ginkgo.Describe("verify cluster repos are patched", func() {
 
 	ginkgo.BeforeEach(func() {
 		harvestercharts = &catalogv1.ClusterRepo{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ClusterRepo",
+				APIVersion: "catalog.cattle.io/v1",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "harvester-charts",
 			},
@@ -25,6 +29,10 @@ var _ = ginkgo.Describe("verify cluster repos are patched", func() {
 		}
 
 		partnercharts = &catalogv1.ClusterRepo{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ClusterRepo",
+				APIVersion: "catalog.cattle.io/v1",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "rancher-partner-charts",
 			},

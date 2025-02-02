@@ -4,19 +4,20 @@ import (
 	"fmt"
 	"strings"
 
+	appsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps"
 	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
 var _ = Describe("create a supportbundle request and verify taints on daemonset", func() {
 	var sbk *harvesterv1.SupportBundle
 	var sbc ctlharvesterv1.SupportBundleController
-	var dsc ctlappsv1.DaemonSetCache
+	var dsc ctlappsv1.DaemonSetController
 	var sc ctlharvesterv1.SettingController
 	var requiredToleration *corev1.Toleration
 
@@ -36,10 +37,15 @@ var _ = Describe("create a supportbundle request and verify taints on daemonset"
 			Operator: corev1.TolerationOpExists,
 		}
 
-		scaled := harvester.Scaled()
-		sc = scaled.HarvesterFactory.Harvesterhci().V1beta1().Setting()
-		sbc = scaled.HarvesterFactory.Harvesterhci().V1beta1().SupportBundle()
-		dsc = scaled.AppsFactory.Apps().V1().DaemonSet().Cache()
+		harvFactory, err := harvesterhci.NewFactoryFromConfig(kubeConfig)
+		MustNotError(err)
+		sc = harvFactory.Harvesterhci().V1beta1().Setting()
+		sbc = harvFactory.Harvesterhci().V1beta1().SupportBundle()
+
+		coreFactory, err := appsv1.NewFactoryFromConfig(kubeConfig)
+		MustNotError(err)
+
+		dsc = coreFactory.Apps().V1().DaemonSet()
 
 		Eventually(func() error {
 			_, err := sbc.Create(sbk)
@@ -62,12 +68,12 @@ var _ = Describe("create a supportbundle request and verify taints on daemonset"
 
 		By("checking ds is created", func() {
 			Eventually(func() error {
-				dsList, err := dsc.List("harvester-system", labels.NewSelector())
+				dsList, err := dsc.List("harvester-system", metav1.ListOptions{})
 				if err != nil {
 					return err
 				}
 
-				for _, v := range dsList {
+				for _, v := range dsList.Items {
 					if strings.Contains(v.Name, "supportbundle") && v.Spec.Template.Spec.Tolerations[0].MatchToleration(requiredToleration) {
 						return nil
 					}

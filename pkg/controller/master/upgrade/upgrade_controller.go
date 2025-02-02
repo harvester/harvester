@@ -307,7 +307,13 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			return h.upgradeClient.Update(toUpdate)
 		}
 
-		return h.prepareNodesForUpgrade(toUpdate, repoInfoStr)
+		upgradeConfig, err := settings.DecodeConfig[settings.UpgradeConfig](settings.UpgradeConfigSet.Get())
+		if err != nil {
+			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
+			return h.upgradeClient.Update(toUpdate)
+		}
+
+		return h.prepareNodesForUpgrade(toUpdate, repoInfoStr, upgradeConfig)
 	}
 
 	if harvesterv1.NodesPrepared.IsTrue(upgrade) && harvesterv1.SystemServicesUpgraded.GetStatus(upgrade) == "" {
@@ -654,11 +660,7 @@ func upgradeEligibilityCheck(upgrade *harvesterv1.Upgrade) (bool, string) {
 	return true, ""
 }
 
-func (h *upgradeHandler) prepareNodesForUpgrade(upgrade *harvesterv1.Upgrade, repoInfoStr string) (*harvesterv1.Upgrade, error) {
-	upgradeConfig, err := settings.DecodeConfig[settings.UpgradeConfig](settings.UpgradeConfigSet.Get())
-	if err != nil {
-		return upgrade, err
-	}
+func (h *upgradeHandler) prepareNodesForUpgrade(upgrade *harvesterv1.Upgrade, repoInfoStr string, upgradeConfig *settings.UpgradeConfig) (*harvesterv1.Upgrade, error) {
 	logrus.WithFields(logrus.Fields{
 		"namespace":      upgrade.Namespace,
 		"name":           upgrade.Name,

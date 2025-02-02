@@ -100,5 +100,6 @@ func createClusterRepoCRD() wcrd.CRD {
 	clusterrepo := crd.FromGV(catalogv1.SchemeGroupVersion, "ClusterRepo", catalogv1.ClusterRepo{})
 	clusterrepo.PluralName = "clusterrepos"
 	clusterrepo.SingularName = "clusterrepo"
+	clusterrepo.NonNamespace = true
 	return clusterrepo
 }

@@ -81,12 +81,8 @@ func (c *LocalKindCluster) Startup(output io.Writer) error {
 		return err
 	}
 
-	// remove the existed cluster
 	if existed {
-		err = provider.Delete(c.ClusterName, "")
-		if err != nil {
-			return fmt.Errorf("failed to clean the previous cluster, %v", err)
-		}
+		return nil
 	}
 
 	// create configuration
