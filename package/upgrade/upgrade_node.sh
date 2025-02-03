@@ -631,12 +631,32 @@ EOF
   if [ ${multiPathEnabled} == false ]
   then
     thirdPartyArgs=$(chroot $HOST_DIR grub2-editenv /oem/grubenv list |grep third_party_kernel_args | awk -F"third_party_kernel_args=" '{print $2}')
-    if [[ ${thirdPartyArgs} != *"multipath=off"* ]]
+    if [[ ${thirdPartyArgs} != *"rd.multipath=0"* ]]
     then
-      thirdPartyArgs="${thirdPartyArgs} multipath=off"
+      thirdPartyArgs="${thirdPartyArgs} rd.multipath=0"
+      # remove multipath=off from thirdPartyArgs that may have been added during 1.4.0 upgrade
+      thirdPartyArgs=$(sed 's/multipath=off//' <<< ${thirdPartyArgs})
       thirdPartyArgs=$(echo ${thirdPartyArgs} | xargs)
       chroot $HOST_DIR grub2-editenv /oem/grubenv set third_party_kernel_args="${thirdPartyArgs}"
     fi
+    # add cloud-init directive to disable multipathing for longhorn
+    cat > ${HOST_DIR}/oem/99_disable_lh_multipathd.yaml << EOF
+name: "disable longhorn multipathing"
+stages:
+   initramfs:
+     - directories:
+       - path: "/etc/multipath/conf.d"
+         permissions: 0644
+         owner: 0
+         group: 0
+     - files:
+       - path: "/etc/multipath/conf.d/99-longhorn.conf"
+         content: YmxhY2tsaXN0IHsgCiAgZGV2aWNlIHsgCiAgICB2ZW5kb3IgIklFVCIgCiAgICBwcm9kdWN0ICJWSVJUVUFMLURJU0siCiAgfQp9Cg==
+         encoding: "base64"
+         permissions: 0644
+         owner: 0
+         group: 0
+EOF
   fi
 
   umount $tmp_rootfs_mount
