@@ -38,7 +38,7 @@ const (
 	nodeStatePreDraining            = "Pre-draining"
 	nodeStatePreDrained             = "Pre-drained"
 	nodeStatePostDraining           = "Post-draining"
-	nodeStateWatingReboot           = "Waiting Reboot"
+	nodeStateWaitingReboot          = "Waiting Reboot"
 	upgradePlanLabel                = "upgrade.cattle.io/plan"
 	upgradeNodeLabel                = "upgrade.cattle.io/node"
 	upgradeStateLabel               = "harvesterhci.io/upgradeState"
@@ -138,7 +138,7 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 					setNodeUpgradeStatus(toUpdate, nodeName, StateSucceeded, "", "")
 					postDrained = true
 				} else {
-					setNodeUpgradeStatus(toUpdate, nodeName, nodeStateWatingReboot, condition.Reason, condition.Message)
+					setNodeUpgradeStatus(toUpdate, nodeName, nodeStateWaitingReboot, condition.Reason, condition.Message)
 					if err := h.setNodeWaitRebootLabel(node, repoInfo); err != nil {
 						return nil, err
 					}
@@ -149,7 +149,7 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 				if repoInfo.Release.OS == node.Status.NodeInfo.OSImage {
 					setNodeUpgradeStatus(toUpdate, nodeName, StateSucceeded, "", "")
 				} else {
-					setNodeUpgradeStatus(toUpdate, nodeName, nodeStateWatingReboot, condition.Reason, condition.Message)
+					setNodeUpgradeStatus(toUpdate, nodeName, nodeStateWaitingReboot, condition.Reason, condition.Message)
 					if err := h.setNodeWaitRebootLabel(node, repoInfo); err != nil {
 						return nil, err
 					}
