@@ -55,7 +55,7 @@ func (h *nodeHandler) OnChanged(_ string, node *corev1.Node) (*corev1.Node, erro
 		return node, nil
 	}
 	nodeState := upgrade.Status.NodeStatuses[node.Name].State
-	if nodeState != nodeStateWatingReboot {
+	if nodeState != nodeStateWaitingReboot {
 		return node, nil
 	}
 
