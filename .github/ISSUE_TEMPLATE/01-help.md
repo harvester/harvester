@@ -1,7 +1,7 @@
 ---
 name: Help wanted
 about: Ask for help from the community or the maintainers
-title: "[BUG]"
+title: "[Help wanted]"
 labels: kind/help, reproduce/needed
 assignees: ''
 
