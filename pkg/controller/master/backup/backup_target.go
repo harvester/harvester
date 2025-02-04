@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -26,9 +26,6 @@ import (
 
 const (
 	backupTargetControllerName = "harvester-backup-target-controller"
-
-	longhornBackupTargetSettingName       = "backup-target"
-	longhornBackupTargetSecretSettingName = "backup-target-credential-secret"
 )
 
 // RegisterBackupTarget register the setting controller and reconsile longhorn setting when backup target changed
@@ -37,6 +34,7 @@ func RegisterBackupTarget(ctx context.Context, management *config.Management, _ 
 	secrets := management.CoreFactory.Core().V1().Secret()
 	longhornSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
+	lhBackupTargets := management.LonghornFactory.Longhorn().V1beta2().BackupTarget()
 
 	backupTargetController := &TargetHandler{
 		ctx:                  ctx,
@@ -46,6 +44,8 @@ func RegisterBackupTarget(ctx context.Context, management *config.Management, _ 
 		secretCache:          secrets.Cache(),
 		vms:                  vms,
 		settings:             settings,
+		lhBackupTargets:      lhBackupTargets,
+		lhBackupTargetCache:  lhBackupTargets.Cache(),
 	}
 
 	settings.OnChange(ctx, backupTargetControllerName, backupTargetController.OnBackupTargetChange)
@@ -60,6 +60,8 @@ type TargetHandler struct {
 	secretCache          ctlcorev1.SecretCache
 	vms                  ctlkubevirtv1.VirtualMachineController
 	settings             ctlharvesterv1.SettingClient
+	lhBackupTargets      ctllonghornv1.BackupTargetClient
+	lhBackupTargetCache  ctllonghornv1.BackupTargetCache
 }
 
 // OnBackupTargetChange handles backupTarget setting object on change
@@ -154,32 +156,20 @@ func (h *TargetHandler) reUpdateBackupTargetSettingSecret(setting *harvesterv1.S
 }
 
 func (h *TargetHandler) updateLonghornTarget(backupTarget *settings.BackupTarget) error {
-	target, err := h.longhornSettingCache.Get(util.LonghornSystemNamespaceName, longhornBackupTargetSettingName)
+	lhBackupTarget, err := h.lhBackupTargetCache.Get(util.LonghornSystemNamespaceName, longhorntypes.DefaultBackupTargetName)
 	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
+		return err
+	}
 
-		if _, err := h.longhornSettings.Create(&lhv1beta2.Setting{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      longhornBackupTargetSettingName,
-				Namespace: util.LonghornSystemNamespaceName,
-			},
-			Value: util.ConstructEndpoint(backupTarget),
-		}); err != nil {
-			return err
-		}
+	lhBackupTargetCpy := lhBackupTarget.DeepCopy()
+	lhBackupTargetCpy.Spec.BackupTargetURL = util.ConstructEndpoint(backupTarget)
+
+	if reflect.DeepEqual(lhBackupTarget, lhBackupTargetCpy) {
 		return nil
 	}
 
-	targetCpy := target.DeepCopy()
-	targetCpy.Value = util.ConstructEndpoint(backupTarget)
-
-	if !reflect.DeepEqual(target, targetCpy) {
-		_, err := h.longhornSettings.Update(targetCpy)
-		return err
-	}
-	return nil
+	_, err = h.lhBackupTargets.Update(lhBackupTargetCpy)
+	return err
 }
 
 func getBackupSecretData(target *settings.BackupTarget) (map[string]string, error) {
@@ -257,50 +247,37 @@ func (h *TargetHandler) resetBackupTargetSecret() error {
 		}
 	}
 
-	setting, err := h.longhornSettingCache.Get(util.LonghornSystemNamespaceName, longhornBackupTargetSecretSettingName)
-	if err != nil && !apierrors.IsNotFound(err) {
+	lhBackupTarget, err := h.lhBackupTargetCache.Get(util.LonghornSystemNamespaceName, longhorntypes.DefaultBackupTargetName)
+	if err != nil {
 		return err
 	}
-	if setting != nil && setting.Value != "" {
-		settingCpy := setting.DeepCopy()
-		settingCpy.Value = ""
-		if _, err := h.longhornSettings.Update(settingCpy); err != nil {
-			return err
-		}
-	}
 
-	return nil
-}
+	lhBackupTargetCpy := lhBackupTarget.DeepCopy()
+	lhBackupTargetCpy.Spec.CredentialSecret = ""
 
-func (h *TargetHandler) updateLonghornBackupTargetSecretSetting() error {
-	targetSecret, err := h.longhornSettingCache.Get(util.LonghornSystemNamespaceName, longhornBackupTargetSecretSettingName)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
-
-		if _, err := h.longhornSettings.Create(&lhv1beta2.Setting{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      longhornBackupTargetSecretSettingName,
-				Namespace: util.LonghornSystemNamespaceName,
-			},
-			Value: util.BackupTargetSecretName,
-		}); err != nil {
-			return err
-		}
+	if reflect.DeepEqual(lhBackupTarget, lhBackupTargetCpy) {
 		return nil
 	}
 
-	targetSecCpy := targetSecret.DeepCopy()
-	targetSecCpy.Value = util.BackupTargetSecretName
+	_, err = h.lhBackupTargets.Update(lhBackupTargetCpy)
+	return err
+}
 
-	if targetSecret.Value != targetSecCpy.Value {
-		if _, err := h.longhornSettings.Update(targetSecCpy); err != nil {
-			return err
-		}
+func (h *TargetHandler) updateLonghornBackupTargetSecretSetting() error {
+	lhBackupTarget, err := h.lhBackupTargetCache.Get(util.LonghornSystemNamespaceName, longhorntypes.DefaultBackupTargetName)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	lhBackupTargetCpy := lhBackupTarget.DeepCopy()
+	lhBackupTargetCpy.Spec.CredentialSecret = util.BackupTargetSecretName
+
+	if reflect.DeepEqual(lhBackupTarget, lhBackupTargetCpy) {
+		return nil
+	}
+
+	_, err = h.lhBackupTargets.Update(lhBackupTargetCpy)
+	return err
 }
 
 func (h *TargetHandler) setConfiguredCondition(setting *harvesterv1.Setting, reason string, err error) (*harvesterv1.Setting, error) {
