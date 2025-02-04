@@ -10,7 +10,7 @@ const (
 	resourceQuotaControllerName = "resourceQuotaController"
 )
 
-func Register(ctx context.Context, management *config.Management, options config.Options) error {
+func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	rqs := management.HarvesterCoreFactory.Core().V1().ResourceQuota()
 	handler := &Handler{
 		rqs:     rqs,

@@ -238,7 +238,7 @@ func GetVMIMResourcesFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, stora
 }
 
 // Get Rancher NamespaceResourceQuota LimitsCPU and LimitsMemory
-func GetCpuMemoryLimitsFromRancherNamespaceResourceQuota(nrq *v3.NamespaceResourceQuota) (cpu, mem resource.Quantity, err error) {
+func GetCPUMemoryLimitsFromRancherNamespaceResourceQuota(nrq *v3.NamespaceResourceQuota) (cpu, mem resource.Quantity, err error) {
 	if cpu, err = resource.ParseQuantity(nrq.Limit.LimitsCPU); err != nil {
 		return
 	}
@@ -363,23 +363,25 @@ func CalculateScaleResourceQuotaWithVMI(
 	}
 
 	rl = corev1.ResourceList{}
-	currentCPULimit, cpuOK := rq.Spec.Hard[corev1.ResourceLimitsCPU]
+	//currentCPULimit, cpuOK := rq.Spec.Hard[corev1.ResourceLimitsCPU]
+	_, cpuOK := rq.Spec.Hard[corev1.ResourceLimitsCPU]
 	if !vmiLimits.Cpu().IsZero() && cpuOK {
-		currentCPULimit.Add(vmiLimits[corev1.ResourceCPU])
+		//currentCPULimit.Add(vmiLimits[corev1.ResourceCPU])
 		rl[corev1.ResourceLimitsCPU] = vmiLimits[corev1.ResourceCPU]
 
-		rq.Spec.Hard[corev1.ResourceLimitsCPU] = currentCPULimit
+		//rq.Spec.Hard[corev1.ResourceLimitsCPU] = currentCPULimit
 	}
 
-	currentMemoryLimit, memOK := rq.Spec.Hard[corev1.ResourceLimitsMemory]
+	//currentMemoryLimit, memOK := rq.Spec.Hard[corev1.ResourceLimitsMemory]
+	_, memOK := rq.Spec.Hard[corev1.ResourceLimitsMemory]
 	if !vmiLimits.Memory().IsZero() && memOK {
 		mem := vmiLimits[corev1.ResourceMemory]
 		mem.Add(kubevirtservices.GetMemoryOverhead(vmi, runtime.GOARCH, nil))
 
-		currentMemoryLimit.Add(mem)
+		//currentMemoryLimit.Add(mem)
 		rl[corev1.ResourceLimitsMemory] = mem
 
-		rq.Spec.Hard[corev1.ResourceLimitsMemory] = currentMemoryLimit
+		//rq.Spec.Hard[corev1.ResourceLimitsMemory] = currentMemoryLimit
 	}
 
 	return true, rq, rl
