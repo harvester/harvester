@@ -35,6 +35,7 @@ type Interface interface {
 	BackingImageDataSource() BackingImageDataSourceController
 	Backup() BackupController
 	BackupBackingImage() BackupBackingImageController
+	BackupTarget() BackupTargetController
 	Engine() EngineController
 	Node() NodeController
 	Replica() ReplicaController
@@ -67,6 +68,10 @@ func (v *version) Backup() BackupController {
 
 func (v *version) BackupBackingImage() BackupBackingImageController {
 	return generic.NewController[*v1beta2.BackupBackingImage, *v1beta2.BackupBackingImageList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "BackupBackingImage"}, "backupbackingimages", true, v.controllerFactory)
+}
+
+func (v *version) BackupTarget() BackupTargetController {
+	return generic.NewController[*v1beta2.BackupTarget, *v1beta2.BackupTargetList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "BackupTarget"}, "backuptargets", true, v.controllerFactory)
 }
 
 func (v *version) Engine() EngineController {
