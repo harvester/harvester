@@ -34,7 +34,7 @@ func (h *Handler) OnResourceQuotaChanged(_ string, rq *corev1.ResourceQuota) (*c
 	}
 
 	rqCopy := rq.DeepCopy()
-	err, update := scaleResourceOnDemand(rqCopy)
+	update, err := scaleResourceOnDemand(rqCopy)
 	if err != nil {
 		if errors.Is(err, errSkipScaling) {
 			return rq, nil
@@ -49,7 +49,7 @@ func (h *Handler) OnResourceQuotaChanged(_ string, rq *corev1.ResourceQuota) (*c
 	return rq, nil
 }
 
-func scaleResourceOnDemand(rq *corev1.ResourceQuota) (error, bool) {
+func scaleResourceOnDemand(rq *corev1.ResourceQuota) (bool, error) {
 	update := false
 	// below data is only related to rq itself, if error happens and run reconciller, it will fall into error looping
 	carq := rq.Labels[util.CattleAnnotationResourceQuota]
@@ -57,25 +57,25 @@ func scaleResourceOnDemand(rq *corev1.ResourceQuota) (error, bool) {
 	rqBase, err := rqutils.GetRancherNamespaceResourceQuotaFromRQAnnotations(rq)
 	if err != nil {
 		logrus.Warnf("resourcequota %s/%s has invalid %s annotation %s, skip scaling, error %s", rq.Namespace, rq.Name, util.CattleAnnotationResourceQuota, carq, err.Error())
-		return errSkipScaling, update
+		return update, errSkipScaling
 	}
 	if rqBase == nil {
 		logrus.Warnf("resourcequota %s/%s has no %s annotation, skip scaling", rq.Namespace, rq.Name, util.CattleAnnotationResourceQuota)
-		return errSkipScaling, update
+		return update, errSkipScaling
 	}
 
-	rCpuLimit, rMemoryLimit, err := rqutils.GetCpuMemoryLimitsFromRancherNamespaceResourceQuota(rqBase)
+	rCPULimit, rMemoryLimit, err := rqutils.GetCPUMemoryLimitsFromRancherNamespaceResourceQuota(rqBase)
 	if err != nil {
 		logrus.Warnf("resourcequota %s/%s can't get valid Quantity values from rancher %s annotations %s, skip scaling, error %s", rq.Namespace, rq.Name, util.CattleAnnotationResourceQuota, carq, err.Error())
-		return errSkipScaling, update
+		return update, errSkipScaling
 	}
 
 	cpu, mem, _, err := rqutils.GetVMIMResourcesFromRQAnnotation(rq)
 	if err != nil {
 		logrus.Warnf("resourcequota %s/%s can't get valid Quantity values from rancher %s annotations %s, skip scaling, error %s", rq.Namespace, rq.Name, util.CattleAnnotationResourceQuota, carq, err.Error())
-		return errSkipScaling, update
+		return update, errSkipScaling
 	}
 
-	update = rqutils.CalculateNewResourceQuotaFromBaseDelta(rq, rCpuLimit, rMemoryLimit, cpu, mem)
-	return nil, update
+	update = rqutils.CalculateNewResourceQuotaFromBaseDelta(rq, rCPULimit, rMemoryLimit, cpu, mem)
+	return update, nil
 }
