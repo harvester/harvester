@@ -141,7 +141,7 @@ func (h *Handler) scaleResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInstan
 	if err != nil {
 		return err
 	} else if len(rqs) == 0 {
-		logrus.Debugf("scaleResourceQuotaWithVMI: can not found any default resource quota, skip updating namespace %s", vmi.Namespace)
+		logrus.Debugf("scaleResourceQuotaWithVMI: can't find any default resource quota, skip updating namespace %s", vmi.Namespace)
 		return nil
 	}
 
@@ -151,13 +151,14 @@ func (h *Handler) scaleResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInstan
 		return nil
 	}
 
+	// only update to rq annotation, do not change rq spec directly in this step
 	needUpdate, rqToUpdate, rl := rqutils.CalculateScaleResourceQuotaWithVMI(rqCpy, vmi)
 	if !needUpdate {
 		logrus.Debugf("scaleResourceQuotaWithVMI: no need to update resource quota, skip updating namespace %s and vm %s", vmi.Namespace, vmi.Name)
 		return nil
 	}
 
-	// Update resource quota
+	// Update migrating vm information to resource quota
 	if err := rqutils.UpdateMigratingVM(rqToUpdate, vmi.Name, rl); err != nil {
 		return err
 	}
@@ -194,29 +195,36 @@ func (h *Handler) restoreResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInst
 	if err != nil {
 		return err
 	} else if len(rqs) == 0 {
-		logrus.Debugf("restoreResourceQuotaWithVMI: can not found any default resource quota, skip updating namespace %s", vmi.Namespace)
+		logrus.Debugf("restoreResourceQuotaWithVMI: can't find any default resource quota, skip updating namespace %s", vmi.Namespace)
 		return nil
 	}
 
 	rqCpy := rqs[0].DeepCopy()
-	rl, err := rqutils.GetResourceListFromMigratingVM(rqCpy, vmi.Name)
-	if err != nil {
+	/*
+		rl, err := rqutils.GetResourceListFromMigratingVM(rqCpy, vmi.Name)
+		if err != nil {
+			return err
+		} else if rl == nil {
+			logrus.Debugf("restoreResourceQuotaWithVMI: can not found migrating vm %s, skip updating namespace %s", vmi.Name, vmi.Namespace)
+			return nil
+		}
+
+		needUpdate, rqToUpdate := rqutils.CalculateRestoreResourceQuotaWithVMI(rqCpy, vmi, rl)
+		if !needUpdate {
+			logrus.Debugf("restoreResourceQuotaWithVMI: no need to update resource quota, skip updating namespace %s and vm %s", vmi.Namespace, vmi.Name)
+			return nil
+		}
+
+		// Update resource quota
+		rqutils.RemoveMigratingVM(rqToUpdate, vmi.Name)
+	*/
+
+	// remove the annotation, then the rq controller will re-calculate the final value
+	if rqutils.RemoveMigratingVMFromRQAnnotation(rqCpy, vmi.Name) {
+		_, err = h.rqs.Update(rqCpy)
 		return err
-	} else if rl == nil {
-		logrus.Debugf("restoreResourceQuotaWithVMI: can not found migrating vm %s, skip updating namespace %s", vmi.Name, vmi.Namespace)
-		return nil
 	}
-
-	needUpdate, rqToUpdate := rqutils.CalculateRestoreResourceQuotaWithVMI(rqCpy, vmi, rl)
-	if !needUpdate {
-		logrus.Debugf("restoreResourceQuotaWithVMI: no need to update resource quota, skip updating namespace %s and vm %s", vmi.Namespace, vmi.Name)
-		return nil
-	}
-
-	// Update resource quota
-	rqutils.RemoveMigratingVM(rqToUpdate, vmi.Name)
-	_, err = h.rqs.Update(rqToUpdate)
-	return err
+	return nil
 }
 
 func isAbortRequest(vmim *kubevirtv1.VirtualMachineInstanceMigration) bool {

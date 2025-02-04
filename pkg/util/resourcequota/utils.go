@@ -35,11 +35,15 @@ func UpdateMigratingVM(rq *corev1.ResourceQuota, vmName string, rl corev1.Resour
 	return nil
 }
 
-func RemoveMigratingVM(rq *corev1.ResourceQuota, vmName string) {
+// remove the may existing VM Miration, return true if it exists
+func RemoveMigratingVMFromRQAnnotation(rq *corev1.ResourceQuota, vmName string) bool {
 	if rq.Annotations == nil {
-		return
+		return false
 	}
+	len1 := len(rq.Annotations)
 	delete(rq.Annotations, util.AnnotationMigratingPrefix+vmName)
+	len2 := len(rq.Annotations)
+	return len1 != len2
 }
 
 func ContainsMigratingVM(rq *corev1.ResourceQuota, vmName string) bool {
