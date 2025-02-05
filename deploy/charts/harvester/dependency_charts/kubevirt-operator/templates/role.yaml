@@ -43,22 +43,41 @@ rules:
   - patch
   - delete
 - apiGroups:
-  - route.openshift.io
+  - coordination.k8s.io
   resources:
-  - routes
+  - leases
   verbs:
-  - create
   - get
   - list
   - watch
-  - patch
   - delete
-- apiGroups:
-  - route.openshift.io
-  resources:
-  - routes/custom-host
-  verbs:
+  - update
   - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - list
+  - get
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - list
+  - get
+  - watch
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -71,3 +90,29 @@ rules:
   - update
   - create
   - patch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resourceNames:
+  - kubevirt-export-ca
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes
+  verbs:
+  - list
+  - get
+  - watch
