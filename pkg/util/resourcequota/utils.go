@@ -2,6 +2,7 @@ package resourcequota
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -80,7 +81,7 @@ func GetResourceListFromMigratingVMs(rq *corev1.ResourceQuota) (map[string]corev
 
 			var rl corev1.ResourceList
 			if err := json.Unmarshal([]byte(rq.Annotations[k]), &rl); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to unmarshal vm %v quantity %v %w", k, rq.Annotations[k], err)
 			}
 			vms[strings.TrimPrefix(k, util.AnnotationMigratingPrefix)] = rl
 		}
