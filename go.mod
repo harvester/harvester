@@ -49,9 +49,6 @@ replace (
 	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.30.3
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.30.3
 
-	kubevirt.io/api => kubevirt.io/api v1.3.0
-	kubevirt.io/client-go => kubevirt.io/client-go v1.3.0
-
 	// LH uses controller-runtime v0.19.0, and controller-runtime v0.19.0 uses k8s.io/xxx v0.31.
 	// However, LH only uses conversion of controller-runtime, and kubevirt only support k8s.io/xxx v0.30.
 	// So, we need to replace controller-runtime v0.19.0 to controller-runtime v0.18.4 to avoid kubevirt dependency conflict.
@@ -126,10 +123,10 @@ require (
 	k8s.io/kubectl v0.30.1
 	k8s.io/kubelet v0.26.13
 	k8s.io/utils v0.0.0-20240921022957-49e7df575cb6
-	kubevirt.io/api v1.1.1
-	kubevirt.io/client-go v1.1.1
+	kubevirt.io/api v1.3.1
+	kubevirt.io/client-go v1.3.1
 	kubevirt.io/containerized-data-importer-api v1.57.0-alpha1
-	kubevirt.io/kubevirt v1.3.0
+	kubevirt.io/kubevirt v1.3.1
 	sigs.k8s.io/cluster-api v1.7.3
 	sigs.k8s.io/controller-runtime v0.19.0
 	sigs.k8s.io/kind v0.14.0
