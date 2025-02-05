@@ -20,16 +20,8 @@ type Handler struct {
 var errSkipScaling = errors.New("skip scaling")
 
 func (h *Handler) OnResourceQuotaChanged(_ string, rq *corev1.ResourceQuota) (*corev1.ResourceQuota, error) {
-	if rq == nil || rq.DeletionTimestamp != nil || rq.Annotations == nil {
-		return rq, nil
-	}
-
 	// not a target rq
-	if rq.Labels == nil || rq.Labels[util.LabelManagementDefaultResourceQuota] != "true" {
-		return rq, nil
-	}
-
-	if rqutils.IsEmptyResourceQuota(rq) {
+	if rq == nil || rq.DeletionTimestamp != nil || rq.Annotations == nil || rq.Labels == nil || rq.Labels[util.LabelManagementDefaultResourceQuota] != "true" {
 		return rq, nil
 	}
 
@@ -50,9 +42,14 @@ func (h *Handler) OnResourceQuotaChanged(_ string, rq *corev1.ResourceQuota) (*c
 }
 
 func scaleResourceOnDemand(rq *corev1.ResourceQuota) (bool, error) {
-	update := false
 	// below data is only related to rq itself, if error happens and run reconciller, it will fall into error looping
-	carq := rq.Labels[util.CattleAnnotationResourceQuota]
+	update := false
+	if rqutils.IsEmptyResourceQuota(rq) {
+		logrus.Warnf("resourcequota %s/%s has 0 quota, skip scaling", rq.Namespace, rq.Name)
+		return update, errSkipScaling
+	}
+
+	carq, _ := rq.Annotations[util.CattleAnnotationResourceQuota]
 	// NamespaceResourceQuota
 	rqBase, err := rqutils.GetRancherNamespaceResourceQuotaFromRQAnnotations(rq)
 	if err != nil {
@@ -70,12 +67,12 @@ func scaleResourceOnDemand(rq *corev1.ResourceQuota) (bool, error) {
 		return update, errSkipScaling
 	}
 
-	cpu, mem, _, err := rqutils.GetVMIMResourcesFromRQAnnotation(rq)
+	cpuDelta, memDelta, _, err := rqutils.GetVMIMResourcesFromRQAnnotation(rq)
 	if err != nil {
-		logrus.Warnf("resourcequota %s/%s can't get valid Quantity values from rancher %s annotations %s, skip scaling, error %s", rq.Namespace, rq.Name, util.CattleAnnotationResourceQuota, carq, err.Error())
+		logrus.Warnf("resourcequota %s/%s can't get valid Quantity values from harvester vm annotations, skip scaling, error %s", rq.Namespace, rq.Name, err.Error())
 		return update, errSkipScaling
 	}
 
-	update = rqutils.CalculateNewResourceQuotaFromBaseDelta(rq, rCPULimit, rMemoryLimit, cpu, mem)
+	update = rqutils.CalculateNewResourceQuotaFromBaseDelta(rq, rCPULimit, rMemoryLimit, cpuDelta, memDelta)
 	return update, nil
 }
