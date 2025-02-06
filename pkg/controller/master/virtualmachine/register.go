@@ -47,6 +47,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		snapshotCache  = snapshotClient.Cache()
 		crClient       = management.ControllerRevisionFactory.Apps().V1().ControllerRevision()
 		crClientCache  = crClient.Cache()
+		settingCache   = management.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
 		recorder       = management.NewRecorder(vmControllerSetHaltIfInsufficientResourceQuotaControllerName, "", "")
 	)
 
@@ -63,9 +64,10 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		vmBackupCache:  vmBackupCache,
 		snapshotClient: snapshotClient,
 		snapshotCache:  snapshotCache,
+		settingCache:   settingCache,
 		recorder:       recorder,
 
-		vmrCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache),
+		vmrCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
 	}
 	var virtualMachineClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	virtualMachineClient.OnChange(ctx, vmControllerCreatePVCsFromAnnotationControllerName, vmCtrl.createPVCsFromAnnotation)
