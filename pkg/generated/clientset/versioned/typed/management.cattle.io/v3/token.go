@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // TokensGetter has a method to return a TokenInterface.
@@ -51,118 +50,18 @@ type TokenInterface interface {
 
 // tokens implements TokenInterface
 type tokens struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v3.Token, *v3.TokenList]
 }
 
 // newTokens returns a Tokens
 func newTokens(c *ManagementV3Client) *tokens {
 	return &tokens{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v3.Token, *v3.TokenList](
+			"tokens",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v3.Token { return &v3.Token{} },
+			func() *v3.TokenList { return &v3.TokenList{} }),
 	}
-}
-
-// Get takes name of the token, and returns the corresponding token object, and an error if there is any.
-func (c *tokens) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Token, err error) {
-	result = &v3.Token{}
-	err = c.client.Get().
-		Resource("tokens").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of Tokens that match those selectors.
-func (c *tokens) List(ctx context.Context, opts v1.ListOptions) (result *v3.TokenList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.TokenList{}
-	err = c.client.Get().
-		Resource("tokens").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested tokens.
-func (c *tokens) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("tokens").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a token and creates it.  Returns the server's representation of the token, and an error, if there is any.
-func (c *tokens) Create(ctx context.Context, token *v3.Token, opts v1.CreateOptions) (result *v3.Token, err error) {
-	result = &v3.Token{}
-	err = c.client.Post().
-		Resource("tokens").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(token).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a token and updates it. Returns the server's representation of the token, and an error, if there is any.
-func (c *tokens) Update(ctx context.Context, token *v3.Token, opts v1.UpdateOptions) (result *v3.Token, err error) {
-	result = &v3.Token{}
-	err = c.client.Put().
-		Resource("tokens").
-		Name(token.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(token).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the token and deletes it. Returns an error if one occurs.
-func (c *tokens) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("tokens").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *tokens) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("tokens").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched token.
-func (c *tokens) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Token, err error) {
-	result = &v3.Token{}
-	err = c.client.Patch(pt).
-		Resource("tokens").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

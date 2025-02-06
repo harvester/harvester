@@ -41,22 +41,24 @@ var snapshotsKind = v1beta2.SchemeGroupVersion.WithKind("Snapshot")
 
 // Get takes name of the snapshot, and returns the corresponding snapshot object, and an error if there is any.
 func (c *FakeSnapshots) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.Snapshot, err error) {
+	emptyResult := &v1beta2.Snapshot{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(snapshotsResource, c.ns, name), &v1beta2.Snapshot{})
+		Invokes(testing.NewGetActionWithOptions(snapshotsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Snapshot), err
 }
 
 // List takes label and field selectors, and returns the list of Snapshots that match those selectors.
 func (c *FakeSnapshots) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.SnapshotList, err error) {
+	emptyResult := &v1beta2.SnapshotList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(snapshotsResource, snapshotsKind, c.ns, opts), &v1beta2.SnapshotList{})
+		Invokes(testing.NewListActionWithOptions(snapshotsResource, snapshotsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeSnapshots) List(ctx context.Context, opts v1.ListOptions) (result *
 // Watch returns a watch.Interface that watches the requested snapshots.
 func (c *FakeSnapshots) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(snapshotsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(snapshotsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a snapshot and creates it.  Returns the server's representation of the snapshot, and an error, if there is any.
 func (c *FakeSnapshots) Create(ctx context.Context, snapshot *v1beta2.Snapshot, opts v1.CreateOptions) (result *v1beta2.Snapshot, err error) {
+	emptyResult := &v1beta2.Snapshot{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(snapshotsResource, c.ns, snapshot), &v1beta2.Snapshot{})
+		Invokes(testing.NewCreateActionWithOptions(snapshotsResource, c.ns, snapshot, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Snapshot), err
 }
 
 // Update takes the representation of a snapshot and updates it. Returns the server's representation of the snapshot, and an error, if there is any.
 func (c *FakeSnapshots) Update(ctx context.Context, snapshot *v1beta2.Snapshot, opts v1.UpdateOptions) (result *v1beta2.Snapshot, err error) {
+	emptyResult := &v1beta2.Snapshot{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(snapshotsResource, c.ns, snapshot), &v1beta2.Snapshot{})
+		Invokes(testing.NewUpdateActionWithOptions(snapshotsResource, c.ns, snapshot, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Snapshot), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeSnapshots) UpdateStatus(ctx context.Context, snapshot *v1beta2.Snapshot, opts v1.UpdateOptions) (*v1beta2.Snapshot, error) {
+func (c *FakeSnapshots) UpdateStatus(ctx context.Context, snapshot *v1beta2.Snapshot, opts v1.UpdateOptions) (result *v1beta2.Snapshot, err error) {
+	emptyResult := &v1beta2.Snapshot{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(snapshotsResource, "status", c.ns, snapshot), &v1beta2.Snapshot{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(snapshotsResource, "status", c.ns, snapshot, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Snapshot), err
 }
@@ -123,7 +128,7 @@ func (c *FakeSnapshots) Delete(ctx context.Context, name string, opts v1.DeleteO
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeSnapshots) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(snapshotsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(snapshotsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta2.SnapshotList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeSnapshots) DeleteCollection(ctx context.Context, opts v1.DeleteOpti
 
 // Patch applies the patch and returns the patched snapshot.
 func (c *FakeSnapshots) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.Snapshot, err error) {
+	emptyResult := &v1beta2.Snapshot{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(snapshotsResource, c.ns, name, pt, data, subresources...), &v1beta2.Snapshot{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(snapshotsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Snapshot), err
 }

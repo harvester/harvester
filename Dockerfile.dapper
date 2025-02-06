@@ -48,12 +48,12 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.63.4
 
 ## install controller-gen
-RUN GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0
+RUN GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.1
 ## install ginkgo
 RUN GO111MODULE=on go install github.com/onsi/ginkgo/v2/ginkgo@v2.1.4
 
 # install openapi-gen
-RUN  GO111MODULE=on go install k8s.io/code-generator/cmd/openapi-gen@v0.23.7
+RUN  GO111MODULE=on go install k8s.io/code-generator/cmd/openapi-gen@v0.29.13
 
 # install kind
 RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.14.0/kind-linux-amd64 && chmod +x /usr/bin/kind

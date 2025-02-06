@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // OIDCProvidersGetter has a method to return a OIDCProviderInterface.
@@ -51,118 +50,18 @@ type OIDCProviderInterface interface {
 
 // oIDCProviders implements OIDCProviderInterface
 type oIDCProviders struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v3.OIDCProvider, *v3.OIDCProviderList]
 }
 
 // newOIDCProviders returns a OIDCProviders
 func newOIDCProviders(c *ManagementV3Client) *oIDCProviders {
 	return &oIDCProviders{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v3.OIDCProvider, *v3.OIDCProviderList](
+			"oidcproviders",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v3.OIDCProvider { return &v3.OIDCProvider{} },
+			func() *v3.OIDCProviderList { return &v3.OIDCProviderList{} }),
 	}
-}
-
-// Get takes name of the oIDCProvider, and returns the corresponding oIDCProvider object, and an error if there is any.
-func (c *oIDCProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.OIDCProvider, err error) {
-	result = &v3.OIDCProvider{}
-	err = c.client.Get().
-		Resource("oidcproviders").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of OIDCProviders that match those selectors.
-func (c *oIDCProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.OIDCProviderList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.OIDCProviderList{}
-	err = c.client.Get().
-		Resource("oidcproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested oIDCProviders.
-func (c *oIDCProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("oidcproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a oIDCProvider and creates it.  Returns the server's representation of the oIDCProvider, and an error, if there is any.
-func (c *oIDCProviders) Create(ctx context.Context, oIDCProvider *v3.OIDCProvider, opts v1.CreateOptions) (result *v3.OIDCProvider, err error) {
-	result = &v3.OIDCProvider{}
-	err = c.client.Post().
-		Resource("oidcproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(oIDCProvider).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a oIDCProvider and updates it. Returns the server's representation of the oIDCProvider, and an error, if there is any.
-func (c *oIDCProviders) Update(ctx context.Context, oIDCProvider *v3.OIDCProvider, opts v1.UpdateOptions) (result *v3.OIDCProvider, err error) {
-	result = &v3.OIDCProvider{}
-	err = c.client.Put().
-		Resource("oidcproviders").
-		Name(oIDCProvider.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(oIDCProvider).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the oIDCProvider and deletes it. Returns an error if one occurs.
-func (c *oIDCProviders) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("oidcproviders").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *oIDCProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("oidcproviders").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched oIDCProvider.
-func (c *oIDCProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.OIDCProvider, err error) {
-	result = &v3.OIDCProvider{}
-	err = c.client.Patch(pt).
-		Resource("oidcproviders").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

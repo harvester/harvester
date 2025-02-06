@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // CatalogTemplateVersionsGetter has a method to return a CatalogTemplateVersionInterface.
@@ -40,6 +39,7 @@ type CatalogTemplateVersionsGetter interface {
 type CatalogTemplateVersionInterface interface {
 	Create(ctx context.Context, catalogTemplateVersion *v3.CatalogTemplateVersion, opts v1.CreateOptions) (*v3.CatalogTemplateVersion, error)
 	Update(ctx context.Context, catalogTemplateVersion *v3.CatalogTemplateVersion, opts v1.UpdateOptions) (*v3.CatalogTemplateVersion, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 	UpdateStatus(ctx context.Context, catalogTemplateVersion *v3.CatalogTemplateVersion, opts v1.UpdateOptions) (*v3.CatalogTemplateVersion, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -52,144 +52,18 @@ type CatalogTemplateVersionInterface interface {
 
 // catalogTemplateVersions implements CatalogTemplateVersionInterface
 type catalogTemplateVersions struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*v3.CatalogTemplateVersion, *v3.CatalogTemplateVersionList]
 }
 
 // newCatalogTemplateVersions returns a CatalogTemplateVersions
 func newCatalogTemplateVersions(c *ManagementV3Client, namespace string) *catalogTemplateVersions {
 	return &catalogTemplateVersions{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*v3.CatalogTemplateVersion, *v3.CatalogTemplateVersionList](
+			"catalogtemplateversions",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *v3.CatalogTemplateVersion { return &v3.CatalogTemplateVersion{} },
+			func() *v3.CatalogTemplateVersionList { return &v3.CatalogTemplateVersionList{} }),
 	}
-}
-
-// Get takes name of the catalogTemplateVersion, and returns the corresponding catalogTemplateVersion object, and an error if there is any.
-func (c *catalogTemplateVersions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.CatalogTemplateVersion, err error) {
-	result = &v3.CatalogTemplateVersion{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("catalogtemplateversions").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of CatalogTemplateVersions that match those selectors.
-func (c *catalogTemplateVersions) List(ctx context.Context, opts v1.ListOptions) (result *v3.CatalogTemplateVersionList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.CatalogTemplateVersionList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("catalogtemplateversions").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested catalogTemplateVersions.
-func (c *catalogTemplateVersions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("catalogtemplateversions").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a catalogTemplateVersion and creates it.  Returns the server's representation of the catalogTemplateVersion, and an error, if there is any.
-func (c *catalogTemplateVersions) Create(ctx context.Context, catalogTemplateVersion *v3.CatalogTemplateVersion, opts v1.CreateOptions) (result *v3.CatalogTemplateVersion, err error) {
-	result = &v3.CatalogTemplateVersion{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("catalogtemplateversions").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(catalogTemplateVersion).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a catalogTemplateVersion and updates it. Returns the server's representation of the catalogTemplateVersion, and an error, if there is any.
-func (c *catalogTemplateVersions) Update(ctx context.Context, catalogTemplateVersion *v3.CatalogTemplateVersion, opts v1.UpdateOptions) (result *v3.CatalogTemplateVersion, err error) {
-	result = &v3.CatalogTemplateVersion{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("catalogtemplateversions").
-		Name(catalogTemplateVersion.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(catalogTemplateVersion).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *catalogTemplateVersions) UpdateStatus(ctx context.Context, catalogTemplateVersion *v3.CatalogTemplateVersion, opts v1.UpdateOptions) (result *v3.CatalogTemplateVersion, err error) {
-	result = &v3.CatalogTemplateVersion{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("catalogtemplateversions").
-		Name(catalogTemplateVersion.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(catalogTemplateVersion).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the catalogTemplateVersion and deletes it. Returns an error if one occurs.
-func (c *catalogTemplateVersions) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("catalogtemplateversions").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *catalogTemplateVersions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("catalogtemplateversions").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched catalogTemplateVersion.
-func (c *catalogTemplateVersions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.CatalogTemplateVersion, err error) {
-	result = &v3.CatalogTemplateVersion{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("catalogtemplateversions").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

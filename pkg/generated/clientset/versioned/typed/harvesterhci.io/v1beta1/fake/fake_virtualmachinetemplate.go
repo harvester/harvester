@@ -41,22 +41,24 @@ var virtualmachinetemplatesKind = v1beta1.SchemeGroupVersion.WithKind("VirtualMa
 
 // Get takes name of the virtualMachineTemplate, and returns the corresponding virtualMachineTemplate object, and an error if there is any.
 func (c *FakeVirtualMachineTemplates) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.VirtualMachineTemplate, err error) {
+	emptyResult := &v1beta1.VirtualMachineTemplate{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(virtualmachinetemplatesResource, c.ns, name), &v1beta1.VirtualMachineTemplate{})
+		Invokes(testing.NewGetActionWithOptions(virtualmachinetemplatesResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VirtualMachineTemplate), err
 }
 
 // List takes label and field selectors, and returns the list of VirtualMachineTemplates that match those selectors.
 func (c *FakeVirtualMachineTemplates) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.VirtualMachineTemplateList, err error) {
+	emptyResult := &v1beta1.VirtualMachineTemplateList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(virtualmachinetemplatesResource, virtualmachinetemplatesKind, c.ns, opts), &v1beta1.VirtualMachineTemplateList{})
+		Invokes(testing.NewListActionWithOptions(virtualmachinetemplatesResource, virtualmachinetemplatesKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeVirtualMachineTemplates) List(ctx context.Context, opts v1.ListOpti
 // Watch returns a watch.Interface that watches the requested virtualMachineTemplates.
 func (c *FakeVirtualMachineTemplates) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(virtualmachinetemplatesResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(virtualmachinetemplatesResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a virtualMachineTemplate and creates it.  Returns the server's representation of the virtualMachineTemplate, and an error, if there is any.
 func (c *FakeVirtualMachineTemplates) Create(ctx context.Context, virtualMachineTemplate *v1beta1.VirtualMachineTemplate, opts v1.CreateOptions) (result *v1beta1.VirtualMachineTemplate, err error) {
+	emptyResult := &v1beta1.VirtualMachineTemplate{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(virtualmachinetemplatesResource, c.ns, virtualMachineTemplate), &v1beta1.VirtualMachineTemplate{})
+		Invokes(testing.NewCreateActionWithOptions(virtualmachinetemplatesResource, c.ns, virtualMachineTemplate, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VirtualMachineTemplate), err
 }
 
 // Update takes the representation of a virtualMachineTemplate and updates it. Returns the server's representation of the virtualMachineTemplate, and an error, if there is any.
 func (c *FakeVirtualMachineTemplates) Update(ctx context.Context, virtualMachineTemplate *v1beta1.VirtualMachineTemplate, opts v1.UpdateOptions) (result *v1beta1.VirtualMachineTemplate, err error) {
+	emptyResult := &v1beta1.VirtualMachineTemplate{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(virtualmachinetemplatesResource, c.ns, virtualMachineTemplate), &v1beta1.VirtualMachineTemplate{})
+		Invokes(testing.NewUpdateActionWithOptions(virtualmachinetemplatesResource, c.ns, virtualMachineTemplate, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VirtualMachineTemplate), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeVirtualMachineTemplates) UpdateStatus(ctx context.Context, virtualMachineTemplate *v1beta1.VirtualMachineTemplate, opts v1.UpdateOptions) (*v1beta1.VirtualMachineTemplate, error) {
+func (c *FakeVirtualMachineTemplates) UpdateStatus(ctx context.Context, virtualMachineTemplate *v1beta1.VirtualMachineTemplate, opts v1.UpdateOptions) (result *v1beta1.VirtualMachineTemplate, err error) {
+	emptyResult := &v1beta1.VirtualMachineTemplate{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(virtualmachinetemplatesResource, "status", c.ns, virtualMachineTemplate), &v1beta1.VirtualMachineTemplate{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(virtualmachinetemplatesResource, "status", c.ns, virtualMachineTemplate, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VirtualMachineTemplate), err
 }
@@ -123,7 +128,7 @@ func (c *FakeVirtualMachineTemplates) Delete(ctx context.Context, name string, o
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeVirtualMachineTemplates) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(virtualmachinetemplatesResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(virtualmachinetemplatesResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.VirtualMachineTemplateList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeVirtualMachineTemplates) DeleteCollection(ctx context.Context, opts
 
 // Patch applies the patch and returns the patched virtualMachineTemplate.
 func (c *FakeVirtualMachineTemplates) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VirtualMachineTemplate, err error) {
+	emptyResult := &v1beta1.VirtualMachineTemplate{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(virtualmachinetemplatesResource, c.ns, name, pt, data, subresources...), &v1beta1.VirtualMachineTemplate{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(virtualmachinetemplatesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VirtualMachineTemplate), err
 }

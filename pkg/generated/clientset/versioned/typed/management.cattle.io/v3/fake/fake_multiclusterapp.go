@@ -41,22 +41,24 @@ var multiclusterappsKind = v3.SchemeGroupVersion.WithKind("MultiClusterApp")
 
 // Get takes name of the multiClusterApp, and returns the corresponding multiClusterApp object, and an error if there is any.
 func (c *FakeMultiClusterApps) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.MultiClusterApp, err error) {
+	emptyResult := &v3.MultiClusterApp{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(multiclusterappsResource, c.ns, name), &v3.MultiClusterApp{})
+		Invokes(testing.NewGetActionWithOptions(multiclusterappsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.MultiClusterApp), err
 }
 
 // List takes label and field selectors, and returns the list of MultiClusterApps that match those selectors.
 func (c *FakeMultiClusterApps) List(ctx context.Context, opts v1.ListOptions) (result *v3.MultiClusterAppList, err error) {
+	emptyResult := &v3.MultiClusterAppList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(multiclusterappsResource, multiclusterappsKind, c.ns, opts), &v3.MultiClusterAppList{})
+		Invokes(testing.NewListActionWithOptions(multiclusterappsResource, multiclusterappsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeMultiClusterApps) List(ctx context.Context, opts v1.ListOptions) (r
 // Watch returns a watch.Interface that watches the requested multiClusterApps.
 func (c *FakeMultiClusterApps) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(multiclusterappsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(multiclusterappsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a multiClusterApp and creates it.  Returns the server's representation of the multiClusterApp, and an error, if there is any.
 func (c *FakeMultiClusterApps) Create(ctx context.Context, multiClusterApp *v3.MultiClusterApp, opts v1.CreateOptions) (result *v3.MultiClusterApp, err error) {
+	emptyResult := &v3.MultiClusterApp{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(multiclusterappsResource, c.ns, multiClusterApp), &v3.MultiClusterApp{})
+		Invokes(testing.NewCreateActionWithOptions(multiclusterappsResource, c.ns, multiClusterApp, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.MultiClusterApp), err
 }
 
 // Update takes the representation of a multiClusterApp and updates it. Returns the server's representation of the multiClusterApp, and an error, if there is any.
 func (c *FakeMultiClusterApps) Update(ctx context.Context, multiClusterApp *v3.MultiClusterApp, opts v1.UpdateOptions) (result *v3.MultiClusterApp, err error) {
+	emptyResult := &v3.MultiClusterApp{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(multiclusterappsResource, c.ns, multiClusterApp), &v3.MultiClusterApp{})
+		Invokes(testing.NewUpdateActionWithOptions(multiclusterappsResource, c.ns, multiClusterApp, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.MultiClusterApp), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeMultiClusterApps) UpdateStatus(ctx context.Context, multiClusterApp *v3.MultiClusterApp, opts v1.UpdateOptions) (*v3.MultiClusterApp, error) {
+func (c *FakeMultiClusterApps) UpdateStatus(ctx context.Context, multiClusterApp *v3.MultiClusterApp, opts v1.UpdateOptions) (result *v3.MultiClusterApp, err error) {
+	emptyResult := &v3.MultiClusterApp{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(multiclusterappsResource, "status", c.ns, multiClusterApp), &v3.MultiClusterApp{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(multiclusterappsResource, "status", c.ns, multiClusterApp, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.MultiClusterApp), err
 }
@@ -123,7 +128,7 @@ func (c *FakeMultiClusterApps) Delete(ctx context.Context, name string, opts v1.
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeMultiClusterApps) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(multiclusterappsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(multiclusterappsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.MultiClusterAppList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeMultiClusterApps) DeleteCollection(ctx context.Context, opts v1.Del
 
 // Patch applies the patch and returns the patched multiClusterApp.
 func (c *FakeMultiClusterApps) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.MultiClusterApp, err error) {
+	emptyResult := &v3.MultiClusterApp{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(multiclusterappsResource, c.ns, name, pt, data, subresources...), &v3.MultiClusterApp{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(multiclusterappsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.MultiClusterApp), err
 }

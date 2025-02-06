@@ -20,14 +20,13 @@ package v1beta1
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // LoggingsGetter has a method to return a LoggingInterface.
@@ -40,6 +39,7 @@ type LoggingsGetter interface {
 type LoggingInterface interface {
 	Create(ctx context.Context, logging *v1beta1.Logging, opts v1.CreateOptions) (*v1beta1.Logging, error)
 	Update(ctx context.Context, logging *v1beta1.Logging, opts v1.UpdateOptions) (*v1beta1.Logging, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 	UpdateStatus(ctx context.Context, logging *v1beta1.Logging, opts v1.UpdateOptions) (*v1beta1.Logging, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -52,133 +52,18 @@ type LoggingInterface interface {
 
 // loggings implements LoggingInterface
 type loggings struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v1beta1.Logging, *v1beta1.LoggingList]
 }
 
 // newLoggings returns a Loggings
 func newLoggings(c *LoggingV1beta1Client) *loggings {
 	return &loggings{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v1beta1.Logging, *v1beta1.LoggingList](
+			"loggings",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v1beta1.Logging { return &v1beta1.Logging{} },
+			func() *v1beta1.LoggingList { return &v1beta1.LoggingList{} }),
 	}
-}
-
-// Get takes name of the logging, and returns the corresponding logging object, and an error if there is any.
-func (c *loggings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Logging, err error) {
-	result = &v1beta1.Logging{}
-	err = c.client.Get().
-		Resource("loggings").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of Loggings that match those selectors.
-func (c *loggings) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.LoggingList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1beta1.LoggingList{}
-	err = c.client.Get().
-		Resource("loggings").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested loggings.
-func (c *loggings) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("loggings").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a logging and creates it.  Returns the server's representation of the logging, and an error, if there is any.
-func (c *loggings) Create(ctx context.Context, logging *v1beta1.Logging, opts v1.CreateOptions) (result *v1beta1.Logging, err error) {
-	result = &v1beta1.Logging{}
-	err = c.client.Post().
-		Resource("loggings").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(logging).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a logging and updates it. Returns the server's representation of the logging, and an error, if there is any.
-func (c *loggings) Update(ctx context.Context, logging *v1beta1.Logging, opts v1.UpdateOptions) (result *v1beta1.Logging, err error) {
-	result = &v1beta1.Logging{}
-	err = c.client.Put().
-		Resource("loggings").
-		Name(logging.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(logging).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *loggings) UpdateStatus(ctx context.Context, logging *v1beta1.Logging, opts v1.UpdateOptions) (result *v1beta1.Logging, err error) {
-	result = &v1beta1.Logging{}
-	err = c.client.Put().
-		Resource("loggings").
-		Name(logging.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(logging).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the logging and deletes it. Returns an error if one occurs.
-func (c *loggings) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("loggings").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *loggings) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("loggings").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched logging.
-func (c *loggings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Logging, err error) {
-	result = &v1beta1.Logging{}
-	err = c.client.Patch(pt).
-		Resource("loggings").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

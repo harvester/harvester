@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // SettingsGetter has a method to return a SettingInterface.
@@ -51,118 +50,18 @@ type SettingInterface interface {
 
 // settings implements SettingInterface
 type settings struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v3.Setting, *v3.SettingList]
 }
 
 // newSettings returns a Settings
 func newSettings(c *ManagementV3Client) *settings {
 	return &settings{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v3.Setting, *v3.SettingList](
+			"settings",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v3.Setting { return &v3.Setting{} },
+			func() *v3.SettingList { return &v3.SettingList{} }),
 	}
-}
-
-// Get takes name of the setting, and returns the corresponding setting object, and an error if there is any.
-func (c *settings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Setting, err error) {
-	result = &v3.Setting{}
-	err = c.client.Get().
-		Resource("settings").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of Settings that match those selectors.
-func (c *settings) List(ctx context.Context, opts v1.ListOptions) (result *v3.SettingList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.SettingList{}
-	err = c.client.Get().
-		Resource("settings").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested settings.
-func (c *settings) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("settings").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a setting and creates it.  Returns the server's representation of the setting, and an error, if there is any.
-func (c *settings) Create(ctx context.Context, setting *v3.Setting, opts v1.CreateOptions) (result *v3.Setting, err error) {
-	result = &v3.Setting{}
-	err = c.client.Post().
-		Resource("settings").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(setting).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a setting and updates it. Returns the server's representation of the setting, and an error, if there is any.
-func (c *settings) Update(ctx context.Context, setting *v3.Setting, opts v1.UpdateOptions) (result *v3.Setting, err error) {
-	result = &v3.Setting{}
-	err = c.client.Put().
-		Resource("settings").
-		Name(setting.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(setting).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the setting and deletes it. Returns an error if one occurs.
-func (c *settings) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("settings").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *settings) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("settings").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched setting.
-func (c *settings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Setting, err error) {
-	result = &v3.Setting{}
-	err = c.client.Patch(pt).
-		Resource("settings").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

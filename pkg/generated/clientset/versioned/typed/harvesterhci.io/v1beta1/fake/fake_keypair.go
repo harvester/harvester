@@ -41,22 +41,24 @@ var keypairsKind = v1beta1.SchemeGroupVersion.WithKind("KeyPair")
 
 // Get takes name of the keyPair, and returns the corresponding keyPair object, and an error if there is any.
 func (c *FakeKeyPairs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.KeyPair, err error) {
+	emptyResult := &v1beta1.KeyPair{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(keypairsResource, c.ns, name), &v1beta1.KeyPair{})
+		Invokes(testing.NewGetActionWithOptions(keypairsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.KeyPair), err
 }
 
 // List takes label and field selectors, and returns the list of KeyPairs that match those selectors.
 func (c *FakeKeyPairs) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.KeyPairList, err error) {
+	emptyResult := &v1beta1.KeyPairList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(keypairsResource, keypairsKind, c.ns, opts), &v1beta1.KeyPairList{})
+		Invokes(testing.NewListActionWithOptions(keypairsResource, keypairsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeKeyPairs) List(ctx context.Context, opts v1.ListOptions) (result *v
 // Watch returns a watch.Interface that watches the requested keyPairs.
 func (c *FakeKeyPairs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(keypairsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(keypairsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a keyPair and creates it.  Returns the server's representation of the keyPair, and an error, if there is any.
 func (c *FakeKeyPairs) Create(ctx context.Context, keyPair *v1beta1.KeyPair, opts v1.CreateOptions) (result *v1beta1.KeyPair, err error) {
+	emptyResult := &v1beta1.KeyPair{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(keypairsResource, c.ns, keyPair), &v1beta1.KeyPair{})
+		Invokes(testing.NewCreateActionWithOptions(keypairsResource, c.ns, keyPair, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.KeyPair), err
 }
 
 // Update takes the representation of a keyPair and updates it. Returns the server's representation of the keyPair, and an error, if there is any.
 func (c *FakeKeyPairs) Update(ctx context.Context, keyPair *v1beta1.KeyPair, opts v1.UpdateOptions) (result *v1beta1.KeyPair, err error) {
+	emptyResult := &v1beta1.KeyPair{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(keypairsResource, c.ns, keyPair), &v1beta1.KeyPair{})
+		Invokes(testing.NewUpdateActionWithOptions(keypairsResource, c.ns, keyPair, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.KeyPair), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeKeyPairs) UpdateStatus(ctx context.Context, keyPair *v1beta1.KeyPair, opts v1.UpdateOptions) (*v1beta1.KeyPair, error) {
+func (c *FakeKeyPairs) UpdateStatus(ctx context.Context, keyPair *v1beta1.KeyPair, opts v1.UpdateOptions) (result *v1beta1.KeyPair, err error) {
+	emptyResult := &v1beta1.KeyPair{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(keypairsResource, "status", c.ns, keyPair), &v1beta1.KeyPair{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(keypairsResource, "status", c.ns, keyPair, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.KeyPair), err
 }
@@ -123,7 +128,7 @@ func (c *FakeKeyPairs) Delete(ctx context.Context, name string, opts v1.DeleteOp
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeKeyPairs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(keypairsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(keypairsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.KeyPairList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeKeyPairs) DeleteCollection(ctx context.Context, opts v1.DeleteOptio
 
 // Patch applies the patch and returns the patched keyPair.
 func (c *FakeKeyPairs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.KeyPair, err error) {
+	emptyResult := &v1beta1.KeyPair{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(keypairsResource, c.ns, name, pt, data, subresources...), &v1beta1.KeyPair{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(keypairsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.KeyPair), err
 }

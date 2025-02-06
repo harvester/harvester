@@ -40,20 +40,22 @@ var kontainerdriversKind = v3.SchemeGroupVersion.WithKind("KontainerDriver")
 
 // Get takes name of the kontainerDriver, and returns the corresponding kontainerDriver object, and an error if there is any.
 func (c *FakeKontainerDrivers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.KontainerDriver, err error) {
+	emptyResult := &v3.KontainerDriver{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(kontainerdriversResource, name), &v3.KontainerDriver{})
+		Invokes(testing.NewRootGetActionWithOptions(kontainerdriversResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.KontainerDriver), err
 }
 
 // List takes label and field selectors, and returns the list of KontainerDrivers that match those selectors.
 func (c *FakeKontainerDrivers) List(ctx context.Context, opts v1.ListOptions) (result *v3.KontainerDriverList, err error) {
+	emptyResult := &v3.KontainerDriverList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(kontainerdriversResource, kontainerdriversKind, opts), &v3.KontainerDriverList{})
+		Invokes(testing.NewRootListActionWithOptions(kontainerdriversResource, kontainerdriversKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,36 +74,39 @@ func (c *FakeKontainerDrivers) List(ctx context.Context, opts v1.ListOptions) (r
 // Watch returns a watch.Interface that watches the requested kontainerDrivers.
 func (c *FakeKontainerDrivers) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(kontainerdriversResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(kontainerdriversResource, opts))
 }
 
 // Create takes the representation of a kontainerDriver and creates it.  Returns the server's representation of the kontainerDriver, and an error, if there is any.
 func (c *FakeKontainerDrivers) Create(ctx context.Context, kontainerDriver *v3.KontainerDriver, opts v1.CreateOptions) (result *v3.KontainerDriver, err error) {
+	emptyResult := &v3.KontainerDriver{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(kontainerdriversResource, kontainerDriver), &v3.KontainerDriver{})
+		Invokes(testing.NewRootCreateActionWithOptions(kontainerdriversResource, kontainerDriver, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.KontainerDriver), err
 }
 
 // Update takes the representation of a kontainerDriver and updates it. Returns the server's representation of the kontainerDriver, and an error, if there is any.
 func (c *FakeKontainerDrivers) Update(ctx context.Context, kontainerDriver *v3.KontainerDriver, opts v1.UpdateOptions) (result *v3.KontainerDriver, err error) {
+	emptyResult := &v3.KontainerDriver{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(kontainerdriversResource, kontainerDriver), &v3.KontainerDriver{})
+		Invokes(testing.NewRootUpdateActionWithOptions(kontainerdriversResource, kontainerDriver, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.KontainerDriver), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeKontainerDrivers) UpdateStatus(ctx context.Context, kontainerDriver *v3.KontainerDriver, opts v1.UpdateOptions) (*v3.KontainerDriver, error) {
+func (c *FakeKontainerDrivers) UpdateStatus(ctx context.Context, kontainerDriver *v3.KontainerDriver, opts v1.UpdateOptions) (result *v3.KontainerDriver, err error) {
+	emptyResult := &v3.KontainerDriver{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(kontainerdriversResource, "status", kontainerDriver), &v3.KontainerDriver{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(kontainerdriversResource, "status", kontainerDriver, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.KontainerDriver), err
 }
@@ -115,7 +120,7 @@ func (c *FakeKontainerDrivers) Delete(ctx context.Context, name string, opts v1.
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeKontainerDrivers) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(kontainerdriversResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(kontainerdriversResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.KontainerDriverList{})
 	return err
@@ -123,10 +128,11 @@ func (c *FakeKontainerDrivers) DeleteCollection(ctx context.Context, opts v1.Del
 
 // Patch applies the patch and returns the patched kontainerDriver.
 func (c *FakeKontainerDrivers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.KontainerDriver, err error) {
+	emptyResult := &v3.KontainerDriver{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(kontainerdriversResource, name, pt, data, subresources...), &v3.KontainerDriver{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(kontainerdriversResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.KontainerDriver), err
 }

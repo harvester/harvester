@@ -41,22 +41,24 @@ var virtualmachineinstancemigrationsKind = v1.SchemeGroupVersion.WithKind("Virtu
 
 // Get takes name of the virtualMachineInstanceMigration, and returns the corresponding virtualMachineInstanceMigration object, and an error if there is any.
 func (c *FakeVirtualMachineInstanceMigrations) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.VirtualMachineInstanceMigration, err error) {
+	emptyResult := &v1.VirtualMachineInstanceMigration{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(virtualmachineinstancemigrationsResource, c.ns, name), &v1.VirtualMachineInstanceMigration{})
+		Invokes(testing.NewGetActionWithOptions(virtualmachineinstancemigrationsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VirtualMachineInstanceMigration), err
 }
 
 // List takes label and field selectors, and returns the list of VirtualMachineInstanceMigrations that match those selectors.
 func (c *FakeVirtualMachineInstanceMigrations) List(ctx context.Context, opts metav1.ListOptions) (result *v1.VirtualMachineInstanceMigrationList, err error) {
+	emptyResult := &v1.VirtualMachineInstanceMigrationList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(virtualmachineinstancemigrationsResource, virtualmachineinstancemigrationsKind, c.ns, opts), &v1.VirtualMachineInstanceMigrationList{})
+		Invokes(testing.NewListActionWithOptions(virtualmachineinstancemigrationsResource, virtualmachineinstancemigrationsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeVirtualMachineInstanceMigrations) List(ctx context.Context, opts me
 // Watch returns a watch.Interface that watches the requested virtualMachineInstanceMigrations.
 func (c *FakeVirtualMachineInstanceMigrations) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(virtualmachineinstancemigrationsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(virtualmachineinstancemigrationsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a virtualMachineInstanceMigration and creates it.  Returns the server's representation of the virtualMachineInstanceMigration, and an error, if there is any.
 func (c *FakeVirtualMachineInstanceMigrations) Create(ctx context.Context, virtualMachineInstanceMigration *v1.VirtualMachineInstanceMigration, opts metav1.CreateOptions) (result *v1.VirtualMachineInstanceMigration, err error) {
+	emptyResult := &v1.VirtualMachineInstanceMigration{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(virtualmachineinstancemigrationsResource, c.ns, virtualMachineInstanceMigration), &v1.VirtualMachineInstanceMigration{})
+		Invokes(testing.NewCreateActionWithOptions(virtualmachineinstancemigrationsResource, c.ns, virtualMachineInstanceMigration, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VirtualMachineInstanceMigration), err
 }
 
 // Update takes the representation of a virtualMachineInstanceMigration and updates it. Returns the server's representation of the virtualMachineInstanceMigration, and an error, if there is any.
 func (c *FakeVirtualMachineInstanceMigrations) Update(ctx context.Context, virtualMachineInstanceMigration *v1.VirtualMachineInstanceMigration, opts metav1.UpdateOptions) (result *v1.VirtualMachineInstanceMigration, err error) {
+	emptyResult := &v1.VirtualMachineInstanceMigration{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(virtualmachineinstancemigrationsResource, c.ns, virtualMachineInstanceMigration), &v1.VirtualMachineInstanceMigration{})
+		Invokes(testing.NewUpdateActionWithOptions(virtualmachineinstancemigrationsResource, c.ns, virtualMachineInstanceMigration, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VirtualMachineInstanceMigration), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeVirtualMachineInstanceMigrations) UpdateStatus(ctx context.Context, virtualMachineInstanceMigration *v1.VirtualMachineInstanceMigration, opts metav1.UpdateOptions) (*v1.VirtualMachineInstanceMigration, error) {
+func (c *FakeVirtualMachineInstanceMigrations) UpdateStatus(ctx context.Context, virtualMachineInstanceMigration *v1.VirtualMachineInstanceMigration, opts metav1.UpdateOptions) (result *v1.VirtualMachineInstanceMigration, err error) {
+	emptyResult := &v1.VirtualMachineInstanceMigration{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(virtualmachineinstancemigrationsResource, "status", c.ns, virtualMachineInstanceMigration), &v1.VirtualMachineInstanceMigration{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(virtualmachineinstancemigrationsResource, "status", c.ns, virtualMachineInstanceMigration, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VirtualMachineInstanceMigration), err
 }
@@ -123,7 +128,7 @@ func (c *FakeVirtualMachineInstanceMigrations) Delete(ctx context.Context, name 
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeVirtualMachineInstanceMigrations) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(virtualmachineinstancemigrationsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(virtualmachineinstancemigrationsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1.VirtualMachineInstanceMigrationList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeVirtualMachineInstanceMigrations) DeleteCollection(ctx context.Cont
 
 // Patch applies the patch and returns the patched virtualMachineInstanceMigration.
 func (c *FakeVirtualMachineInstanceMigrations) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.VirtualMachineInstanceMigration, err error) {
+	emptyResult := &v1.VirtualMachineInstanceMigration{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(virtualmachineinstancemigrationsResource, c.ns, name, pt, data, subresources...), &v1.VirtualMachineInstanceMigration{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(virtualmachineinstancemigrationsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VirtualMachineInstanceMigration), err
 }
