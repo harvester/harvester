@@ -38,6 +38,7 @@ var (
 		migrationMetrics,
 		perfscaleMetrics,
 		vmiMetrics,
+		vmSnapshotMetrics,
 	}
 
 	vmInformer                  cache.SharedIndexInformer
@@ -86,6 +87,14 @@ func SetupMetrics(
 		vmiStatsCollector,
 		vmStatsCollector,
 	)
+}
+
+func RegisterLeaderMetrics() error {
+	if err := operatormetrics.RegisterMetrics(leaderMetrics); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func UpdateVMIMigrationInformer(informer cache.SharedIndexInformer) {

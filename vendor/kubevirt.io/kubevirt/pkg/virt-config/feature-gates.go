@@ -28,11 +28,9 @@ import "kubevirt.io/kubevirt/pkg/virt-config/deprecation"
 const (
 	ExpandDisksGate       = "ExpandDisks"
 	CPUManager            = "CPUManager"
-	NUMAFeatureGate       = "NUMA"
 	IgnitionGate          = "ExperimentalIgnitionSupport"
 	HypervStrictCheckGate = "HypervStrictCheck"
 	SidecarGate           = "Sidecar"
-	GPUGate               = "GPU"
 	HostDevicesGate       = "HostDevices"
 	SnapshotGate          = "Snapshot"
 	VMExportGate          = "VMExport"
@@ -44,8 +42,6 @@ const (
 	Root                       = "Root"
 	ClusterProfiler            = "ClusterProfiler"
 	WorkloadEncryptionSEV      = "WorkloadEncryptionSEV"
-	// DockerSELinuxMCSWorkaround sets the SELinux level of all the non-compute virt-launcher containers to "s0".
-	DockerSELinuxMCSWorkaround = "DockerSELinuxMCSWorkaround"
 	VSOCKGate                  = "VSOCK"
 	// DisableCustomSELinuxPolicy disables the installation of the custom SELinux policy for virt-launcher
 	DisableCustomSELinuxPolicy = "DisableCustomSELinuxPolicy"
@@ -55,10 +51,6 @@ const (
 	// DisableMediatedDevicesHandling disables the handling of mediated
 	// devices, its creation and deletion
 	DisableMediatedDevicesHandling = "DisableMDEVConfiguration"
-	// HotplugNetworkIfacesGate enables the virtio network interface hotplug feature
-	// Alpha: v1.1.0
-	// Beta: v1.3.0
-	HotplugNetworkIfacesGate = "HotplugNICs"
 	// PersistentReservation enables the use of the SCSI persistent reservation with the pr-helper daemon
 	PersistentReservation = "PersistentReservation"
 	// VMPersistentState enables persisting backend state files of VMs, such as the contents of the vTPM
@@ -66,19 +58,13 @@ const (
 	MultiArchitecture = "MultiArchitecture"
 	// VMLiveUpdateFeaturesGate allows updating certain VM fields, such as CPU sockets to enable hot-plug functionality.
 	VMLiveUpdateFeaturesGate = "VMLiveUpdateFeatures"
-	// When BochsDisplayForEFIGuests is enabled, EFI guests will be started with Bochs display instead of VGA
-	BochsDisplayForEFIGuests = "BochsDisplayForEFIGuests"
 	// NetworkBindingPlugingsGate enables using a plugin to bind the pod and the VM network
+	// Alpha: v1.1.0
+	// Beta:  v1.4.0
 	NetworkBindingPlugingsGate = "NetworkBindingPlugins"
 	// AutoResourceLimitsGate enables automatic setting of vmi limits if there is a ResourceQuota with limits associated with the vmi namespace.
 	AutoResourceLimitsGate = "AutoResourceLimitsGate"
 
-	// Owner: @lyarwood
-	// Alpha: v1.1.0
-	// Beta:  v1.2.0
-	//
-	// CommonInstancetypesDeploymentGate enables the deployment of common-instancetypes by virt-operator
-	CommonInstancetypesDeploymentGate = "CommonInstancetypesDeploymentGate"
 	// AlignCPUsGate allows emulator thread to assign two extra CPUs if needed to complete even parity.
 	AlignCPUsGate = "AlignCPUs"
 
@@ -93,6 +79,14 @@ const (
 	// This feature requires following Kubernetes feature gate "ServiceAccountTokenPodNodeInfo". The feature gate is available
 	// in Kubernetes 1.30 as Beta.
 	NodeRestrictionGate = "NodeRestriction"
+	// DynamicPodInterfaceNaming enables a mechanism to dynamically determine the primary pod interface for KuveVirt virtual machines.
+	DynamicPodInterfaceNamingGate = "DynamicPodInterfaceNaming"
+	// Owner: @lyarwood
+	// Alpha: v1.4.0
+	//
+	// InstancetypeReferencePolicy allows a cluster admin to control how a VirtualMachine references instance types and preferences
+	// through the kv.spec.configuration.instancetype.referencePolicy configurable.
+	InstancetypeReferencePolicy = "InstancetypeReferencePolicy"
 )
 
 func (config *ClusterConfig) isFeatureGateEnabled(featureGate string) bool {
@@ -118,7 +112,7 @@ func (config *ClusterConfig) CPUManagerEnabled() bool {
 }
 
 func (config *ClusterConfig) NUMAEnabled() bool {
-	return config.isFeatureGateEnabled(NUMAFeatureGate)
+	return config.isFeatureGateEnabled(deprecation.NUMAFeatureGate)
 }
 
 func (config *ClusterConfig) DownwardMetricsEnabled() bool {
@@ -150,7 +144,7 @@ func (config *ClusterConfig) SidecarEnabled() bool {
 }
 
 func (config *ClusterConfig) GPUPassthroughEnabled() bool {
-	return config.isFeatureGateEnabled(GPUGate)
+	return config.isFeatureGateEnabled(deprecation.GPUGate)
 }
 
 func (config *ClusterConfig) SnapshotEnabled() bool {
@@ -198,7 +192,7 @@ func (config *ClusterConfig) WorkloadEncryptionSEVEnabled() bool {
 }
 
 func (config *ClusterConfig) DockerSELinuxMCSWorkaroundEnabled() bool {
-	return config.isFeatureGateEnabled(DockerSELinuxMCSWorkaround)
+	return config.isFeatureGateEnabled(deprecation.DockerSELinuxMCSWorkaround)
 }
 
 func (config *ClusterConfig) VSOCKEnabled() bool {
@@ -218,7 +212,7 @@ func (config *ClusterConfig) KubevirtSeccompProfileEnabled() bool {
 }
 
 func (config *ClusterConfig) HotplugNetworkInterfacesEnabled() bool {
-	return config.isFeatureGateEnabled(HotplugNetworkIfacesGate)
+	return config.isFeatureGateEnabled(deprecation.HotplugNetworkIfacesGate)
 }
 
 func (config *ClusterConfig) PersistentReservationEnabled() bool {
@@ -237,20 +231,12 @@ func (config *ClusterConfig) VMLiveUpdateFeaturesEnabled() bool {
 	return config.isFeatureGateEnabled(VMLiveUpdateFeaturesGate)
 }
 
-func (config *ClusterConfig) BochsDisplayForEFIGuestsEnabled() bool {
-	return config.isFeatureGateEnabled(BochsDisplayForEFIGuests)
-}
-
 func (config *ClusterConfig) NetworkBindingPlugingsEnabled() bool {
 	return config.isFeatureGateEnabled(NetworkBindingPlugingsGate)
 }
 
 func (config *ClusterConfig) AutoResourceLimitsEnabled() bool {
 	return config.isFeatureGateEnabled(AutoResourceLimitsGate)
-}
-
-func (config *ClusterConfig) CommonInstancetypesDeploymentEnabled() bool {
-	return config.isFeatureGateEnabled(CommonInstancetypesDeploymentGate)
 }
 
 func (config *ClusterConfig) AlignCPUsEnabled() bool {
@@ -267,4 +253,8 @@ func (config *ClusterConfig) VolumeMigrationEnabled() bool {
 
 func (config *ClusterConfig) NodeRestrictionEnabled() bool {
 	return config.isFeatureGateEnabled(NodeRestrictionGate)
+}
+
+func (config *ClusterConfig) DynamicPodInterfaceNamingEnabled() bool {
+	return config.isFeatureGateEnabled(DynamicPodInterfaceNamingGate)
 }
