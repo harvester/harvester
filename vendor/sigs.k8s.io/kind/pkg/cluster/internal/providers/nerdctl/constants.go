@@ -9,15 +9,16 @@ You may obtain a copy of the License at
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or impliep.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package loadbalancer
+package nerdctl
 
-// Image defines the loadbalancer image:tag
-const Image = "docker.io/kindest/haproxy:v20230606-42a2262b"
+// clusterLabelKey is applied to each "node" container for identification
+const clusterLabelKey = "io.x-k8s.kind.cluster"
 
-// ConfigPath defines the path to the config file in the image
-const ConfigPath = "/usr/local/etc/haproxy/haproxy.cfg"
+// nodeRoleLabelKey is applied to each "node" container for categorization
+// of nodes by role
+const nodeRoleLabelKey = "io.x-k8s.kind.role"
