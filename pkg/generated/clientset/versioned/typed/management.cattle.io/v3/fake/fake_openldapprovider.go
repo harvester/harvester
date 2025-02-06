@@ -40,20 +40,22 @@ var openldapprovidersKind = v3.SchemeGroupVersion.WithKind("OpenLdapProvider")
 
 // Get takes name of the openLdapProvider, and returns the corresponding openLdapProvider object, and an error if there is any.
 func (c *FakeOpenLdapProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.OpenLdapProvider, err error) {
+	emptyResult := &v3.OpenLdapProvider{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(openldapprovidersResource, name), &v3.OpenLdapProvider{})
+		Invokes(testing.NewRootGetActionWithOptions(openldapprovidersResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.OpenLdapProvider), err
 }
 
 // List takes label and field selectors, and returns the list of OpenLdapProviders that match those selectors.
 func (c *FakeOpenLdapProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.OpenLdapProviderList, err error) {
+	emptyResult := &v3.OpenLdapProviderList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(openldapprovidersResource, openldapprovidersKind, opts), &v3.OpenLdapProviderList{})
+		Invokes(testing.NewRootListActionWithOptions(openldapprovidersResource, openldapprovidersKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,25 +74,27 @@ func (c *FakeOpenLdapProviders) List(ctx context.Context, opts v1.ListOptions) (
 // Watch returns a watch.Interface that watches the requested openLdapProviders.
 func (c *FakeOpenLdapProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(openldapprovidersResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(openldapprovidersResource, opts))
 }
 
 // Create takes the representation of a openLdapProvider and creates it.  Returns the server's representation of the openLdapProvider, and an error, if there is any.
 func (c *FakeOpenLdapProviders) Create(ctx context.Context, openLdapProvider *v3.OpenLdapProvider, opts v1.CreateOptions) (result *v3.OpenLdapProvider, err error) {
+	emptyResult := &v3.OpenLdapProvider{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(openldapprovidersResource, openLdapProvider), &v3.OpenLdapProvider{})
+		Invokes(testing.NewRootCreateActionWithOptions(openldapprovidersResource, openLdapProvider, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.OpenLdapProvider), err
 }
 
 // Update takes the representation of a openLdapProvider and updates it. Returns the server's representation of the openLdapProvider, and an error, if there is any.
 func (c *FakeOpenLdapProviders) Update(ctx context.Context, openLdapProvider *v3.OpenLdapProvider, opts v1.UpdateOptions) (result *v3.OpenLdapProvider, err error) {
+	emptyResult := &v3.OpenLdapProvider{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(openldapprovidersResource, openLdapProvider), &v3.OpenLdapProvider{})
+		Invokes(testing.NewRootUpdateActionWithOptions(openldapprovidersResource, openLdapProvider, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.OpenLdapProvider), err
 }
@@ -104,7 +108,7 @@ func (c *FakeOpenLdapProviders) Delete(ctx context.Context, name string, opts v1
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeOpenLdapProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(openldapprovidersResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(openldapprovidersResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.OpenLdapProviderList{})
 	return err
@@ -112,10 +116,11 @@ func (c *FakeOpenLdapProviders) DeleteCollection(ctx context.Context, opts v1.De
 
 // Patch applies the patch and returns the patched openLdapProvider.
 func (c *FakeOpenLdapProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.OpenLdapProvider, err error) {
+	emptyResult := &v3.OpenLdapProvider{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(openldapprovidersResource, name, pt, data, subresources...), &v3.OpenLdapProvider{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(openldapprovidersResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.OpenLdapProvider), err
 }

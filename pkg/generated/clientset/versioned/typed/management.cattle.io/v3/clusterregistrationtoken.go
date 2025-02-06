@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // ClusterRegistrationTokensGetter has a method to return a ClusterRegistrationTokenInterface.
@@ -40,6 +39,7 @@ type ClusterRegistrationTokensGetter interface {
 type ClusterRegistrationTokenInterface interface {
 	Create(ctx context.Context, clusterRegistrationToken *v3.ClusterRegistrationToken, opts v1.CreateOptions) (*v3.ClusterRegistrationToken, error)
 	Update(ctx context.Context, clusterRegistrationToken *v3.ClusterRegistrationToken, opts v1.UpdateOptions) (*v3.ClusterRegistrationToken, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 	UpdateStatus(ctx context.Context, clusterRegistrationToken *v3.ClusterRegistrationToken, opts v1.UpdateOptions) (*v3.ClusterRegistrationToken, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -52,144 +52,18 @@ type ClusterRegistrationTokenInterface interface {
 
 // clusterRegistrationTokens implements ClusterRegistrationTokenInterface
 type clusterRegistrationTokens struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*v3.ClusterRegistrationToken, *v3.ClusterRegistrationTokenList]
 }
 
 // newClusterRegistrationTokens returns a ClusterRegistrationTokens
 func newClusterRegistrationTokens(c *ManagementV3Client, namespace string) *clusterRegistrationTokens {
 	return &clusterRegistrationTokens{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*v3.ClusterRegistrationToken, *v3.ClusterRegistrationTokenList](
+			"clusterregistrationtokens",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *v3.ClusterRegistrationToken { return &v3.ClusterRegistrationToken{} },
+			func() *v3.ClusterRegistrationTokenList { return &v3.ClusterRegistrationTokenList{} }),
 	}
-}
-
-// Get takes name of the clusterRegistrationToken, and returns the corresponding clusterRegistrationToken object, and an error if there is any.
-func (c *clusterRegistrationTokens) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ClusterRegistrationToken, err error) {
-	result = &v3.ClusterRegistrationToken{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("clusterregistrationtokens").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of ClusterRegistrationTokens that match those selectors.
-func (c *clusterRegistrationTokens) List(ctx context.Context, opts v1.ListOptions) (result *v3.ClusterRegistrationTokenList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.ClusterRegistrationTokenList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("clusterregistrationtokens").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested clusterRegistrationTokens.
-func (c *clusterRegistrationTokens) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("clusterregistrationtokens").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a clusterRegistrationToken and creates it.  Returns the server's representation of the clusterRegistrationToken, and an error, if there is any.
-func (c *clusterRegistrationTokens) Create(ctx context.Context, clusterRegistrationToken *v3.ClusterRegistrationToken, opts v1.CreateOptions) (result *v3.ClusterRegistrationToken, err error) {
-	result = &v3.ClusterRegistrationToken{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("clusterregistrationtokens").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterRegistrationToken).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a clusterRegistrationToken and updates it. Returns the server's representation of the clusterRegistrationToken, and an error, if there is any.
-func (c *clusterRegistrationTokens) Update(ctx context.Context, clusterRegistrationToken *v3.ClusterRegistrationToken, opts v1.UpdateOptions) (result *v3.ClusterRegistrationToken, err error) {
-	result = &v3.ClusterRegistrationToken{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("clusterregistrationtokens").
-		Name(clusterRegistrationToken.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterRegistrationToken).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *clusterRegistrationTokens) UpdateStatus(ctx context.Context, clusterRegistrationToken *v3.ClusterRegistrationToken, opts v1.UpdateOptions) (result *v3.ClusterRegistrationToken, err error) {
-	result = &v3.ClusterRegistrationToken{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("clusterregistrationtokens").
-		Name(clusterRegistrationToken.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterRegistrationToken).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the clusterRegistrationToken and deletes it. Returns an error if one occurs.
-func (c *clusterRegistrationTokens) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("clusterregistrationtokens").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *clusterRegistrationTokens) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("clusterregistrationtokens").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched clusterRegistrationToken.
-func (c *clusterRegistrationTokens) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterRegistrationToken, err error) {
-	result = &v3.ClusterRegistrationToken{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("clusterregistrationtokens").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

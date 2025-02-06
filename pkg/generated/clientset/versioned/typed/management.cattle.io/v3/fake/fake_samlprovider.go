@@ -40,20 +40,22 @@ var samlprovidersKind = v3.SchemeGroupVersion.WithKind("SamlProvider")
 
 // Get takes name of the samlProvider, and returns the corresponding samlProvider object, and an error if there is any.
 func (c *FakeSamlProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.SamlProvider, err error) {
+	emptyResult := &v3.SamlProvider{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(samlprovidersResource, name), &v3.SamlProvider{})
+		Invokes(testing.NewRootGetActionWithOptions(samlprovidersResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.SamlProvider), err
 }
 
 // List takes label and field selectors, and returns the list of SamlProviders that match those selectors.
 func (c *FakeSamlProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.SamlProviderList, err error) {
+	emptyResult := &v3.SamlProviderList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(samlprovidersResource, samlprovidersKind, opts), &v3.SamlProviderList{})
+		Invokes(testing.NewRootListActionWithOptions(samlprovidersResource, samlprovidersKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,25 +74,27 @@ func (c *FakeSamlProviders) List(ctx context.Context, opts v1.ListOptions) (resu
 // Watch returns a watch.Interface that watches the requested samlProviders.
 func (c *FakeSamlProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(samlprovidersResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(samlprovidersResource, opts))
 }
 
 // Create takes the representation of a samlProvider and creates it.  Returns the server's representation of the samlProvider, and an error, if there is any.
 func (c *FakeSamlProviders) Create(ctx context.Context, samlProvider *v3.SamlProvider, opts v1.CreateOptions) (result *v3.SamlProvider, err error) {
+	emptyResult := &v3.SamlProvider{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(samlprovidersResource, samlProvider), &v3.SamlProvider{})
+		Invokes(testing.NewRootCreateActionWithOptions(samlprovidersResource, samlProvider, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.SamlProvider), err
 }
 
 // Update takes the representation of a samlProvider and updates it. Returns the server's representation of the samlProvider, and an error, if there is any.
 func (c *FakeSamlProviders) Update(ctx context.Context, samlProvider *v3.SamlProvider, opts v1.UpdateOptions) (result *v3.SamlProvider, err error) {
+	emptyResult := &v3.SamlProvider{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(samlprovidersResource, samlProvider), &v3.SamlProvider{})
+		Invokes(testing.NewRootUpdateActionWithOptions(samlprovidersResource, samlProvider, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.SamlProvider), err
 }
@@ -104,7 +108,7 @@ func (c *FakeSamlProviders) Delete(ctx context.Context, name string, opts v1.Del
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeSamlProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(samlprovidersResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(samlprovidersResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.SamlProviderList{})
 	return err
@@ -112,10 +116,11 @@ func (c *FakeSamlProviders) DeleteCollection(ctx context.Context, opts v1.Delete
 
 // Patch applies the patch and returns the patched samlProvider.
 func (c *FakeSamlProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.SamlProvider, err error) {
+	emptyResult := &v3.SamlProvider{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(samlprovidersResource, name, pt, data, subresources...), &v3.SamlProvider{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(samlprovidersResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.SamlProvider), err
 }

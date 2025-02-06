@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // NodesGetter has a method to return a NodeInterface.
@@ -40,6 +39,7 @@ type NodesGetter interface {
 type NodeInterface interface {
 	Create(ctx context.Context, node *v3.Node, opts v1.CreateOptions) (*v3.Node, error)
 	Update(ctx context.Context, node *v3.Node, opts v1.UpdateOptions) (*v3.Node, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 	UpdateStatus(ctx context.Context, node *v3.Node, opts v1.UpdateOptions) (*v3.Node, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -52,144 +52,18 @@ type NodeInterface interface {
 
 // nodes implements NodeInterface
 type nodes struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*v3.Node, *v3.NodeList]
 }
 
 // newNodes returns a Nodes
 func newNodes(c *ManagementV3Client, namespace string) *nodes {
 	return &nodes{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*v3.Node, *v3.NodeList](
+			"nodes",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *v3.Node { return &v3.Node{} },
+			func() *v3.NodeList { return &v3.NodeList{} }),
 	}
-}
-
-// Get takes name of the node, and returns the corresponding node object, and an error if there is any.
-func (c *nodes) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Node, err error) {
-	result = &v3.Node{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("nodes").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of Nodes that match those selectors.
-func (c *nodes) List(ctx context.Context, opts v1.ListOptions) (result *v3.NodeList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.NodeList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("nodes").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested nodes.
-func (c *nodes) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("nodes").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a node and creates it.  Returns the server's representation of the node, and an error, if there is any.
-func (c *nodes) Create(ctx context.Context, node *v3.Node, opts v1.CreateOptions) (result *v3.Node, err error) {
-	result = &v3.Node{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("nodes").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(node).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a node and updates it. Returns the server's representation of the node, and an error, if there is any.
-func (c *nodes) Update(ctx context.Context, node *v3.Node, opts v1.UpdateOptions) (result *v3.Node, err error) {
-	result = &v3.Node{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("nodes").
-		Name(node.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(node).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *nodes) UpdateStatus(ctx context.Context, node *v3.Node, opts v1.UpdateOptions) (result *v3.Node, err error) {
-	result = &v3.Node{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("nodes").
-		Name(node.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(node).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the node and deletes it. Returns an error if one occurs.
-func (c *nodes) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("nodes").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *nodes) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("nodes").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched node.
-func (c *nodes) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Node, err error) {
-	result = &v3.Node{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("nodes").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

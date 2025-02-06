@@ -40,20 +40,22 @@ var templateversionsKind = v3.SchemeGroupVersion.WithKind("TemplateVersion")
 
 // Get takes name of the templateVersion, and returns the corresponding templateVersion object, and an error if there is any.
 func (c *FakeTemplateVersions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.TemplateVersion, err error) {
+	emptyResult := &v3.TemplateVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(templateversionsResource, name), &v3.TemplateVersion{})
+		Invokes(testing.NewRootGetActionWithOptions(templateversionsResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.TemplateVersion), err
 }
 
 // List takes label and field selectors, and returns the list of TemplateVersions that match those selectors.
 func (c *FakeTemplateVersions) List(ctx context.Context, opts v1.ListOptions) (result *v3.TemplateVersionList, err error) {
+	emptyResult := &v3.TemplateVersionList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(templateversionsResource, templateversionsKind, opts), &v3.TemplateVersionList{})
+		Invokes(testing.NewRootListActionWithOptions(templateversionsResource, templateversionsKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,36 +74,39 @@ func (c *FakeTemplateVersions) List(ctx context.Context, opts v1.ListOptions) (r
 // Watch returns a watch.Interface that watches the requested templateVersions.
 func (c *FakeTemplateVersions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(templateversionsResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(templateversionsResource, opts))
 }
 
 // Create takes the representation of a templateVersion and creates it.  Returns the server's representation of the templateVersion, and an error, if there is any.
 func (c *FakeTemplateVersions) Create(ctx context.Context, templateVersion *v3.TemplateVersion, opts v1.CreateOptions) (result *v3.TemplateVersion, err error) {
+	emptyResult := &v3.TemplateVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(templateversionsResource, templateVersion), &v3.TemplateVersion{})
+		Invokes(testing.NewRootCreateActionWithOptions(templateversionsResource, templateVersion, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.TemplateVersion), err
 }
 
 // Update takes the representation of a templateVersion and updates it. Returns the server's representation of the templateVersion, and an error, if there is any.
 func (c *FakeTemplateVersions) Update(ctx context.Context, templateVersion *v3.TemplateVersion, opts v1.UpdateOptions) (result *v3.TemplateVersion, err error) {
+	emptyResult := &v3.TemplateVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(templateversionsResource, templateVersion), &v3.TemplateVersion{})
+		Invokes(testing.NewRootUpdateActionWithOptions(templateversionsResource, templateVersion, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.TemplateVersion), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeTemplateVersions) UpdateStatus(ctx context.Context, templateVersion *v3.TemplateVersion, opts v1.UpdateOptions) (*v3.TemplateVersion, error) {
+func (c *FakeTemplateVersions) UpdateStatus(ctx context.Context, templateVersion *v3.TemplateVersion, opts v1.UpdateOptions) (result *v3.TemplateVersion, err error) {
+	emptyResult := &v3.TemplateVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(templateversionsResource, "status", templateVersion), &v3.TemplateVersion{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(templateversionsResource, "status", templateVersion, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.TemplateVersion), err
 }
@@ -115,7 +120,7 @@ func (c *FakeTemplateVersions) Delete(ctx context.Context, name string, opts v1.
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeTemplateVersions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(templateversionsResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(templateversionsResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.TemplateVersionList{})
 	return err
@@ -123,10 +128,11 @@ func (c *FakeTemplateVersions) DeleteCollection(ctx context.Context, opts v1.Del
 
 // Patch applies the patch and returns the patched templateVersion.
 func (c *FakeTemplateVersions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.TemplateVersion, err error) {
+	emptyResult := &v3.TemplateVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(templateversionsResource, name, pt, data, subresources...), &v3.TemplateVersion{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(templateversionsResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.TemplateVersion), err
 }

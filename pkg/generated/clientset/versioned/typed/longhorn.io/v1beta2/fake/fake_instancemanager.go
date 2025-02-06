@@ -41,22 +41,24 @@ var instancemanagersKind = v1beta2.SchemeGroupVersion.WithKind("InstanceManager"
 
 // Get takes name of the instanceManager, and returns the corresponding instanceManager object, and an error if there is any.
 func (c *FakeInstanceManagers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.InstanceManager, err error) {
+	emptyResult := &v1beta2.InstanceManager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(instancemanagersResource, c.ns, name), &v1beta2.InstanceManager{})
+		Invokes(testing.NewGetActionWithOptions(instancemanagersResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.InstanceManager), err
 }
 
 // List takes label and field selectors, and returns the list of InstanceManagers that match those selectors.
 func (c *FakeInstanceManagers) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.InstanceManagerList, err error) {
+	emptyResult := &v1beta2.InstanceManagerList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(instancemanagersResource, instancemanagersKind, c.ns, opts), &v1beta2.InstanceManagerList{})
+		Invokes(testing.NewListActionWithOptions(instancemanagersResource, instancemanagersKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeInstanceManagers) List(ctx context.Context, opts v1.ListOptions) (r
 // Watch returns a watch.Interface that watches the requested instanceManagers.
 func (c *FakeInstanceManagers) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(instancemanagersResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(instancemanagersResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a instanceManager and creates it.  Returns the server's representation of the instanceManager, and an error, if there is any.
 func (c *FakeInstanceManagers) Create(ctx context.Context, instanceManager *v1beta2.InstanceManager, opts v1.CreateOptions) (result *v1beta2.InstanceManager, err error) {
+	emptyResult := &v1beta2.InstanceManager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(instancemanagersResource, c.ns, instanceManager), &v1beta2.InstanceManager{})
+		Invokes(testing.NewCreateActionWithOptions(instancemanagersResource, c.ns, instanceManager, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.InstanceManager), err
 }
 
 // Update takes the representation of a instanceManager and updates it. Returns the server's representation of the instanceManager, and an error, if there is any.
 func (c *FakeInstanceManagers) Update(ctx context.Context, instanceManager *v1beta2.InstanceManager, opts v1.UpdateOptions) (result *v1beta2.InstanceManager, err error) {
+	emptyResult := &v1beta2.InstanceManager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(instancemanagersResource, c.ns, instanceManager), &v1beta2.InstanceManager{})
+		Invokes(testing.NewUpdateActionWithOptions(instancemanagersResource, c.ns, instanceManager, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.InstanceManager), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeInstanceManagers) UpdateStatus(ctx context.Context, instanceManager *v1beta2.InstanceManager, opts v1.UpdateOptions) (*v1beta2.InstanceManager, error) {
+func (c *FakeInstanceManagers) UpdateStatus(ctx context.Context, instanceManager *v1beta2.InstanceManager, opts v1.UpdateOptions) (result *v1beta2.InstanceManager, err error) {
+	emptyResult := &v1beta2.InstanceManager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(instancemanagersResource, "status", c.ns, instanceManager), &v1beta2.InstanceManager{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(instancemanagersResource, "status", c.ns, instanceManager, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.InstanceManager), err
 }
@@ -123,7 +128,7 @@ func (c *FakeInstanceManagers) Delete(ctx context.Context, name string, opts v1.
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeInstanceManagers) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(instancemanagersResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(instancemanagersResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta2.InstanceManagerList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeInstanceManagers) DeleteCollection(ctx context.Context, opts v1.Del
 
 // Patch applies the patch and returns the patched instanceManager.
 func (c *FakeInstanceManagers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.InstanceManager, err error) {
+	emptyResult := &v1beta2.InstanceManager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(instancemanagersResource, c.ns, name, pt, data, subresources...), &v1beta2.InstanceManager{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(instancemanagersResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.InstanceManager), err
 }
