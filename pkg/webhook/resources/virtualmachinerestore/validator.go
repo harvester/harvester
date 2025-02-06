@@ -60,7 +60,7 @@ func NewValidator(
 		snapshotClass:                     snapshotClass,
 		networkAttachmentDefinitionsCache: networkAttachmentDefinitionsCache,
 
-		vmrCalculator: resourcequota.NewCalculator(nss, pods, rqs, vmims),
+		vmrCalculator: resourcequota.NewCalculator(nss, pods, rqs, vmims, setting),
 	}
 }
 

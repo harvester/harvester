@@ -30,9 +30,25 @@ const (
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
 	AnnotationLastRefreshTime           = prefix + "/lastRefreshTime"
 
+<<<<<<< HEAD
 	// AnnotationMigratingPrefix is used to store the migrating vm in the annotation of ResourceQuota
+=======
+	AnnotationSkipRancherLoggingAddonWebhookCheck = prefix + "/skipRancherLoggingAddonWebhookCheck"
+
+	// AnnotationSkipResourceQuotaAutoScaling is used to disable to resourcequota auto scaling
+	AnnotationSkipResourceQuotaAutoScaling = prefix + "/skipResourceQuotaAutoScaling"
+
+	// AnnotationMigratingNamePrefix is used to store the migrating vm in the annotation of ResourceQuota
+>>>>>>> f8198b61 (Fix annotation key exceeds 63 chars issue and update others)
 	// eg: harvesterhci.io/migrating-vm1: jsonOfResourceList, harvesterhci.io/migrating-vm2: jsonOfResourceList
-	AnnotationMigratingPrefix = prefix + "/migrating-"
+	// will be removed after v1.5.0
+	AnnotationMigratingNamePrefix = prefix + "/migrating-"
+
+	// replace AnnotationMigratingNamePrefix from v1.5.0
+	AnnotationMigratingUIDPrefix = prefix + "/migratingUID-"
+
+	// AnnotationMigratingPrefix is replaced by AnnotationMigratingNamePrefix, and is kept for compatibility
+	AnnotationMigratingPrefix = AnnotationMigratingNamePrefix
 
 	// AnnotationInsufficientResourceQuota is indicated the resource is insufficient of Namespace
 	AnnotationInsufficientResourceQuota = prefix + "/insufficient-resource-quota"

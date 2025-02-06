@@ -13,21 +13,23 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlvirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
 )
 
 // Handler resets vmi annotations and nodeSelector when a migration completes
 type Handler struct {
-	namespace  string
-	rqs        ctlharvcorev1.ResourceQuotaClient
-	rqCache    ctlharvcorev1.ResourceQuotaCache
-	vmiCache   ctlvirtv1.VirtualMachineInstanceCache
-	vms        ctlvirtv1.VirtualMachineClient
-	vmCache    ctlvirtv1.VirtualMachineCache
-	podCache   ctlcorev1.PodCache
-	pods       ctlcorev1.PodClient
-	restClient rest.Interface
+	namespace    string
+	rqs          ctlharvcorev1.ResourceQuotaClient
+	rqCache      ctlharvcorev1.ResourceQuotaCache
+	vmiCache     ctlvirtv1.VirtualMachineInstanceCache
+	vms          ctlvirtv1.VirtualMachineClient
+	vmCache      ctlvirtv1.VirtualMachineCache
+	podCache     ctlcorev1.PodCache
+	pods         ctlcorev1.PodClient
+	settingCache ctlharvesterv1.SettingCache
+	restClient   rest.Interface
 }
 
 func (h *Handler) OnVmiChanged(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
