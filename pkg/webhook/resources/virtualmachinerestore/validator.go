@@ -139,6 +139,7 @@ func (v *restoreValidator) checkNewVMField(vmRestore *v1beta1.VirtualMachineRest
 	if err != nil && !apierrors.IsNotFound(err) {
 		return werror.NewInternalError(fmt.Sprintf("failed to get the VM %s/%s, err: %+v", vmRestore.Namespace, vmRestore.Spec.Target.Name, err))
 	}
+	vmNotFound := apierrors.IsNotFound(err)
 
 	switch vmRestore.Spec.NewVM {
 	case true:
@@ -149,7 +150,7 @@ func (v *restoreValidator) checkNewVMField(vmRestore *v1beta1.VirtualMachineRest
 		return v.handleNewVM(vmRestore, vmBackup)
 	case false:
 		// replace an existing vm but there is no related vm
-		if vm == nil {
+		if vmNotFound {
 			return werror.NewInvalidError(fmt.Sprintf("can't replace nonexistent vm %s", vmRestore.Spec.Target.Name), fieldTargetName)
 		}
 		return v.handleExistVM(vm)

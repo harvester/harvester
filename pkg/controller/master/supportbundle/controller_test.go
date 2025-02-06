@@ -56,8 +56,7 @@ func Test_checkExistTime(t *testing.T) {
 				harvesterv1.SupportBundleInitialized.LastUpdated(sb, time.Now().Add(-35*time.Minute).Format(time.RFC3339))
 				return sb
 			},
-			expected: func(sb *harvesterv1.SupportBundle, err error, name string) {
-				assert.Nil(t, sb, name)
+			expected: func(_ *harvesterv1.SupportBundle, err error, name string) {
 				assert.True(t, apierrors.IsNotFound(err), name)
 			},
 		},
@@ -78,8 +77,7 @@ func Test_checkExistTime(t *testing.T) {
 				harvesterv1.SupportBundleInitialized.LastUpdated(sb, time.Now().Add(-35*time.Minute).Format(time.RFC3339))
 				return sb
 			},
-			expected: func(sb *harvesterv1.SupportBundle, err error, name string) {
-				assert.Nil(t, sb, name)
+			expected: func(_ *harvesterv1.SupportBundle, err error, name string) {
 				assert.True(t, apierrors.IsNotFound(err), name)
 			},
 		},
