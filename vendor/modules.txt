@@ -34,7 +34,7 @@ github.com/achanda/go-sysctl
 ## explicit; go 1.14
 github.com/adrg/xdg
 github.com/adrg/xdg/internal/pathutil
-# github.com/alessio/shellescape v1.4.1
+# github.com/alessio/shellescape v1.4.2
 ## explicit; go 1.14
 github.com/alessio/shellescape
 # github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
@@ -340,6 +340,10 @@ github.com/google/gofuzz/bytesource
 # github.com/google/pprof v0.0.0-20240827171923-fa2c70bbbfe5
 ## explicit; go 1.22
 github.com/google/pprof/profile
+# github.com/google/safetext v0.0.0-20220905092116-b49f7bc46da2
+## explicit; go 1.19
+github.com/google/safetext/common
+github.com/google/safetext/yamltemplate
 # github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 ## explicit; go 1.13
 github.com/google/shlex
@@ -2373,8 +2377,8 @@ sigs.k8s.io/controller-runtime/pkg/webhook/internal/metrics
 ## explicit; go 1.23
 sigs.k8s.io/json
 sigs.k8s.io/json/internal/golang/encoding/json
-# sigs.k8s.io/kind v0.14.0
-## explicit; go 1.14
+# sigs.k8s.io/kind v0.24.0
+## explicit; go 1.17
 sigs.k8s.io/kind/pkg/apis/config/defaults
 sigs.k8s.io/kind/pkg/apis/config/v1alpha4
 sigs.k8s.io/kind/pkg/cluster
@@ -2397,6 +2401,7 @@ sigs.k8s.io/kind/pkg/cluster/internal/logs
 sigs.k8s.io/kind/pkg/cluster/internal/providers
 sigs.k8s.io/kind/pkg/cluster/internal/providers/common
 sigs.k8s.io/kind/pkg/cluster/internal/providers/docker
+sigs.k8s.io/kind/pkg/cluster/internal/providers/nerdctl
 sigs.k8s.io/kind/pkg/cluster/internal/providers/podman
 sigs.k8s.io/kind/pkg/cluster/nodes
 sigs.k8s.io/kind/pkg/cluster/nodeutils
