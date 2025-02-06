@@ -12,7 +12,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
-	utilCatalog "github.com/harvester/harvester/pkg/util/catalog"
+	utilHelm "github.com/harvester/harvester/pkg/util/helm"
 )
 
 const (
@@ -37,7 +37,7 @@ func deleteCronJob(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup)
 // In OnCronjobChanged(), controller will create VMBackup for VM backup/snapshot
 func createCronJob(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup) (*batchv1.CronJob, error) {
 	backoffLimit := int32(cronJobBackoffLimit)
-	jobImage, err := utilCatalog.FetchAppChartImage(h.appCache, h.namespace,
+	jobImage, err := utilHelm.FetchImageFromHelmValues(h.clientset, h.namespace,
 		releaseAppHarvesterName, []string{"generalJob", "image"})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get harvester image (%s): %v", jobImage.ImageName(), err)

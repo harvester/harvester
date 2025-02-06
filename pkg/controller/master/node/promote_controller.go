@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -18,11 +17,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 
 	"github.com/harvester/harvester/pkg/config"
-	utilCatalog "github.com/harvester/harvester/pkg/util/catalog"
+	utilHelm "github.com/harvester/harvester/pkg/util/helm"
 )
 
 const (
@@ -79,22 +79,21 @@ type PromoteHandler struct {
 	jobCache  ctlbatchv1.JobCache
 	recorder  record.EventRecorder
 	namespace string
-	appCache  catalogv1.AppCache
+	clientset *kubernetes.Clientset
 }
 
 // PromoteRegister registers the node controller
 func PromoteRegister(ctx context.Context, management *config.Management, options config.Options) error {
 	nodes := management.CoreFactory.Core().V1().Node()
 	jobs := management.BatchFactory.Batch().V1().Job()
-	appCache := management.CatalogFactory.Catalog().V1().App().Cache()
 
 	promoteController := &PromoteHandler{
 		nodes:     nodes,
 		nodeCache: nodes.Cache(),
 		jobs:      jobs,
 		jobCache:  jobs.Cache(),
-		appCache:  appCache,
 		recorder:  management.NewRecorder("harvester-"+promoteControllerName, "", ""),
+		clientset: management.ClientSet,
 		namespace: options.Namespace,
 	}
 
@@ -468,7 +467,7 @@ func isPromoteStatusIn(node *corev1.Node, statuses ...string) bool {
 }
 
 func (h *PromoteHandler) createPromoteJob(node *corev1.Node) (*batchv1.Job, error) {
-	image, err := utilCatalog.FetchAppChartImage(h.appCache, h.namespace, releaseAppHarvesterName, []string{"generalJob", "image"})
+	image, err := utilHelm.FetchImageFromHelmValues(h.clientset, h.namespace, releaseAppHarvesterName, []string{"generalJob", "image"})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get harvester image (%s): %v", image.ImageName(), err)
 	}
