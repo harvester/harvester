@@ -41,22 +41,24 @@ var schedulevmbackupsKind = v1beta1.SchemeGroupVersion.WithKind("ScheduleVMBacku
 
 // Get takes name of the scheduleVMBackup, and returns the corresponding scheduleVMBackup object, and an error if there is any.
 func (c *FakeScheduleVMBackups) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.ScheduleVMBackup, err error) {
+	emptyResult := &v1beta1.ScheduleVMBackup{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(schedulevmbackupsResource, c.ns, name), &v1beta1.ScheduleVMBackup{})
+		Invokes(testing.NewGetActionWithOptions(schedulevmbackupsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.ScheduleVMBackup), err
 }
 
 // List takes label and field selectors, and returns the list of ScheduleVMBackups that match those selectors.
 func (c *FakeScheduleVMBackups) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.ScheduleVMBackupList, err error) {
+	emptyResult := &v1beta1.ScheduleVMBackupList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(schedulevmbackupsResource, schedulevmbackupsKind, c.ns, opts), &v1beta1.ScheduleVMBackupList{})
+		Invokes(testing.NewListActionWithOptions(schedulevmbackupsResource, schedulevmbackupsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeScheduleVMBackups) List(ctx context.Context, opts v1.ListOptions) (
 // Watch returns a watch.Interface that watches the requested scheduleVMBackups.
 func (c *FakeScheduleVMBackups) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(schedulevmbackupsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(schedulevmbackupsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a scheduleVMBackup and creates it.  Returns the server's representation of the scheduleVMBackup, and an error, if there is any.
 func (c *FakeScheduleVMBackups) Create(ctx context.Context, scheduleVMBackup *v1beta1.ScheduleVMBackup, opts v1.CreateOptions) (result *v1beta1.ScheduleVMBackup, err error) {
+	emptyResult := &v1beta1.ScheduleVMBackup{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(schedulevmbackupsResource, c.ns, scheduleVMBackup), &v1beta1.ScheduleVMBackup{})
+		Invokes(testing.NewCreateActionWithOptions(schedulevmbackupsResource, c.ns, scheduleVMBackup, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.ScheduleVMBackup), err
 }
 
 // Update takes the representation of a scheduleVMBackup and updates it. Returns the server's representation of the scheduleVMBackup, and an error, if there is any.
 func (c *FakeScheduleVMBackups) Update(ctx context.Context, scheduleVMBackup *v1beta1.ScheduleVMBackup, opts v1.UpdateOptions) (result *v1beta1.ScheduleVMBackup, err error) {
+	emptyResult := &v1beta1.ScheduleVMBackup{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(schedulevmbackupsResource, c.ns, scheduleVMBackup), &v1beta1.ScheduleVMBackup{})
+		Invokes(testing.NewUpdateActionWithOptions(schedulevmbackupsResource, c.ns, scheduleVMBackup, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.ScheduleVMBackup), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeScheduleVMBackups) UpdateStatus(ctx context.Context, scheduleVMBackup *v1beta1.ScheduleVMBackup, opts v1.UpdateOptions) (*v1beta1.ScheduleVMBackup, error) {
+func (c *FakeScheduleVMBackups) UpdateStatus(ctx context.Context, scheduleVMBackup *v1beta1.ScheduleVMBackup, opts v1.UpdateOptions) (result *v1beta1.ScheduleVMBackup, err error) {
+	emptyResult := &v1beta1.ScheduleVMBackup{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(schedulevmbackupsResource, "status", c.ns, scheduleVMBackup), &v1beta1.ScheduleVMBackup{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(schedulevmbackupsResource, "status", c.ns, scheduleVMBackup, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.ScheduleVMBackup), err
 }
@@ -123,7 +128,7 @@ func (c *FakeScheduleVMBackups) Delete(ctx context.Context, name string, opts v1
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeScheduleVMBackups) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(schedulevmbackupsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(schedulevmbackupsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.ScheduleVMBackupList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeScheduleVMBackups) DeleteCollection(ctx context.Context, opts v1.De
 
 // Patch applies the patch and returns the patched scheduleVMBackup.
 func (c *FakeScheduleVMBackups) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.ScheduleVMBackup, err error) {
+	emptyResult := &v1beta1.ScheduleVMBackup{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(schedulevmbackupsResource, c.ns, name, pt, data, subresources...), &v1beta1.ScheduleVMBackup{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(schedulevmbackupsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.ScheduleVMBackup), err
 }

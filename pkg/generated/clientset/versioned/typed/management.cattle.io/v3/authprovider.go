@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // AuthProvidersGetter has a method to return a AuthProviderInterface.
@@ -51,118 +50,18 @@ type AuthProviderInterface interface {
 
 // authProviders implements AuthProviderInterface
 type authProviders struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v3.AuthProvider, *v3.AuthProviderList]
 }
 
 // newAuthProviders returns a AuthProviders
 func newAuthProviders(c *ManagementV3Client) *authProviders {
 	return &authProviders{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v3.AuthProvider, *v3.AuthProviderList](
+			"authproviders",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v3.AuthProvider { return &v3.AuthProvider{} },
+			func() *v3.AuthProviderList { return &v3.AuthProviderList{} }),
 	}
-}
-
-// Get takes name of the authProvider, and returns the corresponding authProvider object, and an error if there is any.
-func (c *authProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.AuthProvider, err error) {
-	result = &v3.AuthProvider{}
-	err = c.client.Get().
-		Resource("authproviders").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of AuthProviders that match those selectors.
-func (c *authProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.AuthProviderList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.AuthProviderList{}
-	err = c.client.Get().
-		Resource("authproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested authProviders.
-func (c *authProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("authproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a authProvider and creates it.  Returns the server's representation of the authProvider, and an error, if there is any.
-func (c *authProviders) Create(ctx context.Context, authProvider *v3.AuthProvider, opts v1.CreateOptions) (result *v3.AuthProvider, err error) {
-	result = &v3.AuthProvider{}
-	err = c.client.Post().
-		Resource("authproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(authProvider).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a authProvider and updates it. Returns the server's representation of the authProvider, and an error, if there is any.
-func (c *authProviders) Update(ctx context.Context, authProvider *v3.AuthProvider, opts v1.UpdateOptions) (result *v3.AuthProvider, err error) {
-	result = &v3.AuthProvider{}
-	err = c.client.Put().
-		Resource("authproviders").
-		Name(authProvider.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(authProvider).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the authProvider and deletes it. Returns an error if one occurs.
-func (c *authProviders) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("authproviders").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *authProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("authproviders").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched authProvider.
-func (c *authProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.AuthProvider, err error) {
-	result = &v3.AuthProvider{}
-	err = c.client.Patch(pt).
-		Resource("authproviders").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

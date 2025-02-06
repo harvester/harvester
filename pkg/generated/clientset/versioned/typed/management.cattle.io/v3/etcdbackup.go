@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // EtcdBackupsGetter has a method to return a EtcdBackupInterface.
@@ -40,6 +39,7 @@ type EtcdBackupsGetter interface {
 type EtcdBackupInterface interface {
 	Create(ctx context.Context, etcdBackup *v3.EtcdBackup, opts v1.CreateOptions) (*v3.EtcdBackup, error)
 	Update(ctx context.Context, etcdBackup *v3.EtcdBackup, opts v1.UpdateOptions) (*v3.EtcdBackup, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 	UpdateStatus(ctx context.Context, etcdBackup *v3.EtcdBackup, opts v1.UpdateOptions) (*v3.EtcdBackup, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -52,144 +52,18 @@ type EtcdBackupInterface interface {
 
 // etcdBackups implements EtcdBackupInterface
 type etcdBackups struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*v3.EtcdBackup, *v3.EtcdBackupList]
 }
 
 // newEtcdBackups returns a EtcdBackups
 func newEtcdBackups(c *ManagementV3Client, namespace string) *etcdBackups {
 	return &etcdBackups{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*v3.EtcdBackup, *v3.EtcdBackupList](
+			"etcdbackups",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *v3.EtcdBackup { return &v3.EtcdBackup{} },
+			func() *v3.EtcdBackupList { return &v3.EtcdBackupList{} }),
 	}
-}
-
-// Get takes name of the etcdBackup, and returns the corresponding etcdBackup object, and an error if there is any.
-func (c *etcdBackups) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.EtcdBackup, err error) {
-	result = &v3.EtcdBackup{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("etcdbackups").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of EtcdBackups that match those selectors.
-func (c *etcdBackups) List(ctx context.Context, opts v1.ListOptions) (result *v3.EtcdBackupList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.EtcdBackupList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("etcdbackups").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested etcdBackups.
-func (c *etcdBackups) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("etcdbackups").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a etcdBackup and creates it.  Returns the server's representation of the etcdBackup, and an error, if there is any.
-func (c *etcdBackups) Create(ctx context.Context, etcdBackup *v3.EtcdBackup, opts v1.CreateOptions) (result *v3.EtcdBackup, err error) {
-	result = &v3.EtcdBackup{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("etcdbackups").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(etcdBackup).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a etcdBackup and updates it. Returns the server's representation of the etcdBackup, and an error, if there is any.
-func (c *etcdBackups) Update(ctx context.Context, etcdBackup *v3.EtcdBackup, opts v1.UpdateOptions) (result *v3.EtcdBackup, err error) {
-	result = &v3.EtcdBackup{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("etcdbackups").
-		Name(etcdBackup.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(etcdBackup).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *etcdBackups) UpdateStatus(ctx context.Context, etcdBackup *v3.EtcdBackup, opts v1.UpdateOptions) (result *v3.EtcdBackup, err error) {
-	result = &v3.EtcdBackup{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("etcdbackups").
-		Name(etcdBackup.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(etcdBackup).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the etcdBackup and deletes it. Returns an error if one occurs.
-func (c *etcdBackups) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("etcdbackups").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *etcdBackups) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("etcdbackups").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched etcdBackup.
-func (c *etcdBackups) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.EtcdBackup, err error) {
-	result = &v3.EtcdBackup{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("etcdbackups").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

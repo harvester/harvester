@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // ClusterProxyConfigsGetter has a method to return a ClusterProxyConfigInterface.
@@ -51,128 +50,18 @@ type ClusterProxyConfigInterface interface {
 
 // clusterProxyConfigs implements ClusterProxyConfigInterface
 type clusterProxyConfigs struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*v3.ClusterProxyConfig, *v3.ClusterProxyConfigList]
 }
 
 // newClusterProxyConfigs returns a ClusterProxyConfigs
 func newClusterProxyConfigs(c *ManagementV3Client, namespace string) *clusterProxyConfigs {
 	return &clusterProxyConfigs{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*v3.ClusterProxyConfig, *v3.ClusterProxyConfigList](
+			"clusterproxyconfigs",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *v3.ClusterProxyConfig { return &v3.ClusterProxyConfig{} },
+			func() *v3.ClusterProxyConfigList { return &v3.ClusterProxyConfigList{} }),
 	}
-}
-
-// Get takes name of the clusterProxyConfig, and returns the corresponding clusterProxyConfig object, and an error if there is any.
-func (c *clusterProxyConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ClusterProxyConfig, err error) {
-	result = &v3.ClusterProxyConfig{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("clusterproxyconfigs").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of ClusterProxyConfigs that match those selectors.
-func (c *clusterProxyConfigs) List(ctx context.Context, opts v1.ListOptions) (result *v3.ClusterProxyConfigList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.ClusterProxyConfigList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("clusterproxyconfigs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested clusterProxyConfigs.
-func (c *clusterProxyConfigs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("clusterproxyconfigs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a clusterProxyConfig and creates it.  Returns the server's representation of the clusterProxyConfig, and an error, if there is any.
-func (c *clusterProxyConfigs) Create(ctx context.Context, clusterProxyConfig *v3.ClusterProxyConfig, opts v1.CreateOptions) (result *v3.ClusterProxyConfig, err error) {
-	result = &v3.ClusterProxyConfig{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("clusterproxyconfigs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterProxyConfig).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a clusterProxyConfig and updates it. Returns the server's representation of the clusterProxyConfig, and an error, if there is any.
-func (c *clusterProxyConfigs) Update(ctx context.Context, clusterProxyConfig *v3.ClusterProxyConfig, opts v1.UpdateOptions) (result *v3.ClusterProxyConfig, err error) {
-	result = &v3.ClusterProxyConfig{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("clusterproxyconfigs").
-		Name(clusterProxyConfig.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterProxyConfig).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the clusterProxyConfig and deletes it. Returns an error if one occurs.
-func (c *clusterProxyConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("clusterproxyconfigs").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *clusterProxyConfigs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("clusterproxyconfigs").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched clusterProxyConfig.
-func (c *clusterProxyConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterProxyConfig, err error) {
-	result = &v3.ClusterProxyConfig{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("clusterproxyconfigs").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

@@ -40,20 +40,22 @@ var globalrolebindingsKind = v3.SchemeGroupVersion.WithKind("GlobalRoleBinding")
 
 // Get takes name of the globalRoleBinding, and returns the corresponding globalRoleBinding object, and an error if there is any.
 func (c *FakeGlobalRoleBindings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.GlobalRoleBinding, err error) {
+	emptyResult := &v3.GlobalRoleBinding{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(globalrolebindingsResource, name), &v3.GlobalRoleBinding{})
+		Invokes(testing.NewRootGetActionWithOptions(globalrolebindingsResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.GlobalRoleBinding), err
 }
 
 // List takes label and field selectors, and returns the list of GlobalRoleBindings that match those selectors.
 func (c *FakeGlobalRoleBindings) List(ctx context.Context, opts v1.ListOptions) (result *v3.GlobalRoleBindingList, err error) {
+	emptyResult := &v3.GlobalRoleBindingList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(globalrolebindingsResource, globalrolebindingsKind, opts), &v3.GlobalRoleBindingList{})
+		Invokes(testing.NewRootListActionWithOptions(globalrolebindingsResource, globalrolebindingsKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,25 +74,27 @@ func (c *FakeGlobalRoleBindings) List(ctx context.Context, opts v1.ListOptions) 
 // Watch returns a watch.Interface that watches the requested globalRoleBindings.
 func (c *FakeGlobalRoleBindings) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(globalrolebindingsResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(globalrolebindingsResource, opts))
 }
 
 // Create takes the representation of a globalRoleBinding and creates it.  Returns the server's representation of the globalRoleBinding, and an error, if there is any.
 func (c *FakeGlobalRoleBindings) Create(ctx context.Context, globalRoleBinding *v3.GlobalRoleBinding, opts v1.CreateOptions) (result *v3.GlobalRoleBinding, err error) {
+	emptyResult := &v3.GlobalRoleBinding{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(globalrolebindingsResource, globalRoleBinding), &v3.GlobalRoleBinding{})
+		Invokes(testing.NewRootCreateActionWithOptions(globalrolebindingsResource, globalRoleBinding, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.GlobalRoleBinding), err
 }
 
 // Update takes the representation of a globalRoleBinding and updates it. Returns the server's representation of the globalRoleBinding, and an error, if there is any.
 func (c *FakeGlobalRoleBindings) Update(ctx context.Context, globalRoleBinding *v3.GlobalRoleBinding, opts v1.UpdateOptions) (result *v3.GlobalRoleBinding, err error) {
+	emptyResult := &v3.GlobalRoleBinding{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(globalrolebindingsResource, globalRoleBinding), &v3.GlobalRoleBinding{})
+		Invokes(testing.NewRootUpdateActionWithOptions(globalrolebindingsResource, globalRoleBinding, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.GlobalRoleBinding), err
 }
@@ -104,7 +108,7 @@ func (c *FakeGlobalRoleBindings) Delete(ctx context.Context, name string, opts v
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeGlobalRoleBindings) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(globalrolebindingsResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(globalrolebindingsResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.GlobalRoleBindingList{})
 	return err
@@ -112,10 +116,11 @@ func (c *FakeGlobalRoleBindings) DeleteCollection(ctx context.Context, opts v1.D
 
 // Patch applies the patch and returns the patched globalRoleBinding.
 func (c *FakeGlobalRoleBindings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.GlobalRoleBinding, err error) {
+	emptyResult := &v3.GlobalRoleBinding{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(globalrolebindingsResource, name, pt, data, subresources...), &v3.GlobalRoleBinding{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(globalrolebindingsResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.GlobalRoleBinding), err
 }

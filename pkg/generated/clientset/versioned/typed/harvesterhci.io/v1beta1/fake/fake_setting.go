@@ -40,20 +40,22 @@ var settingsKind = v1beta1.SchemeGroupVersion.WithKind("Setting")
 
 // Get takes name of the setting, and returns the corresponding setting object, and an error if there is any.
 func (c *FakeSettings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Setting, err error) {
+	emptyResult := &v1beta1.Setting{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(settingsResource, name), &v1beta1.Setting{})
+		Invokes(testing.NewRootGetActionWithOptions(settingsResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Setting), err
 }
 
 // List takes label and field selectors, and returns the list of Settings that match those selectors.
 func (c *FakeSettings) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.SettingList, err error) {
+	emptyResult := &v1beta1.SettingList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(settingsResource, settingsKind, opts), &v1beta1.SettingList{})
+		Invokes(testing.NewRootListActionWithOptions(settingsResource, settingsKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,36 +74,39 @@ func (c *FakeSettings) List(ctx context.Context, opts v1.ListOptions) (result *v
 // Watch returns a watch.Interface that watches the requested settings.
 func (c *FakeSettings) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(settingsResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(settingsResource, opts))
 }
 
 // Create takes the representation of a setting and creates it.  Returns the server's representation of the setting, and an error, if there is any.
 func (c *FakeSettings) Create(ctx context.Context, setting *v1beta1.Setting, opts v1.CreateOptions) (result *v1beta1.Setting, err error) {
+	emptyResult := &v1beta1.Setting{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(settingsResource, setting), &v1beta1.Setting{})
+		Invokes(testing.NewRootCreateActionWithOptions(settingsResource, setting, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Setting), err
 }
 
 // Update takes the representation of a setting and updates it. Returns the server's representation of the setting, and an error, if there is any.
 func (c *FakeSettings) Update(ctx context.Context, setting *v1beta1.Setting, opts v1.UpdateOptions) (result *v1beta1.Setting, err error) {
+	emptyResult := &v1beta1.Setting{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(settingsResource, setting), &v1beta1.Setting{})
+		Invokes(testing.NewRootUpdateActionWithOptions(settingsResource, setting, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Setting), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeSettings) UpdateStatus(ctx context.Context, setting *v1beta1.Setting, opts v1.UpdateOptions) (*v1beta1.Setting, error) {
+func (c *FakeSettings) UpdateStatus(ctx context.Context, setting *v1beta1.Setting, opts v1.UpdateOptions) (result *v1beta1.Setting, err error) {
+	emptyResult := &v1beta1.Setting{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(settingsResource, "status", setting), &v1beta1.Setting{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(settingsResource, "status", setting, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Setting), err
 }
@@ -115,7 +120,7 @@ func (c *FakeSettings) Delete(ctx context.Context, name string, opts v1.DeleteOp
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeSettings) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(settingsResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(settingsResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.SettingList{})
 	return err
@@ -123,10 +128,11 @@ func (c *FakeSettings) DeleteCollection(ctx context.Context, opts v1.DeleteOptio
 
 // Patch applies the patch and returns the patched setting.
 func (c *FakeSettings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Setting, err error) {
+	emptyResult := &v1beta1.Setting{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(settingsResource, name, pt, data, subresources...), &v1beta1.Setting{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(settingsResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Setting), err
 }

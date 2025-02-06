@@ -41,22 +41,24 @@ var virtualmachinetemplateversionsKind = v1beta1.SchemeGroupVersion.WithKind("Vi
 
 // Get takes name of the virtualMachineTemplateVersion, and returns the corresponding virtualMachineTemplateVersion object, and an error if there is any.
 func (c *FakeVirtualMachineTemplateVersions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.VirtualMachineTemplateVersion, err error) {
+	emptyResult := &v1beta1.VirtualMachineTemplateVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(virtualmachinetemplateversionsResource, c.ns, name), &v1beta1.VirtualMachineTemplateVersion{})
+		Invokes(testing.NewGetActionWithOptions(virtualmachinetemplateversionsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VirtualMachineTemplateVersion), err
 }
 
 // List takes label and field selectors, and returns the list of VirtualMachineTemplateVersions that match those selectors.
 func (c *FakeVirtualMachineTemplateVersions) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.VirtualMachineTemplateVersionList, err error) {
+	emptyResult := &v1beta1.VirtualMachineTemplateVersionList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(virtualmachinetemplateversionsResource, virtualmachinetemplateversionsKind, c.ns, opts), &v1beta1.VirtualMachineTemplateVersionList{})
+		Invokes(testing.NewListActionWithOptions(virtualmachinetemplateversionsResource, virtualmachinetemplateversionsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeVirtualMachineTemplateVersions) List(ctx context.Context, opts v1.L
 // Watch returns a watch.Interface that watches the requested virtualMachineTemplateVersions.
 func (c *FakeVirtualMachineTemplateVersions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(virtualmachinetemplateversionsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(virtualmachinetemplateversionsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a virtualMachineTemplateVersion and creates it.  Returns the server's representation of the virtualMachineTemplateVersion, and an error, if there is any.
 func (c *FakeVirtualMachineTemplateVersions) Create(ctx context.Context, virtualMachineTemplateVersion *v1beta1.VirtualMachineTemplateVersion, opts v1.CreateOptions) (result *v1beta1.VirtualMachineTemplateVersion, err error) {
+	emptyResult := &v1beta1.VirtualMachineTemplateVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(virtualmachinetemplateversionsResource, c.ns, virtualMachineTemplateVersion), &v1beta1.VirtualMachineTemplateVersion{})
+		Invokes(testing.NewCreateActionWithOptions(virtualmachinetemplateversionsResource, c.ns, virtualMachineTemplateVersion, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VirtualMachineTemplateVersion), err
 }
 
 // Update takes the representation of a virtualMachineTemplateVersion and updates it. Returns the server's representation of the virtualMachineTemplateVersion, and an error, if there is any.
 func (c *FakeVirtualMachineTemplateVersions) Update(ctx context.Context, virtualMachineTemplateVersion *v1beta1.VirtualMachineTemplateVersion, opts v1.UpdateOptions) (result *v1beta1.VirtualMachineTemplateVersion, err error) {
+	emptyResult := &v1beta1.VirtualMachineTemplateVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(virtualmachinetemplateversionsResource, c.ns, virtualMachineTemplateVersion), &v1beta1.VirtualMachineTemplateVersion{})
+		Invokes(testing.NewUpdateActionWithOptions(virtualmachinetemplateversionsResource, c.ns, virtualMachineTemplateVersion, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VirtualMachineTemplateVersion), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeVirtualMachineTemplateVersions) UpdateStatus(ctx context.Context, virtualMachineTemplateVersion *v1beta1.VirtualMachineTemplateVersion, opts v1.UpdateOptions) (*v1beta1.VirtualMachineTemplateVersion, error) {
+func (c *FakeVirtualMachineTemplateVersions) UpdateStatus(ctx context.Context, virtualMachineTemplateVersion *v1beta1.VirtualMachineTemplateVersion, opts v1.UpdateOptions) (result *v1beta1.VirtualMachineTemplateVersion, err error) {
+	emptyResult := &v1beta1.VirtualMachineTemplateVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(virtualmachinetemplateversionsResource, "status", c.ns, virtualMachineTemplateVersion), &v1beta1.VirtualMachineTemplateVersion{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(virtualmachinetemplateversionsResource, "status", c.ns, virtualMachineTemplateVersion, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VirtualMachineTemplateVersion), err
 }
@@ -123,7 +128,7 @@ func (c *FakeVirtualMachineTemplateVersions) Delete(ctx context.Context, name st
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeVirtualMachineTemplateVersions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(virtualmachinetemplateversionsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(virtualmachinetemplateversionsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.VirtualMachineTemplateVersionList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeVirtualMachineTemplateVersions) DeleteCollection(ctx context.Contex
 
 // Patch applies the patch and returns the patched virtualMachineTemplateVersion.
 func (c *FakeVirtualMachineTemplateVersions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VirtualMachineTemplateVersion, err error) {
+	emptyResult := &v1beta1.VirtualMachineTemplateVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(virtualmachinetemplateversionsResource, c.ns, name, pt, data, subresources...), &v1beta1.VirtualMachineTemplateVersion{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(virtualmachinetemplateversionsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VirtualMachineTemplateVersion), err
 }

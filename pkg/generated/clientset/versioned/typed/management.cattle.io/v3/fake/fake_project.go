@@ -41,22 +41,24 @@ var projectsKind = v3.SchemeGroupVersion.WithKind("Project")
 
 // Get takes name of the project, and returns the corresponding project object, and an error if there is any.
 func (c *FakeProjects) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Project, err error) {
+	emptyResult := &v3.Project{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(projectsResource, c.ns, name), &v3.Project{})
+		Invokes(testing.NewGetActionWithOptions(projectsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Project), err
 }
 
 // List takes label and field selectors, and returns the list of Projects that match those selectors.
 func (c *FakeProjects) List(ctx context.Context, opts v1.ListOptions) (result *v3.ProjectList, err error) {
+	emptyResult := &v3.ProjectList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(projectsResource, projectsKind, c.ns, opts), &v3.ProjectList{})
+		Invokes(testing.NewListActionWithOptions(projectsResource, projectsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeProjects) List(ctx context.Context, opts v1.ListOptions) (result *v
 // Watch returns a watch.Interface that watches the requested projects.
 func (c *FakeProjects) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(projectsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(projectsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a project and creates it.  Returns the server's representation of the project, and an error, if there is any.
 func (c *FakeProjects) Create(ctx context.Context, project *v3.Project, opts v1.CreateOptions) (result *v3.Project, err error) {
+	emptyResult := &v3.Project{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(projectsResource, c.ns, project), &v3.Project{})
+		Invokes(testing.NewCreateActionWithOptions(projectsResource, c.ns, project, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Project), err
 }
 
 // Update takes the representation of a project and updates it. Returns the server's representation of the project, and an error, if there is any.
 func (c *FakeProjects) Update(ctx context.Context, project *v3.Project, opts v1.UpdateOptions) (result *v3.Project, err error) {
+	emptyResult := &v3.Project{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(projectsResource, c.ns, project), &v3.Project{})
+		Invokes(testing.NewUpdateActionWithOptions(projectsResource, c.ns, project, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Project), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeProjects) UpdateStatus(ctx context.Context, project *v3.Project, opts v1.UpdateOptions) (*v3.Project, error) {
+func (c *FakeProjects) UpdateStatus(ctx context.Context, project *v3.Project, opts v1.UpdateOptions) (result *v3.Project, err error) {
+	emptyResult := &v3.Project{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(projectsResource, "status", c.ns, project), &v3.Project{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(projectsResource, "status", c.ns, project, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Project), err
 }
@@ -123,7 +128,7 @@ func (c *FakeProjects) Delete(ctx context.Context, name string, opts v1.DeleteOp
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeProjects) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(projectsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(projectsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.ProjectList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeProjects) DeleteCollection(ctx context.Context, opts v1.DeleteOptio
 
 // Patch applies the patch and returns the patched project.
 func (c *FakeProjects) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Project, err error) {
+	emptyResult := &v3.Project{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(projectsResource, c.ns, name, pt, data, subresources...), &v3.Project{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(projectsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Project), err
 }

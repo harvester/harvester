@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // ActiveDirectoryProvidersGetter has a method to return a ActiveDirectoryProviderInterface.
@@ -51,118 +50,18 @@ type ActiveDirectoryProviderInterface interface {
 
 // activeDirectoryProviders implements ActiveDirectoryProviderInterface
 type activeDirectoryProviders struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v3.ActiveDirectoryProvider, *v3.ActiveDirectoryProviderList]
 }
 
 // newActiveDirectoryProviders returns a ActiveDirectoryProviders
 func newActiveDirectoryProviders(c *ManagementV3Client) *activeDirectoryProviders {
 	return &activeDirectoryProviders{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v3.ActiveDirectoryProvider, *v3.ActiveDirectoryProviderList](
+			"activedirectoryproviders",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v3.ActiveDirectoryProvider { return &v3.ActiveDirectoryProvider{} },
+			func() *v3.ActiveDirectoryProviderList { return &v3.ActiveDirectoryProviderList{} }),
 	}
-}
-
-// Get takes name of the activeDirectoryProvider, and returns the corresponding activeDirectoryProvider object, and an error if there is any.
-func (c *activeDirectoryProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ActiveDirectoryProvider, err error) {
-	result = &v3.ActiveDirectoryProvider{}
-	err = c.client.Get().
-		Resource("activedirectoryproviders").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of ActiveDirectoryProviders that match those selectors.
-func (c *activeDirectoryProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.ActiveDirectoryProviderList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.ActiveDirectoryProviderList{}
-	err = c.client.Get().
-		Resource("activedirectoryproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested activeDirectoryProviders.
-func (c *activeDirectoryProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("activedirectoryproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a activeDirectoryProvider and creates it.  Returns the server's representation of the activeDirectoryProvider, and an error, if there is any.
-func (c *activeDirectoryProviders) Create(ctx context.Context, activeDirectoryProvider *v3.ActiveDirectoryProvider, opts v1.CreateOptions) (result *v3.ActiveDirectoryProvider, err error) {
-	result = &v3.ActiveDirectoryProvider{}
-	err = c.client.Post().
-		Resource("activedirectoryproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(activeDirectoryProvider).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a activeDirectoryProvider and updates it. Returns the server's representation of the activeDirectoryProvider, and an error, if there is any.
-func (c *activeDirectoryProviders) Update(ctx context.Context, activeDirectoryProvider *v3.ActiveDirectoryProvider, opts v1.UpdateOptions) (result *v3.ActiveDirectoryProvider, err error) {
-	result = &v3.ActiveDirectoryProvider{}
-	err = c.client.Put().
-		Resource("activedirectoryproviders").
-		Name(activeDirectoryProvider.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(activeDirectoryProvider).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the activeDirectoryProvider and deletes it. Returns an error if one occurs.
-func (c *activeDirectoryProviders) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("activedirectoryproviders").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *activeDirectoryProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("activedirectoryproviders").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched activeDirectoryProvider.
-func (c *activeDirectoryProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ActiveDirectoryProvider, err error) {
-	result = &v3.ActiveDirectoryProvider{}
-	err = c.client.Patch(pt).
-		Resource("activedirectoryproviders").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

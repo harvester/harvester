@@ -333,7 +333,7 @@ spec:
                                         set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource
                                         exists.
                                         More info: https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/
-                                        (Alpha) Using this field requires the VolumeAttributesClass feature gate to be enabled.
+                                        (Beta) Using this field requires the VolumeAttributesClass feature gate to be enabled (off by default).
                                       type: string
                                     volumeMode:
                                       description: |-
@@ -651,10 +651,8 @@ spec:
                                             Claims lists the names of resources, defined in spec.resourceClaims,
                                             that are used by this container.
 
-
                                             This is an alpha field and requires enabling the
                                             DynamicResourceAllocation feature gate.
-
 
                                             This field is immutable. It can only be set for containers.
                                           items:
@@ -666,6 +664,12 @@ spec:
                                                   Name must match the name of one entry in pod.spec.resourceClaims of
                                                   the Pod where this field is used. It makes that resource available
                                                   inside a container.
+                                                type: string
+                                              request:
+                                                description: |-
+                                                  Request is the name chosen for a request in the referenced claim.
+                                                  If empty, everything from the claim is made available, otherwise
+                                                  only the result of this request.
                                                 type: string
                                             required:
                                             - name
@@ -848,6 +852,7 @@ spec:
                         description: |-
                           Running controls whether the associatied VirtualMachineInstance is created or not
                           Mutually exclusive with RunStrategy
+                          Deprecated: VirtualMachineInstance field "Running" is now deprecated, please use RunStrategy instead.
                         type: boolean
                       template:
                         description: Template is the direct specification of VirtualMachineInstance
@@ -1267,7 +1272,7 @@ spec:
                                                     pod labels will be ignored. The default value is empty.
                                                     The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                                     Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                                   items:
                                                     type: string
                                                   type: array
@@ -1282,7 +1287,7 @@ spec:
                                                     pod labels will be ignored. The default value is empty.
                                                     The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                                     Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                                   items:
                                                     type: string
                                                   type: array
@@ -1452,7 +1457,7 @@ spec:
                                                 pod labels will be ignored. The default value is empty.
                                                 The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                                 Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                                This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                                This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                               items:
                                                 type: string
                                               type: array
@@ -1467,7 +1472,7 @@ spec:
                                                 pod labels will be ignored. The default value is empty.
                                                 The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                                 Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                                This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                                This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                               items:
                                                 type: string
                                               type: array
@@ -1636,7 +1641,7 @@ spec:
                                                     pod labels will be ignored. The default value is empty.
                                                     The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                                     Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                                   items:
                                                     type: string
                                                   type: array
@@ -1651,7 +1656,7 @@ spec:
                                                     pod labels will be ignored. The default value is empty.
                                                     The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                                     Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                                   items:
                                                     type: string
                                                   type: array
@@ -1821,7 +1826,7 @@ spec:
                                                 pod labels will be ignored. The default value is empty.
                                                 The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                                 Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                                This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                                This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                               items:
                                                 type: string
                                               type: array
@@ -1836,7 +1841,7 @@ spec:
                                                 pod labels will be ignored. The default value is empty.
                                                 The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                                 Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                                This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                                This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                               items:
                                                 type: string
                                               type: array
@@ -2598,9 +2603,8 @@ spec:
                                             model:
                                               description: |-
                                                 Interface model.
-                                                One of: e1000, e1000e, ne2k_pci, pcnet, rtl8139, virtio.
+                                                One of: e1000, e1000e, igb, ne2k_pci, pcnet, rtl8139, virtio.
                                                 Defaults to virtio.
-                                                TODO:(ihar) switch to enums once opengen-api supports them. See: https://github.com/kubernetes/kube-openapi/issues/51
                                               type: string
                                             name:
                                               description: |-
@@ -3331,7 +3335,6 @@ spec:
                                     description: |-
                                       TCPSocket specifies an action involving a TCP port.
                                       TCP hooks not yet supported
-                                      TODO: implement a realistic TCP lifecycle hook
                                     properties:
                                       host:
                                         description: 'Optional: Host name to connect
@@ -3532,7 +3535,6 @@ spec:
                                     description: |-
                                       TCPSocket specifies an action involving a TCP port.
                                       TCP hooks not yet supported
-                                      TODO: implement a realistic TCP lifecycle hook
                                     properties:
                                       host:
                                         description: 'Optional: Host name to connect
@@ -3692,7 +3694,6 @@ spec:
                                         Keys that don't exist in the incoming pod labels will
                                         be ignored. A null or empty list means only match against labelSelector.
 
-
                                         This is a beta field and requires the MatchLabelKeysInPodTopologySpread feature gate to be enabled (enabled by default).
                                       items:
                                         type: string
@@ -3732,7 +3733,6 @@ spec:
                                         Valid values are integers greater than 0.
                                         When value is not nil, WhenUnsatisfiable must be DoNotSchedule.
 
-
                                         For example, in a 3-zone cluster, MaxSkew is set to 2, MinDomains is set to 5 and pods with the same
                                         labelSelector spread as 2/2/2:
                                         | zone1 | zone2 | zone3 |
@@ -3750,7 +3750,6 @@ spec:
                                         - Honor: only nodes matching nodeAffinity/nodeSelector are included in the calculations.
                                         - Ignore: nodeAffinity/nodeSelector are ignored. All nodes are included in the calculations.
 
-
                                         If this value is nil, the behavior is equivalent to the Honor policy.
                                         This is a beta-level feature default enabled by the NodeInclusionPolicyInPodTopologySpread feature flag.
                                       type: string
@@ -3761,7 +3760,6 @@ spec:
                                         - Honor: nodes without taints, along with tainted nodes for which the incoming pod
                                         has a toleration, are included.
                                         - Ignore: node taints are ignored. All nodes are included.
-
 
                                         If this value is nil, the behavior is equivalent to the Ignore policy.
                                         This is a beta-level feature default enabled by the NodeInclusionPolicyInPodTopologySpread feature flag.
@@ -3844,9 +3842,7 @@ spec:
                                                 This field is effectively required, but due to backwards compatibility is
                                                 allowed to be empty. Instances of this type with an empty value here are
                                                 almost certainly wrong.
-                                                TODO: Add other useful fields. apiVersion, kind, uid?
                                                 More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                                TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                                               type: string
                                           type: object
                                           x-kubernetes-map-type: atomic
@@ -3862,9 +3858,7 @@ spec:
                                                 This field is effectively required, but due to backwards compatibility is
                                                 allowed to be empty. Instances of this type with an empty value here are
                                                 almost certainly wrong.
-                                                TODO: Add other useful fields. apiVersion, kind, uid?
                                                 More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                                TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                                               type: string
                                           type: object
                                           x-kubernetes-map-type: atomic
@@ -3904,9 +3898,7 @@ spec:
                                                 This field is effectively required, but due to backwards compatibility is
                                                 allowed to be empty. Instances of this type with an empty value here are
                                                 almost certainly wrong.
-                                                TODO: Add other useful fields. apiVersion, kind, uid?
                                                 More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                                TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                                               type: string
                                           type: object
                                           x-kubernetes-map-type: atomic
@@ -3921,9 +3913,7 @@ spec:
                                                 This field is effectively required, but due to backwards compatibility is
                                                 allowed to be empty. Instances of this type with an empty value here are
                                                 almost certainly wrong.
-                                                TODO: Add other useful fields. apiVersion, kind, uid?
                                                 More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                                TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                                               type: string
                                           type: object
                                           x-kubernetes-map-type: atomic
@@ -3949,9 +3939,7 @@ spec:
                                             This field is effectively required, but due to backwards compatibility is
                                             allowed to be empty. Instances of this type with an empty value here are
                                             almost certainly wrong.
-                                            TODO: Add other useful fields. apiVersion, kind, uid?
                                             More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                            TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                                           type: string
                                         optional:
                                           description: Specify whether the ConfigMap
@@ -4275,9 +4263,7 @@ spec:
                                                 This field is effectively required, but due to backwards compatibility is
                                                 allowed to be empty. Instances of this type with an empty value here are
                                                 almost certainly wrong.
-                                                TODO: Add other useful fields. apiVersion, kind, uid?
                                                 More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                                TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                                               type: string
                                           type: object
                                           x-kubernetes-map-type: atomic
@@ -4294,9 +4280,7 @@ spec:
                                                 This field is effectively required, but due to backwards compatibility is
                                                 allowed to be empty. Instances of this type with an empty value here are
                                                 almost certainly wrong.
-                                                TODO: Add other useful fields. apiVersion, kind, uid?
                                                 More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                                TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                                               type: string
                                           type: object
                                           x-kubernetes-map-type: atomic

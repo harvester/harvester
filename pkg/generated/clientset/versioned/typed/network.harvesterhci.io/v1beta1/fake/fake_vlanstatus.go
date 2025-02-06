@@ -40,20 +40,22 @@ var vlanstatusesKind = v1beta1.SchemeGroupVersion.WithKind("VlanStatus")
 
 // Get takes name of the vlanStatus, and returns the corresponding vlanStatus object, and an error if there is any.
 func (c *FakeVlanStatuses) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.VlanStatus, err error) {
+	emptyResult := &v1beta1.VlanStatus{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(vlanstatusesResource, name), &v1beta1.VlanStatus{})
+		Invokes(testing.NewRootGetActionWithOptions(vlanstatusesResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VlanStatus), err
 }
 
 // List takes label and field selectors, and returns the list of VlanStatuses that match those selectors.
 func (c *FakeVlanStatuses) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.VlanStatusList, err error) {
+	emptyResult := &v1beta1.VlanStatusList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(vlanstatusesResource, vlanstatusesKind, opts), &v1beta1.VlanStatusList{})
+		Invokes(testing.NewRootListActionWithOptions(vlanstatusesResource, vlanstatusesKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,36 +74,39 @@ func (c *FakeVlanStatuses) List(ctx context.Context, opts v1.ListOptions) (resul
 // Watch returns a watch.Interface that watches the requested vlanStatuses.
 func (c *FakeVlanStatuses) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(vlanstatusesResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(vlanstatusesResource, opts))
 }
 
 // Create takes the representation of a vlanStatus and creates it.  Returns the server's representation of the vlanStatus, and an error, if there is any.
 func (c *FakeVlanStatuses) Create(ctx context.Context, vlanStatus *v1beta1.VlanStatus, opts v1.CreateOptions) (result *v1beta1.VlanStatus, err error) {
+	emptyResult := &v1beta1.VlanStatus{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(vlanstatusesResource, vlanStatus), &v1beta1.VlanStatus{})
+		Invokes(testing.NewRootCreateActionWithOptions(vlanstatusesResource, vlanStatus, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VlanStatus), err
 }
 
 // Update takes the representation of a vlanStatus and updates it. Returns the server's representation of the vlanStatus, and an error, if there is any.
 func (c *FakeVlanStatuses) Update(ctx context.Context, vlanStatus *v1beta1.VlanStatus, opts v1.UpdateOptions) (result *v1beta1.VlanStatus, err error) {
+	emptyResult := &v1beta1.VlanStatus{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(vlanstatusesResource, vlanStatus), &v1beta1.VlanStatus{})
+		Invokes(testing.NewRootUpdateActionWithOptions(vlanstatusesResource, vlanStatus, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VlanStatus), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeVlanStatuses) UpdateStatus(ctx context.Context, vlanStatus *v1beta1.VlanStatus, opts v1.UpdateOptions) (*v1beta1.VlanStatus, error) {
+func (c *FakeVlanStatuses) UpdateStatus(ctx context.Context, vlanStatus *v1beta1.VlanStatus, opts v1.UpdateOptions) (result *v1beta1.VlanStatus, err error) {
+	emptyResult := &v1beta1.VlanStatus{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(vlanstatusesResource, "status", vlanStatus), &v1beta1.VlanStatus{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(vlanstatusesResource, "status", vlanStatus, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VlanStatus), err
 }
@@ -115,7 +120,7 @@ func (c *FakeVlanStatuses) Delete(ctx context.Context, name string, opts v1.Dele
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeVlanStatuses) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(vlanstatusesResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(vlanstatusesResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.VlanStatusList{})
 	return err
@@ -123,10 +128,11 @@ func (c *FakeVlanStatuses) DeleteCollection(ctx context.Context, opts v1.DeleteO
 
 // Patch applies the patch and returns the patched vlanStatus.
 func (c *FakeVlanStatuses) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VlanStatus, err error) {
+	emptyResult := &v1beta1.VlanStatus{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(vlanstatusesResource, name, pt, data, subresources...), &v1beta1.VlanStatus{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(vlanstatusesResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VlanStatus), err
 }

@@ -41,22 +41,24 @@ var systembackupsKind = v1beta2.SchemeGroupVersion.WithKind("SystemBackup")
 
 // Get takes name of the systemBackup, and returns the corresponding systemBackup object, and an error if there is any.
 func (c *FakeSystemBackups) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.SystemBackup, err error) {
+	emptyResult := &v1beta2.SystemBackup{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(systembackupsResource, c.ns, name), &v1beta2.SystemBackup{})
+		Invokes(testing.NewGetActionWithOptions(systembackupsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.SystemBackup), err
 }
 
 // List takes label and field selectors, and returns the list of SystemBackups that match those selectors.
 func (c *FakeSystemBackups) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.SystemBackupList, err error) {
+	emptyResult := &v1beta2.SystemBackupList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(systembackupsResource, systembackupsKind, c.ns, opts), &v1beta2.SystemBackupList{})
+		Invokes(testing.NewListActionWithOptions(systembackupsResource, systembackupsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeSystemBackups) List(ctx context.Context, opts v1.ListOptions) (resu
 // Watch returns a watch.Interface that watches the requested systemBackups.
 func (c *FakeSystemBackups) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(systembackupsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(systembackupsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a systemBackup and creates it.  Returns the server's representation of the systemBackup, and an error, if there is any.
 func (c *FakeSystemBackups) Create(ctx context.Context, systemBackup *v1beta2.SystemBackup, opts v1.CreateOptions) (result *v1beta2.SystemBackup, err error) {
+	emptyResult := &v1beta2.SystemBackup{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(systembackupsResource, c.ns, systemBackup), &v1beta2.SystemBackup{})
+		Invokes(testing.NewCreateActionWithOptions(systembackupsResource, c.ns, systemBackup, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.SystemBackup), err
 }
 
 // Update takes the representation of a systemBackup and updates it. Returns the server's representation of the systemBackup, and an error, if there is any.
 func (c *FakeSystemBackups) Update(ctx context.Context, systemBackup *v1beta2.SystemBackup, opts v1.UpdateOptions) (result *v1beta2.SystemBackup, err error) {
+	emptyResult := &v1beta2.SystemBackup{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(systembackupsResource, c.ns, systemBackup), &v1beta2.SystemBackup{})
+		Invokes(testing.NewUpdateActionWithOptions(systembackupsResource, c.ns, systemBackup, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.SystemBackup), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeSystemBackups) UpdateStatus(ctx context.Context, systemBackup *v1beta2.SystemBackup, opts v1.UpdateOptions) (*v1beta2.SystemBackup, error) {
+func (c *FakeSystemBackups) UpdateStatus(ctx context.Context, systemBackup *v1beta2.SystemBackup, opts v1.UpdateOptions) (result *v1beta2.SystemBackup, err error) {
+	emptyResult := &v1beta2.SystemBackup{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(systembackupsResource, "status", c.ns, systemBackup), &v1beta2.SystemBackup{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(systembackupsResource, "status", c.ns, systemBackup, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.SystemBackup), err
 }
@@ -123,7 +128,7 @@ func (c *FakeSystemBackups) Delete(ctx context.Context, name string, opts v1.Del
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeSystemBackups) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(systembackupsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(systembackupsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta2.SystemBackupList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeSystemBackups) DeleteCollection(ctx context.Context, opts v1.Delete
 
 // Patch applies the patch and returns the patched systemBackup.
 func (c *FakeSystemBackups) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.SystemBackup, err error) {
+	emptyResult := &v1beta2.SystemBackup{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(systembackupsResource, c.ns, name, pt, data, subresources...), &v1beta2.SystemBackup{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(systembackupsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.SystemBackup), err
 }
