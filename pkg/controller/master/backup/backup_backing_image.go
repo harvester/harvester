@@ -76,11 +76,11 @@ func (h *backupBackingImageHandler) OnBackupBackingImageChange(_ string, backupB
 	}
 
 	backingImage, err := h.backingImageCache.Get(backupBackingImage.Namespace, backupBackingImage.Status.BackingImage)
-	if err != nil && !apierrors.IsNotFound(err) {
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
 		return nil, err
-	} else if backingImage == nil {
-		// if we can't find backing image, it means the backup backing image is synced from backup target
-		return nil, nil
 	}
 
 	vmImageNamespace, vmImageName := ref.Parse(backingImage.Annotations[util.AnnotationImageID])
@@ -89,10 +89,11 @@ func (h *backupBackingImageHandler) OnBackupBackingImageChange(_ string, backupB
 	}
 
 	vmImage, err := h.vmImageCache.Get(vmImageNamespace, vmImageName)
-	if err != nil && !apierrors.IsNotFound(err) {
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
 		return nil, err
-	} else if vmImage == nil {
-		return nil, nil
 	}
 
 	target, err := settings.DecodeBackupTarget(settings.BackupTargetSet.Get())

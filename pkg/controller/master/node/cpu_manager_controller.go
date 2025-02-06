@@ -211,12 +211,13 @@ func (h *cpuManagerNodeHandler) OnPodChanged(_ string, pod *corev1.Pod) (*corev1
 		}
 
 		job, err := h.jobCache.Get(h.namespace, jobName)
-		if err != nil && !apierrors.IsNotFound(err) {
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				logrus.WithFields(logFields).Warn("CPU Manager job was not found")
+				return pod, nil
+			}
 			logrus.WithFields(logFields).WithError(err).Error("Failed to get cpu manager job from cache")
 			return nil, err
-		} else if job == nil {
-			logrus.WithFields(logFields).Info("CPU Manager job was not found")
-			return pod, nil
 		}
 		if job.DeletionTimestamp != nil {
 			logrus.WithFields(logFields).Info("CPU Manager job is going to be deleted")

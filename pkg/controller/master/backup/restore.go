@@ -896,15 +896,16 @@ func (h *RestoreHandler) deleteOldPVC(vmRestore *harvesterv1.VirtualMachineResto
 	// clean up existing pvc
 	for _, volName := range vmRestore.Status.DeletedVolumes {
 		vol, err := h.pvcCache.Get(vmRestore.Namespace, volName)
-		if err != nil && !apierrors.IsNotFound(err) {
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
 			return err
 		}
 
-		if vol != nil {
-			err = h.pvcClient.Delete(vol.Namespace, vol.Name, &metav1.DeleteOptions{})
-			if err != nil {
-				return err
-			}
+		err = h.pvcClient.Delete(vol.Namespace, vol.Name, &metav1.DeleteOptions{})
+		if err != nil {
+			return err
 		}
 	}
 
