@@ -3,18 +3,17 @@ package cluster
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	corev1 "k8s.io/api/core/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 type Handler struct {
@@ -22,31 +21,21 @@ type Handler struct {
 	nodeCache ctlcorev1.NodeCache
 }
 
-func (h Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if err := h.do(rw, req); err != nil {
-		status := http.StatusInternalServerError
-		if e, ok := err.(*apierror.APIError); ok {
-			status = e.Code.Status
-		}
-		rw.WriteHeader(status)
-		_, _ = rw.Write([]byte(err.Error()))
-		return
-	}
-	rw.WriteHeader(http.StatusNoContent)
-}
-
-func (h Handler) do(rw http.ResponseWriter, _ *http.Request) error {
+func (h Handler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
+	rw := ctx.RespWriter()
 
 	nodeDeviceAvailability, err := h.generateDeviceAvailability()
 	if err != nil {
-		return err
+		return nil, err
 	}
+
 	result, err := json.Marshal(nodeDeviceAvailability)
 	if err != nil {
-		return fmt.Errorf("unable to marshal node device capacity: %v", err)
+		return nil, fmt.Errorf("unable to marshal node device capacity: %v", err)
 	}
+
 	_, err = rw.Write(result)
-	return err
+	return nil, err
 }
 
 func (h Handler) generateDeviceAvailability() (map[string]resource.Quantity, error) {

@@ -18,6 +18,7 @@ import (
 	"github.com/harvester/harvester/pkg/api/supportbundle"
 	"github.com/harvester/harvester/pkg/api/uiinfo"
 	"github.com/harvester/harvester/pkg/config"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/server/ui"
 )
 
@@ -48,17 +49,17 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	})
 
 	// Those routes should be above /v1/harvester/{type}, otherwise, the response status code would be 404
-	kcGenerateHandler := kubeconfig.NewGenerateHandler(r.scaled, r.options)
+	kcGenerateHandler := harvesterServer.NewHandler(kubeconfig.NewGenerateHandler(r.scaled, r.options))
 	m.Path("/v1/harvester/kubeconfig").Methods("POST").Handler(kcGenerateHandler)
 
-	uiInfoHandler := uiinfo.NewUIInfoHandler(r.scaled, r.options)
+	uiInfoHandler := harvesterServer.NewHandler(uiinfo.NewUIInfoHandler(r.scaled, r.options))
 	m.Path("/v1/harvester/ui-info").Methods("GET").Handler(uiInfoHandler)
 	m.PathPrefix("/v1/harvester/plugin-assets").Handler(ui.Vue.PluginServeAsset())
 
-	sbDownloadHandler := supportbundle.NewDownloadHandler(r.scaled, r.options.Namespace)
+	sbDownloadHandler := harvesterServer.NewHandler(supportbundle.NewDownloadHandler(r.scaled, r.options.Namespace))
 	m.Path("/v1/harvester/supportbundles/{bundleName}/download").Methods("GET").Handler(sbDownloadHandler)
 
-	btHealthyHandler := backuptarget.NewHealthyHandler(r.scaled)
+	btHealthyHandler := harvesterServer.NewHandler(backuptarget.NewHealthyHandler(r.scaled))
 	m.Path("/v1/harvester/backuptarget/healthz").Methods("GET").Handler(btHealthyHandler)
 	// --- END of preposition routes ---
 
