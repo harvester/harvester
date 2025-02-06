@@ -12,7 +12,9 @@ const (
 
 func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	rqs := management.HarvesterCoreFactory.Core().V1().ResourceQuota()
+	nsCache := management.CoreFactory.Core().V1().Namespace().Cache()
 	handler := &Handler{
+		nsCache: nsCache,
 		rqs:     rqs,
 		rqCache: rqs.Cache(),
 	}
