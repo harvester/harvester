@@ -1058,7 +1058,6 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			var err error
 			actual.clusterFlow, err = handler.clusterFlowClient.Get(util.HarvesterSystemNamespaceName, name.SafeConcatName(testUpgradeLogName, util.UpgradeLogFlowComponent), metav1.GetOptions{})
 			assert.True(t, apierrors.IsNotFound(err), "case %q", tc.name)
-			assert.Nil(t, actual.clusterFlow, "case %q", tc.name)
 		}
 
 		if tc.expected.clusterOutput != nil {
@@ -1072,7 +1071,6 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			var err error
 			actual.clusterOutput, err = handler.clusterOutputClient.Get(util.HarvesterSystemNamespaceName, name.SafeConcatName(testUpgradeLogName, util.UpgradeLogOutputComponent), metav1.GetOptions{})
 			assert.True(t, apierrors.IsNotFound(err), "case %q", tc.name)
-			assert.Nil(t, actual.clusterOutput, "case %q", tc.name)
 		}
 
 		if tc.expected.deployment != nil {
@@ -1090,7 +1088,6 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			var err error
 			actual.logging, err = handler.loggingClient.Get(name.SafeConcatName(testUpgradeLogName, util.UpgradeLogInfraComponent), metav1.GetOptions{})
 			assert.True(t, apierrors.IsNotFound(err), "case %q", tc.name)
-			assert.Nil(t, actual.logging, "case %q", tc.name)
 		}
 
 		if tc.expected.managedChart != nil {
@@ -1108,7 +1105,6 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			var err error
 			actual.pvc, err = handler.pvcClient.Get(util.HarvesterSystemNamespaceName, name.SafeConcatName(testUpgradeLogName, util.UpgradeLogArchiveComponent), metav1.GetOptions{})
 			assert.True(t, apierrors.IsNotFound(err), "case %q", tc.name)
-			assert.Nil(t, actual.pvc, "case %q", tc.name)
 		}
 
 		if tc.expected.service != nil {

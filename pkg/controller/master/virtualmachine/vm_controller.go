@@ -316,10 +316,14 @@ func (h *VMController) cleanUpInsufficientResourceAnnotation(vm *kubevirtv1.Virt
 	}
 
 	vmi, err := h.vmiCache.Get(vm.Namespace, vm.Name)
-	if err != nil && !apierrors.IsNotFound(err) {
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logrus.Debugf("skip cleaning up insufficient resource annotation, VMI %s in namespace %s did not exist.", vm.Name, vm.Namespace)
+			return nil
+		}
 		return err
 	}
-	if vmi == nil || !vmi.IsRunning() {
+	if !vmi.IsRunning() {
 		logrus.Debugf("skip cleaning up insufficient resource annotation, VM %s in namespace %s is not running.", vm.Name, vm.Namespace)
 		return nil
 	}
