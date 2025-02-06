@@ -41,22 +41,24 @@ var versionsKind = v1beta1.SchemeGroupVersion.WithKind("Version")
 
 // Get takes name of the version, and returns the corresponding version object, and an error if there is any.
 func (c *FakeVersions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Version, err error) {
+	emptyResult := &v1beta1.Version{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(versionsResource, c.ns, name), &v1beta1.Version{})
+		Invokes(testing.NewGetActionWithOptions(versionsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Version), err
 }
 
 // List takes label and field selectors, and returns the list of Versions that match those selectors.
 func (c *FakeVersions) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.VersionList, err error) {
+	emptyResult := &v1beta1.VersionList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(versionsResource, versionsKind, c.ns, opts), &v1beta1.VersionList{})
+		Invokes(testing.NewListActionWithOptions(versionsResource, versionsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,28 +77,30 @@ func (c *FakeVersions) List(ctx context.Context, opts v1.ListOptions) (result *v
 // Watch returns a watch.Interface that watches the requested versions.
 func (c *FakeVersions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(versionsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(versionsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a version and creates it.  Returns the server's representation of the version, and an error, if there is any.
 func (c *FakeVersions) Create(ctx context.Context, version *v1beta1.Version, opts v1.CreateOptions) (result *v1beta1.Version, err error) {
+	emptyResult := &v1beta1.Version{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(versionsResource, c.ns, version), &v1beta1.Version{})
+		Invokes(testing.NewCreateActionWithOptions(versionsResource, c.ns, version, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Version), err
 }
 
 // Update takes the representation of a version and updates it. Returns the server's representation of the version, and an error, if there is any.
 func (c *FakeVersions) Update(ctx context.Context, version *v1beta1.Version, opts v1.UpdateOptions) (result *v1beta1.Version, err error) {
+	emptyResult := &v1beta1.Version{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(versionsResource, c.ns, version), &v1beta1.Version{})
+		Invokes(testing.NewUpdateActionWithOptions(versionsResource, c.ns, version, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Version), err
 }
@@ -111,7 +115,7 @@ func (c *FakeVersions) Delete(ctx context.Context, name string, opts v1.DeleteOp
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeVersions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(versionsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(versionsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.VersionList{})
 	return err
@@ -119,11 +123,12 @@ func (c *FakeVersions) DeleteCollection(ctx context.Context, opts v1.DeleteOptio
 
 // Patch applies the patch and returns the patched version.
 func (c *FakeVersions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Version, err error) {
+	emptyResult := &v1beta1.Version{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(versionsResource, c.ns, name, pt, data, subresources...), &v1beta1.Version{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(versionsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Version), err
 }

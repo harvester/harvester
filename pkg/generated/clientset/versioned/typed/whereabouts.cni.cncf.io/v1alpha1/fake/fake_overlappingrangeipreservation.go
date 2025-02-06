@@ -41,22 +41,24 @@ var overlappingrangeipreservationsKind = v1alpha1.SchemeGroupVersion.WithKind("O
 
 // Get takes name of the overlappingRangeIPReservation, and returns the corresponding overlappingRangeIPReservation object, and an error if there is any.
 func (c *FakeOverlappingRangeIPReservations) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.OverlappingRangeIPReservation, err error) {
+	emptyResult := &v1alpha1.OverlappingRangeIPReservation{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(overlappingrangeipreservationsResource, c.ns, name), &v1alpha1.OverlappingRangeIPReservation{})
+		Invokes(testing.NewGetActionWithOptions(overlappingrangeipreservationsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.OverlappingRangeIPReservation), err
 }
 
 // List takes label and field selectors, and returns the list of OverlappingRangeIPReservations that match those selectors.
 func (c *FakeOverlappingRangeIPReservations) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.OverlappingRangeIPReservationList, err error) {
+	emptyResult := &v1alpha1.OverlappingRangeIPReservationList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(overlappingrangeipreservationsResource, overlappingrangeipreservationsKind, c.ns, opts), &v1alpha1.OverlappingRangeIPReservationList{})
+		Invokes(testing.NewListActionWithOptions(overlappingrangeipreservationsResource, overlappingrangeipreservationsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,28 +77,30 @@ func (c *FakeOverlappingRangeIPReservations) List(ctx context.Context, opts v1.L
 // Watch returns a watch.Interface that watches the requested overlappingRangeIPReservations.
 func (c *FakeOverlappingRangeIPReservations) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(overlappingrangeipreservationsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(overlappingrangeipreservationsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a overlappingRangeIPReservation and creates it.  Returns the server's representation of the overlappingRangeIPReservation, and an error, if there is any.
 func (c *FakeOverlappingRangeIPReservations) Create(ctx context.Context, overlappingRangeIPReservation *v1alpha1.OverlappingRangeIPReservation, opts v1.CreateOptions) (result *v1alpha1.OverlappingRangeIPReservation, err error) {
+	emptyResult := &v1alpha1.OverlappingRangeIPReservation{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(overlappingrangeipreservationsResource, c.ns, overlappingRangeIPReservation), &v1alpha1.OverlappingRangeIPReservation{})
+		Invokes(testing.NewCreateActionWithOptions(overlappingrangeipreservationsResource, c.ns, overlappingRangeIPReservation, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.OverlappingRangeIPReservation), err
 }
 
 // Update takes the representation of a overlappingRangeIPReservation and updates it. Returns the server's representation of the overlappingRangeIPReservation, and an error, if there is any.
 func (c *FakeOverlappingRangeIPReservations) Update(ctx context.Context, overlappingRangeIPReservation *v1alpha1.OverlappingRangeIPReservation, opts v1.UpdateOptions) (result *v1alpha1.OverlappingRangeIPReservation, err error) {
+	emptyResult := &v1alpha1.OverlappingRangeIPReservation{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(overlappingrangeipreservationsResource, c.ns, overlappingRangeIPReservation), &v1alpha1.OverlappingRangeIPReservation{})
+		Invokes(testing.NewUpdateActionWithOptions(overlappingrangeipreservationsResource, c.ns, overlappingRangeIPReservation, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.OverlappingRangeIPReservation), err
 }
@@ -111,7 +115,7 @@ func (c *FakeOverlappingRangeIPReservations) Delete(ctx context.Context, name st
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeOverlappingRangeIPReservations) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(overlappingrangeipreservationsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(overlappingrangeipreservationsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.OverlappingRangeIPReservationList{})
 	return err
@@ -119,11 +123,12 @@ func (c *FakeOverlappingRangeIPReservations) DeleteCollection(ctx context.Contex
 
 // Patch applies the patch and returns the patched overlappingRangeIPReservation.
 func (c *FakeOverlappingRangeIPReservations) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.OverlappingRangeIPReservation, err error) {
+	emptyResult := &v1alpha1.OverlappingRangeIPReservation{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(overlappingrangeipreservationsResource, c.ns, name, pt, data, subresources...), &v1alpha1.OverlappingRangeIPReservation{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(overlappingrangeipreservationsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.OverlappingRangeIPReservation), err
 }

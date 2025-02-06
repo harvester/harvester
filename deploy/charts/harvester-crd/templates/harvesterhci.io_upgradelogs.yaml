@@ -43,6 +43,8 @@ spec:
             properties:
               upgradeName:
                 type: string
+            required:
+            - upgradeName
             type: object
           status:
             properties:

@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // OpenLdapProvidersGetter has a method to return a OpenLdapProviderInterface.
@@ -51,118 +50,18 @@ type OpenLdapProviderInterface interface {
 
 // openLdapProviders implements OpenLdapProviderInterface
 type openLdapProviders struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v3.OpenLdapProvider, *v3.OpenLdapProviderList]
 }
 
 // newOpenLdapProviders returns a OpenLdapProviders
 func newOpenLdapProviders(c *ManagementV3Client) *openLdapProviders {
 	return &openLdapProviders{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v3.OpenLdapProvider, *v3.OpenLdapProviderList](
+			"openldapproviders",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v3.OpenLdapProvider { return &v3.OpenLdapProvider{} },
+			func() *v3.OpenLdapProviderList { return &v3.OpenLdapProviderList{} }),
 	}
-}
-
-// Get takes name of the openLdapProvider, and returns the corresponding openLdapProvider object, and an error if there is any.
-func (c *openLdapProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.OpenLdapProvider, err error) {
-	result = &v3.OpenLdapProvider{}
-	err = c.client.Get().
-		Resource("openldapproviders").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of OpenLdapProviders that match those selectors.
-func (c *openLdapProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.OpenLdapProviderList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.OpenLdapProviderList{}
-	err = c.client.Get().
-		Resource("openldapproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested openLdapProviders.
-func (c *openLdapProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("openldapproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a openLdapProvider and creates it.  Returns the server's representation of the openLdapProvider, and an error, if there is any.
-func (c *openLdapProviders) Create(ctx context.Context, openLdapProvider *v3.OpenLdapProvider, opts v1.CreateOptions) (result *v3.OpenLdapProvider, err error) {
-	result = &v3.OpenLdapProvider{}
-	err = c.client.Post().
-		Resource("openldapproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(openLdapProvider).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a openLdapProvider and updates it. Returns the server's representation of the openLdapProvider, and an error, if there is any.
-func (c *openLdapProviders) Update(ctx context.Context, openLdapProvider *v3.OpenLdapProvider, opts v1.UpdateOptions) (result *v3.OpenLdapProvider, err error) {
-	result = &v3.OpenLdapProvider{}
-	err = c.client.Put().
-		Resource("openldapproviders").
-		Name(openLdapProvider.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(openLdapProvider).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the openLdapProvider and deletes it. Returns an error if one occurs.
-func (c *openLdapProviders) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("openldapproviders").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *openLdapProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("openldapproviders").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched openLdapProvider.
-func (c *openLdapProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.OpenLdapProvider, err error) {
-	result = &v3.OpenLdapProvider{}
-	err = c.client.Patch(pt).
-		Resource("openldapproviders").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

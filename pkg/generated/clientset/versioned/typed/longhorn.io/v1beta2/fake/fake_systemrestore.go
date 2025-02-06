@@ -41,22 +41,24 @@ var systemrestoresKind = v1beta2.SchemeGroupVersion.WithKind("SystemRestore")
 
 // Get takes name of the systemRestore, and returns the corresponding systemRestore object, and an error if there is any.
 func (c *FakeSystemRestores) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.SystemRestore, err error) {
+	emptyResult := &v1beta2.SystemRestore{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(systemrestoresResource, c.ns, name), &v1beta2.SystemRestore{})
+		Invokes(testing.NewGetActionWithOptions(systemrestoresResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.SystemRestore), err
 }
 
 // List takes label and field selectors, and returns the list of SystemRestores that match those selectors.
 func (c *FakeSystemRestores) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.SystemRestoreList, err error) {
+	emptyResult := &v1beta2.SystemRestoreList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(systemrestoresResource, systemrestoresKind, c.ns, opts), &v1beta2.SystemRestoreList{})
+		Invokes(testing.NewListActionWithOptions(systemrestoresResource, systemrestoresKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeSystemRestores) List(ctx context.Context, opts v1.ListOptions) (res
 // Watch returns a watch.Interface that watches the requested systemRestores.
 func (c *FakeSystemRestores) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(systemrestoresResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(systemrestoresResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a systemRestore and creates it.  Returns the server's representation of the systemRestore, and an error, if there is any.
 func (c *FakeSystemRestores) Create(ctx context.Context, systemRestore *v1beta2.SystemRestore, opts v1.CreateOptions) (result *v1beta2.SystemRestore, err error) {
+	emptyResult := &v1beta2.SystemRestore{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(systemrestoresResource, c.ns, systemRestore), &v1beta2.SystemRestore{})
+		Invokes(testing.NewCreateActionWithOptions(systemrestoresResource, c.ns, systemRestore, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.SystemRestore), err
 }
 
 // Update takes the representation of a systemRestore and updates it. Returns the server's representation of the systemRestore, and an error, if there is any.
 func (c *FakeSystemRestores) Update(ctx context.Context, systemRestore *v1beta2.SystemRestore, opts v1.UpdateOptions) (result *v1beta2.SystemRestore, err error) {
+	emptyResult := &v1beta2.SystemRestore{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(systemrestoresResource, c.ns, systemRestore), &v1beta2.SystemRestore{})
+		Invokes(testing.NewUpdateActionWithOptions(systemrestoresResource, c.ns, systemRestore, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.SystemRestore), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeSystemRestores) UpdateStatus(ctx context.Context, systemRestore *v1beta2.SystemRestore, opts v1.UpdateOptions) (*v1beta2.SystemRestore, error) {
+func (c *FakeSystemRestores) UpdateStatus(ctx context.Context, systemRestore *v1beta2.SystemRestore, opts v1.UpdateOptions) (result *v1beta2.SystemRestore, err error) {
+	emptyResult := &v1beta2.SystemRestore{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(systemrestoresResource, "status", c.ns, systemRestore), &v1beta2.SystemRestore{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(systemrestoresResource, "status", c.ns, systemRestore, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.SystemRestore), err
 }
@@ -123,7 +128,7 @@ func (c *FakeSystemRestores) Delete(ctx context.Context, name string, opts v1.De
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeSystemRestores) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(systemrestoresResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(systemrestoresResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta2.SystemRestoreList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeSystemRestores) DeleteCollection(ctx context.Context, opts v1.Delet
 
 // Patch applies the patch and returns the patched systemRestore.
 func (c *FakeSystemRestores) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.SystemRestore, err error) {
+	emptyResult := &v1beta2.SystemRestore{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(systemrestoresResource, c.ns, name, pt, data, subresources...), &v1beta2.SystemRestore{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(systemrestoresResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.SystemRestore), err
 }
