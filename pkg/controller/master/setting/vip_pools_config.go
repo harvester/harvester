@@ -40,7 +40,7 @@ func (h *Handler) syncVipPoolsConfig(setting *harvesterv1.Setting) error {
 		return err
 	}
 
-	if vipConfigmap == nil {
+	if errors.IsNotFound(err) {
 		cf := &v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      KubevipConfigmapName,
