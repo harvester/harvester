@@ -1,7 +1,7 @@
 dependencies:
 - name: kubevirt-operator
   repository: file://dependency_charts/kubevirt-operator
-  version: 0.2.1
+  version: 0.4.0
 - name: kubevirt
   repository: file://dependency_charts/kubevirt
   version: 0.1.0
@@ -35,5 +35,5 @@ dependencies:
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
   version: 0.2.0
-digest: sha256:ab48820679a5ceafc4db54909eb98495cc2bac1fd107e3963abfd57cdafe82bf
-generated: "2025-02-05T19:34:02.729505557+08:00"
+digest: sha256:71b24c8998a3272573f0e7f5b9e3f9a19764f99cc1b79c6e02a365653443c31a
+generated: "2025-02-10T09:50:53.142885253+08:00"
