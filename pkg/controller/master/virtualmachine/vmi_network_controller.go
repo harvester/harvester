@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
-	vmwatch "kubevirt.io/kubevirt/pkg/virt-controller/watch"
+	vmwatch "kubevirt.io/kubevirt/pkg/virt-controller/watch/vm"
 
 	ctlappsv1 "github.com/harvester/harvester/pkg/generated/controllers/apps/v1"
 	vmv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
