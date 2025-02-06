@@ -24,7 +24,6 @@ package virtconfig
 */
 
 import (
-	"fmt"
 	"strings"
 
 	"kubevirt.io/client-go/log"
@@ -42,7 +41,7 @@ const (
 	MigrationAllowAutoConverge               bool   = false
 	MigrationAllowPostCopy                   bool   = false
 	MigrationProgressTimeout                 int64  = 150
-	MigrationCompletionTimeoutPerGiB         int64  = 800
+	MigrationCompletionTimeoutPerGiB         int64  = 150
 	DefaultAMD64MachineType                         = "q35"
 	DefaultPPC64LEMachineType                       = "pseries"
 	DefaultAARCH64MachineType                       = "virt"
@@ -199,32 +198,6 @@ func (c *ClusterConfig) GetDefaultNetworkInterface() string {
 
 func (c *ClusterConfig) GetDefaultArchitecture() string {
 	return c.GetConfig().ArchitectureConfiguration.DefaultArchitecture
-}
-
-func (c *ClusterConfig) SetVMISpecDefaultNetworkInterface(spec *v1.VirtualMachineInstanceSpec) error {
-	autoAttach := spec.Domain.Devices.AutoattachPodInterface
-	if autoAttach != nil && !*autoAttach {
-		return nil
-	}
-
-	// Override only when nothing is specified
-	if len(spec.Networks) == 0 && len(spec.Domain.Devices.Interfaces) == 0 {
-		iface := v1.NetworkInterfaceType(c.GetDefaultNetworkInterface())
-		switch iface {
-		case v1.BridgeInterface:
-			if !c.IsBridgeInterfaceOnPodNetworkEnabled() {
-				return fmt.Errorf("Bridge interface is not enabled in kubevirt-config")
-			}
-			spec.Domain.Devices.Interfaces = []v1.Interface{*v1.DefaultBridgeNetworkInterface()}
-		case v1.MasqueradeInterface:
-			spec.Domain.Devices.Interfaces = []v1.Interface{*v1.DefaultMasqueradeNetworkInterface()}
-		case v1.DeprecatedSlirpInterface:
-			return fmt.Errorf("slirp interface is deprecated as of v1.3")
-		}
-
-		spec.Networks = []v1.Network{*v1.DefaultPodNetwork()}
-	}
-	return nil
 }
 
 func (c *ClusterConfig) IsSlirpInterfaceEnabled() bool {
@@ -494,4 +467,23 @@ func (c *ClusterConfig) GetNetworkBindings() map[string]v1.InterfaceBindingPlugi
 		return networkConfig.Binding
 	}
 	return nil
+}
+
+func (config *ClusterConfig) VGADisplayForEFIGuestsEnabled() bool {
+	VGADisplayForEFIGuestsAnnotationExists := false
+	kv := config.GetConfigFromKubeVirtCR()
+	if kv != nil {
+		_, VGADisplayForEFIGuestsAnnotationExists = kv.Annotations[v1.VGADisplayForEFIGuestsX86Annotation]
+	}
+	return VGADisplayForEFIGuestsAnnotationExists
+}
+
+func (c *ClusterConfig) GetInstancetypeReferencePolicy() v1.InstancetypeReferencePolicy {
+	// Default to the Reference InstancetypeReferencePolicy
+	policy := v1.Reference
+	instancetypeConfig := c.GetConfig().Instancetype
+	if c.isFeatureGateEnabled(InstancetypeReferencePolicy) && instancetypeConfig != nil && instancetypeConfig.ReferencePolicy != nil {
+		policy = *instancetypeConfig.ReferencePolicy
+	}
+	return policy
 }

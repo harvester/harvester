@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -19,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/utils/ptr"
 
 	virtv1 "kubevirt.io/api/core/v1"
 	apiinstancetype "kubevirt.io/api/instancetype"
@@ -29,16 +29,22 @@ import (
 	"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
+	"kubevirt.io/kubevirt/pkg/defaults"
+	"kubevirt.io/kubevirt/pkg/network/vmispec"
+	"kubevirt.io/kubevirt/pkg/pointer"
 	utils "kubevirt.io/kubevirt/pkg/util"
+	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
 )
 
 const (
 	VMFieldConflictErrorFmt                         = "VM field %s conflicts with selected instance type"
+	VMFieldsConflictsErrorFmt                       = "VM fields %s conflict with selected instance type"
 	InsufficientInstanceTypeCPUResourcesErrorFmt    = "insufficient CPU resources of %d vCPU provided by instance type, preference requires %d vCPU"
 	InsufficientVMCPUResourcesErrorFmt              = "insufficient CPU resources of %d vCPU provided by VirtualMachine, preference requires %d vCPU provided as %s"
 	InsufficientInstanceTypeMemoryResourcesErrorFmt = "insufficient Memory resources of %s provided by instance type, preference requires %s"
 	InsufficientVMMemoryResourcesErrorFmt           = "insufficient Memory resources of %s provided by VirtualMachine, preference requires %s"
 	NoVMCPUResourcesDefinedErrorFmt                 = "no CPU resources provided by VirtualMachine, preference requires %d vCPU"
+	logVerbosityLevel                               = 3
 )
 
 type Methods interface {
@@ -51,6 +57,7 @@ type Methods interface {
 	InferDefaultPreference(vm *virtv1.VirtualMachine) error
 	CheckPreferenceRequirements(instancetypeSpec *instancetypev1beta1.VirtualMachineInstancetypeSpec, preferenceSpec *instancetypev1beta1.VirtualMachinePreferenceSpec, vmiSpec *virtv1.VirtualMachineInstanceSpec) (Conflicts, error)
 	ApplyToVM(vm *virtv1.VirtualMachine) error
+	Expand(vm *virtv1.VirtualMachine, clusterConfig *virtconfig.ClusterConfig) (*virtv1.VirtualMachine, error)
 }
 
 type Conflicts []*k8sfield.Path
@@ -74,6 +81,49 @@ type InstancetypeMethods struct {
 
 var _ Methods = &InstancetypeMethods{}
 
+func (m *InstancetypeMethods) Expand(vm *virtv1.VirtualMachine, clusterConfig *virtconfig.ClusterConfig) (*virtv1.VirtualMachine, error) {
+	if vm.Spec.Instancetype == nil && vm.Spec.Preference == nil {
+		return vm, nil
+	}
+
+	instancetypeSpec, err := m.FindInstancetypeSpec(vm)
+	if err != nil {
+		return nil, err
+	}
+	preferenceSpec, err := m.FindPreferenceSpec(vm)
+	if err != nil {
+		return nil, err
+	}
+	expandedVM := vm.DeepCopy()
+
+	utils.SetDefaultVolumeDisk(&expandedVM.Spec.Template.Spec)
+
+	if err := vmispec.SetDefaultNetworkInterface(clusterConfig, &expandedVM.Spec.Template.Spec); err != nil {
+		return nil, err
+	}
+
+	conflicts := m.ApplyToVmi(
+		k8sfield.NewPath("spec", "template", "spec"),
+		instancetypeSpec, preferenceSpec,
+		&expandedVM.Spec.Template.Spec,
+		&expandedVM.Spec.Template.ObjectMeta,
+	)
+	if len(conflicts) > 0 {
+		return nil, fmt.Errorf(VMFieldsConflictsErrorFmt, conflicts.String())
+	}
+
+	// Apply defaults to VM.Spec.Template.Spec after applying instance types to ensure we don't conflict
+	if err := defaults.SetDefaultVirtualMachineInstanceSpec(clusterConfig, &expandedVM.Spec.Template.Spec); err != nil {
+		return nil, err
+	}
+
+	// Remove InstancetypeMatcher and PreferenceMatcher, so the returned VM object can be used and not cause a conflict
+	expandedVM.Spec.Instancetype = nil
+	expandedVM.Spec.Preference = nil
+
+	return expandedVM, nil
+}
+
 func (m *InstancetypeMethods) ApplyToVM(vm *virtv1.VirtualMachine) error {
 	if vm.Spec.Instancetype == nil && vm.Spec.Preference == nil {
 		return nil
@@ -87,18 +137,34 @@ func (m *InstancetypeMethods) ApplyToVM(vm *virtv1.VirtualMachine) error {
 		return err
 	}
 	if conflicts := m.ApplyToVmi(k8sfield.NewPath("spec"), instancetypeSpec, preferenceSpec, &vm.Spec.Template.Spec, &vm.ObjectMeta); len(conflicts) > 0 {
-		return fmt.Errorf("VM conflicts with instancetype spec in fields: [%s]", conflicts.String())
+		return fmt.Errorf(VMFieldsConflictsErrorFmt, conflicts.String())
 	}
 	return nil
 }
 
 func GetPreferredTopology(preferenceSpec *instancetypev1beta1.VirtualMachinePreferenceSpec) instancetypev1beta1.PreferredCPUTopology {
 	// Default to PreferSockets when a PreferredCPUTopology isn't provided
-	preferredTopology := instancetypev1beta1.PreferSockets
+	preferredTopology := instancetypev1beta1.Sockets
 	if preferenceSpec != nil && preferenceSpec.CPU != nil && preferenceSpec.CPU.PreferredCPUTopology != nil {
 		preferredTopology = *preferenceSpec.CPU.PreferredCPUTopology
 	}
 	return preferredTopology
+}
+
+func IsPreferredTopologySupported(topology instancetypev1beta1.PreferredCPUTopology) bool {
+	supportedTopologies := []instancetypev1beta1.PreferredCPUTopology{
+		instancetypev1beta1.DeprecatedPreferSockets,
+		instancetypev1beta1.DeprecatedPreferCores,
+		instancetypev1beta1.DeprecatedPreferThreads,
+		instancetypev1beta1.DeprecatedPreferSpread,
+		instancetypev1beta1.DeprecatedPreferAny,
+		instancetypev1beta1.Sockets,
+		instancetypev1beta1.Cores,
+		instancetypev1beta1.Threads,
+		instancetypev1beta1.Spread,
+		instancetypev1beta1.Any,
+	}
+	return slices.Contains(supportedTopologies, topology)
 }
 
 const defaultSpreadRatio uint32 = 2
@@ -167,7 +233,7 @@ func (m *InstancetypeMethods) checkForInstancetypeConflicts(instancetypeSpec *in
 	vmiSpecCopy := vmiSpec.DeepCopy()
 	conflicts := m.ApplyToVmi(k8sfield.NewPath("spec", "template", "spec"), instancetypeSpec, nil, vmiSpecCopy, vmiMetadata)
 	if len(conflicts) > 0 {
-		return fmt.Errorf("VM field conflicts with selected Instancetype: %v", conflicts.String())
+		return fmt.Errorf(VMFieldsConflictsErrorFmt, conflicts.String())
 	}
 	return nil
 }
@@ -399,19 +465,19 @@ func checkCPUPreferenceRequirements(instancetypeSpec *instancetypev1beta1.Virtua
 	}
 
 	switch GetPreferredTopology(preferenceSpec) {
-	case instancetypev1beta1.PreferThreads:
+	case instancetypev1beta1.DeprecatedPreferThreads, instancetypev1beta1.Threads:
 		if vmiSpec.Domain.CPU.Threads < preferenceSpec.Requirements.CPU.Guest {
 			return Conflicts{cpuField.Child("threads")}, fmt.Errorf(InsufficientVMCPUResourcesErrorFmt, vmiSpec.Domain.CPU.Threads, preferenceSpec.Requirements.CPU.Guest, "threads")
 		}
-	case instancetypev1beta1.PreferCores:
+	case instancetypev1beta1.DeprecatedPreferCores, instancetypev1beta1.Cores:
 		if vmiSpec.Domain.CPU.Cores < preferenceSpec.Requirements.CPU.Guest {
 			return Conflicts{cpuField.Child("cores")}, fmt.Errorf(InsufficientVMCPUResourcesErrorFmt, vmiSpec.Domain.CPU.Cores, preferenceSpec.Requirements.CPU.Guest, "cores")
 		}
-	case instancetypev1beta1.PreferSockets:
+	case instancetypev1beta1.DeprecatedPreferSockets, instancetypev1beta1.Sockets:
 		if vmiSpec.Domain.CPU.Sockets < preferenceSpec.Requirements.CPU.Guest {
 			return Conflicts{cpuField.Child("sockets")}, fmt.Errorf(InsufficientVMCPUResourcesErrorFmt, vmiSpec.Domain.CPU.Sockets, preferenceSpec.Requirements.CPU.Guest, "sockets")
 		}
-	case instancetypev1beta1.PreferSpread:
+	case instancetypev1beta1.DeprecatedPreferSpread, instancetypev1beta1.Spread:
 		var (
 			vCPUs     uint32
 			conflicts Conflicts
@@ -431,7 +497,7 @@ func checkCPUPreferenceRequirements(instancetypeSpec *instancetypev1beta1.Virtua
 		if vCPUs < preferenceSpec.Requirements.CPU.Guest {
 			return conflicts, fmt.Errorf(InsufficientVMCPUResourcesErrorFmt, vCPUs, preferenceSpec.Requirements.CPU.Guest, across)
 		}
-	case instancetypev1beta1.PreferAny:
+	case instancetypev1beta1.DeprecatedPreferAny, instancetypev1beta1.Any:
 		cpuResources := vmiSpec.Domain.CPU.Cores * vmiSpec.Domain.CPU.Sockets * vmiSpec.Domain.CPU.Threads
 		if cpuResources < preferenceSpec.Requirements.CPU.Guest {
 			return Conflicts{cpuField.Child("cores"), cpuField.Child("sockets"), cpuField.Child("threads")}, fmt.Errorf(InsufficientVMCPUResourcesErrorFmt, cpuResources, preferenceSpec.Requirements.CPU.Guest, "cores, sockets and threads")
@@ -523,7 +589,7 @@ func (m *InstancetypeMethods) FindPreferenceSpec(vm *virtv1.VirtualMachine) (*in
 		}
 		return &preference.Spec, nil
 
-	case apiinstancetype.ClusterSingularPreferenceResourceName, apiinstancetype.ClusterPluralPreferenceResourceName:
+	case apiinstancetype.ClusterSingularPreferenceResourceName, apiinstancetype.ClusterPluralPreferenceResourceName, "":
 		clusterPreference, err := m.findClusterPreference(vm)
 		if err != nil {
 			return nil, err
@@ -784,8 +850,7 @@ func (m *InstancetypeMethods) InferDefaultInstancetype(vm *virtv1.VirtualMachine
 	if err != nil {
 		var ignoreableInferenceErr *IgnoreableInferenceError
 		if errors.As(err, &ignoreableInferenceErr) && ignoreFailure {
-			//nolint:gomnd
-			log.Log.Object(vm).V(3).Info("Ignored error during inference of instancetype, clearing matcher.")
+			log.Log.Object(vm).V(logVerbosityLevel).Info("Ignored error during inference of instancetype, clearing matcher.")
 			vm.Spec.Instancetype = nil
 			return nil
 		}
@@ -820,8 +885,7 @@ func (m *InstancetypeMethods) InferDefaultPreference(vm *virtv1.VirtualMachine) 
 			*vm.Spec.Preference.InferFromVolumeFailurePolicy == virtv1.IgnoreInferFromVolumeFailure
 
 		if errors.As(err, &ignoreableInferenceErr) && ignoreFailure {
-			//nolint:gomnd
-			log.Log.Object(vm).V(3).Info("Ignored error during inference of preference, clearing matcher.")
+			log.Log.Object(vm).V(logVerbosityLevel).Info("Ignored error during inference of preference, clearing matcher.")
 			vm.Spec.Preference = nil
 			return nil
 		}
@@ -1027,13 +1091,13 @@ func applyGuestCPUTopology(vCPUs uint32, preferenceSpec *instancetypev1beta1.Vir
 	}
 
 	switch GetPreferredTopology(preferenceSpec) {
-	case instancetypev1beta1.PreferCores:
+	case instancetypev1beta1.DeprecatedPreferCores, instancetypev1beta1.Cores:
 		vmiSpec.Domain.CPU.Cores = vCPUs
-	case instancetypev1beta1.PreferSockets, instancetypev1beta1.PreferAny:
+	case instancetypev1beta1.DeprecatedPreferSockets, instancetypev1beta1.DeprecatedPreferAny, instancetypev1beta1.Sockets, instancetypev1beta1.Any:
 		vmiSpec.Domain.CPU.Sockets = vCPUs
-	case instancetypev1beta1.PreferThreads:
+	case instancetypev1beta1.DeprecatedPreferThreads, instancetypev1beta1.Threads:
 		vmiSpec.Domain.CPU.Threads = vCPUs
-	case instancetypev1beta1.PreferSpread:
+	case instancetypev1beta1.DeprecatedPreferSpread, instancetypev1beta1.Spread:
 		ratio, across := GetSpreadOptions(preferenceSpec)
 		switch across {
 		case instancetypev1beta1.SpreadAcrossSocketsCores:
@@ -1283,35 +1347,35 @@ func ApplyDevicePreferences(preferenceSpec *instancetypev1beta1.VirtualMachinePr
 	// 2. The user hasn't defined the corresponding attribute already within the VMI
 	//
 	if preferenceSpec.Devices.PreferredAutoattachGraphicsDevice != nil && vmiSpec.Domain.Devices.AutoattachGraphicsDevice == nil {
-		vmiSpec.Domain.Devices.AutoattachGraphicsDevice = ptr.To(*preferenceSpec.Devices.PreferredAutoattachGraphicsDevice)
+		vmiSpec.Domain.Devices.AutoattachGraphicsDevice = pointer.P(*preferenceSpec.Devices.PreferredAutoattachGraphicsDevice)
 	}
 
 	if preferenceSpec.Devices.PreferredAutoattachMemBalloon != nil && vmiSpec.Domain.Devices.AutoattachMemBalloon == nil {
-		vmiSpec.Domain.Devices.AutoattachMemBalloon = ptr.To(*preferenceSpec.Devices.PreferredAutoattachMemBalloon)
+		vmiSpec.Domain.Devices.AutoattachMemBalloon = pointer.P(*preferenceSpec.Devices.PreferredAutoattachMemBalloon)
 	}
 
 	if preferenceSpec.Devices.PreferredAutoattachPodInterface != nil && vmiSpec.Domain.Devices.AutoattachPodInterface == nil {
-		vmiSpec.Domain.Devices.AutoattachPodInterface = ptr.To(*preferenceSpec.Devices.PreferredAutoattachPodInterface)
+		vmiSpec.Domain.Devices.AutoattachPodInterface = pointer.P(*preferenceSpec.Devices.PreferredAutoattachPodInterface)
 	}
 
 	if preferenceSpec.Devices.PreferredAutoattachSerialConsole != nil && vmiSpec.Domain.Devices.AutoattachSerialConsole == nil {
-		vmiSpec.Domain.Devices.AutoattachSerialConsole = ptr.To(*preferenceSpec.Devices.PreferredAutoattachSerialConsole)
+		vmiSpec.Domain.Devices.AutoattachSerialConsole = pointer.P(*preferenceSpec.Devices.PreferredAutoattachSerialConsole)
 	}
 
 	if preferenceSpec.Devices.PreferredUseVirtioTransitional != nil && vmiSpec.Domain.Devices.UseVirtioTransitional == nil {
-		vmiSpec.Domain.Devices.UseVirtioTransitional = ptr.To(*preferenceSpec.Devices.PreferredUseVirtioTransitional)
+		vmiSpec.Domain.Devices.UseVirtioTransitional = pointer.P(*preferenceSpec.Devices.PreferredUseVirtioTransitional)
 	}
 
 	if preferenceSpec.Devices.PreferredBlockMultiQueue != nil && vmiSpec.Domain.Devices.BlockMultiQueue == nil {
-		vmiSpec.Domain.Devices.BlockMultiQueue = ptr.To(*preferenceSpec.Devices.PreferredBlockMultiQueue)
+		vmiSpec.Domain.Devices.BlockMultiQueue = pointer.P(*preferenceSpec.Devices.PreferredBlockMultiQueue)
 	}
 
 	if preferenceSpec.Devices.PreferredNetworkInterfaceMultiQueue != nil && vmiSpec.Domain.Devices.NetworkInterfaceMultiQueue == nil {
-		vmiSpec.Domain.Devices.NetworkInterfaceMultiQueue = ptr.To(*preferenceSpec.Devices.PreferredNetworkInterfaceMultiQueue)
+		vmiSpec.Domain.Devices.NetworkInterfaceMultiQueue = pointer.P(*preferenceSpec.Devices.PreferredNetworkInterfaceMultiQueue)
 	}
 
 	if preferenceSpec.Devices.PreferredAutoattachInputDevice != nil && vmiSpec.Domain.Devices.AutoattachInputDevice == nil {
-		vmiSpec.Domain.Devices.AutoattachInputDevice = ptr.To(*preferenceSpec.Devices.PreferredAutoattachInputDevice)
+		vmiSpec.Domain.Devices.AutoattachInputDevice = pointer.P(*preferenceSpec.Devices.PreferredAutoattachInputDevice)
 	}
 
 	// FIXME DisableHotplug isn't a pointer bool so we don't have a way to tell if a user has actually set it, for now override.
@@ -1362,7 +1426,7 @@ func applyDiskPreferences(preferenceSpec *instancetypev1beta1.VirtualMachinePref
 			}
 
 			if preferenceSpec.Devices.PreferredDiskDedicatedIoThread != nil && vmiDisk.DedicatedIOThread == nil && vmiDisk.DiskDevice.Disk.Bus == virtv1.DiskBusVirtio {
-				vmiDisk.DedicatedIOThread = ptr.To(*preferenceSpec.Devices.PreferredDiskDedicatedIoThread)
+				vmiDisk.DedicatedIOThread = pointer.P(*preferenceSpec.Devices.PreferredDiskDedicatedIoThread)
 			}
 		} else if vmiDisk.DiskDevice.CDRom != nil {
 			if preferenceSpec.Devices.PreferredCdromBus != "" && vmiDisk.DiskDevice.CDRom.Bus == "" {
@@ -1517,28 +1581,38 @@ func applyFirmwarePreferences(preferenceSpec *instancetypev1beta1.VirtualMachine
 		return
 	}
 
+	firmware := preferenceSpec.Firmware
+
 	if vmiSpec.Domain.Firmware == nil {
 		vmiSpec.Domain.Firmware = &virtv1.Firmware{}
 	}
 
-	if vmiSpec.Domain.Firmware.Bootloader == nil {
-		vmiSpec.Domain.Firmware.Bootloader = &virtv1.Bootloader{}
+	vmiFirmware := vmiSpec.Domain.Firmware
+
+	if vmiFirmware.Bootloader == nil {
+		vmiFirmware.Bootloader = &virtv1.Bootloader{}
 	}
 
-	if preferenceSpec.Firmware.PreferredUseBios != nil && *preferenceSpec.Firmware.PreferredUseBios && vmiSpec.Domain.Firmware.Bootloader.BIOS == nil && vmiSpec.Domain.Firmware.Bootloader.EFI == nil {
-		vmiSpec.Domain.Firmware.Bootloader.BIOS = &virtv1.BIOS{}
+	if firmware.PreferredUseBios != nil && *firmware.PreferredUseBios && vmiFirmware.Bootloader.BIOS == nil && vmiFirmware.Bootloader.EFI == nil {
+		vmiFirmware.Bootloader.BIOS = &virtv1.BIOS{}
 	}
 
-	if preferenceSpec.Firmware.PreferredUseBiosSerial != nil && vmiSpec.Domain.Firmware.Bootloader.BIOS != nil && vmiSpec.Domain.Firmware.Bootloader.BIOS.UseSerial == nil {
-		vmiSpec.Domain.Firmware.Bootloader.BIOS.UseSerial = ptr.To(*preferenceSpec.Firmware.PreferredUseBiosSerial)
+	if firmware.PreferredUseBiosSerial != nil && vmiFirmware.Bootloader.BIOS != nil && vmiFirmware.Bootloader.BIOS.UseSerial == nil {
+		vmiFirmware.Bootloader.BIOS.UseSerial = pointer.P(*firmware.PreferredUseBiosSerial)
 	}
 
-	if preferenceSpec.Firmware.PreferredUseEfi != nil && *preferenceSpec.Firmware.PreferredUseEfi && vmiSpec.Domain.Firmware.Bootloader.EFI == nil && vmiSpec.Domain.Firmware.Bootloader.BIOS == nil {
-		vmiSpec.Domain.Firmware.Bootloader.EFI = &virtv1.EFI{}
+	if vmiFirmware.Bootloader.EFI == nil && vmiFirmware.Bootloader.BIOS == nil && firmware.PreferredEfi != nil {
+		vmiFirmware.Bootloader.EFI = firmware.PreferredEfi.DeepCopy()
+		// When using PreferredEfi return early to avoid applying PreferredUseEfi or PreferredUseSecureBoot below
+		return
 	}
 
-	if preferenceSpec.Firmware.PreferredUseSecureBoot != nil && vmiSpec.Domain.Firmware.Bootloader.EFI != nil && vmiSpec.Domain.Firmware.Bootloader.EFI.SecureBoot == nil {
-		vmiSpec.Domain.Firmware.Bootloader.EFI.SecureBoot = ptr.To(*preferenceSpec.Firmware.PreferredUseSecureBoot)
+	if firmware.PreferredUseEfi != nil && *firmware.PreferredUseEfi && vmiFirmware.Bootloader.EFI == nil && vmiFirmware.Bootloader.BIOS == nil {
+		vmiFirmware.Bootloader.EFI = &virtv1.EFI{}
+	}
+
+	if firmware.PreferredUseSecureBoot != nil && vmiFirmware.Bootloader.EFI != nil && vmiFirmware.Bootloader.EFI.SecureBoot == nil {
+		vmiFirmware.Bootloader.EFI.SecureBoot = pointer.P(*firmware.PreferredUseSecureBoot)
 	}
 }
 
@@ -1583,6 +1657,6 @@ func applySubdomain(preferenceSpec *instancetypev1beta1.VirtualMachinePreference
 
 func applyTerminationGracePeriodSeconds(preferenceSpec *instancetypev1beta1.VirtualMachinePreferenceSpec, vmiSpec *virtv1.VirtualMachineInstanceSpec) {
 	if preferenceSpec.PreferredTerminationGracePeriodSeconds != nil && vmiSpec.TerminationGracePeriodSeconds == nil {
-		vmiSpec.TerminationGracePeriodSeconds = ptr.To(*preferenceSpec.PreferredTerminationGracePeriodSeconds)
+		vmiSpec.TerminationGracePeriodSeconds = pointer.P(*preferenceSpec.PreferredTerminationGracePeriodSeconds)
 	}
 }

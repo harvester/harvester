@@ -32,6 +32,7 @@ import (
 	"kubevirt.io/client-go/log"
 
 	k8sv1 "k8s.io/api/core/v1"
+	v1 "kubevirt.io/api/core/v1"
 	virtv1 "kubevirt.io/api/core/v1"
 
 	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
@@ -209,6 +210,7 @@ func cancelVolumeMigration(clientset kubecli.KubevirtClient, vmi *virtv1.Virtual
 		Type:               virtv1.VirtualMachineInstanceVolumesChange,
 		LastTransitionTime: metav1.Now(),
 		Status:             k8sv1.ConditionFalse,
+		Reason:             virtv1.VirtualMachineInstanceReasonVolumesChangeCancellation,
 	})
 	vmiCopy.Status.MigratedVolumes = nil
 	if equality.Semantic.DeepEqual(vmiCopy.Status, vmi.Status) {
@@ -237,11 +239,7 @@ func IsVolumeMigrating(vmi *virtv1.VirtualMachineInstance) bool {
 		virtv1.VirtualMachineInstanceVolumesChange, k8sv1.ConditionTrue)
 }
 
-// PatchVMIStatusWithMigratedVolumes patches the VMI status with the source and destination volume information during the volume migration
-func PatchVMIStatusWithMigratedVolumes(clientset kubecli.KubevirtClient, pvcStore cache.Store, vmi *virtv1.VirtualMachineInstance, vm *virtv1.VirtualMachine) error {
-	if len(vmi.Status.MigratedVolumes) > 0 {
-		return nil
-	}
+func GenerateMigratedVolumes(pvcStore cache.Store, vmi *virtv1.VirtualMachineInstance, vm *virtv1.VirtualMachine) ([]virtv1.StorageMigratedVolumeInfo, error) {
 	var migVolsInfo []virtv1.StorageMigratedVolumeInfo
 	oldVols := make(map[string]string)
 	for _, v := range vmi.Spec.Volumes {
@@ -263,11 +261,11 @@ func PatchVMIStatusWithMigratedVolumes(clientset kubecli.KubevirtClient, pvcStor
 		}
 		oldPvc, err := storagetypes.GetPersistentVolumeClaimFromCache(vmi.Namespace, oldClaim, pvcStore)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		pvc, err := storagetypes.GetPersistentVolumeClaimFromCache(vmi.Namespace, claim, pvcStore)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		var oldVolMode *k8sv1.PersistentVolumeMode
 		var volMode *k8sv1.PersistentVolumeMode
@@ -289,6 +287,15 @@ func PatchVMIStatusWithMigratedVolumes(clientset kubecli.KubevirtClient, pvcStor
 			},
 		})
 	}
+
+	return migVolsInfo, nil
+}
+
+// PatchVMIStatusWithMigratedVolumes patches the VMI status with the source and destination volume information during the volume migration
+func PatchVMIStatusWithMigratedVolumes(clientset kubecli.KubevirtClient, migVolsInfo []v1.StorageMigratedVolumeInfo, vmi *virtv1.VirtualMachineInstance) error {
+	if len(vmi.Status.MigratedVolumes) > 0 {
+		return nil
+	}
 	if equality.Semantic.DeepEqual(migVolsInfo, vmi.Status.MigratedVolumes) {
 		return nil
 	}
@@ -305,6 +312,9 @@ func PatchVMIStatusWithMigratedVolumes(clientset kubecli.KubevirtClient, pvcStor
 
 // PatchVMIVolumes replaces the VMI volumes with the migrated volumes
 func PatchVMIVolumes(clientset kubecli.KubevirtClient, vmi *virtv1.VirtualMachineInstance, vm *virtv1.VirtualMachine) (*virtv1.VirtualMachineInstance, error) {
+	if vmi == nil || vm == nil {
+		return nil, fmt.Errorf("cannot patch the volumes for an empty VMI or VM")
+	}
 	log.Log.V(2).Object(vmi).Infof("Patch VMI volumes")
 	migVols := make(map[string]bool)
 	vmiCopy := vmi.DeepCopy()
@@ -335,24 +345,24 @@ func PatchVMIVolumes(clientset kubecli.KubevirtClient, vmi *virtv1.VirtualMachin
 	return clientset.VirtualMachineInstance(vmi.Namespace).Patch(context.Background(), vmi.Name, types.JSONPatchType, patch, metav1.PatchOptions{})
 }
 
-// CanVolumesUpdateMigration checks if the VMI can be update with the volume migration. For example, for certain VMs, the migration is not allowed for
-// other reasons then the storage
-func CanVolumesUpdateMigration(vmi *virtv1.VirtualMachineInstance) bool {
-	if len(vmi.Status.MigratedVolumes) == 0 {
-		return false
+// ValidateVolumesUpdateMigration checks if the VMI can be update with the volume migration. For example, for certain VMs, the migration is not allowed for other reasons then the storage
+func ValidateVolumesUpdateMigration(vmi *virtv1.VirtualMachineInstance, vm *virtv1.VirtualMachine, migVolsInfo []virtv1.StorageMigratedVolumeInfo) error {
+	if vmi == nil {
+		return fmt.Errorf("VMI is empty")
+	}
+	if len(migVolsInfo) == 0 {
+		return nil
 	}
 	// Check if there are other reasons rather than the DisksNotLiveMigratable
 	for _, cond := range vmi.Status.Conditions {
-		if cond.Type == virtv1.VirtualMachineInstanceIsMigratable &&
-			cond.Status == k8sv1.ConditionFalse &&
-			cond.Reason != virtv1.VirtualMachineInstanceReasonDisksNotMigratable {
-			log.Log.Object(vmi).Errorf("cannot migrate the volumes as the VMI isn't migratable: %s", cond.Reason)
-			return false
+		if cond.Type == virtv1.VirtualMachineInstanceIsStorageLiveMigratable &&
+			cond.Status == k8sv1.ConditionFalse {
+			return fmt.Errorf("cannot migrate the volumes as the VMI isn't migratable: %s", cond.Message)
 		}
 	}
 	// Check that all RWO volumes will be copied
 	volMigMap := make(map[string]bool)
-	for _, v := range vmi.Status.MigratedVolumes {
+	for _, v := range migVolsInfo {
 		volMigMap[v.VolumeName] = true
 	}
 	for _, v := range vmi.Status.VolumeStatus {
@@ -361,9 +371,9 @@ func CanVolumesUpdateMigration(vmi *virtv1.VirtualMachineInstance) bool {
 		}
 		_, ok := volMigMap[v.Name]
 		if storagetypes.IsReadWriteOnceAccessMode(v.PersistentVolumeClaimInfo.AccessModes) && !ok {
-			log.Log.Object(vmi).Errorf("cannot migrate the VM. The volume %s is RWO and not included in the migration volumes", v.Name)
-			return false
+			return fmt.Errorf("cannot migrate the VM. The volume %s is RWO and not included in the migration volumes", v.Name)
 		}
 	}
-	return true
+
+	return nil
 }
