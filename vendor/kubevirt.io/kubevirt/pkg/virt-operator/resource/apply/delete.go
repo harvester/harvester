@@ -42,6 +42,7 @@ import (
 	"kubevirt.io/client-go/kubecli"
 	"kubevirt.io/client-go/log"
 
+	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
 	"kubevirt.io/kubevirt/pkg/controller"
 	"kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/install"
 	"kubevirt.io/kubevirt/pkg/virt-operator/util"
@@ -114,7 +115,7 @@ func DeleteAll(kv *v1.KubeVirt,
 		return err
 	}
 
-	if !util.IsStoreEmpty(stores.CrdCache) {
+	if !util.IsStoreEmpty(stores.OperatorCrdCache) {
 		// wait until CRDs are gone
 		return nil
 	}
@@ -500,9 +501,48 @@ func DeleteAll(kv *v1.KubeVirt,
 		}
 	}
 
+	if err = deleteKubeVirtLabelsFromNodes(clientset); err != nil {
+		return err
+	}
+
 	err = deleteDummyWebhookValidators(kv, clientset, stores, expectations)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func deleteKubeVirtLabelsFromNodes(clientset kubecli.KubevirtClient) error {
+	nodeList, err := clientset.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{LabelSelector: v1.NodeSchedulable})
+	if err != nil {
+		return fmt.Errorf("failed to list nodes: %v", err)
+	}
+
+	for _, node := range nodeList.Items {
+		labels := node.GetLabels()
+		if labels == nil {
+			continue
+		}
+		patchSet := patch.New()
+		for labelkey := range labels {
+			if strings.HasPrefix(labelkey, "kubevirt.io/") {
+				patchSet.AddOption(patch.WithRemove(fmt.Sprintf("/metadata/labels/%s", patch.EscapeJSONPointer(labelkey))))
+			}
+		}
+
+		if patchSet.IsEmpty() {
+			continue
+		}
+
+		payload, err := patchSet.GeneratePayload()
+		if err != nil {
+			return fmt.Errorf("failed to generate patch payload: %v", err)
+		}
+
+		if _, err = clientset.CoreV1().Nodes().Patch(context.Background(), node.Name, types.JSONPatchType, payload, metav1.PatchOptions{}); err != nil {
+			return fmt.Errorf("failed to update labels for node %s: %v", node.Name, err)
+		}
+		log.Log.Infof("removed kubevirt labels from node %s", node.Name)
 	}
 	return nil
 }
@@ -573,7 +613,7 @@ func crdHandleDeletion(kvkey string,
 	expectations *util.Expectations) error {
 
 	ext := clientset.ExtensionsClient()
-	objects := stores.CrdCache.List()
+	objects := stores.OperatorCrdCache.List()
 
 	finalizerPath := "/metadata/finalizers"
 
@@ -612,10 +652,10 @@ func crdHandleDeletion(kvkey string,
 			return err
 		}
 
-		expectations.Crd.AddExpectedDeletion(kvkey, key)
+		expectations.OperatorCrd.AddExpectedDeletion(kvkey, key)
 		err = ext.ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.Name, metav1.DeleteOptions{})
 		if err != nil {
-			expectations.Crd.DeletionObserved(kvkey, key)
+			expectations.OperatorCrd.DeletionObserved(kvkey, key)
 			log.Log.Errorf("Failed to delete crd %+v: %v", crd, err)
 			return err
 		}
