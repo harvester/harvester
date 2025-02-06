@@ -39,6 +39,7 @@ func NewValidator(
 	vmCache ctlkubevirtv1.VirtualMachineCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	nadCache ctlcniv1.NetworkAttachmentDefinitionCache,
+	settingCache ctlharvesterv1.SettingCache,
 ) types.Validator {
 	return &vmValidator{
 		pvcCache:      pvcCache,
@@ -47,7 +48,7 @@ func NewValidator(
 		vmiCache:      vmiCache,
 		nadCache:      nadCache,
 
-		rqCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache),
+		rqCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
 	}
 }
 
@@ -58,8 +59,8 @@ type vmValidator struct {
 	vmCache       ctlkubevirtv1.VirtualMachineCache
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
 	nadCache      ctlcniv1.NetworkAttachmentDefinitionCache
-
-	rqCalculator *resourcequota.Calculator
+	settingCache  ctlharvesterv1.SettingCache
+	rqCalculator  *resourcequota.Calculator
 }
 
 func (v *vmValidator) Resource() types.Resource {

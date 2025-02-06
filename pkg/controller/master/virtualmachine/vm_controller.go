@@ -42,6 +42,7 @@ type VMController struct {
 	vmBackupCache  ctlharvesterv1.VirtualMachineBackupCache
 	snapshotClient ctlsnapshotv1.VolumeSnapshotClient
 	snapshotCache  ctlsnapshotv1.VolumeSnapshotCache
+	settingCache   ctlharvesterv1.SettingCache
 	recorder       record.EventRecorder
 
 	vmrCalculator *rqutils.Calculator
