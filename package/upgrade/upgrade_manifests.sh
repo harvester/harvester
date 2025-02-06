@@ -586,6 +586,8 @@ upgrade_rancher() {
 
   save_fleet_controller_configmap
 
+  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false"' values.yaml
+
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
   echo "Rancher patch file to be run via helm upgrade"
   cat values.yaml
