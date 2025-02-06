@@ -21,13 +21,12 @@ package apply
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/blang/semver"
+	"github.com/coreos/go-semver/semver"
 	secv1 "github.com/openshift/api/security/v1"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -45,6 +44,7 @@ import (
 	"kubevirt.io/client-go/kubecli"
 	"kubevirt.io/client-go/log"
 
+	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
 	"kubevirt.io/kubevirt/pkg/certificates/triple"
 	"kubevirt.io/kubevirt/pkg/certificates/triple/cert"
 	"kubevirt.io/kubevirt/pkg/controller"
@@ -61,13 +61,6 @@ type DefaultInfraComponentsNodePlacement int
 const (
 	AnyNode DefaultInfraComponentsNodePlacement = iota
 	RequireControlPlanePreferNonWorker
-)
-
-const (
-	replaceSpecPatchTemplate     = `{ "op": "replace", "path": "/spec", "value": %s }`
-	replaceWebhooksValueTemplate = `{ "op": "replace", "path": "/webhooks", "value": %s }`
-
-	testGenerationJSONPatchTemplate = `{ "op": "test", "path": "/metadata/generation", "value": %d }`
 )
 
 func objectMatchesVersion(objectMeta *metav1.ObjectMeta, version, imageRegistry, id string, generation int64) bool {
@@ -294,44 +287,17 @@ func InjectPlacementMetadata(componentConfig *v1.ComponentConfig, podSpec *corev
 	}
 }
 
-func generatePatchBytes(ops []string) []byte {
-	return controller.GeneratePatchBytes(ops)
+func createLabelsAndAnnotationsPatch(objectMeta *metav1.ObjectMeta) []patch.PatchOption {
+	return []patch.PatchOption{patch.WithAdd("/metadata/labels", objectMeta.Labels),
+		patch.WithAdd("/metadata/annotations", objectMeta.Annotations),
+		patch.WithAdd("/metadata/ownerReferences", objectMeta.OwnerReferences)}
 }
 
-func createLabelsAndAnnotationsPatch(objectMeta *metav1.ObjectMeta) ([]string, error) {
-	var ops []string
-	labelBytes, err := json.Marshal(objectMeta.Labels)
-	if err != nil {
-		return ops, err
-	}
-	annotationBytes, err := json.Marshal(objectMeta.Annotations)
-	if err != nil {
-		return ops, err
-	}
-	ownerRefBytes, err := json.Marshal(objectMeta.OwnerReferences)
-	if err != nil {
-		return ops, err
-	}
-	ops = append(ops, fmt.Sprintf(`{ "op": "add", "path": "/metadata/labels", "value": %s }`, string(labelBytes)))
-	ops = append(ops, fmt.Sprintf(`{ "op": "add", "path": "/metadata/annotations", "value": %s }`, string(annotationBytes)))
-	ops = append(ops, fmt.Sprintf(`{ "op": "add", "path": "/metadata/ownerReferences", "value": %s }`, ownerRefBytes))
-
-	return ops, nil
-}
-
-func getPatchWithObjectMetaAndSpec(ops []string, meta *metav1.ObjectMeta, spec []byte) ([]string, error) {
+func getPatchWithObjectMetaAndSpec(ops []patch.PatchOption, meta *metav1.ObjectMeta, spec interface{}) []patch.PatchOption {
 	// Add Labels and Annotations Patches
-	labelAnnotationPatch, err := createLabelsAndAnnotationsPatch(meta)
-	if err != nil {
-		return ops, err
-	}
-
-	ops = append(ops, labelAnnotationPatch...)
-
+	ops = append(ops, createLabelsAndAnnotationsPatch(meta)...)
 	// and spec replacement to patch
-	ops = append(ops, fmt.Sprintf(replaceSpecPatchTemplate, string(spec)))
-
-	return ops, nil
+	return append(ops, patch.WithReplace("/spec", spec))
 }
 
 func shouldTakeUpdatePath(targetVersion, currentVersion string) bool {
@@ -349,11 +315,11 @@ func shouldTakeUpdatePath(targetVersion, currentVersion string) bool {
 	// adhere to the semver spec, we assume by default the
 	// update path is the correct path.
 	shouldTakeUpdatePath := true
-	target, err := semver.Make(targetVersion)
+	target, err := semver.NewVersion(targetVersion)
 	if err == nil {
-		current, err := semver.Make(currentVersion)
+		current, err := semver.NewVersion(currentVersion)
 		if err == nil {
-			if target.Compare(current) <= 0 {
+			if target.Compare(*current) <= 0 {
 				shouldTakeUpdatePath = false
 			}
 		}
@@ -362,7 +328,7 @@ func shouldTakeUpdatePath(targetVersion, currentVersion string) bool {
 	return shouldTakeUpdatePath
 }
 
-func haveApiDeploymentsRolledOver(targetStrategy *install.Strategy, kv *v1.KubeVirt, stores util.Stores) bool {
+func haveApiDeploymentsRolledOver(targetStrategy install.StrategyInterface, kv *v1.KubeVirt, stores util.Stores) bool {
 	for _, deployment := range targetStrategy.ApiDeployments() {
 		if !util.DeploymentIsReady(kv, deployment, stores) {
 			log.Log.V(2).Infof("Waiting on deployment %v to roll over to latest version", deployment.GetName())
@@ -374,7 +340,7 @@ func haveApiDeploymentsRolledOver(targetStrategy *install.Strategy, kv *v1.KubeV
 	return true
 }
 
-func haveControllerDeploymentsRolledOver(targetStrategy *install.Strategy, kv *v1.KubeVirt, stores util.Stores) bool {
+func haveControllerDeploymentsRolledOver(targetStrategy install.StrategyInterface, kv *v1.KubeVirt, stores util.Stores) bool {
 	for _, deployment := range targetStrategy.ControllerDeployments() {
 		if !util.DeploymentIsReady(kv, deployment, stores) {
 			log.Log.V(2).Infof("Waiting on deployment %v to roll over to latest version", deployment.GetName())
@@ -386,7 +352,7 @@ func haveControllerDeploymentsRolledOver(targetStrategy *install.Strategy, kv *v
 	return true
 }
 
-func haveExportProxyDeploymentsRolledOver(targetStrategy *install.Strategy, kv *v1.KubeVirt, stores util.Stores) bool {
+func haveExportProxyDeploymentsRolledOver(targetStrategy install.StrategyInterface, kv *v1.KubeVirt, stores util.Stores) bool {
 	for _, deployment := range targetStrategy.ExportProxyDeployments() {
 		if !util.DeploymentIsReady(kv, deployment, stores) {
 			log.Log.V(2).Infof("Waiting on deployment %v to roll over to latest version", deployment.GetName())
@@ -398,7 +364,7 @@ func haveExportProxyDeploymentsRolledOver(targetStrategy *install.Strategy, kv *
 	return true
 }
 
-func haveDaemonSetsRolledOver(targetStrategy *install.Strategy, kv *v1.KubeVirt, stores util.Stores) bool {
+func haveDaemonSetsRolledOver(targetStrategy install.StrategyInterface, kv *v1.KubeVirt, stores util.Stores) bool {
 	for _, daemonSet := range targetStrategy.DaemonSets() {
 		if !util.DaemonsetIsReady(kv, daemonSet, stores) {
 			log.Log.V(2).Infof("Waiting on daemonset %v to roll over to latest version", daemonSet.GetName())
@@ -433,7 +399,7 @@ func (r *Reconciler) createDummyWebhookValidator() error {
 	failurePolicy := admissionregistrationv1.Fail
 
 	for _, crd := range r.targetStrategy.CRDs() {
-		_, exists, _ := r.stores.CrdCache.Get(crd)
+		_, exists, _ := r.stores.OperatorCrdCache.Get(crd)
 		if exists {
 			// this CRD isn't new, it already exists in cache so we don't
 			// need a blocking admission webhook to wait until the new
@@ -518,15 +484,16 @@ type Reconciler struct {
 	kv    *v1.KubeVirt
 	kvKey string
 
-	targetStrategy   *install.Strategy
+	targetStrategy   install.StrategyInterface
 	stores           util.Stores
+	config           util.OperatorConfig
 	clientset        kubecli.KubevirtClient
 	aggregatorclient install.APIServiceInterface
 	expectations     *util.Expectations
 	recorder         record.EventRecorder
 }
 
-func NewReconciler(kv *v1.KubeVirt, targetStrategy *install.Strategy, stores util.Stores, clientset kubecli.KubevirtClient, aggregatorclient install.APIServiceInterface, expectations *util.Expectations, recorder record.EventRecorder) (*Reconciler, error) {
+func NewReconciler(kv *v1.KubeVirt, targetStrategy install.StrategyInterface, stores util.Stores, config util.OperatorConfig, clientset kubecli.KubevirtClient, aggregatorclient install.APIServiceInterface, expectations *util.Expectations, recorder record.EventRecorder) (*Reconciler, error) {
 	kvKey, err := controller.KeyFunc(kv)
 	if err != nil {
 		return nil, err
@@ -547,6 +514,7 @@ func NewReconciler(kv *v1.KubeVirt, targetStrategy *install.Strategy, stores uti
 		kvKey:            kvKey,
 		targetStrategy:   targetStrategy,
 		stores:           stores,
+		config:           config,
 		clientset:        clientset,
 		aggregatorclient: aggregatorclient,
 		expectations:     expectations,
@@ -1012,7 +980,7 @@ func (r *Reconciler) deleteObjectsNotInInstallStrategy() error {
 	}
 
 	// remove unused crds
-	objects = r.stores.CrdCache.List()
+	objects = r.stores.OperatorCrdCache.List()
 	for _, obj := range objects {
 		if crd, ok := obj.(*extv1.CustomResourceDefinition); ok && crd.DeletionTimestamp == nil {
 			found := false
@@ -1024,10 +992,10 @@ func (r *Reconciler) deleteObjectsNotInInstallStrategy() error {
 			}
 			if !found {
 				if key, err := controller.KeyFunc(crd); err == nil {
-					r.expectations.Crd.AddExpectedDeletion(r.kvKey, key)
+					r.expectations.OperatorCrd.AddExpectedDeletion(r.kvKey, key)
 					err := client.ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.Name, deleteOptions)
 					if err != nil {
-						r.expectations.Crd.DeletionObserved(r.kvKey, key)
+						r.expectations.OperatorCrd.DeletionObserved(r.kvKey, key)
 						log.Log.Errorf("Failed to delete crd %+v: %v", crd, err)
 						return err
 					}
@@ -1396,7 +1364,11 @@ func (r *Reconciler) exportProxyEnabled() bool {
 }
 
 func (r *Reconciler) commonInstancetypesDeploymentEnabled() bool {
-	return r.isFeatureGateEnabled(virtconfig.CommonInstancetypesDeploymentGate)
+	config := r.kv.Spec.Configuration.CommonInstancetypesDeployment
+	if config != nil && config.Enabled != nil {
+		return *config.Enabled
+	}
+	return true
 }
 
 func getInstallStrategyAnnotations(meta *metav1.ObjectMeta) (imageTag, imageRegistry, id string, ok bool) {

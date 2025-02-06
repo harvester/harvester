@@ -35,9 +35,9 @@ import (
 	"kubevirt.io/client-go/kubecli"
 	"kubevirt.io/client-go/log"
 
-	"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
-	"kubevirt.io/kubevirt/pkg/util/status"
+	"kubevirt.io/kubevirt/pkg/storage/status"
 	watchutil "kubevirt.io/kubevirt/pkg/virt-controller/watch/util"
 )
 
@@ -61,7 +61,7 @@ type VMRestoreController struct {
 
 	vmRestoreQueue workqueue.RateLimitingInterface
 
-	vmStatusUpdater *status.VMStatusUpdater
+	VMRestoreStatusUpdater *status.VMRestoreStatusUpdater
 }
 
 // Init initializes the restore controller
@@ -72,6 +72,7 @@ func (ctrl *VMRestoreController) Init() error {
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    ctrl.handleVMRestore,
 			UpdateFunc: func(oldObj, newObj interface{}) { ctrl.handleVMRestore(newObj) },
+			DeleteFunc: ctrl.handleVMRestore,
 		},
 	)
 
@@ -109,7 +110,7 @@ func (ctrl *VMRestoreController) Init() error {
 		return err
 	}
 
-	ctrl.vmStatusUpdater = status.NewVMStatusUpdater(ctrl.Client)
+	ctrl.VMRestoreStatusUpdater = status.NewVMRestoreStatusUpdater(ctrl.Client)
 	return nil
 }
 
@@ -188,7 +189,7 @@ func (ctrl *VMRestoreController) handleDataVolume(obj interface{}) {
 		obj = unknown.Obj
 	}
 
-	if dv, ok := obj.(*v1beta1.DataVolume); ok {
+	if dv, ok := obj.(*cdiv1.DataVolume); ok {
 		restoreName, ok := dv.Annotations[RestoreNameAnnotation]
 		if !ok {
 			return
