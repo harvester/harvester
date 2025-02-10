@@ -40,6 +40,9 @@ func RemoveMigratingVM(rq *corev1.ResourceQuota, vmName string) {
 		return
 	}
 	delete(rq.Annotations, util.AnnotationMigratingPrefix+vmName)
+	if len(rq.Annotations) == 0 {
+		rq.Annotations = nil
+	}
 }
 
 func ContainsMigratingVM(rq *corev1.ResourceQuota, vmName string) bool {

@@ -478,22 +478,36 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 	if err != nil {
 		return err
 	}
+	// already aborted but the menu is still there, return nil
 	if !canAbortMigrate(vmi) {
-		return errors.New("The VM is not in migrating state")
+		logrus.Debugf("abortMigration vm %s/%s, canAbortMigrate is false, skip", namespace, name)
+		return nil
+	}
+
+	migrationUID := getMigrationUID(vmi)
+	if migrationUID == "" {
+		logrus.Debugf("abortMigration vm %s/%s, migrationUID is empty, skip", namespace, name)
+		return nil
 	}
 
 	vmims, err := h.vmimCache.List(namespace, labels.Everything())
 	if err != nil {
 		return err
 	}
-	migrationUID := getMigrationUID(vmi)
+
 	for _, vmim := range vmims {
 		if migrationUID == string(vmim.UID) {
-			if !vmim.IsRunning() {
-				return fmt.Errorf("cannot abort the migration as it is in %q phase", vmim.Status.Phase)
+			// already aborted/deleted
+			if vmim.DeletionTimestamp != nil {
+				return nil
+			}
+			// already finished or failed, just return
+			// vmim controller keeps syncing status to vmi&vm, vm will not show 'abortMigration' action
+			if vmim.Status.Phase == kubevirtv1.MigrationSucceeded || vmim.Status.Phase == kubevirtv1.MigrationFailed {
+				return nil
 			}
 			// Migration is aborted by deleting the VMIM object
-			logrus.Infof("abort migration of vm %s/%s, delete vmim %s", namespace, name, vmim.Name)
+			logrus.Infof("abortMigration vm %s/%s, delete vmim %s", namespace, name, vmim.Name)
 			if err := h.vmims.Delete(namespace, vmim.Name, &metav1.DeleteOptions{}); err != nil {
 				return err
 			}
@@ -659,9 +673,11 @@ func (h *vmActionHandler) checkBackupTargetConfigured() error {
 }
 
 func getMigrationUID(vmi *kubevirtv1.VirtualMachineInstance) string {
-	if vmi.Annotations[util.AnnotationMigrationUID] != "" {
-		return vmi.Annotations[util.AnnotationMigrationUID]
-	} else if vmi.Status.MigrationState != nil {
+	annoUID := vmi.Annotations[util.AnnotationMigrationUID]
+	if annoUID != "" {
+		return annoUID
+	}
+	if vmi.Status.MigrationState != nil {
 		return string(vmi.Status.MigrationState.MigrationUID)
 	}
 	return ""
