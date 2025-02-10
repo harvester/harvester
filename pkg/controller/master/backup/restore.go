@@ -813,7 +813,7 @@ func (h *RestoreHandler) getOrCreateVolumeSnapshotContent(
 		return nil, err
 	}
 	// Ref: https://longhorn.io/docs/1.2.3/snapshots-and-backups/csi-snapshot-support/restore-a-backup-via-csi/#restore-a-backup-that-has-no-associated-volumesnapshot
-	snapshotHandle := fmt.Sprintf("bs://%s/%s", volumeBackup.PersistentVolumeClaim.ObjectMeta.Name, lhBackup.Name)
+	snapshotHandle := fmt.Sprintf("bak://%s/%s", lhBackup.Status.VolumeName, lhBackup.Name)
 
 	logrus.Debugf("create VolumeSnapshotContent %s ...", volumeSnapshotContentName)
 	return h.snapshotContents.Create(&snapshotv1.VolumeSnapshotContent{
