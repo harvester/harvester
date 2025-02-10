@@ -84,11 +84,6 @@ kubevirt:
         ##
         permitBridgeInterfaceOnPodNetwork: true
 
-      ## Specify the machine type regex for validating the emulation of VirtualMachineInstance,
-      ## defaults to discover automatically, "pseries*" if arch is ppc64le, otherwise "q35, pc-g35*, pc, pc-i440fx*".
-      ##
-      emulatedMachines: ["q35", "pc-q35*", "pc", "pc-i440fx*"]
-
     customizeComponents:
       patches:
         - patch: '{"webhooks":[{"name":"kubevirt-validator.kubevirt.io","failurePolicy":"Ignore"},{"name":"kubevirt-update-validator.kubevirt.io","failurePolicy":"Ignore"}]}'
