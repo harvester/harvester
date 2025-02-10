@@ -15,6 +15,7 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 )
 
 const (
@@ -73,8 +74,6 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	resource.AddAction(request, addVolume)
 	resource.AddAction(request, removeVolume)
 	resource.AddAction(request, cloneVM)
-	resource.AddAction(request, migrate)
-	resource.AddAction(request, findMigratableNodes)
 
 	if canEjectCdRom(vm) {
 		resource.AddAction(request, ejectCdRom)
@@ -103,6 +102,11 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	if vf.canUnPause(vmi) {
 		resource.AddAction(request, unpauseVM)
+	}
+
+	if canMigrate(vmi) {
+		resource.AddAction(request, migrate)
+		resource.AddAction(request, findMigratableNodes)
 	}
 
 	if canAbortMigrate(vmi) {
@@ -232,6 +236,13 @@ func isReady(vmi *kubevirtv1.VirtualMachineInstance) bool {
 		}
 	}
 	return false
+}
+
+func canMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
+	if err := virtualmachineinstance.ValidateVMMigratable(vmi); err != nil {
+		return false
+	}
+	return true
 }
 
 func canAbortMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
