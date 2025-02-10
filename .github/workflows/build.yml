@@ -14,6 +14,22 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' && !startsWith(github.ref, 'refs/heads/v') && !startsWith(github.ref, 'refs/tags/v') }}
 jobs:
+  args:
+    runs-on: ubuntu-latest
+    outputs:
+      sha_short: ${{ steps.declare.outputs.sha_short }}
+      branch: ${{ steps.declare.outputs.branch }}
+      prime: ${{ steps.declare.outputs.prime }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - id: declare
+      name: Declare branch and sha_short
+      run: |
+        echo "sha_short=$(git rev-parse --short=8 "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+        echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_OUTPUT"
+        echo "prime=$(yq e '.prime' build.yaml)" >> "$GITHUB_OUTPUT"
+
   build-binaries:
     name: Build binaries
     runs-on: runs-on,runner=4cpu-linux-${{ matrix.arch }},hdd=50,run-id=${{ github.run_id }}
@@ -35,7 +51,7 @@ jobs:
   build-push-images:
     name: Build and push images
     runs-on: runs-on,runner=4cpu-linux-${{ matrix.arch }},run-id=${{ github.run_id }}
-    needs: build-binaries
+    needs: [args, build-binaries]
     if: ${{ startsWith(github.ref, 'refs/heads/') || startsWith(github.ref, 'refs/tags/') }}
     strategy:
       matrix:
@@ -52,44 +68,60 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Declare branch and sha_short
+    - name: Declare arch
       run: |
-        echo "sha_short=$(git rev-parse --short=8 "$GITHUB_SHA")" >> "$GITHUB_ENV"
-        echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_ENV"
         if [ "${{ matrix.arch }}" == "x64" ]; then
           echo "arch=amd64" >> "$GITHUB_ENV"
         else
           echo "arch=arm64" >> "$GITHUB_ENV"
         fi
+        echo "prime=${{ needs.args.outputs.prime }}"
 
-    - name: Read Secrets
+    - name: Read Docker Hub Secrets
       uses: rancher-eio/read-vault-secrets@main
+      if: ${{ needs.args.outputs.prime == 'false' }}
       with:
         secrets: |
           secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
           secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD ;
 
+    - name: Read Prime Registry Secrets
+      uses: rancher-eio/read-vault-secrets@main
+      if: ${{ needs.args.outputs.prime == 'true' }}
+      with:
+        secrets: |
+          secret/data/github/repo/${{ github.repository }}/harvester/rancher-prime-registry/credentials registry | PRIME_REGISTRY ;
+          secret/data/github/repo/${{ github.repository }}/harvester/rancher-prime-registry/credentials username | PRIME_REGISTRY_USERNAME ;
+          secret/data/github/repo/${{ github.repository }}/harvester/rancher-prime-registry/credentials password | PRIME_REGISTRY_PASSWORD ;
+
     - name: Login to Docker Hub
       uses: docker/login-action@v3
+      if: ${{ needs.args.outputs.prime == 'false' }}
       with:
         username: ${{ env.DOCKER_USERNAME }}
         password: ${{ env.DOCKER_PASSWORD }}
 
+    - name: Login to Prime Registry
+      uses: docker/login-action@v3
+      if: ${{ needs.args.outputs.prime == 'true' }}
+      with:
+        registry: ${{ env.PRIME_REGISTRY }}
+        username: ${{ env.PRIME_REGISTRY_USERNAME }}
+        password: ${{ env.PRIME_REGISTRY_PASSWORD }}
+
     # rancher/harvester image
-    - name: docker-publish-harvester
+    - name: docker-build-harvester-with-branch
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
         platforms: linux/${{ env.arch }}
-        tags: rancher/harvester:${{ env.branch }}-head-${{ env.arch }}
+        tags: rancher/harvester:${{ needs.args.outputs.branch }}-head-${{ env.arch }}
         file: package/Dockerfile
-        sbom: true
-        provenance: mode=max
         build-args: |
           ARCH=${{ env.arch }}
-          VERSION=${{ env.branch }}-${{ env.sha_short }}-head
+          VERSION=${{ needs.args.outputs.branch }}-${{ needs.args.outputs.sha_short }}-head
 
     - name: docker-publish-harvester-with-tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -100,27 +132,25 @@ jobs:
         platforms: linux/${{ env.arch }}
         tags: rancher/harvester:${{ github.ref_name }}-${{ env.arch }}
         file: package/Dockerfile
-        sbom: true
-        provenance: mode=max
+        sbom: ${{ needs.args.outputs.prime == 'true' && 'true' || '' }}
+        provenance: ${{ needs.args.outputs.prime == 'true' && 'mode=max' || '' }}
         build-args: |
           ARCH=${{ env.arch }}
           VERSION=${{ github.ref_name }}
 
     # rancher/harvester-webhook image
-    - name: docker-publish-harvester-webhook
+    - name: docker-build-harvester-webhook-with-branch
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
         platforms: linux/${{ env.arch }}
-        tags: rancher/harvester-webhook:${{ env.branch }}-head-${{ env.arch }}
+        tags: rancher/harvester-webhook:${{ needs.args.outputs.branch }}-head-${{ env.arch }}
         file: package/Dockerfile.webhook
-        sbom: true
-        provenance: mode=max
         build-args: |
           ARCH=${{ env.arch }}
-          VERSION=${{ env.branch }}-${{ env.sha_short }}-head
+          VERSION=${{ needs.args.outputs.branch }}-${{ needs.args.outputs.sha_short }}-head
 
     - name: docker-publish-harvester-webhook-with-tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -131,8 +161,8 @@ jobs:
         platforms: linux/${{ env.arch }}
         tags: rancher/harvester-webhook:${{ github.ref_name }}-${{ env.arch }}
         file: package/Dockerfile.webhook
-        sbom: true
-        provenance: mode=max
+        sbom: ${{ needs.args.outputs.prime == 'true' && 'true' || '' }}
+        provenance: ${{ needs.args.outputs.prime == 'true' && 'mode=max' || '' }}
         build-args: |
           ARCH=${{ env.arch }}
           VERSION=${{ github.ref_name }}
@@ -141,20 +171,18 @@ jobs:
       run: make generate-addons
 
     # rancher/harvester-upgrade image
-    - name: docker-publish-harvester-upgrade
+    - name: docker-build-harvester-upgrade-with-branch
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
         platforms: linux/${{ env.arch }}
-        tags: rancher/harvester-upgrade:${{ env.branch }}-head-${{ env.arch }}
+        tags: rancher/harvester-upgrade:${{ needs.args.outputs.branch }}-head-${{ env.arch }}
         file: package/upgrade/Dockerfile
-        sbom: true
-        provenance: mode=max
         build-args: |
           ARCH=${{ env.arch }}
-          VERSION=${{ env.branch }}-${{ env.sha_short }}-head
+          VERSION=${{ needs.args.outputs.branch }}-${{ needs.args.outputs.sha_short }}-head
 
     - name: docker-publish-harvester-upgrade-with-tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -165,8 +193,8 @@ jobs:
         platforms: linux/${{ env.arch }}
         tags: rancher/harvester-upgrade:${{ github.ref_name }}-${{ env.arch }}
         file: package/upgrade/Dockerfile
-        sbom: true
-        provenance: mode=max
+        sbom: ${{ needs.args.outputs.prime == 'true' && 'true' || '' }}
+        provenance: ${{ needs.args.outputs.prime == 'true' && 'mode=max' || '' }}
         build-args: |
           ARCH=${{ env.arch }}
           VERSION=${{ github.ref_name }}
@@ -174,7 +202,7 @@ jobs:
   manifest-images:
     name: Manifest images
     runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
-    needs: build-push-images
+    needs: [args, build-push-images]
     if: ${{ startsWith(github.ref, 'refs/heads/') || startsWith(github.ref, 'refs/tags/') }}
     permissions:
       contents: read
@@ -182,10 +210,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
-    - name: Declare branch
-      run: |
-        echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_ENV"
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -209,11 +233,11 @@ jobs:
     - name: docker-pull-harvester
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       run: |
-        docker pull --platform linux/amd64 rancher/harvester:${{ env.branch }}-head-amd64
-        docker pull --platform linux/arm64 rancher/harvester:${{ env.branch }}-head-arm64
-        docker buildx imagetools create -t rancher/harvester:${{ env.branch }}-head \
-          rancher/harvester:${{ env.branch }}-head-amd64 \
-          rancher/harvester:${{ env.branch }}-head-arm64
+        docker pull --platform linux/amd64 rancher/harvester:${{ needs.args.outputs.branch }}-head-amd64
+        docker pull --platform linux/arm64 rancher/harvester:${{ needs.args.outputs.branch }}-head-arm64
+        docker buildx imagetools create -t rancher/harvester:${{ needs.args.outputs.branch }}-head \
+          rancher/harvester:${{ needs.args.outputs.branch }}-head-amd64 \
+          rancher/harvester:${{ needs.args.outputs.branch }}-head-arm64
 
     - name: docker-pull-harvester-with-tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -228,11 +252,11 @@ jobs:
     - name: docker-pull-harvester-webhook
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       run: |
-        docker pull --platform linux/amd64 rancher/harvester-webhook:${{ env.branch }}-head-amd64
-        docker pull --platform linux/arm64 rancher/harvester-webhook:${{ env.branch }}-head-arm64
-        docker buildx imagetools create -t rancher/harvester-webhook:${{ env.branch }}-head \
-          rancher/harvester-webhook:${{ env.branch }}-head-amd64 \
-          rancher/harvester-webhook:${{ env.branch }}-head-arm64
+        docker pull --platform linux/amd64 rancher/harvester-webhook:${{ needs.args.outputs.branch }}-head-amd64
+        docker pull --platform linux/arm64 rancher/harvester-webhook:${{ needs.args.outputs.branch }}-head-arm64
+        docker buildx imagetools create -t rancher/harvester-webhook:${{ needs.args.outputs.branch }}-head \
+          rancher/harvester-webhook:${{ needs.args.outputs.branch }}-head-amd64 \
+          rancher/harvester-webhook:${{ needs.args.outputs.branch }}-head-arm64
 
     - name: docker-pull-harvester-webhook-with-tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -247,11 +271,11 @@ jobs:
     - name: docker-pull-harvester-upgrade
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       run: |
-        docker pull --platform linux/amd64 rancher/harvester-upgrade:${{ env.branch }}-head-amd64
-        docker pull --platform linux/arm64 rancher/harvester-upgrade:${{ env.branch }}-head-arm64
-        docker buildx imagetools create -t rancher/harvester-upgrade:${{ env.branch }}-head \
-          rancher/harvester-upgrade:${{ env.branch }}-head-amd64 \
-          rancher/harvester-upgrade:${{ env.branch }}-head-arm64
+        docker pull --platform linux/amd64 rancher/harvester-upgrade:${{ needs.args.outputs.branch }}-head-amd64
+        docker pull --platform linux/arm64 rancher/harvester-upgrade:${{ needs.args.outputs.branch }}-head-arm64
+        docker buildx imagetools create -t rancher/harvester-upgrade:${{ needs.args.outputs.branch }}-head \
+          rancher/harvester-upgrade:${{ needs.args.outputs.branch }}-head-amd64 \
+          rancher/harvester-upgrade:${{ needs.args.outputs.branch }}-head-arm64
 
     - name: docker-pull-harvester-upgrade-with-tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -265,7 +289,7 @@ jobs:
   build-iso:
     name: Build ISO
     runs-on: runs-on,runner=4cpu-linux-${{ matrix.arch }},hdd=50,run-id=${{ github.run_id }}
-    needs: manifest-images
+    needs: [args, manifest-images]
     if: ${{ startsWith(github.ref, 'refs/heads/') || startsWith(github.ref, 'refs/tags/') }}
     strategy:
       matrix:
@@ -282,9 +306,8 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Declare branch
+    - name: Declare arch
       run: |
-        echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_ENV"
         if [ "${{ matrix.arch }}" == "x64" ]; then
           echo "arch=amd64" >> "$GITHUB_ENV"
         else
@@ -297,7 +320,7 @@ jobs:
         make build-iso
       env:
         REPO: rancher
-        DRONE_BRANCH: ${{ env.branch }}
+        DRONE_BRANCH: ${{ needs.args.outputs.branch }}
 
     - name: build-tag-iso
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -330,7 +353,7 @@ jobs:
         context: dist/harvester-cluster-repo
         push: true
         platforms: linux/${{ env.arch }}
-        tags: rancher/harvester-cluster-repo:${{ env.branch }}-head-${{ env.arch }}
+        tags: rancher/harvester-cluster-repo:${{ needs.args.outputs.branch }}-head-${{ env.arch }}
         file: dist/harvester-cluster-repo/Dockerfile
         sbom: true
         provenance: mode=max
@@ -358,7 +381,7 @@ jobs:
       with:
         path: dist/artifacts
         parent: false
-        destination: releases.rancher.com/harvester/${{ env.branch }}
+        destination: releases.rancher.com/harvester/${{ needs.args.outputs.branch }}
         predefinedAcl: publicRead
         headers: |-
           cache-control: public,no-cache,proxy-revalidate
@@ -391,7 +414,7 @@ jobs:
   manifest-cluster-repo-image:
     name: Manifest harvester-cluster-repo image
     runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
-    needs: build-iso
+    needs: [args, build-iso]
     if: ${{ startsWith(github.ref, 'refs/heads/') || startsWith(github.ref, 'refs/tags/') }}
     permissions:
       contents: read
@@ -399,10 +422,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
-    - name: Declare branch
-      run: |
-        echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_ENV"
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -426,11 +445,11 @@ jobs:
     - name: docker-pull-harvester-cluster-repo
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
       run: |
-        docker pull --platform linux/amd64 rancher/harvester-cluster-repo:${{ env.branch }}-head-amd64
-        docker pull --platform linux/arm64 rancher/harvester-cluster-repo:${{ env.branch }}-head-arm64
-        docker buildx imagetools create -t rancher/harvester-cluster-repo:${{ env.branch }}-head \
-          rancher/harvester-cluster-repo:${{ env.branch }}-head-amd64 \
-          rancher/harvester-cluster-repo:${{ env.branch }}-head-arm64
+        docker pull --platform linux/amd64 rancher/harvester-cluster-repo:${{ needs.args.outputs.branch }}-head-amd64
+        docker pull --platform linux/arm64 rancher/harvester-cluster-repo:${{ needs.args.outputs.branch }}-head-arm64
+        docker buildx imagetools create -t rancher/harvester-cluster-repo:${{ needs.args.outputs.branch }}-head \
+          rancher/harvester-cluster-repo:${{ needs.args.outputs.branch }}-head-amd64 \
+          rancher/harvester-cluster-repo:${{ needs.args.outputs.branch }}-head-arm64
 
     - name: docker-pull-harvester-cluster-repo-with-tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}

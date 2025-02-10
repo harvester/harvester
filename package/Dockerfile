@@ -1,4 +1,4 @@
-FROM registry.suse.com/bci/golang:1.22 AS builder
+FROM registry.suse.com/bci/golang:1.23 AS builder
 
 WORKDIR /app
 
