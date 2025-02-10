@@ -40,20 +40,22 @@ var flowsKind = v1beta1.GroupVersion.WithKind("Flow")
 
 // Get takes name of the flow, and returns the corresponding flow object, and an error if there is any.
 func (c *FakeFlows) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Flow, err error) {
+	emptyResult := &v1beta1.Flow{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(flowsResource, name), &v1beta1.Flow{})
+		Invokes(testing.NewRootGetActionWithOptions(flowsResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Flow), err
 }
 
 // List takes label and field selectors, and returns the list of Flows that match those selectors.
 func (c *FakeFlows) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.FlowList, err error) {
+	emptyResult := &v1beta1.FlowList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(flowsResource, flowsKind, opts), &v1beta1.FlowList{})
+		Invokes(testing.NewRootListActionWithOptions(flowsResource, flowsKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,36 +74,39 @@ func (c *FakeFlows) List(ctx context.Context, opts v1.ListOptions) (result *v1be
 // Watch returns a watch.Interface that watches the requested flows.
 func (c *FakeFlows) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(flowsResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(flowsResource, opts))
 }
 
 // Create takes the representation of a flow and creates it.  Returns the server's representation of the flow, and an error, if there is any.
 func (c *FakeFlows) Create(ctx context.Context, flow *v1beta1.Flow, opts v1.CreateOptions) (result *v1beta1.Flow, err error) {
+	emptyResult := &v1beta1.Flow{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(flowsResource, flow), &v1beta1.Flow{})
+		Invokes(testing.NewRootCreateActionWithOptions(flowsResource, flow, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Flow), err
 }
 
 // Update takes the representation of a flow and updates it. Returns the server's representation of the flow, and an error, if there is any.
 func (c *FakeFlows) Update(ctx context.Context, flow *v1beta1.Flow, opts v1.UpdateOptions) (result *v1beta1.Flow, err error) {
+	emptyResult := &v1beta1.Flow{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(flowsResource, flow), &v1beta1.Flow{})
+		Invokes(testing.NewRootUpdateActionWithOptions(flowsResource, flow, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Flow), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeFlows) UpdateStatus(ctx context.Context, flow *v1beta1.Flow, opts v1.UpdateOptions) (*v1beta1.Flow, error) {
+func (c *FakeFlows) UpdateStatus(ctx context.Context, flow *v1beta1.Flow, opts v1.UpdateOptions) (result *v1beta1.Flow, err error) {
+	emptyResult := &v1beta1.Flow{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(flowsResource, "status", flow), &v1beta1.Flow{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(flowsResource, "status", flow, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Flow), err
 }
@@ -115,7 +120,7 @@ func (c *FakeFlows) Delete(ctx context.Context, name string, opts v1.DeleteOptio
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeFlows) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(flowsResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(flowsResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.FlowList{})
 	return err
@@ -123,10 +128,11 @@ func (c *FakeFlows) DeleteCollection(ctx context.Context, opts v1.DeleteOptions,
 
 // Patch applies the patch and returns the patched flow.
 func (c *FakeFlows) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Flow, err error) {
+	emptyResult := &v1beta1.Flow{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(flowsResource, name, pt, data, subresources...), &v1beta1.Flow{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(flowsResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Flow), err
 }
