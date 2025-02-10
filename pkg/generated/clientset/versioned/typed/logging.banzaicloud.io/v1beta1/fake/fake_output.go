@@ -40,20 +40,22 @@ var outputsKind = v1beta1.GroupVersion.WithKind("Output")
 
 // Get takes name of the output, and returns the corresponding output object, and an error if there is any.
 func (c *FakeOutputs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Output, err error) {
+	emptyResult := &v1beta1.Output{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(outputsResource, name), &v1beta1.Output{})
+		Invokes(testing.NewRootGetActionWithOptions(outputsResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Output), err
 }
 
 // List takes label and field selectors, and returns the list of Outputs that match those selectors.
 func (c *FakeOutputs) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.OutputList, err error) {
+	emptyResult := &v1beta1.OutputList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(outputsResource, outputsKind, opts), &v1beta1.OutputList{})
+		Invokes(testing.NewRootListActionWithOptions(outputsResource, outputsKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,36 +74,39 @@ func (c *FakeOutputs) List(ctx context.Context, opts v1.ListOptions) (result *v1
 // Watch returns a watch.Interface that watches the requested outputs.
 func (c *FakeOutputs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(outputsResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(outputsResource, opts))
 }
 
 // Create takes the representation of a output and creates it.  Returns the server's representation of the output, and an error, if there is any.
 func (c *FakeOutputs) Create(ctx context.Context, output *v1beta1.Output, opts v1.CreateOptions) (result *v1beta1.Output, err error) {
+	emptyResult := &v1beta1.Output{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(outputsResource, output), &v1beta1.Output{})
+		Invokes(testing.NewRootCreateActionWithOptions(outputsResource, output, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Output), err
 }
 
 // Update takes the representation of a output and updates it. Returns the server's representation of the output, and an error, if there is any.
 func (c *FakeOutputs) Update(ctx context.Context, output *v1beta1.Output, opts v1.UpdateOptions) (result *v1beta1.Output, err error) {
+	emptyResult := &v1beta1.Output{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(outputsResource, output), &v1beta1.Output{})
+		Invokes(testing.NewRootUpdateActionWithOptions(outputsResource, output, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Output), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeOutputs) UpdateStatus(ctx context.Context, output *v1beta1.Output, opts v1.UpdateOptions) (*v1beta1.Output, error) {
+func (c *FakeOutputs) UpdateStatus(ctx context.Context, output *v1beta1.Output, opts v1.UpdateOptions) (result *v1beta1.Output, err error) {
+	emptyResult := &v1beta1.Output{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(outputsResource, "status", output), &v1beta1.Output{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(outputsResource, "status", output, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Output), err
 }
@@ -115,7 +120,7 @@ func (c *FakeOutputs) Delete(ctx context.Context, name string, opts v1.DeleteOpt
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeOutputs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(outputsResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(outputsResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.OutputList{})
 	return err
@@ -123,10 +128,11 @@ func (c *FakeOutputs) DeleteCollection(ctx context.Context, opts v1.DeleteOption
 
 // Patch applies the patch and returns the patched output.
 func (c *FakeOutputs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Output, err error) {
+	emptyResult := &v1beta1.Output{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(outputsResource, name, pt, data, subresources...), &v1beta1.Output{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(outputsResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Output), err
 }
