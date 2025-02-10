@@ -14,10 +14,6 @@ import (
 	utilHelm "github.com/harvester/harvester/pkg/util/helm"
 )
 
-const (
-	SupportBundleRepository = "support-bundle-kit"
-)
-
 func UpdateSupportBundleImage(clientSet *kubernetes.Clientset, settingClient v1beta1.SettingClient) error {
 	supportBundleImage, err := utilHelm.FetchImageFromHelmValues(
 		clientSet,

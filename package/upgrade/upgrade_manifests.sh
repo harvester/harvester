@@ -447,8 +447,8 @@ wait_kubevirt() {
 wait_longhorn_manager() {
   echo "Waiting for longhorn-manager to be upgraded..."
 
-  lm_repo=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.manager.repository)
-  lm_tag=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.manager.tag)
+  lm_repo=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.repository)
+  lm_tag=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.tag)
   lm_image="${lm_repo}:${lm_tag}"
   node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
 
@@ -475,8 +475,8 @@ wait_longhorn_instance_manager_aio() {
     return
   fi
 
-  im_repo=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.instanceManager.repository)
-  im_tag=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.instanceManager.tag)
+  im_repo=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.instanceManager.repository)
+  im_tag=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.instanceManager.tag)
   im_image="${im_repo}:${im_tag}"
 
   # Get instance-manager-image chechsum
