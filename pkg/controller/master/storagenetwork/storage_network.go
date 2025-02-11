@@ -18,6 +18,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -102,7 +104,6 @@ type Handler struct {
 	longhornSettings                  ctllhv1.SettingClient
 	longhornSettingCache              ctllhv1.SettingCache
 	longhornVolumeCache               ctllhv1.VolumeCache
-	longhornNodeCache                 ctllhv1.NodeCache
 	prometheus                        ctlmonitoringv1.PrometheusClient
 	prometheusCache                   ctlmonitoringv1.PrometheusCache
 	alertmanager                      ctlmonitoringv1.AlertmanagerClient
@@ -115,6 +116,7 @@ type Handler struct {
 	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache
 	whereaboutsCNIIPPoolCache         whereaboutscniv1.IPPoolCache
 	settingsController                ctlharvesterv1.SettingController
+	nodeCache                         ctlcorev1.NodeCache
 }
 
 // register the setting controller and reconsile longhorn setting when storage network changed
@@ -122,13 +124,13 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	longhornSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	longhornVolumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
-	longhornNodes := management.LonghornFactory.Longhorn().V1beta2().Node()
 	prometheus := management.MonitoringFactory.Monitoring().V1().Prometheus()
 	alertmanager := management.MonitoringFactory.Monitoring().V1().Alertmanager()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	networkAttachmentDefinitions := management.CniFactory.K8s().V1().NetworkAttachmentDefinition()
 	whereaboutsCNI := management.WhereaboutsCNIFactory.Whereabouts().V1alpha1()
+	node := management.CoreFactory.Core().V1().Node()
 
 	controller := &Handler{
 		ctx:                               ctx,
@@ -136,7 +138,6 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		longhornSettings:                  longhornSettings,
 		longhornSettingCache:              longhornSettings.Cache(),
 		longhornVolumeCache:               longhornVolumes.Cache(),
-		longhornNodeCache:                 longhornNodes.Cache(),
 		prometheus:                        prometheus,
 		prometheusCache:                   prometheus.Cache(),
 		alertmanager:                      alertmanager,
@@ -149,6 +150,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		networkAttachmentDefinitionsCache: networkAttachmentDefinitions.Cache(),
 		whereaboutsCNIIPPoolCache:         whereaboutsCNI.IPPool().Cache(),
 		settingsController:                settings,
+		nodeCache:                         node.Cache(),
 	}
 
 	settings.OnChange(ctx, ControllerName, controller.OnStorageNetworkChange)
@@ -409,18 +411,15 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 		return nil
 	}
 
-	lhnodes, err := h.longhornNodeCache.List(metav1.NamespaceAll, labels.Everything())
+	nodes, err := h.nodeCache.List(labels.Everything())
 	if err != nil {
-		return fmt.Errorf("failed to list longhorn node cache %v", err)
+		return fmt.Errorf("failed to list node cache %v", err)
 	}
 
-	MinAllocatableIPAddrs := 0
-	nodeNum := 1
-	// Formula - https://docs.harvesterhci.io/v1.4/advanced/storagenetwork/
-	//Number of Images to download/upload and pod count during upgrade is dynamic, so skipped in the formula calculated.
-	for _, lhNode := range lhnodes {
-		MinAllocatableIPAddrs = MinAllocatableIPAddrs + nodeNum + len(lhNode.Spec.Disks)
-	}
+	//Formula - https://docs.harvesterhci.io/v1.4/advanced/storagenetwork/
+	//Dynamic parameters like number of images download/upload, backing-image-manager and backing-image-ds are skipped
+	//and only the number of nodes each running an instance-manager pod is used
+	MinAllocatableIPAddrs := len(nodes)
 
 	var config Config
 
