@@ -29,6 +29,22 @@ cleanup_incomplete_state_file() {
   fi
 }
 
+sparsify_passive_img()
+{
+  # See https://github.com/harvester/harvester/issues/7518
+  PASSIVE_IMG=${STATE_DIR}/cOS/passive.img
+  if [ -f $PASSIVE_IMG ]; then
+    echo "Ensuring $PASSIVE_IMG is sparse..."
+    mount -o rw,remount ${STATE_DIR}
+    echo "  was: $(du -h $PASSIVE_IMG)"
+    fallocate --dig-holes $PASSIVE_IMG
+    echo "  now: $(du -h $PASSIVE_IMG)"
+    mount -o ro,remount ${STATE_DIR}
+  else
+    echo "$PASSIVE_IMG does not exist"
+  fi
+}
+
 is_mounted()
 {
   mount | awk -v DIR="$1" '{ if ($3 == DIR) { exit 0 } } ENDFILE { exit 1 }'
@@ -597,6 +613,9 @@ EOF
 
   # we would like to clean up the incomplete state.yaml to avoid the issue of https://github.com/harvester/harvester/issues/4526
   cleanup_incomplete_state_file
+
+  # make sure the current passive image isn't using too much disk space
+  sparsify_passive_img
 
   elemental_upgrade_log="${UPGRADE_TMP_DIR#"$HOST_DIR"}/elemental-upgrade-$(date +%Y%m%d%H%M%S).log"
   local ret=0
