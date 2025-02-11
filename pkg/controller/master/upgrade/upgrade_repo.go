@@ -204,6 +204,7 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 							Cores:   1,
 							Sockets: 1,
 							Threads: 1,
+							Model:   kubevirtv1.CPUModeHostPassthrough,
 						},
 						Firmware: &kubevirtv1.Firmware{
 							Bootloader: &kubevirtv1.Bootloader{
