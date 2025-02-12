@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -12,6 +13,8 @@ import (
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
 func Test_virtualMachineValidator_duplicateMacAddress(t *testing.T) {
@@ -650,11 +653,178 @@ func Test_virtualMachineValidator_duplicateMacAddress(t *testing.T) {
 	fakeVMCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
 	fakeNadCache := fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions)
 
-	validator := NewValidator(nil, nil, nil, nil, nil, nil, fakeVMCache, nil, fakeNadCache, nil).(*vmValidator)
+	validator := NewValidator(nil, nil, nil, nil, nil, nil, fakeVMCache, nil, fakeNadCache, nil, nil).(*vmValidator)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validator.checkForDuplicateMacAddrs(tc.vm)
+			if tc.expectError {
+				assert.NotNil(t, err, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func Test_virtualMachineValidator_dedicatedCPUPlacement(t *testing.T) {
+	vm0 := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vm-0",
+			Namespace: "default",
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						CPU: &kubevirtv1.CPU{
+							DedicatedCPUPlacement: true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vm1 := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vm-1",
+			Namespace: "default",
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{},
+				},
+			},
+		},
+	}
+
+	vm2 := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vm-2",
+			Namespace: "default",
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						CPU: &kubevirtv1.CPU{
+							DedicatedCPUPlacement: false,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vm3 := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vm-3",
+			Namespace: "default",
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						CPU: &kubevirtv1.CPU{
+							DedicatedCPUPlacement: true,
+						},
+					},
+				},
+			},
+		},
+		Status: kubevirtv1.VirtualMachineStatus{
+			PrintableStatus: kubevirtv1.VirtualMachineStatusStopped,
+		},
+	}
+
+	node0 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-0",
+			Labels: map[string]string{
+				kubevirtv1.CPUManager: "true",
+			},
+		},
+	}
+
+	node1 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-1",
+			Labels: map[string]string{
+				kubevirtv1.CPUManager: "false",
+			},
+		},
+	}
+
+	node2 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-2",
+		},
+	}
+
+	tests := []struct {
+		name        string
+		vm          *kubevirtv1.VirtualMachine
+		nodes       []*corev1.Node
+		expectError bool
+	}{
+		{
+			name:        "CPU pinning enabled, w/o CPU Manager enabled, VM stopped, returns success",
+			vm:          vm3,
+			nodes:       []*corev1.Node{node1, node2},
+			expectError: false,
+		},
+		{
+			name:        "CPU pinning enabled, one CPU Manager enabled, returns success",
+			vm:          vm0,
+			nodes:       []*corev1.Node{node0, node1},
+			expectError: false,
+		},
+		{
+			name:        "CPU pinning enabled, w/o CPU Manager enabled, returns error [1]",
+			vm:          vm0,
+			nodes:       []*corev1.Node{node1, node2},
+			expectError: true,
+		},
+		{
+			name:        "CPU pinning enabled, w/o CPU Manager enabled, returns error [2]",
+			vm:          vm0,
+			nodes:       []*corev1.Node{node2},
+			expectError: true,
+		},
+		{
+			name:        "CPU pinning disabled, one CPU Manager enabled, returns success",
+			vm:          vm1,
+			nodes:       []*corev1.Node{node0},
+			expectError: false,
+		},
+		{
+			name:        "CPU pinning disabled, w/o CPU Manager enabled, returns success",
+			vm:          vm2,
+			nodes:       []*corev1.Node{node1, node2},
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		k8sclientset := k8sfake.NewSimpleClientset()
+
+		fakeNodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
+
+		for _, node := range tc.nodes {
+			err := k8sclientset.Tracker().Add(node)
+			assert.Nil(t, err, "mock resource should add into k8s fake controller tracker")
+		}
+
+		validator := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeNodeCache).(*vmValidator)
+
+		t.Run(tc.name, func(t *testing.T) {
+			err := validator.checkDedicatedCPUPlacement(tc.vm)
 			if tc.expectError {
 				assert.NotNil(t, err, tc.name)
 			} else {
