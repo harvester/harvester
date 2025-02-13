@@ -30,6 +30,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	var (
 		nsCache        = management.CoreFactory.Core().V1().Namespace().Cache()
 		podCache       = management.CoreFactory.Core().V1().Pod().Cache()
+		podClient      = management.CoreFactory.Core().V1().Pod()
 		rqCache        = management.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()
 		pvcClient      = management.CoreFactory.Core().V1().PersistentVolumeClaim()
 		pvcCache       = pvcClient.Cache()
@@ -52,6 +53,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 
 	// registers the vm controller
 	var vmCtrl = &VMController{
+		podClient:      podClient,
 		pvcClient:      pvcClient,
 		pvcCache:       pvcCache,
 		vmClient:       vmClient,
