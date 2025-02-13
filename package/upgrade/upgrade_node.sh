@@ -283,86 +283,6 @@ wait_longhorn_engines() {
     done
 }
 
-patch_logging_event_audit()
-{
-  # enabling logging, audit, event when upgrading from v1.0.3 to 1.1.0
-  # should happen before RKE2 is patched
-  # note: the host '/' is mapped to pod '/host/', refer: pkg/controller/master/upgrade/common.go applyNodeJob
-
-  # get UPGRADE_PREVIOUS_VERSION and NODE_CURRENT_HARVESTER_VERSION
-  detect_upgrade
-  detect_node_current_harvester_version
-  echo "The UPGRADE_PREVIOUS_VERSION is $UPGRADE_PREVIOUS_VERSION, NODE_CURRENT_HARVESTER_VERSION is $NODE_CURRENT_HARVESTER_VERSION, will check Logging Event Audit upgrade node option"
-
-  if test "$UPGRADE_PREVIOUS_VERSION" = "v1.0.3" || test "$NODE_CURRENT_HARVESTER_VERSION" = "v1.0.3"; then
-    echo "Patch kube-audit policy file"
-    # this file should be there in each NODE
-    # keep syncing with harvester/harvester-installer/pkg/config/templates/rke2-92-harvester-kube-audit-policy.yaml
-
-    ls /host/etc/rancher/rke2/config.yaml.d/ -alt
-
-    KUBE_AUDIT_POLICY_FILE_IN_CONTAINER=/host/etc/rancher/rke2/config.yaml.d/92-harvester-kube-audit-policy.yaml
-    KUBE_AUDIT_POLICY_FILE_IN_HOST=/etc/rancher/rke2/config.yaml.d/92-harvester-kube-audit-policy.yaml
-
-    if [ ! -f $KUBE_AUDIT_POLICY_FILE_IN_CONTAINER ]; then
-      echo "Create new policy file $KUBE_AUDIT_POLICY_FILE_IN_CONTAINER"
-
-      cat > $KUBE_AUDIT_POLICY_FILE_IN_CONTAINER << 'EOF'
-apiVersion: audit.k8s.io/v1
-kind: Policy
-omitStages:
-  - "ResponseStarted"
-  - "ResponseComplete"
-rules:
-  # Any include/exclude rules are added here
-
-  # A catch-all rule to log all other (create/delete/patch) requests at the Metadata level
-  - level: Metadata
-    verbs: ["create", "delete", "patch"]
-    omitStages:
-      - "ResponseStarted"
-      - "ResponseComplete"
-EOF
-
-    else
-      echo "Reuse the existing policy file $KUBE_AUDIT_POLICY_FILE_IN_CONTAINER, the file content is:"
-      cat $KUBE_AUDIT_POLICY_FILE_IN_CONTAINER
-    fi
-
-    # it means the NODE role is rke2-server when 90-harvester-server.yaml exists, patch it
-    RKE2_SERVER_CONFIG_FILE_IN_CONTAINER=/host/etc/rancher/rke2/config.yaml.d/90-harvester-server.yaml
-    PATCH_SERVER_IN_CUSTOM=1
-    local param=audit-policy-file
-
-    if [ -f "$RKE2_SERVER_CONFIG_FILE_IN_CONTAINER" ]; then
-      local audit_policy_file_param=$(yq e '.'$param $RKE2_SERVER_CONFIG_FILE_IN_CONTAINER)
-
-      if [ "$audit_policy_file_param" == "null" ]; then
-        echo "$param parameter is not in $RKE2_SERVER_CONFIG_FILE_IN_CONTAINER"
-        echo "Patch rke2 server config file with $param parameter"
-        echo "$param: $KUBE_AUDIT_POLICY_FILE_IN_HOST" >> $RKE2_SERVER_CONFIG_FILE_IN_CONTAINER
-        echo "After patch, the file content is"
-        cat $RKE2_SERVER_CONFIG_FILE_IN_CONTAINER
-      else
-        echo "$param parameter is in $RKE2_SERVER_CONFIG_FILE_IN_CONTAINER, value: $audit_policy_file_param, skip patch"
-      fi
-
-    else
-      # for rke2-agent node, do nothing now, this file will be patched when the node is promoted to server
-      echo "There is no file $RKE2_SERVER_CONFIG_FILE_IN_CONTAINER, $param parameter is not patched"
-      PATCH_SERVER_IN_CUSTOM=0
-    fi
-
-    #patch /oem/99_custom.yaml in host
-    source $SCRIPT_DIR/patch_99_custom.sh
-    SRC_FILE=/host/oem/99_custom.yaml
-    TMP_FILE=/host/oem/99_custom_tmp.yaml # will be created and deleted
-    patch_99_custom $SRC_FILE $TMP_FILE $PATCH_SERVER_IN_CUSTOM
-  else
-    echo "Logging Event Audit: nothing to do in $UPGRADE_PREVIOUS_VERSION"
-  fi
-}
-
 command_pre_drain() {
   recover_rancher_system_agent
 
@@ -379,9 +299,6 @@ command_pre_drain() {
 
   # KubeVirt's pdb might cause drain fail
   wait_evacuation_pdb_gone
-
-  # Add logging related kube-audit policy file
-  patch_logging_event_audit
 
   remove_rke2_canal_config
   disable_rke2_charts
@@ -737,9 +654,6 @@ command_single_node_upgrade() {
   # Stop all VMs
   shutdown_all_vms
   wait_vms_out
-
-  # Add logging related kube-audit policy file
-  patch_logging_event_audit
 
   echo "wait for fleet bundles before upgrading RKE2"
   # wait all fleet bundles in limited time
