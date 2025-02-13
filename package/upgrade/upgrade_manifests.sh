@@ -1037,15 +1037,6 @@ pause_all_charts() {
   for chart in $charts; do
     pause_managed_chart $chart "true"
   done
-
-  # those charts may have been converted to addon, check if they are there first
-  charts="rancher-monitoring rancher-logging"
-  for chart in $charts; do
-    local cnt=$(kubectl get managedchart -n fleet-local "$chart" --no-headers | wc -l)
-    if [ "$cnt" -gt 0 ]; then
-      pause_managed_chart $chart "true"
-    fi
-  done
 }
 
 skip_restart_rancher_system_agent() {
@@ -1114,19 +1105,19 @@ EOF
 # NOTE: review in each release, add corresponding process
 upgrade_addon_rancher_monitoring()
 {
-  echo "upgrade addon rancher_monitoring"
+  echo "upgrade addon rancher-monitoring"
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
-  # in v1.4.0, patch version is OK
+  # in v1.5.0, patch version is OK
   upgrade_addon_try_patch_version_only "rancher-monitoring" "cattle-monitoring-system" $REPO_MONITORING_CHART_VERSION
 }
 
 # NOTE: review in each release, add corresponding process
 upgrade_addon_rancher_logging()
 {
-  echo "upgrade addon rancher_logging"
+  echo "upgrade addon rancher-logging"
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
-  # in v1.4.0, the eventrouter image needs to be patched
-  if [ "$REPO_LOGGING_CHART_VERSION" = "103.1.0+up4.4.0" ]; then
+  # in v1.5.0, the eventrouter needs to be patched
+  if [ "$REPO_LOGGING_CHART_VERSION" = "105.2.0+up4.10.0" ]; then
     upgrade_addon_rancher_logging_with_patch_eventrouter_image $REPO_LOGGING_CHART_VERSION
   else
     upgrade_addon_try_patch_version_only "rancher-logging" "cattle-logging-system" $REPO_LOGGING_CHART_VERSION
