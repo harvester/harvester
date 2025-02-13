@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/record"
 	kubevirt "kubevirt.io/api/core"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -30,6 +31,7 @@ import (
 var syncLabelsToVmi = []string{util.LabelMaintainModeStrategy}
 
 type VMController struct {
+	podClient      v1.PodClient
 	pvcClient      v1.PersistentVolumeClaimClient
 	pvcCache       v1.PersistentVolumeClaimCache
 	vmClient       ctlkubevirtv1.VirtualMachineClient
@@ -292,6 +294,23 @@ func (h *VMController) SetHaltIfInsufficientResourceQuota(_ string, vm *kubevirt
 		return nil, err
 	}
 
+	// Refer: https://github.com/harvester/harvester/issues/7585
+	// When VM is detected as insufficient resource, there is one race case:
+	//  the VM's POD is created and the ResourceQuota is updated, but vmrCalculator's local cache does not have this POD yet
+	// Re-check POD on ApiServer when insufficient resource happens
+	exist, err1 := h.isVMPodExistingOnAPIServer(vm)
+	if err1 != nil {
+		errNew := fmt.Errorf("SetHaltIfInsufficientResourceQuota: VM %s/%s reports error %w, but failed to recheck POD, error %w", vm.Namespace, vm.Name, err, err1)
+		logrus.Debugf("%s", err.Error())
+		return nil, errNew
+	}
+	if exist {
+		logrus.Infof("SetHaltIfInsufficientResourceQuota: VM %s/%s reports error %s, but the POD is existing, enqueue to re-check", vm.Namespace, vm.Name, err.Error())
+		// next time, the CheckIfVMCanStartByResourceQuota will get the already existing POD
+		h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 1*time.Second)
+		return vm, nil
+	}
+
 	return vm, h.stopVM(vm, err.Error())
 }
 
@@ -365,4 +384,20 @@ func (h *VMController) removeDeprecatedFinalizer(_ string, vm *kubevirtv1.Virtua
 		return h.vmClient.Update(vmObj)
 	}
 	return vm, nil
+}
+
+// List the VM related POD on APIServer instead of local cache
+// Note: this is slower than query from cache, call it when really necessary
+func (h *VMController) isVMPodExistingOnAPIServer(vm *kubevirtv1.VirtualMachine) (bool, error) {
+	pods, err := h.podClient.List(vm.Namespace, metav1.ListOptions{
+		LabelSelector: labels.Set{
+			util.LabelVMName: vm.Name,
+		}.String(),
+	})
+	if err != nil {
+		return false, err
+	} else if len(pods.Items) == 0 {
+		return false, nil
+	}
+	return true, nil
 }
