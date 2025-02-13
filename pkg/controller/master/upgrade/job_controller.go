@@ -130,7 +130,7 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 			nodeState := upgrade.Status.NodeStatuses[nodeName].State
 			if jobType == upgradeJobTypePreDrain && nodeState == nodeStatePreDraining {
 				logrus.Debugf("Pre-drain job %s is done.", job.Name)
-				setNodeUpgradeStatus(toUpdate, nodeName, nodeStatePreDrained, condition.Reason, condition.Message)
+				setNodeUpgradeStatus(toUpdate, nodeName, nodeStatePreDrained, "", "")
 				preDrained = true
 			} else if jobType == upgradeJobTypePostDrain && nodeState == nodeStatePostDraining {
 				logrus.Debugf("Post-drain job %s is done.", job.Name)
@@ -138,7 +138,7 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 					setNodeUpgradeStatus(toUpdate, nodeName, StateSucceeded, "", "")
 					postDrained = true
 				} else {
-					setNodeUpgradeStatus(toUpdate, nodeName, nodeStateWaitingReboot, condition.Reason, condition.Message)
+					setNodeUpgradeStatus(toUpdate, nodeName, nodeStateWaitingReboot, "", "")
 					if err := h.setNodeWaitRebootLabel(node, repoInfo); err != nil {
 						return nil, err
 					}
@@ -149,7 +149,7 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 				if repoInfo.Release.OS == node.Status.NodeInfo.OSImage {
 					setNodeUpgradeStatus(toUpdate, nodeName, StateSucceeded, "", "")
 				} else {
-					setNodeUpgradeStatus(toUpdate, nodeName, nodeStateWaitingReboot, condition.Reason, condition.Message)
+					setNodeUpgradeStatus(toUpdate, nodeName, nodeStateWaitingReboot, "", "")
 					if err := h.setNodeWaitRebootLabel(node, repoInfo); err != nil {
 						return nil, err
 					}
@@ -226,7 +226,7 @@ func (h *jobHandler) syncPlanJob(job *batchv1.Job, planName string, nodeName str
 		if condition.Type == batchv1.JobFailed && condition.Status == "True" {
 			setNodeUpgradeStatus(toUpdate, nodeName, StateFailed, condition.Reason, condition.Message)
 		} else if condition.Type == batchv1.JobComplete && condition.Status == "True" {
-			setNodeUpgradeStatus(toUpdate, nodeName, nodeStateImagesPreloaded, condition.Reason, condition.Message)
+			setNodeUpgradeStatus(toUpdate, nodeName, nodeStateImagesPreloaded, "", "")
 		}
 	}
 	if !reflect.DeepEqual(upgrade, toUpdate) {
@@ -265,7 +265,7 @@ func (h *jobHandler) syncManifestJob(job *batchv1.Job) (*batchv1.Job, error) {
 		if condition.Type == batchv1.JobFailed && condition.Status == "True" {
 			setHelmChartUpgradeStatus(toUpdate, v1.ConditionFalse, condition.Reason, condition.Message)
 		} else if condition.Type == batchv1.JobComplete && condition.Status == "True" {
-			setHelmChartUpgradeStatus(toUpdate, v1.ConditionTrue, condition.Reason, condition.Message)
+			setHelmChartUpgradeStatus(toUpdate, v1.ConditionTrue, "", "")
 		}
 	}
 	if !reflect.DeepEqual(upgrade, toUpdate) {
