@@ -9541,6 +9541,9 @@
               "default": ""
             }
           },
+          "targetStorageClassName": {
+            "type": "string"
+          },
           "url": {
             "type": "string",
             "default": ""
@@ -9584,6 +9587,9 @@
             "format": "int64"
           },
           "storageClassName": {
+            "type": "string"
+          },
+          "targetStorageClassName": {
             "type": "string"
           },
           "virtualSize": {
