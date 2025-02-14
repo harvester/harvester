@@ -20,6 +20,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 	vmi := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	bids := scaled.LonghornFactory.Longhorn().V1beta2().BackingImageDataSource()
 	bi := scaled.LonghornFactory.Longhorn().V1beta2().BackingImage()
+	ctlcdi := scaled.CdiFactory.Cdi().V1beta1().DataVolume()
+	ctlcdiupload := scaled.CdiUploadFactory.Upload().V1beta1().UploadTokenRequest()
 
 	vmio := common.GetVMIOperator(vmi, vmi.Cache(), http.Client{})
 	downloaders := map[harvesterv1.VMIBackend]backend.Downloader{
@@ -28,7 +30,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 	}
 	uploaders := map[harvesterv1.VMIBackend]backend.Uploader{
 		harvesterv1.VMIBackendBackingImage: backingimage.GetUploader(bi.Cache(), bids, http.Client{}, vmio),
-		harvesterv1.VMIBackendCDI:          cdi.GetUploader(),
+		harvesterv1.VMIBackendCDI:          cdi.GetUploader(ctlcdi, ctlcdiupload, http.Client{}, vmio),
 	}
 
 	imgHandler := Handler{
