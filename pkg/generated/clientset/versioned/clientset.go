@@ -24,6 +24,7 @@ import (
 
 	batchv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1"
 	catalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1"
+	cdiv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
 	clusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1"
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	k8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
@@ -37,6 +38,7 @@ import (
 	snapshotv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1"
 	storagev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1"
 	upgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
+	uploadv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upload.cdi.kubevirt.io/v1beta1"
 	whereaboutsv1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
@@ -47,6 +49,7 @@ type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	BatchV1() batchv1.BatchV1Interface
 	CatalogV1() catalogv1.CatalogV1Interface
+	CdiV1beta1() cdiv1beta1.CdiV1beta1Interface
 	ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface
 	HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta1Interface
 	K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface
@@ -60,6 +63,7 @@ type Interface interface {
 	SnapshotV1() snapshotv1.SnapshotV1Interface
 	StorageV1() storagev1.StorageV1Interface
 	UpgradeV1() upgradev1.UpgradeV1Interface
+	UploadV1beta1() uploadv1beta1.UploadV1beta1Interface
 	WhereaboutsV1alpha1() whereaboutsv1alpha1.WhereaboutsV1alpha1Interface
 }
 
@@ -68,6 +72,7 @@ type Clientset struct {
 	*discovery.DiscoveryClient
 	batchV1             *batchv1.BatchV1Client
 	catalogV1           *catalogv1.CatalogV1Client
+	cdiV1beta1          *cdiv1beta1.CdiV1beta1Client
 	clusterV1beta1      *clusterv1beta1.ClusterV1beta1Client
 	harvesterhciV1beta1 *harvesterhciv1beta1.HarvesterhciV1beta1Client
 	k8sCniCncfIoV1      *k8scnicncfiov1.K8sCniCncfIoV1Client
@@ -81,6 +86,7 @@ type Clientset struct {
 	snapshotV1          *snapshotv1.SnapshotV1Client
 	storageV1           *storagev1.StorageV1Client
 	upgradeV1           *upgradev1.UpgradeV1Client
+	uploadV1beta1       *uploadv1beta1.UploadV1beta1Client
 	whereaboutsV1alpha1 *whereaboutsv1alpha1.WhereaboutsV1alpha1Client
 }
 
@@ -92,6 +98,11 @@ func (c *Clientset) BatchV1() batchv1.BatchV1Interface {
 // CatalogV1 retrieves the CatalogV1Client
 func (c *Clientset) CatalogV1() catalogv1.CatalogV1Interface {
 	return c.catalogV1
+}
+
+// CdiV1beta1 retrieves the CdiV1beta1Client
+func (c *Clientset) CdiV1beta1() cdiv1beta1.CdiV1beta1Interface {
+	return c.cdiV1beta1
 }
 
 // ClusterV1beta1 retrieves the ClusterV1beta1Client
@@ -159,6 +170,11 @@ func (c *Clientset) UpgradeV1() upgradev1.UpgradeV1Interface {
 	return c.upgradeV1
 }
 
+// UploadV1beta1 retrieves the UploadV1beta1Client
+func (c *Clientset) UploadV1beta1() uploadv1beta1.UploadV1beta1Interface {
+	return c.uploadV1beta1
+}
+
 // WhereaboutsV1alpha1 retrieves the WhereaboutsV1alpha1Client
 func (c *Clientset) WhereaboutsV1alpha1() whereaboutsv1alpha1.WhereaboutsV1alpha1Interface {
 	return c.whereaboutsV1alpha1
@@ -216,6 +232,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
+	cs.cdiV1beta1, err = cdiv1beta1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.clusterV1beta1, err = clusterv1beta1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -268,6 +288,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
+	cs.uploadV1beta1, err = uploadv1beta1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.whereaboutsV1alpha1, err = whereaboutsv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -295,6 +319,7 @@ func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.batchV1 = batchv1.New(c)
 	cs.catalogV1 = catalogv1.New(c)
+	cs.cdiV1beta1 = cdiv1beta1.New(c)
 	cs.clusterV1beta1 = clusterv1beta1.New(c)
 	cs.harvesterhciV1beta1 = harvesterhciv1beta1.New(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.New(c)
@@ -308,6 +333,7 @@ func New(c rest.Interface) *Clientset {
 	cs.snapshotV1 = snapshotv1.New(c)
 	cs.storageV1 = storagev1.New(c)
 	cs.upgradeV1 = upgradev1.New(c)
+	cs.uploadV1beta1 = uploadv1beta1.New(c)
 	cs.whereaboutsV1alpha1 = whereaboutsv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
