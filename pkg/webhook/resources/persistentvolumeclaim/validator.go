@@ -15,6 +15,7 @@ import (
 	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
@@ -59,6 +60,17 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 	}
 
 	oldPVC := oldObj.(*corev1.PersistentVolumeClaim)
+
+	// we should able to delete the PVC if it is in Lost or Terminating status
+	if oldPVC.Status.Phase != corev1.ClaimLost &&
+		oldPVC.Status.Phase != "Terminating" {
+		if _, find := oldPVC.Annotations[util.AnnotationGoldenImage]; find {
+			if oldPVC.Annotations[util.AnnotationGoldenImage] == "true" {
+				msg := fmt.Sprintf("can not delete golden image PVC %s/%s directly", oldPVC.Namespace, oldPVC.Name)
+				return werror.NewInvalidError(msg, "")
+			}
+		}
+	}
 
 	pvc, err := v.pvcCache.Get(oldPVC.Namespace, oldPVC.Name)
 	if err != nil {
@@ -112,6 +124,19 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	oldPVC := oldObj.(*corev1.PersistentVolumeClaim)
 	newPVC := newObj.(*corev1.PersistentVolumeClaim)
+
+	oldAnno := oldPVC.GetAnnotations()
+	if _, find := oldAnno[util.AnnotationGoldenImage]; find {
+		newAnno := newPVC.GetAnnotations()
+		if _, find := newAnno[util.AnnotationGoldenImage]; !find {
+			msg := fmt.Sprintf("can not remove golden image annotation from PVC %s/%s", newPVC.Namespace, newPVC.Name)
+			return werror.NewInvalidError(msg, "")
+		}
+		if oldAnno[util.AnnotationGoldenImage] != newAnno[util.AnnotationGoldenImage] {
+			msg := fmt.Sprintf("can not change golden image annotation from PVC %s/%s", newPVC.Namespace, newPVC.Name)
+			return werror.NewInvalidError(msg, "")
+		}
+	}
 
 	newQuantity := newPVC.Spec.Resources.Requests.Storage()
 	oldQuantity := oldPVC.Spec.Resources.Requests.Storage()
