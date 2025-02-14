@@ -10,6 +10,7 @@ import (
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -241,6 +242,10 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 		return err
 	}
 
+	if err := v.checkVolumeReq(newVM); err != nil {
+		return err
+	}
+
 	oldVM := oldObj.(*kubevirtv1.VirtualMachine)
 	if oldVM == nil {
 		return nil
@@ -278,6 +283,9 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 		message := fmt.Sprintf("the volumeClaimTemplates annotaion is invalid: %v", err)
 		return werror.NewInvalidError(message, "metadata.annotations")
 	}
+	if err := v.checkGoldenImage(vm); err != nil {
+		return err
+	}
 	if err := v.checkOccupiedPVCs(vm); err != nil {
 		return err
 	}
@@ -288,6 +296,36 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 		return err
 	}
 	return v.rqCalculator.CheckIfVMCanStartByResourceQuota(vm)
+}
+
+func (v *vmValidator) checkVolumeReq(newVM *kubevirtv1.VirtualMachine) error {
+	if newVM.Spec.Template == nil {
+		return nil
+	}
+
+	for _, volReq := range newVM.Status.VolumeRequests {
+		if volReq.AddVolumeOptions == nil {
+			continue
+		}
+		if volReq.AddVolumeOptions.VolumeSource.PersistentVolumeClaim == nil {
+			continue
+		}
+		pvcName := volReq.AddVolumeOptions.VolumeSource.PersistentVolumeClaim.ClaimName
+		pvcNS := newVM.Namespace
+		pvc, err := v.pvcCache.Get(pvcNS, pvcName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return werror.NewInternalError(fmt.Sprintf("failed to get PVC %s/%s, err: %s", pvcNS, pvcName, err))
+		}
+		if _, ok := pvc.Annotations[util.AnnotationGoldenImage]; ok {
+			if pvc.Annotations[util.AnnotationGoldenImage] == "true" {
+				return werror.NewInvalidError(fmt.Sprintf("PVC %s/%s is a golden image, it can't be used as a hotplug volume in VM", pvcNS, pvcName), "status.volumeRequests")
+			}
+		}
+	}
+	return nil
 }
 
 func (v *vmValidator) checkVMStoppingStatus(oldVM *kubevirtv1.VirtualMachine, newVM *kubevirtv1.VirtualMachine) bool {
@@ -376,6 +414,35 @@ func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine
 		}
 	}
 
+	return nil
+}
+
+func (v *vmValidator) checkGoldenImage(vm *kubevirtv1.VirtualMachine) error {
+	if vm.Spec.Template == nil {
+		return nil
+	}
+
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim == nil {
+			continue
+		}
+		targetPVC, err := v.pvcCache.Get(vm.Namespace, volume.PersistentVolumeClaim.ClaimName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return werror.NewInternalError(fmt.Sprintf("failed to get PVC %s/%s, err: %s", vm.Namespace, volume.PersistentVolumeClaim.ClaimName, err))
+		}
+
+		if targetPVC.Annotations == nil {
+			continue
+		}
+		if _, ok := targetPVC.Annotations[util.AnnotationGoldenImage]; ok {
+			if targetPVC.Annotations[util.AnnotationGoldenImage] == "true" {
+				return werror.NewInvalidError(fmt.Sprintf("PVC %s/%s is a golden image, it can't be used as a volume in VM", targetPVC.Namespace, targetPVC.Name), "spec.templates.spec.volumes")
+			}
+		}
+	}
 	return nil
 }
 
