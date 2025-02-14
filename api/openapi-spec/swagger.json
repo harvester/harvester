@@ -10758,7 +10758,8 @@
             "type": "string",
             "enum": [
               "Block",
-              "Filesystem"
+              "Filesystem",
+              "FromStorageProfile"
             ]
           },
           "volumeName": {
@@ -11022,21 +11023,6 @@
           }
         }
       },
-      "k8s.io.v1.ResourceClaim": {
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "default": ""
-          },
-          "request": {
-            "type": "string"
-          }
-        }
-      },
       "k8s.io.v1.ResourceFieldSelector": {
         "type": "object",
         "required": [
@@ -11055,38 +11041,6 @@
           }
         },
         "x-kubernetes-map-type": "atomic"
-      },
-      "k8s.io.v1.ResourceRequirements": {
-        "type": "object",
-        "properties": {
-          "claims": {
-            "type": "array",
-            "items": {
-              "default": {},
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/k8s.io.v1.ResourceClaim"
-                }
-              ]
-            },
-            "x-kubernetes-list-map-keys": [
-              "name"
-            ],
-            "x-kubernetes-list-type": "map"
-          },
-          "limits": {
-            "type": "object",
-            "additionalProperties": {
-              "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
-            }
-          },
-          "requests": {
-            "type": "object",
-            "additionalProperties": {
-              "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
-            }
-          }
-        }
       },
       "k8s.io.v1.TCPSocketAction": {
         "type": "object",
@@ -12754,7 +12708,8 @@
             "type": "string",
             "enum": [
               "Block",
-              "Filesystem"
+              "Filesystem",
+              "FromStorageProfile"
             ]
           }
         }
@@ -14686,7 +14641,7 @@
             "default": {},
             "allOf": [
               {
-                "$ref": "#/components/schemas/k8s.io.v1.ResourceRequirements"
+                "$ref": "#/components/schemas/k8s.io.v1.VolumeResourceRequirements"
               }
             ]
           },
@@ -14700,7 +14655,8 @@
             "type": "string",
             "enum": [
               "Block",
-              "Filesystem"
+              "Filesystem",
+              "FromStorageProfile"
             ]
           },
           "volumeName": {

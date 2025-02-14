@@ -25,6 +25,8 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiuploadv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 	capi "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
@@ -191,6 +193,20 @@ func main() {
 					networkv1.VlanConfig{},
 					networkv1.VlanStatus{},
 					networkv1.ClusterNetwork{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			cdiv1.CDIGroupVersionKind.Group: {
+				Types: []interface{}{
+					cdiv1.DataVolume{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			cdiuploadv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					cdiuploadv1.UploadTokenRequest{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
