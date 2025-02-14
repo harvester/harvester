@@ -46,6 +46,7 @@ const (
 type VMIOperator interface {
 	UpdateVMI(oldVMI, newVMI *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error)
 
+	GetVMImageObj(namespace, name string) (*harvesterv1.VirtualMachineImage, error)
 	GetName(vmi *harvesterv1.VirtualMachineImage) string
 	GetNamespace(vmi *harvesterv1.VirtualMachineImage) string
 	GetVirtualSize(vmi *harvesterv1.VirtualMachineImage) int64
@@ -96,6 +97,10 @@ func (vmio *vmiOperator) UpdateVMI(oldVMI, newVMI *harvesterv1.VirtualMachineIma
 	}
 
 	return vmio.client.Update(newVMI)
+}
+
+func (vmio *vmiOperator) GetVMImageObj(namespace, name string) (*harvesterv1.VirtualMachineImage, error) {
+	return vmio.cache.Get(namespace, name)
 }
 
 func (vmio *vmiOperator) GetName(vmi *harvesterv1.VirtualMachineImage) string {
@@ -263,7 +268,7 @@ func (vmio *vmiOperator) stateTransit(old *harvesterv1.VirtualMachineImage, stat
 	case VMImageStateInitialized:
 		newVMI := old.DeepCopy()
 		newVMI.Status.AppliedURL = newVMI.Spec.URL
-		newVMI.Status.StorageClassName = util.GetImageStorageClassName(newVMI.Name)
+		newVMI.Status.StorageClassName = util.GetImageStorageClassName(newVMI)
 		newVMI.Status.Progress = 0
 
 		harvesterv1.ImageImported.Unknown(newVMI)
