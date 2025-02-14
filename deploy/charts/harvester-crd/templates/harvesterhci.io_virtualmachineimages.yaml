@@ -105,6 +105,10 @@ spec:
                 additionalProperties:
                   type: string
                 type: object
+              targetStorageClassName:
+                description: The VM Image will store the data volume in the target
+                  storage class.
+                type: string
               url:
                 type: string
             required:
@@ -165,6 +169,10 @@ spec:
                 format: int64
                 type: integer
               storageClassName:
+                type: string
+              targetStorageClassName:
+                description: The VM Image will store the data volume in the target
+                  storage class.
                 type: string
               virtualSize:
                 format: int64
