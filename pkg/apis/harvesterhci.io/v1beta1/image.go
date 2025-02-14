@@ -71,6 +71,11 @@ type VirtualMachineImageSpec struct {
 
 	// +optional
 	SecurityParameters *VirtualMachineImageSecurityParameters `json:"securityParameters,omitempty"`
+
+	// The VM Image will store the data volume in the target storage class.
+	// +optional
+	// +kubebuilder:validation:Optional
+	TargetStorageClassName string `json:"targetStorageClassName,omitempty"`
 }
 
 type VirtualMachineImageSecurityParameters struct {
@@ -141,6 +146,11 @@ type VirtualMachineImageStatus struct {
 
 	// +optional
 	Conditions []Condition `json:"conditions,omitempty"`
+
+	// The VM Image will store the data volume in the target storage class.
+	// +optional
+	// +kubebuilder:validation:Optional
+	TargetStorageClassName string `json:"targetStorageClassName,omitempty"`
 }
 
 type Condition struct {
