@@ -39,6 +39,8 @@ import (
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	cdiv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	uploadv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
@@ -48,6 +50,7 @@ var codecs = serializer.NewCodecFactory(scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
 	batchv1.AddToScheme,
 	catalogv1.AddToScheme,
+	cdiv1beta1.AddToScheme,
 	clusterv1beta1.AddToScheme,
 	harvesterhciv1beta1.AddToScheme,
 	k8scnicncfiov1.AddToScheme,
@@ -61,6 +64,7 @@ var localSchemeBuilder = runtime.SchemeBuilder{
 	snapshotv1.AddToScheme,
 	storagev1.AddToScheme,
 	upgradev1.AddToScheme,
+	uploadv1beta1.AddToScheme,
 	whereaboutsv1alpha1.AddToScheme,
 }
 
