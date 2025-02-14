@@ -98,6 +98,9 @@ const (
 	LonghornOptionEncrypted                  = "encrypted"
 	AddonValuesAnnotation                    = "harvesterhci.io/addon-defaults"
 
+	// CDI constants
+	CSIProvisionerLVM = "lvm.driver.harvesterhci.io"
+
 	// CSI constants
 	CSIProvisionerSecretNameKey      = "csi.storage.k8s.io/provisioner-secret-name"
 	CSIProvisionerSecretNamespaceKey = "csi.storage.k8s.io/provisioner-secret-namespace"
