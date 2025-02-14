@@ -18,6 +18,7 @@ const (
 	AnnotationSnapshotFreezeFS          = prefix + "/snapshotFreezeFS"
 	AnnotationSVMBackupID               = prefix + "/svmbackupId"
 	AnnotationSVMBackupSkipCronCheck    = prefix + "/svmbackupSkipCronCheck"
+	AnnotationGoldenImage               = prefix + "/goldenImage"
 	LabelImageDisplayName               = prefix + "/imageDisplayName"
 	LabelSetting                        = prefix + "/setting"
 	LabelVMName                         = prefix + "/vmName"

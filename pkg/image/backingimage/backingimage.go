@@ -83,7 +83,7 @@ func (bib *Backend) deleteBackingImage(vmi *harvesterv1.VirtualMachineImage) err
 }
 
 func (bib *Backend) deleteStorageClass(vmi *harvesterv1.VirtualMachineImage) error {
-	return bib.scClient.Delete(util.GetImageStorageClassName(bib.vmio.GetName(vmi)), &metav1.DeleteOptions{})
+	return bib.scClient.Delete(util.GetImageStorageClassName(vmi), &metav1.DeleteOptions{})
 }
 
 func (bib *Backend) deleteBackingImageAndStorageClass(vmi *harvesterv1.VirtualMachineImage) error {
@@ -174,7 +174,7 @@ func (bib *Backend) createBackingImage(vmi *harvesterv1.VirtualMachineImage) err
 }
 
 func (bib *Backend) createStorageClass(vmi *harvesterv1.VirtualMachineImage) error {
-	if cachedSC, _ := bib.scCache.Get(util.GetImageStorageClassName(bib.vmio.GetName(vmi))); cachedSC != nil && cachedSC.DeletionTimestamp != nil {
+	if cachedSC, _ := bib.scCache.Get(util.GetImageStorageClassName(vmi)); cachedSC != nil && cachedSC.DeletionTimestamp != nil {
 		return fmt.Errorf("storage class %s is being deleted", cachedSC.Name)
 	}
 
@@ -188,7 +188,7 @@ func (bib *Backend) createStorageClass(vmi *harvesterv1.VirtualMachineImage) err
 
 	sc := &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: util.GetImageStorageClassName(bib.vmio.GetName(vmi)),
+			Name: util.GetImageStorageClassName(vmi),
 		},
 		Provisioner:          types.LonghornDriverName,
 		ReclaimPolicy:        &reclaimPolicy,
@@ -248,7 +248,7 @@ func (bib *Backend) Check(vmi *harvesterv1.VirtualMachineImage) error {
 		}
 	}
 
-	sc, err := bib.scCache.Get(util.GetImageStorageClassName(bib.vmio.GetName(vmi)))
+	sc, err := bib.scCache.Get(util.GetImageStorageClassName(vmi))
 	if errors.IsNotFound(err) {
 		return err
 	}
