@@ -39,8 +39,6 @@ type StorageProfilesGetter interface {
 type StorageProfileInterface interface {
 	Create(ctx context.Context, storageProfile *v1beta1.StorageProfile, opts v1.CreateOptions) (*v1beta1.StorageProfile, error)
 	Update(ctx context.Context, storageProfile *v1beta1.StorageProfile, opts v1.UpdateOptions) (*v1beta1.StorageProfile, error)
-	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, storageProfile *v1beta1.StorageProfile, opts v1.UpdateOptions) (*v1beta1.StorageProfile, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.StorageProfile, error)

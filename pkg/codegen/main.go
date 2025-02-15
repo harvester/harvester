@@ -200,6 +200,7 @@ func main() {
 			cdiv1.CDIGroupVersionKind.Group: {
 				Types: []interface{}{
 					cdiv1.DataVolume{},
+					cdiv1.StorageProfile{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,

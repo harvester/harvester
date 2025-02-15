@@ -99,18 +99,6 @@ func (c *FakeStorageProfiles) Update(ctx context.Context, storageProfile *v1beta
 	return obj.(*v1beta1.StorageProfile), err
 }
 
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeStorageProfiles) UpdateStatus(ctx context.Context, storageProfile *v1beta1.StorageProfile, opts v1.UpdateOptions) (result *v1beta1.StorageProfile, err error) {
-	emptyResult := &v1beta1.StorageProfile{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(storageprofilesResource, "status", storageProfile, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.StorageProfile), err
-}
-
 // Delete takes name of the storageProfile and deletes it. Returns an error if one occurs.
 func (c *FakeStorageProfiles) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
