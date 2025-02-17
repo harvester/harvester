@@ -28,6 +28,7 @@ const (
 	AnnotationStorageClassName          = prefix + "/storageClassName"
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
+	AnnotationLastRefreshTime           = prefix + "/lastRefreshTime"
 
 	// AnnotationMigratingPrefix is used to store the migrating vm in the annotation of ResourceQuota
 	// eg: harvesterhci.io/migrating-vm1: jsonOfResourceList, harvesterhci.io/migrating-vm2: jsonOfResourceList
