@@ -500,6 +500,10 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 		return nil
 	}
 
+	if target.RefreshIntervalInSeconds < 0 {
+		return werror.NewInvalidError("Refresh interval should be greater than or equal to 0", settings.KeywordValue)
+	}
+
 	// when target is from internal re-update, allow fast pass
 	if v.isUpdatedS3BackupTarget(target) {
 		return nil
