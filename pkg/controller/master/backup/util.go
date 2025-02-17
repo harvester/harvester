@@ -1,9 +1,12 @@
 package backup
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
+	"strings"
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
@@ -223,4 +226,10 @@ func getSecretRefName(vmName string, secretName string) string {
 
 func getVMBackupMetadataFilePath(vmBackupNamespace, vmBackupName string) string {
 	return filepath.Join(vmBackupMetadataFolderPath, vmBackupNamespace, fmt.Sprintf("%s.cfg", vmBackupName))
+}
+
+func getBackupTargetHash(value string) string {
+	hash := sha256.New224()
+	io.Copy(hash, io.MultiReader(strings.NewReader(value)))
+	return fmt.Sprintf("%x", hash.Sum(nil))
 }
