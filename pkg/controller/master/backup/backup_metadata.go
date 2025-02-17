@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"time"
 
 	"github.com/longhorn/backupstore"
@@ -115,10 +116,12 @@ func (h *MetadataHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Se
 		return setting, err
 	}
 
-	logrus.Debugf("backup target change, sync vm backup:%s:%s", target.Type, target.Endpoint)
-
 	// when backup target is reset to default, do not trig sync
 	if target.IsDefaultBackupTarget() {
+		return nil, nil
+	}
+
+	if !h.shouldRefresh(setting, target.RefreshIntervalInSeconds) {
 		return nil, nil
 	}
 
@@ -140,7 +143,47 @@ func (h *MetadataHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Se
 		return nil, nil
 	}
 
-	return nil, nil
+	return h.renewBackupTarget(setting)
+}
+
+func (h *MetadataHandler) shouldRefresh(setting *harvesterv1.Setting, refreshIntervalInSeconds int64) bool {
+	if setting.Annotations == nil {
+		return true
+	}
+
+	var err error
+	lastTime := time.Unix(0, 0)
+	currentTime := time.Now()
+	if setting.Annotations[util.AnnotationLastRefreshTime] != "" {
+		lastTime, err = time.Parse(time.RFC3339, setting.Annotations[util.AnnotationLastRefreshTime])
+		if err != nil {
+			logrus.WithError(err).Errorf("failed to parse last refresh time")
+			lastTime = time.Unix(0, 0)
+			return true
+		}
+	}
+	if getBackupTargetHash(setting.Value) == setting.Annotations[util.AnnotationHash] &&
+		(refreshIntervalInSeconds == 0 ||
+			currentTime.Sub(lastTime).Seconds() < float64(refreshIntervalInSeconds)) {
+		h.settings.EnqueueAfter(setting.Name, lastTime.Add(time.Duration(refreshIntervalInSeconds)*time.Second).Sub(currentTime))
+		return false
+	}
+	return true
+}
+
+func (h *MetadataHandler) renewBackupTarget(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+	settingCopy := setting.DeepCopy()
+	if settingCopy.Annotations == nil {
+		settingCopy.Annotations = map[string]string{}
+	}
+
+	settingCopy.Annotations[util.AnnotationHash] = getBackupTargetHash(setting.Value)
+	settingCopy.Annotations[util.AnnotationLastRefreshTime] = time.Now().Format(time.RFC3339)
+	if !reflect.DeepEqual(setting, settingCopy) {
+		return h.settings.Update(settingCopy)
+	}
+	h.settings.Enqueue(setting.Name)
+	return setting, nil
 }
 
 func (h *MetadataHandler) syncVMImage(target *settings.BackupTarget) error {

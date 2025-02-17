@@ -27,8 +27,9 @@ import (
 const (
 	backupTargetControllerName = "harvester-backup-target-controller"
 
-	longhornBackupTargetSettingName       = "backup-target"
-	longhornBackupTargetSecretSettingName = "backup-target-credential-secret"
+	longhornBackupTargetSettingName            = "backup-target"
+	longhornBackupTargetSecretSettingName      = "backup-target-credential-secret"
+	longhornBackupstorePollIntervalSettingName = "backupstore-poll-interval"
 )
 
 // RegisterBackupTarget register the setting controller and reconsile longhorn setting when backup target changed
@@ -93,7 +94,9 @@ func (h *TargetHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Sett
 			return h.setConfiguredCondition(setting, "", err)
 		}
 
-		return h.reUpdateBackupTargetSettingSecret(setting, target)
+		if setting, err = h.reUpdateBackupTargetSettingSecret(setting, target); err != nil {
+			return h.setConfiguredCondition(setting, "", err)
+		}
 
 	case settings.NFSBackupType:
 		if err = h.updateLonghornTarget(target); err != nil {
@@ -125,6 +128,12 @@ func (h *TargetHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Sett
 		}
 
 		return h.setConfiguredCondition(setting, "", fmt.Errorf("Invalid backup target type:%s or parameter", target.Type))
+	}
+
+	if target.RefreshIntervalInSeconds > 0 {
+		if err = h.updateLonghornPollIntervalSetting(target); err != nil {
+			return h.setConfiguredCondition(setting, "", err)
+		}
 	}
 
 	if len(setting.Status.Conditions) == 0 || harvesterv1.SettingConfigured.IsFalse(setting) {
@@ -308,4 +317,33 @@ func (h *TargetHandler) setConfiguredCondition(setting *harvesterv1.Setting, rea
 	// SetError with nil error will cleanup message in condition and set the status to true
 	harvesterv1.SettingConfigured.SetError(settingCpy, reason, err)
 	return h.settings.Update(settingCpy)
+}
+
+func (h *TargetHandler) updateLonghornPollIntervalSetting(backupTarget *settings.BackupTarget) error {
+	setting, err := h.longhornSettingCache.Get(util.LonghornSystemNamespaceName, longhornBackupstorePollIntervalSettingName)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+
+		if _, err := h.longhornSettings.Create(&lhv1beta2.Setting{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      longhornBackupstorePollIntervalSettingName,
+				Namespace: util.LonghornSystemNamespaceName,
+			},
+			Value: strconv.FormatInt(backupTarget.RefreshIntervalInSeconds, 10),
+		}); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	settingCpy := setting.DeepCopy()
+	settingCpy.Value = strconv.FormatInt(backupTarget.RefreshIntervalInSeconds, 10)
+
+	if !reflect.DeepEqual(setting, settingCpy) {
+		_, err := h.longhornSettings.Update(settingCpy)
+		return err
+	}
+	return nil
 }
