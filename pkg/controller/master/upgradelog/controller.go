@@ -2,6 +2,7 @@ package upgradelog
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
@@ -750,19 +751,20 @@ func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {
 	var err error
 	err = h.clusterFlowClient.Delete(util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFlowComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return fmt.Errorf("failed to delete clusterflow %s/%s", util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFlowComponent))
 	}
 	err = h.clusterOutputClient.Delete(util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOutputComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return fmt.Errorf("failed to delete clusteroutput %s/%s", util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOutputComponent))
 	}
 	err = h.loggingClient.Delete(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogInfraComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return fmt.Errorf("failed to delete logging client %s", name.SafeConcatName(upgradeLog.Name, util.UpgradeLogInfraComponent))
 	}
+	// new to wait a bit, let logging operator finish the task
 	err = h.managedChartClient.Delete(util.FleetLocalNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return fmt.Errorf("failed to delete logging managedchart %s/%s", util.FleetLocalNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
 	}
 
 	return nil
@@ -771,24 +773,48 @@ func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {
 func (h *handler) cleanup(upgradeLog *harvesterv1.UpgradeLog) error {
 	// Cleanup the relationship from its corresponding Upgrade resource
 	upgradeName := upgradeLog.Spec.UpgradeName
-	upgrade, err := h.upgradeCache.Get(util.HarvesterSystemNamespaceName, upgradeName)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
+	var err1, err2, err3 error
+	errorStr := fmt.Sprintf("upgradeLog %s/%s upgrade %s cleanup errors", upgradeLog.Namespace, upgradeLog.Name, upgradeName)
+
+	upgrade, err1 := h.upgradeCache.Get(util.HarvesterSystemNamespaceName, upgradeName)
+	for i := 0; i < 1; i++ {
+		if err1 != nil {
+			// can't return directly, need to clean other related resources
+			if apierrors.IsNotFound(err1) {
+				err1 = nil
+				break
+			}
+			errorStr = fmt.Sprintf("%s failed to get upgrade %s", errorStr, err1.Error())
+			break
 		}
-		return err
-	}
-	upgradeToUpdate := upgrade.DeepCopy()
-	upgradeToUpdate.Status.UpgradeLog = ""
-	if _, err = h.upgradeClient.Update(upgradeToUpdate); err != nil {
-		return err
+		// already updated
+		if upgrade.Status.UpgradeLog == "" {
+			break
+		}
+		upgradeToUpdate := upgrade.DeepCopy()
+		upgradeToUpdate.Status.UpgradeLog = ""
+		_, err2 = h.upgradeClient.Update(upgradeToUpdate)
+		if err2 != nil {
+			if apierrors.IsNotFound(err2) {
+				err2 = nil
+				break
+			}
+			errorStr = fmt.Sprintf("%s failed to update upgrade %s", errorStr, err2.Error())
+			break
+		}
 	}
 
-	// Remove the ManagedChart if the UpgradeLog resource is deleted before normal tear down
-	logrus.Info("Removing logging-operator ManagedChart if any")
-	err = h.managedChartClient.Delete(util.FleetLocalNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent), &metav1.DeleteOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+	// Remove all if the UpgradeLog resource is deleted before normal tear down
+	logrus.Info("Removing all other related resources")
+	err3 = h.stopCollect(upgradeLog)
+	if err3 != nil {
+		errorStr = fmt.Sprintf("%s failed to clean other resources %s", errorStr, err3.Error())
+	}
+
+	if err1 != nil || err2 != nil || err3 != nil {
+		// retry
+		logrus.Infof("Clean up upgradeLog related resources with error %s, retry", errorStr)
+		return fmt.Errorf("%s", errorStr)
 	}
 
 	return nil
