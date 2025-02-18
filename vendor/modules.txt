@@ -250,8 +250,6 @@ github.com/gammazero/workerpool
 # github.com/ghodss/yaml v1.0.0
 ## explicit
 github.com/ghodss/yaml
-# github.com/gin-gonic/gin v1.7.0 => github.com/gin-gonic/gin v1.7.7
-## explicit; go 1.13
 # github.com/go-errors/errors v1.0.1
 ## explicit
 github.com/go-errors/errors
@@ -594,7 +592,7 @@ github.com/mailru/easyjson/jwriter
 # github.com/mattn/go-colorable v0.1.13
 ## explicit; go 1.15
 github.com/mattn/go-colorable
-# github.com/mattn/go-isatty v0.0.17
+# github.com/mattn/go-isatty v0.0.19
 ## explicit; go 1.15
 github.com/mattn/go-isatty
 # github.com/mattn/go-runewidth v0.0.14
@@ -1020,6 +1018,8 @@ github.com/tidwall/match
 # github.com/tidwall/pretty v1.2.0
 ## explicit; go 1.16
 github.com/tidwall/pretty
+# github.com/ugorji/go/codec v1.2.12
+## explicit; go 1.11
 # github.com/urfave/cli v1.22.16
 ## explicit; go 1.11
 github.com/urfave/cli
@@ -2352,7 +2352,7 @@ sigs.k8s.io/yaml/goyaml.v2
 # github.com/containerd/containerd => github.com/containerd/containerd v1.6.18
 # github.com/docker/distribution => github.com/docker/distribution v2.8.0+incompatible
 # github.com/docker/docker => github.com/docker/docker v20.10.9+incompatible
-# github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.7.7
+# github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.9.1
 # github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
 # github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200521150516-05eb9880269c
 # github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190128024246-5eb7ae5bdb7a
