@@ -27,6 +27,7 @@ const (
 	AccessModeRWO   = "ReadWriteOnce"
 	tickTimeout     = 60 * time.Second
 	tickPolling     = 1 * time.Second
+	kindPod         = "Pod"
 )
 
 type ProgressUpdater struct {
