@@ -390,8 +390,9 @@ github.com/guonaihong/gout/encode
 github.com/guonaihong/gout/export
 github.com/guonaihong/gout/filter
 github.com/guonaihong/gout/interface
-# github.com/harvester/go-common v0.0.0-20240822134235-198df47889ca
-## explicit; go 1.22
+# github.com/harvester/go-common v0.0.0-20250109132713-e748ce72a7ba
+## explicit; go 1.23
+github.com/harvester/go-common/common
 github.com/harvester/go-common/ds
 github.com/harvester/go-common/version
 # github.com/harvester/harvester-network-controller v0.3.1

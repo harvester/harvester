@@ -26,7 +26,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 	vmio := common.GetVMIOperator(vmi, vmi.Cache(), http.Client{})
 	downloaders := map[harvesterv1.VMIBackend]backend.Downloader{
 		harvesterv1.VMIBackendBackingImage: backingimage.GetDownloader(bi.Cache(), http.Client{}, vmio),
-		harvesterv1.VMIBackendCDI:          cdi.GetDownloader(),
+		harvesterv1.VMIBackendCDI:          cdi.GetDownloader(http.Client{}, scaled.Management.ClientSet, vmio),
 	}
 	uploaders := map[harvesterv1.VMIBackend]backend.Uploader{
 		harvesterv1.VMIBackendBackingImage: backingimage.GetUploader(bi.Cache(), bids, http.Client{}, vmio),

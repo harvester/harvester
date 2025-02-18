@@ -345,8 +345,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0 h1:bkypFPDjIYGfCYD5mRBvpqxfYX1
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0/go.mod h1:P+Lt/0by1T8bfcF3z737NnSbmxQAppXMRziHUxPOC8k=
 github.com/guonaihong/gout v0.1.3 h1:BIiV6nnsA+R6dIB1P33uhCM8+TVAG3zHrXGZad7hDc8=
 github.com/guonaihong/gout v0.1.3/go.mod h1:vXvv5Kxr70eM5wrp4F0+t9lnLWmq+YPW2GByll2f/EA=
-github.com/harvester/go-common v0.0.0-20240822134235-198df47889ca h1:gUgeAQ9NSFEBqVkKJxTmbhbob/6CWu/iDlD4V40IpdU=
-github.com/harvester/go-common v0.0.0-20240822134235-198df47889ca/go.mod h1:UNh9xAFqna6F2Fk4m4TTNWV0xaORlFwH7B+DepHT/gI=
+github.com/harvester/go-common v0.0.0-20250109132713-e748ce72a7ba h1:U9Q4hwXeqniHkwPORVvVGGUUz8ZG0n7B/jr8uCiofeQ=
+github.com/harvester/go-common v0.0.0-20250109132713-e748ce72a7ba/go.mod h1:VPPSa9KzRB1XPPkOAz4M4263UPm5bl/Xd3jEnALh3uo=
 github.com/harvester/harvester-network-controller v0.3.1 h1:WJ90eqq0HNNPE/kB1X+fsV1MZ8Lrt0s5UaOCzUotBwQ=
 github.com/harvester/harvester-network-controller v0.3.1/go.mod h1:XL6+c9WvqcEVV/Gki+wU5tZBqZGrOm1719pZdaiuG7g=
 github.com/harvester/node-manager v0.3.1 h1:mjMCAYBNsenzIFT/kN/gwTPnl0FiSKbs1aOF219BQZA=

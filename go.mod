@@ -62,7 +62,7 @@ require (
 	github.com/gobuffalo/flect v1.0.2
 	github.com/gorilla/mux v1.8.1
 	github.com/guonaihong/gout v0.1.3
-	github.com/harvester/go-common v0.0.0-20240822134235-198df47889ca
+	github.com/harvester/go-common v0.0.0-20250109132713-e748ce72a7ba
 	github.com/harvester/harvester-network-controller v0.3.1
 	github.com/harvester/node-manager v0.3.1
 	github.com/iancoleman/strcase v0.2.0
