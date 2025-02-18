@@ -25,6 +25,8 @@ import (
 const (
 	defaultDeploymentReplicas   int32 = 1
 	defaultLogArchiveVolumeSize       = "1Gi"
+
+	upgradeLogLoggingRef = "harvester-upgradelog"
 )
 
 func upgradeLogReference(upgradeLog *harvesterv1.UpgradeLog) metav1.OwnerReference {
@@ -84,6 +86,8 @@ func prepareLogging(upgradeLog *harvesterv1.UpgradeLog, images map[string]Image)
 			},
 		},
 		Spec: loggingv1.LoggingSpec{
+			// without this field, it may cause: "Other logging resources exist with the same loggingRef: rancher-logging-root"
+			LoggingRef:              upgradeLogLoggingRef,
 			ControlNamespace:        upgradeLog.Namespace,
 			FlowConfigCheckDisabled: true,
 			FluentbitSpec: &loggingv1.FluentbitSpec{
