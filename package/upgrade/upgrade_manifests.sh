@@ -1130,6 +1130,15 @@ upgrade_addon_rancher_logging()
   fi
 }
 
+# NOTE: review in each release, add corresponding process
+upgrade_harvester_upgradelog() {
+  echo "upgrade harvester upgradelog"
+  # in v1.5.0, new rancher-logging is bumped
+  if [ "$REPO_LOGGING_CHART_VERSION" = "105.2.0+up4.10.0" ]; then
+    upgrade_harvester_upgradelog_with_patch_loggingref $REPO_LOGGING_CHART_VERSION
+  fi
+}
+
 upgrade_addons()
 {
   wait_for_addons_crd
@@ -1141,6 +1150,8 @@ upgrade_addons()
   # those 2 addons have flexible user-configurable fields, only upgrade harvester related e.g. new image tag
   # from v1.2.0, they are upgraded per following
   upgrade_addon_rancher_monitoring
+  # the upgradelog may be affected by the bumped rancher-logging
+  upgrade_harvester_upgradelog
   upgrade_addon_rancher_logging
   upgrade_nvidia_driver_toolkit_addon
 }

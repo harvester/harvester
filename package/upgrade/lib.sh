@@ -571,6 +571,57 @@ EOF
   wait_for_addon_upgrade_deployment $name $namespace $enabled $curstatus
 }
 
+upgrade_harvester_upgradelog_with_patch_loggingref()
+{
+  local namespace=$UPGRADE_NAMESPACE
+  local upgradelogname=$(kubectl get upgrades.harvesterhci.io $HARVESTER_UPGRADE_NAME -n $UPGRADE_NAMESPACE -ojsonpath="{.status.upgradeLog}")
+  local loggingref="harvester-upgradelog"
+
+  if [[ -z "$upgradelogname" ]]; then
+    echo "upgradelog is not found from upgrade $HARVESTER_UPGRADE_NAME, nothing to do"
+    return 0
+  fi
+
+  # patch_clusteroutput
+  echo "patch clusteroutput $upgradelogname-clusteroutput"
+  local patchfile="patch_clusteroutput.yaml"
+  cat > $patchfile <<EOF
+spec:
+  loggingRef: "$loggingref"
+EOF
+  kubectl patch clusteroutput -n $namespace $upgradelogname-clusteroutput --patch-file ./$patchfile --type merge || echo "failed to patch upgradeLog clusteroutput"
+  rm -rf ./$patchfile
+
+  # patch_clusterflow
+  echo "patch clusterflow $upgradelogname-clusterflow"
+  patchfile="patch_clusterflow.yaml"
+  cat > $patchfile <<EOF
+spec:
+  loggingRef: "$loggingref"
+EOF
+  kubectl patch clusterflow -n $namespace $upgradelogname-clusterflow --patch-file ./$patchfile --type merge || echo "failed to patch upgradeLog clusterflow"
+  rm -rf ./$patchfile
+
+  # patch logging
+  echo "patch logging $upgradelogname-infra"
+  patchfile="patch_logging.yaml"
+  cat > $patchfile <<EOF
+spec:
+  loggingRef: "$loggingref"
+EOF
+  kubectl patch logging -n $namespace $upgradelogname-infra --patch-file ./$patchfile --type merge || echo "failed to patch upgradeLog logging"
+  rm -rf ./$patchfile
+
+  # patch the may be existing logging operator-root
+  echo "patch logging $upgradelogname-operator-root"
+  patchfile="patch_logging.yaml"
+  cat > $patchfile <<EOF
+spec:
+  loggingRef: "harvester-upgradelog-operator-root"
+EOF
+  kubectl patch logging -n $namespace $upgradelogname-operator-root --patch-file ./$patchfile --type merge || echo "failed to patch upgradeLog logging operator-root"
+  rm -rf ./$patchfile
+}
 
 upgrade_nvidia_driver_toolkit_addon()
 {
