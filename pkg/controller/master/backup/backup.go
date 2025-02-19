@@ -58,6 +58,7 @@ const (
 	backupBucketRegionAnnotation = "backup.harvesterhci.io/bucket-region"
 
 	defaultFreezeDuration = 1 * time.Second
+	snapRevise            = "-snap-revise"
 )
 
 var vmBackupKind = harvesterv1.SchemeGroupVersion.WithKind(vmBackupKindName)
@@ -286,12 +287,6 @@ func (h *Handler) tryFreezeFS(backup *harvesterv1.VirtualMachineBackup) error {
 }
 
 func (h *Handler) withFreezeFSAnnotation(backup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
-	// Annotation already exists with valid bool text
-	val, ok := backup.Annotations[util.AnnotationSnapshotFreezeFS]
-	if ok && (val == "true" || val == "false") {
-		return backup, nil
-	}
-
 	sourceVMI, err := h.getBackupSourceInstance(backup)
 	if apierrors.IsNotFound(err) {
 		return h.saveFreezeFSAnnotation(backup, false)
@@ -567,6 +562,16 @@ func (h *Handler) getBackupPVC(namespace, name string) (*corev1.PersistentVolume
 	return pvc, nil
 }
 
+// We only needs to freeze the fs if the LH backup doesn't exists,
+// this can be a `bak` type VolumeSnapshot from or a pure VolumeSnapshot
+func (h *Handler) freezeFsIfNeeded(vmBackup *harvesterv1.VirtualMachineBackup, vb harvesterv1.VolumeBackup) error {
+	if vb.LonghornBackupName != nil {
+		return nil
+	}
+
+	return h.tryFreezeFS(vmBackup)
+}
+
 // reconcileVolumeSnapshots create volume snapshot if not exist.
 // For vm backup from a existent VM, we create volume snapshot from pvc.
 // For vm backup from syncing vm backup metadata, we create volume snapshot from volume snapshot content.
@@ -584,16 +589,18 @@ func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineB
 		}
 
 		if volumeSnapshot != nil && volumeSnapshot.DeletionTimestamp != nil {
-			logrus.Debugf("volumeSnapshot %s/%s is being deleted, requeue vm backup %s/%s again",
-				volumeSnapshot.Namespace, volumeSnapshot.Name,
-				vmBackup.Namespace, vmBackup.Name)
+			logrus.WithFields(logrus.Fields{
+				"VolumeSnapshotNamespace": volumeSnapshot.Namespace,
+				"VolumeSnapshotName":      volumeSnapshot.Name,
+				"VMBackupNamespace":       vmBackup.Namespace,
+				"VMBackupName":            vmBackup.Name,
+			}).Info("volumeSnapshot is deleted, requeue vm backup again")
 			h.vmBackupController.EnqueueAfter(vmBackup.Namespace, vmBackup.Name, 5*time.Second)
 			return nil
 		}
 
 		if volumeSnapshot == nil {
-			err := h.tryFreezeFS(vmBackupCpy)
-			if err != nil {
+			if err := h.freezeFsIfNeeded(vmBackupCpy, volumeBackup); err != nil {
 				return err
 			}
 
@@ -635,7 +642,6 @@ func (h *Handler) getVolumeSnapshot(namespace, name string) (*snapshotv1.VolumeS
 }
 
 func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBackup, volumeBackup harvesterv1.VolumeBackup, volumeSnapshotClass *snapshotv1.VolumeSnapshotClass) (*snapshotv1.VolumeSnapshot, error) {
-	logrus.Debugf("attempting to create VolumeSnapshot %s", *volumeBackup.Name)
 	var (
 		sourceStorageClassName string
 		sourceImageID          string
@@ -693,7 +699,10 @@ func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBacku
 		snapshot.Annotations[util.AnnotationStorageProvisioner] = sourceProvisioner
 	}
 
-	logrus.Debugf("create VolumeSnapshot %s/%s", vmBackup.Namespace, *volumeBackup.Name)
+	logrus.WithFields(logrus.Fields{
+		"namespace": vmBackup.Namespace,
+		"name":      *volumeBackup.Name,
+	}).Info("creating VolumeSnapshot")
 	volumeSnapshot, err := h.snapshots.Create(snapshot)
 	if err != nil {
 		return nil, err
@@ -703,7 +712,8 @@ func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBacku
 		vmBackup,
 		corev1.EventTypeNormal,
 		volumeSnapshotCreateEvent,
-		"Successfully created VolumeSnapshot %s",
+		"Successfully created VolumeSnapshot %s/%s",
+		vmBackup.Namespace,
 		snapshot.Name,
 	)
 
@@ -727,9 +737,18 @@ func (h *Handler) createVolumeSnapshotContent(
 	if err != nil {
 		return nil, err
 	}
-	snapshotHandle := fmt.Sprintf("bs://%s/%s", volumeBackup.PersistentVolumeClaim.ObjectMeta.Name, lhBackup.Name)
 
-	logrus.Debugf("create VolumeSnapshotContent %s", getVolumeSnapshotContentName(volumeBackup))
+	if lhBackup.Status.VolumeName == "" {
+		return nil, fmt.Errorf("lhbackup %s is not populated for vmbackup %s/%s's volume %s",
+			lhBackup.Name, vmBackup.Namespace, vmBackup.Name, *volumeBackup.Name)
+	}
+
+	// Ref: https://longhorn.io/docs/1.2.3/snapshots-and-backups/csi-snapshot-support/restore-a-backup-via-csi/#restore-a-backup-that-has-no-associated-volumesnapshot
+	snapshotHandle := fmt.Sprintf("bak://%s/%s", lhBackup.Status.VolumeName, lhBackup.Name)
+
+	logrus.WithFields(logrus.Fields{
+		"name": getVolumeSnapshotContentName(volumeBackup),
+	}).Info("creating VolumeSnapshotContent")
 	return h.snapshotContents.Create(&snapshotv1.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      getVolumeSnapshotContentName(volumeBackup),
