@@ -57,6 +57,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "BackingImage", nil),
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "BackingImageDataSource", lhv1beta2.BackingImageDataSource{}),
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Backup", lhv1beta2.Backup{}),
+			crd.FromGV(lhv1beta2.SchemeGroupVersion, "BackupVolume", lhv1beta2.BackupVolume{}),
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "BackupBackingImage", lhv1beta2.BackupBackingImage{}),
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Engine", lhv1beta2.Engine{}),
 			crd.FromGV(lhv1beta2.SchemeGroupVersion, "Snapshot", lhv1beta2.Snapshot{}),
