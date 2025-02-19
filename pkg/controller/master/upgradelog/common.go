@@ -26,6 +26,8 @@ const (
 	defaultDeploymentReplicas   int32 = 1
 	defaultLogArchiveVolumeSize       = "1Gi"
 
+	// this is used to differentiate separate fluentbit&fluentd group
+	// all the none-root logging/clusterflow/clusteroutput objects need this reference
 	upgradeLogLoggingRef = "harvester-upgradelog"
 )
 
@@ -170,6 +172,7 @@ func prepareClusterFlow(upgradeLog *harvesterv1.UpgradeLog) *loggingv1.ClusterFl
 			},
 		},
 		Spec: loggingv1.ClusterFlowSpec{
+			LoggingRef: upgradeLogLoggingRef,
 			Filters: []loggingv1.Filter{
 				{
 					TagNormaliser: &filter.TagNormaliser{},
@@ -264,6 +267,7 @@ func prepareClusterOutput(upgradeLog *harvesterv1.UpgradeLog) *loggingv1.Cluster
 		},
 		Spec: loggingv1.ClusterOutputSpec{
 			OutputSpec: loggingv1.OutputSpec{
+				LoggingRef: upgradeLogLoggingRef,
 				FileOutput: &output.FileOutputConfig{
 					Path:     "/archive/logs/${tag}",
 					Compress: "gzip",
