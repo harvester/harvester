@@ -30,7 +30,7 @@ jobs:
           python ./.github/workflows/check-sprint-last-day.py "harvester" "harvester" "Harvester Sprint"
 
       - name: Harvester Sprint Issues - Clear Sprint
-        uses: derekbit/move-to-next-iteration@master
+        uses: harvester/move-to-next-iteration@master
         if: steps.check_sprint_build_required.outcome == 'success'
         with:
           owner: harvester
@@ -42,7 +42,7 @@ jobs:
           excluded-statuses: "Review,Ready For Testing,Testing,Closed"
 
       - name: Harvester Sprint Issues - Move to Next Sprint
-        uses: derekbit/move-to-next-iteration@master
+        uses: harvester/move-to-next-iteration@master
         if: steps.check_sprint_build_required.outcome == 'success'
         with:
           owner: harvester
@@ -54,7 +54,7 @@ jobs:
           statuses: "Review"
 
       - name: Harvester Community Sprint issues - Move to Next Sprint
-        uses: derekbit/move-to-next-iteration@master
+        uses: harvester/move-to-next-iteration@master
         if: steps.check_sprint_build_required.outcome == 'success'
         with:
           owner: harvester
@@ -66,7 +66,7 @@ jobs:
           statuses: 'New'
 
       - name: QA Sprint - Clear Sprint
-        uses: derekbit/move-to-next-iteration@master
+        uses: harvester/move-to-next-iteration@master
         if: steps.check_sprint_build_required.outcome == 'success'
         with:
           owner: harvester
@@ -78,7 +78,7 @@ jobs:
           excluded-statuses: "In Review,Done"
 
       - name: QA Sprint - Move to Next Sprint
-        uses: derekbit/move-to-next-iteration@master
+        uses: harvester/move-to-next-iteration@master
         if: steps.check_sprint_build_required.outcome == 'success'
         with:
           owner: harvester
