@@ -33,7 +33,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 			pvcs.Cache(), secrets.Cache(),
 			vmi, vmi.Cache(), vmio,
 		),
-		harvesterv1.VMIBackendCDI: cdi.GetBackend(ctx, ctlcdi, vmio),
+		harvesterv1.VMIBackendCDI: cdi.GetBackend(ctx, ctlcdi, pvcs.Cache(), vmio),
 	}
 
 	vmImageHandler := &vmImageHandler{
