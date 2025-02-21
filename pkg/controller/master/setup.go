@@ -16,6 +16,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/migration"
 	"github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/nodedrain"
+	"github.com/harvester/harvester/pkg/controller/master/pvc"
 	"github.com/harvester/harvester/pkg/controller/master/rancher"
 	"github.com/harvester/harvester/pkg/controller/master/resourcequota"
 	"github.com/harvester/harvester/pkg/controller/master/schedulevmbackup"
@@ -56,6 +57,7 @@ var registerFuncs = []registerFunc{
 	upgradelog.Register,
 	addon.Register,
 	storagenetwork.Register,
+	pvc.Register,
 	storageprofile.Register,
 	nodedrain.Register,
 	mcmsettings.Register,
