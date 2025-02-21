@@ -65,17 +65,23 @@ func (pu *ProgressUpdater) GetCurrentBytesNoLock() int64 {
 	return pu.totalBytes
 }
 
-func generateDVSource(vmi *harvesterv1.VirtualMachineImage) (*cdiv1.DataVolumeSource, error) {
+func generateDVSource(vmImg *harvesterv1.VirtualMachineImage) (*cdiv1.DataVolumeSource, error) {
 	dvSource := &cdiv1.DataVolumeSource{}
-	sourceType := vmi.Spec.SourceType
+	sourceType := vmImg.Spec.SourceType
 	switch sourceType {
 	case harvesterv1.VirtualMachineImageSourceTypeDownload:
-		dvSourceHTTP := generateDVSourceHTTP(vmi)
+		dvSourceHTTP := generateDVSourceHTTP(vmImg)
 		dvSource.HTTP = dvSourceHTTP
 		return dvSource, nil
 	case harvesterv1.VirtualMachineImageSourceTypeUpload:
 		dvSourceUpload := &cdiv1.DataVolumeSourceUpload{}
 		dvSource.Upload = dvSourceUpload
+		return dvSource, nil
+	case harvesterv1.VirtualMachineImageSourceTypeExportVolume:
+		dvSourceExport := &cdiv1.DataVolumeSourcePVC{}
+		dvSourceExport.Name = vmImg.Spec.PVCName
+		dvSourceExport.Namespace = vmImg.Namespace
+		dvSource.PVC = dvSourceExport
 		return dvSource, nil
 	default:
 		return dvSource, fmt.Errorf("unsupported source type: %s", sourceType)

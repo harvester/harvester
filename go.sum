@@ -190,6 +190,8 @@ github.com/go-errors/errors v1.4.2 h1:J6MZopCL4uSllY1OfXM374weqZFFItUbrImctkmUxI
 github.com/go-errors/errors v1.4.2/go.mod h1:sIVyrIiJhuEF+Pj9Ebtd6P/rEYROXFi3BopGUQ5a5Og=
 github.com/go-gorp/gorp/v3 v3.1.0 h1:ItKF/Vbuj31dmV4jxA1qblpSwkl9g1typ24xoe70IGs=
 github.com/go-gorp/gorp/v3 v3.1.0/go.mod h1:dLEjIyyRNiXvNZ8PSmzpt1GsWAUK8kjVhEpjH8TixEw=
+github.com/go-jose/go-jose/v3 v3.0.3 h1:fFKWeig/irsp7XD2zBxvnmA/XaRWp5V3CBsZXJF7G7k=
+github.com/go-jose/go-jose/v3 v3.0.3/go.mod h1:5b+7YgP7ZICgJDBdfjZaIt+H/9L9T/YQrVfLAMboGkQ=
 github.com/go-kit/kit v0.8.0/go.mod h1:xBxKIO96dXMWWy0MnWVtmwkA9/13aqxPnvrjFYMA2as=
 github.com/go-kit/kit v0.13.0 h1:OoneCcHKHQ03LfBpoQCUfCluwd2Vt3ohz+kvbJneZAU=
 github.com/go-kit/kit v0.13.0/go.mod h1:phqEHMMUbyrCFCTgH48JueqrM3md2HcAZ8N3XE4FKDg=
@@ -430,6 +432,8 @@ github.com/kube-logging/logging-operator/pkg/sdk v0.9.1 h1:sR9qQy5m6MlyNGbn1W3WU
 github.com/kube-logging/logging-operator/pkg/sdk v0.9.1/go.mod h1:gfXN6bTT6zEDdG3sJWoogt4wLD9t3m/Se9jz4dAwqmI=
 github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0 h1:nHHjmvjitIiyPlUHk/ofpgvBcNcawJLtf4PYHORLjAA=
 github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0/go.mod h1:YBCo4DoEeDndqvAn6eeu0vWM7QdXmHEeI9cFWplmBys=
+github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1 h1:OqBS3UAo3eGWplYXoMLaWnx/7Zj5Ogh0VO/FuVOL+/o=
+github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1/go.mod h1:tnHiLn3P10N95fjn7O40QH5ovN0EFGAxqdTpUMrX6bU=
 github.com/kubernetes/dashboard v1.10.1 h1:RsBRF5S8DBH7lqGDJ8LjNiRt0C6PIvVeBrmuqmi/i3c=
 github.com/kubernetes/dashboard v1.10.1/go.mod h1:SLnjPMuDgwsEIPHCsd3eeMLm3mOvZijuujWxS9yT8xE=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
@@ -593,8 +597,8 @@ github.com/opencontainers/image-spec v1.1.0 h1:8SG7/vwALn54lVB/0yZ/MMwhFrPYtpEHQ
 github.com/opencontainers/image-spec v1.1.0/go.mod h1:W4s4sFTMaBeK1BQLXbG4AdM2szdn85PY75RI83NrTrM=
 github.com/opencontainers/runc v1.1.13 h1:98S2srgG9vw0zWcDpFMn5TRrh8kLxa/5OFUstuUhmRs=
 github.com/opencontainers/runc v1.1.13/go.mod h1:R016aXacfp/gwQBYw2FDGa9m+n6atbLWrYY8hNMT/sA=
-github.com/opencontainers/runtime-spec v1.1.0 h1:HHUyrt9mwHUjtasSbXSMvs4cyFxh+Bll4AjJ9odEGpg=
-github.com/opencontainers/runtime-spec v1.1.0/go.mod h1:jwyrGlmzljRJv/Fgzds9SsS/C5hL+LL3ko9hs6T5lQ0=
+github.com/opencontainers/runtime-spec v1.2.0 h1:z97+pHb3uELt/yiAWD691HNHQIF07bE7dzrbT927iTk=
+github.com/opencontainers/runtime-spec v1.2.0/go.mod h1:jwyrGlmzljRJv/Fgzds9SsS/C5hL+LL3ko9hs6T5lQ0=
 github.com/openshift/api v0.0.0-20191219222812-2987a591a72c h1:WRWMmqacvmZDbUat6WYqpuCy2yEfIeDsxFD/Htgp2T0=
 github.com/openshift/api v0.0.0-20191219222812-2987a591a72c/go.mod h1:dh9o4Fs58gpFXGSYfnVxGR9PnV53I8TW84pQaJDdGiY=
 github.com/openshift/client-go v0.0.0-20200521150516-05eb9880269c h1:l7CmbzzkyWl4Y6qHmy6m4FvbH4iLnIXGrXqOfE5IFNA=
@@ -1212,6 +1216,8 @@ kubevirt.io/api v1.4.0 h1:dDLyQLSp9obzsDrv3cyL1olIc/66IWVaGiR3gfPfgT0=
 kubevirt.io/api v1.4.0/go.mod h1:qcnumjJeOCo+qdYXf0OjpHGMhad0SAn4i0h6IAP+6Eg=
 kubevirt.io/client-go v1.4.0 h1:0BaHoIaZwHSKGJctVft/kwE49V7/sEgq4y9c+nll6AY=
 kubevirt.io/client-go v1.4.0/go.mod h1:GnQNJ0+9PBS7BCVgnTetdzAbUOCRTEXc8KNViECD6bE=
+kubevirt.io/containerized-data-importer v1.61.1 h1:6fUkYPQXjsw7s5Fp0i0QY/yB+vbH4N0ctHKBuQKLnl0=
+kubevirt.io/containerized-data-importer v1.61.1/go.mod h1:xaK9QR4WiFI7+1GZZ6kRKwa0k6K4on2KveV2ohfxALo=
 kubevirt.io/containerized-data-importer-api v1.61.0 h1:zqgn4/ftAPRK4ljZDZcgRiW25MMS7hLwAkGqRgVsng0=
 kubevirt.io/containerized-data-importer-api v1.61.0/go.mod h1:SDJjLGhbPyayDqAqawcGmVNapBp0KodOQvhKPLVGCQU=
 kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 h1:QMrd0nKP0BGbnxTqakhDZAUhGKxPiPiN5gSDqKUmGGc=
