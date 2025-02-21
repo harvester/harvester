@@ -3,11 +3,13 @@ package vm
 import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/v3/pkg/data/convert"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	apiutil "github.com/harvester/harvester/pkg/api/util"
 	"github.com/harvester/harvester/pkg/controller/master/migration"
@@ -43,6 +45,7 @@ const (
 
 type vmformatter struct {
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
+	pvcCache      ctlcorev1.PersistentVolumeClaimCache
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
 	clientSet     kubernetes.Clientset
 }
@@ -271,6 +274,23 @@ func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv
 		return false
 	}
 
+	// additional check, we did not support backup with CDI volume
+	volumes := vm.Spec.Template.Spec.Volumes
+	for _, vol := range volumes {
+		if vol.PersistentVolumeClaim != nil {
+			pvc, err := vf.pvcCache.Get(vm.Namespace, vol.PersistentVolumeClaim.ClaimName)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					continue
+				}
+				logrus.Errorf("Can't get PVC %s/%s, err: %+v", vm.Namespace, vol.PersistentVolumeClaim.ClaimName, err)
+				return false
+			}
+			if _, find := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; find {
+				return false
+			}
+		}
+	}
 	return true
 }
 
