@@ -109,7 +109,7 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 		resource.AddAction(request, migrate)
 		resource.AddAction(request, findMigratableNodes)
 
-		if canCpuAndMemoryHotplug(vm) {
+		if canCPUAndMemoryHotplug(vm) {
 			resource.AddAction(request, cpuAndMemoryHotplug)
 		}
 	}
@@ -344,7 +344,7 @@ func canDismissInsufficientResourceQuota(vm *kubevirtv1.VirtualMachine) bool {
 	return true
 }
 
-func canCpuAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
+func canCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
 	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusRunning {
 		return false
 	}
