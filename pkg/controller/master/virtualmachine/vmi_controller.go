@@ -1,11 +1,13 @@
 package virtualmachine
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -106,6 +108,51 @@ func (h *VMIController) removeDeprecatedFinalizer(_ string, vmi *kubevirtv1.Virt
 	util.RemoveFinalizer(vmiObj, util.GetWranglerFinalizerName(deprecatedVMIUnsetOwnerOfPVCsFinalizer))
 	if !reflect.DeepEqual(vmi, vmiObj) {
 		return h.vmiClient.Update(vmiObj)
+	}
+	return vmi, nil
+}
+
+// PatchMacAddresses patch mac addresses to virtual machine when virtual machine instance is deleted
+func (h *VMIController) PatchMacAddresses(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
+	if vmi == nil || (vmi.DeletionTimestamp == nil && !vmi.IsFinal()) {
+		return vmi, nil
+	}
+
+	vm, err := h.virtualMachineCache.Get(vmi.Namespace, vmi.Name)
+	if err != nil {
+		return vmi, err
+	}
+
+	macAddressStr := vm.Annotations[util.AnnotationMacAddressName]
+	if macAddressStr == "" {
+		return vmi, nil
+	}
+
+	macAddresses := map[string]string{}
+	if err = json.Unmarshal([]byte(macAddressStr), &macAddresses); err != nil {
+		// ignore unmarshal error to avoid the controller keeps retrying
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"name":       vm.Name,
+			"namespace":  vm.Namespace,
+			"macAddress": macAddressStr,
+		}).Error("failed to unmarshal mac addresses")
+		return vmi, nil
+	}
+
+	vmCopy := vm.DeepCopy()
+	for i, nic := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
+		// skip if mac address is already set
+		if nic.MacAddress != "" {
+			continue
+		}
+		if mac, ok := macAddresses[nic.Name]; ok {
+			vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces[i].MacAddress = mac
+		}
+	}
+
+	if !reflect.DeepEqual(vm, vmCopy) {
+		_, err = h.vmClient.Update(vmCopy)
+		return vmi, err
 	}
 	return vmi, nil
 }
