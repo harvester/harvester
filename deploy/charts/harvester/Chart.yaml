@@ -26,6 +26,13 @@ dependencies:
     tags:
       - kubevirt
       - crd
+  - name: cdi
+    version: 0.1.0
+    repository: file://dependency_charts/cdi
+    condition: cdi.enabled
+    tags:
+      - cdi
+      - crd
   - name: harvester-network-controller
     version: 0.5.1
     repository: https://charts.harvesterhci.io
