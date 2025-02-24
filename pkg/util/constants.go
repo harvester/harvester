@@ -182,4 +182,17 @@ const (
 	NodeSchedulingRequirementsNotMetKey = "NodeSchedulingRequirementsNotMet"
 	MaintainModeStrategyKey             = "MaintainModeStrategy"
 	LastHealthyReplicaKey               = "LastHealthyReplica"
+
+	// moved from storage_network for public usage
+	StorageNetworkAnnotation        = "storage-network.settings.harvesterhci.io"
+	ReplicaStorageNetworkAnnotation = StorageNetworkAnnotation + "/replica"
+	PausedStorageNetworkAnnotation  = StorageNetworkAnnotation + "/paused"
+	HashStorageNetworkAnnotation    = StorageNetworkAnnotation + "/hash"
+	NadStorageNetworkAnnotation     = StorageNetworkAnnotation + "/net-attach-def"
+	OldNadStorageNetworkAnnotation  = StorageNetworkAnnotation + "/old-net-attach-def"
+
+	HashStorageNetworkLabel = HashStorageNetworkAnnotation
+
+	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
+	StorageNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
 )
