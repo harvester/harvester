@@ -34,11 +34,7 @@ func NewValidator(
 	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 	vmCache ctlkubevirtv1.VirtualMachineCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
-<<<<<<< HEAD
-=======
-	nadCache ctlcniv1.NetworkAttachmentDefinitionCache,
 	settingCache ctlharvesterv1.SettingCache,
->>>>>>> f8198b61 (Fix annotation key exceeds 63 chars issue and update others)
 ) types.Validator {
 	return &vmValidator{
 		pvcCache:      pvcCache,
@@ -56,14 +52,8 @@ type vmValidator struct {
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
 	vmCache       ctlkubevirtv1.VirtualMachineCache
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
-<<<<<<< HEAD
-
-	rqCalculator *resourcequota.Calculator
-=======
-	nadCache      ctlcniv1.NetworkAttachmentDefinitionCache
 	settingCache  ctlharvesterv1.SettingCache
 	rqCalculator  *resourcequota.Calculator
->>>>>>> f8198b61 (Fix annotation key exceeds 63 chars issue and update others)
 }
 
 func (v *vmValidator) Resource() types.Resource {
