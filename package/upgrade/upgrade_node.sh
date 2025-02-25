@@ -445,6 +445,16 @@ EOF
   fi
 }
 
+set_rke2_device_permissions() {
+  local rke2DevicePermissionConfig="$HOST_DIR/etc/rancher/rke2/config.yaml.d/91-harvester-cdi.yaml"
+  if [ ! -e $rke2DevicePermissionConfig ]; then
+    cat > $rke2DevicePermissionConfig << EOF
+# handle the permission issue of Longhorn for CDI
+"nonroot-devices": true
+EOF
+  fi
+} 
+
 # Delete the cpu_manager_state file during the initramfs stage. During a reboot, this state file is always reverted
 # because it was originally created during the system installation, becoming part of the root filesystem. As a result,
 # the policy in cpu_manager_state file is "none" (default policy) after reboot. If we've already set the cpu-manager-policy
@@ -623,6 +633,7 @@ command_post_drain() {
   # update max-pods to 200
   set_max_pods
   set_reserved_resource
+  set_rke2_device_permissions
   set_oem_cleanup_kubelet
   # A post-drain signal from Rancher doesn't mean RKE2 agent/server is already patched and restarted
   # Let's wait until the RKE2 settled.
@@ -662,6 +673,7 @@ command_single_node_upgrade() {
   # update max-pods to 200
   set_max_pods
   set_reserved_resource
+  set_rke2_device_permissions
   set_oem_cleanup_kubelet
   # Upgarde RKE2
   upgrade_rke2
