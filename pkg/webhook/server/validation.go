@@ -63,13 +63,8 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
-<<<<<<< HEAD
-			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache()),
-=======
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
-			clients.CNIFactory.K8s().V1().NetworkAttachmentDefinition().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
->>>>>>> f8198b61 (Fix annotation key exceeds 63 chars issue and update others)
 		virtualmachineimage.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.Core.PersistentVolumeClaim().Cache(),
