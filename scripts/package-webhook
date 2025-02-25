@@ -9,18 +9,11 @@ source $SCRIPTS_DIR/version
 
 cd $TOP_DIR
 
-mkdir -p dist/artifacts
-cp bin/harvester-webhook dist/artifacts/harvester-webhook${SUFFIX}
-
-cd $PACKAGE_DIR
-
 IMAGE=${REPO}/harvester-webhook:${TAG}
-DOCKERFILE=Dockerfile.webhook
+DOCKERFILE="${PACKAGE_DIR}/Dockerfile.webhook"
 if [ -e ${DOCKERFILE}.${ARCH} ]; then
     DOCKERFILE=${DOCKERFILE}.${ARCH}
 fi
-
-cp ../bin/harvester-webhook .
 
 docker build -f ${DOCKERFILE} --build-arg ARCH=${ARCH} -t ${IMAGE} .
 echo Built ${IMAGE}
