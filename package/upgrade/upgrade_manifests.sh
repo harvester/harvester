@@ -1134,8 +1134,8 @@ upgrade_addon_rancher_logging()
 upgrade_harvester_upgradelog() {
   echo "upgrade harvester upgradelog"
   # in v1.5.0, new rancher-logging is bumped
-  if [ "$REPO_LOGGING_CHART_VERSION" = "105.2.0+up4.10.0" ]; then
-    upgrade_harvester_upgradelog_with_patch_loggingref $REPO_LOGGING_CHART_VERSION
+  if [ "${REPO_LOGGING_CHART_VERSION}" = "105.2.0+up4.10.0" ]; then
+    upgrade_harvester_upgradelog_with_patch_loggingref "${REPO_LOGGING_CHART_VERSION}"
   fi
 }
 
