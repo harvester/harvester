@@ -44,7 +44,7 @@ func (v *VMBuilder) Network(interfaceName, networkName string) *VMBuilder {
 	return v
 }
 
-func (v *VMBuilder) Interface(interfaceName, interfaceModel, interfaceMACAddress string, interfaceType string) *VMBuilder {
+func (v *VMBuilder) Interface(interfaceName, interfaceModel, interfaceMACAddress, interfaceType string) *VMBuilder {
 	interfaces := v.VirtualMachine.Spec.Template.Spec.Domain.Devices.Interfaces
 	networkInterface := kubevirtv1.Interface{
 		Name:       interfaceName,
@@ -66,6 +66,20 @@ func (v *VMBuilder) Interface(interfaceName, interfaceModel, interfaceMACAddress
 	}
 	interfaces = append(interfaces, networkInterface)
 	v.VirtualMachine.Spec.Template.Spec.Domain.Devices.Interfaces = interfaces
+	return v
+}
+
+func (v *VMBuilder) SetNetworkInterfaceBootOrder(interfaceName string, bootOrder uint) *VMBuilder {
+	interfaces := v.VirtualMachine.Spec.Template.Spec.Domain.Devices.Interfaces
+
+	for i, iface := range interfaces {
+		if iface.Name == interfaceName {
+			ifaceCopy := iface.DeepCopy()
+			ifaceCopy.BootOrder = func() *uint { v := uint(bootOrder); return &v }()
+			v.VirtualMachine.Spec.Template.Spec.Domain.Devices.Interfaces[i] = *ifaceCopy
+		}
+	}
+
 	return v
 }
 
