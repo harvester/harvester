@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"reflect"
 	"time"
@@ -23,6 +24,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/utils/pointer"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -60,18 +62,20 @@ type VirtualMachineBackupMetadata struct {
 }
 
 type MetadataHandler struct {
-	ctx                  context.Context
-	namespaces           ctlcorev1.NamespaceClient
-	namespaceCache       ctlcorev1.NamespaceCache
-	secretCache          ctlcorev1.SecretCache
-	vms                  ctlkubevirtv1.VirtualMachineController
-	longhornSettingCache ctllonghornv1.SettingCache
-	settings             ctlharvesterv1.SettingController
-	vmBackups            ctlharvesterv1.VirtualMachineBackupClient
-	vmBackupCache        ctlharvesterv1.VirtualMachineBackupCache
-	vmImages             ctlharvesterv1.VirtualMachineImageClient
-	vmImageCache         ctlharvesterv1.VirtualMachineImageCache
-	storageClassCache    ctlstoragev1.StorageClassCache
+	ctx                             context.Context
+	namespaces                      ctlcorev1.NamespaceClient
+	namespaceCache                  ctlcorev1.NamespaceCache
+	secretCache                     ctlcorev1.SecretCache
+	vms                             ctlkubevirtv1.VirtualMachineController
+	longhornSettingCache            ctllonghornv1.SettingCache
+	longhornBackupCache             ctllonghornv1.BackupCache
+	longhornBackupBackingImageCache ctllonghornv1.BackupBackingImageCache
+	settings                        ctlharvesterv1.SettingController
+	vmBackups                       ctlharvesterv1.VirtualMachineBackupClient
+	vmBackupCache                   ctlharvesterv1.VirtualMachineBackupCache
+	vmImages                        ctlharvesterv1.VirtualMachineImageClient
+	vmImageCache                    ctlharvesterv1.VirtualMachineImageCache
+	storageClassCache               ctlstoragev1.StorageClassCache
 }
 
 // RegisterBackupMetadata register the setting controller and resync vm backup metadata when backup target change
@@ -82,22 +86,26 @@ func RegisterBackupMetadata(ctx context.Context, management *config.Management, 
 	namespaces := management.CoreFactory.Core().V1().Namespace()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	longhornSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
+	longhornBackups := management.LonghornFactory.Longhorn().V1beta2().Backup()
+	longhornBackupBackingImages := management.LonghornFactory.Longhorn().V1beta2().BackupBackingImage()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	storageClass := management.StorageFactory.Storage().V1().StorageClass()
 
 	backupMetadataController := &MetadataHandler{
-		ctx:                  ctx,
-		namespaces:           namespaces,
-		namespaceCache:       namespaces.Cache(),
-		secretCache:          secrets.Cache(),
-		vms:                  vms,
-		longhornSettingCache: longhornSettings.Cache(),
-		settings:             settings,
-		vmBackups:            vmBackups,
-		vmBackupCache:        vmBackups.Cache(),
-		vmImages:             vmImages,
-		vmImageCache:         vmImages.Cache(),
-		storageClassCache:    storageClass.Cache(),
+		ctx:                             ctx,
+		namespaces:                      namespaces,
+		namespaceCache:                  namespaces.Cache(),
+		secretCache:                     secrets.Cache(),
+		vms:                             vms,
+		longhornSettingCache:            longhornSettings.Cache(),
+		longhornBackupCache:             longhornBackups.Cache(),
+		longhornBackupBackingImageCache: longhornBackupBackingImages.Cache(),
+		settings:                        settings,
+		vmBackups:                       vmBackups,
+		vmBackupCache:                   vmBackups.Cache(),
+		vmImages:                        vmImages,
+		vmImageCache:                    vmImages.Cache(),
+		storageClassCache:               storageClass.Cache(),
 	}
 
 	settings.OnChange(ctx, backupMetadataControllerName, backupMetadataController.OnBackupTargetChange)
@@ -210,12 +218,67 @@ func (h *MetadataHandler) syncVMImage(target *settings.BackupTarget) error {
 			if imageMetadata.Namespace == "" {
 				imageMetadata.Namespace = metav1.NamespaceDefault
 			}
+			if !h.checkBackupBackingImageExist(imageMetadata) {
+				continue
+			}
 			if err := h.createVMImageIfNotExist(*imageMetadata); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func (h *MetadataHandler) checkBackupBackingImageExist(imageMetadata *VirtualMachineImageMetadata) bool {
+	parsedURL, err := url.Parse(imageMetadata.URL)
+	if err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"namespace": imageMetadata.Namespace,
+			"name":      imageMetadata.Name,
+			"imageURL":  imageMetadata.URL,
+		}).Warn("Skip creating vm image, because the backup URL is invalid")
+		return false
+	}
+
+	backingImageName := parsedURL.Query().Get("backingImage")
+	if backingImageName == "" {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"namespace": imageMetadata.Namespace,
+			"name":      imageMetadata.Name,
+			"imageURL":  imageMetadata.URL,
+		}).Warn("Skip creating vm image, because the backingImage parameter is empty")
+		return false
+	}
+
+	backingImageLabelReq, err := labels.NewRequirement("backing-image", selection.Equals, []string{backingImageName})
+	if err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"namespace": imageMetadata.Namespace,
+			"name":      imageMetadata.Name,
+			"imageURL":  imageMetadata.URL,
+		}).Warn("Skip creating vm image, because cannot create new label requirement")
+		return false
+	}
+
+	if backupBackingImages, err := h.longhornBackupBackingImageCache.List(
+		util.LonghornSystemNamespaceName,
+		labels.NewSelector().Add(*backingImageLabelReq)); err != nil || len(backupBackingImages) == 0 {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"namespace": imageMetadata.Namespace,
+			"name":      imageMetadata.Name,
+			"imageURL":  imageMetadata.URL,
+		}).Warn("Skip creating vm image, because the backing image is not found")
+		return false
+	} else if backupBackingImages[0].Status.State != "Completed" {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"namespace": imageMetadata.Namespace,
+			"name":      imageMetadata.Name,
+			"imageURL":  imageMetadata.URL,
+		}).Warn("Skip creating vm image, because the backing image is not ready")
+		return false
+	}
+
+	return true
 }
 
 func (h *MetadataHandler) createVMImageIfNotExist(imageMetadata VirtualMachineImageMetadata) error {
@@ -385,11 +448,87 @@ func (h *MetadataHandler) loadBackupMetadataAndCreateVMBackup(target *settings.B
 		if backupMetadata.Namespace == "" {
 			backupMetadata.Namespace = metav1.NamespaceDefault
 		}
+		if !h.checkDependentStorageClassExist(backupMetadata) {
+			continue
+		}
+		if !h.checkDependentLonghornBackupExist(target, backupMetadata) {
+			continue
+		}
 		if err := h.createVMBackupIfNotExist(*backupMetadata, target); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (h *MetadataHandler) checkDependentStorageClassExist(backupMetadata *VirtualMachineBackupMetadata) bool {
+	for _, vb := range backupMetadata.VolumeBackups {
+		if vb.PersistentVolumeClaim.Spec.StorageClassName == nil {
+			continue
+		}
+		if sc, err := h.storageClassCache.Get(*vb.PersistentVolumeClaim.Spec.StorageClassName); err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"namespace":     backupMetadata.Namespace,
+				"name":          backupMetadata.Name,
+				"storageClasss": *vb.PersistentVolumeClaim.Spec.StorageClassName,
+			}).Warn("skip creating vm backup, because the storage class is not found")
+			return false
+		} else if sc.DeletionTimestamp != nil {
+			logrus.WithFields(logrus.Fields{
+				"namespace":     backupMetadata.Namespace,
+				"name":          backupMetadata.Name,
+				"storageClasss": *vb.PersistentVolumeClaim.Spec.StorageClassName,
+			}).Warn("skip creating vm backup, because the storage class is being deleted")
+			return false
+		}
+	}
+	return true
+}
+
+func (h *MetadataHandler) checkDependentLonghornBackupExist(target *settings.BackupTarget, backupMetadata *VirtualMachineBackupMetadata) bool {
+	for _, vb := range backupMetadata.VolumeBackups {
+		if vb.LonghornBackupName == nil {
+			continue
+		}
+
+		// check whether data is in the backup target
+		volumes, err := backupstore.List(vb.VolumeName, util.ConstructEndpoint(target), false)
+		if err != nil || volumes[vb.VolumeName] == nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"namespace": backupMetadata.Namespace,
+				"name":      backupMetadata.Name,
+				"volume":    vb.VolumeName,
+			}).Warn("skip creating vm backup, because the volume is not found")
+			return false
+		}
+		if volumes[vb.VolumeName].Backups[*vb.LonghornBackupName] == nil {
+			logrus.WithFields(logrus.Fields{
+				"namespace":      backupMetadata.Namespace,
+				"name":           backupMetadata.Name,
+				"volume":         vb.VolumeName,
+				"longhornBackup": *vb.LonghornBackupName,
+			}).Warn("skip creating vm backup, because the longhorn backup is not found")
+			return false
+		}
+
+		// check whether data is in the cluster
+		if backup, err := h.longhornBackupCache.Get(util.LonghornSystemNamespaceName, *vb.LonghornBackupName); err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"namespace":      backupMetadata.Namespace,
+				"name":           backupMetadata.Name,
+				"longhornBackup": *vb.LonghornBackupName,
+			}).Warn("skip creating vm backup, because the longhorn backup is not found")
+			return false
+		} else if backup.DeletionTimestamp != nil {
+			logrus.WithFields(logrus.Fields{
+				"namespace":      backupMetadata.Namespace,
+				"name":           backupMetadata.Name,
+				"longhornBackup": *vb.LonghornBackupName,
+			}).Warn("skip creating vm backup, because the longhorn backup is being deleted")
+			return false
+		}
+	}
+	return true
 }
 
 func (h *MetadataHandler) moveFilePaths(filePaths []string, bsDriver backupstore.BackupStoreDriver, namespaceFolderSet map[string]bool) error {
