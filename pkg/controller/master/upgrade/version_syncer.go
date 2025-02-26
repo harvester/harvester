@@ -151,10 +151,6 @@ func (s *versionSyncer) getExtraInfo() (map[string]string, error) {
 }
 
 func (s *versionSyncer) syncVersions(resp CheckUpgradeResponse, currentVersion string) error {
-	if runtime.GOARCH == "arm64" {
-		// wait until https://github.com/harvester/harvester/issues/6257 is resolved
-		return nil
-	}
 	if err := s.cleanupVersions(currentVersion, resp.Versions); err != nil {
 		return err
 	}
