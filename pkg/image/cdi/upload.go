@@ -127,11 +127,8 @@ func (cu *Uploader) Do(vmImg *harvesterv1.VirtualMachineImage, req *http.Request
 	if multipartFormat {
 		dataContent = rawContent[headerEndIndex+4:]
 	}
-	vmImgNew := vmImg.DeepCopy()
-	vmImgNew.Status.Size = fileSize
-	vmImgNew.Status.VirtualSize = virtualSize
-	if _, err := cu.vmio.UpdateVMI(vmImg, vmImgNew); err != nil {
-		return fmt.Errorf("failed to update VM Image: %v", err)
+	if _, err := cu.vmio.UpdateVirtualSizeAndSize(vmImg, virtualSize, fileSize); err != nil {
+		return fmt.Errorf("failed to update VM Image size and virtual size: %v", err)
 	}
 
 	// check VMImage status again (for size/virtual size)
@@ -148,13 +145,13 @@ func (cu *Uploader) Do(vmImg *harvesterv1.VirtualMachineImage, req *http.Request
 	}
 
 	// create DataVolume
-	dvName := vmImg.ObjectMeta.Name
-	dvNamespace := vmImg.ObjectMeta.Namespace
+	dvName := cu.vmio.GetName(vmImg)
+	dvNamespace := cu.vmio.GetNamespace(vmImg)
 
 	logrus.Infof("The VM Image Status updated, start to create DataVolume %s/%s", dvNamespace, dvName)
 
 	// generate DV source
-	dvSource, err := generateDVSource(vmImg)
+	dvSource, err := generateDVSource(vmImg, cu.vmio.GetSourceType(vmImg))
 	if err != nil {
 		return fmt.Errorf("failed to generate DV source: %v", err)
 	}
@@ -173,8 +170,8 @@ func (cu *Uploader) Do(vmImg *harvesterv1.VirtualMachineImage, req *http.Request
 				{
 					APIVersion:         common.HarvesterAPIV1Beta1,
 					Kind:               common.VMImageKind,
-					Name:               vmImg.Name,
-					UID:                vmImg.UID,
+					Name:               cu.vmio.GetName(vmImg),
+					UID:                cu.vmio.GetUID(vmImg),
 					BlockOwnerDeletion: &boolTrue,
 				},
 			},
@@ -322,8 +319,8 @@ func (cu *Uploader) updateVMImageProgress(vmImg *harvesterv1.VirtualMachineImage
 		}
 
 		// check if the upload is finished
-		targetDVNs := vmImg.ObjectMeta.Namespace
-		targetDVName := vmImg.ObjectMeta.Name
+		targetDVNs := cu.vmio.GetNamespace(vmImg)
+		targetDVName := cu.vmio.GetName(vmImg)
 		targetDV, err := cu.dataVolumeClient.Get(targetDVNs, targetDVName, metav1.GetOptions{})
 		if err != nil {
 			logrus.Errorf("[updateVMImageProgress] failed to get DataVolume %s/%s: %v", targetDVNs, targetDVName, err)
