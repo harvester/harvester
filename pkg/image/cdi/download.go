@@ -38,8 +38,8 @@ func GetDownloader(httpClient http.Client, clientSet *kubernetes.Clientset, vmio
 }
 
 func (cd *Downloader) Do(vmImg *harvesterv1.VirtualMachineImage, rw http.ResponseWriter, req *http.Request) error {
-	vmImgName := vmImg.Name
-	vmImgNamespace := vmImg.Namespace
+	vmImgName := cd.vmio.GetName(vmImg)
+	vmImgNamespace := cd.vmio.GetNamespace(vmImg)
 	podName := fmt.Sprintf("%s-%s-%s", vmImgNamespace, vmImgName, getRandomSuffix())
 
 	podTemplate := cd.generateDownlodServerPod(podName, vmImgName)
