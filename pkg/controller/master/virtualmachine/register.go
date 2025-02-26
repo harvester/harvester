@@ -10,7 +10,7 @@ import (
 const (
 	vmControllerCreatePVCsFromAnnotationControllerName           = "VMController.CreatePVCsFromAnnotation"
 	vmiControllerReconcileFromHostLabelsControllerName           = "VMIController.ReconcileFromHostLabels"
-	vmControllerSetDefaultManagementNetworkMac                   = "VMController.SetDefaultManagementNetworkMacAddress"
+	vmiControllerSyncMacAddressAndControllerRevision             = "VMIController.SyncMacAddressAndControllerRevision"
 	vmControllerStoreRunStrategyControllerName                   = "VMController.StoreRunStrategyToAnnotation"
 	vmControllerSyncLabelsToVmi                                  = "VMController.SyncLabelsToVmi"
 	vmControllerSetHaltIfInsufficientResourceQuotaControllerName = "VMController.SetHaltIfInsufficientResourceQuota"
@@ -92,15 +92,16 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerSetHaltIfOccurExceededQuotaControllerName, vmiCtrl.StopVMIfExceededQuota)
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerRemoveDeprecatedFinalizerControllerName, vmiCtrl.removeDeprecatedFinalizer)
 
-	// register the vm network controller upon the VMI changes
+	// register the vmi network controller upon the VMI changes
+	var virtualMachineInstanceController = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	var vmNetworkCtl = &VMNetworkController{
-		vmClient:  vmClient,
-		vmCache:   vmCache,
-		vmiClient: virtualMachineInstanceClient,
-		crClient:  crClient,
-		crCache:   crClientCache,
+		vmClient:      vmClient,
+		vmCache:       vmCache,
+		crClient:      crClient,
+		crCache:       crClientCache,
+		vmiController: virtualMachineInstanceController,
 	}
-	virtualMachineInstanceClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
+	virtualMachineInstanceController.OnChange(ctx, vmiControllerSyncMacAddressAndControllerRevision, vmNetworkCtl.SyncMacAddressAndControllerRevision)
 
 	return nil
 }
