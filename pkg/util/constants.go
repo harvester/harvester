@@ -18,6 +18,7 @@ const (
 	AnnotationSnapshotFreezeFS          = prefix + "/snapshotFreezeFS"
 	AnnotationSVMBackupID               = prefix + "/svmbackupId"
 	AnnotationSVMBackupSkipCronCheck    = prefix + "/svmbackupSkipCronCheck"
+	AnnotationGoldenImage               = prefix + "/goldenImage"
 	LabelImageDisplayName               = prefix + "/imageDisplayName"
 	LabelSetting                        = prefix + "/setting"
 	LabelVMName                         = prefix + "/vmName"
@@ -96,6 +97,10 @@ const (
 	LonghornOptionMigratable                 = "migratable"
 	LonghornOptionEncrypted                  = "encrypted"
 	AddonValuesAnnotation                    = "harvesterhci.io/addon-defaults"
+
+	// CDI constants
+	CSIProvisionerLVM      = "lvm.driver.harvesterhci.io"
+	CSIProvisionerLonghorn = "driver.longhorn.io"
 
 	// CSI constants
 	CSIProvisionerSecretNameKey      = "csi.storage.k8s.io/provisioner-secret-name"

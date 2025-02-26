@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ template "cdi.crdUninstallHook.name" . }}
+  {{ template "cdi.crdUninstallHook.annotations" (dict "hookWeight" 1) }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "cdi.crdUninstallHook.name" . }}
+  {{ template "cdi.crdUninstallHook.annotations" (dict "hookWeight" 1) }}
+rules:
+  - apiGroups: [ "apiextensions.k8s.io" ]
+    resources: [ "customresourcedefinitions" ]
+    resourceNames:
+      - "cdis.cdi.kubevirt.io"
+    verbs: [ "delete" ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "cdi.crdUninstallHook.name" . }}
+  {{ template "cdi.crdUninstallHook.annotations" (dict "hookWeight" 2) }}
+subjects:
+  - kind: ServiceAccount
+    namespace: {{ .Release.Namespace }}
+    name: {{ template "cdi.crdUninstallHook.name" . }}
+roleRef:
+  kind: ClusterRole
+  name: {{ template "cdi.crdUninstallHook.name" . }}
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ template "cdi.crdUninstallHook.name" . }}
+  {{ template "cdi.crdUninstallHook.annotations" (dict "hookWeight" 3) }}
+spec:
+  template:
+    metadata:
+      name: {{ template "cdi.crdUninstallHook.name" . }}
+    spec:
+      serviceAccountName: {{ template "cdi.crdUninstallHook.name" . }}
+      restartPolicy: {{ .Values.hookRestartPolicy }}
+      containers:
+        - name: {{ template "cdi.crdUninstallHook.name" . }}
+          image: {{ .Values.containers.hook.image.repository }}:{{ .Values.containers.hook.image.tag }}
+          args:
+            - delete
+            - customresourcedefinitions
+            - cdis.cdi.kubevirt.io
+          securityContext:
+            {{- toYaml .Values.hookSecurityContext | nindent 12 }}

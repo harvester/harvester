@@ -111,7 +111,6 @@ func (h *vmImageHandler) initialize(vmi *harvesterv1.VirtualMachineImage) (*harv
 		}).Error("failed to initialize vm image")
 		return h.vmio.FailInitial(toUpdate, err)
 	}
-
 	return h.vmio.Initialized(toUpdate)
 }
 
