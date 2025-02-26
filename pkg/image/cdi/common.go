@@ -65,9 +65,8 @@ func (pu *ProgressUpdater) GetCurrentBytesNoLock() int64 {
 	return pu.totalBytes
 }
 
-func generateDVSource(vmImg *harvesterv1.VirtualMachineImage) (*cdiv1.DataVolumeSource, error) {
+func generateDVSource(vmImg *harvesterv1.VirtualMachineImage, sourceType harvesterv1.VirtualMachineImageSourceType) (*cdiv1.DataVolumeSource, error) {
 	dvSource := &cdiv1.DataVolumeSource{}
-	sourceType := vmImg.Spec.SourceType
 	switch sourceType {
 	case harvesterv1.VirtualMachineImageSourceTypeDownload:
 		dvSourceHTTP := generateDVSourceHTTP(vmImg)

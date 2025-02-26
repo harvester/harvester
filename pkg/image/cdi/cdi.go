@@ -44,7 +44,7 @@ func (b *Backend) Initialize(vmImg *harvesterv1.VirtualMachineImage) (*harvester
 		return vmImg, nil
 	}
 
-	switch vmImg.Spec.SourceType {
+	switch b.vmio.GetSourceType(vmImg) {
 	case harvesterv1.VirtualMachineImageSourceTypeDownload:
 		return b.initializeDownload(vmImg)
 	case harvesterv1.VirtualMachineImageSourceTypeUpload:
@@ -58,15 +58,15 @@ func (b *Backend) Initialize(vmImg *harvesterv1.VirtualMachineImage) (*harvester
 }
 
 func (b *Backend) Check(vmImg *harvesterv1.VirtualMachineImage) error {
-	targetDVNs := vmImg.ObjectMeta.Namespace
-	targetDVName := vmImg.ObjectMeta.Name
+	targetDVNs := b.vmio.GetNamespace(vmImg)
+	targetDVName := b.vmio.GetName(vmImg)
 	targetDV, err := b.dataVolumeClient.Get(targetDVNs, targetDVName, metav1.GetOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logrus.Info("DataVolume not found, waiting for the initialization")
+			return err
+		}
 		return fmt.Errorf("failed to get DataVolume %s/%s: %v", targetDVNs, targetDVName, err)
-	}
-	if apierrors.IsNotFound(err) {
-		logrus.Info("DataVolume not found, waiting for the initialization")
-		return err
 	}
 
 	// upload source type will update the progress on the upload handler
@@ -98,8 +98,8 @@ func (b *Backend) UpdateVirtualSize(vmi *harvesterv1.VirtualMachineImage) (*harv
 }
 
 func (b *Backend) Delete(vmImg *harvesterv1.VirtualMachineImage) error {
-	targetDVNs := vmImg.ObjectMeta.Namespace
-	targetDVName := vmImg.ObjectMeta.Name
+	targetDVNs := b.vmio.GetNamespace(vmImg)
+	targetDVName := b.vmio.GetName(vmImg)
 	_, err := b.dataVolumeClient.Get(targetDVNs, targetDVName, metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -120,25 +120,25 @@ func (b *Backend) AddSidecarHandler() {
 }
 
 func (b *Backend) isDataVolumeCreated(vmImg *harvesterv1.VirtualMachineImage) (bool, error) {
-	targetDVNs := vmImg.ObjectMeta.Namespace
-	targetDVName := vmImg.ObjectMeta.Name
+	targetDVNs := b.vmio.GetNamespace(vmImg)
+	targetDVName := b.vmio.GetName(vmImg)
 	_, err := b.dataVolumeClient.Get(targetDVNs, targetDVName, metav1.GetOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
 		return false, fmt.Errorf("failed to get DataVolume %s/%s: %v", targetDVNs, targetDVName, err)
-	}
-	if apierrors.IsNotFound(err) {
-		return false, nil
 	}
 	return true, nil
 }
 
 func (b *Backend) initializeDownload(vmImg *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
-	virtualSize, err := fetchImageVirtualSize(vmImg.Spec.URL)
+	virtualSize, err := fetchImageVirtualSize(b.vmio.GetURL(vmImg))
 	if err != nil {
 		return vmImg, fmt.Errorf("failed to fetch image virtual size: %v", err)
 	}
 
-	size, err := fetchImageSize(vmImg.Spec.URL)
+	size, err := fetchImageSize(b.vmio.GetURL(vmImg))
 	if err != nil {
 		return vmImg, fmt.Errorf("failed to fetch image size: %v", err)
 	}
@@ -150,10 +150,7 @@ func (b *Backend) initializeDownload(vmImg *harvesterv1.VirtualMachineImage) (*h
 
 	if vmImg.Status.Size == 0 && vmImg.Status.VirtualSize == 0 {
 		logrus.Infof("Update VM Image size (%v) and virtual size (%v) before we create the DataVolume", size, virtualSize)
-		vmImgNew := vmImg.DeepCopy()
-		vmImgNew.Status.Size = size
-		vmImgNew.Status.VirtualSize = virtualSize
-		updatedVMImg, err := b.vmio.UpdateVMI(vmImg, vmImgNew)
+		updatedVMImg, err := b.vmio.UpdateVirtualSizeAndSize(vmImg, virtualSize, size)
 		if err != nil {
 			return vmImg, fmt.Errorf("failed to update VM Image size and virtual size: %v", err)
 		}
@@ -161,11 +158,11 @@ func (b *Backend) initializeDownload(vmImg *harvesterv1.VirtualMachineImage) (*h
 		vmImg = updatedVMImg
 	}
 
-	dvName := vmImg.ObjectMeta.Name
-	dvNamespace := vmImg.ObjectMeta.Namespace
+	dvName := b.vmio.GetName(vmImg)
+	dvNamespace := b.vmio.GetNamespace(vmImg)
 
 	// generate DV source
-	dvSource, err := generateDVSource(vmImg)
+	dvSource, err := generateDVSource(vmImg, b.vmio.GetSourceType(vmImg))
 	if err != nil {
 		return vmImg, fmt.Errorf("failed to generate DV source: %v", err)
 	}
@@ -184,8 +181,8 @@ func (b *Backend) initializeDownload(vmImg *harvesterv1.VirtualMachineImage) (*h
 				{
 					APIVersion:         common.HarvesterAPIV1Beta1,
 					Kind:               common.VMImageKind,
-					Name:               vmImg.Name,
-					UID:                vmImg.UID,
+					Name:               b.vmio.GetName(vmImg),
+					UID:                b.vmio.GetUID(vmImg),
 					BlockOwnerDeletion: &boolTrue,
 				},
 			},
@@ -204,7 +201,7 @@ func (b *Backend) initializeDownload(vmImg *harvesterv1.VirtualMachineImage) (*h
 
 func (b *Backend) initializeExportFromVolume(vmImg *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	// export from volume means we will create vm image from the raw volume
-	sourcePVC, err := b.pvcCache.Get(vmImg.Spec.PVCNamespace, vmImg.Spec.PVCName)
+	sourcePVC, err := b.pvcCache.Get(b.vmio.GetPVCNamespace(vmImg), b.vmio.GetPVCName(vmImg))
 	if err != nil {
 		return vmImg, fmt.Errorf("failed to get source PVC %s/%s: %v", vmImg.Spec.PVCNamespace, vmImg.Spec.PVCName, err)
 	}
@@ -213,10 +210,7 @@ func (b *Backend) initializeExportFromVolume(vmImg *harvesterv1.VirtualMachineIm
 
 	if vmImg.Status.Size == 0 && vmImg.Status.VirtualSize == 0 {
 		logrus.Infof("Update VM Image size (%v) and virtual size (%v) before we create the DataVolume", size, virtualSize)
-		vmImgNew := vmImg.DeepCopy()
-		vmImgNew.Status.Size = size
-		vmImgNew.Status.VirtualSize = virtualSize
-		updatedVMImg, err := b.vmio.UpdateVMI(vmImg, vmImgNew)
+		updatedVMImg, err := b.vmio.UpdateVirtualSizeAndSize(vmImg, virtualSize, size)
 		if err != nil {
 			return vmImg, fmt.Errorf("failed to update VM Image size and virtual size: %v", err)
 		}
@@ -224,11 +218,11 @@ func (b *Backend) initializeExportFromVolume(vmImg *harvesterv1.VirtualMachineIm
 		vmImg = updatedVMImg
 	}
 
-	dvName := vmImg.ObjectMeta.Name
-	dvNamespace := vmImg.ObjectMeta.Namespace
+	dvName := b.vmio.GetName(vmImg)
+	dvNamespace := b.vmio.GetNamespace(vmImg)
 
 	// generate DV source
-	dvSource, err := generateDVSource(vmImg)
+	dvSource, err := generateDVSource(vmImg, b.vmio.GetSourceType(vmImg))
 	if err != nil {
 		return vmImg, fmt.Errorf("failed to generate DV source: %v", err)
 	}
@@ -247,8 +241,8 @@ func (b *Backend) initializeExportFromVolume(vmImg *harvesterv1.VirtualMachineIm
 				{
 					APIVersion:         common.HarvesterAPIV1Beta1,
 					Kind:               common.VMImageKind,
-					Name:               vmImg.Name,
-					UID:                vmImg.UID,
+					Name:               b.vmio.GetName(vmImg),
+					UID:                b.vmio.GetUID(vmImg),
 					BlockOwnerDeletion: &boolTrue,
 				},
 			},
