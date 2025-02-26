@@ -567,11 +567,9 @@ EOF
   if [ ${multiPathEnabled} == false ]
   then
     thirdPartyArgs=$(chroot $HOST_DIR grub2-editenv /oem/grubenv list |grep third_party_kernel_args | awk -F"third_party_kernel_args=" '{print $2}')
-    if [[ ${thirdPartyArgs} != *"rd.multipath=0"* ]]
+    if [[ ${thirdPartyArgs} != *"multipath=off"* ]]
     then
-      thirdPartyArgs="${thirdPartyArgs} rd.multipath=0"
-      # remove multipath=off from thirdPartyArgs that may have been added during 1.4.0 upgrade
-      thirdPartyArgs=$(sed 's/multipath=off//' <<< ${thirdPartyArgs})
+      thirdPartyArgs="${thirdPartyArgs} multipath=off"
       thirdPartyArgs=$(echo ${thirdPartyArgs} | xargs)
       chroot $HOST_DIR grub2-editenv /oem/grubenv set third_party_kernel_args="${thirdPartyArgs}"
     fi
@@ -592,6 +590,13 @@ stages:
          permissions: 0644
          owner: 0
          group: 0
+       - path: /etc/systemd/system/multipathd.service
+         permissions: 420
+         owner: 0
+         group: 0
+         content: W1VuaXRdCkRlc2NyaXB0aW9uPURldmljZS1NYXBwZXIgTXVsdGlwYXRoIERldmljZSBDb250cm9sbGVyCkJlZm9yZT1sdm0yLWFjdGl2YXRpb24tZWFybHkuc2VydmljZQpCZWZvcmU9bG9jYWwtZnMtcHJlLnRhcmdldCBibGstYXZhaWxhYmlsaXR5LnNlcnZpY2Ugc2h1dGRvd24udGFyZ2V0CldhbnRzPXN5c3RlbWQtdWRldmQta2VybmVsLnNvY2tldApBZnRlcj1zeXN0ZW1kLXVkZXZkLWtlcm5lbC5zb2NrZXQKQWZ0ZXI9bXVsdGlwYXRoZC5zb2NrZXQgc3lzdGVtZC1yZW1vdW50LWZzLnNlcnZpY2UKQmVmb3JlPWluaXRyZC1jbGVhbnVwLnNlcnZpY2UKRGVmYXVsdERlcGVuZGVuY2llcz1ubwpDb25mbGljdHM9c2h1dGRvd24udGFyZ2V0CkNvbmZsaWN0cz1pbml0cmQtY2xlYW51cC5zZXJ2aWNlCkNvbmRpdGlvbktlcm5lbENvbW1hbmRMaW5lPSFub21wYXRoCkNvbmRpdGlvblZpcnR1YWxpemF0aW9uPSFjb250YWluZXIKCltTZXJ2aWNlXQpUeXBlPW5vdGlmeQpOb3RpZnlBY2Nlc3M9bWFpbgpFeGVjU3RhcnQ9L3NiaW4vbXVsdGlwYXRoZCAtZCAtcwpFeGVjUmVsb2FkPS9zYmluL211bHRpcGF0aGQgcmVjb25maWd1cmUKVGFza3NNYXg9aW5maW5pdHkKCltJbnN0YWxsXQpXYW50ZWRCeT1zeXNpbml0LnRhcmdldA==
+         encoding: base64
+         ownerstring: ""         
 EOF
   fi
 
