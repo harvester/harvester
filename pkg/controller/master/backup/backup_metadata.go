@@ -166,15 +166,16 @@ func (h *MetadataHandler) shouldRefresh(setting *harvesterv1.Setting, refreshInt
 		lastTime, err = time.Parse(time.RFC3339, setting.Annotations[util.AnnotationLastRefreshTime])
 		if err != nil {
 			logrus.WithError(err).Errorf("failed to parse last refresh time")
-			lastTime = time.Unix(0, 0)
 			return true
 		}
 	}
-	if getBackupTargetHash(setting.Value) == setting.Annotations[util.AnnotationHash] &&
-		(refreshIntervalInSeconds == 0 ||
-			currentTime.Sub(lastTime).Seconds() < float64(refreshIntervalInSeconds)) {
-		h.settings.EnqueueAfter(setting.Name, lastTime.Add(time.Duration(refreshIntervalInSeconds)*time.Second).Sub(currentTime))
-		return false
+	if getBackupTargetHash(setting.Value) == setting.Annotations[util.AnnotationHash] {
+		if refreshIntervalInSeconds == 0 {
+			return false
+		} else if currentTime.Sub(lastTime).Seconds() < float64(refreshIntervalInSeconds) {
+			h.settings.EnqueueAfter(setting.Name, lastTime.Add(time.Duration(refreshIntervalInSeconds)*time.Second).Sub(currentTime))
+			return false
+		}
 	}
 	return true
 }
