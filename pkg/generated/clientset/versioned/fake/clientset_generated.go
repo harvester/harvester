@@ -24,6 +24,8 @@ import (
 	fakebatchv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1/fake"
 	catalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1"
 	fakecatalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1/fake"
+	cdiv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
+	fakecdiv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1/fake"
 	clusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1"
 	fakeclusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1/fake"
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
@@ -50,6 +52,8 @@ import (
 	fakestoragev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1/fake"
 	upgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
 	fakeupgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1/fake"
+	uploadv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upload.cdi.kubevirt.io/v1beta1"
+	fakeuploadv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upload.cdi.kubevirt.io/v1beta1/fake"
 	whereaboutsv1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1"
 	fakewhereaboutsv1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -123,6 +127,11 @@ func (c *Clientset) CatalogV1() catalogv1.CatalogV1Interface {
 	return &fakecatalogv1.FakeCatalogV1{Fake: &c.Fake}
 }
 
+// CdiV1beta1 retrieves the CdiV1beta1Client
+func (c *Clientset) CdiV1beta1() cdiv1beta1.CdiV1beta1Interface {
+	return &fakecdiv1beta1.FakeCdiV1beta1{Fake: &c.Fake}
+}
+
 // ClusterV1beta1 retrieves the ClusterV1beta1Client
 func (c *Clientset) ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface {
 	return &fakeclusterv1beta1.FakeClusterV1beta1{Fake: &c.Fake}
@@ -186,6 +195,11 @@ func (c *Clientset) StorageV1() storagev1.StorageV1Interface {
 // UpgradeV1 retrieves the UpgradeV1Client
 func (c *Clientset) UpgradeV1() upgradev1.UpgradeV1Interface {
 	return &fakeupgradev1.FakeUpgradeV1{Fake: &c.Fake}
+}
+
+// UploadV1beta1 retrieves the UploadV1beta1Client
+func (c *Clientset) UploadV1beta1() uploadv1beta1.UploadV1beta1Interface {
+	return &fakeuploadv1beta1.FakeUploadV1beta1{Fake: &c.Fake}
 }
 
 // WhereaboutsV1alpha1 retrieves the WhereaboutsV1alpha1Client

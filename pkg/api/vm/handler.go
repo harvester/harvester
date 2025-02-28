@@ -1273,6 +1273,10 @@ func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevir
 		}
 
 		vmImageName := getTemplateVersionVMImageName(templateVersionName, index)
+		vmImage, err := h.vmImageCache.Get(vm.Namespace, vmImageName)
+		if err != nil {
+			return nil, err
+		}
 		pvcName := getTemplateVersionPvcName(templateVersionName, index)
 		volumeClaimTemplates = append(volumeClaimTemplates, corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1285,7 +1289,7 @@ func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevir
 				AccessModes:      pvc.Spec.AccessModes,
 				Resources:        pvc.Spec.Resources,
 				VolumeMode:       pvc.Spec.VolumeMode,
-				StorageClassName: pointer.String(util.GetImageStorageClassName(vmImageName)),
+				StorageClassName: pointer.String(util.GetImageStorageClassName(vmImage)),
 			},
 		})
 		sanitizedVM.Spec.Template.Spec.Volumes[index].PersistentVolumeClaim.ClaimName = pvcName

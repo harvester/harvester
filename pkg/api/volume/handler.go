@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
@@ -89,6 +90,20 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (interface{}, error) {
 }
 
 func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDisplayName, imageStorageClassName, pvcNamespace, pvcName string) (interface{}, error) {
+
+	pvcContent, err := h.pvcCache.Get(pvcNamespace, pvcName)
+	if err != nil {
+		return nil, err
+	}
+	vmImageBackend := harvesterv1.VMIBackendBackingImage
+	targetSCName := imageStorageClassName
+	if _, find := pvcContent.Annotations[cdicommon.AnnCreatedForDataVolume]; find {
+		vmImageBackend = harvesterv1.VMIBackendCDI
+		if imageStorageClassName == "" {
+			targetSCName = *pvcContent.Spec.StorageClassName
+		}
+	}
+
 	vmImage := &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "image-",
@@ -96,16 +111,17 @@ func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDis
 			Annotations:  map[string]string{},
 		},
 		Spec: harvesterv1.VirtualMachineImageSpec{
-			Backend:      harvesterv1.VMIBackendBackingImage,
-			DisplayName:  imageDisplayName,
-			SourceType:   harvesterv1.VirtualMachineImageSourceTypeExportVolume,
-			PVCName:      pvcName,
-			PVCNamespace: pvcNamespace,
+			Backend:                vmImageBackend,
+			DisplayName:            imageDisplayName,
+			SourceType:             harvesterv1.VirtualMachineImageSourceTypeExportVolume,
+			PVCName:                pvcName,
+			PVCNamespace:           pvcNamespace,
+			TargetStorageClassName: targetSCName,
 		},
 	}
 
-	if imageStorageClassName != "" {
-		vmImage.Annotations[util.AnnotationStorageClassName] = imageStorageClassName
+	if targetSCName != "" {
+		vmImage.Annotations[util.AnnotationStorageClassName] = targetSCName
 	}
 
 	image, err := h.images.Create(vmImage)

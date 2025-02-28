@@ -9,6 +9,7 @@ import (
 
 	"github.com/rancher/norman/condition"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -46,12 +47,14 @@ const (
 type VMIOperator interface {
 	UpdateVMI(oldVMI, newVMI *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error)
 
+	GetVMImageObj(namespace, name string) (*harvesterv1.VirtualMachineImage, error)
 	GetName(vmi *harvesterv1.VirtualMachineImage) string
 	GetNamespace(vmi *harvesterv1.VirtualMachineImage) string
 	GetVirtualSize(vmi *harvesterv1.VirtualMachineImage) int64
 	GetSCParameters(vmi *harvesterv1.VirtualMachineImage) map[string]string
 	GetSourceType(vmi *harvesterv1.VirtualMachineImage) harvesterv1.VirtualMachineImageSourceType
 	GetURL(vmi *harvesterv1.VirtualMachineImage) string
+	GetUID(vmi *harvesterv1.VirtualMachineImage) types.UID
 	GetChecksum(vmi *harvesterv1.VirtualMachineImage) string
 	GetPVCNamespace(vmi *harvesterv1.VirtualMachineImage) string
 	GetPVCName(vmi *harvesterv1.VirtualMachineImage) string
@@ -68,6 +71,8 @@ type VMIOperator interface {
 
 	CheckURLAndUpdate(old *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error)
 	UpdateVirtualSize(old *harvesterv1.VirtualMachineImage, virtualSize int64) (*harvesterv1.VirtualMachineImage, error)
+	UpdateSize(old *harvesterv1.VirtualMachineImage, size int64) (*harvesterv1.VirtualMachineImage, error)
+	UpdateVirtualSizeAndSize(old *harvesterv1.VirtualMachineImage, virtualSize, size int64) (*harvesterv1.VirtualMachineImage, error)
 	UpdateLastFailedTime(old *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error)
 
 	FailUpload(old *harvesterv1.VirtualMachineImage, msg string) error
@@ -98,6 +103,10 @@ func (vmio *vmiOperator) UpdateVMI(oldVMI, newVMI *harvesterv1.VirtualMachineIma
 	return vmio.client.Update(newVMI)
 }
 
+func (vmio *vmiOperator) GetVMImageObj(namespace, name string) (*harvesterv1.VirtualMachineImage, error) {
+	return vmio.cache.Get(namespace, name)
+}
+
 func (vmio *vmiOperator) GetName(vmi *harvesterv1.VirtualMachineImage) string {
 	return vmi.Name
 }
@@ -120,6 +129,10 @@ func (vmio *vmiOperator) GetSourceType(vmi *harvesterv1.VirtualMachineImage) har
 
 func (vmio *vmiOperator) GetURL(vmi *harvesterv1.VirtualMachineImage) string {
 	return vmi.Spec.URL
+}
+
+func (vmio *vmiOperator) GetUID(vmi *harvesterv1.VirtualMachineImage) types.UID {
+	return vmi.GetUID()
 }
 
 func (vmio *vmiOperator) GetChecksum(vmi *harvesterv1.VirtualMachineImage) string {
@@ -204,6 +217,19 @@ func (vmio *vmiOperator) UpdateVirtualSize(old *harvesterv1.VirtualMachineImage,
 	return vmio.UpdateVMI(old, newVMI)
 }
 
+func (vmio *vmiOperator) UpdateSize(old *harvesterv1.VirtualMachineImage, size int64) (*harvesterv1.VirtualMachineImage, error) {
+	newVMI := old.DeepCopy()
+	newVMI.Status.Size = size
+	return vmio.UpdateVMI(old, newVMI)
+}
+
+func (vmio *vmiOperator) UpdateVirtualSizeAndSize(old *harvesterv1.VirtualMachineImage, virtualSize, size int64) (*harvesterv1.VirtualMachineImage, error) {
+	newVMI := old.DeepCopy()
+	newVMI.Status.VirtualSize = virtualSize
+	newVMI.Status.Size = size
+	return vmio.UpdateVMI(old, newVMI)
+}
+
 func (vmio *vmiOperator) UpdateLastFailedTime(old *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	newVMI := old.DeepCopy()
 	newVMI.Status.LastFailedTime = time.Now().Format(time.RFC3339)
@@ -263,7 +289,7 @@ func (vmio *vmiOperator) stateTransit(old *harvesterv1.VirtualMachineImage, stat
 	case VMImageStateInitialized:
 		newVMI := old.DeepCopy()
 		newVMI.Status.AppliedURL = newVMI.Spec.URL
-		newVMI.Status.StorageClassName = util.GetImageStorageClassName(newVMI.Name)
+		newVMI.Status.StorageClassName = util.GetImageStorageClassName(newVMI)
 		newVMI.Status.Progress = 0
 
 		harvesterv1.ImageImported.Unknown(newVMI)

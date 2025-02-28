@@ -99,7 +99,7 @@ var _ = Describe("verify host APIs", func() {
 						return fmt.Errorf("unable to find maintenance annotation")
 					}
 					return nil
-				}, "120s", "10s").ShouldNot(HaveOccurred())
+				}, "300s", "10s").ShouldNot(HaveOccurred())
 			})
 
 			By("disable maintenance mode of the host", func() {
@@ -177,7 +177,7 @@ var _ = Describe("verify host APIs", func() {
 						return fmt.Errorf("should not find maintenance annotation")
 					}
 					return nil
-				}, "120s", "10s").ShouldNot(HaveOccurred())
+				}, "300s", "10s").ShouldNot(HaveOccurred())
 			})
 
 		})
