@@ -56,6 +56,12 @@ kubevirt:
   ## Specify the specification of KubeVirt resource.
   ##
   spec:
+    ## Specify default placement of infra components
+    ## based on logic https://github.com/kubevirt/kubevirt/blob/main/pkg/virt-operator/resource/apply/reconcile.go#L127
+    ## an empty nodePlacement struct is enough to continue existing behaviour of allowing kubevirt controlplane 
+    ## components to be scheduled to any node in the cluster
+    infra:
+      nodePlacement: {}
     ## Specify the default configuration of KubeVirt virtual machine.
     ##
     configuration:
