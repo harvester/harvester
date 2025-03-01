@@ -22,11 +22,12 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 	bi := scaled.LonghornFactory.Longhorn().V1beta2().BackingImage()
 	ctlcdi := scaled.CdiFactory.Cdi().V1beta1().DataVolume()
 	ctlcdiupload := scaled.CdiUploadFactory.Upload().V1beta1().UploadTokenRequest()
+	vmImageDownloader := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImageDownloader()
 
 	vmio := common.GetVMIOperator(vmi, vmi.Cache(), http.Client{})
 	downloaders := map[harvesterv1.VMIBackend]backend.Downloader{
 		harvesterv1.VMIBackendBackingImage: backingimage.GetDownloader(bi.Cache(), http.Client{}, vmio),
-		harvesterv1.VMIBackendCDI:          cdi.GetDownloader(http.Client{}, scaled.Management.ClientSet, vmio),
+		harvesterv1.VMIBackendCDI:          cdi.GetDownloader(vmImageDownloader, http.Client{}, vmio),
 	}
 	uploaders := map[harvesterv1.VMIBackend]backend.Uploader{
 		harvesterv1.VMIBackendBackingImage: backingimage.GetUploader(bi.Cache(), bids, http.Client{}, vmio),
