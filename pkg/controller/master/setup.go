@@ -28,6 +28,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
 	"github.com/harvester/harvester/pkg/controller/master/upgradelog"
 	"github.com/harvester/harvester/pkg/controller/master/virtualmachine"
+	"github.com/harvester/harvester/pkg/controller/master/vmimagedownloader"
 )
 
 type registerFunc func(context.Context, *config.Management, config.Options) error
@@ -63,6 +64,7 @@ var registerFuncs = []registerFunc{
 	mcmsettings.Register,
 	schedulevmbackup.Register,
 	resourcequota.Register,
+	vmimagedownloader.Register,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {
