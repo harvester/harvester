@@ -40,6 +40,7 @@ var (
 	VersionResourceName                       = "versions"
 	VirtualMachineBackupResourceName          = "virtualmachinebackups"
 	VirtualMachineImageResourceName           = "virtualmachineimages"
+	VirtualMachineImageDownloaderResourceName = "virtualmachineimagedownloaders"
 	VirtualMachineRestoreResourceName         = "virtualmachinerestores"
 	VirtualMachineTemplateResourceName        = "virtualmachinetemplates"
 	VirtualMachineTemplateVersionResourceName = "virtualmachinetemplateversions"
@@ -90,6 +91,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&VirtualMachineBackupList{},
 		&VirtualMachineImage{},
 		&VirtualMachineImageList{},
+		&VirtualMachineImageDownloader{},
+		&VirtualMachineImageDownloaderList{},
 		&VirtualMachineRestore{},
 		&VirtualMachineRestoreList{},
 		&VirtualMachineTemplate{},
