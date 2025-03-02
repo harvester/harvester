@@ -42,6 +42,8 @@ type VirtualMachineBackupExpansion interface{}
 
 type VirtualMachineImageExpansion interface{}
 
+type VirtualMachineImageDownloaderExpansion interface{}
+
 type VirtualMachineRestoreExpansion interface{}
 
 type VirtualMachineTemplateExpansion interface{}

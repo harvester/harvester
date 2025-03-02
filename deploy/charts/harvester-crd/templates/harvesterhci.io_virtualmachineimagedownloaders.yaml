@@ -1,0 +1,106 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    {}
+  name: virtualmachineimagedownloaders.harvesterhci.io
+spec:
+  group: harvesterhci.io
+  names:
+    kind: VirtualMachineImageDownloader
+    listKind: VirtualMachineImageDownloaderList
+    plural: virtualmachineimagedownloaders
+    shortNames:
+    - vmimagedownloader
+    - vmimagedownloaders
+    singular: virtualmachineimagedownloader
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.imageName
+      name: VMImage
+      type: string
+    - jsonPath: .spec.compressType
+      name: CompressType
+      type: string
+    - jsonPath: .status.status
+      name: Status
+      type: string
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              compressType:
+                default: qcow2
+                description: compress type of the vm image
+                enum:
+                - qcow2
+                type: string
+              imageName:
+                description: name of the vm image
+                type: string
+            required:
+            - imageName
+            type: object
+          status:
+            properties:
+              conditions:
+                default: []
+                description: the conditions of the vm image downloader
+                items:
+                  properties:
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              downloadUrl:
+                description: the url of the vm image
+                type: string
+              status:
+                default: Progressing
+                description: the current status of the vm image downloader
+                enum:
+                - Progressing
+                - Ready
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
