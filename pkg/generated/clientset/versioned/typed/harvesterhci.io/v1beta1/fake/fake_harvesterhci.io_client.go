@@ -76,6 +76,10 @@ func (c *FakeHarvesterhciV1beta1) VirtualMachineImages(namespace string) v1beta1
 	return &FakeVirtualMachineImages{c, namespace}
 }
 
+func (c *FakeHarvesterhciV1beta1) VirtualMachineImageDownloaders(namespace string) v1beta1.VirtualMachineImageDownloaderInterface {
+	return &FakeVirtualMachineImageDownloaders{c, namespace}
+}
+
 func (c *FakeHarvesterhciV1beta1) VirtualMachineRestores(namespace string) v1beta1.VirtualMachineRestoreInterface {
 	return &FakeVirtualMachineRestores{c, namespace}
 }
