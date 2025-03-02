@@ -23,6 +23,7 @@ API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/ha
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,SecretBackups
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,VolumeBackups
+API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageDownloaderStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,DeletedVolumes
@@ -115,6 +116,7 @@ API rule violation: names_match,github.com/harvester/harvester-network-controlle
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,ScheduleVMBackupSpec,VMBackupSpec
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,ScheduleVMBackupStatus,VMBackupInfo
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,SourceSpec
+API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageDownloaderStatus,DownloadURL
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageStatus,AppliedURL
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,VolumeRestores
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineTemplateSpec,DefaultVersionID

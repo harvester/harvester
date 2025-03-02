@@ -113,6 +113,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineBackupSpec":                                         schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupSpec(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineBackupStatus":                                       schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImage":                                              schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImage(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloader":                                    schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageDownloader(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloaderCondition":                           schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageDownloaderCondition(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloaderList":                                schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageDownloaderList(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloaderSpec":                                schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageDownloaderSpec(ref),
+		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloaderStatus":                              schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageDownloaderStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageList":                                          schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageList(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageSecurityParameters":                            schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSecurityParameters(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageSpec":                                          schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSpec(ref),
@@ -4297,6 +4302,218 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImage(ref common.Refer
 		},
 		Dependencies: []string{
 			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageSpec", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageDownloader(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloaderSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloaderStatus"),
+						},
+					},
+				},
+				Required: []string{"spec"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloaderSpec", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloaderStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageDownloaderCondition(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"type", "status", "lastTransitionTime"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageDownloaderList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "VirtualMachineImageDownloaderList is a list of VirtualMachineImageDownloader resources",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloader"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloader", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageDownloaderSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"imageName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "name of the vm image",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"compressType": {
+						SchemaProps: spec.SchemaProps{
+							Description: "compress type of the vm image",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"imageName"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageDownloaderStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Description: "the conditions of the vm image downloader",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloaderCondition"),
+									},
+								},
+							},
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Description: "the current status of the vm image downloader",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"downloadUrl": {
+						SchemaProps: spec.SchemaProps{
+							Description: "the url of the vm image",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloaderCondition"},
 	}
 }
 
