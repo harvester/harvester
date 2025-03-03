@@ -351,7 +351,9 @@ func (m *vmMutator) getAdditionalGuestMemoryOverheadRatioConfig() (*settings.Add
 }
 
 func (m *vmMutator) patchAffinity(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
-	if vm == nil || vm.Spec.Template == nil {
+	// if vm is stopped/terminating/stopping, do not patch affinity, it makes no sense, and may block the deletion of vm
+	// e.g. the vm's nad has been deleted but vm's interface is dangling
+	if vm == nil || vm.Spec.Template == nil || vm.DeletionTimestamp != nil || vm.Status.PrintableStatus == kubevirtv1.VirtualMachineStatusStopped || vm.Status.PrintableStatus == kubevirtv1.VirtualMachineStatusStopping || vm.Status.PrintableStatus == kubevirtv1.VirtualMachineStatusTerminating {
 		return patchOps, nil
 	}
 
