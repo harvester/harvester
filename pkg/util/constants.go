@@ -146,6 +146,7 @@ const (
 	MaintainModeStrategyShutdownAndRestartAfterEnable  = "ShutdownAndRestartAfterEnable"
 	MaintainModeStrategyShutdownAndRestartAfterDisable = "ShutdownAndRestartAfterDisable"
 	MaintainModeStrategyShutdown                       = "Shutdown"
+	AnnotationMacAddressName                           = prefix + "/mac-address"
 
 	// s3 backup target constants
 	AWSAccessKey       = "AWS_ACCESS_KEY_ID"

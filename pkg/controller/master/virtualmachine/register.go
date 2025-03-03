@@ -17,6 +17,7 @@ const (
 	vmControllerRemoveDeprecatedFinalizerControllerName          = "VMController.RemoveDeprecatedFinalizer"
 	vmiControllerRemoveDeprecatedFinalizerControllerName         = "VMIController.RemoveDeprecatedFinalizer"
 	vmiControllerSetHaltIfOccurExceededQuotaControllerName       = "VMIController.StopVMIfExceededQuota"
+	vmiControllerPatchMacAddressControllerName                   = "VMIController.PatchMacAddress"
 
 	vmControllerCleanupPVCAndSnapshotFinalizerName = "VMController.CleanupPVCAndSnapshot"
 	// this finalizer is special one which was added by our controller, not wrangler.
@@ -45,8 +46,6 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		snapshotClient = management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
 		vmimCache      = management.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache()
 		snapshotCache  = snapshotClient.Cache()
-		crClient       = management.ControllerRevisionFactory.Apps().V1().ControllerRevision()
-		crClientCache  = crClient.Cache()
 		settingCache   = management.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
 		recorder       = management.NewRecorder(vmControllerSetHaltIfInsufficientResourceQuotaControllerName, "", "")
 	)
@@ -64,7 +63,6 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		vmBackupCache:  vmBackupCache,
 		snapshotClient: snapshotClient,
 		snapshotCache:  snapshotCache,
-		settingCache:   settingCache,
 		recorder:       recorder,
 
 		vmrCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
@@ -91,14 +89,13 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerReconcileFromHostLabelsControllerName, vmiCtrl.ReconcileFromHostLabels)
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerSetHaltIfOccurExceededQuotaControllerName, vmiCtrl.StopVMIfExceededQuota)
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerRemoveDeprecatedFinalizerControllerName, vmiCtrl.removeDeprecatedFinalizer)
+	virtualMachineInstanceClient.OnChange(ctx, vmiControllerPatchMacAddressControllerName, vmiCtrl.PatchMacAddresses)
 
 	// register the vm network controller upon the VMI changes
 	var vmNetworkCtl = &VMNetworkController{
 		vmClient:  vmClient,
 		vmCache:   vmCache,
 		vmiClient: virtualMachineInstanceClient,
-		crClient:  crClient,
-		crCache:   crClientCache,
 	}
 	virtualMachineInstanceClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
 
