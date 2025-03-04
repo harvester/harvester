@@ -26,9 +26,10 @@ type Mutator interface {
 }
 
 type Downloader interface {
-	Do(vmi *harvesterv1.VirtualMachineImage, rw http.ResponseWriter, req *http.Request) error
+	DoDownload(vmi *harvesterv1.VirtualMachineImage, rw http.ResponseWriter, req *http.Request) error
+	DoCancel(vmi *harvesterv1.VirtualMachineImage) error
 }
 
 type Uploader interface {
-	Do(vmi *harvesterv1.VirtualMachineImage, req *http.Request) error
+	DoUpload(vmi *harvesterv1.VirtualMachineImage, req *http.Request) error
 }
