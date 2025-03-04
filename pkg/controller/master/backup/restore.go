@@ -15,6 +15,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	lhdatastore "github.com/longhorn/longhorn-manager/datastore"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/longhorn/longhorn-manager/types"
 	lhutil "github.com/longhorn/longhorn-manager/util"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/name"
@@ -256,6 +257,22 @@ func getVolumeName(pvc *corev1.PersistentVolumeClaim) (string, error) {
 	return volumeName, err
 }
 
+func (h *RestoreHandler) checkLHNotVolumeExist(pvc *corev1.PersistentVolumeClaim, restore string) (*corev1.PersistentVolumeClaim, error) {
+	provisioner := util.GetProvisionedPVCProvisioner(pvc)
+	if provisioner == types.LonghornDriverName {
+		return nil, fmt.Errorf("LH pvc %s/%s missing volume", pvc.Namespace, pvc.Name)
+	}
+
+	// The storage provider is not LH, we should enqueue vmrestore
+	logrus.WithFields(logrus.Fields{
+		"namespace": pvc.Namespace,
+		"name":      pvc.Name,
+	}).Info("Non-LH PVC updating")
+
+	h.restoreController.Enqueue(pvc.Namespace, restore)
+	return nil, nil
+}
+
 // PersistentVolumeClaimOnChange watching the PVCs on change and enqueue the vmRestore if it has the restore annotation
 func (h *RestoreHandler) PersistentVolumeClaimOnChange(_ string, pvc *corev1.PersistentVolumeClaim) (*corev1.PersistentVolumeClaim, error) {
 	if pvc == nil || pvc.DeletionTimestamp != nil {
@@ -273,8 +290,12 @@ func (h *RestoreHandler) PersistentVolumeClaimOnChange(_ string, pvc *corev1.Per
 	}
 
 	volume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, volumeName)
+	if apierrors.IsNotFound(err) {
+		return h.checkLHNotVolumeExist(pvc, restoreName)
+	}
+
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	volumeCopy := volume.DeepCopy()
