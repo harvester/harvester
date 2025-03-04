@@ -24,7 +24,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/utils/pointer"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -250,26 +249,23 @@ func (h *MetadataHandler) checkBackupBackingImageExist(imageMetadata *VirtualMac
 		return false
 	}
 
-	backingImageLabelReq, err := labels.NewRequirement("backing-image", selection.Equals, []string{backingImageName})
+	backupBackingImages, err := h.longhornBackupBackingImageCache.List(
+		util.LonghornSystemNamespaceName, labels.NewSelector())
 	if err != nil {
 		logrus.WithError(err).WithFields(logrus.Fields{
 			"namespace": imageMetadata.Namespace,
 			"name":      imageMetadata.Name,
 			"imageURL":  imageMetadata.URL,
-		}).Warn("Skip creating vm image, because cannot create new label requirement")
+		}).Warn("Skip creating vm image, because the backup backing image is not found")
 		return false
 	}
-
-	if backupBackingImages, err := h.longhornBackupBackingImageCache.List(
-		util.LonghornSystemNamespaceName,
-		labels.NewSelector().Add(*backingImageLabelReq)); err != nil || len(backupBackingImages) == 0 {
-		logrus.WithError(err).WithFields(logrus.Fields{
-			"namespace": imageMetadata.Namespace,
-			"name":      imageMetadata.Name,
-			"imageURL":  imageMetadata.URL,
-		}).Warn("Skip creating vm image, because the backing image is not found")
-		return false
-	} else if backupBackingImages[0].Status.State != "Completed" {
+	for _, backupBackingImage := range backupBackingImages {
+		if backupBackingImage.Status.BackingImage != backingImageName {
+			continue
+		}
+		if backupBackingImages[0].Status.State == "Completed" {
+			return true
+		}
 		logrus.WithError(err).WithFields(logrus.Fields{
 			"namespace": imageMetadata.Namespace,
 			"name":      imageMetadata.Name,
@@ -278,7 +274,7 @@ func (h *MetadataHandler) checkBackupBackingImageExist(imageMetadata *VirtualMac
 		return false
 	}
 
-	return true
+	return false
 }
 
 func (h *MetadataHandler) createVMImageIfNotExist(imageMetadata VirtualMachineImageMetadata) error {
@@ -491,23 +487,24 @@ func (h *MetadataHandler) checkDependentLonghornBackupExist(target *settings.Bac
 			continue
 		}
 
+		volumeName := vb.PersistentVolumeClaim.Spec.VolumeName
 		// check whether data is in the backup target
-		volumes, err := backupstore.List(vb.VolumeName, util.ConstructEndpoint(target), false)
-		if err != nil || volumes[vb.VolumeName] == nil {
+		volumes, err := backupstore.List(volumeName, util.ConstructEndpoint(target), false)
+		if err != nil || volumes[volumeName] == nil {
 			logrus.WithError(err).WithFields(logrus.Fields{
 				"namespace": backupMetadata.Namespace,
 				"name":      backupMetadata.Name,
-				"volume":    vb.VolumeName,
-			}).Warn("skip creating vm backup, because the volume is not found")
+				"volume":    volumeName,
+			}).Warn("skip creating vm backup, because the volume is not found in the backup target")
 			return false
 		}
-		if volumes[vb.VolumeName].Backups[*vb.LonghornBackupName] == nil {
+		if volumes[volumeName].Backups[*vb.LonghornBackupName] == nil {
 			logrus.WithFields(logrus.Fields{
 				"namespace":      backupMetadata.Namespace,
 				"name":           backupMetadata.Name,
-				"volume":         vb.VolumeName,
+				"volume":         volumeName,
 				"longhornBackup": *vb.LonghornBackupName,
-			}).Warn("skip creating vm backup, because the longhorn backup is not found")
+			}).Warn("skip creating vm backup, because the longhorn backup is not found in the backup target")
 			return false
 		}
 
@@ -517,7 +514,7 @@ func (h *MetadataHandler) checkDependentLonghornBackupExist(target *settings.Bac
 				"namespace":      backupMetadata.Namespace,
 				"name":           backupMetadata.Name,
 				"longhornBackup": *vb.LonghornBackupName,
-			}).Warn("skip creating vm backup, because the longhorn backup is not found")
+			}).Warn("skip creating vm backup, because the longhorn backup is not found in the cluster")
 			return false
 		} else if backup.DeletionTimestamp != nil {
 			logrus.WithFields(logrus.Fields{
