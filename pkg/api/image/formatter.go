@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	actionUpload   = "upload"
-	actionDownload = "download"
+	actionUpload         = "upload"
+	actionDownload       = "download"
+	actionDownloadCancel = "downloadcancel"
 )
 
 func Formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -71,6 +72,8 @@ func (h Handler) doGet(link string, rw http.ResponseWriter, req *http.Request) e
 	switch link {
 	case actionDownload:
 		return h.downloadImage(rw, req)
+	case actionDownloadCancel:
+		return h.cancelDownloadImage(req)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported GET action %s", link))
 	}
@@ -94,7 +97,7 @@ func (h Handler) downloadImage(rw http.ResponseWriter, req *http.Request) error 
 		return fmt.Errorf("failed to get VMImage with name(%s), ns(%s), error: %w", name, namespace, err)
 	}
 
-	return h.downloaders[util.GetVMIBackend(vmi)].Do(vmi, rw, req)
+	return h.downloaders[util.GetVMIBackend(vmi)].DoDownload(vmi, rw, req)
 }
 
 func (h Handler) uploadImage(_ http.ResponseWriter, req *http.Request) error {
@@ -106,5 +109,17 @@ func (h Handler) uploadImage(_ http.ResponseWriter, req *http.Request) error {
 		return err
 	}
 
-	return h.uploaders[util.GetVMIBackend(vmi)].Do(vmi, req)
+	return h.uploaders[util.GetVMIBackend(vmi)].DoUpload(vmi, req)
+}
+
+func (h Handler) cancelDownloadImage(req *http.Request) error {
+	vars := util.EncodeVars(mux.Vars(req))
+	namespace := vars["namespace"]
+	name := vars["name"]
+	vmi, err := h.vmiClient.Get(namespace, name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get VMImage with name(%s), ns(%s), error: %w", name, namespace, err)
+	}
+
+	return h.downloaders[util.GetVMIBackend(vmi)].DoCancel(vmi)
 }
