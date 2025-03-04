@@ -65,7 +65,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 			 * with rancher/apiserver
 			 */
 			s.LinkHandlers = map[string]http.Handler{
-				actionDownload: imgHandler,
+				actionDownload:       imgHandler,
+				actionDownloadCancel: imgHandler,
 			}
 		},
 	}

@@ -59,7 +59,7 @@ func (biu *Uploader) waitForBackingImageDataSourceReady(name string) error {
 	return errors.New("timeout waiting for backing image data source to be ready")
 }
 
-func (biu *Uploader) Do(vmi *harvesterv1.VirtualMachineImage, req *http.Request) error {
+func (biu *Uploader) DoUpload(vmi *harvesterv1.VirtualMachineImage, req *http.Request) error {
 	var err error
 	defer func() {
 		if err != nil {

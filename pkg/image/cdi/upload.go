@@ -60,7 +60,7 @@ func GetUploader(dataVolumeClient ctlcdiv1.DataVolumeClient,
 	}
 }
 
-func (cu *Uploader) Do(vmImg *harvesterv1.VirtualMachineImage, req *http.Request) error {
+func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.Request) error {
 	var err error
 	defer func() {
 		if err != nil {

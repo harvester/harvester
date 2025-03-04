@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -31,7 +32,7 @@ func GetDownloader(vmImageDownloaderClient v1beta1.VirtualMachineImageDownloader
 	}
 }
 
-func (cd *Downloader) Do(vmImg *harvesterv1.VirtualMachineImage, rw http.ResponseWriter, req *http.Request) error {
+func (cd *Downloader) DoDownload(vmImg *harvesterv1.VirtualMachineImage, rw http.ResponseWriter, req *http.Request) error {
 	vmImgName := cd.vmio.GetName(vmImg)
 	vmImgNamespace := cd.vmio.GetNamespace(vmImg)
 	imageDownloader, err := cd.vmImageDownloaderClient.Get(vmImgNamespace, vmImgName, metav1.GetOptions{})
@@ -50,6 +51,15 @@ func (cd *Downloader) Do(vmImg *harvesterv1.VirtualMachineImage, rw http.Respons
 	}); err != nil {
 		return fmt.Errorf("failed to wait for service ready")
 	}
+
+	// once the download server is ready, we need defer function to delete the downloader with any error
+	defer func() error {
+		// Delete downloader after download
+		if err := cd.vmImageDownloaderClient.Delete(vmImgNamespace, vmImgName, &metav1.DeleteOptions{}); err != nil {
+			return fmt.Errorf("failed to delete ImageDownloader %s/%s: %w", vmImgNamespace, vmImgName, err)
+		}
+		return nil
+	}()
 
 	downloadReq, err := http.NewRequestWithContext(req.Context(), http.MethodGet, downloadURL, nil)
 	if err != nil {
@@ -70,6 +80,26 @@ func (cd *Downloader) Do(vmImg *harvesterv1.VirtualMachineImage, rw http.Respons
 
 	if _, err := io.Copy(rw, downloadResp.Body); err != nil {
 		return fmt.Errorf("failed to copy download content to target(%s), err: %w", targetFileName, err)
+	}
+
+	return nil
+}
+
+func (cd *Downloader) DoCancel(vmImg *harvesterv1.VirtualMachineImage) error {
+	imgName := cd.vmio.GetName(vmImg)
+	imgNamespace := cd.vmio.GetNamespace(vmImg)
+
+	if _, err := cd.vmImageDownloaderClient.Get(imgNamespace, imgName, metav1.GetOptions{}); err != nil {
+		if apierrors.IsNotFound(err) {
+			logrus.Infof("ImageDownloader %s/%s is already gone, do no-op", imgNamespace, imgName)
+			return nil
+		}
+		return fmt.Errorf("failed to get ImageDownloader %s/%s: %w", imgNamespace, imgName, err)
+	}
+
+	// Delete the Image downloader once the download is canceled
+	if err := cd.vmImageDownloaderClient.Delete(imgNamespace, imgName, &metav1.DeleteOptions{}); err != nil {
+		return fmt.Errorf("failed to delete ImageDownloader %s/%s: %w", imgNamespace, imgName, err)
 	}
 
 	return nil
