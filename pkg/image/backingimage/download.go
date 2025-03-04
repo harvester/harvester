@@ -26,7 +26,7 @@ func GetDownloader(biCache ctllhv1.BackingImageCache, httpClient http.Client, vm
 	}
 }
 
-func (bid *Downloader) Do(vmi *harvesterv1.VirtualMachineImage, rw http.ResponseWriter, req *http.Request) error {
+func (bid *Downloader) DoDownload(vmi *harvesterv1.VirtualMachineImage, rw http.ResponseWriter, req *http.Request) error {
 	if bid.vmio.IsEncryptOperation(vmi) {
 		return fmt.Errorf("encrypted image is not supported for download")
 	}
@@ -59,5 +59,10 @@ func (bid *Downloader) Do(vmi *harvesterv1.VirtualMachineImage, rw http.Response
 		return fmt.Errorf("failed to copy download content to target(%s), err: %w", targetFileName, err)
 	}
 
+	return nil
+}
+
+func (bid *Downloader) DoCancel(_ *harvesterv1.VirtualMachineImage) error {
+	// Cancel download is do no-op for backing image
 	return nil
 }
