@@ -155,7 +155,7 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 
 	// Try to establish the logging infrastructure by creating a customized Logging resource
 	if harvesterv1.LoggingOperatorDeployed.IsTrue(upgradeLog) && harvesterv1.InfraReady.GetStatus(upgradeLog) == "" {
-		logrus.Info("Start to create the logging infrastructure for the upgrade procedure")
+		logrus.Info("Start to create the logging infrastructure and fluentbitagent for the upgrade procedure")
 
 		toUpdate := upgradeLog.DeepCopy()
 
@@ -761,13 +761,13 @@ func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete clusteroutput %s/%s error %w", util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOutputComponent), err)
 	}
-	err = h.fbagentClient.Delete(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFluentbitAgentComponent), &metav1.DeleteOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("failed to delete fluentbitagent %s error %w", name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFluentbitAgentComponent), err)
-	}
 	err = h.loggingClient.Delete(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogInfraComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete logging client %s error %w", name.SafeConcatName(upgradeLog.Name, util.UpgradeLogInfraComponent), err)
+	}
+	err = h.fbagentClient.Delete(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFluentbitAgentComponent), &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete fluentbitagent %s error %w", name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFluentbitAgentComponent), err)
 	}
 	err = h.managedChartClient.Delete(util.FleetLocalNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {

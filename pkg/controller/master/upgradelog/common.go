@@ -73,6 +73,7 @@ func prepareOperator(upgradeLog *harvesterv1.UpgradeLog) *mgmtv3.ManagedChart {
 	}
 }
 
+// fluentbit is still deployed as daemonset, it is rolled out from FluentbitAgent object by logging-operator
 func prepareFluentbitAgent(upgradeLog *harvesterv1.UpgradeLog, images map[string]Image) *loggingv1.FluentbitAgent {
 	return &loggingv1.FluentbitAgent{
 		ObjectMeta: metav1.ObjectMeta{
