@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -74,7 +75,8 @@ func prepareOperator(upgradeLog *harvesterv1.UpgradeLog) *mgmtv3.ManagedChart {
 }
 
 // fluentbit is still deployed as daemonset, it is rolled out from FluentbitAgent object by logging-operator
-func prepareFluentbitAgent(upgradeLog *harvesterv1.UpgradeLog, images map[string]Image) *loggingv1.FluentbitAgent {
+func prepareFluentbitAgent(upgradeLog *harvesterv1.UpgradeLog, images map[string]settings.Image) *loggingv1.FluentbitAgent {
+	image := images[imageFluentbit]
 	return &loggingv1.FluentbitAgent{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
@@ -93,16 +95,17 @@ func prepareFluentbitAgent(upgradeLog *harvesterv1.UpgradeLog, images map[string
 				util.LabelUpgradeLogComponent: util.UpgradeLogShipperComponent,
 			},
 			Image: loggingv1.ImageSpec{
-				Repository: images["fluentbit"].Repository,
-				Tag:        images["fluentbit"].Tag,
+				Repository: image.GetRepository(),
+				Tag:        image.GetTag(),
 			},
 		},
 	}
 }
 
-func prepareLogging(upgradeLog *harvesterv1.UpgradeLog, images map[string]Image) *loggingv1.Logging {
+func prepareLogging(upgradeLog *harvesterv1.UpgradeLog, images map[string]settings.Image) *loggingv1.Logging {
 	volumeMode := corev1.PersistentVolumeFilesystem
-
+	fdimage := images[imageFluentd]
+	crimage := images[imageConfigReloader]
 	return &loggingv1.Logging{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
@@ -125,12 +128,12 @@ func prepareLogging(upgradeLog *harvesterv1.UpgradeLog, images map[string]Image)
 					util.LabelUpgradeLogComponent: util.UpgradeLogAggregatorComponent,
 				},
 				Image: loggingv1.ImageSpec{
-					Repository: images["fluentd"].Repository,
-					Tag:        images["fluentd"].Tag,
+					Repository: fdimage.GetRepository(),
+					Tag:        fdimage.GetTag(),
 				},
 				ConfigReloaderImage: loggingv1.ImageSpec{
-					Repository: images["config_reloader"].Repository,
-					Tag:        images["config_reloader"].Tag,
+					Repository: crimage.GetRepository(),
+					Tag:        crimage.GetTag(),
 				},
 				DisablePvc: true,
 				ExtraVolumes: []loggingv1.ExtraVolume{

@@ -48,3 +48,11 @@ func (i Image) GetTag() string {
 
 	return tag
 }
+
+func (i Image) GetRepository() string {
+	return i.Repository
+}
+
+func (i Image) GetImagePullPolicy() corev1.PullPolicy {
+	return i.ImagePullPolicy
+}

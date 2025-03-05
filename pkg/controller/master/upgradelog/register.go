@@ -61,6 +61,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		upgradeCache:        upgradeController.Cache(),
 		upgradeLogClient:    upgradeLogController,
 		upgradeLogCache:     upgradeLogController.Cache(),
+		clientset:           management.ClientSet,
 	}
 
 	upgradeLogController.OnChange(ctx, upgradeLogControllerName, handler.OnUpgradeLogChange)
