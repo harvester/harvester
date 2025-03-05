@@ -70,6 +70,7 @@ type handler struct {
 	jobClient           ctlbatchv1.JobClient
 	jobCache            ctlbatchv1.JobCache
 	loggingClient       ctlloggingv1.LoggingClient
+	fbagentClient       ctlloggingv1.FluentbitAgentClient
 	managedChartClient  ctlmgmtv3.ManagedChartClient
 	managedChartCache   ctlmgmtv3.ManagedChartCache
 	pvcClient           ctlcorev1.PersistentVolumeClaimClient
@@ -165,6 +166,9 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		}
 
 		if _, err := h.loggingClient.Create(prepareLogging(upgradeLog, candidateImages)); err != nil && !apierrors.IsAlreadyExists(err) {
+			return nil, err
+		}
+		if _, err := h.fbagentClient.Create(prepareFluentbitAgent(upgradeLog, candidateImages)); err != nil && !apierrors.IsAlreadyExists(err) {
 			return nil, err
 		}
 
@@ -756,6 +760,10 @@ func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {
 	err = h.clusterOutputClient.Delete(util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOutputComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete clusteroutput %s/%s error %w", util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOutputComponent), err)
+	}
+	err = h.fbagentClient.Delete(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFluentbitAgentComponent), &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete fluentbitagent %s error %w", name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFluentbitAgentComponent), err)
 	}
 	err = h.loggingClient.Delete(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogInfraComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
