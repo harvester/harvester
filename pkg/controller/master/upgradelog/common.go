@@ -73,6 +73,32 @@ func prepareOperator(upgradeLog *harvesterv1.UpgradeLog) *mgmtv3.ManagedChart {
 	}
 }
 
+func prepareFluentbitAgent(upgradeLog *harvesterv1.UpgradeLog, images map[string]Image) *loggingv1.FluentbitAgent {
+	return &loggingv1.FluentbitAgent{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				util.LabelUpgradeLog:          upgradeLog.Name,
+				util.LabelUpgradeLogComponent: util.UpgradeLogInfraComponent,
+			},
+			Name: name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFluentbitAgentComponent), // scope=Cluster
+			OwnerReferences: []metav1.OwnerReference{
+				upgradeLogReference(upgradeLog),
+			},
+		},
+		Spec: loggingv1.FluentbitSpec{
+			LoggingRef: upgradeLogLoggingRef,
+			Labels: map[string]string{
+				util.LabelUpgradeLog:          upgradeLog.Name,
+				util.LabelUpgradeLogComponent: util.UpgradeLogShipperComponent,
+			},
+			Image: loggingv1.ImageSpec{
+				Repository: images["fluentbit"].Repository,
+				Tag:        images["fluentbit"].Tag,
+			},
+		},
+	}
+}
+
 func prepareLogging(upgradeLog *harvesterv1.UpgradeLog, images map[string]Image) *loggingv1.Logging {
 	volumeMode := corev1.PersistentVolumeFilesystem
 
@@ -92,16 +118,6 @@ func prepareLogging(upgradeLog *harvesterv1.UpgradeLog, images map[string]Image)
 			LoggingRef:              upgradeLogLoggingRef,
 			ControlNamespace:        upgradeLog.Namespace,
 			FlowConfigCheckDisabled: true,
-			FluentbitSpec: &loggingv1.FluentbitSpec{
-				Labels: map[string]string{
-					util.LabelUpgradeLog:          upgradeLog.Name,
-					util.LabelUpgradeLogComponent: util.UpgradeLogShipperComponent,
-				},
-				Image: loggingv1.ImageSpec{
-					Repository: images["fluentbit"].Repository,
-					Tag:        images["fluentbit"].Tag,
-				},
-			},
 			FluentdSpec: &loggingv1.FluentdSpec{
 				Labels: map[string]string{
 					util.LabelUpgradeLog:          upgradeLog.Name,
@@ -782,6 +798,32 @@ func (p *loggingBuilder) WithLabel(key, value string) *loggingBuilder {
 
 func (p *loggingBuilder) Build() *loggingv1.Logging {
 	return p.logging
+}
+
+type fluentbitAgentBuilder struct {
+	fluentbitAgent *loggingv1.FluentbitAgent
+}
+
+func newFluentbitAgentBuilder(name string) *fluentbitAgentBuilder {
+	return &fluentbitAgentBuilder{
+		fluentbitAgent: &loggingv1.FluentbitAgent{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+		},
+	}
+}
+
+func (p *fluentbitAgentBuilder) WithLabel(key, value string) *fluentbitAgentBuilder {
+	if p.fluentbitAgent.Labels == nil {
+		p.fluentbitAgent.Labels = make(map[string]string, 1)
+	}
+	p.fluentbitAgent.Labels[key] = value
+	return p
+}
+
+func (p *fluentbitAgentBuilder) Build() *loggingv1.FluentbitAgent {
+	return p.fluentbitAgent
 }
 
 type managedChartBuilder struct {

@@ -24,21 +24,22 @@ import (
 const (
 	harvesterUpgradeLabel = "harvesterhci.io/upgrade"
 
-	testUpgradeName       = "test-upgrade"
-	testUpgradeLogName    = "test-upgrade-upgradelog"
-	testUpgradeLogUID     = "test-upgradelog-uid"
-	testClusterFlowName   = "test-upgrade-upgradelog-clusterflow"
-	testClusterOutputName = "test-upgrade-upgradelog-clusteroutput"
-	testDaemonSetName     = "test-upgrade-upgradelog-fluentbit"
-	testDeploymentName    = "test-upgrade-upgradelog-log-downloader"
-	testJobName           = "test-upgrade-upgradelog-log-packager"
-	testLoggingName       = "test-upgrade-upgradelog-infra"
-	testLoggingUID        = "test-logging-uid"
-	testManagedChartName  = "test-upgrade-upgradelog-operator"
-	testPvcName           = "test-upgrade-upgradelog-log-archive"
-	testStatefulSetName   = "test-upgrade-upgradelog-fluentd"
-	testArchiveName       = "test-archive"
-	testImageVersion      = "dev"
+	testUpgradeName        = "test-upgrade"
+	testUpgradeLogName     = "test-upgrade-upgradelog"
+	testUpgradeLogUID      = "test-upgradelog-uid"
+	testClusterFlowName    = "test-upgrade-upgradelog-clusterflow"
+	testClusterOutputName  = "test-upgrade-upgradelog-clusteroutput"
+	testDaemonSetName      = "test-upgrade-upgradelog-fluentbit"
+	testDeploymentName     = "test-upgrade-upgradelog-log-downloader"
+	testJobName            = "test-upgrade-upgradelog-log-packager"
+	testLoggingName        = "test-upgrade-upgradelog-infra"
+	testFluentbitAgentName = "test-upgrade-upgradelog" + "-" + util.UpgradeLogFluentbitAgentComponent
+	testLoggingUID         = "test-logging-uid"
+	testManagedChartName   = "test-upgrade-upgradelog-operator"
+	testPvcName            = "test-upgrade-upgradelog-log-archive"
+	testStatefulSetName    = "test-upgrade-upgradelog-fluentd"
+	testArchiveName        = "test-archive"
+	testImageVersion       = "dev"
 )
 
 var testImages = map[string]Image{
@@ -118,6 +119,11 @@ func newTestJobBuilder() *jobBuilder {
 
 func newTestLoggingBuilder() *loggingBuilder {
 	return newLoggingBuilder(testLoggingName).
+		WithLabel(util.LabelUpgradeLog, testUpgradeLogName)
+}
+
+func newTestFluentbitAgentBuilder() *fluentbitAgentBuilder {
+	return newFluentbitAgentBuilder(testFluentbitAgentName).
 		WithLabel(util.LabelUpgradeLog, testUpgradeLogName)
 }
 
@@ -717,6 +723,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 		clusterFlow   *loggingv1.ClusterFlow
 		clusterOutput *loggingv1.ClusterOutput
 		logging       *loggingv1.Logging
+		fbagent       *loggingv1.FluentbitAgent
 		managedChart  *mgmtv3.ManagedChart
 		pvc           *corev1.PersistentVolumeClaim
 		upgrade       *harvesterv1.Upgrade
@@ -727,6 +734,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 		clusterOutput *loggingv1.ClusterOutput
 		deployment    *appsv1.Deployment
 		logging       *loggingv1.Logging
+		fbagent       *loggingv1.FluentbitAgent
 		managedChart  *mgmtv3.ManagedChart
 		pvc           *corev1.PersistentVolumeClaim
 		service       *corev1.Service
@@ -803,6 +811,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			},
 			expected: output{
 				logging: prepareLogging(newTestUpgradeLogBuilder().Build(), testImages),
+				fbagent: prepareFluentbitAgent(newTestUpgradeLogBuilder().Build(), testImages),
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionUnknown, "", "").
 					OperatorDeployedCondition(corev1.ConditionTrue, "", "").
@@ -971,6 +980,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 				clusterFlow:   newTestClusterFlowBuilder().Build(),
 				clusterOutput: newTestClusterOutputBuilder().Build(),
 				logging:       newTestLoggingBuilder().Build(),
+				fbagent:       newTestFluentbitAgentBuilder().Build(),
 				upgradeLog: newTestUpgradeLogBuilder().
 					WithAnnotation(upgradeLogStateAnnotation, upgradeLogStateCollecting).
 					UpgradeLogReadyCondition(corev1.ConditionTrue, "", "").
@@ -994,31 +1004,35 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 		var clientset = fake.NewSimpleClientset(tc.given.upgradeLog)
 		if tc.given.addon != nil {
 			var err = clientset.Tracker().Add(tc.given.addon)
-			assert.Nil(t, err, "mock resource should add into fake controller tracker")
+			assert.Nil(t, err, "mock resource addon should add into fake controller tracker")
 		}
 		if tc.given.app != nil {
 			var err = clientset.Tracker().Add(tc.given.app)
-			assert.Nil(t, err, "mock resource should add into fake controller tracker")
+			assert.Nil(t, err, "mock resource app should add into fake controller tracker")
 		}
 		if tc.given.clusterFlow != nil {
 			var err = clientset.Tracker().Add(tc.given.clusterFlow)
-			assert.Nil(t, err, "mock resource should add into fake controller tracker")
+			assert.Nil(t, err, "mock resource clusterFlow should add into fake controller tracker")
 		}
 		if tc.given.clusterOutput != nil {
 			var err = clientset.Tracker().Add(tc.given.clusterOutput)
-			assert.Nil(t, err, "mock resource should add into fake controller tracker")
+			assert.Nil(t, err, "mock resource clusterOutput should add into fake controller tracker")
 		}
 		if tc.given.logging != nil {
 			var err = clientset.Tracker().Add(tc.given.logging)
-			assert.Nil(t, err, "mock resource should add into fake controller tracker")
+			assert.Nil(t, err, "mock resource logging should add into fake controller tracker")
+		}
+		if tc.given.fbagent != nil {
+			var err = clientset.Tracker().Add(tc.given.fbagent)
+			assert.Nil(t, err, "mock resource fluentbitAgent should add into fake controller tracker")
 		}
 		if tc.given.managedChart != nil {
 			var err = clientset.Tracker().Add(tc.given.managedChart)
-			assert.Nil(t, err, "mock resource should add into fake controller tracker")
+			assert.Nil(t, err, "mock resource managedChart should add into fake controller tracker")
 		}
 		if tc.given.upgrade != nil {
 			var err = clientset.Tracker().Add(tc.given.upgrade)
-			assert.Nil(t, err, "mock resource should add into fake controller tracker")
+			assert.Nil(t, err, "mock resource upgrade should add into fake controller tracker")
 		}
 
 		var k8sclientset = k8sfake.NewSimpleClientset()
@@ -1035,6 +1049,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			clusterOutputClient: fakeclients.ClusterOutputClient(clientset.LoggingV1beta1().ClusterOutputs),
 			deploymentClient:    fakeclients.DeploymentClient(k8sclientset.AppsV1().Deployments),
 			loggingClient:       fakeclients.LoggingClient(clientset.LoggingV1beta1().Loggings),
+			fbagentClient:       fakeclients.FluentbitAgentClient(clientset.LoggingV1beta1().FluentbitAgents),
 			managedChartClient:  fakeclients.ManagedChartClient(clientset.ManagementV3().ManagedCharts),
 			managedChartCache:   fakeclients.ManagedChartCache(clientset.ManagementV3().ManagedCharts),
 			pvcClient:           fakeclients.PersistentVolumeClaimClient(k8sclientset.CoreV1().PersistentVolumeClaims),
@@ -1087,6 +1102,18 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 		} else {
 			var err error
 			actual.logging, err = handler.loggingClient.Get(name.SafeConcatName(testUpgradeLogName, util.UpgradeLogInfraComponent), metav1.GetOptions{})
+			assert.True(t, apierrors.IsNotFound(err), "case %q", tc.name)
+		}
+
+		// name is given via builder
+		if tc.expected.fbagent != nil {
+			var err error
+			actual.fbagent, err = handler.fbagentClient.Get(testFluentbitAgentName, metav1.GetOptions{})
+			assert.Nil(t, err)
+			assert.Equal(t, tc.expected.fbagent, actual.fbagent, "case %q", tc.name)
+		} else {
+			var err error
+			actual.fbagent, err = handler.fbagentClient.Get(testFluentbitAgentName, metav1.GetOptions{})
 			assert.True(t, apierrors.IsNotFound(err), "case %q", tc.name)
 		}
 
