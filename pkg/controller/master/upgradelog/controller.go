@@ -24,11 +24,14 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/kubernetes"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlloggingv1 "github.com/harvester/harvester/pkg/generated/controllers/logging.banzaicloud.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/helm"
 )
 
 const (
@@ -48,12 +51,22 @@ const (
 	upgradeLogStateStopped    = "Stopped"
 
 	appLabelName = "app.kubernetes.io/name"
+
+	imageFluentbit      = "fluentbit"
+	imageFluentd        = "fluentd"
+	imageConfigReloader = "config_reloader"
 )
 
 var (
 	logArchiveMatchingLabels = labels.Set{
 		appLabelName:                  "fluentd",
 		util.LabelUpgradeLogComponent: util.UpgradeLogAggregatorComponent,
+	}
+
+	loggingImagesList = map[string][]string{
+		imageFluentbit:      {"images", imageFluentbit},
+		imageFluentd:        {"images", imageFluentd},
+		imageConfigReloader: {"images", imageConfigReloader},
 	}
 )
 
@@ -81,6 +94,7 @@ type handler struct {
 	upgradeCache        ctlharvesterv1.UpgradeCache
 	upgradeLogClient    ctlharvesterv1.UpgradeLogClient
 	upgradeLogCache     ctlharvesterv1.UpgradeLogCache
+	clientset           *kubernetes.Clientset
 }
 
 type Values struct {
@@ -160,7 +174,9 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		toUpdate := upgradeLog.DeepCopy()
 
 		// The creation of the Logging resource will indirectly bring up fluent-bit DaemonSet and fluentd StatefulSet
-		candidateImages, err := h.getConsolidatedLoggingImageList(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
+		//candidateImages, err := h.getConsolidatedLoggingImageList(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
+		// TODO: need to identify which source to get images, currently it only gets from rancher-logging addons, assue addon is enabled
+		candidateImages, err := h.getConsolidatedLoggingImageListFromHelmValues(util.CattleLoggingSystemNamespaceName, util.RancherLoggingName)
 		if err != nil {
 			return upgradeLog, err
 		}
@@ -747,6 +763,39 @@ func (h *handler) getConsolidatedLoggingImageList(appName string) (map[string]Im
 	}
 
 	return result.Images, nil
+}
+
+func (h *handler) getConsolidatedLoggingImageListFromHelmValues(namespace, name string) (map[string]settings.Image, error) {
+	images := make(map[string]settings.Image, len(loggingImagesList))
+
+	// for the convenience of test
+	if h.clientset == nil {
+		images := map[string]settings.Image{
+			imageConfigReloader: {
+				Repository: "rancher/config-reload",
+				Tag:        "default",
+			},
+			imageFluentbit: {
+				Repository: "rancher/fluentbit",
+				Tag:        "dev",
+			},
+			imageFluentd: {
+				Repository: "test/fluentd",
+				Tag:        "dev",
+			},
+		}
+		return images, nil
+	}
+
+	for img, key := range loggingImagesList {
+		imgTag, err := helm.FetchImageFromHelmValues(h.clientset, namespace, name, key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch %v image from helm values %v/%v, error %w", img, namespace, name, err)
+		}
+		images[img] = imgTag
+	}
+
+	return images, nil
 }
 
 func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {

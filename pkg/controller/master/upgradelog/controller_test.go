@@ -17,6 +17,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -36,16 +37,16 @@ const (
 )
 
 var (
-	testImages = map[string]Image{
-		"config_reloader": {
+	testImages = map[string]settings.Image{
+		imageConfigReloader: {
 			Repository: "rancher/config-reload",
 			Tag:        "default",
 		},
-		"fluentbit": {
+		imageFluentbit: {
 			Repository: "rancher/fluentbit",
 			Tag:        "dev",
 		},
-		"fluentd": {
+		imageFluentd: {
 			Repository: "test/fluentd",
 			Tag:        "dev",
 		},
