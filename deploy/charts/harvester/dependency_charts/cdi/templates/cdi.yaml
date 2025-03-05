@@ -1,0 +1,21 @@
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: CDI
+metadata:
+  name: cdi
+spec:
+  {{- with .Values.spec.config }}
+  config:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  imagePullPolicy: {{ .Values.spec.imagePullPolicy }}
+  {{- with .Values.cdi.infra }}
+  infra:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if .Values.spec.uninstallStrategy }}
+  uninstallStrategy: {{ .Values.spec.uninstallStrategy }}
+  {{- end }}
+  {{- with .Values.spec.workload }}
+  workload:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
