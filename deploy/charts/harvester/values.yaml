@@ -111,6 +111,65 @@ kubevirt:
 
 ###########################################################################
 ###########################################################################
+##       Override the sub-charts (CDI) default configuration below       ##
+###########################################################################
+###########################################################################
+cdi:
+  enabled: true
+  containers:
+    version: &cdiVersion 1.61.0-150600.3.12.1
+    operator:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-operator
+        tag: *cdiVersion
+    controller:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-controller
+        tag: *cdiVersion
+    importer:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-importer
+        tag: *cdiVersion
+    cloner:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-cloner
+        tag: *cdiVersion
+    apiserver:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-apiserver
+        tag: *cdiVersion
+    uploadserver:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-uploadserver
+        tag: *cdiVersion
+    uploadproxy:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-uploadproxy
+        tag: *cdiVersion
+    hook:
+      image:
+        repository: rancher/kubectl
+        tag: v1.28.7
+  
+  spec:
+    cloneStrategyOverride: copy
+    config:
+      featureGates:
+        - HonorWaitForFirstConsumer
+    imagePullPolicy: "IfNotPresent"
+    infra:
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+    uninstallStrategy: ""
+    workload:
+      nodeSelector:
+        kubernetes.io/os: linux
+
+###########################################################################
+###########################################################################
 ##                    Default values for Harvester                       ##
 ###########################################################################
 ###########################################################################
