@@ -34,6 +34,7 @@ type Interface interface {
 	ClusterFlow() ClusterFlowController
 	ClusterOutput() ClusterOutputController
 	Flow() FlowController
+	FluentbitAgent() FluentbitAgentController
 	Logging() LoggingController
 	Output() OutputController
 }
@@ -58,6 +59,10 @@ func (v *version) ClusterOutput() ClusterOutputController {
 
 func (v *version) Flow() FlowController {
 	return generic.NewController[*v1beta1.Flow, *v1beta1.FlowList](schema.GroupVersionKind{Group: "logging.banzaicloud.io", Version: "v1beta1", Kind: "Flow"}, "flows", true, v.controllerFactory)
+}
+
+func (v *version) FluentbitAgent() FluentbitAgentController {
+	return generic.NewNonNamespacedController[*v1beta1.FluentbitAgent, *v1beta1.FluentbitAgentList](schema.GroupVersionKind{Group: "logging.banzaicloud.io", Version: "v1beta1", Kind: "FluentbitAgent"}, "fluentbitagents", v.controllerFactory)
 }
 
 func (v *version) Logging() LoggingController {

@@ -40,6 +40,10 @@ func (c *FakeLoggingV1beta1) Flows() v1beta1.FlowInterface {
 	return &FakeFlows{c}
 }
 
+func (c *FakeLoggingV1beta1) FluentbitAgents() v1beta1.FluentbitAgentInterface {
+	return &FakeFluentbitAgents{c}
+}
+
 func (c *FakeLoggingV1beta1) Loggings() v1beta1.LoggingInterface {
 	return &FakeLoggings{c}
 }
