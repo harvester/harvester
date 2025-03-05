@@ -65,6 +65,7 @@ func main() {
 					loggingv1.ClusterOutput{},
 					loggingv1.Flow{},
 					loggingv1.Output{},
+					loggingv1.FluentbitAgent{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
@@ -255,6 +256,7 @@ func loggingWorkaround() {
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_flow.go",
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_output.go",
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_logging.go",
+		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_fluentbitagent.go",
 	}
 
 	// Replace the variable `SchemeGroupVersion` with `GroupVersion` in the above files path
