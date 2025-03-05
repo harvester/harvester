@@ -119,6 +119,7 @@ const (
 	LabelUpgradeLog                       = prefix + "/upgradeLog"
 	LabelUpgradeLogComponent              = prefix + "/upgradeLogComponent"
 	UpgradeLogInfraComponent              = "infra"
+	UpgradeLogFluentbitAgentComponent     = "agent"
 	UpgradeLogShipperComponent            = "shipper"
 	UpgradeLogAggregatorComponent         = "aggregator"
 	UpgradeLogDownloaderComponent         = "downloader"
