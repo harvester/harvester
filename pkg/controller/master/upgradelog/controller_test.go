@@ -24,38 +24,42 @@ import (
 const (
 	harvesterUpgradeLabel = "harvesterhci.io/upgrade"
 
-	testUpgradeName        = "test-upgrade"
-	testUpgradeLogName     = "test-upgrade-upgradelog"
-	testUpgradeLogUID      = "test-upgradelog-uid"
-	testClusterFlowName    = "test-upgrade-upgradelog-clusterflow"
-	testClusterOutputName  = "test-upgrade-upgradelog-clusteroutput"
-	testDaemonSetName      = "test-upgrade-upgradelog-fluentbit"
-	testDeploymentName     = "test-upgrade-upgradelog-log-downloader"
-	testJobName            = "test-upgrade-upgradelog-log-packager"
-	testLoggingName        = "test-upgrade-upgradelog-infra"
-	testFluentbitAgentName = "test-upgrade-upgradelog" + "-" + util.UpgradeLogFluentbitAgentComponent
-	testLoggingUID         = "test-logging-uid"
-	testManagedChartName   = "test-upgrade-upgradelog-operator"
-	testPvcName            = "test-upgrade-upgradelog-log-archive"
-	testStatefulSetName    = "test-upgrade-upgradelog-fluentd"
-	testArchiveName        = "test-archive"
-	testImageVersion       = "dev"
+	testUpgradeName     = "test-upgrade"
+	testUpgradeLogName  = "test-upgrade-upgradelog"
+	testUpgradeLogUID   = "test-upgradelog-uid"
+	testDaemonSetName   = "test-upgrade-upgradelog-fluentbit"
+	testJobName         = "test-upgrade-upgradelog-log-packager"
+	testLoggingUID      = "test-logging-uid"
+	testStatefulSetName = "test-upgrade-upgradelog-fluentd"
+	testArchiveName     = "test-archive"
+	testImageVersion    = "dev"
 )
 
-var testImages = map[string]Image{
-	"config_reloader": {
-		Repository: "rancher/config-reload",
-		Tag:        "default",
-	},
-	"fluentbit": {
-		Repository: "rancher/fluentbit",
-		Tag:        "dev",
-	},
-	"fluentd": {
-		Repository: "test/fluentd",
-		Tag:        "dev",
-	},
-}
+var (
+	testImages = map[string]Image{
+		"config_reloader": {
+			Repository: "rancher/config-reload",
+			Tag:        "default",
+		},
+		"fluentbit": {
+			Repository: "rancher/fluentbit",
+			Tag:        "dev",
+		},
+		"fluentd": {
+			Repository: "test/fluentd",
+			Tag:        "dev",
+		},
+	}
+
+	// note: test code uses fixed name to generate object, the related get/delete should also use given name
+	testClusterOutputName  = name.SafeConcatName(testUpgradeLogName, util.UpgradeLogOutputComponent)
+	testLoggingInfraName   = name.SafeConcatName(testUpgradeLogName, util.UpgradeLogInfraComponent)
+	testFluentbitAgentName = name.SafeConcatName(testUpgradeLogName, util.UpgradeLogFluentbitAgentComponent)
+	testPvcName            = name.SafeConcatName(testUpgradeLogName, util.UpgradeLogArchiveComponent)
+	testManagedChartName   = name.SafeConcatName(testUpgradeLogName, util.UpgradeLogOperatorComponent)
+	testClusterFlowName    = name.SafeConcatName(testUpgradeLogName, util.UpgradeLogFlowComponent)
+	testDeploymentName     = name.SafeConcatName(testUpgradeLogName, util.UpgradeLogDownloaderComponent)
+)
 
 func newTestApp() *catalogv1.App {
 	return &catalogv1.App{
@@ -118,7 +122,7 @@ func newTestJobBuilder() *jobBuilder {
 }
 
 func newTestLoggingBuilder() *loggingBuilder {
-	return newLoggingBuilder(testLoggingName).
+	return newLoggingBuilder(testLoggingInfraName).
 		WithLabel(util.LabelUpgradeLog, testUpgradeLogName)
 }
 
@@ -548,14 +552,14 @@ func TestHandler_OnPvcChange(t *testing.T) {
 					WithLabel(appLabelName, "fluentd").
 					WithLabel(util.LabelUpgradeLogComponent, util.UpgradeLogAggregatorComponent).
 					WithLabel(util.LabelUpgradeLog, testUpgradeLogName).
-					OwnerReference(testLoggingName, testLoggingUID).
+					OwnerReference(testLoggingInfraName, testLoggingUID).
 					Build(),
 			},
 			expected: output{
 				upgradeLog: newTestUpgradeLogBuilder().
 					WithAnnotation(util.AnnotationUpgradeLogLogArchiveAltName, testPvcName).Build(),
 				pvc: newTestPvcBuilder().
-					OwnerReference(testLoggingName, testLoggingUID).
+					OwnerReference(testLoggingInfraName, testLoggingUID).
 					OwnerReference(testUpgradeLogName, "").
 					Build(),
 			},
@@ -567,13 +571,13 @@ func TestHandler_OnPvcChange(t *testing.T) {
 				upgradeLog: newTestUpgradeLogBuilder().Build(),
 				pvc: newTestPvcBuilder().
 					WithLabel(appLabelName, "fluentd").
-					OwnerReference(testLoggingName, testLoggingUID).
+					OwnerReference(testLoggingInfraName, testLoggingUID).
 					OwnerReference(testUpgradeLogName, testUpgradeLogUID).
 					Build(),
 			},
 			expected: output{
 				pvc: newTestPvcBuilder().
-					OwnerReference(testLoggingName, testLoggingUID).
+					OwnerReference(testLoggingInfraName, testLoggingUID).
 					OwnerReference(testUpgradeLogName, testUpgradeLogUID).
 					Build(),
 			},
@@ -585,12 +589,12 @@ func TestHandler_OnPvcChange(t *testing.T) {
 				upgradeLog: newTestUpgradeLogBuilder().Build(),
 				pvc: newTestPvcBuilder().
 					WithLabel(appLabelName, "fluentd").
-					OwnerReference(testLoggingName, testLoggingUID).
+					OwnerReference(testLoggingInfraName, testLoggingUID).
 					Build(),
 			},
 			expected: output{
 				pvc: newTestPvcBuilder().
-					OwnerReference(testLoggingName, testLoggingUID).
+					OwnerReference(testLoggingInfraName, testLoggingUID).
 					Build(),
 			},
 		},
@@ -1066,12 +1070,12 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			// HACK: cannot create ClusterFlow with namespace specified using fake client so we skip the field here
 			tc.expected.clusterFlow.Namespace = ""
 			var err error
-			actual.clusterFlow, err = handler.clusterFlowClient.Get(util.HarvesterSystemNamespaceName, name.SafeConcatName(testUpgradeLogName, util.UpgradeLogFlowComponent), metav1.GetOptions{})
+			actual.clusterFlow, err = handler.clusterFlowClient.Get(util.HarvesterSystemNamespaceName, testClusterFlowName, metav1.GetOptions{})
 			assert.Nil(t, err)
 			assert.Equal(t, tc.expected.clusterFlow, actual.clusterFlow, "case %q", tc.name)
 		} else {
 			var err error
-			actual.clusterFlow, err = handler.clusterFlowClient.Get(util.HarvesterSystemNamespaceName, name.SafeConcatName(testUpgradeLogName, util.UpgradeLogFlowComponent), metav1.GetOptions{})
+			actual.clusterFlow, err = handler.clusterFlowClient.Get(util.HarvesterSystemNamespaceName, testClusterFlowName, metav1.GetOptions{})
 			assert.True(t, apierrors.IsNotFound(err), "case %q", tc.name)
 		}
 
@@ -1079,29 +1083,29 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			// HACK: cannot create ClusterOutput with namespace specified using fake client so we skip the field here
 			tc.expected.clusterOutput.Namespace = ""
 			var err error
-			actual.clusterOutput, err = handler.clusterOutputClient.Get(util.HarvesterSystemNamespaceName, name.SafeConcatName(testUpgradeLogName, util.UpgradeLogOutputComponent), metav1.GetOptions{})
+			actual.clusterOutput, err = handler.clusterOutputClient.Get(util.HarvesterSystemNamespaceName, testClusterOutputName, metav1.GetOptions{})
 			assert.Nil(t, err)
 			assert.Equal(t, tc.expected.clusterOutput, actual.clusterOutput, "case %q", tc.name)
 		} else {
 			var err error
-			actual.clusterOutput, err = handler.clusterOutputClient.Get(util.HarvesterSystemNamespaceName, name.SafeConcatName(testUpgradeLogName, util.UpgradeLogOutputComponent), metav1.GetOptions{})
+			actual.clusterOutput, err = handler.clusterOutputClient.Get(util.HarvesterSystemNamespaceName, testClusterOutputName, metav1.GetOptions{})
 			assert.True(t, apierrors.IsNotFound(err), "case %q", tc.name)
 		}
 
 		if tc.expected.deployment != nil {
 			var err error
-			actual.deployment, err = handler.deploymentClient.Get(util.HarvesterSystemNamespaceName, name.SafeConcatName(testUpgradeLogName, util.UpgradeLogDownloaderComponent), metav1.GetOptions{})
+			actual.deployment, err = handler.deploymentClient.Get(util.HarvesterSystemNamespaceName, testDeploymentName, metav1.GetOptions{})
 			assert.Nil(t, err)
 		}
 
 		if tc.expected.logging != nil {
 			var err error
-			actual.logging, err = handler.loggingClient.Get(name.SafeConcatName(testUpgradeLogName, util.UpgradeLogInfraComponent), metav1.GetOptions{})
+			actual.logging, err = handler.loggingClient.Get(testLoggingInfraName, metav1.GetOptions{})
 			assert.Nil(t, err)
 			assert.Equal(t, tc.expected.logging, actual.logging, "case %q", tc.name)
 		} else {
 			var err error
-			actual.logging, err = handler.loggingClient.Get(name.SafeConcatName(testUpgradeLogName, util.UpgradeLogInfraComponent), metav1.GetOptions{})
+			actual.logging, err = handler.loggingClient.Get(testLoggingInfraName, metav1.GetOptions{})
 			assert.True(t, apierrors.IsNotFound(err), "case %q", tc.name)
 		}
 
@@ -1119,18 +1123,18 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 
 		if tc.expected.managedChart != nil {
 			var err error
-			actual.managedChart, err = handler.managedChartClient.Get(util.FleetLocalNamespaceName, name.SafeConcatName(testUpgradeLogName, util.UpgradeLogOperatorComponent), metav1.GetOptions{})
+			actual.managedChart, err = handler.managedChartClient.Get(util.FleetLocalNamespaceName, testManagedChartName, metav1.GetOptions{})
 			assert.Nil(t, err)
 		}
 
 		if tc.expected.pvc != nil {
 			var err error
-			actual.pvc, err = handler.pvcClient.Get(util.HarvesterSystemNamespaceName, name.SafeConcatName(testUpgradeLogName, util.UpgradeLogArchiveComponent), metav1.GetOptions{})
+			actual.pvc, err = handler.pvcClient.Get(util.HarvesterSystemNamespaceName, testPvcName, metav1.GetOptions{})
 			assert.Nil(t, err)
 			assert.Equal(t, tc.expected.pvc, actual.pvc, "case %q", tc.name)
 		} else {
 			var err error
-			actual.pvc, err = handler.pvcClient.Get(util.HarvesterSystemNamespaceName, name.SafeConcatName(testUpgradeLogName, util.UpgradeLogArchiveComponent), metav1.GetOptions{})
+			actual.pvc, err = handler.pvcClient.Get(util.HarvesterSystemNamespaceName, testPvcName, metav1.GetOptions{})
 			assert.True(t, apierrors.IsNotFound(err), "case %q", tc.name)
 		}
 
