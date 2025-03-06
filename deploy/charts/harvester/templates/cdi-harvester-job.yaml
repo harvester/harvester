@@ -1,0 +1,48 @@
+{{ if .Values.cdi.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wait-for-crd-volumeimportsource
+  annotations:
+    helm.sh/hook: post-install
+    helm.sh/hook-weight: "2"
+    helm.sh/hook-delete-policy: hook-succeeded
+spec:
+  template:
+    spec:
+      serviceAccountName: harvester
+      containers:
+      - name: wait-for-crd
+        image: rancher/kubectl:v1.29.2
+        args:
+            - wait
+            - --for=condition=Established
+            - --timeout=600s
+            - crd/volumeimportsources.cdi.kubevirt.io
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wait-for-cdi-api-pod
+  annotations:
+    helm.sh/hook: post-install
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: hook-succeeded
+spec:
+  template:
+    spec:
+      serviceAccountName: harvester
+      containers:
+      - name: wait-for-cdi-api
+        image: rancher/kubectl:v1.29.2
+        command:
+          - kubectl
+          - wait
+          - --for=condition=Ready
+          - --timeout=120s
+          - pod
+          - -l
+          - cdi.kubevirt.io=cdi-apiserver
+      restartPolicy: Never
+{{- end -}}
