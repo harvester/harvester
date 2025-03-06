@@ -37,7 +37,7 @@ type _metaRecordModifier interface{} //nolint:deadcode,unused
 
 // +kubebuilder:object:generate=true
 type RecordModifier struct {
-	// Prepare values for filtering in configure phase. Prepared values can be used in <record>. You can write any ruby code.
+	// Prepare values for filtering in configure phase. Prepared values can be used in `<record>`. You can write any ruby code.
 	PrepareValues string `json:"prepare_value,omitempty"`
 	// Fluentd including some plugins treats logs as a BINARY by default to forward. To overide that, use a target encoding or a from:to encoding here.
 	CharEncoding string `json:"char_encoding,omitempty"`
@@ -52,38 +52,37 @@ type RecordModifier struct {
 	Records []Record `json:"records,omitempty"`
 }
 
-// ## Example `Record Modifier` filter configurations
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: Flow
-// metadata:
 //
-//	name: demo-flow
-//
-// spec:
-//
-//	filters:
-//	  - record_modifier:
-//	      records:
-//	      - foo: "bar"
-//	selectors: {}
-//	localOutputRefs:
-//	  - demo-output
-//
-// ```
-//
-// #### Fluentd Config Result
-// ```yaml
-// <filter **>
-//
-//	@type record_modifier
-//	@id test_record_modifier
-//	<record>
-//	  foo bar
-//	</record>
-//
-// </filter>
-// ```
+/*
+## Example `Record Modifier` filter configurations
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Flow
+metadata:
+  name: demo-flow
+spec:
+  filters:
+    - record_modifier:
+        records:
+        - foo: "bar"
+  selectors: {}
+  localOutputRefs:
+    - demo-output
+{{</ highlight >}}
+
+Fluentd config result:
+
+{{< highlight xml >}}
+<filter **>
+  @type record_modifier
+  @id test_record_modifier
+  <record>
+    foo bar
+  </record>
+</filter>
+{{</ highlight >}}
+*/
 type _expRecordModifier interface{} //nolint:deadcode,unused
 
 // +kubebuilder:object:generate=true

@@ -15,8 +15,9 @@
 package v1beta1
 
 import (
-	filter "github.com/kube-logging/logging-operator/pkg/sdk/logging/model/syslogng/filter"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	filter "github.com/kube-logging/logging-operator/pkg/sdk/logging/model/syslogng/filter"
 )
 
 // +name:"SyslogNGFlowSpec"
@@ -35,6 +36,9 @@ type SyslogNGFlowSpec struct {
 	LoggingRef       string           `json:"loggingRef,omitempty"`
 	GlobalOutputRefs []string         `json:"globalOutputRefs,omitempty"`
 	LocalOutputRefs  []string         `json:"localOutputRefs,omitempty"`
+	// Output metrics are applied before the log reaches the destination and contain output metadata like: `name,` `namespace` and `scope`. Scope shows whether the output is a local or global one.
+	// Available in Logging operator version 4.5 and later.
+	OutputMetrics []filter.MetricsProbe `json:"outputMetrics,omitempty"`
 }
 
 type SyslogNGMatch filter.MatchExpr

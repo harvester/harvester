@@ -28,33 +28,35 @@ import (
 type _hugoS3 interface{} //nolint:deadcode,unused
 
 // +docName:"Amazon S3 plugin for Fluentd"
-// **s3** output plugin buffers event logs in local file and upload it to S3 periodically. This plugin splits files exactly by using the time of event logs (not the time when the logs are received). For example, a log '2011-01-02 message B' is reached, and then another log '2011-01-03 message B' is reached in this order, the former one is stored in "20110102.gz" file, and latter one in "20110103.gz" file.
-// >Example: [S3 Output Deployment](../../../../quickstarts/example-s3/)
-//
-// ## Example output configurations
-// ```yaml
-// spec:
-//
-//	s3:
-//	  aws_key_id:
-//	    valueFrom:
-//	      secretKeyRef:
-//	        name: logging-s3
-//	        key: awsAccessKeyId
-//	  aws_sec_key:
-//	    valueFrom:
-//	      secretKeyRef:
-//	        name: logging-s3
-//	        key: awsSecretAccessKey
-//	  s3_bucket: logging-amazon-s3
-//	  s3_region: eu-central-1
-//	  path: logs/${tag}/%Y/%m/%d/
-//	  buffer:
-//	    timekey: 10m
-//	    timekey_wait: 30s
-//	    timekey_use_utc: true
-//
-// ```
+/*
+The **s3** output plugin buffers event logs in local file and upload it to S3 periodically. This plugin splits files exactly by using the time of event logs (not the time when the logs are received). For example, a log '2011-01-02 message B' is reached, and then another log '2011-01-03 message B' is reached in this order, the former one is stored in "20110102.gz" file, and latter one in "20110103.gz" file.
+
+For a detailed example, see [S3 Output Deployment](../../../../quickstarts/example-s3/).
+
+## Example output configurations
+
+```yaml
+spec:
+  s3:
+    aws_key_id:
+      valueFrom:
+        secretKeyRef:
+          name: logging-s3
+          key: awsAccessKeyId
+    aws_sec_key:
+      valueFrom:
+        secretKeyRef:
+          name: logging-s3
+          key: awsSecretAccessKey
+    s3_bucket: logging-amazon-s3
+    s3_region: eu-central-1
+    path: logs/${tag}/%Y/%m/%d/
+    buffer:
+      timekey: 10m
+      timekey_wait: 30s
+      timekey_use_utc: true
+```
+*/
 type _docS3 interface{} //nolint:deadcode,unused
 
 // +name:"Amazon S3"
@@ -137,7 +139,7 @@ type S3OutputConfig struct {
 	GrantFullControl string `json:"grant_full_control,omitempty"`
 	// The length of `%{hex_random}` placeholder(4-16)
 	HexRandomLength string `json:"hex_random_length,omitempty"`
-	// The format of S3 object keys (default: %{path}%{time_slice}_%{uuid_hash}_%{index}.%{file_extension})
+	// The format of S3 object keys (default: `%{path}%{time_slice}_%{uuid_hash}_%{index}.%{file_extension}`)
 	S3ObjectKeyFormat string `json:"s3_object_key_format,omitempty" plugin:"default:%{path}%{time_slice}_%{uuid_hash}_%{index}.%{file_extension}"`
 	// S3 bucket name
 	S3Bucket string `json:"s3_bucket"`

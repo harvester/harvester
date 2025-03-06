@@ -19,6 +19,46 @@ import (
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/types"
 )
 
+// +name:"ElasticSearch GenId"
+// +weight:"200"
+type _hugoElasticsearchGenId interface{} //nolint:deadcode,unused
+
+// +docName:"ElasticSearch GenId"
+/*
+## Example `Elasticsearch Genid` filter configurations
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Flow
+metadata:
+ name: demo-flow
+spec:
+ filters:
+   - elasticsearch_genid:
+       hash_id_key: gen_id
+ selectors: {}
+ localOutputRefs:
+   - demo-output
+{{</ highlight >}}
+
+Fluentd Config Result
+
+{{< highlight xml >}}
+<filter **>
+ @type elasticsearch_genid
+ @id test_elasticsearch_genid
+ hash_id_key gen_id
+</filter>
+{{</ highlight >}}
+*/
+type _docElasticsearchGenId interface{} //nolint:deadcode,unused
+
+// +name:"ElasticSearch GenId"
+// +url:"TODO"
+// +description:""
+// +status:""
+type _metaElasticsearchGenId interface{} //nolint:deadcode,unused
+
 // +kubebuilder:object:generate=true
 type ElasticsearchGenId struct {
 	// You can specify generated hash storing key.
@@ -38,30 +78,6 @@ type ElasticsearchGenId struct {
 	// You can specify hash algorithm. Support algorithms md5, sha1, sha256, sha512. Default: sha1
 	HashType string `json:"hash_type,omitempty"`
 }
-
-// ## Example `Elasticsearch Genid` filter configurations
-// ```yaml
-//apiVersion: logging.banzaicloud.io/v1beta1
-//kind: Flow
-//metadata:
-//  name: demo-flow
-//spec:
-//  filters:
-//    - elasticsearch_genid:
-//        hash_id_key: gen_id
-//  selectors: {}
-//  localOutputRefs:
-//    - demo-output
-// ```
-//
-// #### Fluentd Config Result
-// ```yaml
-//<filter **>
-//  @type elasticsearch_genid
-//  @id test_elasticsearch_genid
-//  hash_id_key gen_id
-//</filter>
-// ```
 
 func NewElasticsearchGenId() *ElasticsearchGenId {
 	return &ElasticsearchGenId{}
