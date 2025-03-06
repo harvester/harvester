@@ -129,6 +129,7 @@ const (
 	UpgradeLogOutputComponent             = "clusteroutput"
 	UpgradeLogPackagerComponent           = "packager"
 	AnnotationUpgradeLogLogArchiveAltName = prefix + "/logArchiveAltName"
+	UpgradeLogLoggingOperatorSource       = prefix + "/loggingOperatorSource" // the source of logging operator: addon or managedchart
 
 	UpgradeNodeDrainTaintKey   = "kubevirt.io/drain"
 	UpgradeNodeDrainTaintValue = "draining"

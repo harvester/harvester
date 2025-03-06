@@ -439,7 +439,8 @@ func TestHandler_OnManagedChartChange(t *testing.T) {
 			},
 			expected: output{
 				upgradeLog: newTestUpgradeLogBuilder().
-					OperatorDeployedCondition(corev1.ConditionTrue, "", "").Build(),
+					OperatorDeployedCondition(corev1.ConditionTrue, "", "").
+					LoggingOperatorSource(testManagedChartName).Build(),
 			},
 		},
 	}
@@ -774,7 +775,8 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 				managedChart: prepareOperator(newTestUpgradeLogBuilder().Build()),
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionUnknown, "", "").
-					OperatorDeployedCondition(corev1.ConditionUnknown, "", "").Build(),
+					OperatorDeployedCondition(corev1.ConditionUnknown, "", "").
+					LoggingOperatorSource(testManagedChartName).Build(),
 			},
 		},
 		{
@@ -788,21 +790,8 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			expected: output{
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionUnknown, "", "").
-					OperatorDeployedCondition(corev1.ConditionTrue, "Skipped", "rancher-logging Addon is enabled").Build(),
-			},
-		},
-		{
-			name: "There exists a ready rancher-logging ManagedChart, therefore skip the ManagedChart installation",
-			given: input{
-				key:          testUpgradeLogName,
-				managedChart: newManagedChartBuilder(util.RancherLoggingName).Ready().Build(),
-				upgradeLog: newTestUpgradeLogBuilder().
-					UpgradeLogReadyCondition(corev1.ConditionUnknown, "", "").Build(),
-			},
-			expected: output{
-				upgradeLog: newTestUpgradeLogBuilder().
-					UpgradeLogReadyCondition(corev1.ConditionUnknown, "", "").
-					OperatorDeployedCondition(corev1.ConditionTrue, "Skipped", "rancher-logging ManagedChart is ready").Build(),
+					OperatorDeployedCondition(corev1.ConditionTrue, "Skipped", "rancher-logging Addon is enabled").
+					LoggingOperatorSource(util.RancherLoggingName).Build(),
 			},
 		},
 		{
@@ -812,7 +801,8 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 				app: newTestApp(),
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionUnknown, "", "").
-					OperatorDeployedCondition(corev1.ConditionTrue, "", "").Build(),
+					OperatorDeployedCondition(corev1.ConditionTrue, "", "").
+					LoggingOperatorSource(util.RancherLoggingName).Build(),
 			},
 			expected: output{
 				logging: prepareLogging(newTestUpgradeLogBuilder().Build(), testImages),
@@ -820,7 +810,8 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionUnknown, "", "").
 					OperatorDeployedCondition(corev1.ConditionTrue, "", "").
-					InfraReadyCondition(corev1.ConditionUnknown, "", "").Build(),
+					InfraReadyCondition(corev1.ConditionUnknown, "", "").
+					LoggingOperatorSource(util.RancherLoggingName).Build(),
 			},
 		},
 		{
