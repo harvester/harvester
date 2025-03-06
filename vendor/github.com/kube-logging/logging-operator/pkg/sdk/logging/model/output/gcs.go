@@ -24,18 +24,19 @@ import (
 type _hugoGCS interface{} //nolint:deadcode,unused
 
 // +docName:"Google Cloud Storage"
-// Store logs in Google Cloud Storage. For details, see [https://github.com/kube-logging/fluent-plugin-gcs](https://github.com/kube-logging/fluent-plugin-gcs).
-//
-// ## Example
-// ```yaml
-// spec:
-//
-//	gcs:
-//	  project: logging-example
-//	  bucket: banzai-log-test
-//	  path: logs/${tag}/%Y/%m/%d/
-//
-// ```
+/*
+Store logs in Google Cloud Storage. For details, see [https://github.com/kube-logging/fluent-plugin-gcs](https://github.com/kube-logging/fluent-plugin-gcs).
+
+## Example
+
+```yaml
+spec:
+  gcs:
+    project: logging-example
+    bucket: banzai-log-test
+    path: logs/${tag}/%Y/%m/%d/
+```
+*/
 type _docGCS interface{} //nolint:deadcode,unused
 
 // +name:"Google Cloud Storage"
@@ -60,7 +61,7 @@ type GCSOutput struct {
 	ClientTimeout int `json:"client_timeout,omitempty"`
 	// Name of a GCS bucket
 	Bucket string `json:"bucket"`
-	// Format of GCS object keys (default: %{path}%{time_slice}_%{index}.%{file_extension})
+	// Format of GCS object keys (default: `%{path}%{time_slice}_%{index}.%{file_extension}`)
 	ObjectKeyFormat string `json:"object_key_format,omitempty"`
 	// Path prefix of the files on GCS
 	Path string `json:"path,omitempty"`
@@ -74,10 +75,10 @@ type GCSOutput struct {
 	HexRandomLength int `json:"hex_random_length,omitempty"`
 	// Overwrite already existing path (default: false)
 	Overwrite bool `json:"overwrite,omitempty"`
-	// Permission for the object in GCS: auth_read owner_full owner_read private project_private public_read
+	// Permission for the object in GCS: `auth_read` `owner_full` `owner_read` `private` `project_private` `public_read`
 	// +kubebuilder:validation:enum=auth_read,owner_full,owner_read,private,project_private,public_read
 	Acl string `json:"acl,omitempty"`
-	// Storage class of the file: dra nearline coldline multi_regional regional standard
+	// Storage class of the file: `dra` `nearline` `coldline` `multi_regional` `regional` `standard`
 	// +kubebuilder:validation:enum=dra,nearline,coldline,multi_regional,regional,standard
 	StorageClass string `json:"storage_class,omitempty"`
 	// Customer-supplied, AES-256 encryption key

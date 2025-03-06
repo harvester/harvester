@@ -19,89 +19,93 @@ package filter
 type _hugoRewrite interface{} //nolint:deadcode,unused
 
 // +kubebuilder:object:generate=true
-// +docName:"[Rewrite](https://www.syslog-ng.com/technical-documents/doc/syslog-ng-open-source-edition/3.37/administration-guide/76#TOPIC-1829205)"
-// Rewrite filters can be used to modify record contents. Logging operator currently supports the following rewrite functions:
-//
-// - [group_unset](#groupunset)
-// - [rename](#rename)
-// - [set](#set)
-// - [substitute](#subst)
-// - [unset](#unset)
-//
-// > Note: All rewrite functions support an optional `condition` which has the same syntax as the [match filter](../match/).
-//
-// ## Group unset {#groupunset}
-//
-// The `group_unset` function removes from the record a group of fields matching a pattern.
-//
-// {{< highlight yaml >}}
-//
-//	filters:
-//	- rewrite:
-//	  - group_unset:
-//	      pattern: "json.kubernetes.annotations.*"
-//
-// {{</ highlight >}}
-//
-// ## Rename
-//
-// The `rename` function changes the name of an existing field name.
-//
-// {{< highlight yaml >}}
-//
-//	filters:
-//	- rewrite:
-//	  - rename:
-//	      oldName: "json.kubernetes.labels.app"
-//	      newName: "json.kubernetes.labels.app.kubernetes.io/name"
-//
-// {{</ highlight >}}
-//
-// ## Set
-//
-// The `set` function sets the value of a field.
-//
-// {{< highlight yaml >}}
-//
-//	filters:
-//	- rewrite:
-//	  - set:
-//	      field: "json.kubernetes.cluster"
-//	      value: "prod-us"
-//
-// {{</ highlight >}}
-//
-// ## Substitute (subst) {#subst}
-//
-// The `subst` function replaces parts of a field with a replacement value based on a pattern.
-//
-// {{< highlight yaml >}}
-//
-//	filters:
-//	- rewrite:
-//	  - subst:
-//	      pattern: "\d\d\d\d-\d\d\d\d-\d\d\d\d-\d\d\d\d"
-//	      replace: "[redacted bank card number]"
-//	      field: "MESSAGE"
-//
-// {{</ highlight >}}
-//
-// The function also supports the `type` and `flags` fields for specifying pattern type and flags as described in the [match expression regexp function](../match/).
-//
-// ## Unset
-//
-// You can unset macros or fields of the message.
-//
-// > Note: Unsetting a field completely deletes any previous value of the field.
-//
-// {{< highlight yaml >}}
-//
-//	filters:
-//	- rewrite:
-//	  - unset:
-//	      field: "json.kubernetes.cluster"
-//
-// {{</ highlight >}}
+// +docName:"[Rewrite](https://axoflow.com/docs/axosyslog-core/chapter-manipulating-messages/modifying-messages/)"
+/*
+Rewrite filters can be used to modify record contents. Logging operator currently supports the following rewrite functions:
+
+- [group_unset](#groupunset)
+- [rename](#rename)
+- [set](#set)
+- [substitute](#subst)
+- [unset](#unset)
+
+> Note: All rewrite functions support an optional `condition` which has the same syntax as the [match filter](../match/).
+
+For details on how rewrite rules work in syslog-ng, see the [documentation of the AxoSyslog syslog-ng distribution](https://axoflow.com/docs/axosyslog-core/chapter-manipulating-messages/modifying-messages/).
+
+## Group unset {#groupunset}
+
+The `group_unset` function removes from the record a group of fields matching a pattern.
+
+{{< highlight yaml >}}
+  filters:
+  - rewrite:
+    - group_unset:
+        pattern: "json.kubernetes.annotations.*"
+{{</ highlight >}}
+
+For details, see the [documentation of the AxoSyslog syslog-ng distribution](https://axoflow.com/docs/axosyslog-core/chapter-manipulating-messages/modifying-messages/rewrite-unset/).
+
+## Rename
+
+The `rename` function changes the name of an existing field name.
+
+{{< highlight yaml >}}
+  filters:
+  - rewrite:
+    - rename:
+        oldName: "json.kubernetes.labels.app"
+        newName: "json.kubernetes.labels.app.kubernetes.io/name"
+{{</ highlight >}}
+
+For details, see the [documentation of the AxoSyslog syslog-ng distribution](https://axoflow.com/docs/axosyslog-core/chapter-manipulating-messages/modifying-messages/rewrite-rename/).
+
+## Set
+
+The `set` function sets the value of a field.
+
+{{< highlight yaml >}}
+  filters:
+  - rewrite:
+    - set:
+        field: "json.kubernetes.cluster"
+        value: "prod-us"
+{{</ highlight >}}
+
+For details, see the [documentation of the AxoSyslog syslog-ng distribution](https://axoflow.com/docs/axosyslog-core/chapter-manipulating-messages/modifying-messages/rewrite-set/).
+
+## Substitute (subst) {#subst}
+
+The `subst` function replaces parts of a field with a replacement value based on a pattern.
+
+{{< highlight yaml >}}
+  filters:
+  - rewrite:
+    - subst:
+        pattern: "\d\d\d\d-\d\d\d\d-\d\d\d\d-\d\d\d\d"
+        replace: "[redacted bank card number]"
+        field: "MESSAGE"
+{{</ highlight >}}
+
+The function also supports the `type` and `flags` fields for specifying pattern type and flags as described in the [match expression regexp function](../match/).
+
+For details, see the [documentation of the AxoSyslog syslog-ng distribution](https://axoflow.com/docs/axosyslog-core/chapter-manipulating-messages/modifying-messages/rewrite-replace/).
+
+## Unset
+
+You can unset macros or fields of the message.
+
+> Note: Unsetting a field completely deletes any previous value of the field.
+
+{{< highlight yaml >}}
+  filters:
+  - rewrite:
+    - unset:
+        field: "json.kubernetes.cluster"
+{{</ highlight >}}
+
+For details, see the [documentation of the AxoSyslog syslog-ng distribution](https://axoflow.com/docs/axosyslog-core/chapter-manipulating-messages/modifying-messages/rewrite-unset/).
+*/
 type _docRewrite interface{} //nolint:deadcode,unused
 
 // +name:"Syslog-NG Rewrite"
@@ -121,7 +125,7 @@ type RewriteConfig struct {
 }
 
 // +kubebuilder:object:generate=true
-// https://www.syslog-ng.com/technical-documents/doc/syslog-ng-open-source-edition/3.37/administration-guide/78#TOPIC-1829213
+// For details, see the [documentation of the AxoSyslog syslog-ng distribution](https://axoflow.com/docs/axosyslog-core/chapter-manipulating-messages/modifying-messages/rewrite-rename/).
 type RenameConfig struct {
 	OldFieldName string     `json:"oldName" syslog-ng:"pos=0"`
 	NewFieldName string     `json:"newName" syslog-ng:"pos=1"`
@@ -129,7 +133,7 @@ type RenameConfig struct {
 }
 
 // +kubebuilder:object:generate=true
-// https://www.syslog-ng.com/technical-documents/doc/syslog-ng-open-source-edition/3.37/administration-guide/77#TOPIC-1829207
+// For details, see the [documentation of the AxoSyslog syslog-ng distribution](https://axoflow.com/docs/axosyslog-core/chapter-manipulating-messages/modifying-messages/rewrite-set/).
 type SetConfig struct {
 	FieldName string     `json:"field" syslog-ng:"name=value"` // NOTE: this is specified as `value(<field name>)` in the syslog-ng config
 	Value     string     `json:"value" syslog-ng:"pos=0"`
@@ -137,7 +141,7 @@ type SetConfig struct {
 }
 
 // +kubebuilder:object:generate=true
-// https://www.syslog-ng.com/technical-documents/doc/syslog-ng-open-source-edition/3.37/administration-guide/77#TOPIC-1829206
+// For details, see the [documentation of the AxoSyslog syslog-ng distribution](https://axoflow.com/docs/axosyslog-core/chapter-manipulating-messages/modifying-messages/rewrite-set/).
 type SubstituteConfig struct {
 	Pattern     string     `json:"pattern" syslog-ng:"pos=0"`
 	Replacement string     `json:"replace" syslog-ng:"pos=1"`
@@ -148,14 +152,14 @@ type SubstituteConfig struct {
 }
 
 // +kubebuilder:object:generate=true
-// https://www.syslog-ng.com/technical-documents/doc/syslog-ng-open-source-edition/3.37/administration-guide/78#TOPIC-1829212
+// For details, see the [documentation of the AxoSyslog syslog-ng distribution](https://axoflow.com/docs/axosyslog-core/chapter-manipulating-messages/modifying-messages/rewrite-unset/).
 type UnsetConfig struct {
 	FieldName string     `json:"field" syslog-ng:"name=value"` // NOTE: this is specified as `value(<field name>)` in the syslog-ng config
 	Condition *MatchExpr `json:"condition,omitempty" syslog-ng:"name=condition,optional"`
 }
 
 // +kubebuilder:object:generate=true
-// https://www.syslog-ng.com/technical-documents/doc/syslog-ng-open-source-edition/3.37/administration-guide/78#TOPIC-1829212
+// For details, see the [documentation of the AxoSyslog syslog-ng distribution](https://axoflow.com/docs/axosyslog-core/chapter-manipulating-messages/modifying-messages/rewrite-unset/).
 type GroupUnsetConfig struct {
 	Pattern   string     `json:"pattern" syslog-ng:"name=values"` // NOTE: this is specified as `value(<field name>)` in the syslog-ng config
 	Condition *MatchExpr `json:"condition,omitempty" syslog-ng:"name=condition,optional"`

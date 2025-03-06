@@ -38,7 +38,7 @@ type _metaSQS interface{} //nolint:deadcode,unused
 // +kubebuilder:object:generate=true
 // +docName:"Output Config"
 type SQSOutputConfig struct {
-	// SQS queue url e.g. https://sqs.us-west-2.amazonaws.com/123456789012/myqueue
+	// SQS queue url e.g. `https://sqs.us-west-2.amazonaws.com/123456789012/myqueue`
 	SQSUrl string `json:"sqs_url,omitempty"`
 	// SQS queue name - required if sqs_url is not set
 	QueueName string `json:"queue_name,omitempty"`
@@ -66,35 +66,34 @@ type SQSOutputConfig struct {
 	SlowFlushLogThreshold string `json:"slow_flush_log_threshold,omitempty"`
 }
 
-// ## Example `SQS` output configurations
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: Output
-// metadata:
 //
-//	name: sqs-output-sample
-//
-// spec:
-//
-//	sqs:
-//	  queue_name: some-aws-sqs-queue
-//	  create_queue: false
-//	  region: us-east-1
-//
-// ```
-//
-// #### Fluentd Config Result
-// ```
-//
-//	<match **>
-//	    @type sqs
-//	    @id test_sqs
-//	    queue_name some-aws-sqs-queue
-//	    create_queue false
-//	    region us-east-1
-//	</match>
-//
-// ```
+/*
+## Example `SQS` output configurations
+
+```yaml
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Output
+metadata:
+  name: sqs-output-sample
+spec:
+  sqs:
+    queue_name: some-aws-sqs-queue
+    create_queue: false
+    region: us-east-1
+```
+
+Fluentd config result:
+
+```xml
+<match **>
+    @type sqs
+    @id test_sqs
+    queue_name some-aws-sqs-queue
+    create_queue false
+    region us-east-1
+</match>
+```
+*/
 type _expSQS interface{} //nolint:deadcode,unused
 
 func (s *SQSOutputConfig) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {

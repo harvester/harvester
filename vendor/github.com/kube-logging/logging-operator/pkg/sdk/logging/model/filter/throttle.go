@@ -19,6 +19,10 @@ import (
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/types"
 )
 
+// +name:"Throttle"
+// +weight:"200"
+type _hugoThrottle interface{} //nolint:deadcode,unused
+
 // +kubebuilder:object:generate=true
 // +docName:"[Throttle Filter](https://github.com/rubrikinc/fluent-plugin-throttle)"
 // A sentry plugin to throttle logs. Logs are grouped by a configurable key. When a group exceeds a configuration rate, logs are dropped for this group.
@@ -47,35 +51,34 @@ type Throttle struct {
 	GroupWarningDelaySeconds int `json:"group_warning_delay_s,omitempty"`
 }
 
-// ## Example `Throttle` filter configurations
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: Flow
-// metadata:
 //
-//	name: demo-flow
-//
-// spec:
-//
-//	filters:
-//	  - throttle:
-//	      group_key: "$.kubernetes.container_name"
-//	selectors: {}
-//	localOutputRefs:
-//	  - demo-output
-//
-// ```
-//
-// #### Fluentd Config Result
-// ```yaml
-// <filter **>
-//
-//	@type throttle
-//	@id test_throttle
-//	group_key $.kubernetes.container_name
-//
-// </filter>
-// ```
+/*
+## Example `Throttle` filter configurations
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Flow
+metadata:
+  name: demo-flow
+spec:
+  filters:
+    - throttle:
+        group_key: "$.kubernetes.container_name"
+  selectors: {}
+  localOutputRefs:
+    - demo-output
+{{</ highlight >}}
+
+Fluentd config result:
+
+{{< highlight xml >}}
+<filter **>
+  @type throttle
+  @id test_throttle
+  group_key $.kubernetes.container_name
+</filter>
+{{</ highlight >}}
+*/
 type _expThrottle interface{} //nolint:deadcode,unused
 
 func (t *Throttle) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {

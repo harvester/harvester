@@ -45,7 +45,7 @@ type RecordTransformer struct {
 	RenewRecord bool `json:"renew_record,omitempty"`
 	// Specify field name of the record to overwrite the time of events. Its value must be unix time.
 	RenewTimeKey string `json:"renew_time_key,omitempty"`
-	// When set to true, the full Ruby syntax is enabled in the ${...} expression. (default: false)
+	// When set to true, the full Ruby syntax is enabled in the `${...}` expression. (default: false)
 	EnableRuby bool `json:"enable_ruby,omitempty"`
 	// Use original value type. (default: true)
 	AutoTypecast bool `json:"auto_typecast,omitempty"`
@@ -54,38 +54,37 @@ type RecordTransformer struct {
 	Records []Record `json:"records,omitempty"`
 }
 
-// ## Example `Record Transformer` filter configurations
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: Flow
-// metadata:
 //
-//	name: demo-flow
-//
-// spec:
-//
-//	filters:
-//	  - record_transformer:
-//	      records:
-//	      - foo: "bar"
-//	selectors: {}
-//	localOutputRefs:
-//	  - demo-output
-//
-// ```
-//
-// #### Fluentd Config Result
-// ```yaml
-// <filter **>
-//
-//	@type record_transformer
-//	@id test_record_transformer
-//	<record>
-//	  foo bar
-//	</record>
-//
-// </filter>
-// ```
+/*
+## Example `Record Transformer` filter configurations
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Flow
+metadata:
+  name: demo-flow
+spec:
+  filters:
+    - record_transformer:
+        records:
+        - foo: "bar"
+  selectors: {}
+  localOutputRefs:
+    - demo-output
+{{</ highlight >}}
+
+Fluentd config result:
+
+{{< highlight xml >}}
+<filter **>
+  @type record_transformer
+  @id test_record_transformer
+  <record>
+    foo bar
+  </record>
+</filter>
+{{</ highlight >}}
+*/
 type _expRecordTransformer interface{} //nolint:deadcode,unused
 
 // Parameters inside record directives are considered to be new key-value pairs
