@@ -136,33 +136,20 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 			logrus.Info("rancher-logging Addon is not installed")
 		} else {
 			if addon.Spec.Enabled {
+				// mark the operator source
+				setLoggingOperatorSource(toUpdate, util.RancherLoggingName)
 				setOperatorDeployedCondition(toUpdate, corev1.ConditionTrue, "Skipped", "rancher-logging Addon is enabled")
 				return h.upgradeLogClient.Update(toUpdate)
 			}
 			logrus.Info("rancher-logging Addon is not enabled")
 		}
 
-		// Detect the rancher-logging ManagedChart
-		managedChart, err := h.managedChartCache.Get(util.FleetLocalNamespaceName, util.RancherLoggingName)
-		if err != nil {
-			if !apierrors.IsNotFound(err) {
-				return nil, err
-			}
-			logrus.Info("rancher-logging ManagedChart is not installed")
-		} else {
-			if managedChart.Status.Summary.DesiredReady > 0 && managedChart.Status.Summary.DesiredReady == managedChart.Status.Summary.Ready {
-				setOperatorDeployedCondition(toUpdate, corev1.ConditionTrue, "Skipped", "rancher-logging ManagedChart is ready")
-				return h.upgradeLogClient.Update(toUpdate)
-			}
-			logrus.Warn("rancher-logging ManagedChart is not ready")
-			return nil, err
-		}
-
-		// If none of the above exists, install the customized rancher-logging ManagedChart
-		logrus.Info("Deploy logging-operator")
+		logrus.Info("Deploy logging-operator via a new ManagedChart")
 		if _, err := h.managedChartClient.Create(prepareOperator(upgradeLog)); err != nil && !apierrors.IsAlreadyExists(err) {
 			return nil, err
 		}
+		// format: hvst-upgrade-l5875-upgradelog-operator
+		setLoggingOperatorSource(toUpdate, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
 
 		return h.upgradeLogClient.Update(toUpdate)
 	}
@@ -176,8 +163,15 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		// The creation of the Logging resource will indirectly bring up fluent-bit DaemonSet and fluentd StatefulSet
 		//candidateImages, err := h.getConsolidatedLoggingImageList(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
 		// TODO: need to identify which source to get images, currently it only gets from rancher-logging addons, assue addon is enabled
-		candidateImages, err := h.getConsolidatedLoggingImageListFromHelmValues(util.CattleLoggingSystemNamespaceName, util.RancherLoggingName)
+
+		ns, name, err := getLoggingImageSourceHelmChart(upgradeLog)
 		if err != nil {
+			logrus.Infof("%s", err.Error())
+			return upgradeLog, err
+		}
+		candidateImages, err := h.getConsolidatedLoggingImageListFromHelmValues(ns, name)
+		if err != nil {
+			logrus.Infof("%s", err.Error())
 			return upgradeLog, err
 		}
 
@@ -557,6 +551,7 @@ func (h *handler) OnManagedChartChange(_ string, managedChart *mgmtv3.ManagedCha
 
 	toUpdate := upgradeLog.DeepCopy()
 	if managedChart.Status.Summary.DesiredReady > 0 && managedChart.Status.Summary.DesiredReady == managedChart.Status.Summary.Ready {
+		setLoggingOperatorSource(toUpdate, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
 		setOperatorDeployedCondition(toUpdate, corev1.ConditionTrue, "", "")
 		if _, err := h.upgradeLogClient.Update(toUpdate); err != nil {
 			return managedChart, err
@@ -790,7 +785,7 @@ func (h *handler) getConsolidatedLoggingImageListFromHelmValues(namespace, name 
 	for img, key := range loggingImagesList {
 		imgTag, err := helm.FetchImageFromHelmValues(h.clientset, namespace, name, key)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch %v image from helm values %v/%v, error %w", img, namespace, name, err)
+			return nil, fmt.Errorf("failed to fetch %v image from helm chart %v/%v values, error %w", img, namespace, name, err)
 		}
 		images[img] = imgTag
 	}
