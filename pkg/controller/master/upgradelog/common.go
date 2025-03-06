@@ -480,6 +480,29 @@ func setUpgradeLogArchiveReady(upgradeLog *harvesterv1.UpgradeLog, archiveName s
 	return fmt.Errorf("archive %s of %s not found", archiveName, upgradeLog.Name)
 }
 
+func setLoggingOperatorSource(upgradeLog *harvesterv1.UpgradeLog, source string) {
+	if upgradeLog.Annotations == nil {
+		upgradeLog.Annotations = make(map[string]string, 1)
+	}
+	upgradeLog.Annotations[util.UpgradeLogLoggingOperatorSource] = source
+}
+
+func getLoggingImageSourceHelmChart(upgradeLog *harvesterv1.UpgradeLog) (string, string, error) {
+	src := upgradeLog.Annotations[util.UpgradeLogLoggingOperatorSource]
+	if src == "" {
+		return "", "", fmt.Errorf("faild to get annotation %v from upgradeLog %v/%v", util.UpgradeLogLoggingOperatorSource, upgradeLog.Namespace, upgradeLog.Name)
+	}
+	if src == util.RancherLoggingName {
+		return util.CattleLoggingSystemNamespaceName, util.RancherLoggingName, nil
+	}
+	// format: hvst-upgrade-l5875-upgradelog-operator
+	if src == name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent) {
+		return util.CattleLoggingSystemNamespaceName, src, nil
+	}
+
+	return "", "", fmt.Errorf("the annotation %v from upgradeLog %v/%v is invalid", util.UpgradeLogLoggingOperatorSource, upgradeLog.Namespace, upgradeLog.Name)
+}
+
 type upgradeBuilder struct {
 	upgrade *harvesterv1.Upgrade
 }
@@ -596,6 +619,11 @@ func (p *upgradeLogBuilder) UpgradeEndedCondition(status corev1.ConditionStatus,
 
 func (p *upgradeLogBuilder) DownloadReadyCondition(status corev1.ConditionStatus, reason, message string) *upgradeLogBuilder {
 	setDownloadReadyCondition(p.upgradeLog, status, reason, message)
+	return p
+}
+
+func (p *upgradeLogBuilder) LoggingOperatorSource(source string) *upgradeLogBuilder {
+	setLoggingOperatorSource(p.upgradeLog, source)
 	return p
 }
 
