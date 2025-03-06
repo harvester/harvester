@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
-	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
@@ -137,7 +137,7 @@ func (h *TargetHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Sett
 	}
 
 	if target.RefreshIntervalInSeconds > 0 {
-		if err = h.updateLonghornPollIntervalSetting(target); err != nil {
+		if err = h.updateLHBackupTargetPollInterval(target); err != nil {
 			return h.setConfiguredCondition(setting, "", err)
 		}
 	}
@@ -300,31 +300,21 @@ func (h *TargetHandler) setConfiguredCondition(setting *harvesterv1.Setting, rea
 	return h.settings.Update(settingCpy)
 }
 
-func (h *TargetHandler) updateLonghornPollIntervalSetting(backupTarget *settings.BackupTarget) error {
-	setting, err := h.longhornSettingCache.Get(util.LonghornSystemNamespaceName, longhornBackupstorePollIntervalSettingName)
+func (h *TargetHandler) updateLHBackupTargetPollInterval(backupTarget *settings.BackupTarget) error {
+	lhBackupTarget, err := h.lhBackupTargetCache.Get(util.LonghornSystemNamespaceName, longhorntypes.DefaultBackupTargetName)
 	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
+		return err
+	}
 
-		if _, err := h.longhornSettings.Create(&lhv1beta2.Setting{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      longhornBackupstorePollIntervalSettingName,
-				Namespace: util.LonghornSystemNamespaceName,
-			},
-			Value: strconv.FormatInt(backupTarget.RefreshIntervalInSeconds, 10),
-		}); err != nil {
-			return err
-		}
+	lhBackupTargetCpy := lhBackupTarget.DeepCopy()
+	lhBackupTargetCpy.Spec.PollInterval = metav1.Duration{
+		Duration: time.Duration(backupTarget.RefreshIntervalInSeconds) * time.Second,
+	}
+
+	if reflect.DeepEqual(lhBackupTarget, lhBackupTargetCpy) {
 		return nil
 	}
 
-	settingCpy := setting.DeepCopy()
-	settingCpy.Value = strconv.FormatInt(backupTarget.RefreshIntervalInSeconds, 10)
-
-	if !reflect.DeepEqual(setting, settingCpy) {
-		_, err := h.longhornSettings.Update(settingCpy)
-		return err
-	}
-	return nil
+	_, err = h.lhBackupTargets.Update(lhBackupTargetCpy)
+	return err
 }
