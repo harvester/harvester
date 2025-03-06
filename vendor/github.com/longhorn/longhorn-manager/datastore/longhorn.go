@@ -393,13 +393,13 @@ func (s *DataStore) ValidateSetting(name, value string) (err error) {
 
 func (s *DataStore) ValidateV1DataEngineEnabled(dataEngineEnabled bool) (ims []*longhorn.InstanceManager, err error) {
 	if !dataEngineEnabled {
-		allVolumesDetached, _ims, err := s.AreAllVolumesDetached(longhorn.DataEngineTypeV1)
+		allV1VolumesDetached, _ims, err := s.AreAllEngineInstancesStopped(longhorn.DataEngineTypeV1)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to check volume detachment for %v setting update", types.SettingNameV1DataEngine)
 		}
 		ims = _ims
 
-		if !allVolumesDetached {
+		if !allV1VolumesDetached {
 			return nil, &types.ErrorInvalidState{Reason: fmt.Sprintf("cannot apply %v setting to Longhorn workloads when there are attached v1 volumes", types.SettingNameV1DataEngine)}
 		}
 	}
@@ -409,13 +409,13 @@ func (s *DataStore) ValidateV1DataEngineEnabled(dataEngineEnabled bool) (ims []*
 
 func (s *DataStore) ValidateV2DataEngineEnabled(dataEngineEnabled bool) (ims []*longhorn.InstanceManager, err error) {
 	if !dataEngineEnabled {
-		allVolumesDetached, _ims, err := s.AreAllVolumesDetached(longhorn.DataEngineTypeV2)
+		allV2VolumesDetached, _ims, err := s.AreAllEngineInstancesStopped(longhorn.DataEngineTypeV2)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to check volume detachment for %v setting update", types.SettingNameV2DataEngine)
 		}
 		ims = _ims
 
-		if !allVolumesDetached {
+		if !allV2VolumesDetached {
 			return nil, &types.ErrorInvalidState{Reason: fmt.Sprintf("cannot apply %v setting to Longhorn workloads when there are attached v2 volumes", types.SettingNameV2DataEngine)}
 		}
 	}
@@ -533,7 +533,7 @@ func (s *DataStore) AreAllRWXVolumesDetached() (bool, error) {
 	return true, nil
 }
 
-func (s *DataStore) AreAllVolumesDetached(dataEngine longhorn.DataEngineType) (bool, []*longhorn.InstanceManager, error) {
+func (s *DataStore) AreAllEngineInstancesStopped(dataEngine longhorn.DataEngineType) (bool, []*longhorn.InstanceManager, error) {
 	var ims []*longhorn.InstanceManager
 
 	nodes, err := s.ListNodes()
@@ -4612,6 +4612,35 @@ func (s *DataStore) CreateBackup(backup *longhorn.Backup, backupVolumeName strin
 		return nil, fmt.Errorf("BUG: datastore: verifyCreation returned wrong type for Backup")
 	}
 	return ret.DeepCopy(), nil
+}
+
+func (s *DataStore) listBackupsWithVolNameRO(volName, btName string) ([]*longhorn.Backup, error) {
+	selector, err := getBackupVolumeSelector(volName)
+	if err != nil {
+		return nil, err
+	}
+	if btName != "" {
+		selector, err = getBackupVolumeWithBackupTargetSelector(btName, volName)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return s.backupLister.Backups(s.namespace).List(selector)
+}
+
+// ListBackupsWithVolumeNameRO returns an object contains all read-only backups in the cluster Backups CR
+// of a given volume name and a optional backup target name
+func (s *DataStore) ListBackupsWithVolumeNameRO(volumeName, backupTargetName string) (map[string]*longhorn.Backup, error) {
+	list, err := s.listBackupsWithVolNameRO(volumeName, backupTargetName)
+	if err != nil {
+		return nil, err
+	}
+
+	itemMap := map[string]*longhorn.Backup{}
+	for _, itemRO := range list {
+		itemMap[itemRO.Name] = itemRO
+	}
+	return itemMap, nil
 }
 
 func (s *DataStore) listBackupsWithBTAndVolNameRO(btName, volName string) ([]*longhorn.Backup, error) {
