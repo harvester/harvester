@@ -41,6 +41,11 @@ func (in *KubernetesVolume) DeepCopyInto(out *KubernetesVolume) {
 		*out = new(v1.EmptyDirVolumeSource)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.SecretSource != nil {
+		in, out := &in.SecretSource, &out.SecretSource
+		*out = new(v1.SecretVolumeSource)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.PersistentVolumeClaim != nil {
 		in, out := &in.PersistentVolumeClaim, &out.PersistentVolumeClaim
 		*out = new(PersistentVolumeClaim)

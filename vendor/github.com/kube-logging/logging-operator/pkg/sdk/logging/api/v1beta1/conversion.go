@@ -48,11 +48,12 @@ func APITypes() []runtime.Object {
 func (l *Logging) Default() {
 	Log.Info("Defaulter called for", "logging", l)
 	if l.Spec.FluentdSpec != nil {
-		if l.Spec.FluentdSpec.Scaling == nil {
-			l.Spec.FluentdSpec.Scaling = new(FluentdScaling)
+		fluentdSpec := l.Spec.FluentdSpec
+		if fluentdSpec.Scaling == nil {
+			fluentdSpec.Scaling = new(FluentdScaling)
 		}
-		if l.Spec.FluentdSpec.Scaling.PodManagementPolicy == "" {
-			l.Spec.FluentdSpec.Scaling.PodManagementPolicy = string(appsv1.ParallelPodManagement)
+		if fluentdSpec.Scaling.PodManagementPolicy == "" {
+			fluentdSpec.Scaling.PodManagementPolicy = string(appsv1.ParallelPodManagement)
 		}
 	} else {
 		Log.Info("l.Spec.FluentdSpec is missing, skipping Defaulter")

@@ -1,5 +1,7 @@
 # orderedmap
 
+[![Build Status](https://travis-ci.com/iancoleman/orderedmap.svg)](https://travis-ci.com/iancoleman/orderedmap)
+
 A golang data type equivalent to python's collections.OrderedDict
 
 Retains order of keys in maps

@@ -87,7 +87,7 @@ type ParseSection struct {
 	TimeFormat string `json:"time_format,omitempty"`
 	// Parse/format value according to this type available values: float, unixtime, string (default: string)
 	TimeType string `json:"time_type,omitempty"`
-	// Ff true, use local time. Otherwise, UTC is used. This is exclusive with utc. (default: true)
+	// If true, use local time. Otherwise, UTC is used. This is exclusive with utc. (default: true)
 	LocalTime bool `json:"local_time,omitempty"`
 	// If true, use UTC. Otherwise, local time is used. This is exclusive with localtime (default: false)
 	UTC bool `json:"utc,omitempty"`
@@ -152,7 +152,7 @@ type SingleParseSection struct {
 	TimeFormat string `json:"time_format,omitempty"`
 	// Parse/format value according to this type available values: float, unixtime, string (default: string)
 	TimeType string `json:"time_type,omitempty"`
-	// Ff true, use local time. Otherwise, UTC is used. This is exclusive with utc. (default: true)
+	// If true, use local time. Otherwise, UTC is used. This is exclusive with utc. (default: true)
 	LocalTime bool `json:"local_time,omitempty"`
 	// If true, use UTC. Otherwise, local time is used. This is exclusive with localtime (default: false)
 	UTC bool `json:"utc,omitempty"`
@@ -198,58 +198,57 @@ type GrokSection struct {
 	Timezone string `json:"timezone,omitempty"`
 }
 
-// ## Example `Parser` filter configurations
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: Flow
-// metadata:
 //
-//	name: demo-flow
-//
-// spec:
-//
-//	filters:
-//	  - parser:
-//	      remove_key_name_field: true
-//	      reserve_data: true
-//	      parse:
-//	        type: multi_format
-//	        patterns:
-//	        - format: nginx
-//	        - format: regexp
-//	          expression: /foo/
-//	        - format: none
-//	selectors: {}
-//	localOutputRefs:
-//	  - demo-output
-//
-// ```
-//
-// #### Fluentd Config Result
-// ```yaml
-// <filter **>
-//
-//	@type parser
-//	@id test_parser
-//	key_name message
-//	remove_key_name_field true
-//	reserve_data true
-//	<parse>
-//	  @type multi_format
-//	  <pattern>
-//	    format nginx
-//	  </pattern>
-//	  <pattern>
-//	    expression /foo/
-//	    format regexp
-//	  </pattern>
-//	  <pattern>
-//	    format none
-//	  </pattern>
-//	</parse>
-//
-// </filter>
-// ```
+/*
+## Example `Parser` filter configurations
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Flow
+metadata:
+  name: demo-flow
+spec:
+  filters:
+    - parser:
+        remove_key_name_field: true
+        reserve_data: true
+        parse:
+          type: multi_format
+          patterns:
+          - format: nginx
+          - format: regexp
+            expression: /foo/
+          - format: none
+  selectors: {}
+  localOutputRefs:
+    - demo-output
+{{</ highlight >}}
+
+Fluentd config result:
+
+{{< highlight yaml >}}
+<filter **>
+  @type parser
+  @id test_parser
+  key_name message
+  remove_key_name_field true
+  reserve_data true
+  <parse>
+    @type multi_format
+    <pattern>
+      format nginx
+    </pattern>
+    <pattern>
+      expression /foo/
+      format regexp
+    </pattern>
+    <pattern>
+      format none
+    </pattern>
+  </parse>
+</filter>
+{{</ highlight >}}
+*/
 type _expParser interface{} //nolint:deadcode,unused
 
 func (p *SingleParseSection) ToPatternDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {

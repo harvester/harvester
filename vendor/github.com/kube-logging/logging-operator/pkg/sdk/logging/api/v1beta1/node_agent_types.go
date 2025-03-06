@@ -18,21 +18,69 @@ import (
 	"github.com/cisco-open/operator-tools/pkg/typeoverride"
 	"github.com/cisco-open/operator-tools/pkg/types"
 	"github.com/cisco-open/operator-tools/pkg/volume"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // +name:"NodeAgent"
 // +weight:"200"
 type _hugoNodeAgent interface{} //nolint:deadcode,unused
 
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:categories=logging-all,scope=Cluster
+// +kubebuilder:subresource:status
+// +kubebuilder:storageversion
+
+// NodeAgent
+type NodeAgent struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   NodeAgentSpec   `json:"spec,omitempty"`
+	Status NodeAgentStatus `json:"status,omitempty"`
+}
+
 // +kubebuilder:object:generate=true
 
-type NodeAgent struct {
-	//NodeAgent unique name.
-	Name string `json:"name,omitempty"`
-	// Specify the Logging-Operator nodeAgents profile. It can be linux or windows . (default:linux)
+// NodeAgentSpec
+type NodeAgentSpec struct {
+	LoggingRef string `json:"loggingRef,omitempty"`
+
+	//InlineNodeAgent
+	NodeAgentConfig `json:",inline"`
+}
+
+// +kubebuilder:object:generate=true
+
+type NodeAgentConfig struct {
 	Profile       string              `json:"profile,omitempty"`
 	Metadata      types.MetaBase      `json:"metadata,omitempty"`
 	FluentbitSpec *NodeAgentFluentbit `json:"nodeAgentFluentbit,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
+
+// NodeAgentStatus
+type NodeAgentStatus struct {
+}
+
+// +kubebuilder:object:root=true
+
+// NodeAgentList
+type NodeAgentList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []NodeAgent `json:"items"`
+}
+
+// +kubebuilder:object:generate=true
+
+// InlineNodeAgent
+// @deprecated, replaced by NodeAgent
+type InlineNodeAgent struct {
+	//InlineNodeAgent unique name.
+	Name string `json:"name,omitempty"`
+
+	NodeAgentConfig `json:",inline"`
 }
 
 // +kubebuilder:object:generate=true
@@ -74,4 +122,8 @@ type NodeAgentFluentbit struct {
 	Network              *FluentbitNetwork       `json:"network,omitempty"`
 	ForwardOptions       *ForwardOptions         `json:"forwardOptions,omitempty"`
 	EnableUpstream       *bool                   `json:"enableUpstream,omitempty"`
+}
+
+func init() {
+	SchemeBuilder.Register(&NodeAgent{}, &NodeAgentList{})
 }
