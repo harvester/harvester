@@ -17,7 +17,7 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 )
 
-// FetchImageFromHelmValues fetches image information from helm values.
+// FetchImageFromHelmValues fetches image information from helm chart values, the name points to a chart e.g. harvester
 func FetchImageFromHelmValues(clientSet *kubernetes.Clientset, namespace, name string, keyNames []string) (settings.Image, error) {
 	var image settings.Image
 
@@ -31,10 +31,10 @@ func FetchImageFromHelmValues(clientSet *kubernetes.Clientset, namespace, name s
 		KubeClient:       kube.New(restClientGetter),
 	})
 	getValues.AllValues = true
-	helmValues, err := getValues.Run("harvester")
+	helmValues, err := getValues.Run(name)
 	if err != nil {
 		logrus.WithError(err).WithFields(logrus.Fields{
-			"helm.name": "harvester",
+			"helm.name": name,
 		}).Error("failed to get helm values")
 		return image, err
 	}
