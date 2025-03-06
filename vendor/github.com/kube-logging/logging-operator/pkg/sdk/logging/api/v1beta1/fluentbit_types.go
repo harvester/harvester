@@ -23,6 +23,7 @@ import (
 	"github.com/cisco-open/operator-tools/pkg/volume"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // +name:"FluentbitSpec"
@@ -31,13 +32,38 @@ type _hugoFluentbitSpec interface{} //nolint:deadcode,unused
 
 // +name:"FluentbitSpec"
 // +version:"v1beta1"
-// +description:"FluentbitSpec defines the desired state of Fluentbit"
+// +description:"FluentbitSpec defines the desired state of FluentbitAgent"
 type _metaFluentbitSpec interface{} //nolint:deadcode,unused
+
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:path=fluentbitagents,scope=Cluster,categories=logging-all
+// +kubebuilder:storageversion
+
+// FluentbitAgent is the Schema for the loggings API
+type FluentbitAgent struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   FluentbitSpec   `json:"spec,omitempty"`
+	Status FluentbitStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// FluentbitAgentList contains a list of FluentbitAgent
+type FluentbitAgentList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []FluentbitAgent `json:"items"`
+}
 
 // +kubebuilder:object:generate=true
 
-// FluentbitSpec defines the desired state of Fluentbit
+// FluentbitSpec defines the desired state of FluentbitAgent
 type FluentbitSpec struct {
+	LoggingRef string `json:"loggingRef,omitempty"`
+
 	DaemonSetAnnotations map[string]string `json:"daemonsetAnnotations,omitempty"`
 	Annotations          map[string]string `json:"annotations,omitempty"`
 	Labels               map[string]string `json:"labels,omitempty"`
@@ -48,12 +74,12 @@ type FluentbitSpec struct {
 	TargetPort           int32             `json:"targetPort,omitempty"`
 	// Set the flush time in seconds.nanoseconds. The engine loop uses a Flush timeout to define when is required to flush the records ingested by input plugins through the defined output plugins. (default: 1)
 	Flush int32 `json:"flush,omitempty"  plugin:"default:1"`
-	// Set the grace time in seconds as Integer value. The engine loop uses a Grace timeout to define wait time on exit (default: 5)
+	// Set the grace time in seconds as Integer value. The engine loop uses a Grace timeout to define wait time on exit.
 	Grace int32 `json:"grace,omitempty" plugin:"default:5"`
-	// Set the logging verbosity level. Allowed values are: error, warn, info, debug and trace. Values are accumulative, e.g: if 'debug' is set, it will include error, warning, info and debug.  Note that trace mode is only available if Fluent Bit was built with the WITH_TRACE option enabled. (default: info)
+	// Set the logging verbosity level. Allowed values are: error, warn, info, debug and trace. Values are accumulative, e.g: if 'debug' is set, it will include error, warning, info and debug.  Note that trace mode is only available if Fluent Bit was built with the WITH_TRACE option enabled.
 	LogLevel string `json:"logLevel,omitempty" plugin:"default:info"`
 	// Set the coroutines stack size in bytes. The value must be greater than the page size of the running system. Don't set too small value (say 4096), or coroutine threads can overrun the stack buffer.
-	//Do not change the default value of this parameter unless you know what you are doing. (default: 24576)
+	// Do not change the default value of this parameter unless you know what you are doing. (default: 24576)
 	CoroStackSize int32                       `json:"coroStackSize,omitempty" plugin:"default:24576"`
 	Resources     corev1.ResourceRequirements `json:"resources,omitempty"`
 	Tolerations   []corev1.Toleration         `json:"tolerations,omitempty"`
@@ -82,6 +108,7 @@ type FluentbitSpec struct {
 	BufferVolumeMetrics     *Metrics                       `json:"bufferVolumeMetrics,omitempty"`
 	BufferVolumeImage       ImageSpec                      `json:"bufferVolumeImage,omitempty"`
 	BufferVolumeArgs        []string                       `json:"bufferVolumeArgs,omitempty"`
+	BufferVolumeResources   corev1.ResourceRequirements    `json:"bufferVolumeResources,omitempty"`
 	CustomConfigSecret      string                         `json:"customConfigSecret,omitempty"`
 	PodPriorityClassName    string                         `json:"podPriorityClassName,omitempty"`
 	LivenessProbe           *corev1.Probe                  `json:"livenessProbe,omitempty"`
@@ -96,6 +123,17 @@ type FluentbitSpec struct {
 	HostNetwork             bool                           `json:"HostNetwork,omitempty"`
 	SyslogNGOutput          *FluentbitTCPOutput            `json:"syslogng_output,omitempty"`
 	UpdateStrategy          appsv1.DaemonSetUpdateStrategy `json:"updateStrategy,omitempty"`
+	// Available in Logging operator version 4.2 and later.
+	// Specify a custom parser file to load in addition to the default parsers file.
+	// It must be a valid key in the configmap specified by customConfig.
+	CustomParsers string `json:"customParsers,omitempty"`
+	// Available in Logging operator version 4.4 and later.
+	HealthCheck     *HealthCheck `json:"healthCheck,omitempty"`
+	ConfigHotReload *HotReload   `json:"configHotReload,omitempty"`
+}
+
+// FluentbitStatus defines the resource status for FluentbitAgent
+type FluentbitStatus struct {
 }
 
 // +kubebuilder:object:generate=true
@@ -113,6 +151,8 @@ type FluentbitTLS struct {
 type FluentbitTCPOutput struct {
 	JsonDateKey    string `json:"json_date_key,omitempty" plugin:"default:ts"`
 	JsonDateFormat string `json:"json_date_format,omitempty" plugin:"default:iso8601"`
+	// Available in Logging operator version 4.4 and later.
+	Workers *int `json:"Workers,omitempty"`
 }
 
 // FluentbitNetwork defines network configuration for fluentbit
@@ -158,11 +198,31 @@ type BufferStorage struct {
 	StorageSync string `json:"storage.sync,omitempty"`
 	// Enable the data integrity check when writing and reading data from the filesystem. The storage layer uses the CRC32 algorithm. (default:Off)
 	StorageChecksum string `json:"storage.checksum,omitempty"`
+	// When enabled, irrecoverable chunks will be deleted during runtime, and any other irrecoverable chunk located in the configured storage path directory will be deleted when Fluent-Bit starts. (default:Off)
+	StorageDeleteIrrecoverableChunks string `json:"storage.delete_irrecoverable_chunks,omitempty"`
 	// If storage.path is set, Fluent Bit will look for data chunks that were not delivered and are still in the storage layer, these are called backlog data. This option configure a hint of maximum value of memory to use when processing these records. (default:5M)
 	StorageBacklogMemLimit string `json:"storage.backlog.mem_limit,omitempty"`
+	// Available in Logging operator version 4.4 and later. If the `http_server` option has been enabled in the main Service configuration section, this option registers a new endpoint where internal metrics of the storage layer can be consumed. (default:Off)
+	StorageMetrics string `json:"storage.metrics,omitempty"`
 }
 
-// InputTail defines Fluentbit tail input configuration The tail input plugin allows to monitor one or several text files. It has a similar behavior like tail -f shell command.
+// HealthCheck configuration. Available in Logging operator version 4.4 and later.
+type HealthCheck struct {
+	// The error count to meet the unhealthy requirement, this is a sum for all output plugins in a defined HC_Period. (default:5)
+	HCErrorsCount int `json:"hcErrorsCount,omitempty"`
+	// The retry failure count to meet the unhealthy requirement, this is a sum for all output plugins in a defined HC_Period (default:5)
+	HCRetryFailureCount int `json:"hcRetryFailureCount,omitempty"`
+	// The time period (in seconds) to count the error and retry failure data point. (default:60)
+	HCPeriod int `json:"hcPeriod,omitempty"`
+}
+
+// HotReload configuration
+type HotReload struct {
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Image     ImageSpec                   `json:"image,omitempty"`
+}
+
+// InputTail defines FluentbitAgent tail input configuration The tail input plugin allows to monitor one or several text files. It has a similar behavior like tail -f shell command.
 type InputTail struct {
 	// Specify the buffering mechanism to use. It can be memory or filesystem. (default:memory)
 	StorageType string `json:"storage.type,omitempty"`
@@ -216,7 +276,7 @@ type InputTail struct {
 	DockerMode string `json:"Docker_Mode,omitempty"`
 	// Specify an optional parser for the first line of the docker multiline mode.
 	DockerModeParser string `json:"Docker_Mode_Parser,omitempty"`
-	//Wait period time in seconds to flush queued unfinished split lines. (default:4)
+	// Wait period time in seconds to flush queued unfinished split lines. (default:4)
 	DockerModeFlush string `json:"Docker_Mode_Flush,omitempty"`
 	// Specify one or multiple parser definitions to apply to the content. Part of the new Multiline Core support in 1.8 (default: "")
 	MultilineParser []string `json:"multiline.parser,omitempty"`
@@ -228,7 +288,7 @@ type FilterKubernetes struct {
 	Match string `json:"Match,omitempty" plugin:"default:kubernetes.*"`
 	// Set the buffer size for HTTP client when reading responses from Kubernetes API server. The value must be according to the Unit Size specification. A value of 0 results in no limit, and the buffer will expand as-needed. Note that if pod specifications exceed the buffer limit, the API response will be discarded when retrieving metadata, and some kubernetes metadata will fail to be injected to the logs. If this value is empty we will set it "0". (default:"0")
 	BufferSize string `json:"Buffer_Size,omitempty"`
-	// API Server end-point (default:https://kubernetes.default.svc:443)
+	// API Server end-point.
 	KubeURL string `json:"Kube_URL,omitempty" plugin:"default:https://kubernetes.default.svc:443"`
 	//	CA certificate file (default:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt)
 	KubeCAFile string `json:"Kube_CA_File,omitempty" plugin:"default:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"`
@@ -262,12 +322,18 @@ type FilterKubernetes struct {
 	RegexParser string `json:"Regex_Parser,omitempty"`
 	// Allow Kubernetes Pods to suggest a pre-defined Parser (read more about it in Kubernetes Annotations section) (default:Off)
 	K8SLoggingParser string `json:"K8S-Logging.Parser,omitempty"`
-	// Allow Kubernetes Pods to exclude their logs from the log processor (read more about it in Kubernetes Annotations section). (default:Off)
+	// Allow Kubernetes Pods to exclude their logs from the log processor (read more about it in Kubernetes Annotations section). (default:On)
 	K8SLoggingExclude string `json:"K8S-Logging.Exclude,omitempty"`
 	// Include Kubernetes resource labels in the extra metadata. (default:On)
 	Labels string `json:"Labels,omitempty"`
 	// Include Kubernetes resource annotations in the extra metadata. (default:On)
 	Annotations string `json:"Annotations,omitempty"`
+	// Include Kubernetes namespace labels on every record
+	NamespaceLabels string `json:"namespace_labels,omitempty"`
+	// Include Kubernetes namespace annotations on every record
+	NamespaceAnnotations string `json:"namespace_annotations,omitempty"`
+	// Configurable TTL for K8s cached namespace metadata. (15m)
+	NamespaceCacheTTL string `json:"kube_meta_namespace_cache_ttl,omitempty"`
 	// If set, Kubernetes meta-data can be cached/pre-loaded from files in JSON format in this directory, named as namespace-pod.meta
 	KubeMetaPreloadCacheDir string `json:"Kube_meta_preload_cache_dir,omitempty"`
 	// If set, use dummy-meta data (for test/dev purposes) (default:Off)
@@ -310,9 +376,9 @@ type FilterAws struct {
 
 // FilterModify The Modify Filter plugin allows you to change records using rules and conditions.
 type FilterModify struct {
-	// Fluentbit Filter Modification Rule
+	// FluentbitAgent Filter Modification Rule
 	Rules []FilterModifyRule `json:"rules,omitempty"`
-	// Fluentbit Filter Modification Condition
+	// FluentbitAgent Filter Modification Condition
 	Conditions []FilterModifyCondition `json:"conditions,omitempty"`
 }
 
@@ -423,4 +489,11 @@ type ForwardOptions struct {
 	RetryLimit         string `json:"Retry_Limit,omitempty"`
 	// `storage.total_limit_size` Limit the maximum number of Chunks in the filesystem for the current output logical destination.
 	StorageTotalLimitSize string `json:"storage.total_limit_size,omitempty"`
+	// Available in Logging operator version 4.4 and later.
+	// Enables dedicated thread(s) for this output. Default value (2) is set since version 1.8.13. For previous versions is 0.
+	Workers *int `json:"Workers,omitempty"`
+}
+
+func init() {
+	SchemeBuilder.Register(&FluentbitAgent{}, &FluentbitAgentList{})
 }

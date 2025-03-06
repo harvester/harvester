@@ -40,6 +40,7 @@ type KubernetesVolume struct {
 	HostPathLegacy *corev1.HostPathVolumeSource `json:"host_path,omitempty"`
 	HostPath       *corev1.HostPathVolumeSource `json:"hostPath,omitempty"`
 	EmptyDir       *corev1.EmptyDirVolumeSource `json:"emptyDir,omitempty"`
+	SecretSource   *corev1.SecretVolumeSource   `json:"secret,omitempty"`
 	// PersistentVolumeClaim defines the Spec and the Source at the same time.
 	// The PVC will be created with the configured spec and the name defined in the source.
 	PersistentVolumeClaim *PersistentVolumeClaim `json:"pvc,omitempty"`
@@ -84,6 +85,11 @@ func (v *KubernetesVolume) GetVolume(name string) (corev1.Volume, error) {
 	} else if v.PersistentVolumeClaim != nil {
 		volume.VolumeSource = corev1.VolumeSource{
 			PersistentVolumeClaim: &v.PersistentVolumeClaim.PersistentVolumeSource,
+		}
+		return volume, nil
+	} else if v.SecretSource != nil {
+		volume.VolumeSource = corev1.VolumeSource{
+			Secret: v.SecretSource,
 		}
 		return volume, nil
 	}
