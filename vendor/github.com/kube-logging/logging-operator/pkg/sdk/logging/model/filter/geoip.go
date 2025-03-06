@@ -16,6 +16,7 @@ package filter
 
 import (
 	"github.com/cisco-open/operator-tools/pkg/secret"
+
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/types"
 )
 
@@ -37,63 +38,62 @@ type _metaGeoIP interface{} //nolint:deadcode,unused
 
 // +kubebuilder:object:generate=true
 type GeoIP struct {
-	//Specify one or more geoip lookup field which has ip address (default: host)
+	// Specify one or more geoip lookup field which has ip address (default: host)
 	GeoipLookupKeys string `json:"geoip_lookup_keys,omitempty"`
-	//Specify optional geoip database (using bundled GeoLiteCity databse by default)
+	// Specify optional geoip database (using bundled GeoLiteCity databse by default)
 	GeoipDatabase string `json:"geoip_database,omitempty"`
-	//Specify optional geoip2 database (using bundled GeoLite2-City.mmdb by default)
-	Geoip2Database string `json:"geoip_2_database,omitempty"`
-	//Specify backend library (geoip2_c, geoip, geoip2_compat)
+	// Specify optional geoip2 database (using bundled GeoLite2-City.mmdb by default)
+	Geoip2Database string `json:"geoip2_database,omitempty"`
+	// Specify backend library (geoip2_c, geoip, geoip2_compat)
 	BackendLibrary string `json:"backend_library,omitempty"`
 	// To avoid get stacktrace error with `[null, null]` array for elasticsearch.
-	SkipAddingNullRecord bool `json:"skip_adding_null_record,omitempty" plugin:"default:true"`
+	SkipAddingNullRecord *bool `json:"skip_adding_null_record,omitempty" plugin:"default:true"`
 	// Records are represented as maps: `key: value`
 	Records []Record `json:"records,omitempty"`
 }
 
-// ## Example `GeoIP` filter configurations
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: Flow
-// metadata:
 //
-//	name: demo-flow
-//
-// spec:
-//
-//	filters:
-//	  - geoip:
-//	      geoip_lookup_keys: remote_addr
-//	      records:
-//	        - city: ${city.names.en["remote_addr"]}
-//	          location_array: '''[${location.longitude["remote"]},${location.latitude["remote"]}]'''
-//	          country: ${country.iso_code["remote_addr"]}
-//	          country_name: ${country.names.en["remote_addr"]}
-//	          postal_code:  ${postal.code["remote_addr"]}
-//	selectors: {}
-//	localOutputRefs:
-//	  - demo-output
-//
-// ```
-//
-// #### Fluentd Config Result
-// ```yaml
-// <filter **>
-//
-//	@type geoip
-//	@id test_geoip
-//	geoip_lookup_keys remote_addr
-//	skip_adding_null_record true
-//	<record>
-//	  city ${city.names.en["remote_addr"]}
-//	  country ${country.iso_code["remote_addr"]}
-//	  country_name ${country.names.en["remote_addr"]}
-//	  location_array '[${location.longitude["remote"]},${location.latitude["remote"]}]'
-//	  postal_code ${postal.code["remote_addr"]}
-//	</record>
-//
-// </filter>
-// ```
+/*
+## Example `GeoIP` filter configurations
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Flow
+metadata:
+  name: demo-flow
+spec:
+  filters:
+    - geoip:
+        geoip_lookup_keys: remote_addr
+        records:
+          - city: ${city.names.en["remote_addr"]}
+            location_array: '''[${location.longitude["remote"]},${location.latitude["remote"]}]'''
+            country: ${country.iso_code["remote_addr"]}
+            country_name: ${country.names.en["remote_addr"]}
+            postal_code:  ${postal.code["remote_addr"]}
+  selectors: {}
+  localOutputRefs:
+    - demo-output
+{{</ highlight >}}
+
+Fluentd config result:
+
+{{< highlight xml >}}
+<filter **>
+  @type geoip
+  @id test_geoip
+  geoip_lookup_keys remote_addr
+  skip_adding_null_record true
+  <record>
+    city ${city.names.en["remote_addr"]}
+    country ${country.iso_code["remote_addr"]}
+    country_name ${country.names.en["remote_addr"]}
+    location_array '[${location.longitude["remote"]},${location.latitude["remote"]}]'
+    postal_code ${postal.code["remote_addr"]}
+  </record>
+</filter>
+{{</ highlight >}}
+*/
 type _expGeoIP interface{} //nolint:deadcode,unused
 
 func (g *GeoIP) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {

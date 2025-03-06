@@ -24,18 +24,19 @@ import (
 type _hugoOss interface{} //nolint:deadcode,unused
 
 // +docName:"Aliyun OSS plugin for Fluentd"
-// **Fluent OSS output plugin** buffers event logs in local files and uploads them to OSS periodically in background threads.
-//
-// This plugin splits events by using the timestamp of event logs. For example,  a log '2019-04-09 message Hello' is reached, and then another log '2019-04-10 message World' is reached in this order, the former is stored in "20190409.gz" file, and latter in "20190410.gz" file.
-//
-// **Fluent OSS input plugin** reads data from OSS periodically.
-//
-// This plugin uses MNS on the same region of the OSS bucket. We must setup MNS and OSS event notification before using this plugin.
-//
-// [This document](https://help.aliyun.com/document_detail/52656.html) shows how to setup MNS and OSS event notification.
-//
-// This plugin will poll events from MNS queue and extract object keys from these events, and then will read those objects from OSS.
-// More info at https://github.com/aliyun/fluent-plugin-oss
+/*
+**Fluent OSS output plugin** buffers event logs in local files and uploads them to OSS periodically in background threads.
+
+This plugin splits events by using the timestamp of event logs. For example, a log '2019-04-09 message Hello' is reached, and then another log '2019-04-10 message World' is reached in this order, the former is stored in "20190409.gz" file, and latter in "20190410.gz" file.
+
+**Fluent OSS input plugin** reads data from OSS periodically.
+
+This plugin uses MNS on the same region of the OSS bucket. We must setup MNS and OSS event notification before using this plugin.
+
+[This document](https://help.aliyun.com/document_detail/52656.html) shows how to setup MNS and OSS event notification.
+
+This plugin will poll events from MNS queue and extract object keys from these events, and then will read those objects from OSS. For details, see [https://github.com/aliyun/fluent-plugin-oss](https://github.com/aliyun/fluent-plugin-oss).
+*/
 type _docOss interface{} //nolint:deadcode,unused
 
 // +name:"Alibaba Cloud Storage"
@@ -57,7 +58,7 @@ type OSSOutput struct {
 	AccessKeyId *secret.Secret `json:"access_key_id"`
 	// Your access secret key
 	// +docLink:"Secret,../secret/"
-	AaccessKeySecret *secret.Secret `json:"aaccess_key_secret"`
+	AccessKeySecret *secret.Secret `json:"access_key_secret"`
 	// Path prefix of the files on OSS (default: fluent/logs)
 	Path string `json:"path,omitempty"`
 	// Upload crc enabled (default: true)
@@ -70,7 +71,7 @@ type OSSOutput struct {
 	ReadTimeout int `json:"read_timeout,omitempty"`
 	// OSS SDK log directory (default: /var/log/td-agent)
 	OssSdkLogDir string `json:"oss_sdk_log_dir,omitempty"`
-	// The format of OSS object keys (default: %{path}/%{time_slice}_%{index}_%{thread_id}.%{file_extension})
+	// The format of OSS object keys (default: `%{path}/%{time_slice}_%{index}_%{thread_id}.%{file_extension}`)
 	KeyFormat string `json:"key_format,omitempty"`
 	// Archive format on OSS: gzip, json, text, lzo, lzma2 (default: gzip)
 	StoreAs string `json:"store_as,omitempty"`
@@ -94,7 +95,7 @@ type OSSOutput struct {
 	Buffer *Buffer `json:"buffer,omitempty"`
 	// The threshold for chunk flush performance check.
 	// Parameter type is float, not time, default: 20.0 (seconds)
-	// If chunk flush takes longer time than this threshold, fluentd logs warning message and increases metric fluentd_output_status_slow_flush_count.
+	// If chunk flush takes longer time than this threshold, Fluentd logs a warning message and increases the `fluentd_output_status_slow_flush_count` metric.
 	SlowFlushLogThreshold string `json:"slow_flush_log_threshold,omitempty"`
 }
 

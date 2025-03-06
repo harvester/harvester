@@ -28,32 +28,33 @@ import (
 type _hugoLogZ interface{} //nolint:deadcode,unused
 
 // +docName:"LogZ output plugin for Fluentd"
-// More info at https://github.com/tarokkk/fluent-plugin-logzio
-//
-// ## Example output configurations
-// ```yaml
-// spec:
-//
-//	logz:
-//	  endpoint:
-//	    url: https://listener.logz.io
-//	    port: 8071
-//	    token:
-//	      valueFrom:
-//	       secretKeyRef:
-//	   	  name: logz-token
-//	         key: token
-//	  output_include_tags: true
-//	  output_include_time: true
-//	  buffer:
-//	    type: file
-//	    flush_mode: interval
-//	    flush_thread_count: 4
-//	    flush_interval: 5s
-//	    chunk_limit_size: 16m
-//	    queue_limit_length: 4096
-//
-// ```
+/*
+For details, see [https://github.com/tarokkk/fluent-plugin-logzio](https://github.com/tarokkk/fluent-plugin-logzio).
+
+## Example output configurations
+
+```yaml
+spec:
+  logz:
+    endpoint:
+      url: https://listener.logz.io
+      port: 8071
+      token:
+        valueFrom:
+         secretKeyRef:
+           name: logz-token
+           key: token
+    output_include_tags: true
+    output_include_time: true
+    buffer:
+      type: file
+      flush_mode: interval
+      flush_thread_count: 4
+      flush_interval: 5s
+      chunk_limit_size: 16m
+      queue_limit_length: 4096
+```
+*/
 type _docLogZ interface{} //nolint:deadcode,unused
 
 // +name:"LogZ"
@@ -89,7 +90,7 @@ type LogZOutput struct {
 	Buffer *Buffer `json:"buffer,omitempty"`
 	// The threshold for chunk flush performance check.
 	// Parameter type is float, not time, default: 20.0 (seconds)
-	// If chunk flush takes longer time than this threshold, fluentd logs warning message and increases metric fluentd_output_status_slow_flush_count.
+	// If chunk flush takes longer time than this threshold, Fluentd logs a warning message and increases the `fluentd_output_status_slow_flush_count` metric.
 	SlowFlushLogThreshold string `json:"slow_flush_log_threshold,omitempty"`
 }
 
