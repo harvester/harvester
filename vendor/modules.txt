@@ -40,7 +40,7 @@ github.com/alessio/shellescape
 # github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 ## explicit; go 1.13
 github.com/asaskevich/govalidator
-# github.com/aws/aws-sdk-go v1.55.5
+# github.com/aws/aws-sdk-go v1.55.6
 ## explicit; go 1.19
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/arn
@@ -398,7 +398,6 @@ github.com/guonaihong/gout/filter
 github.com/guonaihong/gout/interface
 # github.com/harvester/go-common v0.0.0-20250109132713-e748ce72a7ba
 ## explicit; go 1.23
-github.com/harvester/go-common/common
 github.com/harvester/go-common/ds
 github.com/harvester/go-common/version
 # github.com/harvester/harvester-network-controller v0.3.1
@@ -526,14 +525,14 @@ github.com/lib/pq/scram
 # github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 ## explicit
 github.com/liggitt/tabwriter
-# github.com/longhorn/backing-image-manager v1.8.0-rc4
+# github.com/longhorn/backing-image-manager v1.8.0
 ## explicit; go 1.23.0
 github.com/longhorn/backing-image-manager/api
 github.com/longhorn/backing-image-manager/pkg/client
 github.com/longhorn/backing-image-manager/pkg/meta
 github.com/longhorn/backing-image-manager/pkg/types
 github.com/longhorn/backing-image-manager/pkg/util
-# github.com/longhorn/backupstore v0.0.0-20250115162037-d046737d09dc
+# github.com/longhorn/backupstore v0.0.0-20250227220202-651bd33886fe
 ## explicit; go 1.22.7
 github.com/longhorn/backupstore
 github.com/longhorn/backupstore/backupbackingimage
@@ -546,7 +545,7 @@ github.com/longhorn/backupstore/s3
 github.com/longhorn/backupstore/systembackup
 github.com/longhorn/backupstore/types
 github.com/longhorn/backupstore/util
-# github.com/longhorn/go-common-libs v0.0.0-20250107022351-ec79818ce8db
+# github.com/longhorn/go-common-libs v0.0.0-20250215052214-151615b29f8e
 ## explicit; go 1.22.7
 github.com/longhorn/go-common-libs/backup
 github.com/longhorn/go-common-libs/exec
@@ -568,21 +567,21 @@ github.com/longhorn/go-iscsi-helper/util
 # github.com/longhorn/go-spdk-helper v0.0.0-20250116051812-eabe34a4219e
 ## explicit; go 1.22.7
 github.com/longhorn/go-spdk-helper/pkg/types
-# github.com/longhorn/longhorn-engine v1.8.0-rc4
+# github.com/longhorn/longhorn-engine v1.8.0
 ## explicit; go 1.23.0
 github.com/longhorn/longhorn-engine/pkg/interceptor
 github.com/longhorn/longhorn-engine/pkg/meta
 github.com/longhorn/longhorn-engine/pkg/replica/client
 github.com/longhorn/longhorn-engine/pkg/types
 github.com/longhorn/longhorn-engine/pkg/util
-# github.com/longhorn/longhorn-instance-manager v1.8.0-rc4
+# github.com/longhorn/longhorn-instance-manager v1.8.0
 ## explicit; go 1.23.0
 github.com/longhorn/longhorn-instance-manager/pkg/api
 github.com/longhorn/longhorn-instance-manager/pkg/client
 github.com/longhorn/longhorn-instance-manager/pkg/meta
 github.com/longhorn/longhorn-instance-manager/pkg/types
 github.com/longhorn/longhorn-instance-manager/pkg/util
-# github.com/longhorn/longhorn-manager v1.8.0
+# github.com/longhorn/longhorn-manager v1.8.1
 ## explicit; go 1.23.1
 github.com/longhorn/longhorn-manager/csi/crypto
 github.com/longhorn/longhorn-manager/datastore
@@ -606,11 +605,11 @@ github.com/longhorn/longhorn-manager/meta
 github.com/longhorn/longhorn-manager/scheduler
 github.com/longhorn/longhorn-manager/types
 github.com/longhorn/longhorn-manager/util
-# github.com/longhorn/longhorn-share-manager v1.8.0-rc4
+# github.com/longhorn/longhorn-share-manager v1.8.0
 ## explicit; go 1.23.0
 github.com/longhorn/longhorn-share-manager/pkg/client
 github.com/longhorn/longhorn-share-manager/pkg/types
-# github.com/longhorn/types v0.0.0-20241225162202-00d3a5fd7502
+# github.com/longhorn/types v0.0.0-20250210001806-5ef312749bee
 ## explicit; go 1.22.7
 github.com/longhorn/types/pkg/generated/bimrpc
 github.com/longhorn/types/pkg/generated/enginerpc
@@ -1184,7 +1183,7 @@ go.starlark.net/syntax
 # go.uber.org/multierr v1.11.0
 ## explicit; go 1.19
 go.uber.org/multierr
-# golang.org/x/crypto v0.32.0
+# golang.org/x/crypto v0.33.0
 ## explicit; go 1.20
 golang.org/x/crypto/acme
 golang.org/x/crypto/acme/autocert
@@ -1206,16 +1205,16 @@ golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/scrypt
 golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
-# golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
+# golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac
 ## explicit; go 1.22.0
 golang.org/x/exp/constraints
 golang.org/x/exp/maps
-# golang.org/x/mod v0.22.0
+# golang.org/x/mod v0.23.0
 ## explicit; go 1.22.0
 golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.34.0
+# golang.org/x/net v0.35.0
 ## explicit; go 1.18
 golang.org/x/net/bpf
 golang.org/x/net/context
@@ -1228,6 +1227,7 @@ golang.org/x/net/http/httpproxy
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
+golang.org/x/net/internal/httpcommon
 golang.org/x/net/internal/iana
 golang.org/x/net/internal/socket
 golang.org/x/net/internal/socks
@@ -1241,12 +1241,12 @@ golang.org/x/net/websocket
 ## explicit; go 1.18
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
-# golang.org/x/sync v0.10.0
+# golang.org/x/sync v0.11.0
 ## explicit; go 1.18
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
-# golang.org/x/sys v0.29.0
+# golang.org/x/sys v0.30.0
 ## explicit; go 1.18
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
@@ -1254,10 +1254,10 @@ golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/term v0.28.0
+# golang.org/x/term v0.29.0
 ## explicit; go 1.18
 golang.org/x/term
-# golang.org/x/text v0.21.0
+# golang.org/x/text v0.22.0
 ## explicit; go 1.18
 golang.org/x/text/cases
 golang.org/x/text/encoding
@@ -1284,7 +1284,7 @@ golang.org/x/text/unicode/norm
 # golang.org/x/time v0.8.0
 ## explicit; go 1.18
 golang.org/x/time/rate
-# golang.org/x/tools v0.29.0
+# golang.org/x/tools v0.30.0
 ## explicit; go 1.22.0
 golang.org/x/tools/cover
 golang.org/x/tools/go/ast/astutil
@@ -1295,6 +1295,7 @@ golang.org/x/tools/go/types/objectpath
 golang.org/x/tools/go/types/typeutil
 golang.org/x/tools/imports
 golang.org/x/tools/internal/aliases
+golang.org/x/tools/internal/astutil/edge
 golang.org/x/tools/internal/event
 golang.org/x/tools/internal/event/core
 golang.org/x/tools/internal/event/keys
@@ -1381,7 +1382,7 @@ google.golang.org/grpc/serviceconfig
 google.golang.org/grpc/stats
 google.golang.org/grpc/status
 google.golang.org/grpc/tap
-# google.golang.org/protobuf v1.36.3
+# google.golang.org/protobuf v1.36.5
 ## explicit; go 1.21
 google.golang.org/protobuf/encoding/protodelim
 google.golang.org/protobuf/encoding/protojson
@@ -1477,7 +1478,7 @@ helm.sh/helm/v3/pkg/strvals
 helm.sh/helm/v3/pkg/time
 helm.sh/helm/v3/pkg/time/ctime
 helm.sh/helm/v3/pkg/uploader
-# k8s.io/api v0.32.1 => k8s.io/api v0.31.5
+# k8s.io/api v0.32.2 => k8s.io/api v0.31.5
 ## explicit; go 1.22.0
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
@@ -1537,7 +1538,7 @@ k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
 k8s.io/api/storagemigration/v1alpha1
-# k8s.io/apiextensions-apiserver v0.32.1 => k8s.io/apiextensions-apiserver v0.31.5
+# k8s.io/apiextensions-apiserver v0.32.2 => k8s.io/apiextensions-apiserver v0.31.5
 ## explicit; go 1.22.0
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
@@ -1548,7 +1549,7 @@ k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1
-# k8s.io/apimachinery v0.32.1 => k8s.io/apimachinery v0.31.5
+# k8s.io/apimachinery v0.32.2 => k8s.io/apimachinery v0.31.5
 ## explicit; go 1.22.0
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
@@ -1616,7 +1617,7 @@ k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/netutil
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/apiserver v0.32.1 => k8s.io/apiserver v0.31.5
+# k8s.io/apiserver v0.32.2 => k8s.io/apiserver v0.31.5
 ## explicit; go 1.22.0
 k8s.io/apiserver/pkg/apis/apiserver
 k8s.io/apiserver/pkg/apis/apiserver/install
@@ -1641,7 +1642,7 @@ k8s.io/apiserver/pkg/util/webhook
 k8s.io/apiserver/pkg/util/x509metrics
 k8s.io/apiserver/pkg/warning
 k8s.io/apiserver/plugin/pkg/authenticator/token/webhook
-# k8s.io/cli-runtime v0.32.1 => k8s.io/cli-runtime v0.31.5
+# k8s.io/cli-runtime v0.32.2 => k8s.io/cli-runtime v0.31.5
 ## explicit; go 1.22.0
 k8s.io/cli-runtime/pkg/genericclioptions
 k8s.io/cli-runtime/pkg/genericiooptions
@@ -2009,7 +2010,7 @@ k8s.io/code-generator/cmd/lister-gen/args
 k8s.io/code-generator/cmd/lister-gen/generators
 k8s.io/code-generator/pkg/namer
 k8s.io/code-generator/pkg/util
-# k8s.io/component-base v0.32.1 => k8s.io/component-base v0.31.5
+# k8s.io/component-base v0.32.2 => k8s.io/component-base v0.31.5
 ## explicit; go 1.22.0
 k8s.io/component-base/cli/flag
 k8s.io/component-base/featuregate
@@ -2023,7 +2024,7 @@ k8s.io/component-base/metrics/prometheusextension
 k8s.io/component-base/tracing
 k8s.io/component-base/tracing/api/v1
 k8s.io/component-base/version
-# k8s.io/component-helpers v0.32.1 => k8s.io/component-helpers v0.31.5
+# k8s.io/component-helpers v0.32.2 => k8s.io/component-helpers v0.31.5
 ## explicit; go 1.22.0
 k8s.io/component-helpers/scheduling/corev1
 k8s.io/component-helpers/scheduling/corev1/nodeaffinity
@@ -2102,10 +2103,10 @@ k8s.io/kubectl/pkg/validation
 ## explicit; go 1.22.0
 k8s.io/kubelet/config/v1beta1
 k8s.io/kubelet/pkg/apis/stats/v1alpha1
-# k8s.io/kubernetes v1.32.1 => k8s.io/kubernetes v1.31.5
+# k8s.io/kubernetes v1.32.2 => k8s.io/kubernetes v1.31.5
 ## explicit; go 1.22.0
 k8s.io/kubernetes/plugin/pkg/admission/eventratelimit/apis/eventratelimit
-# k8s.io/mount-utils v0.32.1 => k8s.io/mount-utils v0.31.5
+# k8s.io/mount-utils v0.32.2 => k8s.io/mount-utils v0.31.5
 ## explicit; go 1.22.0
 k8s.io/mount-utils
 # k8s.io/utils v0.0.0-20241210054802-24370beab758
