@@ -823,15 +823,22 @@ func (rcs *ReplicaScheduler) IsSchedulableToDisk(size int64, requiredStorage int
 }
 
 func (rcs *ReplicaScheduler) IsSchedulableToDiskConsiderDiskPressure(diskPressurePercentage, size, requiredStorage int64, info *DiskSchedulingInfo) bool {
-	newDiskUsagePercentage := (requiredStorage + info.StorageScheduled + info.StorageReserved) * 100 / info.StorageMaximum
-	logrus.WithFields(logrus.Fields{
+	log := logrus.WithFields(logrus.Fields{
 		"diskUUID":               info.DiskUUID,
 		"diskPressurePercentage": diskPressurePercentage,
 		"requiredStorage":        requiredStorage,
 		"storageScheduled":       info.StorageScheduled,
 		"storageReserved":        info.StorageReserved,
 		"storageMaximum":         info.StorageMaximum,
-	}).Debugf("Evaluated new disk usage percentage after scheduling replica: %v%%", newDiskUsagePercentage)
+	})
+
+	if info.StorageMaximum <= 0 {
+		log.Warnf("StorageMaximum is %v, skip evaluating new disk usage", info.StorageMaximum)
+		return false
+	}
+
+	newDiskUsagePercentage := (requiredStorage + info.StorageScheduled + info.StorageReserved) * 100 / info.StorageMaximum
+	log.Debugf("Evaluated new disk usage percentage after scheduling replica: %v%%", newDiskUsagePercentage)
 
 	return rcs.IsSchedulableToDisk(size, requiredStorage, info) &&
 		newDiskUsagePercentage < int64(diskPressurePercentage)

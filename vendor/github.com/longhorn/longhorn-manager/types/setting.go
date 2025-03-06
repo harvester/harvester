@@ -65,6 +65,7 @@ const (
 	SettingNameStorageMinimalAvailablePercentage                        = SettingName("storage-minimal-available-percentage")
 	SettingNameStorageReservedPercentageForDefaultDisk                  = SettingName("storage-reserved-percentage-for-default-disk")
 	SettingNameUpgradeChecker                                           = SettingName("upgrade-checker")
+	SettingNameUpgradeResponderURL                                      = SettingName("upgrade-responder-url")
 	SettingNameAllowCollectingLonghornUsage                             = SettingName("allow-collecting-longhorn-usage-metrics")
 	SettingNameCurrentLonghornVersion                                   = SettingName("current-longhorn-version")
 	SettingNameLatestLonghornVersion                                    = SettingName("latest-longhorn-version")
@@ -163,6 +164,7 @@ var (
 		SettingNameStorageMinimalAvailablePercentage,
 		SettingNameStorageReservedPercentageForDefaultDisk,
 		SettingNameUpgradeChecker,
+		SettingNameUpgradeResponderURL,
 		SettingNameAllowCollectingLonghornUsage,
 		SettingNameCurrentLonghornVersion,
 		SettingNameLatestLonghornVersion,
@@ -283,6 +285,7 @@ var (
 		SettingNameStorageMinimalAvailablePercentage:                        SettingDefinitionStorageMinimalAvailablePercentage,
 		SettingNameStorageReservedPercentageForDefaultDisk:                  SettingDefinitionStorageReservedPercentageForDefaultDisk,
 		SettingNameUpgradeChecker:                                           SettingDefinitionUpgradeChecker,
+		SettingNameUpgradeResponderURL:                                      SettingDefinitionUpgradeResponderURL,
 		SettingNameAllowCollectingLonghornUsage:                             SettingDefinitionAllowCollectingLonghornUsageMetrics,
 		SettingNameCurrentLonghornVersion:                                   SettingDefinitionCurrentLonghornVersion,
 		SettingNameLatestLonghornVersion:                                    SettingDefinitionLatestLonghornVersion,
@@ -583,6 +586,16 @@ var (
 		Required:    true,
 		ReadOnly:    false,
 		Default:     "true",
+	}
+
+	SettingDefinitionUpgradeResponderURL = SettingDefinition{
+		DisplayName: "Upgrade Responder URL",
+		Description: "The Upgrade Responder sends a notification whenever a new Longhorn version that you can upgrade to becomes available",
+		Category:    SettingCategoryGeneral,
+		Type:        SettingTypeString,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "https://longhorn-upgrade-responder.rancher.io/v1/checkupgrade",
 	}
 
 	SettingDefinitionAllowCollectingLonghornUsageMetrics = SettingDefinition{

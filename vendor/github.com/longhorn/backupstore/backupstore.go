@@ -56,6 +56,11 @@ type Backup struct {
 	SingleFile BackupFile     `json:",omitempty"`
 }
 
+type LastBackupInfo struct {
+	Name              string
+	SnapshotCreatedAt string
+}
+
 var (
 	backupstoreBase = "backupstore"
 )

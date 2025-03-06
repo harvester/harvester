@@ -1196,12 +1196,16 @@ func checkBlockReferenceCount(blockInfos map[string]*BlockInfo, backup *Backup, 
 	}
 }
 
+func copyLastBackupInfo(backup *Backup, lastBackup *LastBackupInfo) {
+	lastBackup.Name = backup.Name
+	lastBackup.SnapshotCreatedAt = backup.SnapshotCreatedAt
+}
+
 // getLatestBackup replace lastBackup object if the found
 // backup.SnapshotCreatedAt time is greater than the lastBackup
-func getLatestBackup(backup *Backup, lastBackup *Backup) error {
+func getLatestBackup(backup *Backup, lastBackup *LastBackupInfo) error {
 	if lastBackup.SnapshotCreatedAt == "" {
-		// FIXME - go lint points out that this copies a potentially locked sync.mutex
-		*lastBackup = *backup // nolint:govet
+		copyLastBackupInfo(backup, lastBackup)
 		return nil
 	}
 
@@ -1216,8 +1220,7 @@ func getLatestBackup(backup *Backup, lastBackup *Backup) error {
 	}
 
 	if backupTime.After(lastBackupTime) {
-		// FIXME - go lint points out that this copies a potentially locked sync.mutex
-		*lastBackup = *backup // nolint:govet
+		copyLastBackupInfo(backup, lastBackup)
 	}
 
 	return nil
@@ -1299,7 +1302,7 @@ func DeleteDeltaBlockBackup(backupURL string) error {
 		}
 	}
 
-	lastBackup := &Backup{}
+	lastBackup := &LastBackupInfo{}
 	for _, name := range backupNames {
 		log := log.WithField("backup", name)
 		backup, err := loadBackup(bsDriver, name, volumeName)
