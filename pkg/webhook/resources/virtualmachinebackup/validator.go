@@ -113,12 +113,15 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 
 // checkBackupVolumeSnapshotClass checks if the volumeSnapshotClassName is configured for the provisioner used by the PVCs in the VirtualMachine.
 func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(vm *kubevirtv1.VirtualMachine, newVMBackup *v1beta1.VirtualMachineBackup) error {
-	csiDriverConfig, err := util.LoadCSIDriverConfig(v.setting)
+	// Load the CSI driver configuration.
+	cdc, err := util.LoadCSIDriverConfig(v.setting)
 	if err != nil {
 		return err
 	}
 
+	// Iterate through the VM volumes.
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		// Skip non-PVC volumes.
 		if volume.PersistentVolumeClaim == nil {
 			continue
 		}
@@ -128,29 +131,12 @@ func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(vm *kubev
 
 		pvc, err := v.pvcCache.Get(pvcNamespace, pvcName)
 		if err != nil {
-			return fmt.Errorf("failed to get PVC %s/%s, err: %w", pvcNamespace, pvcName, err)
+			return fmt.Errorf("failed to get PVC %s/%s: %w", pvcNamespace, pvcName, err)
 		}
 
-		// Get the provisioner used by the PVC and find its configuration in the CSI driver configuration.
-		provisioner := util.GetProvisionedPVCProvisioner(pvc)
-		c, ok := csiDriverConfig[provisioner]
-		if !ok {
-			return fmt.Errorf("provisioner %s is not configured in the %s setting", provisioner, settings.CSIDriverConfigSettingName)
-		}
-
-		// Determine which configuration value is required based on the type of backup.
-		var requiredValue string
-		switch newVMBackup.Spec.Type {
-		case v1beta1.Backup:
-			requiredValue = c.BackupVolumeSnapshotClassName
-		case v1beta1.Snapshot:
-			requiredValue = c.VolumeSnapshotClassName
-		}
-
-		// If the required value is missing, return an error.
-		if requiredValue == "" {
-			return fmt.Errorf("%s's %s is not configured for provisioner %s in the %s setting",
-				newVMBackup.Spec.Type, "VolumeSnapshotClassName", provisioner, settings.CSIDriverConfigSettingName)
+		// Validate both the ability and the CSI configuration.
+		if err := webhookutil.ValidateProvisionerAndConfig(pvc, v.engineCache, newVMBackup.Spec.Type, cdc); err != nil {
+			return err
 		}
 	}
 
