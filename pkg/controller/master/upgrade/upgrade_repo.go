@@ -139,7 +139,7 @@ func (r *Repo) getVMName() string {
 
 func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.VirtualMachine, error) {
 	vmName := r.getVMName()
-	vmRun := true
+	runStrategy := kubevirtv1.RunStrategyRerunOnFailure // the default strategy used by Harvester to create new VMs
 	var bootOrder uint = 1
 	evictionStrategy := kubevirtv1.EvictionStrategyLiveMigrateIfPossible
 
@@ -188,7 +188,7 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 			},
 		},
 		Spec: kubevirtv1.VirtualMachineSpec{
-			Running: &vmRun,
+			RunStrategy: &runStrategy,
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -322,7 +322,21 @@ func (r *Repo) startVM() error {
 
 	toUpdate := vm.DeepCopy()
 
-	toUpdate.Spec.Running = func(b bool) *bool { return &b }(true)
+	// the VM may be created before from a version < v1.5.0, it uses Spec.Running
+	if toUpdate.Spec.RunStrategy != nil {
+		// new
+		runStrategy := kubevirtv1.RunStrategyRerunOnFailure
+		toUpdate.Spec.RunStrategy = &runStrategy
+	} else if toUpdate.Spec.Running != nil {
+		// legacy
+		run := true
+		toUpdate.Spec.Running = &run
+	} else {
+		// both are nil, then use RunStrategy
+		runStrategy := kubevirtv1.RunStrategyRerunOnFailure
+		toUpdate.Spec.RunStrategy = &runStrategy
+	}
+
 	if !reflect.DeepEqual(toUpdate, vm) {
 		if _, err = r.h.vmClient.Update(toUpdate); err != nil {
 			return err
