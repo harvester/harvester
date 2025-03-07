@@ -31,6 +31,7 @@ type LoggingV1beta1Interface interface {
 	ClusterFlowsGetter
 	ClusterOutputsGetter
 	FlowsGetter
+	FluentbitAgentsGetter
 	LoggingsGetter
 	OutputsGetter
 }
@@ -50,6 +51,10 @@ func (c *LoggingV1beta1Client) ClusterOutputs() ClusterOutputInterface {
 
 func (c *LoggingV1beta1Client) Flows() FlowInterface {
 	return newFlows(c)
+}
+
+func (c *LoggingV1beta1Client) FluentbitAgents() FluentbitAgentInterface {
+	return newFluentbitAgents(c)
 }
 
 func (c *LoggingV1beta1Client) Loggings() LoggingInterface {

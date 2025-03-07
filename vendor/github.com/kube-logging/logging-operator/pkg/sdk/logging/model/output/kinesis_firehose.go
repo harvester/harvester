@@ -25,19 +25,20 @@ type _hugoKinesisFirehose interface{} //nolint:deadcode,unused
 
 // +docName:"Kinesis Firehose output plugin for Fluentd"
 //
-//	More info at https://github.com/awslabs/aws-fluent-plugin-kinesis#configuration-kinesis_firehose
-//
-// ## Example output configurations
-// ```yaml
-// spec:
-//
-//	kinesisFirehose:
-//	  delivery_stream_name: example-stream-name
-//	  region: us-east-1
-//	  format:
-//	    type: json
-//
-// ```
+/*
+For details, see [https://github.com/awslabs/aws-fluent-plugin-kinesis#configuration-kinesis_firehose](https://github.com/awslabs/aws-fluent-plugin-kinesis#configuration-kinesis_firehose).
+
+## Example output configurations
+
+```yaml
+spec:
+  kinesisFirehose:
+    delivery_stream_name: example-stream-name
+    region: us-east-1
+    format:
+      type: json
+```
+*/
 type _docKinesisFirehose interface{} //nolint:deadcode,unused
 
 // +name:"Amazon Kinesis Firehose"
@@ -48,8 +49,8 @@ type _docKinesisFirehose interface{} //nolint:deadcode,unused
 type _metaKinesisFirehose interface{} //nolint:deadcode,unused
 
 // +kubebuilder:object:generate=true
-// +docName:"KinesisStream"
-// Send your logs to a Kinesis Stream
+// +docName:"KinesisFirehose"
+// Send your logs to a Kinesis Firehose
 type KinesisFirehoseOutputConfig struct {
 	// Name of the delivery stream to put data.
 	DeliveryStreamName string `json:"delivery_stream_name"`

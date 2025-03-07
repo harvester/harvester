@@ -19,32 +19,27 @@ package output
 type _hugoMQTT interface{} //nolint:deadcode,unused
 
 // +docName:"Sending messages from a local network to an MQTT broker"
-//
-// ## Prerequisites
-//
-// ## Example
-//
-// {{< highlight yaml >}}
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: SyslogNGOutput
-// metadata:
-//
-//	name: mqtt
-//	namespace: default
-//
-// spec:
-//
-//	mqtt:
-//	  address: tcp://mosquitto:1883
-//	  template: |
-//	    $(format-json --subkeys json~ --key-delimiter ~)
-//	  topic: test/demo
-//
-// {{</ highlight >}}
+/*
+Sends messages from a local network to an MQTT broker. For details on the available options of the output, see the [documentation of the AxoSyslog syslog-ng distribution](https://axoflow.com/docs/axosyslog-core/chapter-destinations/destination-mqtt-intro/).
+
+## Example
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: SyslogNGOutput
+metadata:
+  name: mqtt
+  namespace: default
+spec:
+  mqtt:
+    address: tcp://mosquitto:1883
+    topic: test/demo
+{{</ highlight >}}
+*/
 type _docMQTT interface{} //nolint:deadcode,unused
 
 // +name:"MQTT Destination"
-// +url:"https://www.syslog-ng.com/technical-documents/doc/syslog-ng-open-source-edition/3.37/administration-guide/45#TOPIC-1829079"
+// +url:"https://axoflow.com/docs/axosyslog-core/chapter-destinations/destination-mqtt-intro/"
 // +description:"Sending messages over MQTT Protocol"
 // +status:"Testing"
 type _metaMQTT interface{} //nolint:deadcode,unused
@@ -57,7 +52,7 @@ type MQTT struct {
 	Topic string `json:"topic,omitempty"`
 	// fallback-topic is used when syslog-ng cannot post a message to the originally defined topic (which can include invalid characters coming from templates).
 	FallbackTopic string `json:"fallback-topic,omitempty"`
-	// Template where you can configure the message template sent to the MQTT broker. By default, the template is: “$ISODATE $HOST $MSGHDR$MSG”
+	// Template where you can configure the message template sent to the MQTT broker. By default, the template is: `$ISODATE $HOST $MSGHDR$MSG`
 	Template string `json:"template,omitempty"`
 	// qos stands for quality of service and can take three values in the MQTT world. Its default value is 0, where there is no guarantee that the message is ever delivered.
 	QOS int `json:"qos,omitempty"`

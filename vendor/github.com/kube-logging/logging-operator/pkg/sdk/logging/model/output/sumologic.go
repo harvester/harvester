@@ -24,40 +24,38 @@ import (
 type _hugoSumoLogic interface{} //nolint:deadcode,unused
 
 // +docName:"SumoLogic output plugin for Fluentd"
-// This plugin has been designed to output logs or metrics to SumoLogic via a HTTP collector endpoint
-// More info at https://github.com/SumoLogic/fluentd-output-sumologic
-//
-// Example secret for HTTP input URL
-// ```
-// kubectl create secret generic sumo-output --from-literal "endpoint=$URL"
-// ```
-//
-// # Example ClusterOutput
-//
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: ClusterOutput
-// metadata:
-//
-//	name: sumo-output
-//
-// spec:
-//
-//	sumologic:
-//	  buffer:
-//	    flush_interval: 10s
-//	    flush_mode: interval
-//	  compress: true
-//	  endpoint:
-//	    valueFrom:
-//	      secretKeyRef:
-//	        key: endpoint
-//	        name: sumo-output
-//	  source_name: test1
-//
-// ```
-//
-//export URL='https://endpoint1.collection.eu.sumologic.com/receiver/v1/http/.......'
+/*
+This plugin has been designed to output logs or metrics to SumoLogic via a HTTP collector endpoint
+For details, see [https://github.com/SumoLogic/fluentd-output-sumologic](https://github.com/SumoLogic/fluentd-output-sumologic).
+
+## Example secret for HTTP input URL:
+
+```
+export URL='https://endpoint1.collection.eu.sumologic.com/receiver/v1/http/'
+kubectl create secret generic sumo-output --from-literal "endpoint=$URL"
+```
+
+## Example ClusterOutput
+
+```yaml
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: ClusterOutput
+metadata:
+  name: sumo-output
+spec:
+  sumologic:
+    buffer:
+      flush_interval: 10s
+      flush_mode: interval
+    compress: true
+    endpoint:
+      valueFrom:
+        secretKeyRef:
+          key: endpoint
+          name: sumo-output
+    source_name: test1
+```
+*/
 type _docSumoLogic interface{} //nolint:deadcode,unused
 
 // +name:"SumoLogic"
@@ -92,7 +90,7 @@ type SumologicOutput struct {
 	SourceHost string `json:"source_host,omitempty"`
 	// Set timeout seconds to wait until connection is opened. (default: 60)
 	OpenTimeout int `json:"open_timeout,omitempty"`
-	// Add timestamp (or timestamp_key) field to logs before sending to sumologic (default: true)
+	// Add timestamp (or timestamp_key) field to logs before sending to SumoLogic (default: true)
 	AddTimestamp bool `json:"add_timestamp,omitempty"`
 	// Field name when add_timestamp is on (default: timestamp)
 	TimestampKey string `json:"timestamp_key,omitempty"`
@@ -102,7 +100,7 @@ type SumologicOutput struct {
 	DisableCookies bool `json:"disable_cookies,omitempty"`
 	// Delimiter (default: .)
 	Delimiter string `json:"delimiter,omitempty"`
-	// Comma-separated key=value list of fields to apply to every log. [more information](https://help.sumologic.com/Manage/Fields#http-source-fields)
+	// Comma-separated key=value list of fields to apply to every log. [More information](https://help.sumologic.com/Manage/Fields#http-source-fields)
 	CustomFields []string `json:"custom_fields,omitempty"`
 	// Name of sumo client which is send as X-Sumo-Client header (default: fluentd-output)
 	SumoClient string `json:"sumo_client,omitempty"`

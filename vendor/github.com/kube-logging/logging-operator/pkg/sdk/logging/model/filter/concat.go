@@ -16,6 +16,7 @@ package filter
 
 import (
 	"github.com/cisco-open/operator-tools/pkg/secret"
+
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/types"
 )
 
@@ -39,77 +40,77 @@ type _metaConcat interface{} //nolint:deadcode,unused
 type Concat struct {
 	// Specify field name in the record to parse. If you leave empty the Container Runtime default will be used.
 	Key string `json:"key,omitempty"`
-	//The separator of lines. (default: "\n")
-	Separator string `json:"separator,omitempty"`
-	//The number of lines. This is exclusive with multiline_start_regex.
+	// The separator of lines. (default: "\n")
+	// +kubebuilder:validation:Optional
+	Separator *string `json:"separator,omitempty" plugin:"default:\"\\n\""`
+	// The number of lines. This is exclusive with multiline_start_regex.
 	NLines int `json:"n_lines,omitempty"`
-	//The regexp to match beginning of multiline. This is exclusive with n_lines.
+	// The regexp to match beginning of multiline. This is exclusive with n_lines.
 	MultilineStartRegexp string `json:"multiline_start_regexp,omitempty"`
-	//The regexp to match ending of multiline. This is exclusive with n_lines.
+	// The regexp to match ending of multiline. This is exclusive with n_lines.
 	MultilineEndRegexp string `json:"multiline_end_regexp,omitempty"`
-	//The regexp to match continuous lines. This is exclusive with n_lines.
+	// The regexp to match continuous lines. This is exclusive with n_lines.
 	ContinuousLineRegexp string `json:"continuous_line_regexp,omitempty"`
-	//The key to determine which stream an event belongs to.
+	// The key to determine which stream an event belongs to.
 	StreamIdentityKey string `json:"stream_identity_key,omitempty"`
-	//The number of seconds after which the last received event log will be flushed. If specified 0, wait for next line forever.
+	// The number of seconds after which the last received event log is flushed. If set to 0, flushing is disabled (wait for next line forever).
 	FlushInterval int `json:"flush_interval,omitempty"`
-	//The label name to handle events caused by timeout.
+	// The label name to handle events caused by timeout.
 	TimeoutLabel string `json:"timeout_label,omitempty"`
-	//Use timestamp of first record when buffer is flushed. (default: False)
+	// Use timestamp of first record when buffer is flushed. (default: False)
 	UseFirstTimestamp bool `json:"use_first_timestamp,omitempty"`
-	//The field name that is the reference to concatenate records
+	// The field name that is the reference to concatenate records
 	PartialKey string `json:"partial_key,omitempty"`
-	//The value stored in the field specified by partial_key that represent partial log
+	// The value stored in the field specified by partial_key that represent partial log
 	PartialValue string `json:"partial_value,omitempty"`
-	//If true, keep partial_key in concatenated records (default:False)
+	// If true, keep partial_key in concatenated records (default:False)
 	KeepPartialKey bool `json:"keep_partial_key,omitempty"`
-	//Use partial metadata to concatenate multiple records
+	// Use partial metadata to concatenate multiple records
 	UsePartialMetadata string `json:"use_partial_metadata,omitempty"`
-	//If true, keep partial metadata
+	// If true, keep partial metadata
 	KeepPartialMetadata string `json:"keep_partial_metadata,omitempty"`
-	//Input format of the partial metadata (fluentd or journald docker log driver)( docker-fluentd, docker-journald, docker-journald-lowercase)
+	// Input format of the partial metadata (fluentd or journald docker log driver)( docker-fluentd, docker-journald, docker-journald-lowercase)
 	PartialMetadataFormat string `json:"partial_metadata_format,omitempty"`
-	//Use cri log tag to concatenate multiple records
+	// Use cri log tag to concatenate multiple records
 	UsePartialCriLogtag bool `json:"use_partial_cri_logtag,omitempty"`
-	//The key name that is referred to concatenate records on cri log
+	// The key name that is referred to concatenate records on cri log
 	PartialCriLogtagKey string `json:"partial_cri_logtag_key,omitempty"`
-	//The key name that is referred to detect stream name on cri log
+	// The key name that is referred to detect stream name on cri log
 	PartialCriStreamKey string `json:"partial_cri_stream_key,omitempty"`
 }
 
-// ## Example `Concat` filter configurations
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: Flow
-// metadata:
 //
-//	name: demo-flow
-//
-// spec:
-//
-//	filters:
-//	  - concat:
-//	      partial_key: "partial_message"
-//	      separator: ""
-//	      n_lines: 10
-//	selectors: {}
-//	localOutputRefs:
-//	  - demo-output
-//
-// ```
-//
-// #### Fluentd Config Result
-// ```yaml
-// <filter **>
-//
-//	@type concat
-//	@id test_concat
-//	key message
-//	n_lines 10
-//	partial_key partial_message
-//
-// </filter>
-// ```
+/*
+## Example `Concat` filter configurations
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Flow
+metadata:
+  name: demo-flow
+spec:
+  filters:
+    - concat:
+        partial_key: "partial_message"
+        separator: ""
+        n_lines: 10
+  selectors: {}
+  localOutputRefs:
+    - demo-output
+{{</ highlight >}}
+
+Fluentd config result:
+
+{{< highlight xml >}}
+<filter **>
+  @type concat
+  @id test_concat
+  key message
+  n_lines 10
+  partial_key partial_message
+</filter>
+{{</ highlight >}}
+*/
 type _expConcat interface{} //nolint:deadcode,unused
 
 func (c *Concat) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {

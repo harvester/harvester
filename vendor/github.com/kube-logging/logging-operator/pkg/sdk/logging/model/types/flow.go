@@ -67,6 +67,9 @@ type Flow struct {
 
 	// Fluentd label
 	FlowLabel string `json:"-"`
+
+	// Flag whether to add the label to the main event router
+	AddRoute bool
 }
 
 func (f *Flow) GetPluginMeta() *PluginMeta {
@@ -104,10 +107,21 @@ func (f *Flow) WithOutputs(output ...Output) *Flow {
 	return f
 }
 
-func NewFlow(matches []FlowMatch, id, name, namespace string) (*Flow, error) {
-	flowLabel, err := calculateFlowLabel(matches, name, namespace)
-	if err != nil {
-		return nil, err
+func NewFlow(matches []FlowMatch, id, name, namespace, flowLabel string, includeLabelInRouter *bool) (*Flow, error) {
+	var addRoute bool = true
+	if flowLabel == "" {
+		var err error
+		flowLabel, err = calculateFlowLabel(matches, name, namespace)
+		if err != nil {
+			return nil, err
+		}
+		if includeLabelInRouter != nil && !*includeLabelInRouter {
+			addRoute = false
+		}
+	} else {
+		if includeLabelInRouter == nil || !*includeLabelInRouter {
+			addRoute = false
+		}
 	}
 	return &Flow{
 		PluginMeta: PluginMeta{
@@ -117,6 +131,7 @@ func NewFlow(matches []FlowMatch, id, name, namespace string) (*Flow, error) {
 		FlowID:    id,
 		FlowLabel: flowLabel,
 		Matches:   matches,
+		AddRoute:  addRoute,
 	}, nil
 }
 

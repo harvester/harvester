@@ -16,6 +16,7 @@ package filter
 
 import (
 	"github.com/cisco-open/operator-tools/pkg/secret"
+
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/types"
 )
 
@@ -24,19 +25,20 @@ import (
 type _hugoExceptionDetector interface{} //nolint:deadcode,unused
 
 // +docName:"Exception Detector"
-// This filter plugin consumes a log stream of JSON objects which contain single-line log messages. If a consecutive sequence of log messages form an exception stack trace, they forwarded as a single, combined JSON object. Otherwise, the input log data is forwarded as is.
-// More info at https://github.com/GoogleCloudPlatform/fluent-plugin-detect-exceptions
-//
-// > Note: As Tag management is not supported yet, this Plugin is **mutually exclusive** with [Tag normaliser](../tagnormaliser)
-//
-// ## Example output configurations
-// ```yaml
-// filters:
-//   - detectExceptions:
-//     languages: java, python
-//     multiline_flush_interval: 0.1
-//
-// ```
+/*
+This filter plugin consumes a log stream of JSON objects which contain single-line log messages. If a consecutive sequence of log messages form an exception stack trace, they forwarded as a single, combined JSON object. Otherwise, the input log data is forwarded as is. More info at https://github.com/GoogleCloudPlatform/fluent-plugin-detect-exceptions
+
+> Note: As Tag management is not supported yet, this Plugin is **mutually exclusive** with [Tag normaliser](../tagnormaliser)
+
+## Example output configurations
+
+```yaml
+filters:
+  - detectExceptions:
+    languages: java, python
+    multiline_flush_interval: 0.1
+```
+*/
 type _docExceptionDetector interface{} //nolint:deadcode,unused
 
 // +name:"Exception Detector"
@@ -54,7 +56,7 @@ type DetectExceptions struct {
 	RemoveTagPrefix string `json:"remove_tag_prefix,omitempty"`
 	// The interval of flushing the buffer for multiline format. (default: nil)
 	MultilineFlushInterval string `json:"multiline_flush_interval,omitempty"`
-	// Programming languages for which to detect exceptions. (default: [])
+	// Programming languages for which to detect exceptions. (default: `[]`)
 	Languages []string `json:"languages,omitempty"`
 	// Maximum number of lines to flush (0 means no limit) (default: 1000)
 	MaxLines int `json:"max_lines,omitempty"`
@@ -64,44 +66,43 @@ type DetectExceptions struct {
 	Stream string `json:"stream,omitempty"`
 	// Force line breaks between each lines when comibining exception stacks. (default: false)
 	ForceLineBreaks bool `json:"force_line_breaks,omitempty"`
-	// Tag used in match directive. (default: kubernetes.**)
+	// Tag used in match directive. (default: `kubernetes.**`)
 	MatchTag string `json:"match_tag,omitempty" plugin:"hidden"`
 }
 
-// ## Example `Exception Detector` filter configurations
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: Flow
-// metadata:
 //
-//	name: demo-flow
-//
-// spec:
-//
-//	filters:
-//	  - detectExceptions:
-//	      multiline_flush_interval: 0.1
-//	      languages:
-//	        - java
-//	        - python
-//	selectors: {}
-//	localOutputRefs:
-//	  - demo-output
-//
-// ```
-//
-// #### Fluentd Config Result
-// ```yaml
-// <match kubernetes.**>
-//
-//	@type detect_exceptions
-//	@id test_detect_exceptions
-//	languages ["java","python"]
-//	multiline_flush_interval 0.1
-//	remove_tag_prefix kubernetes
-//
-// </match>
-// ```
+/*
+## Example `Exception Detector` filter configurations
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Flow
+metadata:
+  name: demo-flow
+spec:
+  filters:
+    - detectExceptions:
+        multiline_flush_interval: 0.1
+        languages:
+          - java
+          - python
+  selectors: {}
+  localOutputRefs:
+    - demo-output
+{{</ highlight >}}
+
+Fluentd config result:
+
+{{< highlight xml >}}
+<match kubernetes.**>
+  @type detect_exceptions
+  @id test_detect_exceptions
+  languages ["java","python"]
+  multiline_flush_interval 0.1
+  remove_tag_prefix kubernetes
+</match>
+{{</ highlight >}}
+*/
 type _expDetectExceptions interface{} //nolint:deadcode,unused
 
 func (d *DetectExceptions) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {

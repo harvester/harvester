@@ -16,6 +16,7 @@ package filter
 
 import (
 	"github.com/cisco-open/operator-tools/pkg/secret"
+
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/types"
 )
 
@@ -47,74 +48,73 @@ type PrometheusConfig struct {
 type MetricSection struct {
 	// Metrics name
 	Name string `json:"name"`
-	//Metrics type [counter](https://github.com/fluent/fluent-plugin-prometheus#counter-type), [gauge](https://github.com/fluent/fluent-plugin-prometheus#gauge-type), [summary](https://github.com/fluent/fluent-plugin-prometheus#summary-type), [histogram](https://github.com/fluent/fluent-plugin-prometheus#histogram-type)
+	// Metrics type [counter](https://github.com/fluent/fluent-plugin-prometheus#counter-type), [gauge](https://github.com/fluent/fluent-plugin-prometheus#gauge-type), [summary](https://github.com/fluent/fluent-plugin-prometheus#summary-type), [histogram](https://github.com/fluent/fluent-plugin-prometheus#histogram-type)
 	Type string `json:"type"`
-	//Description of metric
+	// Description of metric
 	Desc string `json:"desc"`
-	//Key name of record for instrumentation.
+	// Key name of record for instrumentation.
 	Key string `json:"key,omitempty"`
-	//Buckets of record for instrumentation
+	// Buckets of record for instrumentation
 	Buckets string `json:"buckets,omitempty"`
-	//Additional labels for this metric
+	// Additional labels for this metric
 	Labels Label `json:"labels,omitempty"`
 }
 
-// ## Example `Prometheus` filter configurations
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: Flow
-// metadata:
 //
-//	name: demo-flow
-//
-// spec:
-//
-//	filters:
-//	  - tag_normaliser: {}
-//	  - parser:
-//	      remove_key_name_field: true
-//	      reserve_data: true
-//	      parse:
-//	        type: nginx
-//	  - prometheus:
-//	      metrics:
-//	      - name: total_counter
-//	        desc: The total number of foo in message.
-//	        type: counter
-//	        labels:
-//	          foo: bar
-//	      labels:
-//	        host: ${hostname}
-//	        tag: ${tag}
-//	        namespace: $.kubernetes.namespace
-//	selectors: {}
-//	localOutputRefs:
-//	  - demo-output
-//
-// ```
-//
-// #### Fluentd Config Result
-// ```
-//
-//	<filter **>
-//	  @type prometheus
-//	  @id logging-demo-flow_2_prometheus
-//	  <metric>
-//	    desc The total number of foo in message.
-//	    name total_counter
-//	    type counter
-//	    <labels>
-//	      foo bar
-//	    </labels>
-//	  </metric>
-//	  <labels>
-//	    host ${hostname}
-//	    namespace $.kubernetes.namespace
-//	    tag ${tag}
-//	  </labels>
-//	</filter>
-//
-// ```
+/*
+## Example `Prometheus` filter configurations
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Flow
+metadata:
+  name: demo-flow
+spec:
+  filters:
+    - tag_normaliser: {}
+    - parser:
+        remove_key_name_field: true
+        reserve_data: true
+        parse:
+          type: nginx
+    - prometheus:
+        metrics:
+        - name: total_counter
+          desc: The total number of foo in message.
+          type: counter
+          labels:
+            foo: bar
+        labels:
+          host: ${hostname}
+          tag: ${tag}
+          namespace: $.kubernetes.namespace
+  selectors: {}
+  localOutputRefs:
+    - demo-output
+{{</ highlight >}}
+
+Fluentd config result:
+
+{{< highlight xml>}}
+  <filter **>
+    @type prometheus
+    @id logging-demo-flow_2_prometheus
+    <metric>
+      desc The total number of foo in message.
+      name total_counter
+      type counter
+      <labels>
+        foo bar
+      </labels>
+    </metric>
+    <labels>
+      host ${hostname}
+      namespace $.kubernetes.namespace
+      tag ${tag}
+    </labels>
+  </filter>
+{{</ highlight >}}
+*/
 type _expPrometheus interface{} //nolint:deadcode,unused
 
 type Label map[string]string

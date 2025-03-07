@@ -16,6 +16,7 @@ package output
 
 import (
 	"github.com/cisco-open/operator-tools/pkg/secret"
+
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/types"
 )
 
@@ -46,37 +47,36 @@ type GELFOutputConfig struct {
 	Protocol string `json:"protocol,omitempty"`
 	// Enable TlS (default: false)
 	TLS *bool `json:"tls,omitempty"`
-	// TLS Options (default: {}) - for options see https://github.com/graylog-labs/gelf-rb/blob/72916932b789f7a6768c3cdd6ab69a3c942dbcef/lib/gelf/transport/tcp_tls.rb#L7-L12
+	// TLS options (default: {}). For details, see [https://github.com/graylog-labs/gelf-rb/blob/72916932b789f7a6768c3cdd6ab69a3c942dbcef/lib/gelf/transport/tcp_tls.rb#L7-L12](https://github.com/graylog-labs/gelf-rb/blob/72916932b789f7a6768c3cdd6ab69a3c942dbcef/lib/gelf/transport/tcp_tls.rb#L7-L12).
 	TLSOptions map[string]string `json:"tls_options,omitempty"`
 }
 
-// ## Example `GELF` output configurations
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: Output
-// metadata:
 //
-//	name: gelf-output-sample
-//
-// spec:
-//
-//	gelf:
-//	  host: gelf-host
-//	  port: 12201
-//
-// ```
-//
-// ## Fluentd Config Result
-// ```
-//
-//	 <match **>
-//		@type gelf
-//		@id test_gelf
-//		host gelf-host
-//		port 12201
-//	 </match>
-//
-// ```
+/*
+## Example `GELF` output configurations
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Output
+metadata:
+  name: gelf-output-sample
+spec:
+  gelf:
+    host: gelf-host
+    port: 12201
+{{</ highlight >}}
+
+Fluentd config result:
+
+{{< highlight xml >}}
+<match **>
+	@type gelf
+	@id test_gelf
+	host gelf-host
+	port 12201
+</match>
+{{</ highlight >}}
+*/
 type _expGELF interface{} //nolint:deadcode,unused
 
 func (s *GELFOutputConfig) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {

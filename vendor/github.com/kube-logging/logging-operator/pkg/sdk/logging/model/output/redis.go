@@ -25,20 +25,20 @@ import (
 type _hugoRedis interface{} //nolint:deadcode,unused
 
 // +docName:"Redis plugin for Fluentd"
-// Sends logs to Redis endpoints.
-// More info at https://github.com/fluent-plugins-nursery/fluent-plugin-redis
-//
-// ## Example output configurations
-// ```yaml
-// spec:
-//
-//	redis:
-//	  host: redis-master.prod.svc.cluster.local
-//	  buffer:
-//	    tags: "[]"
-//	    flush_interval: 10s
-//
-// ```
+/*
+Sends logs to Redis endpoints. For details, see [https://github.com/fluent-plugins-nursery/fluent-plugin-redis](https://github.com/fluent-plugins-nursery/fluent-plugin-redis).
+
+## Example output configurations
+
+```yaml
+spec:
+  redis:
+    host: redis-master.prod.svc.cluster.local
+    buffer:
+      tags: "[]"
+      flush_interval: 10s
+```
+*/
 type _docRedis interface{} //nolint:deadcode,unused
 
 // +name:"Redis"
@@ -61,11 +61,11 @@ type RedisOutputConfig struct {
 	Password *secret.Secret `json:"password,omitempty"`
 	// insert_key_prefix (default: "${tag}")
 	InsertKeyPrefix string `json:"insert_key_prefix,omitempty"`
-	// strftime_format Users can set strftime format. (default: "%s")
+	// Users can set strftime format. (default: "%s")
 	StrftimeFormat string `json:"strftime_format,omitempty"`
-	// allow_duplicate_key Allow insert key duplicate. It will work as update values. (default: false)
+	// Allow inserting key duplicate. It will work as update values. (default: false)
 	AllowDuplicateKey bool `json:"allow_duplicate_key,omitempty"`
-	// ttl If 0 or negative value is set, ttl is not set in each key.
+	// If 0 or negative value is set, ttl is not set in each key.
 	TTL int `json:"ttl,omitempty"`
 	// +docLink:"Format,../format/"
 	Format *Format `json:"format,omitempty"`
@@ -73,7 +73,7 @@ type RedisOutputConfig struct {
 	Buffer *Buffer `json:"buffer,omitempty"`
 	// The threshold for chunk flush performance check.
 	// Parameter type is float, not time, default: 20.0 (seconds)
-	// If chunk flush takes longer time than this threshold, fluentd logs warning message and increases metric fluentd_output_status_slow_flush_count.
+	// If chunk flush takes longer time than this threshold, Fluentd logs a warning message and increases the `fluentd_output_status_slow_flush_count` metric.
 	SlowFlushLogThreshold string `json:"slow_flush_log_threshold,omitempty"`
 }
 

@@ -53,7 +53,7 @@ replace (
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
-	github.com/cisco-open/operator-tools v0.29.0
+	github.com/cisco-open/operator-tools v0.34.0
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful/v3 v3.12.1
@@ -68,7 +68,7 @@ require (
 	github.com/k3s-io/helm-controller v0.16.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.0
 	github.com/k8snetworkplumbingwg/whereabouts v0.8.0
-	github.com/kube-logging/logging-operator/pkg/sdk v0.9.1
+	github.com/kube-logging/logging-operator/pkg/sdk v0.11.1-0.20240314152935-421fefebc813
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/longhorn/backupstore v0.0.0-20250227220202-651bd33886fe
@@ -80,7 +80,7 @@ require (
 	github.com/onsi/gomega v1.34.2
 	github.com/openshift/api v0.0.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0
+	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.72.0
 	github.com/rancher/apiserver v0.0.0-20240708202538-39a6f2535146
 	github.com/rancher/dynamiclistener v0.6.1
 	github.com/rancher/fleet/pkg/apis v0.10.0
@@ -212,7 +212,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
-	github.com/iancoleman/orderedmap v0.2.0 // indirect
+	github.com/iancoleman/orderedmap v0.3.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20240710054256-ddd8a41251c9 // indirect
