@@ -131,6 +131,12 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 	repo := NewUpgradeRepo(h.ctx, upgrade, h)
 
 	if harvesterv1.UpgradeCompleted.GetStatus(upgrade) == "" {
+		// this label is set by UI when user clicks `dismiss`, the upgrade object is kept but status is reset
+		if upgrade.Labels[util.LabelUpgradeReadMessage] == "true" {
+			logrus.Infof("upgrade %v/%v has %v label, no further processing", upgrade.Namespace, upgrade.Name, util.LabelUpgradeReadMessage)
+			return upgrade, nil
+		}
+
 		logrus.Infof("Initialize upgrade %s/%s", upgrade.Namespace, upgrade.Name)
 
 		if err := h.resetLatestUpgradeLabel(upgrade.Name); err != nil {
