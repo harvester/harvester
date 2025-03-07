@@ -226,8 +226,17 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 
 		// repo VM is required for the image cleaning procedure, bring it up if it's down
 		logrus.Info("Try to start repo VM for image pruning")
-		if err := repo.startVM(); err != nil {
-			return upgrade, err
+		vm, err := h.vmCache.Get(repo.GetVMNamespace(), repo.GetVMName())
+		if err != nil {
+			logrus.Warnf("Failed to get repo VM %s/%s from cache, error %s", repo.GetVMNamespace(), repo.GetVMName(), err.Error())
+			return nil, err
+		}
+
+		if !vmReady.IsTrue(vm) {
+			if err = h.startVM(context.Background(), vm); err != nil {
+				logrus.Warnf("Failed to start repo vm %s/%s for image pruning, error %s", vm.Namespace, vm.Name, err.Error())
+				return nil, err
+			}
 		}
 
 		// moved the restoreVMState call after the start repo vm as we need to make sure kubevirt is up and running
