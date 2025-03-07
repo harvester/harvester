@@ -103,3 +103,36 @@ func IndexPodByPVCFunc(pod *corev1.Pod) ([]string, error) {
 	}
 	return indexes, nil
 }
+
+// parseJSONSetting parses a JSON string into the provided target interface.
+func parseJSONSetting(setting string, target interface{}) error {
+	if setting == "" {
+		return fmt.Errorf("setting is empty")
+	}
+	return json.Unmarshal([]byte(setting), target)
+}
+
+func GetCSIOnlineExpandValidation(
+	provisioner string,
+	settingCache ctlharvesterv1.SettingCache,
+) (bool, error) {
+	if provisioner == "" {
+		return false, fmt.Errorf("provisioner is empty")
+	}
+
+	coevSetting, err := settingCache.Get(settings.CSIOnlineExpandValidationSettingName)
+	if err != nil {
+		return false, fmt.Errorf("failed to get %s setting: %w", settings.CSIOnlineExpandValidationSettingName, err)
+	}
+
+	coev := make(map[string]bool)
+	for _, data := range []string{coevSetting.Default, coevSetting.Value} {
+		if data != "" {
+			if err := parseJSONSetting(data, &coev); err != nil {
+				return false, err
+			}
+		}
+	}
+
+	return coev[provisioner], nil
+}
