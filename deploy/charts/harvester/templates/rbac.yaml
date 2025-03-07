@@ -185,6 +185,15 @@ rules:
   verbs:
   - '*'
 - apiGroups:
+  - harvesterhci.io
+  resources:
+  - settings
+  verbs:
+  - get
+  - list
+  resourceNames:
+  - csi-online-expand-validation
+- apiGroups:
   - longhorn.io
   resources:
   - volumes

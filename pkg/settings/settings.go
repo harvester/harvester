@@ -46,6 +46,7 @@ var (
 	VipPools                               = NewSetting(VipPoolsConfigSettingName, "")
 	AutoDiskProvisionPaths                 = NewSetting(AutoDiskProvisionPathsSettingName, "")
 	CSIDriverConfig                        = NewSetting(CSIDriverConfigSettingName, `{"driver.longhorn.io":{"volumeSnapshotClassName":"longhorn-snapshot","backupVolumeSnapshotClassName":"longhorn"}}`)
+	CSIOnlineExpandValidation              = NewSetting(CSIOnlineExpandValidationSettingName, `{"driver.longhorn.io":true}`)
 	ContainerdRegistry                     = NewSetting(ContainerdRegistrySettingName, "")
 	StorageNetwork                         = NewSetting(StorageNetworkName, "")
 	DefaultVMTerminationGracePeriodSeconds = NewSetting(DefaultVMTerminationGracePeriodSecondsSettingName, "120")
@@ -75,6 +76,7 @@ const (
 	DefaultDashboardUIURL                             = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
 	SupportBundleImageName                            = "support-bundle-image"
 	CSIDriverConfigSettingName                        = "csi-driver-config"
+	CSIOnlineExpandValidationSettingName              = "csi-online-expand-validation"
 	UIIndexSettingName                                = "ui-index"
 	UIPathSettingName                                 = "ui-path"
 	UISourceSettingName                               = "ui-source"
