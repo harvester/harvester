@@ -412,16 +412,16 @@ harvester-network-controller:
     repository: rancher/harvester-network-controller
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v0.5.6
+    tag: v1.5.0-dev.0
   helper:
     image:
       repository: rancher/harvester-network-helper
-      tag: v0.5.6
+      tag: v1.5.0-dev.0
   webhook:
     image:
       repository: rancher/harvester-network-webhook
       pullPolicy: IfNotPresent
-      tag: v0.5.6
+      tag: v1.5.0-dev.0
 
 harvester-networkfs-manager:
   ## Specify to install harvester networkfs manager,
@@ -432,7 +432,7 @@ harvester-networkfs-manager:
     repository: rancher/harvester-networkfs-manager
     pullPolicy: IfNotPresent 
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v0.1.2
+    tag: v1.5.0-dev.0
 
 harvester-node-disk-manager:
   ## Specify to install harvester node disk manager,
@@ -446,14 +446,14 @@ harvester-node-disk-manager:
     repository: rancher/harvester-node-disk-manager
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v1.5.0-dev.1
+    tag: v1.5.0-dev.2
   
   webhook:
     image:
       repository: rancher/harvester-node-disk-manager-webhook
       pullPolicy: IfNotPresent
       # Overrides the image tag whose default is the chart appVersion.
-      tag: v1.5.0-dev.1
+      tag: v1.5.0-dev.2
 
 csi-snapshotter:
   ## Specify whether to install the csi-snapshotter
@@ -542,12 +542,12 @@ harvester-load-balancer:
   image:
     imagePullPolicy: Always
     repository: rancher/harvester-load-balancer
-    tag: v0.4.4
+    tag: v1.5.0-dev.0
   webhook:
     image:
       imagePullPolicy: IfNotPresent
       repository: rancher/harvester-load-balancer-webhook
-      tag: v0.4.4
+      tag: v1.5.0-dev.0
 
 kube-vip:
   enabled: false
@@ -594,12 +594,12 @@ harvester-node-manager:
   image:
     pullPolicy: IfNotPresent
     repository: rancher/harvester-node-manager
-    tag: v0.3.3
+    tag: v1.5.0-dev.0
   webhook:
     image:
       pullPolicy: IfNotPresent
       repository: rancher/harvester-node-manager-webhook
-      tag: v0.3.3
+      tag: v1.5.0-dev.0
 
 snapshot-validation-webhook:
   enabled: true
