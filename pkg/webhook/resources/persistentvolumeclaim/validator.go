@@ -140,16 +140,16 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 		return nil
 	}
 
-	vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(newPVC.Namespace, newPVC.Name))
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByPVCIndex, newPVC.Namespace, newPVC.Name, err))
-	}
-	for _, vm := range vms {
-		if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusProvisioning && vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopped {
-			message := fmt.Sprintf("resizing is only supported for detached volumes. The volume is being used by VM %s/%s. Please stop the VM first.", vm.Namespace, vm.Name)
-			return werror.NewInvalidError(message, "")
-		}
-	}
+	// vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(newPVC.Namespace, newPVC.Name))
+	// if err != nil {
+	// 	return werror.NewInternalError(fmt.Sprintf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByPVCIndex, newPVC.Namespace, newPVC.Name, err))
+	// }
+	// for _, vm := range vms {
+	// 	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusProvisioning && vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopped {
+	// 		message := fmt.Sprintf("resizing is only supported for detached volumes. The volume is being used by VM %s/%s. Please stop the VM first.", vm.Namespace, vm.Name)
+	// 		return werror.NewInvalidError(message, "")
+	// 	}
+	// }
 	return nil
 }
 
