@@ -33,6 +33,7 @@ func init() {
 type Interface interface {
 	DataVolume() DataVolumeController
 	StorageProfile() StorageProfileController
+	VolumeImportSource() VolumeImportSourceController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -51,4 +52,8 @@ func (v *version) DataVolume() DataVolumeController {
 
 func (v *version) StorageProfile() StorageProfileController {
 	return generic.NewNonNamespacedController[*v1beta1.StorageProfile, *v1beta1.StorageProfileList](schema.GroupVersionKind{Group: "cdi.kubevirt.io", Version: "v1beta1", Kind: "StorageProfile"}, "storageprofiles", v.controllerFactory)
+}
+
+func (v *version) VolumeImportSource() VolumeImportSourceController {
+	return generic.NewController[*v1beta1.VolumeImportSource, *v1beta1.VolumeImportSourceList](schema.GroupVersionKind{Group: "cdi.kubevirt.io", Version: "v1beta1", Kind: "VolumeImportSource"}, "volumeimportsources", true, v.controllerFactory)
 }
