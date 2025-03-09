@@ -30,6 +30,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinebackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineimage"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinerestore"
+	"github.com/harvester/harvester/pkg/webhook/resources/volumeimportsource"
 	"github.com/harvester/harvester/pkg/webhook/resources/volumesnapshot"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	"github.com/harvester/harvester/pkg/webhook/util"
@@ -169,6 +170,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 		),
+		volumeimportsource.NewValidator(),
 	}
 
 	router := webhook.NewRouter()

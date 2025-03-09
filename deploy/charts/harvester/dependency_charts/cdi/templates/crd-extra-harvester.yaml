@@ -1,0 +1,11 @@
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: VolumeImportSource
+metadata:
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": hook-succeeded
+  name: filesystem-blank-source
+  namespace: default
+spec:
+  source:
+      blank: {}
