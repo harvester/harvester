@@ -8,11 +8,13 @@ import (
 	"time"
 
 	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
+	"github.com/rancher/wrangler/v3/pkg/relatedresource"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 
@@ -23,8 +25,9 @@ import (
 )
 
 var (
-	kindDeployment = "Deployment"
-	boolTrue       = true
+	kindDeployment                    = "Deployment"
+	kindVirtualMachineImageDownloader = "VirtualMachineImageDownloader"
+	boolTrue                          = true
 )
 
 // storageProfileHandler dynamically manages storage profiles
@@ -173,6 +176,15 @@ func (h *vmImageDownloaderHandler) createDownloaderDeployment(deploymentName str
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deploymentName,
 			Namespace: downloader.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         harvesterv1.SchemeGroupVersion.String(),
+					Kind:               kindVirtualMachineImageDownloader,
+					Name:               downloader.Name,
+					UID:                downloader.GetUID(),
+					BlockOwnerDeletion: &boolTrue,
+				},
+			},
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicaNum, // Start with 1 replica
@@ -279,6 +291,22 @@ func (h *vmImageDownloaderHandler) getClusterRepoImage() string {
 	}
 	logrus.Errorf("Failed to get the harvester-cluster-repo Image: %v", containerItem.Image)
 	return ""
+}
+
+func (h *vmImageDownloaderHandler) ReconcileDeploymentOwners(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
+	if deployment, ok := obj.(*appsv1.Deployment); ok {
+		for _, ownerReference := range deployment.GetOwnerReferences() {
+			if ownerReference.Kind == kindVirtualMachineImageDownloader {
+				return []relatedresource.Key{
+					{
+						Namespace: deployment.Namespace,
+						Name:      ownerReference.Name,
+					},
+				}, nil
+			}
+		}
+	}
+	return nil, nil
 }
 
 func updateConds(curConds []harvesterv1.VirtualMachineImageDownloaderCondition, c harvesterv1.VirtualMachineImageDownloaderCondition) []harvesterv1.VirtualMachineImageDownloaderCondition {
