@@ -55,7 +55,7 @@ var (
 				util.LabelSVMBackupTimestamp: timestamp1,
 			},
 		},
-		Status: &harvesterv1.VirtualMachineBackupStatus{
+		Status: harvesterv1.VirtualMachineBackupStatus{
 			ReadyToUse: pointer.Bool(true),
 			Error:      nil,
 		},
@@ -79,7 +79,7 @@ var (
 				util.LabelSVMBackupTimestamp: timestamp2,
 			},
 		},
-		Status: &harvesterv1.VirtualMachineBackupStatus{
+		Status: harvesterv1.VirtualMachineBackupStatus{
 			ReadyToUse: pointer.Bool(true),
 			Error:      nil,
 		},
@@ -97,7 +97,7 @@ var (
 				util.LabelSVMBackupTimestamp: timestamp3,
 			},
 		},
-		Status: &harvesterv1.VirtualMachineBackupStatus{
+		Status: harvesterv1.VirtualMachineBackupStatus{
 			ReadyToUse: pointer.Bool(true),
 			Error:      nil,
 		},
@@ -115,7 +115,7 @@ var (
 				util.LabelSVMBackupTimestamp: timestampErr,
 			},
 		},
-		Status: &harvesterv1.VirtualMachineBackupStatus{
+		Status: harvesterv1.VirtualMachineBackupStatus{
 			ReadyToUse: pointer.Bool(false),
 			Error:      &harvesterv1.Error{},
 		},
