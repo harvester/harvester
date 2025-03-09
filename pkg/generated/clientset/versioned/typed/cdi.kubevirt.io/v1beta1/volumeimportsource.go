@@ -32,15 +32,13 @@ import (
 // VolumeImportSourcesGetter has a method to return a VolumeImportSourceInterface.
 // A group's client should implement this interface.
 type VolumeImportSourcesGetter interface {
-	VolumeImportSources(namespace string) VolumeImportSourceInterface
+	VolumeImportSources() VolumeImportSourceInterface
 }
 
 // VolumeImportSourceInterface has methods to work with VolumeImportSource resources.
 type VolumeImportSourceInterface interface {
 	Create(ctx context.Context, volumeImportSource *v1beta1.VolumeImportSource, opts v1.CreateOptions) (*v1beta1.VolumeImportSource, error)
 	Update(ctx context.Context, volumeImportSource *v1beta1.VolumeImportSource, opts v1.UpdateOptions) (*v1beta1.VolumeImportSource, error)
-	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, volumeImportSource *v1beta1.VolumeImportSource, opts v1.UpdateOptions) (*v1beta1.VolumeImportSource, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.VolumeImportSource, error)
@@ -56,13 +54,13 @@ type volumeImportSources struct {
 }
 
 // newVolumeImportSources returns a VolumeImportSources
-func newVolumeImportSources(c *CdiV1beta1Client, namespace string) *volumeImportSources {
+func newVolumeImportSources(c *CdiV1beta1Client) *volumeImportSources {
 	return &volumeImportSources{
 		gentype.NewClientWithList[*v1beta1.VolumeImportSource, *v1beta1.VolumeImportSourceList](
 			"volumeimportsources",
 			c.RESTClient(),
 			scheme.ParameterCodec,
-			namespace,
+			"",
 			func() *v1beta1.VolumeImportSource { return &v1beta1.VolumeImportSource{} },
 			func() *v1beta1.VolumeImportSourceList { return &v1beta1.VolumeImportSourceList{} }),
 	}
