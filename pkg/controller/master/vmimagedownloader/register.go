@@ -3,11 +3,14 @@ package vmimagedownloader
 import (
 	"context"
 
+	"github.com/rancher/wrangler/v3/pkg/relatedresource"
+
 	"github.com/harvester/harvester/pkg/config"
 )
 
 const (
 	vmImageDownloaderControllerName = "vmimage-downloader-controller"
+	deploymentWatcherName           = "deployment-watcher"
 	deploymentControllerName        = "deployment-controller"
 )
 
@@ -27,14 +30,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 
 	vmImageDownloader.OnChange(ctx, vmImageDownloaderControllerName, storageProfileHandler.OnChanged)
 	vmImageDownloader.OnRemove(ctx, vmImageDownloaderControllerName, storageProfileHandler.OnRemoved)
+	relatedresource.Watch(ctx, deploymentWatcherName, storageProfileHandler.ReconcileDeploymentOwners, vmImageDownloader, deployment)
 
-	deploymentHandler := &deploymentHandler{
-		vmImageDownloaderClient: vmImageDownloader,
-		deploymentCache:         deployment.Cache(),
-		deploymentController:    deployment,
-	}
-
-	deployment.OnChange(ctx, deploymentControllerName, deploymentHandler.OnChanged)
-	deployment.OnRemove(ctx, deploymentControllerName, deploymentHandler.OnRemoved)
 	return nil
 }
