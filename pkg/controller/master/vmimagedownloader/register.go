@@ -18,11 +18,13 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	vmImageDownloader := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImageDownloader()
 	vmImage := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	deployment := management.AppsFactory.Apps().V1().Deployment()
+	pvcCache := management.CoreFactory.Core().V1().PersistentVolumeClaim().Cache()
 	clientSet := management.ClientSet
 
 	storageProfileHandler := &vmImageDownloaderHandler{
 		clientSet:                   clientSet,
 		vmImageClient:               vmImage,
+		pvcCache:                    pvcCache,
 		deploymentClient:            deployment,
 		vmImageDownloaders:          vmImageDownloader,
 		vmImageDownloaderController: vmImageDownloader,
