@@ -8,6 +8,7 @@ import (
 	"time"
 
 	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/relatedresource"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
@@ -33,6 +34,7 @@ var (
 // storageProfileHandler dynamically manages storage profiles
 type vmImageDownloaderHandler struct {
 	clientSet                   *kubernetes.Clientset
+	pvcCache                    ctlcorev1.PersistentVolumeClaimCache
 	vmImageClient               v1beta1.VirtualMachineImageClient
 	deploymentClient            ctlappsv1.DeploymentClient
 	vmImageDownloaders          v1beta1.VirtualMachineImageDownloaderClient
@@ -167,9 +169,16 @@ func (h *vmImageDownloaderHandler) getOrCreateDownloaderDeployment(deploymentNam
 }
 
 func (h *vmImageDownloaderHandler) createDownloaderDeployment(deploymentName string, vmImage *harvesterv1.VirtualMachineImage, downloader *harvesterv1.VirtualMachineImageDownloader) (*appsv1.Deployment, error) {
-	convertCmd := fmt.Sprintf("qemu-img convert -t none -T none -W -m 8 -f raw /tmp/image-vol -O qcow2 -c -S 4K /image-dir/%s.qcow2", vmImage.Name)
-	virtImageStr := h.getVirtHandlerImage()
+	pvc, err := h.pvcCache.Get(downloader.Namespace, vmImage.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pvc %s: %v", vmImage.Name, err)
+	}
+	if pvc.Spec.VolumeMode == nil {
+		return nil, fmt.Errorf("failed to get volume mode of pvc %s", vmImage.Name)
+	}
+	volMode := pvc.Spec.VolumeMode
 	clusterRepoImageStr := h.getClusterRepoImage()
+	initContainer := h.genInitContainer(volMode, vmImage.Name)
 
 	replicaNum := int32(1)
 	deployment := &appsv1.Deployment{
@@ -217,25 +226,7 @@ func (h *vmImageDownloaderHandler) createDownloaderDeployment(deploymentName str
 						},
 					},
 					InitContainers: []corev1.Container{
-						{
-							Name:            "image-coverter",
-							Image:           virtImageStr,
-							ImagePullPolicy: corev1.PullIfNotPresent,
-							VolumeDevices: []corev1.VolumeDevice{
-								{
-									Name:       "image-vol",
-									DevicePath: "/tmp/image-vol",
-								},
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "image-dir",
-									MountPath: "/image-dir",
-								},
-							},
-							Command: []string{"/bin/sh", "-c"},
-							Args:    []string{convertCmd},
-						},
+						initContainer,
 					},
 					Containers: []corev1.Container{
 						{
@@ -307,6 +298,45 @@ func (h *vmImageDownloaderHandler) ReconcileDeploymentOwners(_ string, _ string,
 		}
 	}
 	return nil, nil
+}
+
+func (h *vmImageDownloaderHandler) genInitContainer(mode *corev1.PersistentVolumeMode, vmImageName string) corev1.Container {
+	virtImageStr := h.getVirtHandlerImage()
+	initContainer := corev1.Container{
+		Name:            "image-coverter",
+		Image:           virtImageStr,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Command:         []string{"/bin/sh", "-c"},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "image-dir",
+				MountPath: "/image-dir",
+			},
+		},
+	}
+
+	targetImgVolPath := "/tmp/image-vol"
+	convertSrcPath := targetImgVolPath
+	if *mode == corev1.PersistentVolumeFilesystem {
+		convertSrcPath = fmt.Sprintf("%s/disk.img", targetImgVolPath)
+	}
+	if *mode == corev1.PersistentVolumeBlock {
+		initContainer.VolumeDevices = []corev1.VolumeDevice{
+			{
+				Name:       "image-vol",
+				DevicePath: targetImgVolPath,
+			},
+		}
+	} else if *mode == corev1.PersistentVolumeFilesystem {
+		initContainer.VolumeMounts = append(initContainer.VolumeMounts, corev1.VolumeMount{
+			Name:      "image-vol",
+			MountPath: targetImgVolPath,
+		})
+	}
+	convertCmd := fmt.Sprintf("qemu-img convert -t none -T none -W -m 8 -f raw %s -O qcow2 -c -S 4K /image-dir/%s.qcow2", convertSrcPath, vmImageName)
+
+	initContainer.Args = []string{convertCmd}
+	return initContainer
 }
 
 func updateConds(curConds []harvesterv1.VirtualMachineImageDownloaderCondition, c harvesterv1.VirtualMachineImageDownloaderCondition) []harvesterv1.VirtualMachineImageDownloaderCondition {
