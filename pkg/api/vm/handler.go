@@ -32,20 +32,22 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	apiutil "github.com/harvester/harvester/pkg/api/util"
 	volumeapi "github.com/harvester/harvester/pkg/api/volume"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/builder"
 	nodecontroller "github.com/harvester/harvester/pkg/controller/master/node"
+	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
+	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 )
 
 const (
@@ -62,6 +64,7 @@ var (
 
 type vmActionHandler struct {
 	namespace                 string
+	datavolumeClient          ctlcdiv1.DataVolumeClient
 	vms                       ctlkubevirtv1.VirtualMachineClient
 	vmis                      ctlkubevirtv1.VirtualMachineInstanceClient
 	vmCache                   ctlkubevirtv1.VirtualMachineCache
@@ -404,20 +407,9 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 	if !isReady(vmi) {
 		return errors.New("Can't migrate the VM, the VM is not in ready status")
 	}
-	if !canMigrate(vmi) {
-		return errors.New("The VM is not migratable")
-	}
 
-	// functions in formatter only return bool, the disk.Name is also needed, check them directly here
-	for _, disk := range vmi.Spec.Domain.Devices.Disks {
-		if disk.CDRom != nil {
-			return fmt.Errorf("Disk %s is CD-ROM, needs to be ejected before migration", disk.Name)
-		}
-	}
-	for _, volume := range vmi.Spec.Volumes {
-		if volume.VolumeSource.ContainerDisk != nil {
-			return fmt.Errorf("Volume %s is container disk, needs to be removed before migration", volume.Name)
-		}
+	if err := virtualmachineinstance.ValidateVMMigratable(vmi); err != nil {
+		return err
 	}
 
 	if ok, err := h.isMigratableNode(nodeName, vmi); err != nil {
@@ -518,8 +510,8 @@ func (h *vmActionHandler) findMigratableNodes(rw http.ResponseWriter, namespace,
 		return err
 	}
 
-	if !canMigrate(vmi) {
-		return errors.New("The VM is not migratable")
+	if err := virtualmachineinstance.ValidateVMMigratable(vmi); err != nil {
+		return err
 	}
 
 	nodes, err := h.findMigratableNodesByVMI(vmi)
@@ -877,9 +869,6 @@ func (h *vmActionHandler) getPVCStorageClassMap(vm *kubevirtv1.VirtualMachine) (
 			pvcStorageClassMap[pvc.Name] = ""
 			continue
 		}
-		if sc.Provisioner != longhorntypes.LonghornDriverName {
-			return pvcStorageClassMap, fmt.Errorf("VMTemplate with data only supports driver.longhorn.io provisioner, PVC %s/%s can't be exported as VMImage", pvc.Namespace, pvc.Name)
-		}
 		pvcStorageClassMap[pvc.Name] = sc.Name
 	}
 	return pvcStorageClassMap, nil
@@ -890,13 +879,41 @@ func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMac
 		if volume.PersistentVolumeClaim == nil {
 			continue
 		}
+		targetSCName := pvcStorageClassMap[volume.PersistentVolumeClaim.ClaimName]
+		// 3 cases here:
+		// Root volume with backingImage, check SC name starts with "longhorn-templateversion-", use backingImage backend
+		// volume with non longhorn provisioner, use CDI backend
+		// volume with longhorn provisioner, use backingImage backend
+		// we use CDI as default, so we need to check other two cases
+		vmImageBackend := harvesterv1.VMIBackendCDI
+		if strings.HasPrefix(targetSCName, "longhorn-templateversion-") {
+			vmImageBackend = harvesterv1.VMIBackendBackingImage
+		} else {
+			// checking SC
+			targetSC, err := h.storageClassCache.Get(targetSCName)
+			if err != nil {
+				return fmt.Errorf("failed to get storage class %s, error: %v", targetSCName, err)
+			}
+			if targetSC.Provisioner == util.CSIProvisionerLonghorn {
+				if dataEngineVers, find := targetSC.Parameters["dataEngine"]; find {
+					if dataEngineVers == string(longhorn.DataEngineTypeV1) {
+						vmImageBackend = harvesterv1.VMIBackendBackingImage
+					}
+				} else {
+					vmImageBackend = harvesterv1.VMIBackendBackingImage
+				}
+			}
+		}
+		if vmImageBackend == "" {
+			return fmt.Errorf("failed to configure vm image backend for volume %s", volume.Name)
+		}
 		vmImageName := getTemplateVersionVMImageName(templateVersion.Name, index)
 		vmImage := &harvesterv1.VirtualMachineImage{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      vmImageName,
 				Namespace: vm.Namespace,
 				Annotations: map[string]string{
-					util.AnnotationStorageClassName: pvcStorageClassMap[volume.PersistentVolumeClaim.ClaimName],
+					util.AnnotationStorageClassName: targetSCName,
 				},
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -908,10 +925,12 @@ func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMac
 				},
 			},
 			Spec: harvesterv1.VirtualMachineImageSpec{
-				DisplayName:  vmImageName,
-				SourceType:   harvesterv1.VirtualMachineImageSourceTypeExportVolume,
-				PVCName:      volume.PersistentVolumeClaim.ClaimName,
-				PVCNamespace: vm.Namespace,
+				Backend:                vmImageBackend,
+				DisplayName:            vmImageName,
+				SourceType:             harvesterv1.VirtualMachineImageSourceTypeExportVolume,
+				PVCName:                volume.PersistentVolumeClaim.ClaimName,
+				PVCNamespace:           vm.Namespace,
+				TargetStorageClassName: targetSCName,
 			},
 		}
 
@@ -1282,20 +1301,28 @@ func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevir
 			return nil, err
 		}
 
+		// generate new volume template
+		// - longhorn v1, we need to use the new storageclass Name (for backingImage)
+		// - others, use the pvc StorageClassName
 		vmImageName := getTemplateVersionVMImageName(templateVersionName, index)
+		targetStorageClassName := fmt.Sprintf("longhorn-%s", vmImageName)
+		if _, find := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; find {
+			targetStorageClassName = *pvc.Spec.StorageClassName
+		}
+		annoImageID := fmt.Sprintf("%s/%s", vm.Namespace, vmImageName)
 		pvcName := getTemplateVersionPvcName(templateVersionName, index)
 		volumeClaimTemplates = append(volumeClaimTemplates, corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: pvcName,
 				Annotations: map[string]string{
-					util.AnnotationImageID: fmt.Sprintf("%s/%s", vm.Namespace, vmImageName),
+					util.AnnotationImageID: annoImageID,
 				},
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
 				AccessModes:      pvc.Spec.AccessModes,
 				Resources:        pvc.Spec.Resources,
 				VolumeMode:       pvc.Spec.VolumeMode,
-				StorageClassName: pointer.String(util.GetImageStorageClassName(vmImageName)),
+				StorageClassName: &targetStorageClassName,
 			},
 		})
 		sanitizedVM.Spec.Template.Spec.Volumes[index].PersistentVolumeClaim.ClaimName = pvcName

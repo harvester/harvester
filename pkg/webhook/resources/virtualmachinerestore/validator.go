@@ -17,8 +17,10 @@ import (
 	ctlbackup "github.com/harvester/harvester/pkg/controller/master/backup"
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
+	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
@@ -47,28 +49,31 @@ func NewValidator(
 	svmbackup ctlharvesterv1.ScheduleVMBackupCache,
 	vmims ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache,
+	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache,
 ) types.Validator {
 	return &restoreValidator{
-		vms:           vms,
-		setting:       setting,
-		vmBackup:      vmBackup,
-		vmRestore:     vmRestore,
-		svmbackup:     svmbackup,
-		snapshotClass: snapshotClass,
+		vms:                               vms,
+		setting:                           setting,
+		vmBackup:                          vmBackup,
+		vmRestore:                         vmRestore,
+		svmbackup:                         svmbackup,
+		snapshotClass:                     snapshotClass,
+		networkAttachmentDefinitionsCache: networkAttachmentDefinitionsCache,
 
-		vmrCalculator: resourcequota.NewCalculator(nss, pods, rqs, vmims),
+		vmrCalculator: resourcequota.NewCalculator(nss, pods, rqs, vmims, setting),
 	}
 }
 
 type restoreValidator struct {
 	types.DefaultValidator
 
-	vms           ctlkubevirtv1.VirtualMachineCache
-	setting       ctlharvesterv1.SettingCache
-	vmBackup      ctlharvesterv1.VirtualMachineBackupCache
-	vmRestore     ctlharvesterv1.VirtualMachineRestoreCache
-	svmbackup     ctlharvesterv1.ScheduleVMBackupCache
-	snapshotClass ctlsnapshotv1.VolumeSnapshotClassCache
+	vms                               ctlkubevirtv1.VirtualMachineCache
+	setting                           ctlharvesterv1.SettingCache
+	vmBackup                          ctlharvesterv1.VirtualMachineBackupCache
+	vmRestore                         ctlharvesterv1.VirtualMachineRestoreCache
+	svmbackup                         ctlharvesterv1.ScheduleVMBackupCache
+	snapshotClass                     ctlsnapshotv1.VolumeSnapshotClassCache
+	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache
 
 	vmrCalculator *resourcequota.Calculator
 }
@@ -109,6 +114,10 @@ func (v *restoreValidator) Create(_ *types.Request, newObj runtime.Object) error
 		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
 	}
 
+	if err := v.checkNetwork(vmBackup); err != nil {
+		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
+	}
+
 	if err := v.checkVMBackupType(newRestore, vmBackup); err != nil {
 		return err
 	}
@@ -130,6 +139,7 @@ func (v *restoreValidator) checkNewVMField(vmRestore *v1beta1.VirtualMachineRest
 	if err != nil && !apierrors.IsNotFound(err) {
 		return werror.NewInternalError(fmt.Sprintf("failed to get the VM %s/%s, err: %+v", vmRestore.Namespace, vmRestore.Spec.Target.Name, err))
 	}
+	vmNotFound := apierrors.IsNotFound(err)
 
 	switch vmRestore.Spec.NewVM {
 	case true:
@@ -140,7 +150,7 @@ func (v *restoreValidator) checkNewVMField(vmRestore *v1beta1.VirtualMachineRest
 		return v.handleNewVM(vmRestore, vmBackup)
 	case false:
 		// replace an existing vm but there is no related vm
-		if vm == nil {
+		if vmNotFound {
 			return werror.NewInvalidError(fmt.Sprintf("can't replace nonexistent vm %s", vmRestore.Spec.Target.Name), fieldTargetName)
 		}
 		return v.handleExistVM(vm)
@@ -242,6 +252,19 @@ func (v *restoreValidator) checkSnapshot(vmRestore *v1beta1.VirtualMachineRestor
 	return nil
 }
 
+func (v *restoreValidator) checkNetwork(vmBackup *v1beta1.VirtualMachineBackup) error {
+	for _, network := range vmBackup.Status.SourceSpec.Spec.Template.Spec.Networks {
+		if network.Multus != nil {
+			namespace, name := ref.Parse(network.Multus.NetworkName)
+			_, err := v.networkAttachmentDefinitionsCache.Get(namespace, name)
+			if err != nil {
+				return fmt.Errorf(fmt.Sprintf("Failed to get network attachment definition %s, err: %v", network.Multus.NetworkName, err))
+			}
+		}
+	}
+	return nil
+}
+
 func (v *restoreValidator) checkVMBackupType(vmRestore *v1beta1.VirtualMachineRestore, vmBackup *v1beta1.VirtualMachineBackup) error {
 	var err error
 	switch vmBackup.Spec.Type {
@@ -299,7 +322,7 @@ func (v *restoreValidator) checkBackupTarget(vmBackup *v1beta1.VirtualMachineBac
 		return fmt.Errorf("backup target is not set")
 	}
 
-	if !ctlbackup.IsBackupTargetSame(vmBackup.Status.BackupTarget, backupTarget) {
+	if !util.IsBackupTargetSame(vmBackup.Status.BackupTarget, backupTarget) {
 		return fmt.Errorf("backup target %+v is not matched in vmBackup %s/%s", backupTarget, vmBackup.Namespace, vmBackup.Name)
 	}
 

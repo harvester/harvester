@@ -2,6 +2,7 @@ package upgradelog
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
@@ -750,44 +751,71 @@ func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {
 	var err error
 	err = h.clusterFlowClient.Delete(util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFlowComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return fmt.Errorf("failed to delete clusterflow %s/%s error %w", util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFlowComponent), err)
 	}
 	err = h.clusterOutputClient.Delete(util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOutputComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return fmt.Errorf("failed to delete clusteroutput %s/%s error %w", util.HarvesterSystemNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOutputComponent), err)
 	}
 	err = h.loggingClient.Delete(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogInfraComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return fmt.Errorf("failed to delete logging client %s error %w", name.SafeConcatName(upgradeLog.Name, util.UpgradeLogInfraComponent), err)
 	}
 	err = h.managedChartClient.Delete(util.FleetLocalNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return fmt.Errorf("failed to delete logging managedchart %s/%s error %w", util.FleetLocalNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent), err)
 	}
 
 	return nil
 }
 
 func (h *handler) cleanup(upgradeLog *harvesterv1.UpgradeLog) error {
-	// Cleanup the relationship from its corresponding Upgrade resource
+	// Cleanup the relationship from its corresponding Upgrade resource as more as possible, does not return on single error quickly
 	upgradeName := upgradeLog.Spec.UpgradeName
-	upgrade, err := h.upgradeCache.Get(util.HarvesterSystemNamespaceName, upgradeName)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
+	var err1, err2, err3 error
+	err := fmt.Errorf("upgradeLog %s/%s upgrade %s cleanup errors", upgradeLog.Namespace, upgradeLog.Name, upgradeName)
+
+	// when the upgrade object is deleted, it's DeletionTimestamp is set, and all ownering resources' DeletionTimestamp are also set
+	// but there is no promise that upgrade and other object disappear one by another
+	// the below function has high chance to return IsNotFound error
+	upgrade, err1 := h.upgradeCache.Get(util.HarvesterSystemNamespaceName, upgradeName)
+	for i := 0; i < 1; i++ {
+		if err1 != nil {
+			// can't return directly, need to clean other related resources
+			if apierrors.IsNotFound(err1) {
+				err1 = nil
+				break
+			}
+			err = fmt.Errorf("%w failed to get upgrade %w", err, err1)
+			break
 		}
-		return err
-	}
-	upgradeToUpdate := upgrade.DeepCopy()
-	upgradeToUpdate.Status.UpgradeLog = ""
-	if _, err = h.upgradeClient.Update(upgradeToUpdate); err != nil {
-		return err
+		// already updated
+		if upgrade.Status.UpgradeLog == "" {
+			break
+		}
+		upgradeToUpdate := upgrade.DeepCopy()
+		upgradeToUpdate.Status.UpgradeLog = ""
+		_, err2 = h.upgradeClient.Update(upgradeToUpdate)
+		if err2 != nil {
+			if apierrors.IsNotFound(err2) {
+				err2 = nil
+				break
+			}
+			err = fmt.Errorf("%w failed to update upgrade %w", err, err2)
+			break
+		}
 	}
 
-	// Remove the ManagedChart if the UpgradeLog resource is deleted before normal tear down
-	logrus.Info("Removing logging-operator ManagedChart if any")
-	err = h.managedChartClient.Delete(util.FleetLocalNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent), &metav1.DeleteOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
+	// Remove all if the UpgradeLog resource is deleted before normal tear down
+	logrus.Info("Removing all other related resources")
+	err3 = h.stopCollect(upgradeLog)
+	if err3 != nil {
+		err = fmt.Errorf("%w failed to clean other resources %w", err, err3)
+	}
+
+	if err1 != nil || err2 != nil || err3 != nil {
+		// retry
+		logrus.Infof("%s, retry", err.Error())
 		return err
 	}
 

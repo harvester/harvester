@@ -3,6 +3,8 @@
 package migration
 
 import (
+	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +13,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	fakecore "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	kubevirtservices "kubevirt.io/kubevirt/pkg/virt-controller/services"
 
 	fakegenerated "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
@@ -21,14 +24,41 @@ import (
 
 const (
 	resourceQuotaNamespace = "rs"
-	resourceQuotaName
-	uid
+	resourceQuotaName      = "rq1"
+	uid                    = "6afcf4d9-b8a7-464a-a4e9-abe81fc7eacd"
+
+	longVMIName = "a-very-long-name-exceeds-the-63-length-and-it-reports-error-in-old-version"
+
+	memory1Gi = 1 * 1024 * 1024 * 1024
+
+	// the vm limits.memory is dynamically computed, avoid to use hard coded number
+	vmResourceLimitStr = "{\"limits.cpu\":\"1\",\"limits.memory\":\"%v\"}"
 
 	errMockTrackerAdd = "mock resource should add into fake controller tracker"
 	errMockTrackerGet = "mock resource should get into fake controller tracker"
 )
 
 func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
+	// compute the dynamic overhead per kubevirt
+	getMemWithOverhead := func(memLimit int64) int64 {
+		vmi := kubevirtv1.VirtualMachineInstance{
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "vm1",
+				Namespace: resourceQuotaNamespace,
+			},
+			Spec: kubevirtv1.VirtualMachineInstanceSpec{
+				Domain: kubevirtv1.DomainSpec{
+					Resources: kubevirtv1.ResourceRequirements{
+						Limits: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceMemory: *resource.NewQuantity(memLimit, resource.BinarySI),
+						},
+					},
+				},
+			},
+		}
+		overhead := kubevirtservices.GetMemoryOverhead(&vmi, runtime.GOARCH, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(nil)) // use default ratio 1.5
+		return overhead.Value() + memLimit
+	}
 
 	type fields struct {
 		rqs      ctlharvcorev1.ResourceQuotaClient
@@ -62,7 +92,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					Spec: corev1.ResourceQuotaSpec{
 						Hard: map[corev1.ResourceName]resource.Quantity{
 							corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI),
-							corev1.ResourceLimitsMemory: *resource.NewQuantity(1297436672, resource.BinarySI),
+							corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
 						},
 					},
 				},
@@ -70,13 +100,14 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vm1",
 						Namespace: resourceQuotaNamespace,
+						UID:       uid,
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{
 						Domain: kubevirtv1.DomainSpec{
 							Resources: kubevirtv1.ResourceRequirements{
 								Limits: map[corev1.ResourceName]resource.Quantity{
 									corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
-									corev1.ResourceMemory: *resource.NewQuantity(1073741824, resource.BinarySI),
+									corev1.ResourceMemory: *resource.NewQuantity(memory1Gi, resource.BinarySI),
 								},
 							},
 						},
@@ -97,7 +128,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			want: &corev1.ResourceQuota{
 				ObjectMeta: v1.ObjectMeta{
 					Annotations: map[string]string{
-						util.AnnotationMigratingPrefix + "vm1": `{"limits.cpu":"1","limits.memory":"1266Mi"}`,
+						util.GenerateAnnotationKeyMigratingVMUID(uid): fmt.Sprintf(vmResourceLimitStr, getMemWithOverhead(memory1Gi)),
 					},
 					Namespace: resourceQuotaNamespace,
 					Name:      resourceQuotaName,
@@ -105,14 +136,77 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 				},
 				Spec: corev1.ResourceQuotaSpec{
 					Hard: map[corev1.ResourceName]resource.Quantity{
-						corev1.ResourceLimitsCPU:    *resource.NewQuantity(2, resource.DecimalSI),
-						corev1.ResourceLimitsMemory: *resource.NewQuantity(2624933888, resource.BinarySI),
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI), // will be updated by rq controller later
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
 					},
 				},
 			},
 		},
 		{
-			name:   "Succeeded", // Equivalent to Failed
+			name:   "In Pending with a long VMI name, the UID based key is used in newer version",
+			fields: fields{},
+			args: args{
+				rq: &corev1.ResourceQuota{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: resourceQuotaNamespace,
+						Name:      resourceQuotaName,
+						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					},
+					Spec: corev1.ResourceQuotaSpec{
+						Hard: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+							corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+						},
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      longVMIName,
+						Namespace: resourceQuotaNamespace,
+						UID:       uid,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							Resources: kubevirtv1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewQuantity(memory1Gi, resource.BinarySI),
+								},
+							},
+						},
+					},
+				},
+				vmim: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vmim1",
+						Namespace: resourceQuotaNamespace,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: longVMIName},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationPending,
+					},
+				},
+			},
+			wantErr: false,
+			want: &corev1.ResourceQuota{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						util.GenerateAnnotationKeyMigratingVMUID(uid): fmt.Sprintf(vmResourceLimitStr, getMemWithOverhead(memory1Gi)),
+					},
+					Namespace: resourceQuotaNamespace,
+					Name:      resourceQuotaName,
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI), // will be updated by rq controller later
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+					},
+				},
+			},
+		},
+		{
+			name:   "Succeeded, name based annotation key is deleted from ResourceQuota",
 			fields: fields{},
 			args: args{
 				rq: &corev1.ResourceQuota{
@@ -120,14 +214,14 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 						Namespace: resourceQuotaNamespace,
 						Name:      resourceQuotaName,
 						Annotations: map[string]string{
-							util.AnnotationMigratingPrefix + "vm1": `{"limits.cpu":"1","limits.memory":"1364Mi"}`,
+							util.GenerateAnnotationKeyMigratingVMName("vm1"): fmt.Sprintf(vmResourceLimitStr, getMemWithOverhead(memory1Gi)),
 						},
 						Labels: map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 					},
 					Spec: corev1.ResourceQuotaSpec{
 						Hard: map[corev1.ResourceName]resource.Quantity{
 							corev1.ResourceLimitsCPU:    *resource.NewQuantity(2, resource.DecimalSI),
-							corev1.ResourceLimitsMemory: *resource.NewQuantity(2727694336, resource.BinarySI),
+							corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2+getMemWithOverhead(memory1Gi), resource.BinarySI),
 						},
 					},
 				},
@@ -141,7 +235,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 							Resources: kubevirtv1.ResourceRequirements{
 								Limits: map[corev1.ResourceName]resource.Quantity{
 									corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
-									corev1.ResourceMemory: *resource.NewQuantity(1073741824, resource.BinarySI),
+									corev1.ResourceMemory: *resource.NewQuantity(memory1Gi, resource.BinarySI),
 								},
 							},
 						},
@@ -168,9 +262,297 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 				},
 				Spec: corev1.ResourceQuotaSpec{
 					Hard: map[corev1.ResourceName]resource.Quantity{
-						corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI),
-						corev1.ResourceLimitsMemory: *resource.NewQuantity(1297436672, resource.BinarySI),
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(2, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2+getMemWithOverhead(memory1Gi), resource.BinarySI),
 					},
+				},
+			},
+		},
+		{
+			name:   "Succeeded, UID based annotation key is deleted from ResourceQuota",
+			fields: fields{},
+			args: args{
+				rq: &corev1.ResourceQuota{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: resourceQuotaNamespace,
+						Name:      resourceQuotaName,
+						Annotations: map[string]string{
+							util.GenerateAnnotationKeyMigratingVMUID(uid): fmt.Sprintf(vmResourceLimitStr, getMemWithOverhead(memory1Gi)),
+						},
+						Labels: map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					},
+					Spec: corev1.ResourceQuotaSpec{
+						Hard: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceLimitsCPU:    *resource.NewQuantity(2, resource.DecimalSI),
+							corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2+getMemWithOverhead(memory1Gi), resource.BinarySI),
+						},
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vm1",
+						Namespace: resourceQuotaNamespace,
+						UID:       uid,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							Resources: kubevirtv1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewQuantity(memory1Gi, resource.BinarySI),
+								},
+							},
+						},
+					},
+				},
+				vmim: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vmim1",
+						Namespace: resourceQuotaNamespace,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationSucceeded,
+					},
+				},
+			},
+			wantErr: false,
+			want: &corev1.ResourceQuota{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace:   resourceQuotaNamespace,
+					Name:        resourceQuotaName,
+					Annotations: map[string]string{},
+					Labels:      map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(2, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2+getMemWithOverhead(memory1Gi), resource.BinarySI),
+					},
+				},
+			},
+		},
+		{
+			name:   "RQ is not in the target namespace, skip scaling",
+			fields: fields{},
+			args: args{
+				rq: &corev1.ResourceQuota{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "random",
+						Name:      resourceQuotaName,
+					},
+					Spec: corev1.ResourceQuotaSpec{
+						Hard: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+							corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+						},
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vm1",
+						Namespace: resourceQuotaNamespace,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							Resources: kubevirtv1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewQuantity(memory1Gi, resource.BinarySI),
+								},
+							},
+						},
+					},
+				},
+				vmim: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vmim1",
+						Namespace: resourceQuotaNamespace,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationPending,
+					},
+				},
+			},
+			wantErr: false,
+			want: &corev1.ResourceQuota{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "random",
+					Name:      resourceQuotaName,
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+					},
+				},
+			},
+		},
+		{
+			name:   "RQ is not in the target namespace, skip scaling",
+			fields: fields{},
+			args: args{
+				rq: &corev1.ResourceQuota{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "random",
+						Name:      resourceQuotaName,
+					},
+					Spec: corev1.ResourceQuotaSpec{
+						Hard: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+							corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+						},
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vm1",
+						Namespace: resourceQuotaNamespace,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							Resources: kubevirtv1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewQuantity(memory1Gi, resource.BinarySI),
+								},
+							},
+						},
+					},
+				},
+				vmim: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vmim1",
+						Namespace: resourceQuotaNamespace,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationPending,
+					},
+				},
+			},
+			wantErr: false,
+			want: &corev1.ResourceQuota{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "random",
+					Name:      resourceQuotaName,
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+					},
+				},
+			},
+		},
+		{
+			name:   "Not the default RQ, skip scaling",
+			fields: fields{},
+			args: args{
+				rq: &corev1.ResourceQuota{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: resourceQuotaNamespace,
+						Name:      resourceQuotaName,
+					},
+					Spec: corev1.ResourceQuotaSpec{
+						Hard: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+							corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+						},
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vm1",
+						Namespace: resourceQuotaNamespace,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							Resources: kubevirtv1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewQuantity(memory1Gi, resource.BinarySI),
+								},
+							},
+						},
+					},
+				},
+				vmim: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vmim1",
+						Namespace: resourceQuotaNamespace,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationPending,
+					},
+				},
+			},
+			wantErr: false,
+			want: &corev1.ResourceQuota{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: resourceQuotaNamespace,
+					Name:      resourceQuotaName,
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+					},
+				},
+			},
+		},
+		{
+			name:   "RQ has zero quantity, skip scaling",
+			fields: fields{},
+			args: args{
+				rq: &corev1.ResourceQuota{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: resourceQuotaNamespace,
+						Name:      resourceQuotaName,
+						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					},
+					Spec: corev1.ResourceQuotaSpec{
+						Hard: map[corev1.ResourceName]resource.Quantity{},
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vm1",
+						Namespace: resourceQuotaNamespace,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							Resources: kubevirtv1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewQuantity(memory1Gi, resource.BinarySI),
+								},
+							},
+						},
+					},
+				},
+				vmim: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vmim1",
+						Namespace: resourceQuotaNamespace,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationPending,
+					},
+				},
+			},
+			wantErr: false,
+			want: &corev1.ResourceQuota{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: resourceQuotaNamespace,
+					Name:      resourceQuotaName,
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{},
 				},
 			},
 		},

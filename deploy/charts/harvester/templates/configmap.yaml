@@ -73,18 +73,20 @@ data:
       echo Waiting for bootstrap object of $CUSTOM_MACHINE...
       sleep 2
     done
+    `}}
 
     VIP=$($KUBECTL get configmap vip -n harvester-system -o=jsonpath='{.data.ip}')
     cat > /host/etc/rancher/rke2/config.yaml.d/90-harvester-server.yaml <<EOF
     cni: multus,canal
-    cluster-cidr: 10.52.0.0/16
-    service-cidr: 10.53.0.0/16
-    cluster-dns: 10.53.0.10
+    cluster-cidr: {{ .Values.promote.clusterPodCIDR }}
+    service-cidr: {{ .Values.promote.clusterServiceCIDR }}
+    cluster-dns: {{ .Values.promote.clusterDNS }}
     tls-san:
       - $VIP
     audit-policy-file: /etc/rancher/rke2/config.yaml.d/92-harvester-kube-audit-policy.yaml
     EOF
 
+    {{`
     # Disable snapshot-controller related charts because we manage them in Harvester.
     # RKE2 enables these charts by default after v1.25.7 (https://github.com/rancher/rke2/releases/tag/v1.25.7%2Brke2r1)
     cat > /host/etc/rancher/rke2/config.yaml.d/40-disable-charts.yaml <<EOF

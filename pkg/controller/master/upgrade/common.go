@@ -37,14 +37,14 @@ HOST_DIR="${HOST_DIR:-/host}"
 export CONTAINER_RUNTIME_ENDPOINT=unix:///$HOST_DIR/run/k3s/containerd/containerd.sock
 export CONTAINERD_ADDRESS=$HOST_DIR/run/k3s/containerd/containerd.sock
 
-CTR="$HOST_DIR/$(readlink $HOST_DIR/var/lib/rancher/rke2/bin)/ctr"
-if [ -z "$CTR" ];then
-	echo "Fail to get host ctr binary."
+CRICTL="$HOST_DIR/$(readlink $HOST_DIR/var/lib/rancher/rke2/bin)/crictl"
+if [ -z "$CRICTL" ];then
+	echo "Fail to get host crictl binary."
 	exit 0
 fi
 
 ret=0
-"$CTR" -n k8s.io i rm $IMAGES || ret=$?
+"$CRICTL" rmi $IMAGES || ret=$?
 
 if [ "$ret" -ne 0 ]; then
 	echo "Fail to remove images"

@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var cloudcredentialsKind = v3.SchemeGroupVersion.WithKind("CloudCredential")
 
 // Get takes name of the cloudCredential, and returns the corresponding cloudCredential object, and an error if there is any.
 func (c *FakeCloudCredentials) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.CloudCredential, err error) {
+	emptyResult := &v3.CloudCredential{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(cloudcredentialsResource, c.ns, name), &v3.CloudCredential{})
+		Invokes(testing.NewGetActionWithOptions(cloudcredentialsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.CloudCredential), err
 }
 
 // List takes label and field selectors, and returns the list of CloudCredentials that match those selectors.
 func (c *FakeCloudCredentials) List(ctx context.Context, opts v1.ListOptions) (result *v3.CloudCredentialList, err error) {
+	emptyResult := &v3.CloudCredentialList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(cloudcredentialsResource, cloudcredentialsKind, c.ns, opts), &v3.CloudCredentialList{})
+		Invokes(testing.NewListActionWithOptions(cloudcredentialsResource, cloudcredentialsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,28 +77,30 @@ func (c *FakeCloudCredentials) List(ctx context.Context, opts v1.ListOptions) (r
 // Watch returns a watch.Interface that watches the requested cloudCredentials.
 func (c *FakeCloudCredentials) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(cloudcredentialsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(cloudcredentialsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a cloudCredential and creates it.  Returns the server's representation of the cloudCredential, and an error, if there is any.
 func (c *FakeCloudCredentials) Create(ctx context.Context, cloudCredential *v3.CloudCredential, opts v1.CreateOptions) (result *v3.CloudCredential, err error) {
+	emptyResult := &v3.CloudCredential{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(cloudcredentialsResource, c.ns, cloudCredential), &v3.CloudCredential{})
+		Invokes(testing.NewCreateActionWithOptions(cloudcredentialsResource, c.ns, cloudCredential, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.CloudCredential), err
 }
 
 // Update takes the representation of a cloudCredential and updates it. Returns the server's representation of the cloudCredential, and an error, if there is any.
 func (c *FakeCloudCredentials) Update(ctx context.Context, cloudCredential *v3.CloudCredential, opts v1.UpdateOptions) (result *v3.CloudCredential, err error) {
+	emptyResult := &v3.CloudCredential{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(cloudcredentialsResource, c.ns, cloudCredential), &v3.CloudCredential{})
+		Invokes(testing.NewUpdateActionWithOptions(cloudcredentialsResource, c.ns, cloudCredential, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.CloudCredential), err
 }
@@ -111,7 +115,7 @@ func (c *FakeCloudCredentials) Delete(ctx context.Context, name string, opts v1.
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeCloudCredentials) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(cloudcredentialsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(cloudcredentialsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.CloudCredentialList{})
 	return err
@@ -119,11 +123,12 @@ func (c *FakeCloudCredentials) DeleteCollection(ctx context.Context, opts v1.Del
 
 // Patch applies the patch and returns the patched cloudCredential.
 func (c *FakeCloudCredentials) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.CloudCredential, err error) {
+	emptyResult := &v3.CloudCredential{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(cloudcredentialsResource, c.ns, name, pt, data, subresources...), &v3.CloudCredential{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(cloudcredentialsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.CloudCredential), err
 }

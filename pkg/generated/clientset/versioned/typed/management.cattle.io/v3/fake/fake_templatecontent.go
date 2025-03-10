@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,20 +40,22 @@ var templatecontentsKind = v3.SchemeGroupVersion.WithKind("TemplateContent")
 
 // Get takes name of the templateContent, and returns the corresponding templateContent object, and an error if there is any.
 func (c *FakeTemplateContents) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.TemplateContent, err error) {
+	emptyResult := &v3.TemplateContent{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(templatecontentsResource, name), &v3.TemplateContent{})
+		Invokes(testing.NewRootGetActionWithOptions(templatecontentsResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.TemplateContent), err
 }
 
 // List takes label and field selectors, and returns the list of TemplateContents that match those selectors.
 func (c *FakeTemplateContents) List(ctx context.Context, opts v1.ListOptions) (result *v3.TemplateContentList, err error) {
+	emptyResult := &v3.TemplateContentList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(templatecontentsResource, templatecontentsKind, opts), &v3.TemplateContentList{})
+		Invokes(testing.NewRootListActionWithOptions(templatecontentsResource, templatecontentsKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,25 +74,27 @@ func (c *FakeTemplateContents) List(ctx context.Context, opts v1.ListOptions) (r
 // Watch returns a watch.Interface that watches the requested templateContents.
 func (c *FakeTemplateContents) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(templatecontentsResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(templatecontentsResource, opts))
 }
 
 // Create takes the representation of a templateContent and creates it.  Returns the server's representation of the templateContent, and an error, if there is any.
 func (c *FakeTemplateContents) Create(ctx context.Context, templateContent *v3.TemplateContent, opts v1.CreateOptions) (result *v3.TemplateContent, err error) {
+	emptyResult := &v3.TemplateContent{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(templatecontentsResource, templateContent), &v3.TemplateContent{})
+		Invokes(testing.NewRootCreateActionWithOptions(templatecontentsResource, templateContent, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.TemplateContent), err
 }
 
 // Update takes the representation of a templateContent and updates it. Returns the server's representation of the templateContent, and an error, if there is any.
 func (c *FakeTemplateContents) Update(ctx context.Context, templateContent *v3.TemplateContent, opts v1.UpdateOptions) (result *v3.TemplateContent, err error) {
+	emptyResult := &v3.TemplateContent{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(templatecontentsResource, templateContent), &v3.TemplateContent{})
+		Invokes(testing.NewRootUpdateActionWithOptions(templatecontentsResource, templateContent, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.TemplateContent), err
 }
@@ -104,7 +108,7 @@ func (c *FakeTemplateContents) Delete(ctx context.Context, name string, opts v1.
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeTemplateContents) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(templatecontentsResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(templatecontentsResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.TemplateContentList{})
 	return err
@@ -112,10 +116,11 @@ func (c *FakeTemplateContents) DeleteCollection(ctx context.Context, opts v1.Del
 
 // Patch applies the patch and returns the patched templateContent.
 func (c *FakeTemplateContents) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.TemplateContent, err error) {
+	emptyResult := &v3.TemplateContent{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(templatecontentsResource, name, pt, data, subresources...), &v3.TemplateContent{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(templatecontentsResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.TemplateContent), err
 }

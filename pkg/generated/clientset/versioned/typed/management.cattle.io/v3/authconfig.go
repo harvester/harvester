@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // AuthConfigsGetter has a method to return a AuthConfigInterface.
@@ -40,6 +39,7 @@ type AuthConfigsGetter interface {
 type AuthConfigInterface interface {
 	Create(ctx context.Context, authConfig *v3.AuthConfig, opts v1.CreateOptions) (*v3.AuthConfig, error)
 	Update(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (*v3.AuthConfig, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 	UpdateStatus(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (*v3.AuthConfig, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -52,133 +52,18 @@ type AuthConfigInterface interface {
 
 // authConfigs implements AuthConfigInterface
 type authConfigs struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v3.AuthConfig, *v3.AuthConfigList]
 }
 
 // newAuthConfigs returns a AuthConfigs
 func newAuthConfigs(c *ManagementV3Client) *authConfigs {
 	return &authConfigs{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v3.AuthConfig, *v3.AuthConfigList](
+			"authconfigs",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v3.AuthConfig { return &v3.AuthConfig{} },
+			func() *v3.AuthConfigList { return &v3.AuthConfigList{} }),
 	}
-}
-
-// Get takes name of the authConfig, and returns the corresponding authConfig object, and an error if there is any.
-func (c *authConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.AuthConfig, err error) {
-	result = &v3.AuthConfig{}
-	err = c.client.Get().
-		Resource("authconfigs").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of AuthConfigs that match those selectors.
-func (c *authConfigs) List(ctx context.Context, opts v1.ListOptions) (result *v3.AuthConfigList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.AuthConfigList{}
-	err = c.client.Get().
-		Resource("authconfigs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested authConfigs.
-func (c *authConfigs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("authconfigs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a authConfig and creates it.  Returns the server's representation of the authConfig, and an error, if there is any.
-func (c *authConfigs) Create(ctx context.Context, authConfig *v3.AuthConfig, opts v1.CreateOptions) (result *v3.AuthConfig, err error) {
-	result = &v3.AuthConfig{}
-	err = c.client.Post().
-		Resource("authconfigs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(authConfig).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a authConfig and updates it. Returns the server's representation of the authConfig, and an error, if there is any.
-func (c *authConfigs) Update(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (result *v3.AuthConfig, err error) {
-	result = &v3.AuthConfig{}
-	err = c.client.Put().
-		Resource("authconfigs").
-		Name(authConfig.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(authConfig).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *authConfigs) UpdateStatus(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (result *v3.AuthConfig, err error) {
-	result = &v3.AuthConfig{}
-	err = c.client.Put().
-		Resource("authconfigs").
-		Name(authConfig.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(authConfig).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the authConfig and deletes it. Returns an error if one occurs.
-func (c *authConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("authconfigs").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *authConfigs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("authconfigs").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched authConfig.
-func (c *authConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.AuthConfig, err error) {
-	result = &v3.AuthConfig{}
-	err = c.client.Patch(pt).
-		Resource("authconfigs").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

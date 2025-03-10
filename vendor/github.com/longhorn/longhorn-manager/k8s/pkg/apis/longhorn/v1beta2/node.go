@@ -3,12 +3,14 @@ package v1beta2
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 const (
-	NodeConditionTypeReady              = "Ready"
-	NodeConditionTypeMountPropagation   = "MountPropagation"
-	NodeConditionTypeMultipathd         = "Multipathd"
-	NodeConditionTypeRequiredPackages   = "RequiredPackages"
-	NodeConditionTypeNFSClientInstalled = "NFSClientInstalled"
-	NodeConditionTypeSchedulable        = "Schedulable"
+	NodeConditionTypeReady               = "Ready"
+	NodeConditionTypeMountPropagation    = "MountPropagation"
+	NodeConditionTypeMultipathd          = "Multipathd"
+	NodeConditionTypeKernelModulesLoaded = "KernelModulesLoaded"
+	NodeConditionTypeRequiredPackages    = "RequiredPackages"
+	NodeConditionTypeNFSClientInstalled  = "NFSClientInstalled"
+	NodeConditionTypeSchedulable         = "Schedulable"
+	NodeConditionTypeHugePagesAvailable  = "HugePagesAvailable"
 )
 
 const (
@@ -22,10 +24,14 @@ const (
 	NodeConditionReasonMultipathdIsRunning       = "MultipathdIsRunning"
 	NodeConditionReasonUnknownOS                 = "UnknownOS"
 	NodeConditionReasonNamespaceExecutorErr      = "NamespaceExecutorErr"
+	NodeConditionReasonKernelModulesNotLoaded    = "KernelModulesNotLoaded"
 	NodeConditionReasonPackagesNotInstalled      = "PackagesNotInstalled"
-	NodeConditionReasonKernelConfigIsNotFound    = "KernelConfigIsNotFound"
+	NodeConditionReasonCheckKernelConfigFailed   = "CheckKernelConfigFailed"
 	NodeConditionReasonNFSClientIsNotFound       = "NFSClientIsNotFound"
+	NodeConditionReasonNFSClientIsMisconfigured  = "NFSClientIsMisconfigured"
 	NodeConditionReasonKubernetesNodeCordoned    = "KubernetesNodeCordoned"
+	NodeConditionReasonHugePagesNotConfigured    = "HugePagesNotConfigured"
+	NodeConditionReasonInsufficientHugePages     = "InsufficientHugePages"
 )
 
 const (
@@ -54,6 +60,7 @@ const (
 	ErrorReplicaScheduleHardNodeAffinityNotSatisfied     = "hard affinity cannot be satisfied"
 	ErrorReplicaScheduleSchedulingFailed                 = "replica scheduling failed"
 	ErrorReplicaSchedulePrecheckNewReplicaFailed         = "precheck new replica failed"
+	ErrorReplicaScheduleEvictReplicaFailed               = "evict replica failed"
 )
 
 type DiskType string
@@ -110,6 +117,9 @@ type DiskStatus struct {
 	// +optional
 	// +nullable
 	ScheduledReplica map[string]int64 `json:"scheduledReplica"`
+	// +optional
+	// +nullable
+	ScheduledBackingImage map[string]int64 `json:"scheduledBackingImage"`
 	// +optional
 	DiskUUID string `json:"diskUUID"`
 	// +optional

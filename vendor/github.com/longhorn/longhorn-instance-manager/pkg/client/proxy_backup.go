@@ -182,36 +182,6 @@ func (c *ProxyClient) BackupRestore(dataEngine, engineName, volumeName, serviceA
 	return nil
 }
 
-func (c *ProxyClient) BackupRestoreFinish(dataEngine, engineName, volumeName, serviceAddress string) error {
-	input := map[string]string{
-		"engineName":     engineName,
-		"volumeName":     volumeName,
-		"serviceAddress": serviceAddress,
-	}
-	if err := validateProxyMethodParameters(input); err != nil {
-		return errors.Wrap(err, "failed to finishing backup restoration")
-	}
-
-	driver, ok := rpc.DataEngine_value[getDataEngine(dataEngine)]
-	if !ok {
-		return fmt.Errorf("failed to finishing backup restoration: invalid data engine %v", dataEngine)
-	}
-
-	req := &rpc.EngineBackupRestoreFinishRequest{
-		ProxyEngineRequest: &rpc.ProxyEngineRequest{
-			Address:    serviceAddress,
-			EngineName: engineName,
-			// nolint:all replaced with DataEngine
-			BackendStoreDriver: rpc.BackendStoreDriver(driver),
-			DataEngine:         rpc.DataEngine(driver),
-			// This is the name we will use for validation when communicating with the restoring engine.
-			VolumeName: volumeName,
-		},
-	}
-	_, err := c.service.BackupRestoreFinish(getContextWithGRPCTimeout(c.ctx), req)
-	return err
-}
-
 func (c *ProxyClient) BackupRestoreStatus(dataEngine, engineName, volumeName, serviceAddress string) (status map[string]*BackupRestoreStatus, err error) {
 	input := map[string]string{
 		"engineName":     engineName,

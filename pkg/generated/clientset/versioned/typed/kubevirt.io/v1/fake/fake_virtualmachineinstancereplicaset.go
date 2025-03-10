@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var virtualmachineinstancereplicasetsKind = v1.SchemeGroupVersion.WithKind("Virt
 
 // Get takes name of the virtualMachineInstanceReplicaSet, and returns the corresponding virtualMachineInstanceReplicaSet object, and an error if there is any.
 func (c *FakeVirtualMachineInstanceReplicaSets) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.VirtualMachineInstanceReplicaSet, err error) {
+	emptyResult := &v1.VirtualMachineInstanceReplicaSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(virtualmachineinstancereplicasetsResource, c.ns, name), &v1.VirtualMachineInstanceReplicaSet{})
+		Invokes(testing.NewGetActionWithOptions(virtualmachineinstancereplicasetsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VirtualMachineInstanceReplicaSet), err
 }
 
 // List takes label and field selectors, and returns the list of VirtualMachineInstanceReplicaSets that match those selectors.
 func (c *FakeVirtualMachineInstanceReplicaSets) List(ctx context.Context, opts metav1.ListOptions) (result *v1.VirtualMachineInstanceReplicaSetList, err error) {
+	emptyResult := &v1.VirtualMachineInstanceReplicaSetList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(virtualmachineinstancereplicasetsResource, virtualmachineinstancereplicasetsKind, c.ns, opts), &v1.VirtualMachineInstanceReplicaSetList{})
+		Invokes(testing.NewListActionWithOptions(virtualmachineinstancereplicasetsResource, virtualmachineinstancereplicasetsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeVirtualMachineInstanceReplicaSets) List(ctx context.Context, opts m
 // Watch returns a watch.Interface that watches the requested virtualMachineInstanceReplicaSets.
 func (c *FakeVirtualMachineInstanceReplicaSets) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(virtualmachineinstancereplicasetsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(virtualmachineinstancereplicasetsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a virtualMachineInstanceReplicaSet and creates it.  Returns the server's representation of the virtualMachineInstanceReplicaSet, and an error, if there is any.
 func (c *FakeVirtualMachineInstanceReplicaSets) Create(ctx context.Context, virtualMachineInstanceReplicaSet *v1.VirtualMachineInstanceReplicaSet, opts metav1.CreateOptions) (result *v1.VirtualMachineInstanceReplicaSet, err error) {
+	emptyResult := &v1.VirtualMachineInstanceReplicaSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(virtualmachineinstancereplicasetsResource, c.ns, virtualMachineInstanceReplicaSet), &v1.VirtualMachineInstanceReplicaSet{})
+		Invokes(testing.NewCreateActionWithOptions(virtualmachineinstancereplicasetsResource, c.ns, virtualMachineInstanceReplicaSet, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VirtualMachineInstanceReplicaSet), err
 }
 
 // Update takes the representation of a virtualMachineInstanceReplicaSet and updates it. Returns the server's representation of the virtualMachineInstanceReplicaSet, and an error, if there is any.
 func (c *FakeVirtualMachineInstanceReplicaSets) Update(ctx context.Context, virtualMachineInstanceReplicaSet *v1.VirtualMachineInstanceReplicaSet, opts metav1.UpdateOptions) (result *v1.VirtualMachineInstanceReplicaSet, err error) {
+	emptyResult := &v1.VirtualMachineInstanceReplicaSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(virtualmachineinstancereplicasetsResource, c.ns, virtualMachineInstanceReplicaSet), &v1.VirtualMachineInstanceReplicaSet{})
+		Invokes(testing.NewUpdateActionWithOptions(virtualmachineinstancereplicasetsResource, c.ns, virtualMachineInstanceReplicaSet, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VirtualMachineInstanceReplicaSet), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeVirtualMachineInstanceReplicaSets) UpdateStatus(ctx context.Context, virtualMachineInstanceReplicaSet *v1.VirtualMachineInstanceReplicaSet, opts metav1.UpdateOptions) (*v1.VirtualMachineInstanceReplicaSet, error) {
+func (c *FakeVirtualMachineInstanceReplicaSets) UpdateStatus(ctx context.Context, virtualMachineInstanceReplicaSet *v1.VirtualMachineInstanceReplicaSet, opts metav1.UpdateOptions) (result *v1.VirtualMachineInstanceReplicaSet, err error) {
+	emptyResult := &v1.VirtualMachineInstanceReplicaSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(virtualmachineinstancereplicasetsResource, "status", c.ns, virtualMachineInstanceReplicaSet), &v1.VirtualMachineInstanceReplicaSet{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(virtualmachineinstancereplicasetsResource, "status", c.ns, virtualMachineInstanceReplicaSet, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VirtualMachineInstanceReplicaSet), err
 }
@@ -123,7 +128,7 @@ func (c *FakeVirtualMachineInstanceReplicaSets) Delete(ctx context.Context, name
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeVirtualMachineInstanceReplicaSets) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(virtualmachineinstancereplicasetsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(virtualmachineinstancereplicasetsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1.VirtualMachineInstanceReplicaSetList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeVirtualMachineInstanceReplicaSets) DeleteCollection(ctx context.Con
 
 // Patch applies the patch and returns the patched virtualMachineInstanceReplicaSet.
 func (c *FakeVirtualMachineInstanceReplicaSets) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.VirtualMachineInstanceReplicaSet, err error) {
+	emptyResult := &v1.VirtualMachineInstanceReplicaSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(virtualmachineinstancereplicasetsResource, c.ns, name, pt, data, subresources...), &v1.VirtualMachineInstanceReplicaSet{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(virtualmachineinstancereplicasetsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VirtualMachineInstanceReplicaSet), err
 }

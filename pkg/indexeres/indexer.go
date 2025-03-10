@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
+
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/rancher/steve/pkg/server"
@@ -100,7 +102,15 @@ func VMTemplateVersionByImageID(obj *harvesterv1.VirtualMachineTemplateVersion) 
 
 	var volumeClaimTemplates []corev1.PersistentVolumeClaim
 	if err := json.Unmarshal([]byte(volumeClaimTemplateStr), &volumeClaimTemplates); err != nil {
-		return []string{}, fmt.Errorf("can't unmarshal %s, err: %w", util.AnnotationVolumeClaimTemplates, err)
+		// an IndexFunc should never return an error as this would cause the cache
+		// to panic. Therefore we just log the error and return an empty result.
+		logrus.WithFields(logrus.Fields{
+			"annotation": util.AnnotationVolumeClaimTemplates,
+			"name":       obj.Name,
+			"namespace":  obj.Namespace,
+			"err":        err.Error(),
+		}).Error("can't unmarshal JSON data")
+		return []string{}, nil
 	}
 
 	imageIDs := []string{}

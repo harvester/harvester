@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,20 +40,22 @@ var composeconfigsKind = v3.SchemeGroupVersion.WithKind("ComposeConfig")
 
 // Get takes name of the composeConfig, and returns the corresponding composeConfig object, and an error if there is any.
 func (c *FakeComposeConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ComposeConfig, err error) {
+	emptyResult := &v3.ComposeConfig{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(composeconfigsResource, name), &v3.ComposeConfig{})
+		Invokes(testing.NewRootGetActionWithOptions(composeconfigsResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ComposeConfig), err
 }
 
 // List takes label and field selectors, and returns the list of ComposeConfigs that match those selectors.
 func (c *FakeComposeConfigs) List(ctx context.Context, opts v1.ListOptions) (result *v3.ComposeConfigList, err error) {
+	emptyResult := &v3.ComposeConfigList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(composeconfigsResource, composeconfigsKind, opts), &v3.ComposeConfigList{})
+		Invokes(testing.NewRootListActionWithOptions(composeconfigsResource, composeconfigsKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,36 +74,39 @@ func (c *FakeComposeConfigs) List(ctx context.Context, opts v1.ListOptions) (res
 // Watch returns a watch.Interface that watches the requested composeConfigs.
 func (c *FakeComposeConfigs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(composeconfigsResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(composeconfigsResource, opts))
 }
 
 // Create takes the representation of a composeConfig and creates it.  Returns the server's representation of the composeConfig, and an error, if there is any.
 func (c *FakeComposeConfigs) Create(ctx context.Context, composeConfig *v3.ComposeConfig, opts v1.CreateOptions) (result *v3.ComposeConfig, err error) {
+	emptyResult := &v3.ComposeConfig{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(composeconfigsResource, composeConfig), &v3.ComposeConfig{})
+		Invokes(testing.NewRootCreateActionWithOptions(composeconfigsResource, composeConfig, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ComposeConfig), err
 }
 
 // Update takes the representation of a composeConfig and updates it. Returns the server's representation of the composeConfig, and an error, if there is any.
 func (c *FakeComposeConfigs) Update(ctx context.Context, composeConfig *v3.ComposeConfig, opts v1.UpdateOptions) (result *v3.ComposeConfig, err error) {
+	emptyResult := &v3.ComposeConfig{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(composeconfigsResource, composeConfig), &v3.ComposeConfig{})
+		Invokes(testing.NewRootUpdateActionWithOptions(composeconfigsResource, composeConfig, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ComposeConfig), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeComposeConfigs) UpdateStatus(ctx context.Context, composeConfig *v3.ComposeConfig, opts v1.UpdateOptions) (*v3.ComposeConfig, error) {
+func (c *FakeComposeConfigs) UpdateStatus(ctx context.Context, composeConfig *v3.ComposeConfig, opts v1.UpdateOptions) (result *v3.ComposeConfig, err error) {
+	emptyResult := &v3.ComposeConfig{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(composeconfigsResource, "status", composeConfig), &v3.ComposeConfig{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(composeconfigsResource, "status", composeConfig, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ComposeConfig), err
 }
@@ -115,7 +120,7 @@ func (c *FakeComposeConfigs) Delete(ctx context.Context, name string, opts v1.De
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeComposeConfigs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(composeconfigsResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(composeconfigsResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.ComposeConfigList{})
 	return err
@@ -123,10 +128,11 @@ func (c *FakeComposeConfigs) DeleteCollection(ctx context.Context, opts v1.Delet
 
 // Patch applies the patch and returns the patched composeConfig.
 func (c *FakeComposeConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ComposeConfig, err error) {
+	emptyResult := &v3.ComposeConfig{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(composeconfigsResource, name, pt, data, subresources...), &v3.ComposeConfig{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(composeconfigsResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ComposeConfig), err
 }

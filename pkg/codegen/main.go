@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	whereaboutscniv1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	storagesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
@@ -24,6 +25,8 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiuploadv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 	capi "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
@@ -53,6 +56,7 @@ func main() {
 					harvesterv1.Addon{},
 					harvesterv1.ResourceQuota{},
 					harvesterv1.ScheduleVMBackup{},
+					harvesterv1.VirtualMachineImageDownloader{},
 				},
 				GenerateTypes:   true,
 				GenerateClients: true,
@@ -62,6 +66,8 @@ func main() {
 					loggingv1.Logging{},
 					loggingv1.ClusterFlow{},
 					loggingv1.ClusterOutput{},
+					loggingv1.Flow{},
+					loggingv1.Output{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
@@ -79,6 +85,13 @@ func main() {
 			cniv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
 					cniv1.NetworkAttachmentDefinition{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			whereaboutscniv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					whereaboutscniv1.IPPool{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
@@ -108,15 +121,18 @@ func main() {
 			},
 			longhornv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
+					longhornv1.Node{},
 					longhornv1.BackingImage{},
 					longhornv1.BackingImageDataSource{},
 					longhornv1.Volume{},
 					longhornv1.Setting{},
 					longhornv1.Backup{},
+					longhornv1.BackupVolume{},
 					longhornv1.BackupBackingImage{},
 					longhornv1.Replica{},
 					longhornv1.Engine{},
 					longhornv1.Snapshot{},
+					longhornv1.BackupTarget{},
 				},
 				GenerateClients: true,
 			},
@@ -183,6 +199,21 @@ func main() {
 				GenerateTypes:   false,
 				GenerateClients: true,
 			},
+			cdiv1.CDIGroupVersionKind.Group: {
+				Types: []interface{}{
+					cdiv1.DataVolume{},
+					cdiv1.StorageProfile{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			cdiuploadv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					cdiuploadv1.UploadTokenRequest{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
 		},
 	})
 	nadControllerInterfaceRefactor()
@@ -240,6 +271,8 @@ func loggingWorkaround() {
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/logging.banzaicloud.io_client.go",
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_clusterflow.go",
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_clusteroutput.go",
+		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_flow.go",
+		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_output.go",
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_logging.go",
 	}
 

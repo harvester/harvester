@@ -9,6 +9,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/controller/master/backup"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/clients"
@@ -16,6 +17,8 @@ import (
 
 const (
 	VMBackupBySourceUIDIndex              = "harvesterhci.io/vmbackup-by-source-uid"
+	VMBackupByIsProgressing               = "harvesterhci.io/vmbackup-by-is-progressing"
+	VMBackupByStorageClassNameIndex       = "harvesterhci.io/vmbackup-by-storage-class-name"
 	VMRestoreByTargetNamespaceAndName     = "harvesterhci.io/vmrestore-by-target-namespace-and-name"
 	VMRestoreByVMBackupNamespaceAndName   = "harvesterhci.io/vmrestore-by-vmbackup-namespace-and-name"
 	VMBackupSnapshotByPVCNamespaceAndName = "harvesterhci.io/vmbackup-snapshot-by-pvc-namespace-and-name"
@@ -23,14 +26,18 @@ const (
 	ImageByExportSourcePVCIndex           = "harvesterhci.io/image-by-export-source-pvc"
 	ScheduleVMBackupBySourceVM            = "harvesterhci.io/svmbackup-by-source-vm"
 	ScheduleVMBackupByCronGranularity     = "harvesterhci.io/svmbackup-by-cron-granularity"
+	ScheduleVMBackupBySuspended           = "harvesterhci.io/svmbackup-by-suspended"
 	ImageByStorageClass                   = "harvesterhci.io/image-by-storage-class"
 	VMInstanceMigrationByVM               = "harvesterhci.io/vmim-by-vm"
+	VMByMacAddress                        = "harvesterhci.io/vm-by-macaddr"
 )
 
 func RegisterIndexers(clients *clients.Clients) {
 	vmBackupCache := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()
 	vmBackupCache.AddIndexer(VMBackupBySourceUIDIndex, vmBackupBySourceUID)
 	vmBackupCache.AddIndexer(VMBackupSnapshotByPVCNamespaceAndName, vmBackupSnapshotByPVCNamespaceAndName)
+	vmBackupCache.AddIndexer(VMBackupByIsProgressing, vmBackupByIsProgressing)
+	vmBackupCache.AddIndexer(VMBackupByStorageClassNameIndex, vmBackupByStorageClassName)
 
 	vmRestoreCache := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache()
 	vmRestoreCache.AddIndexer(VMRestoreByTargetNamespaceAndName, vmRestoreByTargetNamespaceAndName)
@@ -52,12 +59,16 @@ func RegisterIndexers(clients *clients.Clients) {
 	svmBackupCache := clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache()
 	svmBackupCache.AddIndexer(ScheduleVMBackupBySourceVM, scheduleVMBackupBySourceVM)
 	svmBackupCache.AddIndexer(ScheduleVMBackupByCronGranularity, scheduleVMBackupByCronGranularity)
+	svmBackupCache.AddIndexer(ScheduleVMBackupBySuspended, scheduleVMBackupBySuspended)
 
 	scInformer := clients.StorageFactory.Storage().V1().StorageClass().Cache()
 	scInformer.AddIndexer(indexeresutil.StorageClassBySecretIndex, indexeresutil.StorageClassBySecret)
 
 	vmimCache := clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache()
 	vmimCache.AddIndexer(VMInstanceMigrationByVM, vmInstanceMigrationByVM)
+
+	vmCache := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
+	vmCache.AddIndexer(VMByMacAddress, vmByMacaddrs)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
@@ -78,6 +89,23 @@ func vmBackupSnapshotByPVCNamespaceAndName(obj *harvesterv1.VirtualMachineBackup
 		result = append(result, fmt.Sprintf("%s/%s", pvc.ObjectMeta.Namespace, pvc.ObjectMeta.Name))
 	}
 	return result, nil
+}
+
+func vmBackupByIsProgressing(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
+	isProgressingStr := strconv.FormatBool(backup.IsBackupProgressing(obj))
+	return []string{string(isProgressingStr)}, nil
+}
+
+func vmBackupByStorageClassName(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
+	storageClassNames := []string{}
+	if obj.Status == nil {
+		return storageClassNames, nil
+	}
+
+	for _, volumeBackup := range obj.Status.VolumeBackups {
+		storageClassNames = append(storageClassNames, *volumeBackup.PersistentVolumeClaim.Spec.StorageClassName)
+	}
+	return storageClassNames, nil
 }
 
 func vmRestoreByTargetNamespaceAndName(obj *harvesterv1.VirtualMachineRestore) ([]string, error) {
@@ -125,6 +153,11 @@ func scheduleVMBackupByCronGranularity(obj *harvesterv1.ScheduleVMBackup) ([]str
 	return []string{granularity.String()}, nil
 }
 
+func scheduleVMBackupBySuspended(obj *harvesterv1.ScheduleVMBackup) ([]string, error) {
+	suspenedStr := strconv.FormatBool(obj.Status.Suspended)
+	return []string{string(suspenedStr)}, nil
+}
+
 func imageByStorageClass(obj *harvesterv1.VirtualMachineImage) ([]string, error) {
 	sc, ok := obj.Annotations[util.AnnotationStorageClassName]
 	if !ok {
@@ -135,4 +168,21 @@ func imageByStorageClass(obj *harvesterv1.VirtualMachineImage) ([]string, error)
 
 func vmInstanceMigrationByVM(obj *kubevirtv1.VirtualMachineInstanceMigration) ([]string, error) {
 	return []string{fmt.Sprintf("%s/%s", obj.Namespace, obj.Spec.VMIName)}, nil
+}
+
+func vmByMacaddrs(obj *kubevirtv1.VirtualMachine) (vmmacs []string, err error) {
+	if obj.Spec.Template == nil {
+		return vmmacs, fmt.Errorf("vm %s template is nil", obj.Name)
+	}
+
+	vmInterfaces := obj.Spec.Template.Spec.Domain.Devices.Interfaces
+
+	for _, vmInterface := range vmInterfaces {
+		if vmInterface.MacAddress == "" {
+			continue
+		}
+		vmmacs = append(vmmacs, vmInterface.MacAddress)
+	}
+
+	return vmmacs, nil
 }

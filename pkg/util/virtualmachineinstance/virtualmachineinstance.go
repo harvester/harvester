@@ -34,7 +34,7 @@ func GetAllNonLiveMigratableVMINames(vmis []*kubevirtv1.VirtualMachineInstance, 
 
 		// PCIe devices
 		if vmi.Spec.Domain.Devices.HostDevices != nil {
-			logrus.Infof("%s considered non-live migratable due to pcie devices", vmiNamespacedName)
+			logrus.Infof("%s considered non-live migratable due to pcie or usb devices", vmiNamespacedName)
 			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmiNamespacedName)
 			continue
 		}
@@ -47,10 +47,53 @@ func GetAllNonLiveMigratableVMINames(vmis []*kubevirtv1.VirtualMachineInstance, 
 		if !migratable {
 			logrus.Infof("%s considered non-live migratable due to node affinities", vmiNamespacedName)
 			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmiNamespacedName)
+			continue
+		}
+
+		// container-disk or cdrom device
+		if VMContainsCDRomOrContainerDisk(vmi) {
+			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmiNamespacedName)
+			logrus.Infof("%s considered non-live migratable due to CD-ROM or container disk", vmiNamespacedName)
+			continue
 		}
 	}
 
 	return nonLiveMigratableVMINames, nil
+}
+
+func ValidateVMMigratable(vmi *kubevirtv1.VirtualMachineInstance) error {
+	vmiNamespacedName := fmt.Sprintf("%s/%s", vmi.Namespace, vmi.Name)
+
+	if !vmi.IsRunning() {
+		return fmt.Errorf("VM %s is not live migratable as it is not running", vmiNamespacedName)
+	}
+
+	// The VM is already in migrating state
+	if vmi.Annotations[util.AnnotationMigrationUID] != "" {
+		return fmt.Errorf("VM %s is not live migratable as it is already in a migrating state", vmiNamespacedName)
+	}
+
+	// Node selectors
+	if vmi.Spec.NodeSelector != nil && vmi.Spec.NodeSelector[corev1.LabelHostname] != "" {
+		return fmt.Errorf("VM %s is not live migratable as node selector is set", vmiNamespacedName)
+	}
+
+	// PCIe devices
+	if len(vmi.Spec.Domain.Devices.HostDevices) != 0 {
+		return fmt.Errorf("VM %s is not live migratable as PCIe or USB devices are attached", vmiNamespacedName)
+	}
+
+	// vGPU devices
+	if len(vmi.Spec.Domain.Devices.GPUs) != 0 {
+		return fmt.Errorf("VM %s is not live migratable as vGPU devices are attached", vmiNamespacedName)
+	}
+
+	// container-disk or cdrom device
+	if VMContainsCDRomOrContainerDisk(vmi) {
+		return fmt.Errorf("VM %s is not live migratable as CD-ROM or container disk is set", vmiNamespacedName)
+	}
+
+	return nil
 }
 
 func migratableByNodeAffinity(vmi *kubevirtv1.VirtualMachineInstance, nodes []*corev1.Node) (bool, error) {
@@ -103,4 +146,23 @@ func ListByNode(node *corev1.Node, selector labels.Selector, cache ctlkubevirtv1
 		return nil, fmt.Errorf("failed to list VMIs on node %s: %w", node.Name, err)
 	}
 	return list, nil
+}
+
+func VMContainsCDRomOrContainerDisk(vmi *kubevirtv1.VirtualMachineInstance) bool {
+	if vmi == nil {
+		return false
+	}
+
+	for _, disk := range vmi.Spec.Domain.Devices.Disks {
+		if disk.CDRom != nil {
+			return true
+		}
+	}
+
+	for _, volume := range vmi.Spec.Volumes {
+		if volume.VolumeSource.ContainerDisk != nil {
+			return true
+		}
+	}
+	return false
 }

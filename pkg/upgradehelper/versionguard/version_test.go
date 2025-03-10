@@ -19,6 +19,7 @@ const (
 var (
 	repoInfoTemplate = `
 release:
+  harvester: %s
   minUpgradableVersion: %s
 `
 )
@@ -38,12 +39,9 @@ func TestCheck(t *testing.T) {
 					Namespace: testUpgradeNamespace,
 					Name:      testUpgradeName,
 				},
-				Spec: v1beta1.UpgradeSpec{
-					Version: "v1.2.2",
-				},
 				Status: v1beta1.UpgradeStatus{
 					PreviousVersion: "v1.2.1",
-					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.1"),
+					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.2", "v1.2.1"),
 				},
 			},
 			strictMode: true,
@@ -55,12 +53,9 @@ func TestCheck(t *testing.T) {
 					Namespace: testUpgradeNamespace,
 					Name:      testUpgradeName,
 				},
-				Spec: v1beta1.UpgradeSpec{
-					Version: "v1.2.2",
-				},
 				Status: v1beta1.UpgradeStatus{
 					PreviousVersion: "v1.2.0",
-					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.1"),
+					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.2", "v1.2.1"),
 				},
 			},
 			strictMode:  true,
@@ -73,12 +68,9 @@ func TestCheck(t *testing.T) {
 					Namespace: testUpgradeNamespace,
 					Name:      testUpgradeName,
 				},
-				Spec: v1beta1.UpgradeSpec{
-					Version: "v1.2.0",
-				},
 				Status: v1beta1.UpgradeStatus{
 					PreviousVersion: "v1.2.1",
-					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.1.2"),
+					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.0", "v1.1.2"),
 				},
 			},
 			strictMode:  true,
@@ -91,12 +83,9 @@ func TestCheck(t *testing.T) {
 					Namespace: testUpgradeNamespace,
 					Name:      testUpgradeName,
 				},
-				Spec: v1beta1.UpgradeSpec{
-					Version: "v1.2.2-rc1",
-				},
 				Status: v1beta1.UpgradeStatus{
 					PreviousVersion: "v1.2.1",
-					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.1"),
+					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.2-rc1", "v1.2.1"),
 				},
 			},
 			strictMode: true,
@@ -108,12 +97,9 @@ func TestCheck(t *testing.T) {
 					Namespace: testUpgradeNamespace,
 					Name:      testUpgradeName,
 				},
-				Spec: v1beta1.UpgradeSpec{
-					Version: "v1.2.2-rc2",
-				},
 				Status: v1beta1.UpgradeStatus{
 					PreviousVersion: "v1.2.2-rc1",
-					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.1"),
+					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.2-rc2", "v1.2.1"),
 				},
 			},
 			strictMode: true,
@@ -125,12 +111,9 @@ func TestCheck(t *testing.T) {
 					Namespace: testUpgradeNamespace,
 					Name:      testUpgradeName,
 				},
-				Spec: v1beta1.UpgradeSpec{
-					Version: "v1.2.2-rc1",
-				},
 				Status: v1beta1.UpgradeStatus{
 					PreviousVersion: "v1.2.2-rc2",
-					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.1"),
+					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.2-rc1", "v1.2.1"),
 				},
 			},
 			strictMode:  true,
@@ -143,11 +126,9 @@ func TestCheck(t *testing.T) {
 					Namespace: testUpgradeNamespace,
 					Name:      testUpgradeName,
 				},
-				Spec: v1beta1.UpgradeSpec{
-					Version: "v1.2-head",
-				},
 				Status: v1beta1.UpgradeStatus{
 					PreviousVersion: "v1.2.1",
+					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2-head", ""),
 				},
 			},
 			strictMode: true,
@@ -159,11 +140,9 @@ func TestCheck(t *testing.T) {
 					Namespace: testUpgradeNamespace,
 					Name:      testUpgradeName,
 				},
-				Spec: v1beta1.UpgradeSpec{
-					Version: "v1.3-head",
-				},
 				Status: v1beta1.UpgradeStatus{
 					PreviousVersion: "v1.2-head",
+					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.3-head", ""),
 				},
 			},
 			strictMode: true,
@@ -175,12 +154,9 @@ func TestCheck(t *testing.T) {
 					Namespace: testUpgradeNamespace,
 					Name:      testUpgradeName,
 				},
-				Spec: v1beta1.UpgradeSpec{
-					Version: "v1.3.1",
-				},
 				Status: v1beta1.UpgradeStatus{
 					PreviousVersion: "v1.2-head",
-					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.2"),
+					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.3.1", "v1.2.2"),
 				},
 			},
 			strictMode:  true,
@@ -193,12 +169,9 @@ func TestCheck(t *testing.T) {
 					Namespace: testUpgradeNamespace,
 					Name:      testUpgradeName,
 				},
-				Spec: v1beta1.UpgradeSpec{
-					Version: "v1.3.1",
-				},
 				Status: v1beta1.UpgradeStatus{
 					PreviousVersion: "v1.2-head",
-					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.2"),
+					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.3.1", "v1.2.2"),
 				},
 			},
 			strictMode: false,
@@ -210,12 +183,9 @@ func TestCheck(t *testing.T) {
 					Namespace: testUpgradeNamespace,
 					Name:      testUpgradeName,
 				},
-				Spec: v1beta1.UpgradeSpec{
-					Version: "v1.2.2",
-				},
 				Status: v1beta1.UpgradeStatus{
 					PreviousVersion: "v1.2.2-rc1",
-					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.1"),
+					RepoInfo:        fmt.Sprintf(repoInfoTemplate, "v1.2.2", "v1.2.1"),
 				},
 			},
 			strictMode: true,

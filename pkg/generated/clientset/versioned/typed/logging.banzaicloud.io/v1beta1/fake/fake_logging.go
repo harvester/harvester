@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,20 +40,22 @@ var loggingsKind = v1beta1.GroupVersion.WithKind("Logging")
 
 // Get takes name of the logging, and returns the corresponding logging object, and an error if there is any.
 func (c *FakeLoggings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Logging, err error) {
+	emptyResult := &v1beta1.Logging{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(loggingsResource, name), &v1beta1.Logging{})
+		Invokes(testing.NewRootGetActionWithOptions(loggingsResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Logging), err
 }
 
 // List takes label and field selectors, and returns the list of Loggings that match those selectors.
 func (c *FakeLoggings) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.LoggingList, err error) {
+	emptyResult := &v1beta1.LoggingList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(loggingsResource, loggingsKind, opts), &v1beta1.LoggingList{})
+		Invokes(testing.NewRootListActionWithOptions(loggingsResource, loggingsKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,36 +74,39 @@ func (c *FakeLoggings) List(ctx context.Context, opts v1.ListOptions) (result *v
 // Watch returns a watch.Interface that watches the requested loggings.
 func (c *FakeLoggings) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(loggingsResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(loggingsResource, opts))
 }
 
 // Create takes the representation of a logging and creates it.  Returns the server's representation of the logging, and an error, if there is any.
 func (c *FakeLoggings) Create(ctx context.Context, logging *v1beta1.Logging, opts v1.CreateOptions) (result *v1beta1.Logging, err error) {
+	emptyResult := &v1beta1.Logging{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(loggingsResource, logging), &v1beta1.Logging{})
+		Invokes(testing.NewRootCreateActionWithOptions(loggingsResource, logging, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Logging), err
 }
 
 // Update takes the representation of a logging and updates it. Returns the server's representation of the logging, and an error, if there is any.
 func (c *FakeLoggings) Update(ctx context.Context, logging *v1beta1.Logging, opts v1.UpdateOptions) (result *v1beta1.Logging, err error) {
+	emptyResult := &v1beta1.Logging{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(loggingsResource, logging), &v1beta1.Logging{})
+		Invokes(testing.NewRootUpdateActionWithOptions(loggingsResource, logging, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Logging), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeLoggings) UpdateStatus(ctx context.Context, logging *v1beta1.Logging, opts v1.UpdateOptions) (*v1beta1.Logging, error) {
+func (c *FakeLoggings) UpdateStatus(ctx context.Context, logging *v1beta1.Logging, opts v1.UpdateOptions) (result *v1beta1.Logging, err error) {
+	emptyResult := &v1beta1.Logging{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(loggingsResource, "status", logging), &v1beta1.Logging{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(loggingsResource, "status", logging, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Logging), err
 }
@@ -115,7 +120,7 @@ func (c *FakeLoggings) Delete(ctx context.Context, name string, opts v1.DeleteOp
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeLoggings) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(loggingsResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(loggingsResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.LoggingList{})
 	return err
@@ -123,10 +128,11 @@ func (c *FakeLoggings) DeleteCollection(ctx context.Context, opts v1.DeleteOptio
 
 // Patch applies the patch and returns the patched logging.
 func (c *FakeLoggings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Logging, err error) {
+	emptyResult := &v1beta1.Logging{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(loggingsResource, name, pt, data, subresources...), &v1beta1.Logging{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(loggingsResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Logging), err
 }

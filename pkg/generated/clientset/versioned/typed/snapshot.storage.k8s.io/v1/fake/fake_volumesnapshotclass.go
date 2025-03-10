@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,20 +40,22 @@ var volumesnapshotclassesKind = v1.SchemeGroupVersion.WithKind("VolumeSnapshotCl
 
 // Get takes name of the volumeSnapshotClass, and returns the corresponding volumeSnapshotClass object, and an error if there is any.
 func (c *FakeVolumeSnapshotClasses) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.VolumeSnapshotClass, err error) {
+	emptyResult := &v1.VolumeSnapshotClass{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(volumesnapshotclassesResource, name), &v1.VolumeSnapshotClass{})
+		Invokes(testing.NewRootGetActionWithOptions(volumesnapshotclassesResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VolumeSnapshotClass), err
 }
 
 // List takes label and field selectors, and returns the list of VolumeSnapshotClasses that match those selectors.
 func (c *FakeVolumeSnapshotClasses) List(ctx context.Context, opts metav1.ListOptions) (result *v1.VolumeSnapshotClassList, err error) {
+	emptyResult := &v1.VolumeSnapshotClassList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(volumesnapshotclassesResource, volumesnapshotclassesKind, opts), &v1.VolumeSnapshotClassList{})
+		Invokes(testing.NewRootListActionWithOptions(volumesnapshotclassesResource, volumesnapshotclassesKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,25 +74,27 @@ func (c *FakeVolumeSnapshotClasses) List(ctx context.Context, opts metav1.ListOp
 // Watch returns a watch.Interface that watches the requested volumeSnapshotClasses.
 func (c *FakeVolumeSnapshotClasses) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(volumesnapshotclassesResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(volumesnapshotclassesResource, opts))
 }
 
 // Create takes the representation of a volumeSnapshotClass and creates it.  Returns the server's representation of the volumeSnapshotClass, and an error, if there is any.
 func (c *FakeVolumeSnapshotClasses) Create(ctx context.Context, volumeSnapshotClass *v1.VolumeSnapshotClass, opts metav1.CreateOptions) (result *v1.VolumeSnapshotClass, err error) {
+	emptyResult := &v1.VolumeSnapshotClass{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(volumesnapshotclassesResource, volumeSnapshotClass), &v1.VolumeSnapshotClass{})
+		Invokes(testing.NewRootCreateActionWithOptions(volumesnapshotclassesResource, volumeSnapshotClass, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VolumeSnapshotClass), err
 }
 
 // Update takes the representation of a volumeSnapshotClass and updates it. Returns the server's representation of the volumeSnapshotClass, and an error, if there is any.
 func (c *FakeVolumeSnapshotClasses) Update(ctx context.Context, volumeSnapshotClass *v1.VolumeSnapshotClass, opts metav1.UpdateOptions) (result *v1.VolumeSnapshotClass, err error) {
+	emptyResult := &v1.VolumeSnapshotClass{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(volumesnapshotclassesResource, volumeSnapshotClass), &v1.VolumeSnapshotClass{})
+		Invokes(testing.NewRootUpdateActionWithOptions(volumesnapshotclassesResource, volumeSnapshotClass, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VolumeSnapshotClass), err
 }
@@ -104,7 +108,7 @@ func (c *FakeVolumeSnapshotClasses) Delete(ctx context.Context, name string, opt
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeVolumeSnapshotClasses) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(volumesnapshotclassesResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(volumesnapshotclassesResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1.VolumeSnapshotClassList{})
 	return err
@@ -112,10 +116,11 @@ func (c *FakeVolumeSnapshotClasses) DeleteCollection(ctx context.Context, opts m
 
 // Patch applies the patch and returns the patched volumeSnapshotClass.
 func (c *FakeVolumeSnapshotClasses) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.VolumeSnapshotClass, err error) {
+	emptyResult := &v1.VolumeSnapshotClass{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(volumesnapshotclassesResource, name, pt, data, subresources...), &v1.VolumeSnapshotClass{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(volumesnapshotclassesResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.VolumeSnapshotClass), err
 }

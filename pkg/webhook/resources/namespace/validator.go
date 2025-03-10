@@ -58,16 +58,16 @@ func (v *namespaceValidator) Update(_ *types.Request, oldObj runtime.Object, new
 	if err != nil {
 		return err
 	} else if len(rss) == 0 {
-		logrus.Debugf("can not found any default ResourceQuota, skip updating namespace %s", newNamespace.Name)
+		logrus.Debugf("can't find any default ResourceQuota, skip updating namespace %s", newNamespace.Name)
 		return nil
 	}
 
 	if rqutils.HasMigratingVM(rss[0]) {
-		return fmt.Errorf("namespace %s has migrating VMs, so you can't change resource quotas", newNamespace.Name)
+		return fmt.Errorf("namespace %s has migrating VMs, can't change resource quotas", newNamespace.Name)
 	}
 
 	if err := v.checkIfNewResourceQuotaIsSufficient(rss[0], rqNew); err != nil {
-		return fmt.Errorf("cannot update the resource quota of namespace %s, error: %s",
+		return fmt.Errorf("can't update the resource quota of namespace %s, error: %w",
 			newNamespace.Name,
 			err)
 	}
@@ -75,11 +75,11 @@ func (v *namespaceValidator) Update(_ *types.Request, oldObj runtime.Object, new
 	return nil
 }
 
-// CheckIfUsedLargerThanNew Check if used resource quota lager than new resource quota
+// Check if used resource quota is larger than new resource quota
 func (v *namespaceValidator) checkIfNewResourceQuotaIsSufficient(rq *corev1.ResourceQuota, nrqStr string) error {
 	var nrq *v3.NamespaceResourceQuota
 	if err := json.Unmarshal([]byte(nrqStr), &nrq); err != nil {
-		return err
+		return fmt.Errorf("invalid NamespaceResourceQuota %s, error: %w", nrqStr, err)
 	}
 
 	if nrq.Limit.LimitsCPU == "" && nrq.Limit.LimitsMemory == "" {
@@ -93,7 +93,7 @@ func (v *namespaceValidator) checkIfNewResourceQuotaIsSufficient(rq *corev1.Reso
 	if nrq.Limit.LimitsCPU != "" {
 		newCPU, err := resource.ParseQuantity(nrq.Limit.LimitsCPU)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid LimitsCPU %s, error: %w", nrq.Limit.LimitsCPU, err)
 		}
 		if usedCPU.Cmp(newCPU) == 1 {
 			return fmt.Errorf("new CPU limit %s is lower than the current used CPU limit %s",
@@ -105,7 +105,7 @@ func (v *namespaceValidator) checkIfNewResourceQuotaIsSufficient(rq *corev1.Reso
 	if nrq.Limit.LimitsMemory != "" {
 		newMem, err := resource.ParseQuantity(nrq.Limit.LimitsMemory)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid LimitsMemory %s, error: %w", nrq.Limit.LimitsMemory, err)
 		}
 		if usedMem.Cmp(newMem) == 1 {
 			return fmt.Errorf("new Memory limit %s is lower than the current used Memory limit %s",

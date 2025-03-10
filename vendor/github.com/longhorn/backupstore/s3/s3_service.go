@@ -91,7 +91,7 @@ func parseAwsError(err error) error {
 		if reqErr, ok := err.(awserr.RequestFailure); ok {
 			message += fmt.Sprintln(reqErr.StatusCode(), reqErr.RequestID())
 		}
-		return fmt.Errorf(message)
+		return fmt.Errorf("%s", message)
 	}
 	return err
 }

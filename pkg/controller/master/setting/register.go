@@ -20,9 +20,8 @@ func Register(ctx context.Context, management *config.Management, options config
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
-	services := management.CoreFactory.Core().V1().Service()
+	endpoints := management.CoreFactory.Core().V1().Endpoints()
 	lhs := management.LonghornFactory.Longhorn().V1beta2().Setting()
-	apps := management.CatalogFactory.Catalog().V1().App()
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	ingresses := management.NetworkingFactory.Networking().V1().Ingress()
 	helmChartConfigs := management.HelmFactory.Helm().V1().HelmChartConfig()
@@ -49,8 +48,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		longhornSettingCache: lhs.Cache(),
 		configmaps:           configmaps,
 		configmapCache:       configmaps.Cache(),
-		serviceCache:         services.Cache(),
-		apps:                 apps,
+		endpointCache:        endpoints.Cache(),
 		managedCharts:        managedCharts,
 		managedChartCache:    managedCharts.Cache(),
 		helmChartConfigs:     helmChartConfigs,
@@ -77,19 +75,19 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 
 	syncers = map[string]syncerFunc{
-		"additional-ca":                              controller.syncAdditionalTrustedCAs,
-		"cluster-registration-url":                   controller.registerCluster,
-		"http-proxy":                                 controller.syncHTTPProxy,
-		"log-level":                                  controller.setLogLevel,
-		"overcommit-config":                          controller.syncOvercommitConfig,
-		"vip-pools":                                  controller.syncVipPoolsConfig,
-		"auto-disk-provision-paths":                  controller.syncNDMAutoProvisionPaths,
-		"ssl-certificates":                           controller.syncSSLCertificate,
-		"ssl-parameters":                             controller.syncSSLParameters,
-		"containerd-registry":                        controller.syncContainerdRegistry,
-		harvSettings.NTPServersSettingName:           controller.syncNodeConfig,
-		harvSettings.LonghornV2DataEngineSettingName: controller.syncNodeConfig,
-		"auto-rotate-rke2-certs":                     controller.syncAutoRotateRKE2Certs,
+		harvSettings.AdditionalCASettingName:                     controller.syncAdditionalTrustedCAs,
+		harvSettings.ClusterRegistrationURLSettingName:           controller.registerCluster,
+		harvSettings.HTTPProxySettingName:                        controller.syncHTTPProxy,
+		harvSettings.LogLevelSettingName:                         controller.setLogLevel,
+		harvSettings.OvercommitConfigSettingName:                 controller.syncOvercommitConfig,
+		harvSettings.VipPoolsConfigSettingName:                   controller.syncVipPoolsConfig,
+		harvSettings.AutoDiskProvisionPathsSettingName:           controller.syncNDMAutoProvisionPaths,
+		harvSettings.SSLCertificatesSettingName:                  controller.syncSSLCertificate,
+		harvSettings.SSLParametersName:                           controller.syncSSLParameters,
+		harvSettings.ContainerdRegistrySettingName:               controller.syncContainerdRegistry,
+		harvSettings.NTPServersSettingName:                       controller.syncNodeConfig,
+		harvSettings.LonghornV2DataEngineSettingName:             controller.syncNodeConfig,
+		harvSettings.AutoRotateRKE2CertsSettingName:              controller.syncAutoRotateRKE2Certs,
 		harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName: controller.syncKubeconfigTTL,
 		harvSettings.AdditionalGuestMemoryOverheadRatioName:      controller.syncAdditionalGuestMemoryOverheadRatio,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
@@ -97,7 +95,6 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
-	apps.OnChange(ctx, controllerName, controller.appOnChanged)
 	node.OnChange(ctx, controllerName, controller.nodeOnChanged)
 	return nil
 }

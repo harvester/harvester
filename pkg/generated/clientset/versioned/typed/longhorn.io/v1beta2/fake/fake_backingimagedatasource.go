@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var backingimagedatasourcesKind = v1beta2.SchemeGroupVersion.WithKind("BackingIm
 
 // Get takes name of the backingImageDataSource, and returns the corresponding backingImageDataSource object, and an error if there is any.
 func (c *FakeBackingImageDataSources) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.BackingImageDataSource, err error) {
+	emptyResult := &v1beta2.BackingImageDataSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(backingimagedatasourcesResource, c.ns, name), &v1beta2.BackingImageDataSource{})
+		Invokes(testing.NewGetActionWithOptions(backingimagedatasourcesResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.BackingImageDataSource), err
 }
 
 // List takes label and field selectors, and returns the list of BackingImageDataSources that match those selectors.
 func (c *FakeBackingImageDataSources) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.BackingImageDataSourceList, err error) {
+	emptyResult := &v1beta2.BackingImageDataSourceList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(backingimagedatasourcesResource, backingimagedatasourcesKind, c.ns, opts), &v1beta2.BackingImageDataSourceList{})
+		Invokes(testing.NewListActionWithOptions(backingimagedatasourcesResource, backingimagedatasourcesKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeBackingImageDataSources) List(ctx context.Context, opts v1.ListOpti
 // Watch returns a watch.Interface that watches the requested backingImageDataSources.
 func (c *FakeBackingImageDataSources) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(backingimagedatasourcesResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(backingimagedatasourcesResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a backingImageDataSource and creates it.  Returns the server's representation of the backingImageDataSource, and an error, if there is any.
 func (c *FakeBackingImageDataSources) Create(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.CreateOptions) (result *v1beta2.BackingImageDataSource, err error) {
+	emptyResult := &v1beta2.BackingImageDataSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(backingimagedatasourcesResource, c.ns, backingImageDataSource), &v1beta2.BackingImageDataSource{})
+		Invokes(testing.NewCreateActionWithOptions(backingimagedatasourcesResource, c.ns, backingImageDataSource, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.BackingImageDataSource), err
 }
 
 // Update takes the representation of a backingImageDataSource and updates it. Returns the server's representation of the backingImageDataSource, and an error, if there is any.
 func (c *FakeBackingImageDataSources) Update(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.UpdateOptions) (result *v1beta2.BackingImageDataSource, err error) {
+	emptyResult := &v1beta2.BackingImageDataSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(backingimagedatasourcesResource, c.ns, backingImageDataSource), &v1beta2.BackingImageDataSource{})
+		Invokes(testing.NewUpdateActionWithOptions(backingimagedatasourcesResource, c.ns, backingImageDataSource, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.BackingImageDataSource), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeBackingImageDataSources) UpdateStatus(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.UpdateOptions) (*v1beta2.BackingImageDataSource, error) {
+func (c *FakeBackingImageDataSources) UpdateStatus(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.UpdateOptions) (result *v1beta2.BackingImageDataSource, err error) {
+	emptyResult := &v1beta2.BackingImageDataSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(backingimagedatasourcesResource, "status", c.ns, backingImageDataSource), &v1beta2.BackingImageDataSource{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(backingimagedatasourcesResource, "status", c.ns, backingImageDataSource, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.BackingImageDataSource), err
 }
@@ -123,7 +128,7 @@ func (c *FakeBackingImageDataSources) Delete(ctx context.Context, name string, o
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeBackingImageDataSources) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(backingimagedatasourcesResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(backingimagedatasourcesResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta2.BackingImageDataSourceList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeBackingImageDataSources) DeleteCollection(ctx context.Context, opts
 
 // Patch applies the patch and returns the patched backingImageDataSource.
 func (c *FakeBackingImageDataSources) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.BackingImageDataSource, err error) {
+	emptyResult := &v1beta2.BackingImageDataSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(backingimagedatasourcesResource, c.ns, name, pt, data, subresources...), &v1beta2.BackingImageDataSource{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(backingimagedatasourcesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.BackingImageDataSource), err
 }

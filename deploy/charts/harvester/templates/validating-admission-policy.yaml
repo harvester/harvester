@@ -1,0 +1,58 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: harvester-immutable-promote-cidr
+  labels:
+{{ include "harvester.labels" . | indent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: In
+        values: ["fleet-local"]
+    resourceRules:
+    - apiGroups:   ["management.cattle.io"]
+      apiVersions: ["v3"]
+      operations:  ["UPDATE"]
+      resources:   ["managedcharts"]
+      resourceNames: ["harvester"]
+      scope: Namespaced
+  matchConditions:
+  - name: "skip-if-upgrading-from-1.4-or-older"
+    expression: "'promote' in oldObject.spec.values"
+  variables:
+  - name: newPodCIDR
+    expression: "'clusterPodCIDR' in object.spec.values.promote ? object.spec.values.promote.clusterPodCIDR : ''"
+  - name: oldPodCIDR
+    expression: "'clusterPodCIDR' in oldObject.spec.values.promote ? oldObject.spec.values.promote.clusterPodCIDR : ''"
+  - name: newServiceCIDR
+    expression: "'clusterServiceCIDR' in object.spec.values.promote ? object.spec.values.promote.clusterServiceCIDR : ''"
+  - name: oldServiceCIDR
+    expression: "'clusterServiceCIDR' in oldObject.spec.values.promote ? oldObject.spec.values.promote.clusterServiceCIDR : ''"
+  - name: newClusterDNS
+    expression: "'clusterDNS' in object.spec.values.promote ? object.spec.values.promote.clusterDNS : ''"
+  - name: oldClusterDNS
+    expression: "'clusterDNS' in oldObject.spec.values.promote ? oldObject.spec.values.promote.clusterDNS : ''"
+  validations:
+  - expression: |-
+      (variables.oldPodCIDR == "" || variables.newPodCIDR == variables.oldPodCIDR) &&
+      (variables.oldServiceCIDR == "" || variables.newServiceCIDR == variables.oldServiceCIDR )&&
+      (variables.oldClusterDNS == "" || variables.newClusterDNS == variables.oldClusterDNS)
+    messageExpression: |-
+      'the promote CIDRs configuration is immutable. ' +
+      'clusterCIDR: ' + variables.oldPodCIDR + ' => ' + variables.newPodCIDR + ', ' +
+      'serviceCIDR:' + variables.oldServiceCIDR + ' => ' + variables.newServiceCIDR + ', ' +
+      'clusterDNS: ' + variables.oldClusterDNS + ' => ' + variables.newClusterDNS
+    reason: Invalid
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: harvester-immutable-promote-cidr
+  labels:
+{{ include "harvester.labels" . | indent 4 }}
+spec:
+  policyName: harvester-immutable-promote-cidr
+  validationActions: [Deny]

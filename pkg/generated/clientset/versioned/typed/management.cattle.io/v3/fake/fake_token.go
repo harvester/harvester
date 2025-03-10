@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,20 +40,22 @@ var tokensKind = v3.SchemeGroupVersion.WithKind("Token")
 
 // Get takes name of the token, and returns the corresponding token object, and an error if there is any.
 func (c *FakeTokens) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Token, err error) {
+	emptyResult := &v3.Token{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(tokensResource, name), &v3.Token{})
+		Invokes(testing.NewRootGetActionWithOptions(tokensResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Token), err
 }
 
 // List takes label and field selectors, and returns the list of Tokens that match those selectors.
 func (c *FakeTokens) List(ctx context.Context, opts v1.ListOptions) (result *v3.TokenList, err error) {
+	emptyResult := &v3.TokenList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(tokensResource, tokensKind, opts), &v3.TokenList{})
+		Invokes(testing.NewRootListActionWithOptions(tokensResource, tokensKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,25 +74,27 @@ func (c *FakeTokens) List(ctx context.Context, opts v1.ListOptions) (result *v3.
 // Watch returns a watch.Interface that watches the requested tokens.
 func (c *FakeTokens) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(tokensResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(tokensResource, opts))
 }
 
 // Create takes the representation of a token and creates it.  Returns the server's representation of the token, and an error, if there is any.
 func (c *FakeTokens) Create(ctx context.Context, token *v3.Token, opts v1.CreateOptions) (result *v3.Token, err error) {
+	emptyResult := &v3.Token{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(tokensResource, token), &v3.Token{})
+		Invokes(testing.NewRootCreateActionWithOptions(tokensResource, token, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Token), err
 }
 
 // Update takes the representation of a token and updates it. Returns the server's representation of the token, and an error, if there is any.
 func (c *FakeTokens) Update(ctx context.Context, token *v3.Token, opts v1.UpdateOptions) (result *v3.Token, err error) {
+	emptyResult := &v3.Token{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(tokensResource, token), &v3.Token{})
+		Invokes(testing.NewRootUpdateActionWithOptions(tokensResource, token, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Token), err
 }
@@ -104,7 +108,7 @@ func (c *FakeTokens) Delete(ctx context.Context, name string, opts v1.DeleteOpti
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeTokens) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(tokensResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(tokensResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.TokenList{})
 	return err
@@ -112,10 +116,11 @@ func (c *FakeTokens) DeleteCollection(ctx context.Context, opts v1.DeleteOptions
 
 // Patch applies the patch and returns the patched token.
 func (c *FakeTokens) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Token, err error) {
+	emptyResult := &v3.Token{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(tokensResource, name, pt, data, subresources...), &v3.Token{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(tokensResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Token), err
 }

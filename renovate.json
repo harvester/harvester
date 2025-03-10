@@ -1,0 +1,11 @@
+{
+    "extends": [
+        "github>harvester/renovate:renovate-default"
+    ],
+    "baseBranches": [
+        "master",
+        "v1.3",
+        "v1.4",
+        "v1.5"
+    ]
+}

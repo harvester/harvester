@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,22 +40,24 @@ var projectcatalogsKind = v3.SchemeGroupVersion.WithKind("ProjectCatalog")
 
 // Get takes name of the projectCatalog, and returns the corresponding projectCatalog object, and an error if there is any.
 func (c *FakeProjectCatalogs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ProjectCatalog, err error) {
+	emptyResult := &v3.ProjectCatalog{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(projectcatalogsResource, c.ns, name), &v3.ProjectCatalog{})
+		Invokes(testing.NewGetActionWithOptions(projectcatalogsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ProjectCatalog), err
 }
 
 // List takes label and field selectors, and returns the list of ProjectCatalogs that match those selectors.
 func (c *FakeProjectCatalogs) List(ctx context.Context, opts v1.ListOptions) (result *v3.ProjectCatalogList, err error) {
+	emptyResult := &v3.ProjectCatalogList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(projectcatalogsResource, projectcatalogsKind, c.ns, opts), &v3.ProjectCatalogList{})
+		Invokes(testing.NewListActionWithOptions(projectcatalogsResource, projectcatalogsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ProjectCatalogList), err
 }
@@ -63,28 +65,30 @@ func (c *FakeProjectCatalogs) List(ctx context.Context, opts v1.ListOptions) (re
 // Watch returns a watch.Interface that watches the requested projectCatalogs.
 func (c *FakeProjectCatalogs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(projectcatalogsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(projectcatalogsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a projectCatalog and creates it.  Returns the server's representation of the projectCatalog, and an error, if there is any.
 func (c *FakeProjectCatalogs) Create(ctx context.Context, projectCatalog *v3.ProjectCatalog, opts v1.CreateOptions) (result *v3.ProjectCatalog, err error) {
+	emptyResult := &v3.ProjectCatalog{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(projectcatalogsResource, c.ns, projectCatalog), &v3.ProjectCatalog{})
+		Invokes(testing.NewCreateActionWithOptions(projectcatalogsResource, c.ns, projectCatalog, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ProjectCatalog), err
 }
 
 // Update takes the representation of a projectCatalog and updates it. Returns the server's representation of the projectCatalog, and an error, if there is any.
 func (c *FakeProjectCatalogs) Update(ctx context.Context, projectCatalog *v3.ProjectCatalog, opts v1.UpdateOptions) (result *v3.ProjectCatalog, err error) {
+	emptyResult := &v3.ProjectCatalog{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(projectcatalogsResource, c.ns, projectCatalog), &v3.ProjectCatalog{})
+		Invokes(testing.NewUpdateActionWithOptions(projectcatalogsResource, c.ns, projectCatalog, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ProjectCatalog), err
 }
@@ -99,7 +103,7 @@ func (c *FakeProjectCatalogs) Delete(ctx context.Context, name string, opts v1.D
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeProjectCatalogs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(projectcatalogsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(projectcatalogsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.ProjectCatalogList{})
 	return err
@@ -107,11 +111,12 @@ func (c *FakeProjectCatalogs) DeleteCollection(ctx context.Context, opts v1.Dele
 
 // Patch applies the patch and returns the patched projectCatalog.
 func (c *FakeProjectCatalogs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ProjectCatalog, err error) {
+	emptyResult := &v3.ProjectCatalog{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(projectcatalogsResource, c.ns, name, pt, data, subresources...), &v3.ProjectCatalog{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(projectcatalogsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ProjectCatalog), err
 }

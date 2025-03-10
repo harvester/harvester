@@ -18,6 +18,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .spec.backend
+      name: BACKEND
+      type: string
     - jsonPath: .spec.displayName
       name: DISPLAY-NAME
       type: string
@@ -53,6 +56,12 @@ spec:
             type: object
           spec:
             properties:
+              backend:
+                default: backingimage
+                enum:
+                - backingimage
+                - cdi
+                type: string
               checksum:
                 type: string
               description:
@@ -96,6 +105,10 @@ spec:
                 additionalProperties:
                   type: string
                 type: object
+              targetStorageClassName:
+                description: The VM Image will store the data volume in the target
+                  storage class.
+                type: string
               url:
                 type: string
             required:
@@ -106,6 +119,16 @@ spec:
             properties:
               appliedUrl:
                 type: string
+              backupTarget:
+                description: BackupTarget is where VM Backup stores
+                properties:
+                  bucketName:
+                    type: string
+                  bucketRegion:
+                    type: string
+                  endpoint:
+                    type: string
+                type: object
               conditions:
                 items:
                   properties:
@@ -146,6 +169,10 @@ spec:
                 format: int64
                 type: integer
               storageClassName:
+                type: string
+              targetStorageClassName:
+                description: The VM Image will store the data volume in the target
+                  storage class.
                 type: string
               virtualSize:
                 format: int64

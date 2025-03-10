@@ -265,7 +265,7 @@ func (rcs *ReplicaScheduler) getDiskCandidates(nodeInfo map[string]*longhorn.Nod
 			}
 			multiError.Append(errors)
 		}
-		diskCandidates = filterDisksWithMatchingReplicas(diskCandidates, replicas, diskSoftAntiAffinity)
+		diskCandidates = filterDisksWithMatchingReplicas(diskCandidates, replicas, diskSoftAntiAffinity, ignoreFailedReplicas)
 		return diskCandidates, multiError
 	}
 
@@ -467,9 +467,17 @@ func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disk
 // filterDiskWithMatchingReplicas returns disk that have no matching replicas when diskSoftAntiAffinity is false.
 // Otherwise, it returns the input disks map.
 func filterDisksWithMatchingReplicas(disks map[string]*Disk, replicas map[string]*longhorn.Replica,
-	diskSoftAntiAffinity bool) map[string]*Disk {
+	diskSoftAntiAffinity, ignoreFailedReplicas bool) map[string]*Disk {
 	replicasCountPerDisk := map[string]int{}
 	for _, r := range replicas {
+		if r.Spec.FailedAt != "" {
+			if ignoreFailedReplicas {
+				continue
+			}
+			if !IsPotentiallyReusableReplica(r) {
+				continue // This replica can never be used again, so it does not count in scheduling decisions.
+			}
+		}
 		replicasCountPerDisk[r.Spec.DiskID]++
 	}
 
@@ -566,9 +574,16 @@ func filterActiveReplicas(replicas map[string]*longhorn.Replica) map[string]*lon
 }
 
 func (rcs *ReplicaScheduler) CheckAndReuseFailedReplica(replicas map[string]*longhorn.Replica, volume *longhorn.Volume, hardNodeAffinity string) (*longhorn.Replica, error) {
-	// TODO: Remove it once we can reuse failed replicas during v2 rebuilding
 	if types.IsDataEngineV2(volume.Spec.DataEngine) {
-		return nil, nil
+		V2DataEngineFastReplicaRebuilding, err := rcs.ds.GetSettingAsBool(types.SettingNameV2DataEngineFastReplicaRebuilding)
+		if err != nil {
+			logrus.WithError(err).Warnf("Failed to get the setting %v, will consider it as false", types.SettingDefinitionV2DataEngineFastReplicaRebuilding)
+			V2DataEngineFastReplicaRebuilding = false
+		}
+		if !V2DataEngineFastReplicaRebuilding {
+			logrus.Infof("Skip checking and reusing replicas for volume %v since setting %v is not enabled", volume.Name, types.SettingNameV2DataEngineFastReplicaRebuilding)
+			return nil, nil
+		}
 	}
 
 	replicas = filterActiveReplicas(replicas)
@@ -659,15 +674,22 @@ func (rcs *ReplicaScheduler) RequireNewReplica(replicas map[string]*longhorn.Rep
 		return 0
 	}
 
-	// TODO: Remove it once we can reuse failed replicas during v2 rebuilding
 	if types.IsDataEngineV2(volume.Spec.DataEngine) {
-		return 0
+		V2DataEngineFastReplicaRebuilding, err := rcs.ds.GetSettingAsBool(types.SettingNameV2DataEngineFastReplicaRebuilding)
+		if err != nil {
+			logrus.WithError(err).Warnf("Failed to get the setting %v, will consider it as false", types.SettingDefinitionV2DataEngineFastReplicaRebuilding)
+			V2DataEngineFastReplicaRebuilding = false
+		}
+		if !V2DataEngineFastReplicaRebuilding {
+			logrus.Infof("Skip checking potentially reusable replicas for volume %v since setting %v is not enabled", volume.Name, types.SettingNameV2DataEngineFastReplicaRebuilding)
+			return 0
+		}
 	}
 
 	timeUntilNext, timeOfNext, err := rcs.timeToReplacementReplica(volume)
 	if err != nil {
 		msg := "Failed to get time until replica replacement, will directly replenish a new replica"
-		logrus.WithError(err).Errorf(msg)
+		logrus.WithError(err).Errorf("%s", msg)
 	}
 	if timeUntilNext > 0 {
 		// Adding another second to the checkBackDuration to avoid clock skew.
@@ -801,15 +823,22 @@ func (rcs *ReplicaScheduler) IsSchedulableToDisk(size int64, requiredStorage int
 }
 
 func (rcs *ReplicaScheduler) IsSchedulableToDiskConsiderDiskPressure(diskPressurePercentage, size, requiredStorage int64, info *DiskSchedulingInfo) bool {
-	newDiskUsagePercentage := (requiredStorage + info.StorageScheduled + info.StorageReserved) * 100 / info.StorageMaximum
-	logrus.WithFields(logrus.Fields{
+	log := logrus.WithFields(logrus.Fields{
 		"diskUUID":               info.DiskUUID,
 		"diskPressurePercentage": diskPressurePercentage,
 		"requiredStorage":        requiredStorage,
 		"storageScheduled":       info.StorageScheduled,
 		"storageReserved":        info.StorageReserved,
 		"storageMaximum":         info.StorageMaximum,
-	}).Debugf("Evaluated new disk usage percentage after scheduling replica: %v%%", newDiskUsagePercentage)
+	})
+
+	if info.StorageMaximum <= 0 {
+		log.Warnf("StorageMaximum is %v, skip evaluating new disk usage", info.StorageMaximum)
+		return false
+	}
+
+	newDiskUsagePercentage := (requiredStorage + info.StorageScheduled + info.StorageReserved) * 100 / info.StorageMaximum
+	log.Debugf("Evaluated new disk usage percentage after scheduling replica: %v%%", newDiskUsagePercentage)
 
 	return rcs.IsSchedulableToDisk(size, requiredStorage, info) &&
 		newDiskUsagePercentage < int64(diskPressurePercentage)

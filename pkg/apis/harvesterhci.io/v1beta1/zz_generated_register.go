@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ var (
 	VersionResourceName                       = "versions"
 	VirtualMachineBackupResourceName          = "virtualmachinebackups"
 	VirtualMachineImageResourceName           = "virtualmachineimages"
+	VirtualMachineImageDownloaderResourceName = "virtualmachineimagedownloaders"
 	VirtualMachineRestoreResourceName         = "virtualmachinerestores"
 	VirtualMachineTemplateResourceName        = "virtualmachinetemplates"
 	VirtualMachineTemplateVersionResourceName = "virtualmachinetemplateversions"
@@ -90,6 +91,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&VirtualMachineBackupList{},
 		&VirtualMachineImage{},
 		&VirtualMachineImageList{},
+		&VirtualMachineImageDownloader{},
+		&VirtualMachineImageDownloaderList{},
 		&VirtualMachineRestore{},
 		&VirtualMachineRestoreList{},
 		&VirtualMachineTemplate{},

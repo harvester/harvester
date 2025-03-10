@@ -140,10 +140,6 @@ func (h *Handler) resolveVolSnapshotRef(namespace string, controllerRef *metav1.
 	return backup
 }
 
-func getVolumeSnapshotContentName(volumeBackup harvesterv1.VolumeBackup) string {
-	return fmt.Sprintf("%s-vsc", *volumeBackup.Name)
-}
-
 func (h *Handler) OnLHBackupChanged(_ string, lhBackup *lhv1beta2.Backup) (*lhv1beta2.Backup, error) {
 	if lhBackup == nil || lhBackup.DeletionTimestamp != nil || lhBackup.Status.SnapshotName == "" {
 		return nil, nil

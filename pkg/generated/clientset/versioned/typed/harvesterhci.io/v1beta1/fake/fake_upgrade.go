@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var upgradesKind = v1beta1.SchemeGroupVersion.WithKind("Upgrade")
 
 // Get takes name of the upgrade, and returns the corresponding upgrade object, and an error if there is any.
 func (c *FakeUpgrades) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Upgrade, err error) {
+	emptyResult := &v1beta1.Upgrade{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(upgradesResource, c.ns, name), &v1beta1.Upgrade{})
+		Invokes(testing.NewGetActionWithOptions(upgradesResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Upgrade), err
 }
 
 // List takes label and field selectors, and returns the list of Upgrades that match those selectors.
 func (c *FakeUpgrades) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.UpgradeList, err error) {
+	emptyResult := &v1beta1.UpgradeList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(upgradesResource, upgradesKind, c.ns, opts), &v1beta1.UpgradeList{})
+		Invokes(testing.NewListActionWithOptions(upgradesResource, upgradesKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeUpgrades) List(ctx context.Context, opts v1.ListOptions) (result *v
 // Watch returns a watch.Interface that watches the requested upgrades.
 func (c *FakeUpgrades) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(upgradesResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(upgradesResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a upgrade and creates it.  Returns the server's representation of the upgrade, and an error, if there is any.
 func (c *FakeUpgrades) Create(ctx context.Context, upgrade *v1beta1.Upgrade, opts v1.CreateOptions) (result *v1beta1.Upgrade, err error) {
+	emptyResult := &v1beta1.Upgrade{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(upgradesResource, c.ns, upgrade), &v1beta1.Upgrade{})
+		Invokes(testing.NewCreateActionWithOptions(upgradesResource, c.ns, upgrade, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Upgrade), err
 }
 
 // Update takes the representation of a upgrade and updates it. Returns the server's representation of the upgrade, and an error, if there is any.
 func (c *FakeUpgrades) Update(ctx context.Context, upgrade *v1beta1.Upgrade, opts v1.UpdateOptions) (result *v1beta1.Upgrade, err error) {
+	emptyResult := &v1beta1.Upgrade{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(upgradesResource, c.ns, upgrade), &v1beta1.Upgrade{})
+		Invokes(testing.NewUpdateActionWithOptions(upgradesResource, c.ns, upgrade, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Upgrade), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeUpgrades) UpdateStatus(ctx context.Context, upgrade *v1beta1.Upgrade, opts v1.UpdateOptions) (*v1beta1.Upgrade, error) {
+func (c *FakeUpgrades) UpdateStatus(ctx context.Context, upgrade *v1beta1.Upgrade, opts v1.UpdateOptions) (result *v1beta1.Upgrade, err error) {
+	emptyResult := &v1beta1.Upgrade{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(upgradesResource, "status", c.ns, upgrade), &v1beta1.Upgrade{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(upgradesResource, "status", c.ns, upgrade, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Upgrade), err
 }
@@ -123,7 +128,7 @@ func (c *FakeUpgrades) Delete(ctx context.Context, name string, opts v1.DeleteOp
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeUpgrades) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(upgradesResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(upgradesResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.UpgradeList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeUpgrades) DeleteCollection(ctx context.Context, opts v1.DeleteOptio
 
 // Patch applies the patch and returns the patched upgrade.
 func (c *FakeUpgrades) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Upgrade, err error) {
+	emptyResult := &v1beta1.Upgrade{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(upgradesResource, c.ns, name, pt, data, subresources...), &v1beta1.Upgrade{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(upgradesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.Upgrade), err
 }

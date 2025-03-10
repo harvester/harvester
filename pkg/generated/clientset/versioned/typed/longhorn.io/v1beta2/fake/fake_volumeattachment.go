@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var volumeattachmentsKind = v1beta2.SchemeGroupVersion.WithKind("VolumeAttachmen
 
 // Get takes name of the volumeAttachment, and returns the corresponding volumeAttachment object, and an error if there is any.
 func (c *FakeVolumeAttachments) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.VolumeAttachment, err error) {
+	emptyResult := &v1beta2.VolumeAttachment{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(volumeattachmentsResource, c.ns, name), &v1beta2.VolumeAttachment{})
+		Invokes(testing.NewGetActionWithOptions(volumeattachmentsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.VolumeAttachment), err
 }
 
 // List takes label and field selectors, and returns the list of VolumeAttachments that match those selectors.
 func (c *FakeVolumeAttachments) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.VolumeAttachmentList, err error) {
+	emptyResult := &v1beta2.VolumeAttachmentList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(volumeattachmentsResource, volumeattachmentsKind, c.ns, opts), &v1beta2.VolumeAttachmentList{})
+		Invokes(testing.NewListActionWithOptions(volumeattachmentsResource, volumeattachmentsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeVolumeAttachments) List(ctx context.Context, opts v1.ListOptions) (
 // Watch returns a watch.Interface that watches the requested volumeAttachments.
 func (c *FakeVolumeAttachments) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(volumeattachmentsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(volumeattachmentsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a volumeAttachment and creates it.  Returns the server's representation of the volumeAttachment, and an error, if there is any.
 func (c *FakeVolumeAttachments) Create(ctx context.Context, volumeAttachment *v1beta2.VolumeAttachment, opts v1.CreateOptions) (result *v1beta2.VolumeAttachment, err error) {
+	emptyResult := &v1beta2.VolumeAttachment{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(volumeattachmentsResource, c.ns, volumeAttachment), &v1beta2.VolumeAttachment{})
+		Invokes(testing.NewCreateActionWithOptions(volumeattachmentsResource, c.ns, volumeAttachment, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.VolumeAttachment), err
 }
 
 // Update takes the representation of a volumeAttachment and updates it. Returns the server's representation of the volumeAttachment, and an error, if there is any.
 func (c *FakeVolumeAttachments) Update(ctx context.Context, volumeAttachment *v1beta2.VolumeAttachment, opts v1.UpdateOptions) (result *v1beta2.VolumeAttachment, err error) {
+	emptyResult := &v1beta2.VolumeAttachment{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(volumeattachmentsResource, c.ns, volumeAttachment), &v1beta2.VolumeAttachment{})
+		Invokes(testing.NewUpdateActionWithOptions(volumeattachmentsResource, c.ns, volumeAttachment, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.VolumeAttachment), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeVolumeAttachments) UpdateStatus(ctx context.Context, volumeAttachment *v1beta2.VolumeAttachment, opts v1.UpdateOptions) (*v1beta2.VolumeAttachment, error) {
+func (c *FakeVolumeAttachments) UpdateStatus(ctx context.Context, volumeAttachment *v1beta2.VolumeAttachment, opts v1.UpdateOptions) (result *v1beta2.VolumeAttachment, err error) {
+	emptyResult := &v1beta2.VolumeAttachment{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(volumeattachmentsResource, "status", c.ns, volumeAttachment), &v1beta2.VolumeAttachment{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(volumeattachmentsResource, "status", c.ns, volumeAttachment, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.VolumeAttachment), err
 }
@@ -123,7 +128,7 @@ func (c *FakeVolumeAttachments) Delete(ctx context.Context, name string, opts v1
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeVolumeAttachments) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(volumeattachmentsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(volumeattachmentsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta2.VolumeAttachmentList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeVolumeAttachments) DeleteCollection(ctx context.Context, opts v1.De
 
 // Patch applies the patch and returns the patched volumeAttachment.
 func (c *FakeVolumeAttachments) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.VolumeAttachment, err error) {
+	emptyResult := &v1beta2.VolumeAttachment{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(volumeattachmentsResource, c.ns, name, pt, data, subresources...), &v1beta2.VolumeAttachment{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(volumeattachmentsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.VolumeAttachment), err
 }

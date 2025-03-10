@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -74,6 +74,10 @@ func (c *FakeHarvesterhciV1beta1) VirtualMachineBackups(namespace string) v1beta
 
 func (c *FakeHarvesterhciV1beta1) VirtualMachineImages(namespace string) v1beta1.VirtualMachineImageInterface {
 	return &FakeVirtualMachineImages{c, namespace}
+}
+
+func (c *FakeHarvesterhciV1beta1) VirtualMachineImageDownloaders(namespace string) v1beta1.VirtualMachineImageDownloaderInterface {
+	return &FakeVirtualMachineImageDownloaders{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) VirtualMachineRestores(namespace string) v1beta1.VirtualMachineRestoreInterface {

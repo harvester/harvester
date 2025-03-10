@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var rkeaddonsKind = v3.SchemeGroupVersion.WithKind("RkeAddon")
 
 // Get takes name of the rkeAddon, and returns the corresponding rkeAddon object, and an error if there is any.
 func (c *FakeRkeAddons) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.RkeAddon, err error) {
+	emptyResult := &v3.RkeAddon{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(rkeaddonsResource, c.ns, name), &v3.RkeAddon{})
+		Invokes(testing.NewGetActionWithOptions(rkeaddonsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.RkeAddon), err
 }
 
 // List takes label and field selectors, and returns the list of RkeAddons that match those selectors.
 func (c *FakeRkeAddons) List(ctx context.Context, opts v1.ListOptions) (result *v3.RkeAddonList, err error) {
+	emptyResult := &v3.RkeAddonList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(rkeaddonsResource, rkeaddonsKind, c.ns, opts), &v3.RkeAddonList{})
+		Invokes(testing.NewListActionWithOptions(rkeaddonsResource, rkeaddonsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,28 +77,30 @@ func (c *FakeRkeAddons) List(ctx context.Context, opts v1.ListOptions) (result *
 // Watch returns a watch.Interface that watches the requested rkeAddons.
 func (c *FakeRkeAddons) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(rkeaddonsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(rkeaddonsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a rkeAddon and creates it.  Returns the server's representation of the rkeAddon, and an error, if there is any.
 func (c *FakeRkeAddons) Create(ctx context.Context, rkeAddon *v3.RkeAddon, opts v1.CreateOptions) (result *v3.RkeAddon, err error) {
+	emptyResult := &v3.RkeAddon{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(rkeaddonsResource, c.ns, rkeAddon), &v3.RkeAddon{})
+		Invokes(testing.NewCreateActionWithOptions(rkeaddonsResource, c.ns, rkeAddon, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.RkeAddon), err
 }
 
 // Update takes the representation of a rkeAddon and updates it. Returns the server's representation of the rkeAddon, and an error, if there is any.
 func (c *FakeRkeAddons) Update(ctx context.Context, rkeAddon *v3.RkeAddon, opts v1.UpdateOptions) (result *v3.RkeAddon, err error) {
+	emptyResult := &v3.RkeAddon{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(rkeaddonsResource, c.ns, rkeAddon), &v3.RkeAddon{})
+		Invokes(testing.NewUpdateActionWithOptions(rkeaddonsResource, c.ns, rkeAddon, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.RkeAddon), err
 }
@@ -111,7 +115,7 @@ func (c *FakeRkeAddons) Delete(ctx context.Context, name string, opts v1.DeleteO
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeRkeAddons) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(rkeaddonsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(rkeaddonsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.RkeAddonList{})
 	return err
@@ -119,11 +123,12 @@ func (c *FakeRkeAddons) DeleteCollection(ctx context.Context, opts v1.DeleteOpti
 
 // Patch applies the patch and returns the patched rkeAddon.
 func (c *FakeRkeAddons) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.RkeAddon, err error) {
+	emptyResult := &v3.RkeAddon{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(rkeaddonsResource, c.ns, name, pt, data, subresources...), &v3.RkeAddon{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(rkeaddonsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.RkeAddon), err
 }

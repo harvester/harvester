@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // FeaturesGetter has a method to return a FeatureInterface.
@@ -40,6 +39,7 @@ type FeaturesGetter interface {
 type FeatureInterface interface {
 	Create(ctx context.Context, feature *v3.Feature, opts v1.CreateOptions) (*v3.Feature, error)
 	Update(ctx context.Context, feature *v3.Feature, opts v1.UpdateOptions) (*v3.Feature, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 	UpdateStatus(ctx context.Context, feature *v3.Feature, opts v1.UpdateOptions) (*v3.Feature, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -52,133 +52,18 @@ type FeatureInterface interface {
 
 // features implements FeatureInterface
 type features struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v3.Feature, *v3.FeatureList]
 }
 
 // newFeatures returns a Features
 func newFeatures(c *ManagementV3Client) *features {
 	return &features{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v3.Feature, *v3.FeatureList](
+			"features",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v3.Feature { return &v3.Feature{} },
+			func() *v3.FeatureList { return &v3.FeatureList{} }),
 	}
-}
-
-// Get takes name of the feature, and returns the corresponding feature object, and an error if there is any.
-func (c *features) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Feature, err error) {
-	result = &v3.Feature{}
-	err = c.client.Get().
-		Resource("features").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of Features that match those selectors.
-func (c *features) List(ctx context.Context, opts v1.ListOptions) (result *v3.FeatureList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.FeatureList{}
-	err = c.client.Get().
-		Resource("features").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested features.
-func (c *features) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("features").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a feature and creates it.  Returns the server's representation of the feature, and an error, if there is any.
-func (c *features) Create(ctx context.Context, feature *v3.Feature, opts v1.CreateOptions) (result *v3.Feature, err error) {
-	result = &v3.Feature{}
-	err = c.client.Post().
-		Resource("features").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(feature).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a feature and updates it. Returns the server's representation of the feature, and an error, if there is any.
-func (c *features) Update(ctx context.Context, feature *v3.Feature, opts v1.UpdateOptions) (result *v3.Feature, err error) {
-	result = &v3.Feature{}
-	err = c.client.Put().
-		Resource("features").
-		Name(feature.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(feature).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *features) UpdateStatus(ctx context.Context, feature *v3.Feature, opts v1.UpdateOptions) (result *v3.Feature, err error) {
-	result = &v3.Feature{}
-	err = c.client.Put().
-		Resource("features").
-		Name(feature.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(feature).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the feature and deletes it. Returns an error if one occurs.
-func (c *features) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("features").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *features) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("features").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched feature.
-func (c *features) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Feature, err error) {
-	result = &v3.Feature{}
-	err = c.client.Patch(pt).
-		Resource("features").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

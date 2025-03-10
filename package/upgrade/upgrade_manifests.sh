@@ -51,7 +51,7 @@ wait_helm_release() {
   chart=$3
   app_version=$4
   status=$5
-
+  echo "wait helm release $namespace $release_name $chart $app_version $status"
   while [ true ]; do
     last_history=$(helm history $release_name -n $namespace -o yaml | yq e '.[-1]' -)
 
@@ -82,8 +82,318 @@ wait_rollout() {
   namespace=$1
   resource_type=$2
   name=$3
+  echo "wait rollout -n $namespace $resource_type $name"
 
   kubectl rollout status --watch=true -n $namespace $resource_type $name
+}
+
+wait_rollout_with_loop() {
+  local namespace=$1
+  local resource_type=$2
+  local name=$3
+  echo "wait rollout -n $namespace $resource_type $name"
+
+  # if resource is new and not created yet, need to wait, otherwise, it will return right now and no error returned
+  while [ true ]; do
+    local obj=$(kubectl get -n $namespace $resource_type $name)
+    if [ -z "$obj" ]; then
+      echo "resource was not created, continue"
+      sleep 2
+    else
+      break
+    fi
+  done
+
+  kubectl rollout status --watch=true -n $namespace $resource_type $name
+}
+
+wait_cluster_local_and_fleet() {
+  wait_new_fileds_in_cluster_fleet_crd
+  wait_new_fileds_in_fleet_controller_configmap
+  restore_fleet_controller_configmap
+  wait_cluster_local_is_imported
+  wait_fleet_agent_is_redeployed
+  wait_cluster_local_is_ready
+}
+
+debug_cluster_local_and_fleet() {
+  # for better debugging
+  echo "cluster.fleet local status"
+  kubectl get cluster.fleet -n fleet-local local -ojsonpath="{.status}" || echo "cluster.fleet local is not found"
+
+  echo ""
+  echo ""
+  echo "fleet-controller pods and creationTimestamp"
+  kubectl -n cattle-fleet-system get pods -l "app=fleet-controller" -owide || echo "fleet-controller pods are not found"
+  kubectl -n cattle-fleet-system get pods -l "app=fleet-controller" -ojsonpath="{.items[].metadata.creationTimestamp}" || echo "fleet-controller pods are not found"
+
+  echo ""
+  echo "fleet-agent pods and creationTimestamp"
+  kubectl -n cattle-fleet-local-system get pods -l "app=fleet-agent" -owide || echo "fleet-agent pods are not found"
+  kubectl -n cattle-fleet-local-system get pods -l "app=fleet-agent" -ojsonpath="{.items[].metadata.creationTimestamp}" || echo "fleet-agent pods are not found"
+  echo ""
+}
+
+wait_cluster_local_is_imported() {
+  echo "wait until cluster.fleet local is Imported after fleet-controller is upgraded"
+  # take a look the possible ready pods
+  kubectl -n cattle-fleet-system get pods -l "app=fleet-controller" || echo "fleet-controller pods are not found"
+  local oldstamp=$(get_fleet_controller_timestamp)
+  while [ true ]; do
+    local tempupdatetime=$(kubectl get cluster.fleet -n fleet-local local -oyaml | yq -e '.status.conditions | map(select(.type=="Imported")) | .[0] | .lastUpdateTime')
+    local tempstatus=$(kubectl get cluster.fleet -n fleet-local local -oyaml | yq -e '.status.conditions | map(select(.type=="Imported")) | .[0] | .status')
+    if [ -z "$tempupdatetime" ]; then
+      echo "cluster.fleet -n fleet-local local condition Imported is not found, continue"
+      sleep 2
+    else
+      local tempstamp=$(date -u -d "$tempupdatetime" +'%s')
+      if [ "$tempstamp" -ge "$oldstamp" ]; then
+        echo "cluster.fleet -n fleet-local local condition Imported is updated, $tempstamp >= $oldstamp, status is $tempstatus"
+        break
+      else
+        echo "cluster.fleet -n fleet-local local condition Imported is not updated, $tempstamp < $oldstamp, status is $tempstatus, continue"
+        sleep 2
+      fi
+    fi
+    unset tempupdatetime
+    unset tempstatus
+    unset tempstamp
+  done
+  echo "cluster.fleet local is Imported"
+  debug_cluster_local_and_fleet
+}
+
+# wait at most 60 seconds
+wait_cluster_local_is_ready() {
+  echo "wait until cluster.fleet local is Ready after fleet-controller is upgraded"
+  local i=0
+  while [[ "$i" -lt 30 ]]; do
+    local tempstatus=$(kubectl get cluster.fleet -n fleet-local local -oyaml | yq -e '.status.conditions | map(select(.type=="Ready")) | .[0] | .status')
+    if [ -z "$tempstatus" ]; then
+      echo "cluster.fleet -n fleet-local local condition Ready is not found, continue"
+      sleep 2
+      i=$((i + 1))
+    else
+      if [ "$tempstatus" = "True" ]; then
+        echo "cluster.fleet -n fleet-local local condition Ready is true"
+        debug_cluster_local_and_fleet
+        return 0
+      else
+        echo "cluster.fleet -n fleet-local local condition Ready is false, continue"
+        sleep 2
+        i=$((i + 1))
+      fi
+    fi
+    unset tempstatus
+  done
+  echo "cluster.fleet local is not Ready, skip waiting"
+  debug_cluster_local_and_fleet
+}
+
+wait_fleet_agent_is_redeployed() {
+  echo "wait until fleet-agent is redeployed after fleet-controller is upgraded"
+  # take a look the possible ready pods
+  kubectl -n cattle-fleet-system get pods -l "app=fleet-controller" || echo "fleet-controller pods are not found"
+  local oldstamp=$(get_fleet_controller_timestamp)
+  while [ true ]; do
+    local tempcreatetime=$(kubectl -n cattle-fleet-local-system get pods -l "app=fleet-agent" -o jsonpath='{range .items[*]}{.status.containerStatuses[*].ready.true}{.metadata.creationTimestamp}{ "\n"}{end}')
+    if [ -z "$tempcreatetime" ]; then
+      echo "fleet-agent pod is not found, continue"
+      sleep 2
+    else
+      local tempstamp=$(date -u -d "$tempcreatetime" +'%s')
+      if [ "$tempstamp" -ge "$oldstamp" ]; then
+        echo "fleet-agent is new, $tempstamp >= $oldstamp"
+        break
+      else
+        echo "fleet-agent is old, $tempstamp < $oldstamp, continue"
+        sleep 2
+      fi
+    fi
+    unset tempcreatetime
+    unset tempstamp
+  done
+  echo "fleet-agent is redeployed"
+  kubectl -n cattle-fleet-local-system get pods
+  debug_cluster_local_and_fleet
+  # let new fleet-agent run for some time
+  sleep 5
+}
+
+# only pick the ready pod
+get_fleet_controller_timestamp() {
+  while [ true ]; do
+    local tempcreatetime=$(kubectl -n cattle-fleet-system get pods -l "app=fleet-controller" -o jsonpath='{range .items[*]}{.status.containerStatuses[*].ready.true}{.metadata.creationTimestamp}{ "\n"}{end}')
+    if [ -z "$tempcreatetime" ]; then
+      # did not get, continue
+      sleep 1
+    else
+      # when unlucky, there are >1 pods are ready, the return is like `2024-10-24T12:57:54Z\n2024-10-24T12:57:54Z\n2024-10-24T12:57:54Z`
+      # take the first one
+      local firsttime=${tempcreatetime:0:20}
+      local tempstamp=$(date -u -d "$firsttime" +'%s')
+      echo "$tempstamp"
+      break
+    fi
+  done
+}
+
+wait_managedchart_ready() {
+  local chart=$1
+  if [[ -z $chart ]]; then
+    echo "no target managedchart, skip wait"
+  fi;
+
+  # wait at most 60 seconds
+  echo "wait managedchart $chart to be ready"
+  local i=0
+  while [[ "$i" -lt 30 ]]; do
+    local ready=$(kubectl get managedchart -n fleet-local $chart -ojsonpath="{.status.summary.ready}")
+    if [ -z "$ready" ]; then
+      echo "chart is not found, continue"
+      sleep 2
+      i=$((i + 1))
+    else
+      if [ "$ready" = "0" ]; then
+        echo " ready is 0, continue"
+        sleep 2
+        i=$((i + 1))
+      else
+        echo " ready is $ready"
+        break
+      fi
+    fi
+    unset ready
+  done
+}
+
+wait_new_fileds_in_cluster_fleet_crd() {
+  while [ true ]; do
+    local crd=$(kubectl get crd clusters.fleet.cattle.io -o json)
+    local newfield="agentTLSMode"
+
+    if echo "$crd" | jq -e ".spec.versions[].schema.openAPIV3Schema.properties.status.properties | has(\"$newfield\")" > /dev/null; then
+      echo "new field agentTLSMode is found in clusters.fleet.cattle.io crd"
+      break
+    else
+      echo "wait for new field agentTLSMode in clusters.fleet.cattle.io crd"
+      sleep 2
+    fi
+
+    unset crd
+    unset newfield
+  done
+}
+
+wait_new_fileds_in_fleet_controller_configmap() {
+  while [ true ]; do
+    local configmap=$(kubectl get configmap fleet-controller -n cattle-fleet-system -ojsonpath="{.data.config}")
+    local newfield="agentTLSMode"
+
+    if echo "$configmap" | yq -e ". | has(\"$newfield\")" > /dev/null; then
+      echo "new field agentTLSMode is found in cattle-fleet-system/fleet-controller configmap"
+      break
+    else
+      echo "wait for new field agentTLSMode in cattle-fleet-system/fleet-controller configmap"
+      sleep 2
+    fi
+
+    unset configmap
+    unset newfield
+  done
+}
+
+# refer issue https://github.com/harvester/harvester/issues/6851
+save_fleet_controller_configmap()
+{
+  local name=fleet-controller
+  local namespace=cattle-fleet-system
+  local valuesfile="configmap-values-temp.yaml"
+  rm -f $valuesfile
+  local EXIT_CODE=0
+  kubectl get configmap -n $namespace $name -ojsonpath="{.data.config}" > $valuesfile || EXIT_CODE=1
+
+  if [[ "$EXIT_CODE" != 0 ]]; then
+    echo "config field on configmap $name -n $namespace is empty, skip saving"
+    # unset var
+    FLEET_APISERVERURL=""
+    FLEET_APISERVERCA=""
+    return 0
+  fi
+
+  # local var will escape yq field none-exsting error
+  local apiServerURL=$(yq -e '.apiServerURL' $valuesfile)
+  local apiServerCA=$(yq -e '.apiServerCA' $valuesfile)
+  FLEET_APISERVERURL=$apiServerURL
+  FLEET_APISERVERCA=$apiServerCA
+  echo "saved apiServerURL $FLEET_APISERVERURL"
+  echo "saved apiServerCA $FLEET_APISERVERCA"
+  rm -f $valuesfile
+}
+
+# refer issue https://github.com/harvester/harvester/issues/6851
+restore_fleet_controller_configmap()
+{
+  if [[ -z "$FLEET_APISERVERURL" && -z "$FLEET_APISERVERCA" ]]; then
+    echo "both apiServerURL and apiServerCA saved values are empty, skip restoring"
+    return 0
+  fi
+
+  local name=fleet-controller
+  local namespace=cattle-fleet-system
+  local valuesfile="configmap-values-temp.yaml"
+  rm -f $valuesfile
+  local EXIT_CODE=0
+  kubectl get configmap -n $namespace $name -ojsonpath="{.data.config}" > $valuesfile || EXIT_CODE=1
+
+  if [[ "$EXIT_CODE" != 0 ]]; then
+    echo "config field on configmap $name -n $namespace is empty or configmap is not existing, skip restoring"
+    return 0
+  fi
+
+  # local var will escape yq field none-exsting error
+  local apiServerURL=$(yq -e '.apiServerURL' $valuesfile)
+  local apiServerCA=$(yq -e '.apiServerCA' $valuesfile)
+  local patchURL=false
+  local patchCA=false
+  if [[ ! -z "$FLEET_APISERVERURL" && "$apiServerURL" != "$FLEET_APISERVERURL" ]]; then
+    patchURL=true
+    echo "restore apiServerURL from $apiServerURL to $FLEET_APISERVERURL"
+    PATCH_URL=$FLEET_APISERVERURL yq e '.apiServerURL = strenv(PATCH_URL)' -i $valuesfile
+  fi
+
+  if [[ ! -z "$FLEET_APISERVERCA" && "$apiServerCA" != "$FLEET_APISERVERCA" ]]; then
+    patchCA=true
+    echo "restore apiServerCA from $apiServerCA to $FLEET_APISERVERCA"
+    PATCH_CA=$FLEET_APISERVERCA yq e '.apiServerCA = strenv(PATCH_CA)' -i $valuesfile
+  fi
+
+  if [[ "$patchURL" == false &&  "$patchCA" == false ]]; then
+    echo "apiServerURL $apiServerURL and apiServerCA $apiServerCA have already been same with saved values"
+    return 0
+  fi
+
+  # add 4 spaces to each line
+  sed -i -e 's/^/    /' $valuesfile
+  local newvalues=$(<$valuesfile)
+  rm -f $valuesfile
+
+  local patchfile="configmap-patch-temp.yaml"
+  rm -f $patchfile
+
+cat > $patchfile <<EOF
+data:
+  config: |
+$newvalues
+EOF
+
+  echo "the configmap will be restored to"
+  cat ./$patchfile
+
+  kubectl patch configmap -n $namespace $name --patch-file ./$patchfile --type merge
+  rm -f ./$patchfile
+  echo "sleep 20s for fleet-controller to work on new configmap"
+  sleep 20
 }
 
 wait_capi_cluster() {
@@ -137,8 +447,8 @@ wait_kubevirt() {
 wait_longhorn_manager() {
   echo "Waiting for longhorn-manager to be upgraded..."
 
-  lm_repo=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.manager.repository)
-  lm_tag=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.manager.tag)
+  lm_repo=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.repository)
+  lm_tag=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.tag)
   lm_image="${lm_repo}:${lm_tag}"
   node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
 
@@ -160,13 +470,13 @@ wait_longhorn_manager() {
 
 wait_longhorn_instance_manager_aio() {
   node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
-  if [ $node_count -le 2 ]; then
+  if [ $node_count -lt 2 ]; then
     echo "Skip waiting instance-manager (aio), node count: $node_count"
     return
   fi
 
-  im_repo=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.instanceManager.repository)
-  im_tag=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.instanceManager.tag)
+  im_repo=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.instanceManager.repository)
+  im_tag=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.instanceManager.tag)
   im_image="${im_repo}:${im_tag}"
 
   # Get instance-manager-image chechsum
@@ -177,7 +487,7 @@ wait_longhorn_instance_manager_aio() {
   im_image_checksum="imi-${im_image_checksum:0:8}"
 
   # Wait for instance-manager (aio) pods upgraded to new version first.
-  kubectl get nodes -o json | jq -r '.items[].metadata.name' | while read -r node; do
+  kubectl get nodes.longhorn.io -n longhorn-system -o json | jq -r '.items[].metadata.name' | while read -r node; do
     echo "Checking instance-manager (aio) pod on node $node..."
     while [ true ]; do
       im_count=$(kubectl get instancemanager.longhorn.io --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio,longhorn.io/instance-manager-image=$im_image_checksum -n longhorn-system -o json | jq -r '.items | length')
@@ -274,12 +584,18 @@ upgrade_rancher() {
   kubectl delete clusterrepos.catalog.cattle.io rancher-partner-charts
   kubectl delete settings.management.cattle.io chart-default-branch
 
+  save_fleet_controller_configmap
+
+  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false"' values.yaml
+
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
+  echo "Rancher patch file to be run via helm upgrade"
+  cat values.yaml
   ./helm upgrade rancher ./*.tgz --namespace cattle-system -f values.yaml --wait
 
   # Wait until new version ready
   until [ "$(get_running_rancher_version)" = "$REPO_RANCHER_VERSION" ]; do
-    echo "Wait for Rancher to be upgraded..."
+    echo "Wait for Rancher to be upgraded to $REPO_RANCHER_VERSION..."
     sleep 5
   done
 
@@ -287,20 +603,34 @@ upgrade_rancher() {
   wait_helm_release cattle-fleet-system fleet fleet-$REPO_FLEET_CHART_VERSION $REPO_FLEET_APP_VERSION deployed
   wait_helm_release cattle-fleet-system fleet-crd fleet-crd-$REPO_FLEET_CRD_CHART_VERSION $REPO_FLEET_CRD_APP_VERSION deployed
   wait_helm_release cattle-system rancher-webhook rancher-webhook-$REPO_RANCHER_WEBHOOK_CHART_VERSION $REPO_RANCHER_WEBHOOK_APP_VERSION deployed
+
+  # wait Rancher depoyment is ready
+  echo "Wait for Rancher deployment rollout..."
+  wait_rollout cattle-system deployment rancher
+  echo "Rancher deployment and pods"
+  kubectl get -n cattle-system deployment rancher -owide
+  kubectl get pods -n cattle-system -l "app=rancher" -owide
+
   echo "Wait for Rancher dependencies rollout..."
   wait_rollout cattle-fleet-system deployment fleet-controller
   wait_rollout cattle-system deployment rancher-webhook
   # fleet-agnet is deployed as statefulset after fleet v0.10.1
   # v0.9.2: https://github.com/rancher/fleet/blob/e75c1fb498e3137ba39c2bdc4d59c9122f5ef9c6/internal/cmd/controller/agent/manifest.go#L136-L145
   # v0.10.1: https://github.com/rancher/fleet/blob/62de718a20e1377d5a8702876077762ed9a37f27/internal/cmd/controller/agentmanagement/agent/manifest.go#L152-L161
-  wait_rollout cattle-fleet-local-system statefulset fleet-agent
+  wait_rollout_with_loop cattle-fleet-local-system statefulset fleet-agent
   echo "Wait for cluster settling down..."
   wait_capi_cluster fleet-local local $pre_generation
+
+  # Following patch is not enough
   wait_for_statefulset cattle-fleet-local-system fleet-agent
   pre_patch_timestamp=$(fleet_agent_timestamp)
   patch_fleet_cluster
   wait_for_fleet_agent $pre_patch_timestamp
-  wait_rollout cattle-fleet-local-system statefulset fleet-agent
+  wait_rollout_with_loop cattle-fleet-local-system statefulset fleet-agent
+
+  # After fleet-controller POD is restarted, it will check until the local cluster is imported, after that, redeploy the fleet-agent
+  # Need to wait until fleet-controller assumes the cluster is ready, avoid fleet-agent is accidentally re-deployed and influence related managedcharts
+  wait_cluster_local_and_fleet
 }
 
 update_local_rke_state_secret() {
@@ -546,7 +876,7 @@ upgrade_harvester() {
   cat >harvester-crd.yaml <<EOF
 spec:
   version: $REPO_HARVESTER_CHART_VERSION
-  timeoutSeconds: 60
+  timeoutSeconds: 600
 EOF
   kubectl patch managedcharts.management.cattle.io harvester-crd -n fleet-local --patch-file ./harvester-crd.yaml --type merge
 
@@ -604,7 +934,7 @@ upgrade_managedchart_monitoring_crd() {
   cat >"$nm".yaml <<EOF
 spec:
   version: $REPO_MONITORING_CHART_VERSION
-  timeoutSeconds: 60
+  timeoutSeconds: 600
 EOF
 
   kubectl patch managedcharts.management.cattle.io "$nm" -n fleet-local --patch-file ./"$nm".yaml --type merge
@@ -638,7 +968,7 @@ upgrade_managedchart_logging_crd() {
   cat >"$nm".yaml <<EOF
 spec:
   version: $REPO_LOGGING_CHART_VERSION
-  timeoutSeconds: 60
+  timeoutSeconds: 600
 EOF
 
   kubectl patch managedcharts.management.cattle.io "$nm" -n fleet-local --patch-file ./"$nm".yaml --type merge
@@ -706,15 +1036,6 @@ pause_all_charts() {
   local charts="harvester harvester-crd rancher-monitoring-crd rancher-logging-crd"
   for chart in $charts; do
     pause_managed_chart $chart "true"
-  done
-
-  # those charts may have been converted to addon, check if they are there first
-  charts="rancher-monitoring rancher-logging"
-  for chart in $charts; do
-    local cnt=$(kubectl get managedchart -n fleet-local "$chart" --no-headers | wc -l)
-    if [ "$cnt" -gt 0 ]; then
-      pause_managed_chart $chart "true"
-    fi
   done
 }
 
@@ -784,19 +1105,19 @@ EOF
 # NOTE: review in each release, add corresponding process
 upgrade_addon_rancher_monitoring()
 {
-  echo "upgrade addon rancher_monitoring"
+  echo "upgrade addon rancher-monitoring"
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
-  # in v1.4.0, patch version is OK
+  # in v1.5.0, patch version is OK
   upgrade_addon_try_patch_version_only "rancher-monitoring" "cattle-monitoring-system" $REPO_MONITORING_CHART_VERSION
 }
 
 # NOTE: review in each release, add corresponding process
 upgrade_addon_rancher_logging()
 {
-  echo "upgrade addon rancher_logging"
+  echo "upgrade addon rancher-logging"
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
-  # in v1.4.0, the eventrouter image needs to be patched
-  if [ "$REPO_LOGGING_CHART_VERSION" = "103.1.0+up4.4.0" ]; then
+  # in v1.5.0, the eventrouter needs to be patched
+  if [ "$REPO_LOGGING_CHART_VERSION" = "105.2.0+up4.10.0" ]; then
     upgrade_addon_rancher_logging_with_patch_eventrouter_image $REPO_LOGGING_CHART_VERSION
   else
     upgrade_addon_try_patch_version_only "rancher-logging" "cattle-logging-system" $REPO_LOGGING_CHART_VERSION
@@ -864,6 +1185,7 @@ patch_fleet_cluster() {
   }
 }
 EOF
+  echo "patch cluster.fleet local to new generation $new_generation"
   kubectl patch -n fleet-local cluster.fleet local  --type=merge --patch-file $patch_manifest
   rm -f $patch_manifest
 }
@@ -895,12 +1217,78 @@ fleet_agent_timestamp(){
 wait_for_fleet_agent(){
   local timestamp=$1
   local newtimestamp=$(fleet_agent_timestamp)
+  echo "wait for fleet-agent, current timestamp $timestamp"
   while [ $timestamp -ge $newtimestamp ]
   do
     echo "waiting for fleet-agent creation timestamp to be updated"
     sleep 10
     newtimestamp=$(fleet_agent_timestamp)
   done
+  echo "end with new timestamp $newtimestamp"
+}
+
+upgrade_harvester_csi_rbac() {
+
+  # only versions before v1.4.0 that upgrading to v1.4.0 need this patch
+  if [[ ! "${UPGRADE_PREVIOUS_VERSION%%-rc*}" < "v1.4.0" ]]; then
+    echo "Only versions before v1.4.0 need this patch."
+    return
+  fi
+
+  if kubectl get clusterrole harvesterhci.io:csi-driver 2> /dev/null; then
+    echo "Upgrade ClusterRole harvesterhci.io:csi-driver ..."
+
+    cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: apiserver
+    app.kubernetes.io/name: harvester
+    app.kubernetes.io/part-of: harvester
+  name: harvesterhci.io:csi-driver
+rules:
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - harvesterhci.io
+  resources:
+  - networkfilesystems
+  - networkfilesystems/status
+  verbs:
+  - '*'
+- apiGroups:
+  - longhorn.io
+  resources:
+  - volumes
+  - volumes/status
+  verbs:
+  - get
+  - list
+EOF
+  else
+    echo "ClusterRole harvesterhci.io:csi-driver not found, skip updating."
+  fi
+}
+
+apply_whereabouts_manifests()
+{
+  echo "Applying whereabouts manifests"
+
+  shopt -s nullglob
+
+  for manifest in /usr/local/share/extra_manifests/whereabouts/*.yaml; do
+      echo "Applying $manifest"
+      kubectl apply -f "$manifest"
+  done
+
+  shopt -u nullglob
 }
 
 wait_repo
@@ -915,6 +1303,7 @@ update_local_rke_state_secret
 upgrade_harvester_cluster_repo
 upgrade_network
 ensure_ingress_class_name
+apply_whereabouts_manifests
 upgrade_harvester
 sync_containerd_registry_to_rancher
 wait_longhorn_upgrade
@@ -923,5 +1312,6 @@ upgrade_monitoring
 upgrade_logging_event_audit
 apply_extra_manifests
 upgrade_addons
+upgrade_harvester_csi_rbac
 # wait fleet bundles upto 90 seconds
 wait_for_fleet_bundles 9

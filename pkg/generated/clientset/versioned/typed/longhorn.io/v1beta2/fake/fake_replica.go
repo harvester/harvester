@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var replicasKind = v1beta2.SchemeGroupVersion.WithKind("Replica")
 
 // Get takes name of the replica, and returns the corresponding replica object, and an error if there is any.
 func (c *FakeReplicas) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.Replica, err error) {
+	emptyResult := &v1beta2.Replica{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(replicasResource, c.ns, name), &v1beta2.Replica{})
+		Invokes(testing.NewGetActionWithOptions(replicasResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Replica), err
 }
 
 // List takes label and field selectors, and returns the list of Replicas that match those selectors.
 func (c *FakeReplicas) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.ReplicaList, err error) {
+	emptyResult := &v1beta2.ReplicaList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(replicasResource, replicasKind, c.ns, opts), &v1beta2.ReplicaList{})
+		Invokes(testing.NewListActionWithOptions(replicasResource, replicasKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeReplicas) List(ctx context.Context, opts v1.ListOptions) (result *v
 // Watch returns a watch.Interface that watches the requested replicas.
 func (c *FakeReplicas) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(replicasResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(replicasResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a replica and creates it.  Returns the server's representation of the replica, and an error, if there is any.
 func (c *FakeReplicas) Create(ctx context.Context, replica *v1beta2.Replica, opts v1.CreateOptions) (result *v1beta2.Replica, err error) {
+	emptyResult := &v1beta2.Replica{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(replicasResource, c.ns, replica), &v1beta2.Replica{})
+		Invokes(testing.NewCreateActionWithOptions(replicasResource, c.ns, replica, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Replica), err
 }
 
 // Update takes the representation of a replica and updates it. Returns the server's representation of the replica, and an error, if there is any.
 func (c *FakeReplicas) Update(ctx context.Context, replica *v1beta2.Replica, opts v1.UpdateOptions) (result *v1beta2.Replica, err error) {
+	emptyResult := &v1beta2.Replica{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(replicasResource, c.ns, replica), &v1beta2.Replica{})
+		Invokes(testing.NewUpdateActionWithOptions(replicasResource, c.ns, replica, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Replica), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeReplicas) UpdateStatus(ctx context.Context, replica *v1beta2.Replica, opts v1.UpdateOptions) (*v1beta2.Replica, error) {
+func (c *FakeReplicas) UpdateStatus(ctx context.Context, replica *v1beta2.Replica, opts v1.UpdateOptions) (result *v1beta2.Replica, err error) {
+	emptyResult := &v1beta2.Replica{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(replicasResource, "status", c.ns, replica), &v1beta2.Replica{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(replicasResource, "status", c.ns, replica, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Replica), err
 }
@@ -123,7 +128,7 @@ func (c *FakeReplicas) Delete(ctx context.Context, name string, opts v1.DeleteOp
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeReplicas) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(replicasResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(replicasResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta2.ReplicaList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeReplicas) DeleteCollection(ctx context.Context, opts v1.DeleteOptio
 
 // Patch applies the patch and returns the patched replica.
 func (c *FakeReplicas) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.Replica, err error) {
+	emptyResult := &v1beta2.Replica{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(replicasResource, c.ns, name, pt, data, subresources...), &v1beta2.Replica{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(replicasResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Replica), err
 }

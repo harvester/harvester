@@ -30,6 +30,10 @@ func (h *svmbackupHandler) OnVMBackupChange(_ string, vmBackup *harvesterv1.Virt
 		h.svmbackupController.Enqueue(svmbackup.Namespace, svmbackup.Name)
 	}
 
+	if err := checkLHBackupUnexpectedProcessing(h, svmbackup, vmBackup); err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
 

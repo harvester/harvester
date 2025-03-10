@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var projectroletemplatebindingsKind = v3.SchemeGroupVersion.WithKind("ProjectRol
 
 // Get takes name of the projectRoleTemplateBinding, and returns the corresponding projectRoleTemplateBinding object, and an error if there is any.
 func (c *FakeProjectRoleTemplateBindings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ProjectRoleTemplateBinding, err error) {
+	emptyResult := &v3.ProjectRoleTemplateBinding{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(projectroletemplatebindingsResource, c.ns, name), &v3.ProjectRoleTemplateBinding{})
+		Invokes(testing.NewGetActionWithOptions(projectroletemplatebindingsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ProjectRoleTemplateBinding), err
 }
 
 // List takes label and field selectors, and returns the list of ProjectRoleTemplateBindings that match those selectors.
 func (c *FakeProjectRoleTemplateBindings) List(ctx context.Context, opts v1.ListOptions) (result *v3.ProjectRoleTemplateBindingList, err error) {
+	emptyResult := &v3.ProjectRoleTemplateBindingList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(projectroletemplatebindingsResource, projectroletemplatebindingsKind, c.ns, opts), &v3.ProjectRoleTemplateBindingList{})
+		Invokes(testing.NewListActionWithOptions(projectroletemplatebindingsResource, projectroletemplatebindingsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,28 +77,30 @@ func (c *FakeProjectRoleTemplateBindings) List(ctx context.Context, opts v1.List
 // Watch returns a watch.Interface that watches the requested projectRoleTemplateBindings.
 func (c *FakeProjectRoleTemplateBindings) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(projectroletemplatebindingsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(projectroletemplatebindingsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a projectRoleTemplateBinding and creates it.  Returns the server's representation of the projectRoleTemplateBinding, and an error, if there is any.
 func (c *FakeProjectRoleTemplateBindings) Create(ctx context.Context, projectRoleTemplateBinding *v3.ProjectRoleTemplateBinding, opts v1.CreateOptions) (result *v3.ProjectRoleTemplateBinding, err error) {
+	emptyResult := &v3.ProjectRoleTemplateBinding{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(projectroletemplatebindingsResource, c.ns, projectRoleTemplateBinding), &v3.ProjectRoleTemplateBinding{})
+		Invokes(testing.NewCreateActionWithOptions(projectroletemplatebindingsResource, c.ns, projectRoleTemplateBinding, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ProjectRoleTemplateBinding), err
 }
 
 // Update takes the representation of a projectRoleTemplateBinding and updates it. Returns the server's representation of the projectRoleTemplateBinding, and an error, if there is any.
 func (c *FakeProjectRoleTemplateBindings) Update(ctx context.Context, projectRoleTemplateBinding *v3.ProjectRoleTemplateBinding, opts v1.UpdateOptions) (result *v3.ProjectRoleTemplateBinding, err error) {
+	emptyResult := &v3.ProjectRoleTemplateBinding{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(projectroletemplatebindingsResource, c.ns, projectRoleTemplateBinding), &v3.ProjectRoleTemplateBinding{})
+		Invokes(testing.NewUpdateActionWithOptions(projectroletemplatebindingsResource, c.ns, projectRoleTemplateBinding, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ProjectRoleTemplateBinding), err
 }
@@ -111,7 +115,7 @@ func (c *FakeProjectRoleTemplateBindings) Delete(ctx context.Context, name strin
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeProjectRoleTemplateBindings) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(projectroletemplatebindingsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(projectroletemplatebindingsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.ProjectRoleTemplateBindingList{})
 	return err
@@ -119,11 +123,12 @@ func (c *FakeProjectRoleTemplateBindings) DeleteCollection(ctx context.Context, 
 
 // Patch applies the patch and returns the patched projectRoleTemplateBinding.
 func (c *FakeProjectRoleTemplateBindings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ProjectRoleTemplateBinding, err error) {
+	emptyResult := &v3.ProjectRoleTemplateBinding{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(projectroletemplatebindingsResource, c.ns, name, pt, data, subresources...), &v3.ProjectRoleTemplateBinding{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(projectroletemplatebindingsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ProjectRoleTemplateBinding), err
 }

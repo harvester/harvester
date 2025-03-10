@@ -18,7 +18,7 @@ var (
 )
 
 const (
-	MinFreeDiskSpaceGBAnnotation = "harvesterhci.io/minFreeDiskSpaceGB"
+	SkipGarbageCollectionThreadholdCheckAnnotation = "harvesterhci.io/skipGarbageCollectionThresholdCheck"
 )
 
 func NewValidator() types.Validator {
@@ -49,10 +49,10 @@ func (v *versionValidator) Create(_ *types.Request, newObj runtime.Object) error
 }
 
 func checkAnnotations(version *v1beta1.Version) error {
-	if value, ok := version.Annotations[MinFreeDiskSpaceGBAnnotation]; ok {
-		_, err := strconv.ParseUint(value, 10, 64)
+	if value, ok := version.Annotations[SkipGarbageCollectionThreadholdCheckAnnotation]; ok {
+		_, err := strconv.ParseBool(value)
 		if err != nil {
-			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, MinFreeDiskSpaceGBAnnotation))
+			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, SkipGarbageCollectionThreadholdCheckAnnotation))
 		}
 	}
 	return nil

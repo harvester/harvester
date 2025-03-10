@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var clusterroletemplatebindingsKind = v3.SchemeGroupVersion.WithKind("ClusterRol
 
 // Get takes name of the clusterRoleTemplateBinding, and returns the corresponding clusterRoleTemplateBinding object, and an error if there is any.
 func (c *FakeClusterRoleTemplateBindings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ClusterRoleTemplateBinding, err error) {
+	emptyResult := &v3.ClusterRoleTemplateBinding{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(clusterroletemplatebindingsResource, c.ns, name), &v3.ClusterRoleTemplateBinding{})
+		Invokes(testing.NewGetActionWithOptions(clusterroletemplatebindingsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterRoleTemplateBinding), err
 }
 
 // List takes label and field selectors, and returns the list of ClusterRoleTemplateBindings that match those selectors.
 func (c *FakeClusterRoleTemplateBindings) List(ctx context.Context, opts v1.ListOptions) (result *v3.ClusterRoleTemplateBindingList, err error) {
+	emptyResult := &v3.ClusterRoleTemplateBindingList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(clusterroletemplatebindingsResource, clusterroletemplatebindingsKind, c.ns, opts), &v3.ClusterRoleTemplateBindingList{})
+		Invokes(testing.NewListActionWithOptions(clusterroletemplatebindingsResource, clusterroletemplatebindingsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,28 +77,30 @@ func (c *FakeClusterRoleTemplateBindings) List(ctx context.Context, opts v1.List
 // Watch returns a watch.Interface that watches the requested clusterRoleTemplateBindings.
 func (c *FakeClusterRoleTemplateBindings) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(clusterroletemplatebindingsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(clusterroletemplatebindingsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a clusterRoleTemplateBinding and creates it.  Returns the server's representation of the clusterRoleTemplateBinding, and an error, if there is any.
 func (c *FakeClusterRoleTemplateBindings) Create(ctx context.Context, clusterRoleTemplateBinding *v3.ClusterRoleTemplateBinding, opts v1.CreateOptions) (result *v3.ClusterRoleTemplateBinding, err error) {
+	emptyResult := &v3.ClusterRoleTemplateBinding{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(clusterroletemplatebindingsResource, c.ns, clusterRoleTemplateBinding), &v3.ClusterRoleTemplateBinding{})
+		Invokes(testing.NewCreateActionWithOptions(clusterroletemplatebindingsResource, c.ns, clusterRoleTemplateBinding, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterRoleTemplateBinding), err
 }
 
 // Update takes the representation of a clusterRoleTemplateBinding and updates it. Returns the server's representation of the clusterRoleTemplateBinding, and an error, if there is any.
 func (c *FakeClusterRoleTemplateBindings) Update(ctx context.Context, clusterRoleTemplateBinding *v3.ClusterRoleTemplateBinding, opts v1.UpdateOptions) (result *v3.ClusterRoleTemplateBinding, err error) {
+	emptyResult := &v3.ClusterRoleTemplateBinding{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(clusterroletemplatebindingsResource, c.ns, clusterRoleTemplateBinding), &v3.ClusterRoleTemplateBinding{})
+		Invokes(testing.NewUpdateActionWithOptions(clusterroletemplatebindingsResource, c.ns, clusterRoleTemplateBinding, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterRoleTemplateBinding), err
 }
@@ -111,7 +115,7 @@ func (c *FakeClusterRoleTemplateBindings) Delete(ctx context.Context, name strin
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeClusterRoleTemplateBindings) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(clusterroletemplatebindingsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(clusterroletemplatebindingsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.ClusterRoleTemplateBindingList{})
 	return err
@@ -119,11 +123,12 @@ func (c *FakeClusterRoleTemplateBindings) DeleteCollection(ctx context.Context, 
 
 // Patch applies the patch and returns the patched clusterRoleTemplateBinding.
 func (c *FakeClusterRoleTemplateBindings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterRoleTemplateBinding, err error) {
+	emptyResult := &v3.ClusterRoleTemplateBinding{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(clusterroletemplatebindingsResource, c.ns, name, pt, data, subresources...), &v3.ClusterRoleTemplateBinding{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(clusterroletemplatebindingsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterRoleTemplateBinding), err
 }

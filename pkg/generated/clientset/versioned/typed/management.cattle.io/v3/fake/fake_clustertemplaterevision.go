@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var clustertemplaterevisionsKind = v3.SchemeGroupVersion.WithKind("ClusterTempla
 
 // Get takes name of the clusterTemplateRevision, and returns the corresponding clusterTemplateRevision object, and an error if there is any.
 func (c *FakeClusterTemplateRevisions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ClusterTemplateRevision, err error) {
+	emptyResult := &v3.ClusterTemplateRevision{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(clustertemplaterevisionsResource, c.ns, name), &v3.ClusterTemplateRevision{})
+		Invokes(testing.NewGetActionWithOptions(clustertemplaterevisionsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterTemplateRevision), err
 }
 
 // List takes label and field selectors, and returns the list of ClusterTemplateRevisions that match those selectors.
 func (c *FakeClusterTemplateRevisions) List(ctx context.Context, opts v1.ListOptions) (result *v3.ClusterTemplateRevisionList, err error) {
+	emptyResult := &v3.ClusterTemplateRevisionList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(clustertemplaterevisionsResource, clustertemplaterevisionsKind, c.ns, opts), &v3.ClusterTemplateRevisionList{})
+		Invokes(testing.NewListActionWithOptions(clustertemplaterevisionsResource, clustertemplaterevisionsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeClusterTemplateRevisions) List(ctx context.Context, opts v1.ListOpt
 // Watch returns a watch.Interface that watches the requested clusterTemplateRevisions.
 func (c *FakeClusterTemplateRevisions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(clustertemplaterevisionsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(clustertemplaterevisionsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a clusterTemplateRevision and creates it.  Returns the server's representation of the clusterTemplateRevision, and an error, if there is any.
 func (c *FakeClusterTemplateRevisions) Create(ctx context.Context, clusterTemplateRevision *v3.ClusterTemplateRevision, opts v1.CreateOptions) (result *v3.ClusterTemplateRevision, err error) {
+	emptyResult := &v3.ClusterTemplateRevision{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(clustertemplaterevisionsResource, c.ns, clusterTemplateRevision), &v3.ClusterTemplateRevision{})
+		Invokes(testing.NewCreateActionWithOptions(clustertemplaterevisionsResource, c.ns, clusterTemplateRevision, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterTemplateRevision), err
 }
 
 // Update takes the representation of a clusterTemplateRevision and updates it. Returns the server's representation of the clusterTemplateRevision, and an error, if there is any.
 func (c *FakeClusterTemplateRevisions) Update(ctx context.Context, clusterTemplateRevision *v3.ClusterTemplateRevision, opts v1.UpdateOptions) (result *v3.ClusterTemplateRevision, err error) {
+	emptyResult := &v3.ClusterTemplateRevision{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(clustertemplaterevisionsResource, c.ns, clusterTemplateRevision), &v3.ClusterTemplateRevision{})
+		Invokes(testing.NewUpdateActionWithOptions(clustertemplaterevisionsResource, c.ns, clusterTemplateRevision, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterTemplateRevision), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeClusterTemplateRevisions) UpdateStatus(ctx context.Context, clusterTemplateRevision *v3.ClusterTemplateRevision, opts v1.UpdateOptions) (*v3.ClusterTemplateRevision, error) {
+func (c *FakeClusterTemplateRevisions) UpdateStatus(ctx context.Context, clusterTemplateRevision *v3.ClusterTemplateRevision, opts v1.UpdateOptions) (result *v3.ClusterTemplateRevision, err error) {
+	emptyResult := &v3.ClusterTemplateRevision{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(clustertemplaterevisionsResource, "status", c.ns, clusterTemplateRevision), &v3.ClusterTemplateRevision{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(clustertemplaterevisionsResource, "status", c.ns, clusterTemplateRevision, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterTemplateRevision), err
 }
@@ -123,7 +128,7 @@ func (c *FakeClusterTemplateRevisions) Delete(ctx context.Context, name string, 
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeClusterTemplateRevisions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(clustertemplaterevisionsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(clustertemplaterevisionsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.ClusterTemplateRevisionList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeClusterTemplateRevisions) DeleteCollection(ctx context.Context, opt
 
 // Patch applies the patch and returns the patched clusterTemplateRevision.
 func (c *FakeClusterTemplateRevisions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterTemplateRevision, err error) {
+	emptyResult := &v3.ClusterTemplateRevision{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(clustertemplaterevisionsResource, c.ns, name, pt, data, subresources...), &v3.ClusterTemplateRevision{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(clustertemplaterevisionsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterTemplateRevision), err
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,20 +40,22 @@ var authtokensKind = v3.SchemeGroupVersion.WithKind("AuthToken")
 
 // Get takes name of the authToken, and returns the corresponding authToken object, and an error if there is any.
 func (c *FakeAuthTokens) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.AuthToken, err error) {
+	emptyResult := &v3.AuthToken{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(authtokensResource, name), &v3.AuthToken{})
+		Invokes(testing.NewRootGetActionWithOptions(authtokensResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.AuthToken), err
 }
 
 // List takes label and field selectors, and returns the list of AuthTokens that match those selectors.
 func (c *FakeAuthTokens) List(ctx context.Context, opts v1.ListOptions) (result *v3.AuthTokenList, err error) {
+	emptyResult := &v3.AuthTokenList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(authtokensResource, authtokensKind, opts), &v3.AuthTokenList{})
+		Invokes(testing.NewRootListActionWithOptions(authtokensResource, authtokensKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,25 +74,27 @@ func (c *FakeAuthTokens) List(ctx context.Context, opts v1.ListOptions) (result 
 // Watch returns a watch.Interface that watches the requested authTokens.
 func (c *FakeAuthTokens) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(authtokensResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(authtokensResource, opts))
 }
 
 // Create takes the representation of a authToken and creates it.  Returns the server's representation of the authToken, and an error, if there is any.
 func (c *FakeAuthTokens) Create(ctx context.Context, authToken *v3.AuthToken, opts v1.CreateOptions) (result *v3.AuthToken, err error) {
+	emptyResult := &v3.AuthToken{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(authtokensResource, authToken), &v3.AuthToken{})
+		Invokes(testing.NewRootCreateActionWithOptions(authtokensResource, authToken, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.AuthToken), err
 }
 
 // Update takes the representation of a authToken and updates it. Returns the server's representation of the authToken, and an error, if there is any.
 func (c *FakeAuthTokens) Update(ctx context.Context, authToken *v3.AuthToken, opts v1.UpdateOptions) (result *v3.AuthToken, err error) {
+	emptyResult := &v3.AuthToken{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(authtokensResource, authToken), &v3.AuthToken{})
+		Invokes(testing.NewRootUpdateActionWithOptions(authtokensResource, authToken, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.AuthToken), err
 }
@@ -104,7 +108,7 @@ func (c *FakeAuthTokens) Delete(ctx context.Context, name string, opts v1.Delete
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeAuthTokens) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(authtokensResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(authtokensResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.AuthTokenList{})
 	return err
@@ -112,10 +116,11 @@ func (c *FakeAuthTokens) DeleteCollection(ctx context.Context, opts v1.DeleteOpt
 
 // Patch applies the patch and returns the patched authToken.
 func (c *FakeAuthTokens) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.AuthToken, err error) {
+	emptyResult := &v3.AuthToken{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(authtokensResource, name, pt, data, subresources...), &v3.AuthToken{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(authtokensResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.AuthToken), err
 }

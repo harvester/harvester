@@ -91,12 +91,14 @@ type EngineCreateRequest struct {
 	InitiatorAddress  string
 	TargetAddress     string
 	UpgradeRequired   bool
+	SalvageRequested  bool
 }
 
 type ReplicaCreateRequest struct {
-	DiskName       string
-	DiskUUID       string
-	ExposeRequired bool
+	DiskName         string
+	DiskUUID         string
+	ExposeRequired   bool
+	BackingImageName string
 }
 
 type InstanceCreateRequest struct {
@@ -147,13 +149,15 @@ func (c *InstanceServiceClient) InstanceCreate(req *InstanceCreateRequest) (*api
 				Size:              req.Size,
 				ReplicaAddressMap: req.Engine.ReplicaAddressMap,
 				Frontend:          req.Engine.Frontend,
+				SalvageRequested:  req.Engine.SalvageRequested,
 			}
 		case types.InstanceTypeReplica:
 			spdkInstanceSpec = &rpc.SpdkInstanceSpec{
-				Size:           req.Size,
-				DiskName:       req.Replica.DiskName,
-				DiskUuid:       req.Replica.DiskUUID,
-				ExposeRequired: req.Replica.ExposeRequired,
+				Size:             req.Size,
+				DiskName:         req.Replica.DiskName,
+				DiskUuid:         req.Replica.DiskUUID,
+				ExposeRequired:   req.Replica.ExposeRequired,
+				BackingImageName: req.Replica.BackingImageName,
 			}
 		default:
 			return nil, fmt.Errorf("failed to create instance: invalid instance type %v", req.InstanceType)
@@ -470,7 +474,7 @@ func (c *InstanceServiceClient) VersionGet() (*meta.VersionOutput, error) {
 	}, nil
 }
 
-// LogSetLevel sets the log level of the service.
+// LogSetLevel sets the log level.
 func (c *InstanceServiceClient) LogSetLevel(dataEngine, service, level string) error {
 	client := c.getControllerServiceClient()
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
@@ -488,7 +492,7 @@ func (c *InstanceServiceClient) LogSetLevel(dataEngine, service, level string) e
 	return err
 }
 
-// LogSetFlags sets the log flags of the service.x
+// LogSetFlags sets the log flags.
 func (c *InstanceServiceClient) LogSetFlags(dataEngine, service, flags string) error {
 	client := c.getControllerServiceClient()
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
@@ -506,7 +510,7 @@ func (c *InstanceServiceClient) LogSetFlags(dataEngine, service, flags string) e
 	return err
 }
 
-// LogGetLevel returns the log level of the service.
+// LogGetLevel returns the log level.
 func (c *InstanceServiceClient) LogGetLevel(dataEngine, service string) (string, error) {
 	client := c.getControllerServiceClient()
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
@@ -526,7 +530,7 @@ func (c *InstanceServiceClient) LogGetLevel(dataEngine, service string) (string,
 	return resp.Level, nil
 }
 
-// LogGetFlags returns the log flags of the service.
+// LogGetFlags returns the log flags.
 func (c *InstanceServiceClient) LogGetFlags(dataEngine, service string) (string, error) {
 	client := c.getControllerServiceClient()
 	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)

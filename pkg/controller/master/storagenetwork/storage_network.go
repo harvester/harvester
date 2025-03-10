@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	cniv1 "github.com/containernetworking/cni/pkg/types"
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	ctlmgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
@@ -18,29 +17,34 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlmonitoringv1 "github.com/harvester/harvester/pkg/generated/controllers/monitoring.coreos.com/v1"
+	whereaboutscniv1 "github.com/harvester/harvester/pkg/generated/controllers/whereabouts.cni.cncf.io/v1alpha1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
-	ControllerName                  = "harvester-storage-network-controller"
-	StorageNetworkAnnotation        = "storage-network.settings.harvesterhci.io"
-	ReplicaStorageNetworkAnnotation = StorageNetworkAnnotation + "/replica"
-	PausedStorageNetworkAnnotation  = StorageNetworkAnnotation + "/paused"
-	HashStorageNetworkAnnotation    = StorageNetworkAnnotation + "/hash"
-	NadStorageNetworkAnnotation     = StorageNetworkAnnotation + "/net-attach-def"
-	OldNadStorageNetworkAnnotation  = StorageNetworkAnnotation + "/old-net-attach-def"
+	ControllerName = "harvester-storage-network-controller"
 
-	HashStorageNetworkLabel = HashStorageNetworkAnnotation
+	// for compatiability, will be removed on Harvester v1.6.0
+	StorageNetworkAnnotation        = util.StorageNetworkAnnotation
+	ReplicaStorageNetworkAnnotation = util.ReplicaStorageNetworkAnnotation
+	PausedStorageNetworkAnnotation  = util.PausedStorageNetworkAnnotation
+	HashStorageNetworkAnnotation    = util.HashStorageNetworkAnnotation
+	NadStorageNetworkAnnotation     = util.NadStorageNetworkAnnotation
+	OldNadStorageNetworkAnnotation  = util.OldNadStorageNetworkAnnotation
 
-	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
-	StorageNetworkNetAttachDefNamespace = "harvester-system"
+	HashStorageNetworkLabel = util.HashStorageNetworkLabel
+
+	StorageNetworkNetAttachDefPrefix    = util.StorageNetworkNetAttachDefPrefix
+	StorageNetworkNetAttachDefNamespace = util.StorageNetworkNetAttachDefNamespace
 
 	BridgeSuffix = "-br"
 	CNIVersion   = "0.3.1"
@@ -55,6 +59,7 @@ const (
 	MsgStopPod               = "Stopping Pods"
 	MsgWaitForVolumes        = "Waiting for all volumes detached: %s"
 	MsgUpdateLonghornSetting = "Update Longhorn setting"
+	MsgIPAssignmentFailure   = "IP allocation failure for Longhorn Pods"
 
 	longhornStorageNetworkName = "storage-network"
 )
@@ -66,14 +71,18 @@ type Config struct {
 	Exclude        []string `json:"exclude,omitempty"`
 }
 
+// Note: this data type should align with https://github.com/containernetworking/cni/blob/main/pkg/types/types.go#L64-L78
+// and https://github.com/containernetworking/plugins/blob/main/plugins/main/bridge/bridge.go#L47-L75
 type BridgeConfig struct {
-	cniv1.NetConf
+	CNIVersion  string     `json:"cniVersion"`
+	Type        string     `json:"type"`
 	Bridge      string     `json:"bridge"`
 	PromiscMode bool       `json:"promiscMode"`
-	Vlan        uint16     `json:"vlan"`
+	Vlan        int        `json:"vlan"`
 	IPAM        IPAMConfig `json:"ipam"`
 }
 
+// Note: this data type should align with https://github.com/k8snetworkplumbingwg/whereabouts/blob/master/pkg/types/types.go#L48-L75
 type IPAMConfig struct {
 	Type    string   `json:"type"`
 	Range   string   `json:"range"`
@@ -82,10 +91,8 @@ type IPAMConfig struct {
 
 func NewBridgeConfig() *BridgeConfig {
 	return &BridgeConfig{
-		NetConf: cniv1.NetConf{
-			CNIVersion: CNIVersion,
-			Type:       DefaultCNI,
-		},
+		CNIVersion:  CNIVersion,
+		Type:        DefaultCNI,
 		PromiscMode: true,
 		Vlan:        DefaultPVID,
 		IPAM: IPAMConfig{
@@ -110,6 +117,9 @@ type Handler struct {
 	managedChartCache                 ctlmgmtv3.ManagedChartCache
 	networkAttachmentDefinitions      ctlcniv1.NetworkAttachmentDefinitionClient
 	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache
+	whereaboutsCNIIPPoolCache         whereaboutscniv1.IPPoolCache
+	settingsController                ctlharvesterv1.SettingController
+	nodeCache                         ctlcorev1.NodeCache
 }
 
 // register the setting controller and reconsile longhorn setting when storage network changed
@@ -122,6 +132,8 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	networkAttachmentDefinitions := management.CniFactory.K8s().V1().NetworkAttachmentDefinition()
+	whereaboutsCNI := management.WhereaboutsCNIFactory.Whereabouts().V1alpha1()
+	node := management.CoreFactory.Core().V1().Node()
 
 	controller := &Handler{
 		ctx:                               ctx,
@@ -139,6 +151,9 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		managedChartCache:                 managedCharts.Cache(),
 		networkAttachmentDefinitions:      networkAttachmentDefinitions,
 		networkAttachmentDefinitionsCache: networkAttachmentDefinitions.Cache(),
+		whereaboutsCNIIPPoolCache:         whereaboutsCNI.IPPool().Cache(),
+		settingsController:                settings,
+		nodeCache:                         node.Cache(),
 	}
 
 	settings.OnChange(ctx, ControllerName, controller.OnStorageNetworkChange)
@@ -197,7 +212,7 @@ func (h *Handler) OnStorageNetworkChange(_ string, setting *harvesterv1.Setting)
 		return setting, err
 	}
 
-	currentNad := setting.Annotations[NadStorageNetworkAnnotation]
+	currentNad := setting.Annotations[util.NadStorageNetworkAnnotation]
 	if currentNad == value {
 		// if post config is successful, it will finish the onChange
 		return h.handleLonghornSettingPostConfig(settingCopy)
@@ -230,7 +245,7 @@ func (h *Handler) OnStorageNetworkChange(_ string, setting *harvesterv1.Setting)
 	logrus.Infof("all volumes are detached")
 	logrus.Infof("update Longhorn settings")
 	// push LH setting
-	nadName := settingCopy.Annotations[NadStorageNetworkAnnotation]
+	nadName := settingCopy.Annotations[util.NadStorageNetworkAnnotation]
 	if err = h.updateLonghornStorageNetwork(nadName); err != nil {
 		return setting, fmt.Errorf("update Longhorn setting error %v", err)
 	}
@@ -251,18 +266,18 @@ func (h *Handler) sha1(s string) string {
 
 func (h *Handler) checkIsSameHashValue(setting *harvesterv1.Setting) bool {
 	currentHash := h.sha1(setting.Value)
-	savedHash := setting.Annotations[HashStorageNetworkAnnotation]
+	savedHash := setting.Annotations[util.HashStorageNetworkAnnotation]
 	return currentHash == savedHash
 }
 
 func (h *Handler) setHashAnnotations(setting *harvesterv1.Setting) *harvesterv1.Setting {
-	setting.Annotations[HashStorageNetworkAnnotation] = h.sha1(setting.Value)
+	setting.Annotations[util.HashStorageNetworkAnnotation] = h.sha1(setting.Value)
 	return setting
 }
 
 func (h *Handler) setNadAnnotations(setting *harvesterv1.Setting, newNad string) *harvesterv1.Setting {
-	setting.Annotations[OldNadStorageNetworkAnnotation] = setting.Annotations[NadStorageNetworkAnnotation]
-	setting.Annotations[NadStorageNetworkAnnotation] = newNad
+	setting.Annotations[util.OldNadStorageNetworkAnnotation] = setting.Annotations[util.NadStorageNetworkAnnotation]
+	setting.Annotations[util.NadStorageNetworkAnnotation] = newNad
 	return setting
 }
 
@@ -280,7 +295,7 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 	if config.Vlan == 0 {
 		config.Vlan = DefaultPVID
 	}
-	bridgeConfig.Vlan = config.Vlan
+	bridgeConfig.Vlan = int(config.Vlan)
 
 	if len(config.Exclude) > 0 {
 		bridgeConfig.IPAM.Exclude = config.Exclude
@@ -293,15 +308,15 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 
 	nad := nadv1.NetworkAttachmentDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: StorageNetworkNetAttachDefPrefix,
-			Namespace:    StorageNetworkNetAttachDefNamespace,
+			GenerateName: util.StorageNetworkNetAttachDefPrefix,
+			Namespace:    util.StorageNetworkNetAttachDefNamespace,
 		},
 	}
 	nad.Annotations = map[string]string{
-		StorageNetworkAnnotation: "true",
+		util.StorageNetworkAnnotation: "true",
 	}
 	nad.Labels = map[string]string{
-		HashStorageNetworkLabel: h.sha1(setting.Value),
+		util.HashStorageNetworkLabel: h.sha1(setting.Value),
 	}
 	nad.Spec.Config = string(nadConfig)
 
@@ -315,9 +330,9 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 }
 
 func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachmentDefinition, error) {
-	nads, err := h.networkAttachmentDefinitions.List(StorageNetworkNetAttachDefNamespace, metav1.ListOptions{
+	nads, err := h.networkAttachmentDefinitions.List(util.StorageNetworkNetAttachDefNamespace, metav1.ListOptions{
 		LabelSelector: labels.Set{
-			HashStorageNetworkLabel: h.sha1(setting.Value),
+			util.HashStorageNetworkLabel: h.sha1(setting.Value),
 		}.String(),
 	})
 	if err != nil {
@@ -365,7 +380,7 @@ func (h *Handler) checkValueIsChanged(setting *harvesterv1.Setting) (*harvesterv
 }
 
 func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
-	oldNad := setting.Annotations[OldNadStorageNetworkAnnotation]
+	oldNad := setting.Annotations[util.OldNadStorageNetworkAnnotation]
 	if oldNad == "" {
 		return nil
 	}
@@ -373,7 +388,7 @@ func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
 	nadName := strings.Split(oldNad, "/")
 	if len(nadName) != 2 {
 		logrus.Errorf("split nad namespace and name failed %s", oldNad)
-		setting.Annotations[OldNadStorageNetworkAnnotation] = ""
+		setting.Annotations[util.OldNadStorageNetworkAnnotation] = ""
 		return nil
 	}
 	namespace := nadName[0]
@@ -381,7 +396,7 @@ func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
 
 	if _, err := h.networkAttachmentDefinitionsCache.Get(namespace, name); err != nil {
 		if apierrors.IsNotFound(err) {
-			setting.Annotations[OldNadStorageNetworkAnnotation] = ""
+			setting.Annotations[util.OldNadStorageNetworkAnnotation] = ""
 			return nil
 		}
 
@@ -393,8 +408,45 @@ func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
 		return fmt.Errorf("remove nad error %v", err)
 	}
 
-	setting.Annotations[OldNadStorageNetworkAnnotation] = ""
+	setting.Annotations[util.OldNadStorageNetworkAnnotation] = ""
 	return nil
+}
+
+func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) error {
+	if setting.Value == "" {
+		return nil
+	}
+
+	nodes, err := h.nodeCache.List(labels.Everything())
+	if err != nil {
+		return fmt.Errorf("failed to list node cache %v", err)
+	}
+
+	//Formula - https://docs.harvesterhci.io/v1.4/advanced/storagenetwork/
+	//Dynamic parameters like number of images download/upload, backing-image-manager and backing-image-ds are skipped
+	//and only the number of nodes each running an instance-manager pod is used
+	MinAllocatableIPAddrs := len(nodes)
+
+	var config Config
+
+	if err := json.Unmarshal([]byte(setting.Value), &config); err != nil {
+		return fmt.Errorf("parsing value error %v", err)
+	}
+
+	ipprefix := strings.Split(config.Range, "/")
+	ippoolName := ipprefix[0] + "-" + ipprefix[1]
+
+	ippool, err := h.whereaboutsCNIIPPoolCache.Get(util.KubeSystemNamespace, ippoolName)
+	if err != nil {
+		return fmt.Errorf("wherabouts IPPool not found for pool %s error %v", ippoolName, err)
+	}
+
+	if len(ippool.Spec.Allocations) >= MinAllocatableIPAddrs {
+		return nil
+	}
+
+	return fmt.Errorf("whereabouts cni IP allocation failure for IPPool %s retrying again... required %d allocated %d",
+		ippoolName, MinAllocatableIPAddrs, len(ippool.Spec.Allocations))
 }
 
 func (h *Handler) handleLonghornSettingPostConfig(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
@@ -409,6 +461,16 @@ func (h *Handler) handleLonghornSettingPostConfig(setting *harvesterv1.Setting) 
 	settingCopy := setting.DeepCopy()
 	if err := h.removeOldNad(settingCopy); err != nil {
 		return setting, fmt.Errorf("remove old nad error %v", err)
+	}
+
+	err := h.validateIPAddressesAllocations(setting)
+	if err != nil {
+		setting, err := h.setConfiguredCondition(setting, false, ReasonInProgress, MsgIPAssignmentFailure)
+		if err != nil {
+			return setting, fmt.Errorf("update status error %v", err)
+		}
+		h.settingsController.Enqueue(setting.Name)
+		return setting, err
 	}
 
 	updatedSetting, err := h.setConfiguredCondition(settingCopy, true, ReasonCompleted, "")
@@ -452,7 +514,7 @@ func (h *Handler) checkPrometheusStatusAndStart() error {
 	}
 
 	// check started or not
-	if replicasStr, ok := prometheus.Annotations[ReplicaStorageNetworkAnnotation]; ok {
+	if replicasStr, ok := prometheus.Annotations[util.ReplicaStorageNetworkAnnotation]; ok {
 		logrus.Infof("current prometheus replicas: %v", *prometheus.Spec.Replicas)
 		logrus.Infof("start prometheus")
 		prometheusCopy := prometheus.DeepCopy()
@@ -461,7 +523,7 @@ func (h *Handler) checkPrometheusStatusAndStart() error {
 			return fmt.Errorf("strconv ParseInt error %v", err)
 		}
 		*prometheusCopy.Spec.Replicas = int32(replicas)
-		delete(prometheusCopy.Annotations, ReplicaStorageNetworkAnnotation)
+		delete(prometheusCopy.Annotations, util.ReplicaStorageNetworkAnnotation)
 
 		if _, err := h.prometheus.Update(prometheusCopy); err != nil {
 			return fmt.Errorf("prometheus update error %v", err)
@@ -484,7 +546,7 @@ func (h *Handler) checkAlertmanagerStatusAndStart() error {
 	}
 
 	// check started or not
-	if replicasStr, ok := alertmanager.Annotations[ReplicaStorageNetworkAnnotation]; ok {
+	if replicasStr, ok := alertmanager.Annotations[util.ReplicaStorageNetworkAnnotation]; ok {
 		logrus.Infof("current alertmanager replicas: %v", *alertmanager.Spec.Replicas)
 		logrus.Infof("start alertmanager")
 		alertmanagerCopy := alertmanager.DeepCopy()
@@ -493,7 +555,7 @@ func (h *Handler) checkAlertmanagerStatusAndStart() error {
 			return fmt.Errorf("strconv ParseInt error %v", err)
 		}
 		*alertmanagerCopy.Spec.Replicas = int32(replicas)
-		delete(alertmanagerCopy.Annotations, ReplicaStorageNetworkAnnotation)
+		delete(alertmanagerCopy.Annotations, util.ReplicaStorageNetworkAnnotation)
 
 		if _, err := h.alertmanager.Update(alertmanagerCopy); err != nil {
 			return fmt.Errorf("alertmanager update error %v", err)
@@ -516,7 +578,7 @@ func (h *Handler) checkGrafanaStatusAndStart() error {
 	}
 
 	// check started or not
-	if replicasStr, ok := grafana.Annotations[ReplicaStorageNetworkAnnotation]; ok {
+	if replicasStr, ok := grafana.Annotations[util.ReplicaStorageNetworkAnnotation]; ok {
 		logrus.Infof("current Grafana replicas: %v", *grafana.Spec.Replicas)
 		logrus.Infof("start grafana")
 		grafanaCopy := grafana.DeepCopy()
@@ -525,7 +587,7 @@ func (h *Handler) checkGrafanaStatusAndStart() error {
 			return fmt.Errorf("strconv ParseInt error %v", err)
 		}
 		*grafanaCopy.Spec.Replicas = int32(replicas)
-		delete(grafanaCopy.Annotations, ReplicaStorageNetworkAnnotation)
+		delete(grafanaCopy.Annotations, util.ReplicaStorageNetworkAnnotation)
 
 		if _, err := h.deployments.Update(grafanaCopy); err != nil {
 			return fmt.Errorf("Grafana update error %v", err)
@@ -548,12 +610,12 @@ func (h *Handler) checkRancherMonitoringStatusAndStart() error {
 	}
 
 	// check pause or not
-	if _, ok := monitoring.Annotations[PausedStorageNetworkAnnotation]; ok {
+	if _, ok := monitoring.Annotations[util.PausedStorageNetworkAnnotation]; ok {
 		logrus.Infof("current Rancher Monitoring paused: %v", monitoring.Spec.Paused)
 		logrus.Infof("start rancher monitoring")
 		monitoringCopy := monitoring.DeepCopy()
 		monitoringCopy.Spec.Paused = false
-		delete(monitoringCopy.Annotations, PausedStorageNetworkAnnotation)
+		delete(monitoringCopy.Annotations, util.PausedStorageNetworkAnnotation)
 
 		if _, err := h.managedCharts.Update(monitoringCopy); err != nil {
 			return fmt.Errorf("rancher monitoring error %v", err)
@@ -577,7 +639,7 @@ func (h *Handler) checkVMImportControllerStatusAndStart() error {
 
 	logrus.Infof("current VM Import Controller replicas: %v", *vmImportControllerDeploy.Spec.Replicas)
 	// check started or not
-	if replicasStr, ok := vmImportControllerDeploy.Annotations[ReplicaStorageNetworkAnnotation]; ok {
+	if replicasStr, ok := vmImportControllerDeploy.Annotations[util.ReplicaStorageNetworkAnnotation]; ok {
 		logrus.Infof("start vm import controller")
 		vmImportControllerDeployCopy := vmImportControllerDeploy.DeepCopy()
 		replicas, err := strconv.ParseInt(replicasStr, 10, 32)
@@ -585,7 +647,7 @@ func (h *Handler) checkVMImportControllerStatusAndStart() error {
 			return fmt.Errorf("strconv ParseInt error %v", err)
 		}
 		*vmImportControllerDeployCopy.Spec.Replicas = int32(replicas)
-		delete(vmImportControllerDeployCopy.Annotations, ReplicaStorageNetworkAnnotation)
+		delete(vmImportControllerDeployCopy.Annotations, util.ReplicaStorageNetworkAnnotation)
 
 		if _, err := h.deployments.Update(vmImportControllerDeployCopy); err != nil {
 			return fmt.Errorf("VM Import Controller update error %v", err)
@@ -633,7 +695,7 @@ func (h *Handler) checkRancherMonitoringStatusAndStop() error {
 		logrus.Infof("current Rancher Monitoring paused: %v", monitoring.Spec.Paused)
 		logrus.Infof("stop rancher monitoring")
 		monitoringCopy := monitoring.DeepCopy()
-		monitoringCopy.Annotations[PausedStorageNetworkAnnotation] = "false"
+		monitoringCopy.Annotations[util.PausedStorageNetworkAnnotation] = "false"
 		monitoringCopy.Spec.Paused = true
 
 		if _, err := h.managedCharts.Update(monitoringCopy); err != nil {
@@ -660,7 +722,7 @@ func (h *Handler) checkPrometheusStatusAndStop() error {
 		logrus.Infof("current prometheus replicas: %v", *prometheus.Spec.Replicas)
 		logrus.Infof("stop prometheus")
 		prometheusCopy := prometheus.DeepCopy()
-		prometheusCopy.Annotations[ReplicaStorageNetworkAnnotation] = strconv.Itoa(int(*prometheus.Spec.Replicas))
+		prometheusCopy.Annotations[util.ReplicaStorageNetworkAnnotation] = strconv.Itoa(int(*prometheus.Spec.Replicas))
 		*prometheusCopy.Spec.Replicas = 0
 
 		if _, err := h.prometheus.Update(prometheusCopy); err != nil {
@@ -688,7 +750,7 @@ func (h *Handler) checkAltermanagerStatusAndStop() error {
 		logrus.Infof("current alertmanager replicas: %v", *alertmanager.Spec.Replicas)
 		logrus.Infof("stop alertmanager")
 		alertmanagerCopy := alertmanager.DeepCopy()
-		alertmanagerCopy.Annotations[ReplicaStorageNetworkAnnotation] = strconv.Itoa(int(*alertmanager.Spec.Replicas))
+		alertmanagerCopy.Annotations[util.ReplicaStorageNetworkAnnotation] = strconv.Itoa(int(*alertmanager.Spec.Replicas))
 		*alertmanagerCopy.Spec.Replicas = 0
 
 		if _, err := h.alertmanager.Update(alertmanagerCopy); err != nil {
@@ -716,7 +778,7 @@ func (h *Handler) checkGrafanaStatusAndStop() error {
 	if *grafana.Spec.Replicas != 0 {
 		logrus.Infof("stop grafana")
 		grafanaCopy := grafana.DeepCopy()
-		grafanaCopy.Annotations[ReplicaStorageNetworkAnnotation] = strconv.Itoa(int(*grafana.Spec.Replicas))
+		grafanaCopy.Annotations[util.ReplicaStorageNetworkAnnotation] = strconv.Itoa(int(*grafana.Spec.Replicas))
 		*grafanaCopy.Spec.Replicas = 0
 
 		if _, err := h.deployments.Update(grafanaCopy); err != nil {
@@ -744,7 +806,7 @@ func (h *Handler) checkVMImportControllerStatusAndStop() error {
 		logrus.Infof("current VM Import Controller replicas: %v", *vmimportcontroller.Spec.Replicas)
 		logrus.Infof("stop vmi import controller")
 		vmimportcontrollerCopy := vmimportcontroller.DeepCopy()
-		vmimportcontrollerCopy.Annotations[ReplicaStorageNetworkAnnotation] = strconv.Itoa(int(*vmimportcontroller.Spec.Replicas))
+		vmimportcontrollerCopy.Annotations[util.ReplicaStorageNetworkAnnotation] = strconv.Itoa(int(*vmimportcontroller.Spec.Replicas))
 		*vmimportcontrollerCopy.Spec.Replicas = 0
 
 		if _, err := h.deployments.Update(vmimportcontrollerCopy); err != nil {

@@ -23,6 +23,7 @@ API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/ha
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,SecretBackups
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,VolumeBackups
+API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageDownloaderStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,Conditions
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,DeletedVolumes
@@ -35,6 +36,7 @@ API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-at
 API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,GatewayRequest
 API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,IPRequest
 API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,PortMappingsRequest
+API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkStatus,Gateway
 API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkStatus,IPs
 API rule violation: list_type_missing,github.com/openshift/api/operator/v1,DNSSpec,Servers
 API rule violation: list_type_missing,github.com/openshift/api/operator/v1,DNSStatus,Conditions
@@ -102,6 +104,8 @@ API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-ap
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,StorageProfileSpec,ClaimPropertySets
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,StorageProfileStatus,ClaimPropertySets
 API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,StorageSpec,AccessModes
+API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,TLSProfileSpec,Ciphers
+API rule violation: list_type_missing,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,VolumeImportSourceSpec,Checkpoints
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,LocalArea,VID
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,NetworkInterface,UsedByMgmtNetwork
 API rule violation: names_match,github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1,NodeNetworkLinkStatus,IPV4Address
@@ -112,6 +116,7 @@ API rule violation: names_match,github.com/harvester/harvester-network-controlle
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,ScheduleVMBackupSpec,VMBackupSpec
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,ScheduleVMBackupStatus,VMBackupInfo
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineBackupStatus,SourceSpec
+API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageDownloaderStatus,DownloadURL
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineImageStatus,AppliedURL
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,VolumeRestores
 API rule violation: names_match,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineTemplateSpec,DefaultVersionID
@@ -123,6 +128,7 @@ API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachme
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,BandwidthRequest
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,CNIArgs
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,GatewayRequest
+API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,IPAMClaimReference
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,IPRequest
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,InfinibandGUIDRequest
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,NetworkSelectionElement,InterfaceRequest
@@ -134,10 +140,12 @@ API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachme
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,PciDevice,PciAddress
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,PciDevice,PfPciAddress
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,PciDevice,RdmaDevice
+API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,PciDevice,RepresentorDevice
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,PciDevice,Vhostnet
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,VdpaDevice,ParentDevice
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,VdpaDevice,PciAddress
 API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,VdpaDevice,PfPciAddress
+API rule violation: names_match,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,VdpaDevice,RepresentorDevice
 API rule violation: names_match,github.com/openshift/api/operator/v1,DefaultNetworkDefinition,OpenShiftSDNConfig
 API rule violation: names_match,k8s.io/api/core/v1,AzureDiskVolumeSource,DataDiskURI
 API rule violation: names_match,k8s.io/api/core/v1,ContainerStatus,LastTerminationState

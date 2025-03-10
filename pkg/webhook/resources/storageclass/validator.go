@@ -2,13 +2,16 @@ package storageclass
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	lhtypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -25,11 +28,18 @@ const (
 	errorMessageReservedStorageClass = "storage class %s is reserved by Harvester and can't be deleted"
 )
 
-var pairs = [][2]string{
-	{util.CSIProvisionerSecretNameKey, util.CSIProvisionerSecretNamespaceKey},
-	{util.CSINodeStageSecretNameKey, util.CSINodeStageSecretNamespaceKey},
-	{util.CSINodePublishSecretNameKey, util.CSINodePublishSecretNamespaceKey},
-}
+var (
+	availableCiphers  = []string{"aes-xts-plain", "aes-xts-plain64", "aes-cbc-plain", "aes-cbc-plain64", "aes-cbc-essiv:sha256"}
+	availablePBKDFs   = []string{"argon2i", "argon2id", "pbkdf2"}
+	availableHash     = []string{"sha256", "sha384", "sha512"}
+	availableKeySizes = []string{"256", "384", "512"}
+
+	pairs = [][2]string{
+		{util.CSIProvisionerSecretNameKey, util.CSIProvisionerSecretNamespaceKey},
+		{util.CSINodeStageSecretNameKey, util.CSINodeStageSecretNamespaceKey},
+		{util.CSINodePublishSecretNameKey, util.CSINodePublishSecretNamespaceKey},
+	}
+)
 
 func NewValidator(storageClassCache ctlstoragev1.StorageClassCache, secretCache ctlcorev1.SecretCache, vmimagesCache ctlharvesterv1.VirtualMachineImageCache) types.Validator {
 	return &storageClassValidator{
@@ -144,7 +154,7 @@ func (v *storageClassValidator) validateSetUniqueDefault(newObj runtime.Object) 
 		// return set default error
 		// when find another have storageclass.kubernetes.io/is-default-class annotation and value is true.
 		if v, ok := sc.Annotations[util.AnnotationIsDefaultStorageClassName]; ok && v == "true" {
-			return werror.NewInvalidError("default storage class %s already exists, please reset it first", sc.Name)
+			return werror.NewInvalidError(fmt.Sprintf("default storage class %s already exists, please reset it first before set %s as default", sc.Name, newSC.Name), "")
 		}
 	}
 
@@ -169,29 +179,69 @@ func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error 
 		return nil
 	}
 
-	secretName, secretNamespace, missingParams, err := v.findMissingEncryptionParams(newSC)
+	err = v.validateEncryptionParams(newSC)
 	if err != nil {
 		return err
 	}
 
-	if len(missingParams) != 0 {
-		return werror.NewInvalidError(fmt.Sprintf("storage class must contain %s", strings.Join(missingParams, ", ")), "spec.parameters")
+	secretName, secretNamespace := newSC.Parameters[pairs[0][0]], newSC.Parameters[pairs[0][1]]
+
+	secret, err := v.secretCache.Get(secretNamespace, secretName)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
+		}
+		return werror.NewInvalidError(err.Error(), "")
 	}
 
-	if secretName != "" && secretNamespace != "" {
-		_, err := v.secretCache.Get(secretNamespace, secretName)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
+	if err := v.validateEncryptionSecret(secret, secretNamespace, secretName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) validateEncryptionSecret(secret *corev1.Secret, secretNamespace string, secretName string) error {
+	invalid := false
+	requiredFields := map[string][]string{
+		lhtypes.CryptoKeyCipher:   availableCiphers,
+		lhtypes.CryptoKeyHash:     availableHash,
+		lhtypes.CryptoKeySize:     availableKeySizes,
+		lhtypes.CryptoPBKDF:       availablePBKDFs,
+		lhtypes.CryptoKeyProvider: {"secret"},
+		lhtypes.CryptoKeyValue:    {""},
+	}
+
+	for field, availableValue := range requiredFields {
+		value, ok := secret.Data[field]
+		if !ok {
+			return werror.NewInvalidError(fmt.Sprintf("secret %s/%s is not a valid encryption secret, missing field: %s", secretNamespace, secretName, field), "")
+		}
+
+		switch field {
+		case lhtypes.CryptoKeyProvider:
+			if string(value) != availableValue[0] {
+				invalid = true
 			}
-			return werror.NewInvalidError(err.Error(), "")
+		case lhtypes.CryptoKeyValue:
+			if string(value) == availableValue[0] {
+				invalid = true
+			}
+		default:
+			if !slices.Contains(availableValue, string(value)) {
+				invalid = true
+			}
+		}
+
+		if invalid {
+			return werror.NewInvalidError(fmt.Sprintf("secret %s/%s is not a valid encryption secret, invalid field: %s", secretNamespace, secretName, field), "")
 		}
 	}
 
 	return nil
 }
 
-func (v *storageClassValidator) findMissingEncryptionParams(newSC *storagev1.StorageClass) (string, string, []string, error) {
+func (v *storageClassValidator) validateEncryptionParams(newSC *storagev1.StorageClass) error {
 	var (
 		secretName      string
 		secretNamespace string
@@ -221,11 +271,19 @@ func (v *storageClassValidator) findMissingEncryptionParams(newSC *storagev1.Sto
 		}
 
 		if secretName != name || secretNamespace != namespace {
-			return "", "", nil, werror.NewInvalidError(fmt.Sprintf("secret names and namespaces in %s and %s are different from others", pair[0], pair[1]), "")
+			return werror.NewInvalidError(fmt.Sprintf("secret names and namespaces in %s and %s are different from others", pair[0], pair[1]), "")
 		}
 	}
 
-	return secretName, secretNamespace, missingParams, nil
+	if len(missingParams) != 0 {
+		return werror.NewInvalidError(fmt.Sprintf("storage class must contain %s", strings.Join(missingParams, ", ")), "spec.parameters")
+	}
+
+	if secretName == "" || secretNamespace == "" {
+		return werror.NewInvalidError("storage class must contain secret name and namespace", "spec.parameters")
+	}
+
+	return nil
 }
 
 func (v *storageClassValidator) validateVMImageUsage(sc *storagev1.StorageClass) error {

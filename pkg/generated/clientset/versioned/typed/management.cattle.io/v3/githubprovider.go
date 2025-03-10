@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // GithubProvidersGetter has a method to return a GithubProviderInterface.
@@ -51,118 +50,18 @@ type GithubProviderInterface interface {
 
 // githubProviders implements GithubProviderInterface
 type githubProviders struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v3.GithubProvider, *v3.GithubProviderList]
 }
 
 // newGithubProviders returns a GithubProviders
 func newGithubProviders(c *ManagementV3Client) *githubProviders {
 	return &githubProviders{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v3.GithubProvider, *v3.GithubProviderList](
+			"githubproviders",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v3.GithubProvider { return &v3.GithubProvider{} },
+			func() *v3.GithubProviderList { return &v3.GithubProviderList{} }),
 	}
-}
-
-// Get takes name of the githubProvider, and returns the corresponding githubProvider object, and an error if there is any.
-func (c *githubProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.GithubProvider, err error) {
-	result = &v3.GithubProvider{}
-	err = c.client.Get().
-		Resource("githubproviders").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of GithubProviders that match those selectors.
-func (c *githubProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.GithubProviderList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.GithubProviderList{}
-	err = c.client.Get().
-		Resource("githubproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested githubProviders.
-func (c *githubProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("githubproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a githubProvider and creates it.  Returns the server's representation of the githubProvider, and an error, if there is any.
-func (c *githubProviders) Create(ctx context.Context, githubProvider *v3.GithubProvider, opts v1.CreateOptions) (result *v3.GithubProvider, err error) {
-	result = &v3.GithubProvider{}
-	err = c.client.Post().
-		Resource("githubproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(githubProvider).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a githubProvider and updates it. Returns the server's representation of the githubProvider, and an error, if there is any.
-func (c *githubProviders) Update(ctx context.Context, githubProvider *v3.GithubProvider, opts v1.UpdateOptions) (result *v3.GithubProvider, err error) {
-	result = &v3.GithubProvider{}
-	err = c.client.Put().
-		Resource("githubproviders").
-		Name(githubProvider.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(githubProvider).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the githubProvider and deletes it. Returns an error if one occurs.
-func (c *githubProviders) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("githubproviders").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *githubProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("githubproviders").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched githubProvider.
-func (c *githubProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.GithubProvider, err error) {
-	result = &v3.GithubProvider{}
-	err = c.client.Patch(pt).
-		Resource("githubproviders").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

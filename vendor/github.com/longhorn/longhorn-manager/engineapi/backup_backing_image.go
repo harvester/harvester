@@ -16,10 +16,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/clock"
 
+	lhbackup "github.com/longhorn/go-common-libs/backup"
+
 	"github.com/longhorn/backupstore/backupbackingimage"
+
 	"github.com/longhorn/longhorn-manager/datastore"
-	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/longhorn/longhorn-manager/types"
+
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 // parseBackupBackingImageConfig parses a backup backing image config
@@ -85,6 +89,7 @@ type BackupBackingImageMonitor struct {
 	client                 *BackingImageManagerClient
 
 	backupBackingImageStatus longhorn.BackupBackingImageStatus
+	backingImageName         string
 	backupStatusLock         sync.RWMutex
 
 	syncCallback func(key string)
@@ -97,10 +102,12 @@ type BackupBackingImageMonitor struct {
 func NewBackupBackingImageMonitor(logger logrus.FieldLogger, ds *datastore.DataStore, bbi *longhorn.BackupBackingImage, backingImage *longhorn.BackingImage, backupTargetClient *BackupTargetClient,
 	compressionMethod longhorn.BackupCompressionMethod, concurrentLimit int, bimClient *BackingImageManagerClient, syncCallback func(key string)) (*BackupBackingImageMonitor, error) {
 	ctx, quit := context.WithCancel(context.Background())
+	biName := backingImage.Name
 	m := &BackupBackingImageMonitor{
 		logger: logger.WithFields(logrus.Fields{"backupBackingImage": bbi.Name}),
 
 		backupBackingImageName: bbi.Name,
+		backingImageName:       biName,
 		client:                 bimClient,
 
 		backupStatusLock: sync.RWMutex{},
@@ -112,10 +119,12 @@ func NewBackupBackingImageMonitor(logger logrus.FieldLogger, ds *datastore.DataS
 		quit: quit,
 	}
 
+	backupBackingImageParameters := getBackupBackingImageParameters(backingImage)
+
 	// Call backing image manager API snapshot backup
 	if bbi.Status.State == longhorn.BackupStateNew {
-		err := m.client.BackupCreate(bbi.Name, backingImage.Status.UUID, bbi.Status.Checksum,
-			backupTargetClient.URL, bbi.Spec.Labels, backupTargetClient.Credential, string(compressionMethod), concurrentLimit)
+		err := m.client.BackupCreate(biName, backingImage.Status.UUID, bbi.Status.Checksum,
+			backupTargetClient.URL, bbi.Spec.Labels, backupTargetClient.Credential, string(compressionMethod), concurrentLimit, backupBackingImageParameters)
 		if err != nil {
 			if !strings.Contains(err.Error(), "DeadlineExceeded") {
 				m.logger.WithError(err).Warn("failed to take backing image backup")
@@ -237,7 +246,8 @@ func (m *BackupBackingImageMonitor) syncBackupStatusFromBackingImageManager() (c
 	m.backupBackingImageStatus.DeepCopyInto(&currentBackupStatus)
 	m.backupStatusLock.RUnlock()
 
-	backupBackingImageStatus, err = m.client.BackupStatus(m.backupBackingImageName)
+	// Use backing image name instead of the backup backing image name because the backup backing image name is a random name after the feature `multiple backup target``.
+	backupBackingImageStatus, err = m.client.BackupStatus(m.backingImageName)
 	if err != nil {
 		return currentBackupStatus, err
 	}
@@ -255,6 +265,13 @@ func (m *BackupBackingImageMonitor) GetBackupBackingImageStatus() longhorn.Backu
 	return m.backupBackingImageStatus
 }
 
-func (m *BackupBackingImageMonitor) Close() {
+func (m *BackupBackingImageMonitor) Stop() {
 	m.quit()
+}
+
+func getBackupBackingImageParameters(backingImage *longhorn.BackingImage) map[string]string {
+	parameters := map[string]string{}
+	parameters[lhbackup.LonghornBackupBackingImageParameterSecret] = string(backingImage.Spec.Secret)
+	parameters[lhbackup.LonghornBackupBackingImageParameterSecretNamespace] = string(backingImage.Spec.SecretNamespace)
+	return parameters
 }

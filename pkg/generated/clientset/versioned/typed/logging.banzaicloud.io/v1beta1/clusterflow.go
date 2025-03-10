@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,14 +20,13 @@ package v1beta1
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // ClusterFlowsGetter has a method to return a ClusterFlowInterface.
@@ -40,6 +39,7 @@ type ClusterFlowsGetter interface {
 type ClusterFlowInterface interface {
 	Create(ctx context.Context, clusterFlow *v1beta1.ClusterFlow, opts v1.CreateOptions) (*v1beta1.ClusterFlow, error)
 	Update(ctx context.Context, clusterFlow *v1beta1.ClusterFlow, opts v1.UpdateOptions) (*v1beta1.ClusterFlow, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 	UpdateStatus(ctx context.Context, clusterFlow *v1beta1.ClusterFlow, opts v1.UpdateOptions) (*v1beta1.ClusterFlow, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -52,133 +52,18 @@ type ClusterFlowInterface interface {
 
 // clusterFlows implements ClusterFlowInterface
 type clusterFlows struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v1beta1.ClusterFlow, *v1beta1.ClusterFlowList]
 }
 
 // newClusterFlows returns a ClusterFlows
 func newClusterFlows(c *LoggingV1beta1Client) *clusterFlows {
 	return &clusterFlows{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v1beta1.ClusterFlow, *v1beta1.ClusterFlowList](
+			"clusterflows",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v1beta1.ClusterFlow { return &v1beta1.ClusterFlow{} },
+			func() *v1beta1.ClusterFlowList { return &v1beta1.ClusterFlowList{} }),
 	}
-}
-
-// Get takes name of the clusterFlow, and returns the corresponding clusterFlow object, and an error if there is any.
-func (c *clusterFlows) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.ClusterFlow, err error) {
-	result = &v1beta1.ClusterFlow{}
-	err = c.client.Get().
-		Resource("clusterflows").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of ClusterFlows that match those selectors.
-func (c *clusterFlows) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.ClusterFlowList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1beta1.ClusterFlowList{}
-	err = c.client.Get().
-		Resource("clusterflows").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested clusterFlows.
-func (c *clusterFlows) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("clusterflows").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a clusterFlow and creates it.  Returns the server's representation of the clusterFlow, and an error, if there is any.
-func (c *clusterFlows) Create(ctx context.Context, clusterFlow *v1beta1.ClusterFlow, opts v1.CreateOptions) (result *v1beta1.ClusterFlow, err error) {
-	result = &v1beta1.ClusterFlow{}
-	err = c.client.Post().
-		Resource("clusterflows").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterFlow).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a clusterFlow and updates it. Returns the server's representation of the clusterFlow, and an error, if there is any.
-func (c *clusterFlows) Update(ctx context.Context, clusterFlow *v1beta1.ClusterFlow, opts v1.UpdateOptions) (result *v1beta1.ClusterFlow, err error) {
-	result = &v1beta1.ClusterFlow{}
-	err = c.client.Put().
-		Resource("clusterflows").
-		Name(clusterFlow.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterFlow).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *clusterFlows) UpdateStatus(ctx context.Context, clusterFlow *v1beta1.ClusterFlow, opts v1.UpdateOptions) (result *v1beta1.ClusterFlow, err error) {
-	result = &v1beta1.ClusterFlow{}
-	err = c.client.Put().
-		Resource("clusterflows").
-		Name(clusterFlow.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterFlow).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the clusterFlow and deletes it. Returns an error if one occurs.
-func (c *clusterFlows) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("clusterflows").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *clusterFlows) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("clusterflows").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched clusterFlow.
-func (c *clusterFlows) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.ClusterFlow, err error) {
-	result = &v1beta1.ClusterFlow{}
-	err = c.client.Patch(pt).
-		Resource("clusterflows").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

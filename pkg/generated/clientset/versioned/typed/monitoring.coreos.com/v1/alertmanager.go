@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,14 +20,13 @@ package v1
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // AlertmanagersGetter has a method to return a AlertmanagerInterface.
@@ -40,6 +39,7 @@ type AlertmanagersGetter interface {
 type AlertmanagerInterface interface {
 	Create(ctx context.Context, alertmanager *v1.Alertmanager, opts metav1.CreateOptions) (*v1.Alertmanager, error)
 	Update(ctx context.Context, alertmanager *v1.Alertmanager, opts metav1.UpdateOptions) (*v1.Alertmanager, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 	UpdateStatus(ctx context.Context, alertmanager *v1.Alertmanager, opts metav1.UpdateOptions) (*v1.Alertmanager, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
@@ -52,144 +52,18 @@ type AlertmanagerInterface interface {
 
 // alertmanagers implements AlertmanagerInterface
 type alertmanagers struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*v1.Alertmanager, *v1.AlertmanagerList]
 }
 
 // newAlertmanagers returns a Alertmanagers
 func newAlertmanagers(c *MonitoringV1Client, namespace string) *alertmanagers {
 	return &alertmanagers{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*v1.Alertmanager, *v1.AlertmanagerList](
+			"alertmanagers",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *v1.Alertmanager { return &v1.Alertmanager{} },
+			func() *v1.AlertmanagerList { return &v1.AlertmanagerList{} }),
 	}
-}
-
-// Get takes name of the alertmanager, and returns the corresponding alertmanager object, and an error if there is any.
-func (c *alertmanagers) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.Alertmanager, err error) {
-	result = &v1.Alertmanager{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("alertmanagers").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of Alertmanagers that match those selectors.
-func (c *alertmanagers) List(ctx context.Context, opts metav1.ListOptions) (result *v1.AlertmanagerList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1.AlertmanagerList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("alertmanagers").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested alertmanagers.
-func (c *alertmanagers) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("alertmanagers").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a alertmanager and creates it.  Returns the server's representation of the alertmanager, and an error, if there is any.
-func (c *alertmanagers) Create(ctx context.Context, alertmanager *v1.Alertmanager, opts metav1.CreateOptions) (result *v1.Alertmanager, err error) {
-	result = &v1.Alertmanager{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("alertmanagers").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(alertmanager).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a alertmanager and updates it. Returns the server's representation of the alertmanager, and an error, if there is any.
-func (c *alertmanagers) Update(ctx context.Context, alertmanager *v1.Alertmanager, opts metav1.UpdateOptions) (result *v1.Alertmanager, err error) {
-	result = &v1.Alertmanager{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("alertmanagers").
-		Name(alertmanager.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(alertmanager).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *alertmanagers) UpdateStatus(ctx context.Context, alertmanager *v1.Alertmanager, opts metav1.UpdateOptions) (result *v1.Alertmanager, err error) {
-	result = &v1.Alertmanager{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("alertmanagers").
-		Name(alertmanager.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(alertmanager).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the alertmanager and deletes it. Returns an error if one occurs.
-func (c *alertmanagers) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("alertmanagers").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *alertmanagers) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("alertmanagers").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched alertmanager.
-func (c *alertmanagers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Alertmanager, err error) {
-	result = &v1.Alertmanager{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("alertmanagers").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

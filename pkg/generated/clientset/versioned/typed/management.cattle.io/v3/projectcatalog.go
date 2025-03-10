@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // ProjectCatalogsGetter has a method to return a ProjectCatalogInterface.
@@ -51,128 +50,18 @@ type ProjectCatalogInterface interface {
 
 // projectCatalogs implements ProjectCatalogInterface
 type projectCatalogs struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*v3.ProjectCatalog, *v3.ProjectCatalogList]
 }
 
 // newProjectCatalogs returns a ProjectCatalogs
 func newProjectCatalogs(c *ManagementV3Client, namespace string) *projectCatalogs {
 	return &projectCatalogs{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*v3.ProjectCatalog, *v3.ProjectCatalogList](
+			"projectcatalogs",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *v3.ProjectCatalog { return &v3.ProjectCatalog{} },
+			func() *v3.ProjectCatalogList { return &v3.ProjectCatalogList{} }),
 	}
-}
-
-// Get takes name of the projectCatalog, and returns the corresponding projectCatalog object, and an error if there is any.
-func (c *projectCatalogs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ProjectCatalog, err error) {
-	result = &v3.ProjectCatalog{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("projectcatalogs").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of ProjectCatalogs that match those selectors.
-func (c *projectCatalogs) List(ctx context.Context, opts v1.ListOptions) (result *v3.ProjectCatalogList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.ProjectCatalogList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("projectcatalogs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested projectCatalogs.
-func (c *projectCatalogs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("projectcatalogs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a projectCatalog and creates it.  Returns the server's representation of the projectCatalog, and an error, if there is any.
-func (c *projectCatalogs) Create(ctx context.Context, projectCatalog *v3.ProjectCatalog, opts v1.CreateOptions) (result *v3.ProjectCatalog, err error) {
-	result = &v3.ProjectCatalog{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("projectcatalogs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(projectCatalog).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a projectCatalog and updates it. Returns the server's representation of the projectCatalog, and an error, if there is any.
-func (c *projectCatalogs) Update(ctx context.Context, projectCatalog *v3.ProjectCatalog, opts v1.UpdateOptions) (result *v3.ProjectCatalog, err error) {
-	result = &v3.ProjectCatalog{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("projectcatalogs").
-		Name(projectCatalog.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(projectCatalog).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the projectCatalog and deletes it. Returns an error if one occurs.
-func (c *projectCatalogs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("projectcatalogs").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *projectCatalogs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("projectcatalogs").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched projectCatalog.
-func (c *projectCatalogs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ProjectCatalog, err error) {
-	result = &v3.ProjectCatalog{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("projectcatalogs").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

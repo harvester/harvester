@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"regexp"
@@ -54,9 +55,11 @@ import (
 	vmUtil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
 )
 
 const (
+	minSNPrefixLength                 = 16
 	mcmFeature                        = "multi-cluster-management"
 	labelAppNameKey                   = "app.kubernetes.io/name"
 	labelAppNameValuePrometheus       = "prometheus"
@@ -64,6 +67,7 @@ const (
 	labelAppNameValueGrafana          = "grafana"
 	labelAppNameValueImportController = "harvester-vm-import-controller"
 	maxTTLDurationMinutes             = 52560000 //specifies max duration allowed for kubeconfig TTL setting, and corresponds to 100 years
+	mgmtClusterNetwork                = "mgmt"
 )
 
 var certs = getSystemCerts()
@@ -95,7 +99,6 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.NTPServersSettingName:                             validateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
-	settings.UpgradeConfigSettingName:                          validateUpgradeConfig,
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateAdditionalGuestMemoryOverheadRatio,
 }
 
@@ -116,7 +119,6 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
-	settings.UpgradeConfigSettingName:                          validateUpdateUpgradeConfig,
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateUpdateAdditionalGuestMemoryOverheadRatio,
 }
 
@@ -138,6 +140,7 @@ func NewValidator(
 	cnCache ctlnetworkv1.ClusterNetworkCache,
 	vcCache ctlnetworkv1.VlanConfigCache,
 	vsCache ctlnetworkv1.VlanStatusCache,
+	lhNodeCache ctllhv1b2.NodeCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
@@ -153,6 +156,7 @@ func NewValidator(
 		cnCache:            cnCache,
 		vcCache:            vcCache,
 		vsCache:            vsCache,
+		lhNodeCache:        lhNodeCache,
 	}
 
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
@@ -166,6 +170,9 @@ func NewValidator(
 
 	validateSettingFuncs[settings.HTTPProxySettingName] = validator.validateHTTPProxy
 	validateSettingUpdateFuncs[settings.HTTPProxySettingName] = validator.validateUpdateHTTPProxy
+
+	validateSettingFuncs[settings.UpgradeConfigSettingName] = validator.validateUpgradeConfig
+	validateSettingUpdateFuncs[settings.UpgradeConfigSettingName] = validator.validateUpdateUpgradeConfig
 
 	return validator
 }
@@ -186,6 +193,7 @@ type settingValidator struct {
 	cnCache            ctlnetworkv1.ClusterNetworkCache
 	vcCache            ctlnetworkv1.VlanConfigCache
 	vsCache            ctlnetworkv1.VlanStatusCache
+	lhNodeCache        ctllhv1b2.NodeCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -490,6 +498,10 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	}
 	if target == nil {
 		return nil
+	}
+
+	if target.RefreshIntervalInSeconds < 0 {
+		return werror.NewInvalidError("Refresh interval should be greater than or equal to 0", settings.KeywordValue)
 	}
 
 	// when target is from internal re-update, allow fast pass
@@ -1209,6 +1221,11 @@ func (v *settingValidator) checkStorageNetworkValueVaild() error {
 }
 
 func (v *settingValidator) checkVlanStatusReady(config *storagenetworkctl.Config) error {
+	//mgmt cluster
+	if config.ClusterNetwork == mgmtClusterNetwork {
+		return nil
+	}
+
 	_, err := v.cnCache.Get(config.ClusterNetwork)
 	if err != nil {
 		return fmt.Errorf("cluster network %s not found because %v", config.ClusterNetwork, err)
@@ -1248,6 +1265,11 @@ func getMatchNodes(vc *networkv1.VlanConfig) ([]string, error) {
 }
 
 func (v *settingValidator) checkVCSpansAllNodes(config *storagenetworkctl.Config) error {
+	//mgmt cluster
+	if config.ClusterNetwork == mgmtClusterNetwork {
+		return nil
+	}
+
 	matchedNodes := mapset.NewSet[string]()
 
 	vcs, err := v.vcCache.List(labels.Set{
@@ -1291,9 +1313,81 @@ func (v *settingValidator) checkVCSpansAllNodes(config *storagenetworkctl.Config
 }
 
 func (v *settingValidator) checkStorageNetworkVlanValid(config *storagenetworkctl.Config) error {
-	if config.Vlan < 1 || config.Vlan > 4094 {
-		return fmt.Errorf("The valid value range for VLAN IDs is 1 to 4094")
+	if config.Vlan < 0 || config.Vlan > 4094 {
+		return fmt.Errorf("The valid value range for VLAN IDs is 0 to 4094")
 	}
+
+	if config.Vlan <= 1 && config.ClusterNetwork == mgmtClusterNetwork {
+		return fmt.Errorf("storage network with vlan id %d not allowed on %s cluster", config.Vlan, config.ClusterNetwork)
+	}
+
+	return nil
+}
+
+func isOverlap(IP1 string, IP2 string) (bool, error) {
+	if IP1 == "" || IP2 == "" {
+		return false, nil
+	}
+
+	Prefix1, err := netip.ParsePrefix(IP1)
+	if err != nil {
+		return false, err
+	}
+
+	Prefix2, err := netip.ParsePrefix(IP2)
+	if err != nil {
+		return false, err
+	}
+
+	if Prefix1.Overlaps(Prefix2) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func validateIncludeExcludeRanges(config *storagenetworkctl.Config, includePrefixLen int) error {
+	IP1 := ""
+
+	for _, excludeIP := range config.Exclude {
+		_, network, err := net.ParseCIDR(excludeIP)
+		if err != nil {
+			return err
+		}
+
+		excludePrefixLen, _ := network.Mask.Size()
+		if excludePrefixLen < minSNPrefixLength {
+			return fmt.Errorf("min supported prefix lenth for storage network is %d, exclude Range PrefixLen received %d", minSNPrefixLength, excludePrefixLen)
+		}
+
+		//validate if include and exclude overlap
+		overlap, err := isOverlap(config.Range, excludeIP)
+		if err != nil {
+			return err
+		}
+
+		if !overlap {
+			return fmt.Errorf("exclude range %s do not overlap include range %s", excludeIP, config.Range)
+		}
+
+		if excludePrefixLen <= includePrefixLen {
+			return fmt.Errorf("exclude Range %s includes include Range %s, no allocatable ip addresses", excludeIP, config.Range)
+		}
+
+		IP2 := IP1
+		IP1 = excludeIP
+
+		//validate if exclude ranges have overlapping subnets within them
+		overlap, err = isOverlap(IP1, IP2)
+		if err != nil {
+			return err
+		}
+
+		if overlap {
+			return fmt.Errorf("exclude ranges have overlapping subnets %s %s", IP1, IP2)
+		}
+	}
+
 	return nil
 }
 
@@ -1303,8 +1397,40 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkc
 		return err
 	}
 	if !network.IP.Equal(ip) {
-		return fmt.Errorf("Range should be subnet CIDR %v", network)
+		return fmt.Errorf("range should be subnet CIDR %v", network)
 	}
+
+	prefixLen, _ := network.Mask.Size()
+	if prefixLen < minSNPrefixLength {
+		return fmt.Errorf("min supported prefix lenth for storage network is %d, include Range PrefixLen received %d", minSNPrefixLength, prefixLen)
+	}
+
+	if err = validateIncludeExcludeRanges(config, prefixLen); err != nil {
+		return err
+	}
+
+	lhnodes, err := v.lhNodeCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	MinAllocatableIPAddrs := 0
+
+	// Formula - https://docs.harvesterhci.io/v1.4/advanced/storagenetwork/
+	//Number of Images to download/upload is dynamic, so skipped in the formula calculated.
+	for _, lhNode := range lhnodes {
+		MinAllocatableIPAddrs = MinAllocatableIPAddrs + 2 + (len(lhNode.Spec.Disks) * 2)
+	}
+
+	count, err := webhookutil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	if err != nil {
+		return err
+	}
+
+	if count < MinAllocatableIPAddrs {
+		return fmt.Errorf("allocatable IP address range is < %d,allocate sufficient range", MinAllocatableIPAddrs)
+	}
+
 	return nil
 }
 
@@ -1433,7 +1559,16 @@ func validateUpgradeConfigHelper(setting *v1beta1.Setting) (*settings.UpgradeCon
 	return config, nil
 }
 
-func validateUpgradeConfigFields(upgradeConfig *settings.UpgradeConfig) error {
+func validateUpgradeConfigFields(setting *v1beta1.Setting, isSingleNode bool) error {
+	upgradeConfig, err := validateUpgradeConfigHelper(setting)
+	if err != nil {
+		return err
+	}
+
+	if upgradeConfig == nil {
+		return nil
+	}
+
 	strategyType := upgradeConfig.PreloadOption.Strategy.Type
 
 	// Validate the image preload strategy type field
@@ -1449,24 +1584,24 @@ func validateUpgradeConfigFields(upgradeConfig *settings.UpgradeConfig) error {
 		return fmt.Errorf("invalid image preload concurrency: %d", concurrency)
 	}
 
+	// Validate the restore VM field
+	if upgradeConfig.RestoreVM && !isSingleNode {
+		return fmt.Errorf("restoreVM is only supported in single node cluster")
+	}
+
 	return nil
 }
 
-func validateUpgradeConfig(setting *v1beta1.Setting) error {
-	upgradeConfig, err := validateUpgradeConfigHelper(setting)
+func (v *settingValidator) validateUpgradeConfig(setting *v1beta1.Setting) error {
+	isSingleNode, err := v.isSingleNode()
 	if err != nil {
 		return err
 	}
-
-	if upgradeConfig == nil {
-		return nil
-	}
-
-	return validateUpgradeConfigFields(upgradeConfig)
+	return validateUpgradeConfigFields(setting, isSingleNode)
 }
 
-func validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
-	return validateUpgradeConfig(newSetting)
+func (v *settingValidator) validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return v.validateUpgradeConfig(newSetting)
 }
 
 func validateAdditionalGuestMemoryOverheadRatio(newSetting *v1beta1.Setting) error {
@@ -1482,4 +1617,12 @@ func validateAdditionalGuestMemoryOverheadRatio(newSetting *v1beta1.Setting) err
 
 func validateUpdateAdditionalGuestMemoryOverheadRatio(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateAdditionalGuestMemoryOverheadRatio(newSetting)
+}
+
+func (v *settingValidator) isSingleNode() (bool, error) {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return false, err
+	}
+	return len(nodes) == 1, nil
 }

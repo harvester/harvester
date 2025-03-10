@@ -10,8 +10,6 @@ import (
 
 	ctlnodev1 "github.com/harvester/node-manager/pkg/generated/controllers/node.harvesterhci.io/v1beta1"
 	ctlhelmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
-	catalogv1api "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
-	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	ctlmgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
 	ctlrkev1 "github.com/rancher/rancher/pkg/generated/controllers/rke.cattle.io/v1"
@@ -41,6 +39,8 @@ var (
 		// The Longhorn storage over-provisioning percentage is set to 100, whereas Harvester uses 200.
 		// This needs to be synchronized when Harvester starts.
 		settings.OvercommitConfigSettingName,
+		// always run this when Harvester POD starts
+		settings.AdditionalGuestMemoryOverheadRatioName,
 	}
 	skipHashCheckSettings = []string{
 		settings.AutoRotateRKE2CertsSettingName,
@@ -69,8 +69,7 @@ type Handler struct {
 	longhornSettingCache ctllhv1.SettingCache
 	configmaps           ctlcorev1.ConfigMapClient
 	configmapCache       ctlcorev1.ConfigMapCache
-	serviceCache         ctlcorev1.ServiceCache
-	apps                 catalogv1.AppClient
+	endpointCache        ctlcorev1.EndpointsCache
 	managedCharts        ctlmgmtv3.ManagedChartClient
 	managedChartCache    ctlmgmtv3.ManagedChartCache
 	helmChartConfigs     ctlhelmv1.HelmChartConfigClient
@@ -183,21 +182,4 @@ func (h *Handler) redeployDeployment(namespace, name string) error {
 
 	_, err = h.deployments.Update(toUpdate)
 	return err
-}
-
-func (h *Handler) appOnChanged(_ string, app *catalogv1api.App) (*catalogv1api.App, error) {
-	if app == nil || app.DeletionTimestamp != nil {
-		return nil, nil
-	}
-
-	harvesterManagedChart, err := h.managedChartCache.Get(ManagedChartNamespace, HarvesterManagedChartName)
-	if err != nil {
-		return nil, err
-	}
-
-	if app.Namespace != harvesterManagedChart.Spec.DefaultNamespace || app.Name != harvesterManagedChart.Spec.ReleaseName {
-		return nil, nil
-	}
-
-	return nil, UpdateSupportBundleImage(h.settings, h.settingCache, app)
 }

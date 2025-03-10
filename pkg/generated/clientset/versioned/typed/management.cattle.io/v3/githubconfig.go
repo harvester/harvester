@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // GithubConfigsGetter has a method to return a GithubConfigInterface.
@@ -51,118 +50,18 @@ type GithubConfigInterface interface {
 
 // githubConfigs implements GithubConfigInterface
 type githubConfigs struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v3.GithubConfig, *v3.GithubConfigList]
 }
 
 // newGithubConfigs returns a GithubConfigs
 func newGithubConfigs(c *ManagementV3Client) *githubConfigs {
 	return &githubConfigs{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v3.GithubConfig, *v3.GithubConfigList](
+			"githubconfigs",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v3.GithubConfig { return &v3.GithubConfig{} },
+			func() *v3.GithubConfigList { return &v3.GithubConfigList{} }),
 	}
-}
-
-// Get takes name of the githubConfig, and returns the corresponding githubConfig object, and an error if there is any.
-func (c *githubConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.GithubConfig, err error) {
-	result = &v3.GithubConfig{}
-	err = c.client.Get().
-		Resource("githubconfigs").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of GithubConfigs that match those selectors.
-func (c *githubConfigs) List(ctx context.Context, opts v1.ListOptions) (result *v3.GithubConfigList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.GithubConfigList{}
-	err = c.client.Get().
-		Resource("githubconfigs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested githubConfigs.
-func (c *githubConfigs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("githubconfigs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a githubConfig and creates it.  Returns the server's representation of the githubConfig, and an error, if there is any.
-func (c *githubConfigs) Create(ctx context.Context, githubConfig *v3.GithubConfig, opts v1.CreateOptions) (result *v3.GithubConfig, err error) {
-	result = &v3.GithubConfig{}
-	err = c.client.Post().
-		Resource("githubconfigs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(githubConfig).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a githubConfig and updates it. Returns the server's representation of the githubConfig, and an error, if there is any.
-func (c *githubConfigs) Update(ctx context.Context, githubConfig *v3.GithubConfig, opts v1.UpdateOptions) (result *v3.GithubConfig, err error) {
-	result = &v3.GithubConfig{}
-	err = c.client.Put().
-		Resource("githubconfigs").
-		Name(githubConfig.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(githubConfig).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the githubConfig and deletes it. Returns an error if one occurs.
-func (c *githubConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("githubconfigs").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *githubConfigs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("githubconfigs").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched githubConfig.
-func (c *githubConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.GithubConfig, err error) {
-	result = &v3.GithubConfig{}
-	err = c.client.Patch(pt).
-		Resource("githubconfigs").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

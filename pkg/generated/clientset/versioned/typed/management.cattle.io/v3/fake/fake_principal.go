@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,20 +40,22 @@ var principalsKind = v3.SchemeGroupVersion.WithKind("Principal")
 
 // Get takes name of the principal, and returns the corresponding principal object, and an error if there is any.
 func (c *FakePrincipals) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Principal, err error) {
+	emptyResult := &v3.Principal{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(principalsResource, name), &v3.Principal{})
+		Invokes(testing.NewRootGetActionWithOptions(principalsResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Principal), err
 }
 
 // List takes label and field selectors, and returns the list of Principals that match those selectors.
 func (c *FakePrincipals) List(ctx context.Context, opts v1.ListOptions) (result *v3.PrincipalList, err error) {
+	emptyResult := &v3.PrincipalList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(principalsResource, principalsKind, opts), &v3.PrincipalList{})
+		Invokes(testing.NewRootListActionWithOptions(principalsResource, principalsKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,25 +74,27 @@ func (c *FakePrincipals) List(ctx context.Context, opts v1.ListOptions) (result 
 // Watch returns a watch.Interface that watches the requested principals.
 func (c *FakePrincipals) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(principalsResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(principalsResource, opts))
 }
 
 // Create takes the representation of a principal and creates it.  Returns the server's representation of the principal, and an error, if there is any.
 func (c *FakePrincipals) Create(ctx context.Context, principal *v3.Principal, opts v1.CreateOptions) (result *v3.Principal, err error) {
+	emptyResult := &v3.Principal{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(principalsResource, principal), &v3.Principal{})
+		Invokes(testing.NewRootCreateActionWithOptions(principalsResource, principal, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Principal), err
 }
 
 // Update takes the representation of a principal and updates it. Returns the server's representation of the principal, and an error, if there is any.
 func (c *FakePrincipals) Update(ctx context.Context, principal *v3.Principal, opts v1.UpdateOptions) (result *v3.Principal, err error) {
+	emptyResult := &v3.Principal{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(principalsResource, principal), &v3.Principal{})
+		Invokes(testing.NewRootUpdateActionWithOptions(principalsResource, principal, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Principal), err
 }
@@ -104,7 +108,7 @@ func (c *FakePrincipals) Delete(ctx context.Context, name string, opts v1.Delete
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakePrincipals) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(principalsResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(principalsResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.PrincipalList{})
 	return err
@@ -112,10 +116,11 @@ func (c *FakePrincipals) DeleteCollection(ctx context.Context, opts v1.DeleteOpt
 
 // Patch applies the patch and returns the patched principal.
 func (c *FakePrincipals) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Principal, err error) {
+	emptyResult := &v3.Principal{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(principalsResource, name, pt, data, subresources...), &v3.Principal{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(principalsResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Principal), err
 }

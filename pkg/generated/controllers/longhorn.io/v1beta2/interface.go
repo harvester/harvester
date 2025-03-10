@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,7 +35,10 @@ type Interface interface {
 	BackingImageDataSource() BackingImageDataSourceController
 	Backup() BackupController
 	BackupBackingImage() BackupBackingImageController
+	BackupTarget() BackupTargetController
+	BackupVolume() BackupVolumeController
 	Engine() EngineController
+	Node() NodeController
 	Replica() ReplicaController
 	Setting() SettingController
 	Snapshot() SnapshotController
@@ -68,8 +71,20 @@ func (v *version) BackupBackingImage() BackupBackingImageController {
 	return generic.NewController[*v1beta2.BackupBackingImage, *v1beta2.BackupBackingImageList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "BackupBackingImage"}, "backupbackingimages", true, v.controllerFactory)
 }
 
+func (v *version) BackupTarget() BackupTargetController {
+	return generic.NewController[*v1beta2.BackupTarget, *v1beta2.BackupTargetList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "BackupTarget"}, "backuptargets", true, v.controllerFactory)
+}
+
+func (v *version) BackupVolume() BackupVolumeController {
+	return generic.NewController[*v1beta2.BackupVolume, *v1beta2.BackupVolumeList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "BackupVolume"}, "backupvolumes", true, v.controllerFactory)
+}
+
 func (v *version) Engine() EngineController {
 	return generic.NewController[*v1beta2.Engine, *v1beta2.EngineList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "Engine"}, "engines", true, v.controllerFactory)
+}
+
+func (v *version) Node() NodeController {
+	return generic.NewController[*v1beta2.Node, *v1beta2.NodeList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "Node"}, "nodes", true, v.controllerFactory)
 }
 
 func (v *version) Replica() ReplicaController {

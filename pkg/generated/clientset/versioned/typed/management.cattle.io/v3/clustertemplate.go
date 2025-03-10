@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // ClusterTemplatesGetter has a method to return a ClusterTemplateInterface.
@@ -51,128 +50,18 @@ type ClusterTemplateInterface interface {
 
 // clusterTemplates implements ClusterTemplateInterface
 type clusterTemplates struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*v3.ClusterTemplate, *v3.ClusterTemplateList]
 }
 
 // newClusterTemplates returns a ClusterTemplates
 func newClusterTemplates(c *ManagementV3Client, namespace string) *clusterTemplates {
 	return &clusterTemplates{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*v3.ClusterTemplate, *v3.ClusterTemplateList](
+			"clustertemplates",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *v3.ClusterTemplate { return &v3.ClusterTemplate{} },
+			func() *v3.ClusterTemplateList { return &v3.ClusterTemplateList{} }),
 	}
-}
-
-// Get takes name of the clusterTemplate, and returns the corresponding clusterTemplate object, and an error if there is any.
-func (c *clusterTemplates) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ClusterTemplate, err error) {
-	result = &v3.ClusterTemplate{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("clustertemplates").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of ClusterTemplates that match those selectors.
-func (c *clusterTemplates) List(ctx context.Context, opts v1.ListOptions) (result *v3.ClusterTemplateList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.ClusterTemplateList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("clustertemplates").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested clusterTemplates.
-func (c *clusterTemplates) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("clustertemplates").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a clusterTemplate and creates it.  Returns the server's representation of the clusterTemplate, and an error, if there is any.
-func (c *clusterTemplates) Create(ctx context.Context, clusterTemplate *v3.ClusterTemplate, opts v1.CreateOptions) (result *v3.ClusterTemplate, err error) {
-	result = &v3.ClusterTemplate{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("clustertemplates").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterTemplate).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a clusterTemplate and updates it. Returns the server's representation of the clusterTemplate, and an error, if there is any.
-func (c *clusterTemplates) Update(ctx context.Context, clusterTemplate *v3.ClusterTemplate, opts v1.UpdateOptions) (result *v3.ClusterTemplate, err error) {
-	result = &v3.ClusterTemplate{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("clustertemplates").
-		Name(clusterTemplate.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterTemplate).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the clusterTemplate and deletes it. Returns an error if one occurs.
-func (c *clusterTemplates) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("clustertemplates").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *clusterTemplates) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("clustertemplates").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched clusterTemplate.
-func (c *clusterTemplates) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterTemplate, err error) {
-	result = &v3.ClusterTemplate{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("clustertemplates").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

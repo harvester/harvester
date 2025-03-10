@@ -23,6 +23,7 @@ const (
 	DataSourceTypeExportFromVolumeParameterSnapshotName              = "snapshot-name"
 	DataSourceTypeExportFromVolumeParameterSenderAddress             = "sender-address"
 	DataSourceTypeExportFromVolumeParameterFileSyncHTTPClientTimeout = "file-sync-http-client-timeout"
+	DataSourceTypeRestoreParameterBackupTargetName                   = "backup-target-name"
 	DataSourceTypeRestoreParameterBackupURL                          = "backup-url"
 	DataSourceTypeRestoreParameterConcurrentLimit                    = "concurrent-limit"
 	DataSourceTypeCloneParameterBackingImage                         = "backing-image"
@@ -30,6 +31,7 @@ const (
 	DataSourceTypeCloneParameterEncryption                           = "encryption"
 	DataSourceTypeCloneParameterSecret                               = "secret"
 	DataSourceTypeCloneParameterSecretNamespace                      = "secret-namespace"
+	DataSourceTypeParameterDataEngine                                = "data-engine"
 )
 
 // BackingImageDataSourceSpec defines the desired state of the Longhorn backing image data source

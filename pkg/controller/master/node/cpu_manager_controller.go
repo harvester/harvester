@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/go-errors/errors"
-	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -21,11 +20,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/util"
-	"github.com/harvester/harvester/pkg/util/catalog"
+	utilHelm "github.com/harvester/harvester/pkg/util/helm"
 )
 
 const (
@@ -61,27 +61,26 @@ type CPUManagerUpdateStatus struct {
 // cpuManagerNodeHandler updates cpu manager status of a node in its annotations, so that
 // we can tell whether the node is under modifing cpu manager policy or not and its current policy.
 type cpuManagerNodeHandler struct {
-	appCache   catalogv1.AppCache
 	nodeCache  ctlcorev1.NodeCache
 	nodeClient ctlcorev1.NodeClient
 	jobCache   ctlbatchv1.JobCache
 	jobClient  ctlbatchv1.JobClient
+	clientset  *kubernetes.Clientset
 	namespace  string
 }
 
 // CPUManagerRegister registers the node controller
 func CPUManagerRegister(ctx context.Context, management *config.Management, options config.Options) error {
-	app := management.CatalogFactory.Catalog().V1().App()
 	job := management.BatchFactory.Batch().V1().Job()
 	node := management.CoreFactory.Core().V1().Node()
 	pod := management.CoreFactory.Core().V1().Pod()
 
 	cpuManagerNodeHandler := &cpuManagerNodeHandler{
-		appCache:   app.Cache(),
 		jobCache:   job.Cache(),
 		jobClient:  job,
 		nodeCache:  node.Cache(),
 		nodeClient: node,
+		clientset:  management.ClientSet,
 		namespace:  options.Namespace,
 	}
 
@@ -211,12 +210,13 @@ func (h *cpuManagerNodeHandler) OnPodChanged(_ string, pod *corev1.Pod) (*corev1
 		}
 
 		job, err := h.jobCache.Get(h.namespace, jobName)
-		if err != nil && !apierrors.IsNotFound(err) {
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				logrus.WithFields(logFields).Warn("CPU Manager job was not found")
+				return pod, nil
+			}
 			logrus.WithFields(logFields).WithError(err).Error("Failed to get cpu manager job from cache")
 			return nil, err
-		} else if job == nil {
-			logrus.WithFields(logFields).Info("CPU Manager job was not found")
-			return pod, nil
 		}
 		if job.DeletionTimestamp != nil {
 			logrus.WithFields(logFields).Info("CPU Manager job is going to be deleted")
@@ -394,7 +394,7 @@ func (h *cpuManagerNodeHandler) getJob(policy CPUManagerPolicy, node *corev1.Nod
 }
 
 func (h *cpuManagerNodeHandler) submitJob(updateStatus *CPUManagerUpdateStatus, node *corev1.Node) (*batchv1.Job, error) {
-	image, err := catalog.FetchAppChartImage(h.appCache, h.namespace, releaseAppHarvesterName, []string{"generalJob", "image"})
+	image, err := utilHelm.FetchImageFromHelmValues(h.clientset, h.namespace, releaseAppHarvesterName, []string{"generalJob", "image"})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get harvester image (%s): %v", image.ImageName(), err)
 	}

@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var alertmanagersKind = v1.SchemeGroupVersion.WithKind("Alertmanager")
 
 // Get takes name of the alertmanager, and returns the corresponding alertmanager object, and an error if there is any.
 func (c *FakeAlertmanagers) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.Alertmanager, err error) {
+	emptyResult := &v1.Alertmanager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(alertmanagersResource, c.ns, name), &v1.Alertmanager{})
+		Invokes(testing.NewGetActionWithOptions(alertmanagersResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.Alertmanager), err
 }
 
 // List takes label and field selectors, and returns the list of Alertmanagers that match those selectors.
 func (c *FakeAlertmanagers) List(ctx context.Context, opts metav1.ListOptions) (result *v1.AlertmanagerList, err error) {
+	emptyResult := &v1.AlertmanagerList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(alertmanagersResource, alertmanagersKind, c.ns, opts), &v1.AlertmanagerList{})
+		Invokes(testing.NewListActionWithOptions(alertmanagersResource, alertmanagersKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeAlertmanagers) List(ctx context.Context, opts metav1.ListOptions) (
 // Watch returns a watch.Interface that watches the requested alertmanagers.
 func (c *FakeAlertmanagers) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(alertmanagersResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(alertmanagersResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a alertmanager and creates it.  Returns the server's representation of the alertmanager, and an error, if there is any.
 func (c *FakeAlertmanagers) Create(ctx context.Context, alertmanager *v1.Alertmanager, opts metav1.CreateOptions) (result *v1.Alertmanager, err error) {
+	emptyResult := &v1.Alertmanager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(alertmanagersResource, c.ns, alertmanager), &v1.Alertmanager{})
+		Invokes(testing.NewCreateActionWithOptions(alertmanagersResource, c.ns, alertmanager, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.Alertmanager), err
 }
 
 // Update takes the representation of a alertmanager and updates it. Returns the server's representation of the alertmanager, and an error, if there is any.
 func (c *FakeAlertmanagers) Update(ctx context.Context, alertmanager *v1.Alertmanager, opts metav1.UpdateOptions) (result *v1.Alertmanager, err error) {
+	emptyResult := &v1.Alertmanager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(alertmanagersResource, c.ns, alertmanager), &v1.Alertmanager{})
+		Invokes(testing.NewUpdateActionWithOptions(alertmanagersResource, c.ns, alertmanager, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.Alertmanager), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeAlertmanagers) UpdateStatus(ctx context.Context, alertmanager *v1.Alertmanager, opts metav1.UpdateOptions) (*v1.Alertmanager, error) {
+func (c *FakeAlertmanagers) UpdateStatus(ctx context.Context, alertmanager *v1.Alertmanager, opts metav1.UpdateOptions) (result *v1.Alertmanager, err error) {
+	emptyResult := &v1.Alertmanager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(alertmanagersResource, "status", c.ns, alertmanager), &v1.Alertmanager{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(alertmanagersResource, "status", c.ns, alertmanager, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.Alertmanager), err
 }
@@ -123,7 +128,7 @@ func (c *FakeAlertmanagers) Delete(ctx context.Context, name string, opts metav1
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeAlertmanagers) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(alertmanagersResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(alertmanagersResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1.AlertmanagerList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeAlertmanagers) DeleteCollection(ctx context.Context, opts metav1.De
 
 // Patch applies the patch and returns the patched alertmanager.
 func (c *FakeAlertmanagers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Alertmanager, err error) {
+	emptyResult := &v1.Alertmanager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(alertmanagersResource, c.ns, name, pt, data, subresources...), &v1.Alertmanager{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(alertmanagersResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.Alertmanager), err
 }

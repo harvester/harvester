@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/docker/go-units"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
@@ -40,12 +41,14 @@ import (
 const (
 	upgradeStateLabel                         = "harvesterhci.io/upgradeState"
 	skipWebhookAnnotation                     = "harvesterhci.io/skipWebhook"
+	skipSingleReplicaDetachedVol              = "harvesterhci.io/skipSingleReplicaDetachedVol"
 	rkeInternalIPAnnotation                   = "rke2.io/internal-ip"
 	managedChartNamespace                     = "fleet-local"
-	defaultMinFreeDiskSpace            uint64 = 30 * 1024 * 1024 * 1024 // 30GB
 	defaultNewImageSize                uint64 = 13 * 1024 * 1024 * 1024 // 13GB, this value aggregates all tarball image sizes. It may change in the future.
 	defaultImageGCHighThresholdPercent        = 85.0                    // default value in kubelet config
 	freeSystemPartitionMsg                    = "df -h '/usr/local/'"
+	minCertsExpirationInDayAnnotation         = "harvesterhci.io/minCertsExpirationInDay"
+	defaultMinCertsExpirationInDay            = 7
 )
 
 func NewValidator(
@@ -56,7 +59,10 @@ func NewValidator(
 	machines ctlclusterv1.MachineCache,
 	managedChartCache mgmtv3.ManagedChartCache,
 	versionCache ctlharvesterv1.VersionCache,
+	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
+	svmbackupCache ctlharvesterv1.ScheduleVMBackupCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
+	endpointCache v1.EndpointsCache,
 	httpClient *http.Client,
 	bearToken string,
 ) types.Validator {
@@ -68,7 +74,10 @@ func NewValidator(
 		machines:          machines,
 		managedChartCache: managedChartCache,
 		versionCache:      versionCache,
+		vmBackupCache:     vmBackupCache,
+		svmbackupCache:    svmbackupCache,
 		vmiCache:          vmiCache,
+		endpointCache:     endpointCache,
 		httpClient:        httpClient,
 		bearToken:         bearToken,
 	}
@@ -84,7 +93,10 @@ type upgradeValidator struct {
 	machines          ctlclusterv1.MachineCache
 	managedChartCache mgmtv3.ManagedChartCache
 	versionCache      ctlharvesterv1.VersionCache
+	vmBackupCache     ctlharvesterv1.VirtualMachineBackupCache
+	svmbackupCache    ctlharvesterv1.ScheduleVMBackupCache
 	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
+	endpointCache     v1.EndpointsCache
 	httpClient        *http.Client
 	bearToken         string
 }
@@ -139,10 +151,10 @@ func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error
 		}
 	}
 
-	return v.checkResources(version)
+	return v.checkResources(version, newUpgrade)
 }
 
-func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
+func (v *upgradeValidator) checkResources(version *v1beta1.Version, upgrade *v1beta1.Upgrade) error {
 	hasDegradedVolume, err := v.hasDegradedVolume()
 	if err != nil {
 		return werror.NewInternalError(err.Error())
@@ -161,6 +173,14 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
 		return werror.NewBadRequest(fmt.Sprintf("cluster %s/%s status is %s, please wait for it to be provisioned", util.FleetLocalNamespaceName, util.LocalClusterName, cluster.Status.Phase))
 	}
 
+	if err := v.checkVMBackups(); err != nil {
+		return err
+	}
+
+	if err := v.checkScheduleVMBackups(); err != nil {
+		return err
+	}
+
 	if err := v.checkManagedCharts(); err != nil {
 		return err
 	}
@@ -173,11 +193,15 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version) error {
 		return err
 	}
 
-	if err := v.checkSingleReplicaVolumes(); err != nil {
+	if err := v.checkSingleReplicaVolumes(upgrade); err != nil {
 		return err
 	}
 
-	return v.checkNonLiveMigratableVMs()
+	if err := v.checkNonLiveMigratableVMs(); err != nil {
+		return err
+	}
+
+	return v.checkCerts(version)
 }
 
 func (v *upgradeValidator) hasDegradedVolume() (bool, error) {
@@ -224,20 +248,53 @@ func (v *upgradeValidator) checkManagedCharts() error {
 	return nil
 }
 
+// Since volume snapshot/backup will hold one additional LH VA tickets, it can block VM live migration.
+// We should check if there is any vmbackup under processing before upgrade
+func (v *upgradeValidator) checkVMBackups() error {
+	vmBackups, err := v.vmBackupCache.GetByIndex(indexeres.VMBackupByIsProgressing, strconv.FormatBool(true))
+	if err != nil {
+		return err
+	}
+
+	if len(vmBackups) == 0 {
+		return nil
+	}
+
+	return werror.NewBadRequest(fmt.Sprintf("please wait until all vmbackups are stopped, for example %s/%s is under processing",
+		vmBackups[0].Namespace, vmBackups[0].Name))
+}
+
+// Since volume snapshot/backup will hold one additional LH VA tickets, it can block VM live migration,
+// and an active schedule could start a vmbackup at any time.
+// we should check if there is any running schedule before upgrade
+func (v *upgradeValidator) checkScheduleVMBackups() error {
+	svmbackups, err := v.svmbackupCache.GetByIndex(indexeres.ScheduleVMBackupBySuspended, strconv.FormatBool(false))
+	if err != nil {
+		return err
+	}
+
+	if len(svmbackups) == 0 {
+		return nil
+	}
+
+	return werror.NewBadRequest(fmt.Sprintf("please suspend all backup/snapshot schedule, for example %s/%s is running",
+		svmbackups[0].Namespace, svmbackups[0].Name))
+}
+
 func (v *upgradeValidator) checkNodes(version *v1beta1.Version) error {
 	nodes, err := v.nodes.List(labels.Everything())
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("can't list nodes, err: %+v", err))
 	}
 
-	minFreeDiskSpace := defaultMinFreeDiskSpace
-	if version != nil {
-		if value, ok := version.Annotations[versionWebhook.MinFreeDiskSpaceGBAnnotation]; ok {
-			v, err := strconv.ParseUint(value, 10, 64)
+	skipGarbageCollection := false
+	if version != nil && version.Annotations != nil {
+		if value, ok := version.Annotations[versionWebhook.SkipGarbageCollectionThreadholdCheckAnnotation]; ok {
+			v, err := strconv.ParseBool(value)
 			if err != nil {
-				return werror.NewBadRequest(fmt.Sprintf("invalid value %s for %s annotation in version %s/%s", value, versionWebhook.MinFreeDiskSpaceGBAnnotation, version.Namespace, version.Name))
+				return werror.NewBadRequest(fmt.Sprintf("invalid value %s for %s annotation in version %s/%s", value, versionWebhook.SkipGarbageCollectionThreadholdCheckAnnotation, version.Namespace, version.Name))
 			}
-			minFreeDiskSpace = v * 1024 * 1024 * 1024
+			skipGarbageCollection = v
 		}
 	}
 
@@ -255,15 +312,17 @@ func (v *upgradeValidator) checkNodes(version *v1beta1.Version) error {
 			return werror.NewBadRequest(fmt.Sprintf("node %s is unschedulable, please wait for it to be schedulable", node.Name))
 		}
 
-		if err := v.checkDiskSpace(node, minFreeDiskSpace); err != nil {
-			return err
+		if !skipGarbageCollection {
+			if err := v.checkDiskSpace(node); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func (v *upgradeValidator) checkDiskSpace(node *corev1.Node, minFreeDiskSpace uint64) error {
+func (v *upgradeValidator) checkDiskSpace(node *corev1.Node) error {
 	internalIP, ok := node.Annotations[rkeInternalIPAnnotation]
 	if !ok {
 		return werror.NewInternalError(fmt.Sprintf("node %s doesn't have %s annotation", node.Name, rkeInternalIPAnnotation))
@@ -298,12 +357,6 @@ func (v *upgradeValidator) checkDiskSpace(node *corev1.Node, minFreeDiskSpace ui
 			node.Name, usedPercent, strconv.FormatFloat(imageGCHighThresholdPercent, 'f', -1, 64)))
 	}
 
-	if *summary.Node.Fs.AvailableBytes < minFreeDiskSpace {
-		min := units.BytesSize(float64(minFreeDiskSpace))
-		avail := units.BytesSize(float64(*summary.Node.Fs.AvailableBytes))
-		return werror.NewBadRequest(fmt.Sprintf("Node %q has insufficient free system partition space %s (%s). The upgrade requires at least %s of free system partition space on each node.",
-			node.Name, avail, freeSystemPartitionMsg, min))
-	}
 	return nil
 }
 
@@ -322,7 +375,53 @@ func (v *upgradeValidator) checkMachines() error {
 	return nil
 }
 
-func (v *upgradeValidator) checkSingleReplicaVolumes() error {
+func skipSingleReplicaDetachedVolCheck(upgrade *v1beta1.Upgrade) bool {
+	var annotations = upgrade.GetAnnotations()
+	if annotations == nil || annotations[skipSingleReplicaDetachedVol] == "" {
+		return false
+	}
+	return true
+}
+
+func checkActiveSingleReplicaVols(singleReplicaVols []*lhv1beta2.Volume) error {
+	volumeNames := make([]string, 0, len(singleReplicaVols))
+	for _, volume := range singleReplicaVols {
+		switch volume.Status.State {
+		case lhv1beta2.VolumeStateCreating, lhv1beta2.VolumeStateAttached, lhv1beta2.VolumeStateAttaching:
+			pvcNamespace := volume.Status.KubernetesStatus.Namespace
+			pvcName := volume.Status.KubernetesStatus.PVCName
+			volumeNames = append(volumeNames, pvcNamespace+"/"+pvcName)
+		}
+	}
+
+	if len(volumeNames) > 0 {
+		return werror.NewInvalidError(
+			fmt.Sprintf("Following PVCs with active single-replica volume, please consider shutdown the corresponding workload before upgrade: %s", strings.Join(volumeNames, ", ")), "",
+		)
+	}
+	return nil
+}
+
+func checkAllSingleReplicaVols(singleReplicaVols []*lhv1beta2.Volume) error {
+	volumeNames := make([]string, 0, len(singleReplicaVols))
+	for _, volume := range singleReplicaVols {
+		// If the pvc is bound only until it's used, the related volume can be never created,
+		// in this case, we will not iterate such pvc,
+		// so it's still safe to directly access `volume.Status.KubernetesStatus` fields
+		pvcNamespace := volume.Status.KubernetesStatus.Namespace
+		pvcName := volume.Status.KubernetesStatus.PVCName
+		volumeNames = append(volumeNames, pvcNamespace+"/"+pvcName)
+	}
+
+	if len(volumeNames) > 0 {
+		return werror.NewInvalidError(
+			fmt.Sprintf("Following PVCs with single-replica volume, even the volume is detached, upgrade may have potential data integrity concerns: %s", strings.Join(volumeNames, ", ")), "",
+		)
+	}
+	return nil
+}
+
+func (v *upgradeValidator) checkSingleReplicaVolumes(upgrade *v1beta1.Upgrade) error {
 	// Upgrade should be rejected if any single-replica volume exists
 	nodes, err := v.nodes.List(labels.Everything())
 	if err != nil {
@@ -340,23 +439,12 @@ func (v *upgradeValidator) checkSingleReplicaVolumes() error {
 		return err
 	}
 
-	volumeNames := make([]string, 0, len(singleReplicaVolumes))
-	for _, volume := range singleReplicaVolumes {
-		switch volume.Status.State {
-		case lhv1beta2.VolumeStateCreating, lhv1beta2.VolumeStateAttached, lhv1beta2.VolumeStateAttaching:
-			pvcNamespace := volume.Status.KubernetesStatus.Namespace
-			pvcName := volume.Status.KubernetesStatus.PVCName
-			volumeNames = append(volumeNames, pvcNamespace+"/"+pvcName)
-		}
+	checkFunc := checkAllSingleReplicaVols
+	if skipSingleReplicaDetachedVolCheck(upgrade) {
+		checkFunc = checkActiveSingleReplicaVols
 	}
 
-	if len(volumeNames) > 0 {
-		return werror.NewInvalidError(
-			fmt.Sprintf("The backing volumes of the following PVCs have single replica configured, please consider shutdown the corresponding workload before upgrade: %s", strings.Join(volumeNames, ", ")), "",
-		)
-	}
-
-	return nil
+	return checkFunc(singleReplicaVolumes)
 }
 
 func (v *upgradeValidator) checkNonLiveMigratableVMs() error {
@@ -466,4 +554,39 @@ func (v *upgradeValidator) getKubeletStatsSummary(nodeName, kubeletURL string) (
 		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't parse json response %s, err: %+v", nodeName, string(body), err))
 	}
 	return summary, nil
+}
+
+func (v *upgradeValidator) checkCerts(version *v1beta1.Version) error {
+	kubernetesIPs, err := util.GetKubernetesIps(v.endpointCache)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("can't get list of kubernetes ip, err: %+v", err))
+	}
+	if len(kubernetesIPs) == 0 {
+		err = fmt.Errorf("cluster ip is empty")
+		logrus.WithFields(logrus.Fields{
+			"namespace": metav1.NamespaceDefault,
+			"name":      "kubernetes",
+		}).WithError(err).Error("cluster ip is empty in the endpoints")
+		return werror.NewInternalError(fmt.Sprintf("can't get kubernetes ip, err: %+v", err))
+	}
+
+	earliestExpiringCert, err := util.GetAddrsEarliestExpiringCert(kubernetesIPs)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("can't get earliest expiring cert, err: %+v", err))
+	}
+
+	minCertsExpirationInDay := defaultMinCertsExpirationInDay
+	if value, ok := version.Annotations[minCertsExpirationInDayAnnotation]; ok {
+		minCertsExpirationInDay, err = strconv.Atoi(value)
+		if err != nil {
+			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, minCertsExpirationInDayAnnotation))
+		}
+	}
+
+	expirationDate := time.Now().AddDate(0, 0, minCertsExpirationInDay)
+	if earliestExpiringCert.NotAfter.Before(expirationDate) {
+		return werror.NewBadRequest(fmt.Sprintf(
+			"earliest expiring cert for default/kubernetes ClusterIP is %s, it will expire in %s days. Please rotate RKE2 certificates.", earliestExpiringCert.NotAfter, strconv.Itoa(minCertsExpirationInDay)))
+	}
+	return nil
 }

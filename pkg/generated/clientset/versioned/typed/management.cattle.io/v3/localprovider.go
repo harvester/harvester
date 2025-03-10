@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // LocalProvidersGetter has a method to return a LocalProviderInterface.
@@ -51,118 +50,18 @@ type LocalProviderInterface interface {
 
 // localProviders implements LocalProviderInterface
 type localProviders struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v3.LocalProvider, *v3.LocalProviderList]
 }
 
 // newLocalProviders returns a LocalProviders
 func newLocalProviders(c *ManagementV3Client) *localProviders {
 	return &localProviders{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v3.LocalProvider, *v3.LocalProviderList](
+			"localproviders",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v3.LocalProvider { return &v3.LocalProvider{} },
+			func() *v3.LocalProviderList { return &v3.LocalProviderList{} }),
 	}
-}
-
-// Get takes name of the localProvider, and returns the corresponding localProvider object, and an error if there is any.
-func (c *localProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.LocalProvider, err error) {
-	result = &v3.LocalProvider{}
-	err = c.client.Get().
-		Resource("localproviders").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of LocalProviders that match those selectors.
-func (c *localProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.LocalProviderList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.LocalProviderList{}
-	err = c.client.Get().
-		Resource("localproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested localProviders.
-func (c *localProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("localproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a localProvider and creates it.  Returns the server's representation of the localProvider, and an error, if there is any.
-func (c *localProviders) Create(ctx context.Context, localProvider *v3.LocalProvider, opts v1.CreateOptions) (result *v3.LocalProvider, err error) {
-	result = &v3.LocalProvider{}
-	err = c.client.Post().
-		Resource("localproviders").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(localProvider).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a localProvider and updates it. Returns the server's representation of the localProvider, and an error, if there is any.
-func (c *localProviders) Update(ctx context.Context, localProvider *v3.LocalProvider, opts v1.UpdateOptions) (result *v3.LocalProvider, err error) {
-	result = &v3.LocalProvider{}
-	err = c.client.Put().
-		Resource("localproviders").
-		Name(localProvider.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(localProvider).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the localProvider and deletes it. Returns an error if one occurs.
-func (c *localProviders) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("localproviders").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *localProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("localproviders").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched localProvider.
-func (c *localProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.LocalProvider, err error) {
-	result = &v3.LocalProvider{}
-	err = c.client.Patch(pt).
-		Resource("localproviders").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

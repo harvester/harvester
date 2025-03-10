@@ -64,6 +64,7 @@ func (h *mcmSettingsHandler) reconcileInternalCASetting(setting *mgmtv3.Setting,
 
 	var patchedConfigMap *corev1.ConfigMap
 	if currentVal != encodedCA {
+		logrus.Infof("patch fleet-controller configmap %v from %v to %v", util.APIServerCAKey, currentVal, encodedCA)
 		patchedConfigMap, err = patchConfigMap(fleetControllerConfig, util.APIServerCAKey, encodedCA)
 		if err != nil {
 			return setting, err
@@ -85,6 +86,7 @@ func (h *mcmSettingsHandler) reconcileInternalServerURLSetting(setting *mgmtv3.S
 
 	var patchedConfigMap *corev1.ConfigMap
 	if currentVal != apiServerURL {
+		logrus.Infof("patch fleet-controller configmap %v from %v to %v", util.APIServerURLKey, currentVal, apiServerURL)
 		patchedConfigMap, err = patchConfigMap(fleetControllerConfig, util.APIServerURLKey, apiServerURL)
 		if err != nil {
 			return setting, err

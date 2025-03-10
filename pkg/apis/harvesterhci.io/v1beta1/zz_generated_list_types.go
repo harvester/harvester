@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -274,6 +274,23 @@ type ScheduleVMBackupList struct {
 
 func NewScheduleVMBackup(namespace, name string, obj ScheduleVMBackup) *ScheduleVMBackup {
 	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ScheduleVMBackup").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// VirtualMachineImageDownloaderList is a list of VirtualMachineImageDownloader resources
+type VirtualMachineImageDownloaderList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []VirtualMachineImageDownloader `json:"items"`
+}
+
+func NewVirtualMachineImageDownloader(namespace, name string, obj VirtualMachineImageDownloader) *VirtualMachineImageDownloader {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("VirtualMachineImageDownloader").ToAPIVersionAndKind()
 	obj.Name = name
 	obj.Namespace = namespace
 	return &obj

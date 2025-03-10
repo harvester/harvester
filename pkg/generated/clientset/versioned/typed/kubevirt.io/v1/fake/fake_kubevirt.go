@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var kubevirtsKind = v1.SchemeGroupVersion.WithKind("KubeVirt")
 
 // Get takes name of the kubeVirt, and returns the corresponding kubeVirt object, and an error if there is any.
 func (c *FakeKubeVirts) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.KubeVirt, err error) {
+	emptyResult := &v1.KubeVirt{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(kubevirtsResource, c.ns, name), &v1.KubeVirt{})
+		Invokes(testing.NewGetActionWithOptions(kubevirtsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.KubeVirt), err
 }
 
 // List takes label and field selectors, and returns the list of KubeVirts that match those selectors.
 func (c *FakeKubeVirts) List(ctx context.Context, opts metav1.ListOptions) (result *v1.KubeVirtList, err error) {
+	emptyResult := &v1.KubeVirtList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(kubevirtsResource, kubevirtsKind, c.ns, opts), &v1.KubeVirtList{})
+		Invokes(testing.NewListActionWithOptions(kubevirtsResource, kubevirtsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeKubeVirts) List(ctx context.Context, opts metav1.ListOptions) (resu
 // Watch returns a watch.Interface that watches the requested kubeVirts.
 func (c *FakeKubeVirts) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(kubevirtsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(kubevirtsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a kubeVirt and creates it.  Returns the server's representation of the kubeVirt, and an error, if there is any.
 func (c *FakeKubeVirts) Create(ctx context.Context, kubeVirt *v1.KubeVirt, opts metav1.CreateOptions) (result *v1.KubeVirt, err error) {
+	emptyResult := &v1.KubeVirt{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(kubevirtsResource, c.ns, kubeVirt), &v1.KubeVirt{})
+		Invokes(testing.NewCreateActionWithOptions(kubevirtsResource, c.ns, kubeVirt, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.KubeVirt), err
 }
 
 // Update takes the representation of a kubeVirt and updates it. Returns the server's representation of the kubeVirt, and an error, if there is any.
 func (c *FakeKubeVirts) Update(ctx context.Context, kubeVirt *v1.KubeVirt, opts metav1.UpdateOptions) (result *v1.KubeVirt, err error) {
+	emptyResult := &v1.KubeVirt{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(kubevirtsResource, c.ns, kubeVirt), &v1.KubeVirt{})
+		Invokes(testing.NewUpdateActionWithOptions(kubevirtsResource, c.ns, kubeVirt, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.KubeVirt), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeKubeVirts) UpdateStatus(ctx context.Context, kubeVirt *v1.KubeVirt, opts metav1.UpdateOptions) (*v1.KubeVirt, error) {
+func (c *FakeKubeVirts) UpdateStatus(ctx context.Context, kubeVirt *v1.KubeVirt, opts metav1.UpdateOptions) (result *v1.KubeVirt, err error) {
+	emptyResult := &v1.KubeVirt{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(kubevirtsResource, "status", c.ns, kubeVirt), &v1.KubeVirt{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(kubevirtsResource, "status", c.ns, kubeVirt, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.KubeVirt), err
 }
@@ -123,7 +128,7 @@ func (c *FakeKubeVirts) Delete(ctx context.Context, name string, opts metav1.Del
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeKubeVirts) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(kubevirtsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(kubevirtsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1.KubeVirtList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeKubeVirts) DeleteCollection(ctx context.Context, opts metav1.Delete
 
 // Patch applies the patch and returns the patched kubeVirt.
 func (c *FakeKubeVirts) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.KubeVirt, err error) {
+	emptyResult := &v1.KubeVirt{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(kubevirtsResource, c.ns, name, pt, data, subresources...), &v1.KubeVirt{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(kubevirtsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.KubeVirt), err
 }

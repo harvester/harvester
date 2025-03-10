@@ -14,7 +14,7 @@ In addition to traditional virtual machines (VMs), Harvester supports containeri
 ## Overview
 Harvester is an enterprise-ready, easy-to-use infrastructure platform that leverages local, direct attached storage instead of complex external SANs. It utilizes Kubernetes API as a unified automation language across container and VM workloads. Some key features of Harvester include:
 
-1. **Easy to install:** Since Harvester ships as a bootable appliance image, you can install it directly on a bare metal server with the [ISO](https://docs.harvesterhci.io/latest/install/index) image or automatically install it using [iPXE scripts](https://docs.harvesterhci.io/latest/install/pxe-boot-install).
+1. **Easy to install:** Since Harvester ships as a bootable appliance image, you can install it directly on a bare metal server with the [ISO](https://github.com/harvester/harvester/releases) image or automatically install it using [iPXE scripts](https://docs.harvesterhci.io/latest/install/pxe-boot-install).
 1. **VM lifecycle management:** Easily create, edit, clone, and delete VMs, including SSH-Key injection, cloud-init, and graphic and serial port console.
 1. **VM live migration support:** Move a VM to a different host or node with zero downtime.
 1. **VM backup, snapshot, and restore:** Back up your VMs from NFS, S3 servers, or NAS devices. Use your backup to restore a failed VM or create a new VM on a different cluster.
@@ -94,9 +94,9 @@ https://github.com/harvester/harvester/releases
 
 | Release   | Version | Type           | Release Note (Changelog)                                         | Upgrade Note                                                |
 |-----------|---------|----------------|------------------------------------------------------------------|-------------------------------------------------------------|
-| **1.3***  | 1.3.2   | Latest         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.3.2) | [🔗](https://docs.harvesterhci.io/v1.3/upgrade/v1-3-1-to-v1-3-2) |
-| **1.3***  | 1.3.1   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.3.1) | [🔗](https://docs.harvesterhci.io/v1.3/upgrade/v1-2-2-to-v1-3-1) |
-| **1.2***  | 1.2.2   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.2.2) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-2-1-to-v1-2-2) |
+| **1.4***  | 1.4.1   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.4.1) | [🔗](https://docs.harvesterhci.io/v1.4/upgrade/v1-4-0-to-v1-4-1) |
+| **1.3***  | 1.3.2   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.3.2) | [🔗](https://docs.harvesterhci.io/v1.3/upgrade/v1-3-1-to-v1-3-2) |
+| **1.2***  | 1.2.2   | EOL            | [🔗](https://github.com/harvester/harvester/releases/tag/v1.2.2) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-2-1-to-v1-2-2) |
 | **1.1***  | 1.1.3   | EOL | [🔗](https://github.com/harvester/harvester/releases/tag/v1.1.3) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-1-to-v1-1-2) |
 
 ## Documentation
@@ -128,9 +128,11 @@ If you need any help with Harvester, please join us at either our [Slack](https:
 
 If you have any feedback or questions, feel free to [file an issue](https://github.com/harvester/harvester/issues/new/choose).
 
+You can also [ask Harvester Guru](https://gurubase.io/g/harvester) your questions.
+
 
 ## License
-Copyright (c) 2024 [Rancher Labs, Inc.](http://rancher.com)
+Copyright (c) 2025 [SUSE, LLC.](https://www.suse.com/)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

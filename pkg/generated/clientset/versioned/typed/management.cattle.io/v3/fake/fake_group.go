@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,20 +40,22 @@ var groupsKind = v3.SchemeGroupVersion.WithKind("Group")
 
 // Get takes name of the group, and returns the corresponding group object, and an error if there is any.
 func (c *FakeGroups) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Group, err error) {
+	emptyResult := &v3.Group{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(groupsResource, name), &v3.Group{})
+		Invokes(testing.NewRootGetActionWithOptions(groupsResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Group), err
 }
 
 // List takes label and field selectors, and returns the list of Groups that match those selectors.
 func (c *FakeGroups) List(ctx context.Context, opts v1.ListOptions) (result *v3.GroupList, err error) {
+	emptyResult := &v3.GroupList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(groupsResource, groupsKind, opts), &v3.GroupList{})
+		Invokes(testing.NewRootListActionWithOptions(groupsResource, groupsKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,25 +74,27 @@ func (c *FakeGroups) List(ctx context.Context, opts v1.ListOptions) (result *v3.
 // Watch returns a watch.Interface that watches the requested groups.
 func (c *FakeGroups) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(groupsResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(groupsResource, opts))
 }
 
 // Create takes the representation of a group and creates it.  Returns the server's representation of the group, and an error, if there is any.
 func (c *FakeGroups) Create(ctx context.Context, group *v3.Group, opts v1.CreateOptions) (result *v3.Group, err error) {
+	emptyResult := &v3.Group{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(groupsResource, group), &v3.Group{})
+		Invokes(testing.NewRootCreateActionWithOptions(groupsResource, group, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Group), err
 }
 
 // Update takes the representation of a group and updates it. Returns the server's representation of the group, and an error, if there is any.
 func (c *FakeGroups) Update(ctx context.Context, group *v3.Group, opts v1.UpdateOptions) (result *v3.Group, err error) {
+	emptyResult := &v3.Group{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(groupsResource, group), &v3.Group{})
+		Invokes(testing.NewRootUpdateActionWithOptions(groupsResource, group, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Group), err
 }
@@ -104,7 +108,7 @@ func (c *FakeGroups) Delete(ctx context.Context, name string, opts v1.DeleteOpti
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeGroups) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(groupsResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(groupsResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.GroupList{})
 	return err
@@ -112,10 +116,11 @@ func (c *FakeGroups) DeleteCollection(ctx context.Context, opts v1.DeleteOptions
 
 // Patch applies the patch and returns the patched group.
 func (c *FakeGroups) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Group, err error) {
+	emptyResult := &v3.Group{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(groupsResource, name, pt, data, subresources...), &v3.Group{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(groupsResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Group), err
 }

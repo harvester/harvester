@@ -8,15 +8,19 @@ import (
 	"time"
 
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/record"
 	kubevirt "kubevirt.io/api/core"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
@@ -30,17 +34,24 @@ import (
 var syncLabelsToVmi = []string{util.LabelMaintainModeStrategy}
 
 type VMController struct {
-	pvcClient      v1.PersistentVolumeClaimClient
-	pvcCache       v1.PersistentVolumeClaimCache
-	vmClient       ctlkubevirtv1.VirtualMachineClient
-	vmController   ctlkubevirtv1.VirtualMachineController
-	vmiCache       ctlkubevirtv1.VirtualMachineInstanceCache
-	vmiClient      ctlkubevirtv1.VirtualMachineInstanceClient
-	vmBackupClient ctlharvesterv1.VirtualMachineBackupClient
-	vmBackupCache  ctlharvesterv1.VirtualMachineBackupCache
-	snapshotClient ctlsnapshotv1.VolumeSnapshotClient
-	snapshotCache  ctlsnapshotv1.VolumeSnapshotCache
-	recorder       record.EventRecorder
+	dataVolumeClient ctlcdiv1.DataVolumeClient
+	podClient        v1.PodClient
+	pvcClient        v1.PersistentVolumeClaimClient
+	pvcCache         v1.PersistentVolumeClaimCache
+	vmClient         ctlkubevirtv1.VirtualMachineClient
+	vmController     ctlkubevirtv1.VirtualMachineController
+	vmiCache         ctlkubevirtv1.VirtualMachineInstanceCache
+	vmiClient        ctlkubevirtv1.VirtualMachineInstanceClient
+	vmImgClient      ctlharvesterv1.VirtualMachineImageClient
+	vmImgCache       ctlharvesterv1.VirtualMachineImageCache
+	vmBackupClient   ctlharvesterv1.VirtualMachineBackupClient
+	vmBackupCache    ctlharvesterv1.VirtualMachineBackupCache
+	scClient         ctlstoragev1.StorageClassClient
+	scCache          ctlstoragev1.StorageClassCache
+	snapshotClient   ctlsnapshotv1.VolumeSnapshotClient
+	snapshotCache    ctlsnapshotv1.VolumeSnapshotCache
+	settingCache     ctlharvesterv1.SettingCache
+	recorder         record.EventRecorder
 
 	vmrCalculator *rqutils.Calculator
 }
@@ -59,18 +70,52 @@ func (h *VMController) createPVCsFromAnnotation(_ string, vm *kubevirtv1.Virtual
 		return nil, err
 	}
 
-	var (
-		pvc *corev1.PersistentVolumeClaim
-		err error
-	)
 	for _, pvcAnno := range pvcs {
-		pvcAnno.Namespace = vm.Namespace
-		if pvc, err = h.pvcCache.Get(vm.Namespace, pvcAnno.Name); apierrors.IsNotFound(err) {
-			if _, err = h.pvcClient.Create(pvcAnno); err != nil {
+		imageName := ""
+		imageNS := ""
+		createPVCWithDataVolume := false
+		// check VM Image Backend
+		if imageIDRaw, ok := pvcAnno.Annotations[util.AnnotationImageID]; ok {
+			imageID := strings.Split(imageIDRaw, "/")
+			if len(imageID) == 2 {
+				imageName = imageID[1]
+				imageNS = imageID[0]
+				vmImage, err := h.vmImgCache.Get(imageNS, imageName)
+				if err != nil {
+					logrus.Warnf("The corresponding VMImage is not created yet, error: %v. Skip this one", err)
+					continue
+				}
+				if vmImage.Spec.Backend == harvesterv1.VMIBackendCDI {
+					createPVCWithDataVolume = true
+				}
+			}
+		}
+
+		// create DataVolume for PVC (only for CDI backend)
+		if createPVCWithDataVolume {
+			if _, err := h.dataVolumeClient.Get(vm.Namespace, pvcAnno.Name, metav1.GetOptions{}); apierrors.IsNotFound(err) {
+				targetSCName := *pvcAnno.Spec.StorageClassName
+				if err := h.createDataVolume(pvcAnno.Name, vm.Namespace, imageName, imageNS, targetSCName, pvcAnno.Spec.Resources); err != nil {
+					return nil, err
+				}
+				continue
+			} else if err != nil {
 				return nil, err
 			}
-			continue
-		} else if err != nil {
+		}
+
+		// check pvc
+		pvc, err := h.pvcCache.Get(vm.Namespace, pvcAnno.Name)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				if !createPVCWithDataVolume {
+					pvcAnno.Namespace = vm.Namespace
+					if _, err = h.pvcClient.Create(pvcAnno); err != nil {
+						return nil, err
+					}
+				}
+				continue
+			}
 			return nil, err
 		}
 
@@ -291,6 +336,23 @@ func (h *VMController) SetHaltIfInsufficientResourceQuota(_ string, vm *kubevirt
 		return nil, err
 	}
 
+	// Refer: https://github.com/harvester/harvester/issues/7585
+	// When VM is detected as insufficient resource, there is one race case:
+	//  the VM's POD is created and the ResourceQuota is updated, but vmrCalculator's local cache does not have this POD yet
+	// Re-check POD on ApiServer when insufficient resource happens
+	exist, err1 := h.isVMPodExistingOnAPIServer(vm)
+	if err1 != nil {
+		errNew := fmt.Errorf("SetHaltIfInsufficientResourceQuota: VM %s/%s reports error %w, but failed to recheck POD, error %w", vm.Namespace, vm.Name, err, err1)
+		logrus.Debugf("%s", err.Error())
+		return nil, errNew
+	}
+	if exist {
+		logrus.Infof("SetHaltIfInsufficientResourceQuota: VM %s/%s reports error %s, but the POD is existing, enqueue to re-check", vm.Namespace, vm.Name, err.Error())
+		// next time, the CheckIfVMCanStartByResourceQuota will get the already existing POD
+		h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 1*time.Second)
+		return vm, nil
+	}
+
 	return vm, h.stopVM(vm, err.Error())
 }
 
@@ -316,10 +378,14 @@ func (h *VMController) cleanUpInsufficientResourceAnnotation(vm *kubevirtv1.Virt
 	}
 
 	vmi, err := h.vmiCache.Get(vm.Namespace, vm.Name)
-	if err != nil && !apierrors.IsNotFound(err) {
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logrus.Debugf("skip cleaning up insufficient resource annotation, VMI %s in namespace %s did not exist.", vm.Name, vm.Namespace)
+			return nil
+		}
 		return err
 	}
-	if vmi == nil || !vmi.IsRunning() {
+	if !vmi.IsRunning() {
 		logrus.Debugf("skip cleaning up insufficient resource annotation, VM %s in namespace %s is not running.", vm.Name, vm.Namespace)
 		return nil
 	}
@@ -364,4 +430,48 @@ func (h *VMController) removeDeprecatedFinalizer(_ string, vm *kubevirtv1.Virtua
 		return h.vmClient.Update(vmObj)
 	}
 	return vm, nil
+}
+
+// List the VM related POD on APIServer instead of local cache
+// Note: this is slower than query from cache, call it when really necessary
+func (h *VMController) isVMPodExistingOnAPIServer(vm *kubevirtv1.VirtualMachine) (bool, error) {
+	pods, err := h.podClient.List(vm.Namespace, metav1.ListOptions{
+		LabelSelector: labels.Set{
+			util.LabelVMName: vm.Name,
+		}.String(),
+	})
+	if err != nil {
+		return false, err
+	} else if len(pods.Items) == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (h *VMController) createDataVolume(pvcName, pvcNS, imageID, imageNS, scName string, reqResources corev1.VolumeResourceRequirements) error {
+	// generate dataVolumeTempate
+	dataVolumeTemplate := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pvcName,
+			Namespace: pvcNS,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Namespace: imageNS,
+					Name:      imageID,
+				},
+			},
+			Storage: &cdiv1.StorageSpec{
+				StorageClassName: &scName,
+				Resources:        reqResources,
+			},
+		},
+	}
+
+	if _, err := h.dataVolumeClient.Create(dataVolumeTemplate); err != nil {
+		return fmt.Errorf("failed to create DataVolume %s/%s: %w", pvcNS, pvcName, err)
+	}
+
+	return nil
 }

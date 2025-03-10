@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ type Interface interface {
 	Version() VersionController
 	VirtualMachineBackup() VirtualMachineBackupController
 	VirtualMachineImage() VirtualMachineImageController
+	VirtualMachineImageDownloader() VirtualMachineImageDownloaderController
 	VirtualMachineRestore() VirtualMachineRestoreController
 	VirtualMachineTemplate() VirtualMachineTemplateController
 	VirtualMachineTemplateVersion() VirtualMachineTemplateVersionController
@@ -104,6 +105,10 @@ func (v *version) VirtualMachineBackup() VirtualMachineBackupController {
 
 func (v *version) VirtualMachineImage() VirtualMachineImageController {
 	return generic.NewController[*v1beta1.VirtualMachineImage, *v1beta1.VirtualMachineImageList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineImage"}, "virtualmachineimages", true, v.controllerFactory)
+}
+
+func (v *version) VirtualMachineImageDownloader() VirtualMachineImageDownloaderController {
+	return generic.NewController[*v1beta1.VirtualMachineImageDownloader, *v1beta1.VirtualMachineImageDownloaderList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineImageDownloader"}, "virtualmachineimagedownloaders", true, v.controllerFactory)
 }
 
 func (v *version) VirtualMachineRestore() VirtualMachineRestoreController {

@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,20 +40,22 @@ var githubprovidersKind = v3.SchemeGroupVersion.WithKind("GithubProvider")
 
 // Get takes name of the githubProvider, and returns the corresponding githubProvider object, and an error if there is any.
 func (c *FakeGithubProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.GithubProvider, err error) {
+	emptyResult := &v3.GithubProvider{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(githubprovidersResource, name), &v3.GithubProvider{})
+		Invokes(testing.NewRootGetActionWithOptions(githubprovidersResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.GithubProvider), err
 }
 
 // List takes label and field selectors, and returns the list of GithubProviders that match those selectors.
 func (c *FakeGithubProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.GithubProviderList, err error) {
+	emptyResult := &v3.GithubProviderList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(githubprovidersResource, githubprovidersKind, opts), &v3.GithubProviderList{})
+		Invokes(testing.NewRootListActionWithOptions(githubprovidersResource, githubprovidersKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,25 +74,27 @@ func (c *FakeGithubProviders) List(ctx context.Context, opts v1.ListOptions) (re
 // Watch returns a watch.Interface that watches the requested githubProviders.
 func (c *FakeGithubProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(githubprovidersResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(githubprovidersResource, opts))
 }
 
 // Create takes the representation of a githubProvider and creates it.  Returns the server's representation of the githubProvider, and an error, if there is any.
 func (c *FakeGithubProviders) Create(ctx context.Context, githubProvider *v3.GithubProvider, opts v1.CreateOptions) (result *v3.GithubProvider, err error) {
+	emptyResult := &v3.GithubProvider{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(githubprovidersResource, githubProvider), &v3.GithubProvider{})
+		Invokes(testing.NewRootCreateActionWithOptions(githubprovidersResource, githubProvider, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.GithubProvider), err
 }
 
 // Update takes the representation of a githubProvider and updates it. Returns the server's representation of the githubProvider, and an error, if there is any.
 func (c *FakeGithubProviders) Update(ctx context.Context, githubProvider *v3.GithubProvider, opts v1.UpdateOptions) (result *v3.GithubProvider, err error) {
+	emptyResult := &v3.GithubProvider{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(githubprovidersResource, githubProvider), &v3.GithubProvider{})
+		Invokes(testing.NewRootUpdateActionWithOptions(githubprovidersResource, githubProvider, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.GithubProvider), err
 }
@@ -104,7 +108,7 @@ func (c *FakeGithubProviders) Delete(ctx context.Context, name string, opts v1.D
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeGithubProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(githubprovidersResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(githubprovidersResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.GithubProviderList{})
 	return err
@@ -112,10 +116,11 @@ func (c *FakeGithubProviders) DeleteCollection(ctx context.Context, opts v1.Dele
 
 // Patch applies the patch and returns the patched githubProvider.
 func (c *FakeGithubProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.GithubProvider, err error) {
+	emptyResult := &v3.GithubProvider{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(githubprovidersResource, name, pt, data, subresources...), &v3.GithubProvider{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(githubprovidersResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.GithubProvider), err
 }

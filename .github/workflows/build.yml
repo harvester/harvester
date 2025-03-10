@@ -10,6 +10,9 @@ on:
   pull_request:
   schedule:
     - cron: "10 0,12 * * *"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && !startsWith(github.ref, 'refs/heads/v') && !startsWith(github.ref, 'refs/tags/v') }}
 jobs:
   build-binaries:
     name: Build binaries
@@ -150,7 +153,7 @@ jobs:
 
     - name: generate addon manifests
       run: make generate-addons
-      
+
     # rancher/harvester-upgrade image
     - name: docker-publish-harvester-upgrade
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
@@ -378,15 +381,18 @@ jobs:
           cache-control: public,no-cache,proxy-revalidate
 
     - name: upload-kernel-initrd-releases
-      uses: softprops/action-gh-release@v2
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
-      with:
-        draft: true
-        prerelease: true
-        files: |
-          dist/artifacts/harvester*initrd-${{ env.arch }}
-          dist/artifacts/harvester*vmlinuz-${{ env.arch }}
-          dist/artifacts/harvester*images-list-${{ env.arch }}.txt
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        if gh release view ${{ github.ref_name }} > /dev/null; then
+          echo ${{ github.ref_name }} release exists
+        else
+          gh release create ${{ github.ref_name }} --draft --notes "Draft release for ${{ github.ref_name }}"
+        fi
+        gh release upload ${{ github.ref_name }} dist/artifacts/harvester*initrd-${{ env.arch }}
+        gh release upload ${{ github.ref_name }} dist/artifacts/harvester*vmlinuz-${{ env.arch }}
+        gh release upload ${{ github.ref_name }} dist/artifacts/harvester*images-list-${{ env.arch }}.txt
 
   manifest-cluster-repo-image:
     name: Manifest harvester-cluster-repo image

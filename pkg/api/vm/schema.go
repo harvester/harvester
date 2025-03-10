@@ -37,6 +37,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	server.BaseSchemas.MustImportAndCustomize(RemoveVolumeInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(CloneInput{}, nil)
 
+	dataVolumeClient := scaled.CdiFactory.Cdi().V1beta1().DataVolume()
 	vms := scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 	vmis := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	vmims := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration()
@@ -68,6 +69,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	}
 	actionHandler := vmActionHandler{
 		namespace:                 options.Namespace,
+		datavolumeClient:          dataVolumeClient,
 		vms:                       vms,
 		vmCache:                   vms.Cache(),
 		vmis:                      vmis,
@@ -96,6 +98,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	}
 
 	vmformatter := vmformatter{
+		pvcCache:      pvcs.Cache(),
 		vmiCache:      vmis.Cache(),
 		vmBackupCache: backups.Cache(),
 		clientSet:     *scaled.Management.ClientSet,

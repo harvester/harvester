@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 
 	"github.com/longhorn/go-common-libs/types"
 )
@@ -227,8 +228,8 @@ func GetDiskStat(path string) (diskStat types.DiskStat, err error) {
 		err = errors.Wrapf(err, "failed to get fs stat for %v", path)
 	}()
 
-	var statfs syscall.Statfs_t
-	if err := syscall.Statfs(path, &statfs); err != nil {
+	var statfs unix.Statfs_t
+	if err := unix.Statfs(path, &statfs); err != nil {
 		return diskStat, err
 	}
 
@@ -239,7 +240,7 @@ func GetDiskStat(path string) (diskStat types.DiskStat, err error) {
 
 	// Convert the FSID components to a single uint64 FSID value
 	var fsidValue uint64
-	for _, component := range statfs.Fsid.X__val {
+	for _, component := range statfs.Fsid.Val {
 		// Combine components using bit manipulation
 		fsidValue = (fsidValue << 32) | uint64(uint32(component))
 	}
@@ -254,9 +255,9 @@ func GetDiskStat(path string) (diskStat types.DiskStat, err error) {
 		Driver:           types.DiskDriverNone,
 		FreeBlocks:       int64(statfs.Bfree),
 		TotalBlocks:      int64(statfs.Blocks),
-		BlockSize:        statfs.Bsize,
-		StorageMaximum:   int64(statfs.Blocks) * statfs.Bsize,
-		StorageAvailable: int64(statfs.Bfree) * statfs.Bsize,
+		BlockSize:        int64(statfs.Bsize),
+		StorageMaximum:   int64(statfs.Blocks) * int64(statfs.Bsize),
+		StorageAvailable: int64(statfs.Bfree) * int64(statfs.Bsize),
 	}, nil
 }
 

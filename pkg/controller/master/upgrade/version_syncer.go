@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	gversion "github.com/mcuadros/go-version"
@@ -158,6 +159,9 @@ func (s *versionSyncer) syncVersions(resp CheckUpgradeResponse, currentVersion s
 	for _, v := range resp.Versions {
 		newVersion, err := s.getNewVersion(v)
 		if err != nil {
+			if strings.Contains(err.Error(), "failed to download version") {
+				continue
+			}
 			return err
 		}
 

@@ -1,8 +1,19 @@
 pull_request_rules:
+- name: Automatically open v1.5 backport PR
+  conditions:
+    - base=master
+    - label="pr-backport-to/v1.5"
+  actions:
+    backport:
+      branches:
+        - v1.5
+      assignees:
+        - "{{ author }}"
+
 - name: Automatically open v1.4 backport PR
   conditions:
     - base=master
-    - label="backport-to/v1.4"
+    - label="pr-backport-to/v1.4"
   actions:
     backport:
       branches:
@@ -13,7 +24,7 @@ pull_request_rules:
 - name: Automatically open v1.3 backport PR
   conditions:
     - base=master
-    - label="backport-to/v1.3"
+    - label="pr-backport-to/v1.3"
   actions:
     backport:
       branches:
@@ -21,14 +32,42 @@ pull_request_rules:
       assignees:
         - "{{ author }}"
 
-- name: Automatically open v1.2 backport PR
+- name: Automatically merge Renovate/Backport PRs
   conditions:
-    - base=master
-    - label="backport-to/v1.2"
+  - check-success="Build binaries (x64)"
+  - check-success="Build binaries (arm64)"
+  - or:
+    - author = renovate[bot]
+    - author = mergify[bot]
   actions:
-    backport:
-      branches:
-        - v1.2
-      assignees:
-        - "{{ author }}"
+    merge:
+      method: rebase
 
+- name: Automatically approve Renovate PRs
+  conditions:
+  - check-success="Build binaries (x64)"
+  - check-success="Build binaries (arm64)"
+  - or:
+    - author = renovate[bot]
+  actions:
+    review:
+      type: APPROVE
+
+# Mergify can't approve its own PRs, so we need to use a bot account
+- name: Automatically approve Backport PRs
+  conditions:
+  - check-success="Build binaries (x64)"
+  - check-success="Build binaries (arm64)"
+  - or:
+    - author = mergify[bot]
+  actions:
+    review:
+      type: APPROVE
+      bot_account: harvesterhci-io-github-bot
+
+- name: Ask to resolve conflict
+  conditions:
+  - conflict
+  actions:
+    comment:
+      message: This pull request is now in conflict. Could you fix it @{{author}}? 🙏

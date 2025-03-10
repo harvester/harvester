@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,20 +40,22 @@ var nodedriversKind = v3.SchemeGroupVersion.WithKind("NodeDriver")
 
 // Get takes name of the nodeDriver, and returns the corresponding nodeDriver object, and an error if there is any.
 func (c *FakeNodeDrivers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.NodeDriver, err error) {
+	emptyResult := &v3.NodeDriver{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(nodedriversResource, name), &v3.NodeDriver{})
+		Invokes(testing.NewRootGetActionWithOptions(nodedriversResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.NodeDriver), err
 }
 
 // List takes label and field selectors, and returns the list of NodeDrivers that match those selectors.
 func (c *FakeNodeDrivers) List(ctx context.Context, opts v1.ListOptions) (result *v3.NodeDriverList, err error) {
+	emptyResult := &v3.NodeDriverList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(nodedriversResource, nodedriversKind, opts), &v3.NodeDriverList{})
+		Invokes(testing.NewRootListActionWithOptions(nodedriversResource, nodedriversKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,36 +74,39 @@ func (c *FakeNodeDrivers) List(ctx context.Context, opts v1.ListOptions) (result
 // Watch returns a watch.Interface that watches the requested nodeDrivers.
 func (c *FakeNodeDrivers) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(nodedriversResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(nodedriversResource, opts))
 }
 
 // Create takes the representation of a nodeDriver and creates it.  Returns the server's representation of the nodeDriver, and an error, if there is any.
 func (c *FakeNodeDrivers) Create(ctx context.Context, nodeDriver *v3.NodeDriver, opts v1.CreateOptions) (result *v3.NodeDriver, err error) {
+	emptyResult := &v3.NodeDriver{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(nodedriversResource, nodeDriver), &v3.NodeDriver{})
+		Invokes(testing.NewRootCreateActionWithOptions(nodedriversResource, nodeDriver, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.NodeDriver), err
 }
 
 // Update takes the representation of a nodeDriver and updates it. Returns the server's representation of the nodeDriver, and an error, if there is any.
 func (c *FakeNodeDrivers) Update(ctx context.Context, nodeDriver *v3.NodeDriver, opts v1.UpdateOptions) (result *v3.NodeDriver, err error) {
+	emptyResult := &v3.NodeDriver{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(nodedriversResource, nodeDriver), &v3.NodeDriver{})
+		Invokes(testing.NewRootUpdateActionWithOptions(nodedriversResource, nodeDriver, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.NodeDriver), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeNodeDrivers) UpdateStatus(ctx context.Context, nodeDriver *v3.NodeDriver, opts v1.UpdateOptions) (*v3.NodeDriver, error) {
+func (c *FakeNodeDrivers) UpdateStatus(ctx context.Context, nodeDriver *v3.NodeDriver, opts v1.UpdateOptions) (result *v3.NodeDriver, err error) {
+	emptyResult := &v3.NodeDriver{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(nodedriversResource, "status", nodeDriver), &v3.NodeDriver{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(nodedriversResource, "status", nodeDriver, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.NodeDriver), err
 }
@@ -115,7 +120,7 @@ func (c *FakeNodeDrivers) Delete(ctx context.Context, name string, opts v1.Delet
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeNodeDrivers) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(nodedriversResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(nodedriversResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.NodeDriverList{})
 	return err
@@ -123,10 +128,11 @@ func (c *FakeNodeDrivers) DeleteCollection(ctx context.Context, opts v1.DeleteOp
 
 // Patch applies the patch and returns the patched nodeDriver.
 func (c *FakeNodeDrivers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.NodeDriver, err error) {
+	emptyResult := &v3.NodeDriver{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(nodedriversResource, name, pt, data, subresources...), &v3.NodeDriver{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(nodedriversResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.NodeDriver), err
 }

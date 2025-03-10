@@ -15,6 +15,7 @@ import (
 	kubevirtv1api "kubevirt.io/api/core/v1"
 
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	indexerwebhook "github.com/harvester/harvester/pkg/webhook/indexeres"
 )
 
 type VirtualMachineClient func(string) kubevirtv1.VirtualMachineInterface
@@ -119,6 +120,28 @@ func (c VirtualMachineCache) AddIndexer(_ string, _ generic.Indexer[*kubevirtv1a
 	panic("implement me")
 }
 
-func (c VirtualMachineCache) GetByIndex(_, _ string) ([]*kubevirtv1api.VirtualMachine, error) {
-	panic("implement me")
+func (c VirtualMachineCache) GetByIndex(indexName, key string) (vms []*kubevirtv1api.VirtualMachine, err error) {
+	var vmList *kubevirtv1api.VirtualMachineList
+
+	switch indexName {
+	case indexerwebhook.VMByMacAddress:
+		vmList, err = c("default").List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		for i, vm := range vmList.Items {
+			vmInterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
+			for _, vmInterface := range vmInterfaces {
+				if vmInterface.MacAddress != "" && vmInterface.MacAddress == key {
+					vms = append(vms, &vmList.Items[i])
+				}
+			}
+		}
+
+	default:
+		return nil, nil
+	}
+
+	return vms, nil
 }

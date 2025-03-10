@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,14 +20,13 @@ package v1beta2
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // BackingImageDataSourcesGetter has a method to return a BackingImageDataSourceInterface.
@@ -40,6 +39,7 @@ type BackingImageDataSourcesGetter interface {
 type BackingImageDataSourceInterface interface {
 	Create(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.CreateOptions) (*v1beta2.BackingImageDataSource, error)
 	Update(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.UpdateOptions) (*v1beta2.BackingImageDataSource, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 	UpdateStatus(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.UpdateOptions) (*v1beta2.BackingImageDataSource, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -52,144 +52,18 @@ type BackingImageDataSourceInterface interface {
 
 // backingImageDataSources implements BackingImageDataSourceInterface
 type backingImageDataSources struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*v1beta2.BackingImageDataSource, *v1beta2.BackingImageDataSourceList]
 }
 
 // newBackingImageDataSources returns a BackingImageDataSources
 func newBackingImageDataSources(c *LonghornV1beta2Client, namespace string) *backingImageDataSources {
 	return &backingImageDataSources{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*v1beta2.BackingImageDataSource, *v1beta2.BackingImageDataSourceList](
+			"backingimagedatasources",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *v1beta2.BackingImageDataSource { return &v1beta2.BackingImageDataSource{} },
+			func() *v1beta2.BackingImageDataSourceList { return &v1beta2.BackingImageDataSourceList{} }),
 	}
-}
-
-// Get takes name of the backingImageDataSource, and returns the corresponding backingImageDataSource object, and an error if there is any.
-func (c *backingImageDataSources) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.BackingImageDataSource, err error) {
-	result = &v1beta2.BackingImageDataSource{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("backingimagedatasources").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of BackingImageDataSources that match those selectors.
-func (c *backingImageDataSources) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.BackingImageDataSourceList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1beta2.BackingImageDataSourceList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("backingimagedatasources").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested backingImageDataSources.
-func (c *backingImageDataSources) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("backingimagedatasources").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a backingImageDataSource and creates it.  Returns the server's representation of the backingImageDataSource, and an error, if there is any.
-func (c *backingImageDataSources) Create(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.CreateOptions) (result *v1beta2.BackingImageDataSource, err error) {
-	result = &v1beta2.BackingImageDataSource{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("backingimagedatasources").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(backingImageDataSource).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a backingImageDataSource and updates it. Returns the server's representation of the backingImageDataSource, and an error, if there is any.
-func (c *backingImageDataSources) Update(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.UpdateOptions) (result *v1beta2.BackingImageDataSource, err error) {
-	result = &v1beta2.BackingImageDataSource{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("backingimagedatasources").
-		Name(backingImageDataSource.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(backingImageDataSource).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *backingImageDataSources) UpdateStatus(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.UpdateOptions) (result *v1beta2.BackingImageDataSource, err error) {
-	result = &v1beta2.BackingImageDataSource{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("backingimagedatasources").
-		Name(backingImageDataSource.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(backingImageDataSource).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the backingImageDataSource and deletes it. Returns an error if one occurs.
-func (c *backingImageDataSources) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("backingimagedatasources").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *backingImageDataSources) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("backingimagedatasources").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched backingImageDataSource.
-func (c *backingImageDataSources) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.BackingImageDataSource, err error) {
-	result = &v1beta2.BackingImageDataSource{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("backingimagedatasources").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

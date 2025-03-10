@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,8 +36,16 @@ func (c *FakeLoggingV1beta1) ClusterOutputs() v1beta1.ClusterOutputInterface {
 	return &FakeClusterOutputs{c}
 }
 
+func (c *FakeLoggingV1beta1) Flows() v1beta1.FlowInterface {
+	return &FakeFlows{c}
+}
+
 func (c *FakeLoggingV1beta1) Loggings() v1beta1.LoggingInterface {
 	return &FakeLoggings{c}
+}
+
+func (c *FakeLoggingV1beta1) Outputs() v1beta1.OutputInterface {
+	return &FakeOutputs{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

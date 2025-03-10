@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var networkattachmentdefinitionsKind = v1.SchemeGroupVersion.WithKind("NetworkAt
 
 // Get takes name of the networkAttachmentDefinition, and returns the corresponding networkAttachmentDefinition object, and an error if there is any.
 func (c *FakeNetworkAttachmentDefinitions) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.NetworkAttachmentDefinition, err error) {
+	emptyResult := &v1.NetworkAttachmentDefinition{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(networkattachmentdefinitionsResource, c.ns, name), &v1.NetworkAttachmentDefinition{})
+		Invokes(testing.NewGetActionWithOptions(networkattachmentdefinitionsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.NetworkAttachmentDefinition), err
 }
 
 // List takes label and field selectors, and returns the list of NetworkAttachmentDefinitions that match those selectors.
 func (c *FakeNetworkAttachmentDefinitions) List(ctx context.Context, opts metav1.ListOptions) (result *v1.NetworkAttachmentDefinitionList, err error) {
+	emptyResult := &v1.NetworkAttachmentDefinitionList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(networkattachmentdefinitionsResource, networkattachmentdefinitionsKind, c.ns, opts), &v1.NetworkAttachmentDefinitionList{})
+		Invokes(testing.NewListActionWithOptions(networkattachmentdefinitionsResource, networkattachmentdefinitionsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,28 +77,30 @@ func (c *FakeNetworkAttachmentDefinitions) List(ctx context.Context, opts metav1
 // Watch returns a watch.Interface that watches the requested networkAttachmentDefinitions.
 func (c *FakeNetworkAttachmentDefinitions) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(networkattachmentdefinitionsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(networkattachmentdefinitionsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a networkAttachmentDefinition and creates it.  Returns the server's representation of the networkAttachmentDefinition, and an error, if there is any.
 func (c *FakeNetworkAttachmentDefinitions) Create(ctx context.Context, networkAttachmentDefinition *v1.NetworkAttachmentDefinition, opts metav1.CreateOptions) (result *v1.NetworkAttachmentDefinition, err error) {
+	emptyResult := &v1.NetworkAttachmentDefinition{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(networkattachmentdefinitionsResource, c.ns, networkAttachmentDefinition), &v1.NetworkAttachmentDefinition{})
+		Invokes(testing.NewCreateActionWithOptions(networkattachmentdefinitionsResource, c.ns, networkAttachmentDefinition, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.NetworkAttachmentDefinition), err
 }
 
 // Update takes the representation of a networkAttachmentDefinition and updates it. Returns the server's representation of the networkAttachmentDefinition, and an error, if there is any.
 func (c *FakeNetworkAttachmentDefinitions) Update(ctx context.Context, networkAttachmentDefinition *v1.NetworkAttachmentDefinition, opts metav1.UpdateOptions) (result *v1.NetworkAttachmentDefinition, err error) {
+	emptyResult := &v1.NetworkAttachmentDefinition{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(networkattachmentdefinitionsResource, c.ns, networkAttachmentDefinition), &v1.NetworkAttachmentDefinition{})
+		Invokes(testing.NewUpdateActionWithOptions(networkattachmentdefinitionsResource, c.ns, networkAttachmentDefinition, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.NetworkAttachmentDefinition), err
 }
@@ -111,7 +115,7 @@ func (c *FakeNetworkAttachmentDefinitions) Delete(ctx context.Context, name stri
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeNetworkAttachmentDefinitions) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(networkattachmentdefinitionsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(networkattachmentdefinitionsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1.NetworkAttachmentDefinitionList{})
 	return err
@@ -119,11 +123,12 @@ func (c *FakeNetworkAttachmentDefinitions) DeleteCollection(ctx context.Context,
 
 // Patch applies the patch and returns the patched networkAttachmentDefinition.
 func (c *FakeNetworkAttachmentDefinitions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.NetworkAttachmentDefinition, err error) {
+	emptyResult := &v1.NetworkAttachmentDefinition{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(networkattachmentdefinitionsResource, c.ns, name, pt, data, subresources...), &v1.NetworkAttachmentDefinition{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(networkattachmentdefinitionsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.NetworkAttachmentDefinition), err
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Rancher Labs, Inc.
+Copyright 2025 Rancher Labs, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,22 +41,24 @@ var orphansKind = v1beta2.SchemeGroupVersion.WithKind("Orphan")
 
 // Get takes name of the orphan, and returns the corresponding orphan object, and an error if there is any.
 func (c *FakeOrphans) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.Orphan, err error) {
+	emptyResult := &v1beta2.Orphan{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(orphansResource, c.ns, name), &v1beta2.Orphan{})
+		Invokes(testing.NewGetActionWithOptions(orphansResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Orphan), err
 }
 
 // List takes label and field selectors, and returns the list of Orphans that match those selectors.
 func (c *FakeOrphans) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.OrphanList, err error) {
+	emptyResult := &v1beta2.OrphanList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(orphansResource, orphansKind, c.ns, opts), &v1beta2.OrphanList{})
+		Invokes(testing.NewListActionWithOptions(orphansResource, orphansKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeOrphans) List(ctx context.Context, opts v1.ListOptions) (result *v1
 // Watch returns a watch.Interface that watches the requested orphans.
 func (c *FakeOrphans) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(orphansResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(orphansResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a orphan and creates it.  Returns the server's representation of the orphan, and an error, if there is any.
 func (c *FakeOrphans) Create(ctx context.Context, orphan *v1beta2.Orphan, opts v1.CreateOptions) (result *v1beta2.Orphan, err error) {
+	emptyResult := &v1beta2.Orphan{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(orphansResource, c.ns, orphan), &v1beta2.Orphan{})
+		Invokes(testing.NewCreateActionWithOptions(orphansResource, c.ns, orphan, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Orphan), err
 }
 
 // Update takes the representation of a orphan and updates it. Returns the server's representation of the orphan, and an error, if there is any.
 func (c *FakeOrphans) Update(ctx context.Context, orphan *v1beta2.Orphan, opts v1.UpdateOptions) (result *v1beta2.Orphan, err error) {
+	emptyResult := &v1beta2.Orphan{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(orphansResource, c.ns, orphan), &v1beta2.Orphan{})
+		Invokes(testing.NewUpdateActionWithOptions(orphansResource, c.ns, orphan, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Orphan), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeOrphans) UpdateStatus(ctx context.Context, orphan *v1beta2.Orphan, opts v1.UpdateOptions) (*v1beta2.Orphan, error) {
+func (c *FakeOrphans) UpdateStatus(ctx context.Context, orphan *v1beta2.Orphan, opts v1.UpdateOptions) (result *v1beta2.Orphan, err error) {
+	emptyResult := &v1beta2.Orphan{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(orphansResource, "status", c.ns, orphan), &v1beta2.Orphan{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(orphansResource, "status", c.ns, orphan, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Orphan), err
 }
@@ -123,7 +128,7 @@ func (c *FakeOrphans) Delete(ctx context.Context, name string, opts v1.DeleteOpt
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeOrphans) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(orphansResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(orphansResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta2.OrphanList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeOrphans) DeleteCollection(ctx context.Context, opts v1.DeleteOption
 
 // Patch applies the patch and returns the patched orphan.
 func (c *FakeOrphans) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.Orphan, err error) {
+	emptyResult := &v1beta2.Orphan{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(orphansResource, c.ns, name, pt, data, subresources...), &v1beta2.Orphan{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(orphansResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.Orphan), err
 }

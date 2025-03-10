@@ -69,8 +69,11 @@ func GetBackingImageDataSourceName(backingImageCache ctllhv1.BackingImageCache, 
 	return GetBackingImageName(backingImageCache, image)
 }
 
-func GetImageStorageClassName(imageName string) string {
-	return fmt.Sprintf("longhorn-%s", imageName)
+func GetImageStorageClassName(image *harvesterv1.VirtualMachineImage) string {
+	if image.Spec.Backend == harvesterv1.VMIBackendCDI {
+		return image.Spec.TargetStorageClassName
+	}
+	return fmt.Sprintf("longhorn-%s", image.Name)
 }
 
 func GetImageStorageClassParameters(backingImageCache ctllhv1.BackingImageCache, image *harvesterv1.VirtualMachineImage) (map[string]string, error) {
@@ -99,4 +102,8 @@ func GetImageDefaultStorageClassParameters() map[string]string {
 		longhorntypes.OptionStaleReplicaTimeout: "30",
 		LonghornOptionMigratable:                "true",
 	}
+}
+
+func GetVMIBackend(vmi *harvesterv1.VirtualMachineImage) harvesterv1.VMIBackend {
+	return vmi.Spec.Backend
 }

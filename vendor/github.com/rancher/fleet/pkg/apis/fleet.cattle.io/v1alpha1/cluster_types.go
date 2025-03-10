@@ -97,6 +97,7 @@ type ClusterSpec struct {
 	RedeployAgentGeneration int64 `json:"redeployAgentGeneration,omitempty"`
 
 	// AgentEnvVars are extra environment variables to be added to the agent deployment.
+	// +nullable
 	AgentEnvVars []corev1.EnvVar `json:"agentEnvVars,omitempty"`
 
 	// AgentNamespace defaults to the system namespace, e.g. cattle-fleet-system.
@@ -108,9 +109,12 @@ type ClusterSpec struct {
 	PrivateRepoURL string `json:"privateRepoURL,omitempty"`
 
 	// TemplateValues defines a cluster specific mapping of values to be sent to fleet.yaml values templating.
+	// +nullable
+	// +kubebuilder:validation:XPreserveUnknownFields
 	TemplateValues *GenericMap `json:"templateValues,omitempty"`
 
 	// AgentTolerations defines an extra set of Tolerations to be added to the Agent deployment.
+	// +nullable
 	AgentTolerations []corev1.Toleration `json:"agentTolerations,omitempty"`
 
 	// AgentAffinity overrides the default affinity for the cluster's agent
@@ -209,6 +213,7 @@ type ClusterDisplay struct {
 	// to be ready.
 	ReadyBundles string `json:"readyBundles,omitempty"`
 	// State of the cluster, either one of the bundle states, or "WaitCheckIn".
+	// +nullable
 	State string `json:"state,omitempty"`
 }
 
