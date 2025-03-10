@@ -1,0 +1,49 @@
+{{ if .Values.cdi.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: volumeimportsource-cr
+  annotations:
+    helm.sh/hook: post-install
+    helm.sh/hook-weight: "3"
+    helm.sh/hook-delete-policy: hook-succeeded
+data:
+  volumeimportsource.yaml: |
+    apiVersion: cdi.kubevirt.io/v1beta1
+    kind: VolumeImportSource
+    metadata:
+      name: filesystem-blank-source
+      namespace: default
+    spec:
+      source:
+        blank: {}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: apply-volumeimportsource-cr
+  annotations:
+    helm.sh/hook: post-install
+    helm.sh/hook-weight: "4"
+    helm.sh/hook-delete-policy: hook-succeeded
+spec:
+  template:
+    spec:
+      serviceAccountName: harvester
+      containers:
+      - name: apply-cr
+        image: rancher/kubectl:v1.29.2
+        command:
+          - kubectl
+          - apply
+          - -f
+          - /manifests/volumeimportsource.yaml
+        volumeMounts:
+        - name: cr-manifest
+          mountPath: /manifests
+      restartPolicy: Never
+      volumes:
+      - name: cr-manifest
+        configMap:
+          name: volumeimportsource-cr
+{{- end -}}

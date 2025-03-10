@@ -26,6 +26,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		pvcCache:    scaled.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
 		pvs:         scaled.HarvesterCoreFactory.Core().V1().PersistentVolume(),
 		pvCache:     scaled.HarvesterCoreFactory.Core().V1().PersistentVolume().Cache(),
+		scCache:     scaled.StorageFactory.Storage().V1().StorageClass().Cache(),
 		snapshots:   scaled.SnapshotFactory.Snapshot().V1().VolumeSnapshot(),
 		volumes:     scaled.LonghornFactory.Longhorn().V1beta2().Volume(),
 		volumeCache: scaled.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
