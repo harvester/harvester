@@ -75,7 +75,7 @@ func (v *VMBuilder) SetNetworkInterfaceBootOrder(interfaceName string, bootOrder
 	for i, iface := range interfaces {
 		if iface.Name == interfaceName {
 			ifaceCopy := iface.DeepCopy()
-			ifaceCopy.BootOrder = func() *uint { v := uint(bootOrder); return &v }()
+			ifaceCopy.BootOrder = &bootOrder
 			v.VirtualMachine.Spec.Template.Spec.Domain.Devices.Interfaces[i] = *ifaceCopy
 		}
 	}
