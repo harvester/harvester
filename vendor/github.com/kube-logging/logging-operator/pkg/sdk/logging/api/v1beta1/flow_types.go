@@ -36,9 +36,11 @@ type FlowSpec struct {
 	Filters    []Filter          `json:"filters,omitempty"`
 	LoggingRef string            `json:"loggingRef,omitempty"`
 	// Deprecated
-	OutputRefs       []string `json:"outputRefs,omitempty"`
-	GlobalOutputRefs []string `json:"globalOutputRefs,omitempty"`
-	LocalOutputRefs  []string `json:"localOutputRefs,omitempty"`
+	OutputRefs           []string `json:"outputRefs,omitempty"`
+	GlobalOutputRefs     []string `json:"globalOutputRefs,omitempty"`
+	LocalOutputRefs      []string `json:"localOutputRefs,omitempty"`
+	FlowLabel            string   `json:"flowLabel,omitempty"`
+	IncludeLabelInRouter *bool    `json:"includeLabelInRouter,omitempty"`
 }
 
 type Match struct {
@@ -68,6 +70,7 @@ type Filter struct {
 	RecordTransformer   *filter.RecordTransformer         `json:"record_transformer,omitempty"`
 	RecordModifier      *filter.RecordModifier            `json:"record_modifier,omitempty"`
 	GeoIP               *filter.GeoIP                     `json:"geoip,omitempty"`
+	UserAgent           *filter.UserAgent                 `json:"useragent,omitempty"`
 	Concat              *filter.Concat                    `json:"concat,omitempty"`
 	DetectExceptions    *filter.DetectExceptions          `json:"detectExceptions,omitempty"`
 	Grep                *filter.GrepConfig                `json:"grep,omitempty"`

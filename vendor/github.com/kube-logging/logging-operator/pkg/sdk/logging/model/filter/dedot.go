@@ -16,6 +16,7 @@ package filter
 
 import (
 	"github.com/cisco-open/operator-tools/pkg/secret"
+
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/types"
 )
 
@@ -37,43 +38,42 @@ type _metaDedot interface{} //nolint:deadcode,unused
 
 // +kubebuilder:object:generate=true
 type DedotFilterConfig struct {
-	// Will cause the plugin to recurse through nested structures (hashes and arrays), and remove dots in those key-names too.(default: false)
+	// Will cause the plugin to recourse through nested structures (hashes and arrays), and remove dots in those key-names too.(default: false)
 	Nested bool `json:"de_dot_nested,omitempty"`
 	// Separator (default:_)
 	Separator string `json:"de_dot_separator,omitempty"`
 }
 
-// ## Example `Dedot` filter configurations
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: Flow
-// metadata:
 //
-//	name: demo-flow
-//
-// spec:
-//
-//	filters:
-//	  - dedot:
-//	      de_dot_separator: "-"
-//	      de_dot_nested: true
-//	selectors: {}
-//	localOutputRefs:
-//	  - demo-output
-//
-// ```
-//
-// #### Fluentd Config Result
-// ```yaml
-// <filter **>
-//
-//	@type dedot
-//	@id test_dedot
-//	de_dot_nested true
-//	de_dot_separator -
-//
-// </filter>
-// ```
+/*
+## Example `Dedot` filter configurations
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Flow
+metadata:
+  name: demo-flow
+spec:
+  filters:
+    - dedot:
+        de_dot_separator: "-"
+        de_dot_nested: true
+  selectors: {}
+  localOutputRefs:
+    - demo-output
+{{</ highlight >}}
+
+Fluentd config result:
+
+{{< highlight xml >}}
+<filter **>
+  @type dedot
+  @id test_dedot
+  de_dot_nested true
+  de_dot_separator -
+</filter>
+{{</ highlight >}}
+*/
 type _expDedot interface{} //nolint:deadcode,unused
 
 func NewDedotFilterConfig() *DedotFilterConfig {

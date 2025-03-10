@@ -26,18 +26,20 @@ import (
 type _hugoSplunk interface{} //nolint:deadcode,unused
 
 // +docName:"Splunk via Hec output plugin for Fluentd"
-// More info at https://github.com/splunk/fluent-plugin-splunk-hec
-//
-// ## Example output configurations
-// ```yaml
-// spec:
-//
-//	splunkHec:
-//	  hec_host: splunk.default.svc.cluster.local
-//	  hec_port: 8088
-//	  protocol: http
-//
-// ```
+/*
+For details, see [https://github.com/splunk/fluent-plugin-splunk-hec](https://github.com/splunk/fluent-plugin-splunk-hec).
+
+
+## Example output configurations
+
+```yaml
+spec:
+  splunkHec:
+    hec_host: splunk.default.svc.cluster.local
+    hec_port: 8088
+    protocol: http
+```
+*/
 type _docSplunkHec interface{} //nolint:deadcode,unused
 
 // +name:"Splunk Hec"
@@ -62,11 +64,11 @@ type SplunkHecOutput struct {
 	// Identifier for the Hec token.
 	// +docLink:"Secret,../secret/"
 	HecToken *secret.Secret `json:"hec_token"`
-	// When data_type is set to "metric", the ingest API will treat every key-value pair in the input event as a metric name-value pair. Set metrics_from_event to false to disable this behavior and use metric_name_key and metric_value_key to define metrics. (Default:true)
+	// When data_type is set to "metric", the ingest API will treat every key-value pair in the input event as a metric name-value pair. Set metrics_from_event to false to disable this behavior and use `metric_name_key` and `metric_value_key` to define metrics. (Default:true)
 	MetricsFromEvent *bool `json:"metrics_from_event,omitempty"`
-	// Field name that contains the metric name. This parameter only works in conjunction with the metrics_from_event parameter. When this prameter is set, the metrics_from_event parameter is automatically set to false. (default: true)
+	// Field name that contains the metric name. This parameter only works in conjunction with the metrics_from_event parameter. When this prameter is set, the `metrics_from_event` parameter is automatically set to false. (default: true)
 	MetricNameKey string `json:"metric_name_key,omitempty"`
-	// Field name that contains the metric value, this parameter is required when metric_name_key is configured.
+	// Field name that contains the metric value, this parameter is required when `metric_name_key` is configured.
 	MetricValueKey string `json:"metric_value_key,omitempty"`
 	// Indicates whether to allow non-UTF-8 characters in user logs. If set to true, any non-UTF-8 character is replaced by the string specified in non_utf8_replacement_string. If set to false, the Ingest API errors out any non-UTF-8 characters. (default: true).
 	CoerceToUtf8 *bool `json:"coerce_to_utf8,omitempty"`
@@ -84,11 +86,11 @@ type SplunkHecOutput struct {
 	Source string `json:"source,omitempty"`
 	// Field name to contain source. Cannot set both source and source_key parameters at the same time.
 	SourceKey string `json:"source_key,omitempty"`
-	// The sourcetype field for events. When not set, the sourcetype is decided by HEC. Cannot set both source and source_key parameters at the same time.
+	// The sourcetype field for events. When not set, the sourcetype is decided by HEC. Cannot set both source and `source_key` parameters at the same time.
 	SourceType string `json:"sourcetype,omitempty"`
 	// Field name that contains the sourcetype. Cannot set both source and source_key parameters at the same time.
 	SourceTypeKey string `json:"sourcetype_key,omitempty"`
-	// By default, all the fields used by the *_key parameters are removed from the original input events. To change this behavior, set this parameter to true. This parameter is set to false by default. When set to true, all fields defined in index_key, host_key, source_key, sourcetype_key, metric_name_key, and metric_value_key are saved in the original event.
+	// By default, all the fields used by the *_key parameters are removed from the original input events. To change this behavior, set this parameter to true. This parameter is set to false by default. When set to true, all fields defined in `index_key`, `host_key`, `source_key`, `sourcetype_key`, `metric_name_key`, and `metric_value_key` are saved in the original event.
 	KeepKeys bool `json:"keep_keys,omitempty"`
 	//If a connection has not been used for this number of seconds it will automatically be reset upon the next use to avoid attempting to send to a closed connection. nil means no timeout.
 	IdleTimeout int `json:"idle_timeout,omitempty"`
@@ -112,7 +114,7 @@ type SplunkHecOutput struct {
 	SSLCiphers string `json:"ssl_ciphers,omitempty"`
 	// Indicates if insecure SSL connection is allowed (default:false)
 	InsecureSSL *bool `json:"insecure_ssl,omitempty"`
-	// In this case, parameters inside <fields> are used as indexed fields and removed from the original input events
+	// In this case, parameters inside `<fields>` are used as indexed fields and removed from the original input events
 	Fields Fields `json:"fields,omitempty"`
 	// +docLink:"Format,../format/"
 	Format *Format `json:"format,omitempty"`

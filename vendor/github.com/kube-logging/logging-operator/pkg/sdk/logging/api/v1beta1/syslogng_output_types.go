@@ -15,8 +15,9 @@
 package v1beta1
 
 import (
-	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/syslogng/output"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/syslogng/output"
 )
 
 // +name:"SyslogNGOutputSpec"
@@ -35,9 +36,20 @@ type SyslogNGOutputSpec struct {
 	Syslog          *output.SyslogOutput          `json:"syslog,omitempty" syslog-ng:"dest-drv"`
 	File            *output.FileOutput            `json:"file,omitempty" syslog-ng:"dest-drv"`
 	MQTT            *output.MQTT                  `json:"mqtt,omitempty" syslog-ng:"dest-drv"`
+	Redis           *output.RedisOutput           `json:"redis,omitempty" syslog-ng:"dest-drv"`
+	MongoDB         *output.MongoDB               `json:"mongodb,omitempty" syslog-ng:"dest-drv"`
 	SumologicHTTP   *output.SumologicHTTPOutput   `json:"sumologic-http,omitempty" syslog-ng:"dest-drv"`
 	SumologicSyslog *output.SumologicSyslogOutput `json:"sumologic-syslog,omitempty" syslog-ng:"dest-drv"`
 	HTTP            *output.HTTPOutput            `json:"http,omitempty" syslog-ng:"dest-drv"`
+	Elasticsearch   *output.ElasticsearchOutput   `json:"elasticsearch,omitempty" syslog-ng:"dest-drv,name=elasticsearch-http"`
+	LogScale        *output.LogScaleOutput        `json:"logscale,omitempty" syslog-ng:"dest-drv"`
+	SplunkHEC       *output.SplunkHECOutput       `json:"splunk_hec_event,omitempty" syslog-ng:"dest-drv"`
+	// Available in Logging operator version 4.4 and later.
+	Loki *output.LokiOutput `json:"loki,omitempty" syslog-ng:"dest-drv"`
+	// Available in Logging operator version 4.4 and later.
+	S3 *output.S3Output `json:"s3,omitempty" syslog-ng:"dest-drv"`
+	// Available in Logging operator version 4.5 and later.
+	Openobserve *output.OpenobserveOutput `json:"openobserve,omitempty" syslog-ng:"dest-drv,name=openobserve-log"`
 }
 
 type SyslogNGOutputStatus OutputStatus

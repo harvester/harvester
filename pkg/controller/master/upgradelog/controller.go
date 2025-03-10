@@ -24,11 +24,14 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/kubernetes"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlloggingv1 "github.com/harvester/harvester/pkg/generated/controllers/logging.banzaicloud.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/helm"
 )
 
 const (
@@ -48,12 +51,22 @@ const (
 	upgradeLogStateStopped    = "Stopped"
 
 	appLabelName = "app.kubernetes.io/name"
+
+	imageFluentbit      = "fluentbit"
+	imageFluentd        = "fluentd"
+	imageConfigReloader = "config_reloader"
 )
 
 var (
 	logArchiveMatchingLabels = labels.Set{
 		appLabelName:                  "fluentd",
 		util.LabelUpgradeLogComponent: util.UpgradeLogAggregatorComponent,
+	}
+
+	loggingImagesList = map[string][]string{
+		imageFluentbit:      {"images", imageFluentbit},
+		imageFluentd:        {"images", imageFluentd},
+		imageConfigReloader: {"images", imageConfigReloader},
 	}
 )
 
@@ -70,6 +83,7 @@ type handler struct {
 	jobClient           ctlbatchv1.JobClient
 	jobCache            ctlbatchv1.JobCache
 	loggingClient       ctlloggingv1.LoggingClient
+	fbagentClient       ctlloggingv1.FluentbitAgentClient
 	managedChartClient  ctlmgmtv3.ManagedChartClient
 	managedChartCache   ctlmgmtv3.ManagedChartCache
 	pvcClient           ctlcorev1.PersistentVolumeClaimClient
@@ -80,6 +94,7 @@ type handler struct {
 	upgradeCache        ctlharvesterv1.UpgradeCache
 	upgradeLogClient    ctlharvesterv1.UpgradeLogClient
 	upgradeLogCache     ctlharvesterv1.UpgradeLogCache
+	clientset           *kubernetes.Clientset
 }
 
 type Values struct {
@@ -121,50 +136,49 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 			logrus.Info("rancher-logging Addon is not installed")
 		} else {
 			if addon.Spec.Enabled {
+				// mark the operator source
+				setLoggingOperatorSource(toUpdate, util.RancherLoggingName)
 				setOperatorDeployedCondition(toUpdate, corev1.ConditionTrue, "Skipped", "rancher-logging Addon is enabled")
 				return h.upgradeLogClient.Update(toUpdate)
 			}
 			logrus.Info("rancher-logging Addon is not enabled")
 		}
 
-		// Detect the rancher-logging ManagedChart
-		managedChart, err := h.managedChartCache.Get(util.FleetLocalNamespaceName, util.RancherLoggingName)
-		if err != nil {
-			if !apierrors.IsNotFound(err) {
-				return nil, err
-			}
-			logrus.Info("rancher-logging ManagedChart is not installed")
-		} else {
-			if managedChart.Status.Summary.DesiredReady > 0 && managedChart.Status.Summary.DesiredReady == managedChart.Status.Summary.Ready {
-				setOperatorDeployedCondition(toUpdate, corev1.ConditionTrue, "Skipped", "rancher-logging ManagedChart is ready")
-				return h.upgradeLogClient.Update(toUpdate)
-			}
-			logrus.Warn("rancher-logging ManagedChart is not ready")
-			return nil, err
-		}
-
-		// If none of the above exists, install the customized rancher-logging ManagedChart
-		logrus.Info("Deploy logging-operator")
+		logrus.Info("Deploy logging-operator via a new ManagedChart")
 		if _, err := h.managedChartClient.Create(prepareOperator(upgradeLog)); err != nil && !apierrors.IsAlreadyExists(err) {
 			return nil, err
 		}
+		// format: hvst-upgrade-l5875-upgradelog-operator
+		setLoggingOperatorSource(toUpdate, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
 
 		return h.upgradeLogClient.Update(toUpdate)
 	}
 
 	// Try to establish the logging infrastructure by creating a customized Logging resource
 	if harvesterv1.LoggingOperatorDeployed.IsTrue(upgradeLog) && harvesterv1.InfraReady.GetStatus(upgradeLog) == "" {
-		logrus.Info("Start to create the logging infrastructure for the upgrade procedure")
+		logrus.Info("Start to create the logging infrastructure and fluentbitagent for the upgrade procedure")
 
 		toUpdate := upgradeLog.DeepCopy()
 
 		// The creation of the Logging resource will indirectly bring up fluent-bit DaemonSet and fluentd StatefulSet
-		candidateImages, err := h.getConsolidatedLoggingImageList(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
+		//candidateImages, err := h.getConsolidatedLoggingImageList(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
+		// TODO: need to identify which source to get images, currently it only gets from rancher-logging addons, assue addon is enabled
+
+		ns, name, err := getLoggingImageSourceHelmChart(upgradeLog)
 		if err != nil {
+			logrus.Infof("%s", err.Error())
+			return upgradeLog, err
+		}
+		candidateImages, err := h.getConsolidatedLoggingImageListFromHelmValues(ns, name)
+		if err != nil {
+			logrus.Infof("%s", err.Error())
 			return upgradeLog, err
 		}
 
 		if _, err := h.loggingClient.Create(prepareLogging(upgradeLog, candidateImages)); err != nil && !apierrors.IsAlreadyExists(err) {
+			return nil, err
+		}
+		if _, err := h.fbagentClient.Create(prepareFluentbitAgent(upgradeLog, candidateImages)); err != nil && !apierrors.IsAlreadyExists(err) {
 			return nil, err
 		}
 
@@ -537,6 +551,7 @@ func (h *handler) OnManagedChartChange(_ string, managedChart *mgmtv3.ManagedCha
 
 	toUpdate := upgradeLog.DeepCopy()
 	if managedChart.Status.Summary.DesiredReady > 0 && managedChart.Status.Summary.DesiredReady == managedChart.Status.Summary.Ready {
+		setLoggingOperatorSource(toUpdate, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
 		setOperatorDeployedCondition(toUpdate, corev1.ConditionTrue, "", "")
 		if _, err := h.upgradeLogClient.Update(toUpdate); err != nil {
 			return managedChart, err
@@ -745,6 +760,39 @@ func (h *handler) getConsolidatedLoggingImageList(appName string) (map[string]Im
 	return result.Images, nil
 }
 
+func (h *handler) getConsolidatedLoggingImageListFromHelmValues(namespace, name string) (map[string]settings.Image, error) {
+	images := make(map[string]settings.Image, len(loggingImagesList))
+
+	// for the convenience of test
+	if h.clientset == nil {
+		images := map[string]settings.Image{
+			imageConfigReloader: {
+				Repository: "rancher/config-reload",
+				Tag:        "default",
+			},
+			imageFluentbit: {
+				Repository: "rancher/fluentbit",
+				Tag:        "dev",
+			},
+			imageFluentd: {
+				Repository: "test/fluentd",
+				Tag:        "dev",
+			},
+		}
+		return images, nil
+	}
+
+	for img, key := range loggingImagesList {
+		imgTag, err := helm.FetchImageFromHelmValues(h.clientset, namespace, name, key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch %v image from helm chart %v/%v values, error %w", img, namespace, name, err)
+		}
+		images[img] = imgTag
+	}
+
+	return images, nil
+}
+
 func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {
 	logrus.Info("Tearing down the logging infrastructure for upgrade procedure")
 
@@ -760,6 +808,10 @@ func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {
 	err = h.loggingClient.Delete(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogInfraComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete logging client %s error %w", name.SafeConcatName(upgradeLog.Name, util.UpgradeLogInfraComponent), err)
+	}
+	err = h.fbagentClient.Delete(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFluentbitAgentComponent), &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete fluentbitagent %s error %w", name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFluentbitAgentComponent), err)
 	}
 	err = h.managedChartClient.Delete(util.FleetLocalNamespaceName, name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent), &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {

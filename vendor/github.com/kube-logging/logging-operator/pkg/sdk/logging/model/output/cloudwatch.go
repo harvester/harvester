@@ -24,34 +24,33 @@ import (
 type _hugoCloudWatch interface{} //nolint:deadcode,unused
 
 // +docName:"CloudWatch output plugin for Fluentd"
-// This plugin has been designed to output logs or metrics to Amazon CloudWatch.
-// More info at [https://github.com/fluent-plugins-nursery/fluent-plugin-cloudwatch-logs](https://github.com/fluent-plugins-nursery/fluent-plugin-cloudwatch-logs).
-//
-// ## Example output configurations
-// ```yaml
-// spec:
-//
-//	cloudwatch:
-//	  aws_key_id:
-//	    valueFrom:
-//	      secretKeyRef:
-//	        name: logging-s3
-//	        key: awsAccessKeyId
-//	  aws_sec_key:
-//	    valueFrom:
-//	      secretKeyRef:
-//	        name: logging-s3
-//	        key: awsSecretAccessKey
-//	  log_group_name: operator-log-group
-//	  log_stream_name: operator-log-stream
-//	  region: us-east-1
-//	  auto_create_stream true
-//	  buffer:
-//	    timekey: 30s
-//	    timekey_wait: 30s
-//	    timekey_use_utc: true
-//
-// ```
+/*
+This plugin outputs logs or metrics to Amazon CloudWatch. For details, see [https://github.com/fluent-plugins-nursery/fluent-plugin-cloudwatch-logs](https://github.com/fluent-plugins-nursery/fluent-plugin-cloudwatch-logs).
+
+## Example output configurations
+```yaml
+spec:
+cloudwatch:
+  aws_key_id:
+    valueFrom:
+      secretKeyRef:
+        name: logging-s3
+        key: awsAccessKeyId
+  aws_sec_key:
+    valueFrom:
+      secretKeyRef:
+        name: logging-s3
+        key: awsSecretAccessKey
+  log_group_name: operator-log-group
+  log_stream_name: operator-log-stream
+  region: us-east-1
+  auto_create_stream true
+  buffer:
+    timekey: 30s
+    timekey_wait: 30s
+    timekey_use_utc: true
+```
+*/
 type _docCloudWatch interface{} //nolint:deadcode,unused
 
 // +name:"Amazon CloudWatch"
@@ -89,7 +88,7 @@ type CloudWatchOutput struct {
 	HttpProxy string `json:"http_proxy,omitempty"`
 	// Include time key as part of the log entry (default: UTC)
 	IncludeTimeKey bool `json:"include_time_key,omitempty"`
-	// Name of the library to be used to handle JSON data. For now, supported libraries are json (default) and yajl
+	// Name of the library to be used to handle JSON data. For now, supported libraries are json (default) and yaml
 	JsonHandler string `json:"json_handler,omitempty"`
 	// Use localtime timezone for include_time_key output (overrides UTC default)
 	Localtime bool `json:"localtime,omitempty"`

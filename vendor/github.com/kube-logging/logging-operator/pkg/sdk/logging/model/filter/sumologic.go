@@ -36,13 +36,13 @@ type _metaSumologic interface{} //nolint:deadcode,unused
 
 // +kubebuilder:object:generate=true
 type SumoLogic struct {
-	// Source Category (default: "%{namespace}/%{pod_name}")
+	// Source Category (default: `%{namespace}/%{pod_name}`)
 	SourceCategory string `json:"source_category,omitempty"`
 	// Source Category Replace Dash (default: "/")
 	SourceCategoryReplaceDash string `json:"source_category_replace_dash,omitempty"`
 	// Source Category Prefix (default: kubernetes/)
 	SourceCategoryPrefix string `json:"source_category_prefix,omitempty"`
-	// Source Name (default: "%{namespace}.%{pod}.%{container}")
+	// Source Name (default: `%{namespace}.%{pod}.%{container}`)
 	SourceName string `json:"source_name,omitempty"`
 	// Log Format (default: json)
 	LogFormat string `json:"log_format,omitempty"`
@@ -74,51 +74,50 @@ type SumoLogic struct {
 	TracingContainerName string `json:"tracing_container_name,omitempty"`
 	// Tracing Host (default: "hostname")
 	TracingHost string `json:"tracing_host,omitempty"`
-	// Tracing Label Prefix (default: "pod_label_")
+	// Tracing Label Prefix (default: `pod_label_`)
 	TracingLabelPrefix string `json:"tracing_label_prefix,omitempty"`
-	// Tracing Annotation Prefix (default: "pod_annotation_")
+	// Tracing Annotation Prefix (default: `pod_annotation_`)
 	TracingAnnotationPrefix string `json:"tracing_annotation_prefix,omitempty"`
-	// Source HostKey Name (default: "_sourceHost")
+	// Source HostKey Name (default: `_sourceHost`)
 	SourceHostKeyName string `json:"source_host_key_name,omitempty"`
-	// Source CategoryKey Name (default: "_sourceCategory")
+	// Source CategoryKey Name (default: `_sourceCategory`)
 	SourceCategoryKeyName string `json:"source_category_key_name,omitempty"`
-	// Source NameKey Name (default: "_sourceName")
+	// Source NameKey Name (default: `_sourceName`)
 	SourceNameKeyName string `json:"source_name_key_name,omitempty"`
-	// CollectorKey Name (default: "_collector")
+	// CollectorKey Name (default: `_collector`)
 	CollectorKeyName string `json:"collector_key_name,omitempty"`
 	// Collector Value (default: "undefined")
 	CollectorValue string `json:"collector_value,omitempty"`
 }
 
-// ## Example `Parser` filter configurations
-// ```yaml
-// apiVersion: logging.banzaicloud.io/v1beta1
-// kind: Flow
-// metadata:
 //
-//	name: demo-flow
-//
-// spec:
-//
-//	filters:
-//	  - sumologic:
-//	      source_name: "elso"
-//	selectors: {}
-//	localOutputRefs:
-//	  - demo-output
-//
-// ```
-//
-// #### Fluentd Config Result
-// ```yaml
-// <filter **>
-//
-//	@type kubernetes_sumologic
-//	@id test_sumologic
-//	source_name elso
-//
-// </filter>
-// ```
+/*
+## Example `Parser` filter configurations
+
+{{< highlight yaml >}}
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Flow
+metadata:
+  name: demo-flow
+spec:
+  filters:
+    - sumologic:
+        source_name: "elso"
+  selectors: {}
+  localOutputRefs:
+    - demo-output
+{{</ highlight >}}
+
+Fluentd config result:
+
+{{< highlight xml >}}
+<filter **>
+  @type kubernetes_sumologic
+  @id test_sumologic
+  source_name elso
+</filter>
+{{</ highlight >}}
+*/
 type _expSumologic interface{} //nolint:deadcode,unused
 
 func (s *SumoLogic) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {

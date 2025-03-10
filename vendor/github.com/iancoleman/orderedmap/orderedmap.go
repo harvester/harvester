@@ -80,6 +80,10 @@ func (o *OrderedMap) Keys() []string {
 	return o.keys
 }
 
+func (o *OrderedMap) Values() map[string]interface{} {
+	return o.values
+}
+
 // SortKeys Sort the map keys using your sort func
 func (o *OrderedMap) SortKeys(sortFunc func(keys []string)) {
 	sortFunc(o.keys)

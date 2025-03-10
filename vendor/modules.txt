@@ -114,8 +114,8 @@ github.com/chai2010/gettext-go
 github.com/chai2010/gettext-go/mo
 github.com/chai2010/gettext-go/plural
 github.com/chai2010/gettext-go/po
-# github.com/cisco-open/operator-tools v0.29.0
-## explicit; go 1.17
+# github.com/cisco-open/operator-tools v0.34.0
+## explicit; go 1.20
 github.com/cisco-open/operator-tools/pkg/secret
 github.com/cisco-open/operator-tools/pkg/typeoverride
 github.com/cisco-open/operator-tools/pkg/types
@@ -425,8 +425,8 @@ github.com/hashicorp/golang-lru/v2/simplelru
 # github.com/huandu/xstrings v1.4.0
 ## explicit; go 1.12
 github.com/huandu/xstrings
-# github.com/iancoleman/orderedmap v0.2.0
-## explicit
+# github.com/iancoleman/orderedmap v0.3.0
+## explicit; go 1.16
 github.com/iancoleman/orderedmap
 # github.com/iancoleman/strcase v0.2.0
 ## explicit; go 1.16
@@ -491,8 +491,8 @@ github.com/klauspost/compress/zstd/internal/xxhash
 ## explicit
 github.com/krolaw/dhcp4
 github.com/krolaw/dhcp4/conn
-# github.com/kube-logging/logging-operator/pkg/sdk v0.9.1
-## explicit; go 1.20
+# github.com/kube-logging/logging-operator/pkg/sdk v0.11.1-0.20240314152935-421fefebc813
+## explicit; go 1.21
 github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1
 github.com/kube-logging/logging-operator/pkg/sdk/logging/maps/mapstrstr
 github.com/kube-logging/logging-operator/pkg/sdk/logging/model/common
@@ -776,8 +776,8 @@ github.com/pmezard/go-difflib/difflib
 # github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55
 ## explicit; go 1.14
 github.com/power-devops/perfstat
-# github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0
-## explicit; go 1.17
+# github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.72.0
+## explicit; go 1.21
 github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring
 github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1
 # github.com/prometheus/client_golang v1.20.5

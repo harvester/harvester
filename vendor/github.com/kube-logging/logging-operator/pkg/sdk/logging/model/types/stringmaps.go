@@ -117,14 +117,19 @@ func (s *StructToStringMapper) processField(field reflect.StructField, value ref
 		}
 	}
 
+	var isPointer, isNil bool
 	if value.Kind() == reflect.Ptr {
+		isPointer = true
+		if value.IsNil() {
+			isNil = true
+		}
 		value = value.Elem()
 	}
 
 	switch value.Kind() { // nolint:exhaustive
 	case reflect.String, reflect.Int, reflect.Bool:
 		val := fmt.Sprintf("%v", value.Interface())
-		if val == "" {
+		if (isPointer && isNil) || (!isPointer && val == "") {
 			// check if default has been set and use it
 			if ok, def := pluginTagOpts.ValueForPrefix("default:"); ok {
 				val = def
