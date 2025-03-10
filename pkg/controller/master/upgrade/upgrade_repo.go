@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"reflect"
 	"strings"
 	"time"
 
@@ -137,9 +136,17 @@ func (r *Repo) getVMName() string {
 	return fmt.Sprintf("%s%s", repoVMNamePrefix, r.upgrade.Name)
 }
 
+func (r *Repo) GetVMName() string {
+	return r.getVMName()
+}
+
+func (r *Repo) GetVMNamespace() string {
+	return upgradeNamespace
+}
+
 func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.VirtualMachine, error) {
 	vmName := r.getVMName()
-	vmRun := true
+	runStrategy := kubevirtv1.RunStrategyRerunOnFailure // the default strategy used by Harvester to create new VMs
 	var bootOrder uint = 1
 	evictionStrategy := kubevirtv1.EvictionStrategyLiveMigrateIfPossible
 
@@ -188,7 +195,7 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 			},
 		},
 		Spec: kubevirtv1.VirtualMachineSpec{
-			Running: &vmRun,
+			RunStrategy: &runStrategy,
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -309,28 +316,7 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 	return r.h.vmClient.Create(&vm)
 }
 
-func (r *Repo) startVM() error {
-	vmName := r.getVMName()
-	vm, err := r.h.vmCache.Get(upgradeNamespace, vmName)
-	if err != nil {
-		return err
-	}
-
-	if vm.Status.PrintableStatus == kubevirtv1.VirtualMachineStatusRunning {
-		return nil
-	}
-
-	toUpdate := vm.DeepCopy()
-
-	toUpdate.Spec.Running = func(b bool) *bool { return &b }(true)
-	if !reflect.DeepEqual(toUpdate, vm) {
-		if _, err = r.h.vmClient.Update(toUpdate); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
+// (r *Repo) startVM() is done via func (h *upgradeHandler) startVM(ctx context.Context, vm *kubevirtv1.VirtualMachine)
 
 func (r *Repo) deleteVM() error {
 	vmName := r.getVMName()
