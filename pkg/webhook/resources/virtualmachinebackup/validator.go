@@ -81,34 +81,52 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 		return werror.NewInvalidError("source VM name is empty", fieldSourceName)
 	}
 
-	var err error
-
-	// If VMBackup is from metadata in backup target, we don't check whether the VM is existent,
-	// because the related VM may not exist in a new cluster.
-	if newVMBackup.Status == nil {
-		vm, err := v.vms.Get(newVMBackup.Namespace, newVMBackup.Spec.Source.Name)
-		if err != nil {
-			return werror.NewInvalidError(err.Error(), fieldSourceName)
-		}
-		if err = v.checkVMInstanceMigration(vm); err != nil {
-			return werror.NewInvalidError(err.Error(), fieldSourceName)
-		}
-		if err = v.checkTotalSnapshotSize(vm); err != nil {
-			return err
-		}
-		if err = v.checkBackupVolumeSnapshotClass(vm, newVMBackup); err != nil {
-			return werror.NewInvalidError(err.Error(), fieldSourceName)
-		}
+	validateFunc := v.validateStandardBackup
+	if newVMBackup.Status != nil {
+		validateFunc = v.validateVMBackupRecover
 	}
 
-	if newVMBackup.Spec.Type == v1beta1.Backup {
-		err = v.checkBackupTarget()
+	// Execute the selected validation.
+	if err := validateFunc(newVMBackup); err != nil {
+		return err
 	}
-	if err != nil {
+
+	if newVMBackup.Spec.Type == v1beta1.Snapshot {
+		return nil
+	}
+
+	// Additional check for backup type.
+	if err := v.checkBackupTarget(); err != nil {
 		return werror.NewInvalidError(err.Error(), fieldTypeName)
 	}
 
 	return nil
+}
+
+func (v *virtualMachineBackupValidator) validateStandardBackup(vmb *v1beta1.VirtualMachineBackup) error {
+	// Retrieve the VM instance.
+	vm, err := v.vms.Get(vmb.Namespace, vmb.Spec.Source.Name)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), fieldSourceName)
+	}
+	// Validate VM migration.
+	if err := v.checkVMInstanceMigration(vm); err != nil {
+		return werror.NewInvalidError(err.Error(), fieldSourceName)
+	}
+	// Check the total snapshot size.
+	if err := v.checkTotalSnapshotSize(vm); err != nil {
+		return err
+	}
+	// Validate backup volume snapshot class.
+	if err := v.checkBackupVolumeSnapshotClass(vm, vmb); err != nil {
+		return werror.NewInvalidError(err.Error(), fieldSourceName)
+	}
+	return nil
+}
+
+func (v *virtualMachineBackupValidator) validateVMBackupRecover(vmb *v1beta1.VirtualMachineBackup) error {
+	// Perform LH backup specific validation.
+	return webhookutil.IsLHBackupRelated(vmb)
 }
 
 // checkBackupVolumeSnapshotClass checks if the volumeSnapshotClassName is configured for the provisioner used by the PVCs in the VirtualMachine.

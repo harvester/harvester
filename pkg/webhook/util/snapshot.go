@@ -208,3 +208,17 @@ func ValidateProvisionerAndConfig(pvc *corev1.PersistentVolumeClaim,
 
 	return nil
 }
+
+// While we try to recover a VMBackup remote, if the volumeBackup has no LonghornBackupName,
+// it can be the volume backup is not completed or the volume backup is from third-party storage
+// from the misleading items https://github.com/harvester/harvester/issues/7755#issue-2896409886.
+// We should reject to recover such VMBackups
+func IsLHBackupRelated(vmb *v1beta1.VirtualMachineBackup) error {
+	for _, vb := range vmb.Status.VolumeBackups {
+		if vb.LonghornBackupName == nil || *vb.LonghornBackupName == "" {
+			return fmt.Errorf("vmbackup %s/%s vb %s not from LH, it can't be recovered",
+				vmb.Namespace, vmb.Name, *vb.Name)
+		}
+	}
+	return nil
+}
