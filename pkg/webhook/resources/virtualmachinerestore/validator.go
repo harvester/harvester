@@ -270,6 +270,11 @@ func (v *restoreValidator) checkVMBackupType(vmRestore *v1beta1.VirtualMachineRe
 	switch vmBackup.Spec.Type {
 	case v1beta1.Backup:
 		err = v.checkBackup(vmRestore, vmBackup)
+		if err == nil {
+			// Because of the misleading items https://github.com/harvester/harvester/issues/7755#issue-2896409886,
+			// User may have VMBackups with non-LH source volume. We should prevent this VMBackup from restoring
+			err = webhookutil.IsLHBackupRelated(vmBackup)
+		}
 	case v1beta1.Snapshot:
 		err = v.checkSnapshot(vmRestore, vmBackup)
 	}
