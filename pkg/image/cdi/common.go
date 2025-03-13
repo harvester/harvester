@@ -23,11 +23,8 @@ var (
 )
 
 const (
-	VolumeModeBlock = "Block"
-	AccessModeRWO   = "ReadWriteOnce"
-	tickTimeout     = 60 * time.Second
-	tickPolling     = 1 * time.Second
-	kindPod         = "Pod"
+	tickTimeout = 60 * time.Second
+	tickPolling = 1 * time.Second
 )
 
 type ProgressUpdater struct {

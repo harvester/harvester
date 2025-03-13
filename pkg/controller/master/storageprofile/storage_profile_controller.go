@@ -5,6 +5,7 @@ import (
 
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -58,6 +59,19 @@ func (h *storageProfileHandler) generateProfileSpec(sc *v1.StorageClass, profile
 			}
 		}
 		profile.Spec.SnapshotClass = &snapshotClass
+		return profile
+	case util.CSIProvisionerLVM:
+		volumeMode := corev1.PersistentVolumeBlock
+		claimProperty := cdiv1.ClaimPropertySet{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			VolumeMode:  &volumeMode,
+		}
+		for _, property := range profile.Spec.ClaimPropertySets {
+			if reflect.DeepEqual(property, claimProperty) {
+				return profile
+			}
+		}
+		profile.Spec.ClaimPropertySets = append(profile.Spec.ClaimPropertySets, claimProperty)
 		return profile
 	default:
 		return profile
