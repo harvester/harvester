@@ -12,8 +12,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
@@ -88,6 +90,21 @@ func generateDVSourceHTTP(vmi *harvesterv1.VirtualMachineImage) *cdiv1.DataVolum
 	return &cdiv1.DataVolumeSourceHTTP{
 		URL: vmi.Spec.URL,
 	}
+}
+
+func GenerateDVAnnotations(sc *storagev1.StorageClass) map[string]string {
+	annotations := map[string]string{}
+	if sc.VolumeBindingMode == nil {
+		// if volumeBindingMode is not set, means `Immediate` mode
+		// do not need to set annotation
+		return annotations
+	}
+	volBindingMode := *sc.VolumeBindingMode
+	// need annotation `cdi.kubevirt.io/storage.bind.immediate.requested: "true"`
+	if volBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
+		annotations[cdicommon.AnnImmediateBinding] = "true"
+	}
+	return annotations
 }
 
 func generateDVTargetStorage(vmi *harvesterv1.VirtualMachineImage) (*cdiv1.StorageSpec, error) {
