@@ -11,6 +11,7 @@ import (
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -24,6 +25,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
+	"github.com/harvester/harvester/pkg/image/cdi"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/util"
 	rqutils "github.com/harvester/harvester/pkg/util/resourcequota"
@@ -94,8 +96,11 @@ func (h *VMController) createPVCsFromAnnotation(_ string, vm *kubevirtv1.Virtual
 		// create DataVolume for PVC (only for CDI backend)
 		if createPVCWithDataVolume {
 			if _, err := h.dataVolumeClient.Get(vm.Namespace, pvcAnno.Name, metav1.GetOptions{}); apierrors.IsNotFound(err) {
-				targetSCName := *pvcAnno.Spec.StorageClassName
-				if err := h.createDataVolume(pvcAnno.Name, vm.Namespace, imageName, imageNS, targetSCName, pvcAnno.Spec.Resources); err != nil {
+				targetSC, err := h.getPVCStorageClass(pvcAnno)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get StorageClass %s: %w", *pvcAnno.Spec.StorageClassName, err)
+				}
+				if err := h.createDataVolume(pvcAnno.Name, vm.Namespace, imageName, imageNS, targetSC, pvcAnno.Spec.Resources); err != nil {
 					return nil, err
 				}
 				continue
@@ -448,12 +453,13 @@ func (h *VMController) isVMPodExistingOnAPIServer(vm *kubevirtv1.VirtualMachine)
 	return true, nil
 }
 
-func (h *VMController) createDataVolume(pvcName, pvcNS, imageID, imageNS, scName string, reqResources corev1.VolumeResourceRequirements) error {
+func (h *VMController) createDataVolume(pvcName, pvcNS, imageID, imageNS string, targetSC *storagev1.StorageClass, reqResources corev1.VolumeResourceRequirements) error {
 	// generate dataVolumeTempate
 	dataVolumeTemplate := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      pvcName,
-			Namespace: pvcNS,
+			Annotations: cdi.GenerateDVAnnotations(targetSC),
+			Name:        pvcName,
+			Namespace:   pvcNS,
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: &cdiv1.DataVolumeSource{
@@ -463,7 +469,7 @@ func (h *VMController) createDataVolume(pvcName, pvcNS, imageID, imageNS, scName
 				},
 			},
 			Storage: &cdiv1.StorageSpec{
-				StorageClassName: &scName,
+				StorageClassName: &targetSC.Name,
 				Resources:        reqResources,
 			},
 		},
@@ -474,4 +480,28 @@ func (h *VMController) createDataVolume(pvcName, pvcNS, imageID, imageNS, scName
 	}
 
 	return nil
+}
+
+func (h *VMController) getPVCStorageClass(pvc *corev1.PersistentVolumeClaim) (*storagev1.StorageClass, error) {
+	if pvc.Spec.StorageClassName == nil {
+		// find default StorageClass
+		allSC, err := h.scClient.List(metav1.ListOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list StorageClass: %w", err)
+		}
+		for _, sc := range allSC.Items {
+			scAnnos := sc.GetAnnotations()
+			if scAnnos == nil {
+				continue
+			}
+			if v, ok := scAnnos[util.AnnotationIsDefaultStorageClassName]; ok && v == "true" {
+				return &sc, nil
+			}
+		}
+	}
+	sc, err := h.scCache.Get(*pvc.Spec.StorageClassName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get StorageClass %s: %w", *pvc.Spec.StorageClassName, err)
+	}
+	return sc, nil
 }
