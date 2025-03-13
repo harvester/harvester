@@ -161,9 +161,7 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		toUpdate := upgradeLog.DeepCopy()
 
 		// The creation of the Logging resource will indirectly bring up fluent-bit DaemonSet and fluentd StatefulSet
-		//candidateImages, err := h.getConsolidatedLoggingImageList(name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent))
-		// TODO: need to identify which source to get images, currently it only gets from rancher-logging addons, assue addon is enabled
-
+		// get related images from helm chart
 		ns, name, err := getLoggingImageSourceHelmChart(upgradeLog)
 		if err != nil {
 			logrus.Infof("%s", err.Error())
