@@ -614,19 +614,26 @@ upgrade_rancher() {
   echo "Wait for Rancher dependencies rollout..."
   wait_rollout cattle-fleet-system deployment fleet-controller
   wait_rollout cattle-system deployment rancher-webhook
+
+  # Create cattle-system/stv-aggregation secret to make system-agent-upgrader plan ready
+  if ! kubectl get secret -n cattle-system stv-aggregation &>/dev/null; then
+    echo "Create cattle-system/stv-aggregation secret"
+    kubectl create secret generic -n cattle-system stv-aggregation
+  fi
+
   # fleet-agnet is deployed as statefulset after fleet v0.10.1
   # v0.9.2: https://github.com/rancher/fleet/blob/e75c1fb498e3137ba39c2bdc4d59c9122f5ef9c6/internal/cmd/controller/agent/manifest.go#L136-L145
   # v0.10.1: https://github.com/rancher/fleet/blob/62de718a20e1377d5a8702876077762ed9a37f27/internal/cmd/controller/agentmanagement/agent/manifest.go#L152-L161
-  wait_rollout_with_loop cattle-fleet-local-system statefulset fleet-agent
+  wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
   echo "Wait for cluster settling down..."
   wait_capi_cluster fleet-local local $pre_generation
 
   # Following patch is not enough
-  wait_for_statefulset cattle-fleet-local-system fleet-agent
+  wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
   pre_patch_timestamp=$(fleet_agent_timestamp)
   patch_fleet_cluster
   wait_for_fleet_agent $pre_patch_timestamp
-  wait_rollout_with_loop cattle-fleet-local-system statefulset fleet-agent
+  wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
 
   # After fleet-controller POD is restarted, it will check until the local cluster is imported, after that, redeploy the fleet-agent
   # Need to wait until fleet-controller assumes the cluster is ready, avoid fleet-agent is accidentally re-deployed and influence related managedcharts
@@ -1204,8 +1211,8 @@ wait_for_statefulset() {
 }
 
 fleet_agent_timestamp(){
-  wait_for_statefulset cattle-fleet-local-system fleet-agent &> /dev/null
-  local temptime=$(kubectl get statefulset -n cattle-fleet-local-system fleet-agent -o json | jq -r .metadata.creationTimestamp)
+  wait_rollout cattle-fleet-local-system deployment fleet-agent &> /dev/null
+  local temptime=$(kubectl get deployment -n cattle-fleet-local-system fleet-agent -o json | jq -r .metadata.creationTimestamp)
   if [ -z "$temptime" ]; then
     # if kubectl happens to fail due to deployment is just deleted, echo 0 to continue
     echo "0"
