@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
@@ -986,4 +987,8 @@ func SetUpgradeLogArchive(upgradeLog *harvesterv1.UpgradeLog, archiveName string
 		Size:          archiveSize,
 		GeneratedTime: generatedTime,
 	}
+}
+
+type ImageGetterInterface interface {
+	GetConsolidatedLoggingImageListFromHelmValues(*kubernetes.Clientset, string, string) (map[string]settings.Image, error)
 }

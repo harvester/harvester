@@ -95,6 +95,8 @@ type handler struct {
 	upgradeLogClient    ctlharvesterv1.UpgradeLogClient
 	upgradeLogCache     ctlharvesterv1.UpgradeLogCache
 	clientset           *kubernetes.Clientset
+
+	imageGetter ImageGetterInterface // for test code to mock helm
 }
 
 type Values struct {
@@ -167,7 +169,7 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 			logrus.Infof("%s", err.Error())
 			return upgradeLog, err
 		}
-		candidateImages, err := h.getConsolidatedLoggingImageListFromHelmValues(ns, name)
+		candidateImages, err := h.imageGetter.GetConsolidatedLoggingImageListFromHelmValues(h.clientset, ns, name)
 		if err != nil {
 			logrus.Infof("%s", err.Error())
 			return upgradeLog, err
@@ -758,39 +760,6 @@ func (h *handler) getConsolidatedLoggingImageList(appName string) (map[string]Im
 	return result.Images, nil
 }
 
-func (h *handler) getConsolidatedLoggingImageListFromHelmValues(namespace, name string) (map[string]settings.Image, error) {
-	images := make(map[string]settings.Image, len(loggingImagesList))
-
-	// for the convenience of test
-	if h.clientset == nil {
-		images := map[string]settings.Image{
-			imageConfigReloader: {
-				Repository: "rancher/config-reload",
-				Tag:        "default",
-			},
-			imageFluentbit: {
-				Repository: "rancher/fluentbit",
-				Tag:        "dev",
-			},
-			imageFluentd: {
-				Repository: "test/fluentd",
-				Tag:        "dev",
-			},
-		}
-		return images, nil
-	}
-
-	for img, key := range loggingImagesList {
-		imgTag, err := helm.FetchImageFromHelmValues(h.clientset, namespace, name, key)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch %v image from helm chart %v/%v values, error %w", img, namespace, name, err)
-		}
-		images[img] = imgTag
-	}
-
-	return images, nil
-}
-
 func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {
 	logrus.Info("Tearing down the logging infrastructure for upgrade procedure")
 
@@ -870,4 +839,24 @@ func (h *handler) cleanup(upgradeLog *harvesterv1.UpgradeLog) error {
 	}
 
 	return nil
+}
+
+type ImageGetter struct{}
+
+func (i *ImageGetter) GetConsolidatedLoggingImageListFromHelmValues(c *kubernetes.Clientset, namespace, name string) (map[string]settings.Image, error) {
+	images := make(map[string]settings.Image, len(loggingImagesList))
+
+	for img, key := range loggingImagesList {
+		imgTag, err := helm.FetchImageFromHelmValues(c, namespace, name, key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch %v image from helm chart %v/%v values, error %w", img, namespace, name, err)
+		}
+		images[img] = imgTag
+	}
+
+	return images, nil
+}
+
+func NewImageGetter() *ImageGetter {
+	return &ImageGetter{}
 }
