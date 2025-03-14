@@ -124,7 +124,7 @@ func (h *MetadataHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Se
 
 	// when backup target is reset to default, do not trig sync
 	if target.IsDefaultBackupTarget() {
-		return nil, nil
+		return h.resetBackupTarget(setting)
 	}
 
 	if !h.shouldRefresh(setting, target.RefreshIntervalInSeconds) {
@@ -178,6 +178,20 @@ func (h *MetadataHandler) shouldRefresh(setting *harvesterv1.Setting, refreshInt
 		}
 	}
 	return true
+}
+
+func (h *MetadataHandler) resetBackupTarget(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+	settingCopy := setting.DeepCopy()
+	if settingCopy.Annotations == nil {
+		settingCopy.Annotations = map[string]string{}
+	}
+
+	delete(settingCopy.Annotations, util.AnnotationHash)
+	delete(settingCopy.Annotations, util.AnnotationLastRefreshTime)
+	if !reflect.DeepEqual(setting, settingCopy) {
+		return h.settings.Update(settingCopy)
+	}
+	return setting, nil
 }
 
 func (h *MetadataHandler) renewBackupTarget(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
