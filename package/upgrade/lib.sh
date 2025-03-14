@@ -571,6 +571,263 @@ EOF
   wait_for_addon_upgrade_deployment $name $namespace $enabled $curstatus
 }
 
+upgrade_harvester_upgradelog_with_patch_loggingref()
+{
+  local namespace="${UPGRADE_NAMESPACE}"
+  local upgradelogname=$(kubectl get upgrades.harvesterhci.io "${HARVESTER_UPGRADE_NAME}" -n "${UPGRADE_NAMESPACE}" -ojsonpath="{.status.upgradeLog}")
+  local loggingref="harvester-upgradelog"
+
+  if [[ -z "${upgradelogname}" ]]; then
+    echo "upgradelog is not found from upgrade ${HARVESTER_UPGRADE_NAME}, nothing to do"
+    return 0
+  fi
+
+  # patch_clusteroutput
+  echo "patch clusteroutput ${upgradelogname}-clusteroutput"
+  local patchfile="patch_clusteroutput.yaml"
+  cat > "${patchfile}" <<EOF
+spec:
+  loggingRef: "${loggingref}"
+EOF
+  kubectl patch clusteroutput -n "${namespace}" "${upgradelogname}"-clusteroutput --patch-file ./"${patchfile}" --type merge || echo "failed to patch upgradeLog clusteroutput"
+  rm -rf ./"${patchfile}"
+
+  # patch_clusterflow
+  echo "patch clusterflow ${upgradelogname}-clusterflow"
+  patchfile="patch_clusterflow.yaml"
+  cat > "${patchfile}" <<EOF
+spec:
+  loggingRef: "${loggingref}"
+EOF
+  kubectl patch clusterflow -n "${namespace}" "${upgradelogname}"-clusterflow --patch-file ./"${patchfile}" --type merge || echo "failed to patch upgradeLog clusterflow"
+  rm -rf ./"${patchfile}"
+
+  # patch logging
+  echo "patch logging ${upgradelogname}-infra"
+  patchfile="patch_logging.yaml"
+  cat > "${patchfile}" <<EOF
+spec:
+  loggingRef: "${loggingref}"
+EOF
+  kubectl patch logging -n "${namespace}" "${upgradelogname}"-infra --patch-file ./"${patchfile}" --type merge || echo "failed to patch upgradeLog logging"
+  rm -rf ./"${patchfile}"
+
+  # patch the may be existing logging operator-root
+  echo "patch logging ${upgradelogname}-operator-root"
+  patchfile="patch_logging.yaml"
+  cat > "${patchfile}" <<EOF
+spec:
+  loggingRef: "harvester-upgradelog-operator-root"
+EOF
+  kubectl patch logging -n "${namespace}" "${upgradelogname}"-operator-root --patch-file ./"${patchfile}" --type merge || echo "failed to patch upgradeLog logging operator-root or it is not existing"
+  rm -rf ./"${patchfile}"
+}
+
+#upgrade upgradelog operator managedchart
+upgrade_managedchart_upgradelog_operator()
+{
+  local upgradelogname=$1
+  local upgradeloguid=$2
+
+  local nm="${upgradelogname}"-operator
+  local newver="${REPO_LOGGING_CHART_VERSION}"
+
+
+  local upgradelogoperator=$(kubectl get managedchart "${upgradelogname}"-operator -ojsonpath="{.metadata.name}")
+  if [[ -z "${upgradelogoperator}" ]]; then
+    echo "the managedchart ${nm} is not found, nothing to patch"
+    return 0
+  fi
+
+  local pre_version=$(kubectl get managedcharts.management.cattle.io "$nm" -n fleet-local -o=jsonpath='{.spec.version}')
+  if [ "${pre_version}" = "${newver}" ]; then
+    echo "the managedchart ${nm} has already been target version ${newver}"
+    pause_managed_chart "${nm}" "false"
+    return 0
+  fi
+
+  echo "upgrading managedchart ${nm} to ${newver}"
+
+  local pre_generation=$(kubectl get managedcharts.management.cattle.io "${nm}" -n fleet-local -o=jsonpath='{.status.observedGeneration}')
+
+  cat >./"${nm}".yaml <<EOF
+spec:
+  version: ${newver}
+  timeoutSeconds: 600
+EOF
+
+  kubectl patch managedcharts.management.cattle.io "${nm}" -n fleet-local --patch-file ./"${nm}".yaml --type merge
+  pause_managed_chart "${nm}" "false"
+  wait_managed_chart fleet-local "${nm}" "${newver}" "${pre_generation}" ready
+}
+
+upgrade_harvester_upgradelog_logging()
+{
+  local upgradelogname=$1
+  local upgradeloguid=$2
+
+  local loggingimg=$(kubectl get logging.logging.banzaicloud.io "${upgradelogname}"-infra -ojsonpath="{.spec.fluentd.image.repository}")
+
+  # previous is rancher/mirrored-banzaicloud-fluentd
+  if [ "${loggingimg}" = "rancher/mirrored-kube-logging-fluentd" ]; then
+    echo "logging ${upgradelogname}-infra has been upgraded, nothing to patch"
+    return 0
+  fi
+
+  echo "delete the current logging-infra"
+
+  local EXIT_CODE=0
+  kubectl delete logging.logging.banzaicloud.io "${upgradelogname}"-infra || EXIT_CODE=1
+  if [ "${EXIT_CODE}" -gt 0 ]; then
+    echo "failed to delete current logging ${upgradelogname}-infra, skip patch"
+    return 0
+  fi
+
+  local loop_cnt=10
+  while [ $loop_cnt -gt 0 ]
+  do
+    unset loggingname
+    local loggingname=$(kubectl get logging.logging.banzaicloud.io "${upgradelogname}"-infra -ojsonpath="{.metadata.name}")
+    if [ -z "${loggingname}" ]; then
+      echo "current logging ${upgradelogname}-infra is gone"
+      break
+    fi
+    sleep 6
+    loop_cnt=$((loop_cnt-1))
+  done
+
+  # no matter it is deleted or not, re-create it
+  # the re-created logging has no fluentbit, which is replaced by fluentbitagent
+  echo "logging ${upgradelogname}-infra will be re-created"
+  patchfile="patch_logging.yaml"
+  cat > "${patchfile}" <<EOF
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: Logging
+metadata:
+  labels:
+    harvesterhci.io/upgradeLog: ${upgradelogname}
+    harvesterhci.io/upgradeLogComponent: infra
+  name: ${upgradelogname}-infra
+  ownerReferences:
+  - apiVersion: harvesterhci.io/v1beta1
+    kind: UpgradeLog
+    name: ${upgradelogname}
+    uid: ${upgradeloguid}
+spec:
+  configCheck: {}
+  controlNamespace: harvester-system
+  flowConfigCheckDisabled: true
+  fluentd:
+    configReloaderImage:
+      repository: rancher/mirrored-kube-logging-config-reloader
+      tag: v0.0.6
+    configReloaderResources: {}
+    disablePvc: true
+    extraVolumes:
+    - containerName: fluentd
+      path: /archive
+      volume:
+        pvc:
+          source:
+            claimName: log-archive
+          spec:
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
+            volumeMode: Filesystem
+      volumeName: log-archive
+    fluentOutLogrotate:
+      age: "10"
+      enabled: true
+      path: /fluentd/log/out
+      size: "10485760"
+    image:
+      repository: rancher/mirrored-kube-logging-fluentd
+      tag: v1.16-4.10-full
+    labels:
+      harvesterhci.io/upgradeLog: ${upgradelogname}
+      harvesterhci.io/upgradeLogComponent: aggregator
+    readinessDefaultCheck: {}
+    resources: {}
+    scaling:
+      drain:
+        enabled: true
+        image: {}
+        pauseImage: {}
+  loggingRef: harvester-upgradelog
+EOF
+
+  kubectl create -f ./"${patchfile}" || echo "failed to create"
+  rm -rf ./"${patchfile}"
+}
+
+upgrade_harvester_upgradelog_fluentbit_agent()
+{
+  local upgradelogname=$1
+  local upgradeloguid=$2
+
+  local fbagent=$(kubectl get fluentbitagent.logging.banzaicloud.io "${upgradelogname}"-agent -ojsonpath="{.metadata.name}")
+  if [[ ! -z "${fbagent}" ]]; then
+    echo "fluentbitagent ${upgradelogname}-agent is existing, skip"
+    return 0
+  fi
+
+  echo "fluentbitagent ${upgradelogname}-agent will be created"
+  local patchfile="patch_fluentbit_agent.yaml"
+  cat > "${patchfile}" <<EOF
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: FluentbitAgent
+metadata:
+  labels:
+    harvesterhci.io/upgradeLog: ${upgradelogname}
+    harvesterhci.io/upgradeLogComponent: infra
+  name: ${upgradelogname}-agent
+  ownerReferences:
+  - apiVersion: harvesterhci.io/v1beta1
+    kind: UpgradeLog
+    name: ${upgradelogname}
+    uid: ${upgradeloguid}
+spec:
+  image:
+    repository: rancher/mirrored-fluent-fluent-bit
+    tag: 3.1.8
+  inputTail: {}
+  labels:
+    harvesterhci.io/upgradeLog: ${upgradelogname}
+    harvesterhci.io/upgradeLogComponent: shipper
+  loggingRef: harvester-upgradelog
+EOF
+  kubectl create -f ./"${patchfile}" || echo "failed to create"
+  rm -rf ./"${patchfile}"
+}
+
+upgrade_harvester_upgradelog_with_patch_logging_fluentd_fluentbit()
+{
+  local namespace="${UPGRADE_NAMESPACE}"
+  local upgradelogname=$(kubectl get upgrades.harvesterhci.io "${HARVESTER_UPGRADE_NAME}" -n "${namespace}" -ojsonpath="{.status.upgradeLog}")
+
+  if [[ -z "${upgradelogname}" ]]; then
+    echo "upgradelog is not found from upgrade ${HARVESTER_UPGRADE_NAME}, nothing to patch"
+    return 0
+  fi
+
+  local upgradeloguid=$(kubectl get upgradelog.harvesterhci.io "${upgradelogname}" -n "${namespace}" -ojsonpath="{.metadata.uid}")
+  if [[ -z "${upgradeloguid}" ]]; then
+    echo "upgradeloguid is not found from upgradelog ${upgradelogname}, this should not happen, skip"
+    return 0
+  fi
+
+  # upgrade managedchart, if existing
+  upgrade_managedchart_upgradelog_operator "${upgradelogname}" "${upgradeloguid}"
+
+  # logging object, replace existing
+  upgrade_harvester_upgradelog_logging "${upgradelogname}" "${upgradeloguid}"
+
+  # fluentbitagent, newly create
+  upgrade_harvester_upgradelog_fluentbit_agent "${upgradelogname}" "${upgradeloguid}"
+}
 
 upgrade_nvidia_driver_toolkit_addon()
 {
