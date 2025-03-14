@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
@@ -95,16 +96,9 @@ func (m *pvcMutator) patchGoldenImageAnnotation(pvc *corev1.PersistentVolumeClai
 	if v, find := annotations[util.AnnotationGoldenImage]; find && v == "true" {
 		return "", apierrors.NewAlreadyExists(schema.GroupResource{}, pvc.Name)
 	}
-	annotations[util.AnnotationGoldenImage] = "true"
-
-	annoVal, err := json.Marshal(annotations)
-	if err != nil {
-		logrus.Warnf("failed to marshal annotations: %v, err: %v", annotations, err)
-		return "", err
-	}
 
 	// patch annotation
-	return fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations", "value": %s}`, string(annoVal)), nil
+	return fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/%s", "value": "true"}`, patch.EscapeJSONPointer(util.AnnotationGoldenImage)), nil
 }
 
 func (m pvcMutator) patchDataSource(pvc *corev1.PersistentVolumeClaim) (string, error) {
