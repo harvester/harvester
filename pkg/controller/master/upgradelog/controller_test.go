@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -1053,6 +1054,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			upgradeClient:       fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
 			upgradeCache:        fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 			upgradeLogClient:    fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
+			imageGetter:         newTestImageGetter(),
 		}
 
 		var actual output
@@ -1159,4 +1161,14 @@ func emptyConditionsTime(conditions []harvesterv1.Condition) {
 		conditions[k].LastTransitionTime = ""
 		conditions[k].LastUpdateTime = ""
 	}
+}
+
+type testImageGetter struct{}
+
+func (i *testImageGetter) GetConsolidatedLoggingImageListFromHelmValues(_ *kubernetes.Clientset, _, _ string) (map[string]settings.Image, error) {
+	return testImages, nil
+}
+
+func newTestImageGetter() *testImageGetter {
+	return &testImageGetter{}
 }
