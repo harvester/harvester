@@ -77,8 +77,8 @@ func (c *CdiV1beta1Client) VolumeCloneSources(namespace string) VolumeCloneSourc
 	return newVolumeCloneSources(c, namespace)
 }
 
-func (c *CdiV1beta1Client) VolumeImportSources(namespace string) VolumeImportSourceInterface {
-	return newVolumeImportSources(c, namespace)
+func (c *CdiV1beta1Client) VolumeImportSources() VolumeImportSourceInterface {
+	return newVolumeImportSources(c)
 }
 
 func (c *CdiV1beta1Client) VolumeUploadSources(namespace string) VolumeUploadSourceInterface {

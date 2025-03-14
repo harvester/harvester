@@ -8,16 +8,18 @@ import (
 
 	"github.com/gorilla/mux"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
-	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
@@ -39,6 +41,7 @@ type ActionHandler struct {
 	pvs         ctlharvcorev1.PersistentVolumeClient
 	pvCache     ctlharvcorev1.PersistentVolumeCache
 	snapshots   ctlsnapshotv1.VolumeSnapshotClient
+	scCache     ctlstoragev1.StorageClassCache
 	volumes     ctllhv1.VolumeClient
 	volumeCache ctllhv1.VolumeCache
 	vmCache     ctlkubevirtv1.VirtualMachineCache
@@ -62,6 +65,9 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (interface{}, error) {
 		}
 		if input.Namespace == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `namespace` is required")
+		}
+		if errMsg := h.validateExportVolume(input.StorageClassName, pvcNamespace, pvcName); errMsg != "" {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, errMsg)
 		}
 		return h.exportVolume(req.Context(), input.Namespace, input.DisplayName, input.StorageClassName, pvcNamespace, pvcName)
 	case actionCancelExpand:
@@ -89,19 +95,65 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (interface{}, error) {
 	}
 }
 
-func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDisplayName, imageStorageClassName, pvcNamespace, pvcName string) (interface{}, error) {
+func (h *ActionHandler) validateExportVolume(storageClassName, pvcNamespace, pvcName string) string {
+	if storageClassName == "" {
+		return "Parameter `storageClassName` is required"
+	}
 
-	pvcContent, err := h.pvcCache.Get(pvcNamespace, pvcName)
+	sc, err := h.scCache.Get(storageClassName)
+	if err != nil {
+		return fmt.Sprintf("Get target StorageClass with Err: %v", err)
+	}
+	pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
+	if err != nil {
+		return fmt.Sprintf("Get PVC with Err: %v", err)
+	}
+	pvcStorageClassName := pvc.Spec.StorageClassName
+	if pvcStorageClassName == nil {
+		return "PVC should have storageClassName"
+	}
+
+	// export to the Same StorageClass is allowed
+	if *pvcStorageClassName == storageClassName {
+		return ""
+	}
+
+	pvcSC, err := h.scCache.Get(*pvcStorageClassName)
+	if err != nil {
+		return fmt.Sprintf("Get PVC StorageClass with Err: %v", err)
+	}
+
+	// The validation rules as below:
+	// CDI volume cannot be exported to a Longhorn v1 StorageClass
+	// Longhorn v1 volume can be exported to any StorageClass (both CDI/BackingImage work well)
+
+	if isCDIVolume(pvcSC) {
+		// means CDI volume
+		if sc.Provisioner == util.CSIProvisionerLonghorn {
+			v, found := sc.Parameters["dataEngine"]
+			if found {
+				// check engine type
+				if v == string(longhornv1.DataEngineTypeV2) {
+					return ""
+				}
+			}
+			return fmt.Sprintf("CDI volume cannot be exported to a Longhorn v1 StorageClass")
+		}
+	}
+
+	return ""
+}
+
+func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDisplayName, imageStorageClassName, pvcNamespace, pvcName string) (interface{}, error) {
+	vmImageBackend := harvesterv1.VMIBackendBackingImage
+	targetSCName := imageStorageClassName
+	targetSC, err := h.scCache.Get(targetSCName)
 	if err != nil {
 		return nil, err
 	}
-	vmImageBackend := harvesterv1.VMIBackendBackingImage
-	targetSCName := imageStorageClassName
-	if _, find := pvcContent.Annotations[cdicommon.AnnCreatedForDataVolume]; find {
+	// check the target Image is the CDI Image
+	if isCDIVolume(targetSC) {
 		vmImageBackend = harvesterv1.VMIBackendCDI
-		if imageStorageClassName == "" {
-			targetSCName = *pvcContent.Spec.StorageClassName
-		}
 	}
 
 	vmImage := &harvesterv1.VirtualMachineImage{
@@ -370,4 +422,16 @@ func (h *ActionHandler) snapshot(_ context.Context, pvcNamespace, pvcName, snaps
 	}
 
 	return nil
+}
+
+func isCDIVolume(sc *storagev1.StorageClass) bool {
+	if sc.Provisioner != util.CSIProvisionerLonghorn {
+		return true
+	}
+	if v, found := sc.Parameters["dataEngine"]; found {
+		if v == string(longhornv1.DataEngineTypeV2) {
+			return true
+		}
+	}
+	return false
 }

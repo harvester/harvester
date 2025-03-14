@@ -204,6 +204,7 @@ func main() {
 				Types: []interface{}{
 					cdiv1.DataVolume{},
 					cdiv1.StorageProfile{},
+					cdiv1.VolumeImportSource{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,

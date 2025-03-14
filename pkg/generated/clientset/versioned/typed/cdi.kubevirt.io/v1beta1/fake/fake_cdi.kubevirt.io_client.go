@@ -60,8 +60,8 @@ func (c *FakeCdiV1beta1) VolumeCloneSources(namespace string) v1beta1.VolumeClon
 	return &FakeVolumeCloneSources{c, namespace}
 }
 
-func (c *FakeCdiV1beta1) VolumeImportSources(namespace string) v1beta1.VolumeImportSourceInterface {
-	return &FakeVolumeImportSources{c, namespace}
+func (c *FakeCdiV1beta1) VolumeImportSources() v1beta1.VolumeImportSourceInterface {
+	return &FakeVolumeImportSources{c}
 }
 
 func (c *FakeCdiV1beta1) VolumeUploadSources(namespace string) v1beta1.VolumeUploadSourceInterface {

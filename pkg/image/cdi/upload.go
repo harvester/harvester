@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -36,6 +37,7 @@ const (
 
 type Uploader struct {
 	dataVolumeClient ctlcdiv1.DataVolumeClient
+	scClient         ctlstoragev1.StorageClassClient
 	cdiUploadClient  ctlcdiuploadv1.UploadTokenRequestClient
 	httpClient       http.Client
 	vmio             common.VMIOperator
@@ -44,6 +46,7 @@ type Uploader struct {
 }
 
 func GetUploader(dataVolumeClient ctlcdiv1.DataVolumeClient,
+	scClient ctlstoragev1.StorageClassClient,
 	cdiUploadClient ctlcdiuploadv1.UploadTokenRequestClient,
 	httpClient http.Client,
 	vmio common.VMIOperator) backend.Uploader {
@@ -54,6 +57,7 @@ func GetUploader(dataVolumeClient ctlcdiv1.DataVolumeClient,
 	}
 	return &Uploader{
 		dataVolumeClient: dataVolumeClient,
+		scClient:         scClient,
 		cdiUploadClient:  cdiUploadClient,
 		httpClient:       httpClient,
 		vmio:             vmio,
@@ -150,6 +154,11 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 
 	logrus.Infof("The VM Image Status updated, start to create DataVolume %s/%s", dvNamespace, dvName)
 
+	targetSC, err := cu.scClient.Get(vmImg.Spec.TargetStorageClassName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get StorageClass %s: %v", vmImg.Spec.TargetStorageClassName, err)
+	}
+
 	// generate DV source
 	dvSource, err := generateDVSource(vmImg, cu.vmio.GetSourceType(vmImg))
 	if err != nil {
@@ -164,8 +173,9 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	var boolTrue = true
 	dataVolumeTemplate := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dvName,
-			Namespace: dvNamespace,
+			Annotations: GenerateDVAnnotations(targetSC),
+			Name:        dvName,
+			Namespace:   dvNamespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         common.HarvesterAPIV1Beta1,

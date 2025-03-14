@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,14 +22,16 @@ import (
 type Backend struct {
 	ctx              context.Context
 	dataVolumeClient ctlcdiv1.DataVolumeClient
+	scClient         ctlstoragev1.StorageClassClient
 	pvcCache         ctlcorev1.PersistentVolumeClaimCache
 	vmio             common.VMIOperator
 }
 
-func GetBackend(ctx context.Context, dataVolumeClient ctlcdiv1.DataVolumeClient, pvcCache ctlcorev1.PersistentVolumeClaimCache, vmio common.VMIOperator) backend.Backend {
+func GetBackend(ctx context.Context, dataVolumeClient ctlcdiv1.DataVolumeClient, scClient ctlstoragev1.StorageClassClient, pvcCache ctlcorev1.PersistentVolumeClaimCache, vmio common.VMIOperator) backend.Backend {
 	return &Backend{
 		ctx:              ctx,
 		dataVolumeClient: dataVolumeClient,
+		scClient:         scClient,
 		pvcCache:         pvcCache,
 		vmio:             vmio,
 	}
@@ -161,6 +164,11 @@ func (b *Backend) initializeDownload(vmImg *harvesterv1.VirtualMachineImage) (*h
 	dvName := b.vmio.GetName(vmImg)
 	dvNamespace := b.vmio.GetNamespace(vmImg)
 
+	targetSC, err := b.scClient.Get(vmImg.Spec.TargetStorageClassName, metav1.GetOptions{})
+	if err != nil {
+		return vmImg, fmt.Errorf("failed to get StorageClass %s: %v", vmImg.Spec.TargetStorageClassName, err)
+	}
+
 	// generate DV source
 	dvSource, err := generateDVSource(vmImg, b.vmio.GetSourceType(vmImg))
 	if err != nil {
@@ -175,8 +183,9 @@ func (b *Backend) initializeDownload(vmImg *harvesterv1.VirtualMachineImage) (*h
 	var boolTrue = true
 	dataVolumeTemplate := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dvName,
-			Namespace: dvNamespace,
+			Annotations: GenerateDVAnnotations(targetSC),
+			Name:        dvName,
+			Namespace:   dvNamespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         common.HarvesterAPIV1Beta1,
@@ -221,6 +230,11 @@ func (b *Backend) initializeExportFromVolume(vmImg *harvesterv1.VirtualMachineIm
 	dvName := b.vmio.GetName(vmImg)
 	dvNamespace := b.vmio.GetNamespace(vmImg)
 
+	targetSC, err := b.scClient.Get(vmImg.Spec.TargetStorageClassName, metav1.GetOptions{})
+	if err != nil {
+		return vmImg, fmt.Errorf("failed to get StorageClass %s: %v", vmImg.Spec.TargetStorageClassName, err)
+	}
+
 	// generate DV source
 	dvSource, err := generateDVSource(vmImg, b.vmio.GetSourceType(vmImg))
 	if err != nil {
@@ -235,8 +249,9 @@ func (b *Backend) initializeExportFromVolume(vmImg *harvesterv1.VirtualMachineIm
 	var boolTrue = true
 	dataVolumeTemplate := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dvName,
-			Namespace: dvNamespace,
+			Annotations: GenerateDVAnnotations(targetSC),
+			Name:        dvName,
+			Namespace:   dvNamespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         common.HarvesterAPIV1Beta1,

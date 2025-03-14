@@ -1277,7 +1277,7 @@ EOF
   fi
 }
 
-apply_whereabouts_manifests()
+apply_extra_nonversion_manifests()
 {
   echo "Applying whereabouts manifests"
 
@@ -1287,6 +1287,14 @@ apply_whereabouts_manifests()
       echo "Applying $manifest"
       kubectl apply -f "$manifest"
   done
+
+  echo "Applying cdi manifests"
+
+  for manifest in /usr/local/share/extra_manifests/cdi/*.yaml; do
+      echo "Applying $manifest"
+      kubectl apply -f "$manifest"
+  done
+  
 
   shopt -u nullglob
 }
@@ -1303,7 +1311,7 @@ update_local_rke_state_secret
 upgrade_harvester_cluster_repo
 upgrade_network
 ensure_ingress_class_name
-apply_whereabouts_manifests
+apply_extra_nonversion_manifests
 upgrade_harvester
 sync_containerd_registry_to_rancher
 wait_longhorn_upgrade
