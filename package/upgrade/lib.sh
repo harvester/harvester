@@ -623,17 +623,15 @@ EOF
   rm -rf ./"${patchfile}"
 }
 
-#upgrade upgradelog operator managedchart
+# upgrade upgradelog operator managedchart if it is existing
 upgrade_managedchart_upgradelog_operator()
 {
   local upgradelogname=$1
   local upgradeloguid=$2
-
   local nm="${upgradelogname}"-operator
   local newver="${REPO_LOGGING_CHART_VERSION}"
 
-
-  local upgradelogoperator=$(kubectl get managedchart "${upgradelogname}"-operator -ojsonpath="{.metadata.name}")
+  local upgradelogoperator=$(kubectl get managedcharts.management.cattle.io "$nm" -n fleet-local -ojsonpath="{.metadata.name}")
   if [[ -z "${upgradelogoperator}" ]]; then
     echo "the managedchart ${nm} is not found, nothing to patch"
     return 0
@@ -668,7 +666,7 @@ upgrade_harvester_upgradelog_logging()
 
   local loggingimg=$(kubectl get logging.logging.banzaicloud.io "${upgradelogname}"-infra -ojsonpath="{.spec.fluentd.image.repository}")
 
-  # previous is rancher/mirrored-banzaicloud-fluentd
+  # previous image is rancher/mirrored-banzaicloud-fluentd
   if [ "${loggingimg}" = "rancher/mirrored-kube-logging-fluentd" ]; then
     echo "logging ${upgradelogname}-infra has been upgraded, nothing to patch"
     return 0
@@ -683,6 +681,7 @@ upgrade_harvester_upgradelog_logging()
     return 0
   fi
 
+  # wait at most 60 seconds
   local loop_cnt=10
   while [ $loop_cnt -gt 0 ]
   do
@@ -696,8 +695,8 @@ upgrade_harvester_upgradelog_logging()
     loop_cnt=$((loop_cnt-1))
   done
 
-  # no matter it is deleted or not, re-create it
-  # the re-created logging has no fluentbit, which is replaced by fluentbitagent
+  # no matter logging infra is deleted or not, re-create it
+  # the new logging has no fluentbit, which is replaced by fluentbitagent
   echo "logging ${upgradelogname}-infra will be re-created"
   patchfile="patch_logging.yaml"
   cat > "${patchfile}" <<EOF
@@ -819,13 +818,13 @@ upgrade_harvester_upgradelog_with_patch_logging_fluentd_fluentbit()
     return 0
   fi
 
-  # upgrade managedchart, if existing
+  # managedchart is upgraded on v150 if it is existing
   upgrade_managedchart_upgradelog_operator "${upgradelogname}" "${upgradeloguid}"
 
-  # logging object, replace existing
+  # logging is deleted & re-created on v150
   upgrade_harvester_upgradelog_logging "${upgradelogname}" "${upgradeloguid}"
 
-  # fluentbitagent, newly create
+  # fluentbitagent is newly created on v150
   upgrade_harvester_upgradelog_fluentbit_agent "${upgradelogname}" "${upgradeloguid}"
 }
 
