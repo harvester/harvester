@@ -1150,13 +1150,15 @@ upgrade_addons()
     upgrade_addon $addon "harvester-system"
   done
 
-  # those 2 addons have flexible user-configurable fields, only upgrade harvester related e.g. new image tag
+  # the rancher-monitoring and rancher-logging addon have flexible user-configurable fields
   # from v1.2.0, they are upgraded per following
   upgrade_addon_rancher_monitoring
-  # the upgradelog may be affected by the bumped rancher-logging
+  # the upgradelog may be affected by the new rancher-logging
   upgrade_harvester_upgradelog_loggingref
   upgrade_addon_rancher_logging
+  # after rancher-logging is upgraded, upgrade upgradelog if necessary
   upgrade_harvester_upgradelog_logging_fluentd_fluentbit
+
   upgrade_nvidia_driver_toolkit_addon
 }
 
