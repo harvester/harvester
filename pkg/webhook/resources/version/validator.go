@@ -19,6 +19,7 @@ var (
 
 const (
 	SkipGarbageCollectionThreadholdCheckAnnotation = "harvesterhci.io/skipGarbageCollectionThresholdCheck"
+	MinCertsExpirationInDayAnnotation              = "harvesterhci.io/minCertsExpirationInDay"
 )
 
 func NewValidator() types.Validator {
@@ -53,6 +54,15 @@ func checkAnnotations(version *v1beta1.Version) error {
 		_, err := strconv.ParseBool(value)
 		if err != nil {
 			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, SkipGarbageCollectionThreadholdCheckAnnotation))
+		}
+	}
+
+	if value, ok := version.Annotations[MinCertsExpirationInDayAnnotation]; ok {
+		minCertsExpirationInDay, err := strconv.Atoi(value)
+		if err != nil {
+			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, MinCertsExpirationInDayAnnotation))
+		} else if minCertsExpirationInDay <= 0 {
+			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s, it should be greater than 0", value, MinCertsExpirationInDayAnnotation))
 		}
 	}
 	return nil
