@@ -47,7 +47,6 @@ const (
 	defaultNewImageSize                uint64 = 13 * 1024 * 1024 * 1024 // 13GB, this value aggregates all tarball image sizes. It may change in the future.
 	defaultImageGCHighThresholdPercent        = 85.0                    // default value in kubelet config
 	freeSystemPartitionMsg                    = "df -h '/usr/local/'"
-	minCertsExpirationInDayAnnotation         = "harvesterhci.io/minCertsExpirationInDay"
 	defaultMinCertsExpirationInDay            = 7
 )
 
@@ -576,10 +575,10 @@ func (v *upgradeValidator) checkCerts(version *v1beta1.Version) error {
 	}
 
 	minCertsExpirationInDay := defaultMinCertsExpirationInDay
-	if value, ok := version.Annotations[minCertsExpirationInDayAnnotation]; ok {
+	if value, ok := version.Annotations[versionWebhook.MinCertsExpirationInDayAnnotation]; ok {
 		minCertsExpirationInDay, err = strconv.Atoi(value)
 		if err != nil {
-			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, minCertsExpirationInDayAnnotation))
+			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, versionWebhook.MinCertsExpirationInDayAnnotation))
 		}
 	}
 
