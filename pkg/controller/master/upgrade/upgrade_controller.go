@@ -44,10 +44,10 @@ var (
 
 const (
 	//system upgrade controller is deployed in cattle-system namespace
-	upgradeNamespace               = "harvester-system"
-	sucNamespace                   = "cattle-system"
+	upgradeNamespace               = util.HarvesterSystemNamespaceName // refer public defined harvester-system
+	sucNamespace                   = util.CattleSystemNamespaceName    // refer public defined cattle-system
 	upgradeServiceAccount          = "system-upgrade-controller"
-	harvesterSystemNamespace       = "harvester-system"
+	harvesterSystemNamespace       = util.HarvesterSystemNamespaceName
 	harvesterUpgradeLabel          = "harvesterhci.io/upgrade"
 	harvesterManagedLabel          = "harvesterhci.io/managed"
 	harvesterLatestUpgradeLabel    = "harvesterhci.io/latestUpgrade"
@@ -244,12 +244,14 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		h.restoreVMState(upgrade)
 
 		if err := h.cleanupImages(upgrade, repo); err != nil {
-			logrus.Warningf("Unable to cleanup images: %s", err.Error())
+			logrus.Warningf("Failed to cleanup images: %s", err.Error())
 			toUpdate := upgrade.DeepCopy()
 			if toUpdate.Annotations == nil {
 				toUpdate.Annotations = make(map[string]string)
 			}
-			toUpdate.Annotations[imageCleanupPlanCompletedAnnotation] = strconv.FormatBool(true)
+			// in fail case, book it as false
+			toUpdate.Annotations[imageCleanupPlanCompletedAnnotation] = strconv.FormatBool(false)
+			// the update may fail due to update by others, and cleanupImages runs multi-times
 			return h.upgradeClient.Update(toUpdate)
 		}
 
@@ -418,8 +420,10 @@ func (h *upgradeHandler) cleanupImages(upgrade *harvesterv1.Upgrade, repo *Repo)
 		return err
 	}
 
+	// if controller run cleanupImages multi-times, the list can be empty
 	if len(toBePurgedImageList) == 0 {
-		return fmt.Errorf("no images to be purged")
+		logrus.Infof("No images to be purged, skip")
+		return nil
 	}
 
 	logrus.Info("Start purging unneeded container images on the nodes")
@@ -431,9 +435,9 @@ func (h *upgradeHandler) cleanupImages(upgrade *harvesterv1.Upgrade, repo *Repo)
 }
 
 func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) error {
-	// delete vm and images
+	// delete repo related resources like vm, image and service
 	repo := NewUpgradeRepo(h.ctx, upgrade, h)
-	if err := repo.deleteVM(); err != nil {
+	if err := repo.Cleanup(); err != nil {
 		return err
 	}
 
