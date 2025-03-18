@@ -1,19 +1,22 @@
 package volume
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
 	"github.com/rancher/wrangler/v3/pkg/schemas"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/config"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 const (
-	pvcSchemaID = "persistentvolumeclaim"
+	pvcSchemaID   = "persistentvolumeclaim"
+	indexPodByPVC = "indexPodByPVC"
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
@@ -22,6 +25,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 	server.BaseSchemas.MustImportAndCustomize(SnapshotVolumeInput{}, nil)
 	actionHandler := &ActionHandler{
 		images:      scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage(),
+		pods:        scaled.CoreFactory.Core().V1().Pod().Cache(),
 		pvcs:        scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),
 		pvcCache:    scaled.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
 		pvs:         scaled.HarvesterCoreFactory.Core().V1().PersistentVolume(),
@@ -32,6 +36,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		volumeCache: scaled.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
 		vmCache:     scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 	}
+	actionHandler.pods.AddIndexer(indexPodByPVC, indexPodByPVCfunc)
 
 	handler := harvesterServer.NewHandler(actionHandler)
 
@@ -61,4 +66,18 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 	}
 	server.SchemaFactory.AddTemplate(t)
 	return nil
+}
+
+func indexPodByPVCfunc(pod *corev1.Pod) ([]string, error) {
+	if pod.Status.Phase != corev1.PodRunning {
+		return nil, nil
+	}
+	indedxs := []string{}
+	for _, volume := range pod.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			index := fmt.Sprintf("%s-%s", pod.Namespace, volume.PersistentVolumeClaim.ClaimName)
+			indedxs = append(indedxs, index)
+		}
+	}
+	return indedxs, nil
 }
