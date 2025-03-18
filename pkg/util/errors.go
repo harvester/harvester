@@ -54,7 +54,8 @@ func IsRetriableNetworkError(err error) bool {
 		return true
 	} else if errors.Is(err, syscall.EHOSTUNREACH) {
 		return true
-	} else if errors.As(err, &dnsError) && dnsError.IsTemporary {
+	} else if errors.As(err, &dnsError) && (dnsError.IsTemporary || dnsError.IsTimeout || dnsError.IsNotFound) {
+		// for in-cluster service based dns name lookup, retry on the above known errors
 		return true
 	}
 	return false
