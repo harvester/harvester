@@ -7,8 +7,11 @@ import (
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -61,15 +64,8 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 
 	oldPVC := oldObj.(*corev1.PersistentVolumeClaim)
 
-	// we should able to delete the PVC if it is in Lost or Terminating status
-	if oldPVC.Status.Phase != corev1.ClaimLost &&
-		oldPVC.Status.Phase != "Terminating" {
-		if _, find := oldPVC.Annotations[util.AnnotationGoldenImage]; find {
-			if oldPVC.Annotations[util.AnnotationGoldenImage] == "true" {
-				msg := fmt.Sprintf("can not delete golden image PVC %s/%s directly", oldPVC.Namespace, oldPVC.Name)
-				return werror.NewInvalidError(msg, "")
-			}
-		}
+	if err := v.checkGoldenImageAnno(oldPVC); err != nil {
+		werror.NewInvalidError(err.Error(), "")
 	}
 
 	pvc, err := v.pvcCache.Get(oldPVC.Namespace, oldPVC.Name)
@@ -152,6 +148,37 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 		if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusProvisioning && vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopped {
 			message := fmt.Sprintf("resizing is only supported for detached volumes. The volume is being used by VM %s/%s. Please stop the VM first.", vm.Namespace, vm.Name)
 			return werror.NewInvalidError(message, "")
+		}
+	}
+	return nil
+}
+
+func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) error {
+	if _, find := pvc.Annotations[util.AnnotationGoldenImage]; find {
+		if pvc.Annotations[util.AnnotationGoldenImage] == "true" {
+			// ensure the corresponding vm image exists
+			imageName := pvc.Name
+			imageNS := pvc.Namespace
+			if v, find := pvc.Annotations[cdicommon.AnnPopulatorKind]; find && v == cdiv1.VolumeCloneSourceRef {
+				if image, find := pvc.Annotations[cdicommon.AnnEventSource]; find {
+					imageRaw := strings.Split(image, "/")
+					if len(imageRaw) == 2 {
+						imageNS = imageRaw[0]
+						imageName = imageRaw[1]
+					}
+				}
+			}
+			if _, err := v.imageCache.Get(imageNS, imageName); err != nil {
+				if apierrors.IsNotFound(err) {
+					return nil
+				}
+				return fmt.Errorf("Get image %s/%s failed: %v", imageNS, imageName, err)
+			}
+			// ignore the golden image PVC if it is in Lost/Terminating status
+			if pvc.Status.Phase == corev1.ClaimLost || pvc.Status.Phase == "Terminating" {
+				return nil
+			}
+			return fmt.Errorf("can not delete golden image PVC")
 		}
 	}
 	return nil
