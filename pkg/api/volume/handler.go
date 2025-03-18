@@ -36,6 +36,7 @@ import (
 
 type ActionHandler struct {
 	images      v1beta1.VirtualMachineImageClient
+	pods        ctlcorev1.PodCache
 	pvcs        ctlcorev1.PersistentVolumeClaimClient
 	pvcCache    ctlcorev1.PersistentVolumeClaimCache
 	pvs         ctlharvcorev1.PersistentVolumeClient
@@ -66,8 +67,8 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (interface{}, error) {
 		if input.Namespace == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `namespace` is required")
 		}
-		if errMsg := h.validateExportVolume(input.StorageClassName, pvcNamespace, pvcName); errMsg != "" {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, errMsg)
+		if err := h.validateExportVolume(input.StorageClassName, pvcNamespace, pvcName); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, err.Error())
 		}
 		return h.exportVolume(req.Context(), input.Namespace, input.DisplayName, input.StorageClassName, pvcNamespace, pvcName)
 	case actionCancelExpand:
@@ -95,32 +96,58 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (interface{}, error) {
 	}
 }
 
-func (h *ActionHandler) validateExportVolume(storageClassName, pvcNamespace, pvcName string) string {
-	if storageClassName == "" {
-		return "Parameter `storageClassName` is required"
+func (h *ActionHandler) assertPVCNotInUse(pvcNamespace, pvcName string) error {
+	// find any pod use this PVC (same validation on CDI)
+	index := fmt.Sprintf("%s-%s", pvcNamespace, pvcName)
+	if pods, err := h.pods.GetByIndex(indexPodByPVC, index); err == nil && len(pods) > 0 {
+		podList := []string{}
+		for _, pod := range pods {
+			indexedPod := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+			podList = append(podList, indexedPod)
+		}
+		return fmt.Errorf("PVC %s is used by Pods %v, cannot export volume when it's running", pvcName, podList)
 	}
+	return nil
+}
 
+func (h *ActionHandler) validateExportVolume(storageClassName, pvcNamespace, pvcName string) error {
+
+	// check target info
+	if storageClassName == "" {
+		return fmt.Errorf("Parameter `storageClassName` is required")
+	}
 	sc, err := h.scCache.Get(storageClassName)
 	if err != nil {
-		return fmt.Sprintf("Get target StorageClass with Err: %v", err)
+		return fmt.Errorf("Get target StorageClass with Err: %v", err)
 	}
+
+	// check source info
 	pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
 	if err != nil {
-		return fmt.Sprintf("Get PVC with Err: %v", err)
+		return fmt.Errorf("Get PVC with Err: %v", err)
 	}
 	pvcStorageClassName := pvc.Spec.StorageClassName
 	if pvcStorageClassName == nil {
-		return "PVC should have storageClassName"
+		return fmt.Errorf("PVC should have storageClassName")
+	}
+	pvcSC, err := h.scCache.Get(*pvcStorageClassName)
+	if err != nil {
+		return fmt.Errorf("Get PVC StorageClass with Err: %v", err)
+	}
+
+	// both source/target SC are Longhorn v1, skip the validation
+	if h.isLonghornV1Engine(pvcSC) && h.isLonghornV1Engine(sc) {
+		return nil
+	}
+
+	// we need to ensure the source PVC is not in use since we need to create source pod to export the volume
+	if err := h.assertPVCNotInUse(pvcNamespace, pvcName); err != nil {
+		return err
 	}
 
 	// export to the Same StorageClass is allowed
 	if *pvcStorageClassName == storageClassName {
-		return ""
-	}
-
-	pvcSC, err := h.scCache.Get(*pvcStorageClassName)
-	if err != nil {
-		return fmt.Sprintf("Get PVC StorageClass with Err: %v", err)
+		return nil
 	}
 
 	// The validation rules as below:
@@ -134,14 +161,27 @@ func (h *ActionHandler) validateExportVolume(storageClassName, pvcNamespace, pvc
 			if found {
 				// check engine type
 				if v == string(longhornv1.DataEngineTypeV2) {
-					return ""
+					return nil
 				}
 			}
-			return fmt.Sprintf("CDI volume cannot be exported to a Longhorn v1 StorageClass")
+			return fmt.Errorf("CDI volume cannot be exported to a Longhorn v1 StorageClass")
 		}
 	}
 
-	return ""
+	return nil
+}
+
+func (h *ActionHandler) isLonghornV1Engine(sc *storagev1.StorageClass) bool {
+	if sc.Provisioner != util.CSIProvisionerLonghorn {
+		return false
+	}
+	if v, found := sc.Parameters["dataEngine"]; found {
+		if v == string(longhornv1.DataEngineTypeV1) {
+			return true
+		}
+		return false
+	}
+	return true
 }
 
 func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDisplayName, imageStorageClassName, pvcNamespace, pvcName string) (interface{}, error) {
