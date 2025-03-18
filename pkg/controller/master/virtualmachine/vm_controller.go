@@ -115,6 +115,15 @@ func (h *VMController) createPVCsFromAnnotation(_ string, vm *kubevirtv1.Virtual
 			if apierrors.IsNotFound(err) {
 				if !createPVCWithDataVolume {
 					pvcAnno.Namespace = vm.Namespace
+					// trigger to create the blank filesystem volume
+					if *pvcAnno.Spec.VolumeMode == corev1.PersistentVolumeFilesystem {
+						pvcAnnos := pvcAnno.GetAnnotations()
+						if pvcAnnos == nil {
+							pvcAnnos = make(map[string]string)
+						}
+						pvcAnnos[util.AnnotationVolForVM] = "true"
+						pvcAnno.SetAnnotations(pvcAnnos)
+					}
 					if _, err = h.pvcClient.Create(pvcAnno); err != nil {
 						return nil, err
 					}
