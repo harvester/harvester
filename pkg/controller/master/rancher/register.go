@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	networkingv1 "github.com/harvester/harvester/pkg/generated/controllers/networking.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -26,6 +27,7 @@ import (
 const (
 	appLabelName             = "app.kubernetes.io/name"
 	controllerRancherName    = "harvester-rancher-controller"
+	controllerNamespaceName  = "harvester-namespace-controller"
 	caCertsSetting           = "cacerts"
 	defaultAdminLabelKey     = "authz.management.cattle.io/bootstrapping"
 	defaultAdminLabelValue   = "admin-user"
@@ -65,6 +67,7 @@ type Handler struct {
 	Deployments              ctlappsv1.DeploymentClient
 	Namespace                string
 	RancherTokenController   rancherv3.TokenController
+	SettingCache             v1beta1.SettingCache
 }
 
 type VIPConfig struct {
@@ -87,7 +90,9 @@ func Register(ctx context.Context, management *config.Management, options config
 		configmaps := management.CoreFactory.Core().V1().ConfigMap()
 		nodes := management.CoreFactory.Core().V1().Node()
 		pods := management.CoreFactory.Core().V1().Pod()
+		namespaces := management.CoreFactory.Core().V1().Namespace()
 		deployments := management.AppsFactory.Apps().V1().Deployment()
+		settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 		h := Handler{
 			RancherSettings:          rancherSettings,
 			RancherSettingController: rancherSettings,
@@ -104,12 +109,15 @@ func Register(ctx context.Context, management *config.Management, options config
 			podClient:                pods,
 			Namespace:                options.Namespace,
 			Deployments:              deployments,
+			SettingCache:             settings.Cache(),
 		}
 		nodes.OnChange(ctx, controllerRancherName, h.PodResourcesOnChanged)
 		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
 		secrets.OnChange(ctx, controllerRancherName, h.TLSSecretOnChange)
 		deployments.OnChange(ctx, controllerCAPIDeployment, h.PatchCAPIDeployment)
 		rancherTokens.OnChange(ctx, controllerRancherName, h.RancherTokenOnChange)
+		namespaces.OnRemove(ctx, controllerNamespaceName, h.onNamespaceRemoved)
+
 		if err := h.registerExposeService(); err != nil {
 			return err
 		}
