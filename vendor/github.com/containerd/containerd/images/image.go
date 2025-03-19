@@ -23,12 +23,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/containerd/containerd/content"
-	"github.com/containerd/containerd/errdefs"
-	"github.com/containerd/containerd/log"
-	"github.com/containerd/containerd/platforms"
+	"github.com/containerd/log"
+	"github.com/containerd/platforms"
 	digest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
+	"github.com/containerd/containerd/content"
+	"github.com/containerd/containerd/errdefs"
 )
 
 // Image provides the model for how containerd views container images.
@@ -138,7 +139,7 @@ type platformManifest struct {
 // TODO(stevvooe): This violates the current platform agnostic approach to this
 // package by returning a specific manifest type. We'll need to refactor this
 // to return a manifest descriptor or decide that we want to bring the API in
-// this direction because this abstraction is not needed.`
+// this direction because this abstraction is not needed.
 func Manifest(ctx context.Context, provider content.Provider, image ocispec.Descriptor, platform platforms.MatchComparer) (ocispec.Manifest, error) {
 	var (
 		limit    = 1
@@ -268,6 +269,9 @@ func Platforms(ctx context.Context, provider content.Provider, image ocispec.Des
 	var platformSpecs []ocispec.Platform
 	return platformSpecs, Walk(ctx, Handlers(HandlerFunc(func(ctx context.Context, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 		if desc.Platform != nil {
+			if desc.Platform.OS == "unknown" || desc.Platform.Architecture == "unknown" {
+				return nil, ErrSkipDesc
+			}
 			platformSpecs = append(platformSpecs, *desc.Platform)
 			return nil, ErrSkipDesc
 		}
@@ -311,7 +315,7 @@ func Check(ctx context.Context, provider content.Provider, image ocispec.Descrip
 		return false, nil, nil, nil, fmt.Errorf("failed to check image %v: %w", image.Digest, err)
 	}
 
-	// TODO(stevvooe): It is possible that referenced conponents could have
+	// TODO(stevvooe): It is possible that referenced components could have
 	// children, but this is rare. For now, we ignore this and only verify
 	// that manifest components are present.
 	required = append([]ocispec.Descriptor{mfst.Config}, mfst.Layers...)
@@ -374,7 +378,7 @@ func Children(ctx context.Context, provider content.Provider, desc ocispec.Descr
 
 		descs = append(descs, index.Manifests...)
 	default:
-		if IsLayerType(desc.MediaType) || IsKnownConfig(desc.MediaType) {
+		if IsLayerType(desc.MediaType) || IsKnownConfig(desc.MediaType) || IsAttestationType(desc.MediaType) {
 			// childless data types.
 			return nil, nil
 		}
