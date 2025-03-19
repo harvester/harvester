@@ -105,6 +105,7 @@ const (
 	CSIProvisionerLonghorn = "driver.longhorn.io"
 	KindVolumeImportSource = "VolumeImportSource"
 	ImportSourceFSBlank    = "filesystem-blank-source"
+	LVMTopologyNodeKey     = "topology.lvm.csi/node"
 
 	// CSI constants
 	CSIProvisionerSecretNameKey      = "csi.storage.k8s.io/provisioner-secret-name"
