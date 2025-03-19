@@ -9,6 +9,7 @@ import (
 
 	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/rancher/wrangler/v3/pkg/relatedresource"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
@@ -35,6 +36,7 @@ var (
 type vmImageDownloaderHandler struct {
 	clientSet                   *kubernetes.Clientset
 	pvcCache                    ctlcorev1.PersistentVolumeClaimCache
+	scCache                     ctlstoragev1.StorageClassCache
 	vmImageClient               v1beta1.VirtualMachineImageClient
 	deploymentClient            ctlappsv1.DeploymentClient
 	vmImageDownloaders          v1beta1.VirtualMachineImageDownloaderClient
@@ -179,6 +181,7 @@ func (h *vmImageDownloaderHandler) createDownloaderDeployment(deploymentName str
 	volMode := pvc.Spec.VolumeMode
 	clusterRepoImageStr := h.getClusterRepoImage()
 	initContainer := h.genInitContainer(volMode, vmImage.Name)
+	affinity := h.getAffinity(pvc)
 
 	replicaNum := int32(1)
 	deployment := &appsv1.Deployment{
@@ -209,6 +212,7 @@ func (h *vmImageDownloaderHandler) createDownloaderDeployment(deploymentName str
 					},
 				},
 				Spec: corev1.PodSpec{
+					Affinity: affinity,
 					Volumes: []corev1.Volume{
 						{
 							Name: "image-vol",
@@ -254,6 +258,63 @@ func (h *vmImageDownloaderHandler) createDownloaderDeployment(deploymentName str
 		},
 	}
 	return h.deploymentClient.Create(deployment)
+}
+
+func (h *vmImageDownloaderHandler) getAffinity(pvc *corev1.PersistentVolumeClaim) *corev1.Affinity {
+	pvcSC := pvc.Spec.StorageClassName
+	if pvcSC == nil {
+		return nil
+	}
+	sc, err := h.scCache.Get(*pvcSC)
+	if err != nil {
+		logrus.Errorf("Failed to get storage class %s: %v", *pvcSC, err)
+		return nil
+	}
+	// only LVM needs node affinity
+	if sc.Provisioner != util.CSIProvisionerLVM {
+		return nil
+	}
+	Topologys := sc.AllowedTopologies
+	if len(Topologys) == 0 {
+		return nil
+	}
+
+	nodeName := ""
+	for _, topology := range Topologys {
+		if topology.MatchLabelExpressions == nil {
+			continue
+		}
+		for _, matchLabel := range topology.MatchLabelExpressions {
+			if matchLabel.Key != util.LVMTopologyNodeKey {
+				continue
+			}
+			// lvm currently only support one node
+			if len(matchLabel.Values) > 1 {
+				logrus.Warnf("LVM only support one node, but got %v", matchLabel.Values)
+			}
+			nodeName = matchLabel.Values[0]
+		}
+	}
+	nodeAffinity := &corev1.NodeAffinity{
+		RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+			NodeSelectorTerms: []corev1.NodeSelectorTerm{
+				{
+					MatchExpressions: []corev1.NodeSelectorRequirement{
+						{
+							Key:      "kubernetes.io/hostname",
+							Operator: corev1.NodeSelectorOpIn,
+							Values:   []string{nodeName},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	affinity := &corev1.Affinity{
+		NodeAffinity: nodeAffinity,
+	}
+	return affinity
 }
 
 func (h *vmImageDownloaderHandler) getVirtHandlerImage() string {
