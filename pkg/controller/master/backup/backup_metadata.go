@@ -24,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -152,6 +153,12 @@ func (h *MetadataHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Se
 		return nil, nil
 	}
 
+	contextLogger.Info("check existing vm backup...")
+	if err = h.checkExistingVMBackup(target); err != nil {
+		contextLogger.WithError(err).Errorf("can't check existing vm backup")
+		h.settings.EnqueueAfter(setting.Name, 5*time.Second)
+		return nil, nil
+	}
 	return h.renewBackupTarget(setting)
 }
 
@@ -626,4 +633,140 @@ func loadBackupMetadataInBackupTarget(filePath string, bsDriver backupstore.Back
 		return nil, err
 	}
 	return backupMetadata, nil
+}
+
+func (h *MetadataHandler) checkExistingVMBackup(target *settings.BackupTarget) error {
+	vmBackups, err := h.vmBackupCache.List("", labels.NewSelector())
+	if err != nil {
+		return err
+	}
+
+	h.checkReadyVMBackup(vmBackups, target)
+	h.checkNonReadyVMBackup(vmBackups)
+	return nil
+}
+
+func (h *MetadataHandler) checkReadyVMBackup(vmBackups []*harvesterv1.VirtualMachineBackup, target *settings.BackupTarget) {
+	for _, vmBackup := range vmBackups {
+		if vmBackup.Spec.Type == harvesterv1.Snapshot || vmBackup.Status.ReadyToUse == nil || !*vmBackup.Status.ReadyToUse {
+			continue
+		}
+
+		vmBackupCopy := vmBackup.DeepCopy()
+		vmBackupIsHealthy := true
+		message := ""
+		for i, volumeBackup := range vmBackup.Status.VolumeBackups {
+			if volumeBackup.PersistentVolumeClaim.Spec.StorageClassName != nil {
+				if err := checkStorageClass(h.storageClassCache, *volumeBackup.PersistentVolumeClaim.Spec.StorageClassName); err != nil {
+					message = fmt.Sprintf("cannot find storage class %s", *volumeBackup.PersistentVolumeClaim.Spec.StorageClassName)
+					logrus.WithError(err).WithFields(logrus.Fields{
+						"namespace":     vmBackup.Namespace,
+						"name":          vmBackup.Name,
+						"storageClasss": *volumeBackup.PersistentVolumeClaim.Spec.StorageClassName,
+					}).Warn("cannot find storage class for a ready VMBackup, change the VMBackup to not ready")
+					vmBackupCopy.Status.VolumeBackups[i].ReadyToUse = ptr.To(false)
+					vmBackupIsHealthy = false
+					continue
+				}
+			}
+
+			if volumeBackup.LonghornBackupName == nil {
+				continue
+			}
+
+			volumeName := volumeBackup.PersistentVolumeClaim.Spec.VolumeName
+			// check whether data is in the backup target
+			volumes, err := backupstore.List(volumeName, util.ConstructEndpoint(target), false)
+			if err != nil || volumes[volumeName] == nil {
+				message = fmt.Sprintf("cannot find volume %s in the backup target", volumeName)
+				logrus.WithError(err).WithFields(logrus.Fields{
+					"namespace": vmBackup.Namespace,
+					"name":      vmBackup.Name,
+					"volume":    volumeName,
+				}).Warn("cannot find volume in the backup target for a ready VMBackup, change the VMBackup to not ready")
+				vmBackupCopy.Status.VolumeBackups[i].ReadyToUse = ptr.To(false)
+				vmBackupIsHealthy = false
+				continue
+			}
+			if volumes[volumeName].Backups[*volumeBackup.LonghornBackupName] == nil {
+				message = fmt.Sprintf("cannot find longhorn backup %s in the backup target", *volumeBackup.LonghornBackupName)
+				logrus.WithFields(logrus.Fields{
+					"namespace":      vmBackup.Namespace,
+					"name":           vmBackup.Name,
+					"volume":         volumeName,
+					"longhornBackup": *volumeBackup.LonghornBackupName,
+				}).Warn("cannot find longhorn backup in the backup target for a ready VMBackup, change the VMBackup to not ready")
+				vmBackupCopy.Status.VolumeBackups[i].ReadyToUse = ptr.To(false)
+				vmBackupIsHealthy = false
+				continue
+			}
+
+			// check whether data is in the cluster
+			if err = checkLHBackup(h.longhornBackupCache, *volumeBackup.LonghornBackupName); err != nil {
+				message = fmt.Sprintf("longhorn backup %s is not ready", *volumeBackup.LonghornBackupName)
+				logrus.WithError(err).WithFields(logrus.Fields{
+					"namespace":      vmBackup.Namespace,
+					"name":           vmBackup.Name,
+					"volumeBackup":   volumeBackup.Name,
+					"longhornBackup": *volumeBackup.LonghornBackupName,
+				}).Warn("longhorn backup is not ready, change the VMBackup to not ready")
+				vmBackupCopy.Status.VolumeBackups[i].ReadyToUse = ptr.To(false)
+				vmBackupIsHealthy = false
+				continue
+			}
+		}
+
+		if !vmBackupIsHealthy {
+			logrus.WithFields(logrus.Fields{
+				"namespace": vmBackup.Namespace,
+				"name":      vmBackup.Name,
+			}).Warn("VMBackup is not healthy, change the VMBackup to not ready")
+			vmBackupCopy.Status.ReadyToUse = ptr.To(false)
+			updateBackupCondition(vmBackupCopy, newReadyCondition(corev1.ConditionFalse, message, "Not Ready"))
+			if _, err := h.vmBackups.Update(vmBackupCopy); err != nil {
+				logrus.WithError(err).WithFields(logrus.Fields{
+					"namespace": vmBackup.Namespace,
+					"name":      vmBackup.Name,
+				}).Error("cannot update VMBackup status")
+			}
+		}
+	}
+}
+
+func (h *MetadataHandler) checkNonReadyVMBackup(vmBackups []*harvesterv1.VirtualMachineBackup) {
+	for _, vmBackup := range vmBackups {
+		if vmBackup.Spec.Type == harvesterv1.Snapshot || vmBackup.Status.ReadyToUse == nil || *vmBackup.Status.ReadyToUse {
+			continue
+		}
+
+		vmBackupCopy := vmBackup.DeepCopy()
+		for i, volumeBackup := range vmBackup.Status.VolumeBackups {
+			// skip non-longhorn volume and ready volume
+			if volumeBackup.ReadyToUse == nil || *volumeBackup.ReadyToUse || volumeBackup.LonghornBackupName == nil {
+				continue
+			}
+
+			if volumeBackup.PersistentVolumeClaim.Spec.StorageClassName != nil {
+				if err := checkStorageClass(h.storageClassCache, *volumeBackup.PersistentVolumeClaim.Spec.StorageClassName); err != nil {
+					continue
+				}
+			}
+
+			if err := checkLHBackup(h.longhornBackupCache, *volumeBackup.LonghornBackupName); err != nil {
+				continue
+			}
+
+			vmBackupCopy.Status.VolumeBackups[i].ReadyToUse = ptr.To(true)
+			vmBackupCopy.Status.VolumeBackups[i].Error = nil
+		}
+
+		if !reflect.DeepEqual(vmBackup.Status.VolumeBackups, vmBackupCopy.Status.VolumeBackups) {
+			if _, err := h.vmBackups.Update(vmBackupCopy); err != nil {
+				logrus.WithError(err).WithFields(logrus.Fields{
+					"namespace": vmBackup.Namespace,
+					"name":      vmBackup.Name,
+				}).Error("cannot update VMBackup status")
+			}
+		}
+	}
 }
