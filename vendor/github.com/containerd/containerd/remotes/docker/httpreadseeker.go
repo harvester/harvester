@@ -21,8 +21,9 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/containerd/log"
+
 	"github.com/containerd/containerd/errdefs"
-	"github.com/containerd/containerd/log"
 )
 
 const maxRetry = 3
@@ -75,6 +76,16 @@ func (hrs *httpReadSeeker) Read(p []byte) (n int, err error) {
 		}
 		if _, err2 := hrs.reader(); err2 == nil {
 			return n, nil
+		}
+	} else if err == io.EOF {
+		// The CRI's imagePullProgressTimeout relies on responseBody.Close to
+		// update the process monitor's status. If the err is io.EOF, close
+		// the connection since there is no more available data.
+		if hrs.rc != nil {
+			if clsErr := hrs.rc.Close(); clsErr != nil {
+				log.L.WithError(clsErr).Error("httpReadSeeker: failed to close ReadCloser after io.EOF")
+			}
+			hrs.rc = nil
 		}
 	}
 	return
