@@ -239,7 +239,7 @@ recover_rancher_system_agent() {
 }
 
 wait_longhorn_engines() {
-  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true -o json | jq -r '.items | length')
+  local node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
 
   # For each running engine and its volume
   kubectl get engines.longhorn.io -n longhorn-system -o json |
