@@ -450,7 +450,7 @@ wait_longhorn_manager() {
   lm_repo=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.repository)
   lm_tag=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.tag)
   lm_image="${lm_repo}:${lm_tag}"
-  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
+  local node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
 
   while [ true ]; do
     lm_ds_ready=0
@@ -469,7 +469,7 @@ wait_longhorn_manager() {
 }
 
 wait_longhorn_instance_manager_aio() {
-  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
+  local node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
   if [ $node_count -lt 2 ]; then
     echo "Skip waiting instance-manager (aio), node count: $node_count"
     return
