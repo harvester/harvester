@@ -1,6 +1,9 @@
 # emperror.dev/errors v0.8.1
 ## explicit; go 1.12
 emperror.dev/errors
+# github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24
+## explicit; go 1.20
+github.com/AdaLogics/go-fuzz-headers
 # github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161
 ## explicit; go 1.16
 github.com/Azure/go-ansiterm
@@ -24,9 +27,6 @@ github.com/Masterminds/sprig/v3
 # github.com/Masterminds/squirrel v1.5.4
 ## explicit; go 1.14
 github.com/Masterminds/squirrel
-# github.com/Microsoft/hcsshim v0.12.0-rc.3
-## explicit; go 1.18
-github.com/Microsoft/hcsshim/osversion
 # github.com/achanda/go-sysctl v0.0.0-20160222034550-6be7678c45d2
 ## explicit
 github.com/achanda/go-sysctl
@@ -121,8 +121,8 @@ github.com/cisco-open/operator-tools/pkg/typeoverride
 github.com/cisco-open/operator-tools/pkg/types
 github.com/cisco-open/operator-tools/pkg/utils
 github.com/cisco-open/operator-tools/pkg/volume
-# github.com/containerd/containerd v1.7.12 => github.com/containerd/containerd v1.6.27
-## explicit; go 1.19
+# github.com/containerd/containerd v1.7.12 => github.com/containerd/containerd v1.7.27
+## explicit; go 1.21
 github.com/containerd/containerd/archive/compression
 github.com/containerd/containerd/content
 github.com/containerd/containerd/content/local
@@ -132,17 +132,23 @@ github.com/containerd/containerd/images
 github.com/containerd/containerd/labels
 github.com/containerd/containerd/log
 github.com/containerd/containerd/pkg/randutil
-github.com/containerd/containerd/platforms
 github.com/containerd/containerd/reference
 github.com/containerd/containerd/remotes
 github.com/containerd/containerd/remotes/docker
 github.com/containerd/containerd/remotes/docker/auth
 github.com/containerd/containerd/remotes/docker/schema1
 github.com/containerd/containerd/remotes/errors
+github.com/containerd/containerd/tracing
 github.com/containerd/containerd/version
+# github.com/containerd/errdefs v0.3.0
+## explicit; go 1.20
+github.com/containerd/errdefs
 # github.com/containerd/log v0.1.0
 ## explicit; go 1.20
 github.com/containerd/log
+# github.com/containerd/platforms v0.2.1
+## explicit; go 1.20
+github.com/containerd/platforms
 # github.com/containernetworking/cni v1.2.0
 ## explicit; go 1.21
 github.com/containernetworking/cni/pkg/types
@@ -1136,6 +1142,7 @@ go.opentelemetry.io/otel/internal/global
 go.opentelemetry.io/otel/propagation
 go.opentelemetry.io/otel/semconv/v1.17.0
 go.opentelemetry.io/otel/semconv/v1.20.0
+go.opentelemetry.io/otel/semconv/v1.21.0
 go.opentelemetry.io/otel/semconv/v1.24.0
 go.opentelemetry.io/otel/semconv/v1.26.0
 # go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.28.0
@@ -1218,7 +1225,6 @@ golang.org/x/mod/semver
 ## explicit; go 1.23.0
 golang.org/x/net/bpf
 golang.org/x/net/context
-golang.org/x/net/context/ctxhttp
 golang.org/x/net/html
 golang.org/x/net/html/atom
 golang.org/x/net/html/charset
@@ -1249,7 +1255,6 @@ golang.org/x/sync/singleflight
 # golang.org/x/sys v0.30.0
 ## explicit; go 1.18
 golang.org/x/sys/cpu
-golang.org/x/sys/execabs
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
@@ -2541,7 +2546,7 @@ sigs.k8s.io/structured-merge-diff/v4/value
 sigs.k8s.io/yaml
 sigs.k8s.io/yaml/goyaml.v2
 sigs.k8s.io/yaml/goyaml.v3
-# github.com/containerd/containerd => github.com/containerd/containerd v1.6.27
+# github.com/containerd/containerd => github.com/containerd/containerd v1.7.27
 # github.com/docker/distribution => github.com/docker/distribution v2.8.2+incompatible
 # github.com/docker/docker => github.com/docker/docker v25.0.6+incompatible
 # github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.9.1
