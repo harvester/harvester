@@ -49,7 +49,7 @@ body:
 - type: textarea
   attributes:
     label: Environment
-    description: "Suggest checking the doc of the best practices of using Longhorn. [here](https://longhorn.io/docs/latest/best-practices)"
+    description: Please provide the environment setup and problematic resources. 
     value: |
       - Harvester version:
       - Impacted VM: <!-- PLEASE specify the VM name to better identify the cause -->
