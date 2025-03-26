@@ -1,0 +1,28 @@
+name: Document request
+description: Create or update a document
+title: "[DOC] "
+labels: [ "kind/doc", "require/doc" ]
+assignees:
+-
+body:
+- type: markdown
+  attributes:
+    value: |
+      Thanks for stopping by to let us know something could be better!
+      
+      For general questions or discussions, please use the [Discussions](https://github.com/harvester/harvester/discussions) tab.
+
+- type: textarea
+  attributes:
+    label: Document request
+    description: |
+      Provide a clear and concise description of the document's purpose. Is your document request related to a problem? If so, please include the relevant issue number.
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: Additional context
+    description: Please add any other context about the problem here.
+  validations:
+    required: false
