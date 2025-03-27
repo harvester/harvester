@@ -1,13 +1,11 @@
 package volume
 
 import (
-	"encoding/json"
-
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/v3/pkg/data/convert"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -18,7 +16,11 @@ const (
 	actionSnapshot     = "snapshot"
 )
 
-func Formatter(request *types.APIRequest, resource *types.RawResource) {
+type volFormatter struct {
+	scCache ctlstoragev1.StorageClassCache
+}
+
+func (f *volFormatter) Formatter(request *types.APIRequest, resource *types.RawResource) {
 	resource.Actions = make(map[string]string, 1)
 	if request.AccessControl.CanUpdate(request, resource.APIObject, resource.Schema) != nil {
 		return
@@ -43,13 +45,8 @@ func Formatter(request *types.APIRequest, resource *types.RawResource) {
 
 	resource.AddAction(request, actionClone)
 
-	csiDriverConfig := make(map[string]settings.CSIDriverInfo)
-	if err := json.Unmarshal([]byte(settings.CSIDriverConfig.Get()), &csiDriverConfig); err != nil {
-		return
-	}
-	provisioner := util.GetProvisionedPVCProvisioner(pvc)
-	snapshotBackupConfigs, find := csiDriverConfig[provisioner]
-	if find && snapshotBackupConfigs.VolumeSnapshotClassName != "" {
+	provisioner := util.GetProvisionedPVCProvisioner(pvc, f.scCache)
+	if find := util.GetCSIProvisionerSnapshotCapability(provisioner); find {
 		resource.AddAction(request, actionSnapshot)
 	}
 }

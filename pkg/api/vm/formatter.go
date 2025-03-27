@@ -4,6 +4,7 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/v3/pkg/data/convert"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,6 +33,7 @@ const (
 	abortMigration                   = "abortMigration"
 	findMigratableNodes              = "findMigratableNodes"
 	backupVM                         = "backup"
+	snapshotVM                       = "snapshot"
 	restoreVM                        = "restore"
 	createTemplate                   = "createTemplate"
 	addVolume                        = "addVolume"
@@ -46,6 +48,7 @@ const (
 type vmformatter struct {
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
 	pvcCache      ctlcorev1.PersistentVolumeClaimCache
+	scCache       ctlstoragev1.StorageClassCache
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
 	clientSet     kubernetes.Clientset
 }
@@ -118,6 +121,10 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 	if vf.canDoBackup(vm, vmi) {
 		resource.AddAction(request, backupVM)
+	}
+
+	if vf.canDoSnapshot(vm, vmi) {
+		resource.AddAction(request, snapshotVM)
 	}
 
 	if vf.canDoRestore(vm, vmi) {
@@ -277,18 +284,53 @@ func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv
 	// additional check, we did not support backup with CDI volume
 	volumes := vm.Spec.Template.Spec.Volumes
 	for _, vol := range volumes {
-		if vol.PersistentVolumeClaim != nil {
-			pvc, err := vf.pvcCache.Get(vm.Namespace, vol.PersistentVolumeClaim.ClaimName)
-			if err != nil {
-				if apierrors.IsNotFound(err) {
-					continue
-				}
-				logrus.Errorf("Can't get PVC %s/%s, err: %+v", vm.Namespace, vol.PersistentVolumeClaim.ClaimName, err)
-				return false
+		if vol.PersistentVolumeClaim == nil {
+			continue
+		}
+		pvc, err := vf.pvcCache.Get(vm.Namespace, vol.PersistentVolumeClaim.ClaimName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
 			}
-			if _, find := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; find {
-				return false
+			logrus.Errorf("Can't get PVC %s/%s, err: %+v", vm.Namespace, vol.PersistentVolumeClaim.ClaimName, err)
+			return false
+		}
+		if _, find := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; find {
+			return false
+		}
+	}
+	return true
+}
+
+func (vf *vmformatter) canDoSnapshot(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {
+	if vm.Status.SnapshotInProgress != nil {
+		return false
+	}
+
+	if vm.DeletionTimestamp != nil || (vmi != nil && vmi.DeletionTimestamp != nil) {
+		return false
+	}
+
+	if vmi != nil && vmi.Status.Phase != kubevirtv1.Running && vmi.Status.Phase != kubevirtv1.Succeeded {
+		return false
+	}
+
+	volumes := vm.Spec.Template.Spec.Volumes
+	for _, vol := range volumes {
+		if vol.PersistentVolumeClaim == nil {
+			continue
+		}
+		pvc, err := vf.pvcCache.Get(vm.Namespace, vol.PersistentVolumeClaim.ClaimName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
 			}
+			logrus.Errorf("Can't get PVC %s/%s, err: %+v", vm.Namespace, vol.PersistentVolumeClaim.ClaimName, err)
+			return false
+		}
+		provisioner := util.GetProvisionedPVCProvisioner(pvc, vf.scCache)
+		if find := util.GetCSIProvisionerSnapshotCapability(provisioner); !find {
+			return false
 		}
 	}
 	return true

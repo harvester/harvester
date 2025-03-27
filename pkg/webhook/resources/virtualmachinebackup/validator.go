@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +34,7 @@ func NewValidator(
 	vmrestores ctlharvesterv1.VirtualMachineRestoreCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	engineCache ctllonghornv1.EngineCache,
+	scCache ctlstoragev1.StorageClassCache,
 	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache,
 	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 ) types.Validator {
@@ -42,6 +44,7 @@ func NewValidator(
 		vmrestores:         vmrestores,
 		pvcCache:           pvcCache,
 		engineCache:        engineCache,
+		scCache:            scCache,
 		resourceQuotaCache: resourceQuotaCache,
 		vmimCache:          vmimCache,
 	}
@@ -55,6 +58,7 @@ type virtualMachineBackupValidator struct {
 	vmrestores         ctlharvesterv1.VirtualMachineRestoreCache
 	pvcCache           ctlcorev1.PersistentVolumeClaimCache
 	engineCache        ctllonghornv1.EngineCache
+	scCache            ctlstoragev1.StorageClassCache
 	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache
 	vmimCache          ctlkubevirtv1.VirtualMachineInstanceMigrationCache
 }
@@ -153,7 +157,7 @@ func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(vm *kubev
 		}
 
 		// Validate both the ability and the CSI configuration.
-		if err := webhookutil.ValidateProvisionerAndConfig(pvc, v.engineCache, newVMBackup.Spec.Type, cdc); err != nil {
+		if err := webhookutil.ValidateProvisionerAndConfig(pvc, v.engineCache, v.scCache, newVMBackup.Spec.Type, cdc); err != nil {
 			return err
 		}
 	}
@@ -225,12 +229,12 @@ func (v *virtualMachineBackupValidator) checkTotalSnapshotSize(vm *kubevirtv1.Vi
 	}
 
 	if resourceQuota.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota != nil {
-		if err := webhookutil.CheckTotalSnapshotSizeOnVM(v.pvcCache, v.engineCache, vm, resourceQuota.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota[vm.Name]); err != nil {
+		if err := webhookutil.CheckTotalSnapshotSizeOnVM(v.pvcCache, v.engineCache, v.scCache, vm, resourceQuota.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota[vm.Name]); err != nil {
 			return err
 		}
 	}
 
-	if err := webhookutil.CheckTotalSnapshotSizeOnNamespace(v.pvcCache, v.engineCache, vm.Namespace, resourceQuota.Spec.SnapshotLimit.NamespaceTotalSnapshotSizeQuota); err != nil {
+	if err := webhookutil.CheckTotalSnapshotSizeOnNamespace(v.pvcCache, v.engineCache, v.scCache, vm.Namespace, resourceQuota.Spec.SnapshotLimit.NamespaceTotalSnapshotSizeQuota); err != nil {
 		return err
 	}
 	return nil
