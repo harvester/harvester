@@ -19,6 +19,7 @@ import (
 	"github.com/longhorn/longhorn-manager/types"
 	lhutil "github.com/longhorn/longhorn-manager/util"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/rancher/wrangler/v3/pkg/name"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -87,6 +88,7 @@ type RestoreHandler struct {
 	pvcClient            ctlcorev1.PersistentVolumeClaimClient
 	pvcCache             ctlcorev1.PersistentVolumeClaimCache
 	pvCache              ctlcorev1.PersistentVolumeCache
+	scCache              ctlstoragev1.StorageClassCache
 	secretClient         ctlcorev1.SecretClient
 	secretCache          ctlcorev1.SecretCache
 	snapshots            ctlsnapshotv1.VolumeSnapshotClient
@@ -110,6 +112,7 @@ func RegisterRestore(ctx context.Context, management *config.Management, _ confi
 	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	pvs := management.CoreFactory.Core().V1().PersistentVolume()
+	scs := management.StorageFactory.Storage().V1().StorageClass()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	snapshots := management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
 	snapshotContents := management.SnapshotFactory.Snapshot().V1().VolumeSnapshotContent()
@@ -142,6 +145,7 @@ func RegisterRestore(ctx context.Context, management *config.Management, _ confi
 		pvcClient:            pvcs,
 		pvcCache:             pvcs.Cache(),
 		pvCache:              pvs.Cache(),
+		scCache:              scs.Cache(),
 		secretClient:         secrets,
 		secretCache:          secrets.Cache(),
 		snapshots:            snapshots,
@@ -267,7 +271,7 @@ func getVolumeName(pvc *corev1.PersistentVolumeClaim) (string, error) {
 }
 
 func (h *RestoreHandler) checkLHNotVolumeExist(pvc *corev1.PersistentVolumeClaim, restore string) (*corev1.PersistentVolumeClaim, error) {
-	provisioner := util.GetProvisionedPVCProvisioner(pvc)
+	provisioner := util.GetProvisionedPVCProvisioner(pvc, h.scCache)
 	if provisioner == types.LonghornDriverName {
 		return nil, fmt.Errorf("LH pvc %s/%s missing volume", pvc.Namespace, pvc.Name)
 	}
