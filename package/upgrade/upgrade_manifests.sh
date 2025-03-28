@@ -489,24 +489,39 @@ wait_longhorn_instance_manager_aio() {
   # Wait for instance-manager (aio) pods upgraded to new version first.
   kubectl get nodes.longhorn.io -n longhorn-system -o json | jq -r '.items[].metadata.name' | while read -r node; do
     echo "Checking instance-manager (aio) pod on node $node..."
-    while [ true ]; do
-      im_count=$(kubectl get instancemanager.longhorn.io --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio,longhorn.io/instance-manager-image=$im_image_checksum -n longhorn-system -o json | jq -r '.items | length')
-      if [ "$im_count" != "1" ]; then
-        echo "instance-manager (aio) (image=$im_image) count is not 1 on node $node, will retry..."
-        sleep 5
-        continue
-      fi
+    check_instance_manager $node $im_image $im_image_checksum "v1"
 
-      im_status=$(kubectl get instancemanager.longhorn.io --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio,longhorn.io/instance-manager-image=$im_image_checksum -n longhorn-system -o json | jq -r '.items[0].status.currentState')
-      if [ "$im_status" != "running" ]; then
-        echo "instance-manager (aio) (image=$im_image) state is not running on node $node, will retry..."
-        sleep 5
-        continue
-      fi
+    v2EngineEnabled=$(kubectl get settings.harvesterhci.io longhorn-v2-data-engine-enabled -o yaml | yq -e e '.value' -)
+    if [ "$v2EngineEnabled" = "true" ]; then
+      # check instance-manager (aio) is running with v2 engine
+      check_instance_manager $node $im_image $im_image_checksum "v2"
+    fi
+  done
+}
 
-      echo "Checking instance-manager (aio) (image=$im_image) on node $node OK."
-      break
-    done
+check_instance_manager() {
+  local node="$1"
+  local im_image="$2"
+  local im_image_checksum="$3"
+  local data_engine="$4"
+
+  while [ true ]; do
+    im_count=$(kubectl get instancemanager.longhorn.io --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio,longhorn.io/data-engine=$data_engine,longhorn.io/instance-manager-image=$im_image_checksum -n longhorn-system -o json | jq -r '.items | length')
+    if [ "$im_count" != "1" ]; then
+      echo "instance-manager (aio)($data_engine) (image=$im_image) count is not 1 on node $node, will retry..."
+      sleep 5
+      continue
+    fi
+
+    im_status=$(kubectl get instancemanager.longhorn.io --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio,longhorn.io/data-engine=$data_engine,longhorn.io/instance-manager-image=$im_image_checksum -n longhorn-system -o json | jq -r '.items[0].status.currentState')
+    if [ "$im_status" != "running" ]; then
+      echo "instance-manager (aio)($data_engine) (image=$im_image) state is not running on node $node, will retry..."
+      sleep 5
+      continue
+    fi
+
+    echo "Checking instance-manager (aio)($data_engine) (image=$im_image) on node $node OK."
+    break
   done
 }
 
