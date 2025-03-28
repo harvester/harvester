@@ -100,6 +100,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	vmformatter := vmformatter{
 		pvcCache:      pvcs.Cache(),
 		vmiCache:      vmis.Cache(),
+		scCache:       storageClasses.Cache(),
 		vmBackupCache: backups.Cache(),
 		clientSet:     *scaled.Management.ClientSet,
 	}
@@ -127,6 +128,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				abortMigration:                   &actionHandler,
 				findMigratableNodes:              &actionHandler,
 				backupVM:                         &actionHandler,
+				snapshotVM:                       &actionHandler,
 				restoreVM:                        &actionHandler,
 				createTemplate:                   &actionHandler,
 				addVolume:                        &actionHandler,
@@ -144,6 +146,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				softReboot: {},
 				pauseVM:    {},
 				unpauseVM:  {},
+				snapshotVM: {},
 				migrate: {
 					Input: "migrateInput",
 				},

@@ -664,7 +664,7 @@ func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBacku
 		}
 		sourceStorageClassName = *pvc.Spec.StorageClassName
 		sourceImageID = pvc.Annotations[util.AnnotationImageID]
-		sourceProvisioner = util.GetProvisionedPVCProvisioner(pvc)
+		sourceProvisioner = util.GetProvisionedPVCProvisioner(pvc, h.storageClassCache)
 		volumeSnapshotSource.PersistentVolumeClaimName = &volumeBackup.PersistentVolumeClaim.ObjectMeta.Name
 	}
 

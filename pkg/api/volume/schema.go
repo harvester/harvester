@@ -40,6 +40,10 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 
 	handler := harvesterServer.NewHandler(actionHandler)
 
+	formatter := &volFormatter{
+		scCache: scaled.StorageFactory.Storage().V1().StorageClass().Cache(),
+	}
+
 	t := schema.Template{
 		ID: pvcSchemaID,
 		Customize: func(s *types.APISchema) {
@@ -62,7 +66,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 				actionSnapshot:     handler,
 			}
 		},
-		Formatter: Formatter,
+		Formatter: formatter.Formatter,
 	}
 	server.SchemaFactory.AddTemplate(t)
 	return nil

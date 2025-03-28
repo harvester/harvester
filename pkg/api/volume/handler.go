@@ -413,7 +413,7 @@ func (h *ActionHandler) snapshot(_ context.Context, pvcNamespace, pvcName, snaps
 		return err
 	}
 
-	provisioner := util.GetProvisionedPVCProvisioner(pvc)
+	provisioner := util.GetProvisionedPVCProvisioner(pvc, h.scCache)
 	csiDriverInfo, err := settings.GetCSIDriverInfo(provisioner)
 	if err != nil {
 		return err

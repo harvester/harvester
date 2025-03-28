@@ -8,6 +8,7 @@ import (
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	longhornutil "github.com/longhorn/longhorn-manager/util"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
@@ -23,6 +24,7 @@ import (
 func CheckTotalSnapshotSizeOnVM(
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	engineCache ctllonghornv1.EngineCache,
+	scCache ctlstoragev1.StorageClassCache,
 	vm *kubevirtv1.VirtualMachine,
 	totalSnapshotSizeQuota int64,
 ) error {
@@ -44,7 +46,7 @@ func CheckTotalSnapshotSizeOnVM(
 			return werror.NewInternalError(fmt.Sprintf("failed to get PVC %s/%s, err: %s", pvcNamespace, pvcName, err))
 		}
 
-		if util.GetProvisionedPVCProvisioner(pvc) != longhorntypes.LonghornDriverName {
+		if util.GetProvisionedPVCProvisioner(pvc, scCache) != longhorntypes.LonghornDriverName {
 			continue
 		}
 
@@ -76,6 +78,7 @@ func CheckTotalSnapshotSizeOnVM(
 func CheckTotalSnapshotSizeOnNamespace(
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	engineCache ctllonghornv1.EngineCache,
+	scCache ctlstoragev1.StorageClassCache,
 	namespaceName string,
 	totalSnapshotSizeQuota int64,
 ) error {
@@ -90,7 +93,7 @@ func CheckTotalSnapshotSizeOnNamespace(
 
 	var totalSnapshotUsage int64
 	for _, pvc := range pvcs {
-		if util.GetProvisionedPVCProvisioner(pvc) != longhorntypes.LonghornDriverName {
+		if util.GetProvisionedPVCProvisioner(pvc, scCache) != longhorntypes.LonghornDriverName {
 			continue
 		}
 
@@ -156,8 +159,8 @@ func getAbilityForProvisioner(provisioner string) snapshotBackupAbility {
 	return defaultAbility()
 }
 
-func provisionerWrapper(pvc *corev1.PersistentVolumeClaim, engineCache ctllonghornv1.EngineCache) (string, error) {
-	provisioner := util.GetProvisionedPVCProvisioner(pvc)
+func provisionerWrapper(pvc *corev1.PersistentVolumeClaim, engineCache ctllonghornv1.EngineCache, scCache ctlstoragev1.StorageClassCache) (string, error) {
+	provisioner := util.GetProvisionedPVCProvisioner(pvc, scCache)
 	if provisioner != lhtypes.LonghornDriverName {
 		return provisioner, nil
 	}
@@ -171,11 +174,11 @@ func provisionerWrapper(pvc *corev1.PersistentVolumeClaim, engineCache ctllongho
 }
 
 func ValidateProvisionerAndConfig(pvc *corev1.PersistentVolumeClaim,
-	engineCache ctllonghornv1.EngineCache, bt v1beta1.BackupType,
+	engineCache ctllonghornv1.EngineCache, scCache ctlstoragev1.StorageClassCache, bt v1beta1.BackupType,
 	cdc map[string]settings.CSIDriverInfo) error {
 
 	// Get wrapper provisioner for checking snapshot/backup ability
-	provisioner, err := provisionerWrapper(pvc, engineCache)
+	provisioner, err := provisionerWrapper(pvc, engineCache, scCache)
 	if err != nil {
 		return err
 	}
@@ -186,7 +189,7 @@ func ValidateProvisionerAndConfig(pvc *corev1.PersistentVolumeClaim,
 	}
 
 	// Get origin provisioner and the CSI configuration
-	provisioner = util.GetProvisionedPVCProvisioner(pvc)
+	provisioner = util.GetProvisionedPVCProvisioner(pvc, scCache)
 	c, ok := cdc[provisioner]
 	if !ok {
 		return fmt.Errorf("provisioner %s is not configured in the %s setting", provisioner, settings.CSIDriverConfigSettingName)

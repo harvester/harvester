@@ -169,6 +169,9 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 			return err
 		}
 		return nil
+	case snapshotVM:
+		// TODO: currently the snapshot CRD creation is handled by UI, we do nothing here.
+		return nil
 	case restoreVM:
 		var input RestoreInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
