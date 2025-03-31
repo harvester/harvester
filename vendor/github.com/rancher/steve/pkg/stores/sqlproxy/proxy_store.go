@@ -28,6 +28,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
@@ -40,27 +41,116 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/summary"
 
 	"github.com/rancher/steve/pkg/attributes"
+	controllerschema "github.com/rancher/steve/pkg/controllers/schema"
 	"github.com/rancher/steve/pkg/resources/common"
+	"github.com/rancher/steve/pkg/resources/virtual"
+	virtualCommon "github.com/rancher/steve/pkg/resources/virtual/common"
 	metricsStore "github.com/rancher/steve/pkg/stores/metrics"
 	"github.com/rancher/steve/pkg/stores/sqlpartition/listprocessor"
 	"github.com/rancher/steve/pkg/stores/sqlproxy/tablelistconvert"
 )
 
 const (
-	watchTimeoutEnv      = "CATTLE_WATCH_TIMEOUT_SECONDS"
-	errNamespaceRequired = "metadata.namespace or apiOp.namespace are required"
+	watchTimeoutEnv            = "CATTLE_WATCH_TIMEOUT_SECONDS"
+	errNamespaceRequired       = "metadata.namespace or apiOp.namespace are required"
+	errResourceVersionRequired = "metadata.resourceVersion is required for update"
 )
 
 var (
 	paramScheme               = runtime.NewScheme()
 	paramCodec                = runtime.NewParameterCodec(paramScheme)
 	typeSpecificIndexedFields = map[string][][]string{
-		"_v1_Namespace": {{`metadata`, `labels[field.cattle.io/projectId]`}},
-		"_v1_Node":      {{`status`, `nodeInfo`, `kubeletVersion`}, {`status`, `nodeInfo`, `operatingSystem`}},
-		"_v1_Pod":       {{`spec`, `containers`, `image`}, {`spec`, `nodeName`}},
-		"_v1_ConfigMap": {{`metadata`, `labels[harvesterhci.io/cloud-init-template]`}},
-
-		"management.cattle.io_v3_Node": {{`status`, `nodeName`}},
+		gvkKey("", "v1", "Event"): {
+			{"_type"},
+			{"involvedObject", "kind"},
+			{"message"},
+			{"reason"},
+		},
+		gvkKey("", "v1", "Namespace"): {
+			{"metadata", "labels[field.cattle.io/projectId]"}},
+		gvkKey("", "v1", "Node"): {
+			{"status", "nodeInfo", "kubeletVersion"},
+			{"status", "nodeInfo", "operatingSystem"}},
+		gvkKey("", "v1", "Pod"): {
+			{"spec", "containers", "image"},
+			{"spec", "nodeName"}},
+		gvkKey("", "v1", "Service"): {
+			{"spec", "clusterIP"},
+			{"spec", "type"},
+		},
+		gvkKey("networking.k8s.io", "v1", "Ingress"): {
+			{"spec", "rules", "host"},
+			{"spec", "ingressClassName"},
+		},
+		gvkKey("", "v1", "ConfigMap"): {
+			{"metadata", "labels[harvesterhci.io/cloud-init-template]"}},
+		gvkKey("", "v1", "PersistentVolume"): {
+			{"status", "reason"},
+			{"spec", "persistentVolumeReclaimPolicy"},
+		},
+		gvkKey("", "v1", "PersistentVolumeClaim"): {
+			{"spec", "volumeName"}},
+		gvkKey("autoscaling", "v2", "HorizontalPodAutoscaler"): {
+			{"spec", "scaleTargetRef", "name"},
+			{"spec", "minReplicas"},
+			{"spec", "maxReplicas"},
+			{"status", "currentReplicas"},
+		},
+		gvkKey("apps", "v1", "DaemonSet"): {
+			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
+		},
+		gvkKey("apps", "v1", "Deployment"): {
+			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
+		},
+		gvkKey("apps", "v1", "StatefulSet"): {
+			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
+		},
+		gvkKey("batch", "v1", "CronJob"): {
+			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
+		},
+		gvkKey("batch", "v1", "Job"): {
+			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
+		},
+		gvkKey("storage.k8s.io", "v1", "StorageClass"): {
+			{"provisioner"},
+			{"metadata", "annotations[storageclass.kubernetes.io/is-default-class]"},
+		},
+		gvkKey("catalog.cattle.io", "v1", "App"): {
+			{"spec", "chart", "metadata", "name"},
+		},
+		gvkKey("catalog.cattle.io", "v1", "ClusterRepo"): {
+			{"metadata", "annotations[clusterrepo.cattle.io/hidden]"},
+			{"spec", "gitBranch"},
+			{"spec", "gitRepo"},
+		},
+		gvkKey("catalog.cattle.io", "v1", "Operation"): {
+			{"status", "action"},
+			{"status", "namespace"},
+			{"status", "releaseName"},
+		},
+		gvkKey("cluster.x-k8s.io", "v1beta1", "Machine"): {
+			{"spec", "clusterName"}},
+		gvkKey("management.cattle.io", "v3", "Cluster"): {
+			{"metadata", "labels[provider.cattle.io]"},
+			{"spec", "internal"},
+			{"spec", "displayName"},
+			{"status", "provider"},
+		},
+		gvkKey("management.cattle.io", "v3", "Node"): {
+			{"status", "nodeName"}},
+		gvkKey("management.cattle.io", "v3", "NodePool"): {
+			{"spec", "clusterName"}},
+		gvkKey("management.cattle.io", "v3", "NodeTemplate"): {
+			{"spec", "clusterName"}},
+		gvkKey("provisioning.cattle.io", "v1", "Cluster"): {
+			{"metadata", "labels[provider.cattle.io]"},
+			{"status", "clusterName"},
+			{"status", "provider"},
+		},
+	}
+	commonIndexFields = [][]string{
+		{`id`},
+		{`metadata`, `state`, `name`},
 	}
 	baseNSSchema = types.APISchema{
 		Schema: &schemas.Schema{
@@ -123,29 +213,35 @@ type RelationshipNotifier interface {
 	OnInboundRelationshipChange(ctx context.Context, schema *types.APISchema, namespace string) <-chan *summary.Relationship
 }
 
+type TransformBuilder interface {
+	GetTransformFunc(gvk schema.GroupVersionKind) cache.TransformFunc
+}
+
 type Store struct {
-	clientGetter   ClientGetter
-	notifier       RelationshipNotifier
-	cacheFactory   CacheFactory
-	cfInitializer  CacheFactoryInitializer
-	namespaceCache Cache
-	lock           sync.Mutex
-	columnSetter   SchemaColumnSetter
+	clientGetter     ClientGetter
+	notifier         RelationshipNotifier
+	cacheFactory     CacheFactory
+	cfInitializer    CacheFactoryInitializer
+	namespaceCache   Cache
+	lock             sync.Mutex
+	columnSetter     SchemaColumnSetter
+	transformBuilder TransformBuilder
 }
 
 type CacheFactoryInitializer func() (CacheFactory, error)
 
 type CacheFactory interface {
-	CacheFor(fields [][]string, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, namespaced bool) (factory.Cache, error)
+	CacheFor(fields [][]string, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, namespaced bool, watchable bool) (factory.Cache, error)
 	Reset() error
 }
 
 // NewProxyStore returns a Store implemented directly on top of kubernetes.
-func NewProxyStore(c SchemaColumnSetter, clientGetter ClientGetter, notifier RelationshipNotifier, factory CacheFactory) (*Store, error) {
+func NewProxyStore(c SchemaColumnSetter, clientGetter ClientGetter, notifier RelationshipNotifier, scache virtualCommon.SummaryCache, factory CacheFactory) (*Store, error) {
 	store := &Store{
-		clientGetter: clientGetter,
-		notifier:     notifier,
-		columnSetter: c,
+		clientGetter:     clientGetter,
+		notifier:         notifier,
+		columnSetter:     c,
+		transformBuilder: virtual.NewTransformBuilder(scache),
 	}
 
 	if factory == nil {
@@ -202,14 +298,18 @@ func (s *Store) initializeNamespaceCache() error {
 		return err
 	}
 
+	gvk := attributes.GVK(&nsSchema)
 	// get fields from schema's columns
 	fields := getFieldsFromSchema(&nsSchema)
 
 	// get any type-specific fields that steve is interested in
-	fields = append(fields, getFieldForGVK(attributes.GVK(&nsSchema))...)
+	fields = append(fields, getFieldForGVK(gvk)...)
+
+	// get the type-specifc transform func
+	transformFunc := s.transformBuilder.GetTransformFunc(gvk)
 
 	// get the ns informer
-	nsInformer, err := s.cacheFactory.CacheFor(fields, &tablelistconvert.Client{ResourceInterface: client}, attributes.GVK(&nsSchema), false)
+	nsInformer, err := s.cacheFactory.CacheFor(fields, transformFunc, &tablelistconvert.Client{ResourceInterface: client}, attributes.GVK(&nsSchema), false, true)
 	if err != nil {
 		return err
 	}
@@ -219,11 +319,17 @@ func (s *Store) initializeNamespaceCache() error {
 }
 
 func getFieldForGVK(gvk schema.GroupVersionKind) [][]string {
-	return typeSpecificIndexedFields[keyFromGVK(gvk)]
+	fields := [][]string{}
+	fields = append(fields, commonIndexFields...)
+	typeFields := typeSpecificIndexedFields[gvkKey(gvk.Group, gvk.Version, gvk.Kind)]
+	if typeFields != nil {
+		fields = append(fields, typeFields...)
+	}
+	return fields
 }
 
-func keyFromGVK(gvk schema.GroupVersionKind) string {
-	return gvk.Group + "_" + gvk.Version + "_" + gvk.Kind
+func gvkKey(group, version, kind string) string {
+	return group + "_" + version + "_" + kind
 }
 
 // getFieldsFromSchema converts object field names from types.APISchema's format into lasso's
@@ -575,8 +681,11 @@ func (s *Store) Update(apiOp *types.APIRequest, schema *types.APISchema, params 
 
 	resourceVersion := input.String("metadata", "resourceVersion")
 	if resourceVersion == "" {
-		return nil, nil, fmt.Errorf("metadata.resourceVersion is required for update")
+		return nil, nil, errors.New(errResourceVersionRequired)
 	}
+
+	gvk := attributes.GVK(schema)
+	input["apiVersion"], input["kind"] = gvk.ToAPIVersionAndKind()
 
 	opts := metav1.UpdateOptions{}
 	if err := decodeParams(apiOp, &opts); err != nil {
@@ -635,10 +744,12 @@ func (s *Store) ListByPartitions(apiOp *types.APIRequest, schema *types.APISchem
 	if err != nil {
 		return nil, 0, "", err
 	}
+	gvk := attributes.GVK(schema)
 	fields := getFieldsFromSchema(schema)
-	fields = append(fields, getFieldForGVK(attributes.GVK(schema))...)
+	fields = append(fields, getFieldForGVK(gvk)...)
+	transformFunc := s.transformBuilder.GetTransformFunc(gvk)
 
-	inf, err := s.cacheFactory.CacheFor(fields, &tablelistconvert.Client{ResourceInterface: client}, attributes.GVK(schema), attributes.Namespaced(schema))
+	inf, err := s.cacheFactory.CacheFor(fields, transformFunc, &tablelistconvert.Client{ResourceInterface: client}, attributes.GVK(schema), attributes.Namespaced(schema), controllerschema.IsListWatchable(schema))
 	if err != nil {
 		return nil, 0, "", err
 	}

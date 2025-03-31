@@ -24,8 +24,9 @@ type SchemaColumnSetter interface {
 
 // Store implements types.proxyStore for partitions.
 type Store struct {
-	Partitioner Partitioner
-	asl         accesscontrol.AccessSetLookup
+	Partitioner       Partitioner
+	asl               accesscontrol.AccessSetLookup
+	sqlReservedFields map[string]bool
 }
 
 // NewStore creates a types.proxyStore implementation with a partitioner
@@ -36,6 +37,14 @@ func NewStore(store UnstructuredStore, asl accesscontrol.AccessSetLookup) *Store
 		},
 		asl: asl,
 	}
+	sqlReservedFields := map[string]bool{}
+	for key, value := range types.ReservedFields {
+		if key == "id" {
+			continue
+		}
+		sqlReservedFields[key] = value
+	}
+	s.sqlReservedFields = sqlReservedFields
 
 	return s
 }
@@ -48,7 +57,7 @@ func (s *Store) Delete(apiOp *types.APIRequest, schema *types.APISchema, id stri
 	if err != nil {
 		return types.APIObject{}, err
 	}
-	return partition.ToAPI(schema, obj, warnings), nil
+	return partition.ToAPI(schema, obj, warnings, types.ReservedFields), nil
 }
 
 // ByID looks up a single object by its ID.
@@ -59,7 +68,7 @@ func (s *Store) ByID(apiOp *types.APIRequest, schema *types.APISchema, id string
 	if err != nil {
 		return types.APIObject{}, err
 	}
-	return partition.ToAPI(schema, obj, warnings), nil
+	return partition.ToAPI(schema, obj, warnings, types.ReservedFields), nil
 }
 
 // List returns a list of objects across all applicable partitions.
@@ -85,7 +94,8 @@ func (s *Store) List(apiOp *types.APIRequest, schema *types.APISchema) (types.AP
 
 	for _, item := range list {
 		item := item.DeepCopy()
-		result.Objects = append(result.Objects, partition.ToAPI(schema, item, nil))
+		// the sql cache automatically adds the ID through a transformFunc. Because of this, we have a different set of reserved fields for the SQL cache
+		result.Objects = append(result.Objects, partition.ToAPI(schema, item, nil, s.sqlReservedFields))
 	}
 
 	result.Revision = ""
@@ -101,7 +111,7 @@ func (s *Store) Create(apiOp *types.APIRequest, schema *types.APISchema, data ty
 	if err != nil {
 		return types.APIObject{}, err
 	}
-	return partition.ToAPI(schema, obj, warnings), nil
+	return partition.ToAPI(schema, obj, warnings, types.ReservedFields), nil
 }
 
 // Update updates a single object in the store.
@@ -112,7 +122,7 @@ func (s *Store) Update(apiOp *types.APIRequest, schema *types.APISchema, data ty
 	if err != nil {
 		return types.APIObject{}, err
 	}
-	return partition.ToAPI(schema, obj, warnings), nil
+	return partition.ToAPI(schema, obj, warnings, types.ReservedFields), nil
 }
 
 // Watch returns a channel of events for a list or resource.

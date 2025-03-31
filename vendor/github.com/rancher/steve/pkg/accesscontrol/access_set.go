@@ -3,15 +3,19 @@ package accesscontrol
 import (
 	"sort"
 
-	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/steve/pkg/attributes"
+	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
+	rbacv1 "k8s.io/kubernetes/pkg/apis/rbac/v1"
+
+	"github.com/rancher/apiserver/pkg/types"
+	"github.com/rancher/steve/pkg/attributes"
 )
 
 type AccessSet struct {
-	ID  string
-	set map[key]resourceAccessSet
+	ID             string
+	set            map[key]resourceAccessSet
+	nonResourceSet map[nonResourceKey]struct{}
 }
 
 type resourceAccessSet map[Access]bool
@@ -19,6 +23,11 @@ type resourceAccessSet map[Access]bool
 type key struct {
 	verb string
 	gr   schema.GroupResource
+}
+
+type nonResourceKey struct {
+	verb string
+	url  string
 }
 
 func (a *AccessSet) Namespaces() (result []string) {
@@ -56,6 +65,17 @@ func (a *AccessSet) Merge(right *AccessSet) {
 			m[k] = v
 		}
 	}
+
+	if a.nonResourceSet == nil {
+		a.nonResourceSet = map[nonResourceKey]struct{}{}
+	}
+
+	for k, v := range right.nonResourceSet {
+		_, ok := a.nonResourceSet[k]
+		if !ok {
+			a.nonResourceSet[k] = v
+		}
+	}
 }
 
 func (a AccessSet) Grants(verb string, gr schema.GroupResource, namespace, name string) bool {
@@ -74,6 +94,26 @@ func (a AccessSet) Grants(verb string, gr schema.GroupResource, namespace, name 
 					}
 				}
 			}
+		}
+	}
+
+	return false
+}
+
+func (a *AccessSet) GrantsNonResource(verb, url string) bool {
+	if a.nonResourceSet == nil {
+		return false
+	}
+
+	if _, ok := a.nonResourceSet[nonResourceKey{url: url, verb: verb}]; ok {
+		rule := &v1.PolicyRule{NonResourceURLs: []string{url}, Verbs: []string{verb}}
+		return rbacv1.NonResourceURLMatches(rule, url) && rbacv1.VerbMatches(rule, verb)
+	}
+
+	for key := range a.nonResourceSet {
+		rule := &v1.PolicyRule{NonResourceURLs: []string{key.url}, Verbs: []string{key.verb}}
+		if rbacv1.NonResourceURLMatches(rule, url) && rbacv1.VerbMatches(rule, verb) {
+			return true
 		}
 	}
 
@@ -117,6 +157,25 @@ func (a *AccessSet) Add(verb string, gr schema.GroupResource, access Access) {
 		m = map[Access]bool{}
 		m[access] = true
 		a.set[k] = m
+	}
+}
+
+func (a *AccessSet) AddNonResourceURLs(verbs, urls []string) {
+	if len(verbs) == 0 || len(urls) == 0 {
+		return
+	}
+
+	if a.nonResourceSet == nil {
+		a.nonResourceSet = map[nonResourceKey]struct{}{}
+	}
+
+	for _, verb := range verbs {
+		for _, url := range urls {
+			a.nonResourceSet[nonResourceKey{
+				verb: verb,
+				url:  url,
+			}] = struct{}{}
+		}
 	}
 }
 
