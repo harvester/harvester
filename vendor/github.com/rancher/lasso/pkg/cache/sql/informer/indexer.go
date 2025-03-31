@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/pkg/errors"
 	"github.com/rancher/lasso/pkg/cache/sql/db"
 	"github.com/rancher/lasso/pkg/cache/sql/db/transaction"
 	"k8s.io/client-go/tools/cache"
@@ -75,7 +74,7 @@ type Store interface {
 }
 
 type DBClient interface {
-	Begin() (db.TXClient, error)
+	BeginTx(ctx context.Context, forWriting bool) (db.TXClient, error)
 	QueryForRows(ctx context.Context, stmt transaction.Stmt, params ...any) (*sql.Rows, error)
 	ReadObjects(rows db.Rows, typ reflect.Type, shouldDecrypt bool) ([]any, error)
 	ReadStrings(rows db.Rows) ([]string, error)
@@ -86,26 +85,19 @@ type DBClient interface {
 
 // NewIndexer returns a cache.Indexer backed by SQLite for objects of the given example type
 func NewIndexer(indexers cache.Indexers, s Store) (*Indexer, error) {
-	// sanity checks first
-	for key := range indexers {
-		if strings.Contains(key, `"`) || strings.Contains(key, `'`) {
-			return nil, errors.Errorf("Quote characters (\") or (') in indexer names are not supported")
-		}
-	}
-
-	tx, err := s.Begin()
+	tx, err := s.BeginTx(context.Background(), true)
 	if err != nil {
 		return nil, err
 	}
 	createTableQuery := fmt.Sprintf(createTableFmt, db.Sanitize(s.GetName()))
 	err = tx.Exec(createTableQuery)
 	if err != nil {
-		return nil, fmt.Errorf("while executing query: %s got error: %w", createTableQuery, err)
+		return nil, &db.QueryError{QueryString: createTableQuery, Err: err}
 	}
 	createIndexQuery := fmt.Sprintf(createIndexFmt, db.Sanitize(s.GetName()))
 	err = tx.Exec(createIndexQuery)
 	if err != nil {
-		return nil, fmt.Errorf("while executing query: %s got error: %w", createIndexQuery, err)
+		return nil, &db.QueryError{QueryString: createIndexQuery, Err: err}
 	}
 	err = tx.Commit()
 	if err != nil {
@@ -140,7 +132,7 @@ func (i *Indexer) AfterUpsert(key string, obj any, tx db.TXClient) error {
 	// delete all
 	err := tx.StmtExec(tx.Stmt(i.deleteIndicesStmt), key)
 	if err != nil {
-		return fmt.Errorf("while executing query: %s got error: %w", i.deleteIndicesQuery, err)
+		return &db.QueryError{QueryString: i.deleteIndicesQuery, Err: err}
 	}
 
 	// re-insert all
@@ -155,7 +147,7 @@ func (i *Indexer) AfterUpsert(key string, obj any, tx db.TXClient) error {
 		for _, value := range values {
 			err = tx.StmtExec(tx.Stmt(i.addIndexStmt), indexName, value, key)
 			if err != nil {
-				return fmt.Errorf("while executing query: %s got error: %w", i.addIndexQuery, err)
+				return &db.QueryError{QueryString: i.addIndexQuery, Err: err}
 			}
 		}
 	}
@@ -200,7 +192,7 @@ func (i *Indexer) Index(indexName string, obj any) ([]any, error) {
 
 	rows, err := i.QueryForRows(context.TODO(), stmt, params...)
 	if err != nil {
-		return nil, fmt.Errorf("while executing query: %s got error: %w", query, err)
+		return nil, &db.QueryError{QueryString: query, Err: err}
 	}
 	return i.ReadObjects(rows, i.GetType(), i.GetShouldEncrypt())
 }
@@ -210,7 +202,7 @@ func (i *Indexer) Index(indexName string, obj any) ([]any, error) {
 func (i *Indexer) ByIndex(indexName, indexedValue string) ([]any, error) {
 	rows, err := i.QueryForRows(context.TODO(), i.listByIndexStmt, indexName, indexedValue)
 	if err != nil {
-		return nil, fmt.Errorf("while executing query: %s got error: %w", i.listByIndexQuery, err)
+		return nil, &db.QueryError{QueryString: i.listByIndexQuery, Err: err}
 	}
 	return i.ReadObjects(rows, i.GetType(), i.GetShouldEncrypt())
 }
@@ -226,7 +218,7 @@ func (i *Indexer) IndexKeys(indexName, indexedValue string) ([]string, error) {
 
 	rows, err := i.QueryForRows(context.TODO(), i.listKeysByIndexStmt, indexName, indexedValue)
 	if err != nil {
-		return nil, fmt.Errorf("while executing query: %s got error: %w", i.listKeysByIndexQuery, err)
+		return nil, &db.QueryError{QueryString: i.listKeysByIndexQuery, Err: err}
 	}
 	return i.ReadStrings(rows)
 }
@@ -244,7 +236,7 @@ func (i *Indexer) ListIndexFuncValues(name string) []string {
 func (i *Indexer) safeListIndexFuncValues(indexName string) ([]string, error) {
 	rows, err := i.QueryForRows(context.TODO(), i.listIndexValuesStmt, indexName)
 	if err != nil {
-		return nil, fmt.Errorf("while executing query: %s got error: %w", i.listIndexValuesQuery, err)
+		return nil, &db.QueryError{QueryString: i.listIndexValuesQuery, Err: err}
 	}
 	return i.ReadStrings(rows)
 }
