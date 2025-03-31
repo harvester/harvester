@@ -108,7 +108,7 @@ func isListOrGetable(schema *types.APISchema) bool {
 	return false
 }
 
-func isListWatchable(schema *types.APISchema) bool {
+func IsListWatchable(schema *types.APISchema) bool {
 	var (
 		canList  bool
 		canWatch bool
@@ -163,7 +163,7 @@ func (h *handler) refreshAll(ctx context.Context) error {
 
 	filteredSchemas := map[string]*types.APISchema{}
 	for _, schema := range schemas {
-		if isListWatchable(schema) {
+		if IsListWatchable(schema) {
 			if preferredTypeExists(schema, schemas) {
 				continue
 			}

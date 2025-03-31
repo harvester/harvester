@@ -4,6 +4,7 @@ package partition
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -110,7 +111,7 @@ func (s *Store) Delete(apiOp *types.APIRequest, schema *types.APISchema, id stri
 	if err != nil {
 		return types.APIObject{}, err
 	}
-	return ToAPI(schema, obj, warnings), nil
+	return ToAPI(schema, obj, warnings, types.ReservedFields), nil
 }
 
 // ByID looks up a single object by its ID.
@@ -124,7 +125,7 @@ func (s *Store) ByID(apiOp *types.APIRequest, schema *types.APISchema, id string
 	if err != nil {
 		return types.APIObject{}, err
 	}
-	return ToAPI(schema, obj, warnings), nil
+	return ToAPI(schema, obj, warnings, types.ReservedFields), nil
 }
 
 func (s *Store) listPartition(ctx context.Context, apiOp *types.APIRequest, schema *types.APISchema, partition Partition,
@@ -226,7 +227,7 @@ func (s *Store) List(apiOp *types.APIRequest, schema *types.APISchema) (types.AP
 
 	for _, item := range list {
 		item := item.DeepCopy()
-		result.Objects = append(result.Objects, ToAPI(schema, item, nil))
+		result.Objects = append(result.Objects, ToAPI(schema, item, nil, types.ReservedFields))
 	}
 
 	result.Pages = pages
@@ -266,7 +267,7 @@ func (s *Store) Create(apiOp *types.APIRequest, schema *types.APISchema, data ty
 	if err != nil {
 		return types.APIObject{}, err
 	}
-	return ToAPI(schema, obj, warnings), nil
+	return ToAPI(schema, obj, warnings, types.ReservedFields), nil
 }
 
 // Update updates a single object in the store.
@@ -280,7 +281,7 @@ func (s *Store) Update(apiOp *types.APIRequest, schema *types.APISchema, data ty
 	if err != nil {
 		return types.APIObject{}, err
 	}
-	return ToAPI(schema, obj, warnings), nil
+	return ToAPI(schema, obj, warnings, types.ReservedFields), nil
 }
 
 // Watch returns a channel of events for a list or resource.
@@ -326,13 +327,13 @@ func (s *Store) Watch(apiOp *types.APIRequest, schema *types.APISchema, wr types
 	return response, nil
 }
 
-func ToAPI(schema *types.APISchema, obj runtime.Object, warnings []types.Warning) types.APIObject {
+func ToAPI(schema *types.APISchema, obj runtime.Object, warnings []types.Warning, reservedFields map[string]bool) types.APIObject {
 	if obj == nil || reflect.ValueOf(obj).IsNil() {
 		return types.APIObject{}
 	}
 
 	if unstr, ok := obj.(*unstructured.Unstructured); ok {
-		obj = moveToUnderscore(unstr)
+		obj = moveToUnderscore(unstr, reservedFields)
 	}
 
 	apiObject := types.APIObject{
@@ -356,12 +357,12 @@ func ToAPI(schema *types.APISchema, obj runtime.Object, warnings []types.Warning
 	return apiObject
 }
 
-func moveToUnderscore(obj *unstructured.Unstructured) *unstructured.Unstructured {
+func moveToUnderscore(obj *unstructured.Unstructured, reservedFields map[string]bool) *unstructured.Unstructured {
 	if obj == nil {
 		return nil
 	}
 
-	for k := range types.ReservedFields {
+	for k := range reservedFields {
 		v, ok := obj.Object[k]
 		if ok {
 			delete(obj.Object, k)
@@ -389,11 +390,11 @@ func ToAPIEvent(apiOp *types.APIRequest, schema *types.APISchema, event watch.Ev
 
 	if event.Type == watch.Error {
 		status, _ := event.Object.(*metav1.Status)
-		apiEvent.Error = fmt.Errorf(status.Message)
+		apiEvent.Error = errors.New(status.Message)
 		return apiEvent
 	}
 
-	apiEvent.Object = ToAPI(schema, event.Object, nil)
+	apiEvent.Object = ToAPI(schema, event.Object, nil, types.ReservedFields)
 
 	m, err := meta.Accessor(event.Object)
 	if err != nil {
