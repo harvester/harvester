@@ -14,6 +14,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 type MaintenanceModeInput struct {
@@ -45,7 +46,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		return err
 	}
 
-	nodeHandler := ActionHandler{
+	nodeHandler := harvesterServer.NewHandler(ActionHandler{
 		jobCache:                    scaled.Management.BatchFactory.Batch().V1().Job().Cache(),
 		nodeClient:                  scaled.Management.CoreFactory.Core().V1().Node(),
 		nodeCache:                   scaled.Management.CoreFactory.Core().V1().Node().Cache(),
@@ -58,7 +59,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		dynamicClient:               dynamicClient,
 		virtSubresourceRestClient:   virtSubresourceClient,
 		ctx:                         scaled.Ctx,
-	}
+	})
 
 	server.BaseSchemas.MustImportAndCustomize(MaintenanceModeInput{}, nil)
 

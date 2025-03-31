@@ -10,6 +10,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 const (
@@ -18,6 +19,10 @@ const (
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
 	server.BaseSchemas.MustImportAndCustomize(harvesterv1.KeyGenInput{}, nil)
+	handler := harvesterServer.NewHandler(KeyGenActionHandler{
+		KeyPairs:     scaled.HarvesterFactory.Harvesterhci().V1beta1().KeyPair(),
+		KeyPairCache: scaled.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache(),
+	})
 	t := schema.Template{
 		ID: "harvesterhci.io.keypair",
 		Customize: func(s *types.APISchema) {
@@ -29,10 +34,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 			}
 			s.Formatter = Formatter
 			s.ActionHandlers = map[string]http.Handler{
-				keygen: KeyGenActionHandler{
-					KeyPairs:     scaled.HarvesterFactory.Harvesterhci().V1beta1().KeyPair(),
-					KeyPairCache: scaled.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache(),
-				},
+				keygen: handler,
 			}
 		},
 	}

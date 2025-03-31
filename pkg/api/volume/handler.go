@@ -48,7 +48,7 @@ type ActionHandler struct {
 	vmCache     ctlkubevirtv1.VirtualMachineCache
 }
 
-func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (interface{}, error) {
+func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
 	req := ctx.Req()
 	vars := util.EncodeVars(mux.Vars(req))
 	action := vars["action"]

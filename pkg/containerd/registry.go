@@ -3,7 +3,6 @@ package containerd
 // File vendored from https://github.com/rancher/wharfie/blob/v0.5.3/pkg/registries/types.go
 // under the Apache 2.0 license. DO NOT EDIT.
 
-
 // Mirror contains the config related to the registry mirror
 type Mirror struct {
 	// Endpoints are endpoints for a namespace. CRI plugin will try the endpoints

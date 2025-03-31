@@ -10,10 +10,11 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/schemas"
 
 	"github.com/harvester/harvester/pkg/config"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
-	upgradeLogHandler := Handler{
+	upgradeLogHandler := harvesterServer.NewHandler(Handler{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -22,7 +23,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		upgradeCache:     scaled.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
 		upgradeLogCache:  scaled.HarvesterFactory.Harvesterhci().V1beta1().UpgradeLog().Cache(),
 		upgradeLogClient: scaled.HarvesterFactory.Harvesterhci().V1beta1().UpgradeLog(),
-	}
+	})
 
 	t := schema.Template{
 		ID: "harvesterhci.io.upgradelog",

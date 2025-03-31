@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/steve/pkg/server"
 
 	"github.com/harvester/harvester/pkg/config"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 const (
@@ -27,10 +28,10 @@ type Cluster struct {
 // The cluster link handlers allow querying details of device allocation
 // from all nodes in the cluster
 func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
-	handler := Handler{
+	handler := harvesterServer.NewHandler(Handler{
 		nodeCache: scaled.CoreFactory.Core().V1().Node().Cache(),
 		vmCache:   scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
-	}
+	})
 
 	fakeClusterStore := &Store{
 		&empty.Store{},
