@@ -11,8 +11,10 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
+	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlrbacv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac/v1"
+	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -22,7 +24,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/controller/master/rancher"
-	"github.com/harvester/harvester/pkg/util"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 const (
@@ -88,48 +90,43 @@ func decodeRequest(r *http.Request) (*req, error) {
 	return &req, nil
 }
 
-func (h *GenerateHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (h *GenerateHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
+	r := ctx.Req()
+
 	// TODO authentication
 	req, err := decodeRequest(r)
 	if err != nil {
-		util.ResponseError(rw, http.StatusBadRequest, errors.Wrap(err, "fail to decode request"))
-		return
+		return nil, apierror.NewAPIError(validation.InvalidBodyContent, errors.Wrap(err, "fail to decode request").Error())
 	}
 
 	if _, err := h.clusterRoleCache.Get(req.ClusterRoleName); err != nil {
-		util.ResponseError(rw, http.StatusBadRequest, errors.Wrapf(err, "clusterRole %s is not found", req.ClusterRoleName))
-		return
+		return nil, apierror.NewAPIError(validation.InvalidBodyContent, errors.Wrapf(err, "clusterRole %s is not found", req.ClusterRoleName).Error())
 	}
 
 	sa, secret, err := h.ensureSaAndSecret(req.Namespace, req.SaName)
 	if err != nil {
-		util.ResponseError(rw, http.StatusBadRequest, errors.Wrap(err, "fail to create serviceAccount"))
-		return
+		return nil, apierror.NewAPIError(validation.InvalidBodyContent, errors.Wrap(err, "fail to create serviceAccount").Error())
 	}
 
 	if _, err := h.createRoleBindingIfNotExists(sa); err != nil {
-		util.ResponseError(rw, http.StatusInternalServerError, errors.Wrap(err, "fail to create roleBinding"))
-		return
+		return nil, apierror.NewAPIError(validation.ServerError, errors.Wrap(err, "fail to create roleBinding").Error())
 	}
 
 	if _, err := h.createClusterRoleBindingIfNotExists(sa); err != nil {
-		util.ResponseError(rw, http.StatusInternalServerError, errors.Wrap(err, "fail to create clusterRoleBinding"))
-		return
+		return nil, apierror.NewAPIError(validation.ServerError, errors.Wrap(err, "fail to create clusterRoleBinding").Error())
 	}
 
 	serverURL, err := h.getServerURL()
 	if err != nil {
-		util.ResponseError(rw, http.StatusInternalServerError, errors.Wrap(err, "failed to get server url"))
-		return
+		return nil, apierror.NewAPIError(validation.ServerError, errors.Wrap(err, "failed to get server url").Error())
 	}
 
 	kubeConfig, err := h.generateKubeConfig(secret, serverURL)
 	if err != nil {
-		util.ResponseError(rw, http.StatusInternalServerError, errors.Wrap(err, "fail to generate kubeconfig"))
-		return
+		return nil, apierror.NewAPIError(validation.ServerError, errors.Wrap(err, "fail to generate kubeconfig").Error())
 	}
 
-	util.ResponseOKWithBody(rw, kubeConfig)
+	return kubeConfig, nil
 }
 
 func (h *GenerateHandler) getServerURL() (string, error) {
