@@ -79,7 +79,7 @@ func (c *Client) rollback(tx SQLTx, err error) error {
 }
 
 // Cancel rollbacks the transaction without wrapping an error. This only needs to be called if Client has not returned
-// an error yet or has not comitted. Otherwise, transaction has already rollbacked, or in the case of Commit() it is too
+// an error yet or has not committed. Otherwise, transaction has already rolled back, or in the case of Commit() it is too
 // late.
 func (c *Client) Cancel() error {
 	rerr := c.sqlTx.Rollback()

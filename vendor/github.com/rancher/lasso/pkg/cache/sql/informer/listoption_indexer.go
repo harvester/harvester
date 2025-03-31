@@ -4,18 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
-	"github.com/rancher/lasso/pkg/cache/sql/db"
-	"github.com/rancher/lasso/pkg/cache/sql/partition"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/rancher/lasso/pkg/cache/sql/db"
+	"github.com/rancher/lasso/pkg/cache/sql/partition"
 )
 
 // ListOptionIndexer extends Indexer by allowing queries based on ListOption
@@ -43,11 +44,11 @@ var (
 const (
 	matchFmt             = `%%%s%%`
 	strictMatchFmt       = `%s`
-	createFieldsTableFmt = `CREATE TABLE db2."%s_fields" (
+	createFieldsTableFmt = `CREATE TABLE "%s_fields" (
 			key TEXT NOT NULL PRIMARY KEY,
             %s
 	   )`
-	createFieldsIndexFmt = `CREATE INDEX db2."%s_%s_index" ON "%s_fields"("%s")`
+	createFieldsIndexFmt = `CREATE INDEX "%s_%s_index" ON "%s_fields"("%s")`
 
 	failedToGetFromSliceFmt = "[listoption indexer] failed to get subfield [%s] from slice items: %w"
 )
@@ -89,11 +90,11 @@ func NewListOptionIndexer(fields [][]string, s Store, namespaced bool) (*ListOpt
 		columnDefs[index] = column
 	}
 
-	tx, err := l.Begin()
+	tx, err := l.BeginTx(context.Background(), true)
 	if err != nil {
 		return nil, err
 	}
-	err = tx.Exec(fmt.Sprintf(createFieldsTableFmt, i.GetName(), strings.Join(columnDefs, ", ")))
+	err = tx.Exec(fmt.Sprintf(createFieldsTableFmt, db.Sanitize(i.GetName()), strings.Join(columnDefs, ", ")))
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +105,7 @@ func NewListOptionIndexer(fields [][]string, s Store, namespaced bool) (*ListOpt
 
 	for index, field := range indexedFields {
 		// create index for field
-		err = tx.Exec(fmt.Sprintf(createFieldsIndexFmt, i.GetName(), field, i.GetName(), field))
+		err = tx.Exec(fmt.Sprintf(createFieldsIndexFmt, db.Sanitize(i.GetName()), field, db.Sanitize(i.GetName()), field))
 		if err != nil {
 			return nil, err
 		}
@@ -127,13 +128,13 @@ func NewListOptionIndexer(fields [][]string, s Store, namespaced bool) (*ListOpt
 	}
 
 	l.addFieldQuery = fmt.Sprintf(
-		`INSERT INTO db2."%s_fields"(key, %s) VALUES (?, %s) ON CONFLICT DO UPDATE SET %s`,
-		i.GetName(),
+		`INSERT INTO "%s_fields"(key, %s) VALUES (?, %s) ON CONFLICT DO UPDATE SET %s`,
+		db.Sanitize(i.GetName()),
 		strings.Join(columns, ", "),
 		strings.Join(qmarks, ", "),
 		strings.Join(setStatements, ", "),
 	)
-	l.deleteFieldQuery = fmt.Sprintf(`DELETE FROM db2."%s_fields" WHERE key = ?`, s.GetName())
+	l.deleteFieldQuery = fmt.Sprintf(`DELETE FROM "%s_fields" WHERE key = ?`, db.Sanitize(i.GetName()))
 
 	l.addFieldStmt = l.Prepare(l.addFieldQuery)
 	l.deleteFieldStmt = l.Prepare(l.deleteFieldQuery)
@@ -152,7 +153,7 @@ func (l *ListOptionIndexer) afterUpsert(key string, obj any, tx db.TXClient) err
 			logrus.Errorf("cannot index object of type [%s] with key [%s] for indexer [%s]: %v", l.GetType().String(), key, l.GetName(), err)
 			cErr := tx.Cancel()
 			if cErr != nil {
-				return fmt.Errorf("could not cancel transaction: %s while recovering from error: %w", cErr.Error(), err)
+				return fmt.Errorf("could not cancel transaction: %s while recovering from error: %w", cErr, err)
 			}
 			return err
 		}
@@ -164,13 +165,18 @@ func (l *ListOptionIndexer) afterUpsert(key string, obj any, tx db.TXClient) err
 		case []string:
 			args = append(args, strings.Join(typedValue, "|"))
 		default:
-			return errors.Errorf("%v has a non-supported type value: %v", field, value)
+			err2 := fmt.Errorf("field %v has a non-supported type value: %v", field, value)
+			cErr := tx.Cancel()
+			if cErr != nil {
+				return fmt.Errorf("could not cancel transaction: %s while recovering from error: %w", cErr, err2)
+			}
+			return err2
 		}
 	}
 
 	err := tx.StmtExec(tx.Stmt(l.addFieldStmt), args...)
 	if err != nil {
-		return fmt.Errorf("while executing query: %s got error: %w", l.addFieldQuery, err)
+		return &db.QueryError{QueryString: l.addFieldQuery, Err: err}
 	}
 	return nil
 }
@@ -180,7 +186,7 @@ func (l *ListOptionIndexer) afterDelete(key string, tx db.TXClient) error {
 
 	err := tx.StmtExec(tx.Stmt(l.deleteFieldStmt), args...)
 	if err != nil {
-		return fmt.Errorf("while executing query: %s got error: %w", l.deleteFieldQuery, err)
+		return &db.QueryError{QueryString: l.deleteFieldQuery, Err: err}
 	}
 	return nil
 }
@@ -193,9 +199,9 @@ func (l *ListOptionIndexer) afterDelete(key string, tx db.TXClient) error {
 //   - an error instead of all of the above if anything went wrong
 func (l *ListOptionIndexer) ListByOptions(ctx context.Context, lo ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, string, error) {
 	// 1- Intro: SELECT and JOIN clauses
-	query := fmt.Sprintf(`SELECT o.object, o.objectnonce, o.dekid FROM "%s" o`, l.GetName())
+	query := fmt.Sprintf(`SELECT o.object, o.objectnonce, o.dekid FROM "%s" o`, db.Sanitize(l.GetName()))
 	query += "\n  "
-	query += fmt.Sprintf(`JOIN db2."%s_fields" f ON o.key = f.key`, l.GetName())
+	query += fmt.Sprintf(`JOIN "%s_fields" f ON o.key = f.key`, db.Sanitize(l.GetName()))
 	params := []any{}
 
 	// 2- Filtering: WHERE clauses (from lo.Filters)
@@ -356,17 +362,30 @@ func (l *ListOptionIndexer) ListByOptions(ctx context.Context, lo ListOptions, p
 	query += limitClause
 	query += offsetClause
 	logrus.Debugf("ListOptionIndexer prepared statement: %v", query)
-	logrus.Debugf("Params: %v", params...)
+	logrus.Debugf("Params: %v", params)
 
 	// execute
 	stmt := l.Prepare(query)
 	defer l.CloseStmt(stmt)
-	rows, err := l.QueryForRows(ctx, stmt, params...)
+
+	tx, err := l.BeginTx(ctx, false)
 	if err != nil {
-		return nil, 0, "", fmt.Errorf("while executing query: %s got error: %w", query, err)
+		return nil, 0, "", err
+	}
+
+	txStmt := tx.Stmt(stmt)
+	rows, err := txStmt.QueryContext(ctx, params...)
+	if err != nil {
+		if cerr := tx.Cancel(); cerr != nil {
+			return nil, 0, "", fmt.Errorf("failed to cancel transaction (%v) after error: %w", cerr, err)
+		}
+		return nil, 0, "", &db.QueryError{QueryString: query, Err: err}
 	}
 	items, err := l.ReadObjects(rows, l.GetType(), l.GetShouldEncrypt())
 	if err != nil {
+		if cerr := tx.Cancel(); cerr != nil {
+			return nil, 0, "", fmt.Errorf("failed to cancel transaction (%v) after error: %w", cerr, err)
+		}
 		return nil, 0, "", err
 	}
 
@@ -375,14 +394,24 @@ func (l *ListOptionIndexer) ListByOptions(ctx context.Context, lo ListOptions, p
 	if limit > 0 || offset > 0 {
 		countStmt := l.Prepare(countQuery)
 		defer l.CloseStmt(countStmt)
-		rows, err = l.QueryForRows(ctx, countStmt, countParams...)
+		txStmt := tx.Stmt(countStmt)
+		rows, err := txStmt.QueryContext(ctx, countParams...)
 		if err != nil {
-			return nil, 0, "", errors.Wrapf(err, "Error while executing query:\n %s", countQuery)
+			if cerr := tx.Cancel(); cerr != nil {
+				return nil, 0, "", fmt.Errorf("failed to cancel transaction (%v) after error: %w", cerr, err)
+			}
+			return nil, 0, "", fmt.Errorf("error executing query: %w", err)
 		}
 		total, err = l.ReadInt(rows)
 		if err != nil {
-			return nil, 0, "", err
+			if cerr := tx.Cancel(); cerr != nil {
+				return nil, 0, "", fmt.Errorf("failed to cancel transaction (%v) after error: %w", cerr, err)
+			}
+			return nil, 0, "", fmt.Errorf("error reading query results: %w", err)
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, 0, "", err
 	}
 
 	continueToken := ""
@@ -417,12 +446,18 @@ func (l *ListOptionIndexer) buildORClauseFromFilters(orFilters OrFilter) (string
 			return "", nil, err
 		}
 
-		orWhereClause += fmt.Sprintf(`f."%s" %s ?`, columnName, opString)
+		orWhereClause += fmt.Sprintf(`f."%s" %s ? ESCAPE '\'`, columnName, opString)
 		format := strictMatchFmt
 		if filter.Partial {
 			format = matchFmt
 		}
-		params = append(params, fmt.Sprintf(format, filter.Match))
+		match := filter.Match
+		// To allow matches on the backslash itself, the character needs to be replaced first.
+		// Otherwise, it will undo the following replacements.
+		match = strings.ReplaceAll(match, `\`, `\\`)
+		match = strings.ReplaceAll(match, `_`, `\_`)
+		match = strings.ReplaceAll(match, `%`, `\%`)
+		params = append(params, fmt.Sprintf(format, match))
 		if index == len(orFilters.Filters)-1 {
 			continue
 		}
@@ -433,7 +468,7 @@ func (l *ListOptionIndexer) buildORClauseFromFilters(orFilters OrFilter) (string
 
 // toColumnName returns the column name corresponding to a field expressed as string slice
 func toColumnName(s []string) string {
-	return strings.Join(s, ".")
+	return db.Sanitize(strings.Join(s, "."))
 }
 
 // getField extracts the value of a field expressed as a string path from an unstructured object
@@ -441,7 +476,7 @@ func getField(a any, field string) (any, error) {
 	subFields := extractSubFields(field)
 	o, ok := a.(*unstructured.Unstructured)
 	if !ok {
-		return nil, errors.Errorf("Unexpected object type, expected unstructured.Unstructured: %v", a)
+		return nil, fmt.Errorf("unexpected object type, expected unstructured.Unstructured: %v", a)
 	}
 
 	var obj interface{}
