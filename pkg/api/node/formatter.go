@@ -32,6 +32,7 @@ import (
 	harvesterctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
 )
@@ -99,57 +100,43 @@ type ActionHandler struct {
 	ctx                         context.Context
 }
 
-func (h ActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if err := h.do(rw, req); err != nil {
-		status := http.StatusInternalServerError
-		if e, ok := err.(*apierror.APIError); ok {
-			status = e.Code.Status
-		} else if statusError, ok := err.(*apierrors.StatusError); ok {
-			status = int(statusError.ErrStatus.Code)
-		}
-		rw.WriteHeader(status)
-		_, _ = rw.Write([]byte(err.Error()))
-		return
-	}
-	rw.WriteHeader(http.StatusNoContent)
-}
-
-func (h ActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
+func (h ActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
+	req, rw := ctx.Req(), ctx.RespWriter()
 	vars := util.EncodeVars(mux.Vars(req))
 	action := vars["action"]
 	name := vars["name"]
 	node, err := h.nodeCache.Get(name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	toUpdate := node.DeepCopy()
 	switch action {
 	case enableMaintenanceModeAction:
-		return h.enableMaintenanceMode(req, toUpdate)
+		return nil, h.enableMaintenanceMode(req, toUpdate)
 	case disableMaintenanceModeAction:
-		return h.disableMaintenanceMode(name)
+		return nil, h.disableMaintenanceMode(name)
 	case cordonAction:
-		return h.cordonUncordonNode(toUpdate, cordonAction, true)
+		return nil, h.cordonUncordonNode(toUpdate, cordonAction, true)
 	case uncordonAction:
-		return h.cordonUncordonNode(toUpdate, uncordonAction, false)
+		return nil, h.cordonUncordonNode(toUpdate, uncordonAction, false)
 	case listUnhealthyVM:
-		return h.listUnhealthyVM(rw, toUpdate)
+		return nil, h.listUnhealthyVM(rw, toUpdate)
 	case maintenancePossible:
-		return h.maintenancePossible(toUpdate)
+		return nil, h.maintenancePossible(toUpdate)
 	case powerActionPossible:
-		return h.powerActionPossible(rw, name)
+		return nil, h.powerActionPossible(rw, name)
 	case powerAction:
 		var input PowerActionInput
 		if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
-			return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v ", err))
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v ", err))
 		}
-		return h.powerAction(toUpdate, input.Operation)
+		return nil, h.powerAction(toUpdate, input.Operation)
 	case enableCPUManager:
-		return h.enableCPUManager(toUpdate)
+		return nil, h.enableCPUManager(toUpdate)
 	case disableCPUManager:
-		return h.disableCPUManager(toUpdate)
+		return nil, h.disableCPUManager(toUpdate)
 	default:
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
+		return nil, apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
 }
 

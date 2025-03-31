@@ -12,7 +12,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
+	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -21,6 +23,7 @@ import (
 	ctlsb "github.com/harvester/harvester/pkg/controller/master/supportbundle"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle/types"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -47,7 +50,9 @@ func NewDownloadHandler(scaled *config.Scaled, namespace string) *DownloadHandle
 	}
 }
 
-func (h *DownloadHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (h *DownloadHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
+	r, rw := ctx.Req(), ctx.RespWriter()
+
 	bundleName := util.EncodeVars(mux.Vars(r))["bundleName"]
 
 	retainSb := false
@@ -57,31 +62,26 @@ func (h *DownloadHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	sb, err := h.supportBundleCache.Get(h.namespace, bundleName)
 	if err != nil {
-		util.ResponseError(rw, http.StatusBadRequest, errors.Wrap(err, "fail to get support bundle resource"))
-		return
+		return nil, apierror.NewAPIError(validation.InvalidBodyContent, errors.Wrap(err, "fail to get support bundle resource").Error())
 	}
 
 	if sb.Status.State != types.StateReady || sb.Status.Filename == "" || sb.Status.Filesize == 0 {
-		util.ResponseError(rw, http.StatusBadRequest, errors.New("support bundle is not ready"))
-		return
+		return nil, apierror.NewAPIError(validation.InvalidBodyContent, "support bundle is not ready")
 	}
 
 	managerPodIP, err := ctlsb.GetManagerPodIP(h.podCache, sb)
 	if err != nil {
-		util.ResponseError(rw, http.StatusBadRequest, errors.Wrap(err, "fail to get support bundle manager pod IP"))
-		return
+		return nil, apierror.NewAPIError(validation.InvalidBodyContent, errors.Wrap(err, "fail to get support bundle manager pod IP").Error())
 	}
 
 	url := fmt.Sprintf("http://%s:8080/bundle", managerPodIP)
 	req, err := http.NewRequestWithContext(h.context, http.MethodGet, url, nil)
 	if err != nil {
-		util.ResponseError(rw, http.StatusInternalServerError, err)
-		return
+		return nil, apierror.NewAPIError(validation.ServerError, errors.Wrap(err, "fail to create request to manager").Error())
 	}
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
-		util.ResponseError(rw, http.StatusInternalServerError, err)
-		return
+		return nil, apierror.NewAPIError(validation.ServerError, errors.Wrap(err, "fail to send request to manager").Error())
 	}
 	defer resp.Body.Close()
 
@@ -94,8 +94,7 @@ func (h *DownloadHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				msg = fmt.Sprintf("%s %v", msg, errResp.Errors)
 			}
 		}
-		util.ResponseErrorMsg(rw, http.StatusInternalServerError, msg)
-		return
+		return nil, apierror.NewAPIError(validation.ServerError, msg)
 	}
 
 	rw.Header().Set("Content-Length", fmt.Sprint(sb.Status.Filesize))
@@ -106,12 +105,11 @@ func (h *DownloadHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := io.Copy(rw, resp.Body); err != nil {
-		util.ResponseError(rw, http.StatusInternalServerError, err)
-		return
+		return nil, apierror.NewAPIError(validation.ServerError, errors.Wrap(err, "fail to copy response body to response writer").Error())
 	}
 
 	if retainSb {
-		return
+		return nil, nil
 	}
 
 	logrus.Infof("delete support bundle %s", sb.Name)
@@ -119,4 +117,5 @@ func (h *DownloadHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logrus.Errorf("fail to delete support bundle %s: %s", sb.Name, err)
 	}
+	return nil, nil
 }

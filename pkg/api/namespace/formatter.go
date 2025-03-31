@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"reflect"
 
 	"github.com/gorilla/mux"
@@ -21,6 +20,7 @@ import (
 	apiutil "github.com/harvester/harvester/pkg/api/util"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -57,51 +57,48 @@ func (nf *nsformatter) formatter(request *types.APIRequest, resource *types.RawR
 	}
 }
 
-func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if err := h.do(rw, req); err != nil {
-		status := http.StatusInternalServerError
-		if e, ok := err.(*apierror.APIError); ok {
-			status = e.Code.Status
-		}
-		rw.WriteHeader(status)
-		_, _ = rw.Write([]byte(err.Error()))
-		return
-	}
-	rw.WriteHeader(http.StatusOK)
-}
+func (h *Handler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
+	var err error
 
-func (h *Handler) do(_ http.ResponseWriter, req *http.Request) error {
+	defer func() {
+		if err == nil {
+			ctx.SetStatusOK()
+		}
+	}()
+
+	req := ctx.Req()
+
 	vars := util.EncodeVars(mux.Vars(req))
 	action := vars["action"]
 	namespace := vars["name"] // since this is namespace api, so name is namespace here
 
 	user, ok := request.UserFrom(req.Context())
 	if !ok {
-		return apierror.NewAPIError(validation.Unauthorized, "failed to get user from request")
+		return nil, apierror.NewAPIError(validation.Unauthorized, "failed to get user from request")
 	}
 
 	switch action {
 	case updateResourceQuotaAction:
-		if ok, err := apiutil.CanUpdateResourceQuota(h.clientSet, namespace, user.GetName()); err != nil {
-			return apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to check permission: %v", err))
+		if ok, err = apiutil.CanUpdateResourceQuota(h.clientSet, namespace, user.GetName()); err != nil {
+			return nil, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to check permission: %v", err))
 		} else if !ok {
-			return apierror.NewAPIError(validation.PermissionDenied, "User does not have permission to update resource quota")
+			return nil, apierror.NewAPIError(validation.PermissionDenied, "User does not have permission to update resource quota")
 		}
 
 		var updateResourceQuotaInput UpdateResourceQuotaInput
-		if err := json.NewDecoder(req.Body).Decode(&updateResourceQuotaInput); err != nil {
-			return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v ", err))
+		if err = json.NewDecoder(req.Body).Decode(&updateResourceQuotaInput); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v ", err))
 		}
-		return h.updateResourceQuota(namespace, updateResourceQuotaInput)
+		return nil, h.updateResourceQuota(namespace, updateResourceQuotaInput)
 	case deleteResourceQuotaAction:
-		if ok, err := apiutil.CanUpdateResourceQuota(h.clientSet, namespace, user.GetName()); err != nil {
-			return apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to check permission: %v", err))
+		if ok, err = apiutil.CanUpdateResourceQuota(h.clientSet, namespace, user.GetName()); err != nil {
+			return nil, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to check permission: %v", err))
 		} else if !ok {
-			return apierror.NewAPIError(validation.PermissionDenied, "User does not have permission to update resource quota")
+			return nil, apierror.NewAPIError(validation.PermissionDenied, "User does not have permission to update resource quota")
 		}
-		return h.deleteResourceQuota(namespace)
+		return nil, h.deleteResourceQuota(namespace)
 	default:
-		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
+		return nil, apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
 }
 
