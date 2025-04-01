@@ -491,7 +491,7 @@ wait_longhorn_instance_manager_aio() {
     echo "Checking instance-manager (aio) pod on node $node..."
     check_instance_manager $node $im_image $im_image_checksum "v1"
 
-    v2EngineEnabled=$(kubectl get settings.harvesterhci.io longhorn-v2-data-engine-enabled -o yaml | yq -e e '.value' -)
+    v2EngineEnabled=$(kubectl get settings.harvesterhci.io longhorn-v2-data-engine-enabled -o yaml | yq e '.value' -)
     if [ "$v2EngineEnabled" = "true" ]; then
       # check instance-manager (aio) is running with v2 engine
       check_instance_manager $node $im_image $im_image_checksum "v2"
@@ -1338,7 +1338,7 @@ apply_extra_nonversion_manifests()
       echo "Applying $manifest"
       kubectl apply -f "$manifest"
   done
-  
+
 
   shopt -u nullglob
 }
