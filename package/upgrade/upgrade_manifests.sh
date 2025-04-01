@@ -491,7 +491,7 @@ wait_longhorn_instance_manager_aio() {
     echo "Checking instance-manager (aio) pod on node $node..."
     check_instance_manager $node $im_image $im_image_checksum "v1"
 
-    v2EngineEnabled=$(kubectl get settings.harvesterhci.io longhorn-v2-data-engine-enabled -o yaml | yq -e e '.value' -)
+    v2EngineEnabled=$(kubectl get settings.harvesterhci.io longhorn-v2-data-engine-enabled -o yaml | yq e '.value' -)
     if [ "$v2EngineEnabled" = "true" ]; then
       # check instance-manager (aio) is running with v2 engine
       check_instance_manager $node $im_image $im_image_checksum "v2"
@@ -1301,6 +1301,31 @@ EOF
   fi
 }
 
+<<<<<<< HEAD
+=======
+apply_extra_nonversion_manifests()
+{
+  echo "Applying whereabouts manifests"
+
+  shopt -s nullglob
+
+  for manifest in /usr/local/share/extra_manifests/whereabouts/*.yaml; do
+      echo "Applying $manifest"
+      kubectl apply -f "$manifest"
+  done
+
+  echo "Applying cdi manifests"
+
+  for manifest in /usr/local/share/extra_manifests/cdi/*.yaml; do
+      echo "Applying $manifest"
+      kubectl apply -f "$manifest"
+  done
+
+
+  shopt -u nullglob
+}
+
+>>>>>>> ce188325 (fix(upgrade_manifest): fix getting longhorn-v2-data-engine-enabled if value is empty)
 wait_repo
 detect_repo
 detect_upgrade
