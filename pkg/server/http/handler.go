@@ -9,8 +9,12 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 )
 
+// ResponseBody only accepts object which can be marshalled to JSON.
+// if you need to write some custom response, you can use ctx.RespWriter() to write directly to the response.
+type ResponseBody interface{}
+
 type HarvesterServerHandler interface {
-	Do(ctx *Ctx) (interface{}, error)
+	Do(ctx *Ctx) (ResponseBody, error)
 }
 
 type harvesterServerHandler struct {
