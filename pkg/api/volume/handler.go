@@ -99,7 +99,7 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (interface{}, error) {
 func (h *ActionHandler) assertPVCNotInUse(pvcNamespace, pvcName string) error {
 	// find any pod use this PVC (same validation on CDI)
 	index := fmt.Sprintf("%s-%s", pvcNamespace, pvcName)
-	if pods, err := h.pods.GetByIndex(indexPodByPVC, index); err == nil && len(pods) > 0 {
+	if pods, err := h.pods.GetByIndex(util.IndexPodByPVC, index); err == nil && len(pods) > 0 {
 		podList := []string{}
 		for _, pod := range pods {
 			indexedPod := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)

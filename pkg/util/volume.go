@@ -17,6 +17,7 @@ const (
 	AnnStorageProvisioner     = "volume.kubernetes.io/storage-provisioner"
 	AnnBetaStorageProvisioner = "volume.beta.kubernetes.io/storage-provisioner"
 	LonghornDataLocality      = "dataLocality"
+	IndexPodByPVC             = "indexPodByPVC"
 )
 
 var (
@@ -87,4 +88,18 @@ func LoadCSIDriverConfig(settingCache ctlharvesterv1.SettingCache) (map[string]s
 		}
 	}
 	return csiDriverConfig, nil
+}
+
+func IndexPodByPVCFunc(pod *corev1.Pod) ([]string, error) {
+	if pod.Status.Phase != corev1.PodRunning {
+		return nil, nil
+	}
+	indexes := []string{}
+	for _, volume := range pod.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			index := fmt.Sprintf("%s-%s", pod.Namespace, volume.PersistentVolumeClaim.ClaimName)
+			indexes = append(indexes, index)
+		}
+	}
+	return indexes, nil
 }
