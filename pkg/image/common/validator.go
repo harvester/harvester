@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"net/url"
 	"reflect"
 	"strings"
 
@@ -33,6 +34,7 @@ type VMIValidator interface {
 	CheckURL(vmi *v1beta1.VirtualMachineImage) error
 	CheckSecurityParameters(vmi *v1beta1.VirtualMachineImage) error
 	CheckImagePVC(request *types.Request, vmi *v1beta1.VirtualMachineImage) error
+	CheckPVCInUse(vmi *v1beta1.VirtualMachineImage) error
 
 	IsExportVolume(vmi *v1beta1.VirtualMachineImage) bool
 
@@ -51,6 +53,7 @@ type vmiValidator struct {
 	vmiCache               ctlharvesterv1.VirtualMachineImageCache
 	scCache                ctlstoragev1.StorageClassCache
 	ssar                   authorizationv1client.SelfSubjectAccessReviewInterface
+	podCache               ctlcorev1.PodCache
 	pvcCache               ctlcorev1.PersistentVolumeClaimCache
 	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache
 	vmBackupCache          ctlharvesterv1.VirtualMachineBackupCache
@@ -59,17 +62,21 @@ type vmiValidator struct {
 func GetVMIValidator(vmiCache ctlharvesterv1.VirtualMachineImageCache,
 	scCache ctlstoragev1.StorageClassCache,
 	ssar authorizationv1client.SelfSubjectAccessReviewInterface,
+	podCache ctlcorev1.PodCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache,
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache) VMIValidator {
-	return &vmiValidator{
+	vmiv := &vmiValidator{
 		vmiCache:               vmiCache,
 		scCache:                scCache,
 		ssar:                   ssar,
+		podCache:               podCache,
 		pvcCache:               pvcCache,
 		vmTemplateVersionCache: vmTemplateVersionCache,
 		vmBackupCache:          vmBackupCache,
 	}
+	vmiv.podCache.AddIndexer(util.IndexPodByPVC, util.IndexPodByPVCFunc)
+	return vmiv
 }
 
 func (v *vmiValidator) GetStatusSC(vmi *v1beta1.VirtualMachineImage) string {
@@ -88,7 +95,7 @@ func (v *vmiValidator) CheckDisplayName(vmi *v1beta1.VirtualMachineImage) error 
 		return err
 	}
 	for _, image := range sameDisplayNameImages {
-		if vmi.Name == image.Name {
+		if vmi.UID == image.UID {
 			continue
 		}
 		return werror.NewConflict("A resource with the same name exists")
@@ -103,12 +110,21 @@ func (v *vmiValidator) CheckURL(vmi *v1beta1.VirtualMachineImage) error {
 		shouldHaveURL = true
 	}
 
-	if shouldHaveURL && vmi.Spec.URL == "" {
-		return werror.NewInvalidError(fmt.Sprintf(`url is required when image source type is "%s"`, vmi.Spec.SourceType), "spec.url")
-	} else if !shouldHaveURL && vmi.Spec.URL != "" {
-		return werror.NewInvalidError(fmt.Sprintf(`url should be empty when image source type is "%s"`, vmi.Spec.SourceType), "spec.url")
+	if shouldHaveURL {
+		if vmi.Spec.URL == "" {
+			return werror.NewInvalidError("url is required", "spec.url")
+		}
+
+		if _, err := url.Parse(vmi.Spec.URL); err != nil {
+			return werror.NewInvalidError(fmt.Sprintf("url is invalid: %s", err.Error()), "spec.url")
+		}
+		return nil
 	}
 
+	// means !shouldHaveURL
+	if vmi.Spec.URL != "" {
+		return werror.NewInvalidError(fmt.Sprintf(`url should be empty when image source type is "%s"`, vmi.Spec.SourceType), "spec.url")
+	}
 	return nil
 }
 
@@ -183,6 +199,23 @@ func (v *vmiValidator) CheckSecurityParameters(vmi *v1beta1.VirtualMachineImage)
 		return werror.NewInvalidError(fmt.Sprintf("storage class %s is not for encryption or decryption", scName), fmt.Sprintf("spec.parameters[%s] must be true", util.LonghornOptionEncrypted))
 	}
 
+	return nil
+}
+
+// CheckPVCInUse checks if the PVC is in use by any pods, this is only used to CDI backend
+func (v *vmiValidator) CheckPVCInUse(vmi *v1beta1.VirtualMachineImage) error {
+	if vmi.Spec.Backend != v1beta1.VMIBackendCDI {
+		return nil
+	}
+	index := fmt.Sprintf("%s-%s", vmi.Spec.PVCNamespace, vmi.Spec.PVCName)
+	if pods, err := v.podCache.GetByIndex(util.IndexPodByPVC, index); err == nil && len(pods) > 0 {
+		podList := []string{}
+		for _, pod := range pods {
+			indexedPod := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+			podList = append(podList, indexedPod)
+		}
+		return fmt.Errorf("PVC %s is used by Pods %v, cannot export volume when it's running", vmi.Spec.PVCName, podList)
+	}
 	return nil
 }
 
