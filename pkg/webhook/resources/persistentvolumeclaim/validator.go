@@ -12,6 +12,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -27,20 +28,23 @@ import (
 
 func NewValidator(pvcCache v1.PersistentVolumeClaimCache,
 	vmCache ctlkv1.VirtualMachineCache,
+	kubevirtCache ctlkv1.KubeVirtCache,
 	imageCache ctlharvesterv1.VirtualMachineImageCache) types.Validator {
 	return &pvcValidator{
-		pvcCache:   pvcCache,
-		vmCache:    vmCache,
-		imageCache: imageCache,
+		pvcCache:      pvcCache,
+		vmCache:       vmCache,
+		kubevirtCache: kubevirtCache,
+		imageCache:    imageCache,
 	}
 }
 
 type pvcValidator struct {
 	types.DefaultValidator
-	pvcCache    v1.PersistentVolumeClaimCache
-	vmCache     ctlkv1.VirtualMachineCache
-	imageCache  ctlharvesterv1.VirtualMachineImageCache
-	volumeCache ctllonghornv1.VolumeCache
+	pvcCache      v1.PersistentVolumeClaimCache
+	vmCache       ctlkv1.VirtualMachineCache
+	imageCache    ctlharvesterv1.VirtualMachineImageCache
+	kubevirtCache ctlkv1.KubeVirtCache
+	volumeCache   ctllonghornv1.VolumeCache
 }
 
 func (v *pvcValidator) Resource() types.Resource {
@@ -117,6 +121,53 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 	return nil
 }
 
+func (v *pvcValidator) isOnlineExpandNeeded(pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(pvc.Namespace, pvc.Name))
+	if err != nil {
+		return false, werror.NewInternalError(fmt.Sprintf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByPVCIndex, pvc.Namespace, pvc.Name, err))
+	}
+	for _, vm := range vms {
+		if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusProvisioning && vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopped {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func isKubevirtExpandEnabled(kubevirt *kubevirtv1.KubeVirt) bool {
+	featureGates := kubevirt.Spec.Configuration.DeveloperConfiguration.FeatureGates
+	for _, f := range featureGates {
+		if f == virtconfig.ExpandDisksGate {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (v *pvcValidator) checkExpand(pvc *corev1.PersistentVolumeClaim) error {
+	onlineExpand, err := v.isOnlineExpandNeeded(pvc)
+	if err != nil {
+		return err
+	}
+
+	if !onlineExpand {
+		return nil
+	}
+
+	kubevirt, err := v.kubevirtCache.Get(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
+	if err != nil {
+		return err
+	}
+
+	if !isKubevirtExpandEnabled(kubevirt) {
+		message := fmt.Sprintf("kubevirt ExpandDisks not included in featureGate")
+		return werror.NewInvalidError(message, "")
+	}
+
+	return nil
+}
+
 func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	oldPVC := oldObj.(*corev1.PersistentVolumeClaim)
 	newPVC := newObj.(*corev1.PersistentVolumeClaim)
@@ -140,17 +191,7 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 		return nil
 	}
 
-	vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(newPVC.Namespace, newPVC.Name))
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByPVCIndex, newPVC.Namespace, newPVC.Name, err))
-	}
-	for _, vm := range vms {
-		if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusProvisioning && vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopped {
-			message := fmt.Sprintf("resizing is only supported for detached volumes. The volume is being used by VM %s/%s. Please stop the VM first.", vm.Namespace, vm.Name)
-			return werror.NewInvalidError(message, "")
-		}
-	}
-	return nil
+	return v.checkExpand(newPVC)
 }
 
 func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) error {
