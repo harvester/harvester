@@ -82,6 +82,8 @@ func (r *Repo) Bootstrap() error {
 		return err
 	}
 
+	logrus.Infof("Create upgrade repo vm with image %v and service", image)
+
 	_, err = r.createVM(upgradeImage)
 	if err != nil {
 		return err
@@ -89,6 +91,20 @@ func (r *Repo) Bootstrap() error {
 
 	_, err = r.createService()
 	return err
+}
+
+// Clean repo related resources
+func (r *Repo) Cleanup() error {
+	logrus.Infof("Delete upgrade repo vm, image and service")
+	if err := r.deleteVM(); err != nil {
+		logrus.Warnf("%s", err.Error())
+		return err
+	}
+	if err := r.deleteService(); err != nil {
+		logrus.Warnf("%s", err.Error())
+		return err
+	}
+	return nil
 }
 
 func getISODisplayNameImageName(upgradeName string, version string) string {
@@ -326,7 +342,7 @@ func (r *Repo) deleteVM() error {
 		if apierrors.IsNotFound(err) {
 			return r.deleteImage("")
 		}
-		return err
+		return fmt.Errorf("failed to get repo vm %s/%s error %w", vm.Namespace, vm.Name, err)
 	}
 
 	if pvcName, ok := vm.Annotations[util.RemovedPVCsAnnotationKey]; ok {
@@ -335,8 +351,24 @@ func (r *Repo) deleteVM() error {
 		}
 	}
 
-	logrus.Infof("Delete upgrade repo VM %s/%s", vm.Namespace, vm.Name)
-	return r.h.vmClient.Delete(vm.Namespace, vm.Name, &metav1.DeleteOptions{})
+	err = r.h.vmClient.Delete(vm.Namespace, vm.Name, &metav1.DeleteOptions{})
+	if err == nil {
+		return nil
+	}
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	return fmt.Errorf("failed to delete repo vm %s/%s error %w", vm.Namespace, vm.Name, err)
+}
+
+func (r *Repo) deleteService() error {
+	nm := r.getRepoServiceName()
+	// no serviceCache, delete via client directly
+	err := r.h.serviceClient.Delete(upgradeNamespace, nm, &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete service %s/%s error %w", upgradeNamespace, nm, err)
+	}
+	return nil
 }
 
 // deleteImage deletes a repo image
@@ -346,7 +378,7 @@ func (r *Repo) deleteVM() error {
 func (r *Repo) deleteImage(pvcName string) error {
 	imageID := r.upgrade.Status.ImageID
 	if imageID == "" {
-		logrus.Error("Upgrade repo image is not provided")
+		logrus.Warnf("Upgrade repo image is not provided on upgrade status, skip")
 		return nil
 	}
 
