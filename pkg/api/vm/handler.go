@@ -1143,7 +1143,7 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 	if err != nil {
 		return fmt.Errorf("cannot get vm %s/%s, err: %w", namespace, name, err)
 	}
-	newVM := getClonedVMYamlFromSourceVM(input.TargetVM, vm)
+	newVM := getClonedVMYamlFromSourceVM(input.TargetVM, vm, kubevirtv1.VirtualMachineRunStrategy(input.RunStrategy))
 
 	newPVCs, secretNameMap, err := h.cloneVolumes(newVM)
 	if err != nil {
@@ -1413,7 +1413,7 @@ func getTemplateVersionUserPasswordSecretName(templateVersionName string, creden
 	return wranglername.SafeConcatName("templateversion", templateVersionName, fmt.Sprintf("credential-%d", credentialIndex), "userpassword")
 }
 
-func getClonedVMYamlFromSourceVM(newVMName string, sourceVM *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachine {
+func getClonedVMYamlFromSourceVM(newVMName string, sourceVM *kubevirtv1.VirtualMachine, runStrategy kubevirtv1.VirtualMachineRunStrategy) *kubevirtv1.VirtualMachine {
 	newVM := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        newVMName,
@@ -1427,6 +1427,10 @@ func getClonedVMYamlFromSourceVM(newVMName string, sourceVM *kubevirtv1.VirtualM
 		if sourceAnnoValue, keyExist := sourceVM.Annotations[cloneVMAnnoKey]; keyExist {
 			newVM.Annotations[cloneVMAnnoKey] = sourceAnnoValue
 		}
+	}
+
+	if runStrategy != kubevirtv1.RunStrategyUnknown {
+		newVM.Spec.RunStrategy = &runStrategy
 	}
 	newVM.Spec.Template.Spec.Hostname = newVM.Name
 	newVM.Spec.Template.ObjectMeta.Labels[builder.LabelKeyVirtualMachineName] = newVM.Name
