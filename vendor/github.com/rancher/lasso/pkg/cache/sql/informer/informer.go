@@ -29,9 +29,12 @@ type ByOptionsLister interface {
 	ListByOptions(ctx context.Context, lo ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, string, error)
 }
 
+// this is set to a var so that it can be overriden by test code for mocking purposes
+var newInformer = cache.NewSharedIndexInformer
+
 // NewInformer returns a new SQLite-backed Informer for the type specified by schema in unstructured.Unstructured form
 // using the specified client
-func NewInformer(client dynamic.ResourceInterface, fields [][]string, gvk schema.GroupVersionKind, db sqlStore.DBClient, shouldEncrypt bool, namespaced bool) (*Informer, error) {
+func NewInformer(client dynamic.ResourceInterface, fields [][]string, transform cache.TransformFunc, gvk schema.GroupVersionKind, db sqlStore.DBClient, shouldEncrypt bool, namespaced bool) (*Informer, error) {
 	listWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			a, err := client.List(context.Background(), options)
@@ -49,7 +52,12 @@ func NewInformer(client dynamic.ResourceInterface, fields [][]string, gvk schema
 	// currently it is a work hypothesis that, when interacting with the UI, this should not be needed
 	resyncPeriod := time.Duration(0)
 
-	sii := cache.NewSharedIndexInformer(listWatcher, example, resyncPeriod, cache.Indexers{})
+	sii := newInformer(listWatcher, example, resyncPeriod, cache.Indexers{})
+	if transform != nil {
+		if err := sii.SetTransform(transform); err != nil {
+			return nil, err
+		}
+	}
 
 	name := informerNameFromGVK(gvk)
 

@@ -9,6 +9,7 @@ import (
 	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/attributes"
 	"github.com/rancher/wrangler/v3/pkg/kv"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
@@ -46,17 +47,10 @@ func (p *rbacPartitioner) All(apiOp *types.APIRequest, schema *types.APISchema, 
 		fallthrough
 	case "watch":
 		if id != "" {
-			ns, name := kv.RSplit(id, "/")
-			return []partition.Partition{
-				{
-					Namespace:   ns,
-					All:         false,
-					Passthrough: false,
-					Names:       sets.New[string](name),
-				},
-			}, nil
+			partitions := generatePartitionsByID(apiOp, schema, verb, id)
+			return partitions, nil
 		}
-		partitions, passthrough := isPassthrough(apiOp, schema, verb)
+		partitions, passthrough := generateAggregatePartitions(apiOp, schema, verb)
 		if passthrough {
 			return passthroughPartitions, nil
 		}
@@ -74,15 +68,92 @@ func (p *rbacPartitioner) Store() UnstructuredStore {
 	return p.proxyStore
 }
 
-// isPassthrough determines whether a request can be passed through directly to the underlying store
-// or if the results need to be partitioned by namespace and name based on the requester's access.
-func isPassthrough(apiOp *types.APIRequest, schema *types.APISchema, verb string) ([]partition.Partition, bool) {
+// generatePartitionsById determines whether a requester can access a particular resource
+// and if so, returns the corresponding partitions
+func generatePartitionsByID(apiOp *types.APIRequest, schema *types.APISchema, verb string, id string) []partition.Partition {
 	accessListByVerb, _ := attributes.Access(schema).(accesscontrol.AccessListByVerb)
+	resources := accessListByVerb.Granted(verb)
+
+	idNamespace, name := kv.RSplit(id, "/")
+	apiNamespace := apiOp.Namespace
+	effectiveNamespace := idNamespace
+
+	// If a non-empty namespace was provided, be sure to select that for filtering and permissions checks
+	if idNamespace == "" && apiNamespace != "" {
+		effectiveNamespace = apiNamespace
+	}
+
+	// The external API is flexible, and permits specifying a namespace as a separate key or embedded
+	// within the ID of the object. Both of these cases should be valid:
+	//   {"namespace": "n1", "id": "r1"}
+	//   {"id": "n1/r1"}
+	// however, the following conflicting request is not valid, but was previously accepted:
+	//   {"namespace": "n1", "id": "n2/r1"}
+	// To avoid breaking UI plugins that may inadvertently rely on the feature, we issue a deprecation
+	// warning for now. We still need to pick one of the namespaces for permission verification purposes.
+	if idNamespace != "" && apiNamespace != "" && idNamespace != apiNamespace {
+		logrus.Warningf("DEPRECATION: Conflicting namespaces '%v' and '%v' requested. "+
+			"Selecting '%v' as the effective namespace. Future steve versions will reject this request.",
+			idNamespace, apiNamespace, effectiveNamespace)
+	}
+
+	if accessListByVerb.All(verb) {
+		return []partition.Partition{
+			{
+				Namespace:   effectiveNamespace,
+				All:         false,
+				Passthrough: false,
+				Names:       sets.New(name),
+			},
+		}
+	}
+
+	if effectiveNamespace != "" {
+		if resources[effectiveNamespace].All {
+			return []partition.Partition{
+				{
+					Namespace:   effectiveNamespace,
+					All:         false,
+					Passthrough: false,
+					Names:       sets.New(name),
+				},
+			}
+		}
+	}
+
+	// For cluster-scoped resources, we will have parsed a "" out
+	// of the ID field from RSplit, but accessListByVerb specifies "*" for
+	// the nameset, so correct that here
+	resourceNamespace := effectiveNamespace
+	if resourceNamespace == "" {
+		resourceNamespace = accesscontrol.All
+	}
+
+	nameset, ok := resources[resourceNamespace]
+	if ok && nameset.Names.Has(name) {
+		return []partition.Partition{
+			{
+				Namespace:   effectiveNamespace,
+				All:         false,
+				Passthrough: false,
+				Names:       sets.New(name),
+			},
+		}
+	}
+
+	return nil
+}
+
+// generateAggregatePartitions determines whether a request can be passed through directly to the underlying store
+// or if the results need to be partitioned by namespace and name based on the requester's access.
+func generateAggregatePartitions(apiOp *types.APIRequest, schema *types.APISchema, verb string) ([]partition.Partition, bool) {
+	accessListByVerb, _ := attributes.Access(schema).(accesscontrol.AccessListByVerb)
+	resources := accessListByVerb.Granted(verb)
+
 	if accessListByVerb.All(verb) {
 		return nil, true
 	}
 
-	resources := accessListByVerb.Granted(verb)
 	if apiOp.Namespace != "" {
 		if resources[apiOp.Namespace].All {
 			return nil, true

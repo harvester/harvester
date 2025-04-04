@@ -53,11 +53,11 @@ func DefaultSchemaTemplates(cf *client.Factory,
 		apigroups.Template(discovery),
 		{
 			ID:        "configmap",
-			Formatter: formatters.DropHelmData,
+			Formatter: formatters.HandleHelmData,
 		},
 		{
 			ID:        "secret",
-			Formatter: formatters.DropHelmData,
+			Formatter: formatters.HandleHelmData,
 		},
 		{
 			ID:        "pod",
@@ -76,18 +76,19 @@ func DefaultSchemaTemplates(cf *client.Factory,
 func DefaultSchemaTemplatesForStore(store types.Store,
 	baseSchemas *types.APISchemas,
 	summaryCache *summarycache.SummaryCache,
+	lookup accesscontrol.AccessSetLookup,
 	discovery discovery.DiscoveryInterface) []schema.Template {
 
 	return []schema.Template{
-		common.DefaultTemplateForStore(store, summaryCache),
+		common.DefaultTemplateForStore(store, summaryCache, lookup),
 		apigroups.Template(discovery),
 		{
 			ID:        "configmap",
-			Formatter: formatters.DropHelmData,
+			Formatter: formatters.HandleHelmData,
 		},
 		{
 			ID:        "secret",
-			Formatter: formatters.DropHelmData,
+			Formatter: formatters.HandleHelmData,
 		},
 		{
 			ID:        "pod",

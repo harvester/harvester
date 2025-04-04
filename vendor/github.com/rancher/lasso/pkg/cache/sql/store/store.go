@@ -58,7 +58,7 @@ type Store struct {
 var _ cache.Store = (*Store)(nil)
 
 type DBClient interface {
-	Begin() (db.TXClient, error)
+	BeginTx(ctx context.Context, forWriting bool) (db.TXClient, error)
 	Prepare(stmt string) *sql.Stmt
 	QueryForRows(ctx context.Context, stmt transaction.Stmt, params ...any) (*sql.Rows, error)
 	ReadObjects(rows db.Rows, typ reflect.Type, shouldDecrypt bool) ([]any, error)
@@ -71,7 +71,7 @@ type DBClient interface {
 // NewStore creates a SQLite-backed cache.Store for objects of the given example type
 func NewStore(example any, keyFunc cache.KeyFunc, c DBClient, shouldEncrypt bool, name string) (*Store, error) {
 	s := &Store{
-		name:          db.Sanitize(name),
+		name:          name,
 		typ:           reflect.TypeOf(example),
 		DBClient:      c,
 		keyFunc:       keyFunc,
@@ -81,14 +81,14 @@ func NewStore(example any, keyFunc cache.KeyFunc, c DBClient, shouldEncrypt bool
 	}
 
 	// once multiple informerfactories are needed, this can accept the case where table already exists error is received
-	txC, err := s.Begin()
+	txC, err := s.BeginTx(context.Background(), true)
 	if err != nil {
 		return nil, err
 	}
-	createTableQuery := fmt.Sprintf(createTableFmt, s.name)
+	createTableQuery := fmt.Sprintf(createTableFmt, db.Sanitize(s.name))
 	err = txC.Exec(createTableQuery)
 	if err != nil {
-		return nil, fmt.Errorf("while executing query: %s got error: %w", createTableQuery, err)
+		return nil, &db.QueryError{QueryString: createTableQuery, Err: err}
 	}
 
 	err = txC.Commit()
@@ -96,11 +96,11 @@ func NewStore(example any, keyFunc cache.KeyFunc, c DBClient, shouldEncrypt bool
 		return nil, err
 	}
 
-	s.upsertQuery = fmt.Sprintf(upsertStmtFmt, s.name)
-	s.deleteQuery = fmt.Sprintf(deleteStmtFmt, s.name)
-	s.getQuery = fmt.Sprintf(getStmtFmt, s.name)
-	s.listQuery = fmt.Sprintf(listStmtFmt, s.name)
-	s.listKeysQuery = fmt.Sprintf(listKeysStmtFmt, s.name)
+	s.upsertQuery = fmt.Sprintf(upsertStmtFmt, db.Sanitize(s.name))
+	s.deleteQuery = fmt.Sprintf(deleteStmtFmt, db.Sanitize(s.name))
+	s.getQuery = fmt.Sprintf(getStmtFmt, db.Sanitize(s.name))
+	s.listQuery = fmt.Sprintf(listStmtFmt, db.Sanitize(s.name))
+	s.listKeysQuery = fmt.Sprintf(listKeysStmtFmt, db.Sanitize(s.name))
 
 	s.upsertStmt = s.Prepare(s.upsertQuery)
 	s.deleteStmt = s.Prepare(s.deleteQuery)
@@ -114,14 +114,14 @@ func NewStore(example any, keyFunc cache.KeyFunc, c DBClient, shouldEncrypt bool
 /* Core methods */
 // upsert saves an obj with its key, or updates key with obj if it exists in this Store
 func (s *Store) upsert(key string, obj any) error {
-	tx, err := s.Begin()
+	tx, err := s.BeginTx(context.Background(), true)
 	if err != nil {
 		return err
 	}
 
 	err = s.Upsert(tx, s.upsertStmt, key, obj, s.shouldEncrypt)
 	if err != nil {
-		return fmt.Errorf("while executing query: %s got error: %w", s.upsertQuery, err)
+		return &db.QueryError{QueryString: s.upsertQuery, Err: err}
 	}
 
 	err = s.runAfterUpsert(key, obj, tx)
@@ -134,14 +134,14 @@ func (s *Store) upsert(key string, obj any) error {
 
 // deleteByKey deletes the object associated with key, if it exists in this Store
 func (s *Store) deleteByKey(key string) error {
-	tx, err := s.Begin()
+	tx, err := s.BeginTx(context.Background(), true)
 	if err != nil {
 		return err
 	}
 
 	err = tx.StmtExec(tx.Stmt(s.deleteStmt), key)
 	if err != nil {
-		return fmt.Errorf("while executing query: %s got error: %w", s.deleteQuery, err)
+		return &db.QueryError{QueryString: s.deleteQuery, Err: err}
 	}
 
 	err = s.runAfterDelete(key, tx)
@@ -156,7 +156,7 @@ func (s *Store) deleteByKey(key string) error {
 func (s *Store) GetByKey(key string) (item any, exists bool, err error) {
 	rows, err := s.QueryForRows(context.TODO(), s.getStmt, key)
 	if err != nil {
-		return nil, false, fmt.Errorf("while executing query: %s got error: %w", s.getQuery, err)
+		return nil, false, &db.QueryError{QueryString: s.getQuery, Err: err}
 	}
 	result, err := s.ReadObjects(rows, s.typ, s.shouldEncrypt)
 	if err != nil {
@@ -202,7 +202,7 @@ func (s *Store) Delete(obj any) error {
 func (s *Store) List() []any {
 	rows, err := s.QueryForRows(context.TODO(), s.listStmt)
 	if err != nil {
-		panic(fmt.Errorf("while executing query: %s got error: %w", s.listQuery, err))
+		panic(&db.QueryError{QueryString: s.listQuery, Err: err})
 	}
 	result, err := s.ReadObjects(rows, s.typ, s.shouldEncrypt)
 	if err != nil {
@@ -217,7 +217,7 @@ func (s *Store) List() []any {
 func (s *Store) ListKeys() []string {
 	rows, err := s.QueryForRows(context.TODO(), s.listKeysStmt)
 	if err != nil {
-		fmt.Printf("Unexpected error in store.ListKeys: %v\n", fmt.Errorf("while executing query: %s got error: %w", s.listKeysQuery, err))
+		fmt.Printf("Unexpected error in store.ListKeys: while executing query: %s got error: %v", s.listKeysQuery, err)
 		return []string{}
 	}
 	result, err := s.ReadStrings(rows)
@@ -254,7 +254,7 @@ func (s *Store) Replace(objects []any, _ string) error {
 
 // replaceByKey will delete the contents of the Store, using instead the given key to obj map
 func (s *Store) replaceByKey(objects map[string]any) error {
-	txC, err := s.Begin()
+	txC, err := s.BeginTx(context.Background(), true)
 	if err != nil {
 		return err
 	}

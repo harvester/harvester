@@ -1,11 +1,12 @@
 package xdg
 
 import (
-	"os"
-	"path/filepath"
-
 	"github.com/adrg/xdg/internal/pathutil"
+	"github.com/adrg/xdg/internal/userdirs"
 )
+
+// UserDirectories defines the locations of well known user directories.
+type UserDirectories = userdirs.Directories
 
 var (
 	// Home contains the path of the user's home directory.
@@ -29,7 +30,7 @@ var (
 
 	// ConfigHome defines the base directory relative to which user-specific
 	// configuration files should be written. This directory is defined by
-	// the $XDG_CONFIG_HOME environment variable. If the variable is not
+	// the $XDG_CONFIG_HOME environment variable. If the variable is
 	// not set, a default equal to $HOME/.config should be used.
 	ConfigHome string
 
@@ -88,7 +89,7 @@ func init() {
 // in the environment.
 func Reload() {
 	// Initialize home directory.
-	Home = homeDir()
+	Home = pathutil.UserHomeDir()
 
 	// Initialize base and user directories.
 	initDirs(Home)
@@ -197,22 +198,4 @@ func SearchCacheFile(relPath string) (string, error) {
 // file cannot be found, an error specifying the searched path is returned.
 func SearchRuntimeFile(relPath string) (string, error) {
 	return baseDirs.searchRuntimeFile(relPath)
-}
-
-func xdgPath(name, defaultPath string) string {
-	dir := pathutil.ExpandHome(os.Getenv(name), Home)
-	if dir != "" && filepath.IsAbs(dir) {
-		return dir
-	}
-
-	return defaultPath
-}
-
-func xdgPaths(name string, defaultPaths ...string) []string {
-	dirs := pathutil.Unique(filepath.SplitList(os.Getenv(name)), Home)
-	if len(dirs) != 0 {
-		return dirs
-	}
-
-	return pathutil.Unique(defaultPaths, Home)
 }

@@ -1,6 +1,7 @@
 package common
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/rancher/apiserver/pkg/types"
@@ -12,7 +13,6 @@ import (
 	"github.com/rancher/steve/pkg/summarycache"
 	"github.com/rancher/wrangler/v3/pkg/data"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
-	"github.com/rancher/wrangler/v3/pkg/slice"
 	"github.com/rancher/wrangler/v3/pkg/summary"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,15 +26,17 @@ func DefaultTemplate(clientGetter proxy.ClientGetter,
 	namespaceCache corecontrollers.NamespaceCache) schema.Template {
 	return schema.Template{
 		Store:     metricsStore.NewMetricsStore(proxy.NewProxyStore(clientGetter, summaryCache, asl, namespaceCache)),
-		Formatter: formatter(summaryCache),
+		Formatter: formatter(summaryCache, asl),
 	}
 }
 
 // DefaultTemplateForStore provides a default schema template which uses a provided, pre-initialized store. Primarily used when creating a Template that uses a Lasso SQL store internally.
-func DefaultTemplateForStore(store types.Store, summaryCache *summarycache.SummaryCache) schema.Template {
+func DefaultTemplateForStore(store types.Store,
+	summaryCache *summarycache.SummaryCache,
+	asl accesscontrol.AccessSetLookup) schema.Template {
 	return schema.Template{
 		Store:     store,
-		Formatter: formatter(summaryCache),
+		Formatter: formatter(summaryCache, asl),
 	}
 }
 
@@ -71,7 +73,7 @@ func selfLink(gvr schema2.GroupVersionResource, meta metav1.Object) (prefix stri
 	return buf.String()
 }
 
-func formatter(summarycache *summarycache.SummaryCache) types.Formatter {
+func formatter(summarycache *summarycache.SummaryCache, asl accesscontrol.AccessSetLookup) types.Formatter {
 	return func(request *types.APIRequest, resource *types.RawResource) {
 		if resource.Schema == nil {
 			return
@@ -86,24 +88,44 @@ func formatter(summarycache *summarycache.SummaryCache) types.Formatter {
 		if err != nil {
 			return
 		}
+		userInfo, ok := request.GetUserInfo()
+		if !ok {
+			return
+		}
+		accessSet := asl.AccessFor(userInfo)
+		if accessSet == nil {
+			return
+		}
+		hasUpdate := accessSet.Grants("update", gvr.GroupResource(), resource.APIObject.Namespace(), resource.APIObject.Name())
+		hasDelete := accessSet.Grants("delete", gvr.GroupResource(), resource.APIObject.Namespace(), resource.APIObject.Name())
+
 		selfLink := selfLink(gvr, meta)
 
 		u := request.URLBuilder.RelativeToRoot(selfLink)
 		resource.Links["view"] = u
 
-		if _, ok := resource.Links["update"]; !ok && slice.ContainsString(resource.Schema.CollectionMethods, "PUT") {
-			resource.Links["update"] = u
+		if hasUpdate {
+			if attributes.DisallowMethods(resource.Schema)[http.MethodPut] {
+				resource.Links["update"] = "blocked"
+			} else {
+				resource.Links["update"] = u
+			}
+		} else {
+			delete(resource.Links, "update")
 		}
-
-		if _, ok := resource.Links["update"]; !ok && slice.ContainsString(resource.Schema.ResourceMethods, "blocked-PUT") {
-			resource.Links["update"] = "blocked"
-		}
-
-		if _, ok := resource.Links["remove"]; !ok && slice.ContainsString(resource.Schema.ResourceMethods, "blocked-DELETE") {
-			resource.Links["remove"] = "blocked"
+		if hasDelete {
+			if attributes.DisallowMethods(resource.Schema)[http.MethodDelete] {
+				resource.Links["remove"] = "blocked"
+			} else {
+				resource.Links["remove"] = u
+			}
+		} else {
+			delete(resource.Links, "remove")
 		}
 
 		if unstr, ok := resource.APIObject.Object.(*unstructured.Unstructured); ok {
+			// with the sql cache, these were already added by the indexer. However, the sql cache
+			// is only used for lists, so we need to re-add here for get/watch
 			s, rel := summarycache.SummaryAndRelationship(unstr)
 			data.PutValue(unstr.Object, map[string]interface{}{
 				"name":          s.State,
