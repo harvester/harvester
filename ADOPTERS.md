@@ -8,7 +8,7 @@
 - Vendor: An organization that includes Harvester as part of its packaged product.
 - Hosted-Service: An organization that operates Harvester within its hosted service, offered as a product to customers.
 
-# Harvester Adopters
+### Harvester Adopters
 
 | Type | Name | Website | Use-Case |
 |:-|:-|:-|:-|
