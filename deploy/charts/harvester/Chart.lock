@@ -7,7 +7,7 @@ dependencies:
   version: 0.1.0
 - name: cdi
   repository: file://dependency_charts/cdi
-  version: 0.1.0
+  version: 0.1.1
 - name: harvester-network-controller
   repository: https://charts.harvesterhci.io
   version: 1.5.0-rc3
@@ -38,5 +38,5 @@ dependencies:
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
   version: 0.2.0
-digest: sha256:3e65f0f941461578ae64a6065417dd72332dab3f1d494ddb265101ed87e7ebab
-generated: "2025-03-31T07:33:09.618585279Z"
+digest: sha256:53fa44a93fc1a52912dba9c898db548b4079e761a3a31a82f8c38bd99ab3b28f
+generated: "2025-04-09T16:28:14.515397182+08:00"
