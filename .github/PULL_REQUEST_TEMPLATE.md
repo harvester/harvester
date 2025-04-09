@@ -15,6 +15,6 @@ Use `Issue #<issue number>` or `Issue harvester/harvester#<issue number>` or `Is
 -->
 
 #### Test plan:
-<!-- Make sure tests pass on the Circle CI. -->
+<!-- Describe the test plan by steps. -->
 
 #### Additional documentation or context
