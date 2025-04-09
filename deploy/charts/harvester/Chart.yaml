@@ -27,7 +27,7 @@ dependencies:
       - kubevirt
       - crd
   - name: cdi
-    version: 0.1.0
+    version: 0.1.1
     repository: file://dependency_charts/cdi
     condition: cdi.enabled
     tags:
