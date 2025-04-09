@@ -5,7 +5,7 @@ TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 SCRIPTS_DIR="${TOP_DIR}/scripts"
 UPGRADE_DIR="${TOP_DIR}/package/upgrade"
 ADDONS_DIR="${TOP_DIR}/../addons"
-HARVESTER_ADDONS_VERSION="v1.5"
+HARVESTER_ADDONS_VERSION="v1.5.0-rc4"
 
 
 ## package addon yamls
