@@ -6,7 +6,7 @@ RUN zypper rm -y container-suseconnect && \
     zypper --no-gpg-checks ref && \
     zypper in -y curl e2fsprogs rsync awk zstd jq helm zip unzip nginx && zypper clean -a
 
-ENV KUBECTL_VERSION v1.29.9
+ENV KUBECTL_VERSION v1.32.3
 RUN curl -sfL https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl > /usr/bin/kubectl && \
     chmod +x /usr/bin/kubectl
 
