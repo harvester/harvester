@@ -8,7 +8,7 @@ cd $(dirname $0)/..
 echo "Start building ISO image"
 
 HARVESTER_INSTALLER_REPO="${HARVESTER_INSTALLER_REPO:-https://github.com/harvester/harvester-installer.git}"
-HARVESTER_INSTALLER_REF="${HARVESTER_INSTALLER_REF:-v1.5}"
+HARVESTER_INSTALLER_REF="${HARVESTER_INSTALLER_REF:-v1.5.0-rc4}"
 
 echo "Installer repository: ${HARVESTER_INSTALLER_REPO}"
 echo "Installer ref: ${HARVESTER_INSTALLER_REF}"

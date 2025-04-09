@@ -1,4 +1,6 @@
 versions:
+- name: v1.5.0-rc4
+  minUpgradableVersion: v1.4.2
 - name: v1.4.2
   minUpgradableVersion: v1.4.1
 - name: v1.4.1
