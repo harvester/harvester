@@ -33,6 +33,10 @@ func GetDownloader(vmImageDownloaderClient v1beta1.VirtualMachineImageDownloader
 }
 
 func (cd *Downloader) DoDownload(vmImg *harvesterv1.VirtualMachineImage, rw http.ResponseWriter, req *http.Request) error {
+	if !cd.vmio.IsImported(vmImg) {
+		return fmt.Errorf("please wait until the image has been imported")
+	}
+
 	vmImgName := cd.vmio.GetName(vmImg)
 	vmImgNamespace := cd.vmio.GetNamespace(vmImg)
 	imageDownloader, err := cd.vmImageDownloaderClient.Get(vmImgNamespace, vmImgName, metav1.GetOptions{})
