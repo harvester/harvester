@@ -1,4 +1,4 @@
-name: Create Issue by Label
+name: "[Issue Management] Create Issue by Label"
 
 on:
   issues:
