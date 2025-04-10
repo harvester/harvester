@@ -1348,7 +1348,7 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# helm.sh/helm/v3 v3.9.4 => github.com/rancher/helm/v3 v3.9.0-rancher1
+# helm.sh/helm/v3 v3.17.3 => github.com/rancher/helm/v3 v3.9.0-rancher1
 ## explicit; go 1.17
 helm.sh/helm/v3/internal/fileutil
 helm.sh/helm/v3/internal/ignore
