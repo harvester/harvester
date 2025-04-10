@@ -1,0 +1,20 @@
+name: CI request
+description: Create a CI task
+title: "[CI] "
+labels: [ "kind/task", "area/ci" ]
+assignees:
+-
+body:
+- type: textarea
+  attributes:
+    label: Task request
+    description: A clear and concise description of what the task is.
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: Additional context
+    description: Please add any other context about the problem here.
+  validations:
+    required: false
