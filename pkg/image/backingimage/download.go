@@ -27,6 +27,9 @@ func GetDownloader(biCache ctllhv1.BackingImageCache, httpClient http.Client, vm
 }
 
 func (bid *Downloader) DoDownload(vmi *harvesterv1.VirtualMachineImage, rw http.ResponseWriter, req *http.Request) error {
+	if !bid.vmio.IsImported(vmi) {
+		return fmt.Errorf("please wait until the image has been imported")
+	}
 	if bid.vmio.IsEncryptOperation(vmi) {
 		return fmt.Errorf("encrypted image is not supported for download")
 	}
