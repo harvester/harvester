@@ -6,17 +6,13 @@ import (
 	"reflect"
 
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
-	"github.com/mitchellh/mapstructure"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	ctlcatalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
 	ctlmgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/name"
 	"github.com/sirupsen/logrus"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chartutil"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -74,7 +70,6 @@ type handler struct {
 	ctx                 context.Context
 	namespace           string
 	addonCache          ctlharvesterv1.AddonCache
-	appCache            ctlcatalogv1.AppCache
 	clusterFlowClient   ctlloggingv1.ClusterFlowClient
 	clusterOutputClient ctlloggingv1.ClusterOutputClient
 	daemonSetClient     ctlappsv1.DaemonSetClient
@@ -719,45 +714,6 @@ func (h *handler) OnUpgradeChange(_ string, upgrade *harvesterv1.Upgrade) (*harv
 	}
 
 	return upgrade, nil
-}
-
-func (h *handler) getConsolidatedLoggingImageList(appName string) (map[string]Image, error) {
-	// The logging App could be created by the UpgradeLog mechanism or the default rancher-logging Addon/ManagedChart
-	fallbackToDefaultApp := false
-	loggingApp, err := h.appCache.Get(util.CattleLoggingSystemNamespaceName, appName)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return nil, err
-		}
-		fallbackToDefaultApp = true
-	}
-	if fallbackToDefaultApp {
-		loggingApp, err = h.appCache.Get(util.CattleLoggingSystemNamespaceName, util.RancherLoggingName)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	v, err := chartutil.CoalesceValues(
-		&chart.Chart{
-			// In latest version of chartutil, it read chart.metadata.name, so we put a value here.
-			// ref: https://github.com/helm/helm/blob/b8d3535991dd5089d58bc88c46a5ffe2721ae830/pkg/chartutil/coalesce.go#L160
-			Metadata: &chart.Metadata{Name: "merge-templates-and-values"},
-			Values:   loggingApp.Spec.Chart.Values,
-		},
-		loggingApp.Spec.Values,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	var result Values
-	vMap := v.AsMap()
-	if err := mapstructure.Decode(vMap, &result); err != nil {
-		return nil, err
-	}
-
-	return result.Images, nil
 }
 
 func (h *handler) stopCollect(upgradeLog *harvesterv1.UpgradeLog) error {
