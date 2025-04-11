@@ -1,4 +1,4 @@
-name: Update-Issue-Sprint
+name: "[Issue Management] Periodic Issue Sprint Update"
 
 on:
   schedule:
