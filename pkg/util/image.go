@@ -73,7 +73,11 @@ func GetImageStorageClassName(image *harvesterv1.VirtualMachineImage) string {
 	if image.Spec.Backend == harvesterv1.VMIBackendCDI {
 		return image.Spec.TargetStorageClassName
 	}
-	return fmt.Sprintf("longhorn-%s", image.Name)
+	prefix := "longhorn"
+	if annotationStorageClassName, ok := image.Annotations[AnnotationStorageClassName]; ok {
+		prefix = annotationStorageClassName
+	}
+	return fmt.Sprintf("%s-%s", prefix, image.Name)
 }
 
 func GetImageStorageClassParameters(backingImageCache ctllhv1.BackingImageCache, image *harvesterv1.VirtualMachineImage) (map[string]string, error) {
