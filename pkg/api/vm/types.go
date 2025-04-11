@@ -40,7 +40,8 @@ type RemoveVolumeInput struct {
 }
 
 type CloneInput struct {
-	TargetVM string `json:"targetVm"`
+	TargetVM    string `json:"targetVm"`
+	RunStrategy string `json:"runStrategy"`
 }
 
 type FindMigratableNodesOutput struct {
