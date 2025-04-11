@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
-	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	"github.com/rancher/wrangler/v3/pkg/name"
 	"github.com/stretchr/testify/assert"
@@ -62,47 +61,6 @@ var (
 	testClusterFlowName    = name.SafeConcatName(testUpgradeLogName, util.UpgradeLogFlowComponent)
 	testDeploymentName     = name.SafeConcatName(testUpgradeLogName, util.UpgradeLogDownloaderComponent)
 )
-
-func newTestApp() *catalogv1.App {
-	return &catalogv1.App{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      util.RancherLoggingName,
-			Namespace: util.CattleLoggingSystemNamespaceName,
-		},
-		Spec: catalogv1.ReleaseSpec{
-			Chart: &catalogv1.Chart{
-				Values: mgmtv3.MapStringInterface{
-					"images": map[string]interface{}{
-						"config_reloader": map[string]interface{}{
-							"repository": "rancher/config-reload",
-							"tag":        "default",
-						},
-						"fluentbit": map[string]interface{}{
-							"repository": "rancher/fluentbit",
-							"tag":        "default",
-						},
-						"fluentd": map[string]interface{}{
-							"repository": "rancher/fluentd",
-							"tag":        "dev",
-						},
-					},
-				},
-			},
-			Values: mgmtv3.MapStringInterface{
-				"images": map[string]interface{}{
-					"fluentbit": map[string]interface{}{
-						"repository": "rancher/fluentbit",
-						"tag":        "dev",
-					},
-					"fluentd": map[string]interface{}{
-						"repository": "test/fluentd",
-						"tag":        "dev",
-					},
-				},
-			},
-		},
-	}
-}
 
 func newTestClusterFlowBuilder() *clusterFlowBuilder {
 	return newClusterFlowBuilder(testClusterFlowName).
@@ -726,7 +684,6 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 	type input struct {
 		key           string
 		addon         *harvesterv1.Addon
-		app           *catalogv1.App
 		clusterFlow   *loggingv1.ClusterFlow
 		clusterOutput *loggingv1.ClusterOutput
 		logging       *loggingv1.Logging
@@ -799,7 +756,6 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			name: "The logging-operator is deployed, should therefore create Logging resource",
 			given: input{
 				key: testUpgradeLogName,
-				app: newTestApp(),
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionUnknown, "", "").
 					OperatorDeployedCondition(corev1.ConditionTrue, "", "").
@@ -1003,10 +959,6 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			var err = clientset.Tracker().Add(tc.given.addon)
 			assert.Nil(t, err, "mock resource addon should add into fake controller tracker")
 		}
-		if tc.given.app != nil {
-			var err = clientset.Tracker().Add(tc.given.app)
-			assert.Nil(t, err, "mock resource app should add into fake controller tracker")
-		}
 		if tc.given.clusterFlow != nil {
 			var err = clientset.Tracker().Add(tc.given.clusterFlow)
 			assert.Nil(t, err, "mock resource clusterFlow should add into fake controller tracker")
@@ -1041,7 +993,6 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 		var handler = &handler{
 			namespace:           util.HarvesterSystemNamespaceName,
 			addonCache:          fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons),
-			appCache:            fakeclients.AppCache(clientset.CatalogV1().Apps),
 			clusterFlowClient:   fakeclients.ClusterFlowClient(clientset.LoggingV1beta1().ClusterFlows),
 			clusterOutputClient: fakeclients.ClusterOutputClient(clientset.LoggingV1beta1().ClusterOutputs),
 			deploymentClient:    fakeclients.DeploymentClient(k8sclientset.AppsV1().Deployments),
