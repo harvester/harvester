@@ -11,6 +11,8 @@ jobs:
   harvester:
     runs-on: ubuntu-latest
     steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
     - name: Is Harvester Member
       id: is-harvester-member
@@ -28,6 +30,17 @@ jobs:
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
         labeled: kind/test
         label-operator: NOT
+
+    - name: Assign Milestone to Issue
+      if: ${{
+        fromJSON(steps.is-harvester-member.outputs.teams)[0] != null &&
+        github.event.issue.milestone == null
+        }}
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+      run: |
+        ISSUE_NUMBER="${{ github.event.issue.number }}"
+        gh issue edit "$ISSUE_NUMBER" --milestone "Planning"
   
   community:
     runs-on: ubuntu-latest
