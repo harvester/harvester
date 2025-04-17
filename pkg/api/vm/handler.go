@@ -1156,7 +1156,7 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 
 	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(newPVCsString)
 	if newVM, err = h.vms.Create(newVM); err != nil {
-		return fmt.Errorf("cannot create newVM %+v, err: %w", newVM, err)
+		return fmt.Errorf("cannot create new VM %s/%s, err: %w", newVM.Namespace, newVM.Name, err)
 	}
 
 	for oldSecretName, newSecretName := range secretNameMap {
