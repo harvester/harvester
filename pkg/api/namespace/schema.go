@@ -9,6 +9,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/schemas"
 
 	"github.com/harvester/harvester/pkg/config"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 type UpdateResourceQuotaInput struct {
@@ -17,11 +18,11 @@ type UpdateResourceQuotaInput struct {
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
 
-	handler := &Handler{
+	handler := harvesterServer.NewHandler(&Handler{
 		resourceQuotaClient: scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota(),
 		clientSet:           *scaled.Management.ClientSet,
 		ctx:                 scaled.Ctx,
-	}
+	})
 
 	nsformatter := nsformatter{
 		clientSet: *scaled.Management.ClientSet,
