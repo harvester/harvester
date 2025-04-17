@@ -35,7 +35,8 @@ jobs:
         
         if [ -n "$BACKPORT_ISSUE" ]; then
           echo "Closing backport issue #$BACKPORT_ISSUE for version ${{ env.MAJOR_MINOR_VERSION }}"
-          gh issue close $BACKPORT_ISSUE
+          gh issue close $BACKPORT_ISSUE --reason "not planned"
+          gh issue edit $BACKPORT_ISSUE --add-label "wontfix"
         else
           echo "No matching backport issue found for version ${{ env.MAJOR_MINOR_VERSION }}"
         fi
