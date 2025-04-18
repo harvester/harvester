@@ -9,7 +9,41 @@ env:
   COMMUNITY_SPRINT_PROJECT_URL: https://github.com/orgs/harvester/projects/10
   HARVESTER_SPRINT_PROJECT_URL: https://github.com/orgs/harvester/projects/7
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
 jobs:
+  harvester:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Is Harvester Member
+      id: is-harvester-member
+      continue-on-error: true
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@main
+      with:
+        username: ${{ github.event.issue.user.login }}
+        organization: harvester
+        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    - run: |
+        echo "is-harvester-member teams: ${{ steps.is-harvester-member.outputs.teams }}"
+        echo "is-harvester-member outcome: ${{ steps.is-harvester-member.outcome }}"
+
+    - name: Set Milestone to Issue
+      if: ${{
+        fromJSON(steps.is-harvester-member.outputs.teams)[0] != null  &&
+        github.event.issue.milestone == null
+        }}
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+      run: |
+        ISSUE_NUMBER="${{ github.event.issue.number }}"
+        gh issue edit "$ISSUE_NUMBER" --milestone "Planning"
+
   community:
     runs-on: ubuntu-latest
     steps:
