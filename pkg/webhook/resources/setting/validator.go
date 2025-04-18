@@ -39,6 +39,7 @@ import (
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester-network-controller/pkg/utils"
+
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/containerd"
 	nodectl "github.com/harvester/harvester/pkg/controller/master/node"
@@ -55,7 +56,7 @@ import (
 	vmUtil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
-	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
+	webhookUtil "github.com/harvester/harvester/pkg/webhook/util"
 )
 
 const (
@@ -715,7 +716,7 @@ func validateSupportBundleTimeoutHelper(value string) error {
 		return nil
 	}
 
-	i, err := strconv.Atoi(value)
+	i, err := webhookUtil.StrictAtoi(value)
 	if err != nil {
 		return err
 	}
@@ -745,7 +746,7 @@ func validateSupportBundleExpirationHelper(value string) error {
 		return nil
 	}
 
-	i, err := strconv.Atoi(value)
+	i, err := webhookUtil.StrictAtoi(value)
 	if err != nil {
 		return err
 	}
@@ -775,7 +776,7 @@ func validateSupportBundleNodeCollectionTimeoutHelper(value string) error {
 		return nil
 	}
 
-	i, err := strconv.Atoi(value)
+	i, err := webhookUtil.StrictAtoi(value)
 	if err != nil {
 		return err
 	}
@@ -1447,7 +1448,7 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkc
 		MinAllocatableIPAddrs = MinAllocatableIPAddrs + 2 + (len(lhNode.Spec.Disks) * 2)
 	}
 
-	count, err := webhookutil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
 	if err != nil {
 		return err
 	}
@@ -1533,7 +1534,7 @@ func validateKubeConfigTTLSettingHelper(value string) error {
 		return nil
 	}
 
-	num, err := strconv.Atoi(value)
+	num, err := webhookUtil.StrictAtoi(value)
 	if err != nil {
 		return err
 	}
