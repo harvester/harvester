@@ -508,6 +508,68 @@ calculateCPUReservedInMilliCPU() {
   echo $reserved
 }
 
+replace_with_mgmtvlan() {
+
+  if [ -z "$NODE_CURRENT_HARVESTER_VERSION" ]; then
+    detect_node_current_harvester_version
+  fi
+
+  echo "current harv version $NODE_CURRENT_HARVESTER_VERSION"
+
+  if "$NODE_CURRENT_HARVESTER_VERSION" != "v1.6.0"; then
+    return
+  fi
+
+  #files to update
+  SETUPBOND_FILE="/etc/wicked/scripts/setup_bond.sh"
+  SETUPBRIDGE_FILE="/etc/wicked/scripts/setup_bridge.sh"
+  CUSTOM90_FILE="/oem/90_custom.yaml"
+
+  # Get list of interfaces on the host
+  interfaces=$(ip -o link show | awk -F': ' '{print $2}')
+
+  # Derive the mgmt vlan from mgmt-br.vlanid
+  for iface in $interfaces; do
+    if [[ "$iface" =~ ^mgmt-br\.([0-9]+)@mgmt-br$ ]]; then
+      vlan_id="${BASH_REMATCH[1]}"
+      echo "Found VLAN ID: $vlan_id"
+      break
+    fi
+  done
+
+  if [[ -z "$vlan_id" || "$vlan_id" -eq 0 ]]; then
+    echo "VLAN ID: $vlan_id Not found, assign vlan_id=1"
+    vlan_id=1
+  fi
+
+  # Check if the file exists
+  if [[ -f "$SETUPBOND_FILE" ]]; then
+    # Replace the range with the VLAN ID
+    sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$SETUPBOND_FILE"
+    echo "Updated $SETUPBOND_FILE with VLAN ID $vlan_id"
+  else
+    echo "File not found: $SETUPBOND_FILE"
+  fi
+
+  # Check if the file exists
+  if [[ -f "$SETUPBRIDGE_FILE" ]]; then
+    # Replace the range with the VLAN ID
+    sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$SETUPBRIDGE_FILE"
+    echo "Updated $SETUPBRIDGE_FILE with VLAN ID $vlan_id"
+  else
+    echo "File not found: $SETUPBRIDGE_FILE"
+  fi
+
+  # Check if the file exists
+  if [[ -f "$CUSTOM90_FILE" ]]; then
+    # Replace the range with the VLAN ID
+    sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$CUSTOM90_FILE"
+    echo "Updated $CUSTOM90_FILE with VLAN ID $vlan_id"
+  else
+    echo "File not found: $CUSTOM90_FILE"
+  fi
+}
+
 upgrade_os() {
   # The trap will be only effective from this point to the end of the execution
   trap clean_up_tmp_files EXIT
@@ -612,6 +674,9 @@ EOF
 
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
+
+  #replace the range vlans with mgmt vlan in wicked scripts and 90_custom.yaml file before node reboot
+  replace_with_mgmtvlan
 
   reboot_if_job_succeed
 }
