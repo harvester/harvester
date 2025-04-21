@@ -12,7 +12,6 @@ import (
 	"os"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
 	// Although we don't use following drivers directly, we need to import them to register drivers.
@@ -1465,7 +1464,7 @@ func validateDefaultVMTerminationGracePeriodSecondsHelper(value string) error {
 		return nil
 	}
 
-	num, err := strconv.ParseInt(value, 10, 64)
+	num, err := webhookUtil.StrictAtoi(value)
 	if err != nil {
 		return err
 	}
