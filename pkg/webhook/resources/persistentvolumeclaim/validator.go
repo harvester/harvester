@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -24,17 +25,24 @@ import (
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
 )
 
 func NewValidator(pvcCache v1.PersistentVolumeClaimCache,
 	vmCache ctlkv1.VirtualMachineCache,
 	kubevirtCache ctlkv1.KubeVirtCache,
-	imageCache ctlharvesterv1.VirtualMachineImageCache) types.Validator {
+	imageCache ctlharvesterv1.VirtualMachineImageCache,
+	engineCache ctllonghornv1.EngineCache,
+	scCache ctlstoragev1.StorageClassCache,
+	settingCache ctlharvesterv1.SettingCache) types.Validator {
 	return &pvcValidator{
 		pvcCache:      pvcCache,
 		vmCache:       vmCache,
 		kubevirtCache: kubevirtCache,
 		imageCache:    imageCache,
+		engineCache:   engineCache,
+		scCache:       scCache,
+		settingCache:  settingCache,
 	}
 }
 
@@ -45,6 +53,9 @@ type pvcValidator struct {
 	imageCache    ctlharvesterv1.VirtualMachineImageCache
 	kubevirtCache ctlkv1.KubeVirtCache
 	volumeCache   ctllonghornv1.VolumeCache
+	engineCache   ctllonghornv1.EngineCache
+	scCache       ctlstoragev1.StorageClassCache
+	settingCache  ctlharvesterv1.SettingCache
 }
 
 func (v *pvcValidator) Resource() types.Resource {
@@ -127,11 +138,26 @@ func (v *pvcValidator) isOnlineExpandNeeded(pvc *corev1.PersistentVolumeClaim) (
 		return false, werror.NewInternalError(fmt.Sprintf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByPVCIndex, pvc.Namespace, pvc.Name, err))
 	}
 	for _, vm := range vms {
-		if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusProvisioning && vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopped {
+		if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusStopped {
 			return true, nil
 		}
 	}
 	return false, nil
+}
+
+func (v *pvcValidator) isHotpluggedFilesystemPVC(pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	// Check if the PVC is in Filesystem mode
+	if pvc.Spec.VolumeMode == nil || *pvc.Spec.VolumeMode != corev1.PersistentVolumeFilesystem {
+		return false, nil
+	}
+
+	// Check if the PVC is hotplugged to any VM
+	vms, err := v.vmCache.GetByIndex(indexeresutil.VMByHotplugPVCIndex, ref.Construct(pvc.Namespace, pvc.Name))
+	if err != nil {
+		return false, werror.NewInternalError(err.Error())
+	}
+
+	return len(vms) > 0, nil
 }
 
 func isKubevirtExpandEnabled(kubevirt *kubevirtv1.KubeVirt) bool {
@@ -146,23 +172,47 @@ func isKubevirtExpandEnabled(kubevirt *kubevirtv1.KubeVirt) bool {
 }
 
 func (v *pvcValidator) checkExpand(pvc *corev1.PersistentVolumeClaim) error {
-	onlineExpand, err := v.isOnlineExpandNeeded(pvc)
-	if err != nil {
+	// we will have an early return if there is no related VMs or all related VMs are stopped
+	if onlineExpand, err := v.isOnlineExpandNeeded(pvc); err != nil || !onlineExpand {
 		return err
-	}
-
-	if !onlineExpand {
-		return nil
 	}
 
 	kubevirt, err := v.kubevirtCache.Get(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
 	if err != nil {
 		return err
 	}
-
 	if !isKubevirtExpandEnabled(kubevirt) {
-		message := fmt.Sprintf("kubevirt ExpandDisks not included in featureGate")
-		return werror.NewInvalidError(message, "")
+		return werror.NewInvalidError("kubevirt ExpandDisks not included in featureGate", "")
+	}
+
+	hotpluggedFSPVC, err := v.isHotpluggedFilesystemPVC(pvc)
+	if err != nil {
+		return err
+	}
+	if hotpluggedFSPVC {
+		return werror.NewInvalidError(
+			fmt.Sprintf(
+				"Expansion of hotplugged PVC '%s/%s' in filesystem mode is not supported",
+				pvc.Namespace,
+				pvc.Name,
+			),
+			"",
+		)
+	}
+
+	expandable, err := webhookutil.CheckOnlineExpand(pvc, v.engineCache, v.scCache, v.settingCache)
+	if err != nil {
+		return err
+	}
+	if !expandable {
+		return werror.NewInvalidError(
+			fmt.Sprintf(
+				"pvc %s/%s is not online expandable with its provider",
+				pvc.Namespace,
+				pvc.Name,
+			),
+			"",
+		)
 	}
 
 	return nil
