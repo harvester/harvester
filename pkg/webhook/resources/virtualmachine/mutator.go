@@ -86,6 +86,10 @@ func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runti
 	newVM := newObj.(*kubevirtv1.VirtualMachine)
 	oldVM := oldObj.(*kubevirtv1.VirtualMachine)
 
+	if newVM == nil || newVM.DeletionTimestamp != nil {
+		return nil, nil
+	}
+
 	logrus.Debugf("update VM %s/%s", newVM.Namespace, newVM.Name)
 
 	var patchOps types.PatchOps
