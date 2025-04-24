@@ -32,6 +32,8 @@ spec:
 {{ include "harvester.labels" . | indent 8 }}
         app.kubernetes.io/name: harvester
         app.kubernetes.io/component: apiserver
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/apiserver: unconfined
     spec:
       serviceAccountName: harvester
       affinity:
@@ -41,8 +43,6 @@ spec:
           image: {{ .Values.containers.apiserver.image.repository }}:{{ .Values.containers.apiserver.image.tag }}
           imagePullPolicy: {{ .Values.containers.apiserver.image.imagePullPolicy }}
           securityContext:
-            appArmorProfile:
-              type: Unconfined
             capabilities:
               add: ["SYS_ADMIN"]
 {{- if .Values.containers.apiserver.command }}
@@ -159,6 +159,8 @@ spec:
 {{ include "harvester.labels" . | indent 8 }}
         app.kubernetes.io/name: harvester
         app.kubernetes.io/component: webhook-server
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/harvester-webhook: unconfined
     spec:
       serviceAccountName: harvester
       affinity:
@@ -191,8 +193,6 @@ spec:
         args: []
         imagePullPolicy: {{ .Values.webhook.image.imagePullPolicy }}
         securityContext:
-          appArmorProfile:
-            type: Unconfined
           capabilities:
             add: ["SYS_ADMIN"]
         ports:
