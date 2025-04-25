@@ -48,8 +48,10 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
+      with:
+        repository: harvester/tests
     
-    - name: Find and Close E2E Issue
+    - name: Find and Close E2E Issue in harvester/tests
       run: |
         # Search for e2e issues with matching title using major.minor version
         E2E_ISSUE=$(gh issue list --search "[e2e] ${{ github.event.issue.title }}" --json number --jq '.[0].number')
