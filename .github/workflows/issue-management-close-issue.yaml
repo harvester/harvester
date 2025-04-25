@@ -42,3 +42,24 @@ jobs:
         fi
       env:
         GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+  e2e:
+    runs-on: ubuntu-latest
+    if: contains(github.event.label.name, 'require/auto-e2e-test')
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    
+    - name: Find and Close E2E Issue
+      run: |
+        # Search for e2e issues with matching title using major.minor version
+        E2E_ISSUE=$(gh issue list --search "[e2e] ${{ github.event.issue.title }}" --json number --jq '.[0].number')
+
+        if [ -n "$E2E_ISSUE" ]; then
+          echo "Closing e2e issue #$E2E_ISSUE"
+          gh issue close $E2E_ISSUE --reason "not planned"
+          gh issue edit $E2E_ISSUE --add-label "wontfix"
+        else
+          echo "No matching e2e issue found for version ${{ env.MAJOR_MINOR_VERSION }}"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}

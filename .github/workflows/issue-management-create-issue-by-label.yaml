@@ -11,7 +11,10 @@ concurrency:
 jobs:
   create-issue:
     name: Create Issue
-    if: contains(join(github.event.issue.labels.*.name, ', '), 'backport-needed/') || contains(join(github.event.issue.labels.*.name, ', '), 'require-ui/')
+    if: 
+      contains(join(github.event.issue.labels.*.name, ', '), 'backport-needed/') || 
+      contains(join(github.event.issue.labels.*.name, ', '), 'require-ui/') || 
+      contains(join(github.event.issue.labels.*.name, ', '), 'require/auto-e2e-test')
     runs-on: ubuntu-latest
     env:
       EVENT: ${{ toJson(github.event) }}
@@ -36,5 +39,10 @@ jobs:
       
       - name: Create GUI Issue
         if: contains(join(github.event.issue.labels.*.name, ', '), 'require-ui/')
+        run: |
+          python .github/workflows/bot.py "$EVENT"
+      
+      - name: Create E2E Issue
+        if: contains(join(github.event.issue.labels.*.name, ', '), 'require/auto-e2e-test')
         run: |
           python .github/workflows/bot.py "$EVENT"
