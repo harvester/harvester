@@ -64,9 +64,10 @@ During the installation, you can either choose to **create a new Harvester clust
    - `Installation disk`: The disk to install the Harvester cluster on.
    - `Data disk`: The disk to store VM data on. Choosing a separate disk to store VM data is recommended.
    - `Persistent size`: If you only have one disk or use the same disk for both OS and VM data, you need to configure persistent partition size to store system packages and container images. The default and minimum persistent partition size is 150 GiB. You can specify a size like 200Gi or 153600Mi. 
-1. Configure the `HostName` of the node.
 1. Configure network interface(s) for the management network. By default, Harvester will create a bonded NIC named `mgmt-bo`, and the IP address can either be configured via DHCP or statically assigned.
 ![iso-config-network.png](./docs/assets/iso-config-network.png)
+1. (Optional) Configure cluster network. Leave blank to use the defaults.
+1. Configure the `HostName` of the node.
 1. (Optional) Configure the `DNS Servers`. Use commas as a delimiter to add more DNS servers. Leave blank to use the default DNS server.
 1. Configure the virtual IP (VIP) by selecting a `VIP Mode`. This VIP is used to access the cluster or for other nodes to join the cluster.
 ![iso-config-vip.png](./docs/assets/iso-config-vip.png)
@@ -94,7 +95,8 @@ https://github.com/harvester/harvester/releases
 
 | Release   | Version | Type           | Release Note (Changelog)                                         | Upgrade Note                                                |
 |-----------|---------|----------------|------------------------------------------------------------------|-------------------------------------------------------------|
-| **1.4***  | 1.4.0   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.4.0) | [🔗](https://docs.harvesterhci.io/v1.4/upgrade/v1-3-2-to-v1-4-0) |
+| **1.5***  | 1.5.0   | Latest         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.5.0) | [🔗](https://docs.harvesterhci.io/v1.5/upgrade/v1-4-2-to-v1-5-0) |
+| **1.4***  | 1.4.2   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.4.2) | [🔗](https://docs.harvesterhci.io/v1.4/upgrade/v1-4-1-to-v1-4-2) |
 | **1.3***  | 1.3.2   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.3.2) | [🔗](https://docs.harvesterhci.io/v1.3/upgrade/v1-3-1-to-v1-3-2) |
 | **1.2***  | 1.2.2   | EOL            | [🔗](https://github.com/harvester/harvester/releases/tag/v1.2.2) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-2-1-to-v1-2-2) |
 | **1.1***  | 1.1.3   | EOL | [🔗](https://github.com/harvester/harvester/releases/tag/v1.1.3) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-1-to-v1-1-2) |
