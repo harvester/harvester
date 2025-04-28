@@ -134,7 +134,7 @@ You can also [ask Harvester Guru](https://gurubase.io/g/harvester) your question
 
 
 ## License
-Copyright (c) 2025 [Rancher Labs, Inc.](http://rancher.com)
+Copyright (c) 2025 [SUSE, LLC.](https://www.suse.com/)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
