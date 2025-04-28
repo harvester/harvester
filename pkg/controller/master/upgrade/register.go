@@ -36,6 +36,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	pods := management.CoreFactory.Core().V1().Pod()
 	vmImages := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
+	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	services := management.CoreFactory.Core().V1().Service()
 	namespaces := management.CoreFactory.Core().V1().Namespace()
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
@@ -72,6 +73,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		vmImageCache:      vmImages.Cache(),
 		vmClient:          vms,
 		vmCache:           vms.Cache(),
+		vmiCache:          vmis.Cache(),
 		serviceClient:     services,
 		pvcClient:         pvcs,
 		clusterClient:     clusters,
