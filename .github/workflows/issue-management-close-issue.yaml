@@ -31,20 +31,12 @@ jobs:
     - name: Find and Close Backport Issue
       run: |
         # Search for backport issues with matching title using major.minor version
-        BACKPORT_ISSUE=$(gh issue list --search '"[backport v${{ env.MAJOR_MINOR_VERSION }}] ${{ github.event.issue.title }}"' --json number,title --jq '.[0]')
-        BACKPORT_ISSUE_NUMBER=$(echo "$BACKPORT_ISSUE" | jq -r '.number')
-        BACKPORT_ISSUE_TITLE=$(echo "$BACKPORT_ISSUE" | jq -r '.title')
-        if [ -n "$BACKPORT_ISSUE_NUMBER" ]; then
-          CURRENT_TITLE="${{ github.event.issue.title }}"
-          
-          # Prevent closing the original issue
-          if [ "$BACKPORT_ISSUE_TITLE" = "$CURRENT_TITLE" ]; then
-            echo "Found matching issue #$BACKPORT_ISSUE_NUMBER with identical title, skipping close action"
-          else
-            echo "Closing backport issue #$BACKPORT_ISSUE_NUMBER for version ${{ env.MAJOR_MINOR_VERSION }}"
-            gh issue close $BACKPORT_ISSUE_NUMBER --reason "not planned"
-            gh issue edit $BACKPORT_ISSUE_NUMBER --add-label "wontfix"
-          fi
+        BACKPORT_ISSUE=$(gh issue list --search '"[backport v${{ env.MAJOR_MINOR_VERSION }}] ${{ github.event.issue.title }}"' --json number --jq '.[0].number')
+        
+        if [ -n "$BACKPORT_ISSUE" ]; then
+          echo "Closing backport issue #$BACKPORT_ISSUE for version ${{ env.MAJOR_MINOR_VERSION }}"
+          gh issue close $BACKPORT_ISSUE --reason "not planned"
+          gh issue edit $BACKPORT_ISSUE --add-label "wontfix"
         else
           echo "No matching backport issue found for version ${{ env.MAJOR_MINOR_VERSION }}"
         fi
