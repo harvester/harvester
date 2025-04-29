@@ -30,7 +30,7 @@ class CreateBackport(LabelAction):
             if re.match(backport_label_pattern, label['name']) is not None:
                 backport_labels.append(label)
             else:
-                # backport should not include the 'require-ui' label
+                # backport should not include the 'require/ui' label
                 # because gui issue has its own backport
                 if CREATE_GUI_ISSUE_LABEL not in label['name']:
                     normal_labels.append(label)
