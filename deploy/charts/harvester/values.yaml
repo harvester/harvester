@@ -539,12 +539,12 @@ harvester-node-manager:
   image:
     pullPolicy: IfNotPresent
     repository: rancher/harvester-node-manager
-    tag: v0.3.3
+    tag: v0.3.4
   webhook:
     image:
       pullPolicy: IfNotPresent
       repository: rancher/harvester-node-manager-webhook
-      tag: v0.3.3
+      tag: v0.3.4
 
 snapshot-validation-webhook:
   enabled: true
