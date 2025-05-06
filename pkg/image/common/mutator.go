@@ -8,6 +8,7 @@ import (
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/rancher/wrangler/v3/pkg/slice"
+	"github.com/sirupsen/logrus"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -63,7 +64,8 @@ func (m *vmiMutator) getSC(scName string) (*storagev1.StorageClass, error) {
 			return nil, err
 		}
 		if storageClass.Provisioner != longhorntypes.LonghornDriverName {
-			return nil, fmt.Errorf("the provisioner of storageClass must be %s, not %s", longhorntypes.LonghornDriverName, storageClass.Provisioner)
+			logrus.Warnf("The provisioner of storageClass must be %s, not %s. We will use the default parameters.", longhorntypes.LonghornDriverName, storageClass.Provisioner)
+			return nil, nil
 		}
 		if storageClass.Parameters[util.LonghornOptionBackingImageName] != "" {
 			return nil, errors.New("can not use a backing image storageClass as the base storageClass template")
@@ -76,11 +78,12 @@ func (m *vmiMutator) getSC(scName string) (*storagev1.StorageClass, error) {
 		return nil, err
 	}
 
-	for _, storageClass := range storageClasses {
-		if storageClass.Annotations[util.AnnotationIsDefaultStorageClassName] == "true" &&
-			storageClass.Provisioner == longhorntypes.LonghornDriverName {
-			return storageClass, nil
-		}
+	defaultSC := util.GetDefaultSC(storageClasses)
+	if defaultSC == nil {
+		return nil, fmt.Errorf("no default storageClass found for backingImage")
+	}
+	if defaultSC.Provisioner == longhorntypes.LonghornDriverName {
+		return defaultSC, nil
 	}
 
 	return nil, nil
