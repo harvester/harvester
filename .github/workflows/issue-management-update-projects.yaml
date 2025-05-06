@@ -1,7 +1,7 @@
 name: "[Issue Management] Update Issue Status in Projects"
 on:
   issues:
-    types: [labeled, milestoned, reopened, closed]
+    types: [labeled, milestoned, reopened, closed, assigned, unassigned]
   issue_comment:
     types: [created, edited]
 
@@ -46,6 +46,58 @@ jobs:
         ISSUE_NUMBER="${{ github.event.issue.number }}"
         gh issue edit "$ISSUE_NUMBER" --milestone "Planning"
 
+    - name: Add Issue to Harvester Sprint Project
+      id: add-project
+      uses: actions/add-to-project@v1.0.2
+      if: ${{ steps.is-harvester-member.outcome == 'success' }}
+      with:
+        project-url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    - uses: rancher/gh-issue-mgr/project-fields@main
+      id: get-status-field
+      continue-on-error: true
+      if: steps.is-harvester-member.outcome == 'success'
+      with:
+        operation: get
+        fields: Status
+        github_token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        project_url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
+        resource_url: https://github.com/harvester/harvester/issues/${{ github.event.issue.number }}
+
+    -  name: Update Project Item
+       if: ${{
+          steps.is-harvester-member.outcome == 'success' &&
+          steps.get-status-field.outcome == 'success' &&
+          steps.add-project.outputs.itemId != ''
+          }}
+       run: |
+         ASSIGNEES='${{ toJSON(github.event.issue.assignees) }}'
+
+         if [[ ( "${{ steps.get-status-field.outputs.values }}" == "New Issues" || "${{ steps.get-status-field.outputs.values }}" == "" ) &&
+               $ASSIGNEES != "[]" ]]; then
+           echo "Updating to Backlog since it's assigned and status is New Issues or empty"
+           echo "field-values=Backlog" >> $GITHUB_ENV
+
+         elif [[ $ASSIGNEES == "[]" ]]; then
+           echo "Updating to New Issues since it's unassigned"
+           echo "field-values=New Issues" >> $GITHUB_ENV
+         fi
+
+    - name: Apply Project Update
+      if: ${{
+        steps.is-harvester-member.outcome == 'success' &&
+        steps.get-status-field.outcome == 'success' &&
+        env.field-values != ''
+        }}
+      uses: rancher/gh-issue-mgr/update-project-fields@main
+      with:
+        project-url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        item-id: ${{ steps.add-project.outputs.itemId }}
+        field-keys: Status
+        field-values: ${{ env.field-values }}
+
   community:
     # Skip PR
     if: ${{ !github.event.issue.pull_request }}
@@ -77,7 +129,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
     - uses: rancher/gh-issue-mgr/project-fields@main
-      id: fields
+      id: get-status-field
       continue-on-error: true
       if: steps.is-harvester-member.outcome == 'success'
       with:
@@ -87,23 +139,23 @@ jobs:
         project_url: ${{ env.COMMUNITY_SPRINT_PROJECT_URL }}
         resource_url: https://github.com/harvester/harvester/issues/${{ github.event.issue.number }}
 
-    - run: echo ${{ steps.fields.outputs.values }}
+    - run: echo ${{ steps.get-status-field.outputs.values }}
 
     - name: Add Issue to Community Sprint Project
       id: add-project
       uses: actions/add-to-project@v1.0.2
       if: ${{
         steps.is-harvester-member.outcome == 'success' &&
-        steps.fields.outcome == 'success'
+        steps.get-status-field.outcome == 'success'
         }}
       with:
         project-url: ${{ env.COMMUNITY_SPRINT_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
     - name: Update Project Item
-      if: ${{ 
+      if: ${{
         steps.is-harvester-member.outcome == 'success' &&
-        steps.fields.outcome == 'success' &&
+        steps.get-status-field.outcome == 'success' &&
         steps.add-project.outputs.itemId != '' 
         }}
       run: |
@@ -124,7 +176,7 @@ jobs:
         # If the issue is closed, update to Closed
         elif [[ "${{ github.event_name }}" == "issues" && 
                 "${{ github.event.action }}" == "closed" &&
-                "${{ steps.fields.outputs.values }}" != "Resolved" ]]; then
+                "${{ steps.get-status-field.outputs.values }}" != "Resolved" ]]; then
 
           echo "Updating to Closed since it's closed"
           echo "field-values=Closed" >> $GITHUB_ENV
@@ -132,7 +184,7 @@ jobs:
         # If the issue is reopened with status Closed, update to In Progress
         elif [[ "${{ github.event_name }}" == "issues" && 
                 "${{ github.event.action }}" == "reopened" && 
-                "${{ steps.fields.outputs.values }}" == "Closed" ]]; then
+                "${{ steps.get-status-field.outputs.values }}" == "Closed" ]]; then
 
           echo "Updating to In Progress"
           echo "field-values=In Progress,[0]" >> $GITHUB_ENV
@@ -141,7 +193,7 @@ jobs:
         elif [[ $team_count -eq 0 && 
                 "${{ github.event_name }}" == "issue_comment" && 
                 ( "${{ github.event.action }}" == "created" || "${{ github.event.action }}" == "edited" ) && 
-                ( "${{ steps.fields.outputs.values }}" != "Resolved" && "${{ steps.fields.outputs.values }}" != "Closed" ) ]]; then
+                ( "${{ steps.get-status-field.outputs.values }}" != "Resolved" && "${{ steps.get-status-field.outputs.values }}" != "Closed" ) ]]; then
 
           echo "Updating to In Progress"
           echo "field-values=In Progress,[0]" >> $GITHUB_ENV
@@ -167,7 +219,7 @@ jobs:
     - name: Apply Project Update
       if: ${{
         steps.is-harvester-member.outcome == 'success' &&
-        steps.fields.outcome == 'success' &&
+        steps.get-status-field.outcome == 'success' &&
         env.field-values != ''
         }}
       uses: rancher/gh-issue-mgr/update-project-fields@main
@@ -181,7 +233,7 @@ jobs:
     - name: Add Resolved Issue to Harvester Sprint Project
       if: ${{ 
         steps.is-harvester-member.outcome == 'success' &&
-        steps.fields.outcome == 'success' &&
+        steps.get-status-field.outcome == 'success' &&
         env.field-values != '' &&
         startsWith(env.field-values, 'Resolved')
         }}
@@ -193,7 +245,7 @@ jobs:
     - name: Set Milestone to Resolved Issue
       if: ${{
         steps.is-harvester-member.outcome == 'success' &&
-        steps.fields.outcome == 'success' &&
+        steps.get-status-field.outcome == 'success' &&
         env.field-values != '' &&
         startsWith(env.field-values, 'Resolved') &&
         github.event.issue.milestone == null
