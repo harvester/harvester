@@ -39,6 +39,7 @@ type VMIValidator interface {
 
 	IsExportVolume(vmi *v1beta1.VirtualMachineImage) bool
 
+	SCConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
 	SCParametersConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
 	SourceTypeConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
 	PVCConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
@@ -359,6 +360,55 @@ func (v *vmiValidator) VMBackupOccupation(vmi *v1beta1.VirtualMachineImage) erro
 			vmBackupNamespaceAndNames = append(vmBackupNamespaceAndNames, fmt.Sprintf("%s/%s", vmBackup.Namespace, vmBackup.Name))
 		}
 		return werror.NewInvalidError(fmt.Sprintf("Cannot delete image %s/%s: being used by VMBackups %s", vmi.Namespace, vmi.Spec.DisplayName, strings.Join(vmBackupNamespaceAndNames, ",")), "")
+	}
+	return nil
+}
+
+func scConsistencyCreation(newVMI *v1beta1.VirtualMachineImage) error {
+	scInAnnotations := ""
+	if v, find := newVMI.Annotations[util.AnnotationStorageClassName]; find {
+		scInAnnotations = v
+	}
+	if scInAnnotations != "" && newVMI.Spec.TargetStorageClassName != "" && scInAnnotations != newVMI.Spec.TargetStorageClassName {
+		return werror.NewInvalidError("storageClassName should keep the consistency", "spec.targetStorageClassName")
+	}
+
+	return nil
+}
+
+func (v *vmiValidator) SCConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error {
+	if oldVMI == nil {
+		return scConsistencyCreation(newVMI)
+	}
+	oldSCInAnnotations := ""
+	if v, find := oldVMI.Annotations[util.AnnotationStorageClassName]; find {
+		oldSCInAnnotations = v
+	}
+
+	// we should leave the capability to add the StorageClassName if previously it was empty
+	if oldSCInAnnotations == "" && oldVMI.Spec.TargetStorageClassName == "" {
+		return nil
+	}
+
+	if oldSCInAnnotations != "" {
+		if v, find := newVMI.Annotations[util.AnnotationStorageClassName]; find {
+			if oldSCInAnnotations != v {
+				return werror.NewInvalidError("storageClassName cannot be modified", "metadata.annotations[harvesterhci.io/storageClassName]")
+			}
+		} else {
+			return werror.NewInvalidError("storageClassName cannot be modified", "metadata.annotations[harvesterhci.io/storageClassName]")
+		}
+	}
+
+	if oldVMI.Spec.TargetStorageClassName != "" {
+		if oldVMI.Spec.TargetStorageClassName != newVMI.Spec.TargetStorageClassName {
+			return werror.NewInvalidError("storageClassName cannot be modified", "spec.targetStorageClassName")
+		}
+	}
+
+	// Only check consistency if these two fields are not empty
+	if oldSCInAnnotations != "" && newVMI.Spec.TargetStorageClassName != "" && oldSCInAnnotations != newVMI.Spec.TargetStorageClassName {
+		return werror.NewInvalidError("storageClassName cannot be modified", "spec.targetStorageClassName")
 	}
 	return nil
 }
