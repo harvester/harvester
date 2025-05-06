@@ -8,7 +8,11 @@ import (
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	lhutil "github.com/longhorn/longhorn-manager/util"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
+	"github.com/sirupsen/logrus"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -106,4 +110,34 @@ func GetImageDefaultStorageClassParameters() map[string]string {
 
 func GetVMIBackend(vmi *harvesterv1.VirtualMachineImage) harvesterv1.VMIBackend {
 	return vmi.Spec.Backend
+}
+
+func GetDefaultSC(scCache ctlstoragev1.StorageClassCache) *storagev1.StorageClass {
+	scList, err := GetSCWithSelector(scCache, labels.Everything())
+	if err != nil {
+		logrus.Warnf("failed to list all storage classes: %v", err)
+		return nil
+	}
+
+	// find the default storage class
+	for _, storageClass := range scList {
+		if storageClass.Annotations[AnnotationIsDefaultStorageClassName] == "true" {
+			return storageClass
+		}
+	}
+
+	return nil
+}
+
+func GetSCWithSelector(scCache ctlstoragev1.StorageClassCache, selector labels.Selector) ([]*storagev1.StorageClass, error) {
+	scList, err := scCache.List(selector)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(scList) == 0 {
+		return nil, fmt.Errorf("no storage class found with selector %v", selector)
+	}
+
+	return scList, nil
 }
