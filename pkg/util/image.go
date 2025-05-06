@@ -8,6 +8,7 @@ import (
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	lhutil "github.com/longhorn/longhorn-manager/util"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -106,4 +107,15 @@ func GetImageDefaultStorageClassParameters() map[string]string {
 
 func GetVMIBackend(vmi *harvesterv1.VirtualMachineImage) harvesterv1.VMIBackend {
 	return vmi.Spec.Backend
+}
+
+func GetDefaultSC(scList []*storagev1.StorageClass) *storagev1.StorageClass {
+	// find the default storage class
+	for _, storageClass := range scList {
+		if storageClass.Annotations[AnnotationIsDefaultStorageClassName] == "true" {
+			return storageClass
+		}
+	}
+
+	return nil
 }
