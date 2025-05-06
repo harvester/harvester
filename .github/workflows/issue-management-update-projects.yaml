@@ -46,14 +46,10 @@ jobs:
         ISSUE_NUMBER="${{ github.event.issue.number }}"
         gh issue edit "$ISSUE_NUMBER" --milestone "Planning"
 
-    - name: Add Issue to Harvester Sprint Project
-      id: add-project
-      uses: actions/add-to-project@v1.0.2
-      if: ${{ steps.is-harvester-member.outcome == 'success' }}
-      with:
-        project-url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
-        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-
+    # we should check the issue is in sprint first
+    # if not, we should skip it 
+    # because harvester member might comment in community issue
+    # we should avoid this case
     - uses: rancher/gh-issue-mgr/project-fields@main
       id: get-status-field
       continue-on-error: true
@@ -64,6 +60,17 @@ jobs:
         github_token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
         project_url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
         resource_url: https://github.com/harvester/harvester/issues/${{ github.event.issue.number }}
+
+    - name: Add Issue to Harvester Sprint Project
+      id: add-project
+      uses: actions/add-to-project@v1.0.2
+      if: ${{ 
+        steps.is-harvester-member.outcome == 'success' &&
+        steps.get-status-field.outcome == 'success'
+        }}
+      with:
+        project-url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
     -  name: Update Project Item
        if: ${{
