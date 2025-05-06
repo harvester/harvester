@@ -51,6 +51,11 @@ const (
 	// export USE_EXISTING_CLUSTER=true
 	// export SKIP_HARVESTER_INSTALLATION=true
 	// export DONT_USE_EMULATION=true
+
+	// DefaultStorageClass in integration test is "standard", comes from `rancher.io/local-path`
+	DefaultStorageClassName = "standard"
+
+	AnnoVMImageStorageClass = "harvesterhci.io/storageClassName"
 )
 
 // IsTrue validates that the specified environment variable is true.
