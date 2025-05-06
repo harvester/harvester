@@ -20,6 +20,10 @@ func (biv *Validator) Create(request *types.Request, vmi *harvesterv1.VirtualMac
 		return err
 	}
 
+	if err := biv.vmiv.SCConsistency(nil, vmi); err != nil {
+		return err
+	}
+
 	if err := biv.vmiv.CheckURL(vmi); err != nil {
 		return err
 	}
@@ -37,6 +41,10 @@ func (biv *Validator) Create(request *types.Request, vmi *harvesterv1.VirtualMac
 
 func (biv *Validator) Update(oldVMI, newVMI *harvesterv1.VirtualMachineImage) error {
 	if err := biv.vmiv.SCParametersConsistency(oldVMI, newVMI); err != nil {
+		return err
+	}
+
+	if err := biv.vmiv.SCConsistency(oldVMI, newVMI); err != nil {
 		return err
 	}
 

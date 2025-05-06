@@ -16,5 +16,20 @@ func GetMutator(vmim common.VMIMutator) backend.Mutator {
 }
 
 func (bim *Mutator) Create(vmi *harvesterv1.VirtualMachineImage) (types.PatchOps, error) {
-	return bim.vmim.PatchImageSCParams(vmi)
+	patchOPs, err := bim.vmim.PatchImageSCParams(vmi)
+	if err != nil {
+		return patchOPs, err
+	}
+	tmpPatchOps, err := bim.vmim.EnsureTargetSC(vmi)
+	if err != nil {
+		return patchOPs, err
+	}
+	if tmpPatchOps != nil {
+		patchOPs = append(patchOPs, tmpPatchOps...)
+	}
+	return patchOPs, nil
+}
+
+func (bim *Mutator) Update(_, newVMI *harvesterv1.VirtualMachineImage) (types.PatchOps, error) {
+	return bim.vmim.EnsureTargetSC(newVMI)
 }
