@@ -460,15 +460,13 @@ func RunAsync(wg *sync.WaitGroup, f func()) {
 }
 
 type filteredLoggingHandler struct {
-	filteredPaths  map[string]struct{}
 	handler        http.Handler
 	loggingHandler http.Handler
 }
 
-func FilteredLoggingHandler(filteredPaths map[string]struct{}, writer io.Writer, router http.Handler) http.Handler {
+func FilteredLoggingHandler(writer io.Writer, router http.Handler) http.Handler {
 
 	return filteredLoggingHandler{
-		filteredPaths:  filteredPaths,
 		handler:        router,
 		loggingHandler: handlers.CombinedLoggingHandler(writer, router),
 	}
@@ -477,7 +475,7 @@ func FilteredLoggingHandler(filteredPaths map[string]struct{}, writer io.Writer,
 func (h filteredLoggingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case "GET":
-		if _, exists := h.filteredPaths[req.URL.Path]; exists {
+		if logrus.GetLevel() < logrus.DebugLevel {
 			h.handler.ServeHTTP(w, req)
 			return
 		}

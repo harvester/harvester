@@ -20,15 +20,17 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	ShareManagerService_FilesystemTrim_FullMethodName = "/ShareManagerService/FilesystemTrim"
-	ShareManagerService_Unmount_FullMethodName        = "/ShareManagerService/Unmount"
-	ShareManagerService_Mount_FullMethodName          = "/ShareManagerService/Mount"
+	ShareManagerService_FilesystemResize_FullMethodName = "/ShareManagerService/FilesystemResize"
+	ShareManagerService_FilesystemTrim_FullMethodName   = "/ShareManagerService/FilesystemTrim"
+	ShareManagerService_Unmount_FullMethodName          = "/ShareManagerService/Unmount"
+	ShareManagerService_Mount_FullMethodName            = "/ShareManagerService/Mount"
 )
 
 // ShareManagerServiceClient is the client API for ShareManagerService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ShareManagerServiceClient interface {
+	FilesystemResize(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	FilesystemTrim(ctx context.Context, in *FilesystemTrimRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Unmount(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Mount(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -40,6 +42,15 @@ type shareManagerServiceClient struct {
 
 func NewShareManagerServiceClient(cc grpc.ClientConnInterface) ShareManagerServiceClient {
 	return &shareManagerServiceClient{cc}
+}
+
+func (c *shareManagerServiceClient) FilesystemResize(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ShareManagerService_FilesystemResize_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *shareManagerServiceClient) FilesystemTrim(ctx context.Context, in *FilesystemTrimRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
@@ -73,6 +84,7 @@ func (c *shareManagerServiceClient) Mount(ctx context.Context, in *emptypb.Empty
 // All implementations must embed UnimplementedShareManagerServiceServer
 // for forward compatibility
 type ShareManagerServiceServer interface {
+	FilesystemResize(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	FilesystemTrim(context.Context, *FilesystemTrimRequest) (*emptypb.Empty, error)
 	Unmount(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	Mount(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
@@ -83,6 +95,9 @@ type ShareManagerServiceServer interface {
 type UnimplementedShareManagerServiceServer struct {
 }
 
+func (UnimplementedShareManagerServiceServer) FilesystemResize(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FilesystemResize not implemented")
+}
 func (UnimplementedShareManagerServiceServer) FilesystemTrim(context.Context, *FilesystemTrimRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FilesystemTrim not implemented")
 }
@@ -103,6 +118,24 @@ type UnsafeShareManagerServiceServer interface {
 
 func RegisterShareManagerServiceServer(s grpc.ServiceRegistrar, srv ShareManagerServiceServer) {
 	s.RegisterService(&ShareManagerService_ServiceDesc, srv)
+}
+
+func _ShareManagerService_FilesystemResize_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ShareManagerServiceServer).FilesystemResize(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ShareManagerService_FilesystemResize_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ShareManagerServiceServer).FilesystemResize(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _ShareManagerService_FilesystemTrim_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -166,6 +199,10 @@ var ShareManagerService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "ShareManagerService",
 	HandlerType: (*ShareManagerServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "FilesystemResize",
+			Handler:    _ShareManagerService_FilesystemResize_Handler,
+		},
 		{
 			MethodName: "FilesystemTrim",
 			Handler:    _ShareManagerService_FilesystemTrim_Handler,

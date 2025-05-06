@@ -346,10 +346,10 @@ func (v *upgradeValidator) checkDiskSpace(node *corev1.Node, minFreeDiskSpace ui
 	}
 
 	if *summary.Node.Fs.AvailableBytes < minFreeDiskSpace {
-		min := units.BytesSize(float64(minFreeDiskSpace))
-		avail := units.BytesSize(float64(*summary.Node.Fs.AvailableBytes))
+		minVal := units.BytesSize(float64(minFreeDiskSpace))
+		availVal := units.BytesSize(float64(*summary.Node.Fs.AvailableBytes))
 		return werror.NewBadRequest(fmt.Sprintf("Node %q has insufficient free system partition space %s (%s). The upgrade requires at least %s of free system partition space on each node.",
-			node.Name, avail, freeSystemPartitionMsg, min))
+			node.Name, availVal, freeSystemPartitionMsg, minVal))
 	}
 	return nil
 }
