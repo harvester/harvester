@@ -23,6 +23,7 @@ type Validator interface {
 
 type Mutator interface {
 	Create(vmi *harvesterv1.VirtualMachineImage) (types.PatchOps, error)
+	Update(oldVMI, newVMI *harvesterv1.VirtualMachineImage) (types.PatchOps, error)
 }
 
 type Downloader interface {
