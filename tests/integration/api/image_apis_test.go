@@ -9,6 +9,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/tests/framework/env"
 	"github.com/harvester/harvester/tests/framework/fuzz"
 	"github.com/harvester/harvester/tests/framework/helper"
 )
@@ -110,6 +111,16 @@ var _ = Describe("verify image APIs", func() {
 				image.Spec.StorageClassParameters = util.GetImageDefaultStorageClassParameters()
 				respCode, respBody, err := helper.GetObject(getImageURL, &retImage)
 				MustRespCodeIs(http.StatusOK, "get image", err, respCode, respBody)
+				// default SC is set by mutator, check it then remove it for annotation checking
+				v, find := retImage.Annotations[env.AnnoVMImageStorageClass]
+				Expect(find).To(BeTrue())
+				Expect(v).To(Equal(env.DefaultStorageClassName))
+				delete(retImage.Annotations, env.AnnoVMImageStorageClass)
+				// spec.targetStorageClassName is also set by mutator, check the result and
+				// fill into image for checking
+				if retImage.Spec.TargetStorageClassName == env.DefaultStorageClassName {
+					image.Spec.TargetStorageClassName = env.DefaultStorageClassName
+				}
 				Expect(retImage.Labels).To(BeEquivalentTo(image.Labels))
 				Expect(retImage.Annotations).To(BeEquivalentTo(image.Annotations))
 				Expect(retImage.Spec).To(BeEquivalentTo(image.Spec))
@@ -154,6 +165,16 @@ var _ = Describe("verify image APIs", func() {
 				image.Spec.StorageClassParameters = util.GetImageDefaultStorageClassParameters()
 				respCode, respBody, err := helper.GetObject(getImageURL, &retImage)
 				MustRespCodeIs(http.StatusOK, "get image", err, respCode, respBody)
+				// default SC is set by mutator, check it then remove it for annotation checking
+				v, find := retImage.Annotations[env.AnnoVMImageStorageClass]
+				Expect(find).To(BeTrue())
+				Expect(v).To(Equal(env.DefaultStorageClassName))
+				delete(retImage.Annotations, env.AnnoVMImageStorageClass)
+				// spec.targetStorageClassName is also set by mutator, check the result and
+				// fill into image for checking
+				if retImage.Spec.TargetStorageClassName == env.DefaultStorageClassName {
+					image.Spec.TargetStorageClassName = env.DefaultStorageClassName
+				}
 				Expect(retImage.Labels).To(BeEquivalentTo(image.Labels))
 				Expect(retImage.Annotations).To(BeEquivalentTo(image.Annotations))
 				Expect(retImage.Spec).To(BeEquivalentTo(image.Spec))
@@ -235,6 +256,16 @@ var _ = Describe("verify image APIs", func() {
 			By("then the image is updated")
 			respCode, respBody, err = helper.GetObject(imageURL, &retImage)
 			MustRespCodeIs(http.StatusOK, "get image", err, respCode, respBody)
+			// default SC is set by mutator, check it then remove it for annotation checking
+			v, find := retImage.Annotations[env.AnnoVMImageStorageClass]
+			Expect(find).To(BeTrue())
+			Expect(v).To(Equal(env.DefaultStorageClassName))
+			delete(retImage.Annotations, env.AnnoVMImageStorageClass)
+			// spec.targetStorageClassName is also set by mutator, check the result and
+			// fill into image for checking
+			if retImage.Spec.TargetStorageClassName == env.DefaultStorageClassName {
+				toUpdateImage.Spec.TargetStorageClassName = env.DefaultStorageClassName
+			}
 			Expect(retImage.Labels).To(BeEquivalentTo(toUpdateImage.Labels))
 			Expect(retImage.Annotations).To(BeEquivalentTo(toUpdateImage.Annotations))
 			Expect(retImage.Spec).To(BeEquivalentTo(toUpdateImage.Spec))
