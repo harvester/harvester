@@ -814,6 +814,13 @@ func ValidateDataLocalityAndReplicaCount(mode longhorn.DataLocality, count int) 
 	return nil
 }
 
+func ValidateDataLocalityAndAccessMode(locality longhorn.DataLocality, migratable bool, mode longhorn.AccessMode) error {
+	if mode == longhorn.AccessModeReadWriteMany && !migratable && locality == longhorn.DataLocalityStrictLocal {
+		return fmt.Errorf("access mode %v (migratable: %v) is incompatible with data locality %v mode", mode, migratable, longhorn.DataLocalityStrictLocal)
+	}
+	return nil
+}
+
 func ValidateReplicaAutoBalance(option longhorn.ReplicaAutoBalance) error {
 	switch option {
 	case longhorn.ReplicaAutoBalanceIgnored,

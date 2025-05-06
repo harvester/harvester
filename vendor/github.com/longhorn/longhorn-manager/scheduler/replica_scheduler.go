@@ -265,7 +265,7 @@ func (rcs *ReplicaScheduler) getDiskCandidates(nodeInfo map[string]*longhorn.Nod
 			}
 			multiError.Append(errors)
 		}
-		diskCandidates = filterDisksWithMatchingReplicas(diskCandidates, replicas, diskSoftAntiAffinity)
+		diskCandidates = filterDisksWithMatchingReplicas(diskCandidates, replicas, diskSoftAntiAffinity, ignoreFailedReplicas)
 		return diskCandidates, multiError
 	}
 
@@ -467,9 +467,17 @@ func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disk
 // filterDiskWithMatchingReplicas returns disk that have no matching replicas when diskSoftAntiAffinity is false.
 // Otherwise, it returns the input disks map.
 func filterDisksWithMatchingReplicas(disks map[string]*Disk, replicas map[string]*longhorn.Replica,
-	diskSoftAntiAffinity bool) map[string]*Disk {
+	diskSoftAntiAffinity, ignoreFailedReplicas bool) map[string]*Disk {
 	replicasCountPerDisk := map[string]int{}
 	for _, r := range replicas {
+		if r.Spec.FailedAt != "" {
+			if ignoreFailedReplicas {
+				continue
+			}
+			if !IsPotentiallyReusableReplica(r) {
+				continue // This replica can never be used again, so it does not count in scheduling decisions.
+			}
+		}
 		replicasCountPerDisk[r.Spec.DiskID]++
 	}
 

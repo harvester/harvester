@@ -31,8 +31,6 @@ const (
 	SPDKService_ReplicaWatch_FullMethodName                         = "/spdkrpc.SPDKService/ReplicaWatch"
 	SPDKService_ReplicaRebuildingSrcStart_FullMethodName            = "/spdkrpc.SPDKService/ReplicaRebuildingSrcStart"
 	SPDKService_ReplicaRebuildingSrcFinish_FullMethodName           = "/spdkrpc.SPDKService/ReplicaRebuildingSrcFinish"
-	SPDKService_ReplicaRebuildingSrcAttach_FullMethodName           = "/spdkrpc.SPDKService/ReplicaRebuildingSrcAttach"
-	SPDKService_ReplicaRebuildingSrcDetach_FullMethodName           = "/spdkrpc.SPDKService/ReplicaRebuildingSrcDetach"
 	SPDKService_ReplicaRebuildingSrcShallowCopyStart_FullMethodName = "/spdkrpc.SPDKService/ReplicaRebuildingSrcShallowCopyStart"
 	SPDKService_ReplicaRebuildingSrcShallowCopyCheck_FullMethodName = "/spdkrpc.SPDKService/ReplicaRebuildingSrcShallowCopyCheck"
 	SPDKService_ReplicaRebuildingDstStart_FullMethodName            = "/spdkrpc.SPDKService/ReplicaRebuildingDstStart"
@@ -40,7 +38,6 @@ const (
 	SPDKService_ReplicaRebuildingDstShallowCopyStart_FullMethodName = "/spdkrpc.SPDKService/ReplicaRebuildingDstShallowCopyStart"
 	SPDKService_ReplicaRebuildingDstShallowCopyCheck_FullMethodName = "/spdkrpc.SPDKService/ReplicaRebuildingDstShallowCopyCheck"
 	SPDKService_ReplicaRebuildingDstSnapshotCreate_FullMethodName   = "/spdkrpc.SPDKService/ReplicaRebuildingDstSnapshotCreate"
-	SPDKService_ReplicaRebuildingDstSnapshotRevert_FullMethodName   = "/spdkrpc.SPDKService/ReplicaRebuildingDstSnapshotRevert"
 	SPDKService_ReplicaBackupCreate_FullMethodName                  = "/spdkrpc.SPDKService/ReplicaBackupCreate"
 	SPDKService_ReplicaBackupStatus_FullMethodName                  = "/spdkrpc.SPDKService/ReplicaBackupStatus"
 	SPDKService_ReplicaBackupRestore_FullMethodName                 = "/spdkrpc.SPDKService/ReplicaBackupRestore"
@@ -66,6 +63,13 @@ const (
 	SPDKService_EngineBackupRestore_FullMethodName                  = "/spdkrpc.SPDKService/EngineBackupRestore"
 	SPDKService_EngineBackupRestoreFinish_FullMethodName            = "/spdkrpc.SPDKService/EngineBackupRestoreFinish"
 	SPDKService_EngineRestoreStatus_FullMethodName                  = "/spdkrpc.SPDKService/EngineRestoreStatus"
+	SPDKService_BackingImageCreate_FullMethodName                   = "/spdkrpc.SPDKService/BackingImageCreate"
+	SPDKService_BackingImageDelete_FullMethodName                   = "/spdkrpc.SPDKService/BackingImageDelete"
+	SPDKService_BackingImageGet_FullMethodName                      = "/spdkrpc.SPDKService/BackingImageGet"
+	SPDKService_BackingImageList_FullMethodName                     = "/spdkrpc.SPDKService/BackingImageList"
+	SPDKService_BackingImageWatch_FullMethodName                    = "/spdkrpc.SPDKService/BackingImageWatch"
+	SPDKService_BackingImageExpose_FullMethodName                   = "/spdkrpc.SPDKService/BackingImageExpose"
+	SPDKService_BackingImageUnexpose_FullMethodName                 = "/spdkrpc.SPDKService/BackingImageUnexpose"
 	SPDKService_DiskCreate_FullMethodName                           = "/spdkrpc.SPDKService/DiskCreate"
 	SPDKService_DiskDelete_FullMethodName                           = "/spdkrpc.SPDKService/DiskDelete"
 	SPDKService_DiskGet_FullMethodName                              = "/spdkrpc.SPDKService/DiskGet"
@@ -91,16 +95,13 @@ type SPDKServiceClient interface {
 	ReplicaWatch(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (SPDKService_ReplicaWatchClient, error)
 	ReplicaRebuildingSrcStart(ctx context.Context, in *ReplicaRebuildingSrcStartRequest, opts ...grpc.CallOption) (*ReplicaRebuildingSrcStartResponse, error)
 	ReplicaRebuildingSrcFinish(ctx context.Context, in *ReplicaRebuildingSrcFinishRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	ReplicaRebuildingSrcAttach(ctx context.Context, in *ReplicaRebuildingSrcAttachRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	ReplicaRebuildingSrcDetach(ctx context.Context, in *ReplicaRebuildingSrcDetachRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	ReplicaRebuildingSrcShallowCopyStart(ctx context.Context, in *ReplicaRebuildingSrcShallowCopyStartRequest, opts ...grpc.CallOption) (*ReplicaRebuildingSrcShallowCopyStartResponse, error)
+	ReplicaRebuildingSrcShallowCopyStart(ctx context.Context, in *ReplicaRebuildingSrcShallowCopyStartRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ReplicaRebuildingSrcShallowCopyCheck(ctx context.Context, in *ReplicaRebuildingSrcShallowCopyCheckRequest, opts ...grpc.CallOption) (*ReplicaRebuildingSrcShallowCopyCheckResponse, error)
 	ReplicaRebuildingDstStart(ctx context.Context, in *ReplicaRebuildingDstStartRequest, opts ...grpc.CallOption) (*ReplicaRebuildingDstStartResponse, error)
 	ReplicaRebuildingDstFinish(ctx context.Context, in *ReplicaRebuildingDstFinishRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ReplicaRebuildingDstShallowCopyStart(ctx context.Context, in *ReplicaRebuildingDstShallowCopyStartRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ReplicaRebuildingDstShallowCopyCheck(ctx context.Context, in *ReplicaRebuildingDstShallowCopyCheckRequest, opts ...grpc.CallOption) (*ReplicaRebuildingDstShallowCopyCheckResponse, error)
 	ReplicaRebuildingDstSnapshotCreate(ctx context.Context, in *SnapshotRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	ReplicaRebuildingDstSnapshotRevert(ctx context.Context, in *SnapshotRequest, opts ...grpc.CallOption) (*ReplicaRebuildingDstSnapshotRevertResponse, error)
 	ReplicaBackupCreate(ctx context.Context, in *BackupCreateRequest, opts ...grpc.CallOption) (*BackupCreateResponse, error)
 	ReplicaBackupStatus(ctx context.Context, in *BackupStatusRequest, opts ...grpc.CallOption) (*BackupStatusResponse, error)
 	ReplicaBackupRestore(ctx context.Context, in *ReplicaBackupRestoreRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -126,6 +127,13 @@ type SPDKServiceClient interface {
 	EngineBackupRestore(ctx context.Context, in *EngineBackupRestoreRequest, opts ...grpc.CallOption) (*EngineBackupRestoreResponse, error)
 	EngineBackupRestoreFinish(ctx context.Context, in *EngineBackupRestoreFinishRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	EngineRestoreStatus(ctx context.Context, in *RestoreStatusRequest, opts ...grpc.CallOption) (*RestoreStatusResponse, error)
+	BackingImageCreate(ctx context.Context, in *BackingImageCreateRequest, opts ...grpc.CallOption) (*BackingImage, error)
+	BackingImageDelete(ctx context.Context, in *BackingImageDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	BackingImageGet(ctx context.Context, in *BackingImageGetRequest, opts ...grpc.CallOption) (*BackingImage, error)
+	BackingImageList(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*BackingImageListResponse, error)
+	BackingImageWatch(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (SPDKService_BackingImageWatchClient, error)
+	BackingImageExpose(ctx context.Context, in *BackingImageGetRequest, opts ...grpc.CallOption) (*BackingImageExposeResponse, error)
+	BackingImageUnexpose(ctx context.Context, in *BackingImageGetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DiskCreate(ctx context.Context, in *DiskCreateRequest, opts ...grpc.CallOption) (*Disk, error)
 	DiskDelete(ctx context.Context, in *DiskDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DiskGet(ctx context.Context, in *DiskGetRequest, opts ...grpc.CallOption) (*Disk, error)
@@ -266,26 +274,8 @@ func (c *sPDKServiceClient) ReplicaRebuildingSrcFinish(ctx context.Context, in *
 	return out, nil
 }
 
-func (c *sPDKServiceClient) ReplicaRebuildingSrcAttach(ctx context.Context, in *ReplicaRebuildingSrcAttachRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *sPDKServiceClient) ReplicaRebuildingSrcShallowCopyStart(ctx context.Context, in *ReplicaRebuildingSrcShallowCopyStartRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, SPDKService_ReplicaRebuildingSrcAttach_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *sPDKServiceClient) ReplicaRebuildingSrcDetach(ctx context.Context, in *ReplicaRebuildingSrcDetachRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, SPDKService_ReplicaRebuildingSrcDetach_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *sPDKServiceClient) ReplicaRebuildingSrcShallowCopyStart(ctx context.Context, in *ReplicaRebuildingSrcShallowCopyStartRequest, opts ...grpc.CallOption) (*ReplicaRebuildingSrcShallowCopyStartResponse, error) {
-	out := new(ReplicaRebuildingSrcShallowCopyStartResponse)
 	err := c.cc.Invoke(ctx, SPDKService_ReplicaRebuildingSrcShallowCopyStart_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -341,15 +331,6 @@ func (c *sPDKServiceClient) ReplicaRebuildingDstShallowCopyCheck(ctx context.Con
 func (c *sPDKServiceClient) ReplicaRebuildingDstSnapshotCreate(ctx context.Context, in *SnapshotRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, SPDKService_ReplicaRebuildingDstSnapshotCreate_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *sPDKServiceClient) ReplicaRebuildingDstSnapshotRevert(ctx context.Context, in *SnapshotRequest, opts ...grpc.CallOption) (*ReplicaRebuildingDstSnapshotRevertResponse, error) {
-	out := new(ReplicaRebuildingDstSnapshotRevertResponse)
-	err := c.cc.Invoke(ctx, SPDKService_ReplicaRebuildingDstSnapshotRevert_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -604,6 +585,92 @@ func (c *sPDKServiceClient) EngineRestoreStatus(ctx context.Context, in *Restore
 	return out, nil
 }
 
+func (c *sPDKServiceClient) BackingImageCreate(ctx context.Context, in *BackingImageCreateRequest, opts ...grpc.CallOption) (*BackingImage, error) {
+	out := new(BackingImage)
+	err := c.cc.Invoke(ctx, SPDKService_BackingImageCreate_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sPDKServiceClient) BackingImageDelete(ctx context.Context, in *BackingImageDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, SPDKService_BackingImageDelete_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sPDKServiceClient) BackingImageGet(ctx context.Context, in *BackingImageGetRequest, opts ...grpc.CallOption) (*BackingImage, error) {
+	out := new(BackingImage)
+	err := c.cc.Invoke(ctx, SPDKService_BackingImageGet_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sPDKServiceClient) BackingImageList(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*BackingImageListResponse, error) {
+	out := new(BackingImageListResponse)
+	err := c.cc.Invoke(ctx, SPDKService_BackingImageList_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sPDKServiceClient) BackingImageWatch(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (SPDKService_BackingImageWatchClient, error) {
+	stream, err := c.cc.NewStream(ctx, &SPDKService_ServiceDesc.Streams[2], SPDKService_BackingImageWatch_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &sPDKServiceBackingImageWatchClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type SPDKService_BackingImageWatchClient interface {
+	Recv() (*emptypb.Empty, error)
+	grpc.ClientStream
+}
+
+type sPDKServiceBackingImageWatchClient struct {
+	grpc.ClientStream
+}
+
+func (x *sPDKServiceBackingImageWatchClient) Recv() (*emptypb.Empty, error) {
+	m := new(emptypb.Empty)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *sPDKServiceClient) BackingImageExpose(ctx context.Context, in *BackingImageGetRequest, opts ...grpc.CallOption) (*BackingImageExposeResponse, error) {
+	out := new(BackingImageExposeResponse)
+	err := c.cc.Invoke(ctx, SPDKService_BackingImageExpose_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sPDKServiceClient) BackingImageUnexpose(ctx context.Context, in *BackingImageGetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, SPDKService_BackingImageUnexpose_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *sPDKServiceClient) DiskCreate(ctx context.Context, in *DiskCreateRequest, opts ...grpc.CallOption) (*Disk, error) {
 	out := new(Disk)
 	err := c.cc.Invoke(ctx, SPDKService_DiskCreate_FullMethodName, in, out, opts...)
@@ -691,16 +758,13 @@ type SPDKServiceServer interface {
 	ReplicaWatch(*emptypb.Empty, SPDKService_ReplicaWatchServer) error
 	ReplicaRebuildingSrcStart(context.Context, *ReplicaRebuildingSrcStartRequest) (*ReplicaRebuildingSrcStartResponse, error)
 	ReplicaRebuildingSrcFinish(context.Context, *ReplicaRebuildingSrcFinishRequest) (*emptypb.Empty, error)
-	ReplicaRebuildingSrcAttach(context.Context, *ReplicaRebuildingSrcAttachRequest) (*emptypb.Empty, error)
-	ReplicaRebuildingSrcDetach(context.Context, *ReplicaRebuildingSrcDetachRequest) (*emptypb.Empty, error)
-	ReplicaRebuildingSrcShallowCopyStart(context.Context, *ReplicaRebuildingSrcShallowCopyStartRequest) (*ReplicaRebuildingSrcShallowCopyStartResponse, error)
+	ReplicaRebuildingSrcShallowCopyStart(context.Context, *ReplicaRebuildingSrcShallowCopyStartRequest) (*emptypb.Empty, error)
 	ReplicaRebuildingSrcShallowCopyCheck(context.Context, *ReplicaRebuildingSrcShallowCopyCheckRequest) (*ReplicaRebuildingSrcShallowCopyCheckResponse, error)
 	ReplicaRebuildingDstStart(context.Context, *ReplicaRebuildingDstStartRequest) (*ReplicaRebuildingDstStartResponse, error)
 	ReplicaRebuildingDstFinish(context.Context, *ReplicaRebuildingDstFinishRequest) (*emptypb.Empty, error)
 	ReplicaRebuildingDstShallowCopyStart(context.Context, *ReplicaRebuildingDstShallowCopyStartRequest) (*emptypb.Empty, error)
 	ReplicaRebuildingDstShallowCopyCheck(context.Context, *ReplicaRebuildingDstShallowCopyCheckRequest) (*ReplicaRebuildingDstShallowCopyCheckResponse, error)
 	ReplicaRebuildingDstSnapshotCreate(context.Context, *SnapshotRequest) (*emptypb.Empty, error)
-	ReplicaRebuildingDstSnapshotRevert(context.Context, *SnapshotRequest) (*ReplicaRebuildingDstSnapshotRevertResponse, error)
 	ReplicaBackupCreate(context.Context, *BackupCreateRequest) (*BackupCreateResponse, error)
 	ReplicaBackupStatus(context.Context, *BackupStatusRequest) (*BackupStatusResponse, error)
 	ReplicaBackupRestore(context.Context, *ReplicaBackupRestoreRequest) (*emptypb.Empty, error)
@@ -726,6 +790,13 @@ type SPDKServiceServer interface {
 	EngineBackupRestore(context.Context, *EngineBackupRestoreRequest) (*EngineBackupRestoreResponse, error)
 	EngineBackupRestoreFinish(context.Context, *EngineBackupRestoreFinishRequest) (*emptypb.Empty, error)
 	EngineRestoreStatus(context.Context, *RestoreStatusRequest) (*RestoreStatusResponse, error)
+	BackingImageCreate(context.Context, *BackingImageCreateRequest) (*BackingImage, error)
+	BackingImageDelete(context.Context, *BackingImageDeleteRequest) (*emptypb.Empty, error)
+	BackingImageGet(context.Context, *BackingImageGetRequest) (*BackingImage, error)
+	BackingImageList(context.Context, *emptypb.Empty) (*BackingImageListResponse, error)
+	BackingImageWatch(*emptypb.Empty, SPDKService_BackingImageWatchServer) error
+	BackingImageExpose(context.Context, *BackingImageGetRequest) (*BackingImageExposeResponse, error)
+	BackingImageUnexpose(context.Context, *BackingImageGetRequest) (*emptypb.Empty, error)
 	DiskCreate(context.Context, *DiskCreateRequest) (*Disk, error)
 	DiskDelete(context.Context, *DiskDeleteRequest) (*emptypb.Empty, error)
 	DiskGet(context.Context, *DiskGetRequest) (*Disk, error)
@@ -774,13 +845,7 @@ func (UnimplementedSPDKServiceServer) ReplicaRebuildingSrcStart(context.Context,
 func (UnimplementedSPDKServiceServer) ReplicaRebuildingSrcFinish(context.Context, *ReplicaRebuildingSrcFinishRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplicaRebuildingSrcFinish not implemented")
 }
-func (UnimplementedSPDKServiceServer) ReplicaRebuildingSrcAttach(context.Context, *ReplicaRebuildingSrcAttachRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReplicaRebuildingSrcAttach not implemented")
-}
-func (UnimplementedSPDKServiceServer) ReplicaRebuildingSrcDetach(context.Context, *ReplicaRebuildingSrcDetachRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReplicaRebuildingSrcDetach not implemented")
-}
-func (UnimplementedSPDKServiceServer) ReplicaRebuildingSrcShallowCopyStart(context.Context, *ReplicaRebuildingSrcShallowCopyStartRequest) (*ReplicaRebuildingSrcShallowCopyStartResponse, error) {
+func (UnimplementedSPDKServiceServer) ReplicaRebuildingSrcShallowCopyStart(context.Context, *ReplicaRebuildingSrcShallowCopyStartRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplicaRebuildingSrcShallowCopyStart not implemented")
 }
 func (UnimplementedSPDKServiceServer) ReplicaRebuildingSrcShallowCopyCheck(context.Context, *ReplicaRebuildingSrcShallowCopyCheckRequest) (*ReplicaRebuildingSrcShallowCopyCheckResponse, error) {
@@ -800,9 +865,6 @@ func (UnimplementedSPDKServiceServer) ReplicaRebuildingDstShallowCopyCheck(conte
 }
 func (UnimplementedSPDKServiceServer) ReplicaRebuildingDstSnapshotCreate(context.Context, *SnapshotRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplicaRebuildingDstSnapshotCreate not implemented")
-}
-func (UnimplementedSPDKServiceServer) ReplicaRebuildingDstSnapshotRevert(context.Context, *SnapshotRequest) (*ReplicaRebuildingDstSnapshotRevertResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReplicaRebuildingDstSnapshotRevert not implemented")
 }
 func (UnimplementedSPDKServiceServer) ReplicaBackupCreate(context.Context, *BackupCreateRequest) (*BackupCreateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplicaBackupCreate not implemented")
@@ -878,6 +940,27 @@ func (UnimplementedSPDKServiceServer) EngineBackupRestoreFinish(context.Context,
 }
 func (UnimplementedSPDKServiceServer) EngineRestoreStatus(context.Context, *RestoreStatusRequest) (*RestoreStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EngineRestoreStatus not implemented")
+}
+func (UnimplementedSPDKServiceServer) BackingImageCreate(context.Context, *BackingImageCreateRequest) (*BackingImage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BackingImageCreate not implemented")
+}
+func (UnimplementedSPDKServiceServer) BackingImageDelete(context.Context, *BackingImageDeleteRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BackingImageDelete not implemented")
+}
+func (UnimplementedSPDKServiceServer) BackingImageGet(context.Context, *BackingImageGetRequest) (*BackingImage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BackingImageGet not implemented")
+}
+func (UnimplementedSPDKServiceServer) BackingImageList(context.Context, *emptypb.Empty) (*BackingImageListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BackingImageList not implemented")
+}
+func (UnimplementedSPDKServiceServer) BackingImageWatch(*emptypb.Empty, SPDKService_BackingImageWatchServer) error {
+	return status.Errorf(codes.Unimplemented, "method BackingImageWatch not implemented")
+}
+func (UnimplementedSPDKServiceServer) BackingImageExpose(context.Context, *BackingImageGetRequest) (*BackingImageExposeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BackingImageExpose not implemented")
+}
+func (UnimplementedSPDKServiceServer) BackingImageUnexpose(context.Context, *BackingImageGetRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BackingImageUnexpose not implemented")
 }
 func (UnimplementedSPDKServiceServer) DiskCreate(context.Context, *DiskCreateRequest) (*Disk, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DiskCreate not implemented")
@@ -1117,42 +1200,6 @@ func _SPDKService_ReplicaRebuildingSrcFinish_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SPDKService_ReplicaRebuildingSrcAttach_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReplicaRebuildingSrcAttachRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SPDKServiceServer).ReplicaRebuildingSrcAttach(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SPDKService_ReplicaRebuildingSrcAttach_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SPDKServiceServer).ReplicaRebuildingSrcAttach(ctx, req.(*ReplicaRebuildingSrcAttachRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _SPDKService_ReplicaRebuildingSrcDetach_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReplicaRebuildingSrcDetachRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SPDKServiceServer).ReplicaRebuildingSrcDetach(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SPDKService_ReplicaRebuildingSrcDetach_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SPDKServiceServer).ReplicaRebuildingSrcDetach(ctx, req.(*ReplicaRebuildingSrcDetachRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _SPDKService_ReplicaRebuildingSrcShallowCopyStart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReplicaRebuildingSrcShallowCopyStartRequest)
 	if err := dec(in); err != nil {
@@ -1275,24 +1322,6 @@ func _SPDKService_ReplicaRebuildingDstSnapshotCreate_Handler(srv interface{}, ct
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SPDKServiceServer).ReplicaRebuildingDstSnapshotCreate(ctx, req.(*SnapshotRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _SPDKService_ReplicaRebuildingDstSnapshotRevert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SnapshotRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SPDKServiceServer).ReplicaRebuildingDstSnapshotRevert(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SPDKService_ReplicaRebuildingDstSnapshotRevert_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SPDKServiceServer).ReplicaRebuildingDstSnapshotRevert(ctx, req.(*SnapshotRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1750,6 +1779,135 @@ func _SPDKService_EngineRestoreStatus_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SPDKService_BackingImageCreate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BackingImageCreateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SPDKServiceServer).BackingImageCreate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SPDKService_BackingImageCreate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SPDKServiceServer).BackingImageCreate(ctx, req.(*BackingImageCreateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SPDKService_BackingImageDelete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BackingImageDeleteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SPDKServiceServer).BackingImageDelete(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SPDKService_BackingImageDelete_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SPDKServiceServer).BackingImageDelete(ctx, req.(*BackingImageDeleteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SPDKService_BackingImageGet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BackingImageGetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SPDKServiceServer).BackingImageGet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SPDKService_BackingImageGet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SPDKServiceServer).BackingImageGet(ctx, req.(*BackingImageGetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SPDKService_BackingImageList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SPDKServiceServer).BackingImageList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SPDKService_BackingImageList_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SPDKServiceServer).BackingImageList(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SPDKService_BackingImageWatch_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(emptypb.Empty)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SPDKServiceServer).BackingImageWatch(m, &sPDKServiceBackingImageWatchServer{stream})
+}
+
+type SPDKService_BackingImageWatchServer interface {
+	Send(*emptypb.Empty) error
+	grpc.ServerStream
+}
+
+type sPDKServiceBackingImageWatchServer struct {
+	grpc.ServerStream
+}
+
+func (x *sPDKServiceBackingImageWatchServer) Send(m *emptypb.Empty) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _SPDKService_BackingImageExpose_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BackingImageGetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SPDKServiceServer).BackingImageExpose(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SPDKService_BackingImageExpose_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SPDKServiceServer).BackingImageExpose(ctx, req.(*BackingImageGetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SPDKService_BackingImageUnexpose_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BackingImageGetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SPDKServiceServer).BackingImageUnexpose(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SPDKService_BackingImageUnexpose_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SPDKServiceServer).BackingImageUnexpose(ctx, req.(*BackingImageGetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SPDKService_DiskCreate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DiskCreateRequest)
 	if err := dec(in); err != nil {
@@ -1942,14 +2100,6 @@ var SPDKService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SPDKService_ReplicaRebuildingSrcFinish_Handler,
 		},
 		{
-			MethodName: "ReplicaRebuildingSrcAttach",
-			Handler:    _SPDKService_ReplicaRebuildingSrcAttach_Handler,
-		},
-		{
-			MethodName: "ReplicaRebuildingSrcDetach",
-			Handler:    _SPDKService_ReplicaRebuildingSrcDetach_Handler,
-		},
-		{
 			MethodName: "ReplicaRebuildingSrcShallowCopyStart",
 			Handler:    _SPDKService_ReplicaRebuildingSrcShallowCopyStart_Handler,
 		},
@@ -1976,10 +2126,6 @@ var SPDKService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReplicaRebuildingDstSnapshotCreate",
 			Handler:    _SPDKService_ReplicaRebuildingDstSnapshotCreate_Handler,
-		},
-		{
-			MethodName: "ReplicaRebuildingDstSnapshotRevert",
-			Handler:    _SPDKService_ReplicaRebuildingDstSnapshotRevert_Handler,
 		},
 		{
 			MethodName: "ReplicaBackupCreate",
@@ -2078,6 +2224,30 @@ var SPDKService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SPDKService_EngineRestoreStatus_Handler,
 		},
 		{
+			MethodName: "BackingImageCreate",
+			Handler:    _SPDKService_BackingImageCreate_Handler,
+		},
+		{
+			MethodName: "BackingImageDelete",
+			Handler:    _SPDKService_BackingImageDelete_Handler,
+		},
+		{
+			MethodName: "BackingImageGet",
+			Handler:    _SPDKService_BackingImageGet_Handler,
+		},
+		{
+			MethodName: "BackingImageList",
+			Handler:    _SPDKService_BackingImageList_Handler,
+		},
+		{
+			MethodName: "BackingImageExpose",
+			Handler:    _SPDKService_BackingImageExpose_Handler,
+		},
+		{
+			MethodName: "BackingImageUnexpose",
+			Handler:    _SPDKService_BackingImageUnexpose_Handler,
+		},
+		{
 			MethodName: "DiskCreate",
 			Handler:    _SPDKService_DiskCreate_Handler,
 		},
@@ -2119,6 +2289,11 @@ var SPDKService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "EngineWatch",
 			Handler:       _SPDKService_EngineWatch_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "BackingImageWatch",
+			Handler:       _SPDKService_BackingImageWatch_Handler,
 			ServerStreams: true,
 		},
 	},
