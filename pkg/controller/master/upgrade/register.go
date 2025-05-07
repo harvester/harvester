@@ -31,6 +31,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	versions := management.HarvesterFactory.Harvesterhci().V1beta1().Version()
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	plans := management.UpgradeFactory.Upgrade().V1().Plan()
+	managedcharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	nodes := management.CoreFactory.Core().V1().Node()
 	jobs := management.BatchFactory.Batch().V1().Job()
 	pods := management.CoreFactory.Core().V1().Pod()
@@ -55,31 +56,33 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 
 	controller := &upgradeHandler{
-		ctx:               ctx,
-		jobClient:         jobs,
-		jobCache:          jobs.Cache(),
-		nodeCache:         nodes.Cache(),
-		namespace:         options.Namespace,
-		upgradeClient:     upgrades,
-		upgradeCache:      upgrades.Cache(),
-		upgradeController: upgrades,
-		upgradeLogClient:  upgradeLogs,
-		upgradeLogCache:   upgradeLogs.Cache(),
-		versionCache:      versions.Cache(),
-		planClient:        plans,
-		planCache:         plans.Cache(),
-		vmImageClient:     vmImages,
-		vmImageCache:      vmImages.Cache(),
-		vmClient:          vms,
-		vmCache:           vms.Cache(),
-		serviceClient:     services,
-		pvcClient:         pvcs,
-		clusterClient:     clusters,
-		clusterCache:      clusters.Cache(),
-		lhSettingClient:   lhSettings,
-		lhSettingCache:    lhSettings.Cache(),
-		kubeVirtCache:     kubeVirt.Cache(),
-		vmRestClient:      virtSubresourceClient,
+		ctx:                ctx,
+		jobClient:          jobs,
+		jobCache:           jobs.Cache(),
+		nodeCache:          nodes.Cache(),
+		namespace:          options.Namespace,
+		upgradeClient:      upgrades,
+		upgradeCache:       upgrades.Cache(),
+		upgradeController:  upgrades,
+		upgradeLogClient:   upgradeLogs,
+		upgradeLogCache:    upgradeLogs.Cache(),
+		versionCache:       versions.Cache(),
+		planClient:         plans,
+		planCache:          plans.Cache(),
+		managedChartClient: managedcharts,
+		managedChartCache:  managedcharts.Cache(),
+		vmImageClient:      vmImages,
+		vmImageCache:       vmImages.Cache(),
+		vmClient:           vms,
+		vmCache:            vms.Cache(),
+		serviceClient:      services,
+		pvcClient:          pvcs,
+		clusterClient:      clusters,
+		clusterCache:       clusters.Cache(),
+		lhSettingClient:    lhSettings,
+		lhSettingCache:     lhSettings.Cache(),
+		kubeVirtCache:      kubeVirt.Cache(),
+		vmRestClient:       virtSubresourceClient,
 	}
 	upgrades.OnChange(ctx, upgradeControllerName, controller.OnChanged)
 	upgrades.OnRemove(ctx, upgradeControllerName, controller.OnRemove)
