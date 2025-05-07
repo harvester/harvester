@@ -207,4 +207,9 @@ const (
 
 	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
 	StorageNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
+
+	HarvesterCRDManagedChart         = "harvester-crd"
+	HarvesterManagedChart            = "harvester"
+	RancherLoggingCRDManagedChart    = "rancher-logging-crd"
+	RancherMonitoringCRDManagedChart = "rancher-monitoring-crd"
 )

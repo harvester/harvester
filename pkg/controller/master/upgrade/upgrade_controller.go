@@ -12,6 +12,7 @@ import (
 	semverv3 "github.com/Masterminds/semver/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
+	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	provisioningctrl "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
@@ -101,6 +102,9 @@ type upgradeHandler struct {
 	versionCache      ctlharvesterv1.VersionCache
 	planClient        upgradectlv1.PlanClient
 	planCache         upgradectlv1.PlanCache
+
+	managedChartCache  mgmtv3.ManagedChartCache
+	managedChartClient mgmtv3.ManagedChartClient
 
 	vmImageClient ctlharvesterv1.VirtualMachineImageClient
 	vmImageCache  ctlharvesterv1.VirtualMachineImageCache
@@ -521,6 +525,33 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 				return err
 			}
 		}
+	}
+
+	return h.resumeManagedCharts()
+}
+
+func (h *upgradeHandler) resumeManagedCharts() error {
+	managedCharts, err := h.managedChartCache.List(util.FleetLocalNamespaceName, labels.Everything())
+	if err != nil {
+		return nil
+	}
+
+	// those managedcharts might be paused by the upgrade script, resume them if they are not un-paused
+	targetManagedcharts := map[string]struct{}{util.HarvesterCRDManagedChart: {}, util.HarvesterManagedChart: {}, util.RancherLoggingCRDManagedChart: {}, util.RancherMonitoringCRDManagedChart: {}}
+
+	for _, managedChart := range managedCharts {
+		if !managedChart.Spec.Paused {
+			continue
+		}
+		if _, ok := targetManagedcharts[managedChart.Name]; !ok {
+			continue
+		}
+		mc := managedChart.DeepCopy()
+		mc.Spec.Paused = false
+		if _, err := h.managedChartClient.Update(mc); err != nil {
+			return fmt.Errorf("failed to resume managedchart %v %w", mc.Name, err)
+		}
+		logrus.Infof("managedchart %v is resumed", mc.Name)
 	}
 
 	return nil
