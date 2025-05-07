@@ -192,6 +192,10 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version, upgrade *v1b
 		return err
 	}
 
+	if err := v.checkNodeMachineMatching(); err != nil {
+		return err
+	}
+
 	if err := v.checkSingleReplicaVolumes(upgrade); err != nil {
 		return err
 	}
@@ -368,6 +372,67 @@ func (v *upgradeValidator) checkMachines() error {
 	for _, machine := range machines {
 		if machine.Status.GetTypedPhase() != clusterv1.MachinePhaseRunning {
 			return werror.NewInternalError(fmt.Sprintf("machine %s/%s is not running", machine.Namespace, machine.Name))
+		}
+	}
+
+	return nil
+}
+
+func (v *upgradeValidator) checkNodeMachineMatching() error {
+	nodes, err := v.nodes.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalErrorFromErr(fmt.Errorf("can't list nodes, err: %w", err))
+	}
+
+	if len(nodes) == 0 {
+		return werror.NewInternalError(fmt.Sprintf("no node was listed, this shall not happen"))
+	}
+
+	machines, err := v.machines.List(util.FleetLocalNamespaceName, labels.Everything())
+	if err != nil {
+		return werror.NewInternalErrorFromErr(fmt.Errorf("can't list machines, err: %w", err))
+	}
+
+	if len(nodes) != len(machines) {
+		return werror.NewInternalError(fmt.Sprintf("nodes(%v) and machines(%v) do not match, check the cluster provision", len(nodes), len(machines)))
+	}
+
+	// machine refers to node via .Status.NodeRef
+	machineMap := make(map[string]string, len(nodes))
+	for _, m := range machines {
+		if m.Status.NodeRef == nil {
+			return werror.NewInternalError(fmt.Sprintf("machine %v has empty NodeRef, check the cluster provision", m.Name))
+		}
+		machineMap[m.Name] = m.Status.NodeRef.Name
+	}
+
+	for _, node := range nodes {
+		if node.Labels == nil {
+			return werror.NewInternalError(fmt.Sprintf("node %v has no labels", node.Name))
+		}
+
+		// each node should have this
+		if node.Labels[util.HarvesterManagedNodeLabelKey] != "true" {
+			return werror.NewInternalError(fmt.Sprintf("node %v has no expected label %v", node.Name, util.HarvesterManagedNodeLabelKey))
+		}
+
+		if node.Annotations == nil {
+			return werror.NewInternalError(fmt.Sprintf("node %v has no nnnotations", node.Name))
+		}
+
+		// each node should have this when it is correctly provisioned
+		mc := node.Annotations[clusterv1.MachineAnnotation]
+		if mc == "" {
+			return werror.NewInternalError(fmt.Sprintf("node %v has no nnnotation %v, check the cluster provision", node.Name, clusterv1.MachineAnnotation))
+		}
+
+		nRef, ok := machineMap[mc]
+		if !ok {
+			return werror.NewInternalError(fmt.Sprintf("node %v refers to machine %v, but the machine does not exist", node.Name, mc))
+		}
+
+		if node.Name != nRef {
+			return werror.NewInternalError(fmt.Sprintf("node %v refers to machine %v, but the machine refers to another node %v", node.Name, mc, nRef))
 		}
 	}
 
