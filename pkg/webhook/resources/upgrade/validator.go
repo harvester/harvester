@@ -43,7 +43,7 @@ const (
 	skipWebhookAnnotation                     = "harvesterhci.io/skipWebhook"
 	skipSingleReplicaDetachedVol              = "harvesterhci.io/skipSingleReplicaDetachedVol"
 	rkeInternalIPAnnotation                   = "rke2.io/internal-ip"
-	managedChartNamespace                     = "fleet-local"
+	managedChartNamespace                     = util.FleetLocalNamespaceName
 	defaultNewImageSize                uint64 = 13 * 1024 * 1024 * 1024 // 13GB, this value aggregates all tarball image sizes. It may change in the future.
 	defaultImageGCHighThresholdPercent        = 85.0                    // default value in kubelet config
 	freeSystemPartitionMsg                    = "df -h '/usr/local/'"
