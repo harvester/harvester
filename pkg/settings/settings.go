@@ -58,6 +58,7 @@ var (
 	NTPServers             = NewSetting(NTPServersSettingName, "")
 	WhiteListedSettings    = []string{ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
 	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "restoreVM": false}`)
+	VMMigrationNetwork     = NewSetting(VMMigrationNetworkSettingName, "")
 )
 
 const (
@@ -103,6 +104,7 @@ const (
 	ReleaseDownloadURLSettingName                     = "release-download-url"
 	SupportBundleNamespacesSettingName                = "support-bundle-namespaces"
 	DefaultStorageClassSettingName                    = "default-storage-class"
+	VMMigrationNetworkSettingName                     = "vm-migration-network"
 
 	// settings have `default` and `value` string used in many places, replace them with const
 	KeywordDefault = "default"
