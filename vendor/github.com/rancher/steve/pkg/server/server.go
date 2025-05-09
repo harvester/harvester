@@ -82,7 +82,7 @@ type Options struct {
 	AggregationSecretName      string
 	ClusterRegistry            string
 	ServerVersion              string
-	// SQLCache enables the SQLite-based lasso caching mechanism
+	// SQLCache enables the SQLite-based caching mechanism
 	SQLCache bool
 
 	// ExtensionAPIServer enables an extension API server that will be served
@@ -187,7 +187,7 @@ func setup(ctx context.Context, server *Server) error {
 
 	var onSchemasHandler schemacontroller.SchemasHandlerFunc
 	if server.SQLCache {
-		s, err := sqlproxy.NewProxyStore(cols, cf, summaryCache, summaryCache, nil)
+		s, err := sqlproxy.NewProxyStore(ctx, cols, cf, summaryCache, summaryCache, nil)
 		if err != nil {
 			panic(err)
 		}

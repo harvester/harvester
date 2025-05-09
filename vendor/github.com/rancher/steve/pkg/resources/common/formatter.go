@@ -98,6 +98,7 @@ func formatter(summarycache *summarycache.SummaryCache, asl accesscontrol.Access
 		}
 		hasUpdate := accessSet.Grants("update", gvr.GroupResource(), resource.APIObject.Namespace(), resource.APIObject.Name())
 		hasDelete := accessSet.Grants("delete", gvr.GroupResource(), resource.APIObject.Namespace(), resource.APIObject.Name())
+		hasPatch := accessSet.Grants("patch", gvr.GroupResource(), resource.APIObject.Namespace(), resource.APIObject.Name())
 
 		selfLink := selfLink(gvr, meta)
 
@@ -107,8 +108,6 @@ func formatter(summarycache *summarycache.SummaryCache, asl accesscontrol.Access
 		if hasUpdate {
 			if attributes.DisallowMethods(resource.Schema)[http.MethodPut] {
 				resource.Links["update"] = "blocked"
-			} else {
-				resource.Links["update"] = u
 			}
 		} else {
 			delete(resource.Links, "update")
@@ -116,11 +115,16 @@ func formatter(summarycache *summarycache.SummaryCache, asl accesscontrol.Access
 		if hasDelete {
 			if attributes.DisallowMethods(resource.Schema)[http.MethodDelete] {
 				resource.Links["remove"] = "blocked"
-			} else {
-				resource.Links["remove"] = u
 			}
 		} else {
 			delete(resource.Links, "remove")
+		}
+		if hasPatch {
+			if attributes.DisallowMethods(resource.Schema)[http.MethodPatch] {
+				resource.Links["patch"] = "blocked"
+			}
+		} else {
+			delete(resource.Links, "patch")
 		}
 
 		if unstr, ok := resource.APIObject.Object.(*unstructured.Unstructured); ok {

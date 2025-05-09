@@ -36,7 +36,7 @@ github.com/NYTimes/gziphandler
 # github.com/achanda/go-sysctl v0.0.0-20160222034550-6be7678c45d2
 ## explicit
 github.com/achanda/go-sysctl
-# github.com/adrg/xdg v0.5.0
+# github.com/adrg/xdg v0.5.3
 ## explicit; go 1.19
 github.com/adrg/xdg
 github.com/adrg/xdg/internal/pathutil
@@ -234,7 +234,7 @@ github.com/ehazlett/simplelog
 ## explicit; go 1.13
 github.com/emicklei/go-restful/v3
 github.com/emicklei/go-restful/v3/log
-# github.com/evanphx/json-patch v5.9.0+incompatible
+# github.com/evanphx/json-patch v5.9.11+incompatible
 ## explicit
 github.com/evanphx/json-patch
 # github.com/evanphx/json-patch/v5 v5.9.0
@@ -469,11 +469,6 @@ github.com/hashicorp/errwrap
 # github.com/hashicorp/go-multierror v1.1.1
 ## explicit; go 1.13
 github.com/hashicorp/go-multierror
-# github.com/hashicorp/golang-lru/v2 v2.0.7
-## explicit; go 1.18
-github.com/hashicorp/golang-lru/v2
-github.com/hashicorp/golang-lru/v2/internal
-github.com/hashicorp/golang-lru/v2/simplelru
 # github.com/huandu/xstrings v1.4.0
 ## explicit; go 1.12
 github.com/huandu/xstrings
@@ -862,8 +857,8 @@ github.com/prometheus/procfs/internal/util
 ## explicit; go 1.22.0
 github.com/rancher/aks-operator/pkg/apis/aks.cattle.io
 github.com/rancher/aks-operator/pkg/apis/aks.cattle.io/v1
-# github.com/rancher/apiserver v0.0.0-20241009200134-5a4ecca7b988
-## explicit; go 1.22.0
+# github.com/rancher/apiserver v0.5.2
+## explicit; go 1.23.0
 github.com/rancher/apiserver/pkg/apierror
 github.com/rancher/apiserver/pkg/builtin
 github.com/rancher/apiserver/pkg/handlers
@@ -878,8 +873,8 @@ github.com/rancher/apiserver/pkg/subscribe
 github.com/rancher/apiserver/pkg/types
 github.com/rancher/apiserver/pkg/urlbuilder
 github.com/rancher/apiserver/pkg/writer
-# github.com/rancher/dynamiclistener v0.6.1
-## explicit; go 1.22.0
+# github.com/rancher/dynamiclistener v0.6.2-rc.3
+## explicit; go 1.23.0
 github.com/rancher/dynamiclistener
 github.com/rancher/dynamiclistener/cert
 github.com/rancher/dynamiclistener/factory
@@ -903,16 +898,9 @@ github.com/rancher/gke-operator/pkg/apis/gke.cattle.io/v1
 ## explicit; go 1.14
 github.com/rancher/kubernetes-provider-detector
 github.com/rancher/kubernetes-provider-detector/providers
-# github.com/rancher/lasso v0.0.0-20241202185148-04649f379358 => github.com/rancher/lasso v0.0.0-20241202185148-04649f379358
+# github.com/rancher/lasso v0.2.1 => github.com/rancher/lasso v0.0.0-20241202185148-04649f379358
 ## explicit; go 1.22.0
 github.com/rancher/lasso/pkg/cache
-github.com/rancher/lasso/pkg/cache/sql/db
-github.com/rancher/lasso/pkg/cache/sql/db/transaction
-github.com/rancher/lasso/pkg/cache/sql/encryption
-github.com/rancher/lasso/pkg/cache/sql/informer
-github.com/rancher/lasso/pkg/cache/sql/informer/factory
-github.com/rancher/lasso/pkg/cache/sql/partition
-github.com/rancher/lasso/pkg/cache/sql/store
 github.com/rancher/lasso/pkg/client
 github.com/rancher/lasso/pkg/controller
 github.com/rancher/lasso/pkg/dynamic
@@ -920,8 +908,8 @@ github.com/rancher/lasso/pkg/log
 github.com/rancher/lasso/pkg/mapper
 github.com/rancher/lasso/pkg/metrics
 github.com/rancher/lasso/pkg/scheme
-# github.com/rancher/norman v0.0.0-20241001183610-78a520c160ab
-## explicit; go 1.22.0
+# github.com/rancher/norman v0.5.2
+## explicit; go 1.23.0
 github.com/rancher/norman/condition
 github.com/rancher/norman/controller
 github.com/rancher/norman/httperror
@@ -966,8 +954,8 @@ github.com/rancher/remotedialer/metrics
 # github.com/rancher/rke v1.6.2
 ## explicit; go 1.22.0
 github.com/rancher/rke/types
-# github.com/rancher/steve v0.5.1
-## explicit; go 1.22.0
+# github.com/rancher/steve v0.5.13
+## explicit; go 1.23.0
 github.com/rancher/steve/pkg/accesscontrol
 github.com/rancher/steve/pkg/aggregation
 github.com/rancher/steve/pkg/attributes
@@ -988,6 +976,7 @@ github.com/rancher/steve/pkg/resources/formatters
 github.com/rancher/steve/pkg/resources/schemas
 github.com/rancher/steve/pkg/resources/userpreferences
 github.com/rancher/steve/pkg/resources/virtual
+github.com/rancher/steve/pkg/resources/virtual/clusters
 github.com/rancher/steve/pkg/resources/virtual/common
 github.com/rancher/steve/pkg/resources/virtual/events
 github.com/rancher/steve/pkg/schema
@@ -997,12 +986,22 @@ github.com/rancher/steve/pkg/schema/table
 github.com/rancher/steve/pkg/server
 github.com/rancher/steve/pkg/server/handler
 github.com/rancher/steve/pkg/server/router
+github.com/rancher/steve/pkg/sqlcache/db
+github.com/rancher/steve/pkg/sqlcache/db/transaction
+github.com/rancher/steve/pkg/sqlcache/encryption
+github.com/rancher/steve/pkg/sqlcache/informer
+github.com/rancher/steve/pkg/sqlcache/informer/factory
+github.com/rancher/steve/pkg/sqlcache/partition
+github.com/rancher/steve/pkg/sqlcache/store
 github.com/rancher/steve/pkg/stores/metrics
 github.com/rancher/steve/pkg/stores/partition
 github.com/rancher/steve/pkg/stores/partition/listprocessor
 github.com/rancher/steve/pkg/stores/proxy
+github.com/rancher/steve/pkg/stores/queryhelper
 github.com/rancher/steve/pkg/stores/sqlpartition
 github.com/rancher/steve/pkg/stores/sqlpartition/listprocessor
+github.com/rancher/steve/pkg/stores/sqlpartition/queryparser
+github.com/rancher/steve/pkg/stores/sqlpartition/selection
 github.com/rancher/steve/pkg/stores/sqlproxy
 github.com/rancher/steve/pkg/stores/sqlproxy/tablelistconvert
 github.com/rancher/steve/pkg/summarycache
@@ -1028,8 +1027,8 @@ github.com/rancher/wrangler/pkg/objectset
 github.com/rancher/wrangler/pkg/patch
 github.com/rancher/wrangler/pkg/schemes
 github.com/rancher/wrangler/pkg/stringset
-# github.com/rancher/wrangler/v3 v3.1.0
-## explicit; go 1.22.0
+# github.com/rancher/wrangler/v3 v3.2.0-rc.3
+## explicit; go 1.23.0
 github.com/rancher/wrangler/v3/pkg/apply
 github.com/rancher/wrangler/v3/pkg/apply/injectors
 github.com/rancher/wrangler/v3/pkg/broadcast
@@ -1274,8 +1273,8 @@ go.starlark.net/resolve
 go.starlark.net/starlark
 go.starlark.net/starlarkstruct
 go.starlark.net/syntax
-# go.uber.org/mock v0.4.0
-## explicit; go 1.20
+# go.uber.org/mock v0.5.0
+## explicit; go 1.22
 go.uber.org/mock/gomock
 # go.uber.org/multierr v1.11.0
 ## explicit; go 1.19
@@ -2255,7 +2254,7 @@ k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/retry
 k8s.io/client-go/util/watchlist
 k8s.io/client-go/util/workqueue
-# k8s.io/code-generator v0.31.5 => k8s.io/code-generator v0.31.5
+# k8s.io/code-generator v0.32.1 => k8s.io/code-generator v0.31.5
 ## explicit; go 1.22.0
 k8s.io/code-generator/cmd/client-gen/args
 k8s.io/code-generator/cmd/client-gen/generators
@@ -2263,6 +2262,8 @@ k8s.io/code-generator/cmd/client-gen/generators/fake
 k8s.io/code-generator/cmd/client-gen/generators/scheme
 k8s.io/code-generator/cmd/client-gen/generators/util
 k8s.io/code-generator/cmd/client-gen/types
+k8s.io/code-generator/cmd/deepcopy-gen/args
+k8s.io/code-generator/cmd/deepcopy-gen/generators
 k8s.io/code-generator/cmd/informer-gen/args
 k8s.io/code-generator/cmd/informer-gen/generators
 k8s.io/code-generator/cmd/lister-gen/args
@@ -2292,15 +2293,14 @@ k8s.io/component-base/version
 ## explicit; go 1.22.0
 k8s.io/component-helpers/scheduling/corev1
 k8s.io/component-helpers/scheduling/corev1/nodeaffinity
-# k8s.io/gengo v0.0.0-20240826214909-a7b603a56eb7
+# k8s.io/gengo v0.0.0-20250130153323-76c5745d3511
 ## explicit; go 1.13
 k8s.io/gengo/args
-k8s.io/gengo/examples/deepcopy-gen/generators
 k8s.io/gengo/generator
 k8s.io/gengo/namer
 k8s.io/gengo/parser
 k8s.io/gengo/types
-# k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70
+# k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9
 ## explicit; go 1.20
 k8s.io/gengo/v2
 k8s.io/gengo/v2/generator
@@ -2331,7 +2331,7 @@ k8s.io/kms/apis/v1beta1
 k8s.io/kms/apis/v2
 k8s.io/kms/pkg/service
 k8s.io/kms/pkg/util
-# k8s.io/kube-aggregator v0.31.1 => k8s.io/kube-aggregator v0.31.5
+# k8s.io/kube-aggregator v0.32.1 => k8s.io/kube-aggregator v0.31.5
 ## explicit; go 1.22.0
 k8s.io/kube-aggregator/pkg/apis/apiregistration
 k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
@@ -2557,11 +2557,8 @@ kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/converter/vcpu
 kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/components
 kubevirt.io/kubevirt/pkg/virt-operator/util
 kubevirt.io/kubevirt/pkg/virtiofs
-# modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6
-## explicit; go 1.20
-modernc.org/gc/v3
-# modernc.org/libc v1.49.3
-## explicit; go 1.20
+# modernc.org/libc v1.61.13
+## explicit; go 1.21
 modernc.org/libc
 modernc.org/libc/errno
 modernc.org/libc/fcntl
@@ -2588,22 +2585,16 @@ modernc.org/libc/utime
 modernc.org/libc/uuid
 modernc.org/libc/uuid/uuid
 modernc.org/libc/wctype
-# modernc.org/mathutil v1.6.0
-## explicit; go 1.18
+# modernc.org/mathutil v1.7.1
+## explicit; go 1.21
 modernc.org/mathutil
-# modernc.org/memory v1.8.0
-## explicit; go 1.18
+# modernc.org/memory v1.8.2
+## explicit; go 1.21
 modernc.org/memory
-# modernc.org/sqlite v1.29.10
-## explicit; go 1.20
+# modernc.org/sqlite v1.36.0
+## explicit; go 1.21
 modernc.org/sqlite
 modernc.org/sqlite/lib
-# modernc.org/strutil v1.2.0
-## explicit; go 1.18
-modernc.org/strutil
-# modernc.org/token v1.1.0
-## explicit
-modernc.org/token
 # oras.land/oras-go v1.2.5
 ## explicit; go 1.18
 oras.land/oras-go/pkg/artifact

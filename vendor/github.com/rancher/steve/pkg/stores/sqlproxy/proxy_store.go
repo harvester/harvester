@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/rancher/steve/pkg/stores/queryhelper"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -32,9 +33,9 @@ import (
 
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
-	"github.com/rancher/lasso/pkg/cache/sql/informer"
-	"github.com/rancher/lasso/pkg/cache/sql/informer/factory"
-	"github.com/rancher/lasso/pkg/cache/sql/partition"
+	"github.com/rancher/steve/pkg/sqlcache/informer"
+	"github.com/rancher/steve/pkg/sqlcache/informer/factory"
+	"github.com/rancher/steve/pkg/sqlcache/partition"
 	"github.com/rancher/wrangler/v3/pkg/data"
 	"github.com/rancher/wrangler/v3/pkg/schemas"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
@@ -57,69 +58,73 @@ const (
 )
 
 var (
-	paramScheme               = runtime.NewScheme()
-	paramCodec                = runtime.NewParameterCodec(paramScheme)
+	paramScheme = runtime.NewScheme()
+	paramCodec  = runtime.NewParameterCodec(paramScheme)
+	// Please keep the gvkKey entries in alphabetical order, on a field-by-field basis
 	typeSpecificIndexedFields = map[string][][]string{
+		gvkKey("", "v1", "ConfigMap"): {
+			{"metadata", "labels", "harvesterhci.io/cloud-init-template"}},
 		gvkKey("", "v1", "Event"): {
 			{"_type"},
 			{"involvedObject", "kind"},
+			{"involvedObject", "uid"},
 			{"message"},
 			{"reason"},
 		},
 		gvkKey("", "v1", "Namespace"): {
-			{"metadata", "labels[field.cattle.io/projectId]"}},
+			{"metadata", "labels", "field.cattle.io/projectId"}},
 		gvkKey("", "v1", "Node"): {
 			{"status", "nodeInfo", "kubeletVersion"},
 			{"status", "nodeInfo", "operatingSystem"}},
-		gvkKey("", "v1", "Pod"): {
-			{"spec", "containers", "image"},
-			{"spec", "nodeName"}},
-		gvkKey("", "v1", "Service"): {
-			{"spec", "clusterIP"},
-			{"spec", "type"},
-		},
-		gvkKey("networking.k8s.io", "v1", "Ingress"): {
-			{"spec", "rules", "host"},
-			{"spec", "ingressClassName"},
-		},
-		gvkKey("", "v1", "ConfigMap"): {
-			{"metadata", "labels[harvesterhci.io/cloud-init-template]"}},
 		gvkKey("", "v1", "PersistentVolume"): {
 			{"status", "reason"},
 			{"spec", "persistentVolumeReclaimPolicy"},
 		},
 		gvkKey("", "v1", "PersistentVolumeClaim"): {
 			{"spec", "volumeName"}},
+		gvkKey("", "v1", "Pod"): {
+			{"spec", "containers", "image"},
+			{"spec", "nodeName"}},
+		gvkKey("", "v1", "ReplicationController"): {
+			{"spec", "template", "spec", "containers", "image"}},
+		gvkKey("", "v1", "Service"): {
+			{"spec", "clusterIP"},
+			{"spec", "type"},
+		},
+		gvkKey("apps", "v1", "DaemonSet"): {
+			{"metadata", "annotations", "field.cattle.io/publicEndpoints"},
+			{"spec", "template", "spec", "containers", "image"},
+		},
+		gvkKey("apps", "v1", "Deployment"): {
+			{"metadata", "annotations", "field.cattle.io/publicEndpoints"},
+			{"spec", "template", "spec", "containers", "image"},
+		},
+		gvkKey("apps", "v1", "ReplicaSet"): {
+			{"spec", "template", "spec", "containers", "image"},
+		},
+		gvkKey("apps", "v1", "StatefulSet"): {
+			{"metadata", "annotations", "field.cattle.io/publicEndpoints"},
+			{"spec", "template", "spec", "containers", "image"},
+		},
 		gvkKey("autoscaling", "v2", "HorizontalPodAutoscaler"): {
 			{"spec", "scaleTargetRef", "name"},
 			{"spec", "minReplicas"},
 			{"spec", "maxReplicas"},
 			{"status", "currentReplicas"},
 		},
-		gvkKey("apps", "v1", "DaemonSet"): {
-			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
-		},
-		gvkKey("apps", "v1", "Deployment"): {
-			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
-		},
-		gvkKey("apps", "v1", "StatefulSet"): {
-			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
-		},
 		gvkKey("batch", "v1", "CronJob"): {
-			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
+			{"metadata", "annotations", "field.cattle.io/publicEndpoints"},
+			{"spec", "jobTemplate", "spec", "template", "spec", "containers", "image"},
 		},
 		gvkKey("batch", "v1", "Job"): {
-			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
-		},
-		gvkKey("storage.k8s.io", "v1", "StorageClass"): {
-			{"provisioner"},
-			{"metadata", "annotations[storageclass.kubernetes.io/is-default-class]"},
+			{"metadata", "annotations", "field.cattle.io/publicEndpoints"},
+			{"spec", "template", "spec", "containers", "image"},
 		},
 		gvkKey("catalog.cattle.io", "v1", "App"): {
 			{"spec", "chart", "metadata", "name"},
 		},
 		gvkKey("catalog.cattle.io", "v1", "ClusterRepo"): {
-			{"metadata", "annotations[clusterrepo.cattle.io/hidden]"},
+			{"metadata", "annotations", "clusterrepo.cattle.io/hidden"},
 			{"spec", "gitBranch"},
 			{"spec", "gitRepo"},
 		},
@@ -130,10 +135,13 @@ var (
 		},
 		gvkKey("cluster.x-k8s.io", "v1beta1", "Machine"): {
 			{"spec", "clusterName"}},
+		gvkKey("cluster.x-k8s.io", "v1beta1", "MachineDeployment"): {
+			{"spec", "clusterName"}},
 		gvkKey("management.cattle.io", "v3", "Cluster"): {
-			{"metadata", "labels[provider.cattle.io]"},
+			{"metadata", "labels", "provider.cattle.io"},
 			{"spec", "internal"},
 			{"spec", "displayName"},
+			{"status", "connected"},
 			{"status", "provider"},
 		},
 		gvkKey("management.cattle.io", "v3", "Node"): {
@@ -142,10 +150,25 @@ var (
 			{"spec", "clusterName"}},
 		gvkKey("management.cattle.io", "v3", "NodeTemplate"): {
 			{"spec", "clusterName"}},
+		gvkKey("management.cattle.io", "v3", "Project"): {
+			{"spec", "clusterName"}},
+		gvkKey("networking.k8s.io", "v1", "Ingress"): {
+			{"spec", "rules", "host"},
+			{"spec", "ingressClassName"},
+		},
 		gvkKey("provisioning.cattle.io", "v1", "Cluster"): {
-			{"metadata", "labels[provider.cattle.io]"},
+			{"metadata", "annotations", "provisioning.cattle.io/management-cluster-display-name"},
+			{"metadata", "labels", "provider.cattle.io"},
 			{"status", "clusterName"},
 			{"status", "provider"},
+		},
+		gvkKey("rke.cattle.io", "v1", "ETCDSnapshot"): {
+			{"snapshotFile", "createdAt"},
+			{"spec", "clusterName"},
+		},
+		gvkKey("storage.k8s.io", "v1", "StorageClass"): {
+			{"provisioner"},
+			{"metadata", "annotations", "storageclass.kubernetes.io/is-default-class"},
 		},
 	}
 	commonIndexFields = [][]string{
@@ -218,6 +241,7 @@ type TransformBuilder interface {
 }
 
 type Store struct {
+	ctx              context.Context
 	clientGetter     ClientGetter
 	notifier         RelationshipNotifier
 	cacheFactory     CacheFactory
@@ -231,13 +255,14 @@ type Store struct {
 type CacheFactoryInitializer func() (CacheFactory, error)
 
 type CacheFactory interface {
-	CacheFor(fields [][]string, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, namespaced bool, watchable bool) (factory.Cache, error)
+	CacheFor(ctx context.Context, fields [][]string, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, namespaced bool, watchable bool) (factory.Cache, error)
 	Reset() error
 }
 
 // NewProxyStore returns a Store implemented directly on top of kubernetes.
-func NewProxyStore(c SchemaColumnSetter, clientGetter ClientGetter, notifier RelationshipNotifier, scache virtualCommon.SummaryCache, factory CacheFactory) (*Store, error) {
+func NewProxyStore(ctx context.Context, c SchemaColumnSetter, clientGetter ClientGetter, notifier RelationshipNotifier, scache virtualCommon.SummaryCache, factory CacheFactory) (*Store, error) {
 	store := &Store{
+		ctx:              ctx,
 		clientGetter:     clientGetter,
 		notifier:         notifier,
 		columnSetter:     c,
@@ -288,7 +313,7 @@ func (s *Store) initializeNamespaceCache() error {
 	nsSchema := baseNSSchema
 
 	// make sure any relevant columns are set to the ns schema
-	if err := s.columnSetter.SetColumns(context.Background(), &nsSchema); err != nil {
+	if err := s.columnSetter.SetColumns(s.ctx, &nsSchema); err != nil {
 		return fmt.Errorf("failed to set columns for proxy stores namespace informer: %w", err)
 	}
 
@@ -305,11 +330,13 @@ func (s *Store) initializeNamespaceCache() error {
 	// get any type-specific fields that steve is interested in
 	fields = append(fields, getFieldForGVK(gvk)...)
 
-	// get the type-specifc transform func
+	// get the type-specific transform func
 	transformFunc := s.transformBuilder.GetTransformFunc(gvk)
 
 	// get the ns informer
-	nsInformer, err := s.cacheFactory.CacheFor(fields, transformFunc, &tablelistconvert.Client{ResourceInterface: client}, attributes.GVK(&nsSchema), false, true)
+	tableClient := &tablelistconvert.Client{ResourceInterface: client}
+	attrs := attributes.GVK(&nsSchema)
+	nsInformer, err := s.cacheFactory.CacheFor(s.ctx, fields, transformFunc, tableClient, attrs, false, true)
 	if err != nil {
 		return err
 	}
@@ -332,7 +359,7 @@ func gvkKey(group, version, kind string) string {
 	return group + "_" + version + "_" + kind
 }
 
-// getFieldsFromSchema converts object field names from types.APISchema's format into lasso's
+// getFieldsFromSchema converts object field names from types.APISchema's format into steve's
 // cache.sql.informer's slice format (e.g. "metadata.resourceVersion" is ["metadata", "resourceVersion"])
 func getFieldsFromSchema(schema *types.APISchema) [][]string {
 	var fields [][]string
@@ -346,7 +373,7 @@ func getFieldsFromSchema(schema *types.APISchema) [][]string {
 	}
 	for _, colDef := range colDefs {
 		field := strings.TrimPrefix(colDef.Field, "$.")
-		fields = append(fields, strings.Split(field, "."))
+		fields = append(fields, queryhelper.SafeSplit(field))
 	}
 	return fields
 }
@@ -748,15 +775,17 @@ func (s *Store) ListByPartitions(apiOp *types.APIRequest, schema *types.APISchem
 	fields := getFieldsFromSchema(schema)
 	fields = append(fields, getFieldForGVK(gvk)...)
 	transformFunc := s.transformBuilder.GetTransformFunc(gvk)
-
-	inf, err := s.cacheFactory.CacheFor(fields, transformFunc, &tablelistconvert.Client{ResourceInterface: client}, attributes.GVK(schema), attributes.Namespaced(schema), controllerschema.IsListWatchable(schema))
+	tableClient := &tablelistconvert.Client{ResourceInterface: client}
+	attrs := attributes.GVK(schema)
+	ns := attributes.Namespaced(schema)
+	inf, err := s.cacheFactory.CacheFor(s.ctx, fields, transformFunc, tableClient, attrs, ns, controllerschema.IsListWatchable(schema))
 	if err != nil {
 		return nil, 0, "", err
 	}
 
 	list, total, continueToken, err := inf.ListByOptions(apiOp.Context(), opts, partitions, apiOp.Namespace)
 	if err != nil {
-		if errors.Is(err, informer.InvalidColumnErr) {
+		if errors.Is(err, informer.ErrInvalidColumn) {
 			return nil, 0, "", apierror.NewAPIError(validation.InvalidBodyContent, err.Error())
 		}
 		return nil, 0, "", err
