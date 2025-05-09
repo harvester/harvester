@@ -1,6 +1,8 @@
 package virtualmachineimage
 
 import (
+	"fmt"
+
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -14,6 +16,7 @@ import (
 	"github.com/harvester/harvester/pkg/image/cdi"
 	"github.com/harvester/harvester/pkg/image/common"
 	"github.com/harvester/harvester/pkg/util"
+	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -59,6 +62,9 @@ func (v *virtualMachineImageValidator) Resource() types.Resource {
 
 func (v *virtualMachineImageValidator) Create(request *types.Request, newObj runtime.Object) error {
 	vmi := newObj.(*v1beta1.VirtualMachineImage)
+	if vmi.Annotations[util.AnnotationStorageClassName] != vmi.Spec.TargetStorageClassName && vmi.Spec.TargetStorageClassName != "" {
+		return werror.NewInvalidError(fmt.Sprintf("The StorageClass of the VM Image (%v) should be consistent.", vmi.Name), "spec.targetStorageClassName")
+	}
 	return v.validators[util.GetVMIBackend(vmi)].Create(request, vmi)
 }
 
