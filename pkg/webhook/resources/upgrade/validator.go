@@ -393,6 +393,10 @@ func (v *upgradeValidator) checkNodeMachineMatching() error {
 		return werror.NewInternalErrorFromErr(fmt.Errorf("can't list machines, err: %w", err))
 	}
 
+	return isNodeMachineMatching(nodes, machines)
+}
+
+func isNodeMachineMatching(nodes []*corev1.Node, machines []*clusterv1.Machine) error {
 	if len(nodes) != len(machines) {
 		return werror.NewInternalError(fmt.Sprintf("nodes(%v) and machines(%v) do not match, check the cluster provision", len(nodes), len(machines)))
 	}
@@ -423,7 +427,7 @@ func (v *upgradeValidator) checkNodeMachineMatching() error {
 		// each node should have this when it is correctly provisioned
 		mc := node.Annotations[clusterv1.MachineAnnotation]
 		if mc == "" {
-			return werror.NewInternalError(fmt.Sprintf("node %v has no nnnotation %v, check the cluster provision", node.Name, clusterv1.MachineAnnotation))
+			return werror.NewInternalError(fmt.Sprintf("node %v has no expected annotation %v, check the cluster provision", node.Name, clusterv1.MachineAnnotation))
 		}
 
 		nRef, ok := machineMap[mc]
