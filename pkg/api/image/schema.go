@@ -14,6 +14,7 @@ import (
 	"github.com/harvester/harvester/pkg/image/backingimage"
 	"github.com/harvester/harvester/pkg/image/cdi"
 	"github.com/harvester/harvester/pkg/image/common"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
@@ -35,12 +36,12 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		harvesterv1.VMIBackendCDI:          cdi.GetUploader(ctlcdi, scClient, ctlcdiupload, http.Client{}, vmio),
 	}
 
-	imgHandler := Handler{
+	imgHandler := harvesterServer.NewHandler(Handler{
 		vmiClient:   vmi,
 		vmio:        vmio,
 		downloaders: downloaders,
 		uploaders:   uploaders,
-	}
+	})
 
 	t := schema.Template{
 		ID: "harvesterhci.io.virtualmachineimage",
