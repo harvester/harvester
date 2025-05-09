@@ -49,7 +49,7 @@ const (
 	upgradeServiceAccount          = "system-upgrade-controller"
 	harvesterSystemNamespace       = util.HarvesterSystemNamespaceName
 	harvesterUpgradeLabel          = "harvesterhci.io/upgrade"
-	harvesterManagedLabel          = "harvesterhci.io/managed"
+	harvesterManagedLabel          = util.HarvesterManagedNodeLabelKey
 	harvesterLatestUpgradeLabel    = "harvesterhci.io/latestUpgrade"
 	harvesterUpgradeComponentLabel = "harvesterhci.io/upgradeComponent"
 	harvesterNodeLabel             = "harvesterhci.io/node"
