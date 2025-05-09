@@ -196,8 +196,14 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version, upgrade *v1b
 		return err
 	}
 
-	if err := v.checkNonLiveMigratableVMs(); err != nil {
+	isRestoreVM, err := util.IsRestoreVM()
+	if err != nil {
 		return err
+	}
+	if !isRestoreVM {
+		if err := v.checkNonLiveMigratableVMs(); err != nil {
+			return err
+		}
 	}
 
 	return v.checkCerts(version)
