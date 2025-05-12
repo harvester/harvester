@@ -3,11 +3,19 @@ set -e
 
 cd $(dirname $0)
 
+echo "TIMESTAMP before validate: $(date)"
 ./validate
+echo "TIMESTAMP before validate-ci: $(date)"
 ./validate-ci
+echo "TIMESTAMP before build: $(date)"
 ./build
+echo "TIMESTAMP before test: $(date)"
 ./test
+echo "TIMESTAMP before package (webhook/upgrade): $(date)"
 ./package-webhook
 ./package-upgrade
+echo "TIMESTAMP before integration: $(date)"
 ./test-integration
+echo "TIMESTAMP before package: $(date)"
 ./package
+echo "TIMESTAMP make ci finished: $(date)"
