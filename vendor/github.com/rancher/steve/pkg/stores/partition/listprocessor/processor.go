@@ -2,12 +2,14 @@
 package listprocessor
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/rancher/apiserver/pkg/types"
+	"github.com/rancher/steve/pkg/stores/queryhelper"
 	"github.com/rancher/wrangler/v3/pkg/data"
 	"github.com/rancher/wrangler/v3/pkg/data/convert"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -99,27 +101,29 @@ const (
 // The subfield is internally represented as a slice, e.g. [metadata, name].
 // The order is represented by prefixing the sort key by '-', e.g. sort=-metadata.name.
 type Sort struct {
-	primaryField   []string
-	secondaryField []string
-	primaryOrder   SortOrder
-	secondaryOrder SortOrder
+	Fields [][]string
+	Orders []SortOrder
 }
 
 // String returns the sort parameters as a query string.
 func (s Sort) String() string {
-	field := ""
-	if s.primaryOrder == DESC {
-		field = "-" + field
-	}
-	field += strings.Join(s.primaryField, ".")
-	if len(s.secondaryField) > 0 {
-		field += ","
-		if s.secondaryOrder == DESC {
-			field += "-"
+	nonIdentifierField := regexp.MustCompile(`[^a-zA-Z0-9_]`)
+	fields := make([]string, len(s.Fields))
+	for i, field := range s.Fields {
+		lastIndex := len(field) - 1
+		newField := strings.Join(field[0:lastIndex], ".")
+		if nonIdentifierField.MatchString(field[lastIndex]) {
+			// label keys may contain non-identifier characters `/`, `.` and `-`
+			newField += fmt.Sprintf("[%s]", field[lastIndex])
+		} else {
+			newField += fmt.Sprintf(".%s", field[lastIndex])
 		}
-		field += strings.Join(s.secondaryField, ".")
+		if s.Orders[i] == DESC {
+			newField = fmt.Sprintf("-%s", newField)
+		}
+		fields[i] = newField
 	}
-	return field
+	return strings.Join(fields, ",")
 }
 
 // Pagination represents how to return paginated results.
@@ -189,24 +193,24 @@ func ParseQuery(apiOp *types.APIRequest) *ListOptions {
 	sortOpts := Sort{}
 	sortKeys := q.Get(sortParam)
 	if sortKeys != "" {
-		sortParts := strings.SplitN(sortKeys, ",", 2)
-		primaryField := sortParts[0]
-		if primaryField != "" && primaryField[0] == '-' {
-			sortOpts.primaryOrder = DESC
-			primaryField = primaryField[1:]
-		}
-		if primaryField != "" {
-			sortOpts.primaryField = strings.Split(primaryField, ".")
-		}
-		if len(sortParts) > 1 {
-			secondaryField := sortParts[1]
-			if secondaryField != "" && secondaryField[0] == '-' {
-				sortOpts.secondaryOrder = DESC
-				secondaryField = secondaryField[1:]
+		sortParts := strings.Split(sortKeys, ",")
+		for _, field := range sortParts {
+			sortOrder := ASC
+			if len(field) > 0 {
+				if field[0] == '-' {
+					sortOrder = DESC
+					field = field[1:]
+				}
 			}
-			if secondaryField != "" {
-				sortOpts.secondaryField = strings.Split(secondaryField, ".")
+			if len(field) == 0 {
+				// Old semantics: if we have a sort query like
+				// sort=,metadata.someOtherField
+				// we *DON'T sort
+				// Fixed: skip empty-strings.
+				continue
 			}
+			sortOpts.Fields = append(sortOpts.Fields, queryhelper.SafeSplit(field))
+			sortOpts.Orders = append(sortOpts.Orders, sortOrder)
 		}
 	}
 	opts.Sort = sortOpts
@@ -350,24 +354,23 @@ func matchesAll(obj map[string]interface{}, filters []OrFilter) bool {
 
 // SortList sorts the slice by the provided sort criteria.
 func SortList(list []unstructured.Unstructured, s Sort) []unstructured.Unstructured {
-	if len(s.primaryField) == 0 {
+	if len(s.Fields) == 0 {
 		return list
 	}
 	sort.Slice(list, func(i, j int) bool {
-		leftPrime := convert.ToString(data.GetValueN(list[i].Object, s.primaryField...))
-		rightPrime := convert.ToString(data.GetValueN(list[j].Object, s.primaryField...))
-		if leftPrime == rightPrime && len(s.secondaryField) > 0 {
-			leftSecond := convert.ToString(data.GetValueN(list[i].Object, s.secondaryField...))
-			rightSecond := convert.ToString(data.GetValueN(list[j].Object, s.secondaryField...))
-			if s.secondaryOrder == ASC {
-				return leftSecond < rightSecond
+		leftNode := list[i].Object
+		rightNode := list[j].Object
+		for i, field := range s.Fields {
+			leftValue := convert.ToString(data.GetValueN(leftNode, field...))
+			rightValue := convert.ToString(data.GetValueN(rightNode, field...))
+			if leftValue != rightValue {
+				if s.Orders[i] == ASC {
+					return leftValue < rightValue
+				}
+				return rightValue < leftValue
 			}
-			return rightSecond < leftSecond
 		}
-		if s.primaryOrder == ASC {
-			return leftPrime < rightPrime
-		}
-		return rightPrime < leftPrime
+		return false
 	})
 	return list
 }

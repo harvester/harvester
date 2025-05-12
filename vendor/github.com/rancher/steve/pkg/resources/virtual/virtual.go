@@ -5,6 +5,7 @@ package virtual
 import (
 	"fmt"
 
+	"github.com/rancher/steve/pkg/resources/virtual/clusters"
 	"github.com/rancher/steve/pkg/resources/virtual/common"
 	"github.com/rancher/steve/pkg/resources/virtual/events"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,6 +32,8 @@ func (t *TransformBuilder) GetTransformFunc(gvk schema.GroupVersionKind) cache.T
 	converters := make([]func(*unstructured.Unstructured) (*unstructured.Unstructured, error), 0)
 	if gvk.Kind == "Event" && gvk.Group == "" && gvk.Version == "v1" {
 		converters = append(converters, events.TransformEventObject)
+	} else if gvk.Kind == "Cluster" && gvk.Group == "management.cattle.io" && gvk.Version == "v3" {
+		converters = append(converters, clusters.TransformManagedCluster)
 	}
 	converters = append(converters, t.defaultFields.TransformCommon)
 
