@@ -31,17 +31,6 @@ jobs:
     - run: |
         echo "is-harvester-member teams: ${{ steps.is-harvester-member.outputs.teams }}"
         echo "is-harvester-member outcome: ${{ steps.is-harvester-member.outcome }}"
-    
-    - name: Set Milestone to Issue
-      if: ${{
-        fromJSON(steps.is-harvester-member.outputs.teams)[0] != null  &&
-        github.event.issue.milestone == null
-        }}
-      env:
-        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-      run: |
-        ISSUE_NUMBER="${{ github.event.issue.number }}"
-        gh issue edit "$ISSUE_NUMBER" --milestone "Planning"
 
     - uses: rancher/gh-issue-mgr/project-fields@main
       id: get-status-field
@@ -65,6 +54,17 @@ jobs:
         project-url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
+    - name: Set Milestone to Issue
+      if: ${{
+        fromJSON(steps.is-harvester-member.outputs.teams)[0] != null  &&
+        github.event.issue.milestone == null
+        }}
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+      run: |
+        ISSUE_NUMBER="${{ github.event.issue.number }}"
+        gh issue edit "$ISSUE_NUMBER" --milestone "Planning"
+        
     -  name: Update Project Item
        if: ${{
           steps.is-harvester-member.outcome == 'success' &&
