@@ -8,7 +8,7 @@ out_dir="${ROOT_DIR}/deploy/charts/harvester-crd/templates"
 mkdir -p "${out_dir}"
 
 # Clean up stable CRD manifest YAMLs
-rm -rf "${out_dir}/*.yaml"
+rm -rf "${out_dir}/harvesterhci.io*.yaml"
 
 # Generate CRD manifest YAMLs
 controller-gen crd \
@@ -24,4 +24,4 @@ while read -r target_file; do
 		# back off none GNU sed
 		sed -i '' 's/controller-gen\.kubebuilder\.io\/version:.*/{}/g' "${target_file}"
 	fi
-done <<<"$(grep -rl "controller-gen.kubebuilder.io/version:" "${out_dir}")"
+done <<<"$(grep -rl "controller-gen.kubebuilder.io/version:" "${out_dir}" --include='harvesterhci.io*.yaml')"
