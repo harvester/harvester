@@ -102,6 +102,11 @@ func (j *EncodingResponseWriter) addLinks(schema *types.APISchema, context *type
 			rawResource.Links["remove"] = self
 		}
 	}
+	if _, ok := rawResource.Links["patch"]; !ok {
+		if context.AccessControl.CanPatch(context, input, schema) == nil {
+			rawResource.Links["patch"] = self
+		}
+	}
 	for link := range schema.LinkHandlers {
 		rawResource.Links[link] = context.URLBuilder.Link(schema, rawResource.ID, link)
 	}
