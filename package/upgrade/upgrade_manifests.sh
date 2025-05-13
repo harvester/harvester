@@ -1323,14 +1323,7 @@ EOF
 
 apply_extra_nonversion_manifests()
 {
-  echo "Applying whereabouts manifests"
-
   shopt -s nullglob
-
-  for manifest in /usr/local/share/extra_manifests/whereabouts/*.yaml; do
-      echo "Applying $manifest"
-      kubectl apply -f "$manifest"
-  done
 
   echo "Applying cdi manifests"
 
