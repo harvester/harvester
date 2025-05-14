@@ -13,10 +13,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 
+	kubevirtv1api "kubevirt.io/api/core/v1"
+
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -188,8 +191,16 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			},
 		},
 	}
+
+	kubevirt := &kubevirtv1api.KubeVirt{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      util.KubeVirtObjectName,
+			Namespace: harvesterSystemNamespace,
+		},
+	}
+
 	for _, tc := range testCases {
-		var clientset = fake.NewSimpleClientset(tc.given.upgrade, tc.given.version, tc.given.vmi)
+		var clientset = fake.NewSimpleClientset(tc.given.upgrade, tc.given.version, tc.given.vmi, kubevirt)
 		var nodes []runtime.Object
 		for _, node := range tc.given.nodes {
 			nodes = append(nodes, node)
@@ -206,6 +217,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			vmClient:         fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
 			vmImageClient:    fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 			vmImageCache:     fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			kubeVirtCache:    fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
 		}
 		var actual output
 		actual.upgrade, actual.err = handler.OnChanged(tc.given.key, tc.given.upgrade)
@@ -612,5 +624,71 @@ func emptyConditionsTime(conditions []harvesterv1.Condition) {
 	for k := range conditions {
 		conditions[k].LastTransitionTime = ""
 		conditions[k].LastUpdateTime = ""
+	}
+}
+
+func Test_cleanupRestoreVMLabel(t *testing.T) {
+	type input struct {
+		vms []*kubevirtv1api.VirtualMachine
+	}
+	var testCases = []struct {
+		name  string
+		given input
+	}{
+		{
+			name: "cleanup restore label",
+			given: input{
+				vms: []*kubevirtv1api.VirtualMachine{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-vm",
+							Namespace: "test-namespace",
+							Labels: map[string]string{
+								util.LabelRestoreVMAfterUpgrade: testNodeName,
+								util.LabelVMName:                "test-vm",
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-vm-2",
+							Namespace: "test-namespace-2",
+							Labels: map[string]string{
+								util.LabelRestoreVMAfterUpgrade: testNodeName,
+								util.LabelVMName:                "test-vm-2",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	upgrade := &harvesterv1.Upgrade{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testUpgradeName,
+			Namespace: testUpgradeName,
+		},
+	}
+
+	for _, tc := range testCases {
+		var vms []runtime.Object
+		for _, vm := range tc.given.vms {
+			vms = append(vms, vm)
+		}
+		var clientset = fake.NewSimpleClientset(vms...)
+		var handler = &upgradeHandler{
+			vmClient: fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+			vmCache:  fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+		}
+		assert.Nil(t, handler.cleanupRestoreVMLabel(upgrade))
+		actualVMs, err := handler.vmClient.List("", metav1.ListOptions{})
+		assert.Nil(t, err)
+
+		for _, vm := range actualVMs.Items {
+			_, labelExist := vm.Labels[util.LabelRestoreVMAfterUpgrade]
+			assert.False(t, labelExist, "case %q: restore label not cleaned up", tc.name)
+			assert.Equal(t, vm.Name, vm.Labels[util.LabelVMName], "case %q: incorrect vm name label", tc.name)
+		}
 	}
 }

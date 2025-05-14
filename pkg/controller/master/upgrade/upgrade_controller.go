@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
@@ -40,6 +43,11 @@ import (
 var (
 	upgradeControllerLock sync.Mutex
 	rke2DrainNodes        = true
+
+	removeRestoreVMPatch = util.PatchStringValue{
+		Op:   "remove",
+		Path: "/metadata/labels/" + strings.ReplaceAll(util.LabelRestoreVMAfterUpgrade, "/", "~1"), // JSON Patch format requires '/' to be replaced with '~1'
+	}
 )
 
 const (
@@ -79,12 +87,9 @@ const (
 	preUpgradeVMsAnnotation = "harvesterhci.io/pre-upgrade-vms"
 
 	vmReady condition.Cond = "Ready"
-)
 
-type PreUpgradeRunningVM struct {
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
-}
+	kubevirtReady = string(kubevirtv1.KubeVirtConditionAvailable)
+)
 
 // upgradeHandler Creates Plan CRDs to trigger upgrades
 type upgradeHandler struct {
@@ -130,6 +135,8 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 
 	repo := NewUpgradeRepo(h.ctx, upgrade, h)
 
+	h.restoreVM(upgrade)
+
 	if harvesterv1.UpgradeCompleted.GetStatus(upgrade) == "" {
 		logrus.Infof("Initialize upgrade %s/%s", upgrade.Namespace, upgrade.Name)
 
@@ -139,10 +146,6 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 
 		toUpdate := upgrade.DeepCopy()
 		initStatus(toUpdate)
-
-		if err := h.storeVMState(toUpdate); err != nil {
-			return nil, err
-		}
 
 		if !upgrade.Spec.LogEnabled {
 			logrus.Info("Upgrade observability is administratively disabled")
@@ -239,10 +242,6 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			}
 		}
 
-		// moved the restoreVMState call after the start repo vm as we need to make sure kubevirt is up and running
-		// thus we can bring up the vm to the state before upgrade
-		h.restoreVMState(upgrade)
-
 		if err := h.cleanupImages(upgrade, repo); err != nil {
 			logrus.Warningf("Failed to cleanup images: %s", err.Error())
 			toUpdate := upgrade.DeepCopy()
@@ -260,10 +259,6 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 
 	// upgrade failed
 	if harvesterv1.UpgradeCompleted.IsFalse(upgrade) {
-		// try to restore vm to the state before upgrade
-		// we didn't wait for KubeVirt to reach the Deployed phase because the upgrade failed,
-		// as a result, some services might not be ready and may never fully start.
-		h.restoreVMState(upgrade)
 		// clean upgrade repo VMs.
 		return nil, h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
 	}
@@ -527,6 +522,10 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 		}
 	}
 
+	if err := h.cleanupRestoreVMLabel(upgrade); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -700,7 +699,7 @@ func (h *upgradeHandler) prepareNodesForUpgrade(upgrade *harvesterv1.Upgrade, re
 	logrus.WithFields(logrus.Fields{
 		"namespace":      upgrade.Namespace,
 		"name":           upgrade.Name,
-		"upgrade_config": upgradeConfig,
+		"upgrade_config": fmt.Sprintf("%+v", upgradeConfig),
 	}).Info("start preparing nodes for upgrade")
 
 	nodes, err := h.nodeCache.List(labels.Everything())
@@ -838,120 +837,125 @@ func (h *upgradeHandler) setAutoCleanupSystemGeneratedSnapshotValue(value string
 	return nil
 }
 
-// storeVMState stores VM state only in single-node environments.
-// this method stores information of VMs with Ready=true (i.e. running state) in the upgrade annotation
-func (h *upgradeHandler) storeVMState(upgrade *harvesterv1.Upgrade) error {
+// restoreVM attempts to restore all running non-migratable VMs after the node upgrade succeeds.
+// During the node upgrade, in a multi-node environment, a label harvesterhci.io/restore-vm-after-upgrade={node_name}
+// will be added to non-migratable VMs during the pre-drain job.
+// In a single-node environment, this will occur during the single-node-upgrade job.
+// Once the node upgrade is complete, VMs will be started based on the label,
+// and the label will be removed.
+// Note that this function waits until KubeVirt is ready before restoring the VMs.
+// If KubeVirt is not ready, it will retry every 5 seconds by enqueuing the upgrade.
+func (h *upgradeHandler) restoreVM(upgrade *harvesterv1.Upgrade) {
 	logFields := logrus.Fields{
 		"namespace": upgrade.Namespace,
 		"name":      upgrade.Name,
 	}
-	isSingleNodeRestoreVM, err := h.isSingleNodeRestoreVM(upgrade)
+
+	restoreVM, err := util.IsRestoreVM()
 	if err != nil {
-		return err
-	}
-	if !isSingleNodeRestoreVM {
-		logrus.WithFields(logFields).Info("Skip store VM state")
-		return nil
+		logrus.WithFields(logFields).WithError(err).Errorf("Failed to get setting UpgradeConfig, restoreVM fallback to default: %v", restoreVM)
 	}
 
-	if upgrade.Annotations != nil && upgrade.Annotations[preUpgradeVMsAnnotation] != "" {
-		logrus.WithFields(logFields).Infof("Skip store VM state since %s is already set", preUpgradeVMsAnnotation)
-		return nil
+	if !restoreVM {
+		return
 	}
 
-	vms, err := h.vmCache.List(corev1.NamespaceAll, labels.Everything())
-	if err != nil {
-		logrus.WithFields(logFields).WithError(err).Error("Failed to list all VMs")
-		return err
+	var kubevirt *kubevirtv1.KubeVirt
+	retry.OnError(
+		retry.DefaultBackoff,
+		func(e error) bool {
+			return e != nil || kubevirt == nil
+		},
+		func() error {
+			kubevirt, err = h.kubeVirtCache.Get(harvesterSystemNamespace, util.KubeVirtObjectName)
+			return err
+		},
+	)
+	if err != nil || kubevirt == nil {
+		logrus.WithFields(logFields).Infof("Failed to get kubevirt after retries, enqueue upgrade %s/%s for next vm restore", upgrade.Namespace, upgrade.Name)
+		h.upgradeController.EnqueueAfter(upgrade.Namespace, upgrade.Name, time.Second*5)
+		return
 	}
 
-	runningVMs := make([]*PreUpgradeRunningVM, 0)
-	for _, vm := range vms {
-		if vmReady.IsTrue(vm) {
-			vm := &PreUpgradeRunningVM{
-				Namespace: vm.Namespace,
-				Name:      vm.Name,
+	// restore VM state if the node upgrade is succeeded
+	if restoreVM && len(upgrade.Status.NodeStatuses) > 0 {
+		if condition.Cond(kubevirtReady).IsTrue(kubevirt) {
+			for nodeName, nodeStatus := range upgrade.Status.NodeStatuses {
+				if nodeStatus.State == StateSucceeded {
+					h.restoreVMForNode(upgrade, nodeName)
+				}
 			}
-			runningVMs = append(runningVMs, vm)
+		} else {
+			logrus.WithFields(logFields).Infof("kubevirt is not ready, enqueue upgrade %s/%s for next vm restore", upgrade.Namespace, upgrade.Name)
+			h.upgradeController.EnqueueAfter(upgrade.Namespace, upgrade.Name, time.Second*5)
+			return
 		}
 	}
-	runningVMsJSON, err := json.Marshal(runningVMs)
-	if err != nil {
-		logrus.WithFields(logFields).WithError(err).Error("Failed to marshal PreUpgradeRunningVM list to json")
-		return err
-	}
-
-	if upgrade.Annotations == nil {
-		upgrade.Annotations = make(map[string]string)
-	}
-	upgrade.Annotations[preUpgradeVMsAnnotation] = string(runningVMsJSON)
-	return nil
 }
 
-// restoreVMState attempts to restore all VMs to their pre-upgrade state.
-// This function is designed for single-node environments. There is no guarantee
-// that all VMs will successfully return to their previous state. If any VM fails to start,
-// the error is logged, but the process continues without interruption.
-func (h *upgradeHandler) restoreVMState(upgrade *harvesterv1.Upgrade) {
+// restoreVMForNode attempts to restore non-migratable VMs for specific node.
+// There is no guarantee that all VMs will successfully return to their previous state.
+// If any VM fails to start, the process continues without interruption.
+func (h *upgradeHandler) restoreVMForNode(upgrade *harvesterv1.Upgrade, nodeName string) {
 	logFields := logrus.Fields{
 		"namespace": upgrade.Namespace,
 		"name":      upgrade.Name,
 	}
-	// ignore the error here as the method should be no-op if there is
-	// something wrong in isSingleNodeRestoreVM, and we want to proceed
-	// to the next step: cleanup jobs, stop repo vm... after upgrade success/failed.
-	isSingleNodeRestoreVM, _ := h.isSingleNodeRestoreVM(upgrade)
-	if !isSingleNodeRestoreVM {
-		logrus.WithFields(logFields).Info("Skip restore VM")
+
+	var vms []*kubevirtv1.VirtualMachine
+	var err error
+	err = retry.OnError(
+		retry.DefaultBackoff,
+		func(err error) bool {
+			return err != nil
+		},
+		func() error {
+			vms, err = h.vmCache.List("", labels.SelectorFromSet(labels.Set{util.LabelRestoreVMAfterUpgrade: nodeName}))
+			return err
+		},
+	)
+	if err != nil {
+		logrus.WithFields(logFields).WithError(err).Error("Failed to list VMs after retries")
+		return
+	}
+	if len(vms) == 0 {
+		logrus.WithFields(logFields).Infof("Skip restore VM state since no VMs with label %s=%s are found", util.LabelRestoreVMAfterUpgrade, nodeName)
 		return
 	}
 
-	if upgrade.Annotations == nil || upgrade.Annotations[preUpgradeVMsAnnotation] == "" {
-		logrus.WithFields(logFields).Infof("Skip restore VM state since %s is not set", preUpgradeVMsAnnotation)
-		return
-	}
-
-	preUpgradeRunningVMs := []PreUpgradeRunningVM{}
-	err := json.Unmarshal([]byte(upgrade.Annotations[preUpgradeVMsAnnotation]), &preUpgradeRunningVMs)
-	if err != nil {
-		logrus.WithFields(logFields).WithError(err).Error("Failed to unmarshal json to PreUpgradeRunningVM list")
-		return
-	}
-
-	for _, vmInfo := range preUpgradeRunningVMs {
-		vm, err := h.vmCache.Get(vmInfo.Namespace, vmInfo.Name)
-		if err != nil {
-			logrus.WithFields(logFields).WithError(err).Errorf("Failed to get VM %s/%s from cache", vmInfo.Namespace, vmInfo.Name)
-			continue
+	payload, _ := json.Marshal([]util.PatchStringValue{removeRestoreVMPatch})
+	for _, vm := range vms {
+		if !vmReady.IsTrue(vm) {
+			startVMErr := retry.OnError(
+				retry.DefaultBackoff,
+				func(err error) bool {
+					return err != nil && !apierrors.IsNotFound(err)
+				},
+				func() error {
+					return h.startVM(context.Background(), vm)
+				},
+			)
+			if startVMErr != nil {
+				logrus.WithFields(logFields).WithError(startVMErr).Errorf("Failed to start VM %s/%s after retries", vm.Namespace, vm.Name)
+			}
 		}
-		// the vm is already in running state
-		if vmReady.IsTrue(vm) {
-			continue
-		}
-		if err = h.startVM(context.Background(), vm); err != nil {
-			logrus.WithFields(logFields).WithError(err).Errorf("Failed to start vm %s/%s after upgrade", vmInfo.Namespace, vmInfo.Name)
-		}
-	}
-}
 
-func (h *upgradeHandler) isSingleNodeRestoreVM(upgrade *harvesterv1.Upgrade) (bool, error) {
-	singleNode, err := h.isSingleNodeCluster()
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"namespace": upgrade.Namespace,
-			"name":      upgrade.Name,
-		}).WithError(err).Error("Failed to check if cluster is single node")
-		return false, err
+		if _, exist := vm.Labels[util.LabelRestoreVMAfterUpgrade]; exist {
+			patchVMErr := retry.OnError(
+				retry.DefaultBackoff,
+				func(err error) bool {
+					return err != nil && !apierrors.IsNotFound(err)
+				},
+				func() error {
+					_, err := h.vmClient.Patch(vm.Namespace, vm.Name, types.JSONPatchType, payload)
+					return err
+				},
+			)
+			if patchVMErr != nil {
+				logrus.WithFields(logFields).WithError(patchVMErr).Errorf("Failed to remove restore vm label for VM %s/%s after retries", vm.Namespace, vm.Name)
+			}
+		}
 	}
-	upgradeConfig, err := settings.DecodeConfig[settings.UpgradeConfig](settings.UpgradeConfigSet.Get())
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"namespace": upgrade.Namespace,
-			"name":      upgrade.Name,
-		}).WithError(err).Error("Failed to get UpgradeConfig")
-		return false, err
-	}
-	return singleNode != "" && upgradeConfig.RestoreVM, nil
 }
 
 func (h *upgradeHandler) startVM(ctx context.Context, vm *kubevirtv1.VirtualMachine) error {
@@ -968,4 +972,43 @@ func (h *upgradeHandler) startVM(ctx context.Context, vm *kubevirtv1.VirtualMach
 		Body(body).
 		Do(ctx)
 	return res.Error()
+}
+
+// try to remove restore VM labels, normally the label should be removed if upgrade succeeded
+// while if the upgrade is cancelled or failed, the label could be left on the VM,
+// and we need to clean it up.
+func (h *upgradeHandler) cleanupRestoreVMLabel(upgrade *harvesterv1.Upgrade) error {
+	requirement, _ := labels.NewRequirement(util.LabelRestoreVMAfterUpgrade, selection.Exists, nil)
+	vmsWithLabel, err := h.vmCache.List("", labels.NewSelector().Add(*requirement))
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"namespace": upgrade.Namespace,
+			"name":      upgrade.Name,
+		}).WithError(err).Errorf("Failed to get VMs with restore vm label after upgrade completed")
+		return err
+	}
+	payload, _ := json.Marshal([]util.PatchStringValue{removeRestoreVMPatch})
+	for _, vm := range vmsWithLabel {
+		logrus.WithFields(logrus.Fields{
+			"namespace": upgrade.Namespace,
+			"name":      upgrade.Name,
+		}).Warnf("Removing restore vm label for VM %s/%s after upgrade completed", vm.Namespace, vm.Name)
+		patchVMErr := retry.OnError(
+			retry.DefaultBackoff,
+			func(err error) bool {
+				return err != nil && !apierrors.IsNotFound(err)
+			},
+			func() error {
+				_, err := h.vmClient.Patch(vm.Namespace, vm.Name, types.JSONPatchType, payload)
+				return err
+			},
+		)
+		if patchVMErr != nil {
+			logrus.WithFields(logrus.Fields{
+				"namespace": upgrade.Namespace,
+				"name":      upgrade.Name,
+			}).WithError(patchVMErr).Errorf("Failed to remove restore vm label for VM %s/%s after upgrade completed", vm.Namespace, vm.Name)
+		}
+	}
+	return nil
 }
