@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"regexp"
 	"strconv"
 
 	"github.com/pkg/errors"
@@ -46,7 +45,6 @@ const (
 )
 
 var (
-	lowerChars  = regexp.MustCompile("[a-z]+")
 	paramScheme = runtime.NewScheme()
 	paramCodec  = runtime.NewParameterCodec(paramScheme)
 )

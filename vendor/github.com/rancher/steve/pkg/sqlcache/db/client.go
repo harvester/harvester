@@ -16,12 +16,14 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/rancher/lasso/pkg/cache/sql/db/transaction"
+	"github.com/rancher/steve/pkg/sqlcache/db/transaction"
+
+	// needed for drivers
 	_ "modernc.org/sqlite"
 )
 
 const (
-	// InformerObjectCacheDBPath is where SQLite's object database file will be stored relative to process running lasso
+	// InformerObjectCacheDBPath is where SQLite's object database file will be stored relative to process running steve
 	InformerObjectCacheDBPath = "informer_object_cache.db"
 
 	informerObjectCachePerms fs.FileMode = 0o600
@@ -228,7 +230,7 @@ func (c *Client) ReadInt(rows Rows) (int, error) {
 // If forWriting is true, this method blocks until all other concurrent forWriting
 // transactions have either committed or rolled back.
 // If forWriting is false, it is assumed the returned transaction will exclusively
-// be used for DQL (eg. SELECT) queries.
+// be used for DQL (e.g. SELECT) queries.
 // Not respecting the above rule might result in transactions failing with unexpected
 // SQLITE_BUSY (5) errors (aka "Runtime error: database is locked").
 // See discussion in https://github.com/rancher/lasso/pull/98 for details

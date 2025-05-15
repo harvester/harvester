@@ -8,8 +8,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/rancher/lasso/pkg/cache/sql/partition"
-	sqlStore "github.com/rancher/lasso/pkg/cache/sql/store"
+	"github.com/rancher/steve/pkg/sqlcache/partition"
+	sqlStore "github.com/rancher/steve/pkg/sqlcache/store"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,7 +29,7 @@ type ByOptionsLister interface {
 	ListByOptions(ctx context.Context, lo ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, string, error)
 }
 
-// this is set to a var so that it can be overriden by test code for mocking purposes
+// this is set to a var so that it can be overridden by test code for mocking purposes
 var newInformer = cache.NewSharedIndexInformer
 
 // NewInformer returns a new SQLite-backed Informer for the type specified by schema in unstructured.Unstructured form
@@ -48,8 +48,15 @@ func NewInformer(client dynamic.ResourceInterface, fields [][]string, transform 
 	example := &unstructured.Unstructured{}
 	example.SetGroupVersionKind(gvk)
 
-	// avoids the informer to periodically resync (re-list) its resources
-	// currently it is a work hypothesis that, when interacting with the UI, this should not be needed
+	// TL;DR: this disables the Informer periodic resync - but this is inconsequential
+	//
+	// Long version: Informers use a Reflector to pull data from a ListWatcher and push it into a DeltaFIFO.
+	// Concurrently, they pop data off the DeltaFIFO to fire registered handlers, and also to keep an updated
+	// copy of the known state of all objects (in an Indexer).
+	// The resync period option here is passed from Informer to Reflector to periodically (re)-push all known
+	// objects to the DeltaFIFO. That causes the periodic (re-)firing all registered handlers.
+	// In this case we are not registering any handlers to this particular informer, so re-syncing is a no-op.
+	// We therefore just disable it right away.
 	resyncPeriod := time.Duration(0)
 
 	sii := newInformer(listWatcher, example, resyncPeriod, cache.Indexers{})
