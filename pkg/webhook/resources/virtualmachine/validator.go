@@ -8,12 +8,14 @@ import (
 	"strings"
 
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
@@ -30,6 +32,8 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/types"
 	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
 )
+
+const danglingCN = ".dangling"
 
 func NewValidator(
 	nsCache v1.NamespaceCache,
@@ -91,31 +95,35 @@ func (v *vmValidator) getClusterNetworkForNad(nwName string) (clusterNetwork str
 	case 2:
 		namespace, name = words[0], words[1]
 	default:
-		return clusterNetwork, fmt.Errorf("invalid network name %s", nwName)
+		return "", fmt.Errorf("invalid network name %s", nwName)
 	}
 
 	nad, err := v.nadCache.Get(namespace, name)
 	if err != nil {
-		return clusterNetwork, err
+		return "", err
+	}
+	if nad.Labels == nil {
+		return "", fmt.Errorf("nad %v/%v has no labels", namespace, name)
 	}
 	clusterNetwork, ok := nad.Labels[keyClusterNetwork]
 	if !ok {
-		return clusterNetwork, err
+		return "", fmt.Errorf("nad %v/%v has no label %v", namespace, name, keyClusterNetwork)
 	}
 
 	return clusterNetwork, nil
 }
 
-func (v *vmValidator) getVMInterfaceInfo(vms []*kubevirtv1.VirtualMachine) (MacAddrPerCluster map[string]map[string]string, err error) {
+// tolerantMismatch: when true, tolerant network & interface mismatch
+
+func (v *vmValidator) getVMInterfaceInfo(vms map[apitypes.UID]*kubevirtv1.VirtualMachine, tolerantMismatch bool) (MacAddrPerCluster map[string]map[string]string, err error) {
 	MacAddrPerCluster = make(map[string]map[string]string) //map[clusterName]map[macaddr]intfName
 
 	for _, vm := range vms {
-		vmName := vm.Namespace + "/" + vm.Name
-
 		if vm.Spec.Template == nil {
-			return MacAddrPerCluster, fmt.Errorf("vm %s template is nil", vm.Name)
+			return MacAddrPerCluster, fmt.Errorf("vm %s/%s template is nil", vm.Namespace, vm.Name)
 		}
 
+		vmName := vm.Namespace + "/" + vm.Name
 		vmCluster := make(map[string]string) // map[netIntfName]clusterNetwork
 		vmNetworks := vm.Spec.Template.Spec.Networks
 		for _, vmNetwork := range vmNetworks {
@@ -124,6 +132,13 @@ func (v *vmValidator) getVMInterfaceInfo(vms []*kubevirtv1.VirtualMachine) (MacA
 			}
 			cn, err := v.getClusterNetworkForNad(vmNetwork.Multus.NetworkName)
 			if err != nil {
+				// tolerant dangling networks
+				if apierrors.IsNotFound(err) {
+					logrus.Debugf("vm %v/%v has dangling network %v", vm.Namespace, vm.Name, vmNetwork.Name)
+					// mark this as invalid CN
+					vmCluster[vmNetwork.Name] = danglingCN
+					continue
+				}
 				return MacAddrPerCluster, err
 			}
 			vmCluster[vmNetwork.Name] = cn
@@ -131,20 +146,33 @@ func (v *vmValidator) getVMInterfaceInfo(vms []*kubevirtv1.VirtualMachine) (MacA
 
 		vmInterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
 
-		var macAddrs map[string]string
+		//var macAddrs map[string]string
 		for _, vmInterface := range vmInterfaces {
-			if vmInterface.MacAddress == "" {
+			if vmInterface.MacAddress == "" || vmInterface.Name == "default" {
 				continue
 			}
 
 			clusNet := vmCluster[vmInterface.Name]
-			if _, exists := MacAddrPerCluster[clusNet]; !exists {
+			if clusNet == "" {
+				if !tolerantMismatch {
+					// kubevirt validates this error later
+					// but here it is used as map key, check it in advance
+					// for dangling interface, user should remove the interface and network at the same time
+					return nil, fmt.Errorf("vm %s/%s interface %v refers to a non-existent network", vm.Namespace, vm.Name, vmInterface.Name)
+				}
+				continue
+			}
+			if clusNet == danglingCN {
+				continue
+			}
+			macAddrs, exists := MacAddrPerCluster[clusNet]
+			if !exists {
 				macAddrs = make(map[string]string)
-			} else {
-				macAddrs = MacAddrPerCluster[clusNet]
 			}
 			macAddrs[vmInterface.MacAddress] = vmInterface.Name + "+" + vmName
-			MacAddrPerCluster[clusNet] = macAddrs
+			if !exists {
+				MacAddrPerCluster[clusNet] = macAddrs
+			}
 		}
 	}
 
@@ -152,15 +180,18 @@ func (v *vmValidator) getVMInterfaceInfo(vms []*kubevirtv1.VirtualMachine) (MacA
 }
 
 func (v *vmValidator) checkForDuplicateMacAddrs(vm *kubevirtv1.VirtualMachine) (err error) {
-	var newVMs []*kubevirtv1.VirtualMachine
+	if vm.Spec.Template == nil {
+		return fmt.Errorf("vm %s template is nil", vm.Name)
+	}
+
 	var oldVMsInfo map[string]map[string]string
-	var oldVMsList []*kubevirtv1.VirtualMachine
 
 	//get map[clustername]map[mac]string info for new vm
-	newVMs = append(newVMs, vm)
-	newVMsInfo, err := v.getVMInterfaceInfo(newVMs)
+	newVMs := make(map[apitypes.UID]*kubevirtv1.VirtualMachine, 1)
+	newVMs[vm.UID] = vm
+	newVMsInfo, err := v.getVMInterfaceInfo(newVMs, false)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get current VM interface info %w", err)
 	}
 
 	//newVMsInfo will be empty when new vms are created without any mac address config
@@ -169,11 +200,9 @@ func (v *vmValidator) checkForDuplicateMacAddrs(vm *kubevirtv1.VirtualMachine) (
 		return nil
 	}
 
-	if vm.Spec.Template == nil {
-		return fmt.Errorf("vm %s template is nil", vm.Name)
-	}
-
 	vmInterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
+
+	oldVMsMap := make(map[apitypes.UID]*kubevirtv1.VirtualMachine)
 
 	for _, vmInterface := range vmInterfaces {
 		oldVMs, err := v.vmCache.GetByIndex(indexerwebhook.VMByMacAddress, vmInterface.MacAddress)
@@ -181,17 +210,21 @@ func (v *vmValidator) checkForDuplicateMacAddrs(vm *kubevirtv1.VirtualMachine) (
 			return err
 		}
 
-		oldVMsList = append(oldVMsList, oldVMs...)
+		// oldVMsList = append(oldVMsList, oldVMs...)
+		// map is used to filter those duplicated occurrences, e.g. 1 VM has 10 interfaces with 10 MACs
+		for _, oldVM := range oldVMs {
+			oldVMsMap[oldVM.UID] = oldVM
+		}
 	}
 
 	//No matching mac addresses,skip duplicate mac address check
-	if len(oldVMsList) == 0 {
+	if len(oldVMsMap) == 0 {
 		return nil
 	}
 
-	oldVMsInfo, err = v.getVMInterfaceInfo(oldVMsList)
+	oldVMsInfo, err = v.getVMInterfaceInfo(oldVMsMap, true)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get old VM interface info %w", err)
 	}
 
 	for cn, macs := range newVMsInfo {
