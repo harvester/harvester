@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rancher/lasso/pkg/cache/sql/db"
-	"github.com/rancher/lasso/pkg/cache/sql/db/transaction"
+	"github.com/rancher/steve/pkg/sqlcache/db"
+	"github.com/rancher/steve/pkg/sqlcache/db/transaction"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -89,12 +89,13 @@ func NewIndexer(indexers cache.Indexers, s Store) (*Indexer, error) {
 	if err != nil {
 		return nil, err
 	}
-	createTableQuery := fmt.Sprintf(createTableFmt, db.Sanitize(s.GetName()))
+	dbName := db.Sanitize(s.GetName())
+	createTableQuery := fmt.Sprintf(createTableFmt, dbName)
 	err = tx.Exec(createTableQuery)
 	if err != nil {
 		return nil, &db.QueryError{QueryString: createTableQuery, Err: err}
 	}
-	createIndexQuery := fmt.Sprintf(createIndexFmt, db.Sanitize(s.GetName()))
+	createIndexQuery := fmt.Sprintf(createIndexFmt, dbName)
 	err = tx.Exec(createIndexQuery)
 	if err != nil {
 		return nil, &db.QueryError{QueryString: createIndexQuery, Err: err}
@@ -135,7 +136,7 @@ func (i *Indexer) AfterUpsert(key string, obj any, tx db.TXClient) error {
 		return &db.QueryError{QueryString: i.deleteIndicesQuery, Err: err}
 	}
 
-	// re-insert all
+	// re-insert all values
 	i.indexersLock.RLock()
 	defer i.indexersLock.RUnlock()
 	for indexName, indexFunc := range i.indexers {
@@ -181,7 +182,7 @@ func (i *Indexer) Index(indexName string, obj any) ([]any, error) {
 
 	// atypical case - more than one value to lookup
 	// HACK: sql.Statement.Query does not allow to pass slices in as of go 1.19 - create an ad-hoc statement
-	query := fmt.Sprintf(fmt.Sprintf(selectQueryFmt, db.Sanitize(i.GetName()), strings.Repeat(", ?", len(values)-1)))
+	query := fmt.Sprintf(selectQueryFmt, db.Sanitize(i.GetName()), strings.Repeat(", ?", len(values)-1))
 	stmt := i.Prepare(query)
 	defer i.CloseStmt(stmt)
 	// HACK: Query will accept []any but not []string
