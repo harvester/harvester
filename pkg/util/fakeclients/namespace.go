@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	corev1type "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
 )
 
 type NamespaceCache func() corev1type.NamespaceInterface
@@ -72,5 +73,9 @@ func (c NamespaceClient) Watch(metav1.ListOptions) (watch.Interface, error) {
 }
 
 func (c NamespaceClient) Patch(_ string, _ types.PatchType, _ []byte, _ ...string) (result *v1.Namespace, err error) {
+	panic("implement me")
+}
+
+func (c NamespaceClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.NonNamespacedClientInterface[*v1.Namespace, *v1.NamespaceList], error) {
 	panic("implement me")
 }

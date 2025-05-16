@@ -264,4 +264,14 @@ const (
 	AnnotationReenableDeschedulerAddon = prefix + "/reenableDeschedulerAddon"
 
 	HarvesterUpgradeComponentRepo = "repo"
+
+	// PSS controller labels
+	PSSEnforcementKey          = "pod-security.kubernetes.io/enforce"
+	BaselineEnforcementValue   = "baseline"
+	PSSEnforcementVersionKey   = "pod-security.kubernetes.io/enforce-version"
+	PSSEnforcementVersionValue = "latest"
+	RestrictedEnforcementValue = "restricted"
+	PrivilegedEnforcementValue = "privileged"
+	HarvesterManagedPSSKey     = "pss.harvesterhci.io/managed"
+	HarvesterManagedPSSValue   = "true"
 )
