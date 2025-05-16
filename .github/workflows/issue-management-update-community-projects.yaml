@@ -75,7 +75,8 @@ jobs:
         # If the issue is milestoned by harvester member, update to Resolved
         if [[ $team_count -gt 0 && 
               "${{ github.event_name }}" == "issues" && 
-              "${{ github.event.action }}" == "milestoned" ]]; then
+              "${{ github.event.action }}" == "milestoned" && 
+              "${{ steps.get-status-field.outputs.values }}" != "Closed" ]]; then
 
           echo "Updating to Resolved since it's milestoned by harvester member"
           echo "field-values=Resolved,[0]" >> $GITHUB_ENV

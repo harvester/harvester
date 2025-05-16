@@ -57,7 +57,8 @@ jobs:
     - name: Set Milestone to Issue
       if: ${{
         fromJSON(steps.is-harvester-member.outputs.teams)[0] != null  &&
-        github.event.issue.milestone == null
+        github.event.issue.milestone == null &&
+        steps.get-status-field.outcome == 'success'
         }}
       env:
         GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
