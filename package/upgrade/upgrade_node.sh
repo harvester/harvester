@@ -508,6 +508,130 @@ calculateCPUReservedInMilliCPU() {
   echo $reserved
 }
 
+add_mgmtbridge_vlans() {
+  if [ -z "$UPGRADE_PREVIOUS_VERSION" ]; then
+    detect_upgrade
+  fi
+
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.5\.[0-9]$ ]]; then
+    echo "version: $UPGRADE_PREVIOUS_VERSION does not require add_mgmtbridge_vlans"
+    return
+  fi
+
+  cat << 'EOF' > $HOST_DIR/tmp/add-mgmtvlans.sh
+
+#!/bin/bash
+
+local CLUSTER_LABEL_KEY="network.harvesterhci.io/clusternetwork"
+local VLAN_LABEL_KEY="network.harvesterhci.io/vlan-id"
+local BRIDGE_DEVICE="mgmt-bo"
+
+# Get all VLAN IDs associated with mgmt clusternetwork
+vlan_ids=($(kubectl get net-attach-def --all-namespaces -o json | \
+  jq -r --arg cl_label "$CLUSTER_LABEL_KEY" --arg vlan_label "$VLAN_LABEL_KEY" '
+    .items[] |
+    select(.metadata.labels[$cl_label] == "mgmt") |
+    .metadata.labels[$vlan_label]
+  ' | sort -u))
+
+# Check if any VLAN IDs were found
+if [ ${#vlan_ids[@]} -eq 0 ]; then
+  echo "No VLAN IDs found with $CLUSTER_LABEL_KEY=mgmt label."
+  return
+fi
+
+# Loop through each VLAN ID and add it to the bridge device
+echo "Adding VLANs to bridge device $BRIDGE_DEVICE..."
+for vlan_id in "${vlan_ids[@]}"; do
+  if [[ "$vlan_id" =~ ^[0-9]+$ ]]; then
+    echo "Adding VLAN ID $vlan_id to $BRIDGE_DEVICE"
+    bridge vlan add vid "$vlan_id" dev "$BRIDGE_DEVICE"
+  else
+    echo "Warning: Skipping invalid VLAN ID '$vlan_id'"
+  fi
+done
+
+EOF
+
+  chmod +x $HOST_DIR/tmp/add-mgmtvlans.sh
+
+
+  cat > $HOST_DIR/run/systemd/system/upgrade-addmgmtvlans.service << 'EOF'
+[Unit]
+Description=Add mgmt vlans
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/tmp/add-mgmtvlans.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  chroot $HOST_DIR systemctl daemon-reload
+  chroot $HOST_DIR systemctl enable upgrade-addmgmtvlans.service
+}
+
+replace_with_mgmtvlan() {
+  if [ -z "$UPGRADE_PREVIOUS_VERSION" ]; then
+    detect_upgrade
+  fi
+
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.5\.[0-9]$ ]]; then
+    echo "version: $UPGRADE_PREVIOUS_VERSION does not require patching mgmt vlan"
+    return
+  fi
+
+  #files to update with mgmt vlan
+  local SETUPBOND_FILE="${HOST_DIR}/etc/wicked/scripts/setup_bond.sh"
+  local SETUPBRIDGE_FILE="${HOST_DIR}/etc/wicked/scripts/setup_bridge.sh"
+  local CUSTOM90_FILE="${HOST_DIR}/oem/90_custom.yaml"
+  local CONFIG_FILE="${HOST_DIR}/oem/harvester.config"
+
+  # Check if the harvester config file exists
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "Error: Config file '$CONFIG_FILE' not found."
+    return
+  fi
+
+  # Search for the mgmt vlanid installed in the config file
+  vlan_id=$(yq '.install.managementinterface.vlanid' $CONFIG_FILE)
+
+  if [[ -z "$vlan_id" || "$vlan_id" -eq 0 ]]; then
+    echo "VLAN ID: $vlan_id Not found, assign vlan_id=1"
+    vlan_id=1
+  fi
+
+  # Check if the file exists
+  if [[ -f "$SETUPBOND_FILE" ]]; then
+    # Replace the range with the VLAN ID
+    sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$SETUPBOND_FILE"
+    echo "Updated $SETUPBOND_FILE with VLAN ID $vlan_id"
+  else
+    echo "File not found: $SETUPBOND_FILE"
+  fi
+
+  # Check if the file exists
+  if [[ -f "$SETUPBRIDGE_FILE" ]]; then
+    # Replace the range with the VLAN ID
+    sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$SETUPBRIDGE_FILE"
+    echo "Updated $SETUPBRIDGE_FILE with VLAN ID $vlan_id"
+  else
+    echo "File not found: $SETUPBRIDGE_FILE"
+  fi
+
+  # Check if the file exists
+  if [[ -f "$CUSTOM90_FILE" ]]; then
+    # Replace the range with the VLAN ID
+    sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$CUSTOM90_FILE"
+    echo "Updated $CUSTOM90_FILE with VLAN ID $vlan_id"
+  else
+    echo "File not found: $CUSTOM90_FILE"
+  fi
+}
+
 upgrade_os() {
   # The trap will be only effective from this point to the end of the execution
   trap clean_up_tmp_files EXIT
@@ -613,6 +737,9 @@ EOF
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
 
+  #start service to add vlans to mgmt cluster created by user before node reboot
+  add_mgmtbridge_vlans
+
   reboot_if_job_succeed
 }
 
@@ -643,6 +770,9 @@ command_post_drain() {
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME kubevirt.io/drain- || true
 
   convert_nodenetwork_to_vlanconfig
+
+  #replace the range vlans with mgmt vlan in wicked scripts and 90_custom.yaml file before node reboot
+  replace_with_mgmtvlan
 
   upgrade_os
 }
@@ -682,6 +812,9 @@ command_single_node_upgrade() {
   clean_rke2_archives
 
   convert_nodenetwork_to_vlanconfig
+
+  #replace the range vlans with mgmt vlan in wicked scripts and 90_custom.yaml file before node reboot
+  replace_with_mgmtvlan
 
   # Upgrade OS
   upgrade_os
