@@ -240,3 +240,7 @@ func ValidateAdditionalGuestMemoryOverheadRatioHelper(value string) error {
 	_, err := NewAdditionalGuestMemoryOverheadRatioConfig(value)
 	return err
 }
+
+type RancherClusterConfig struct {
+	RemoveUpstreamClusterWhenNamespaceIsDeleted bool `json:"removeUpstreamClusterWhenNamespaceIsDeleted"`
+}
