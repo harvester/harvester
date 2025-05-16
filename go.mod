@@ -133,6 +133,7 @@ require (
 	k8s.io/kube-openapi v0.31.9
 	k8s.io/kubectl v0.32.2
 	k8s.io/kubelet v0.26.13
+	k8s.io/pod-security-admission v0.32.2
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 	kubevirt.io/api v1.6.0
 	kubevirt.io/client-go v1.6.0
