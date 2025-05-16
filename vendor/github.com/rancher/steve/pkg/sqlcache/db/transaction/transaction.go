@@ -9,6 +9,7 @@ import (
 	"database/sql"
 
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // Client provides a way to interact with the underlying sql transaction.
@@ -64,6 +65,7 @@ func (c *Client) Stmt(stmt *sql.Stmt) Stmt {
 func (c *Client) StmtExec(stmt Stmt, args ...any) error {
 	_, err := stmt.Exec(args...)
 	if err != nil {
+		logrus.Debugf("StmtExec failed: query %s, args: %s, err: %s", stmt, args, err)
 		return c.rollback(c.sqlTx, err)
 	}
 	return nil

@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rancher/lasso/pkg/cache/sql/db"
-	"github.com/rancher/lasso/pkg/cache/sql/encryption"
-	"github.com/rancher/lasso/pkg/cache/sql/informer"
-	sqlStore "github.com/rancher/lasso/pkg/cache/sql/store"
 	"github.com/rancher/lasso/pkg/log"
+	"github.com/rancher/steve/pkg/sqlcache/db"
+	"github.com/rancher/steve/pkg/sqlcache/encryption"
+	"github.com/rancher/steve/pkg/sqlcache/informer"
+	sqlStore "github.com/rancher/steve/pkg/sqlcache/store"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -65,9 +65,15 @@ var defaultEncryptedResourceTypes = map[schema.GroupVersionKind]struct{}{
 		Version: "v1",
 		Kind:    "Secret",
 	}: {},
+	{
+		Group:   "management.cattle.io",
+		Version: "v3",
+		Kind:    "Token",
+	}: {},
 }
 
 // NewCacheFactory returns an informer factory instance
+// This is currently called from steve via initial calls to `s.cacheFactory.CacheFor(...)`
 func NewCacheFactory() (*CacheFactory, error) {
 	m, err := encryption.NewManager()
 	if err != nil {

@@ -9,9 +9,12 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/rancher/lasso/pkg/cache/sql/db"
-	"github.com/rancher/lasso/pkg/cache/sql/db/transaction"
+	"github.com/rancher/lasso/pkg/log"
+	"github.com/rancher/steve/pkg/sqlcache/db"
+	"github.com/rancher/steve/pkg/sqlcache/db/transaction"
 	"k8s.io/client-go/tools/cache"
+
+	// needed for drivers
 	_ "modernc.org/sqlite"
 )
 
@@ -85,7 +88,8 @@ func NewStore(example any, keyFunc cache.KeyFunc, c DBClient, shouldEncrypt bool
 	if err != nil {
 		return nil, err
 	}
-	createTableQuery := fmt.Sprintf(createTableFmt, db.Sanitize(s.name))
+	dbName := db.Sanitize(s.name)
+	createTableQuery := fmt.Sprintf(createTableFmt, dbName)
 	err = txC.Exec(createTableQuery)
 	if err != nil {
 		return nil, &db.QueryError{QueryString: createTableQuery, Err: err}
@@ -96,11 +100,11 @@ func NewStore(example any, keyFunc cache.KeyFunc, c DBClient, shouldEncrypt bool
 		return nil, err
 	}
 
-	s.upsertQuery = fmt.Sprintf(upsertStmtFmt, db.Sanitize(s.name))
-	s.deleteQuery = fmt.Sprintf(deleteStmtFmt, db.Sanitize(s.name))
-	s.getQuery = fmt.Sprintf(getStmtFmt, db.Sanitize(s.name))
-	s.listQuery = fmt.Sprintf(listStmtFmt, db.Sanitize(s.name))
-	s.listKeysQuery = fmt.Sprintf(listKeysStmtFmt, db.Sanitize(s.name))
+	s.upsertQuery = fmt.Sprintf(upsertStmtFmt, dbName)
+	s.deleteQuery = fmt.Sprintf(deleteStmtFmt, dbName)
+	s.getQuery = fmt.Sprintf(getStmtFmt, dbName)
+	s.listQuery = fmt.Sprintf(listStmtFmt, dbName)
+	s.listKeysQuery = fmt.Sprintf(listKeysStmtFmt, dbName)
 
 	s.upsertStmt = s.Prepare(s.upsertQuery)
 	s.deleteStmt = s.Prepare(s.deleteQuery)
@@ -180,7 +184,11 @@ func (s *Store) Add(obj any) error {
 	}
 
 	err = s.upsert(key, obj)
-	return err
+	if err != nil {
+		log.Errorf("Error in Store.Add for type %v: %v", s.name, err)
+		return err
+	}
+	return nil
 }
 
 // Update saves an obj, or updates it if it exists in this Store
@@ -194,7 +202,12 @@ func (s *Store) Delete(obj any) error {
 	if err != nil {
 		return err
 	}
-	return s.deleteByKey(key)
+	err = s.deleteByKey(key)
+	if err != nil {
+		log.Errorf("Error in Store.Delete for type %v: %v", s.name, err)
+		return err
+	}
+	return nil
 }
 
 // List returns a list of all the currently known objects
