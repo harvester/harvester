@@ -14,7 +14,7 @@ This chart will do the following:
 
 ## Introduction
 
-Harvester uses a `ManagedChart` resource to deploy both its core components and the [Harvester CRDs](https://github.com/harvester/harvester/tree/master/deploy/charts/harvester-crd). This is configured via the [harvester-installer](https://github.com/harvester/harvester-installer/blob/master/pkg/config/templates/rancherd-10-harvester.yaml).
+Harvester uses a `ManagedChart` resource to deploy its core components. This is configured via the [harvester-installer](https://github.com/harvester/harvester-installer/blob/master/pkg/config/templates/rancherd-10-harvester.yaml). Be aware that `deploy/harvester` and `deploy/harvester-crd` are two separate `ManagedChart` resources.
 
 Once a `ManagedChart` is created, Fleet generates a `Bundle` resource to trigger Helm and install the chart. You can learn more about this process in the [Fleet documentation](https://fleet.rancher.io/concepts).
 
@@ -52,7 +52,7 @@ Since we're using a non-official version, we need to modify Chart.yaml to point 
 ```
 
 ## License
-Copyright (c) 2025 [Rancher Labs, Inc.](http://rancher.com)
+Copyright (c) 2025 [SUSE, LLC.](https://www.suse.com/)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
