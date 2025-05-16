@@ -13,7 +13,8 @@ import (
 )
 
 var (
-	shutdown bool
+	shutdown  bool
+	restoreVM bool
 )
 
 var vmLiveMigrateDetectorCmd = &cobra.Command{
@@ -31,6 +32,7 @@ If there is no place to go, it can optionally shut down the VMs.
 			KubeConfigPath: cmd.KubeConfigPath,
 			KubeContext:    cmd.KubeContext,
 			Shutdown:       shutdown,
+			RestoreVM:      restoreVM,
 			NodeName:       args[0],
 		}
 		if err := run(ctx, options); err != nil {
@@ -42,6 +44,7 @@ If there is no place to go, it can optionally shut down the VMs.
 
 func init() {
 	vmLiveMigrateDetectorCmd.Flags().BoolVar(&shutdown, "shutdown", false, "Shutdown non-migratable VMs")
+	vmLiveMigrateDetectorCmd.Flags().BoolVar(&restoreVM, "restore-vm", false, "Add restore vm label to non-migratable VMs")
 
 	cmd.RootCmd.AddCommand(vmLiveMigrateDetectorCmd)
 }

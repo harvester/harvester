@@ -28,6 +28,7 @@ const (
 	LabelSVMBackupTimestamp             = prefix + "/svmbackupTimestamp"
 	LabelVMCreator                      = prefix + "/creator"
 	LabelNodeNameKey                    = "kubevirt.io/nodeName"
+	LabelRestoreVMAfterUpgrade          = prefix + "/restore-vm-after-upgrade"
 	AnnotationStorageClassName          = prefix + "/storageClassName"
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
@@ -208,3 +209,9 @@ const (
 	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
 	StorageNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
 )
+
+type PatchStringValue struct {
+	Op    string      `json:"op"`
+	Path  string      `json:"path"`
+	Value interface{} `json:"value"`
+}

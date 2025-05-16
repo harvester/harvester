@@ -289,6 +289,23 @@ lower_version_check()
   fi
 }
 
+# label all running VMs with harvesterhci.io/restore-vm-after-upgrade={node_name}
+# this is used to restore VMs after upgrade under single node environment.
+label_running_vms()
+{
+  if [ "$HARVESTER_UPGRADE_RESTORE_VM" = "true" ]; then
+    kubectl get vm -A -o json |
+      jq -r '.items[] | select(.status.printableStatus == "Running") | [.metadata.name, .metadata.namespace] | @tsv' |
+      while IFS=$'\t' read -r name namespace; do
+        if [ -z "$name" ]; then
+          break
+        fi
+        echo "Label ${namespace}/${name}"
+        kubectl label vm $name -n $namespace harvesterhci.io/restore-vm-after-upgrade=$HARVESTER_UPGRADE_NODE_NAME --overwrite
+      done
+  fi
+}
+
 shutdown_all_vms()
 {
   kubectl get vmi -A -o json |

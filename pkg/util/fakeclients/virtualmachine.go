@@ -36,8 +36,8 @@ func (c VirtualMachineClient) Delete(_, _ string, _ *metav1.DeleteOptions) error
 	panic("implement me")
 }
 
-func (c VirtualMachineClient) List(_ string, _ metav1.ListOptions) (*kubevirtv1api.VirtualMachineList, error) {
-	panic("implement me")
+func (c VirtualMachineClient) List(namespace string, _ metav1.ListOptions) (*kubevirtv1api.VirtualMachineList, error) {
+	return c(namespace).List(context.TODO(), metav1.ListOptions{})
 }
 
 func (c VirtualMachineClient) UpdateStatus(_ *kubevirtv1api.VirtualMachine) (*kubevirtv1api.VirtualMachine, error) {
@@ -48,8 +48,8 @@ func (c VirtualMachineClient) Watch(_ string, _ metav1.ListOptions) (watch.Inter
 	panic("implement me")
 }
 
-func (c VirtualMachineClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (result *kubevirtv1api.VirtualMachine, err error) {
-	panic("implement me")
+func (c VirtualMachineClient) Patch(namespace, name string, patchType types.PatchType, payload []byte, subresources ...string) (result *kubevirtv1api.VirtualMachine, err error) {
+	return c(namespace).Patch(context.TODO(), name, patchType, payload, metav1.PatchOptions{}, subresources...)
 }
 
 func (c VirtualMachineClient) Informer() cache.SharedIndexInformer {

@@ -289,7 +289,11 @@ command_pre_drain() {
   wait_longhorn_engines
 
   # Shut down non-live migratable VMs
-  upgrade-helper vm-live-migrate-detector "$HARVESTER_UPGRADE_NODE_NAME" --shutdown
+  local upgrade_helper_args="--shutdown"
+  if [ "$HARVESTER_UPGRADE_RESTORE_VM" = "true" ]; then
+    upgrade_helper_args="$upgrade_helper_args --restore-vm"
+  fi
+  upgrade-helper vm-live-migrate-detector "$HARVESTER_UPGRADE_NODE_NAME" $upgrade_helper_args
 
   # Live migrate VMs
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME --overwrite kubevirt.io/drain=draining:NoSchedule
@@ -662,6 +666,8 @@ command_single_node_upgrade() {
   NEW_OS_SQUASHFS_IMAGE_FILE=$(mktemp -p $UPGRADE_TMP_DIR)
   download_file "$UPGRADE_REPO_SQUASHFS_IMAGE" "$NEW_OS_SQUASHFS_IMAGE_FILE"
 
+  # Label running VMs
+  label_running_vms
   # Stop all VMs
   shutdown_all_vms
   wait_vms_out
