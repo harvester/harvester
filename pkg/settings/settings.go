@@ -54,10 +54,11 @@ var (
 	LonghornV2DataEngineEnabled            = NewSetting(LonghornV2DataEngineSettingName, "false")
 	AdditionalGuestMemoryOverheadRatio     = NewSetting(AdditionalGuestMemoryOverheadRatioName, AdditionalGuestMemoryOverheadRatioDefault)
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
-	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
-	NTPServers             = NewSetting(NTPServersSettingName, "")
-	WhiteListedSettings    = []string{ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
-	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "restoreVM": false}`)
+	HarvesterCSICCMVersion            = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
+	NTPServers                        = NewSetting(NTPServersSettingName, "")
+	WhiteListedSettings               = []string{ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
+	UpgradeConfigSet                  = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "restoreVM": false}`)
+	ClusterPodSecurityStandardSetting = NewSetting(ClusterPodSecurityStandardSettingName, `{"enabled":false,"whitelistedNamespacesList":""}`)
 )
 
 const (
@@ -103,6 +104,7 @@ const (
 	ReleaseDownloadURLSettingName                     = "release-download-url"
 	SupportBundleNamespacesSettingName                = "support-bundle-namespaces"
 	DefaultStorageClassSettingName                    = "default-storage-class"
+	ClusterPodSecurityStandardSettingName             = "cluster-pod-security-standard"
 
 	// settings have `default` and `value` string used in many places, replace them with const
 	KeywordDefault = "default"
