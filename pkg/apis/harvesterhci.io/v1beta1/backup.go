@@ -55,10 +55,8 @@ type VirtualMachineBackup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec VirtualMachineBackupSpec `json:"spec"`
-
-	// +optional
-	Status *VirtualMachineBackupStatus `json:"status,omitempty" default:""`
+	Spec   VirtualMachineBackupSpec   `json:"spec"`
+	Status VirtualMachineBackupStatus `json:"status,omitempty" default:""`
 }
 
 type VirtualMachineBackupSpec struct {
@@ -189,10 +187,8 @@ type VirtualMachineRestore struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec VirtualMachineRestoreSpec `json:"spec"`
-
-	// +optional
-	Status *VirtualMachineRestoreStatus `json:"status,omitempty"`
+	Spec   VirtualMachineRestoreSpec   `json:"spec"`
+	Status VirtualMachineRestoreStatus `json:"status,omitempty"`
 }
 
 // VirtualMachineRestoreSpec is the spec for a VirtualMachineRestore resource
