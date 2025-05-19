@@ -44,7 +44,6 @@ func Register(ctx context.Context, management *config.Management, options config
 	secrets := management.CoreFactory.Core().V1().Secret()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	lhSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
-	kubeVirt := management.VirtFactory.Kubevirt().V1().KubeVirt()
 
 	virtSubsrcConfig := rest.CopyConfig(management.RestConfig)
 	virtSubsrcConfig.GroupVersion = &schema.GroupVersion{Group: "subresources.kubevirt.io", Version: "v1"}
@@ -81,7 +80,6 @@ func Register(ctx context.Context, management *config.Management, options config
 		clusterCache:       clusters.Cache(),
 		lhSettingClient:    lhSettings,
 		lhSettingCache:     lhSettings.Cache(),
-		kubeVirtCache:      kubeVirt.Cache(),
 		vmRestClient:       virtSubresourceClient,
 	}
 	upgrades.OnChange(ctx, upgradeControllerName, controller.OnChanged)

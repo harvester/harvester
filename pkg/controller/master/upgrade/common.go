@@ -2,10 +2,12 @@ package upgrade
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/name"
+	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,6 +16,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -333,6 +336,12 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo, nod
 	imageVersion := repoInfo.Release.Harvester
 	hostPathDirectory := corev1.HostPathDirectory
 	privileged := true
+	restoreVM, err := util.IsRestoreVM()
+	if err != nil {
+		logrus.WithFields(logrus.Fields{"namespace": upgrade.Namespace, "name": upgrade.Name}).
+			WithError(err).
+			Errorf("Failed to get setting UpgradeConfig in applyNodeJob %s for node %s, restoreVM fallback to default: %v", jobType, nodeName, restoreVM)
+	}
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name.SafeConcatName(upgrade.Name, jobType, nodeName),
@@ -385,6 +394,10 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo, nod
 											FieldPath: "metadata.name",
 										},
 									},
+								},
+								{
+									Name:  "HARVESTER_UPGRADE_RESTORE_VM",
+									Value: strconv.FormatBool(restoreVM),
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{

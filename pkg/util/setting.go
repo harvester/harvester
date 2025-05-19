@@ -61,3 +61,11 @@ func GetAdditionalGuestMemoryOverheadRatio(settingCache ctlharvesterv1.SettingCa
 	value = agmorc.Value()
 	return &value, nil
 }
+
+func IsRestoreVM() (bool, error) {
+	upgradeConfig, err := settings.DecodeConfig[settings.UpgradeConfig](settings.UpgradeConfigSet.Get())
+	if err != nil || upgradeConfig == nil {
+		return false, err
+	}
+	return upgradeConfig.RestoreVM, nil
+}
