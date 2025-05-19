@@ -30,7 +30,7 @@ https://github.com/harvester/harvester/issues/5848
 Users want to use a different network for VM migration.
 - Users setup a cluster network with network interfaces.
 - Users provide the cluster network name, VLAN ID, CIDR range and excluded IPs in the setting.
-- The controller create a Network-Attachment-Definition based on the setting and update it to the KubeVirt configuration.
+- The controller creates a Network-Attachment-Definition based on the setting and updates it to the KubeVirt configuration.
 
 #### Story 2
 
