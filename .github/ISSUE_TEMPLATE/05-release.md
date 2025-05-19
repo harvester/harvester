@@ -39,13 +39,13 @@ Action items for releasing v
 **The Release Captain needs to finish the following items.**
 
 - [ ] Release build [[doc](https://github.com/harvester/harvester/wiki/Create-a-Harvester-release)].
-- [ ] Release note - Work with @harvester/tw
+- [ ] Release note - Work with @harvester/doc
   - [ ] Create a release note in https://github.com/harvester/release-notes
     - PR: 
   - [ ] Deprecation note
   - [ ] Upgrade notes including highlighted notes, deprecation, compatible changes, and others impacting the current users
 - Doc
-    - [ ] Publish the new version of doc and add a next patch version of dev doc. @harvester/tw 
+    - [ ] Publish the new version of doc and add the next patch version of the dev doc. @harvester/doc 
     - [ ] Create an upgrade page for this version.
       - PR:
       - Doc:
@@ -53,7 +53,7 @@ Action items for releasing v
   - [ ] Update the release to the latest in the [versions](https://github.com/harvester/harvester?tab=readme-ov-file#releases).
   - [ ] Update screenshots.
 - Support matrix
-  - [ ] Coordinate with PM and QA to create a [support matrix page](https://www.suse.com/suse-harvester/support-matrix) (e.g.: [Harvester v1.4.x](https://www.suse.com/suse-harvester/support-matrix/all-supported-versions/harvester-v1-4-x/)).
+  - [ ] Coordinate with PM and QA to create a [support matrix page](https://www.suse.com/suse-harvester/support-matrix) (e.g., [Harvester v1.4.x](https://www.suse.com/suse-harvester/support-matrix/all-supported-versions/harvester-v1-4-x/)).
     - Updated support matrix is at: 
 
 
@@ -61,7 +61,7 @@ Action items for releasing v
 
 - [ ] Update [support-versions](https://github.com/harvester/harvester/blob/master/misc/support-versions.txt). You can only keep the latest patch release here.
 - [ ] Update upgrade responder 1 week after the release [doc].
-  - For the first stable release, we need to consider several factors and reach a consensus by maintainers before claiming it stable. 
+  - For the first stable release, we need to consider several factors and reach a consensus among maintainers before claiming it stable. 
   - For any patch release after a stable release, we need to wait 1-2 weeks for user feedback.
 
 

@@ -903,16 +903,9 @@ github.com/rancher/gke-operator/pkg/apis/gke.cattle.io/v1
 ## explicit; go 1.14
 github.com/rancher/kubernetes-provider-detector
 github.com/rancher/kubernetes-provider-detector/providers
-# github.com/rancher/lasso v0.0.0-20241202185148-04649f379358 => github.com/rancher/lasso v0.0.0-20241202185148-04649f379358
+# github.com/rancher/lasso v0.0.0-20250123080302-9325fed68518 => github.com/rancher/lasso v0.0.0-20241202185148-04649f379358
 ## explicit; go 1.22.0
 github.com/rancher/lasso/pkg/cache
-github.com/rancher/lasso/pkg/cache/sql/db
-github.com/rancher/lasso/pkg/cache/sql/db/transaction
-github.com/rancher/lasso/pkg/cache/sql/encryption
-github.com/rancher/lasso/pkg/cache/sql/informer
-github.com/rancher/lasso/pkg/cache/sql/informer/factory
-github.com/rancher/lasso/pkg/cache/sql/partition
-github.com/rancher/lasso/pkg/cache/sql/store
 github.com/rancher/lasso/pkg/client
 github.com/rancher/lasso/pkg/controller
 github.com/rancher/lasso/pkg/dynamic
@@ -966,8 +959,8 @@ github.com/rancher/remotedialer/metrics
 # github.com/rancher/rke v1.6.2
 ## explicit; go 1.22.0
 github.com/rancher/rke/types
-# github.com/rancher/steve v0.5.1
-## explicit; go 1.22.0
+# github.com/rancher/steve v0.5.6
+## explicit; go 1.23
 github.com/rancher/steve/pkg/accesscontrol
 github.com/rancher/steve/pkg/aggregation
 github.com/rancher/steve/pkg/attributes
@@ -988,6 +981,7 @@ github.com/rancher/steve/pkg/resources/formatters
 github.com/rancher/steve/pkg/resources/schemas
 github.com/rancher/steve/pkg/resources/userpreferences
 github.com/rancher/steve/pkg/resources/virtual
+github.com/rancher/steve/pkg/resources/virtual/clusters
 github.com/rancher/steve/pkg/resources/virtual/common
 github.com/rancher/steve/pkg/resources/virtual/events
 github.com/rancher/steve/pkg/schema
@@ -997,12 +991,22 @@ github.com/rancher/steve/pkg/schema/table
 github.com/rancher/steve/pkg/server
 github.com/rancher/steve/pkg/server/handler
 github.com/rancher/steve/pkg/server/router
+github.com/rancher/steve/pkg/sqlcache/db
+github.com/rancher/steve/pkg/sqlcache/db/transaction
+github.com/rancher/steve/pkg/sqlcache/encryption
+github.com/rancher/steve/pkg/sqlcache/informer
+github.com/rancher/steve/pkg/sqlcache/informer/factory
+github.com/rancher/steve/pkg/sqlcache/partition
+github.com/rancher/steve/pkg/sqlcache/store
 github.com/rancher/steve/pkg/stores/metrics
 github.com/rancher/steve/pkg/stores/partition
 github.com/rancher/steve/pkg/stores/partition/listprocessor
 github.com/rancher/steve/pkg/stores/proxy
+github.com/rancher/steve/pkg/stores/queryhelper
 github.com/rancher/steve/pkg/stores/sqlpartition
 github.com/rancher/steve/pkg/stores/sqlpartition/listprocessor
+github.com/rancher/steve/pkg/stores/sqlpartition/queryparser
+github.com/rancher/steve/pkg/stores/sqlpartition/selection
 github.com/rancher/steve/pkg/stores/sqlproxy
 github.com/rancher/steve/pkg/stores/sqlproxy/tablelistconvert
 github.com/rancher/steve/pkg/summarycache
@@ -1274,9 +1278,6 @@ go.starlark.net/resolve
 go.starlark.net/starlark
 go.starlark.net/starlarkstruct
 go.starlark.net/syntax
-# go.uber.org/mock v0.4.0
-## explicit; go 1.20
-go.uber.org/mock/gomock
 # go.uber.org/multierr v1.11.0
 ## explicit; go 1.19
 go.uber.org/multierr
@@ -1292,7 +1293,7 @@ go.uber.org/zap/internal/pool
 go.uber.org/zap/internal/stacktrace
 go.uber.org/zap/zapcore
 go.uber.org/zap/zapgrpc
-# golang.org/x/crypto v0.35.0
+# golang.org/x/crypto v0.36.0
 ## explicit; go 1.23.0
 golang.org/x/crypto/acme
 golang.org/x/crypto/acme/autocert
@@ -1329,7 +1330,7 @@ golang.org/x/exp/slices
 golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.36.0
+# golang.org/x/net v0.38.0
 ## explicit; go 1.23.0
 golang.org/x/net/bpf
 golang.org/x/net/context
@@ -1355,23 +1356,23 @@ golang.org/x/net/websocket
 ## explicit; go 1.18
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
-# golang.org/x/sync v0.11.0
-## explicit; go 1.18
+# golang.org/x/sync v0.12.0
+## explicit; go 1.23.0
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
-# golang.org/x/sys v0.30.0
-## explicit; go 1.18
+# golang.org/x/sys v0.31.0
+## explicit; go 1.23.0
 golang.org/x/sys/cpu
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/term v0.29.0
-## explicit; go 1.18
+# golang.org/x/term v0.30.0
+## explicit; go 1.23.0
 golang.org/x/term
-# golang.org/x/text v0.22.0
-## explicit; go 1.18
+# golang.org/x/text v0.23.0
+## explicit; go 1.23.0
 golang.org/x/text/cases
 golang.org/x/text/encoding
 golang.org/x/text/encoding/charmap
@@ -1566,7 +1567,7 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# helm.sh/helm/v3 v3.16.2 => github.com/rancher/helm/v3 v3.15.1-rancher2
+# helm.sh/helm/v3 v3.17.3 => github.com/rancher/helm/v3 v3.15.1-rancher2
 ## explicit; go 1.22.0
 helm.sh/helm/v3/internal/fileutil
 helm.sh/helm/v3/internal/resolver

@@ -31,6 +31,7 @@ type VMIValidator interface {
 	GetStatusSC(vmi *v1beta1.VirtualMachineImage) string
 
 	CheckDisplayName(vmi *v1beta1.VirtualMachineImage) error
+	CheckUpdateDisplayName(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
 	CheckURL(vmi *v1beta1.VirtualMachineImage) error
 	CheckSecurityParameters(vmi *v1beta1.VirtualMachineImage) error
 	CheckImagePVC(request *types.Request, vmi *v1beta1.VirtualMachineImage) error
@@ -102,6 +103,13 @@ func (v *vmiValidator) CheckDisplayName(vmi *v1beta1.VirtualMachineImage) error 
 	}
 
 	return nil
+}
+
+func (v *vmiValidator) CheckUpdateDisplayName(oldVMI, newVMI *v1beta1.VirtualMachineImage) error {
+	if oldVMI.Spec.DisplayName != newVMI.Spec.DisplayName {
+		return werror.NewInvalidError("displayName cannot be modified", fieldDisplayName)
+	}
+	return v.CheckDisplayName(newVMI)
 }
 
 func (v *vmiValidator) CheckURL(vmi *v1beta1.VirtualMachineImage) error {

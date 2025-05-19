@@ -58,7 +58,7 @@ func (biv *Validator) Update(oldVMI, newVMI *harvesterv1.VirtualMachineImage) er
 		return err
 	}
 
-	if err := biv.vmiv.CheckDisplayName(newVMI); err != nil {
+	if err := biv.vmiv.CheckUpdateDisplayName(oldVMI, newVMI); err != nil {
 		return err
 	}
 

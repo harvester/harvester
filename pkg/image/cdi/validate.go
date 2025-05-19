@@ -49,7 +49,7 @@ func (cv *Validator) Update(oldVMImg, newVMImg *harvesterv1.VirtualMachineImage)
 		return err
 	}
 
-	if err := cv.vmiv.CheckDisplayName(newVMImg); err != nil {
+	if err := cv.vmiv.CheckUpdateDisplayName(oldVMImg, newVMImg); err != nil {
 		return err
 	}
 

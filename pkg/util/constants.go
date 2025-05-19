@@ -61,6 +61,11 @@ const (
 	// For any storageclass created & protected by controller, the controller can utilize this annotation
 	AnnotationIsReservedStorageClass = prefix + "/is-reserved-storageclass"
 
+	HarvesterManagedNodeLabelKey = prefix + "/managed"
+
+	HarvesterPromoteNodeLabelKey        = prefix + "/promote-node"
+	HarvesterPromoteStatusAnnotationKey = prefix + "/promote-status"
+
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
 	ContainerdRegistryFileName   = "registries.yaml"
 
@@ -202,4 +207,9 @@ const (
 
 	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
 	StorageNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
+
+	HarvesterCRDManagedChart         = "harvester-crd"
+	HarvesterManagedChart            = "harvester"
+	RancherLoggingCRDManagedChart    = "rancher-logging-crd"
+	RancherMonitoringCRDManagedChart = "rancher-monitoring-crd"
 )

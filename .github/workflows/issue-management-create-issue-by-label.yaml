@@ -13,7 +13,7 @@ jobs:
     name: Create Issue
     if: 
       contains(join(github.event.issue.labels.*.name, ', '), 'backport-needed/') || 
-      contains(join(github.event.issue.labels.*.name, ', '), 'require-ui/') || 
+      contains(join(github.event.issue.labels.*.name, ', '), 'require/ui') || 
       contains(join(github.event.issue.labels.*.name, ', '), 'require/auto-e2e-test')
     runs-on: ubuntu-latest
     env:
@@ -38,7 +38,7 @@ jobs:
           python .github/workflows/bot.py "$EVENT"
       
       - name: Create GUI Issue
-        if: contains(join(github.event.issue.labels.*.name, ', '), 'require-ui/')
+        if: contains(join(github.event.issue.labels.*.name, ', '), 'require/ui')
         run: |
           python .github/workflows/bot.py "$EVENT"
       
