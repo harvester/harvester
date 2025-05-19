@@ -2,7 +2,7 @@
 
 ## Summary
 
-Currently, Harvester only supports VM migration over the mgmt network. The mgmt network is used as control plane. The VM migration is data transferation. Users should be able to run it on a different network. This enhancement proposes to support VM migration over different networks.
+Currently, Harvester only supports VM migration over the mgmt network. The mgmt network is used as control plane. The VM migration is data transfer. Users should be able to run it on a different network. This enhancement proposes to support VM migration over different networks.
 
 ### Related Issues
 
