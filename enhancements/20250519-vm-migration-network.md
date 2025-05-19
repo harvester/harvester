@@ -58,7 +58,7 @@ Users want to rollback to use mgmt network for VM migration.
 
 #### Webhook
 
-- Check whether the cluster network is on all nodes.
+- Verify that the cluster network is present on all nodes.
 - Check whether VLAN ID is valid.
 - Check whether CIDR range is valid.
 - If there is excluded IPs, check whether the IPs are valid and in the CIDR range.
