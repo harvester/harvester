@@ -2,7 +2,7 @@ from bot import repo
 from bot.action import LabelAction
 import re
 
-CREATE_GUI_ISSUE_LABEL = "require-ui"
+CREATE_GUI_ISSUE_LABEL = "require/ui"
 AREA_UI_LABEL = "area/ui"
 class CreateGUIIssue(LabelAction):
     def __init__(self):
@@ -15,7 +15,7 @@ class CreateGUIIssue(LabelAction):
             return False
         
         # We can't expect the labels order from Github Webhook request.
-        # It might be ["require-ui/small", "area/ui"] or ["area/ui", "require-ui/small"]
+        # It might be ["require/ui", "area/ui"] or ["area/ui", "require/ui"]
         # So we need to consider those two cases.
         # "area/ui" is high priority label.
         # If "area/ui" is in the labels, we can skip the rest of the labels.

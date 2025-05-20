@@ -32,13 +32,20 @@ pull_request_rules:
       assignees:
         - "{{ author }}"
 
-- name: Automatically merge Renovate/Backport PRs
+- name: Automatically merge Renovate PRs
   conditions:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
-  - or:
-    - author = renovate[bot]
-    - author = mergify[bot]
+  - author = renovate[bot]
+  actions:
+    merge:
+      method: rebase
+
+- name: Automatically merge Backport PRs
+  conditions:
+  - check-success="Build binaries (x64)"
+  - check-success="Build binaries (arm64)"
+  - author = mergify[bot]
   actions:
     merge:
       method: rebase
@@ -47,8 +54,7 @@ pull_request_rules:
   conditions:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
-  - or:
-    - author = renovate[bot]
+  - author = renovate[bot]
   actions:
     review:
       type: APPROVE
@@ -58,8 +64,7 @@ pull_request_rules:
   conditions:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
-  - or:
-    - author = mergify[bot]
+  - author = mergify[bot]
   actions:
     review:
       type: APPROVE

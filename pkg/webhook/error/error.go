@@ -85,3 +85,13 @@ func NewInternalError(message string) AdmitError {
 		reason:  metav1.StatusReasonInternalError,
 	}
 }
+
+// 500
+// Let error package to unwrap the string
+func NewInternalErrorFromErr(err error) AdmitError {
+	return AdmitError{
+		code:    http.StatusInternalServerError,
+		message: err.Error(),
+		reason:  metav1.StatusReasonInternalError,
+	}
+}

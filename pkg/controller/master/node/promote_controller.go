@@ -22,6 +22,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/util"
 	utilHelm "github.com/harvester/harvester/pkg/util/helm"
 )
 
@@ -44,10 +45,9 @@ const (
 	HarvesterMgmtNodeLabelKey    = HarvesterNodeRoleLabelPrefix + "management"
 	HarvesterWorkerNodeLabelKey  = HarvesterNodeRoleLabelPrefix + "worker"
 
-	HarvesterLabelAnnotationPrefix      = "harvesterhci.io/"
-	HarvesterManagedNodeLabelKey        = HarvesterLabelAnnotationPrefix + "managed"
-	HarvesterPromoteNodeLabelKey        = HarvesterLabelAnnotationPrefix + "promote-node"
-	HarvesterPromoteStatusAnnotationKey = HarvesterLabelAnnotationPrefix + "promote-status"
+	HarvesterManagedNodeLabelKey        = util.HarvesterManagedNodeLabelKey
+	HarvesterPromoteNodeLabelKey        = util.HarvesterPromoteNodeLabelKey
+	HarvesterPromoteStatusAnnotationKey = util.HarvesterPromoteStatusAnnotationKey
 
 	PromoteStatusComplete = "complete"
 	PromoteStatusRunning  = "running"
