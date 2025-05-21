@@ -1,0 +1,66 @@
+name: Task request (component update)
+description: Create a component update task targeting a specific Harvester release
+title: "[TASK] Component updates for Harvester vX.Y.Z"
+labels: [ "kind/task", "area/build-package" ]
+assignees:
+-
+body:
+- type: textarea
+  attributes:
+    label: Component update request
+    description: |
+      List the dependent components that need to be updated for a specific Harvester release.
+
+      Please note that for different Harvester releases, the component update strategies are different:
+      - For feature or minor releases, the minor version of the component should be updated.
+      - For patch releases, only the patch version of the component should be updated.
+      - For built-in components/add-ons, the version should be aligned with the Harvester version.
+    value: |
+      Components to be updated for Harvester version vX.Y.Z:
+        
+      - Main Components
+        - [ ] Embedded Rancher @FrankYang0529
+        - [ ] RKE2 @FrankYang0529
+        - [ ] Longhorn @Vicente-Cheng
+        - [ ] KubeVirt @Vicente-Cheng
+      - Libraries
+        - [ ] Go @harvester/dev
+        - [ ] K8s @harvester/dev
+      - Built-in Dependent Components
+        - [ ] * Network Controller @mingshuoqiu
+        - [ ] * Network FS Manager @Vicente-Cheng @WebberHuang1118
+        - [ ] * Node Disk Manager @tserong  @Vicente-Cheng
+        - [ ] * Node Manager @tserong
+        - [ ] * Load Balancer @starbops
+        - [ ] * Eventrouter @w13915984028
+        - [ ] CDI @Vicente-Cheng
+        - [ ] Whereabouts @rrajendran17
+        - [ ] Kube-VIP @starbops
+        - [ ] CSI Snapshotter @brandboat  (need to align with Longhorn version)
+        - [ ] snapshot-validation-webhook @brandboat
+      - Built-in Opt-In Add-Ons
+        - [ ] * VM Import Controller @votdev
+        - [ ] * PCI Device Controller @Yu-Jack
+        - [ ] * Seeder @ibrokethecloud
+        - [ ] Rancher Logging @w13915984028
+        - [ ] Rancher Monitoring @w13915984028
+        - [ ] * Nvidia Driver Runtime @ibrokethecloud
+      - User Interface Components
+        - [ ] * UI Extension @a110605
+        - [ ] * Terraform Provider @FrankYang0529
+      - Experimental Opt-In Add-Ons (OOB)
+        - [ ] vCluster @ibrokethecloud
+        - [ ] LVM CSI Driver @Vicente-Cheng
+        - [ ] VM DHCP Controller @starbops
+        
+      > [!Note]
+      > `*` means the component version (including the chart versions and/or the image tags) will align with Harvester releases.
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: Additional context
+    description: Please add any other context about the task here.
+  validations:
+    required: false
