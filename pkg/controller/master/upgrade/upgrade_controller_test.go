@@ -254,66 +254,6 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 	}
 }
 
-func Test_isVersionUpgradable(t *testing.T) {
-	var testCases = []struct {
-		name                 string
-		currentVersion       string
-		minUpgradableVersion string
-		isUpgradable         bool
-	}{
-		{
-			name:                 "upgrade from versions above the minimal requirement",
-			currentVersion:       "v1.1.1",
-			minUpgradableVersion: "v1.1.0",
-			isUpgradable:         true,
-		},
-		{
-			name:                 "upgrade from the exact version of the minimal requirement",
-			currentVersion:       "v1.1.0",
-			minUpgradableVersion: "v1.1.0",
-			isUpgradable:         true,
-		},
-		{
-			name:                 "upgrade from rc versions lower than the minimal requirement",
-			currentVersion:       "v1.1.0-rc1",
-			minUpgradableVersion: "v1.1.0",
-			isUpgradable:         false,
-		},
-		{
-			name:                 "upgrade from rc versions above the minimal requirement (rc minUpgradableVersion)",
-			currentVersion:       "v1.1.0-rc2",
-			minUpgradableVersion: "v1.1.0-rc1",
-			isUpgradable:         true,
-		},
-		{
-			name:                 "upgrade from rc versions lower than the minimal requirement (rc minUpgradableVersion)",
-			currentVersion:       "v1.1.0-rc1",
-			minUpgradableVersion: "v1.1.0-rc2",
-			isUpgradable:         false,
-		},
-		{
-			name:                 "upgrade from the exact rc version of the minimal requirement (rc minUpgradableVersion)",
-			currentVersion:       "v1.1.0-rc1",
-			minUpgradableVersion: "v1.1.0-rc1",
-			isUpgradable:         true,
-		},
-		{
-			name:                 "upgrade from versions lower than the minimal requirement",
-			currentVersion:       "v1.0.3",
-			minUpgradableVersion: "v1.1.0",
-			isUpgradable:         false,
-		},
-	}
-	for _, tc := range testCases {
-		err := isVersionUpgradable(tc.currentVersion, tc.minUpgradableVersion)
-		if tc.isUpgradable {
-			assert.Nil(t, err, "case %q", tc.name)
-		} else {
-			assert.NotNil(t, err, "case %q", tc.name)
-		}
-	}
-}
-
 func TestUpgradeHandler_prepareNodesForUpgrade(t *testing.T) {
 	type input struct {
 		upgrade *harvesterv1.Upgrade
