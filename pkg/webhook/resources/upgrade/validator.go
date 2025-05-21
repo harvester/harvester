@@ -34,7 +34,6 @@ import (
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
-	versionWebhook "github.com/harvester/harvester/pkg/webhook/resources/version"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -46,7 +45,6 @@ const (
 	managedChartNamespace                     = util.FleetLocalNamespaceName
 	defaultNewImageSize                uint64 = 13 * 1024 * 1024 * 1024 // 13GB, this value aggregates all tarball image sizes. It may change in the future.
 	defaultImageGCHighThresholdPercent        = 85.0                    // default value in kubelet config
-	freeSystemPartitionMsg                    = "df -h '/usr/local/'"
 	defaultMinCertsExpirationInDay            = 7
 )
 
@@ -121,10 +119,8 @@ func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error
 		return werror.NewBadRequest("version or image field are not specified.")
 	}
 
-	var version *v1beta1.Version
-	var err error
 	if newUpgrade.Spec.Version != "" && newUpgrade.Spec.Image == "" {
-		version, err = v.versionCache.Get(newUpgrade.Namespace, newUpgrade.Spec.Version)
+		_, err := v.versionCache.Get(newUpgrade.Namespace, newUpgrade.Spec.Version)
 		if err != nil {
 			return werror.NewBadRequest(fmt.Sprintf("version %s is not found", newUpgrade.Spec.Version))
 		}
@@ -150,10 +146,10 @@ func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error
 		}
 	}
 
-	return v.checkResources(version, newUpgrade)
+	return v.checkResources(newUpgrade)
 }
 
-func (v *upgradeValidator) checkResources(version *v1beta1.Version, upgrade *v1beta1.Upgrade) error {
+func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 	hasDegradedVolume, err := v.hasDegradedVolume()
 	if err != nil {
 		return werror.NewInternalError(err.Error())
@@ -184,7 +180,7 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version, upgrade *v1b
 		return err
 	}
 
-	if err := v.checkNodes(version); err != nil {
+	if err := v.checkNodes(upgrade); err != nil {
 		return err
 	}
 
@@ -204,7 +200,7 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version, upgrade *v1b
 		return err
 	}
 
-	return v.checkCerts(version)
+	return v.checkCerts(upgrade)
 }
 
 func (v *upgradeValidator) hasDegradedVolume() (bool, error) {
@@ -284,21 +280,19 @@ func (v *upgradeValidator) checkScheduleVMBackups() error {
 		svmbackups[0].Namespace, svmbackups[0].Name))
 }
 
-func (v *upgradeValidator) checkNodes(version *v1beta1.Version) error {
+func (v *upgradeValidator) checkNodes(upgrade *v1beta1.Upgrade) error {
 	nodes, err := v.nodes.List(labels.Everything())
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("can't list nodes, err: %+v", err))
 	}
 
 	skipGarbageCollection := false
-	if version != nil && version.Annotations != nil {
-		if value, ok := version.Annotations[versionWebhook.SkipGarbageCollectionThreadholdCheckAnnotation]; ok {
-			v, err := strconv.ParseBool(value)
-			if err != nil {
-				return werror.NewBadRequest(fmt.Sprintf("invalid value %s for %s annotation in version %s/%s", value, versionWebhook.SkipGarbageCollectionThreadholdCheckAnnotation, version.Namespace, version.Name))
-			}
-			skipGarbageCollection = v
+	if value, ok := upgrade.Annotations[util.AnnotationSkipGarbageCollectionThresholdCheck]; ok {
+		v, err := strconv.ParseBool(value)
+		if err != nil {
+			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for %s annotation", value, util.AnnotationSkipGarbageCollectionThresholdCheck))
 		}
+		skipGarbageCollection = v
 	}
 
 	for _, node := range nodes {
@@ -624,7 +618,7 @@ func (v *upgradeValidator) getKubeletStatsSummary(nodeName, kubeletURL string) (
 	return summary, nil
 }
 
-func (v *upgradeValidator) checkCerts(version *v1beta1.Version) error {
+func (v *upgradeValidator) checkCerts(upgrade *v1beta1.Upgrade) error {
 	kubernetesIPs, err := util.GetKubernetesIps(v.endpointCache)
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("can't get list of kubernetes ip, err: %+v", err))
@@ -644,10 +638,12 @@ func (v *upgradeValidator) checkCerts(version *v1beta1.Version) error {
 	}
 
 	minCertsExpirationInDay := defaultMinCertsExpirationInDay
-	if value, ok := version.Annotations[versionWebhook.MinCertsExpirationInDayAnnotation]; ok {
+	if value, ok := upgrade.Annotations[util.AnnotationMinCertsExpirationInDay]; ok {
 		minCertsExpirationInDay, err = strconv.Atoi(value)
 		if err != nil {
-			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, versionWebhook.MinCertsExpirationInDayAnnotation))
+			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, util.AnnotationMinCertsExpirationInDay))
+		} else if minCertsExpirationInDay <= 0 {
+			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s, it should be greater than 0", value, util.AnnotationMinCertsExpirationInDay))
 		}
 	}
 

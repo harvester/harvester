@@ -61,6 +61,9 @@ const (
 	// For any storageclass created & protected by controller, the controller can utilize this annotation
 	AnnotationIsReservedStorageClass = prefix + "/is-reserved-storageclass"
 
+	AnnotationSkipGarbageCollectionThresholdCheck = prefix + "/skipGarbageCollectionThresholdCheck"
+	AnnotationMinCertsExpirationInDay             = prefix + "/minCertsExpirationInDay"
+
 	HarvesterManagedNodeLabelKey = prefix + "/managed"
 
 	HarvesterPromoteNodeLabelKey        = prefix + "/promote-node"
