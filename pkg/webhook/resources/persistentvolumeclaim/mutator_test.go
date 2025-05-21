@@ -47,7 +47,7 @@ func TestPatchDataSource(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			desc: "skip if data source exists",
+			desc: "skip if data source ref exists",
 			pvc: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-pvc",
@@ -58,6 +58,26 @@ func TestPatchDataSource(t *testing.T) {
 				Spec: corev1.PersistentVolumeClaimSpec{
 					VolumeMode: &fsMode,
 					DataSourceRef: &corev1.TypedObjectReference{
+						Name: "new-snapshot-test",
+						Kind: "VolumeSnapshot",
+					},
+				},
+			},
+			expected:    "",
+			expectedErr: nil,
+		},
+		{
+			desc: "skip if data source exists",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pvc",
+					Annotations: map[string]string{
+						util.AnnotationVolForVM: "true",
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					VolumeMode: &fsMode,
+					DataSource: &corev1.TypedLocalObjectReference{
 						Name: "new-snapshot-test",
 						Kind: "VolumeSnapshot",
 					},
