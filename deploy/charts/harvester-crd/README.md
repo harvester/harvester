@@ -13,16 +13,12 @@ This chart includes following CRDs:
 
 Harvester uses a `ManagedChart` resource to deploy the [Harvester CRDs](https://github.com/harvester/harvester/tree/master/deploy/charts/harvester-crd). This is configured via the [harvester-installer](https://github.com/harvester/harvester-installer/blob/master/pkg/config/templates/rancherd-10-harvester.yaml). Be aware that `deploy/harvester` and `deploy/harvester-crd` are two separate `ManagedChart` resources.
 
-Harvester depends on several components that provide the CRDs it needs. However, most of these CRDs must be created manually. To simplify management, Harvester uses an [independent folder to manage all CRDs](https://helm.sh/docs/chart_best_practices/custom_resource_definitions/#method-2-separate-charts) to deploy with Helm.
+Harvester depends on several upstream projects to provide the CRDs and APIs it needs. To simplify the management of these resources, Harvester organized them in a separate chart, as recommended by the [Helm's documentation](https://helm.sh/docs/chart_best_practices/custom_resource_definitions/#method-2-separate-charts).
 
-That said, not every CRD can be managed by Helm. Take `cdi` CRD as an exmaple, installing `cdi-operator` doesn't create the CRD for us. However, the `cdi-operator` will [remove obsolete version from existing `cdi` CRD](https://github.com/kubevirt/containerized-data-importer/blob/e136558c999acce03291849aacc8154026e58445/pkg/operator/controller/callbacks.go#L61-L62). This is also mentioned in [#7912 (comment)](https://github.com/harvester/harvester/issues/7912#issuecomment-2743944344).
-
-
-Therefore, managing it with Helm is not ideal. Hence, Harvester creates it manually. These CRDs are applied in the [`upgrade_manifests.sh`](https://github.com/harvester/harvester/blob/50da36ac3b751c1a1dbfc8d25e5499a4c6216450/package/upgrade/upgrade_manifests.sh#L1358) script.
-
-Additionally, Longhorn CRDs are not managed here either because Longhorn handles its own CRD creation process.
-
-> If you're interested in this change, please check [this issue](https://github.com/harvester/harvester/issues/8163) for more details.
+Harvester simplifies the upgrade of the CRDs by orchestrating their manifests in the [`upgrade_manifests.sh`](https://github.com/harvester/harvester/blob/50da36ac3b751c1a1dbfc8d25e5499a4c6216450/package/upgrade/upgrade_manifests.sh#L1358) script. This ensures that users are not burdened by the different CRD schema upgrade strategies of the dependency projects.
+	
+> [!Note]
+> Longhorn CRDs are not managed here because Longhorn handles its own CRD creation process.
 
 ## For Developers
 
@@ -36,6 +32,14 @@ For example, to bump the KubeVirt CRD to version v1.5.1, download it from:
 
 Search for `CustomResourceDefinition` in the file, copy the relevant CRD, and save it with a versioned filename like `crd-kubevirt-1.5.1.yaml`. Be sure to delete the old version.
 
+> If you're interested in this change, please check [this issue](https://github.com/harvester/harvester/issues/8163) for more details.
+
+### Specfical Case
+
+However, not every CRDs can be managed under `harvester-crds` folder.
+
+For example, the `cdi` CRDs are managed differently to accommodate the [built-in schema removal mechanism](https://github.com/kubevirt/containerized-data-importer/blob/e136558c999acce03291849aacc8154026e58445/pkg/operator/controller/callbacks.go#L61-L62) of the `cdi-operator`. For more information, see the discussion at [#7912 (comment)](https://github.com/harvester/harvester/issues/7912#issuecomment-2743944344).
+
 If the CRD is similar to `cdi`, copy it to the `package/upgrade/extra_manifests` folder, and update the [`upgrade_manifests.sh`](https://github.com/harvester/harvester/blob/50da36ac3b751c1a1dbfc8d25e5499a4c6216450/package/upgrade/upgrade_manifests.sh#L1358) script like this:
 
 ```sh
@@ -45,7 +49,7 @@ for manifest in /usr/local/share/extra_manifests/{your_new_crds}/*.yaml; do
 done
 ```
 
-In this case, there's no need to put it under the harvester-crd folder.
+In this case, there's no need to put it under the `harvester-crd` folder.
 
 ## License
 Copyright (c) 2025 [SUSE, LLC.](https://www.suse.com/)

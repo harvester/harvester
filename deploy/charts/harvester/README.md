@@ -7,7 +7,7 @@ This chart will do the following:
 - Deploy a KubeVirt Operator if needed, defaults to deploy.
 - Deploy the Harvester resources.
 - Deploy [Longhorn](https://longhorn.io) as the built-in storage management.
-- Deploy Containerized Data Importer (CDI) as supporting third-party storage.
+- Deploy Containerized Data Importer (CDI) to support third-party storage management.
 - Deploy csi-snapshotter
 - Deploy Snapshot Validation Webhook
 - Deploy whereabouts
@@ -20,7 +20,6 @@ Once a `ManagedChart` is created, Fleet generates a `Bundle` resource to trigger
 
 During upgrades, Harvester runs a script to patch the release version in the `ManagedChart`. This happens in the [`upgrade_manifests.sh`](https://github.com/harvester/harvester/blob/50da36ac3b751c1a1dbfc8d25e5499a4c6216450/package/upgrade/upgrade_manifests.sh#L885-L935) script.
 
-> If you're interested in this change, please check [this issue](https://github.com/harvester/harvester/issues/8163) for more details.
 
 ## For Developers
 
@@ -40,9 +39,9 @@ Here are example PRs for reference:
 
 ### Use case
 
-Harvester occasionally uses Longhorn release candidates. In such cases, download the Longhorn charts and place them in `deploy/charts/harvester/dependency_charts/longhorn`.
+To use Longhorn release candidates for testing purposes, download the Longhorn charts and place them in `deploy/charts/harvester/dependency_charts/longhorn`.
 
-Since we're using a non-official version, we need to modify Chart.yaml to point to the local folder instead of the remote repository:
+Since we're using a non-official version, we need to modify the Chart.yaml to point to the local folder instead of the remote repository:
 
 ```diff
 -  repository: https://charts.longhorn.io
