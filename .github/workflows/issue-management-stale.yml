@@ -35,6 +35,6 @@ jobs:
         stale-issue-label: 'status/stale'
         stale-pr-label: 'status/stale'
         exempt-all-assignees: true
-        exempt-issue-labels: 'kind/enhancement,kind/feature,require/investigate'
+        exempt-issue-labels: 'kind/enhancement,kind/feature,require/investigate,require/pm-review'
         exempt-draft-pr: true
         exempt-all-milestones: true
