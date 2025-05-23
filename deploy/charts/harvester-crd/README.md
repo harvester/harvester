@@ -34,7 +34,7 @@ Search for `CustomResourceDefinition` in the file, copy the relevant CRD, and sa
 
 > If you're interested in this change, please check [this issue](https://github.com/harvester/harvester/issues/8163) for more details.
 
-### Specfical Case
+### Special Case
 
 However, not every CRDs can be managed under `harvester-crds` folder.
 
