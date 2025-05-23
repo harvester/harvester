@@ -20,16 +20,18 @@ func NewMutator(scCache ctlstoragev1.StorageClassCache) types.Mutator {
 	vmim := common.GetVMIMutator(scCache)
 	mutators := map[harvesterv1.VMIBackend]backend.Mutator{
 		harvesterv1.VMIBackendBackingImage: backingimage.GetMutator(vmim),
-		harvesterv1.VMIBackendCDI:          cdi.GetMutator(),
+		harvesterv1.VMIBackendCDI:          cdi.GetMutator(vmim),
 	}
 
 	return &virtualMachineImageMutator{
+		scCache:  scCache,
 		mutators: mutators,
 	}
 }
 
 type virtualMachineImageMutator struct {
 	types.DefaultMutator
+	scCache  ctlstoragev1.StorageClassCache
 	mutators map[harvesterv1.VMIBackend]backend.Mutator
 }
 
@@ -42,6 +44,7 @@ func (m *virtualMachineImageMutator) Resource() types.Resource {
 		ObjectType: &harvesterv1.VirtualMachineImage{},
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Create,
+			admissionregv1.Update,
 		},
 	}
 }
@@ -56,6 +59,20 @@ func (m *virtualMachineImageMutator) Create(_ *types.Request, newObj runtime.Obj
 	}
 
 	mutatePatches, err := m.mutators[util.GetVMIBackend(vmi)].Create(vmi)
+	if err != nil {
+		return patchOps, err
+	}
+
+	patchOps = append(patchOps, mutatePatches...)
+	return patchOps, nil
+}
+
+func (m *virtualMachineImageMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
+	var patchOps types.PatchOps
+	newVMI := newObj.(*harvesterv1.VirtualMachineImage)
+	oldVMI := oldObj.(*harvesterv1.VirtualMachineImage)
+
+	mutatePatches, err := m.mutators[util.GetVMIBackend(newVMI)].Update(oldVMI, newVMI)
 	if err != nil {
 		return patchOps, err
 	}
