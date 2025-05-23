@@ -1,0 +1,27 @@
+name: Task request (component update)
+description: Create a component update task targeting a specific Harvester release
+title: "[TASK] Component updates for Harvester v"
+labels: [ "kind/task", "area/build-package" ]
+assignees:
+-
+body:
+- type: textarea
+  attributes:
+    label: Component update request
+    description: List the dependent component(s) that need to be updated for a specific Harvester version.
+    value: |
+      Components to be updated for Harvester version vx.y.z:
+      - Embedded Rancher vx.y.z
+      - RKE2 vx.y.z
+      - Longhorn vx.y.z
+      - KubeVirt vx.y.z
+      - ...
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: Additional context
+    description: Please add any other context about the task here.
+  validations:
+    required: false
