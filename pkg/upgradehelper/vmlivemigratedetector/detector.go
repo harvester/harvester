@@ -21,6 +21,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	"kubevirt.io/client-go/kubecli"
 
+	harvNodeController "github.com/harvester/harvester/pkg/controller/master/node"
 	harvclient "github.com/harvester/harvester/pkg/generated/clientset/versioned"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
@@ -130,9 +131,13 @@ func (d *VMLiveMigrateDetector) Run(ctx context.Context) error {
 	logrus.Infof("Non-migratable VM(s): %v", nonLiveMigratableVMNames)
 
 	if d.restoreVM {
+		nodeUID := getNodeUID(d.nodeName, nodes)
+		if nodeUID == "" {
+			return fmt.Errorf("cannot find node %s UID", d.nodeName)
+		}
 		getRestoreVMNames := getRestoreVMNames(vmis, nonLiveMigratableVMNames)
 		logrus.Infof("Patch upgrade CR with restoreVM annotation: %v", getRestoreVMNames)
-		if err := d.patchUpgradeCR(ctx, getRestoreVMNames); err != nil {
+		if err := d.patchUpgradeCR(ctx, getRestoreVMNames, nodeUID); err != nil {
 			return err
 		}
 	}
@@ -151,7 +156,12 @@ func (d *VMLiveMigrateDetector) Run(ctx context.Context) error {
 }
 
 func (d *VMLiveMigrateDetector) getAllNodes(ctx context.Context) ([]*v1.Node, error) {
-	nodeList, err := d.virtClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	// filter out witness nodes as they are not available for vm migration
+	nodeReq, err := labels.NewRequirement(harvNodeController.HarvesterWitnessNodeLabelKey, selection.DoesNotExist, nil)
+	if err != nil {
+		return nil, err
+	}
+	nodeList, err := d.virtClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{LabelSelector: nodeReq.String()})
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +233,7 @@ func getRestoreVMNames(vmis []*kubevirtv1.VirtualMachineInstance, nonMigratableV
 	return restoreVMs
 }
 
-func (d *VMLiveMigrateDetector) patchUpgradeCR(ctx context.Context, restoreVMNames []string) error {
+func (d *VMLiveMigrateDetector) patchUpgradeCR(ctx context.Context, restoreVMNames []string, nodeUID string) error {
 	if len(restoreVMNames) == 0 {
 		return nil
 	}
@@ -232,7 +242,7 @@ func (d *VMLiveMigrateDetector) patchUpgradeCR(ctx context.Context, restoreVMNam
 		{
 			Op: "add",
 			// JSON Patch format requires '/' to be replaced with '~1'
-			Path:  "/metadata/annotations/" + strings.ReplaceAll(util.AnnotationRestoreVMPrefix+d.nodeName, "/", "~1"),
+			Path:  "/metadata/annotations/" + strings.ReplaceAll(util.AnnotationRestoreVMPrefix+nodeUID, "/", "~1"),
 			Value: strings.Join(restoreVMNames, ","),
 		},
 	})
@@ -246,4 +256,13 @@ func (d *VMLiveMigrateDetector) patchUpgradeCR(ctx context.Context, restoreVMNam
 		return e
 	})
 	return err
+}
+
+func getNodeUID(nodeName string, nodes []*v1.Node) string {
+	for _, node := range nodes {
+		if node.Name == nodeName {
+			return string(node.UID)
+		}
+	}
+	return ""
 }

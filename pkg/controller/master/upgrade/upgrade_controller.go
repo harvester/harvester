@@ -80,8 +80,6 @@ const (
 	defaultImagePreloadConcurrency      = 1
 
 	vmReady condition.Cond = "Ready"
-
-	kubevirtReady = string(kubevirtv1.KubeVirtConditionAvailable)
 )
 
 // upgradeHandler Creates Plan CRDs to trigger upgrades
@@ -115,8 +113,6 @@ type upgradeHandler struct {
 
 	lhSettingClient ctllhv1.SettingClient
 	lhSettingCache  ctllhv1.SettingCache
-
-	kubeVirtCache kubevirtctrl.KubeVirtCache
 
 	vmRestClient rest.Interface
 }
@@ -859,7 +855,7 @@ func (h *upgradeHandler) setAutoCleanupSystemGeneratedSnapshotValue(value string
 }
 
 // restoreVM attempts to restore all running non-migratable VMs after the node upgrade succeeds.
-// During the node upgrade, in a multi-node environment, annotation harvesterhci.io/restore-vm-{node_name}={vm_names_separated_by_comma}
+// During the node upgrade, in a multi-node environment, annotation harvesterhci.io/restore-vm-{node_uid}={vm_names_separated_by_comma}
 // will be added to upgrade CR for each node pre-drain job.
 // In a single-node environment, this will occur during the single-node-upgrade job.
 // Once the node upgrade is complete, VMs will be started based on the annotation.
@@ -880,25 +876,26 @@ func (h *upgradeHandler) restoreVM(upgrade *harvesterv1.Upgrade) error {
 		return nil
 	}
 
-	kubevirt, err := h.kubeVirtCache.Get(harvesterSystemNamespace, util.KubeVirtObjectName)
-	if err != nil && !apierrors.IsNotFound(err) {
-		logrus.WithFields(logFields).WithError(err).Error("Failed to get kubevirt")
-		return err
+	err = h.checkKubeVirtHealth()
+	if err != nil {
+		logrus.WithFields(logFields).WithError(err).Warn("Kubevirt is not ready, enqueue upgrade for next check")
+		h.upgradeController.EnqueueAfter(upgrade.Namespace, upgrade.Name, time.Second*10)
+		return nil
 	}
 
 	for nodeName, nodeStatus := range upgrade.Status.NodeStatuses {
+		node, err := h.nodeCache.Get(nodeName)
+		if err != nil {
+			logrus.WithFields(logFields).WithError(err).Errorf("Failed to get node %s", nodeName)
+			return err
+		}
+
+		nodeUID := string(node.UID)
 		if nodeStatus.State == StateSucceeded &&
-			upgrade.Annotations[util.AnnotationRestoreVMFinishedPrefix+nodeName] != "true" &&
-			upgrade.Annotations[util.AnnotationRestoreVMPrefix+nodeName] != "" {
-			if condition.Cond(kubevirtReady).IsTrue(kubevirt) {
-				logrus.WithFields(logFields).Infof("kubevirt is ready, restore VMs for node %s", nodeName)
-				if err = h.restoreVMForNode(upgrade, nodeName); err != nil {
-					return err
-				}
-			} else {
-				logrus.WithFields(logFields).Infof("kubevirt is not ready, enqueue upgrade %s/%s for next vm restore", upgrade.Namespace, upgrade.Name)
-				h.upgradeController.EnqueueAfter(upgrade.Namespace, upgrade.Name, time.Second*5)
-				return nil
+			upgrade.Annotations[util.AnnotationRestoreVMFinishedPrefix+nodeUID] != "true" &&
+			upgrade.Annotations[util.AnnotationRestoreVMPrefix+nodeUID] != "" {
+			if err = h.restoreVMForNode(upgrade, node); err != nil {
+				return err
 			}
 		} else {
 			logrus.WithFields(logFields).Infof("VM restore for node %s is already done", nodeName)
@@ -910,13 +907,16 @@ func (h *upgradeHandler) restoreVM(upgrade *harvesterv1.Upgrade) error {
 // restoreVMForNode attempts to restore non-migratable VMs for specific node.
 // There is no guarantee that all VMs will successfully return to their previous state.
 // If any VM fails to start, the process continues without interruption.
-func (h *upgradeHandler) restoreVMForNode(upgrade *harvesterv1.Upgrade, nodeName string) error {
+func (h *upgradeHandler) restoreVMForNode(upgrade *harvesterv1.Upgrade, node *corev1.Node) error {
 	logFields := logrus.Fields{
 		"namespace": upgrade.Namespace,
 		"name":      upgrade.Name,
 	}
 
-	vmsStr, _ := upgrade.Annotations[util.AnnotationRestoreVMPrefix+nodeName]
+	nodeName := node.Name
+	nodeUID := string(node.UID)
+
+	vmsStr, _ := upgrade.Annotations[util.AnnotationRestoreVMPrefix+nodeUID]
 	for _, vmName := range strings.Split(vmsStr, ",") {
 		vmName := strings.TrimSpace(vmName)
 		if vmName == "" {
@@ -941,6 +941,7 @@ func (h *upgradeHandler) restoreVMForNode(upgrade *harvesterv1.Upgrade, nodeName
 					return h.startVM(context.Background(), vm)
 				},
 			)
+			// Don't return error if VM fails to start to avoid endless retry
 			if startVMErr != nil {
 				logrus.WithFields(logFields).WithError(startVMErr).Errorf("Failed to start VM %s/%s after retries", vm.Namespace, vm.Name)
 			}
@@ -951,9 +952,9 @@ func (h *upgradeHandler) restoreVMForNode(upgrade *harvesterv1.Upgrade, nodeName
 
 	// Add the annotation after restoring VMs finished
 	upgradeCopy := upgrade.DeepCopy()
-	upgradeCopy.Annotations[util.AnnotationRestoreVMFinishedPrefix+nodeName] = "true"
+	upgradeCopy.Annotations[util.AnnotationRestoreVMFinishedPrefix+nodeUID] = "true"
 	if _, err := h.upgradeClient.Update(upgradeCopy); err != nil {
-		logrus.WithFields(logFields).WithError(err).Errorf("Failed to add annotation %s", util.AnnotationRestoreVMFinishedPrefix+nodeName)
+		logrus.WithFields(logFields).WithError(err).Errorf("Failed to add annotation %s", util.AnnotationRestoreVMFinishedPrefix+nodeUID)
 		return err
 	}
 	logrus.WithFields(logFields).Infof("Restored VMs for node %s", nodeName)
@@ -973,5 +974,12 @@ func (h *upgradeHandler) startVM(ctx context.Context, vm *kubevirtv1.VirtualMach
 		SubResource("start").
 		Body(body).
 		Do(ctx)
+	return res.Error()
+}
+
+func (h *upgradeHandler) checkKubeVirtHealth() error {
+	res := h.vmRestClient.Get().
+		Resource("healthz").
+		Do(context.Background())
 	return res.Error()
 }
