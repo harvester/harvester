@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	semverv3 "github.com/Masterminds/semver/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
@@ -673,37 +672,6 @@ func getCachedRepoInfo(upgrade *harvesterv1.Upgrade) (*repoinfo.RepoInfo, error)
 		return nil, err
 	}
 	return repoInfo, nil
-}
-
-func isVersionUpgradable(currentVersion, minUpgradableVersion string) error {
-	if minUpgradableVersion == "" {
-		logrus.Debug("No minimum upgradable version specified, continue the upgrading")
-		return nil
-	}
-
-	// short-circuit the equal cases as the library doesn't support the hack applied below
-	if currentVersion == minUpgradableVersion {
-		logrus.Debug("Upgrade from the exact same version as the minimum requirement")
-		return nil
-	}
-	// to enable comparisons against prerelease versions
-	constraint := fmt.Sprintf(">= %s-z", minUpgradableVersion)
-
-	c, err := semverv3.NewConstraint(constraint)
-	if err != nil {
-		return err
-	}
-	v, err := semverv3.NewVersion(currentVersion)
-	if err != nil {
-		return err
-	}
-
-	if a := c.Check(v); !a {
-		message := fmt.Sprintf("The current version %s is less than the minimum upgradable version %s.", currentVersion, minUpgradableVersion)
-		return fmt.Errorf("%s", message)
-	}
-
-	return nil
 }
 
 func upgradeEligibilityCheck(upgrade *harvesterv1.Upgrade) (bool, string) {

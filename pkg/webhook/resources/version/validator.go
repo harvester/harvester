@@ -3,7 +3,6 @@ package version
 import (
 	"fmt"
 	"regexp"
-	"strconv"
 
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -15,11 +14,6 @@ import (
 
 var (
 	SHA512Pattern = regexp.MustCompile(`^[a-f0-9]{128}$`)
-)
-
-const (
-	SkipGarbageCollectionThreadholdCheckAnnotation = "harvesterhci.io/skipGarbageCollectionThresholdCheck"
-	MinCertsExpirationInDayAnnotation              = "harvesterhci.io/minCertsExpirationInDay"
 )
 
 func NewValidator() types.Validator {
@@ -49,34 +43,12 @@ func (v *versionValidator) Create(_ *types.Request, newObj runtime.Object) error
 	return checkVersion(newVersion)
 }
 
-func checkAnnotations(version *v1beta1.Version) error {
-	if value, ok := version.Annotations[SkipGarbageCollectionThreadholdCheckAnnotation]; ok {
-		_, err := strconv.ParseBool(value)
-		if err != nil {
-			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, SkipGarbageCollectionThreadholdCheckAnnotation))
-		}
-	}
-
-	if value, ok := version.Annotations[MinCertsExpirationInDayAnnotation]; ok {
-		minCertsExpirationInDay, err := strconv.Atoi(value)
-		if err != nil {
-			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, MinCertsExpirationInDayAnnotation))
-		} else if minCertsExpirationInDay <= 0 {
-			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s, it should be greater than 0", value, MinCertsExpirationInDayAnnotation))
-		}
-	}
-	return nil
-}
-
 func (v *versionValidator) Update(_ *types.Request, _ runtime.Object, newObj runtime.Object) error {
 	newVersion := newObj.(*v1beta1.Version)
 	return checkVersion(newVersion)
 }
 
 func checkVersion(version *v1beta1.Version) error {
-	if err := checkAnnotations(version); err != nil {
-		return err
-	}
 	return checkISOChecksum(version)
 }
 
