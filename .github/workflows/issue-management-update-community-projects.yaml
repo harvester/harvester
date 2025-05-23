@@ -162,4 +162,9 @@ jobs:
         GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
       run: |
         ISSUE_NUMBER="${{ github.event.issue.number }}"
-        gh issue edit "$ISSUE_NUMBER" --milestone "Planning"
+
+        # Reduce the chance that milestone is modified by users and actions at the same time.
+        MILESTONE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json milestone --jq '.milestone.title')
+        if [ -z "$MILESTONE_TITLE" ]; then
+          gh issue edit "$ISSUE_NUMBER" --milestone "Planning"
+        fi
