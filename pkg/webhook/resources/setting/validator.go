@@ -1584,7 +1584,7 @@ func validateUpgradeConfigHelper(setting *v1beta1.Setting) (*settings.UpgradeCon
 	return config, nil
 }
 
-func validateUpgradeConfigFields(setting *v1beta1.Setting, isSingleNode bool) error {
+func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 	upgradeConfig, err := validateUpgradeConfigHelper(setting)
 	if err != nil {
 		return err
@@ -1609,20 +1609,11 @@ func validateUpgradeConfigFields(setting *v1beta1.Setting, isSingleNode bool) er
 		return fmt.Errorf("invalid image preload concurrency: %d", concurrency)
 	}
 
-	// Validate the restore VM field
-	if upgradeConfig.RestoreVM && !isSingleNode {
-		return fmt.Errorf("restoreVM is only supported in single node cluster")
-	}
-
 	return nil
 }
 
 func (v *settingValidator) validateUpgradeConfig(setting *v1beta1.Setting) error {
-	isSingleNode, err := v.isSingleNode()
-	if err != nil {
-		return err
-	}
-	return validateUpgradeConfigFields(setting, isSingleNode)
+	return validateUpgradeConfigFields(setting)
 }
 
 func (v *settingValidator) validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
