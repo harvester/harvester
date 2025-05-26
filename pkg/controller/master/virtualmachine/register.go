@@ -50,8 +50,6 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		snapshotCache    = snapshotClient.Cache()
 		scClient         = management.StorageFactory.Storage().V1().StorageClass()
 		scCache          = scClient.Cache()
-		crClient         = management.ControllerRevisionFactory.Apps().V1().ControllerRevision()
-		crClientCache    = crClient.Cache()
 		settingCache     = management.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
 		recorder         = management.NewRecorder(vmControllerSetHaltIfInsufficientResourceQuotaControllerName, "", "")
 	)
@@ -107,8 +105,6 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		vmClient:  vmClient,
 		vmCache:   vmCache,
 		vmiClient: virtualMachineInstanceClient,
-		crClient:  crClient,
-		crCache:   crClientCache,
 	}
 	virtualMachineInstanceClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
 

@@ -15,6 +15,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinebackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineimage"
+	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineinstance"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -26,11 +27,13 @@ func Mutation(clients *clients.Clients, options *config.Options) (http.Handler, 
 	vmBackupCache := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()
 	pvcCache := clients.Core.PersistentVolumeClaim().Cache()
 	vmImgCache := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()
+	vmCache := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	mutators := []types.Mutator{
 		persistentvolumeclaim.NewMutator(pvcCache, vmImgCache),
 		pod.NewMutator(settingCache),
 		templateversion.NewMutator(),
 		virtualmachine.NewMutator(settingCache, nadCache),
+		virtualmachineinstance.NewMutator(vmCache),
 		virtualmachineimage.NewMutator(storageClassCache),
 		virtualmachinebackup.NewMutator(vmBackupCache),
 	}
