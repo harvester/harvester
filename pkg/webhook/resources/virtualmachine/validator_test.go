@@ -12,6 +12,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -825,6 +826,222 @@ func Test_virtualMachineValidator_dedicatedCPUPlacement(t *testing.T) {
 
 		t.Run(tc.name, func(t *testing.T) {
 			err := validator.checkDedicatedCPUPlacement(tc.vm)
+			if tc.expectError {
+				assert.NotNil(t, err, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func Test_virtualMachineValidator_storagenetworknad(t *testing.T) {
+	tests := []struct {
+		name        string
+		vm          *kubevirtv1.VirtualMachine
+		expectError bool
+	}{
+		{
+			name: "vm1 refers to a storage network nad which has annotation, not allowed",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "new-vm",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Networks: []kubevirtv1.Network{
+								{
+									Name: "nic-1",
+									NetworkSource: kubevirtv1.NetworkSource{
+										Multus: &kubevirtv1.MultusNetwork{
+											NetworkName: util.StorageNetworkNetAttachDefNamespace + "/" + util.StorageNetworkNetAttachDefPrefix + "v100",
+										},
+									},
+								},
+							},
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									Interfaces: []kubevirtv1.Interface{
+										{
+											Name: "nic-1",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "vm2 refers to a storage network nad which starts with storagenetwork name preix, not allowed",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vm2",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Networks: []kubevirtv1.Network{
+								{
+									Name: "nic-1",
+									NetworkSource: kubevirtv1.NetworkSource{
+										Multus: &kubevirtv1.MultusNetwork{
+											NetworkName: util.StorageNetworkNetAttachDefNamespace + "/" + util.StorageNetworkNetAttachDefPrefix + "v200",
+										},
+									},
+								},
+							},
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									Interfaces: []kubevirtv1.Interface{
+										{
+											Name: "nic-1",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "vm3 refers to a dangling nad, not allowed",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vm3",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Networks: []kubevirtv1.Network{
+								{
+									Name: "nic-1",
+									NetworkSource: kubevirtv1.NetworkSource{
+										Multus: &kubevirtv1.MultusNetwork{
+											NetworkName: "default/nonexisting",
+										},
+									},
+								},
+							},
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									Interfaces: []kubevirtv1.Interface{
+										{
+											Name: "nic-1",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "vm4 refers to a normal nad, allowed",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vm4",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Networks: []kubevirtv1.Network{
+								{
+									Name: "nic-1",
+									NetworkSource: kubevirtv1.NetworkSource{
+										Multus: &kubevirtv1.MultusNetwork{
+											NetworkName: "default/nad1",
+										},
+									},
+								},
+							},
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									Interfaces: []kubevirtv1.Interface{
+										{
+											Name: "nic-1",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+	}
+
+	label1 := make(map[string]string)
+	label1[keyClusterNetwork] = "cluster-1"
+
+	existingNADs := []*cniv1.NetworkAttachmentDefinition{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      util.StorageNetworkNetAttachDefPrefix + "v100",
+				Namespace: util.StorageNetworkNetAttachDefNamespace,
+				Labels:    label1,
+				Annotations: map[string]string{
+					util.StorageNetworkAnnotation: "true", // full-format storage network nad
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      util.StorageNetworkNetAttachDefPrefix + "v200",
+				Namespace: util.StorageNetworkNetAttachDefNamespace, // valid storage network nad, but annotation was deleted
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "nad1",
+				Namespace: "default",
+				Labels:    label1,
+			},
+		},
+	}
+
+	existingVMs := []*kubevirtv1.VirtualMachine{
+		{},
+	}
+
+	var clientset = fake.NewSimpleClientset()
+	for _, existingVM := range existingVMs {
+		var err = clientset.Tracker().Add(existingVM)
+		assert.Nil(t, err, "mock resource should add into fake controller tracker")
+	}
+
+	nadGvr := schema.GroupVersionResource{
+		Group:    "k8s.cni.cncf.io",
+		Version:  "v1",
+		Resource: "network-attachment-definitions",
+	}
+
+	for _, existingNAD := range existingNADs {
+		if err := clientset.Tracker().Create(nadGvr, existingNAD.DeepCopy(), existingNAD.Namespace); err != nil {
+			t.Fatalf("failed to add nad %+v", existingNAD)
+		}
+	}
+
+	fakeVMCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
+	fakeNadCache := fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions)
+
+	validator := NewValidator(nil, nil, nil, nil, nil, nil, fakeVMCache, nil, fakeNadCache, nil, nil).(*vmValidator)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validator.checkVMNetworks(tc.vm)
 			if tc.expectError {
 				assert.NotNil(t, err, tc.name)
 			} else {

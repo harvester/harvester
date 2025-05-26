@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -14,6 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
@@ -82,25 +83,22 @@ func (v *vmValidator) Resource() types.Resource {
 	}
 }
 
-func (v *vmValidator) getClusterNetworkForNad(nwName string) (clusterNetwork string, err error) {
-	words := strings.Split(nwName, "/")
-	var namespace, name string
-	switch len(words) {
-	case 1:
-		namespace, name = "default", words[0]
-	case 2:
-		namespace, name = words[0], words[1]
-	default:
-		return clusterNetwork, fmt.Errorf("invalid network name %s", nwName)
-	}
-
-	nad, err := v.nadCache.Get(namespace, name)
+func (v *vmValidator) getNad(nwName string) (nad *nadv1.NetworkAttachmentDefinition, err error) {
+	namespace, name, err := util.GetNadNamespaceNameFromVMNetworkName(nwName)
 	if err != nil {
-		return clusterNetwork, err
+		return nil, err
+	}
+	return v.nadCache.Get(namespace, name)
+}
+
+func (v *vmValidator) getClusterNetworkForNad(nwName string) (clusterNetwork string, err error) {
+	nad, err := v.getNad(nwName)
+	if err != nil {
+		return "", err
 	}
 	clusterNetwork, ok := nad.Labels[keyClusterNetwork]
 	if !ok {
-		return clusterNetwork, err
+		return "", fmt.Errorf("network %v nad does not have required label %v", nwName, keyClusterNetwork)
 	}
 
 	return clusterNetwork, nil
@@ -233,6 +231,10 @@ func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 		return err
 	}
 
+	if err := v.checkVMNetworks(vm); err != nil {
+		return err
+	}
+
 	if err := v.checkForDuplicateMacAddrs(vm); err != nil {
 		return err
 	}
@@ -281,6 +283,10 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 
 	if oldVM.Spec.Template != nil && newVM.Spec.Template != nil && reflect.DeepEqual(oldVM.Spec.Template.Spec.Domain.Devices.Interfaces, newVM.Spec.Template.Spec.Domain.Devices.Interfaces) {
 		return nil
+	}
+
+	if err := v.checkVMNetworks(newVM); err != nil {
+		return err
 	}
 
 	if err := v.checkForDuplicateMacAddrs(newVM); err != nil {
@@ -558,6 +564,25 @@ func (v *vmValidator) checkDedicatedCPUPlacement(vm *kubevirtv1.VirtualMachine) 
 	if len(nodeList) == 0 {
 		return werror.NewInvalidError("VM requests CPU pinning, but no node with activated CPU Manager was found",
 			"spec.template.spec.domain.cpu.dedicatedCpuPlacement")
+	}
+
+	return nil
+}
+
+func (v *vmValidator) checkVMNetworks(vm *kubevirtv1.VirtualMachine) error {
+	for _, vmNetwork := range vm.Spec.Template.Spec.Networks {
+		if vmNetwork.Multus == nil || vmNetwork.Multus.NetworkName == "" {
+			continue
+		}
+		nad, err := v.getNad(vmNetwork.Multus.NetworkName)
+		// if network is dangling, error IsNotFound is returned
+		if err != nil {
+			return err
+		}
+		if util.IsStorageNetworkNad(nad) {
+			return fmt.Errorf("storagetnetwork %v nad can't be used by vm", vmNetwork.Multus.NetworkName)
+		}
+		// vm migration network nad will also be checked
 	}
 
 	return nil
