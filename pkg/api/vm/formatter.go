@@ -411,12 +411,20 @@ func canCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
 		return false
 	}
 
-	hasRestartRequired := false
+	hasRestartRequiredOrHotplugMigration := false
 	for _, condition := range vm.Status.Conditions {
 		if condition.Type == kubevirtv1.VirtualMachineRestartRequired && condition.Status == corev1.ConditionTrue {
-			hasRestartRequired = true
+			hasRestartRequiredOrHotplugMigration = true
+			break
+		}
+		if string(condition.Type) == string(kubevirtv1.VirtualMachineInstanceVCPUChange) && condition.Status == corev1.ConditionTrue {
+			hasRestartRequiredOrHotplugMigration = true
+			break
+		}
+		if string(condition.Type) == string(kubevirtv1.VirtualMachineInstanceMemoryChange) && condition.Status == corev1.ConditionTrue {
+			hasRestartRequiredOrHotplugMigration = true
 			break
 		}
 	}
-	return !hasRestartRequired
+	return !hasRestartRequiredOrHotplugMigration
 }
