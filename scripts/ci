@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Build the binaries for x64 architecture
 set -e
 
 cd $(dirname $0)

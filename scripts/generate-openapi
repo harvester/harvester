@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Generate Swagger JSON file
 set -e
 
 # Add +k8s:openapi-gen=true to pkg/apis/harvesterhci.io/v1beta1/doc.go
