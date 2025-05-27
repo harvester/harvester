@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Description here
 set -e
 
 mkdir -p bin dist

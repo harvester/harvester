@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Build the Harvester by running scripts/default
 set -e
 
 source $(dirname $0)/version

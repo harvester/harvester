@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Description here
 
 TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 PACKAGE_DIR="${TOP_DIR}/package"
