@@ -6,6 +6,7 @@ on:
 env:
   HARVESTER_PROJECT_URL: https://github.com/orgs/harvester/projects/7
   COMMUNITY_PROJECT_URL: https://github.com/orgs/harvester/projects/10
+  PRODUCT_BACKLOG_PROJECT_URL: https://github.com/orgs/harvester/projects/2
 
 jobs:
   suse-org:
@@ -39,6 +40,17 @@ jobs:
         gh issue edit ${{ github.event.issue.number }} --add-label "require/pm-review"
       env:
         GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+    
+    - name: Add Issue to Product Backlog Project
+      id: add-project
+      if: ${{
+        fromJSON(steps.is-suse-member.outputs.teams)[0] != null &&
+        fromJSON(steps.is-harvester-member.outputs.teams)[0] == null
+        }}
+      uses: actions/add-to-project@v1.0.2
+      with:
+        project-url: ${{ env.PRODUCT_BACKLOG_PROJECT_URL }}
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
         
 
   harvester:
