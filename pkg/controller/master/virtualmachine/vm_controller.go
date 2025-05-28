@@ -44,7 +44,6 @@ type VMController struct {
 	vmController     ctlkubevirtv1.VirtualMachineController
 	vmiCache         ctlkubevirtv1.VirtualMachineInstanceCache
 	vmiClient        ctlkubevirtv1.VirtualMachineInstanceClient
-	vmImgClient      ctlharvesterv1.VirtualMachineImageClient
 	vmImgCache       ctlharvesterv1.VirtualMachineImageCache
 	vmBackupClient   ctlharvesterv1.VirtualMachineBackupClient
 	vmBackupCache    ctlharvesterv1.VirtualMachineBackupCache
@@ -52,7 +51,6 @@ type VMController struct {
 	scCache          ctlstoragev1.StorageClassCache
 	snapshotClient   ctlsnapshotv1.VolumeSnapshotClient
 	snapshotCache    ctlsnapshotv1.VolumeSnapshotCache
-	settingCache     ctlharvesterv1.SettingCache
 	recorder         record.EventRecorder
 
 	vmrCalculator *rqutils.Calculator
