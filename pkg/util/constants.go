@@ -57,6 +57,9 @@ const (
 	// Add to rancher-monitoring addon to record grafana pv name
 	AnnotationGrafanaPVName = prefix + "/grafana-pv-name"
 
+	AnnotationRestoreVMPrefix         = prefix + "/restore-vm-"
+	AnnotationRestoreVMFinishedPrefix = prefix + "/restore-vm-finished-"
+
 	// Add to harvester-longhorn storageclass to protect it
 	// For any storageclass created & protected by controller, the controller can utilize this annotation
 	AnnotationIsReservedStorageClass = prefix + "/is-reserved-storageclass"
