@@ -51,7 +51,6 @@ func (m *pvcMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 
 	logrus.Debugf("create PVC %s/%s with mutator", pvc.Namespace, pvc.Name)
 	patchOPs := []string{}
-	isGoldenImage := false
 
 	// check pvc is related to the vm image
 	patchOp, err := m.patchGoldenImageAnnotation(pvc)
@@ -60,19 +59,9 @@ func (m *pvcMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 	}
 
 	if patchOp != "" || apierrors.IsAlreadyExists(err) {
-		isGoldenImage = true
 		if patchOp != "" {
 			patchOPs = append(patchOPs, patchOp)
 		}
-	}
-
-	// patch populator
-	if !isGoldenImage {
-		patchOp, err = m.patchDataSource(pvc)
-		if err != nil {
-			return nil, err
-		}
-		patchOPs = append(patchOPs, patchOp)
 	}
 
 	// no need to patch
@@ -110,6 +99,21 @@ func (m pvcMutator) patchDataSource(pvc *corev1.PersistentVolumeClaim) (string, 
 	annotations := pvc.GetAnnotations()
 	if v, find := annotations[util.AnnotationVolForVM]; !find || v != "true" {
 		logrus.Debugf("PVC %s/%s is not for VM, skip patch", pvc.Namespace, pvc.Name)
+		return "", nil
+	}
+
+	// do not replace any existing data source, such as csi snapshot, with the
+	// filesystem-blank-source VolumeImportSource. if set, the 'blank'
+	// VolumeImportSource would wipe any restore or prepopulated data.
+	if pvc.Spec.DataSourceRef != nil || pvc.Spec.DataSource != nil {
+		dataSource := ""
+		if pvc.Spec.DataSourceRef != nil {
+			dataSource = fmt.Sprintf("%+v", pvc.Spec.DataSourceRef)
+		} else if pvc.Spec.DataSource != nil {
+			dataSource = fmt.Sprintf("%+v", pvc.Spec.DataSource)
+		}
+		pvcName := fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name)
+		logrus.Debugf("PVC %s has existing data source: %s, skip patch", pvcName, dataSource)
 		return "", nil
 	}
 
