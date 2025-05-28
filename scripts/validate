@@ -1,5 +1,5 @@
 #!/bin/bash
-# DESC: Description here
+# DESC: Runs following validations: go fmt, go vet, and golangci-lint
 set -e
 
 cd $(dirname $0)/..
