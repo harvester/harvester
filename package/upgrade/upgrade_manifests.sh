@@ -1305,6 +1305,7 @@ rules:
   resources:
   - networkfilesystems
   - networkfilesystems/status
+  - settings
   verbs:
   - '*'
 - apiGroups:
