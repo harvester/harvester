@@ -1,5 +1,5 @@
 #!/bin/bash
-# DESC: Description here
+# DESC: Default target when running `make`
 set -e
 
 cd $(dirname $0)

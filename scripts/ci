@@ -1,5 +1,5 @@
 #!/bin/bash
-# DESC: Description here
+# DESC: Used by Github Actions CI
 set -e
 
 cd $(dirname $0)

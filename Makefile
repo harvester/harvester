@@ -1,20 +1,7 @@
-TARGETS := $(shell ls scripts)
+TARGETS := $(shell ls --ignore=help --ignore='*.txt' scripts)
 
 help:
-	@echo "Available make targets:"
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
-	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
-	@echo ""
-	@echo "Auto-generated targets from scripts/:"
-	@for target in $(TARGETS); do \
-		if echo "$$target" | grep -qE '\.txt$$'; then continue; fi; \
-		desc=$$(grep -m1 '^# DESC:' scripts/$$target | sed 's/^# DESC:[[:space:]]*//'); \
-		if [ -z "$$desc" ]; then \
-			desc="(no description)"; \
-		fi; \
-		printf "  \033[36m%-20s\033[0m %s\n" "$$target" "$$desc"; \
-	done
-
+	@./scripts/help "$(MAKEFILE_LIST)" $(TARGETS)
 
 .dapper:
 	@echo Downloading dapper
