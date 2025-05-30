@@ -1,3 +1,4 @@
 #!/bin/bash
+# DESC: executes `ci`
 
 exec $(dirname $0)/ci
