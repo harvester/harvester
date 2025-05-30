@@ -7,16 +7,12 @@ Maintainer: @harvester/maintainer
 
 Targets:"
 
-<<<<<<< HEAD
-=======
-inlined_targets=$(grep -E '^[a-zA-Z_-]+:.*?## ' "${1}" | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $1, $2}')
->>>>>>> c361082ae (Passing help to a script in ./scripts)
 shift
 for target in "${@}"; do 
-        desc=$(grep -m1 '^# DESC:' "scripts/${target}" | sed 's/^# DESC:[[:space:]]*//')
-        if [ -z "${desc}" ];
-  then 
-                desc="(no description)"
-        fi;
-        printf "  \033[36m%-20s\033[0m %s\n" "${target}" "${desc}"
+  desc=$(grep -m1 '^# DESC:' "scripts/${target}" | sed 's/^# DESC:[[:space:]]*//')
+  if [ -z "${desc}" ];
+then 
+  desc="(no description)"
+  fi;
+  printf "  \033[36m%-20s\033[0m %s\n" "${target}" "${desc}"
 done
