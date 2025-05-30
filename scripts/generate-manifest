@@ -1,5 +1,5 @@
 #!/bin/bash
-# DESC: Description here
+# DESC: Generate manifest
 set -e
 
 # The root of the harvester directory

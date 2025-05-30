@@ -1,5 +1,5 @@
 #!/bin/bash
-# DESC: Description here
+# DESC: Build, tag and push the webhook image
 set -e
 
 TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"

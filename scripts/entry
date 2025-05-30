@@ -1,5 +1,5 @@
 #!/bin/bash
-# DESC: Description here
+# DESC: Entry
 set -e
 
 mkdir -p bin dist

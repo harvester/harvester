@@ -1,5 +1,5 @@
 #!/bin/bash
-# DESC: Used by Github Actions CI
+# DESC: build the binaries for x64 architecture
 set -e
 
 cd $(dirname $0)

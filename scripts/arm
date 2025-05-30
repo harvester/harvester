@@ -1,5 +1,5 @@
 #!/bin/bash
-# DESC: Build the Harvester container without running tests
+# DESC: build the binaries for arm architecture
 set -e
 
 cd $(dirname $0)
