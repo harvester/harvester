@@ -1037,7 +1037,7 @@ func (v *settingValidator) validateStorageNetworkHelper(value string) error {
 
 	var config storagenetworkctl.Config
 	if err := json.Unmarshal([]byte(value), &config); err != nil {
-		return fmt.Errorf("failed to unmarshal the setting value, %v", err)
+		return fmt.Errorf("failed to unmarshal the setting value %v, %w", value, err)
 	}
 
 	if err := v.checkStorageNetworkVlanValid(&config); err != nil {
@@ -1072,7 +1072,12 @@ func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) erro
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 
-	return v.checkStorageNetworkValueVaild()
+	// When a new setting is created, it's value and default are both empty, do not check storage-network usage
+	if setting.Value != "" || setting.Default != "" {
+		return v.checkStorageNetworkUsage()
+	}
+
+	return nil
 }
 
 func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
@@ -1092,7 +1097,7 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 
-	return v.checkStorageNetworkValueVaild()
+	return v.checkStorageNetworkUsage()
 }
 
 func (v *settingValidator) validateDeleteStorageNetwork(_ *v1beta1.Setting) error {
@@ -1220,7 +1225,7 @@ func (v *settingValidator) checkOnlineVolume() error {
 	return nil
 }
 
-func (v *settingValidator) checkStorageNetworkValueVaild() error {
+func (v *settingValidator) checkStorageNetworkUsage() error {
 	// check all VM are stopped, there is no VMI
 	vms, err := v.vmCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
