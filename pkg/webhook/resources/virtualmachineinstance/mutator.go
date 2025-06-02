@@ -50,18 +50,22 @@ func (m *vmiMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 		return nil, err
 	}
 
+	return m.patchMacAddress(vm, vmi)
+}
+
+func (m *vmiMutator) patchMacAddress(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) (types.PatchOps, error) {
 	if vm.Annotations == nil || vm.Annotations[util.AnnotationMacAddressName] == "" {
 		return nil, nil
 	}
 
 	vmiInterfaces := map[string]string{}
-	if err = json.Unmarshal([]byte(vm.Annotations[util.AnnotationMacAddressName]), &vmiInterfaces); err != nil {
+	if err := json.Unmarshal([]byte(vm.Annotations[util.AnnotationMacAddressName]), &vmiInterfaces); err != nil {
 		logrus.WithError(err).WithFields(logrus.Fields{
 			"name":      vm.Name,
 			"namespace": vm.Namespace,
 			"macs":      vm.Annotations[util.AnnotationMacAddressName],
 		}).Error("failed to unmarshal mac-address from vm annotation")
-		return nil, err
+		return nil, nil
 	}
 
 	patchOps := types.PatchOps{}
