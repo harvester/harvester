@@ -2,6 +2,7 @@ package setting
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1108,5 +1109,96 @@ func Test_validateAdditionalGuestMemoryOverheadRatio(t *testing.T) {
 			err := validateAdditionalGuestMemoryOverheadRatio(tt.args)
 			assert.Equal(t, tt.expectedErr, err != nil)
 		})
+	}
+}
+
+func Test_validateStorageNetworkConfig(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   *v1beta1.Setting
+		errMsg string
+	}{
+		{
+			name: "ok to create storge-network with none values",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+			},
+			errMsg: "",
+		},
+		{
+			name: "ok to create storge-network with empty default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+			},
+			errMsg: "",
+		},
+		{
+			name: "ok to create storge-network with empty default and value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      "",
+			},
+			errMsg: "",
+		},
+		{
+			name: "fail to create storge-network with invalid json",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"invalid"}`,
+			},
+			errMsg: "failed to unmarshal the setting value",
+		},
+		{
+			name: "fail to create storge-network with invalid vlan id 4095",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":4095}`,
+			},
+			errMsg: "The valid value range for VLAN IDs",
+		},
+		{
+			name: "fail to create storge-network with invalid vlan id 65536",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":65536}`, // invalid uint16
+			},
+			errMsg: "failed to unmarshal the setting value",
+		},
+		{
+			name: "fail to create storge-network with invalid vlan id -1",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":-1}`, // invalid uint16
+			},
+			errMsg: "failed to unmarshal the setting value",
+		},
+		{
+			name: "fail to create storge-network with mgmt clusternetwork",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":1, "clusterNetwork":"mgmt"}`,
+			},
+			errMsg: "not allowed on",
+		},
+		// more tests are depending on a bunch of fake objects
+	}
+
+	v := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := v.Create(nil, tt.args)
+			if tt.errMsg != "" {
+				assert.True(t, strings.Contains(err.Error(), tt.errMsg))
+			}
+		})
+
 	}
 }
