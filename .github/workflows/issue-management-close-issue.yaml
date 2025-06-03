@@ -31,8 +31,12 @@ jobs:
     - name: Find and Close Backport Issue
       run: |
         # Search for backport issues with matching title using major.minor version
-        BACKPORT_ISSUE=$(gh issue list --search '"[backport v${{ env.MAJOR_MINOR_VERSION }}] ${{ github.event.issue.title }}"' --json number --jq '.[0].number')
-        
+        SEARCH_TITLE=$(cat <<'EOF'
+        [backport v${{ env.MAJOR_MINOR_VERSION }}] ${{ github.event.issue.title }}
+        EOF
+        )
+        BACKPORT_ISSUE=$(gh issue list --search "$SEARCH_TITLE" --json number --jq '.[0].number')
+
         if [ -n "$BACKPORT_ISSUE" ]; then
           echo "Closing backport issue #$BACKPORT_ISSUE for version ${{ env.MAJOR_MINOR_VERSION }}"
           gh issue close $BACKPORT_ISSUE --reason "not planned"
@@ -54,7 +58,11 @@ jobs:
     - name: Find and Close E2E Issue in harvester/tests
       run: |
         # Search for e2e issues with matching title using major.minor version
-        E2E_ISSUE=$(gh issue list --search '"[e2e] ${{ github.event.issue.title }}"' --json number --jq '.[0].number')
+        E2E_TITLE=$(cat <<'EOF'
+        [e2e] ${{ github.event.issue.title }}
+        EOF
+        )
+        E2E_ISSUE=$(gh issue list --search "$E2E_TITLE" --json number --jq '.[0].number')
 
         if [ -n "$E2E_ISSUE" ]; then
           echo "Closing e2e issue #$E2E_ISSUE"
