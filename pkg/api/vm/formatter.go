@@ -43,6 +43,7 @@ const (
 	dismissInsufficientResourceQuota = "dismissInsufficientResourceQuota"
 	updateResourceQuotaAction        = "updateResourceQuota"
 	deleteResourceQuotaAction        = "deleteResourceQuota"
+	cpuAndMemoryHotplug              = "cpuAndMemoryHotplug"
 )
 
 type vmformatter struct {
@@ -113,6 +114,10 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	if canMigrate(vmi) {
 		resource.AddAction(request, migrate)
 		resource.AddAction(request, findMigratableNodes)
+
+		if canCPUAndMemoryHotplug(vm) {
+			resource.AddAction(request, cpuAndMemoryHotplug)
+		}
 	}
 
 	if canAbortMigrate(vmi) {
@@ -399,4 +404,27 @@ func canDismissInsufficientResourceQuota(vm *kubevirtv1.VirtualMachine) bool {
 		return false
 	}
 	return true
+}
+
+func canCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
+	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusRunning {
+		return false
+	}
+
+	hasRestartRequiredOrHotplugMigration := false
+	for _, condition := range vm.Status.Conditions {
+		if condition.Type == kubevirtv1.VirtualMachineRestartRequired && condition.Status == corev1.ConditionTrue {
+			hasRestartRequiredOrHotplugMigration = true
+			break
+		}
+		if string(condition.Type) == string(kubevirtv1.VirtualMachineInstanceVCPUChange) && condition.Status == corev1.ConditionTrue {
+			hasRestartRequiredOrHotplugMigration = true
+			break
+		}
+		if string(condition.Type) == string(kubevirtv1.VirtualMachineInstanceMemoryChange) && condition.Status == corev1.ConditionTrue {
+			hasRestartRequiredOrHotplugMigration = true
+			break
+		}
+	}
+	return !hasRestartRequiredOrHotplugMigration
 }

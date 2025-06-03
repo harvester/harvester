@@ -51,3 +51,8 @@ type FindMigratableNodesOutput struct {
 type UpdateResourceQuotaInput struct {
 	TotalSnapshotSizeQuota string `json:"totalSnapshotSizeQuota"`
 }
+
+type CPUAndMemoryHotplugInput struct {
+	Sockets uint32 `json:"sockets"`
+	Memory  string `json:"memory"`
+}
