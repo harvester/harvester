@@ -388,7 +388,7 @@ func (v *upgradeValidator) checkNodeMachineMatching() error {
 
 func isNodeMachineMatching(nodes []*corev1.Node, machines []*clusterv1.Machine) error {
 	if len(nodes) == 0 {
-		return werror.NewInternalError(fmt.Sprintf("no node was listed, this shall not happen"))
+		return werror.NewInternalError("no node was listed, this shall not happen")
 	}
 
 	if len(nodes) != len(machines) {

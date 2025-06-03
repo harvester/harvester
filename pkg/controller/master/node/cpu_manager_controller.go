@@ -421,7 +421,7 @@ func GetCPUManagerRunningJobsOnNodes(jobCache ctlbatchv1.JobCache, nodeNames []s
 	}
 	requirement, err := labels.NewRequirement(util.LabelCPUManagerUpdateNode, selection.In, nodeNames)
 	if err != nil {
-		return []*batchv1.Job{}, fmt.Errorf(fmt.Sprintf("failed to create requirement: %s", err.Error()))
+		return []*batchv1.Job{}, fmt.Errorf("failed to create requirement: %s", err.Error())
 	}
 	labelSelector := labels.NewSelector().Add(*requirement)
 	jobs, err := jobCache.List("", labelSelector)

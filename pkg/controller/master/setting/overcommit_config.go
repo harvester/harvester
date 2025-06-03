@@ -21,7 +21,7 @@ func (h *Handler) syncOvercommitConfig(setting *harvesterv1.Setting) error {
 		value = setting.Default
 	}
 	if err := json.Unmarshal([]byte(value), overcommit); err != nil {
-		return fmt.Errorf("Invalid JSON `%s`: %s", setting.Value, err.Error())
+		return fmt.Errorf("invalid JSON `%s`: %s", setting.Value, err.Error())
 	}
 
 	// Longhorn storage overcommit

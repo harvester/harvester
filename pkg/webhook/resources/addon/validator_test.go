@@ -3,11 +3,10 @@ package addon
 import (
 	"testing"
 
+	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	harvesterFake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -503,7 +502,8 @@ func Test_validateNewAddon(t *testing.T) {
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
 		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache).(*addonValidator)
 		for _, addon := range tc.addonList {
-			harvesterClientSet.Tracker().Add(addon)
+			err := harvesterClientSet.Tracker().Add(addon)
+			assert.Nil(t, err)
 		}
 
 		err := validator.validateNewAddon(tc.newAddon)
@@ -862,10 +862,12 @@ func Test_validateRancherLoggingAddonWithClusterFlow(t *testing.T) {
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
 		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache).(*addonValidator)
 		for _, cf := range tc.clusterFlows {
-			harvesterClientSet.Tracker().Add(cf)
+			err := harvesterClientSet.Tracker().Add(cf)
+			assert.Nil(t, err)
 		}
 		for _, co := range tc.clusterOutputs {
-			harvesterClientSet.Tracker().Add(co)
+			err := harvesterClientSet.Tracker().Add(co)
+			assert.Nil(t, err)
 		}
 
 		err := validator.validateUpdatedAddon(tc.newAddon, tc.oldAddon)
@@ -1140,10 +1142,12 @@ func Test_validateRancherLoggingAddonWithFlow(t *testing.T) {
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
 		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache).(*addonValidator)
 		for _, cf := range tc.flows {
-			harvesterClientSet.Tracker().Add(cf)
+			err := harvesterClientSet.Tracker().Add(cf)
+			assert.Nil(t, err)
 		}
 		for _, co := range tc.outputs {
-			harvesterClientSet.Tracker().Add(co)
+			err := harvesterClientSet.Tracker().Add(co)
+			assert.Nil(t, err)
 		}
 
 		err := validator.validateUpdatedAddon(tc.newAddon, tc.oldAddon)

@@ -594,7 +594,10 @@ func (p *upgradeLogBuilder) Archive(name string, size int64, time string) *upgra
 }
 
 func (p *upgradeLogBuilder) ArchiveReady(name string, ready bool, reason string) *upgradeLogBuilder {
-	setUpgradeLogArchiveReady(p.upgradeLog, name, ready, reason)
+	// no one call this function, the error checking is added for linter
+	if err := setUpgradeLogArchiveReady(p.upgradeLog, name, ready, reason); err != nil {
+		return nil
+	}
 	return p
 }
 

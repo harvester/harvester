@@ -23,7 +23,6 @@ import (
 	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
-	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
 	"github.com/harvester/harvester/pkg/util"
@@ -75,7 +74,7 @@ func NewUpgradeRepo(ctx context.Context, upgrade *harvesterv1.Upgrade, upgradeHa
 func (r *Repo) Bootstrap() error {
 	image := r.upgrade.Status.ImageID
 	if image == "" {
-		return errors.New("Upgrade repo image is not provided")
+		return errors.New("upgrade repo image is not provided")
 	}
 	upgradeImage, err := r.GetImage(image)
 	if err != nil {
@@ -125,7 +124,7 @@ func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.
 		},
 		Spec: harvesterv1.VirtualMachineImageSpec{
 			DisplayName: getISODisplayNameImageName(r.upgrade.Name, r.upgrade.Spec.Version),
-			SourceType:  v1beta1.VirtualMachineImageSourceTypeDownload,
+			SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
 			URL:         isoURL,
 			Checksum:    checksum,
 			Retry:       3,
@@ -138,7 +137,7 @@ func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.
 func (r *Repo) GetImage(imageName string) (*harvesterv1.VirtualMachineImage, error) {
 	tokens := strings.Split(imageName, "/")
 	if len(tokens) != 2 {
-		return nil, fmt.Errorf("Invalid image format %s", imageName)
+		return nil, fmt.Errorf("invalid image format %s", imageName)
 	}
 
 	image, err := r.h.vmImageCache.Get(tokens[0], tokens[1])

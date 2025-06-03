@@ -254,12 +254,12 @@ func makeVolumeName(prefix, pvcUID string, volumeNameUUIDLength int) (string, er
 		return fmt.Sprintf("%s-%s", prefix, pvcUID), nil
 	}
 	// Else we remove all dashes from UUID and truncate to volumeNameUUIDLength
-	return fmt.Sprintf("%s-%s", prefix, strings.Replace(string(pvcUID), "-", "", -1)[0:volumeNameUUIDLength]), nil
+	return fmt.Sprintf("%s-%s", prefix, strings.ReplaceAll(string(pvcUID), "-", "")[0:volumeNameUUIDLength]), nil
 
 }
 
 func getVolumeName(pvc *corev1.PersistentVolumeClaim) (string, error) {
-	volumeName, err := makeVolumeName(pvNamePrefix, fmt.Sprintf("%s", pvc.ObjectMeta.UID), volumeNameUUIDNoTruncate)
+	volumeName, err := makeVolumeName(pvNamePrefix, string(pvc.ObjectMeta.UID), volumeNameUUIDNoTruncate)
 	if err != nil {
 		return "", err
 	}

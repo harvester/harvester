@@ -69,21 +69,6 @@ func newTestExistingVirtualMachineImage(namespace, name string) *harvesterv1.Vir
 	}
 }
 
-func newTestUpgradeLog() *harvesterv1.UpgradeLog {
-	return &harvesterv1.UpgradeLog{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				harvesterUpgradeLabel: testUpgradeName,
-			},
-			Name:      testUpgradeLogName,
-			Namespace: harvesterSystemNamespace,
-		},
-		Spec: harvesterv1.UpgradeLogSpec{
-			UpgradeName: testUpgradeName,
-		},
-	}
-}
-
 func newTestVirtualMachineImage() *harvesterv1.VirtualMachineImage {
 	return &harvesterv1.VirtualMachineImage{
 		Spec: harvesterv1.VirtualMachineImageSpec{

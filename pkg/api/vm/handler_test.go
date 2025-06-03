@@ -477,7 +477,7 @@ func TestRemoveVolume(t *testing.T) {
 				},
 			},
 			expected: output{
-				err: errors.New("Disk `not-exist` not found in virtual machine `default/test`"),
+				err: errors.New("disk `not-exist` not found in virtual machine `default/test`"),
 			},
 		},
 	}

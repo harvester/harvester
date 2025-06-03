@@ -660,7 +660,7 @@ func ensureSingleUpgrade(namespace string, upgradeCache ctlharvesterv1.UpgradeCa
 	}
 
 	if len(onGoingUpgrades) != 1 {
-		return nil, fmt.Errorf("There are %d on-going upgrades", len(onGoingUpgrades))
+		return nil, fmt.Errorf("there are %d on-going upgrades", len(onGoingUpgrades))
 	}
 
 	return onGoingUpgrades[0], nil
