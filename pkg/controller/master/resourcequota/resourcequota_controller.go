@@ -92,6 +92,6 @@ func scaleResourceQuotaOnDemand(rq *corev1.ResourceQuota, rqStr string) (bool, e
 	}
 
 	// note: if any base has no limit, the delta is not added
-	rq, update = rqutils.CalculateNewResourceQuotaFromBaseDelta(rq, rCPULimit, rMemoryLimit, cpuDelta, memDelta)
+	_, update = rqutils.CalculateNewResourceQuotaFromBaseDelta(rq, rCPULimit, rMemoryLimit, cpuDelta, memDelta)
 	return update, nil
 }

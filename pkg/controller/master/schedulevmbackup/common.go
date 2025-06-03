@@ -39,8 +39,6 @@ const (
 	cronJobArg          = "10"
 )
 
-var scheduleVMBackupKind = harvesterv1.SchemeGroupVersion.WithKind(scheduleVMBackupKindName)
-
 func cronJobName(svmbackup *harvesterv1.ScheduleVMBackup) string {
 	return fmt.Sprintf("%s-%s", svmbackupPrefix, svmbackup.UID)
 }
@@ -189,6 +187,7 @@ func gcVMBackups(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup) e
 	var errs error
 	left, cleared, err := clearVMBackups(h, errVMBackups, len(vmBackups)-svmbackup.Spec.Retain, nil)
 	if err != nil {
+		// nolint: errcheck  // this is appends the errors together, ignore linter
 		multierr.Append(errs, fmt.Errorf("svmbackup %s clear failure VMBackups failed %w", svmbackup.Name, err))
 	}
 
@@ -198,10 +197,12 @@ func gcVMBackups(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup) e
 
 	left, _, err = clearVMBackups(h, vmBackups, left, cleared)
 	if err != nil {
+		// nolint: errcheck  // this is appends the errors together, ignore linter
 		multierr.Append(errs, fmt.Errorf("svmbackup %s clear complete VMBackups failed %w", svmbackup.Name, err))
 	}
 
 	if left > 0 {
+		// nolint: errcheck  // this is appends the errors together, ignore linter
 		multierr.Append(errs, fmt.Errorf("svmbackup %s unable to gc %d VMBackups", svmbackup.Name, left))
 	}
 

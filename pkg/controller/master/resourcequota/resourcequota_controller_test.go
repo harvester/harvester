@@ -10,8 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
-
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -28,9 +26,6 @@ const (
 
 func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 
-	type fields struct {
-		rqs ctlharvcorev1.ResourceQuotaClient
-	}
 	type args struct {
 		rq             *corev1.ResourceQuota
 		nsrqAnnotation string // util.CattleAnnotationResourceQuota on namespace object
@@ -38,14 +33,12 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		fields  fields
 		args    args
 		wantErr bool
 		want    *corev1.ResourceQuota
 	}{
 		{
-			name:   "ResourceQuota has all zero CPU and memory limits value, skip scalling",
-			fields: fields{},
+			name: "ResourceQuota has all zero CPU and memory limits value, skip scalling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -65,8 +58,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:   "ResourceQuota has no or empty CattleAnnotationResourceQuota on namespace annotation, skip scalling",
-			fields: fields{},
+			name: "ResourceQuota has no or empty CattleAnnotationResourceQuota on namespace annotation, skip scalling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -86,8 +78,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:   "ResourceQuota has invalid CattleAnnotationResourceQuota on namespace annotation, skip scalling",
-			fields: fields{},
+			name: "ResourceQuota has invalid CattleAnnotationResourceQuota on namespace annotation, skip scalling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -107,8 +98,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:   "ResourceQuota has invalid invalid Harvester VM migration annotation, skip scalling",
-			fields: fields{},
+			name: "ResourceQuota has invalid invalid Harvester VM migration annotation, skip scalling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -131,8 +121,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:   "ResourceQuota has no Harvester VM migration annotation, ResourceQuota is based on CattleAnnotationResourceQuota annotation",
-			fields: fields{},
+			name: "ResourceQuota has no Harvester VM migration annotation, ResourceQuota is based on CattleAnnotationResourceQuota annotation",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -167,8 +156,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			},
 		},
 		{
-			name:   "ResourceQuota is scaled up per Harvester VM migration annotation",
-			fields: fields{},
+			name: "ResourceQuota is scaled up per Harvester VM migration annotation",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -207,8 +195,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			},
 		},
 		{
-			name:   "ResourceQuota is scaled up only CPU limits per Harvester VM migration annotation",
-			fields: fields{},
+			name: "ResourceQuota is scaled up only CPU limits per Harvester VM migration annotation",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -245,8 +232,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			},
 		},
 		{
-			name:   "ResourceQuota is scaled up only memory limits per Harvester VM migration annotation",
-			fields: fields{},
+			name: "ResourceQuota is scaled up only memory limits per Harvester VM migration annotation",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -283,8 +269,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			},
 		},
 		{
-			name:   "ResourceQuota is further scaled up only memory limits per Harvester VM migration annotation",
-			fields: fields{},
+			name: "ResourceQuota is further scaled up only memory limits per Harvester VM migration annotation",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -325,8 +310,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			},
 		},
 		{
-			name:   "ResourceQuota is scaled down per Harvester VM migration annotation",
-			fields: fields{},
+			name: "ResourceQuota is scaled down per Harvester VM migration annotation",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -363,8 +347,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			},
 		},
 		{
-			name:   "ResourceQuota scaling is finished per Harvester VM migration annotation",
-			fields: fields{},
+			name: "ResourceQuota scaling is finished per Harvester VM migration annotation",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -405,8 +388,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			},
 		},
 		{
-			name:   "Rancher resets ResourceQuota per namespace annotation, Harvester scales it up accordingly",
-			fields: fields{},
+			name: "Rancher resets ResourceQuota per namespace annotation, Harvester scales it up accordingly",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{

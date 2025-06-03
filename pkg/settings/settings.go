@@ -213,11 +213,11 @@ func NewSetting(name, def string) Setting {
 }
 
 func GetEnvKey(key string) string {
-	return "HARVESTER_" + strings.ToUpper(strings.Replace(key, "-", "_", -1))
+	return "HARVESTER_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_"))
 }
 
 func GetEnvDefaultValueKey(key string) string {
-	return "HARVESTER_" + strings.ToUpper(strings.Replace(key, "-", "_", -1)) + "_DEFAULT_VALUE"
+	return "HARVESTER_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_")) + "_DEFAULT_VALUE"
 }
 
 func IsRelease() bool {

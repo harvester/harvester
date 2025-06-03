@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	lhdatastore "github.com/longhorn/longhorn-manager/datastore"
-	"github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	lhutil "github.com/longhorn/longhorn-manager/util"
@@ -32,7 +31,7 @@ func backingImageName(image *harvesterv1.VirtualMachineImage) string {
 	return fmt.Sprintf("%s-%s", backingimagePrefix, image.UID)
 }
 
-func GetBackingImage(backingImageCache ctllhv1.BackingImageCache, image *harvesterv1.VirtualMachineImage) (*v1beta2.BackingImage, error) {
+func GetBackingImage(backingImageCache ctllhv1.BackingImageCache, image *harvesterv1.VirtualMachineImage) (*lhv1beta2.BackingImage, error) {
 	bi, err := backingImageCache.Get(LonghornSystemNamespaceName, backingImageLegacyName(image))
 	if err == nil {
 		return bi, nil

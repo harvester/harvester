@@ -77,21 +77,21 @@ func flowDangling(flow *loggingv1.Flow, outputs map[string]string) error {
 	for _, gor := range flow.Spec.GlobalOutputRefs {
 		lr, ok := outputs[gor]
 		if !ok {
-			return fmt.Errorf("Flow %s/%s has a GlobalOutputRefs %s, the Output does not exist", flow.Namespace, flow.Name, gor)
+			return fmt.Errorf("flow %s/%s has a GlobalOutputRefs %s, the Output does not exist", flow.Namespace, flow.Name, gor)
 		}
 		// by default, the LoggingRef on normal log is empty, on audit log is a predefined value
 		if lr != flow.Spec.LoggingRef {
-			return fmt.Errorf("Flow %s/%s has a GlobalOutputRefs %s, the LoggingRef is different %s %s", flow.Namespace, flow.Name, gor, flow.Spec.LoggingRef, lr)
+			return fmt.Errorf("flow %s/%s has a GlobalOutputRefs %s, the LoggingRef is different %s %s", flow.Namespace, flow.Name, gor, flow.Spec.LoggingRef, lr)
 		}
 	}
 
 	for _, lor := range flow.Spec.LocalOutputRefs {
 		lr, ok := outputs[lor]
 		if !ok {
-			return fmt.Errorf("Flow %s/%s has a LocalOutputRefs %s, the output does not exist", flow.Namespace, flow.Name, lor)
+			return fmt.Errorf("flow %s/%s has a LocalOutputRefs %s, the output does not exist", flow.Namespace, flow.Name, lor)
 		}
 		if lr != flow.Spec.LoggingRef {
-			return fmt.Errorf("Flow %s/%s has a LocalOutputRefs %s, the LoggingRef is different %s %s", flow.Namespace, flow.Name, lor, flow.Spec.LoggingRef, lr)
+			return fmt.Errorf("flow %s/%s has a LocalOutputRefs %s, the LoggingRef is different %s %s", flow.Namespace, flow.Name, lor, flow.Spec.LoggingRef, lr)
 		}
 	}
 	return nil
@@ -101,10 +101,10 @@ func clusterFlowDangling(flow *loggingv1.ClusterFlow, outputs map[string]string)
 	for _, gor := range flow.Spec.GlobalOutputRefs {
 		lr, ok := outputs[gor]
 		if !ok {
-			return fmt.Errorf("ClusterFlow %s/%s has a GlobalOutputRefs %s, the ClusterOutput does not exist", flow.Namespace, flow.Name, gor)
+			return fmt.Errorf("clusterFlow %s/%s has a GlobalOutputRefs %s, the ClusterOutput does not exist", flow.Namespace, flow.Name, gor)
 		}
 		if lr != flow.Spec.LoggingRef {
-			return fmt.Errorf("ClusterFlow %s/%s has a GlobalOutputRefs %s, the LoggingRef is different %s %s", flow.Namespace, flow.Name, gor, flow.Spec.LoggingRef, lr)
+			return fmt.Errorf("clusterFlow %s/%s has a GlobalOutputRefs %s, the LoggingRef is different %s %s", flow.Namespace, flow.Name, gor, flow.Spec.LoggingRef, lr)
 		}
 	}
 	return nil

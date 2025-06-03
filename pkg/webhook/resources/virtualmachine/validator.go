@@ -64,7 +64,6 @@ type vmValidator struct {
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
 	nadCache      ctlcniv1.NetworkAttachmentDefinitionCache
 	nodeCache     v1.NodeCache
-	settingCache  ctlharvesterv1.SettingCache
 	rqCalculator  *resourcequota.Calculator
 }
 

@@ -1102,7 +1102,7 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 		}
 	}
 	if !found {
-		return fmt.Errorf("Disk `%s` not found in virtual machine `%s/%s`", input.DiskName, namespace, name)
+		return fmt.Errorf("disk `%s` not found in virtual machine `%s/%s`", input.DiskName, namespace, name)
 	}
 
 	body, err := json.Marshal(kubevirtv1.RemoveVolumeOptions{

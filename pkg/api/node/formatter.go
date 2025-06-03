@@ -374,16 +374,16 @@ func (h ActionHandler) powerActionPossible(rw http.ResponseWriter, node string) 
 
 	if !ok {
 		errMsg := fmt.Sprintf("no field .status.status present in inventory object: %s", node)
-		logrus.Errorf(errMsg)
+		logrus.Errorf("%s", errMsg)
 		rw.WriteHeader(http.StatusConflict)
-		return fmt.Errorf(errMsg)
+		return fmt.Errorf("%s", errMsg)
 	}
 
 	if val != nodeReady {
 		errMsg := fmt.Sprintf("expected to find inventory %s status %s, but current status is: %s", node, nodeReady, val)
-		logrus.Errorf(errMsg)
+		logrus.Errorf("%s", errMsg)
 		rw.WriteHeader(http.StatusConflict)
-		return fmt.Errorf(errMsg)
+		return fmt.Errorf("%s", errMsg)
 	}
 
 	rw.WriteHeader(http.StatusNoContent)

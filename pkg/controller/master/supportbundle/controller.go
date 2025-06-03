@@ -89,7 +89,7 @@ func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.Su
 	}
 
 	var (
-		existTime   = time.Now().Sub(t)
+		existTime   = time.Since(t)
 		expiredTime time.Duration
 	)
 

@@ -1158,7 +1158,7 @@ func Test_validateStorageNetworkConfig(t *testing.T) {
 				Default:    "",
 				Value:      `{"vlan":4095}`,
 			},
-			errMsg: "The valid value range for VLAN IDs",
+			errMsg: "the valid value range for VLAN IDs",
 		},
 		{
 			name: "fail to create storge-network with invalid vlan id 65536",

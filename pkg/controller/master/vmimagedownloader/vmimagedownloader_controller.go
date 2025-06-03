@@ -82,7 +82,7 @@ func (h *vmImageDownloaderHandler) OnChanged(_ string, downloader *harvesterv1.V
 		if !reflect.DeepEqual(downloader, downloaderCpy) {
 			return h.vmImageDownloaders.UpdateStatus(downloaderCpy)
 		}
-		return downloader, fmt.Errorf("Deployment %s is not ready, wanted replicas: %d, ready replicas: %d", deployment.Name, deployment.Spec.Replicas, deployment.Status.ReadyReplicas)
+		return downloader, fmt.Errorf("deployment %s is not ready, wanted replicas: %d, ready replicas: %d", deployment.Name, deployment.Spec.Replicas, deployment.Status.ReadyReplicas)
 	}
 
 	serviceTemplate := &corev1.Service{
