@@ -1343,7 +1343,7 @@ func (v *settingValidator) checkVCSpansAllNodes(config *storagenetworkctl.Config
 }
 
 func (v *settingValidator) checkStorageNetworkVlanValid(config *storagenetworkctl.Config) error {
-	if config.Vlan < 0 || config.Vlan > 4094 {
+	if config.Vlan > 4094 {
 		return fmt.Errorf("The valid value range for VLAN IDs is 0 to 4094")
 	}
 
