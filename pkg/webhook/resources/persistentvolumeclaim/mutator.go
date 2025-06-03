@@ -113,6 +113,21 @@ func (m pvcMutator) patchDataSource(pvc *corev1.PersistentVolumeClaim) (string, 
 		return "", nil
 	}
 
+	// do not replace any existing data source, such as csi snapshot, with the
+	// filesystem-blank-source VolumeImportSource. if set, the 'blank'
+	// VolumeImportSource would wipe any restore or prepopulated data.
+	if pvc.Spec.DataSourceRef != nil || pvc.Spec.DataSource != nil {
+		dataSource := ""
+		if pvc.Spec.DataSourceRef != nil {
+			dataSource = fmt.Sprintf("%+v", pvc.Spec.DataSourceRef)
+		} else if pvc.Spec.DataSource != nil {
+			dataSource = fmt.Sprintf("%+v", pvc.Spec.DataSource)
+		}
+		pvcName := fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name)
+		logrus.Debugf("PVC %s has existing data source: %s, skip patch", pvcName, dataSource)
+		return "", nil
+	}
+
 	cdiAPIGroup := cdicommon.AnnAPIGroup
 	dataSourceRef := corev1.TypedLocalObjectReference{
 		APIGroup: &cdiAPIGroup,
