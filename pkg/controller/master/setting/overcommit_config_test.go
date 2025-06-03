@@ -18,14 +18,6 @@ import (
 )
 
 func TestHandler_syncOvercommitConfig(t *testing.T) {
-	type input struct {
-		setting *harvesterv1.Setting
-	}
-	type output struct {
-		value string
-		err   error
-	}
-
 	const (
 		namespace = "default-test"
 	)

@@ -16,8 +16,6 @@ import (
 	kubevirtservices "kubevirt.io/kubevirt/pkg/virt-controller/services"
 
 	fakegenerated "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
-	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
-	ctlvirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -60,12 +58,6 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 		return overhead.Value() + memLimit
 	}
 
-	type fields struct {
-		rqs      ctlharvcorev1.ResourceQuotaClient
-		rqCache  ctlharvcorev1.ResourceQuotaCache
-		vmiCache ctlvirtv1.VirtualMachineInstanceCache
-		vmCache  ctlvirtv1.VirtualMachineCache
-	}
 	type args struct {
 		rq   *corev1.ResourceQuota
 		vmi  *kubevirtv1.VirtualMachineInstance
@@ -74,14 +66,12 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		fields  fields
 		args    args
 		wantErr bool
 		want    *corev1.ResourceQuota
 	}{
 		{
-			name:   "In Pending",
-			fields: fields{},
+			name: "In Pending",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -143,8 +133,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			},
 		},
 		{
-			name:   "In Pending with a long VMI name, the UID based key is used in newer version",
-			fields: fields{},
+			name: "In Pending with a long VMI name, the UID based key is used in newer version",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -206,8 +195,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			},
 		},
 		{
-			name:   "Succeeded, name based annotation key is deleted from ResourceQuota",
-			fields: fields{},
+			name: "Succeeded, name based annotation key is deleted from ResourceQuota",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -269,8 +257,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			},
 		},
 		{
-			name:   "Succeeded, UID based annotation key is deleted from ResourceQuota",
-			fields: fields{},
+			name: "Succeeded, UID based annotation key is deleted from ResourceQuota",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -333,8 +320,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			},
 		},
 		{
-			name:   "RQ is not in the target namespace, skip scaling",
-			fields: fields{},
+			name: "RQ is not in the target namespace, skip scaling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -390,8 +376,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			},
 		},
 		{
-			name:   "RQ is not in the target namespace, skip scaling",
-			fields: fields{},
+			name: "RQ is not in the target namespace, skip scaling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -447,8 +432,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			},
 		},
 		{
-			name:   "Not the default RQ, skip scaling",
-			fields: fields{},
+			name: "Not the default RQ, skip scaling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -504,8 +488,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			},
 		},
 		{
-			name:   "RQ has zero quantity, skip scaling",
-			fields: fields{},
+			name: "RQ has zero quantity, skip scaling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{

@@ -10,7 +10,6 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	corefake "k8s.io/client-go/kubernetes/fake"
@@ -43,7 +42,7 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 			given: input{
 				key: vipPools,
 				setting: &harvesterv1.Setting{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name: vipPools,
 					},
 					Value: `{"default":"172.16.1.0/24","test":"172.16.2.0/24","foo":"172.16.3.1-172.16.3.10","bar":"172.16.4.10-172.16.3.1"}`,
@@ -64,7 +63,7 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 			given: input{
 				key: vipPools,
 				setting: &harvesterv1.Setting{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name: vipPools,
 					},
 					Value: `{"default":"172.16.1.0/24,192.168.10.0/24","test":"172.16.2.0/24,192.168.20.0/24","foo":"172.16.3.1-172.16.3.10,192.168.30.1-192.168.30.10","bar":"172.16.4.10-172.16.3.1,192.168.40.10-192.168.40.1"}`,
@@ -214,7 +213,7 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 		assert.Nil(t, syncActual.err)
 
 		// check if the kube-vip configmap is configured properly
-		cnf, err := handler.configmaps.Get(util.KubeSystemNamespace, KubevipConfigmapName, v1.GetOptions{})
+		cnf, err := handler.configmaps.Get(util.KubeSystemNamespace, KubevipConfigmapName, metav1.GetOptions{})
 		assert.NoError(t, err)
 		assert.Equal(t, tc.expected.pools, cnf.Data)
 	}

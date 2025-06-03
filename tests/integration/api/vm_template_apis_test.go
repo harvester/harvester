@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -65,7 +64,7 @@ var _ = Describe("verify vm template APIs", func() {
 	Context("operate via steve API", func() {
 		var (
 			template = harvesterv1.VirtualMachineTemplate{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "vm-template-0",
 					Namespace: "harvester-system",
 					Labels:    testResourceLabels,
@@ -75,7 +74,7 @@ var _ = Describe("verify vm template APIs", func() {
 				},
 			}
 			templateVersion = harvesterv1.VirtualMachineTemplateVersion{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      fuzz.String(5),
 					Namespace: "harvester-system",
 					Labels:    testResourceLabels,

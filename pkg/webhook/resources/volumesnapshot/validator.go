@@ -21,11 +21,6 @@ import (
 	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
 )
 
-const (
-	fieldSourceName = "spec.source.name"
-	fieldTypeName   = "spec.type"
-)
-
 func NewValidator(
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	engineCache ctllonghornv1.EngineCache,

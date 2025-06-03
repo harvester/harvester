@@ -236,7 +236,9 @@ func getVMBackupMetadataFilePath(vmBackupNamespace, vmBackupName string) string 
 
 func getBackupTargetHash(value string) string {
 	hash := sha256.New224()
-	io.Copy(hash, io.MultiReader(strings.NewReader(value)))
+	if _, err := io.Copy(hash, io.MultiReader(strings.NewReader(value))); err != nil {
+		return ""
+	}
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 

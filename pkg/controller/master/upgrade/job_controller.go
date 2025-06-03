@@ -87,7 +87,7 @@ func (h *jobHandler) OnChanged(_ string, job *batchv1.Job) (*batchv1.Job, error)
 func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 	jobType, ok := job.Labels[upgradeJobTypeLabel]
 	if !ok {
-		return nil, errors.New("Sync a job without type")
+		return nil, errors.New("sync a job without type")
 	}
 
 	nodeName, ok := job.Labels[harvesterNodeLabel]
@@ -174,7 +174,7 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 	}
 
 	if len(secrets.Items) != 1 {
-		return job, fmt.Errorf("Found %d plan secret for machine %s", len(secrets.Items), machineName)
+		return job, fmt.Errorf("found %d plan secret for machine %s", len(secrets.Items), machineName)
 	}
 
 	secret := secrets.Items[0]

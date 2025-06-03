@@ -114,17 +114,17 @@ func (h *ActionHandler) validateExportVolume(storageClassName, pvcNamespace, pvc
 
 	// check target info
 	if storageClassName == "" {
-		return fmt.Errorf("Parameter `storageClassName` is required")
+		return fmt.Errorf("parameter `storageClassName` is required")
 	}
 	sc, err := h.scCache.Get(storageClassName)
 	if err != nil {
-		return fmt.Errorf("Get target StorageClass with Err: %v", err)
+		return fmt.Errorf("get target StorageClass with Err: %v", err)
 	}
 
 	// check source info
 	pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
 	if err != nil {
-		return fmt.Errorf("Get PVC with Err: %v", err)
+		return fmt.Errorf("get PVC with Err: %v", err)
 	}
 	pvcStorageClassName := pvc.Spec.StorageClassName
 	if pvcStorageClassName == nil {
@@ -132,7 +132,7 @@ func (h *ActionHandler) validateExportVolume(storageClassName, pvcNamespace, pvc
 	}
 	pvcSC, err := h.scCache.Get(*pvcStorageClassName)
 	if err != nil {
-		return fmt.Errorf("Get PVC StorageClass with Err: %v", err)
+		return fmt.Errorf("get PVC StorageClass with Err: %v", err)
 	}
 
 	// both source/target SC are Longhorn v1, skip the validation
@@ -176,10 +176,7 @@ func (h *ActionHandler) isLonghornV1Engine(sc *storagev1.StorageClass) bool {
 		return false
 	}
 	if v, found := sc.Parameters["dataEngine"]; found {
-		if v == string(longhornv1.DataEngineTypeV1) {
-			return true
-		}
-		return false
+		return v == string(longhornv1.DataEngineTypeV1)
 	}
 	return true
 }

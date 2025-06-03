@@ -44,18 +44,3 @@ func (h *podHandler) OnChanged(_ string, pod *v1.Pod) (*v1.Pod, error) {
 
 	return pod, nil
 }
-
-func getPodWaitingStatus(pod *v1.Pod) (reason string, message string) {
-	var containerStatuses []v1.ContainerStatus
-	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
-	containerStatuses = append(containerStatuses, pod.Status.ContainerStatuses...)
-
-	for _, status := range containerStatuses {
-		if status.State.Waiting != nil && len(status.State.Waiting.Reason) > 0 && status.State.Waiting.Reason != "PodInitializing" {
-			reason = status.State.Waiting.Reason
-			message = status.State.Waiting.Message
-			return
-		}
-	}
-	return
-}
