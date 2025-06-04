@@ -43,9 +43,9 @@ jobs:
         echo "BRANCH=$BRANCH" >> $GITHUB_ENV
 
         # Extract issue numbers from PR body (support both formats)
-        BODY=$(cat <<EOF
+        BODY=$(cat <<__PR_BODY_EOF__
         "${{ github.event.pull_request.body }}"
-        EOF
+        __PR_BODY_EOF__
         )
         ISSUE_NUMBERS=$(echo "$BODY" | grep -oE "${REPO_NAME}#([0-9]+)" | cut -d'#' -f2)
         ISSUE_NUMBERS_URL=$(echo "$BODY" | grep -oE "https://github.com/${REPO_NAME}/issues/[0-9]+" | awk -F'/' '{print $NF}')
@@ -69,7 +69,7 @@ jobs:
         [backport ${BRANCH}] ${issue_title}
         EOF
         )
-        
+
             echo "Searching for backport issue with title: '${search_title}'"
 
             backport_issue_number=$(gh issue list --state open --search "${search_title}" --json number --jq ".[].number")
