@@ -91,3 +91,28 @@ func calculateAllocation(nodes []*corev1.Node, vms []*kubevirtv1.VirtualMachine)
 	}
 	return nodeDeviceAvailability
 }
+<<<<<<< HEAD
+=======
+
+// generateDeviceAvailabilityResponse is a wrapper around
+func (h Handler) generateDeviceAvailabilityResponse() ([]byte, error) {
+	nodeDeviceAvailability, err := h.generateDeviceAvailability()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(nodeDeviceAvailability)
+}
+
+// generateMachineTypes is a helper to return machineTypes for UI to render machine types possible
+func generateMachineTypes() ([]byte, error) {
+	var machineTypes []string
+	switch runtime.GOARCH {
+	case "amd64":
+		machineTypes = append(machineTypes, "q35", "pc-q35")
+	case "arm64":
+		machineTypes = append(machineTypes, "virt")
+	}
+
+	return json.Marshal(machineTypes)
+}
+>>>>>>> 1f3c5c3a (tweak machine type order for amd64 to ensure q35 is reported first)
