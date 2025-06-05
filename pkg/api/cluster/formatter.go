@@ -116,7 +116,7 @@ func generateMachineTypes() ([]byte, error) {
 	var machineTypes []string
 	switch runtime.GOARCH {
 	case "amd64":
-		machineTypes = append(machineTypes, "pc-q35", "q35")
+		machineTypes = append(machineTypes, "q35", "pc-q35")
 	case "arm64":
 		machineTypes = append(machineTypes, "virt")
 	}
