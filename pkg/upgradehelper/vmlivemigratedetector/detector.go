@@ -23,24 +23,27 @@ type DetectorOptions struct {
 	KubeContext    string
 	Shutdown       bool
 	NodeName       string
+	ExcludeRepoVM  bool
 }
 
 type VMLiveMigrateDetector struct {
 	kubeConfig  string
 	kubeContext string
 
-	nodeName string
-	shutdown bool
+	nodeName      string
+	shutdown      bool
+	excludeRepoVM bool
 
 	virtClient kubecli.KubevirtClient
 }
 
 func NewVMLiveMigrateDetector(options DetectorOptions) *VMLiveMigrateDetector {
 	return &VMLiveMigrateDetector{
-		kubeConfig:  options.KubeConfigPath,
-		kubeContext: options.KubeContext,
-		nodeName:    options.NodeName,
-		shutdown:    options.Shutdown,
+		kubeConfig:    options.KubeConfigPath,
+		kubeContext:   options.KubeContext,
+		nodeName:      options.NodeName,
+		shutdown:      options.Shutdown,
+		excludeRepoVM: options.ExcludeRepoVM,
 	}
 }
 
@@ -68,16 +71,11 @@ func (d *VMLiveMigrateDetector) Run(ctx context.Context) error {
 		return fmt.Errorf("please specify a node name")
 	}
 
-	// Get all VMs running on the specified node, except for the upgrade-related ones
-	nodeReq, err := labels.NewRequirement("kubevirt.io/nodeName", selection.Equals, []string{d.nodeName})
+	selector, err := vmSelector(d.nodeName, d.excludeRepoVM)
 	if err != nil {
 		return err
 	}
-	notUpgradeReq, err := labels.NewRequirement("harvesterhci.io/upgrade", selection.DoesNotExist, nil)
-	if err != nil {
-		return err
-	}
-	selector := labels.NewSelector().Add(*nodeReq).Add(*notUpgradeReq)
+
 	listOptions := metav1.ListOptions{
 		LabelSelector: selector.String(),
 	}
@@ -118,4 +116,21 @@ func (d *VMLiveMigrateDetector) Run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func vmSelector(nodeName string, excludeRepoVM bool) (labels.Selector, error) {
+	nodeReq, err := labels.NewRequirement("kubevirt.io/nodeName", selection.Equals, []string{nodeName})
+	if err != nil {
+		return nil, err
+	}
+	selector := labels.NewSelector().Add(*nodeReq)
+
+	if excludeRepoVM {
+		notUpgradeReq, err := labels.NewRequirement("harvesterhci.io/upgrade", selection.DoesNotExist, nil)
+		if err != nil {
+			return nil, err
+		}
+		selector = selector.Add(*notUpgradeReq)
+	}
+	return selector, nil
 }
