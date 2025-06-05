@@ -49,8 +49,14 @@ jobs:
         )
         ISSUE_NUMBERS=$(echo "$BODY" | grep -oE "${REPO_NAME}#([0-9]+)" | cut -d'#' -f2)
         ISSUE_NUMBERS_URL=$(echo "$BODY" | grep -oE "https://github.com/${REPO_NAME}/issues/[0-9]+" | awk -F'/' '{print $NF}')
-        ALL_ISSUES=$(echo -e "$ISSUE_NUMBERS\n$ISSUE_NUMBERS_URL" | grep -E '^[0-9]+$' | sort -u)
+        ISSUE_NUMBERS_SIMPLE=$(echo "$BODY" | grep -oE "#[0-9]+" | cut -c2-)
+        ALL_ISSUES=$(echo -e "$ISSUE_NUMBERS\n$ISSUE_NUMBERS_URL\n$ISSUE_NUMBERS_SIMPLE" | grep -E '^[0-9]+$' | sort -u)
         
+        echo "ISSUE_NUMBERS: $ISSUE_NUMBERS"
+        echo "ISSUE_NUMBERS_URL: $ISSUE_NUMBERS_URL"
+        echo "ISSUE_NUMBERS_SIMPLE: $ISSUE_NUMBERS_SIMPLE"
+        echo "ALL_ISSUES: $ALL_ISSUES"
+
         ORIGINAL_ISSUE_NUMBER=$(echo $ALL_ISSUES | xargs) # trim
         echo "ORIGINAL_ISSUE_NUMBER=$ORIGINAL_ISSUE_NUMBER" >> $GITHUB_ENV
 
