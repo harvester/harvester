@@ -32,6 +32,7 @@ const (
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
 	AnnotationLastRefreshTime           = prefix + "/lastRefreshTime"
+	AnnotationMacAddressName            = prefix + "/mac-address"
 
 	AnnotationSkipRancherLoggingAddonWebhookCheck = prefix + "/skipRancherLoggingAddonWebhookCheck"
 

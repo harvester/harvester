@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/storage/names"
@@ -268,6 +269,12 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 			return apierror.NewAPIError(validation.PermissionDenied, "User does not have permission to update resource quota")
 		}
 		return h.deleteResourceQuota(namespace, name)
+	case cpuAndMemoryHotplug:
+		var input CPUAndMemoryHotplugInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		return h.cpuAndMemoryHotplug(namespace, name, input)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -1526,4 +1533,37 @@ func (h *vmActionHandler) deleteResourceQuota(namespace, name string) error {
 		return err
 	}
 	return nil
+}
+
+func (h *vmActionHandler) cpuAndMemoryHotplug(namespace, name string, input CPUAndMemoryHotplugInput) error {
+	if input.Sockets == 0 && input.Memory == "" {
+		return nil
+	}
+
+	patchOps := []string{}
+	if input.Sockets != 0 {
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/cpu/sockets", "value": %d}`, input.Sockets))
+	}
+
+	if input.Memory != "" {
+		memory, err := resource.ParseQuantity(input.Memory)
+		if err != nil {
+			return fmt.Errorf("failed to parse memory quantity: %v", err)
+		}
+
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, memory.String()))
+	}
+
+	if len(patchOps) == 0 {
+		return nil
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"namespace": namespace,
+		"name":      name,
+		"patchOps":  patchOps,
+	}).Info("patch cpu and memory hotplug")
+	patchData := fmt.Sprintf("[%s]", strings.Join(patchOps, ","))
+	_, err := h.vms.Patch(namespace, name, k8stypes.JSONPatchType, []byte(patchData))
+	return err
 }
