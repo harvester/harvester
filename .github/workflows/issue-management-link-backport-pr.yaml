@@ -85,11 +85,11 @@ jobs:
               echo "Linking backport issue ${REPO_NAME}#${backport_issue_number}"
 
               # comment on the backport issue
-              gh issue comment "${backport_issue_number}" --body "Backport PR: ${{ github.event.pull_request.html_url }}"
+              gh issue comment "${backport_issue_number}" --body "Backport PR (${BRANCH}): ${{ github.event.pull_request.html_url }}"
 
               # comment on the PR
               backport_issue_url=$(gh issue view "${backport_issue_number}" --json url --jq ".url")
-              gh pr comment "${{ github.event.pull_request.number }}" --body "Backport issue: ${backport_issue_url}"
+              gh pr comment "${{ github.event.pull_request.number }}" --body "Backport issue (${BRANCH}): ${backport_issue_url}"
               continue
             fi
           fi
