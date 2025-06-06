@@ -31,6 +31,11 @@ jobs:
         organization: harvester
         GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
     
+    - name: Show Teams
+      run: |
+        echo "SUSE Teams: ${{ fromJSON(steps.is-suse-member.outputs.teams) }}"
+        echo "Harvester Teams: ${{ fromJSON(steps.is-harvester-member.outputs.teams) }}"
+    
     - name: Set Require PM Review Label
       if: ${{
         fromJSON(steps.is-suse-member.outputs.teams)[0] != null &&
@@ -40,7 +45,7 @@ jobs:
         gh issue edit ${{ github.event.issue.number }} --add-label "require/pm-review"
       env:
         GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-    
+
     - name: Add Issue to Product Backlog Project
       id: add-project
       if: ${{
@@ -66,6 +71,10 @@ jobs:
         username: ${{ github.event.issue.user.login }}
         organization: harvester
         GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+    
+    - name: Show Teams
+      run: |
+        echo "Harvester Teams: ${{ fromJSON(steps.is-harvester-member.outputs.teams) }}"
 
     - name: Add Issue to Harvester Sprint Project
       if: fromJSON(steps.is-harvester-member.outputs.teams)[0] != null 
@@ -95,6 +104,14 @@ jobs:
   community:
     runs-on: ubuntu-latest
     steps:
+    - name: Is SUSE Member
+      id: is-suse-member
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@main
+      with:
+        username: ${{ github.event.issue.user.login }}
+        organization: SUSE
+        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
     - name: Is Harvester Member
       id: is-harvester-member
       continue-on-error: true
@@ -103,6 +120,11 @@ jobs:
         username: ${{ github.event.issue.user.login }}
         organization: harvester
         GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+    
+    - name: Show Teams
+      run: |
+        echo "SUSE Teams: ${{ fromJSON(steps.is-suse-member.outputs.teams) }}"
+        echo "Harvester Teams: ${{ fromJSON(steps.is-harvester-member.outputs.teams) }}"
 
     - name: Get Issue
       if: steps.is-harvester-member.outcome == 'success'
@@ -117,7 +139,8 @@ jobs:
       id: add-project
       if: |
         steps.is-harvester-member.outcome == 'success' &&
-        fromJSON(steps.is-harvester-member.outputs.teams)[0] == null
+        fromJSON(steps.is-harvester-member.outputs.teams)[0] == null && 
+        fromJSON(steps.is-suse-member.outputs.teams)[0] == null
       uses: actions/add-to-project@v1.0.2
       with:
         project-url: ${{ env.COMMUNITY_PROJECT_URL }}
@@ -126,7 +149,8 @@ jobs:
     - name: Update Item To New
       if: |
         steps.is-harvester-member.outcome == 'success' &&
-        fromJSON(steps.is-harvester-member.outputs.teams)[0] == null &&
+        fromJSON(steps.is-harvester-member.outputs.teams)[0] == null && 
+        fromJSON(steps.is-suse-member.outputs.teams)[0] == null &&
         steps.add-project.outputs.itemId != ''
       uses: rancher/gh-issue-mgr/update-project-fields@main
       with:
