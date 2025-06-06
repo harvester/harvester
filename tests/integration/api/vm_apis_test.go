@@ -134,7 +134,7 @@ var _ = Describe("verify vm APIs", func() {
 			AfterVMRunning(vmController, vmNamespace, vmName, func(vm *kubevirtv1.VirtualMachine) bool {
 				spec := vm.Spec.Template.Spec
 				MustEqual(len(spec.Domain.Devices.Disks), 3)
-				MustEqual(spec.Domain.CPU.Cores, uint32(testVMUpdatedCPUCore))
+				MustEqual(spec.Domain.CPU.Sockets, uint32(testVMUpdatedCPUCore))
 				MustEqual(spec.Domain.Resources.Limits[corev1.ResourceMemory], resource.MustParse(testVMUpdatedMemory))
 				return true
 			})
@@ -156,7 +156,7 @@ var _ = Describe("verify vm APIs", func() {
 				func(vmi *kubevirtv1.VirtualMachineInstance) bool {
 					spec := vmi.Spec
 					MustEqual(len(spec.Domain.Devices.Disks), 3)
-					MustEqual(spec.Domain.CPU.Cores, uint32(testVMUpdatedCPUCore))
+					MustEqual(spec.Domain.CPU.Sockets, uint32(testVMUpdatedCPUCore))
 					MustEqual(spec.Domain.Resources.Limits[corev1.ResourceMemory], resource.MustParse(testVMUpdatedMemory))
 					return true
 				})
