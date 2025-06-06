@@ -79,7 +79,7 @@ func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patch
 		return nil, err
 	}
 
-	return patchOps, nil
+	return patchCPUSocket(vm, patchOps), nil
 }
 
 func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
@@ -121,7 +121,7 @@ func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runti
 		return nil, err
 	}
 
-	return patchOps, nil
+	return patchCPUSocket(newVM, patchOps), nil
 }
 
 func needUpdateRunStrategy(oldVM, newVM *kubevirtv1.VirtualMachine) (bool, error) {
@@ -532,6 +532,44 @@ func (m *vmMutator) patchTerminationGracePeriodSeconds(vm *kubevirtv1.VirtualMac
 
 	patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/terminationGracePeriodSeconds", "value": %s}`, value))
 	return patchOps, nil
+}
+
+func patchCPUSocket(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) []string {
+	cores := vm.Spec.Template.Spec.Domain.CPU.Cores
+	sockets := vm.Spec.Template.Spec.Domain.CPU.Sockets
+	threads := vm.Spec.Template.Spec.Domain.CPU.Threads
+
+	if cores == 0 {
+		cores = 1
+	}
+	if sockets == 0 {
+		sockets = 1
+	}
+	if threads == 0 {
+		threads = 1
+	}
+
+	patchSocket := false
+	if cores != 1 {
+		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/cores", "value": 1}`)
+		patchSocket = true
+	}
+
+	if threads != 1 {
+		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/threads", "value": 1}`)
+		patchSocket = true
+	}
+
+	if patchSocket {
+		// Calculate sockets based on cores and threads.
+		// If client sets sockets directly, we don't need to patch it.
+		// If client sets cores or threads, the client expects the cpu is same as cores or threads.
+		// For example, if VM was 1 core, 2 sockets, and 1 thread, and user sets cores to 3.
+		// It means the user expects the VM to be 3 cpu, so we cannot calculate new sockets like 3 cores * 2 sockets * 1 threads.
+		sockets = cores * threads
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/cpu/sockets", "value": %d}`, sockets))
+	}
+	return patchOps
 }
 
 func hostDevicesPresent(vm *kubevirtv1.VirtualMachine) bool {
