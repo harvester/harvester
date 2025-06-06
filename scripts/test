@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Runs the unit tests
 set -e
 
 # The root of the harvester directory

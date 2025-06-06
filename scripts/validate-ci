@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Validates the CI environment by running a dirty check on the Git repository.
 set -e
 
 cd $(dirname $0)/..

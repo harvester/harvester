@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Entry
 set -e
 
 mkdir -p bin dist

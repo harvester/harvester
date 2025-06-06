@@ -1,5 +1,5 @@
 #!/bin/bash -e
-
+# DESC: Check dependencies for image tags
 TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 VALUES_FILE=$TOP_DIR/deploy/charts/harvester/values.yaml
 

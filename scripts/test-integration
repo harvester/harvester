@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Runs the integration tests
 set -e
 
 source $(dirname $0)/version
