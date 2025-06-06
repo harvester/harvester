@@ -489,14 +489,6 @@ github.com/imdario/mergo
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
-# github.com/insomniacslk/dhcp v0.0.0-20240710054256-ddd8a41251c9
-## explicit; go 1.20
-github.com/insomniacslk/dhcp/dhcpv4
-github.com/insomniacslk/dhcp/dhcpv6
-github.com/insomniacslk/dhcp/dhcpv6/server6
-github.com/insomniacslk/dhcp/iana
-github.com/insomniacslk/dhcp/interfaces
-github.com/insomniacslk/dhcp/rfc1035label
 # github.com/jinzhu/copier v0.4.0
 ## explicit; go 1.13
 github.com/jinzhu/copier
@@ -510,9 +502,6 @@ github.com/jmoiron/sqlx/reflectx
 # github.com/josharian/intern v1.0.0
 ## explicit; go 1.5
 github.com/josharian/intern
-# github.com/josharian/native v1.1.0
-## explicit; go 1.13
-github.com/josharian/native
 # github.com/json-iterator/go v1.1.12
 ## explicit; go 1.12
 github.com/json-iterator/go
@@ -539,10 +528,6 @@ github.com/klauspost/compress/internal/cpuinfo
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/krolaw/dhcp4 v0.0.0-20180925202202-7cead472c414
-## explicit
-github.com/krolaw/dhcp4
-github.com/krolaw/dhcp4/conn
 # github.com/kube-logging/logging-operator/pkg/sdk v0.11.1-0.20240314152935-421fefebc813
 ## explicit; go 1.21
 github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1
@@ -1150,20 +1135,9 @@ github.com/tidwall/match
 # github.com/tidwall/pretty v1.2.0
 ## explicit; go 1.16
 github.com/tidwall/pretty
-# github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923
-## explicit; go 1.16
-github.com/u-root/uio/rand
-github.com/u-root/uio/uio
 # github.com/urfave/cli v1.22.16
 ## explicit; go 1.11
 github.com/urfave/cli
-# github.com/vishvananda/netlink v1.3.0
-## explicit; go 1.12
-github.com/vishvananda/netlink
-github.com/vishvananda/netlink/nl
-# github.com/vishvananda/netns v0.0.4
-## explicit; go 1.17
-github.com/vishvananda/netns
 # github.com/x448/float16 v0.8.4
 ## explicit; go 1.11
 github.com/x448/float16
@@ -1332,7 +1306,6 @@ golang.org/x/mod/module
 golang.org/x/mod/semver
 # golang.org/x/net v0.38.0
 ## explicit; go 1.23.0
-golang.org/x/net/bpf
 golang.org/x/net/context
 golang.org/x/net/html
 golang.org/x/net/html/atom
@@ -1343,12 +1316,8 @@ golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/httpcommon
-golang.org/x/net/internal/iana
-golang.org/x/net/internal/socket
 golang.org/x/net/internal/socks
 golang.org/x/net/internal/timeseries
-golang.org/x/net/ipv4
-golang.org/x/net/ipv6
 golang.org/x/net/proxy
 golang.org/x/net/trace
 golang.org/x/net/websocket
@@ -2383,7 +2352,7 @@ k8s.io/kubectl/pkg/validation
 ## explicit; go 1.22.0
 k8s.io/kubelet/config/v1beta1
 k8s.io/kubelet/pkg/apis/stats/v1alpha1
-# k8s.io/kubernetes v1.32.2 => k8s.io/kubernetes v1.31.5
+# k8s.io/kubernetes v1.32.2 => k8s.io/kubernetes v1.31.6
 ## explicit; go 1.22.0
 k8s.io/kubernetes/pkg/apis/rbac
 k8s.io/kubernetes/pkg/apis/rbac/v1
@@ -2512,21 +2481,12 @@ kubevirt.io/kubevirt/pkg/liveupdate/memory
 kubevirt.io/kubevirt/pkg/monitoring/metrics/common/client
 kubevirt.io/kubevirt/pkg/monitoring/metrics/common/workqueue
 kubevirt.io/kubevirt/pkg/monitoring/metrics/virt-controller
-kubevirt.io/kubevirt/pkg/network/admitter
-kubevirt.io/kubevirt/pkg/network/cache
-kubevirt.io/kubevirt/pkg/network/dhcp/server
-kubevirt.io/kubevirt/pkg/network/dhcp/serverv6
-kubevirt.io/kubevirt/pkg/network/dns
 kubevirt.io/kubevirt/pkg/network/downwardapi
-kubevirt.io/kubevirt/pkg/network/driver
 kubevirt.io/kubevirt/pkg/network/istio
-kubevirt.io/kubevirt/pkg/network/link
 kubevirt.io/kubevirt/pkg/network/multus
 kubevirt.io/kubevirt/pkg/network/namescheme
 kubevirt.io/kubevirt/pkg/network/netbinding
-kubevirt.io/kubevirt/pkg/network/netmachinery
 kubevirt.io/kubevirt/pkg/network/vmispec
-kubevirt.io/kubevirt/pkg/os/fs
 kubevirt.io/kubevirt/pkg/pointer
 kubevirt.io/kubevirt/pkg/rest
 kubevirt.io/kubevirt/pkg/safepath
@@ -2541,17 +2501,12 @@ kubevirt.io/kubevirt/pkg/util/migrations
 kubevirt.io/kubevirt/pkg/util/net/dns
 kubevirt.io/kubevirt/pkg/util/net/grpc
 kubevirt.io/kubevirt/pkg/util/nodes
-kubevirt.io/kubevirt/pkg/util/trace
 kubevirt.io/kubevirt/pkg/virt-config
 kubevirt.io/kubevirt/pkg/virt-config/deprecation
 kubevirt.io/kubevirt/pkg/virt-controller/network
 kubevirt.io/kubevirt/pkg/virt-controller/services
-kubevirt.io/kubevirt/pkg/virt-controller/watch/common
 kubevirt.io/kubevirt/pkg/virt-controller/watch/descheduler
 kubevirt.io/kubevirt/pkg/virt-controller/watch/topology
-kubevirt.io/kubevirt/pkg/virt-controller/watch/util
-kubevirt.io/kubevirt/pkg/virt-controller/watch/vm
-kubevirt.io/kubevirt/pkg/virt-controller/watch/volume-migration
 kubevirt.io/kubevirt/pkg/virt-handler/node-labeller/util
 kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/api
 kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/converter/vcpu
@@ -2860,7 +2815,7 @@ sigs.k8s.io/yaml/goyaml.v3
 # k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.31.5
 # k8s.io/kubectl => k8s.io/kubectl v0.31.5
 # k8s.io/kubelet => k8s.io/kubelet v0.31.5
-# k8s.io/kubernetes => k8s.io/kubernetes v1.31.5
+# k8s.io/kubernetes => k8s.io/kubernetes v1.31.6
 # k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.31.5
 # k8s.io/metrics => k8s.io/metrics v0.31.5
 # k8s.io/mount-utils => k8s.io/mount-utils v0.31.5
