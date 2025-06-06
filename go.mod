@@ -43,7 +43,7 @@ replace (
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.31.5
 	k8s.io/kubectl => k8s.io/kubectl v0.31.5
 	k8s.io/kubelet => k8s.io/kubelet v0.31.5
-	k8s.io/kubernetes => k8s.io/kubernetes v1.31.5
+	k8s.io/kubernetes => k8s.io/kubernetes v1.31.6
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.31.5
 	k8s.io/metrics => k8s.io/metrics v0.31.5
 	k8s.io/mount-utils => k8s.io/mount-utils v0.31.5
@@ -52,7 +52,6 @@ replace (
 )
 
 require (
-	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/cisco-open/operator-tools v0.34.0
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
@@ -136,6 +135,7 @@ require (
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
+	github.com/Masterminds/semver/v3 v3.3.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/achanda/go-sysctl v0.0.0-20160222034550-6be7678c45d2 // indirect
