@@ -35,6 +35,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/clientcmd"
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester-network-controller/pkg/utils"
@@ -141,6 +143,7 @@ func NewValidator(
 	vcCache ctlnetworkv1.VlanConfigCache,
 	vsCache ctlnetworkv1.VlanStatusCache,
 	lhNodeCache ctllhv1b2.NodeCache,
+	secretCache ctlcorev1.SecretCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
@@ -157,6 +160,7 @@ func NewValidator(
 		vcCache:            vcCache,
 		vsCache:            vsCache,
 		lhNodeCache:        lhNodeCache,
+		secretCache:        secretCache,
 	}
 
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
@@ -175,6 +179,9 @@ func NewValidator(
 	validateSettingUpdateFuncs[settings.UpgradeConfigSettingName] = validator.validateUpdateUpgradeConfig
 
 	validateSettingUpdateFuncs[settings.LonghornV2DataEngineSettingName] = validator.validateUpdateLonghornV2DataEngine
+
+	validateSettingFuncs[settings.RancherClusterSettingName] = validator.validateRancherCluster
+	validateSettingUpdateFuncs[settings.RancherClusterSettingName] = validator.validateUpdateRancherCluster
 
 	return validator
 }
@@ -196,6 +203,7 @@ type settingValidator struct {
 	vcCache            ctlnetworkv1.VlanConfigCache
 	vsCache            ctlnetworkv1.VlanStatusCache
 	lhNodeCache        ctllhv1b2.NodeCache
+	secretCache        ctlcorev1.SecretCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -1655,4 +1663,54 @@ func (v *settingValidator) isSingleNode() (bool, error) {
 		return false, err
 	}
 	return len(nodes) == 1, nil
+}
+
+func (v *settingValidator) validateRancherCluster(newSetting *v1beta1.Setting) error {
+	var (
+		rancherClusterConfig *settings.RancherClusterConfig
+		err                  error
+	)
+	if newSetting.Default != "" && newSetting.Default != "{}" {
+		rancherClusterConfig, err = settings.DecodeConfig[settings.RancherClusterConfig](newSetting.Default)
+		if err != nil {
+			return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+		}
+	}
+
+	if newSetting.Value != "" && newSetting.Value != "{}" {
+		rancherClusterConfig, err = settings.DecodeConfig[settings.RancherClusterConfig](newSetting.Value)
+		if err != nil {
+			return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+		}
+	}
+	if rancherClusterConfig == nil {
+		return nil
+	}
+	if rancherClusterConfig.RemoveUpstreamClusterWhenNamespaceIsDeleted {
+		secret, err := v.secretCache.Get(util.HarvesterSystemNamespaceName, util.RancherClusterConfigSecretName)
+		if err != nil {
+			return werror.NewInvalidError(
+				fmt.Sprintf("%s/%s secret not found", util.HarvesterSystemNamespaceName, util.RancherClusterConfigSecretName), "removeUpstreamClusterWhenNamespaceIsDeleted")
+		}
+		if secret.Data == nil || len(secret.Data["kubeConfig"]) == 0 {
+			return werror.NewInvalidError(
+				fmt.Sprintf("%s/%s secret is empty", util.HarvesterSystemNamespaceName, util.RancherClusterConfigSecretName), "removeUpstreamClusterWhenNamespaceIsDeleted")
+		}
+
+		kc, err := clientcmd.RESTConfigFromKubeConfig(secret.Data["kubeConfig"])
+		if err != nil {
+			return werror.NewInvalidError(
+				fmt.Sprint("kubeConfig can't be loaded"), "kubeConfig")
+		}
+		_, err = dynamic.NewForConfig(kc)
+		if err != nil {
+			return werror.NewInvalidError(
+				fmt.Sprint("kubeConfig can't be used to initialize client"), "kubeConfig")
+		}
+	}
+	return nil
+}
+
+func (v *settingValidator) validateUpdateRancherCluster(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return v.validateRancherCluster(newSetting)
 }
