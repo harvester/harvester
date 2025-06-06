@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
+	"time"
 
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
@@ -64,6 +66,9 @@ var (
 		imageFluentd:        {"images", imageFluentd},
 		imageConfigReloader: {"images", imageConfigReloader},
 	}
+
+	loggingInfraOnce  sync.Once
+	loggingInfraTimer *time.Timer
 )
 
 type handler struct {
@@ -181,6 +186,9 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 
 		return h.upgradeLogClient.Update(toUpdate)
 	} else if harvesterv1.LoggingOperatorDeployed.IsTrue(upgradeLog) && harvesterv1.InfraReady.IsUnknown(upgradeLog) {
+		loggingInfraOnce.Do(func() {
+			loggingInfraTimer = time.NewTimer(10 * time.Second)
+		})
 		logrus.Info("Check if the logging infrastructure is ready")
 
 		toUpdate := upgradeLog.DeepCopy()
@@ -195,10 +203,17 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 			return upgradeLog, nil
 		}
 
-		// Stay in the same phase until both fluent-bit and fluentd are ready
-		isInfraReady := (fluentBitAnnotation == upgradeLogFluentBitReady) && (fluentdAnnotation == upgradeLogFluentdReady)
-		if !isInfraReady {
-			return upgradeLog, nil
+		select {
+		case <-loggingInfraTimer.C:
+			logrus.Info("Timed out creating logging infrastructure")
+			setInfraReadyCondition(toUpdate, corev1.ConditionFalse, "Timeout", "Timed out creating logging infrastructure")
+			return h.upgradeLogClient.Update(toUpdate)
+		default:
+			// Stay in the same phase until both fluent-bit and fluentd are ready
+			isInfraReady := (fluentBitAnnotation == upgradeLogFluentBitReady) && (fluentdAnnotation == upgradeLogFluentdReady)
+			if !isInfraReady {
+				return upgradeLog, nil
+			}
 		}
 
 		logrus.Info("Logging infrastructure is ready")
