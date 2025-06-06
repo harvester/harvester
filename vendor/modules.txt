@@ -647,7 +647,7 @@ github.com/mitchellh/reflectwalk
 # github.com/moby/locker v1.0.1
 ## explicit; go 1.13
 github.com/moby/locker
-# github.com/moby/spdystream v0.2.0
+# github.com/moby/spdystream v0.4.0
 ## explicit; go 1.13
 github.com/moby/spdystream
 github.com/moby/spdystream/spdy
@@ -1407,9 +1407,9 @@ google.golang.org/protobuf/types/known/fieldmaskpb
 google.golang.org/protobuf/types/known/structpb
 google.golang.org/protobuf/types/known/timestamppb
 google.golang.org/protobuf/types/known/wrapperspb
-# gopkg.in/evanphx/json-patch.v5 v5.6.0
+# gopkg.in/evanphx/json-patch.v4 v4.12.0
 ## explicit
-gopkg.in/evanphx/json-patch.v5
+gopkg.in/evanphx/json-patch.v4
 # gopkg.in/inf.v0 v0.9.1
 ## explicit
 gopkg.in/inf.v0
@@ -2064,7 +2064,7 @@ k8s.io/kubectl/pkg/validation
 ## explicit; go 1.22.0
 k8s.io/kubelet/config/v1beta1
 k8s.io/kubelet/pkg/apis/stats/v1alpha1
-# k8s.io/kubernetes v1.31.3 => k8s.io/kubernetes v1.30.3
+# k8s.io/kubernetes v1.31.3 => k8s.io/kubernetes v1.31.6
 ## explicit; go 1.22.0
 k8s.io/kubernetes/plugin/pkg/admission/eventratelimit/apis/eventratelimit
 # k8s.io/mount-utils v0.31.3 => k8s.io/mount-utils v0.30.3
@@ -2417,8 +2417,8 @@ sigs.k8s.io/kind/pkg/internal/patch
 sigs.k8s.io/kind/pkg/internal/sets
 sigs.k8s.io/kind/pkg/internal/version
 sigs.k8s.io/kind/pkg/log
-# sigs.k8s.io/kustomize/api v0.15.0
-## explicit; go 1.20
+# sigs.k8s.io/kustomize/api v0.17.2
+## explicit; go 1.21
 sigs.k8s.io/kustomize/api/filters/annotations
 sigs.k8s.io/kustomize/api/filters/fieldspec
 sigs.k8s.io/kustomize/api/filters/filtersutil
@@ -2548,7 +2548,7 @@ sigs.k8s.io/yaml/goyaml.v3
 # k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.30.3
 # k8s.io/kubectl => k8s.io/kubectl v0.30.3
 # k8s.io/kubelet => k8s.io/kubelet v0.30.3
-# k8s.io/kubernetes => k8s.io/kubernetes v1.30.3
+# k8s.io/kubernetes => k8s.io/kubernetes v1.31.6
 # k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.30.3
 # k8s.io/metrics => k8s.io/metrics v0.30.3
 # k8s.io/mount-utils => k8s.io/mount-utils v0.30.3
