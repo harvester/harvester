@@ -55,6 +55,7 @@ func RegisterIndexers(clients *clients.Clients) {
 
 	vmInformer := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	vmInformer.AddIndexer(indexeresutil.VMByPVCIndex, indexeresutil.VMByPVC)
+	vmInformer.AddIndexer(indexeresutil.VMByHotplugPVCIndex, indexeresutil.VMByHotplugPVC)
 
 	svmBackupCache := clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache()
 	svmBackupCache.AddIndexer(ScheduleVMBackupBySourceVM, scheduleVMBackupBySourceVM)
