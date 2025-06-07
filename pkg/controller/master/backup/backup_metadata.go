@@ -170,7 +170,13 @@ func (h *MetadataHandler) shouldRefresh(setting *harvesterv1.Setting, refreshInt
 			return true
 		}
 	}
-	if getBackupTargetHash(setting.Value) == setting.Annotations[util.AnnotationHash] {
+	targetHash, err := getBackupTargetHash(setting.Value)
+	if err != nil {
+		// giving another try, because the only error here comes from io.Copy
+		logrus.WithError(err).Errorf("failed to get backup target hash")
+		return true
+	}
+	if targetHash == setting.Annotations[util.AnnotationHash] {
 		if refreshIntervalInSeconds == 0 {
 			return false
 		}
@@ -203,7 +209,12 @@ func (h *MetadataHandler) renewBackupTarget(setting *harvesterv1.Setting) (*harv
 		settingCopy.Annotations = map[string]string{}
 	}
 
-	settingCopy.Annotations[util.AnnotationHash] = getBackupTargetHash(setting.Value)
+	targetHash, err := getBackupTargetHash(setting.Value)
+	if err != nil {
+		logrus.WithError(err).Errorf("failed to get backup target hash")
+		return setting, err
+	}
+	settingCopy.Annotations[util.AnnotationHash] = targetHash
 	settingCopy.Annotations[util.AnnotationLastRefreshTime] = time.Now().Format(time.RFC3339)
 	if !reflect.DeepEqual(setting, settingCopy) {
 		return h.settings.Update(settingCopy)
