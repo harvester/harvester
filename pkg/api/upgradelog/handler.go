@@ -201,7 +201,7 @@ func (h Handler) generateArchive(rw http.ResponseWriter, req *http.Request) erro
 	imageVersion := upgrade.Status.PreviousVersion
 
 	ts := time.Now().UTC()
-	generatedTime := strings.Replace(ts.Format(time.RFC3339), ":", "-", -1)
+	generatedTime := strings.ReplaceAll(ts.Format(time.RFC3339), ":", "-")
 	archiveName := fmt.Sprintf("%s-archive-%s", upgradeLog.Name, generatedTime)
 	// TODO: update with the real size later
 	archiveSize := int64(0)

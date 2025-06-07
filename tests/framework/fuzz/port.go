@@ -12,10 +12,7 @@ import (
 func FreePorts(amount int) ([]int, error) {
 	set := sets.NewInt()
 
-	for {
-		if set.Len() >= amount {
-			break
-		}
+	for set.Len() < amount {
 		// #nosec G102
 		lis, err := net.Listen("tcp", ":0")
 		if err != nil {

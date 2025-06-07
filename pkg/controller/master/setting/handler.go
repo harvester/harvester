@@ -103,7 +103,9 @@ func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*har
 	)
 
 	hash := sha256.New224()
-	io.Copy(hash, toMeasure)
+	if _, err := io.Copy(hash, toMeasure); err != nil {
+		return nil, fmt.Errorf("failed to calculate hash for setting %s: %w", setting.Name, err)
+	}
 	currentHash := fmt.Sprintf("%x", hash.Sum(nil))
 	if !slice.ContainsString(skipHashCheckSettings, setting.Name) && currentHash == setting.Annotations[util.AnnotationHash] {
 		return nil, nil

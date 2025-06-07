@@ -12,12 +12,11 @@ import (
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	ctlmgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-
-	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -57,9 +56,11 @@ const (
 	ReasonCompleted          = "Completed"
 	MsgRestartPod            = "Restarting Pods"
 	MsgStopPod               = "Stopping Pods"
-	MsgWaitForVolumes        = "Waiting for all volumes detached: %s"
 	MsgUpdateLonghornSetting = "Update Longhorn setting"
 	MsgIPAssignmentFailure   = "IP allocation failure for Longhorn Pods"
+
+	// error messages
+	msgWaitForVolumes = "waiting for all volumes detached: %s"
 
 	longhornStorageNetworkName = "storage-network"
 )
@@ -496,7 +497,7 @@ func (h *Handler) checkLonghornVolumeDetached() error {
 	}
 
 	if len(attachedVolume) > 0 {
-		return fmt.Errorf(MsgWaitForVolumes, strings.Join(attachedVolume, ","))
+		return fmt.Errorf(msgWaitForVolumes, strings.Join(attachedVolume, ","))
 	}
 
 	return nil
@@ -590,7 +591,7 @@ func (h *Handler) checkGrafanaStatusAndStart() error {
 		delete(grafanaCopy.Annotations, util.ReplicaStorageNetworkAnnotation)
 
 		if _, err := h.deployments.Update(grafanaCopy); err != nil {
-			return fmt.Errorf("Grafana update error %v", err)
+			return fmt.Errorf("grafana update error %v", err)
 		}
 		return nil
 	}
@@ -782,7 +783,7 @@ func (h *Handler) checkGrafanaStatusAndStop() error {
 		*grafanaCopy.Spec.Replicas = 0
 
 		if _, err := h.deployments.Update(grafanaCopy); err != nil {
-			return fmt.Errorf("Grafana update error %v", err)
+			return fmt.Errorf("grafana update error %v", err)
 		}
 		return nil
 	}

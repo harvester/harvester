@@ -20,9 +20,7 @@ import (
 // FetchImageFromHelmValues fetches image information from helm chart values, the name points to a chart e.g. harvester
 func FetchImageFromHelmValues(clientSet *kubernetes.Clientset, namespace, name string, keyNames []string) (settings.Image, error) {
 	var image settings.Image
-
-	var kubeInterface kubernetes.Interface
-	kubeInterface = clientSet
+	kubeInterface := clientSet
 	restClientGetter := cli.New().RESTClientGetter()
 	driverSecret := driver.NewSecrets(kubeInterface.CoreV1().Secrets(""))
 	getValues := action.NewGetValues(&action.Configuration{

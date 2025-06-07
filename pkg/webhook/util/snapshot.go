@@ -5,7 +5,6 @@ import (
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhtypes "github.com/longhorn/longhorn-manager/types"
-	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	longhornutil "github.com/longhorn/longhorn-manager/util"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
@@ -46,7 +45,7 @@ func CheckTotalSnapshotSizeOnVM(
 			return werror.NewInternalError(fmt.Sprintf("failed to get PVC %s/%s, err: %s", pvcNamespace, pvcName, err))
 		}
 
-		if util.GetProvisionedPVCProvisioner(pvc, scCache) != longhorntypes.LonghornDriverName {
+		if util.GetProvisionedPVCProvisioner(pvc, scCache) != lhtypes.LonghornDriverName {
 			continue
 		}
 
@@ -93,7 +92,7 @@ func CheckTotalSnapshotSizeOnNamespace(
 
 	var totalSnapshotUsage int64
 	for _, pvc := range pvcs {
-		if util.GetProvisionedPVCProvisioner(pvc, scCache) != longhorntypes.LonghornDriverName {
+		if util.GetProvisionedPVCProvisioner(pvc, scCache) != lhtypes.LonghornDriverName {
 			continue
 		}
 

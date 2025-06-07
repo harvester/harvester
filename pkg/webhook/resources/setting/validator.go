@@ -23,7 +23,6 @@ import (
 	_ "github.com/longhorn/backupstore/nfs" //nolint
 	_ "github.com/longhorn/backupstore/s3"  //nolint
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/rancher/lasso/pkg/log"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -38,7 +37,6 @@ import (
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester-network-controller/pkg/utils"
-
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/containerd"
 	nodectl "github.com/harvester/harvester/pkg/controller/master/node"
@@ -343,7 +341,7 @@ func validateNoProxy(noProxy string, nodes []*corev1.Node) error {
 		}
 	}
 	if slices.Index(ds.MapValues(foundMap), false) != -1 {
-		missedNodes := ds.MapFilterFunc(foundMap, func(v bool, _ string) bool { return v == false })
+		missedNodes := ds.MapFilterFunc(foundMap, func(v bool, _ string) bool { return !v })
 		missedIPs := ds.MapKeys(missedNodes)
 		slices.Sort(missedIPs)
 		msg := fmt.Sprintf("noProxy should contain the node's IP addresses or CIDR. The node(s) %s are not covered.", strings.Join(missedIPs, ", "))
@@ -617,15 +615,15 @@ func validateNTPServersHelper(value string) error {
 
 	fqdnNameValidator, err := regexp.Compile(FQDNMatchNameRegexString)
 	if err != nil {
-		return fmt.Errorf("Failed to compile fqdnName regexp: %v", err)
+		return fmt.Errorf("failed to compile fqdnName regexp: %v", err)
 	}
 	fqdnPatternValidator, err := regexp.Compile(FQDNMatchPatternRegexString)
 	if err != nil {
-		return fmt.Errorf("Failed to compile fqdnPattern regexp: %v", err)
+		return fmt.Errorf("failed to compile fqdnPattern regexp: %v", err)
 	}
 	startWithHTTP, err := regexp.Compile("^https?://.*")
 	if err != nil {
-		return fmt.Errorf("Failed to compile startWithHttp regexp: %v", err)
+		return fmt.Errorf("failed to compile startWithHttp regexp: %v", err)
 	}
 
 	for _, server := range ntpSettings.NTPServers {
@@ -640,8 +638,8 @@ func validateNTPServersHelper(value string) error {
 	duplicates := ds.SliceFindDuplicates(ntpSettings.NTPServers)
 	if len(duplicates) > 0 {
 		errMsg := fmt.Sprintf("duplicate NTP server: %v", duplicates)
-		logrus.Errorf(errMsg)
-		return fmt.Errorf(errMsg)
+		logrus.Errorf("%s", errMsg)
+		return fmt.Errorf("%s", errMsg)
 	}
 
 	logrus.Infof("NTP servers validation passed")
@@ -993,7 +991,7 @@ func (v *settingValidator) validateUpdateLonghornV2DataEngine(oldSetting, newSet
 		}
 		for _, node := range lhnodes {
 			for _, diskStatus := range node.Status.DiskStatus {
-				if diskStatus.Type == longhornv1.DiskTypeBlock {
+				if diskStatus.Type == lhv1beta2.DiskTypeBlock {
 					return werror.NewInvalidError(fmt.Sprintf("Can't disable Longhorn V2 Data Engine, disk %s is still here.", diskStatus.DiskUUID), settings.LonghornV2DataEngineSettingName)
 				}
 			}
@@ -1344,7 +1342,7 @@ func (v *settingValidator) checkVCSpansAllNodes(config *storagenetworkctl.Config
 
 func (v *settingValidator) checkStorageNetworkVlanValid(config *storagenetworkctl.Config) error {
 	if config.Vlan > 4094 {
-		return fmt.Errorf("The valid value range for VLAN IDs is 0 to 4094")
+		return fmt.Errorf("the valid value range for VLAN IDs is 0 to 4094")
 	}
 
 	if config.Vlan <= 1 && config.ClusterNetwork == mgmtClusterNetwork {
