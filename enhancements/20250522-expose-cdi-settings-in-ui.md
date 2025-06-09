@@ -67,9 +67,9 @@ The CDI settings will be integrated into the existing Storage Classes page in Ha
 Introduce 4 annotations to StorageClass:
 
 - `cdi.harvesterhci.io/filesystemOverhead`: String value representing filesystem overhead percentage (0-1), regex pattern: `^(0(?:\.\d{1,3})?|1)$` (up to 3 digits after the decimal point)
-- `cdi.harvesterhci.io/cloneStrategy`: String value, one of: "copy", "snapshot", "csi-clone"
-- `cdi.harvesterhci.io/volumeSnapshotClass`: String value, must be an existing VolumeSnapshotClass name
-- `cdi.harvesterhci.io/volumeModeAccessModes`: JSON string mapping VolumeMode to AccessMode arrays
+- `cdi.harvesterhci.io/storageProfileCloneStrategy`: String value, one of: "copy", "snapshot", "csi-clone"
+- `cdi.harvesterhci.io/storageProfileVolumeSnapshotClass`: String value, must be an existing VolumeSnapshotClass name
+- `cdi.harvesterhci.io/storageProfileVolumeModeAccessModes`: JSON string mapping VolumeMode to AccessMode arrays
 
 Below is the StorageClass yaml example:
 
@@ -79,9 +79,9 @@ kind: StorageClass
 metadata:
   annotations:
     cdi.harvesterhci.io/filesystemOverhead: "0.85"
-    cdi.harvesterhci.io/cloneStrategy: "snapshot"
-    cdi.harvesterhci.io/volumeSnapshotClass: "csi-snapshot-class"
-    cdi.harvesterhci.io/volumeModeAccessModes: |
+    cdi.harvesterhci.io/storageProfileCloneStrategy: "snapshot"
+    cdi.harvesterhci.io/storageProfileVolumeSnapshotClass: "csi-snapshot-class"
+    cdi.harvesterhci.io/storageProfileVolumeModeAccessModes: |
       {"Block":["ReadWriteOnce","ReadOnlyMany"],"Filesystem":["ReadWriteOnce","ReadWriteMany"]}
 ```
 
@@ -89,13 +89,20 @@ The implementation consists of three main components:
 
 1. StorageClass Webhook Validation
 Extend the existing StorageClass validation webhook to validate the five new annotations. The webhook will perform pattern matching for filesystemOverhead, enum validation for cloneStrategy, existence checks for volumeSnapshotClass, and JSON schema validation for volumeModeAccessModes.
-2. StorageProfile Controller
-Modify the existing storageprofile_controller to watch for StorageClass changes and synchronize cloneStrategy, volumeSnapshotClass, and volumeModeAccessModes annotations to the corresponding StorageProfile CRD.
-3. New StorageClass Controller
-Introduce a new storageclass_controller specifically for handling filesystemOverhead synchronization to the CDI object. This controller watches StorageClass events and updates the CDI object's filesystemOverhead configuration accordingly.
+2. New StorageClass Controller
+Introduce a new storageclass_controller specifically for watching for StorageClass changes and handling filesystemOverhead synchronization to the CDI object and synchronize cloneStrategy, volumeSnapshotClass, and volumeModeAccessModes annotations to the corresponding StorageProfile CRD.
 
-#### Simplifying CDI Settings Management
-Currently, we have storage_profile_controller helps populate certain fields—such as cloneStrategy, accessMode, and volumeMode—for validated CSI drivers like LonghornV2 and LVM. While we could allow users to configure these CDI settings through the UI, there’s no need to handle them automatically behind the scenes. Maintaining this behavior adds unnecessary complexity and may conflict with the current proposal.
+### Compatibility
+Currently, the storage_profile_controller automatically populates default values such as cloneStrategy, accessMode, and volumeMode for validated CSI drivers like LonghornV2 and LVM.
+For LonghornV2, the previous behavior sets the following defaults when a StorageProfile is created:
+- clone strategty is set to `copy`
+- volume snapshot class is set to `longhorn-snapshot`
+For LVM, the default values are:
+- volume mode is set to `Block`
+- access modes is set to `["ReadWriteOnce"]`
+This HEP preserves the same logic, but shifts it to the StorageClass mutator. The mutator will:
+- add annotations `cdi.harvesterhci.io/storageProfileCloneStrategy: "snapshot"` and `cdi.harvesterhci.io/storageProfileVolumeSnapshotClass: "longhorn-snapshot"` to LonghornV2 StorageClasses if both annotations are not set.
+- add `cdi.harvesterhci.io/storageProfileVolumeModeAccessModes: "{\"Block\":[\"ReadWriteOnce\"]}"` to LVM StorageClasses if the annotation is not already present.
 
 ### Test plan
 
