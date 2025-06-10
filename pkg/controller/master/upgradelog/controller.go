@@ -108,6 +108,36 @@ type Image struct {
 	Tag        string `mapstructure:"tag"`
 }
 
+// checkLoggingInfra sets UpgradeLog's InfraReady condition to False after a timeout
+func (h *handler) checkLoggingInfra(upgradeLogName string) {
+	var upgradeLog *harvesterv1.UpgradeLog
+	var err error
+	for {
+		select {
+		case <-loggingInfraTimer.C:
+			// check if logging infra setup has succeeded
+			upgradeLog, err = h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgradeLogName)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					// upgrade might have completed, so we do nothing
+					return
+				}
+				logrus.Errorf("Failed to get upgrade log: %v", err)
+			}
+			// check if UpgradeLog CR's InfraReady condition is still Unknown
+			if harvesterv1.InfraReady.IsUnknown(upgradeLog) {
+				logrus.Info("Timed out creating logging infrastructure")
+				setInfraReadyCondition(upgradeLog, corev1.ConditionFalse, "Timeout", "Timed out creating logging infrastructure")
+				_, err = h.upgradeLogClient.Update(upgradeLog)
+				if err != nil {
+					logrus.Errorf("Failed to update upgradeLog: %v", err)
+				}
+			}
+			return
+		}
+	}
+}
+
 func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLog) (*harvesterv1.UpgradeLog, error) {
 	if upgradeLog == nil || upgradeLog.DeletionTimestamp != nil {
 		return upgradeLog, nil
@@ -121,6 +151,12 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		harvesterv1.UpgradeLogReady.CreateUnknownIfNotExists(toUpdate)
 		return h.upgradeLogClient.Update(toUpdate)
 	}
+
+	// Start timer before starting up logging infrastructure
+	loggingInfraOnce.Do(func() {
+		loggingInfraTimer = time.NewTimer(10 * time.Minute)
+		go h.checkLoggingInfra(upgradeLog.Name)
+	})
 
 	// Try to bring up the logging operator by installing rancher-logging ManagedChart
 	if harvesterv1.LoggingOperatorDeployed.GetStatus(upgradeLog) == "" {
@@ -186,9 +222,6 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 
 		return h.upgradeLogClient.Update(toUpdate)
 	} else if harvesterv1.LoggingOperatorDeployed.IsTrue(upgradeLog) && harvesterv1.InfraReady.IsUnknown(upgradeLog) {
-		loggingInfraOnce.Do(func() {
-			loggingInfraTimer = time.NewTimer(10 * time.Second)
-		})
 		logrus.Info("Check if the logging infrastructure is ready")
 
 		toUpdate := upgradeLog.DeepCopy()
@@ -203,17 +236,10 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 			return upgradeLog, nil
 		}
 
-		select {
-		case <-loggingInfraTimer.C:
-			logrus.Info("Timed out creating logging infrastructure")
-			setInfraReadyCondition(toUpdate, corev1.ConditionFalse, "Timeout", "Timed out creating logging infrastructure")
-			return h.upgradeLogClient.Update(toUpdate)
-		default:
-			// Stay in the same phase until both fluent-bit and fluentd are ready
-			isInfraReady := (fluentBitAnnotation == upgradeLogFluentBitReady) && (fluentdAnnotation == upgradeLogFluentdReady)
-			if !isInfraReady {
-				return upgradeLog, nil
-			}
+		// Stay in the same phase until both fluent-bit and fluentd are ready
+		isInfraReady := (fluentBitAnnotation == upgradeLogFluentBitReady) && (fluentdAnnotation == upgradeLogFluentdReady)
+		if !isInfraReady {
+			return upgradeLog, nil
 		}
 
 		logrus.Info("Logging infrastructure is ready")
@@ -252,7 +278,7 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		return upgradeLog, nil
 	}
 
-	// Signal to proceed the original upgrade flow
+	// Signal to proceed to the original upgrade flow
 	if harvesterv1.UpgradeLogReady.IsTrue(upgradeLog) && harvesterv1.UpgradeEnded.GetStatus(upgradeLog) == "" {
 		logrus.Info("Logging infrastructure is ready, proceed the upgrade procedure")
 
@@ -313,7 +339,7 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		return h.upgradeLogClient.Update(toUpdate)
 	}
 
-	// Tear down the loggin infrastructure but keep the log downloader and the archive volume
+	// Tear down the logging infrastructure but keep the log downloader and the archive volume
 	if harvesterv1.UpgradeEnded.IsTrue(upgradeLog) {
 		upgradeLogState, ok := upgradeLog.Annotations[upgradeLogStateAnnotation]
 		if !ok {
