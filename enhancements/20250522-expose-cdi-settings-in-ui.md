@@ -107,6 +107,8 @@ This HEP preserves the same logic, but shifts it to the StorageClass mutator. Th
 - add annotations `cdi.harvesterhci.io/storageProfileCloneStrategy: "snapshot"` and `cdi.harvesterhci.io/storageProfileVolumeSnapshotClass: "longhorn-snapshot"` to LonghornV2 StorageClasses if both annotations are not set.
 - add `cdi.harvesterhci.io/storageProfileVolumeModeAccessModes: "{\"Block\":[\"ReadWriteOnce\"]}"` to LVM StorageClasses if the annotation is not already present.
 
+Note that Longhorn v2 will support CSI clone starting from v1.9.1, we need to set the default CDI clone strategy to `"clone"` in the storage class annotation `cdi.harvesterhci.io/storageProfileCloneStrategy`.
+
 ### Test plan
 
 1. Create StorageClass with valid annotations and verify synchronization
