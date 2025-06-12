@@ -84,12 +84,19 @@ func run(commonOptions *config.CommonOptions, options config.Options) error {
 
 	kubeConfig, err := server.GetConfig(commonOptions.KubeConfig)
 	if err != nil {
-		return fmt.Errorf("failed to find kubeconfig: %v", err)
+		return fmt.Errorf("failed to find kubeconfig: %w", err)
 	}
 
 	harv, err := server.New(ctx, kubeConfig, options)
 	if err != nil {
-		return fmt.Errorf("failed to create harvester server: %v", err)
+		return fmt.Errorf("failed to create harvester server: %w", err)
 	}
+
+	metrics, err := server.NewMetricsServer(harv.Context)
+	if err != nil {
+		return fmt.Errorf("failed to create harvester metrics server: %w", err)
+	}
+	go metrics.ListenAndServe()
+
 	return harv.ListenAndServe(nil, options)
 }

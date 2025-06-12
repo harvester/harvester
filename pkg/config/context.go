@@ -26,6 +26,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	ctlharvesterappsv1 "github.com/harvester/harvester/pkg/generated/controllers/apps"
 	ctlharvbatchv1 "github.com/harvester/harvester/pkg/generated/controllers/batch"
@@ -59,6 +61,8 @@ type Options struct {
 	RancherEmbedded bool
 	RancherURL      string
 	HCIMode         bool
+
+	MetricsHttpListenPort int
 }
 
 type Scaled struct {
@@ -127,6 +131,8 @@ type Management struct {
 	RestConfig *rest.Config
 
 	starters []start.Starter
+
+	metricsReg *prometheus.Registry
 }
 
 func SetupScaled(ctx context.Context, restConfig *rest.Config, opts *generic.FactoryOptions) (context.Context, *Scaled, error) {
@@ -481,6 +487,9 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	management.CdiUploadFactory = cdiupload
 	management.starters = append(management.starters, cdiupload)
 
+	// Create a non-global registry.
+	management.metricsReg = prometheus.NewRegistry()
+
 	return management, nil
 }
 
@@ -491,8 +500,8 @@ func ScaledWithContext(ctx context.Context) *Scaled {
 func (s *Scaled) Start(threadiness int) error {
 	return start.All(s.Ctx, threadiness, s.starters...)
 }
-func (s *Management) Start(threadiness int) error {
-	return start.All(s.ctx, threadiness, s.starters...)
+func (m *Management) Start(threadiness int) error {
+	return start.All(m.ctx, threadiness, m.starters...)
 }
 
 func (s *Management) NewRecorder(componentName, namespace, nodeName string) record.EventRecorder {
@@ -500,4 +509,12 @@ func (s *Management) NewRecorder(componentName, namespace, nodeName string) reco
 	eventBroadcaster.StartLogging(logrus.Infof)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: s.ClientSet.CoreV1().Events(namespace)})
 	return eventBroadcaster.NewRecorder(scheme.Scheme, k8sv1.EventSource{Component: componentName, Host: nodeName})
+}
+
+func (s *Scaled) GetMetricsRegistry() *prometheus.Registry {
+	return s.Management.metricsReg
+}
+
+func (m *Management) GetMetricsRegistry() *prometheus.Registry {
+	return m.metricsReg
 }

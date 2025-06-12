@@ -13,6 +13,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/keypair"
 	"github.com/harvester/harvester/pkg/controller/master/machine"
 	"github.com/harvester/harvester/pkg/controller/master/mcmsettings"
+	"github.com/harvester/harvester/pkg/controller/master/metrics"
 	"github.com/harvester/harvester/pkg/controller/master/migration"
 	"github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/nodedrain"
@@ -65,6 +66,7 @@ var registerFuncs = []registerFunc{
 	schedulevmbackup.Register,
 	resourcequota.Register,
 	vmimagedownloader.Register,
+	metrics.NodeMachineMetricsRegister,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {
