@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Default target when running `make`. Builds the binaries, runs the tests and generates the Webhook and Upgrade images
 set -e
 
 cd $(dirname $0)

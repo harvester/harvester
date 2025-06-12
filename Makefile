@@ -1,4 +1,7 @@
-TARGETS := $(shell ls scripts)
+TARGETS := $(shell ls --ignore=help --ignore='*.txt' scripts)
+
+help:
+	@./scripts/help "$(MAKEFILE_LIST)" $(TARGETS)
 
 .dapper:
 	@echo Downloading dapper
