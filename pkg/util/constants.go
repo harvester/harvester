@@ -99,6 +99,8 @@ const (
 	// this object stores all kubevirt related configuration
 	KubeVirtObjectName = "kubevirt"
 
+	DefaultNamespace = "default"
+
 	HTTPProxyEnv  = "HTTP_PROXY"
 	HTTPSProxyEnv = "HTTPS_PROXY"
 	NoProxyEnv    = "NO_PROXY"
