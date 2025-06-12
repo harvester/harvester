@@ -85,7 +85,7 @@ metadata:
       {"Block":["ReadWriteOnce","ReadOnlyMany"],"Filesystem":["ReadWriteOnce","ReadWriteMany"]}
 ```
 
-The implementation consists of three main components:
+The implementation consists of two main components:
 
 1. StorageClass Webhook Validation
 Extend the existing StorageClass validation webhook to validate the five new annotations. The webhook will perform pattern matching for filesystemOverhead, enum validation for cloneStrategy, existence checks for volumeSnapshotClass, and JSON schema validation for volumeModeAccessModes.
@@ -113,14 +113,14 @@ Note that Longhorn v2 will support CSI clone starting from v1.9.1, we need to se
 
 1. Create StorageClass with valid annotations and verify synchronization
 2. Update StorageClass annotations and verify changes propagate
-3. Delete StorageClass and verify cleanup behavior
+3. Delete the StorageClass annotations and ensure the corresponding setting in the StorageProfile is also cleared.
 4. Test validation rejection for each annotation type
-5. Test partial annotation configurations (not all five annotations present)
+5. Test partial annotation configurations (not all four annotations present)
 
 ### Upgrade strategy
 
 Existing StorageClass, CDI, and StorageProfile configurations will continue to work unchanged. The new annotation-based approach is purely additive.
 
 ### Notes
-- The `csi-driver-config` and `volume-snapshot-class` settings are unrelated to `cdi.harvesterhci.io/volumeSnapshotClass`. The former two are used when creating a VolumeSnapshot, specifying which VolumeSnapshotClass to use for a given provisioner—primarily in the context of volume snapshots or backups.
-In contrast, `cdi.harvesterhci.io/volumeSnapshotClass` is used during VM or VM image creation via third-party storage solutions that rely on CDI’s [smart-clone](https://github.com/kubevirt/containerized-data-importer/blob/main/doc/smart-clone.md) mechanism. When the DataVolume source is a PVC and the CloneStrategy is set to snapshot, CDI creates a VolumeSnapshot behind the scenes. In this case, the value of `cdi.harvesterhci.io/volumeSnapshotClass` determines which VolumeSnapshotClass CDI uses.
+- The `csi-driver-config` and `volume-snapshot-class` settings are unrelated to `cdi.harvesterhci.io/storageProfileVolumeSnapshotClass`. The former two are used when creating a VolumeSnapshot, specifying which VolumeSnapshotClass to use for a given provisioner—primarily in the context of volume snapshots or backups.
+In contrast, `cdi.harvesterhci.io/storageProfileVolumeSnapshotClass` is used during VM or VM image creation via third-party storage solutions that rely on CDI’s [smart-clone](https://github.com/kubevirt/containerized-data-importer/blob/main/doc/smart-clone.md) mechanism. When the DataVolume source is a PVC and the CloneStrategy is set to snapshot, CDI creates a VolumeSnapshot behind the scenes. In this case, the value of `cdi.harvesterhci.io/storageProfileVolumeSnapshotClass` determines which VolumeSnapshotClass CDI uses.
