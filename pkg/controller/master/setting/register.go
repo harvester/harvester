@@ -6,12 +6,15 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rancher/wrangler/v3/pkg/relatedresource"
+
 	"github.com/harvester/harvester/pkg/config"
 	harvSettings "github.com/harvester/harvester/pkg/settings"
 )
 
 const (
-	controllerName = "harvester-setting-controller"
+	controllerName        = "harvester-setting-controller"
+	watchNamespaceChanges = "harvester-namespace-pss-setting-watcher"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
@@ -30,6 +33,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	rkeControlPlane := management.RKEFactory.Rke().V1().RKEControlPlane()
 	rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 	kubevirt := management.VirtFactory.Kubevirt().V1().KubeVirt()
+	namespaces := management.CoreFactory.Core().V1().Namespace()
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -62,6 +66,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		rancherSettingsCache: rancherSettings.Cache(),
 		kubeVirtConfig:       kubevirt,
 		kubeVirtConfigCache:  kubevirt.Cache(),
+		namespaces:           namespaces,
+		namespacesCache:      namespaces.Cache(),
 
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
@@ -90,11 +96,13 @@ func Register(ctx context.Context, management *config.Management, options config
 		harvSettings.AutoRotateRKE2CertsSettingName:              controller.syncAutoRotateRKE2Certs,
 		harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName: controller.syncKubeconfigTTL,
 		harvSettings.AdditionalGuestMemoryOverheadRatioName:      controller.syncAdditionalGuestMemoryOverheadRatio,
+		harvSettings.ClusterPodSecurityStandardSettingName:       controller.syncPodSecuritySetting,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
 	}
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
 	node.OnChange(ctx, controllerName, controller.nodeOnChanged)
+	relatedresource.WatchClusterScoped(ctx, watchNamespaceChanges, controller.watchNamespaceChanges, settings, namespaces)
 	return nil
 }

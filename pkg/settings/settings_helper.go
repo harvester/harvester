@@ -240,3 +240,8 @@ func ValidateAdditionalGuestMemoryOverheadRatioHelper(value string) error {
 	_, err := NewAdditionalGuestMemoryOverheadRatioConfig(value)
 	return err
 }
+
+type PodSecuritySetting struct {
+	Enabled                   bool   `json:"enabled"`
+	WhitelistedNamespacesList string `json:"whitelistedNamespacesList"`
+}
