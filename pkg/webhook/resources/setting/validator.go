@@ -1676,7 +1676,7 @@ func validateMaxHotplugRatioHelper(field, value string) error {
 	if value == "" {
 		return nil
 	}
-	num, err := strconv.Atoi(value)
+	num, err := strconv.ParseUint(value, 10, 32)
 	if err != nil {
 		return fmt.Errorf("failed to parse %s: %v", field, err)
 	}
