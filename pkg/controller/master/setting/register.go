@@ -90,6 +90,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		harvSettings.AutoRotateRKE2CertsSettingName:              controller.syncAutoRotateRKE2Certs,
 		harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName: controller.syncKubeconfigTTL,
 		harvSettings.AdditionalGuestMemoryOverheadRatioName:      controller.syncAdditionalGuestMemoryOverheadRatio,
+		harvSettings.MaxHotplugRatioSettingName:                  controller.syncMaxHotplugRatio,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
 	}

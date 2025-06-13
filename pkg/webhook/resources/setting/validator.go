@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	// Although we don't use following drivers directly, we need to import them to register drivers.
@@ -100,6 +101,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateAdditionalGuestMemoryOverheadRatio,
+	settings.MaxHotplugRatioSettingName:                        validateMaxHotplugRatio,
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -120,6 +122,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateUpdateAdditionalGuestMemoryOverheadRatio,
+	settings.MaxHotplugRatioSettingName:                        validateUpdateMaxHotplugRatio,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -1655,4 +1658,30 @@ func (v *settingValidator) isSingleNode() (bool, error) {
 		return false, err
 	}
 	return len(nodes) == 1, nil
+}
+
+func validateMaxHotplugRatio(setting *v1beta1.Setting) error {
+	if err := validateMaxHotplugRatioHelper(settings.KeywordDefault, setting.Default); err != nil {
+		return err
+	}
+
+	return validateMaxHotplugRatioHelper(settings.KeywordValue, setting.Value)
+}
+
+func validateUpdateMaxHotplugRatio(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateMaxHotplugRatio(newSetting)
+}
+
+func validateMaxHotplugRatioHelper(field, value string) error {
+	if value == "" {
+		return nil
+	}
+	num, err := strconv.Atoi(value)
+	if err != nil {
+		return fmt.Errorf("failed to parse %s: %v", field, err)
+	}
+	if num < 1 {
+		return fmt.Errorf("%s must be greater than or equal to 1", field)
+	}
+	return nil
 }
