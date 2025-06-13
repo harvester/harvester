@@ -14,6 +14,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	virtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 const (
@@ -68,7 +69,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	if err != nil {
 		return err
 	}
-	actionHandler := vmActionHandler{
+	actionHandler := harvesterServer.NewHandler(&vmActionHandler{
 		namespace:                 options.Namespace,
 		datavolumeClient:          dataVolumeClient,
 		vms:                       vms,
@@ -96,7 +97,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		storageClassCache:         storageClasses.Cache(),
 		resourceQuotaClient:       resourceQuotas,
 		clientSet:                 *scaled.Management.ClientSet,
-	}
+	})
 
 	vmformatter := vmformatter{
 		pvcCache:      pvcs.Cache(),
@@ -118,28 +119,28 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		ID: vmSchemaID,
 		Customize: func(apiSchema *types.APISchema) {
 			apiSchema.ActionHandlers = map[string]http.Handler{
-				startVM:                          &actionHandler,
-				stopVM:                           &actionHandler,
-				restartVM:                        &actionHandler,
-				softReboot:                       &actionHandler,
-				ejectCdRom:                       &actionHandler,
-				pauseVM:                          &actionHandler,
-				unpauseVM:                        &actionHandler,
-				migrate:                          &actionHandler,
-				abortMigration:                   &actionHandler,
-				findMigratableNodes:              &actionHandler,
-				backupVM:                         &actionHandler,
-				snapshotVM:                       &actionHandler,
-				restoreVM:                        &actionHandler,
-				createTemplate:                   &actionHandler,
-				addVolume:                        &actionHandler,
-				removeVolume:                     &actionHandler,
-				cloneVM:                          &actionHandler,
-				forceStopVM:                      &actionHandler,
-				dismissInsufficientResourceQuota: &actionHandler,
-				updateResourceQuotaAction:        &actionHandler,
-				deleteResourceQuotaAction:        &actionHandler,
-				cpuAndMemoryHotplug:              &actionHandler,
+				startVM:                          actionHandler,
+				stopVM:                           actionHandler,
+				restartVM:                        actionHandler,
+				softReboot:                       actionHandler,
+				ejectCdRom:                       actionHandler,
+				pauseVM:                          actionHandler,
+				unpauseVM:                        actionHandler,
+				migrate:                          actionHandler,
+				abortMigration:                   actionHandler,
+				findMigratableNodes:              actionHandler,
+				backupVM:                         actionHandler,
+				snapshotVM:                       actionHandler,
+				restoreVM:                        actionHandler,
+				createTemplate:                   actionHandler,
+				addVolume:                        actionHandler,
+				removeVolume:                     actionHandler,
+				cloneVM:                          actionHandler,
+				forceStopVM:                      actionHandler,
+				dismissInsufficientResourceQuota: actionHandler,
+				updateResourceQuotaAction:        actionHandler,
+				deleteResourceQuotaAction:        actionHandler,
+				cpuAndMemoryHotplug:              actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
 				startVM:    {},
