@@ -21,13 +21,13 @@ func (h *Handler) syncMaxHotplugRatio(setting *harvesterv1.Setting) error {
 		value = setting.Default
 	}
 
-	hotplugRatio := virtconfig.DefaultMaxHotplugRatio
-	if value != "" {
-		num, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("Invalid value `%s`: %s", setting.Value, err.Error())
-		}
-		hotplugRatio = num
+	if value == "" {
+		value = strconv.Itoa(virtconfig.DefaultMaxHotplugRatio)
+	}
+
+	num, err := strconv.ParseUint(value, 10, 32)
+	if err != nil {
+		return fmt.Errorf("Invalid value `%s`: %s", setting.Value, err.Error())
 	}
 
 	kubevirt, err := h.kubeVirtConfigCache.Get(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
@@ -39,7 +39,7 @@ func (h *Handler) syncMaxHotplugRatio(setting *harvesterv1.Setting) error {
 	if kubevirtCpy.Spec.Configuration.LiveUpdateConfiguration == nil {
 		kubevirtCpy.Spec.Configuration.LiveUpdateConfiguration = &kubevirtv1.LiveUpdateConfiguration{}
 	}
-	kubevirtCpy.Spec.Configuration.LiveUpdateConfiguration.MaxHotplugRatio = uint32(hotplugRatio)
+	kubevirtCpy.Spec.Configuration.LiveUpdateConfiguration.MaxHotplugRatio = uint32(num)
 
 	if !reflect.DeepEqual(kubevirt.Spec.Configuration.LiveUpdateConfiguration, kubevirtCpy.Spec.Configuration.LiveUpdateConfiguration) {
 		if _, err := h.kubeVirtConfig.Update(kubevirtCpy); err != nil {
