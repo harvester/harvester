@@ -407,6 +407,9 @@ func canDismissInsufficientResourceQuota(vm *kubevirtv1.VirtualMachine) bool {
 }
 
 func canCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
+	if vm.Spec.Template.Spec.Domain.CPU != nil && (vm.Spec.Template.Spec.Domain.CPU.Cores != 1 || vm.Spec.Template.Spec.Domain.CPU.Threads != 1) {
+		return false
+	}
 	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusRunning {
 		return false
 	}
