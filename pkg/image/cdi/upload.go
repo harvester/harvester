@@ -275,10 +275,6 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	}); err != nil {
 		return fmt.Errorf("failed to wait for VMImage status: %v", err)
 	}
-	//updaterLocker.Lock()
-	//logrus.Debugf("Final wake up, the DataVolume status is succeeded")
-	//updaterCond.Signal()
-	//updaterLocker.Unlock()
 
 	return nil
 }
@@ -339,8 +335,15 @@ func (cu *Uploader) updateVMImageProgress(vmImg *harvesterv1.VirtualMachineImage
 		}
 		if targetDV.Status.Phase == cdiv1.Succeeded {
 			logrus.Infof("DataVolume %s/%s upload finished", targetDVNs, targetDVName)
+			_, err := cu.vmio.Imported(vmImg, "", 100, vmImg.Status.Size, vmImg.Status.VirtualSize)
+			if err != nil {
+				// signal again to retry the update
+				logrus.Errorf("failed to update VMImage status: %v", err)
+				cond.Signal()
+				cond.L.Unlock()
+				continue
+			}
 			cond.L.Unlock()
-			cu.vmio.Imported(vmImg, "", 100, vmImg.Status.Size, vmImg.Status.VirtualSize)
 			return
 		}
 

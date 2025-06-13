@@ -8,7 +8,6 @@ import (
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhmanager "github.com/longhorn/longhorn-manager/manager"
-	"github.com/longhorn/longhorn-manager/types"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
@@ -190,7 +189,7 @@ func (bib *Backend) createStorageClass(vmi *harvesterv1.VirtualMachineImage) err
 		ObjectMeta: metav1.ObjectMeta{
 			Name: util.GetImageStorageClassName(vmi),
 		},
-		Provisioner:          types.LonghornDriverName,
+		Provisioner:          longhorntypes.LonghornDriverName,
 		ReclaimPolicy:        &reclaimPolicy,
 		AllowVolumeExpansion: pointer.BoolPtr(true),
 		VolumeBindingMode:    &volumeBindingMode,

@@ -4,18 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/webhook/types"
-)
-
-const (
-	replaceOP        = "replace"
-	nodeAffinityPath = "/spec/template/spec/affinity"
 )
 
 func TestPatchMacAddress(t *testing.T) {
@@ -224,12 +218,6 @@ func TestPatchMacAddress(t *testing.T) {
 			},
 			patches: types.PatchOps{},
 		},
-	}
-
-	type patch struct {
-		Op    string       `json:"op"`
-		Path  string       `json:"path"`
-		Value *v1.Affinity `json:"value"`
 	}
 
 	for _, tc := range tests {

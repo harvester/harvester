@@ -27,7 +27,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/harvester/harvester/pkg/api"
@@ -43,9 +42,9 @@ import (
 type HarvesterServer struct {
 	Context context.Context
 
-	RancherRESTConfig *restclient.Config
+	RancherRESTConfig *rest.Config
 
-	RESTConfig    *restclient.Config
+	RESTConfig    *rest.Config
 	DynamicClient dynamic.Interface
 	ClientSet     *kubernetes.Clientset
 	ASL           accesscontrol.AccessSetLookup
@@ -74,7 +73,7 @@ const (
 	RancherKubeConfigSecretKey  = "kubernetes.kubeconfig"
 )
 
-func RancherRESTConfig(ctx context.Context, restConfig *restclient.Config, options config.Options) (*restclient.Config, error) {
+func RancherRESTConfig(ctx context.Context, restConfig *rest.Config, options config.Options) (*rest.Config, error) {
 	clientSet, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return nil, err

@@ -53,7 +53,7 @@ func (h *backingImageHandler) OnChanged(_ string, bi *lhv1beta2.BackingImage) (*
 	err = nil
 	for _, status := range bi.Status.DiskFileStatusMap {
 		if status.State == lhv1beta2.BackingImageStateFailed {
-			_, err = h.vmio.FailImported(vmi, fmt.Errorf(status.Message), status.Progress)
+			_, err = h.vmio.FailImported(vmi, fmt.Errorf("%s", status.Message), status.Progress)
 			continue
 		}
 

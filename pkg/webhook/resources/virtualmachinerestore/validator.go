@@ -242,12 +242,12 @@ func (v *restoreValidator) getVMBackup(vmRestore *v1beta1.VirtualMachineRestore)
 
 func (v *restoreValidator) checkSnapshot(vmRestore *v1beta1.VirtualMachineRestore, vmBackup *v1beta1.VirtualMachineBackup) error {
 	if vmRestore.Namespace != vmBackup.Namespace {
-		return fmt.Errorf("Restore to other namespace with backup type snapshot is not supported")
+		return fmt.Errorf("restore to other namespace with backup type snapshot is not supported")
 	}
 	if !vmRestore.Spec.NewVM && vmRestore.Spec.DeletionPolicy != v1beta1.VirtualMachineRestoreRetain {
 		// We don't allow users to use "delete" policy for replacing a VM when the backup type is snapshot.
 		// This will also remove the VMBackup when VMRestore is finished.
-		return fmt.Errorf("Delete policy with backup type snapshot for replacing VM is not supported")
+		return fmt.Errorf("delete policy with backup type snapshot for replacing VM is not supported")
 	}
 	return nil
 }
@@ -258,7 +258,7 @@ func (v *restoreValidator) checkNetwork(vmBackup *v1beta1.VirtualMachineBackup) 
 			namespace, name := ref.Parse(network.Multus.NetworkName)
 			_, err := v.networkAttachmentDefinitionsCache.Get(namespace, name)
 			if err != nil {
-				return fmt.Errorf(fmt.Sprintf("Failed to get network attachment definition %s, err: %v", network.Multus.NetworkName, err))
+				return fmt.Errorf("failed to get network attachment definition %s, err: %v", network.Multus.NetworkName, err)
 			}
 		}
 	}
@@ -316,11 +316,11 @@ func (v *restoreValidator) checkBackup(vmRestore *v1beta1.VirtualMachineRestore,
 func (v *restoreValidator) checkBackupTarget(vmBackup *v1beta1.VirtualMachineBackup) error {
 	backupTargetSetting, err := v.setting.Get(settings.BackupTargetSettingName)
 	if err != nil {
-		return fmt.Errorf("Can't get backup target setting, err: %w", err)
+		return fmt.Errorf("can't get backup target setting, err: %w", err)
 	}
 	backupTarget, err := settings.DecodeBackupTarget(backupTargetSetting.Value)
 	if err != nil {
-		return fmt.Errorf("Unmarshal backup target failed, value: %s, err: %w", backupTargetSetting.Value, err)
+		return fmt.Errorf("unmarshal backup target failed, value: %s, err: %w", backupTargetSetting.Value, err)
 	}
 
 	if backupTarget.IsDefaultBackupTarget() {

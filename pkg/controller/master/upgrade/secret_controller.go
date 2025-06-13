@@ -136,7 +136,7 @@ func (h *secretHandler) checkPendingHookJobs(upgrade string) error {
 
 	for _, job := range jobs {
 		if job.Status.Succeeded == 0 {
-			return fmt.Errorf("There are pending jobs: (%s/%s)", job.Namespace, job.Name)
+			return fmt.Errorf("there are pending jobs: (%s/%s)", job.Namespace, job.Name)
 		}
 	}
 	return nil

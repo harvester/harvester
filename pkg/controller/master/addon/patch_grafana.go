@@ -95,7 +95,7 @@ func (h *Handler) annotateGrafanaPVName(pvname string, aObj *harvesterv1.Addon) 
 
 	if aObj.Annotations != nil {
 		// if p is not find, the return p is ""
-		if p, _ := aObj.Annotations[harvesterutil.AnnotationGrafanaPVName]; p == pvname {
+		if p := aObj.Annotations[harvesterutil.AnnotationGrafanaPVName]; p == pvname {
 			return aObj, nil
 		}
 	}

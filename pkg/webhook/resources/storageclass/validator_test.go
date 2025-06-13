@@ -383,7 +383,8 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.secret != nil {
-				coreclientset.Tracker().Add(tc.secret)
+				err := coreclientset.Tracker().Add(tc.secret)
+				assert.Nil(t, err)
 			}
 
 			err := validator.validateEncryption(tc.storageClass)
@@ -394,7 +395,8 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 			}
 
 			if tc.secret != nil {
-				coreclientset.Tracker().Delete(schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}, tc.secret.Namespace, tc.secret.Name)
+				err := coreclientset.Tracker().Delete(schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}, tc.secret.Namespace, tc.secret.Name)
+				assert.Nil(t, err)
 			}
 		})
 	}

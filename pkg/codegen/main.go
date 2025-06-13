@@ -234,7 +234,7 @@ func nadControllerInterfaceRefactor() {
 		logrus.Fatalf("failed to read the network-attachment-definition file: %v", err)
 	}
 
-	output := bytes.Replace(input, []byte("networkattachmentdefinitions"), []byte("network-attachment-definitions"), -1)
+	output := bytes.ReplaceAll(input, []byte("networkattachmentdefinitions"), []byte("network-attachment-definitions"))
 
 	if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
 		logrus.Fatalf("failed to update the network-attachment-definition file: %v", err)
@@ -257,7 +257,7 @@ func capiWorkaround() {
 		if err != nil {
 			logrus.Fatalf("failed to read the clusters.cluster.x-k8s.io client file: %v", err)
 		}
-		output := bytes.Replace(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"), -1)
+		output := bytes.ReplaceAll(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"))
 
 		if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
 			logrus.Fatalf("failed to update the clusters.cluster.x-k8s.io client file: %v", err)
@@ -285,7 +285,7 @@ func loggingWorkaround() {
 		if err != nil {
 			logrus.Fatalf("failed to read the logging.banzaicloud.io client file: %v", err)
 		}
-		output := bytes.Replace(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"), -1)
+		output := bytes.ReplaceAll(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"))
 
 		if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
 			logrus.Fatalf("failed to update the logging.banzaicloud.io client file: %v", err)

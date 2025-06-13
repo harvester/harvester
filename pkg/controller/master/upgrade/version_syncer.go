@@ -265,5 +265,6 @@ func formatQuantityToGi(q *resource.Quantity) string {
 	// math.Pow(1024, 3): 1024*1024*1024=1073741824
 	// float64(q.Value())/math.Pow(1024, 3): 33710288896/1073741824=31.3951530456543
 	// math.Ceil(31.3951530456543)=32
-	return fmt.Sprintf("%dGi", int64(math.Ceil(float64(q.Value())/math.Pow(1024, 3))))
+	giB := 1024 * 1024 * 1024
+	return fmt.Sprintf("%dGi", int64(math.Ceil(float64(q.Value())/float64(giB))))
 }
