@@ -21,18 +21,23 @@ func (h *Handler) syncMaxHotplugRatio(setting *harvesterv1.Setting) error {
 		value = setting.Default
 	}
 
-	if value == "" {
-		value = strconv.Itoa(virtconfig.DefaultMaxHotplugRatio)
-	}
+	num := uint64(virtconfig.DefaultMaxHotplugRatio)
+	var err error
 
-	num, err := strconv.ParseUint(value, 10, 32)
-	if err != nil {
-		return fmt.Errorf("invalid value `%s`: %s", setting.Value, err.Error())
+	if value != "" {
+		num, err = strconv.ParseUint(value, 10, 32)
+		if err != nil {
+			return fmt.Errorf("invalid value/default `%s`: %w", value, err)
+		}
+		// when num is out of range, fallback to the default value, following uint32(num) is safe
+		if num < util.MinHotplugRatioValue || num > util.MaxHotplugRatioValue {
+			num = uint64(virtconfig.DefaultMaxHotplugRatio)
+		}
 	}
 
 	kubevirt, err := h.kubeVirtConfigCache.Get(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
 	if err != nil {
-		return fmt.Errorf("failed to get kubevirt object %v/%v", util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
+		return fmt.Errorf("failed to get kubevirt object %v/%v %w", util.HarvesterSystemNamespaceName, util.KubeVirtObjectName, err)
 	}
 
 	kubevirtCpy := kubevirt.DeepCopy()
@@ -43,7 +48,7 @@ func (h *Handler) syncMaxHotplugRatio(setting *harvesterv1.Setting) error {
 
 	if !reflect.DeepEqual(kubevirt.Spec.Configuration.LiveUpdateConfiguration, kubevirtCpy.Spec.Configuration.LiveUpdateConfiguration) {
 		if _, err := h.kubeVirtConfig.Update(kubevirtCpy); err != nil {
-			return fmt.Errorf("failed to update %v as %v to kubevirt %w", harvSettings.MaxHotplugRatioSettingName, value, err)
+			return fmt.Errorf("failed to update %v as %v to kubevirt %w", harvSettings.MaxHotplugRatioSettingName, num, err)
 		}
 	}
 	return nil
