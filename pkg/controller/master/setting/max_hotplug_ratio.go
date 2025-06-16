@@ -44,7 +44,8 @@ func (h *Handler) syncMaxHotplugRatio(setting *harvesterv1.Setting) error {
 	if kubevirtCpy.Spec.Configuration.LiveUpdateConfiguration == nil {
 		kubevirtCpy.Spec.Configuration.LiveUpdateConfiguration = &kubevirtv1.LiveUpdateConfiguration{}
 	}
-	kubevirtCpy.Spec.Configuration.LiveUpdateConfiguration.MaxHotplugRatio = uint32(num)
+	// skip gosec G115
+	kubevirtCpy.Spec.Configuration.LiveUpdateConfiguration.MaxHotplugRatio = uint32(num) //nolint:gosec
 
 	if !reflect.DeepEqual(kubevirt.Spec.Configuration.LiveUpdateConfiguration, kubevirtCpy.Spec.Configuration.LiveUpdateConfiguration) {
 		if _, err := h.kubeVirtConfig.Update(kubevirtCpy); err != nil {
