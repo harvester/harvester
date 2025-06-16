@@ -216,4 +216,6 @@ const (
 	HarvesterManagedChart            = "harvester"
 	RancherLoggingCRDManagedChart    = "rancher-logging-crd"
 	RancherMonitoringCRDManagedChart = "rancher-monitoring-crd"
+
+	LabelCPUAndMemoryHotplugEnabled = prefix + "/enableCPUAndMemoryHotplug"
 )

@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"strings"
+
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/v3/pkg/data/convert"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -407,6 +409,12 @@ func canDismissInsufficientResourceQuota(vm *kubevirtv1.VirtualMachine) bool {
 }
 
 func canCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
+	if vm.Labels == nil {
+		return false
+	}
+	if v, ok := vm.Labels[util.LabelCPUAndMemoryHotplugEnabled]; !ok || !strings.EqualFold(v, "true") {
+		return false
+	}
 	if vm.Spec.Template.Spec.Domain.CPU != nil && (vm.Spec.Template.Spec.Domain.CPU.Cores != 1 || vm.Spec.Template.Spec.Domain.CPU.Threads != 1) {
 		return false
 	}
