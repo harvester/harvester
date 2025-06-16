@@ -71,10 +71,13 @@ func NewApp(name string, usage string, flags []cli.Flag, action Action) *App {
 		return action(&options)
 	}
 
-	return &App{
+	app := &App{
 		app:     cliApp,
 		Options: &options,
 	}
+	// log app basic info
+	app.info()
+	return app
 }
 
 func initProfiling(options *config.CommonOptions) {
@@ -116,4 +119,9 @@ func (a *App) Run() {
 	if err := a.app.Run(os.Args); err != nil {
 		logrus.Fatal(err)
 	}
+}
+
+func (a *App) info() {
+	logrus.Infof("Starting %v version %v", a.app.Name, a.app.Version)
+	logrus.Debugf("Options: %+v", a.Options)
 }

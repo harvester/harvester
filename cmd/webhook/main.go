@@ -5,7 +5,6 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/rancher/wrangler/v3/pkg/signals"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 
 	"github.com/harvester/harvester/pkg/cmd"
@@ -13,6 +12,10 @@ import (
 	apiserver "github.com/harvester/harvester/pkg/server"
 	"github.com/harvester/harvester/pkg/webhook/config"
 	"github.com/harvester/harvester/pkg/webhook/server"
+)
+
+const (
+	name = "Harvester Admission Webhook Server"
 )
 
 func main() {
@@ -55,15 +58,14 @@ func main() {
 		},
 	}
 
-	app := cmd.NewApp("Harvester Admission Webhook Server", "", flags, func(commonOptions *harvesterconfig.CommonOptions) error {
+	app := cmd.NewApp(name, "", flags, func(commonOptions *harvesterconfig.CommonOptions) error {
 		return run(commonOptions, &options)
 	})
+
 	app.Run()
 }
 
 func run(commonOptions *harvesterconfig.CommonOptions, options *config.Options) error {
-	logrus.Info("Starting webhook server")
-
 	ctx := signals.SetupSignalContext()
 
 	kubeConfig, err := apiserver.GetConfig(commonOptions.KubeConfig)
@@ -75,8 +77,6 @@ func run(commonOptions *harvesterconfig.CommonOptions, options *config.Options) 
 	if err != nil {
 		return err
 	}
-
-	logrus.Debugf("Harvester controller username: %s", options.HarvesterControllerUsername)
 
 	s := server.New(ctx, restCfg, options)
 	if err := s.ListenAndServe(); err != nil {
