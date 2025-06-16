@@ -27,7 +27,7 @@ func (h *Handler) syncMaxHotplugRatio(setting *harvesterv1.Setting) error {
 
 	num, err := strconv.ParseUint(value, 10, 32)
 	if err != nil {
-		return fmt.Errorf("Invalid value `%s`: %s", setting.Value, err.Error())
+		return fmt.Errorf("invalid value `%s`: %s", setting.Value, err.Error())
 	}
 
 	kubevirt, err := h.kubeVirtConfigCache.Get(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
