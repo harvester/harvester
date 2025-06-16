@@ -66,7 +66,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
         GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
       run: |
-        for issue_number in "${{ env.ORIGINAL_ISSUE_NUMBER }}"; do
+        for issue_number in ${{ env.ORIGINAL_ISSUE_NUMBER }}; do
           echo "Found source issue ${REPO_NAME}#${issue_number}"
           issue_title=$(gh issue view "$issue_number" --json title --jq ".title")
 
