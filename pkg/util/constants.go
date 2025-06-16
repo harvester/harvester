@@ -33,6 +33,7 @@ const (
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
 	AnnotationLastRefreshTime           = prefix + "/lastRefreshTime"
 	AnnotationMacAddressName            = prefix + "/mac-address"
+	AnnotationVMImportController        = "migration.harvesterhci.io/virtualmachineimport"
 
 	AnnotationSkipRancherLoggingAddonWebhookCheck = prefix + "/skipRancherLoggingAddonWebhookCheck"
 
