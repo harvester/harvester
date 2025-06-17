@@ -1137,12 +1137,8 @@ upgrade_addon_rancher_logging()
 {
   echo "upgrade addon rancher-logging"
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
-  # in v1.5.0, the eventrouter needs to be patched
-  if [ "$REPO_LOGGING_CHART_VERSION" = "105.2.0+up4.10.0" ]; then
-    upgrade_addon_rancher_logging_with_patch_eventrouter_image $REPO_LOGGING_CHART_VERSION
-  else
-    upgrade_addon_try_patch_version_only "rancher-logging" "cattle-logging-system" $REPO_LOGGING_CHART_VERSION
-  fi
+  # the eventrouter image tag is aligned with Harvester tag, e.g. v1.5.1-rc3, v1.6.0
+  upgrade_addon_rancher_logging_with_patch_eventrouter_image $REPO_LOGGING_CHART_VERSION $REPO_LOGGING_CHART_HARVESTER_EVENTROUTER_VERSION
 }
 
 # NOTE: review in each release, add corresponding process, runs before rancher-logging is bumped
