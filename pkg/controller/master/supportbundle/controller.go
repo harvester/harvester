@@ -3,7 +3,6 @@ package supportbundle
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
@@ -18,7 +17,6 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle/types"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
-	supportBundleUtil "github.com/harvester/harvester/pkg/util/supportbundle"
 )
 
 // Handler generates support bundles for the cluster
@@ -93,11 +91,7 @@ func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.Su
 		expiredTime time.Duration
 	)
 
-	if expiration := settings.SupportBundleExpiration.GetInt(); expiration == 0 {
-		expiredTime = time.Duration(supportBundleUtil.SupportBundleExpirationDefault) * time.Minute
-	} else {
-		expiredTime = time.Duration(expiration) * time.Minute
-	}
+	expiredTime = determineExpiration(sb)
 
 	logrus.Debugf("[%s] support bundle status: %s exist time is %s", sb.Name, sb.Status.State, existTime.String())
 	if existTime < expiredTime {
@@ -114,15 +108,12 @@ func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.Su
 }
 
 func (h *Handler) checkManagerStatus(sb *harvesterv1.SupportBundle) (*harvesterv1.SupportBundle, error) {
-	var timeout int
-	var err error
-	if timeoutStr := settings.SupportBundleTimeout.Get(); timeoutStr != "" {
-		if timeout, err = strconv.Atoi(timeoutStr); err != nil {
-			return nil, err
-		}
+	timeout, err := determineTimeout(sb)
+	if err != nil {
+		return nil, err
 	}
 
-	if timeout != 0 && time.Now().After(sb.CreationTimestamp.Add(time.Duration(timeout)*time.Minute)) {
+	if timeout != 0 && time.Now().After(sb.CreationTimestamp.Add(timeout)) {
 		return h.setError(sb, "fail to generate supportbundle: timeout")
 	}
 
