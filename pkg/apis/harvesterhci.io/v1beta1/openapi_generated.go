@@ -3443,7 +3443,7 @@ func schema_pkg_apis_harvesterhciio_v1beta1_SupportBundleSpec(ref common.Referen
 					},
 					"timeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Number of minutes Harvester allows for the completion of the support bundle generation process.",
+							Description: "Number of minutes Harvester allows for the completion of the support bundle generation process. Zero means no timeout.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},

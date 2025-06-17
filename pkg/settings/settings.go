@@ -36,7 +36,7 @@ var (
 	SSLParameters                          = NewSetting(SSLParametersName, "{}")
 	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{}")
 	SupportBundleNamespaces                = NewSetting(SupportBundleNamespacesSettingName, "")
-	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10")                                                                  // Unit is minute. 0 means disable timeout.
+	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, supportBundleUtil.SupportBundleTimeoutDefaultStr)                      // Unit is minute. 0 means disable timeout.
 	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, supportBundleUtil.SupportBundleExpirationDefaultStr)                // Unit is minute.
 	SupportBundleNodeCollectionTimeout     = NewSetting(SupportBundleNodeCollectionTimeoutName, supportBundleUtil.SupportBundleNodeCollectionTimeoutDefaultStr) // Unit is minute.
 	DefaultStorageClass                    = NewSetting(DefaultStorageClassSettingName, "longhorn")
