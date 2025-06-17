@@ -965,17 +965,17 @@ spec:
                         type: object
                     type: object
                   vmRolloutStrategy:
-                    description: |-
-                      VMRolloutStrategy defines how live-updatable fields, like CPU sockets, memory,
-                      tolerations, and affinity, are propagated from a VM to its VMI.
+                    description: VMRolloutStrategy defines how changes to a VM object
+                      propagate to its VMI
                     enum:
                     - Stage
                     - LiveUpdate
                     nullable: true
                     type: string
                   vmStateStorageClass:
-                    description: VMStateStorageClass is the name of the storage class
-                      to use for the PVCs created to preserve VM state, like TPM.
+                    description: |-
+                      VMStateStorageClass is the name of the storage class to use for the PVCs created to preserve VM state, like TPM.
+                      The storage class must support RWX in filesystem mode.
                     type: string
                   webhookConfiguration:
                     description: |-
@@ -4222,17 +4222,17 @@ spec:
                         type: object
                     type: object
                   vmRolloutStrategy:
-                    description: |-
-                      VMRolloutStrategy defines how live-updatable fields, like CPU sockets, memory,
-                      tolerations, and affinity, are propagated from a VM to its VMI.
+                    description: VMRolloutStrategy defines how changes to a VM object
+                      propagate to its VMI
                     enum:
                     - Stage
                     - LiveUpdate
                     nullable: true
                     type: string
                   vmStateStorageClass:
-                    description: VMStateStorageClass is the name of the storage class
-                      to use for the PVCs created to preserve VM state, like TPM.
+                    description: |-
+                      VMStateStorageClass is the name of the storage class to use for the PVCs created to preserve VM state, like TPM.
+                      The storage class must support RWX in filesystem mode.
                     type: string
                   webhookConfiguration:
                     description: |-
