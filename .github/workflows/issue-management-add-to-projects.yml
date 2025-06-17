@@ -33,8 +33,8 @@ jobs:
     
     - name: Show Teams
       run: |
-        echo "SUSE Teams: ${{ fromJSON(steps.is-suse-member.outputs.teams) }}"
-        echo "Harvester Teams: ${{ fromJSON(steps.is-harvester-member.outputs.teams) }}"
+        echo "SUSE Teams: ${{ steps.is-suse-member.outputs.teams }}"
+        echo "Harvester Teams: ${{ steps.is-harvester-member.outputs.teams }}"
     
     - name: Set Require PM Review Label
       if: ${{
@@ -74,7 +74,7 @@ jobs:
     
     - name: Show Teams
       run: |
-        echo "Harvester Teams: ${{ fromJSON(steps.is-harvester-member.outputs.teams) }}"
+        echo "Harvester Teams: ${{ steps.is-harvester-member.outputs.teams }}"
 
     - name: Add Issue to Harvester Sprint Project
       if: fromJSON(steps.is-harvester-member.outputs.teams)[0] != null 
@@ -123,8 +123,8 @@ jobs:
     
     - name: Show Teams
       run: |
-        echo "SUSE Teams: ${{ fromJSON(steps.is-suse-member.outputs.teams) }}"
-        echo "Harvester Teams: ${{ fromJSON(steps.is-harvester-member.outputs.teams) }}"
+        echo "SUSE Teams: ${{ steps.is-suse-member.outputs.teams }}"
+        echo "Harvester Teams: ${{ steps.is-harvester-member.outputs.teams }}"
 
     - name: Get Issue
       if: steps.is-harvester-member.outcome == 'success'
