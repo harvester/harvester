@@ -52,8 +52,26 @@ spec:
             properties:
               description:
                 type: string
+              expiration:
+                description: Number of minutes Harvester waits before deleting a support
+                  bundle that has been packaged but not downloaded (either deliberately
+                  or unsuccessfully) or retained.
+                type: integer
+              extraCollectionNamespaces:
+                items:
+                  type: string
+                type: array
               issueURL:
                 type: string
+              nodeTimeout:
+                description: Number of minutes Harvester allows for collection of
+                  logs and configurations (Harvester) on the nodes for the support
+                  bundle.
+                type: integer
+              timeout:
+                description: Number of minutes Harvester allows for the completion
+                  of the support bundle generation process.
+                type: integer
             required:
             - description
             type: object
