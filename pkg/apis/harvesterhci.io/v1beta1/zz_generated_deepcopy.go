@@ -853,6 +853,11 @@ func (in *SupportBundleSpec) DeepCopyInto(out *SupportBundleSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.Timeout != nil {
+		in, out := &in.Timeout, &out.Timeout
+		*out = new(int)
+		**out = **in
+	}
 	return
 }
 
