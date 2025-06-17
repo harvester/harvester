@@ -9055,9 +9055,28 @@
             "type": "string",
             "default": ""
           },
+          "expiration": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "extraCollectionNamespaces": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "default": ""
+            }
+          },
           "issueURL": {
             "type": "string",
             "default": ""
+          },
+          "nodeTimeout": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "timeout": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
