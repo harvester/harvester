@@ -34,12 +34,14 @@ jobs:
     - name: Show Teams
       run: |
         echo "SUSE Teams: ${{ steps.is-suse-member.outputs.teams }}"
+        echo "SUSE Organization: ${{ steps.is-suse-member.outputs.isOrganization }}"
         echo "Harvester Teams: ${{ steps.is-harvester-member.outputs.teams }}"
-    
+        echo "Harvester Organization: ${{ steps.is-harvester-member.outputs.isOrganization }}"
+
     - name: Set Require PM Review Label
       if: ${{
-        fromJSON(steps.is-suse-member.outputs.teams)[0] != null &&
-        fromJSON(steps.is-harvester-member.outputs.teams)[0] == null
+        steps.is-suse-member.outputs.isOrganization == 'true' &&
+        steps.is-harvester-member.outputs.isOrganization == 'false'
         }}
       run: |
         gh issue edit ${{ github.event.issue.number }} --add-label "require/pm-review"
@@ -49,8 +51,8 @@ jobs:
     - name: Add Issue to Product Backlog Project
       id: add-project
       if: ${{
-        fromJSON(steps.is-suse-member.outputs.teams)[0] != null &&
-        fromJSON(steps.is-harvester-member.outputs.teams)[0] == null
+        steps.is-suse-member.outputs.isOrganization == 'true' &&
+        steps.is-harvester-member.outputs.isOrganization == 'false'
         }}
       uses: actions/add-to-project@v1.0.2
       with:
@@ -75,9 +77,10 @@ jobs:
     - name: Show Teams
       run: |
         echo "Harvester Teams: ${{ steps.is-harvester-member.outputs.teams }}"
+        echo "Harvester Organization: ${{ steps.is-harvester-member.outputs.isOrganization }}"
 
     - name: Add Issue to Harvester Sprint Project
-      if: fromJSON(steps.is-harvester-member.outputs.teams)[0] != null 
+      if: steps.is-harvester-member.outputs.isOrganization == 'true'
       uses: actions/add-to-project@v1.0.2
       with:
         project-url: ${{ env.HARVESTER_PROJECT_URL }}
@@ -87,7 +90,7 @@ jobs:
     
     - name: Set Default Milestone to Issue
       if: ${{
-        fromJSON(steps.is-harvester-member.outputs.teams)[0] != null  &&
+        steps.is-harvester-member.outputs.isOrganization == 'true' &&
         github.event.issue.milestone == null
         }}
       env:
@@ -124,7 +127,9 @@ jobs:
     - name: Show Teams
       run: |
         echo "SUSE Teams: ${{ steps.is-suse-member.outputs.teams }}"
+        echo "SUSE Organization: ${{ steps.is-suse-member.outputs.isOrganization }}"
         echo "Harvester Teams: ${{ steps.is-harvester-member.outputs.teams }}"
+        echo "Harvester Organization: ${{ steps.is-harvester-member.outputs.isOrganization }}"
 
     - name: Get Issue
       if: steps.is-harvester-member.outcome == 'success'
@@ -139,8 +144,8 @@ jobs:
       id: add-project
       if: |
         steps.is-harvester-member.outcome == 'success' &&
-        fromJSON(steps.is-harvester-member.outputs.teams)[0] == null && 
-        fromJSON(steps.is-suse-member.outputs.teams)[0] == null
+        steps.is-harvester-member.outputs.isOrganization == 'false' && 
+        steps.is-suse-member.outputs.isOrganization == 'false'
       uses: actions/add-to-project@v1.0.2
       with:
         project-url: ${{ env.COMMUNITY_PROJECT_URL }}
@@ -149,8 +154,8 @@ jobs:
     - name: Update Item To New
       if: |
         steps.is-harvester-member.outcome == 'success' &&
-        fromJSON(steps.is-harvester-member.outputs.teams)[0] == null && 
-        fromJSON(steps.is-suse-member.outputs.teams)[0] == null &&
+        steps.is-harvester-member.outputs.isOrganization == 'false' && 
+        steps.is-suse-member.outputs.isOrganization == 'false' &&
         steps.add-project.outputs.itemId != ''
       uses: rancher/gh-issue-mgr/update-project-fields@main
       with:
