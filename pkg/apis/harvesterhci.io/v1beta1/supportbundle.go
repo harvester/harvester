@@ -30,6 +30,21 @@ type SupportBundleSpec struct {
 
 	// +kubebuilder:validation:Required
 	Description string `json:"description"`
+
+	// +optional
+	ExtraCollectionNamespaces []string `json:"extraCollectionNamespaces"`
+
+	// +optional
+	// Number of minutes Harvester allows for the completion of the support bundle generation process.
+	Timeout int `json:"timeout,omitempty"`
+
+	// +optional
+	// Number of minutes Harvester waits before deleting a support bundle that has been packaged but not downloaded (either deliberately or unsuccessfully) or retained.
+	Expiration int `json:"expiration,omitempty"`
+
+	// +optional
+	// Number of minutes Harvester allows for collection of logs and configurations (Harvester) on the nodes for the support bundle.
+	NodeTimeout int `json:"nodeTimeout,omitempty"`
 }
 
 type SupportBundleStatus struct {
