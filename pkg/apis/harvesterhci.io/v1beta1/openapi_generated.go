@@ -3427,6 +3427,41 @@ func schema_pkg_apis_harvesterhciio_v1beta1_SupportBundleSpec(ref common.Referen
 							Format:  "",
 						},
 					},
+					"extraCollectionNamespaces": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"timeout": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Number of minutes Harvester allows for the completion of the support bundle generation process.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"expiration": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Number of minutes Harvester waits before deleting a support bundle that has been packaged but not downloaded (either deliberately or unsuccessfully) or retained.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeTimeout": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Number of minutes Harvester allows for collection of logs and configurations (Harvester) on the nodes for the support bundle.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
 				},
 				Required: []string{"description"},
 			},
