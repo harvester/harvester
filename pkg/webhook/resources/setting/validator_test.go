@@ -1010,6 +1010,22 @@ func Test_validateUpgradeConfig(t *testing.T) {
 			},
 			expectedErr: false,
 		},
+		{
+			name: "LogeReadyTimeout not in expected range",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":2}},"logReadyTimeout": "1"}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "LogReadyTimeout is in expected range",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"parallel","concurrency":2}}, "logReadyTimeout": "21"}`,
+			},
+			expectedErr: true,
+		},
 	}
 
 	for _, tt := range tests {
