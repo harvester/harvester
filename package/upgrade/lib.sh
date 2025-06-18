@@ -854,3 +854,49 @@ upgrade_nvidia_driver_toolkit_addon()
   fi
   upgrade_addon nvidia-driver-toolkit harvester-system
 }
+
+patch_grafana_nginx_proxy_config_configmap() {
+  local EXIT_CODE=0
+  local cm=grafana-nginx-proxy-config
+  local originValuesfile="/tmp/configmapvalue.yaml"
+  rm -f ${originValuesfile}
+
+  echo "try to patch configmap $cm when it exists"
+
+  kubectl get configmap -n cattle-monitoring-system ${cm} -ojsonpath="{.data['nginx\.conf']}" > ${originValuesfile} || EXIT_CODE=$?
+  if [[ $EXIT_CODE -gt 0 ]]; then
+    # e.g. the rancher-monitoring addon is not enabled
+    echo "did not find configmap $cm, skip"
+    return 0
+  fi
+
+  grep "c-m-" ${originValuesfile} || EXIT_CODE=$?
+  if [[ $EXIT_CODE -gt 0 ]]; then
+    echo "configmap $cm c-m- has been patched to c-"
+     rm -f ${originValuesfile}
+    return 0
+  fi
+
+  # replace the keyword "c-m-*" with "c-*"
+  sed -i -e 's/c-m-/c-/' ${originValuesfile}
+  # add 4 spaces to each line
+  sed -i -e 's/^/    /' ${originValuesfile}
+  local newvalues=$(<${originValuesfile})
+  rm -f ${originValuesfile}
+  local patchfile="/tmp/configmappatch.yaml"
+
+cat > ${patchfile} <<EOF
+data:
+  nginx.conf: |
+${newvalues}
+EOF
+
+  echo "the prepared patch file content"
+  cat ${patchfile}
+
+  kubectl patch configmap ${cm} -n cattle-monitoring-system --patch-file ${patchfile} --type merge || echo "patch configmap $cm failed"
+  rm -f ${patchfile}
+
+  echo "replace the grafana pod to use the new configmap"
+  kubectl delete pods -n cattle-monitoring-system -l app.kubernetes.io/name=grafana || echo "failed to delete the grafana pod, wait until the related host node is rebooted and then it gets the new configmap"
+}
