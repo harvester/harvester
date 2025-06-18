@@ -1127,9 +1127,15 @@ EOF
 upgrade_addon_rancher_monitoring()
 {
   echo "upgrade addon rancher-monitoring"
+
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
   # in v1.5.0, patch version is OK
   upgrade_addon_try_patch_version_only "rancher-monitoring" "cattle-monitoring-system" $REPO_MONITORING_CHART_VERSION
+
+  # patch configmap and replace grafana pod if necessary
+  if [ "$REPO_MONITORING_CHART_VERSION" = "105.1.2+up61.3.2" ]; then
+    patch_grafana_nginx_proxy_config_configmap
+  fi
 }
 
 # NOTE: review in each release, add corresponding process
