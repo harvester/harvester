@@ -79,7 +79,7 @@ The implementation will consist of the following:
 * Install new build of harvester
 * Edit the settign `whitelisted-sidecars` to provide value of a custom image
 * Create a VM with the `hooks.kubevirt.io/hookSidecars: '[{"image":"registry:5000/kubevirt/example-hook-sidecar:devel"}]'` referring to the whitelisted sidecar
-* Start VM, and check it has 3 contains in the virt-launcher pod. One of these containers should be the sidecar container using the image specificed via the `hooks.kubevirt.io/hookSidecars` annotation.
+* Start VM, and check it has 3 containers in the virt-launcher pod. One of these containers should be the sidecar container using the image specificed via the `hooks.kubevirt.io/hookSidecars` annotation.
 
 ### Upgrade strategy
 
