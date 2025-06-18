@@ -107,54 +107,6 @@ type Image struct {
 	Tag        string `mapstructure:"tag"`
 }
 
-// checkLoggingInfra sets UpgradeLog's InfraReady condition to False after a timeout
-func (h *handler) checkLoggingInfra(upgradeLogName string) {
-	var upgradeLog *harvesterv1.UpgradeLog
-	var upgrade *harvesterv1.Upgrade
-	var err error
-	for {
-		select {
-		case <-loggingInfraTimer.C:
-			// check if logging infra setup has succeeded
-			upgradeLog, err = h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgradeLogName)
-			if err != nil {
-				if apierrors.IsNotFound(err) {
-					// upgrade might have completed, so we do nothing
-					return
-				}
-				logrus.Errorf("Failed to get upgrade log: %v", err)
-			}
-			// check if UpgradeLog CR's InfraReady condition is still Unknown
-			if harvesterv1.InfraReady.IsUnknown(upgradeLog) {
-				logrus.Info("Timed out creating logging infrastructure")
-				setInfraReadyCondition(upgradeLog, corev1.ConditionFalse, "Timeout", "Timed out creating logging infrastructure")
-				_, err = h.upgradeLogClient.Update(upgradeLog)
-				if err != nil {
-					logrus.Errorf("Failed to update upgradeLog: %v", err)
-				}
-
-				// TODO: should we use upgradeClient instead of upgradeCache?
-				upgrade, err = h.upgradeCache.Get(util.HarvesterSystemNamespaceName, upgradeLog.Spec.UpgradeName)
-				if err != nil {
-					if apierrors.IsNotFound(err) {
-						// TODO: is this even possible if UpgradeLog was found except manual deletion? What to do in such a case?
-						return
-					}
-				}
-				harvesterv1.LogReady.SetStatus(upgrade, string(corev1.ConditionFalse))
-				harvesterv1.LogReady.Reason(upgrade, "Timeout")
-				harvesterv1.LogReady.Message(upgrade, "Timed out creating logging infrastructure")
-				_, err = h.upgradeClient.Update(upgrade)
-				if err != nil {
-					logrus.Errorf("Failed to update upgrade: %v", err)
-					return
-				}
-			}
-			return
-		}
-	}
-}
-
 func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLog) (*harvesterv1.UpgradeLog, error) {
 	if upgradeLog == nil || upgradeLog.DeletionTimestamp != nil {
 		return upgradeLog, nil
@@ -168,12 +120,6 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		harvesterv1.UpgradeLogReady.CreateUnknownIfNotExists(toUpdate)
 		return h.upgradeLogClient.Update(toUpdate)
 	}
-
-	// Start timer before starting up logging infrastructure
-	loggingInfraOnce.Do(func() {
-		loggingInfraTimer = time.NewTimer(10 * time.Minute)
-		go h.checkLoggingInfra(upgradeLog.Name)
-	})
 
 	// Try to bring up the logging operator by installing rancher-logging ManagedChart
 	if harvesterv1.LoggingOperatorDeployed.GetStatus(upgradeLog) == "" {

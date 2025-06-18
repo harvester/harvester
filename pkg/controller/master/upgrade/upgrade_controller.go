@@ -162,7 +162,44 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			toUpdate.Status.UpgradeLog = upgradeLog.Name
 		}
 		harvesterv1.LogReady.CreateUnknownIfNotExists(toUpdate)
+		harvesterv1.LogReady.LastUpdated(toUpdate, time.Now().UTC().Format(time.RFC3339))
 		return h.upgradeClient.Update(toUpdate)
+	}
+
+	if harvesterv1.LogReady.IsUnknown(upgrade) {
+		ts := harvesterv1.LogReady.GetLastUpdated(upgrade)
+		t, err := time.Parse(time.RFC3339, ts)
+		if err != nil {
+			logrus.Errorf("Failed to parse last updated time: %v", err)
+			return upgrade, nil
+		}
+		if time.Since(t) > 30*time.Second {
+			toUpdate := upgrade.DeepCopy()
+			upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgrade.Status.UpgradeLog)
+			if err != nil {
+				logrus.Errorf("Failed to get upgrade log: %v", err)
+				return upgrade, nil
+			}
+			setLogReadyCondition(toUpdate, corev1.ConditionFalse, "Timeout", "Timed out creating logging infrastructure")
+			_, err = h.upgradeClient.Update(toUpdate)
+			if err != nil {
+				logrus.Errorf("Failed to update upgrade: %v", err)
+				return upgrade, nil
+			}
+
+			toUpdateUpgradeLog := upgradeLog.DeepCopy()
+			harvesterv1.InfraReady.SetStatus(toUpdateUpgradeLog, string(metav1.ConditionFalse))
+			harvesterv1.InfraReady.Reason(toUpdateUpgradeLog, "Timeout")
+			harvesterv1.InfraReady.Message(toUpdateUpgradeLog, "Timed out creating logging infrastructure")
+			_, err = h.upgradeLogClient.Update(toUpdateUpgradeLog)
+			if err != nil {
+				logrus.Errorf("Failed to update upgradeLog: %v", err)
+				return upgrade, nil
+			}
+		}
+
+		logrus.Info("Waiting for LogReady condition to be set")
+		return upgrade, nil
 	}
 
 	if (harvesterv1.LogReady.IsTrue(upgrade) || harvesterv1.LogReady.IsFalse(upgrade)) && harvesterv1.ImageReady.GetStatus(upgrade) == "" {
