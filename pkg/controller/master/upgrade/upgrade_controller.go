@@ -78,7 +78,8 @@ const (
 
 	preUpgradeVMsAnnotation = "harvesterhci.io/pre-upgrade-vms"
 
-	vmReady condition.Cond = "Ready"
+	vmReady                       condition.Cond = "Ready"
+	upgradeLogCondLogReadyTimeout                = 5 * time.Minute
 )
 
 type PreUpgradeRunningVM struct {
@@ -162,7 +163,12 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			toUpdate.Status.UpgradeLog = upgradeLog.Name
 		}
 		harvesterv1.LogReady.CreateUnknownIfNotExists(toUpdate)
+		harvesterv1.LogReady.LastUpdated(toUpdate, time.Now().UTC().Format(time.RFC3339))
 		return h.upgradeClient.Update(toUpdate)
+	}
+
+	if harvesterv1.LogReady.IsUnknown(upgrade) {
+		return h.checkLogReadyCondition(upgrade)
 	}
 
 	if (harvesterv1.LogReady.IsTrue(upgrade) || harvesterv1.LogReady.IsFalse(upgrade)) && harvesterv1.ImageReady.GetStatus(upgrade) == "" {
@@ -967,4 +973,46 @@ func (h *upgradeHandler) startVM(ctx context.Context, vm *kubevirtv1.VirtualMach
 		Body(body).
 		Do(ctx)
 	return res.Error()
+}
+
+// checkLogReadyCondition times out LogReady condition, thus moving on to the next step if upgradeLogCondLogReadyTimeout
+// time has passed since UpgradeLog's logging infrastructure setup started
+func (h *upgradeHandler) checkLogReadyCondition(upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
+	upgradeConfig, err := settings.DecodeConfig[settings.UpgradeConfig](settings.UpgradeConfigSet.Get())
+	if err != nil {
+		return upgrade, err
+	}
+	timeout := upgradeConfig.LogReadyTimeout
+
+	ts := harvesterv1.LogReady.GetLastUpdated(upgrade)
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		logrus.Errorf("Failed to parse last updated time: %v", err)
+		return upgrade, nil
+	}
+	if time.Since(t) >= timeout {
+		toUpdate := upgrade.DeepCopy()
+		upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgrade.Status.UpgradeLog)
+		if err != nil {
+			logrus.Errorf("Failed to get upgrade log: %v", err)
+			return upgrade, nil
+		}
+		logrus.Infof("Timed out waiting for UpgradeLog %q's %q condition to pass", upgradeLog.Name, harvesterv1.LogReady)
+
+		toUpdateUpgradeLog := upgradeLog.DeepCopy()
+		harvesterv1.InfraReady.SetStatus(toUpdateUpgradeLog, string(metav1.ConditionFalse))
+		harvesterv1.InfraReady.Reason(toUpdateUpgradeLog, "Timeout")
+		harvesterv1.InfraReady.Message(toUpdateUpgradeLog, "Timed out creating logging infrastructure")
+		_, err = h.upgradeLogClient.Update(toUpdateUpgradeLog)
+		if err != nil {
+			logrus.Errorf("Failed to update upgradeLog: %v", err)
+			return upgrade, nil
+		}
+		setLogReadyCondition(toUpdate, corev1.ConditionFalse, "Timeout", "Timed out creating logging infrastructure")
+		return h.upgradeClient.Update(toUpdate)
+	}
+
+	logrus.Info("Waiting for LogReady condition to be set")
+	h.upgradeController.EnqueueAfter(upgrade.Namespace, upgrade.Name, time.Second*5)
+	return upgrade, nil
 }
