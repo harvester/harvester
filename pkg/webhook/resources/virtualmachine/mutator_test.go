@@ -748,7 +748,8 @@ func TestPatchResourceOvercommitWithDedicatedCPUPlacement(t *testing.T) {
 		Default: `{"cpu":200,"memory":400,"storage":800}`,
 	}
 	clientset := fake.NewSimpleClientset()
-	clientset.Tracker().Add(setting)
+	err := clientset.Tracker().Add(setting)
+	assert.Nil(t, err)
 	mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
 		fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
 	actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)

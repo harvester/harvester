@@ -270,6 +270,13 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 		}
 		return h.deleteResourceQuota(namespace, name)
 	case cpuAndMemoryHotplug:
+		vm, err := h.vmCache.Get(namespace, name)
+		if err != nil {
+			return apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to get virtual machine %s/%s: %v", namespace, name, err))
+		}
+		if !canCPUAndMemoryHotplug(vm) {
+			return apierror.NewAPIError(validation.InvalidAction, "CPU and memory hotplug is not supported for this VM")
+		}
 		var input CPUAndMemoryHotplugInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
@@ -1095,7 +1102,7 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 		}
 	}
 	if !found {
-		return fmt.Errorf("Disk `%s` not found in virtual machine `%s/%s`", input.DiskName, namespace, name)
+		return fmt.Errorf("disk `%s` not found in virtual machine `%s/%s`", input.DiskName, namespace, name)
 	}
 
 	body, err := json.Marshal(kubevirtv1.RemoveVolumeOptions{

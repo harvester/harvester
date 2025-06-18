@@ -16,7 +16,6 @@ import (
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
@@ -37,10 +36,9 @@ func NewValidator(pvcCache v1.PersistentVolumeClaimCache,
 
 type pvcValidator struct {
 	types.DefaultValidator
-	pvcCache    v1.PersistentVolumeClaimCache
-	vmCache     ctlkv1.VirtualMachineCache
-	imageCache  ctlharvesterv1.VirtualMachineImageCache
-	volumeCache ctllonghornv1.VolumeCache
+	pvcCache   v1.PersistentVolumeClaimCache
+	vmCache    ctlkv1.VirtualMachineCache
+	imageCache ctlharvesterv1.VirtualMachineImageCache
 }
 
 func (v *pvcValidator) Resource() types.Resource {
@@ -65,7 +63,7 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 	oldPVC := oldObj.(*corev1.PersistentVolumeClaim)
 
 	if err := v.checkGoldenImageAnno(oldPVC); err != nil {
-		werror.NewInvalidError(err.Error(), "")
+		return werror.NewInvalidError(err.Error(), "")
 	}
 
 	pvc, err := v.pvcCache.Get(oldPVC.Namespace, oldPVC.Name)
@@ -172,7 +170,7 @@ func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) e
 				if apierrors.IsNotFound(err) {
 					return nil
 				}
-				return fmt.Errorf("Get image %s/%s failed: %v", imageNS, imageName, err)
+				return fmt.Errorf("get image %s/%s failed: %v", imageNS, imageName, err)
 			}
 			// ignore the golden image PVC if it is in Lost/Terminating status
 			if pvc.Status.Phase == corev1.ClaimLost || pvc.Status.Phase == "Terminating" {

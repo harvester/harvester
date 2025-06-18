@@ -75,7 +75,7 @@ func (h *nodeHandler) OnChanged(_ string, node *corev1.Node) (*corev1.Node, erro
 	}
 
 	if len(secrets.Items) != 1 {
-		return node, fmt.Errorf("Found %d plan secret for machine %s", len(secrets.Items), machineName)
+		return node, fmt.Errorf("found %d plan secret for machine %s", len(secrets.Items), machineName)
 	}
 
 	secret := secrets.Items[0]
@@ -133,5 +133,5 @@ func (h *nodeHandler) retryUpdateNodeOnConflict(nodeName string, updateFunc Node
 		}
 		time.Sleep(2 * time.Second)
 	}
-	return errors.New("Fail to update node")
+	return errors.New("fail to update node")
 }

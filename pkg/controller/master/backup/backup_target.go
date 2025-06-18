@@ -27,10 +27,6 @@ import (
 
 const (
 	backupTargetControllerName = "harvester-backup-target-controller"
-
-	longhornBackupTargetSettingName            = "backup-target"
-	longhornBackupTargetSecretSettingName      = "backup-target-credential-secret"
-	longhornBackupstorePollIntervalSettingName = "backupstore-poll-interval"
 )
 
 // RegisterBackupTarget register the setting controller and reconsile longhorn setting when backup target changed
@@ -133,7 +129,7 @@ func (h *TargetHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Sett
 			return h.settings.Update(settingCpy)
 		}
 
-		return h.setConfiguredCondition(setting, "", fmt.Errorf("Invalid backup target type:%s or parameter", target.Type))
+		return h.setConfiguredCondition(setting, "", fmt.Errorf("invalid backup target type:%s or parameter", target.Type))
 	}
 
 	if target.RefreshIntervalInSeconds > 0 {

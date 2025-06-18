@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Build, tag and push the harvester-upgrade image
 set -e
 
 TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"

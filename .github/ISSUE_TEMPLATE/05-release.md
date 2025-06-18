@@ -63,6 +63,7 @@ Action items for releasing v
 - [ ] Update upgrade responder 1 week after the release [doc].
   - For the first stable release, we need to consider several factors and reach a consensus among maintainers before claiming it stable. 
   - For any patch release after a stable release, we need to wait 1-2 weeks for user feedback.
+- [ ] Create `isv:rancher:Harvester:OS:v<next minor>` and `isv:Rancher:Harvester:ExtraPackages:v<next minor>` projects on BS and link them to the corresponding dev project, and unlink the previous minor from dev.
 
 
 **After marking the release as a `stable` release, the Release Captain needs to coordinate the following items**

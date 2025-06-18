@@ -46,7 +46,6 @@ type ControllerHandler struct {
 	longhornVolumeCache          ctllhv1.VolumeCache
 	longhornReplicaCache         ctllhv1.ReplicaCache
 	restConfig                   *rest.Config
-	virtSubresourceRestClient    rest.Interface
 	context                      context.Context
 }
 
@@ -345,6 +344,9 @@ func (ndc *ControllerHandler) FindNonMigratableVMS(node *corev1.Node) (map[strin
 	}
 
 	cdromOrContainerDiskVMs, err := findVMSwithCDROMOrContainerDisk(vmiList)
+	if err != nil {
+		return nil, fmt.Errorf("error finding VMs with CDROM or container disk: %v", err)
+	}
 	if len(cdromOrContainerDiskVMs) > 0 {
 		result[util.ContainerDiskOrCDRomKey] = cdromOrContainerDiskVMs
 	}
@@ -459,7 +461,7 @@ func (ndc *ControllerHandler) CheckVMISchedulingRequirements(originalNode *corev
 func filterNodesForNodeSelector(possibleNodes []*corev1.Node, vmi *kubevirtv1.VirtualMachineInstance) []*corev1.Node {
 	var validNodes []*corev1.Node
 	// VM's may also have node selector, which is used when defining specific hostnames
-	if vmi.Spec.NodeSelector != nil && len(vmi.Spec.NodeSelector) > 0 {
+	if len(vmi.Spec.NodeSelector) > 0 {
 		vmiNodeSelector := labels.SelectorFromSet(vmi.Spec.NodeSelector)
 		for _, v := range possibleNodes {
 			nodeLabels := labels.Set(v.GetLabels())

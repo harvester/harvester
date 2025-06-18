@@ -234,10 +234,12 @@ func getVMBackupMetadataFilePath(vmBackupNamespace, vmBackupName string) string 
 	return filepath.Join(vmBackupMetadataFolderPath, vmBackupNamespace, fmt.Sprintf("%s.cfg", vmBackupName))
 }
 
-func getBackupTargetHash(value string) string {
+func getBackupTargetHash(value string) (string, error) {
 	hash := sha256.New224()
-	io.Copy(hash, io.MultiReader(strings.NewReader(value)))
-	return fmt.Sprintf("%x", hash.Sum(nil))
+	if _, err := io.Copy(hash, io.MultiReader(strings.NewReader(value))); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
 // This util function is from LH

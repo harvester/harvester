@@ -58,6 +58,7 @@ var (
 	NTPServers             = NewSetting(NTPServersSettingName, "")
 	WhiteListedSettings    = []string{ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
 	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "restoreVM": false}`)
+	MaxHotplugRatio        = NewSetting(MaxHotplugRatioSettingName, "4")
 )
 
 const (
@@ -103,6 +104,7 @@ const (
 	ReleaseDownloadURLSettingName                     = "release-download-url"
 	SupportBundleNamespacesSettingName                = "support-bundle-namespaces"
 	DefaultStorageClassSettingName                    = "default-storage-class"
+	MaxHotplugRatioSettingName                        = "max-hotplug-ratio"
 
 	// settings have `default` and `value` string used in many places, replace them with const
 	KeywordDefault = "default"
@@ -211,11 +213,11 @@ func NewSetting(name, def string) Setting {
 }
 
 func GetEnvKey(key string) string {
-	return "HARVESTER_" + strings.ToUpper(strings.Replace(key, "-", "_", -1))
+	return "HARVESTER_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_"))
 }
 
 func GetEnvDefaultValueKey(key string) string {
-	return "HARVESTER_" + strings.ToUpper(strings.Replace(key, "-", "_", -1)) + "_DEFAULT_VALUE"
+	return "HARVESTER_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_")) + "_DEFAULT_VALUE"
 }
 
 func IsRelease() bool {

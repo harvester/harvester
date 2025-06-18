@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Entrypoint of the build scripts
 set -e
 
 mkdir -p bin dist

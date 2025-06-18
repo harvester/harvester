@@ -292,7 +292,8 @@ func Test_syncVersions(t *testing.T) {
 	server := fakeHTTPEndpoint(resp)
 	server.Start()
 	defer server.Close()
-	settings.ReleaseDownloadURL.Set(server.URL)
+	err := settings.ReleaseDownloadURL.Set(server.URL)
+	assert.Nil(t, err)
 	client := fake.NewSimpleClientset(versionObjs...)
 	vc := fakeclients.VersionClient(client.HarvesterhciV1beta1().Versions)
 	assert := require.New(t)
@@ -302,7 +303,7 @@ func Test_syncVersions(t *testing.T) {
 		httpClient:    server.Client(),
 		versionClient: vc,
 	}
-	err := vs.syncVersions(resp, "v1.3.0")
+	err = vs.syncVersions(resp, "v1.3.0")
 	assert.NoError(err)
 	versionList, err := vc.List(defaultNamespace, metav1.ListOptions{})
 	assert.NoError(err)

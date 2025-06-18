@@ -16,7 +16,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -616,7 +615,7 @@ func (h *handler) OnPvcChange(_ string, pvc *corev1.PersistentVolumeClaim) (*cor
 
 	upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgradeLogName)
 	if err != nil {
-		if !errors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return pvc, err
 		}
 		logrus.WithFields(logrus.Fields{

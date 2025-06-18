@@ -7,7 +7,6 @@ import (
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -23,7 +22,7 @@ const (
 
 // hostLabelsReconcileMapping defines the mapping for reconciliation of node labels to virtual machine instance annotations
 var hostLabelsReconcileMapping = []string{
-	v1.LabelTopologyZone, v1.LabelTopologyRegion, v1.LabelHostname,
+	corev1.LabelTopologyZone, corev1.LabelTopologyRegion, corev1.LabelHostname,
 }
 
 type VMIController struct {
@@ -61,7 +60,7 @@ func (h *VMIController) ReconcileFromHostLabels(_ string, vmi *kubevirtv1.Virtua
 				toUpdate.Annotations = map[string]string{}
 			}
 			toUpdate.Annotations[label] = srcValue
-		} else if _, exist := toUpdate.Annotations[label]; exist {
+		} else {
 			delete(toUpdate.Annotations, label)
 		}
 	}

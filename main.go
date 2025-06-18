@@ -11,12 +11,15 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/rancher/wrangler/v3/pkg/signals"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 
 	"github.com/harvester/harvester/pkg/cmd"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/server"
+)
+
+const (
+	name = "Harvester API Server"
 )
 
 func main() {
@@ -72,14 +75,14 @@ func main() {
 		},
 	}
 
-	app := cmd.NewApp("Harvester API Server", "", flags, func(commonOptions *config.CommonOptions) error {
+	app := cmd.NewApp(name, "", flags, func(commonOptions *config.CommonOptions) error {
 		return run(commonOptions, options)
 	})
+
 	app.Run()
 }
 
 func run(commonOptions *config.CommonOptions, options config.Options) error {
-	logrus.Info("Starting controller")
 	ctx := signals.SetupSignalContext()
 
 	kubeConfig, err := server.GetConfig(commonOptions.KubeConfig)

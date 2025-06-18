@@ -57,12 +57,12 @@ func (cd *Downloader) DoDownload(vmImg *harvesterv1.VirtualMachineImage, rw http
 	}
 
 	// once the download server is ready, we need defer function to delete the downloader with any error
-	defer func() error {
+	defer func() {
 		// Delete downloader after download
 		if err := cd.vmImageDownloaderClient.Delete(vmImgNamespace, vmImgName, &metav1.DeleteOptions{}); err != nil {
-			return fmt.Errorf("failed to delete ImageDownloader %s/%s: %w", vmImgNamespace, vmImgName, err)
+			// just log the error, we cannot do anything at this moment
+			logrus.Errorf("failed to delete ImageDownloader %s/%s: %v", vmImgNamespace, vmImgName, err)
 		}
-		return nil
 	}()
 
 	downloadReq, err := http.NewRequestWithContext(req.Context(), http.MethodGet, downloadURL, nil)
