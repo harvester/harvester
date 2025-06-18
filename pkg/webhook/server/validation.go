@@ -23,6 +23,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/secret"
 	"github.com/harvester/harvester/pkg/webhook/resources/setting"
 	"github.com/harvester/harvester/pkg/webhook/resources/storageclass"
+	"github.com/harvester/harvester/pkg/webhook/resources/supportbundle"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
 	"github.com/harvester/harvester/pkg/webhook/resources/upgrade"
 	"github.com/harvester/harvester/pkg/webhook/resources/version"
@@ -174,6 +175,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache(),
 		),
 		secret.NewValidator(clients.StorageFactory.Storage().V1().StorageClass().Cache()),
+		supportbundle.NewValidator(clients.Core.Namespace().Cache()),
 		datavolume.NewValidator(
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
