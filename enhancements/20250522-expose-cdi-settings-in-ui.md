@@ -58,7 +58,7 @@ The CDI settings will be integrated into the existing Storage Classes page in Ha
 - The Volume Mode / Access Modes setting supports multiple combinations, where each combination must have a unique Volume Mode and one or more associated Access Modes.
   - The volume mode should be either `FileSystem` or `Block`.
   - The access modes can have 0~4 unique mode, the access mode could be either `ReadWriteOnce`, `ReadOnlyMany`, `ReadWriteMany` or `ReadWriteOncePod`.
-- The Volume Snapshot Class is presented as a dropdown menu listing all available VolumeSnapshotClass names.
+- The Volume Snapshot Class is presented as a text field to input the Volume Snapshot Class name.
 - The Clone Strategy is also a dropdown menu with the following fixed options: "copy", "snapshot", and "csi-clone".
 - The File System Overhead must be a value between 0 and 1, with a regex pattern of ^(0(?:\.\d{1,3})?|1)$ (i.e., up to three digits after the decimal point).
 
@@ -85,12 +85,13 @@ metadata:
       {"Block":["ReadWriteOnce","ReadOnlyMany"],"Filesystem":["ReadWriteOnce","ReadWriteMany"]}
 ```
 
-The implementation consists of two main components:
+The implementation consists of below main components:
 
 1. StorageClass Webhook Validation
 Extend the existing StorageClass validation webhook to validate the five new annotations. The webhook will perform pattern matching for filesystemOverhead, enum validation for cloneStrategy, existence checks for volumeSnapshotClass, and JSON schema validation for volumeModeAccessModes.
 2. New StorageClass Controller
 Introduce a new storageclass_controller specifically for watching for StorageClass changes and handling filesystemOverhead synchronization to the CDI object and synchronize cloneStrategy, volumeSnapshotClass, and volumeModeAccessModes annotations to the corresponding StorageProfile CRD.
+3. If the user doesn’t set `cdi.harvesterhci.io/storageProfileVolumeSnapshotClass` in the storage class, but does set `volumeSnapshotClassName` in `csi-driver-config` for the same provisioner, the storage class mutator can use that value as the default.
 
 ### Compatibility
 Currently, the storage_profile_controller automatically populates default values such as cloneStrategy, accessMode, and volumeMode for validated CSI drivers like LonghornV2 and LVM.
