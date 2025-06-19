@@ -2,6 +2,7 @@ package supportbundle
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -36,6 +37,17 @@ func (v *supportBundleValidator) Resource() types.Resource {
 			admissionregv1.Update,
 		},
 	}
+}
+
+func (v *supportBundleValidator) Update(_ *types.Request, oldObj, newObj runtime.Object) error {
+	oldSB := oldObj.(*v1beta1.SupportBundle)
+	newSB := newObj.(*v1beta1.SupportBundle)
+
+	if !reflect.DeepEqual(oldSB.Spec, newSB.Spec) { // Check if the spec has changed
+		return werror.NewBadRequest("modifying the spec of an existing support bundle is not allowed")
+	}
+
+	return nil
 }
 
 func (v *supportBundleValidator) Create(_ *types.Request, obj runtime.Object) error {
