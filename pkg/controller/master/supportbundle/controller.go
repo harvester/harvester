@@ -114,6 +114,7 @@ func (h *Handler) checkManagerStatus(sb *harvesterv1.SupportBundle) (*harvesterv
 	}
 
 	if timeout != 0 && time.Now().After(sb.CreationTimestamp.Add(timeout)) {
+		logrus.Errorf("[%s] support bundle generation timeout after %s", sb.Name, timeout.String())
 		return h.setError(sb, "fail to generate supportbundle: timeout")
 	}
 

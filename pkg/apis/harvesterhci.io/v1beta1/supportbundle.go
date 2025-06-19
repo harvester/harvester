@@ -41,12 +41,12 @@ type SupportBundleSpec struct {
 	Timeout *int `json:"timeout,omitempty"`
 
 	// +optional
-	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Minimum=0
 	// Number of minutes Harvester waits before deleting a support bundle that has been packaged but not downloaded (either deliberately or unsuccessfully) or retained.
 	Expiration int `json:"expiration,omitempty"`
 
 	// +optional
-	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Minimum=0
 	// Number of minutes Harvester allows for collection of logs and configurations (Harvester) on the nodes for the support bundle.
 	NodeTimeout int `json:"nodeTimeout,omitempty"`
 }
