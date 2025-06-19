@@ -39,6 +39,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	server.BaseSchemas.MustImportAndCustomize(CPUAndMemoryHotplugInput{}, nil)
 
 	dataVolumeClient := scaled.CdiFactory.Cdi().V1beta1().DataVolume()
+	kubevirtCache := scaled.VirtFactory.Kubevirt().V1().KubeVirt().Cache()
 	vms := scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 	vmis := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	vmims := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration()
@@ -71,6 +72,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	actionHandler := vmActionHandler{
 		namespace:                 options.Namespace,
 		datavolumeClient:          dataVolumeClient,
+		kubevirtCache:             kubevirtCache,
 		vms:                       vms,
 		vmCache:                   vms.Cache(),
 		vmis:                      vmis,
