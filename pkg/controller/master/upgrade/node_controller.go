@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"time"
 
+	jobv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -27,6 +28,8 @@ type nodeHandler struct {
 	upgradeClient ctlharvesterv1.UpgradeClient
 	upgradeCache  ctlharvesterv1.UpgradeCache
 	secretClient  ctlcorev1.SecretClient
+	jobClient     jobv1.JobClient
+	jobCache      jobv1.JobCache
 }
 
 func (h *nodeHandler) OnChanged(_ string, node *corev1.Node) (*corev1.Node, error) {
@@ -97,7 +100,7 @@ func (h *nodeHandler) OnChanged(_ string, node *corev1.Node) (*corev1.Node, erro
 			}
 		}
 
-		err := h.retryUpdateNodeOnConflict(node.Name, func(n *corev1.Node) {
+		err = h.retryUpdateNodeOnConflict(node.Name, func(n *corev1.Node) {
 			if n.Annotations == nil {
 				return
 			}

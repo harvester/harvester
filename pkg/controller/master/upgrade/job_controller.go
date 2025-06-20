@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	jobv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
@@ -18,6 +19,7 @@ import (
 	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	upgradev1 "github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -45,6 +47,7 @@ const (
 	upgradeJobTypeLabel             = "harvesterhci.io/upgradeJobType"
 	upgradeJobTypePreDrain          = "pre-drain"
 	upgradeJobTypePostDrain         = "post-drain"
+	upgradeJobTypeRestoreVM         = "restore-vm"
 	upgradeJobTypeSingleNodeUpgrade = "single-node-upgrade"
 )
 
@@ -59,6 +62,8 @@ type jobHandler struct {
 	secretClient ctlcorev1.SecretClient
 	nodeClient   ctlcorev1.NodeClient
 	nodeCache    ctlcorev1.NodeCache
+	jobClient    jobv1.JobClient
+	jobCache     jobv1.JobCache
 }
 
 func (h *jobHandler) OnChanged(_ string, job *batchv1.Job) (*batchv1.Job, error) {
@@ -88,6 +93,11 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 	jobType, ok := job.Labels[upgradeJobTypeLabel]
 	if !ok {
 		return nil, errors.New("sync a job without type")
+	}
+
+	if jobType == upgradeJobTypeRestoreVM {
+		// The restore VM job is fire-and-forget; it doesn't update the upgrade status.
+		return job, nil
 	}
 
 	nodeName, ok := job.Labels[harvesterNodeLabel]
@@ -135,6 +145,9 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 			} else if jobType == upgradeJobTypePostDrain && nodeState == nodeStatePostDraining {
 				logrus.Debugf("Post-drain job %s is done.", job.Name)
 				if repoInfo.Release.OS == node.Status.NodeInfo.OSImage {
+					if err = h.sendRestoreVMJob(upgrade, node, repoInfo); err != nil {
+						return job, err
+					}
 					setNodeUpgradeStatus(toUpdate, nodeName, StateSucceeded, "", "")
 					postDrained = true
 				} else {
@@ -147,6 +160,9 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 			} else if jobType == upgradeJobTypeSingleNodeUpgrade {
 				logrus.Debugf("Single-node-upgrade job %s is done.", job.Name)
 				if repoInfo.Release.OS == node.Status.NodeInfo.OSImage {
+					if err = h.sendRestoreVMJob(upgrade, node, repoInfo); err != nil {
+						return job, err
+					}
 					setNodeUpgradeStatus(toUpdate, nodeName, StateSucceeded, "", "")
 				} else {
 					setNodeUpgradeStatus(toUpdate, nodeName, nodeStateWaitingReboot, "", "")
@@ -282,4 +298,35 @@ func (h *jobHandler) setNodeWaitRebootLabel(node *v1.Node, repoInfo *repoinfo.Re
 	nodeUpdate.Annotations[harvesterNodePendingOSImage] = repoInfo.Release.OS
 	_, err := h.nodeClient.Update(nodeUpdate)
 	return err
+}
+
+func (h *jobHandler) sendRestoreVMJob(upgrade *harvesterv1.Upgrade, node *v1.Node, repoInfo *repoinfo.RepoInfo) error {
+	restoreVM, err := util.IsRestoreVM()
+	if err != nil {
+		logrus.WithFields(logrus.Fields{"name": upgrade.Name, "node": node.Name}).WithError(err).
+			Errorf("Failed to get setting UpgradeConfig, skip restore VM job")
+		return nil
+	}
+	// if restoreVM is false, we don't need to create restore VM job
+	if !restoreVM {
+		return nil
+	}
+	restoreVMJob := applyNodeJob(upgrade, repoInfo, node.Name, upgradeJobTypeRestoreVM)
+	job, err := h.jobCache.Get(restoreVMJob.Namespace, restoreVMJob.Name)
+	if job != nil || err == nil {
+		// job already exists, no need to create it again
+		return nil
+	}
+	if apierrors.IsNotFound(err) {
+		// create restore VM job if it does not exist
+		_, err = h.jobClient.Create(restoreVMJob)
+		if err != nil && !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create restore VM job for node %s: %w", node.Name, err)
+		}
+		logrus.WithFields(logrus.Fields{"upgrade": upgrade.Name, "node": node.Name}).
+			Info("Restore VM job has been created successfully")
+	} else {
+		return fmt.Errorf("failed to get restore VM job for node %s: %w", node.Name, err)
+	}
+	return nil
 }

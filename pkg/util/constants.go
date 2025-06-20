@@ -217,4 +217,6 @@ const (
 	HarvesterManagedChart            = "harvester"
 	RancherLoggingCRDManagedChart    = "rancher-logging-crd"
 	RancherMonitoringCRDManagedChart = "rancher-monitoring-crd"
+
+	RestoreVMConfigMap = "restore-vm"
 )
