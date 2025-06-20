@@ -544,7 +544,27 @@ func (h *RestoreHandler) reconcileVolumeRestores(
 
 		if pvc.Status.Phase == corev1.ClaimPending {
 			isVolumesReady = false
-		} else if pvc.Status.Phase != corev1.ClaimBound {
+			continue
+		}
+
+		if util.GetProvisionedPVCProvisioner(pvc, h.scCache) == types.LonghornDriverName {
+			volumeName, err := getVolumeName(pvc)
+			if err != nil {
+				return false, err
+			}
+
+			volume, err := h.volumeCache.Get(util.LonghornSystemNamespaceName, volumeName)
+			if err != nil {
+				return false, err
+			}
+			for _, condition := range volume.Status.Conditions {
+				if condition.Type == lhv1beta2.VolumeConditionTypeRestore && condition.Reason == lhv1beta2.VolumeConditionReasonRestoreFailure {
+					return false, fmt.Errorf("volume %s/%s restore failed: %s", volume.Namespace, volume.Name, condition.Message)
+				}
+			}
+		}
+
+		if pvc.Status.Phase != corev1.ClaimBound {
 			return false, fmt.Errorf("PVC %s/%s in status %q", pvc.Namespace, pvc.Name, pvc.Status.Phase)
 		}
 	}
