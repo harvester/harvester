@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
+	"time"
 
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
@@ -63,6 +65,9 @@ var (
 		imageFluentd:        {"images", imageFluentd},
 		imageConfigReloader: {"images", imageConfigReloader},
 	}
+
+	loggingInfraTimer *time.Timer
+	loggingInfraOnce  sync.Once
 )
 
 type handler struct {
@@ -236,7 +241,7 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		return upgradeLog, nil
 	}
 
-	// Signal to proceed the original upgrade flow
+	// Signal to proceed to the original upgrade flow
 	if harvesterv1.UpgradeLogReady.IsTrue(upgradeLog) && harvesterv1.UpgradeEnded.GetStatus(upgradeLog) == "" {
 		logrus.Info("Logging infrastructure is ready, proceed the upgrade procedure")
 
@@ -297,7 +302,7 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 		return h.upgradeLogClient.Update(toUpdate)
 	}
 
-	// Tear down the loggin infrastructure but keep the log downloader and the archive volume
+	// Tear down the logging infrastructure but keep the log downloader and the archive volume
 	if harvesterv1.UpgradeEnded.IsTrue(upgradeLog) {
 		upgradeLogState, ok := upgradeLog.Annotations[upgradeLogStateAnnotation]
 		if !ok {
