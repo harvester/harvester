@@ -314,6 +314,10 @@ func (v *vmValidator) checkVolumeReq(newVM *kubevirtv1.VirtualMachine) error {
 		return nil
 	}
 
+	// if vm is being created by vm import controller then we need to skip pvc golden image validation
+	// this case needs to be treated differently from a standaard image scenario as user will boot directly from disk
+	imported := checkIsVirtualMachineImported(newVM)
+
 	for _, volReq := range newVM.Status.VolumeRequests {
 		if volReq.AddVolumeOptions == nil {
 			continue
@@ -330,6 +334,11 @@ func (v *vmValidator) checkVolumeReq(newVM *kubevirtv1.VirtualMachine) error {
 			}
 			return werror.NewInternalError(fmt.Sprintf("failed to get PVC %s/%s, err: %s", pvcNS, pvcName, err))
 		}
+
+		if imported {
+			continue
+		}
+
 		if _, ok := pvc.Annotations[util.AnnotationGoldenImage]; ok {
 			if pvc.Annotations[util.AnnotationGoldenImage] == "true" {
 				return werror.NewInvalidError(fmt.Sprintf("PVC %s/%s is a golden image, it can't be used as a hotplug volume in VM", pvcNS, pvcName), "status.volumeRequests")
@@ -433,6 +442,10 @@ func (v *vmValidator) checkGoldenImage(vm *kubevirtv1.VirtualMachine) error {
 		return nil
 	}
 
+	// if vm is being created by vm import controller then we need to skip pvc golden image validation
+	// this case needs to be treated differently from a standaard image scenario as user will boot directly from disk
+	imported := checkIsVirtualMachineImported(vm)
+
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim == nil {
 			continue
@@ -448,6 +461,11 @@ func (v *vmValidator) checkGoldenImage(vm *kubevirtv1.VirtualMachine) error {
 		if targetPVC.Annotations == nil {
 			continue
 		}
+
+		if imported {
+			continue
+		}
+
 		if _, ok := targetPVC.Annotations[util.AnnotationGoldenImage]; ok {
 			if targetPVC.Annotations[util.AnnotationGoldenImage] == "true" {
 				return werror.NewInvalidError(fmt.Sprintf("PVC %s/%s is a golden image, it can't be used as a volume in VM", targetPVC.Namespace, targetPVC.Name), "spec.templates.spec.volumes")
@@ -560,4 +578,14 @@ func (v *vmValidator) checkDedicatedCPUPlacement(vm *kubevirtv1.VirtualMachine) 
 	}
 
 	return nil
+}
+
+// checkIsVirtualMachineImported checks if a virtualmachine has been created by the vm import controller
+func checkIsVirtualMachineImported(vm *kubevirtv1.VirtualMachine) bool {
+	if vm.Annotations == nil {
+		return false
+	}
+
+	_, imported := vm.Annotations[util.AnnotationVMImportController]
+	return imported
 }
