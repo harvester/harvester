@@ -275,7 +275,14 @@ func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, 
 	// when AnnotationReservedMemory is set, or AdditionalGuestMemoryOverheadRatioConfig is not set
 	// if AdditionalGuestMemoryOverheadRatioConfig and AdditionalGuestMemoryOverheadRatioConfig are both set
 	// then the VM will benefit from both
+
+	// if hotpluggable guest memory is set by the user, use it for subsequent calculations.
+	// otherwise, set the initial guest memory to be the same as the pod's memory limit.
 	guestMemory := *mem
+	if vm.Spec.Template.Spec.Domain.Memory != nil && vm.Spec.Template.Spec.Domain.Memory.Guest != nil {
+		guestMemory = *vm.Spec.Template.Spec.Domain.Memory.Guest
+	}
+
 	if useReservedMemory {
 		guestMemory.Sub(reservedMemory)
 	}
@@ -310,8 +317,6 @@ func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, 
 
 	if vm.Spec.Template.Spec.Domain.Memory == nil {
 		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"%s"}}`, &guestMemory))
-	} else {
-		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, &guestMemory))
 	}
 
 	return patchOps, nil
