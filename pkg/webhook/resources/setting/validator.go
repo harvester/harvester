@@ -1676,10 +1676,10 @@ func validateMaxHotplugRatioHelper(field, value string) error {
 	}
 	num, err := strconv.ParseUint(value, 10, 32)
 	if err != nil {
-		return fmt.Errorf("failed to parse %s: %v", field, err)
+		return fmt.Errorf("failed to parse %v: %v %w", field, value, err)
 	}
-	if num < 1 {
-		return fmt.Errorf("%s must be greater than or equal to 1", field)
+	if num < util.MinHotplugRatioValue || num > util.MaxHotplugRatioValue {
+		return fmt.Errorf("%v: %v must be in range [%v .. %v]", field, value, util.MinHotplugRatioValue, util.MaxHotplugRatioValue)
 	}
 	return nil
 }
