@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/steve/pkg/server"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -36,21 +35,32 @@ type settingsProvider struct {
 }
 
 func (s *settingsProvider) Get(name string) string {
+	logrus.Debugf("Fetching setting: %s", name)
+
 	value := os.Getenv(settings.GetEnvKey(name))
 	if value != "" {
+		logrus.Debugf("Setting %s found in environment variable with value: %s", name, value)
 		return value
 	}
+
+	logrus.Infof("Attempting to fetch setting %s from cache", name)
 	obj, err := s.settingsLister.Get(name)
 	if err != nil {
+		logrus.Warnf("Failed to fetch setting %s from cache, attempting direct API call: %v", name, err)
 		val, err := s.settings.Get(name, v1.GetOptions{})
 		if err != nil {
+			logrus.Errorf("Failed to fetch setting %s from API, falling back to default: %v", name, err)
 			return s.fallback[name]
 		}
 		obj = val
 	}
+
 	if obj.Value == "" {
+		logrus.Debugf("Setting %s has no value, using default: %s", name, obj.Default)
 		return obj.Default
 	}
+
+	logrus.Infof("Setting %s found with value: %s", name, obj.Value)
 	return obj.Value
 }
 
