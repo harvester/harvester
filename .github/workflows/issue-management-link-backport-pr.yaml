@@ -78,11 +78,31 @@ jobs:
 
             echo "Searching for backport issue with title: '${search_title}'"
 
-            backport_issue_number=$(gh issue list --state open --search "${search_title}" --json number --jq ".[].number")
+            # Get both number and title from the search results
+            backport_issues_json=$(gh issue list --state open --search "${search_title}" --json number,title)
+
+            if [[ "$backport_issues_json" != "[]" && -n "$backport_issues_json" ]]; then
+              # Get the length of the JSON array
+              array_length=$(echo "$backport_issues_json" | jq 'length')
+              
+              # Loop through each issue in the JSON array
+              for ((i=0; i<$array_length; i++)); do
+                found_number=$(echo "$backport_issues_json" | jq -r ".[$i].number")
+                found_title=$(echo "$backport_issues_json" | jq -r ".[$i].title")
+                
+                # Compare the found title with our expected title
+                if [[ "$found_title" == "$search_title" ]]; then
+                  echo "Found exact match backport issue ${REPO_NAME}#${found_number} with title: '${found_title}'"
+                  echo "Linking backport issue ${REPO_NAME}#${found_number}"
+                  backport_issue_number="$found_number"
+                  break
+                else
+                  echo "Found partial match ${REPO_NAME}#${found_number} but title doesn't match exactly: '${found_title}'"
+                fi
+              done
+            fi
 
             if [[ -n "$backport_issue_number" ]]; then
-              echo "Found backport issue ${REPO_NAME}#${backport_issue_number}"
-              echo "Linking backport issue ${REPO_NAME}#${backport_issue_number}"
 
               # comment on the backport issue
               gh issue comment "${backport_issue_number}" --body "Backport PR (${BRANCH}): ${{ github.event.pull_request.html_url }}"
