@@ -5,19 +5,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	storagenetworkctl "github.com/harvester/harvester/pkg/controller/master/storagenetwork"
+	networkutil "github.com/harvester/harvester/pkg/util/network"
 )
 
 func Test_ipAddressRange(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		config      *storagenetworkctl.Config
+		config      *networkutil.Config
 		expectedErr bool
 	}{
 		{
 			name: "exclude a subset of include range,returns > MinallocatableIPAddrs addresses",
-			config: &storagenetworkctl.Config{
+			config: &networkutil.Config{
 				Range:   "192.168.2.0/24",
 				Exclude: []string{"192.168.2.1/30"},
 			},
@@ -25,7 +25,7 @@ func Test_ipAddressRange(t *testing.T) {
 		},
 		{
 			name: "exclude a subset of include range,returns > MinallocatableIPAddrs addresses",
-			config: &storagenetworkctl.Config{
+			config: &networkutil.Config{
 				Range:   "192.168.2.0/24",
 				Exclude: []string{"192.168.2.1/28"},
 			},
@@ -33,7 +33,7 @@ func Test_ipAddressRange(t *testing.T) {
 		},
 		{
 			name: "valid include range,returns > MinallocatableIPAddrs addresses",
-			config: &storagenetworkctl.Config{
+			config: &networkutil.Config{
 				Range:   "192.168.2.0/27",
 				Exclude: []string{},
 			},
@@ -41,7 +41,7 @@ func Test_ipAddressRange(t *testing.T) {
 		},
 		{
 			name: "exclude all from include subnet,returns no allocatable addresses",
-			config: &storagenetworkctl.Config{
+			config: &networkutil.Config{
 				Range:   "192.168.2.0/24",
 				Exclude: []string{"192.168.2.0/24"},
 			},
@@ -49,7 +49,7 @@ func Test_ipAddressRange(t *testing.T) {
 		},
 		{
 			name: "exclude all from include subnet,returns no allocatable addresses",
-			config: &storagenetworkctl.Config{
+			config: &networkutil.Config{
 				Range:   "192.168.2.0/30",
 				Exclude: []string{"192.168.2.1/30"},
 			},
@@ -57,7 +57,7 @@ func Test_ipAddressRange(t *testing.T) {
 		},
 		{
 			name: "no allocatable ip addresses in include range",
-			config: &storagenetworkctl.Config{
+			config: &networkutil.Config{
 				Range:   "192.168.2.0/32",
 				Exclude: []string{},
 			},
@@ -65,7 +65,7 @@ func Test_ipAddressRange(t *testing.T) {
 		},
 		{
 			name: "no allocatable ip addresses in include range",
-			config: &storagenetworkctl.Config{
+			config: &networkutil.Config{
 				Range:   "192.168.2.0/31",
 				Exclude: []string{},
 			},
