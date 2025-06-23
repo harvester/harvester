@@ -36,7 +36,6 @@ detect_repo()
   REPO_RANCHER_VERSION=$(yq -e e '.rancher' $release_file)
   REPO_MONITORING_CHART_VERSION=$(yq -e e '.monitoringChart' $release_file)
   REPO_LOGGING_CHART_VERSION=$(yq -e e '.loggingChart' $release_file)
-  REPO_LOGGING_CHART_HARVESTER_EVENTROUTER_VERSION=$(yq -e e '.loggingChartHarvesterEventRouter' $release_file)
   REPO_FLEET_CHART_VERSION=$(yq -e e '.rancherDependencies.fleet.chart' $release_file)
   REPO_FLEET_APP_VERSION=$(yq -e e '.rancherDependencies.fleet.app' $release_file)
   REPO_FLEET_CRD_CHART_VERSION=$(yq -e e '.rancherDependencies.fleet-crd.chart' $release_file)
@@ -79,11 +78,6 @@ detect_repo()
 
   if [ -z "$REPO_LOGGING_CHART_VERSION" ]; then
     echo "[ERROR] Fail to get logging chart version from upgrade repo."
-    exit 1
-  fi
-
-  if [ -z "$REPO_LOGGING_CHART_HARVESTER_EVENTROUTER_VERSION" ]; then
-    echo "[ERROR] Fail to get logging chart harvester eventrouter version from upgrade repo."
     exit 1
   fi
 
@@ -500,8 +494,7 @@ upgrade_addon_rancher_logging_with_patch_eventrouter_image()
   local name=rancher-logging
   local namespace=cattle-logging-system
   local newversion=$1
-  local ernewversion=$2
-  echo "try to patch addon $name in $namespace to $newversion, with patch of eventrouter image to $ernewversion"
+  echo "try to patch addon $name in $namespace to $newversion, with patch of eventrouter image"
 
   # check if addon is there
   local version=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.spec.version}' || true)
@@ -524,21 +517,16 @@ upgrade_addon_rancher_logging_with_patch_eventrouter_image()
   if [ $EXIT_CODE != 0 ]; then
     echo "eventrouter is not found, need not patch"
   else
-<<<<<<< HEAD
     if [[ "rancher/harvester-eventrouter:v1.5.1-rc4" > $tag ]]; then
       echo "eventrouter image is $tag, will patch to v1.5.1-rc4"
       fixeventrouter=true
     else
       echo "eventrouter image is updated, need not patch"
     fi
-=======
-    echo "eventrouter image is $tag, will patch to $ernewversion"
-    fixeventrouter=true
->>>>>>> 5d8937dc (Upgrade the eventrouter image to defined version on repo)
   fi
 
   if [[ $fixeventrouter == false ]]; then
-    echo "eventrouter image is not found, fallback to the normal addon $name upgrade"
+    echo "eventrouter image is updated/not found, fallback to the normal addon $name upgrade"
     rm -f $valuesfile
     upgrade_addon_try_patch_version_only $name $namespace $newversion
     return 0
@@ -548,11 +536,7 @@ upgrade_addon_rancher_logging_with_patch_eventrouter_image()
   cat $valuesfile
 
   if [[ $fixeventrouter == true ]]; then
-<<<<<<< HEAD
     yq -e '.eventTailer.workloadOverrides.containers[0].image = "rancher/harvester-eventrouter:v1.5.1-rc4"' -i $valuesfile
-=======
-    NEW_VERSION=$ernewversion yq -e '.eventTailer.workloadOverrides.containers[0].image = strenv(NEW_VERSION)' -i $valuesfile
->>>>>>> 5d8937dc (Upgrade the eventrouter image to defined version on repo)
   fi
 
   # add 4 spaces to each line
