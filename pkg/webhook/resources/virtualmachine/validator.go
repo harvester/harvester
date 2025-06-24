@@ -24,7 +24,7 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
-	vmUtil "github.com/harvester/harvester/pkg/util/virtualmachine"
+	vmutil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	indexerwebhook "github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -314,9 +314,9 @@ func (v *vmValidator) checkVolumeReq(newVM *kubevirtv1.VirtualMachine) error {
 		return nil
 	}
 
-	// if vm is being created by vm import controller then we need to skip pvc golden image validation
-	// this case needs to be treated differently from a standaard image scenario as user will boot directly from disk
-	imported := checkIsVirtualMachineImported(newVM)
+	// if vm is being created by vm import controller, then we need to skip pvc golden image validation
+	// this case needs to be treated differently from a standard image scenario as user will boot directly from disk
+	imported := util.IsImportedByVMIC(newVM)
 
 	for _, volReq := range newVM.Status.VolumeRequests {
 		if volReq.AddVolumeOptions == nil {
@@ -424,7 +424,7 @@ func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine
 	}
 
 	if isResizeVolume {
-		stopped, err := vmUtil.IsVMStopped(newVM, v.vmiCache)
+		stopped, err := vmutil.IsVMStopped(newVM, v.vmiCache)
 		if err != nil {
 			return werror.NewInternalError(fmt.Sprintf("failed to get vm is stopped or not, err: %s", err.Error()))
 		}
@@ -442,9 +442,9 @@ func (v *vmValidator) checkGoldenImage(vm *kubevirtv1.VirtualMachine) error {
 		return nil
 	}
 
-	// if vm is being created by vm import controller then we need to skip pvc golden image validation
-	// this case needs to be treated differently from a standaard image scenario as user will boot directly from disk
-	imported := checkIsVirtualMachineImported(vm)
+	// if vm is being created by vm import controller, then we need to skip pvc golden image validation
+	// this case needs to be treated differently from a standard image scenario as user will boot directly from disk
+	imported := util.IsImportedByVMIC(vm)
 
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim == nil {
@@ -558,7 +558,7 @@ func (v *vmValidator) checkDedicatedCPUPlacement(vm *kubevirtv1.VirtualMachine) 
 	// Skip check on VMs that are stopped. This allows the user to create
 	// VMs with CPU pinning enabled in advance even if the CPU Manager is
 	// currently disabled.
-	stopped, err := vmUtil.IsVMStopped(vm, v.vmiCache)
+	stopped, err := vmutil.IsVMStopped(vm, v.vmiCache)
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("failed to determine whether the VM is stopped or not: %s", err.Error()))
 	}
@@ -578,14 +578,4 @@ func (v *vmValidator) checkDedicatedCPUPlacement(vm *kubevirtv1.VirtualMachine) 
 	}
 
 	return nil
-}
-
-// checkIsVirtualMachineImported checks if a virtualmachine has been created by the vm import controller
-func checkIsVirtualMachineImported(vm *kubevirtv1.VirtualMachine) bool {
-	if vm.Annotations == nil {
-		return false
-	}
-
-	_, imported := vm.Annotations[util.AnnotationVMImportController]
-	return imported
 }
