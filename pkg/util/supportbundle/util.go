@@ -22,3 +22,21 @@ func DetermineDurationWithDefaults(specValue int, settingValue int, defaultValue
 	// Priority 3: If settings is also 0, use default value
 	return time.Duration(defaultValue) * time.Minute
 }
+
+func DefaultNamespaces() []string {
+	return []string{
+		"cattle-dashboards",
+		"cattle-fleet-local-system",
+		"cattle-fleet-system",
+		"cattle-fleet-clusters-system",
+		"cattle-monitoring-system",
+		"fleet-local",
+		"harvester-system",
+		"local",
+		"longhorn-system",
+		"cattle-logging-system",
+		// namespace for CAPI system components
+		// https://github.com/rancher/rancher/blob/4ac81b66b0f971548be78f2d1c72ecb906171a0b/pkg/controllers/dashboard/systemcharts/controller.go#L176
+		"cattle-provisioning-capi-system",
+	}
+}
