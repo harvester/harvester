@@ -36,6 +36,7 @@ pull_request_rules:
   conditions:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
+  - -conflict
   - or:
     - author = renovate[bot]
     - author = mergify[bot]
@@ -47,6 +48,7 @@ pull_request_rules:
   conditions:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
+  - -conflict
   - or:
     - author = renovate[bot]
   actions:
@@ -58,6 +60,7 @@ pull_request_rules:
   conditions:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
+  - -conflict
   - or:
     - author = mergify[bot]
   actions:
