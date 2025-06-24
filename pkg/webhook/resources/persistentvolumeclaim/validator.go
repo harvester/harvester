@@ -258,11 +258,15 @@ func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) e
 					}
 				}
 			}
-			if _, err := v.imageCache.Get(imageNS, imageName); err != nil {
+			vmImage, err := v.imageCache.Get(imageNS, imageName)
+			if err != nil {
 				if apierrors.IsNotFound(err) {
 					return nil
 				}
 				return fmt.Errorf("get image %s/%s failed: %v", imageNS, imageName, err)
+			}
+			if util.IsImportedByVMIC(vmImage) {
+				return nil
 			}
 			// ignore the golden image PVC if it is in Lost/Terminating status
 			if pvc.Status.Phase == corev1.ClaimLost || pvc.Status.Phase == "Terminating" {
