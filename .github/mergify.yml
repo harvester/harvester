@@ -1,4 +1,15 @@
 pull_request_rules:
+- name: Automatically open v1.6 backport PR
+  conditions:
+    - base=master
+    - label="pr-backport-to/v1.6"
+  actions:
+    backport:
+      branches:
+        - v1.6
+      assignees:
+        - "{{ author }}"
+
 - name: Automatically open v1.5 backport PR
   conditions:
     - base=master
@@ -21,22 +32,12 @@ pull_request_rules:
       assignees:
         - "{{ author }}"
 
-- name: Automatically open v1.3 backport PR
-  conditions:
-    - base=master
-    - label="pr-backport-to/v1.3"
-  actions:
-    backport:
-      branches:
-        - v1.3
-      assignees:
-        - "{{ author }}"
-
 - name: Automatically merge Renovate PRs
   conditions:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
   - author = renovate[bot]
+  - -conflict
   actions:
     merge:
       method: rebase
@@ -46,6 +47,7 @@ pull_request_rules:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
   - author = mergify[bot]
+  - -conflict
   actions:
     merge:
       method: rebase
@@ -55,6 +57,7 @@ pull_request_rules:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
   - author = renovate[bot]
+  - -conflict
   actions:
     review:
       type: APPROVE
@@ -65,6 +68,7 @@ pull_request_rules:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
   - author = mergify[bot]
+  - -conflict
   actions:
     review:
       type: APPROVE
