@@ -74,6 +74,7 @@ type VMIOperator interface {
 	UpdateSize(old *harvesterv1.VirtualMachineImage, size int64) (*harvesterv1.VirtualMachineImage, error)
 	UpdateVirtualSizeAndSize(old *harvesterv1.VirtualMachineImage, virtualSize, size int64) (*harvesterv1.VirtualMachineImage, error)
 	UpdateLastFailedTime(old *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error)
+	UpdateBackupTarget(old *harvesterv1.VirtualMachineImage, bt *harvesterv1.BackupTarget) (*harvesterv1.VirtualMachineImage, error)
 
 	FailUpload(old *harvesterv1.VirtualMachineImage, msg string) error
 
@@ -233,6 +234,12 @@ func (vmio *vmiOperator) UpdateVirtualSizeAndSize(old *harvesterv1.VirtualMachin
 func (vmio *vmiOperator) UpdateLastFailedTime(old *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	newVMI := old.DeepCopy()
 	newVMI.Status.LastFailedTime = time.Now().Format(time.RFC3339)
+	return vmio.UpdateVMI(old, newVMI)
+}
+
+func (vmio *vmiOperator) UpdateBackupTarget(old *harvesterv1.VirtualMachineImage, bt *harvesterv1.BackupTarget) (*harvesterv1.VirtualMachineImage, error) {
+	newVMI := old.DeepCopy()
+	newVMI.Status.BackupTarget = bt
 	return vmio.UpdateVMI(old, newVMI)
 }
 
