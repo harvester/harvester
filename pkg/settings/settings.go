@@ -60,6 +60,7 @@ var (
 	WhiteListedSettings    = []string{ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
 	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "restoreVM": false}`)
 	MaxHotplugRatio        = NewSetting(MaxHotplugRatioSettingName, "4")
+	VMMigrationNetwork     = NewSetting(VMMigrationNetworkSettingName, "")
 )
 
 const (
@@ -107,6 +108,7 @@ const (
 	SupportBundleNamespacesSettingName                = "support-bundle-namespaces"
 	DefaultStorageClassSettingName                    = "default-storage-class"
 	MaxHotplugRatioSettingName                        = "max-hotplug-ratio"
+	VMMigrationNetworkSettingName                     = "vm-migration-network"
 
 	// settings have `default` and `value` string used in many places, replace them with const
 	KeywordDefault = "default"
