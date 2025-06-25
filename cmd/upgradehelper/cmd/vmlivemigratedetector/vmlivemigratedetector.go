@@ -14,6 +14,7 @@ import (
 
 var (
 	shutdown bool
+	upgrade  string
 )
 
 var vmLiveMigrateDetectorCmd = &cobra.Command{
@@ -31,6 +32,7 @@ If there is no place to go, it can optionally shut down the VMs.
 			KubeConfigPath: cmd.KubeConfigPath,
 			KubeContext:    cmd.KubeContext,
 			Shutdown:       shutdown,
+			Upgrade:        upgrade,
 			NodeName:       args[0],
 		}
 		if err := run(ctx, options); err != nil {
@@ -42,6 +44,9 @@ If there is no place to go, it can optionally shut down the VMs.
 
 func init() {
 	vmLiveMigrateDetectorCmd.Flags().BoolVar(&shutdown, "shutdown", false, "Shutdown non-migratable VMs")
+	vmLiveMigrateDetectorCmd.Flags().StringVar(&upgrade, "upgrade", "",
+		"Upgrade CR name. If non-empty, it's used to generate the name of the configmap that stores all "+
+			"non-migratable VMs stopped by Harvester during the upgrade")
 
 	cmd.RootCmd.AddCommand(vmLiveMigrateDetectorCmd)
 }

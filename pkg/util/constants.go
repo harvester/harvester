@@ -217,4 +217,11 @@ const (
 	HarvesterManagedChart            = "harvester"
 	RancherLoggingCRDManagedChart    = "rancher-logging-crd"
 	RancherMonitoringCRDManagedChart = "rancher-monitoring-crd"
+
+	RestoreVMConfigMap = "restore-vm"
+
+	HarvesterNodeRoleLabelPrefix = "node-role.harvesterhci.io/"
+	HarvesterWitnessNodeLabelKey = HarvesterNodeRoleLabelPrefix + "witness"
+	HarvesterMgmtNodeLabelKey    = HarvesterNodeRoleLabelPrefix + "management"
+	HarvesterWorkerNodeLabelKey  = HarvesterNodeRoleLabelPrefix + "worker"
 )
