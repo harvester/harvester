@@ -79,7 +79,7 @@ jobs:
             echo "Searching for backport issue with title: '${search_title}'"
 
             # Get both number and title from the search results
-            backport_issues_json=$(gh issue list --state open --search "${search_title}" --json number,title)
+            backport_issues_json=$(gh search issues "${search_title}" --state open --match title  --json number,title)
 
             if [[ "$backport_issues_json" != "[]" && -n "$backport_issues_json" ]]; then
               # Get the length of the JSON array
