@@ -80,6 +80,12 @@ jobs:
        run: |
          ASSIGNEES='${{ toJSON(github.event.issue.assignees) }}'
 
+         # Skip if status is already Closed
+         if [[ "${{ steps.get-status-field.outputs.values }}" == "Closed" ]]; then
+           echo "Status is Closed, skipping update"
+           exit 0
+         fi
+
          if [[ ( "${{ steps.get-status-field.outputs.values }}" == "New Issues" || "${{ steps.get-status-field.outputs.values }}" == "" ) &&
                $ASSIGNEES != "[]" ]]; then
            echo "Updating to Backlog since it's assigned and status is New Issues or empty"
