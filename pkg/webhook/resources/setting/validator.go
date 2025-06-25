@@ -42,7 +42,6 @@ import (
 	"github.com/harvester/harvester/pkg/containerd"
 	nodectl "github.com/harvester/harvester/pkg/controller/master/node"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
-	storagenetworkctl "github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1b2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -50,6 +49,7 @@ import (
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	networkutil "github.com/harvester/harvester/pkg/util/network"
 	tlsutil "github.com/harvester/harvester/pkg/util/tls"
 	vmUtil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
@@ -135,6 +135,7 @@ func NewValidator(
 	vmRestoreCache ctlv1beta1.VirtualMachineRestoreCache,
 	vmCache ctlkubevirtv1.VirtualMachineCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
+	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 	featureCache mgmtv3.FeatureCache,
 	lhVolumeCache ctllhv1b2.VolumeCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
@@ -151,6 +152,7 @@ func NewValidator(
 		vmRestoreCache:     vmRestoreCache,
 		vmCache:            vmCache,
 		vmiCache:           vmiCache,
+		vmimCache:          vmimCache,
 		featureCache:       featureCache,
 		lhVolumeCache:      lhVolumeCache,
 		pvcCache:           pvcCache,
@@ -168,6 +170,10 @@ func NewValidator(
 	validateSettingFuncs[settings.StorageNetworkName] = validator.validateStorageNetwork
 	validateSettingUpdateFuncs[settings.StorageNetworkName] = validator.validateUpdateStorageNetwork
 	validateSettingDeleteFuncs[settings.StorageNetworkName] = validator.validateDeleteStorageNetwork
+
+	validateSettingFuncs[settings.VMMigrationNetworkSettingName] = validator.validateVMMigrationNetwork
+	validateSettingUpdateFuncs[settings.VMMigrationNetworkSettingName] = validator.validateUpdateVMMigrationNetwork
+	validateSettingDeleteFuncs[settings.VMMigrationNetworkSettingName] = validator.validateDeleteVMMigrationNetwork
 
 	validateSettingFuncs[settings.HTTPProxySettingName] = validator.validateHTTPProxy
 	validateSettingUpdateFuncs[settings.HTTPProxySettingName] = validator.validateUpdateHTTPProxy
@@ -190,6 +196,7 @@ type settingValidator struct {
 	vmRestoreCache     ctlv1beta1.VirtualMachineRestoreCache
 	vmCache            ctlkubevirtv1.VirtualMachineCache
 	vmiCache           ctlkubevirtv1.VirtualMachineInstanceCache
+	vmimCache          ctlkubevirtv1.VirtualMachineInstanceMigrationCache
 	featureCache       mgmtv3.FeatureCache
 	lhVolumeCache      ctllhv1b2.VolumeCache
 	pvcCache           ctlcorev1.PersistentVolumeClaimCache
@@ -1029,31 +1036,63 @@ func validateUpdateContainerdRegistry(_ *v1beta1.Setting, newSetting *v1beta1.Se
 	return validateContainerdRegistry(newSetting)
 }
 
-func (v *settingValidator) validateStorageNetworkHelper(value string) error {
+func (v *settingValidator) validateNetworkHelper(value string) (*networkutil.Config, error) {
 	if value == "" {
+		// harvester will create a default setting with empty value
+		return nil, nil
+	}
+
+	var config networkutil.Config
+	if err := json.Unmarshal([]byte(value), &config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal the setting value %v, %w", value, err)
+	}
+
+	if err := v.checkNetworkVlanValid(&config); err != nil {
+		return nil, err
+	}
+
+	if err := v.checkNetworkRangeValid(&config); err != nil {
+		return nil, err
+	}
+
+	if err := v.checkVlanStatusReady(&config); err != nil {
+		return nil, err
+	}
+
+	if err := v.checkVCSpansAllNodes(&config); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+func (v *settingValidator) validateStorageNetworkHelper(value string) error {
+	config, err := v.validateNetworkHelper(value)
+	if err != nil {
+		return err
+	} else if config == nil {
 		// harvester will create a default setting with empty value
 		// storage-network will be the same in Longhorn, just skip check, don't require all VMs are stopped.
 		return nil
 	}
 
-	var config storagenetworkctl.Config
-	if err := json.Unmarshal([]byte(value), &config); err != nil {
-		return fmt.Errorf("failed to unmarshal the setting value %v, %w", value, err)
-	}
-
-	if err := v.checkStorageNetworkVlanValid(&config); err != nil {
+	if err := v.checkStorageNetworkRangeValid(config); err != nil {
 		return err
 	}
 
-	if err := v.checkStorageNetworkRangeValid(&config); err != nil {
+	return nil
+}
+
+func (v *settingValidator) validateVMMigrationNetworkHelper(value string) error {
+	config, err := v.validateNetworkHelper(value)
+	if err != nil {
 		return err
+	} else if config == nil {
+		// harvester will create a default setting with empty value
+		return nil
 	}
 
-	if err := v.checkVlanStatusReady(&config); err != nil {
-		return err
-	}
-
-	if err := v.checkVCSpansAllNodes(&config); err != nil {
+	if err := v.checkVMMigrationNetworkRangeValid(config); err != nil {
 		return err
 	}
 
@@ -1103,6 +1142,57 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 
 func (v *settingValidator) validateDeleteStorageNetwork(_ *v1beta1.Setting) error {
 	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.StorageNetworkName))
+}
+
+func (v *settingValidator) validateVMMigrationNetwork(setting *v1beta1.Setting) error {
+	if setting.Name != settings.VMMigrationNetworkSettingName {
+		return nil
+	}
+
+	vmims, err := v.vmimCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("Failed to list VM Migrations, err: %v", err.Error()))
+	}
+	for _, vmim := range vmims {
+		if vmim.DeletionTimestamp != nil || vmim.Status.MigrationState.Completed {
+			continue
+		}
+		return werror.NewBadRequest("There is a VM Migration in progress, please wait until it is completed before updating the VMMigrationNetwork setting")
+	}
+
+	if err := v.validateVMMigrationNetworkHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+	}
+
+	if err := v.validateVMMigrationNetworkHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+
+	return nil
+}
+
+func (v *settingValidator) validateUpdateVMMigrationNetwork(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	if newSetting.Name != settings.VMMigrationNetworkSettingName {
+		return nil
+	}
+
+	if oldSetting.Default == newSetting.Default && oldSetting.Value == newSetting.Value {
+		return nil
+	}
+
+	if err := v.validateVMMigrationNetworkHelper(newSetting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+	}
+
+	if err := v.validateVMMigrationNetworkHelper(newSetting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+
+	return nil
+}
+
+func (v *settingValidator) validateDeleteVMMigrationNetwork(_ *v1beta1.Setting) error {
+	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.VMMigrationNetworkSettingName))
 }
 
 func (v *settingValidator) findVolumesByLabelAppName(namespace string, labelAppNameValue string) ([]string, error) {
@@ -1251,7 +1341,7 @@ func (v *settingValidator) checkStorageNetworkUsage() error {
 	return nil
 }
 
-func (v *settingValidator) checkVlanStatusReady(config *storagenetworkctl.Config) error {
+func (v *settingValidator) checkVlanStatusReady(config *networkutil.Config) error {
 	//mgmt cluster
 	if config.ClusterNetwork == mgmtClusterNetwork {
 		return nil
@@ -1295,7 +1385,7 @@ func getMatchNodes(vc *networkv1.VlanConfig) ([]string, error) {
 	return matchedNodes, nil
 }
 
-func (v *settingValidator) checkVCSpansAllNodes(config *storagenetworkctl.Config) error {
+func (v *settingValidator) checkVCSpansAllNodes(config *networkutil.Config) error {
 	//mgmt cluster
 	if config.ClusterNetwork == mgmtClusterNetwork {
 		return nil
@@ -1343,13 +1433,13 @@ func (v *settingValidator) checkVCSpansAllNodes(config *storagenetworkctl.Config
 	return nil
 }
 
-func (v *settingValidator) checkStorageNetworkVlanValid(config *storagenetworkctl.Config) error {
+func (v *settingValidator) checkNetworkVlanValid(config *networkutil.Config) error {
 	if config.Vlan > 4094 {
 		return fmt.Errorf("the valid value range for VLAN IDs is 0 to 4094")
 	}
 
 	if config.Vlan <= 1 && config.ClusterNetwork == mgmtClusterNetwork {
-		return fmt.Errorf("storage network with vlan id %d not allowed on %s cluster", config.Vlan, config.ClusterNetwork)
+		return fmt.Errorf("network with vlan id %d not allowed on %s cluster", config.Vlan, config.ClusterNetwork)
 	}
 
 	return nil
@@ -1377,7 +1467,7 @@ func isOverlap(IP1 string, IP2 string) (bool, error) {
 	return false, nil
 }
 
-func validateIncludeExcludeRanges(config *storagenetworkctl.Config, includePrefixLen int) error {
+func validateIncludeExcludeRanges(config *networkutil.Config, includePrefixLen int) error {
 	IP1 := ""
 
 	for _, excludeIP := range config.Exclude {
@@ -1388,7 +1478,7 @@ func validateIncludeExcludeRanges(config *storagenetworkctl.Config, includePrefi
 
 		excludePrefixLen, _ := network.Mask.Size()
 		if excludePrefixLen < minSNPrefixLength {
-			return fmt.Errorf("min supported prefix lenth for storage network is %d, exclude Range PrefixLen received %d", minSNPrefixLength, excludePrefixLen)
+			return fmt.Errorf("min supported prefix length for network is %d, exclude Range PrefixLen received %d", minSNPrefixLength, excludePrefixLen)
 		}
 
 		//validate if include and exclude overlap
@@ -1422,7 +1512,7 @@ func validateIncludeExcludeRanges(config *storagenetworkctl.Config, includePrefi
 	return nil
 }
 
-func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkctl.Config) error {
+func (v *settingValidator) checkNetworkRangeValid(config *networkutil.Config) error {
 	ip, network, err := net.ParseCIDR(config.Range)
 	if err != nil {
 		return err
@@ -1433,13 +1523,17 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkc
 
 	prefixLen, _ := network.Mask.Size()
 	if prefixLen < minSNPrefixLength {
-		return fmt.Errorf("min supported prefix lenth for storage network is %d, include Range PrefixLen received %d", minSNPrefixLength, prefixLen)
+		return fmt.Errorf("min supported prefix length for network is %d, include Range PrefixLen received %d", minSNPrefixLength, prefixLen)
 	}
 
 	if err = validateIncludeExcludeRanges(config, prefixLen); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func (v *settingValidator) checkStorageNetworkRangeValid(config *networkutil.Config) error {
 	lhnodes, err := v.lhNodeCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return werror.NewInternalError(err.Error())
@@ -1460,6 +1554,34 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkc
 
 	if count < MinAllocatableIPAddrs {
 		return fmt.Errorf("allocatable IP address range is < %d,allocate sufficient range", MinAllocatableIPAddrs)
+	}
+
+	return nil
+}
+
+func (v *settingValidator) checkVMMigrationNetworkRangeValid(config *networkutil.Config) error {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	witnessNode := 0
+	for _, node := range nodes {
+		if node.Labels == nil {
+			continue
+		}
+		if _, ok := node.Labels["node-role.harvesterhci.io/witness"]; ok {
+			witnessNode++
+		}
+	}
+
+	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	if err != nil {
+		return err
+	}
+
+	// 1 node has 1 virt-handler which needs 1 IP address.
+	if count < len(nodes)-witnessNode {
+		return fmt.Errorf("allocatable IP address range is < %d,allocate sufficient range", len(nodes))
 	}
 
 	return nil
