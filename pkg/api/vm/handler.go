@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
 	apiutil "github.com/harvester/harvester/pkg/api/util"
 	volumeapi "github.com/harvester/harvester/pkg/api/volume"
@@ -66,6 +67,7 @@ var (
 type vmActionHandler struct {
 	namespace                 string
 	datavolumeClient          ctlcdiv1.DataVolumeClient
+	kubevirtCache             ctlkubevirtv1.KubeVirtCache
 	vms                       ctlkubevirtv1.VirtualMachineClient
 	vmis                      ctlkubevirtv1.VirtualMachineInstanceClient
 	vmCache                   ctlkubevirtv1.VirtualMachineCache
@@ -433,6 +435,23 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 		return fmt.Errorf("can't migrate the VM to the node %s: %s", nodeName, err.Error())
 	} else if !ok {
 		return errors.New("The target node is non-migratable")
+	}
+
+	kubevirt, err := h.kubevirtCache.Get(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
+	if err != nil {
+		return err
+	}
+	isKubeVirtReady := false
+	for _, condition := range kubevirt.Status.Conditions {
+		if condition.Type == kubevirtv1.KubeVirtConditionAvailable {
+			if condition.Reason == kubevirtutil.ConditionReasonDeploymentReady {
+				isKubeVirtReady = condition.Status == corev1.ConditionTrue
+			}
+			break
+		}
+	}
+	if !isKubeVirtReady {
+		return errors.New("KubeVirt is not ready")
 	}
 
 	vmim := &kubevirtv1.VirtualMachineInstanceMigration{
