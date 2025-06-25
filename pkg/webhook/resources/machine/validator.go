@@ -34,7 +34,9 @@ func (v *machineValidator) Resource() types.Resource {
 	}
 }
 
-func (v *machineValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *machineValidator) Create(req *types.Request, newObj runtime.Object) error {
+
+	// if cluster is upgrading, intercept the request
 
 	return nil
 }
