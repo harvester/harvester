@@ -11,6 +11,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/backup"
 	"github.com/harvester/harvester/pkg/controller/master/image"
 	"github.com/harvester/harvester/pkg/controller/master/keypair"
+	"github.com/harvester/harvester/pkg/controller/master/kubevirt"
 	"github.com/harvester/harvester/pkg/controller/master/machine"
 	"github.com/harvester/harvester/pkg/controller/master/mcmsettings"
 	"github.com/harvester/harvester/pkg/controller/master/migration"
@@ -65,6 +66,7 @@ var registerFuncs = []registerFunc{
 	schedulevmbackup.Register,
 	resourcequota.Register,
 	vmimagedownloader.Register,
+	kubevirt.Register,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {

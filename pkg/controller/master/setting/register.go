@@ -93,6 +93,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		harvSettings.MaxHotplugRatioSettingName:                  controller.syncMaxHotplugRatio,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
+		// for "vm-migration-network" syncer, please check harvester-vm-migration-network-controller
 	}
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)

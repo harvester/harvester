@@ -27,6 +27,7 @@ import (
 	whereaboutscniv1 "github.com/harvester/harvester/pkg/generated/controllers/whereabouts.cni.cncf.io/v1alpha1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/network"
 )
 
 const (
@@ -46,10 +47,6 @@ const (
 	StorageNetworkNetAttachDefNamespace = util.StorageNetworkNetAttachDefNamespace
 
 	BridgeSuffix = "-br"
-	CNIVersion   = "0.3.1"
-	DefaultPVID  = 1
-	DefaultCNI   = "bridge"
-	DefaultIPAM  = "whereabouts"
 
 	// status
 	ReasonInProgress         = "In Progress"
@@ -64,43 +61,6 @@ const (
 
 	longhornStorageNetworkName = "storage-network"
 )
-
-type Config struct {
-	ClusterNetwork string   `json:"clusterNetwork,omitempty"`
-	Vlan           uint16   `json:"vlan,omitempty"`
-	Range          string   `json:"range,omitempty"`
-	Exclude        []string `json:"exclude,omitempty"`
-}
-
-// Note: this data type should align with https://github.com/containernetworking/cni/blob/main/pkg/types/types.go#L64-L78
-// and https://github.com/containernetworking/plugins/blob/main/plugins/main/bridge/bridge.go#L47-L75
-type BridgeConfig struct {
-	CNIVersion  string     `json:"cniVersion"`
-	Type        string     `json:"type"`
-	Bridge      string     `json:"bridge"`
-	PromiscMode bool       `json:"promiscMode"`
-	Vlan        int        `json:"vlan"`
-	IPAM        IPAMConfig `json:"ipam"`
-}
-
-// Note: this data type should align with https://github.com/k8snetworkplumbingwg/whereabouts/blob/master/pkg/types/types.go#L48-L75
-type IPAMConfig struct {
-	Type    string   `json:"type"`
-	Range   string   `json:"range"`
-	Exclude []string `json:"exclude,omitempty"`
-}
-
-func NewBridgeConfig() *BridgeConfig {
-	return &BridgeConfig{
-		CNIVersion:  CNIVersion,
-		Type:        DefaultCNI,
-		PromiscMode: true,
-		Vlan:        DefaultPVID,
-		IPAM: IPAMConfig{
-			Type: DefaultIPAM,
-		},
-	}
-}
 
 type Handler struct {
 	ctx                               context.Context
@@ -283,24 +243,11 @@ func (h *Handler) setNadAnnotations(setting *harvesterv1.Setting, newNad string)
 }
 
 func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachmentDefinition, error) {
-	var config Config
-	bridgeConfig := NewBridgeConfig()
-
+	var config network.Config
 	if err := json.Unmarshal([]byte(setting.Value), &config); err != nil {
 		return nil, fmt.Errorf("parsing value error %v", err)
 	}
-
-	bridgeConfig.Bridge = config.ClusterNetwork + BridgeSuffix
-	bridgeConfig.IPAM.Range = config.Range
-
-	if config.Vlan == 0 {
-		config.Vlan = DefaultPVID
-	}
-	bridgeConfig.Vlan = int(config.Vlan)
-
-	if len(config.Exclude) > 0 {
-		bridgeConfig.IPAM.Exclude = config.Exclude
-	}
+	bridgeConfig := network.CreateBridgeConfig(config)
 
 	nadConfig, err := json.Marshal(bridgeConfig)
 	if err != nil {
@@ -428,7 +375,7 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 	//and only the number of nodes each running an instance-manager pod is used
 	MinAllocatableIPAddrs := len(nodes)
 
-	var config Config
+	var config network.Config
 
 	if err := json.Unmarshal([]byte(setting.Value), &config); err != nil {
 		return fmt.Errorf("parsing value error %v", err)
