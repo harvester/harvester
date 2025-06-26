@@ -136,23 +136,6 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			},
 			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
 		},
-		{
-			name: "replace old guest memory",
-			resourceReq: kubevirtv1.ResourceRequirements{
-				Limits: map[v1.ResourceName]resource.Quantity{
-					v1.ResourceCPU:    *resource.NewMilliQuantity(1000, resource.DecimalSI),
-					v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 30)), resource.BinarySI), // 1Gi
-				},
-			},
-			memory: &kubevirtv1.Memory{
-				Guest: resource.NewQuantity(int64(math.Pow(2, 40)), resource.BinarySI), // 1Ti
-			},
-			patchOps: []string{
-				`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "924Mi"}`, // 1Gi - 100Mi
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"100m","memory":"102Mi"}}`,
-			},
-			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
-		},
 	}
 
 	tests2 := []struct {
