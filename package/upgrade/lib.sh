@@ -887,3 +887,53 @@ EOF
   echo "replace the grafana pod to use the new configmap"
   kubectl delete pods -n cattle-monitoring-system -l app.kubernetes.io/name=grafana || echo "failed to delete the grafana pod, wait until the related host node is rebooted and then it gets the new configmap"
 }
+
+# manage_kubeovn will apply the kubeovn-operator-crd managed chart
+# and update the kubeovn-addon to latest version
+manage_kubeovn() {
+  ## read version of kubeovn addon. The kubeovn-operator-crd has the same version as kubeovn-operator
+  ## so we can evaluate kubeovn-operator version and apply the same for kubeovn-operator-crd
+  version=$(cat /usr/local/share/addons/kubeovn-operator.yaml  | yq '.spec.version')
+  kubeovn_manifest="$(mktemp --suffix=.yaml)"
+
+  cat > "$kubeovn_manifest" <<EOF
+apiVersion: management.cattle.io/v3
+kind: ManagedChart
+metadata:
+  name: kubeovn-operator-crd
+  namespace: fleet-local
+spec:
+  chart: kubeovn-operator-crd
+  releaseName: kubeovn-operator-crd
+  version: "$version"
+  defaultNamespace: kube-system
+  repoName: harvester-charts
+  timeoutSeconds: 600
+  targets:
+  - clusterName: local
+    clusterSelector:
+      matchExpressions:
+      - key: provisioning.cattle.io/unmanaged-system-agent
+        operator: DoesNotExist
+EOF
+
+  cat "$kubeovn_manifest"
+  kubectl apply -f "$kubeovn_manifest"
+
+  # wait for managedchart to be ready before updating the addon
+  wait_managedchart_ready "kubeovn-operator-crd"
+
+  ## addon patch 
+  patch=$(cat /usr/local/share/addons/kubeovn-operator.yaml | yq '{"spec": .spec | pick(["version"])}')
+  cat > addon-patch.yaml <<EOF
+$patch
+EOF
+
+  item_count=$(kubectl get addons.harvesterhci kubeovn-operator -n kube-system -o  jsonpath='{..name}' || true)
+  if [ -z "$item_count" ]; then
+    install_addon kubeovn-operator kube-system
+  else
+    kubectl patch addons.harvesterhci kubeovn-operator -n kube-system --patch-file ./addon-patch.yaml --type merge
+  fi
+
+}

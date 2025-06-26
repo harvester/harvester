@@ -1183,6 +1183,8 @@ upgrade_addons()
   upgrade_harvester_upgradelog_logging_fluentd_fluentbit
 
   upgrade_nvidia_driver_toolkit_addon
+
+  manage_kubeovn
 }
 
 reuse_vlan_cn() {
