@@ -28,7 +28,8 @@ wait_managed_chart() {
     current_version=$(echo "$current_chart" | yq e '.spec.version' -)
     current_observed_generation=$(echo "$current_chart" | yq e '.status.observedGeneration' -)
     current_state=$(echo "$current_chart" | yq e '.status.display.state' -)
-    echo "Current version: $current_version, Current state: $current_state, Current generation: $current_observed_generation"
+    current_ready_clusters=$(echo "$current_chart" | yq e '.status.display.readyClusters' -)
+    echo "Current version: $current_version, Current ready clusters: $current_ready_clusters, Current state: $current_state, Current generation: $current_observed_generation"
 
     if [ "$current_version" = "$version" ]; then
       if [ "$current_observed_generation" -gt "$generation" ]; then
@@ -426,7 +427,7 @@ wait_kubevirt() {
   name=$2
   version=$3
 
-  echo "Waiting for KubeVirt to upgraded to $version..."
+  echo "Waiting for KubeVirt to upgrade to $version..."
   while [ true ]; do
     kubevirt=$(kubectl get kubevirts.kubevirt.io $name -n $namespace -o yaml)
 
@@ -842,127 +843,104 @@ patch_longhorn_settings() {
   yq -e '.spec.values.longhorn' $target || echo "fail to get info .spec.values.longhorn"
 }
 
-# if user has configured a valid additionalGuestMemoryOverheadRatio value on kubevirt object
-# but Harvester setting additional-guest-memory-overhead-ratio is not existing
-# try to convert it to Harvester setting to keep the configured value
-convert_kubevirt_additional_guest_memory_overhead_to_harvester_setting() {
-  local settingfile="additional-guest-memory-overhead-ratio.yaml"
-  local settingname="additional-guest-memory-overhead-ratio"
-  local agmor=$(kubectl get kubevirt kubevirt -n harvester-system -ojsonpath="{.spec.configuration.additionalGuestMemoryOverheadRatio}")
-  local setting=$(kubectl get settings.harvesterhci.io "$settingname")
+upgrade_managedchart_harvester_crd() {
+  echo "Upgrading Harvester CRD managedchart fleet-local/harvester-crd"
 
-  if [[ -n "$agmor" ]]; then
-    echo "kubevirt additionalGuestMemoryOverheadRatio setting is $agmor"
-    if [[ -z $setting ]]; then
-      echo "try to convert kubevirt additionalGuestMemoryOverheadRatio to harvester setting $settingname"
+  local pre_generation_harvester_crd=$(kubectl get managedcharts.management.cattle.io harvester-crd -n fleet-local -o=jsonpath='{.status.observedGeneration}')
 
-cat > $settingfile << EOF
-apiVersion: harvesterhci.io/v1beta1
-default: "1.5"
-kind: Setting
-metadata:
-  name: $settingname
-status:
-value: "$agmor"
+  local hcpatch=harvester-crd-patch.yaml
+  cat >${hcpatch} <<EOF
+spec:
+  version: ${REPO_HARVESTER_CHART_VERSION}
 EOF
 
-      echo "the prepared yaml file to create setting"
-      cat $settingfile
-      # if the value was not valid but kubevirt did not deny it in the past
-      # the apply may be denied by harvester webhook
-      kubectl apply -f $settingfile || echo "failed to create setting $settingname, skip"
-      echo "the created object yaml"
-      kubectl get settings.harvesterhci.io $settingname -oyaml ||  echo "failed to get setting $settingname"
-      rm -f $settingfile
-    else
-      echo "harvester setting $settingname is found, do not re-convert"
-    fi
-  else
-    echo "kubevirt additionalGuestMemoryOverheadRatio is not found, skip"
-  fi
+  update_managedchart_patch_file_annotations ${hcpatch} $REPO_HARVESTER_CHART_VERSION
+  update_managedchart_patch_file_unpause ${hcpatch}
+  # use a new timeoutSeconds to ensure the observedGeneration is updated
+  update_managedchart_patch_file_timeoutseconds ${hcpatch} fleet-local harvester-crd
+  echo "The final content of harvester-crd patch file"
+  cat ${hcpatch}
+
+  # wait until managedchart harvester-crd is ready first, it is used by managedchart harvester
+  echo "Upgrading..."
+  kubectl patch managedcharts.management.cattle.io harvester-crd -n fleet-local --patch-file ./${hcpatch} --type merge
+  #pause_managed_chart harvester-crd "false"  // replaced by above patch file
+  wait_managed_chart fleet-local harvester-crd $REPO_HARVESTER_CHART_VERSION $pre_generation_harvester_crd ready
 }
 
-upgrade_harvester() {
-  echo "Upgrading Harvester"
+upgrade_managedchart_harvester() {
+  echo "Upgrading Harvester managedchart fleet-local/harvester"
 
-  # after v1.4 is released, this function may be dropped from master-head
-  convert_kubevirt_additional_guest_memory_overhead_to_harvester_setting
-
-  pre_generation_harvester=$(kubectl get managedcharts.management.cattle.io harvester -n fleet-local -o=jsonpath='{.status.observedGeneration}')
-  pre_generation_harvester_crd=$(kubectl get managedcharts.management.cattle.io harvester-crd -n fleet-local -o=jsonpath='{.status.observedGeneration}')
-
-  mkdir -p $UPGRADE_TMP_DIR/harvester
-  cd $UPGRADE_TMP_DIR/harvester
-
-  cat >harvester-crd.yaml <<EOF
-spec:
-  version: $REPO_HARVESTER_CHART_VERSION
-  timeoutSeconds: 600
-EOF
-  kubectl patch managedcharts.management.cattle.io harvester-crd -n fleet-local --patch-file ./harvester-crd.yaml --type merge
-
-  cat >harvester.yaml <<EOF
+  local hpatch=harvester.yaml
+  cat >${hpatch} <<EOF
 apiVersion: management.cattle.io/v3
 kind: ManagedChart
 metadata:
   name: harvester
   namespace: fleet-local
 EOF
-  kubectl get managedcharts.management.cattle.io -n fleet-local harvester -o yaml | yq e '{"spec": .spec}' - >>harvester.yaml
 
-  upgrade_managed_chart_from_version $UPGRADE_PREVIOUS_VERSION harvester harvester.yaml
-  NEW_VERSION=$REPO_HARVESTER_CHART_VERSION yq e '.spec.version = strenv(NEW_VERSION)' harvester.yaml -i
+  kubectl get managedcharts.management.cattle.io -n fleet-local harvester -o yaml | yq e '{"spec": .spec}' - >>${hpatch}
+  pre_generation_harvester=$(kubectl get managedcharts.management.cattle.io harvester -n fleet-local -o=jsonpath='{.status.observedGeneration}')
+
+  upgrade_managed_chart_from_version $UPGRADE_PREVIOUS_VERSION harvester ${hpatch}
+  NEW_VERSION=$REPO_HARVESTER_CHART_VERSION yq e '.spec.version = strenv(NEW_VERSION)' ${hpatch} -i
 
   local sc=$(kubectl get sc -o json | jq '.items[] | select(.metadata.annotations."storageclass.kubernetes.io/is-default-class" == "true" and .metadata.name != "harvester-longhorn")')
   if [ -n "$sc" ] && [ "$UPGRADE_PREVIOUS_VERSION" != "v1.0.3" ]; then
-      yq e '.spec.values.storageClass.defaultStorageClass = false' -i harvester.yaml
+      yq e '.spec.values.storageClass.defaultStorageClass = false' -i ${hpatch}
   fi
 
-  patch_longhorn_settings harvester.yaml
+  patch_longhorn_settings ${hpatch}
 
-  # set timeoutSeconds to 10 minutes to avoid context deadline exceeded in post upgrade hooks
-  yq eval '.spec.timeoutSeconds = 600' -i harvester.yaml
+  update_managedchart_patch_file_annotations ${hpatch} $REPO_HARVESTER_CHART_VERSION
+  update_managedchart_patch_file_unpause ${hpatch}
+  update_managedchart_patch_file_timeoutseconds ${hpatch} fleet-local harvester
+  echo "The final content of harvester patch file"
+  cat ${hpatch}
 
-  kubectl apply -f ./harvester.yaml
-
-  pause_managed_chart harvester "false"
-  pause_managed_chart harvester-crd "false"
-
+  echo "Upgrading..."
+  kubectl apply -f ./${hpatch}
+  # pause_managed_chart harvester "false"  // replaced by above patch file
   wait_managed_chart fleet-local harvester $REPO_HARVESTER_CHART_VERSION $pre_generation_harvester ready
-  wait_managed_chart fleet-local harvester-crd $REPO_HARVESTER_CHART_VERSION $pre_generation_harvester_crd ready
 
   wait_kubevirt harvester-system kubevirt $REPO_KUBEVIRT_VERSION
 }
 
+upgrade_harvester() {
+  mkdir -p $UPGRADE_TMP_DIR/harvester
+  cd $UPGRADE_TMP_DIR/harvester
 
-#upgrade only monitoring_crd
+  upgrade_managedchart_harvester_crd
+
+  upgrade_managedchart_harvester
+}
+
 upgrade_managedchart_monitoring_crd() {
   local nm=rancher-monitoring-crd
-  echo "Upgrading Managedchart $nm to $REPO_MONITORING_CHART_VERSION"
+  local mpatch=${nm}-patch.yaml
+  echo "Upgrading Managedchart ${nm} to ${REPO_MONITORING_CHART_VERSION}"
 
-  local pre_version=$(kubectl get managedcharts.management.cattle.io "$nm" -n fleet-local -o=jsonpath='{.spec.version}')
-  if [ "$pre_version" = "$REPO_MONITORING_CHART_VERSION" ]; then
-    echo "the $nm has already been target version $REPO_MONITORING_CHART_VERSION, nothing to upgrade"
-    pause_managed_chart "$nm" "false"
-    return 0
-  fi
-
-  local pre_generation=$(kubectl get managedcharts.management.cattle.io "$nm" -n fleet-local -o=jsonpath='{.status.observedGeneration}')
+  local pre_generation=$(kubectl get managedcharts.management.cattle.io ${nm} -n fleet-local -o=jsonpath='{.status.observedGeneration}')
 
   mkdir -p $UPGRADE_TMP_DIR/monitoring
   cd $UPGRADE_TMP_DIR/monitoring
 
-  cat >"$nm".yaml <<EOF
+  cat >${mpatch} <<EOF
 spec:
-  version: $REPO_MONITORING_CHART_VERSION
-  timeoutSeconds: 600
+  version: ${REPO_MONITORING_CHART_VERSION}
 EOF
 
-  kubectl patch managedcharts.management.cattle.io "$nm" -n fleet-local --patch-file ./"$nm".yaml --type merge
+  update_managedchart_patch_file_annotations ${mpatch} ${REPO_MONITORING_CHART_VERSION}
+  update_managedchart_patch_file_unpause ${mpatch}
+  # use a new timeoutSeconds to ensure the observedGeneration is updated
+  update_managedchart_patch_file_timeoutseconds ${mpatch} fleet-local ${nm}
+  echo "The final content of ${nm} patch file"
+  cat ${mpatch}
 
-  pause_managed_chart "$nm" "false"
-
-  wait_managed_chart fleet-local "$nm" $REPO_MONITORING_CHART_VERSION $pre_generation ready
+  echo "Upgrading..."
+  kubectl patch managedcharts.management.cattle.io ${nm} -n fleet-local --patch-file ${mpatch} --type merge
+  wait_managed_chart fleet-local ${nm} ${REPO_MONITORING_CHART_VERSION} ${pre_generation} ready
 }
 
 upgrade_monitoring() {
@@ -971,32 +949,30 @@ upgrade_monitoring() {
 }
 
 upgrade_managedchart_logging_crd() {
-  nm=rancher-logging-crd
-  echo "Upgrading Managedchart $nm to $REPO_LOGGING_CHART_VERSION"
+  local nm=rancher-logging-crd
+  local lpatch=${nm}-patch.yaml
+  echo "Upgrading Managedchart ${nm} to ${REPO_LOGGING_CHART_VERSION}"
 
-  pre_version=$(kubectl get managedcharts.management.cattle.io "$nm" -n fleet-local -o=jsonpath='{.spec.version}')
-  if [ "$pre_version" = "$REPO_LOGGING_CHART_VERSION" ]; then
-    echo "the $nm has already been target version $REPO_LOGGING_CHART_VERSION, nothing to upgrade"
-    pause_managed_chart "$nm" "false"
-    return 0
-  fi
-
-  pre_generation_logging_crd=$(kubectl get managedcharts.management.cattle.io "$nm" -n fleet-local -o=jsonpath='{.status.observedGeneration}')
+  local pre_generation=$(kubectl get managedcharts.management.cattle.io ${nm} -n fleet-local -o=jsonpath='{.status.observedGeneration}')
 
   mkdir -p $UPGRADE_TMP_DIR/logging
   cd $UPGRADE_TMP_DIR/logging
 
-  cat >"$nm".yaml <<EOF
+  cat >${lpatch} <<EOF
 spec:
-  version: $REPO_LOGGING_CHART_VERSION
-  timeoutSeconds: 600
+  version: ${REPO_LOGGING_CHART_VERSION}
 EOF
 
-  kubectl patch managedcharts.management.cattle.io "$nm" -n fleet-local --patch-file ./"$nm".yaml --type merge
+  update_managedchart_patch_file_annotations ${lpatch} ${REPO_LOGGING_CHART_VERSION}
+  update_managedchart_patch_file_unpause ${lpatch}
+  # use a new timeoutSeconds to ensure the observedGeneration is updated
+  update_managedchart_patch_file_timeoutseconds ${lpatch} fleet-local ${nm}
+  echo "The final content of ${nm} patch file"
+  cat ${lpatch}
 
-  pause_managed_chart "$nm" "false"
-
-  wait_managed_chart fleet-local "$nm" $REPO_LOGGING_CHART_VERSION $pre_generation_logging_crd ready
+  echo "Upgrading..."
+  kubectl patch managedcharts.management.cattle.io ${nm} -n fleet-local --patch-file ${lpatch} --type merge
+  wait_managed_chart fleet-local ${nm} ${REPO_LOGGING_CHART_VERSION} ${pre_generation} ready
 }
 
 upgrade_logging_event_audit() {
