@@ -17,11 +17,25 @@ jobs:
 
     - name: Is SUSE Member
       id: is-suse-member
-      uses: rancher/gh-issue-mgr/get-user-teams-membership@main
-      with:
-        username: ${{ github.event.issue.user.login }}
-        organization: SUSE
-        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+      run: |
+        USERNAME="${{ github.event.issue.user.login }}"
+        USER_DATA=$(gh api /users/$USERNAME)
+        
+        # Extract user information
+        EMAIL=$(echo "$USER_DATA" | jq -r '.email // ""')
+        COMPANY=$(echo "$USER_DATA" | jq -r '.company // ""')
+        
+        # Check if email or company contains 'suse' (case insensitive)
+        # Warning: The email or company might be fake, so this check is not perfect.
+        IS_SUSE_MEMBER="false"
+        if [[ "${EMAIL,,}" == *"suse"* ]] || [[ "${COMPANY,,}" == *"suse"* ]]; then
+          IS_SUSE_MEMBER="true"
+        fi
+        
+        # Set output variables
+        echo "isOrganization=$IS_SUSE_MEMBER" >> $GITHUB_OUTPUT
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
     
     - name: Is Harvester Member
       id: is-harvester-member
@@ -30,13 +44,6 @@ jobs:
         username: ${{ github.event.issue.user.login }}
         organization: harvester
         GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-    
-    - name: Show Teams
-      run: |
-        echo "SUSE Teams: ${{ steps.is-suse-member.outputs.teams }}"
-        echo "SUSE Organization: ${{ steps.is-suse-member.outputs.isOrganization }}"
-        echo "Harvester Teams: ${{ steps.is-harvester-member.outputs.teams }}"
-        echo "Harvester Organization: ${{ steps.is-harvester-member.outputs.isOrganization }}"
 
     - name: Set Require PM Review Label
       if: ${{
@@ -73,11 +80,6 @@ jobs:
         username: ${{ github.event.issue.user.login }}
         organization: harvester
         GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-    
-    - name: Show Teams
-      run: |
-        echo "Harvester Teams: ${{ steps.is-harvester-member.outputs.teams }}"
-        echo "Harvester Organization: ${{ steps.is-harvester-member.outputs.isOrganization }}"
 
     - name: Add Issue to Harvester Sprint Project
       if: steps.is-harvester-member.outputs.isOrganization == 'true'
@@ -109,11 +111,25 @@ jobs:
     steps:
     - name: Is SUSE Member
       id: is-suse-member
-      uses: rancher/gh-issue-mgr/get-user-teams-membership@main
-      with:
-        username: ${{ github.event.issue.user.login }}
-        organization: SUSE
-        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+      run: |
+        USERNAME="${{ github.event.issue.user.login }}"
+        USER_DATA=$(gh api /users/$USERNAME)
+        
+        # Extract user information
+        EMAIL=$(echo "$USER_DATA" | jq -r '.email // ""')
+        COMPANY=$(echo "$USER_DATA" | jq -r '.company // ""')
+        
+        # Check if email or company contains 'suse' (case insensitive)
+        # Warning: The email or company might be fake, so this check is not perfect.
+        IS_SUSE_MEMBER="false"
+        if [[ "${EMAIL,,}" == *"suse"* ]] || [[ "${COMPANY,,}" == *"suse"* ]]; then
+          IS_SUSE_MEMBER="true"
+        fi
+        
+        # Set output variables
+        echo "isOrganization=$IS_SUSE_MEMBER" >> $GITHUB_OUTPUT
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
     - name: Is Harvester Member
       id: is-harvester-member
@@ -123,13 +139,6 @@ jobs:
         username: ${{ github.event.issue.user.login }}
         organization: harvester
         GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-    
-    - name: Show Teams
-      run: |
-        echo "SUSE Teams: ${{ steps.is-suse-member.outputs.teams }}"
-        echo "SUSE Organization: ${{ steps.is-suse-member.outputs.isOrganization }}"
-        echo "Harvester Teams: ${{ steps.is-harvester-member.outputs.teams }}"
-        echo "Harvester Organization: ${{ steps.is-harvester-member.outputs.isOrganization }}"
 
     - name: Get Issue
       if: steps.is-harvester-member.outcome == 'success'
