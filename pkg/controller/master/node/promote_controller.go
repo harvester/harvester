@@ -40,10 +40,9 @@ const (
 	//   1. promote the witness node to etcd node. (maxmimum: 1)
 	//   2. promote the mgmt node to mgmt node.
 	//   3. do not promote the worker node.
-	HarvesterNodeRoleLabelPrefix = "node-role.harvesterhci.io/"
-	HarvesterWitnessNodeLabelKey = HarvesterNodeRoleLabelPrefix + "witness"
-	HarvesterMgmtNodeLabelKey    = HarvesterNodeRoleLabelPrefix + "management"
-	HarvesterWorkerNodeLabelKey  = HarvesterNodeRoleLabelPrefix + "worker"
+	HarvesterWitnessNodeLabelKey = util.HarvesterWitnessNodeLabelKey
+	HarvesterMgmtNodeLabelKey    = util.HarvesterMgmtNodeLabelKey
+	HarvesterWorkerNodeLabelKey  = util.HarvesterWorkerNodeLabelKey
 
 	HarvesterManagedNodeLabelKey        = util.HarvesterManagedNodeLabelKey
 	HarvesterPromoteNodeLabelKey        = util.HarvesterPromoteNodeLabelKey

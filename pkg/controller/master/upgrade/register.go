@@ -44,7 +44,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	secrets := management.CoreFactory.Core().V1().Secret()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	lhSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
-	kubeVirt := management.VirtFactory.Kubevirt().V1().KubeVirt()
+	configMaps := management.CoreFactory.Core().V1().ConfigMap()
 
 	virtSubsrcConfig := rest.CopyConfig(management.RestConfig)
 	virtSubsrcConfig.GroupVersion = &schema.GroupVersion{Group: "subresources.kubevirt.io", Version: "v1"}
@@ -81,7 +81,6 @@ func Register(ctx context.Context, management *config.Management, options config
 		clusterCache:       clusters.Cache(),
 		lhSettingClient:    lhSettings,
 		lhSettingCache:     lhSettings.Cache(),
-		kubeVirtCache:      kubeVirt.Cache(),
 		vmRestClient:       virtSubresourceClient,
 	}
 	upgrades.OnChange(ctx, upgradeControllerName, controller.OnChanged)
@@ -97,14 +96,17 @@ func Register(ctx context.Context, management *config.Management, options config
 	plans.OnChange(ctx, planControllerName, planHandler.OnChanged)
 
 	jobHandler := &jobHandler{
-		namespace:     options.Namespace,
-		planCache:     plans.Cache(),
-		upgradeClient: upgrades,
-		upgradeCache:  upgrades.Cache(),
-		machineCache:  machines.Cache(),
-		secretClient:  secrets,
-		nodeClient:    nodes,
-		nodeCache:     nodes.Cache(),
+		namespace:      options.Namespace,
+		planCache:      plans.Cache(),
+		upgradeClient:  upgrades,
+		upgradeCache:   upgrades.Cache(),
+		machineCache:   machines.Cache(),
+		secretClient:   secrets,
+		nodeClient:     nodes,
+		nodeCache:      nodes.Cache(),
+		jobClient:      jobs,
+		jobCache:       jobs.Cache(),
+		configMapCache: configMaps.Cache(),
 	}
 	jobs.OnChange(ctx, jobControllerName, jobHandler.OnChanged)
 

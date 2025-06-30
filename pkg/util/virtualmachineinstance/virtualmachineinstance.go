@@ -17,8 +17,14 @@ import (
 func GetAllNonLiveMigratableVMINames(vmis []*kubevirtv1.VirtualMachineInstance, nodes []*corev1.Node) ([]string, error) {
 	var nonLiveMigratableVMINames []string
 
-	// Skip for single-node clusters
-	if len(nodes) == 1 {
+	nonWitnessNodes := util.ExcludeWitnessNodes(nodes)
+
+	// If there is only one node, all VMs are non-migratable
+	if len(nonWitnessNodes) == 1 {
+		for _, vmi := range vmis {
+			vmiNamespacedName := fmt.Sprintf("%s/%s", vmi.Namespace, vmi.Name)
+			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmiNamespacedName)
+		}
 		return nonLiveMigratableVMINames, nil
 	}
 
@@ -40,7 +46,7 @@ func GetAllNonLiveMigratableVMINames(vmis []*kubevirtv1.VirtualMachineInstance, 
 		}
 
 		// Node affinities
-		migratable, err := migratableByNodeAffinity(vmi, nodes)
+		migratable, err := migratableByNodeAffinity(vmi, nonWitnessNodes)
 		if err != nil {
 			return nonLiveMigratableVMINames, err
 		}

@@ -196,8 +196,14 @@ func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 		return err
 	}
 
-	if err := v.checkNonLiveMigratableVMs(); err != nil {
+	restoreVM, err := util.IsRestoreVM()
+	if err != nil {
 		return err
+	}
+	if !restoreVM {
+		if err := v.checkNonLiveMigratableVMs(); err != nil {
+			return err
+		}
 	}
 
 	return v.checkCerts(upgrade)
@@ -510,12 +516,18 @@ func (v *upgradeValidator) checkSingleReplicaVolumes(upgrade *v1beta1.Upgrade) e
 }
 
 func (v *upgradeValidator) checkNonLiveMigratableVMs() error {
-	allVMIs, err := v.vmiCache.List(corev1.NamespaceAll, labels.Everything())
+	allNodes, err := v.nodes.List(labels.Everything())
 	if err != nil {
 		return err
 	}
 
-	allNodes, err := v.nodes.List(labels.Everything())
+	// all VMs are non-migratable if there is only one available node in the cluster
+	// and VMs will be shut down during the upgrade process
+	if len(util.ExcludeWitnessNodes(allNodes)) == 1 {
+		return nil
+	}
+
+	allVMIs, err := v.vmiCache.List(corev1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return err
 	}

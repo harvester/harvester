@@ -433,6 +433,69 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo, nod
 	}
 }
 
+func applyRestoreVMJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo, nodeName string) *batchv1.Job {
+	// Use the image tag in the upgrade repo because it's already preloaded and might contain updated codes.
+	imageVersion := repoInfo.Release.Harvester
+	jobType := upgradeJobTypeRestoreVM
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name.SafeConcatName(upgrade.Name, jobType, nodeName),
+			Namespace: upgrade.Namespace,
+			Labels: map[string]string{
+				harvesterUpgradeLabel: upgrade.Name,
+				harvesterNodeLabel:    nodeName,
+				upgradeJobTypeLabel:   jobType,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				upgradeReference(upgrade),
+			},
+		},
+		Spec: batchv1.JobSpec{
+			TTLSecondsAfterFinished: pointer.Int32Ptr(defaultTTLSecondsAfterFinished),
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						harvesterUpgradeLabel: upgrade.Name,
+						upgradeJobTypeLabel:   jobType,
+					},
+				},
+				Spec: corev1.PodSpec{
+					RestartPolicy: corev1.RestartPolicyNever,
+					Containers: []corev1.Container{
+						{
+							Name:    "apply",
+							Image:   fmt.Sprintf("%s:%s", upgradeImageRepository, imageVersion),
+							Command: []string{"upgrade-helper"},
+							Args: []string{
+								"restore-vm",
+								"--node", nodeName,
+								"--upgrade", upgrade.Name,
+							},
+						},
+					},
+					ServiceAccountName: "harvester",
+					Affinity: &corev1.Affinity{
+						NodeAffinity: &corev1.NodeAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+								NodeSelectorTerms: []corev1.NodeSelectorTerm{{
+									MatchExpressions: []corev1.NodeSelectorRequirement{{
+										Key:      corev1.LabelHostname,
+										Operator: corev1.NodeSelectorOpIn,
+										Values: []string{
+											nodeName,
+										},
+									}},
+								}},
+							},
+						},
+					},
+					Tolerations: getDefaultTolerations(),
+				},
+			},
+		},
+	}
+}
+
 func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo) *batchv1.Job {
 	// Use the image tag in the upgrade repo because it's already preloaded and might contain updated codes.
 	imageVersion := repoInfo.Release.Harvester
