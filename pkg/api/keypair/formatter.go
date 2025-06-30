@@ -3,7 +3,6 @@ package keypair
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strconv"
 
 	"github.com/rancher/apiserver/pkg/apierror"
@@ -13,6 +12,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -30,35 +30,24 @@ type KeyGenActionHandler struct {
 	KeyPairCache ctlharvesterv1.KeyPairCache
 }
 
-func (h KeyGenActionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if err := h.do(rw, req); err != nil {
-		status := http.StatusInternalServerError
-		if e, ok := err.(*apierror.APIError); ok {
-			status = e.Code.Status
-		}
-		rw.WriteHeader(status)
-		_, _ = rw.Write([]byte(err.Error()))
-		return
-	}
-	rw.WriteHeader(http.StatusOK)
-}
+func (h KeyGenActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
+	req, rw := ctx.Req(), ctx.RespWriter()
 
-func (h KeyGenActionHandler) do(rw http.ResponseWriter, req *http.Request) error {
 	input := &harvesterv1.KeyGenInput{}
 	if err := json.NewDecoder(req.Body).Decode(input); err != nil {
-		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to parse body: %v", err))
+		return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to parse body: %v", err))
 	}
 	if input.Name == "" || input.Namespace == "" {
-		return apierror.NewAPIError(validation.InvalidBodyContent, "both name and namespace is required")
+		return nil, apierror.NewAPIError(validation.InvalidBodyContent, "both name and namespace is required")
 	}
 	rsaKey, err := util.GeneratePrivateKey(2048)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	privateKey := util.EncodePrivateKeyToPEM(rsaKey)
 	publicKey, err := util.GeneratePublicKey(&rsaKey.PublicKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	keyPair := &harvesterv1.KeyPair{
@@ -72,12 +61,12 @@ func (h KeyGenActionHandler) do(rw http.ResponseWriter, req *http.Request) error
 	}
 
 	if _, err = h.KeyPairs.Create(keyPair); err != nil {
-		return err
+		return nil, err
 	}
 
 	rw.Header().Set("Content-Disposition", "attachment; filename="+input.Name+".pem")
 	rw.Header().Set("Content-Type", "application/octet-stream")
 	rw.Header().Set("Content-Length", strconv.Itoa(len(privateKey)))
 	_, err = rw.Write(privateKey)
-	return err
+	return nil, err
 }
