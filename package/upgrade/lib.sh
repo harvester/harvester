@@ -887,3 +887,49 @@ EOF
   echo "replace the grafana pod to use the new configmap"
   kubectl delete pods -n cattle-monitoring-system -l app.kubernetes.io/name=grafana || echo "failed to delete the grafana pod, wait until the related host node is rebooted and then it gets the new configmap"
 }
+
+# add upgrade related information to managedchart annotations
+update_managedchart_patch_file_annotations() {
+  local fname=$1
+  local tversion=$2
+  local utime=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  if [ ! -f ${fname} ]; then
+    echo "patch file $fname is not existing, skip update annotations"
+    return
+  fi
+  NEW_UPGRADE=$HARVESTER_UPGRADE_NAME yq e '.metadata.annotations."upgarde.harvesterhci.io/last-upgrade-name" = strenv(NEW_UPGRADE)' ${fname} -i
+  NEW_VERSION=${tversion} yq e '.metadata.annotations."upgarde.harvesterhci.io/last-upgrade-target-version" = strenv(NEW_VERSION)' ${fname} -i
+  NEW_TIME=${utime} yq e '.metadata.annotations."upgarde.harvesterhci.io/last-upgrade-time" = strenv(NEW_TIME)' ${fname} -i
+}
+
+update_managedchart_patch_file_unpause() {
+  local fname=$1
+  if [ ! -f ${fname} ]; then
+    echo "patch file $fname is not existing, skip update paused"
+    return
+  fi
+  yq e '.spec.paused = false' ${fname} -i
+}
+
+update_managedchart_patch_file_timeoutseconds() {
+  local fname=$1
+  if [ ! -f ${fname} ]; then
+    echo "patch file $fname is not existing, skip update timeoutSeconds"
+    return
+  fi
+
+  local cnamespace=$2
+  local cname=$3
+  local tseconds=0
+  local cur_timeout=$(kubectl get managedcharts.management.cattle.io -n ${cnamespace} ${cname} -o=jsonpath='{.spec.timeoutSeconds}')
+  if [ -z ${cur_timeout} ]; then
+    tseconds=599
+  else
+    tseconds=$((cur_timeout+1))
+    if [ ${tseconds} -gt 800 ]; then
+      tseconds=600
+    fi
+  fi
+  echo "the ${cnamespace}/${cname} increased timeoutSeconds is ${tseconds}"
+  NEW_TIMEOUT=${tseconds} yq e '.spec.timeoutSeconds = env(NEW_TIMEOUT)' ${fname} -i
+}
