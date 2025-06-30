@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	// Although we don't use following drivers directly, we need to import them to register drivers.
 	// NFS Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/nfs/nfs.go#L47-L51
@@ -1740,6 +1741,11 @@ func validateUpgradeConfigFields(setting *v1beta1.Setting, isSingleNode bool) er
 	// Validate the restore VM field
 	if upgradeConfig.RestoreVM && !isSingleNode {
 		return fmt.Errorf("restoreVM is only supported in single node cluster")
+	}
+
+	timeout := upgradeConfig.LogReadyTimeout
+	if timeout < 1*time.Minute || timeout > 20*time.Minute {
+		return fmt.Errorf("invalid logReadyTimeout must be between 1 to 20 minutes, given: %d", timeout)
 	}
 
 	return nil
