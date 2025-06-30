@@ -83,7 +83,7 @@ func pvcByDataSourceVolumeSnapshot(obj *corev1.PersistentVolumeClaim) ([]string,
 }
 
 func VMBackupBySourceVMUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
-	if obj.Status == nil || obj.Status.SourceUID == nil {
+	if obj.Status.SourceUID == nil {
 		return []string{}, nil
 	}
 	return []string{string(*obj.Status.SourceUID)}, nil
