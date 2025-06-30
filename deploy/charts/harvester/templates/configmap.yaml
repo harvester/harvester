@@ -115,10 +115,10 @@ data:
     kickout_longhorn_node()
     {
       target=$1
-      found=$($KUBECTL get nodes.longhorn.io -n longhorn-system |grep -q $target && echo true || echo false)
+      found=$($KUBECTL get nodes.longhorn.io -n {{ .Values.longhorn.namespaceOverride }} |grep -q $target && echo true || echo false)
       if [[ $found == true ]]; then
         echo "Found longhorn node $target, kicking it out..."
-        $KUBECTL delete nodes.longhorn.io $target -n longhorn-system
+        $KUBECTL delete nodes.longhorn.io $target -n {{ .Values.longhorn.namespaceOverride }}
       fi
     }
 
