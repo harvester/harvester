@@ -519,8 +519,7 @@ replace_with_mgmtvlan() {
   fi
 
   #files to update with mgmt vlan
-  local SETUPBOND_FILE="${HOST_DIR}/etc/wicked/scripts/setup_bond.sh"
-  local SETUPBRIDGE_FILE="${HOST_DIR}/etc/wicked/scripts/setup_bridge.sh"
+  #updating 90_custom.yaml will update setup_bond.sh,setup_bridge.sh after reboot
   local CUSTOM90_FILE="${HOST_DIR}/oem/90_custom.yaml"
   local CONFIG_FILE="${HOST_DIR}/oem/harvester.config"
 
@@ -530,39 +529,24 @@ replace_with_mgmtvlan() {
     return
   fi
 
+  # Check if 90_custom.yaml file exists
+  if [[ ! -f "$CUSTOM90_FILE" ]]; then
+    echo "File not found: $CUSTOM90_FILE"
+    return
+  fi
+
   # Search for the mgmt vlanid installed in the config file
   vlan_id=$(yq '.install.managementinterface.vlanid' $CONFIG_FILE)
 
-  if [[ -z "$vlan_id" || "$vlan_id" -eq 0 ]]; then
-    echo "VLAN ID: $vlan_id Not found, assign vlan_id=1"
-    vlan_id=1
-  fi
-
-  # Check if the file exists
-  if [[ -f "$SETUPBOND_FILE" ]]; then
+  if [[ "$vlan_id" -ge 2 && "$vlan_id" -le 4094 ]]; then
     # Replace the range with the VLAN ID
-    sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$SETUPBOND_FILE"
-    echo "Updated $SETUPBOND_FILE with VLAN ID $vlan_id"
-  else
-    echo "File not found: $SETUPBOND_FILE"
-  fi
-
-  # Check if the file exists
-  if [[ -f "$SETUPBRIDGE_FILE" ]]; then
-    # Replace the range with the VLAN ID
-    sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$SETUPBRIDGE_FILE"
-    echo "Updated $SETUPBRIDGE_FILE with VLAN ID $vlan_id"
-  else
-    echo "File not found: $SETUPBRIDGE_FILE"
-  fi
-
-  # Check if the file exists
-  if [[ -f "$CUSTOM90_FILE" ]]; then
-    # Replace the range with the VLAN ID
+    sed -i "s/accept all vlan, PVID=1 by default/accept $vlan_id,PVID=1 by default/" $CUSTOM90_FILE
     sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$CUSTOM90_FILE"
     echo "Updated $CUSTOM90_FILE with VLAN ID $vlan_id"
   else
-    echo "File not found: $CUSTOM90_FILE"
+    echo "VLAN ID: $vlan_id remove bridge vlan"
+    sed -i "s/accept all vlan, PVID=1 by default/PVID=1 by default/" $CUSTOM90_FILE
+    sed -i "/bridge vlan add vid/d" $CUSTOM90_FILE
   fi
 }
 
