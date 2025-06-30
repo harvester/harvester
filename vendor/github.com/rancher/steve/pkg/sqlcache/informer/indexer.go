@@ -3,6 +3,7 @@ package informer
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -42,6 +43,8 @@ const (
 
 // Indexer is a SQLite-backed cache.Indexer which builds upon Store adding an index table
 type Indexer struct {
+	ctx context.Context
+
 	Store
 	indexers     cache.Indexers
 	indexersLock sync.RWMutex
@@ -62,50 +65,40 @@ type Indexer struct {
 var _ cache.Indexer = (*Indexer)(nil)
 
 type Store interface {
-	DBClient
+	db.Client
 	cache.Store
 
 	GetByKey(key string) (item any, exists bool, err error)
 	GetName() string
-	RegisterAfterUpsert(f func(key string, obj any, tx db.TXClient) error)
-	RegisterAfterDelete(f func(key string, tx db.TXClient) error)
+	RegisterAfterUpsert(f func(key string, obj any, tx transaction.Client) error)
+	RegisterAfterDelete(f func(key string, tx transaction.Client) error)
 	GetShouldEncrypt() bool
 	GetType() reflect.Type
 }
 
-type DBClient interface {
-	BeginTx(ctx context.Context, forWriting bool) (db.TXClient, error)
-	QueryForRows(ctx context.Context, stmt transaction.Stmt, params ...any) (*sql.Rows, error)
-	ReadObjects(rows db.Rows, typ reflect.Type, shouldDecrypt bool) ([]any, error)
-	ReadStrings(rows db.Rows) ([]string, error)
-	ReadInt(rows db.Rows) (int, error)
-	Prepare(stmt string) *sql.Stmt
-	CloseStmt(stmt db.Closable) error
-}
-
 // NewIndexer returns a cache.Indexer backed by SQLite for objects of the given example type
-func NewIndexer(indexers cache.Indexers, s Store) (*Indexer, error) {
-	tx, err := s.BeginTx(context.Background(), true)
-	if err != nil {
-		return nil, err
-	}
+func NewIndexer(ctx context.Context, indexers cache.Indexers, s Store) (*Indexer, error) {
 	dbName := db.Sanitize(s.GetName())
-	createTableQuery := fmt.Sprintf(createTableFmt, dbName)
-	err = tx.Exec(createTableQuery)
-	if err != nil {
-		return nil, &db.QueryError{QueryString: createTableQuery, Err: err}
-	}
-	createIndexQuery := fmt.Sprintf(createIndexFmt, dbName)
-	err = tx.Exec(createIndexQuery)
-	if err != nil {
-		return nil, &db.QueryError{QueryString: createIndexQuery, Err: err}
-	}
-	err = tx.Commit()
+
+	err := s.WithTransaction(ctx, true, func(tx transaction.Client) error {
+		createTableQuery := fmt.Sprintf(createTableFmt, dbName)
+		_, err := tx.Exec(createTableQuery)
+		if err != nil {
+			return &db.QueryError{QueryString: createTableQuery, Err: err}
+		}
+		createIndexQuery := fmt.Sprintf(createIndexFmt, dbName)
+		_, err = tx.Exec(createIndexQuery)
+		if err != nil {
+			return &db.QueryError{QueryString: createIndexQuery, Err: err}
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	i := &Indexer{
+		ctx:      ctx,
 		Store:    s,
 		indexers: indexers,
 	}
@@ -129,9 +122,9 @@ func NewIndexer(indexers cache.Indexers, s Store) (*Indexer, error) {
 /* Core methods */
 
 // AfterUpsert updates indices of an object
-func (i *Indexer) AfterUpsert(key string, obj any, tx db.TXClient) error {
+func (i *Indexer) AfterUpsert(key string, obj any, tx transaction.Client) error {
 	// delete all
-	err := tx.StmtExec(tx.Stmt(i.deleteIndicesStmt), key)
+	_, err := tx.Stmt(i.deleteIndicesStmt).Exec(key)
 	if err != nil {
 		return &db.QueryError{QueryString: i.deleteIndicesQuery, Err: err}
 	}
@@ -146,7 +139,7 @@ func (i *Indexer) AfterUpsert(key string, obj any, tx db.TXClient) error {
 		}
 
 		for _, value := range values {
-			err = tx.StmtExec(tx.Stmt(i.addIndexStmt), indexName, value, key)
+			_, err = tx.Stmt(i.addIndexStmt).Exec(indexName, value, key)
 			if err != nil {
 				return &db.QueryError{QueryString: i.addIndexQuery, Err: err}
 			}
@@ -158,7 +151,7 @@ func (i *Indexer) AfterUpsert(key string, obj any, tx db.TXClient) error {
 /* Satisfy cache.Indexer */
 
 // Index returns a list of items that match the given object on the index function
-func (i *Indexer) Index(indexName string, obj any) ([]any, error) {
+func (i *Indexer) Index(indexName string, obj any) (result []any, err error) {
 	i.indexersLock.RLock()
 	defer i.indexersLock.RUnlock()
 	indexFunc := i.indexers[indexName]
@@ -184,14 +177,20 @@ func (i *Indexer) Index(indexName string, obj any) ([]any, error) {
 	// HACK: sql.Statement.Query does not allow to pass slices in as of go 1.19 - create an ad-hoc statement
 	query := fmt.Sprintf(selectQueryFmt, db.Sanitize(i.GetName()), strings.Repeat(", ?", len(values)-1))
 	stmt := i.Prepare(query)
-	defer i.CloseStmt(stmt)
+
+	defer func() {
+		cerr := i.CloseStmt(stmt)
+		if cerr != nil {
+			err = errors.Join(err, &db.QueryError{QueryString: query, Err: cerr})
+		}
+	}()
 	// HACK: Query will accept []any but not []string
 	params := []any{indexName}
 	for _, value := range values {
 		params = append(params, value)
 	}
 
-	rows, err := i.QueryForRows(context.TODO(), stmt, params...)
+	rows, err := i.QueryForRows(i.ctx, stmt, params...)
 	if err != nil {
 		return nil, &db.QueryError{QueryString: query, Err: err}
 	}
@@ -201,7 +200,7 @@ func (i *Indexer) Index(indexName string, obj any) ([]any, error) {
 // ByIndex returns the stored objects whose set of indexed values
 // for the named index includes the given indexed value
 func (i *Indexer) ByIndex(indexName, indexedValue string) ([]any, error) {
-	rows, err := i.QueryForRows(context.TODO(), i.listByIndexStmt, indexName, indexedValue)
+	rows, err := i.QueryForRows(i.ctx, i.listByIndexStmt, indexName, indexedValue)
 	if err != nil {
 		return nil, &db.QueryError{QueryString: i.listByIndexQuery, Err: err}
 	}
@@ -217,7 +216,7 @@ func (i *Indexer) IndexKeys(indexName, indexedValue string) ([]string, error) {
 		return nil, fmt.Errorf("Index with name %s does not exist", indexName)
 	}
 
-	rows, err := i.QueryForRows(context.TODO(), i.listKeysByIndexStmt, indexName, indexedValue)
+	rows, err := i.QueryForRows(i.ctx, i.listKeysByIndexStmt, indexName, indexedValue)
 	if err != nil {
 		return nil, &db.QueryError{QueryString: i.listKeysByIndexQuery, Err: err}
 	}
@@ -235,7 +234,7 @@ func (i *Indexer) ListIndexFuncValues(name string) []string {
 
 // safeListIndexFuncValues returns all the indexed values of the given index
 func (i *Indexer) safeListIndexFuncValues(indexName string) ([]string, error) {
-	rows, err := i.QueryForRows(context.TODO(), i.listIndexValuesStmt, indexName)
+	rows, err := i.QueryForRows(i.ctx, i.listIndexValuesStmt, indexName)
 	if err != nil {
 		return nil, &db.QueryError{QueryString: i.listIndexValuesQuery, Err: err}
 	}
