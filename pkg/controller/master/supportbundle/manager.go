@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,11 +55,7 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string, pullPolicy
 	deployName = m.getManagerName(sb)
 	logrus.Debugf("creating deployment %s with image %s", deployName, image)
 
-	if expiration := settings.SupportBundleNodeCollectionTimeout.GetInt(); expiration == 0 {
-		nodeTimeout = time.Duration(supportBundleUtil.SupportBundleNodeCollectionTimeoutDefault) * time.Minute
-	} else {
-		nodeTimeout = time.Duration(expiration) * time.Minute
-	}
+	nodeTimeout = determineNodeTimeout(sb)
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -98,7 +95,7 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string, pullPolicy
 							Env: []corev1.EnvVar{
 								{
 									Name:  "SUPPORT_BUNDLE_TARGET_NAMESPACES",
-									Value: m.getCollectNamespaces(),
+									Value: m.getCollectNamespaces(sb),
 								},
 								{
 									Name:  "SUPPORT_BUNDLE_NAME",
@@ -170,29 +167,38 @@ func (m *Manager) Create(sb *harvesterv1.SupportBundle, image string, pullPolicy
 	return err
 }
 
-func (m *Manager) getCollectNamespaces() string {
-	namespaces := []string{
-		"cattle-dashboards",
-		"cattle-fleet-local-system",
-		"cattle-fleet-system",
-		"cattle-fleet-clusters-system",
-		"cattle-monitoring-system",
-		"fleet-local",
-		"harvester-system",
-		"local",
-		"longhorn-system",
-		"cattle-logging-system",
-		// namespace for CAPI system components
-		// https://github.com/rancher/rancher/blob/4ac81b66b0f971548be78f2d1c72ecb906171a0b/pkg/controllers/dashboard/systemcharts/controller.go#L176
-		"cattle-provisioning-capi-system",
+func (m *Manager) getCollectNamespaces(sb *harvesterv1.SupportBundle) string {
+	namespaces := supportBundleUtil.DefaultNamespaces()
+
+	// Priority 1: If spec.ExtraCollectionNamespaces has values, use them
+	if len(sb.Spec.ExtraCollectionNamespaces) > 0 {
+		namespaces = append(namespaces, sb.Spec.ExtraCollectionNamespaces...)
+	} else {
+		// Priority 2: If spec is empty, use settings value
+		extraNamespaces := settings.SupportBundleNamespaces.Get()
+		if extraNamespaces != "" {
+			// Split the settings value by comma to get individual namespaces
+			splitNamespaces := strings.Split(extraNamespaces, ",")
+			for _, ns := range splitNamespaces {
+				ns = strings.TrimSpace(ns) // Remove any extra whitespace
+				if ns != "" {
+					namespaces = append(namespaces, ns)
+				}
+			}
+		}
 	}
 
-	extraNamespaces := settings.SupportBundleNamespaces.Get()
-	if extraNamespaces != "" {
-		namespaces = append(namespaces, extraNamespaces)
+	// De-duplicate namespaces to avoid redundancy
+	seen := make(map[string]bool)
+	uniqueNamespaces := make([]string, 0, len(namespaces))
+	for _, ns := range namespaces {
+		if !seen[ns] {
+			seen[ns] = true
+			uniqueNamespaces = append(uniqueNamespaces, ns)
+		}
 	}
 
-	return strings.Join(namespaces, ",")
+	return strings.Join(uniqueNamespaces, ",")
 }
 
 func (m *Manager) getExcludeResources() string {
@@ -261,4 +267,42 @@ func GetManagerPodIP(podCache ctlcorev1.PodCache, sb *harvesterv1.SupportBundle)
 		return "", errors.New("manager pod IP is not allocated")
 	}
 	return pods[0].Status.PodIP, nil
+}
+
+func determineNodeTimeout(sb *harvesterv1.SupportBundle) time.Duration {
+	return supportBundleUtil.DetermineDurationWithDefaults(
+		sb.Spec.NodeTimeout,
+		settings.SupportBundleNodeCollectionTimeout.GetInt(),
+		supportBundleUtil.SupportBundleNodeCollectionTimeoutDefault,
+	)
+}
+
+func determineExpiration(sb *harvesterv1.SupportBundle) time.Duration {
+	return supportBundleUtil.DetermineDurationWithDefaults(
+		sb.Spec.Expiration,
+		settings.SupportBundleExpiration.GetInt(),
+		supportBundleUtil.SupportBundleExpirationDefault,
+	)
+}
+
+// determineTimeout determines the timeout based on priority:
+func determineTimeout(sb *harvesterv1.SupportBundle) (time.Duration, error) {
+	// Priority 1: If spec.Timeout is set, use it directly
+	if sb.Spec.Timeout != nil && *sb.Spec.Timeout >= 0 {
+		return time.Duration(int64(*sb.Spec.Timeout)) * time.Minute, nil
+	}
+
+	// Priority 2: If spec.Timeout is not set, check settings value
+	// But only if settings is not empty (preserve original logic)
+	if timeoutStr := settings.SupportBundleTimeout.Get(); timeoutStr != "" {
+		timeout, err := strconv.Atoi(timeoutStr)
+		if err != nil {
+			return 0, err
+		}
+
+		return time.Duration(timeout) * time.Minute, nil
+	}
+
+	// Priority 3: If settings is empty, use default value.
+	return time.Duration(supportBundleUtil.SupportBundleTimeoutDefault) * time.Minute, nil
 }

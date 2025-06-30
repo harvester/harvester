@@ -1,32 +1,38 @@
 package virtualmachineimage
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 
-	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
-	"github.com/rancher/wrangler/v3/pkg/slice"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
-	storagev1 "k8s.io/api/storage/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/image/backend"
+	"github.com/harvester/harvester/pkg/image/backingimage"
+	"github.com/harvester/harvester/pkg/image/cdi"
+	"github.com/harvester/harvester/pkg/image/common"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func NewMutator(storageClassCache ctlstoragev1.StorageClassCache) types.Mutator {
+func NewMutator(scCache ctlstoragev1.StorageClassCache) types.Mutator {
+	vmim := common.GetVMIMutator(scCache)
+	mutators := map[harvesterv1.VMIBackend]backend.Mutator{
+		harvesterv1.VMIBackendBackingImage: backingimage.GetMutator(vmim),
+		harvesterv1.VMIBackendCDI:          cdi.GetMutator(vmim),
+	}
+
 	return &virtualMachineImageMutator{
-		storageClassCache: storageClassCache,
+		scCache:  scCache,
+		mutators: mutators,
 	}
 }
 
 type virtualMachineImageMutator struct {
 	types.DefaultMutator
-	storageClassCache ctlstoragev1.StorageClassCache
+	scCache  ctlstoragev1.StorageClassCache
+	mutators map[harvesterv1.VMIBackend]backend.Mutator
 }
 
 func (m *virtualMachineImageMutator) Resource() types.Resource {
@@ -38,92 +44,39 @@ func (m *virtualMachineImageMutator) Resource() types.Resource {
 		ObjectType: &harvesterv1.VirtualMachineImage{},
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Create,
+			admissionregv1.Update,
 		},
 	}
 }
 
 func (m *virtualMachineImageMutator) Create(_ *types.Request, newObj runtime.Object) (types.PatchOps, error) {
-	newImage := newObj.(*harvesterv1.VirtualMachineImage)
-
-	return m.patchImageStorageClassParams(newImage)
-}
-
-func (m *virtualMachineImageMutator) patchImageStorageClassParams(newImage *harvesterv1.VirtualMachineImage) ([]string, error) {
 	var patchOps types.PatchOps
+	vmi := newObj.(*harvesterv1.VirtualMachineImage)
 
-	storageClassName := newImage.Annotations[util.AnnotationStorageClassName]
-	storageClass, err := m.getStorageClass(storageClassName)
+	if vmi.Spec.Backend == "" {
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/backend", "value": "%s"}`, harvesterv1.VMIBackendBackingImage))
+		vmi.Spec.Backend = harvesterv1.VMIBackendBackingImage
+	}
+
+	mutatePatches, err := m.mutators[util.GetVMIBackend(vmi)].Create(vmi)
 	if err != nil {
 		return patchOps, err
 	}
 
-	parameters := mergeStorageClassParams(newImage, storageClass)
-	valueBytes, err := json.Marshal(parameters)
-	if err != nil {
-		return patchOps, err
-	}
-
-	verb := "add"
-	if newImage.Spec.StorageClassParameters != nil {
-		verb = "replace"
-	}
-
-	patchOps = append(patchOps, fmt.Sprintf(`{"op": "%s", "path": "/spec/storageClassParameters", "value": %s}`, verb, string(valueBytes)))
+	patchOps = append(patchOps, mutatePatches...)
 	return patchOps, nil
 }
 
-func (m *virtualMachineImageMutator) getStorageClass(storageClassName string) (*storagev1.StorageClass, error) {
-	if storageClassName != "" {
-		storageClass, err := m.storageClassCache.Get(storageClassName)
-		if err != nil {
-			return nil, err
-		}
-		if storageClass.Provisioner != longhorntypes.LonghornDriverName {
-			return nil, fmt.Errorf("the provisioner of storageClass must be %s, not %s", longhorntypes.LonghornDriverName, storageClass.Provisioner)
-		}
-		if storageClass.Parameters[util.LonghornOptionBackingImageName] != "" {
-			return nil, errors.New("can not use a backing image storageClass as the base storageClass template")
-		}
-		return storageClass, nil
-	}
+func (m *virtualMachineImageMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
+	var patchOps types.PatchOps
+	newVMI := newObj.(*harvesterv1.VirtualMachineImage)
+	oldVMI := oldObj.(*harvesterv1.VirtualMachineImage)
 
-	storageClasses, err := m.storageClassCache.List(labels.Everything())
+	mutatePatches, err := m.mutators[util.GetVMIBackend(newVMI)].Update(oldVMI, newVMI)
 	if err != nil {
-		return nil, err
+		return patchOps, err
 	}
 
-	for _, storageClass := range storageClasses {
-		if storageClass.Annotations[util.AnnotationIsDefaultStorageClassName] == "true" &&
-			storageClass.Provisioner == longhorntypes.LonghornDriverName {
-			return storageClass, nil
-		}
-	}
-
-	return nil, nil
-}
-
-func mergeStorageClassParams(image *harvesterv1.VirtualMachineImage, storageClass *storagev1.StorageClass) map[string]string {
-	params := util.GetImageDefaultStorageClassParameters()
-	var mergeParams map[string]string
-	if storageClass != nil {
-		mergeParams = storageClass.Parameters
-	} else if image.Spec.StorageClassParameters != nil {
-		mergeParams = image.Spec.StorageClassParameters
-	}
-	var allowPatchParams = []string{
-		longhorntypes.OptionNodeSelector, longhorntypes.OptionDiskSelector,
-		longhorntypes.OptionNumberOfReplicas, longhorntypes.OptionStaleReplicaTimeout,
-		util.LonghornDataLocality,
-		util.LonghornOptionEncrypted,
-		util.CSIProvisionerSecretNameKey, util.CSIProvisionerSecretNamespaceKey,
-		util.CSINodeStageSecretNameKey, util.CSINodeStageSecretNamespaceKey,
-		util.CSINodePublishSecretNameKey, util.CSINodePublishSecretNamespaceKey,
-	}
-
-	for k, v := range mergeParams {
-		if slice.ContainsString(allowPatchParams, k) {
-			params[k] = v
-		}
-	}
-	return params
+	patchOps = append(patchOps, mutatePatches...)
+	return patchOps, nil
 }

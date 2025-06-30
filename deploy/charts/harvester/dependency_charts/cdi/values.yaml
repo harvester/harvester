@@ -1,0 +1,27 @@
+cdi:
+  config:
+    featureGates:
+      - HonorWaitForFirstConsumer
+  imagePullPolicy: "IfNotPresent"
+  infra:
+    nodeSelector:
+      kubernetes.io/os: linux
+    tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+  uninstallStrategy: ""
+  workload:
+    nodeSelector:
+      kubernetes.io/os: linux
+
+hookImage: rancher/kubectl:v1.32.3
+hookRestartPolicy: OnFailure
+hookSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL

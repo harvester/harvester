@@ -40,20 +40,22 @@ var featuresKind = v3.SchemeGroupVersion.WithKind("Feature")
 
 // Get takes name of the feature, and returns the corresponding feature object, and an error if there is any.
 func (c *FakeFeatures) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Feature, err error) {
+	emptyResult := &v3.Feature{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(featuresResource, name), &v3.Feature{})
+		Invokes(testing.NewRootGetActionWithOptions(featuresResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Feature), err
 }
 
 // List takes label and field selectors, and returns the list of Features that match those selectors.
 func (c *FakeFeatures) List(ctx context.Context, opts v1.ListOptions) (result *v3.FeatureList, err error) {
+	emptyResult := &v3.FeatureList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(featuresResource, featuresKind, opts), &v3.FeatureList{})
+		Invokes(testing.NewRootListActionWithOptions(featuresResource, featuresKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,36 +74,39 @@ func (c *FakeFeatures) List(ctx context.Context, opts v1.ListOptions) (result *v
 // Watch returns a watch.Interface that watches the requested features.
 func (c *FakeFeatures) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(featuresResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(featuresResource, opts))
 }
 
 // Create takes the representation of a feature and creates it.  Returns the server's representation of the feature, and an error, if there is any.
 func (c *FakeFeatures) Create(ctx context.Context, feature *v3.Feature, opts v1.CreateOptions) (result *v3.Feature, err error) {
+	emptyResult := &v3.Feature{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(featuresResource, feature), &v3.Feature{})
+		Invokes(testing.NewRootCreateActionWithOptions(featuresResource, feature, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Feature), err
 }
 
 // Update takes the representation of a feature and updates it. Returns the server's representation of the feature, and an error, if there is any.
 func (c *FakeFeatures) Update(ctx context.Context, feature *v3.Feature, opts v1.UpdateOptions) (result *v3.Feature, err error) {
+	emptyResult := &v3.Feature{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(featuresResource, feature), &v3.Feature{})
+		Invokes(testing.NewRootUpdateActionWithOptions(featuresResource, feature, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Feature), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeFeatures) UpdateStatus(ctx context.Context, feature *v3.Feature, opts v1.UpdateOptions) (*v3.Feature, error) {
+func (c *FakeFeatures) UpdateStatus(ctx context.Context, feature *v3.Feature, opts v1.UpdateOptions) (result *v3.Feature, err error) {
+	emptyResult := &v3.Feature{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(featuresResource, "status", feature), &v3.Feature{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(featuresResource, "status", feature, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Feature), err
 }
@@ -115,7 +120,7 @@ func (c *FakeFeatures) Delete(ctx context.Context, name string, opts v1.DeleteOp
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeFeatures) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(featuresResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(featuresResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.FeatureList{})
 	return err
@@ -123,10 +128,11 @@ func (c *FakeFeatures) DeleteCollection(ctx context.Context, opts v1.DeleteOptio
 
 // Patch applies the patch and returns the patched feature.
 func (c *FakeFeatures) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Feature, err error) {
+	emptyResult := &v3.Feature{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(featuresResource, name, pt, data, subresources...), &v3.Feature{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(featuresResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.Feature), err
 }

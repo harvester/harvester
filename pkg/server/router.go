@@ -120,7 +120,7 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 		defer func() {
 			if err := recover(); err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(fmt.Sprint(err)))
+				w.Write([]byte(fmt.Sprint(err))) // nolint: errcheck
 				logrus.WithFields(logrus.Fields{
 					"err":   err,
 					"stack": string(debug.Stack()),

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"reflect"
 	"strings"
 	"time"
 
@@ -24,7 +23,6 @@ import (
 	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
-	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
 	"github.com/harvester/harvester/pkg/util"
@@ -76,12 +74,14 @@ func NewUpgradeRepo(ctx context.Context, upgrade *harvesterv1.Upgrade, upgradeHa
 func (r *Repo) Bootstrap() error {
 	image := r.upgrade.Status.ImageID
 	if image == "" {
-		return errors.New("Upgrade repo image is not provided")
+		return errors.New("upgrade repo image is not provided")
 	}
 	upgradeImage, err := r.GetImage(image)
 	if err != nil {
 		return err
 	}
+
+	logrus.Infof("Create upgrade repo vm with image %v and service", image)
 
 	_, err = r.createVM(upgradeImage)
 	if err != nil {
@@ -90,6 +90,20 @@ func (r *Repo) Bootstrap() error {
 
 	_, err = r.createService()
 	return err
+}
+
+// Clean repo related resources
+func (r *Repo) Cleanup() error {
+	logrus.Infof("Delete upgrade repo vm, image and service")
+	if err := r.deleteVM(); err != nil {
+		logrus.Warnf("%s", err.Error())
+		return err
+	}
+	if err := r.deleteService(); err != nil {
+		logrus.Warnf("%s", err.Error())
+		return err
+	}
+	return nil
 }
 
 func getISODisplayNameImageName(upgradeName string, version string) string {
@@ -110,7 +124,7 @@ func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.
 		},
 		Spec: harvesterv1.VirtualMachineImageSpec{
 			DisplayName: getISODisplayNameImageName(r.upgrade.Name, r.upgrade.Spec.Version),
-			SourceType:  v1beta1.VirtualMachineImageSourceTypeDownload,
+			SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
 			URL:         isoURL,
 			Checksum:    checksum,
 			Retry:       3,
@@ -123,7 +137,7 @@ func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.
 func (r *Repo) GetImage(imageName string) (*harvesterv1.VirtualMachineImage, error) {
 	tokens := strings.Split(imageName, "/")
 	if len(tokens) != 2 {
-		return nil, fmt.Errorf("Invalid image format %s", imageName)
+		return nil, fmt.Errorf("invalid image format %s", imageName)
 	}
 
 	image, err := r.h.vmImageCache.Get(tokens[0], tokens[1])
@@ -137,9 +151,17 @@ func (r *Repo) getVMName() string {
 	return fmt.Sprintf("%s%s", repoVMNamePrefix, r.upgrade.Name)
 }
 
+func (r *Repo) GetVMName() string {
+	return r.getVMName()
+}
+
+func (r *Repo) GetVMNamespace() string {
+	return upgradeNamespace
+}
+
 func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.VirtualMachine, error) {
 	vmName := r.getVMName()
-	vmRun := true
+	runStrategy := kubevirtv1.RunStrategyRerunOnFailure // the default strategy used by Harvester to create new VMs
 	var bootOrder uint = 1
 	evictionStrategy := kubevirtv1.EvictionStrategyLiveMigrateIfPossible
 
@@ -188,7 +210,7 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 			},
 		},
 		Spec: kubevirtv1.VirtualMachineSpec{
-			Running: &vmRun,
+			RunStrategy: &runStrategy,
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -204,6 +226,7 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 							Cores:   1,
 							Sockets: 1,
 							Threads: 1,
+							Model:   kubevirtv1.CPUModeHostPassthrough,
 						},
 						Firmware: &kubevirtv1.Firmware{
 							Bootloader: &kubevirtv1.Bootloader{
@@ -308,28 +331,7 @@ func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.Vir
 	return r.h.vmClient.Create(&vm)
 }
 
-func (r *Repo) startVM() error {
-	vmName := r.getVMName()
-	vm, err := r.h.vmCache.Get(upgradeNamespace, vmName)
-	if err != nil {
-		return err
-	}
-
-	if vm.Status.PrintableStatus == kubevirtv1.VirtualMachineStatusRunning {
-		return nil
-	}
-
-	toUpdate := vm.DeepCopy()
-
-	toUpdate.Spec.Running = func(b bool) *bool { return &b }(true)
-	if !reflect.DeepEqual(toUpdate, vm) {
-		if _, err = r.h.vmClient.Update(toUpdate); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
+// (r *Repo) startVM() is done via func (h *upgradeHandler) startVM(ctx context.Context, vm *kubevirtv1.VirtualMachine)
 
 func (r *Repo) deleteVM() error {
 	vmName := r.getVMName()
@@ -339,7 +341,7 @@ func (r *Repo) deleteVM() error {
 		if apierrors.IsNotFound(err) {
 			return r.deleteImage("")
 		}
-		return err
+		return fmt.Errorf("failed to get repo vm %s/%s error %w", vm.Namespace, vm.Name, err)
 	}
 
 	if pvcName, ok := vm.Annotations[util.RemovedPVCsAnnotationKey]; ok {
@@ -348,8 +350,24 @@ func (r *Repo) deleteVM() error {
 		}
 	}
 
-	logrus.Infof("Delete upgrade repo VM %s/%s", vm.Namespace, vm.Name)
-	return r.h.vmClient.Delete(vm.Namespace, vm.Name, &metav1.DeleteOptions{})
+	err = r.h.vmClient.Delete(vm.Namespace, vm.Name, &metav1.DeleteOptions{})
+	if err == nil {
+		return nil
+	}
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	return fmt.Errorf("failed to delete repo vm %s/%s error %w", vm.Namespace, vm.Name, err)
+}
+
+func (r *Repo) deleteService() error {
+	nm := r.getRepoServiceName()
+	// no serviceCache, delete via client directly
+	err := r.h.serviceClient.Delete(upgradeNamespace, nm, &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete service %s/%s error %w", upgradeNamespace, nm, err)
+	}
+	return nil
 }
 
 // deleteImage deletes a repo image
@@ -359,7 +377,7 @@ func (r *Repo) deleteVM() error {
 func (r *Repo) deleteImage(pvcName string) error {
 	imageID := r.upgrade.Status.ImageID
 	if imageID == "" {
-		logrus.Error("Upgrade repo image is not provided")
+		logrus.Warnf("Upgrade repo image is not provided on upgrade status, skip")
 		return nil
 	}
 

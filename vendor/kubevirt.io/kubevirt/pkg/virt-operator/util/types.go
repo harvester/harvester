@@ -27,37 +27,43 @@ import (
 	"kubevirt.io/kubevirt/pkg/controller"
 )
 
-type Stores struct {
-	ServiceAccountCache                     cache.Store
-	ClusterRoleCache                        cache.Store
-	ClusterRoleBindingCache                 cache.Store
-	RoleCache                               cache.Store
-	RoleBindingCache                        cache.Store
-	CrdCache                                cache.Store
-	ServiceCache                            cache.Store
-	DeploymentCache                         cache.Store
-	DaemonSetCache                          cache.Store
-	ValidationWebhookCache                  cache.Store
-	MutatingWebhookCache                    cache.Store
-	APIServiceCache                         cache.Store
-	SCCCache                                cache.Store
-	RouteCache                              cache.Store
-	InstallStrategyConfigMapCache           cache.Store
-	InstallStrategyJobCache                 cache.Store
-	InfrastructurePodCache                  cache.Store
-	PodDisruptionBudgetCache                cache.Store
-	ServiceMonitorCache                     cache.Store
-	NamespaceCache                          cache.Store
-	PrometheusRuleCache                     cache.Store
-	SecretCache                             cache.Store
-	ConfigMapCache                          cache.Store
-	ValidatingAdmissionPolicyBindingCache   cache.Store
-	ValidatingAdmissionPolicyCache          cache.Store
+type OperatorConfig struct {
 	IsOnOpenshift                           bool
 	ServiceMonitorEnabled                   bool
 	PrometheusRulesEnabled                  bool
 	ValidatingAdmissionPolicyBindingEnabled bool
 	ValidatingAdmissionPolicyEnabled        bool
+}
+
+type Stores struct {
+	KubeVirtCache                         cache.Store
+	ServiceAccountCache                   cache.Store
+	ClusterRoleCache                      cache.Store
+	ClusterRoleBindingCache               cache.Store
+	RoleCache                             cache.Store
+	RoleBindingCache                      cache.Store
+	OperatorCrdCache                      cache.Store
+	ServiceCache                          cache.Store
+	DeploymentCache                       cache.Store
+	DaemonSetCache                        cache.Store
+	ValidationWebhookCache                cache.Store
+	MutatingWebhookCache                  cache.Store
+	APIServiceCache                       cache.Store
+	SCCCache                              cache.Store
+	RouteCache                            cache.Store
+	InstallStrategyConfigMapCache         cache.Store
+	InstallStrategyJobCache               cache.Store
+	InfrastructurePodCache                cache.Store
+	PodDisruptionBudgetCache              cache.Store
+	ServiceMonitorCache                   cache.Store
+	NamespaceCache                        cache.Store
+	PrometheusRuleCache                   cache.Store
+	SecretCache                           cache.Store
+	ConfigMapCache                        cache.Store
+	ValidatingAdmissionPolicyBindingCache cache.Store
+	ValidatingAdmissionPolicyCache        cache.Store
+	ClusterInstancetype                   cache.Store
+	ClusterPreference                     cache.Store
 }
 
 func (s *Stores) AllEmpty() bool {
@@ -66,7 +72,7 @@ func (s *Stores) AllEmpty() bool {
 		IsStoreEmpty(s.ClusterRoleBindingCache) &&
 		IsStoreEmpty(s.RoleCache) &&
 		IsStoreEmpty(s.RoleBindingCache) &&
-		IsStoreEmpty(s.CrdCache) &&
+		IsStoreEmpty(s.OperatorCrdCache) &&
 		IsStoreEmpty(s.ServiceCache) &&
 		IsStoreEmpty(s.DeploymentCache) &&
 		IsStoreEmpty(s.DaemonSetCache) &&
@@ -114,7 +120,7 @@ type Expectations struct {
 	ClusterRoleBinding               *controller.UIDTrackingControllerExpectations
 	Role                             *controller.UIDTrackingControllerExpectations
 	RoleBinding                      *controller.UIDTrackingControllerExpectations
-	Crd                              *controller.UIDTrackingControllerExpectations
+	OperatorCrd                      *controller.UIDTrackingControllerExpectations
 	Service                          *controller.UIDTrackingControllerExpectations
 	Deployment                       *controller.UIDTrackingControllerExpectations
 	DaemonSet                        *controller.UIDTrackingControllerExpectations
@@ -135,12 +141,14 @@ type Expectations struct {
 }
 
 type Informers struct {
+	KubeVirt                         cache.SharedIndexInformer
+	CRD                              cache.SharedIndexInformer
 	ServiceAccount                   cache.SharedIndexInformer
 	ClusterRole                      cache.SharedIndexInformer
 	ClusterRoleBinding               cache.SharedIndexInformer
 	Role                             cache.SharedIndexInformer
 	RoleBinding                      cache.SharedIndexInformer
-	Crd                              cache.SharedIndexInformer
+	OperatorCrd                      cache.SharedIndexInformer
 	Service                          cache.SharedIndexInformer
 	Deployment                       cache.SharedIndexInformer
 	DaemonSet                        cache.SharedIndexInformer
@@ -160,6 +168,8 @@ type Informers struct {
 	ConfigMap                        cache.SharedIndexInformer
 	ValidatingAdmissionPolicyBinding cache.SharedIndexInformer
 	ValidatingAdmissionPolicy        cache.SharedIndexInformer
+	ClusterInstancetype              cache.SharedIndexInformer
+	ClusterPreference                cache.SharedIndexInformer
 }
 
 func (e *Expectations) DeleteExpectations(key string) {
@@ -168,7 +178,7 @@ func (e *Expectations) DeleteExpectations(key string) {
 	e.ClusterRoleBinding.DeleteExpectations(key)
 	e.Role.DeleteExpectations(key)
 	e.RoleBinding.DeleteExpectations(key)
-	e.Crd.DeleteExpectations(key)
+	e.OperatorCrd.DeleteExpectations(key)
 	e.Service.DeleteExpectations(key)
 	e.Deployment.DeleteExpectations(key)
 	e.DaemonSet.DeleteExpectations(key)
@@ -194,7 +204,7 @@ func (e *Expectations) ResetExpectations(key string) {
 	e.ClusterRoleBinding.SetExpectations(key, 0, 0)
 	e.Role.SetExpectations(key, 0, 0)
 	e.RoleBinding.SetExpectations(key, 0, 0)
-	e.Crd.SetExpectations(key, 0, 0)
+	e.OperatorCrd.SetExpectations(key, 0, 0)
 	e.Service.SetExpectations(key, 0, 0)
 	e.Deployment.SetExpectations(key, 0, 0)
 	e.DaemonSet.SetExpectations(key, 0, 0)
@@ -220,7 +230,7 @@ func (e *Expectations) SatisfiedExpectations(key string) bool {
 		e.ClusterRoleBinding.SatisfiedExpectations(key) &&
 		e.Role.SatisfiedExpectations(key) &&
 		e.RoleBinding.SatisfiedExpectations(key) &&
-		e.Crd.SatisfiedExpectations(key) &&
+		e.OperatorCrd.SatisfiedExpectations(key) &&
 		e.Service.SatisfiedExpectations(key) &&
 		e.Deployment.SatisfiedExpectations(key) &&
 		e.DaemonSet.SatisfiedExpectations(key) &&

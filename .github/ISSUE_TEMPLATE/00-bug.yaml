@@ -1,0 +1,74 @@
+name: Bug report
+description: Create a bug report
+title: "[BUG] "
+labels: ["kind/bug", "require/severity", "require/reproduce"]
+assignees:
+-
+body:
+- type: markdown
+  attributes:
+    value: |
+      Thanks for stopping by to let us know something could be better!
+      
+      For general questions or discussions, please use the [Discussions](https://github.com/harvester/harvester/discussions) tab.
+
+- type: textarea
+  attributes:
+    label: Describe the Bug
+    description: A clear and concise description of the bug.
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: To Reproduce
+    description: Please provide the steps to reproduce the case.
+  validations:
+    required: false
+
+- type: textarea
+  attributes:
+    label: Expected Behavior
+    description: A clear and concise description of what you expected to happen.
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: Support Bundle for Troubleshooting
+    description: |
+      You can generate a support bundle at the bottom of Harvester UI (https://docs.harvesterhci.io/v1.0/troubleshooting/harvester/#generate-a-support-bundle). It includes logs and configurations that help diagnose the issue.
+
+      Tokens, passwords, and secrets are automatically removed from support bundles. If you feel it's not appropriate to share the bundle files publicly, please consider:
+      - Wait for a developer to reach you and provide the bundle file by any secure method.
+      - Join our Slack community (https://rancher-users.slack.com/archives/C01GKHKAG0K) to provide the bundle.
+      - Send the bundle to harvester-support-bundle@suse.com with the correct issue ID.
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: Environment
+    description: Please provide the environment setup and problematic resources. 
+    value: |
+      - Harvester version:
+      - Impacted VM: <!-- PLEASE specify the VM name to better identify the cause -->
+      - Impacted volume (PV): <!-- PLEASE specify the volume name to better identify the cause -->
+      - Underlying Infrastructure (e.g., Baremetal with Dell PowerEdge R630):
+      - Rancher version:
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: Additional context
+    description: Please add any other context about the problem here.
+  validations:
+    required: false
+
+- type: textarea
+  attributes:
+    label: Workaround and Mitigation
+    description: Please add any workaround or mitigation to the problem here.
+  validations:
+    required: false

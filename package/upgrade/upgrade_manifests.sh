@@ -447,10 +447,10 @@ wait_kubevirt() {
 wait_longhorn_manager() {
   echo "Waiting for longhorn-manager to be upgraded..."
 
-  lm_repo=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.manager.repository)
-  lm_tag=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.manager.tag)
+  lm_repo=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.repository)
+  lm_tag=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.tag)
   lm_image="${lm_repo}:${lm_tag}"
-  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
+  local node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
 
   while [ true ]; do
     lm_ds_ready=0
@@ -469,14 +469,14 @@ wait_longhorn_manager() {
 }
 
 wait_longhorn_instance_manager_aio() {
-  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
+  local node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
   if [ $node_count -lt 2 ]; then
     echo "Skip waiting instance-manager (aio), node count: $node_count"
     return
   fi
 
-  im_repo=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.instanceManager.repository)
-  im_tag=$(kubectl get apps.catalog.cattle.io/harvester -n harvester-system -o json | jq -r .spec.chart.values.longhorn.image.longhorn.instanceManager.tag)
+  im_repo=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.instanceManager.repository)
+  im_tag=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.instanceManager.tag)
   im_image="${im_repo}:${im_tag}"
 
   # Get instance-manager-image chechsum
@@ -489,24 +489,39 @@ wait_longhorn_instance_manager_aio() {
   # Wait for instance-manager (aio) pods upgraded to new version first.
   kubectl get nodes.longhorn.io -n longhorn-system -o json | jq -r '.items[].metadata.name' | while read -r node; do
     echo "Checking instance-manager (aio) pod on node $node..."
-    while [ true ]; do
-      im_count=$(kubectl get instancemanager.longhorn.io --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio,longhorn.io/instance-manager-image=$im_image_checksum -n longhorn-system -o json | jq -r '.items | length')
-      if [ "$im_count" != "1" ]; then
-        echo "instance-manager (aio) (image=$im_image) count is not 1 on node $node, will retry..."
-        sleep 5
-        continue
-      fi
+    check_instance_manager $node $im_image $im_image_checksum "v1"
 
-      im_status=$(kubectl get instancemanager.longhorn.io --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio,longhorn.io/instance-manager-image=$im_image_checksum -n longhorn-system -o json | jq -r '.items[0].status.currentState')
-      if [ "$im_status" != "running" ]; then
-        echo "instance-manager (aio) (image=$im_image) state is not running on node $node, will retry..."
-        sleep 5
-        continue
-      fi
+    v2EngineEnabled=$(kubectl get settings.harvesterhci.io longhorn-v2-data-engine-enabled -o yaml | yq e '.value' -)
+    if [ "$v2EngineEnabled" = "true" ]; then
+      # check instance-manager (aio) is running with v2 engine
+      check_instance_manager $node $im_image $im_image_checksum "v2"
+    fi
+  done
+}
 
-      echo "Checking instance-manager (aio) (image=$im_image) on node $node OK."
-      break
-    done
+check_instance_manager() {
+  local node="$1"
+  local im_image="$2"
+  local im_image_checksum="$3"
+  local data_engine="$4"
+
+  while [ true ]; do
+    im_count=$(kubectl get instancemanager.longhorn.io --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio,longhorn.io/data-engine=$data_engine,longhorn.io/instance-manager-image=$im_image_checksum -n longhorn-system -o json | jq -r '.items | length')
+    if [ "$im_count" != "1" ]; then
+      echo "instance-manager (aio)($data_engine) (image=$im_image) count is not 1 on node $node, will retry..."
+      sleep 5
+      continue
+    fi
+
+    im_status=$(kubectl get instancemanager.longhorn.io --selector=longhorn.io/node=$node,longhorn.io/instance-manager-type=aio,longhorn.io/data-engine=$data_engine,longhorn.io/instance-manager-image=$im_image_checksum -n longhorn-system -o json | jq -r '.items[0].status.currentState')
+    if [ "$im_status" != "running" ]; then
+      echo "instance-manager (aio)($data_engine) (image=$im_image) state is not running on node $node, will retry..."
+      sleep 5
+      continue
+    fi
+
+    echo "Checking instance-manager (aio)($data_engine) (image=$im_image) on node $node OK."
+    break
   done
 }
 
@@ -586,6 +601,8 @@ upgrade_rancher() {
 
   save_fleet_controller_configmap
 
+  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false"' values.yaml
+
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
   echo "Rancher patch file to be run via helm upgrade"
   cat values.yaml
@@ -612,19 +629,25 @@ upgrade_rancher() {
   echo "Wait for Rancher dependencies rollout..."
   wait_rollout cattle-fleet-system deployment fleet-controller
   wait_rollout cattle-system deployment rancher-webhook
+
+  # Create cattle-system/stv-aggregation secret to make system-agent-upgrader plan ready
+  if ! kubectl get secret -n cattle-system stv-aggregation &>/dev/null; then
+    echo "Create cattle-system/stv-aggregation secret"
+    kubectl create secret generic -n cattle-system stv-aggregation
+  fi
+
   # fleet-agnet is deployed as statefulset after fleet v0.10.1
   # v0.9.2: https://github.com/rancher/fleet/blob/e75c1fb498e3137ba39c2bdc4d59c9122f5ef9c6/internal/cmd/controller/agent/manifest.go#L136-L145
   # v0.10.1: https://github.com/rancher/fleet/blob/62de718a20e1377d5a8702876077762ed9a37f27/internal/cmd/controller/agentmanagement/agent/manifest.go#L152-L161
-  wait_rollout_with_loop cattle-fleet-local-system statefulset fleet-agent
+  wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
   echo "Wait for cluster settling down..."
   wait_capi_cluster fleet-local local $pre_generation
 
   # Following patch is not enough
-  wait_for_statefulset cattle-fleet-local-system fleet-agent
+  wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
   pre_patch_timestamp=$(fleet_agent_timestamp)
   patch_fleet_cluster
-  wait_for_fleet_agent $pre_patch_timestamp
-  wait_rollout_with_loop cattle-fleet-local-system statefulset fleet-agent
+  wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
 
   # After fleet-controller POD is restarted, it will check until the local cluster is imported, after that, redeploy the fleet-agent
   # Need to wait until fleet-controller assumes the cluster is ready, avoid fleet-agent is accidentally re-deployed and influence related managedcharts
@@ -1035,15 +1058,6 @@ pause_all_charts() {
   for chart in $charts; do
     pause_managed_chart $chart "true"
   done
-
-  # those charts may have been converted to addon, check if they are there first
-  charts="rancher-monitoring rancher-logging"
-  for chart in $charts; do
-    local cnt=$(kubectl get managedchart -n fleet-local "$chart" --no-headers | wc -l)
-    if [ "$cnt" -gt 0 ]; then
-      pause_managed_chart $chart "true"
-    fi
-  done
 }
 
 skip_restart_rancher_system_agent() {
@@ -1112,22 +1126,42 @@ EOF
 # NOTE: review in each release, add corresponding process
 upgrade_addon_rancher_monitoring()
 {
-  echo "upgrade addon rancher_monitoring"
+  echo "upgrade addon rancher-monitoring"
+
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
-  # in v1.4.0, patch version is OK
+  # in v1.5.0, patch version is OK
   upgrade_addon_try_patch_version_only "rancher-monitoring" "cattle-monitoring-system" $REPO_MONITORING_CHART_VERSION
+
+  # patch configmap and replace grafana pod if necessary
+  if [ "$REPO_MONITORING_CHART_VERSION" = "105.1.2+up61.3.2" ]; then
+    patch_grafana_nginx_proxy_config_configmap
+  fi
 }
 
 # NOTE: review in each release, add corresponding process
 upgrade_addon_rancher_logging()
 {
-  echo "upgrade addon rancher_logging"
+  echo "upgrade addon rancher-logging"
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
-  # in v1.4.0, the eventrouter image needs to be patched
-  if [ "$REPO_LOGGING_CHART_VERSION" = "103.1.0+up4.4.0" ]; then
-    upgrade_addon_rancher_logging_with_patch_eventrouter_image $REPO_LOGGING_CHART_VERSION
-  else
-    upgrade_addon_try_patch_version_only "rancher-logging" "cattle-logging-system" $REPO_LOGGING_CHART_VERSION
+  # the eventrouter image tag is aligned with Harvester tag, e.g. v1.5.1-rc3, v1.6.0
+  upgrade_addon_rancher_logging_with_patch_eventrouter_image $REPO_LOGGING_CHART_VERSION $REPO_LOGGING_CHART_HARVESTER_EVENTROUTER_VERSION
+}
+
+# NOTE: review in each release, add corresponding process, runs before rancher-logging is bumped
+upgrade_harvester_upgradelog_loggingref() {
+  echo "upgrade harvester upgradelog loggingref"
+  # in v1.5.0, new rancher-logging is bumped, loggingref is required
+  if [ "${REPO_LOGGING_CHART_VERSION}" = "105.2.0+up4.10.0" ]; then
+    upgrade_harvester_upgradelog_with_patch_loggingref "${REPO_LOGGING_CHART_VERSION}"
+  fi
+}
+
+# adapt upgradeLog to new logging stack requirements, runs after rancher-logging is bumped
+upgrade_harvester_upgradelog_logging_fluentd_fluentbit() {
+  echo "upgrade harvester upgradelog logging fluend fluentbit"
+  # in v1.5.0, new rancher-logging is bumped, fluentbitagent and others are required
+  if [ "${REPO_LOGGING_CHART_VERSION}" = "105.2.0+up4.10.0" ]; then
+    upgrade_harvester_upgradelog_with_patch_logging_fluentd_fluentbit "${REPO_LOGGING_CHART_VERSION}"
   fi
 }
 
@@ -1139,10 +1173,15 @@ upgrade_addons()
     upgrade_addon $addon "harvester-system"
   done
 
-  # those 2 addons have flexible user-configurable fields, only upgrade harvester related e.g. new image tag
+  # the rancher-monitoring and rancher-logging addon have flexible user-configurable fields
   # from v1.2.0, they are upgraded per following
   upgrade_addon_rancher_monitoring
+  # the upgradelog may be affected by the new rancher-logging
+  upgrade_harvester_upgradelog_loggingref
   upgrade_addon_rancher_logging
+  # after rancher-logging is upgraded, upgrade upgradelog if necessary
+  upgrade_harvester_upgradelog_logging_fluentd_fluentbit
+
   upgrade_nvidia_driver_toolkit_addon
 }
 
@@ -1211,8 +1250,8 @@ wait_for_statefulset() {
 }
 
 fleet_agent_timestamp(){
-  wait_for_statefulset cattle-fleet-local-system fleet-agent &> /dev/null
-  local temptime=$(kubectl get statefulset -n cattle-fleet-local-system fleet-agent -o json | jq -r .metadata.creationTimestamp)
+  wait_rollout cattle-fleet-local-system deployment fleet-agent &> /dev/null
+  local temptime=$(kubectl get deployment -n cattle-fleet-local-system fleet-agent -o json | jq -r .metadata.creationTimestamp)
   if [ -z "$temptime" ]; then
     # if kubectl happens to fail due to deployment is just deleted, echo 0 to continue
     echo "0"
@@ -1284,6 +1323,21 @@ EOF
   fi
 }
 
+apply_extra_nonversion_manifests()
+{
+  shopt -s nullglob
+
+  echo "Applying cdi manifests"
+
+  for manifest in /usr/local/share/extra_manifests/cdi/*.yaml; do
+      echo "Applying $manifest"
+      kubectl apply -f "$manifest"
+  done
+
+
+  shopt -u nullglob
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -1296,6 +1350,7 @@ update_local_rke_state_secret
 upgrade_harvester_cluster_repo
 upgrade_network
 ensure_ingress_class_name
+apply_extra_nonversion_manifests
 upgrade_harvester
 sync_containerd_registry_to_rancher
 wait_longhorn_upgrade

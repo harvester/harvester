@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Build the Harvester container image
 set -e
 
 TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
@@ -17,13 +18,21 @@ cd $PACKAGE_DIR
 IMAGE=${REPO}/harvester:${TAG}
 DOCKERFILE=Dockerfile
 if [ -e ${DOCKERFILE}.${ARCH} ]; then
-    DOCKERFILE=${DOCKERFILE}.${ARCH}
+  DOCKERFILE=${DOCKERFILE}.${ARCH}
 fi
 
 rm -rf ./harvester
 cp ../bin/harvester .
 
-docker build --build-arg VERSION=${VERSION} --build-arg ARCH=${ARCH} -f ${DOCKERFILE} -t ${IMAGE} .
+BUILD_ARGS="--build-arg VERSION=${VERSION} --build-arg ARCH=${ARCH}"
+if [ -n "${HARVESTER_UI_VERSION}" ]; then
+  BUILD_ARGS="${BUILD_ARGS} --build-arg HARVESTER_UI_VERSION=${HARVESTER_UI_VERSION}"
+fi
+if [ -n "${HARVESTER_UI_PLUGIN_BUNDLED_VERSION}" ]; then
+  BUILD_ARGS="${BUILD_ARGS} --build-arg HARVESTER_UI_PLUGIN_BUNDLED_VERSION=${HARVESTER_UI_PLUGIN_BUNDLED_VERSION}"
+fi
+
+docker build $BUILD_ARGS -f ${DOCKERFILE} -t ${IMAGE} .
 echo Built ${IMAGE}
 
 IMAGE_PUSH=${REPO}/harvester:${IMAGE_PUSH_TAG}

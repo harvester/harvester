@@ -41,22 +41,24 @@ var clusterloggingsKind = v3.SchemeGroupVersion.WithKind("ClusterLogging")
 
 // Get takes name of the clusterLogging, and returns the corresponding clusterLogging object, and an error if there is any.
 func (c *FakeClusterLoggings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ClusterLogging, err error) {
+	emptyResult := &v3.ClusterLogging{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(clusterloggingsResource, c.ns, name), &v3.ClusterLogging{})
+		Invokes(testing.NewGetActionWithOptions(clusterloggingsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterLogging), err
 }
 
 // List takes label and field selectors, and returns the list of ClusterLoggings that match those selectors.
 func (c *FakeClusterLoggings) List(ctx context.Context, opts v1.ListOptions) (result *v3.ClusterLoggingList, err error) {
+	emptyResult := &v3.ClusterLoggingList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(clusterloggingsResource, clusterloggingsKind, c.ns, opts), &v3.ClusterLoggingList{})
+		Invokes(testing.NewListActionWithOptions(clusterloggingsResource, clusterloggingsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeClusterLoggings) List(ctx context.Context, opts v1.ListOptions) (re
 // Watch returns a watch.Interface that watches the requested clusterLoggings.
 func (c *FakeClusterLoggings) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(clusterloggingsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(clusterloggingsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a clusterLogging and creates it.  Returns the server's representation of the clusterLogging, and an error, if there is any.
 func (c *FakeClusterLoggings) Create(ctx context.Context, clusterLogging *v3.ClusterLogging, opts v1.CreateOptions) (result *v3.ClusterLogging, err error) {
+	emptyResult := &v3.ClusterLogging{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(clusterloggingsResource, c.ns, clusterLogging), &v3.ClusterLogging{})
+		Invokes(testing.NewCreateActionWithOptions(clusterloggingsResource, c.ns, clusterLogging, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterLogging), err
 }
 
 // Update takes the representation of a clusterLogging and updates it. Returns the server's representation of the clusterLogging, and an error, if there is any.
 func (c *FakeClusterLoggings) Update(ctx context.Context, clusterLogging *v3.ClusterLogging, opts v1.UpdateOptions) (result *v3.ClusterLogging, err error) {
+	emptyResult := &v3.ClusterLogging{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(clusterloggingsResource, c.ns, clusterLogging), &v3.ClusterLogging{})
+		Invokes(testing.NewUpdateActionWithOptions(clusterloggingsResource, c.ns, clusterLogging, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterLogging), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeClusterLoggings) UpdateStatus(ctx context.Context, clusterLogging *v3.ClusterLogging, opts v1.UpdateOptions) (*v3.ClusterLogging, error) {
+func (c *FakeClusterLoggings) UpdateStatus(ctx context.Context, clusterLogging *v3.ClusterLogging, opts v1.UpdateOptions) (result *v3.ClusterLogging, err error) {
+	emptyResult := &v3.ClusterLogging{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(clusterloggingsResource, "status", c.ns, clusterLogging), &v3.ClusterLogging{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(clusterloggingsResource, "status", c.ns, clusterLogging, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterLogging), err
 }
@@ -123,7 +128,7 @@ func (c *FakeClusterLoggings) Delete(ctx context.Context, name string, opts v1.D
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeClusterLoggings) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(clusterloggingsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(clusterloggingsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.ClusterLoggingList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeClusterLoggings) DeleteCollection(ctx context.Context, opts v1.Dele
 
 // Patch applies the patch and returns the patched clusterLogging.
 func (c *FakeClusterLoggings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterLogging, err error) {
+	emptyResult := &v3.ClusterLogging{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(clusterloggingsResource, c.ns, name, pt, data, subresources...), &v3.ClusterLogging{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(clusterloggingsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterLogging), err
 }

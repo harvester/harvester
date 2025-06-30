@@ -36,7 +36,7 @@ var (
 	SSLParameters                          = NewSetting(SSLParametersName, "{}")
 	SupportBundleImage                     = NewSetting(SupportBundleImageName, "{}")
 	SupportBundleNamespaces                = NewSetting(SupportBundleNamespacesSettingName, "")
-	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, "10")                                                                  // Unit is minute. 0 means disable timeout.
+	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, supportBundleUtil.SupportBundleTimeoutDefaultStr)                      // Unit is minute. 0 means disable timeout.
 	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, supportBundleUtil.SupportBundleExpirationDefaultStr)                // Unit is minute.
 	SupportBundleNodeCollectionTimeout     = NewSetting(SupportBundleNodeCollectionTimeoutName, supportBundleUtil.SupportBundleNodeCollectionTimeoutDefaultStr) // Unit is minute.
 	DefaultStorageClass                    = NewSetting(DefaultStorageClassSettingName, "longhorn")
@@ -46,6 +46,7 @@ var (
 	VipPools                               = NewSetting(VipPoolsConfigSettingName, "")
 	AutoDiskProvisionPaths                 = NewSetting(AutoDiskProvisionPathsSettingName, "")
 	CSIDriverConfig                        = NewSetting(CSIDriverConfigSettingName, `{"driver.longhorn.io":{"volumeSnapshotClassName":"longhorn-snapshot","backupVolumeSnapshotClassName":"longhorn"}}`)
+	CSIOnlineExpandValidation              = NewSetting(CSIOnlineExpandValidationSettingName, `{"driver.longhorn.io":true}`)
 	ContainerdRegistry                     = NewSetting(ContainerdRegistrySettingName, "")
 	StorageNetwork                         = NewSetting(StorageNetworkName, "")
 	DefaultVMTerminationGracePeriodSeconds = NewSetting(DefaultVMTerminationGracePeriodSecondsSettingName, "120")
@@ -58,6 +59,8 @@ var (
 	NTPServers             = NewSetting(NTPServersSettingName, "")
 	WhiteListedSettings    = []string{ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
 	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "restoreVM": false}`)
+	MaxHotplugRatio        = NewSetting(MaxHotplugRatioSettingName, "4")
+	VMMigrationNetwork     = NewSetting(VMMigrationNetworkSettingName, "")
 )
 
 const (
@@ -74,6 +77,7 @@ const (
 	DefaultDashboardUIURL                             = "https://releases.rancher.com/harvester-ui/dashboard/latest/index.html"
 	SupportBundleImageName                            = "support-bundle-image"
 	CSIDriverConfigSettingName                        = "csi-driver-config"
+	CSIOnlineExpandValidationSettingName              = "csi-online-expand-validation"
 	UIIndexSettingName                                = "ui-index"
 	UIPathSettingName                                 = "ui-path"
 	UISourceSettingName                               = "ui-source"
@@ -103,6 +107,8 @@ const (
 	ReleaseDownloadURLSettingName                     = "release-download-url"
 	SupportBundleNamespacesSettingName                = "support-bundle-namespaces"
 	DefaultStorageClassSettingName                    = "default-storage-class"
+	MaxHotplugRatioSettingName                        = "max-hotplug-ratio"
+	VMMigrationNetworkSettingName                     = "vm-migration-network"
 
 	// settings have `default` and `value` string used in many places, replace them with const
 	KeywordDefault = "default"
@@ -211,11 +217,11 @@ func NewSetting(name, def string) Setting {
 }
 
 func GetEnvKey(key string) string {
-	return "HARVESTER_" + strings.ToUpper(strings.Replace(key, "-", "_", -1))
+	return "HARVESTER_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_"))
 }
 
 func GetEnvDefaultValueKey(key string) string {
-	return "HARVESTER_" + strings.ToUpper(strings.Replace(key, "-", "_", -1)) + "_DEFAULT_VALUE"
+	return "HARVESTER_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_")) + "_DEFAULT_VALUE"
 }
 
 func IsRelease() bool {

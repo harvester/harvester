@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -115,9 +116,27 @@ func getBackingImageBlockPath() string {
 }
 
 func EncodeBackupBackingImageURL(backingImageName, destURL string) string {
+	if destURL == "" || backingImageName == "" {
+		return ""
+	}
+
+	u, err := url.Parse(destURL)
+	if err != nil {
+		log := backupstore.GetLog()
+		log.WithError(err).Errorf("Failed to parse destURL %v", destURL)
+		return ""
+	}
+	if u.Scheme == "" {
+		return ""
+	}
+
 	v := url.Values{}
 	v.Add("backingImage", backingImageName)
-	return destURL + "?" + v.Encode()
+	prefixChar := "?"
+	if strings.Contains(destURL, "?") {
+		prefixChar = "&"
+	}
+	return destURL + prefixChar + v.Encode()
 }
 
 func DecodeBackupBackingImageURL(backupURL string) (string, string, error) {

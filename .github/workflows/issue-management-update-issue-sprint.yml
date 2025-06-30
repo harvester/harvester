@@ -1,0 +1,90 @@
+name: "[Issue Management] Periodic Issue Sprint Update"
+
+on:
+  schedule:
+    # Trigger every Sunday at 20:00
+    - cron: '0 20 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  repository-projects: write
+  issues: write
+
+jobs:
+  move-to-next-iteration:
+    name: Move to next iteration
+    runs-on: ubuntu-latest
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check sprint build is required
+        id: check_sprint_build_required
+        continue-on-error: true
+        run: |
+          python ./.github/workflows/check-sprint-last-day.py "harvester" "harvester" "Harvester Sprint"
+
+      - name: Harvester Sprint Issues - Clear Sprint
+        uses: rancher/gh-issue-mgr/move-to-next-iteration@main
+        if: steps.check_sprint_build_required.outcome == 'success'
+        with:
+          owner: harvester
+          number: 7
+          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          iteration-field: Sprint
+          iteration: current
+          new-iteration: none
+          excluded-statuses: "Review,Ready For Testing,Testing,Closed"
+
+      - name: Harvester Sprint Issues - Move to Next Sprint
+        uses: rancher/gh-issue-mgr/move-to-next-iteration@main
+        if: steps.check_sprint_build_required.outcome == 'success'
+        with:
+          owner: harvester
+          number: 7
+          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          iteration-field: Sprint
+          iteration: current
+          new-iteration: next
+          statuses: "Review"
+
+      - name: Harvester Community Sprint issues - Move to Next Sprint
+        uses: rancher/gh-issue-mgr/move-to-next-iteration@main
+        if: steps.check_sprint_build_required.outcome == 'success'
+        with:
+          owner: harvester
+          number: 10
+          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          iteration-field: Sprint
+          iteration: current
+          new-iteration: next
+          statuses: 'New'
+
+      - name: QA Sprint - Clear Sprint
+        uses: rancher/gh-issue-mgr/move-to-next-iteration@main
+        if: steps.check_sprint_build_required.outcome == 'success'
+        with:
+          owner: harvester
+          number: 20
+          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          iteration-field: Sprint
+          iteration: current
+          new-iteration: none
+          excluded-statuses: "In Review,Done"
+
+      - name: QA Sprint - Move to Next Sprint
+        uses: rancher/gh-issue-mgr/move-to-next-iteration@main
+        if: steps.check_sprint_build_required.outcome == 'success'
+        with:
+          owner: harvester
+          number: 20
+          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          iteration-field: Sprint
+          iteration: current
+          new-iteration: next
+          statuses: "In Review"

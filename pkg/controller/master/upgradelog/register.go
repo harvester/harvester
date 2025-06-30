@@ -23,13 +23,13 @@ const (
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	upgradeLogController := management.HarvesterFactory.Harvesterhci().V1beta1().UpgradeLog()
 	addonController := management.HarvesterFactory.Harvesterhci().V1beta1().Addon()
-	appController := management.CatalogFactory.Catalog().V1().App()
 	clusterFlowController := management.LoggingFactory.Logging().V1beta1().ClusterFlow()
 	clusterOutputController := management.LoggingFactory.Logging().V1beta1().ClusterOutput()
 	daemonSetController := management.AppsFactory.Apps().V1().DaemonSet()
 	deploymentController := management.AppsFactory.Apps().V1().Deployment()
 	jobController := management.BatchFactory.Batch().V1().Job()
 	loggingController := management.LoggingFactory.Logging().V1beta1().Logging()
+	fbagentController := management.LoggingFactory.Logging().V1beta1().FluentbitAgent()
 	managedChartController := management.RancherManagementFactory.Management().V3().ManagedChart()
 	pvcController := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	serviceController := management.CoreFactory.Core().V1().Service()
@@ -40,7 +40,6 @@ func Register(ctx context.Context, management *config.Management, options config
 		ctx:                 ctx,
 		namespace:           options.Namespace,
 		addonCache:          addonController.Cache(),
-		appCache:            appController.Cache(),
 		clusterFlowClient:   clusterFlowController,
 		clusterOutputClient: clusterOutputController,
 		daemonSetClient:     daemonSetController,
@@ -49,6 +48,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		jobClient:           jobController,
 		jobCache:            jobController.Cache(),
 		loggingClient:       loggingController,
+		fbagentClient:       fbagentController,
 		managedChartClient:  managedChartController,
 		managedChartCache:   managedChartController.Cache(),
 		pvcClient:           pvcController,
@@ -59,6 +59,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		upgradeCache:        upgradeController.Cache(),
 		upgradeLogClient:    upgradeLogController,
 		upgradeLogCache:     upgradeLogController.Cache(),
+		clientset:           management.ClientSet,
+		imageGetter:         NewImageGetter(),
 	}
 
 	upgradeLogController.OnChange(ctx, upgradeLogControllerName, handler.OnUpgradeLogChange)

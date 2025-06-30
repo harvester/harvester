@@ -8,11 +8,14 @@ import (
 
 	"github.com/gorilla/mux"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -33,11 +36,13 @@ import (
 
 type ActionHandler struct {
 	images      v1beta1.VirtualMachineImageClient
+	pods        ctlcorev1.PodCache
 	pvcs        ctlcorev1.PersistentVolumeClaimClient
 	pvcCache    ctlcorev1.PersistentVolumeClaimCache
 	pvs         ctlharvcorev1.PersistentVolumeClient
 	pvCache     ctlharvcorev1.PersistentVolumeCache
 	snapshots   ctlsnapshotv1.VolumeSnapshotClient
+	scCache     ctlstoragev1.StorageClassCache
 	volumes     ctllhv1.VolumeClient
 	volumeCache ctllhv1.VolumeCache
 	vmCache     ctlkubevirtv1.VirtualMachineCache
@@ -61,6 +66,9 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (interface{}, error) {
 		}
 		if input.Namespace == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `namespace` is required")
+		}
+		if err := h.validateExportVolume(input.StorageClassName, pvcNamespace, pvcName); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, err.Error())
 		}
 		return h.exportVolume(req.Context(), input.Namespace, input.DisplayName, input.StorageClassName, pvcNamespace, pvcName)
 	case actionCancelExpand:
@@ -88,7 +96,103 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (interface{}, error) {
 	}
 }
 
+func (h *ActionHandler) assertPVCNotInUse(pvcNamespace, pvcName string) error {
+	// find any pod use this PVC (same validation on CDI)
+	index := fmt.Sprintf("%s-%s", pvcNamespace, pvcName)
+	if pods, err := h.pods.GetByIndex(util.IndexPodByPVC, index); err == nil && len(pods) > 0 {
+		podList := []string{}
+		for _, pod := range pods {
+			indexedPod := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+			podList = append(podList, indexedPod)
+		}
+		return fmt.Errorf("PVC %s is used by Pods %v, cannot export volume when it's running", pvcName, podList)
+	}
+	return nil
+}
+
+func (h *ActionHandler) validateExportVolume(storageClassName, pvcNamespace, pvcName string) error {
+
+	// check target info
+	if storageClassName == "" {
+		return fmt.Errorf("parameter `storageClassName` is required")
+	}
+	sc, err := h.scCache.Get(storageClassName)
+	if err != nil {
+		return fmt.Errorf("get target StorageClass with Err: %v", err)
+	}
+
+	// check source info
+	pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
+	if err != nil {
+		return fmt.Errorf("get PVC with Err: %v", err)
+	}
+	pvcStorageClassName := pvc.Spec.StorageClassName
+	if pvcStorageClassName == nil {
+		return fmt.Errorf("PVC should have storageClassName")
+	}
+	pvcSC, err := h.scCache.Get(*pvcStorageClassName)
+	if err != nil {
+		return fmt.Errorf("get PVC StorageClass with Err: %v", err)
+	}
+
+	// both source/target SC are Longhorn v1, skip the validation
+	if h.isLonghornV1Engine(pvcSC) && h.isLonghornV1Engine(sc) {
+		return nil
+	}
+
+	// we need to ensure the source PVC is not in use since we need to create source pod to export the volume
+	if err := h.assertPVCNotInUse(pvcNamespace, pvcName); err != nil {
+		return err
+	}
+
+	// export to the Same StorageClass is allowed
+	if *pvcStorageClassName == storageClassName {
+		return nil
+	}
+
+	// The validation rules as below:
+	// CDI volume cannot be exported to a Longhorn v1 StorageClass
+	// Longhorn v1 volume can be exported to any StorageClass (both CDI/BackingImage work well)
+
+	if isCDIVolume(pvcSC) {
+		// means CDI volume
+		if sc.Provisioner == util.CSIProvisionerLonghorn {
+			v, found := sc.Parameters["dataEngine"]
+			if found {
+				// check engine type
+				if v == string(longhornv1.DataEngineTypeV2) {
+					return nil
+				}
+			}
+			return fmt.Errorf("CDI volume cannot be exported to a Longhorn v1 StorageClass")
+		}
+	}
+
+	return nil
+}
+
+func (h *ActionHandler) isLonghornV1Engine(sc *storagev1.StorageClass) bool {
+	if sc.Provisioner != util.CSIProvisionerLonghorn {
+		return false
+	}
+	if v, found := sc.Parameters["dataEngine"]; found {
+		return v == string(longhornv1.DataEngineTypeV1)
+	}
+	return true
+}
+
 func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDisplayName, imageStorageClassName, pvcNamespace, pvcName string) (interface{}, error) {
+	vmImageBackend := harvesterv1.VMIBackendBackingImage
+	targetSCName := imageStorageClassName
+	targetSC, err := h.scCache.Get(targetSCName)
+	if err != nil {
+		return nil, err
+	}
+	// check the target Image is the CDI Image
+	if isCDIVolume(targetSC) {
+		vmImageBackend = harvesterv1.VMIBackendCDI
+	}
+
 	vmImage := &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "image-",
@@ -96,15 +200,17 @@ func (h *ActionHandler) exportVolume(_ context.Context, imageNamespace, imageDis
 			Annotations:  map[string]string{},
 		},
 		Spec: harvesterv1.VirtualMachineImageSpec{
-			DisplayName:  imageDisplayName,
-			SourceType:   harvesterv1.VirtualMachineImageSourceTypeExportVolume,
-			PVCName:      pvcName,
-			PVCNamespace: pvcNamespace,
+			Backend:                vmImageBackend,
+			DisplayName:            imageDisplayName,
+			SourceType:             harvesterv1.VirtualMachineImageSourceTypeExportVolume,
+			PVCName:                pvcName,
+			PVCNamespace:           pvcNamespace,
+			TargetStorageClassName: targetSCName,
 		},
 	}
 
-	if imageStorageClassName != "" {
-		vmImage.Annotations[util.AnnotationStorageClassName] = imageStorageClassName
+	if targetSCName != "" {
+		vmImage.Annotations[util.AnnotationStorageClassName] = targetSCName
 	}
 
 	image, err := h.images.Create(vmImage)
@@ -304,7 +410,7 @@ func (h *ActionHandler) snapshot(_ context.Context, pvcNamespace, pvcName, snaps
 		return err
 	}
 
-	provisioner := util.GetProvisionedPVCProvisioner(pvc)
+	provisioner := util.GetProvisionedPVCProvisioner(pvc, h.scCache)
 	csiDriverInfo, err := settings.GetCSIDriverInfo(provisioner)
 	if err != nil {
 		return err
@@ -353,4 +459,16 @@ func (h *ActionHandler) snapshot(_ context.Context, pvcNamespace, pvcName, snaps
 	}
 
 	return nil
+}
+
+func isCDIVolume(sc *storagev1.StorageClass) bool {
+	if sc.Provisioner != util.CSIProvisionerLonghorn {
+		return true
+	}
+	if v, found := sc.Parameters["dataEngine"]; found {
+		if v == string(longhornv1.DataEngineTypeV2) {
+			return true
+		}
+	}
+	return false
 }

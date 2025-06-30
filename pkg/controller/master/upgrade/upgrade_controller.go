@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	semverv3 "github.com/Masterminds/semver/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
+	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	provisioningctrl "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
@@ -44,12 +44,12 @@ var (
 
 const (
 	//system upgrade controller is deployed in cattle-system namespace
-	upgradeNamespace               = "harvester-system"
-	sucNamespace                   = "cattle-system"
+	upgradeNamespace               = util.HarvesterSystemNamespaceName // refer public defined harvester-system
+	sucNamespace                   = util.CattleSystemNamespaceName    // refer public defined cattle-system
 	upgradeServiceAccount          = "system-upgrade-controller"
-	harvesterSystemNamespace       = "harvester-system"
+	harvesterSystemNamespace       = util.HarvesterSystemNamespaceName
 	harvesterUpgradeLabel          = "harvesterhci.io/upgrade"
-	harvesterManagedLabel          = "harvesterhci.io/managed"
+	harvesterManagedLabel          = util.HarvesterManagedNodeLabelKey
 	harvesterLatestUpgradeLabel    = "harvesterhci.io/latestUpgrade"
 	harvesterUpgradeComponentLabel = "harvesterhci.io/upgradeComponent"
 	harvesterNodeLabel             = "harvesterhci.io/node"
@@ -68,6 +68,9 @@ const (
 	replicaReplenishmentWaitIntervalSetting  = "replica-replenishment-wait-interval"
 	replicaReplenishmentAnnotation           = "harvesterhci.io/" + replicaReplenishmentWaitIntervalSetting
 	extendedReplicaReplenishmentWaitInterval = 1800
+
+	autoCleanupSystemGeneratedSnapshotSetting    = "auto-cleanup-system-generated-snapshot"
+	autoCleanupSystemGeneratedSnapshotAnnotation = "harvesterhci.io/" + autoCleanupSystemGeneratedSnapshotSetting
 
 	imageCleanupPlanCompletedAnnotation = "harvesterhci.io/image-cleanup-plan-completed"
 	skipVersionCheckAnnotation          = "harvesterhci.io/skip-version-check"
@@ -98,6 +101,9 @@ type upgradeHandler struct {
 	versionCache      ctlharvesterv1.VersionCache
 	planClient        upgradectlv1.PlanClient
 	planCache         upgradectlv1.PlanCache
+
+	managedChartCache  mgmtv3.ManagedChartCache
+	managedChartClient mgmtv3.ManagedChartClient
 
 	vmImageClient ctlharvesterv1.VirtualMachineImageClient
 	vmImageCache  ctlharvesterv1.VirtualMachineImageCache
@@ -223,8 +229,17 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 
 		// repo VM is required for the image cleaning procedure, bring it up if it's down
 		logrus.Info("Try to start repo VM for image pruning")
-		if err := repo.startVM(); err != nil {
-			return upgrade, err
+		vm, err := h.vmCache.Get(repo.GetVMNamespace(), repo.GetVMName())
+		if err != nil {
+			logrus.Warnf("Failed to get repo VM %s/%s from cache, error %s", repo.GetVMNamespace(), repo.GetVMName(), err.Error())
+			return nil, err
+		}
+
+		if !vmReady.IsTrue(vm) {
+			if err = h.startVM(context.Background(), vm); err != nil {
+				logrus.Warnf("Failed to start repo vm %s/%s for image pruning, error %s", vm.Namespace, vm.Name, err.Error())
+				return nil, err
+			}
 		}
 
 		// moved the restoreVMState call after the start repo vm as we need to make sure kubevirt is up and running
@@ -232,10 +247,14 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		h.restoreVMState(upgrade)
 
 		if err := h.cleanupImages(upgrade, repo); err != nil {
-			logrus.Warningf("Unable to cleanup images: %s", err.Error())
+			logrus.Warningf("Failed to cleanup images: %s", err.Error())
 			toUpdate := upgrade.DeepCopy()
-			toUpdate.Annotations = make(map[string]string)
-			toUpdate.Annotations[imageCleanupPlanCompletedAnnotation] = strconv.FormatBool(true)
+			if toUpdate.Annotations == nil {
+				toUpdate.Annotations = make(map[string]string)
+			}
+			// in fail case, book it as false
+			toUpdate.Annotations[imageCleanupPlanCompletedAnnotation] = strconv.FormatBool(false)
+			// the update may fail due to update by others, and cleanupImages runs multi-times
 			return h.upgradeClient.Update(toUpdate)
 		}
 
@@ -357,6 +376,22 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				}
 			}
 
+			// Disable auto-cleanup-system-generated-snapshot to avoid
+			// https://github.com/harvester/harvester/issues/7679
+			// (skip if it's already disabled)
+			autoCleanupSystemGeneratedSnapshotValue, err := h.getAutoCleanupSystemGeneratedSnapshotValue()
+			if err != nil {
+				return nil, err
+			}
+			if autoCleanupSystemGeneratedSnapshotValue != "false" {
+				if err := h.saveAutoCleanupSystemGeneratedSnapshotToUpgradeAnnotation(toUpdate); err != nil {
+					return nil, err
+				}
+				if err := h.setAutoCleanupSystemGeneratedSnapshotValue("false"); err != nil {
+					return nil, err
+				}
+			}
+
 			// go with RKE2 pre-drain/post-drain hooks
 			logrus.Infof("Start upgrading Kubernetes runtime to %s", info.Release.Kubernetes)
 			if err := h.upgradeKubernetes(info.Release.Kubernetes); err != nil {
@@ -388,8 +423,10 @@ func (h *upgradeHandler) cleanupImages(upgrade *harvesterv1.Upgrade, repo *Repo)
 		return err
 	}
 
+	// if controller run cleanupImages multi-times, the list can be empty
 	if len(toBePurgedImageList) == 0 {
-		return fmt.Errorf("no images to be purged")
+		logrus.Infof("No images to be purged, skip")
+		return nil
 	}
 
 	logrus.Info("Start purging unneeded container images on the nodes")
@@ -401,9 +438,9 @@ func (h *upgradeHandler) cleanupImages(upgrade *harvesterv1.Upgrade, repo *Repo)
 }
 
 func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) error {
-	// delete vm and images
+	// delete repo related resources like vm, image and service
 	repo := NewUpgradeRepo(h.ctx, upgrade, h)
-	if err := repo.deleteVM(); err != nil {
+	if err := repo.Cleanup(); err != nil {
 		return err
 	}
 
@@ -461,9 +498,13 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 		}
 	}
 
-	// restore Longhorn replica-replenishment-wait-interval setting (multi-node cluster only)
+	// restore Longhorn replica-replenishment-wait-interval and
+	// auto-cleanup-system-generated-snapshot settings (multi-node cluster only)
 	if upgrade.Status.SingleNode == "" {
 		if err := h.loadReplicaReplenishmentFromUpgradeAnnotation(upgrade); err != nil {
+			return err
+		}
+		if err := h.loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade); err != nil {
 			return err
 		}
 	}
@@ -487,6 +528,33 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 				return err
 			}
 		}
+	}
+
+	return h.resumeManagedCharts()
+}
+
+func (h *upgradeHandler) resumeManagedCharts() error {
+	managedCharts, err := h.managedChartCache.List(util.FleetLocalNamespaceName, labels.Everything())
+	if err != nil {
+		return nil
+	}
+
+	// those managedcharts might be paused by the upgrade script, resume them if they are not un-paused
+	targetManagedcharts := map[string]struct{}{util.HarvesterCRDManagedChart: {}, util.HarvesterManagedChart: {}, util.RancherLoggingCRDManagedChart: {}, util.RancherMonitoringCRDManagedChart: {}}
+
+	for _, managedChart := range managedCharts {
+		if !managedChart.Spec.Paused {
+			continue
+		}
+		if _, ok := targetManagedcharts[managedChart.Name]; !ok {
+			continue
+		}
+		mc := managedChart.DeepCopy()
+		mc.Spec.Paused = false
+		if _, err := h.managedChartClient.Update(mc); err != nil {
+			return fmt.Errorf("failed to resume managedchart %v %w", mc.Name, err)
+		}
+		logrus.Infof("managedchart %v is resumed", mc.Name)
 	}
 
 	return nil
@@ -592,7 +660,7 @@ func ensureSingleUpgrade(namespace string, upgradeCache ctlharvesterv1.UpgradeCa
 	}
 
 	if len(onGoingUpgrades) != 1 {
-		return nil, fmt.Errorf("There are %d on-going upgrades", len(onGoingUpgrades))
+		return nil, fmt.Errorf("there are %d on-going upgrades", len(onGoingUpgrades))
 	}
 
 	return onGoingUpgrades[0], nil
@@ -604,37 +672,6 @@ func getCachedRepoInfo(upgrade *harvesterv1.Upgrade) (*repoinfo.RepoInfo, error)
 		return nil, err
 	}
 	return repoInfo, nil
-}
-
-func isVersionUpgradable(currentVersion, minUpgradableVersion string) error {
-	if minUpgradableVersion == "" {
-		logrus.Debug("No minimum upgradable version specified, continue the upgrading")
-		return nil
-	}
-
-	// short-circuit the equal cases as the library doesn't support the hack applied below
-	if currentVersion == minUpgradableVersion {
-		logrus.Debug("Upgrade from the exact same version as the minimum requirement")
-		return nil
-	}
-	// to enable comparisons against prerelease versions
-	constraint := fmt.Sprintf(">= %s-z", minUpgradableVersion)
-
-	c, err := semverv3.NewConstraint(constraint)
-	if err != nil {
-		return err
-	}
-	v, err := semverv3.NewVersion(currentVersion)
-	if err != nil {
-		return err
-	}
-
-	if a := c.Check(v); !a {
-		message := fmt.Sprintf("The current version %s is less than the minimum upgradable version %s.", currentVersion, minUpgradableVersion)
-		return fmt.Errorf("%s", message)
-	}
-
-	return nil
 }
 
 func upgradeEligibilityCheck(upgrade *harvesterv1.Upgrade) (bool, string) {
@@ -749,6 +786,50 @@ func (h *upgradeHandler) setReplicaReplenishmentValue(value int) error {
 	toUpdate := replicaReplenishmentWaitInterval.DeepCopy()
 	toUpdate.Value = strconv.Itoa(value)
 	if !reflect.DeepEqual(toUpdate, replicaReplenishmentWaitInterval) {
+		if _, err := h.lhSettingClient.Update(toUpdate); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *upgradeHandler) getAutoCleanupSystemGeneratedSnapshotValue() (string, error) {
+	autoCleanupSystemGeneratedSnapshot, err := h.lhSettingCache.Get(util.LonghornSystemNamespaceName, autoCleanupSystemGeneratedSnapshotSetting)
+	if err != nil {
+		return "", err
+	}
+	return autoCleanupSystemGeneratedSnapshot.Value, nil
+}
+
+func (h *upgradeHandler) saveAutoCleanupSystemGeneratedSnapshotToUpgradeAnnotation(upgrade *harvesterv1.Upgrade) error {
+	autoCleanupSystemGeneratedSnapshotValue, err := h.getAutoCleanupSystemGeneratedSnapshotValue()
+	if err != nil {
+		return err
+	}
+	if upgrade.Annotations == nil {
+		upgrade.Annotations = make(map[string]string)
+	}
+	upgrade.Annotations[autoCleanupSystemGeneratedSnapshotAnnotation] = autoCleanupSystemGeneratedSnapshotValue
+	return nil
+}
+
+func (h *upgradeHandler) loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade) error {
+	value, ok := upgrade.Annotations[autoCleanupSystemGeneratedSnapshotAnnotation]
+	if !ok {
+		logrus.Warnf("no original %s value set", autoCleanupSystemGeneratedSnapshotSetting)
+		return nil
+	}
+	return h.setAutoCleanupSystemGeneratedSnapshotValue(value)
+}
+
+func (h *upgradeHandler) setAutoCleanupSystemGeneratedSnapshotValue(value string) error {
+	autoCleanupSystemGeneratedSnapshot, err := h.lhSettingCache.Get(util.LonghornSystemNamespaceName, autoCleanupSystemGeneratedSnapshotSetting)
+	if err != nil {
+		return err
+	}
+	toUpdate := autoCleanupSystemGeneratedSnapshot.DeepCopy()
+	toUpdate.Value = value
+	if !reflect.DeepEqual(toUpdate, autoCleanupSystemGeneratedSnapshot) {
 		if _, err := h.lhSettingClient.Update(toUpdate); err != nil {
 			return err
 		}

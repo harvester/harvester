@@ -11,20 +11,25 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/backup"
 	"github.com/harvester/harvester/pkg/controller/master/image"
 	"github.com/harvester/harvester/pkg/controller/master/keypair"
+	"github.com/harvester/harvester/pkg/controller/master/kubevirt"
 	"github.com/harvester/harvester/pkg/controller/master/machine"
 	"github.com/harvester/harvester/pkg/controller/master/mcmsettings"
 	"github.com/harvester/harvester/pkg/controller/master/migration"
 	"github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/nodedrain"
+	"github.com/harvester/harvester/pkg/controller/master/pvc"
 	"github.com/harvester/harvester/pkg/controller/master/rancher"
+	"github.com/harvester/harvester/pkg/controller/master/resourcequota"
 	"github.com/harvester/harvester/pkg/controller/master/schedulevmbackup"
 	"github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
+	"github.com/harvester/harvester/pkg/controller/master/storageprofile"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle"
 	"github.com/harvester/harvester/pkg/controller/master/template"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
 	"github.com/harvester/harvester/pkg/controller/master/upgradelog"
 	"github.com/harvester/harvester/pkg/controller/master/virtualmachine"
+	"github.com/harvester/harvester/pkg/controller/master/vmimagedownloader"
 )
 
 type registerFunc func(context.Context, *config.Management, config.Options) error
@@ -54,9 +59,14 @@ var registerFuncs = []registerFunc{
 	upgradelog.Register,
 	addon.Register,
 	storagenetwork.Register,
+	pvc.Register,
+	storageprofile.Register,
 	nodedrain.Register,
 	mcmsettings.Register,
 	schedulevmbackup.Register,
+	resourcequota.Register,
+	vmimagedownloader.Register,
+	kubevirt.Register,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {

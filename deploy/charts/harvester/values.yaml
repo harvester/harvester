@@ -25,29 +25,29 @@ kubevirt-operator:
   containers:
     operator:
       image:
-        repository: registry.suse.com/suse/sles/15.5/virt-operator
-        tag: &kubevirtVersion 1.2.2-150500.8.21.1
+        repository: registry.suse.com/suse/sles/15.6/virt-operator
+        tag: &kubevirtVersion 1.4.0-150600.5.15.1
     ## The following images are placeholder for images in use.
     ## They are not used by the kubevirt-operator chart.
     controller:
       image:
-        repository: registry.suse.com/suse/sles/15.5/virt-controller
+        repository: registry.suse.com/suse/sles/15.6/virt-controller
         tag: *kubevirtVersion
     handler:
       image:
-        repository: registry.suse.com/suse/sles/15.5/virt-handler
+        repository: registry.suse.com/suse/sles/15.6/virt-handler
         tag: *kubevirtVersion
     api:
       image:
-        repository: registry.suse.com/suse/sles/15.5/virt-api
+        repository: registry.suse.com/suse/sles/15.6/virt-api
         tag: *kubevirtVersion
     launcher:
       image:
-        repository: registry.suse.com/suse/sles/15.5/virt-launcher
+        repository: registry.suse.com/suse/sles/15.6/virt-launcher
         tag: *kubevirtVersion
     libguestfs: # introduced from kubevirt v0.44.0
       image:
-        repository: registry.suse.com/suse/sles/15.5/libguestfs-tools
+        repository: registry.suse.com/suse/sles/15.6/libguestfs-tools
         tag: *kubevirtVersion
 
 ## Specify the parameters to override the sub-chart.
@@ -56,13 +56,21 @@ kubevirt:
   ## Specify the specification of KubeVirt resource.
   ##
   spec:
+    ## Specify default placement of infra components
+    ## based on logic https://github.com/kubevirt/kubevirt/blob/main/pkg/virt-operator/resource/apply/reconcile.go#L127
+    ## an empty nodePlacement struct is enough to continue existing behaviour of allowing kubevirt controlplane 
+    ## components to be scheduled to any node in the cluster
+    infra:
+      nodePlacement: {}
     ## Specify the default configuration of KubeVirt virtual machine.
     ##
     configuration:
       ## Specify kubevirt feature gates
       vmStateStorageClass: "vmstate-persistence"
       developerConfiguration:
-        featureGates: ["LiveMigration", "HotplugVolumes", "HostDevices", "GPU", "CPUManager", "VMPersistentState"]
+        featureGates: ["LiveMigration", "HotplugVolumes", "HostDevices", "GPU", "CPUManager", "VMPersistentState", "VMLiveUpdateFeatures", "ExpandDisks"]
+
+      vmRolloutStrategy: "LiveUpdate"
 
       ## Specify the network configuration of VirtualMachineInstance.
       ##
@@ -84,11 +92,6 @@ kubevirt:
         ##
         permitBridgeInterfaceOnPodNetwork: true
 
-      ## Specify the machine type regex for validating the emulation of VirtualMachineInstance,
-      ## defaults to discover automatically, "pseries*" if arch is ppc64le, otherwise "q35, pc-g35*, pc, pc-i440fx*".
-      ##
-      emulatedMachines: ["q35", "pc-q35*", "pc", "pc-i440fx*"]
-
     customizeComponents:
       patches:
         - patch: '{"webhooks":[{"name":"kubevirt-validator.kubevirt.io","failurePolicy":"Ignore"},{"name":"kubevirt-update-validator.kubevirt.io","failurePolicy":"Ignore"}]}'
@@ -107,6 +110,69 @@ kubevirt:
           resourceName: virt-handler
           resourceType: DaemonSet
           type: strategic
+
+    workloadUpdateStrategy:
+      workloadUpdateMethods:
+        - LiveMigrate
+
+###########################################################################
+###########################################################################
+##       Override the sub-charts (CDI) default configuration below       ##
+###########################################################################
+###########################################################################
+cdi:
+  enabled: true
+  containers:
+    version: &cdiVersion 1.61.0-150600.3.12.1
+    operator:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-operator
+        tag: *cdiVersion
+    controller:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-controller
+        tag: *cdiVersion
+    importer:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-importer
+        tag: *cdiVersion
+    cloner:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-cloner
+        tag: *cdiVersion
+    apiserver:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-apiserver
+        tag: *cdiVersion
+    uploadserver:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-uploadserver
+        tag: *cdiVersion
+    uploadproxy:
+      image:
+        repository: registry.suse.com/suse/sles/15.6/cdi-uploadproxy
+        tag: *cdiVersion
+    hook:
+      image:
+        repository: rancher/kubectl
+        tag: v1.32.3
+  
+  spec:
+    cloneStrategyOverride: copy
+    config:
+      featureGates:
+        - HonorWaitForFirstConsumer
+    imagePullPolicy: "IfNotPresent"
+    infra:
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+    uninstallStrategy: ""
+    workload:
+      nodeSelector:
+        kubernetes.io/os: linux
 
 ###########################################################################
 ###########################################################################
@@ -370,7 +436,7 @@ harvester-networkfs-manager:
 
   image:
     repository: rancher/harvester-networkfs-manager
-    pullPolicy: IfNotPresent 
+    pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
     tag: main-head
 
@@ -387,7 +453,7 @@ harvester-node-disk-manager:
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
     tag: master-head
-  
+
   webhook:
     image:
       repository: rancher/harvester-node-disk-manager-webhook
@@ -528,7 +594,7 @@ whereabouts:
   image:
     pullPolicy: IfNotPresent
     repository: ghcr.io/k8snetworkplumbingwg/whereabouts
-    tag: "v0.7.0"
+    tag: "v0.8.0"
 
 harvester-node-manager:
   image:

@@ -1,4 +1,5 @@
 #!/bin/bash
+# DESC: Build the binaries for Harvester, harvester-webhook and upgrade-helper
 set -e
 
 source $(dirname $0)/version

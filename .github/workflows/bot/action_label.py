@@ -2,11 +2,13 @@ import time
 import random
 from bot.label_action.create_gui_issue import CreateGUIIssue
 from bot.label_action.create_backport import CreateBackport
+from bot.label_action.create_e2e import CreateE2EIssue
 from bot.action import Action
 
 ALL_LABEL_ACTIONS = [
     CreateBackport,
-    CreateGUIIssue
+    CreateGUIIssue,
+    CreateE2EIssue
 ]
 
 class ActionLabel(Action):

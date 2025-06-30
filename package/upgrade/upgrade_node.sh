@@ -29,6 +29,22 @@ cleanup_incomplete_state_file() {
   fi
 }
 
+sparsify_passive_img()
+{
+  # See https://github.com/harvester/harvester/issues/7518
+  PASSIVE_IMG=${STATE_DIR}/cOS/passive.img
+  if [ -f $PASSIVE_IMG ]; then
+    echo "Ensuring $PASSIVE_IMG is sparse..."
+    mount -o rw,remount ${STATE_DIR}
+    echo "  was: $(du -h $PASSIVE_IMG)"
+    fallocate --dig-holes $PASSIVE_IMG
+    echo "  now: $(du -h $PASSIVE_IMG)"
+    mount -o ro,remount ${STATE_DIR}
+  else
+    echo "$PASSIVE_IMG does not exist"
+  fi
+}
+
 is_mounted()
 {
   mount | awk -v DIR="$1" '{ if ($3 == DIR) { exit 0 } } ENDFILE { exit 1 }'
@@ -223,7 +239,7 @@ recover_rancher_system_agent() {
 }
 
 wait_longhorn_engines() {
-  node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true -o json | jq -r '.items | length')
+  local node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
 
   # For each running engine and its volume
   kubectl get engines.longhorn.io -n longhorn-system -o json |
@@ -267,86 +283,6 @@ wait_longhorn_engines() {
     done
 }
 
-patch_logging_event_audit()
-{
-  # enabling logging, audit, event when upgrading from v1.0.3 to 1.1.0
-  # should happen before RKE2 is patched
-  # note: the host '/' is mapped to pod '/host/', refer: pkg/controller/master/upgrade/common.go applyNodeJob
-
-  # get UPGRADE_PREVIOUS_VERSION and NODE_CURRENT_HARVESTER_VERSION
-  detect_upgrade
-  detect_node_current_harvester_version
-  echo "The UPGRADE_PREVIOUS_VERSION is $UPGRADE_PREVIOUS_VERSION, NODE_CURRENT_HARVESTER_VERSION is $NODE_CURRENT_HARVESTER_VERSION, will check Logging Event Audit upgrade node option"
-
-  if test "$UPGRADE_PREVIOUS_VERSION" = "v1.0.3" || test "$NODE_CURRENT_HARVESTER_VERSION" = "v1.0.3"; then
-    echo "Patch kube-audit policy file"
-    # this file should be there in each NODE
-    # keep syncing with harvester/harvester-installer/pkg/config/templates/rke2-92-harvester-kube-audit-policy.yaml
-
-    ls /host/etc/rancher/rke2/config.yaml.d/ -alt
-
-    KUBE_AUDIT_POLICY_FILE_IN_CONTAINER=/host/etc/rancher/rke2/config.yaml.d/92-harvester-kube-audit-policy.yaml
-    KUBE_AUDIT_POLICY_FILE_IN_HOST=/etc/rancher/rke2/config.yaml.d/92-harvester-kube-audit-policy.yaml
-
-    if [ ! -f $KUBE_AUDIT_POLICY_FILE_IN_CONTAINER ]; then
-      echo "Create new policy file $KUBE_AUDIT_POLICY_FILE_IN_CONTAINER"
-
-      cat > $KUBE_AUDIT_POLICY_FILE_IN_CONTAINER << 'EOF'
-apiVersion: audit.k8s.io/v1
-kind: Policy
-omitStages:
-  - "ResponseStarted"
-  - "ResponseComplete"
-rules:
-  # Any include/exclude rules are added here
-
-  # A catch-all rule to log all other (create/delete/patch) requests at the Metadata level
-  - level: Metadata
-    verbs: ["create", "delete", "patch"]
-    omitStages:
-      - "ResponseStarted"
-      - "ResponseComplete"
-EOF
-
-    else
-      echo "Reuse the existing policy file $KUBE_AUDIT_POLICY_FILE_IN_CONTAINER, the file content is:"
-      cat $KUBE_AUDIT_POLICY_FILE_IN_CONTAINER
-    fi
-
-    # it means the NODE role is rke2-server when 90-harvester-server.yaml exists, patch it
-    RKE2_SERVER_CONFIG_FILE_IN_CONTAINER=/host/etc/rancher/rke2/config.yaml.d/90-harvester-server.yaml
-    PATCH_SERVER_IN_CUSTOM=1
-    local param=audit-policy-file
-
-    if [ -f "$RKE2_SERVER_CONFIG_FILE_IN_CONTAINER" ]; then
-      local audit_policy_file_param=$(yq e '.'$param $RKE2_SERVER_CONFIG_FILE_IN_CONTAINER)
-
-      if [ "$audit_policy_file_param" == "null" ]; then
-        echo "$param parameter is not in $RKE2_SERVER_CONFIG_FILE_IN_CONTAINER"
-        echo "Patch rke2 server config file with $param parameter"
-        echo "$param: $KUBE_AUDIT_POLICY_FILE_IN_HOST" >> $RKE2_SERVER_CONFIG_FILE_IN_CONTAINER
-        echo "After patch, the file content is"
-        cat $RKE2_SERVER_CONFIG_FILE_IN_CONTAINER
-      else
-        echo "$param parameter is in $RKE2_SERVER_CONFIG_FILE_IN_CONTAINER, value: $audit_policy_file_param, skip patch"
-      fi
-
-    else
-      # for rke2-agent node, do nothing now, this file will be patched when the node is promoted to server
-      echo "There is no file $RKE2_SERVER_CONFIG_FILE_IN_CONTAINER, $param parameter is not patched"
-      PATCH_SERVER_IN_CUSTOM=0
-    fi
-
-    #patch /oem/99_custom.yaml in host
-    source $SCRIPT_DIR/patch_99_custom.sh
-    SRC_FILE=/host/oem/99_custom.yaml
-    TMP_FILE=/host/oem/99_custom_tmp.yaml # will be created and deleted
-    patch_99_custom $SRC_FILE $TMP_FILE $PATCH_SERVER_IN_CUSTOM
-  else
-    echo "Logging Event Audit: nothing to do in $UPGRADE_PREVIOUS_VERSION"
-  fi
-}
-
 command_pre_drain() {
   recover_rancher_system_agent
 
@@ -363,9 +299,6 @@ command_pre_drain() {
 
   # KubeVirt's pdb might cause drain fail
   wait_evacuation_pdb_gone
-
-  # Add logging related kube-audit policy file
-  patch_logging_event_audit
 
   remove_rke2_canal_config
   disable_rke2_charts
@@ -512,6 +445,16 @@ EOF
   fi
 }
 
+set_rke2_device_permissions() {
+  local rke2DevicePermissionConfig="$HOST_DIR/etc/rancher/rke2/config.yaml.d/91-harvester-cdi.yaml"
+  if [ ! -e $rke2DevicePermissionConfig ]; then
+    cat > $rke2DevicePermissionConfig << EOF
+# handle the permission issue of Longhorn for CDI
+"nonroot-devices": true
+EOF
+  fi
+} 
+
 # Delete the cpu_manager_state file during the initramfs stage. During a reboot, this state file is always reverted
 # because it was originally created during the system installation, becoming part of the root filesystem. As a result,
 # the policy in cpu_manager_state file is "none" (default policy) after reboot. If we've already set the cpu-manager-policy
@@ -565,6 +508,64 @@ calculateCPUReservedInMilliCPU() {
   echo $reserved
 }
 
+replace_with_mgmtvlan() {
+  if [ -z "$UPGRADE_PREVIOUS_VERSION" ]; then
+    detect_upgrade
+  fi
+
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.5\.[0-9]$ ]]; then
+    echo "version: $UPGRADE_PREVIOUS_VERSION does not require patching mgmt vlan"
+    return
+  fi
+
+  #files to update with mgmt vlan
+  local SETUPBOND_FILE="${HOST_DIR}/etc/wicked/scripts/setup_bond.sh"
+  local SETUPBRIDGE_FILE="${HOST_DIR}/etc/wicked/scripts/setup_bridge.sh"
+  local CUSTOM90_FILE="${HOST_DIR}/oem/90_custom.yaml"
+  local CONFIG_FILE="${HOST_DIR}/oem/harvester.config"
+
+  # Check if the harvester config file exists
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "Error: Config file '$CONFIG_FILE' not found."
+    return
+  fi
+
+  # Search for the mgmt vlanid installed in the config file
+  vlan_id=$(yq '.install.managementinterface.vlanid' $CONFIG_FILE)
+
+  if [[ -z "$vlan_id" || "$vlan_id" -eq 0 ]]; then
+    echo "VLAN ID: $vlan_id Not found, assign vlan_id=1"
+    vlan_id=1
+  fi
+
+  # Check if the file exists
+  if [[ -f "$SETUPBOND_FILE" ]]; then
+    # Replace the range with the VLAN ID
+    sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$SETUPBOND_FILE"
+    echo "Updated $SETUPBOND_FILE with VLAN ID $vlan_id"
+  else
+    echo "File not found: $SETUPBOND_FILE"
+  fi
+
+  # Check if the file exists
+  if [[ -f "$SETUPBRIDGE_FILE" ]]; then
+    # Replace the range with the VLAN ID
+    sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$SETUPBRIDGE_FILE"
+    echo "Updated $SETUPBRIDGE_FILE with VLAN ID $vlan_id"
+  else
+    echo "File not found: $SETUPBRIDGE_FILE"
+  fi
+
+  # Check if the file exists
+  if [[ -f "$CUSTOM90_FILE" ]]; then
+    # Replace the range with the VLAN ID
+    sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$CUSTOM90_FILE"
+    echo "Updated $CUSTOM90_FILE with VLAN ID $vlan_id"
+  else
+    echo "File not found: $CUSTOM90_FILE"
+  fi
+}
+
 upgrade_os() {
   # The trap will be only effective from this point to the end of the execution
   trap clean_up_tmp_files EXIT
@@ -597,6 +598,9 @@ EOF
 
   # we would like to clean up the incomplete state.yaml to avoid the issue of https://github.com/harvester/harvester/issues/4526
   cleanup_incomplete_state_file
+
+  # make sure the current passive image isn't using too much disk space
+  sparsify_passive_img
 
   elemental_upgrade_log="${UPGRADE_TMP_DIR#"$HOST_DIR"}/elemental-upgrade-$(date +%Y%m%d%H%M%S).log"
   local ret=0
@@ -637,6 +641,31 @@ EOF
       thirdPartyArgs=$(echo ${thirdPartyArgs} | xargs)
       chroot $HOST_DIR grub2-editenv /oem/grubenv set third_party_kernel_args="${thirdPartyArgs}"
     fi
+    # add cloud-init directive to disable multipathing for longhorn
+    cat > ${HOST_DIR}/oem/99_disable_lh_multipathd.yaml << EOF
+name: "disable longhorn multipathing"
+stages:
+   initramfs:
+     - directories:
+       - path: "/etc/multipath/conf.d"
+         permissions: 0644
+         owner: 0
+         group: 0
+     - files:
+       - path: "/etc/multipath/conf.d/99-longhorn.conf"
+         content: YmxhY2tsaXN0IHsgCiAgZGV2aWNlIHsgCiAgICB2ZW5kb3IgIklFVCIgCiAgICBwcm9kdWN0ICJWSVJUVUFMLURJU0siCiAgfQp9Cg==
+         encoding: "base64"
+         permissions: 0644
+         owner: 0
+         group: 0
+       - path: /etc/systemd/system/multipathd.service
+         permissions: 420
+         owner: 0
+         group: 0
+         content: W1VuaXRdCkRlc2NyaXB0aW9uPURldmljZS1NYXBwZXIgTXVsdGlwYXRoIERldmljZSBDb250cm9sbGVyCkJlZm9yZT1sdm0yLWFjdGl2YXRpb24tZWFybHkuc2VydmljZQpCZWZvcmU9bG9jYWwtZnMtcHJlLnRhcmdldCBibGstYXZhaWxhYmlsaXR5LnNlcnZpY2Ugc2h1dGRvd24udGFyZ2V0CldhbnRzPXN5c3RlbWQtdWRldmQta2VybmVsLnNvY2tldApBZnRlcj1zeXN0ZW1kLXVkZXZkLWtlcm5lbC5zb2NrZXQKQWZ0ZXI9bXVsdGlwYXRoZC5zb2NrZXQgc3lzdGVtZC1yZW1vdW50LWZzLnNlcnZpY2UKQmVmb3JlPWluaXRyZC1jbGVhbnVwLnNlcnZpY2UKRGVmYXVsdERlcGVuZGVuY2llcz1ubwpDb25mbGljdHM9c2h1dGRvd24udGFyZ2V0CkNvbmZsaWN0cz1pbml0cmQtY2xlYW51cC5zZXJ2aWNlCkNvbmRpdGlvbktlcm5lbENvbW1hbmRMaW5lPSFub21wYXRoCkNvbmRpdGlvblZpcnR1YWxpemF0aW9uPSFjb250YWluZXIKCltTZXJ2aWNlXQpUeXBlPW5vdGlmeQpOb3RpZnlBY2Nlc3M9bWFpbgpFeGVjU3RhcnQ9L3NiaW4vbXVsdGlwYXRoZCAtZCAtcwpFeGVjUmVsb2FkPS9zYmluL211bHRpcGF0aGQgcmVjb25maWd1cmUKVGFza3NNYXg9aW5maW5pdHkKCltJbnN0YWxsXQpXYW50ZWRCeT1zeXNpbml0LnRhcmdldA==
+         encoding: base64
+         ownerstring: ""         
+EOF
   fi
 
   umount $tmp_rootfs_mount
@@ -662,6 +691,7 @@ command_post_drain() {
   # update max-pods to 200
   set_max_pods
   set_reserved_resource
+  set_rke2_device_permissions
   set_oem_cleanup_kubelet
   # A post-drain signal from Rancher doesn't mean RKE2 agent/server is already patched and restarted
   # Let's wait until the RKE2 settled.
@@ -671,6 +701,9 @@ command_post_drain() {
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME kubevirt.io/drain- || true
 
   convert_nodenetwork_to_vlanconfig
+
+  #replace the range vlans with mgmt vlan in wicked scripts and 90_custom.yaml file before node reboot
+  replace_with_mgmtvlan
 
   upgrade_os
 }
@@ -694,9 +727,6 @@ command_single_node_upgrade() {
   shutdown_all_vms
   wait_vms_out
 
-  # Add logging related kube-audit policy file
-  patch_logging_event_audit
-
   echo "wait for fleet bundles before upgrading RKE2"
   # wait all fleet bundles in limited time
   wait_for_fleet_bundles
@@ -704,6 +734,7 @@ command_single_node_upgrade() {
   # update max-pods to 200
   set_max_pods
   set_reserved_resource
+  set_rke2_device_permissions
   set_oem_cleanup_kubelet
   # Upgarde RKE2
   upgrade_rke2
@@ -712,6 +743,9 @@ command_single_node_upgrade() {
   clean_rke2_archives
 
   convert_nodenetwork_to_vlanconfig
+
+  #replace the range vlans with mgmt vlan in wicked scripts and 90_custom.yaml file before node reboot
+  replace_with_mgmtvlan
 
   # Upgrade OS
   upgrade_os

@@ -20,14 +20,13 @@ package v1beta1
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // ClusterOutputsGetter has a method to return a ClusterOutputInterface.
@@ -40,6 +39,7 @@ type ClusterOutputsGetter interface {
 type ClusterOutputInterface interface {
 	Create(ctx context.Context, clusterOutput *v1beta1.ClusterOutput, opts v1.CreateOptions) (*v1beta1.ClusterOutput, error)
 	Update(ctx context.Context, clusterOutput *v1beta1.ClusterOutput, opts v1.UpdateOptions) (*v1beta1.ClusterOutput, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 	UpdateStatus(ctx context.Context, clusterOutput *v1beta1.ClusterOutput, opts v1.UpdateOptions) (*v1beta1.ClusterOutput, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -52,133 +52,18 @@ type ClusterOutputInterface interface {
 
 // clusterOutputs implements ClusterOutputInterface
 type clusterOutputs struct {
-	client rest.Interface
+	*gentype.ClientWithList[*v1beta1.ClusterOutput, *v1beta1.ClusterOutputList]
 }
 
 // newClusterOutputs returns a ClusterOutputs
 func newClusterOutputs(c *LoggingV1beta1Client) *clusterOutputs {
 	return &clusterOutputs{
-		client: c.RESTClient(),
+		gentype.NewClientWithList[*v1beta1.ClusterOutput, *v1beta1.ClusterOutputList](
+			"clusteroutputs",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *v1beta1.ClusterOutput { return &v1beta1.ClusterOutput{} },
+			func() *v1beta1.ClusterOutputList { return &v1beta1.ClusterOutputList{} }),
 	}
-}
-
-// Get takes name of the clusterOutput, and returns the corresponding clusterOutput object, and an error if there is any.
-func (c *clusterOutputs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.ClusterOutput, err error) {
-	result = &v1beta1.ClusterOutput{}
-	err = c.client.Get().
-		Resource("clusteroutputs").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of ClusterOutputs that match those selectors.
-func (c *clusterOutputs) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.ClusterOutputList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1beta1.ClusterOutputList{}
-	err = c.client.Get().
-		Resource("clusteroutputs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested clusterOutputs.
-func (c *clusterOutputs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("clusteroutputs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a clusterOutput and creates it.  Returns the server's representation of the clusterOutput, and an error, if there is any.
-func (c *clusterOutputs) Create(ctx context.Context, clusterOutput *v1beta1.ClusterOutput, opts v1.CreateOptions) (result *v1beta1.ClusterOutput, err error) {
-	result = &v1beta1.ClusterOutput{}
-	err = c.client.Post().
-		Resource("clusteroutputs").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterOutput).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a clusterOutput and updates it. Returns the server's representation of the clusterOutput, and an error, if there is any.
-func (c *clusterOutputs) Update(ctx context.Context, clusterOutput *v1beta1.ClusterOutput, opts v1.UpdateOptions) (result *v1beta1.ClusterOutput, err error) {
-	result = &v1beta1.ClusterOutput{}
-	err = c.client.Put().
-		Resource("clusteroutputs").
-		Name(clusterOutput.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterOutput).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *clusterOutputs) UpdateStatus(ctx context.Context, clusterOutput *v1beta1.ClusterOutput, opts v1.UpdateOptions) (result *v1beta1.ClusterOutput, err error) {
-	result = &v1beta1.ClusterOutput{}
-	err = c.client.Put().
-		Resource("clusteroutputs").
-		Name(clusterOutput.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(clusterOutput).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the clusterOutput and deletes it. Returns an error if one occurs.
-func (c *clusterOutputs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("clusteroutputs").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *clusterOutputs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("clusteroutputs").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched clusterOutput.
-func (c *clusterOutputs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.ClusterOutput, err error) {
-	result = &v1beta1.ClusterOutput{}
-	err = c.client.Patch(pt).
-		Resource("clusteroutputs").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

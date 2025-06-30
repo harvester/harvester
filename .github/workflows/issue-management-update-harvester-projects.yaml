@@ -1,0 +1,111 @@
+name: "[Issue Management] Update Issue Status in Harvester Project"
+on:
+  issues:
+    types: [labeled, milestoned, assigned, unassigned]
+
+env:
+  HARVESTER_SPRINT_PROJECT_URL: https://github.com/orgs/harvester/projects/7
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  harvester:
+    # Skip PR
+    if: ${{ !github.event.issue.pull_request }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Is Harvester Member
+      id: is-harvester-member
+      continue-on-error: true
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@main
+      with:
+        username: ${{ github.actor }}
+        organization: harvester
+        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    - run: |
+        echo "is-harvester-member teams: ${{ steps.is-harvester-member.outputs.teams }}"
+        echo "is-harvester-member outcome: ${{ steps.is-harvester-member.outcome }}"
+
+    - uses: rancher/gh-issue-mgr/project-fields@main
+      id: get-status-field
+      continue-on-error: true
+      if: steps.is-harvester-member.outcome == 'success'
+      with:
+        operation: get
+        fields: Status
+        github_token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        project_url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
+        resource_url: https://github.com/harvester/harvester/issues/${{ github.event.issue.number }}
+
+    - name: Add Issue to Harvester Sprint Project
+      id: add-project
+      uses: actions/add-to-project@v1.0.2
+      if: ${{ 
+        steps.is-harvester-member.outcome == 'success' &&
+        steps.get-status-field.outcome == 'success'
+        }}
+      with:
+        project-url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    - name: Set Milestone to Issue
+      if: ${{
+        fromJSON(steps.is-harvester-member.outputs.teams)[0] != null  &&
+        github.event.issue.milestone == null &&
+        steps.get-status-field.outcome == 'success'
+        }}
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+      run: |
+        ISSUE_NUMBER="${{ github.event.issue.number }}"
+
+        # Reduce the chance that milestone is modified by users and actions at the same time.
+        MILESTONE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json milestone --jq '.milestone.title')
+        if [ -z "$MILESTONE_TITLE" ]; then
+          gh issue edit "$ISSUE_NUMBER" --milestone "Planning"
+        fi
+        
+    -  name: Update Project Item
+       if: ${{
+          steps.is-harvester-member.outcome == 'success' &&
+          steps.get-status-field.outcome == 'success' &&
+          steps.add-project.outputs.itemId != ''
+          }}
+       run: |
+         ASSIGNEES='${{ toJSON(github.event.issue.assignees) }}'
+
+         # Skip if status is already Closed
+         if [[ "${{ steps.get-status-field.outputs.values }}" == "Closed" ]]; then
+           echo "Status is Closed, skipping update"
+           exit 0
+         fi
+
+         if [[ ( "${{ steps.get-status-field.outputs.values }}" == "New Issues" || "${{ steps.get-status-field.outputs.values }}" == "" ) &&
+               $ASSIGNEES != "[]" ]]; then
+           echo "Updating to Backlog since it's assigned and status is New Issues or empty"
+           echo "field-values=Backlog" >> $GITHUB_ENV
+
+         elif [[ $ASSIGNEES == "[]" ]]; then
+           echo "Updating to New Issues since it's unassigned"
+           echo "field-values=New Issues" >> $GITHUB_ENV
+         fi
+
+    - name: Apply Project Update
+      if: ${{
+        steps.is-harvester-member.outcome == 'success' &&
+        steps.get-status-field.outcome == 'success' &&
+        env.field-values != ''
+        }}
+      uses: rancher/gh-issue-mgr/update-project-fields@main
+      with:
+        project-url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        item-id: ${{ steps.add-project.outputs.itemId }}
+        field-keys: Status
+        field-values: ${{ env.field-values }}

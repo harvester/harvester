@@ -1,0 +1,40 @@
+name: "[Issue Management] Close stale issues and PRs"
+on:
+  schedule:
+    - cron: '30 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      ascending:
+        description: 'Sort issues and PRs in ascending order'
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  issues: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Run stale
+      uses: actions/stale@v9
+      with:
+        stale-issue-message: 'This issue is stale because it has been open for 30 days with no activity. Remove stale label or comment or this will be closed in 5 days.'
+        stale-pr-message: 'This PR is stale because it has been open for 30 days with no activity. Remove stale label or comment or this will be closed in 5 days. Please review it as soon as possible. cc @harvester/dev '
+        close-issue-message: 'This issue was closed because it has been stalled for 14 days with no activity.'
+        close-pr-message: 'This PR was closed because it has been stalled for 14 days with no activity.'
+        days-before-stale: 30
+        days-before-pr-stale: 30
+        days-before-close: 14
+        operations-per-run: 500
+        days-before-pr-close: 14
+        ascending: ${{ inputs.ascending }}
+        stale-issue-label: 'status/stale'
+        stale-pr-label: 'status/stale'
+        exempt-all-assignees: false
+        exempt-issue-labels: 'require/pm-review,require/investigate'
+        exempt-draft-pr: true
+        exempt-all-milestones: true

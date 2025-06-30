@@ -4,16 +4,9 @@ import (
 	"path/filepath"
 
 	"github.com/adrg/xdg/internal/pathutil"
+	"github.com/adrg/xdg/internal/userdirs"
 	"golang.org/x/sys/windows"
 )
-
-func homeDir() string {
-	return pathutil.KnownFolder(
-		windows.FOLDERID_Profile,
-		[]string{"USERPROFILE"},
-		nil,
-	)
-}
 
 func initDirs(home string) {
 	kf := initKnownFolders(home)
@@ -23,13 +16,13 @@ func initDirs(home string) {
 
 func initBaseDirs(home string, kf *knownFolders) {
 	// Initialize standard directories.
-	baseDirs.dataHome = xdgPath(envDataHome, kf.localAppData)
-	baseDirs.data = xdgPaths(envDataDirs, kf.roamingAppData, kf.programData)
-	baseDirs.configHome = xdgPath(envConfigHome, kf.localAppData)
-	baseDirs.config = xdgPaths(envConfigDirs, kf.programData, kf.roamingAppData)
-	baseDirs.stateHome = xdgPath(envStateHome, kf.localAppData)
-	baseDirs.cacheHome = xdgPath(envCacheHome, filepath.Join(kf.localAppData, "cache"))
-	baseDirs.runtime = xdgPath(envRuntimeDir, kf.localAppData)
+	baseDirs.dataHome = pathutil.EnvPath(envDataHome, kf.localAppData)
+	baseDirs.data = pathutil.EnvPathList(envDataDirs, kf.roamingAppData, kf.programData)
+	baseDirs.configHome = pathutil.EnvPath(envConfigHome, kf.localAppData)
+	baseDirs.config = pathutil.EnvPathList(envConfigDirs, kf.programData, kf.roamingAppData)
+	baseDirs.stateHome = pathutil.EnvPath(envStateHome, kf.localAppData)
+	baseDirs.cacheHome = pathutil.EnvPath(envCacheHome, filepath.Join(kf.localAppData, "cache"))
+	baseDirs.runtime = pathutil.EnvPath(envRuntimeDir, kf.localAppData)
 
 	// Initialize non-standard directories.
 	baseDirs.applications = []string{
@@ -43,14 +36,14 @@ func initBaseDirs(home string, kf *knownFolders) {
 }
 
 func initUserDirs(home string, kf *knownFolders) {
-	UserDirs.Desktop = xdgPath(envDesktopDir, kf.desktop)
-	UserDirs.Download = xdgPath(envDownloadDir, kf.downloads)
-	UserDirs.Documents = xdgPath(envDocumentsDir, kf.documents)
-	UserDirs.Music = xdgPath(envMusicDir, kf.music)
-	UserDirs.Pictures = xdgPath(envPicturesDir, kf.pictures)
-	UserDirs.Videos = xdgPath(envVideosDir, kf.videos)
-	UserDirs.Templates = xdgPath(envTemplatesDir, kf.templates)
-	UserDirs.PublicShare = xdgPath(envPublicShareDir, kf.public)
+	UserDirs.Desktop = pathutil.EnvPath(userdirs.EnvDesktopDir, kf.desktop)
+	UserDirs.Download = pathutil.EnvPath(userdirs.EnvDownloadDir, kf.downloads)
+	UserDirs.Documents = pathutil.EnvPath(userdirs.EnvDocumentsDir, kf.documents)
+	UserDirs.Music = pathutil.EnvPath(userdirs.EnvMusicDir, kf.music)
+	UserDirs.Pictures = pathutil.EnvPath(userdirs.EnvPicturesDir, kf.pictures)
+	UserDirs.Videos = pathutil.EnvPath(userdirs.EnvVideosDir, kf.videos)
+	UserDirs.Templates = pathutil.EnvPath(userdirs.EnvTemplatesDir, kf.templates)
+	UserDirs.PublicShare = pathutil.EnvPath(userdirs.EnvPublicShareDir, kf.public)
 }
 
 type knownFolders struct {

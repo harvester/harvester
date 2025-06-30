@@ -17,14 +17,15 @@ const (
 )
 
 type BackupTarget struct {
-	Type               TargetType `json:"type"`
-	Endpoint           string     `json:"endpoint"`
-	AccessKeyID        string     `json:"accessKeyId"`
-	SecretAccessKey    string     `json:"secretAccessKey"`
-	BucketName         string     `json:"bucketName"`
-	BucketRegion       string     `json:"bucketRegion"`
-	Cert               string     `json:"cert"`
-	VirtualHostedStyle bool       `json:"virtualHostedStyle"`
+	Type                     TargetType `json:"type"`
+	Endpoint                 string     `json:"endpoint"`
+	AccessKeyID              string     `json:"accessKeyId"`
+	SecretAccessKey          string     `json:"secretAccessKey"`
+	BucketName               string     `json:"bucketName"`
+	BucketRegion             string     `json:"bucketRegion"`
+	Cert                     string     `json:"cert"`
+	VirtualHostedStyle       bool       `json:"virtualHostedStyle"`
+	RefreshIntervalInSeconds int64      `json:"refreshIntervalInSeconds"`
 }
 
 type VMForceResetPolicy struct {
@@ -193,6 +194,7 @@ const (
 	AdditionalGuestMemoryOverheadRatioDefault = "1.5" // After kubevirt computes the overhead, it will further multiple with this factor
 )
 
+// nolint:govet
 type AdditionalGuestMemoryOverheadRatioConfig struct {
 	value string  `json:"value"`
 	ratio float64 `json:"ratio"` // converted from configured string

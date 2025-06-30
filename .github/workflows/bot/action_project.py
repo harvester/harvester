@@ -43,4 +43,3 @@ class ActionProject(Action):
         
         it = IssueTransfer(issue["number"])
         it.create_comment_if_not_exist()
-        it.create_e2e_issue()

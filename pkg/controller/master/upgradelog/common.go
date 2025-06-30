@@ -17,14 +17,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
 	defaultDeploymentReplicas   int32 = 1
 	defaultLogArchiveVolumeSize       = "1Gi"
+
+	// this is used to differentiate separate fluentbit&fluentd group
+	// all the none-root logging/clusterflow/clusteroutput objects need this reference
+	upgradeLogLoggingRef = "harvester-upgradelog"
 )
 
 func upgradeLogReference(upgradeLog *harvesterv1.UpgradeLog) metav1.OwnerReference {
@@ -69,9 +75,38 @@ func prepareOperator(upgradeLog *harvesterv1.UpgradeLog) *mgmtv3.ManagedChart {
 	}
 }
 
-func prepareLogging(upgradeLog *harvesterv1.UpgradeLog, images map[string]Image) *loggingv1.Logging {
-	volumeMode := corev1.PersistentVolumeFilesystem
+// fluentbit is still deployed as daemonset, it is rolled out from FluentbitAgent object by logging-operator
+func prepareFluentbitAgent(upgradeLog *harvesterv1.UpgradeLog, images map[string]settings.Image) *loggingv1.FluentbitAgent {
+	image := images[imageFluentbit]
+	return &loggingv1.FluentbitAgent{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				util.LabelUpgradeLog:          upgradeLog.Name,
+				util.LabelUpgradeLogComponent: util.UpgradeLogInfraComponent,
+			},
+			Name: name.SafeConcatName(upgradeLog.Name, util.UpgradeLogFluentbitAgentComponent), // scope=Cluster
+			OwnerReferences: []metav1.OwnerReference{
+				upgradeLogReference(upgradeLog),
+			},
+		},
+		Spec: loggingv1.FluentbitSpec{
+			LoggingRef: upgradeLogLoggingRef,
+			Labels: map[string]string{
+				util.LabelUpgradeLog:          upgradeLog.Name,
+				util.LabelUpgradeLogComponent: util.UpgradeLogShipperComponent,
+			},
+			Image: loggingv1.ImageSpec{
+				Repository: image.GetRepository(),
+				Tag:        image.GetTag(),
+			},
+		},
+	}
+}
 
+func prepareLogging(upgradeLog *harvesterv1.UpgradeLog, images map[string]settings.Image) *loggingv1.Logging {
+	volumeMode := corev1.PersistentVolumeFilesystem
+	fdimage := images[imageFluentd]
+	crimage := images[imageConfigReloader]
 	return &loggingv1.Logging{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
@@ -84,30 +119,22 @@ func prepareLogging(upgradeLog *harvesterv1.UpgradeLog, images map[string]Image)
 			},
 		},
 		Spec: loggingv1.LoggingSpec{
+			// without this field, it may cause: "Other logging resources exist with the same loggingRef: rancher-logging-root"
+			LoggingRef:              upgradeLogLoggingRef,
 			ControlNamespace:        upgradeLog.Namespace,
 			FlowConfigCheckDisabled: true,
-			FluentbitSpec: &loggingv1.FluentbitSpec{
-				Labels: map[string]string{
-					util.LabelUpgradeLog:          upgradeLog.Name,
-					util.LabelUpgradeLogComponent: util.UpgradeLogShipperComponent,
-				},
-				Image: loggingv1.ImageSpec{
-					Repository: images["fluentbit"].Repository,
-					Tag:        images["fluentbit"].Tag,
-				},
-			},
 			FluentdSpec: &loggingv1.FluentdSpec{
 				Labels: map[string]string{
 					util.LabelUpgradeLog:          upgradeLog.Name,
 					util.LabelUpgradeLogComponent: util.UpgradeLogAggregatorComponent,
 				},
 				Image: loggingv1.ImageSpec{
-					Repository: images["fluentd"].Repository,
-					Tag:        images["fluentd"].Tag,
+					Repository: fdimage.GetRepository(),
+					Tag:        fdimage.GetTag(),
 				},
 				ConfigReloaderImage: loggingv1.ImageSpec{
-					Repository: images["config_reloader"].Repository,
-					Tag:        images["config_reloader"].Tag,
+					Repository: crimage.GetRepository(),
+					Tag:        crimage.GetTag(),
 				},
 				DisablePvc: true,
 				ExtraVolumes: []loggingv1.ExtraVolume{
@@ -166,6 +193,7 @@ func prepareClusterFlow(upgradeLog *harvesterv1.UpgradeLog) *loggingv1.ClusterFl
 			},
 		},
 		Spec: loggingv1.ClusterFlowSpec{
+			LoggingRef: upgradeLogLoggingRef,
 			Filters: []loggingv1.Filter{
 				{
 					TagNormaliser: &filter.TagNormaliser{},
@@ -260,6 +288,7 @@ func prepareClusterOutput(upgradeLog *harvesterv1.UpgradeLog) *loggingv1.Cluster
 		},
 		Spec: loggingv1.ClusterOutputSpec{
 			OutputSpec: loggingv1.OutputSpec{
+				LoggingRef: upgradeLogLoggingRef,
 				FileOutput: &output.FileOutputConfig{
 					Path:     "/archive/logs/${tag}",
 					Compress: "gzip",
@@ -452,6 +481,29 @@ func setUpgradeLogArchiveReady(upgradeLog *harvesterv1.UpgradeLog, archiveName s
 	return fmt.Errorf("archive %s of %s not found", archiveName, upgradeLog.Name)
 }
 
+func setLoggingOperatorSource(upgradeLog *harvesterv1.UpgradeLog, source string) {
+	if upgradeLog.Annotations == nil {
+		upgradeLog.Annotations = make(map[string]string, 1)
+	}
+	upgradeLog.Annotations[util.UpgradeLogLoggingOperatorSource] = source
+}
+
+func getLoggingImageSourceHelmChart(upgradeLog *harvesterv1.UpgradeLog) (string, string, error) {
+	src := upgradeLog.Annotations[util.UpgradeLogLoggingOperatorSource]
+	if src == "" {
+		return "", "", fmt.Errorf("faild to get annotation %v from upgradeLog %v/%v", util.UpgradeLogLoggingOperatorSource, upgradeLog.Namespace, upgradeLog.Name)
+	}
+	if src == util.RancherLoggingName {
+		return util.CattleLoggingSystemNamespaceName, util.RancherLoggingName, nil
+	}
+	// format: hvst-upgrade-l5875-upgradelog-operator
+	if src == name.SafeConcatName(upgradeLog.Name, util.UpgradeLogOperatorComponent) {
+		return util.CattleLoggingSystemNamespaceName, src, nil
+	}
+
+	return "", "", fmt.Errorf("the annotation %v from upgradeLog %v/%v is invalid", util.UpgradeLogLoggingOperatorSource, upgradeLog.Namespace, upgradeLog.Name)
+}
+
 type upgradeBuilder struct {
 	upgrade *harvesterv1.Upgrade
 }
@@ -542,7 +594,10 @@ func (p *upgradeLogBuilder) Archive(name string, size int64, time string) *upgra
 }
 
 func (p *upgradeLogBuilder) ArchiveReady(name string, ready bool, reason string) *upgradeLogBuilder {
-	setUpgradeLogArchiveReady(p.upgradeLog, name, ready, reason)
+	// no one call this function, the error checking is added for linter
+	if err := setUpgradeLogArchiveReady(p.upgradeLog, name, ready, reason); err != nil {
+		return nil
+	}
 	return p
 }
 
@@ -568,6 +623,11 @@ func (p *upgradeLogBuilder) UpgradeEndedCondition(status corev1.ConditionStatus,
 
 func (p *upgradeLogBuilder) DownloadReadyCondition(status corev1.ConditionStatus, reason, message string) *upgradeLogBuilder {
 	setDownloadReadyCondition(p.upgradeLog, status, reason, message)
+	return p
+}
+
+func (p *upgradeLogBuilder) LoggingOperatorSource(source string) *upgradeLogBuilder {
+	setLoggingOperatorSource(p.upgradeLog, source)
 	return p
 }
 
@@ -776,6 +836,32 @@ func (p *loggingBuilder) Build() *loggingv1.Logging {
 	return p.logging
 }
 
+type fluentbitAgentBuilder struct {
+	fluentbitAgent *loggingv1.FluentbitAgent
+}
+
+func newFluentbitAgentBuilder(name string) *fluentbitAgentBuilder {
+	return &fluentbitAgentBuilder{
+		fluentbitAgent: &loggingv1.FluentbitAgent{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+		},
+	}
+}
+
+func (p *fluentbitAgentBuilder) WithLabel(key, value string) *fluentbitAgentBuilder {
+	if p.fluentbitAgent.Labels == nil {
+		p.fluentbitAgent.Labels = make(map[string]string, 1)
+	}
+	p.fluentbitAgent.Labels[key] = value
+	return p
+}
+
+func (p *fluentbitAgentBuilder) Build() *loggingv1.FluentbitAgent {
+	return p.fluentbitAgent
+}
+
 type managedChartBuilder struct {
 	managedChart *mgmtv3.ManagedChart
 }
@@ -904,4 +990,8 @@ func SetUpgradeLogArchive(upgradeLog *harvesterv1.UpgradeLog, archiveName string
 		Size:          archiveSize,
 		GeneratedTime: generatedTime,
 	}
+}
+
+type ImageGetterInterface interface {
+	GetConsolidatedLoggingImageListFromHelmValues(*kubernetes.Clientset, string, string) (map[string]settings.Image, error)
 }

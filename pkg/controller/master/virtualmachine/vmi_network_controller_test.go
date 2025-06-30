@@ -7,18 +7,15 @@ import (
 
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/stretchr/testify/assert"
-	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
-	k8sfakeclient "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	virtualmachinetype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
-	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
 func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
@@ -26,7 +23,6 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 		key string
 		vmi *kubevirtv1.VirtualMachineInstance
 		vm  *kubevirtv1.VirtualMachine
-		cr  *appsv1.ControllerRevision
 	}
 	type output struct {
 		vmi *kubevirtv1.VirtualMachineInstance
@@ -44,7 +40,6 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 			given: input{
 				key: "",
 				vmi: nil,
-				cr:  nil,
 			},
 			expected: output{
 				vmi: nil,
@@ -64,7 +59,6 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{},
 				},
-				cr: &appsv1.ControllerRevision{},
 			},
 			expected: output{
 				vmi: &kubevirtv1.VirtualMachineInstance{
@@ -141,12 +135,6 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 						VirtualMachineRevisionName: "test-random-id",
 					},
 				},
-				cr: &appsv1.ControllerRevision{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-random-id",
-						Namespace: "default",
-					},
-				},
 			},
 			expected: output{
 				vmi: &kubevirtv1.VirtualMachineInstance{
@@ -215,7 +203,6 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset()
-		var k8sfake = k8sfakeclient.NewSimpleClientset()
 		if tc.given.vmi != nil {
 			var err = clientset.Tracker().Add(tc.given.vmi)
 			assert.Nil(t, err, "mock resource should add into fake controller tracker")
@@ -225,20 +212,10 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 			assert.Nil(t, err, "mock resource should add into fake controller tracker")
 		}
 
-		if tc.given.cr != nil && tc.given.vm != nil {
-			specString, err := json.Marshal(tc.given.vm.Spec)
-			assert.Nil(t, err, "expect no error trying to marshal vmspec")
-			tc.given.cr.Data.Raw = specString
-			err = k8sfake.Tracker().Add(tc.given.cr)
-			assert.Nil(t, err, "mock resource should add into fake controller tracker")
-		}
-
 		var ctrl = &VMNetworkController{
 			vmClient:  fakeVMClient(clientset.KubevirtV1().VirtualMachines),
 			vmCache:   fakeVMCache(clientset.KubevirtV1().VirtualMachines),
 			vmiClient: fakeVMIClient(clientset.KubevirtV1().VirtualMachineInstances),
-			crCache:   fakeclients.ControllerRevisionCache(k8sfake.AppsV1().ControllerRevisions),
-			crClient:  fakeclients.ControllerRevisionClient(k8sfake.AppsV1().ControllerRevisions),
 		}
 
 		var actual output
@@ -247,10 +224,14 @@ func TestSetDefaultManagementNetworkMacAddress(t *testing.T) {
 		if tc.given.vmi != nil && tc.given.vm != nil {
 			actual.vm, actual.err = ctrl.vmClient.Get(tc.given.vm.Namespace, tc.given.vm.Name, metav1.GetOptions{})
 			assert.Nil(t, actual.err, "mock resource should get from fake VM controller, error: %v", actual.err)
-			for _, vmIface := range actual.vm.Spec.Template.Spec.Domain.Devices.Interfaces {
+			interfaces := make(map[string]string)
+			interfacesStr := actual.vm.Annotations["harvesterhci.io/mac-address"]
+			err := json.Unmarshal([]byte(interfacesStr), &interfaces)
+			assert.Nil(t, err, "can't unmarshal harvesterhci.io/mac-address, error: %v", err)
+			for ifaceName, macAddress := range interfaces {
 				for _, iface := range tc.given.vmi.Status.Interfaces {
-					if iface.Name == vmIface.Name {
-						assert.Equal(t, iface.MAC, vmIface.MacAddress)
+					if iface.Name == ifaceName {
+						assert.Equal(t, iface.MAC, macAddress)
 					}
 				}
 			}

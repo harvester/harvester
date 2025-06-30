@@ -16,8 +16,11 @@ const (
 	AnnotationHash                      = prefix + "/hash"
 	AnnotationRunStrategy               = prefix + "/vmRunStrategy"
 	AnnotationSnapshotFreezeFS          = prefix + "/snapshotFreezeFS"
+	AnnotationSnapshotRevise            = prefix + "/snapRevise"
 	AnnotationSVMBackupID               = prefix + "/svmbackupId"
 	AnnotationSVMBackupSkipCronCheck    = prefix + "/svmbackupSkipCronCheck"
+	AnnotationGoldenImage               = prefix + "/goldenImage"
+	AnnotationVolForVM                  = prefix + "/volumeForVirtualMachine"
 	LabelImageDisplayName               = prefix + "/imageDisplayName"
 	LabelSetting                        = prefix + "/setting"
 	LabelVMName                         = prefix + "/vmName"
@@ -28,10 +31,25 @@ const (
 	AnnotationStorageClassName          = prefix + "/storageClassName"
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
+	AnnotationLastRefreshTime           = prefix + "/lastRefreshTime"
+	AnnotationMacAddressName            = prefix + "/mac-address"
+	AnnotationVMImportController        = "migration.harvesterhci.io/virtualmachineimport"
 
-	// AnnotationMigratingPrefix is used to store the migrating vm in the annotation of ResourceQuota
+	AnnotationSkipRancherLoggingAddonWebhookCheck = prefix + "/skipRancherLoggingAddonWebhookCheck"
+
+	// AnnotationSkipResourceQuotaAutoScaling is used to disable to resourcequota auto scaling
+	AnnotationSkipResourceQuotaAutoScaling = prefix + "/skipResourceQuotaAutoScaling"
+
+	// AnnotationMigratingNamePrefix is used to store the migrating vm in the annotation of ResourceQuota
 	// eg: harvesterhci.io/migrating-vm1: jsonOfResourceList, harvesterhci.io/migrating-vm2: jsonOfResourceList
-	AnnotationMigratingPrefix = prefix + "/migrating-"
+	// will be removed after v1.5.0
+	AnnotationMigratingNamePrefix = prefix + "/migrating-"
+
+	// replace AnnotationMigratingNamePrefix from v1.5.0
+	AnnotationMigratingUIDPrefix = prefix + "/migratingUID-"
+
+	// AnnotationMigratingPrefix is replaced by AnnotationMigratingNamePrefix, and is kept for compatibility
+	AnnotationMigratingPrefix = AnnotationMigratingNamePrefix
 
 	// AnnotationInsufficientResourceQuota is indicated the resource is insufficient of Namespace
 	AnnotationInsufficientResourceQuota = prefix + "/insufficient-resource-quota"
@@ -44,6 +62,14 @@ const (
 	// Add to harvester-longhorn storageclass to protect it
 	// For any storageclass created & protected by controller, the controller can utilize this annotation
 	AnnotationIsReservedStorageClass = prefix + "/is-reserved-storageclass"
+
+	AnnotationSkipGarbageCollectionThresholdCheck = prefix + "/skipGarbageCollectionThresholdCheck"
+	AnnotationMinCertsExpirationInDay             = prefix + "/minCertsExpirationInDay"
+
+	HarvesterManagedNodeLabelKey = prefix + "/managed"
+
+	HarvesterPromoteNodeLabelKey        = prefix + "/promote-node"
+	HarvesterPromoteStatusAnnotationKey = prefix + "/promote-status"
 
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
 	ContainerdRegistryFileName   = "registries.yaml"
@@ -84,6 +110,13 @@ const (
 	LonghornOptionEncrypted                  = "encrypted"
 	AddonValuesAnnotation                    = "harvesterhci.io/addon-defaults"
 
+	// CDI constants
+	CSIProvisionerLVM      = "lvm.driver.harvesterhci.io"
+	CSIProvisionerLonghorn = "driver.longhorn.io"
+	KindVolumeImportSource = "VolumeImportSource"
+	ImportSourceFSBlank    = "filesystem-blank-source"
+	LVMTopologyNodeKey     = "topology.lvm.csi/node"
+
 	// CSI constants
 	CSIProvisionerSecretNameKey      = "csi.storage.k8s.io/provisioner-secret-name"
 	CSIProvisionerSecretNamespaceKey = "csi.storage.k8s.io/provisioner-secret-namespace"
@@ -100,6 +133,7 @@ const (
 	LabelUpgradeLog                       = prefix + "/upgradeLog"
 	LabelUpgradeLogComponent              = prefix + "/upgradeLogComponent"
 	UpgradeLogInfraComponent              = "infra"
+	UpgradeLogFluentbitAgentComponent     = "agent"
 	UpgradeLogShipperComponent            = "shipper"
 	UpgradeLogAggregatorComponent         = "aggregator"
 	UpgradeLogDownloaderComponent         = "downloader"
@@ -109,6 +143,7 @@ const (
 	UpgradeLogOutputComponent             = "clusteroutput"
 	UpgradeLogPackagerComponent           = "packager"
 	AnnotationUpgradeLogLogArchiveAltName = prefix + "/logArchiveAltName"
+	UpgradeLogLoggingOperatorSource       = prefix + "/loggingOperatorSource" // the source of logging operator: addon or managedchart
 
 	UpgradeNodeDrainTaintKey   = "kubevirt.io/drain"
 	UpgradeNodeDrainTaintValue = "draining"
@@ -164,4 +199,22 @@ const (
 	NodeSchedulingRequirementsNotMetKey = "NodeSchedulingRequirementsNotMet"
 	MaintainModeStrategyKey             = "MaintainModeStrategy"
 	LastHealthyReplicaKey               = "LastHealthyReplica"
+
+	// moved from storage_network for public usage
+	StorageNetworkAnnotation        = "storage-network.settings.harvesterhci.io"
+	ReplicaStorageNetworkAnnotation = StorageNetworkAnnotation + "/replica"
+	PausedStorageNetworkAnnotation  = StorageNetworkAnnotation + "/paused"
+	HashStorageNetworkAnnotation    = StorageNetworkAnnotation + "/hash"
+	NadStorageNetworkAnnotation     = StorageNetworkAnnotation + "/net-attach-def"
+	OldNadStorageNetworkAnnotation  = StorageNetworkAnnotation + "/old-net-attach-def"
+
+	HashStorageNetworkLabel = HashStorageNetworkAnnotation
+
+	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
+	StorageNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
+
+	HarvesterCRDManagedChart         = "harvester-crd"
+	HarvesterManagedChart            = "harvester"
+	RancherLoggingCRDManagedChart    = "rancher-logging-crd"
+	RancherMonitoringCRDManagedChart = "rancher-monitoring-crd"
 )

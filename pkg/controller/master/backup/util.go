@@ -1,9 +1,12 @@
 package backup
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
+	"strings"
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
@@ -20,6 +23,12 @@ const (
 	// UI stores the mapping between access credential secret and ssh keys in the annotation `harvesterhci.io/dynamic-ssh-key-names`
 	// example: '{"secretname1":["sshkeyname1","sshkeyname2"],"secretname2":["sshkeyname3","sshkeyname4"]}'
 	dynamicSSHKeyNamesAnnotation = "harvesterhci.io/dynamic-ssh-key-names"
+
+	// The following definition need to be synced with LH
+	// https://github.com/longhorn/longhorn-manager/blob/1f343ee4c467de1264682ecb069d8f2a62850977/csi/controller_server.go#L43-L45
+	csiSnapshotTypeLonghornBackingImage     = "bi"
+	csiSnapshotTypeLonghornBackup           = "bak"
+	deprecatedCSISnapshotTypeLonghornBackup = "bs"
 )
 
 func IsBackupReady(backup *harvesterv1.VirtualMachineBackup) bool {
@@ -223,4 +232,46 @@ func getSecretRefName(vmName string, secretName string) string {
 
 func getVMBackupMetadataFilePath(vmBackupNamespace, vmBackupName string) string {
 	return filepath.Join(vmBackupMetadataFolderPath, vmBackupNamespace, fmt.Sprintf("%s.cfg", vmBackupName))
+}
+
+func getBackupTargetHash(value string) (string, error) {
+	hash := sha256.New224()
+	if _, err := io.Copy(hash, io.MultiReader(strings.NewReader(value))); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+// This util function is from LH
+// https://github.com/longhorn/longhorn-manager/blob/1f343ee4c467de1264682ecb069d8f2a62850977/csi/controller_server.go#L1004-L1010
+func normalizeCSISnapshotType(cSISnapshotType string) string {
+	if cSISnapshotType == deprecatedCSISnapshotTypeLonghornBackup {
+		return csiSnapshotTypeLonghornBackup
+	}
+	return cSISnapshotType
+}
+
+// This util function is from LH
+// https://github.com/longhorn/longhorn-manager/blob/1f343ee4c467de1264682ecb069d8f2a62850977/csi/controller_server.go#L963-L980
+func decodeSnapshotID(snapshotID string) (csiSnapshotType, sourceVolumeName, id string) {
+	split := strings.Split(snapshotID, "://")
+	if len(split) < 2 {
+		return "", "", ""
+	}
+	csiSnapshotType = split[0]
+	if normalizeCSISnapshotType(csiSnapshotType) == csiSnapshotTypeLonghornBackingImage {
+		return csiSnapshotTypeLonghornBackingImage, "", ""
+	}
+
+	split = strings.Split(split[1], "/")
+	if len(split) < 2 {
+		return "", "", ""
+	}
+	sourceVolumeName = split[0]
+	id = split[1]
+	return normalizeCSISnapshotType(csiSnapshotType), sourceVolumeName, id
+}
+
+func getVolumeSnapshotContentName(volumeBackup harvesterv1.VolumeBackup) string {
+	return fmt.Sprintf("%s-vsc", *volumeBackup.Name)
 }

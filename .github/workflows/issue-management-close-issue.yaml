@@ -1,0 +1,74 @@
+name: "[Issue Management] Close Issue"
+
+# Extract full version and major.minor version
+# Label "backport-needed/1.4.3" → searches for "[backport v1.4]"
+# Label "backport-needed/1.5.1" → searches for "[backport v1.5]"
+# Label "backport-needed/1.4" → searches for "[backport v1.4]"
+# Label "backport-needed/1.5" → searches for "[backport v1.5]"
+#
+# Example:
+# [DOC] Harvester UI extension upgrade with "backport-needed/1.5.1"
+# [backport v1.5] [DOC] Harvester UI extension upgrade
+
+on:
+  issues:
+    types: [ unlabeled ]
+jobs:
+  backport:
+    runs-on: ubuntu-latest
+    if: contains(github.event.label.name, 'backport-needed/')
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Get Backport Version
+      run: |
+        FULL_VERSION=$(echo "${{ github.event.label.name }}" | cut -d'/' -f2)
+        MAJOR_MINOR_VERSION=$(echo "$FULL_VERSION" | cut -d'.' -f1,2)
+        echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
+        echo "MAJOR_MINOR_VERSION=$MAJOR_MINOR_VERSION" >> $GITHUB_ENV
+        
+    - name: Find and Close Backport Issue
+      run: |
+        # Search for backport issues with matching title using major.minor version
+        SEARCH_TITLE=$(cat <<'EOF'
+        [backport v${{ env.MAJOR_MINOR_VERSION }}] ${{ github.event.issue.title }}
+        EOF
+        )
+        BACKPORT_ISSUE=$(gh search issues "${SEARCH_TITLE}" --state open --match title --json number --jq '.[0].number')
+
+        if [ -n "$BACKPORT_ISSUE" ]; then
+          echo "Closing backport issue #$BACKPORT_ISSUE for version ${{ env.MAJOR_MINOR_VERSION }}"
+          gh issue close $BACKPORT_ISSUE --reason "not planned"
+          gh issue edit $BACKPORT_ISSUE --add-label "wontfix"
+        else
+          echo "No matching backport issue found for version ${{ env.MAJOR_MINOR_VERSION }}"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+  e2e:
+    runs-on: ubuntu-latest
+    if: contains(github.event.label.name, 'require/auto-e2e-test')
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        repository: harvester/tests
+    
+    - name: Find and Close E2E Issue in harvester/tests
+      run: |
+        # Search for e2e issues with matching title using major.minor version
+        E2E_TITLE=$(cat <<'EOF'
+        [e2e] ${{ github.event.issue.title }}
+        EOF
+        )
+        E2E_ISSUE=$(gh search issues "${E2E_TITLE}" --state open --match title --json number --jq '.[0].number')
+
+        if [ -n "$E2E_ISSUE" ]; then
+          echo "Closing e2e issue #$E2E_ISSUE"
+          gh issue close $E2E_ISSUE --reason "not planned"
+        else
+          echo "No matching e2e issue found for version ${{ env.MAJOR_MINOR_VERSION }}"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}

@@ -31,17 +31,19 @@ const (
 )
 
 type BackupTargetClient struct {
-	Image      string
-	URL        string
-	Credential map[string]string
+	Image          string
+	URL            string
+	Credential     map[string]string
+	ExecuteTimeout time.Duration
 }
 
 // NewBackupTargetClient returns the backup target client
-func NewBackupTargetClient(engineImage, url string, credential map[string]string) *BackupTargetClient {
+func NewBackupTargetClient(engineImage, url string, credential map[string]string, executeTimeout time.Duration) *BackupTargetClient {
 	return &BackupTargetClient{
-		Image:      engineImage,
-		URL:        url,
-		Credential: credential,
+		Image:          engineImage,
+		URL:            url,
+		Credential:     credential,
+		ExecuteTimeout: executeTimeout,
 	}
 }
 
@@ -68,7 +70,13 @@ func NewBackupTargetClientFromBackupTarget(backupTarget *longhorn.BackupTarget, 
 		}
 	}
 
-	return NewBackupTargetClient(defaultEngineImage, backupTarget.Spec.BackupTargetURL, credential), nil
+	executeTimeout, err := ds.GetSettingAsInt(types.SettingNameBackupExecutionTimeout)
+	if err != nil {
+		return nil, err
+	}
+	timeout := time.Duration(executeTimeout) * time.Minute
+
+	return NewBackupTargetClient(defaultEngineImage, backupTarget.Spec.BackupTargetURL, credential, timeout), nil
 }
 
 func (btc *BackupTargetClient) LonghornEngineBinary() string {
@@ -130,7 +138,7 @@ func (btc *BackupTargetClient) ExecuteEngineBinary(args ...string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	return lhexec.NewExecutor().Execute(envs, btc.LonghornEngineBinary(), args, lhtypes.ExecuteDefaultTimeout)
+	return lhexec.NewExecutor().Execute(envs, btc.LonghornEngineBinary(), args, btc.ExecuteTimeout)
 }
 
 func (btc *BackupTargetClient) ExecuteEngineBinaryWithTimeout(timeout time.Duration, args ...string) (string, error) {
@@ -263,9 +271,6 @@ func parseBackupConfig(output string) (*Backup, error) {
 func (btc *BackupTargetClient) BackupGet(backupConfigURL string, credential map[string]string) (*Backup, error) {
 	output, err := btc.ExecuteEngineBinary("backup", "inspect", backupConfigURL)
 	if err != nil {
-		if types.ErrorIsNotFound(err) {
-			return nil, nil
-		}
 		return nil, errors.Wrapf(err, "error getting backup config %s", backupConfigURL)
 	}
 	return parseBackupConfig(output)
@@ -294,6 +299,7 @@ func (btc *BackupTargetClient) BackupConfigMetaGet(url string, credential map[st
 
 // BackupDelete deletes the backup from the remote backup target
 func (btc *BackupTargetClient) BackupDelete(backupURL string, credential map[string]string) error {
+	logrus.Infof("Start deleting backup %s", backupURL)
 	_, err := btc.ExecuteEngineBinaryWithoutTimeout("backup", "rm", backupURL)
 	if err != nil {
 		if types.ErrorIsNotFound(err) {
@@ -467,5 +473,5 @@ func (e *EngineBinary) BackupRestoreStatus(*longhorn.Engine) (map[string]*longho
 // CleanupBackupMountPoints calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy, just to match the interface
 func (e *EngineBinary) CleanupBackupMountPoints() error {
-	return fmt.Errorf(ErrNotImplement)
+	return errors.New(ErrNotImplement)
 }

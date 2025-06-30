@@ -20,14 +20,13 @@ package v3
 
 import (
 	"context"
-	"time"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // PreferencesGetter has a method to return a PreferenceInterface.
@@ -51,128 +50,18 @@ type PreferenceInterface interface {
 
 // preferences implements PreferenceInterface
 type preferences struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*v3.Preference, *v3.PreferenceList]
 }
 
 // newPreferences returns a Preferences
 func newPreferences(c *ManagementV3Client, namespace string) *preferences {
 	return &preferences{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*v3.Preference, *v3.PreferenceList](
+			"preferences",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *v3.Preference { return &v3.Preference{} },
+			func() *v3.PreferenceList { return &v3.PreferenceList{} }),
 	}
-}
-
-// Get takes name of the preference, and returns the corresponding preference object, and an error if there is any.
-func (c *preferences) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Preference, err error) {
-	result = &v3.Preference{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("preferences").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of Preferences that match those selectors.
-func (c *preferences) List(ctx context.Context, opts v1.ListOptions) (result *v3.PreferenceList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v3.PreferenceList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("preferences").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested preferences.
-func (c *preferences) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("preferences").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a preference and creates it.  Returns the server's representation of the preference, and an error, if there is any.
-func (c *preferences) Create(ctx context.Context, preference *v3.Preference, opts v1.CreateOptions) (result *v3.Preference, err error) {
-	result = &v3.Preference{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("preferences").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(preference).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a preference and updates it. Returns the server's representation of the preference, and an error, if there is any.
-func (c *preferences) Update(ctx context.Context, preference *v3.Preference, opts v1.UpdateOptions) (result *v3.Preference, err error) {
-	result = &v3.Preference{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("preferences").
-		Name(preference.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(preference).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the preference and deletes it. Returns an error if one occurs.
-func (c *preferences) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("preferences").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *preferences) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("preferences").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched preference.
-func (c *preferences) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Preference, err error) {
-	result = &v3.Preference{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("preferences").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

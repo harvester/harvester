@@ -1,108 +1,57 @@
-# Harvester Helm Chart [Development]
-
-Harvester is an open source Hyper-Converged Infrastructure(HCI) solution based on Kubernetes.
-
-Note: the master branch is under active development, please use the `stable` branch if you need a stable version of the Harvester chart.
+# Harvester Helm Chart
 
 ## Chart Details
 
 This chart will do the following:
 
 - Deploy a KubeVirt Operator if needed, defaults to deploy.
-- Deploy a KubeVirt CRD resource to enable KubeVirt if needed, defaults to deploy.
 - Deploy the Harvester resources.
 - Deploy [Longhorn](https://longhorn.io) as the built-in storage management.
+- Deploy Containerized Data Importer (CDI) to support third-party storage management.
+- Deploy csi-snapshotter
+- Deploy Snapshot Validation Webhook
+- Deploy whereabouts
 
-### Prerequisites
+## Introduction
 
-- Kubernetes 1.16+.
-- Helm 3.2+.
-- [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni). An [example chart](https://github.com/rancher/rke2-charts/tree/main-source/packages/rke2-multus/charts).
-- [Harvester CRDs](https://github.com/harvester/harvester/tree/master/deploy/charts/harvester-crd)
+Harvester uses a `ManagedChart` resource to deploy its core components. This is configured via the [harvester-installer](https://github.com/harvester/harvester-installer/blob/master/pkg/config/templates/rancherd-10-harvester.yaml). Be aware that `deploy/harvester` and `deploy/harvester-crd` are two separate `ManagedChart` resources.
 
-### Installing the Chart
+Once a `ManagedChart` is created, Fleet generates a `Bundle` resource to trigger Helm and install the chart. You can learn more about this process in the [Fleet documentation](https://fleet.rancher.io/concepts).
 
-To install the chart with the release name `harvester`.
+During upgrades, Harvester runs a script to patch the release version in the `ManagedChart`. This happens in the [`upgrade_manifests.sh`](https://github.com/harvester/harvester/blob/50da36ac3b751c1a1dbfc8d25e5499a4c6216450/package/upgrade/upgrade_manifests.sh#L885-L935) script.
 
-```bash
-## create target namespace
-$ kubectl create ns harvester-system
 
-## install chart to target namespace
-$ helm install harvester harvester --namespace harvester-system --set service.harvester.type=NodePort
-```
+## For Developers
 
-### Uninstalling the Chart
+### How to bump dependency charts
 
-To uninstall/delete the `harvester` release.
+1. Make sure the correct dependency version is specified in `go.mod`.
+2. Run `go mod vendor`.
+3. Update the `Chart.yaml` and `values.yaml` files with the correct version numbers.
+4. In the `deploy/charts/harvester` directory, run `helm dependency update .`
+   
+If the dependency doesn’t involve a change in go.mod, you can start from step 3.
 
-```bash
-## uninstall chart from target namespace
-$ helm uninstall harvester --namespace harvester-system
-```
+Here are example PRs for reference:
 
-#### Notes
+- https://github.com/harvester/harvester/pull/8233
+- https://github.com/harvester/harvester/pull/8210
 
-- Use the existing KubeVirt/Longhorn Service.
+### Use case
 
-    If you have already prepared the KubeVirt or Longhorn, you can disable these installations in this chart.
-    
-    ```bash
-    $ helm install harvester harvester --namespace harvester-system \
-        --set kubevirt.enabled=false --set kubevirt-operator.enabled=false \
-        --set longhorn.enabled=false
-    ```
+To use Longhorn release candidates for testing purposes, download the Longhorn charts and place them in `deploy/charts/harvester/dependency_charts/longhorn`.
 
-- Use other storage drivers.
-    
-    Currently, storage drivers other than Longhorn are not supported.
+Since we're using a non-official version, we need to modify the Chart.yaml to point to the local folder instead of the remote repository:
 
-### Configuration
-
-Specify each parameter using the `--set key=value[,key=value]` argument to `helm install` or `helm upgrade`.
-
-For details on using parameters, please refer to [values.yaml](values.yaml).
-
-#### Configure KubeVirt Operator
-
-To configure the KubeVirt Operator, you need to know its [parameters](dependency_charts/kubevirt-operator/values.yaml) and put all items under `kubevirt-operator` domain.
-
-For example, if you want to change the Secret name of admission webhooks, you can do as below.
-
-```bash
-$ helm install harvester harvester --namespace harvester-system \
-    --set-string kubevirt-operator.containers.operator.certificates.admissionWebhook.secretName=mysecret
-```
-
-If you don't want to install KubeVirt Operator, you can do the following.
-
-```bash
-$ helm install harvester harvester --namespace harvester-system \
-    --set kubevirt-operator.enabled=false
-```
-
-#### Configure KubeVirt (CRD resource)
-
-To configure the KubeVirt CRD resource, you need to know its [parameters](dependency_charts/kubevirt/values.yaml) and put all items under `kubevirt` domain.
-
-> **It is worth noting that almost all KubeVirt parameters are string type, including bool field and numeric field.**
-
-For example, if you want to enable the emulation mode on the non-KVM supported hosts, you can do as below.
-
-```bash
-$ helm install harvester harvester --namespace harvester-system \
-    --set-string kubevirt.spec.configuration.developerConfiguration.useEmulation=true
-```
-
-If you don't want to install KubeVirt CRD resource, you can do the following.
-
-```bash
-$ helm install harvester harvester --namespace harvester-system \
-    --set kubevirt.enabled=false
+```diff
+-  repository: https://charts.longhorn.io
+-  version: 1.7.1
++  repository: file://dependency_charts/longhorn
++  version: 1.7.2-rc2
 ```
 
 ## License
-Copyright (c) 2020 [Rancher Labs, Inc.](http://rancher.com)
+Copyright (c) 2025 [SUSE, LLC.](https://www.suse.com/)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

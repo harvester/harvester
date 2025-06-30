@@ -131,7 +131,7 @@ func (h *handler) createJobIfNotFound(namespace string, name string, override bo
 	}
 	j := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf(name),
+			Name:      name,
 			Namespace: namespace,
 		},
 		Spec: batchv1.JobSpec{

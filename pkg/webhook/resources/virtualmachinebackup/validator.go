@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +34,7 @@ func NewValidator(
 	vmrestores ctlharvesterv1.VirtualMachineRestoreCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	engineCache ctllonghornv1.EngineCache,
+	scCache ctlstoragev1.StorageClassCache,
 	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache,
 	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 ) types.Validator {
@@ -42,6 +44,7 @@ func NewValidator(
 		vmrestores:         vmrestores,
 		pvcCache:           pvcCache,
 		engineCache:        engineCache,
+		scCache:            scCache,
 		resourceQuotaCache: resourceQuotaCache,
 		vmimCache:          vmimCache,
 	}
@@ -55,6 +58,7 @@ type virtualMachineBackupValidator struct {
 	vmrestores         ctlharvesterv1.VirtualMachineRestoreCache
 	pvcCache           ctlcorev1.PersistentVolumeClaimCache
 	engineCache        ctllonghornv1.EngineCache
+	scCache            ctlstoragev1.StorageClassCache
 	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache
 	vmimCache          ctlkubevirtv1.VirtualMachineInstanceMigrationCache
 }
@@ -81,44 +85,65 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 		return werror.NewInvalidError("source VM name is empty", fieldSourceName)
 	}
 
-	var err error
-
-	// If VMBackup is from metadata in backup target, we don't check whether the VM is existent,
-	// because the related VM may not exist in a new cluster.
-	if newVMBackup.Status == nil {
-		vm, err := v.vms.Get(newVMBackup.Namespace, newVMBackup.Spec.Source.Name)
-		if err != nil {
-			return werror.NewInvalidError(err.Error(), fieldSourceName)
-		}
-		if err = v.checkVMInstanceMigration(vm); err != nil {
-			return werror.NewInvalidError(err.Error(), fieldSourceName)
-		}
-		if err = v.checkTotalSnapshotSize(vm); err != nil {
-			return err
-		}
-		if err = v.checkBackupVolumeSnapshotClass(vm, newVMBackup); err != nil {
-			return werror.NewInvalidError(err.Error(), fieldSourceName)
-		}
+	validateFunc := v.validateStandardBackup
+	if newVMBackup.Status != nil {
+		validateFunc = v.validateVMBackupRecover
 	}
 
-	if newVMBackup.Spec.Type == v1beta1.Backup {
-		err = v.checkBackupTarget()
+	// Execute the selected validation.
+	if err := validateFunc(newVMBackup); err != nil {
+		return err
 	}
-	if err != nil {
+
+	if newVMBackup.Spec.Type == v1beta1.Snapshot {
+		return nil
+	}
+
+	// Additional check for backup type.
+	if err := v.checkBackupTarget(); err != nil {
 		return werror.NewInvalidError(err.Error(), fieldTypeName)
 	}
 
 	return nil
 }
 
+func (v *virtualMachineBackupValidator) validateStandardBackup(vmb *v1beta1.VirtualMachineBackup) error {
+	// Retrieve the VM instance.
+	vm, err := v.vms.Get(vmb.Namespace, vmb.Spec.Source.Name)
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), fieldSourceName)
+	}
+	// Validate VM migration.
+	if err := v.checkVMInstanceMigration(vm); err != nil {
+		return werror.NewInvalidError(err.Error(), fieldSourceName)
+	}
+	// Check the total snapshot size.
+	if err := v.checkTotalSnapshotSize(vm); err != nil {
+		return err
+	}
+	// Validate backup volume snapshot class.
+	if err := v.checkBackupVolumeSnapshotClass(vm, vmb); err != nil {
+		return werror.NewInvalidError(err.Error(), fieldSourceName)
+	}
+	return nil
+}
+
+func (v *virtualMachineBackupValidator) validateVMBackupRecover(vmb *v1beta1.VirtualMachineBackup) error {
+	// Perform LH backup specific validation.
+	return webhookutil.IsLHBackupRelated(vmb)
+}
+
 // checkBackupVolumeSnapshotClass checks if the volumeSnapshotClassName is configured for the provisioner used by the PVCs in the VirtualMachine.
 func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(vm *kubevirtv1.VirtualMachine, newVMBackup *v1beta1.VirtualMachineBackup) error {
-	csiDriverConfig, err := util.LoadCSIDriverConfig(v.setting)
+	// Load the CSI driver configuration.
+	cdc, err := util.LoadCSIDriverConfig(v.setting)
 	if err != nil {
 		return err
 	}
 
+	// Iterate through the VM volumes.
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		// Skip non-PVC volumes.
 		if volume.PersistentVolumeClaim == nil {
 			continue
 		}
@@ -128,29 +153,12 @@ func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(vm *kubev
 
 		pvc, err := v.pvcCache.Get(pvcNamespace, pvcName)
 		if err != nil {
-			return fmt.Errorf("failed to get PVC %s/%s, err: %w", pvcNamespace, pvcName, err)
+			return fmt.Errorf("failed to get PVC %s/%s: %w", pvcNamespace, pvcName, err)
 		}
 
-		// Get the provisioner used by the PVC and find its configuration in the CSI driver configuration.
-		provisioner := util.GetProvisionedPVCProvisioner(pvc)
-		c, ok := csiDriverConfig[provisioner]
-		if !ok {
-			return fmt.Errorf("provisioner %s is not configured in the %s setting", provisioner, settings.CSIDriverConfigSettingName)
-		}
-
-		// Determine which configuration value is required based on the type of backup.
-		var requiredValue string
-		switch newVMBackup.Spec.Type {
-		case v1beta1.Backup:
-			requiredValue = c.BackupVolumeSnapshotClassName
-		case v1beta1.Snapshot:
-			requiredValue = c.VolumeSnapshotClassName
-		}
-
-		// If the required value is missing, return an error.
-		if requiredValue == "" {
-			return fmt.Errorf("%s's %s is not configured for provisioner %s in the %s setting",
-				newVMBackup.Spec.Type, "VolumeSnapshotClassName", provisioner, settings.CSIDriverConfigSettingName)
+		// Validate both the ability and the CSI configuration.
+		if err := webhookutil.ValidateProvisionerAndConfig(pvc, v.engineCache, v.scCache, newVMBackup.Spec.Type, cdc); err != nil {
+			return err
 		}
 	}
 
@@ -221,12 +229,12 @@ func (v *virtualMachineBackupValidator) checkTotalSnapshotSize(vm *kubevirtv1.Vi
 	}
 
 	if resourceQuota.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota != nil {
-		if err := webhookutil.CheckTotalSnapshotSizeOnVM(v.pvcCache, v.engineCache, vm, resourceQuota.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota[vm.Name]); err != nil {
+		if err := webhookutil.CheckTotalSnapshotSizeOnVM(v.pvcCache, v.engineCache, v.scCache, vm, resourceQuota.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota[vm.Name]); err != nil {
 			return err
 		}
 	}
 
-	if err := webhookutil.CheckTotalSnapshotSizeOnNamespace(v.pvcCache, v.engineCache, vm.Namespace, resourceQuota.Spec.SnapshotLimit.NamespaceTotalSnapshotSizeQuota); err != nil {
+	if err := webhookutil.CheckTotalSnapshotSizeOnNamespace(v.pvcCache, v.engineCache, v.scCache, vm.Namespace, resourceQuota.Spec.SnapshotLimit.NamespaceTotalSnapshotSizeQuota); err != nil {
 		return err
 	}
 	return nil

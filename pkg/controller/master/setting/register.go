@@ -20,9 +20,8 @@ func Register(ctx context.Context, management *config.Management, options config
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
-	services := management.CoreFactory.Core().V1().Service()
+	endpoints := management.CoreFactory.Core().V1().Endpoints()
 	lhs := management.LonghornFactory.Longhorn().V1beta2().Setting()
-	apps := management.CatalogFactory.Catalog().V1().App()
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	ingresses := management.NetworkingFactory.Networking().V1().Ingress()
 	helmChartConfigs := management.HelmFactory.Helm().V1().HelmChartConfig()
@@ -49,8 +48,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		longhornSettingCache: lhs.Cache(),
 		configmaps:           configmaps,
 		configmapCache:       configmaps.Cache(),
-		serviceCache:         services.Cache(),
-		apps:                 apps,
+		endpointCache:        endpoints.Cache(),
 		managedCharts:        managedCharts,
 		managedChartCache:    managedCharts.Cache(),
 		helmChartConfigs:     helmChartConfigs,
@@ -92,12 +90,13 @@ func Register(ctx context.Context, management *config.Management, options config
 		harvSettings.AutoRotateRKE2CertsSettingName:              controller.syncAutoRotateRKE2Certs,
 		harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName: controller.syncKubeconfigTTL,
 		harvSettings.AdditionalGuestMemoryOverheadRatioName:      controller.syncAdditionalGuestMemoryOverheadRatio,
+		harvSettings.MaxHotplugRatioSettingName:                  controller.syncMaxHotplugRatio,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
+		// for "vm-migration-network" syncer, please check harvester-vm-migration-network-controller
 	}
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
-	apps.OnChange(ctx, controllerName, controller.appOnChanged)
 	node.OnChange(ctx, controllerName, controller.nodeOnChanged)
 	return nil
 }

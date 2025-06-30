@@ -36,8 +36,20 @@ func (c *FakeLoggingV1beta1) ClusterOutputs() v1beta1.ClusterOutputInterface {
 	return &FakeClusterOutputs{c}
 }
 
+func (c *FakeLoggingV1beta1) Flows() v1beta1.FlowInterface {
+	return &FakeFlows{c}
+}
+
+func (c *FakeLoggingV1beta1) FluentbitAgents() v1beta1.FluentbitAgentInterface {
+	return &FakeFluentbitAgents{c}
+}
+
 func (c *FakeLoggingV1beta1) Loggings() v1beta1.LoggingInterface {
 	return &FakeLoggings{c}
+}
+
+func (c *FakeLoggingV1beta1) Outputs() v1beta1.OutputInterface {
+	return &FakeOutputs{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

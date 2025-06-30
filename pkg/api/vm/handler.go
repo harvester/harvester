@@ -26,20 +26,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
 	apiutil "github.com/harvester/harvester/pkg/api/util"
 	volumeapi "github.com/harvester/harvester/pkg/api/volume"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/builder"
 	nodecontroller "github.com/harvester/harvester/pkg/controller/master/node"
+	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -63,6 +66,8 @@ var (
 
 type vmActionHandler struct {
 	namespace                 string
+	datavolumeClient          ctlcdiv1.DataVolumeClient
+	kubevirtCache             ctlkubevirtv1.KubeVirtCache
 	vms                       ctlkubevirtv1.VirtualMachineClient
 	vmis                      ctlkubevirtv1.VirtualMachineInstanceClient
 	vmCache                   ctlkubevirtv1.VirtualMachineCache
@@ -167,6 +172,9 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 			return err
 		}
 		return nil
+	case snapshotVM:
+		// TODO: currently the snapshot CRD creation is handled by UI, we do nothing here.
+		return nil
 	case restoreVM:
 		var input RestoreInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -263,6 +271,19 @@ func (h *vmActionHandler) doAction(rw http.ResponseWriter, r *http.Request) erro
 			return apierror.NewAPIError(validation.PermissionDenied, "User does not have permission to update resource quota")
 		}
 		return h.deleteResourceQuota(namespace, name)
+	case cpuAndMemoryHotplug:
+		vm, err := h.vmCache.Get(namespace, name)
+		if err != nil {
+			return apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to get virtual machine %s/%s: %v", namespace, name, err))
+		}
+		if !canCPUAndMemoryHotplug(vm) {
+			return apierror.NewAPIError(validation.InvalidAction, "CPU and memory hotplug is not supported for this VM")
+		}
+		var input CPUAndMemoryHotplugInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		return h.cpuAndMemoryHotplug(namespace, name, input)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -414,6 +435,23 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 		return fmt.Errorf("can't migrate the VM to the node %s: %s", nodeName, err.Error())
 	} else if !ok {
 		return errors.New("The target node is non-migratable")
+	}
+
+	kubevirt, err := h.kubevirtCache.Get(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
+	if err != nil {
+		return err
+	}
+	isKubeVirtReady := false
+	for _, condition := range kubevirt.Status.Conditions {
+		if condition.Type == kubevirtv1.KubeVirtConditionAvailable {
+			if condition.Reason == kubevirtutil.ConditionReasonDeploymentReady {
+				isKubeVirtReady = condition.Status == corev1.ConditionTrue
+			}
+			break
+		}
+	}
+	if !isKubeVirtReady {
+		return errors.New("KubeVirt is not ready")
 	}
 
 	vmim := &kubevirtv1.VirtualMachineInstanceMigration{
@@ -867,9 +905,6 @@ func (h *vmActionHandler) getPVCStorageClassMap(vm *kubevirtv1.VirtualMachine) (
 			pvcStorageClassMap[pvc.Name] = ""
 			continue
 		}
-		if sc.Provisioner != longhorntypes.LonghornDriverName {
-			return pvcStorageClassMap, fmt.Errorf("VMTemplate with data only supports driver.longhorn.io provisioner, PVC %s/%s can't be exported as VMImage", pvc.Namespace, pvc.Name)
-		}
 		pvcStorageClassMap[pvc.Name] = sc.Name
 	}
 	return pvcStorageClassMap, nil
@@ -880,13 +915,41 @@ func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMac
 		if volume.PersistentVolumeClaim == nil {
 			continue
 		}
+		targetSCName := pvcStorageClassMap[volume.PersistentVolumeClaim.ClaimName]
+		// 3 cases here:
+		// Root volume with backingImage, check SC name starts with "longhorn-templateversion-", use backingImage backend
+		// volume with non longhorn provisioner, use CDI backend
+		// volume with longhorn provisioner, use backingImage backend
+		// we use CDI as default, so we need to check other two cases
+		vmImageBackend := harvesterv1.VMIBackendCDI
+		if strings.HasPrefix(targetSCName, "longhorn-templateversion-") {
+			vmImageBackend = harvesterv1.VMIBackendBackingImage
+		} else {
+			// checking SC
+			targetSC, err := h.storageClassCache.Get(targetSCName)
+			if err != nil {
+				return fmt.Errorf("failed to get storage class %s, error: %v", targetSCName, err)
+			}
+			if targetSC.Provisioner == util.CSIProvisionerLonghorn {
+				if dataEngineVers, find := targetSC.Parameters["dataEngine"]; find {
+					if dataEngineVers == string(longhorn.DataEngineTypeV1) {
+						vmImageBackend = harvesterv1.VMIBackendBackingImage
+					}
+				} else {
+					vmImageBackend = harvesterv1.VMIBackendBackingImage
+				}
+			}
+		}
+		if vmImageBackend == "" {
+			return fmt.Errorf("failed to configure vm image backend for volume %s", volume.Name)
+		}
 		vmImageName := getTemplateVersionVMImageName(templateVersion.Name, index)
 		vmImage := &harvesterv1.VirtualMachineImage{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      vmImageName,
 				Namespace: vm.Namespace,
 				Annotations: map[string]string{
-					util.AnnotationStorageClassName: pvcStorageClassMap[volume.PersistentVolumeClaim.ClaimName],
+					util.AnnotationStorageClassName: targetSCName,
 				},
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -898,10 +961,12 @@ func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMac
 				},
 			},
 			Spec: harvesterv1.VirtualMachineImageSpec{
-				DisplayName:  vmImageName,
-				SourceType:   harvesterv1.VirtualMachineImageSourceTypeExportVolume,
-				PVCName:      volume.PersistentVolumeClaim.ClaimName,
-				PVCNamespace: vm.Namespace,
+				Backend:                vmImageBackend,
+				DisplayName:            vmImageName,
+				SourceType:             harvesterv1.VirtualMachineImageSourceTypeExportVolume,
+				PVCName:                volume.PersistentVolumeClaim.ClaimName,
+				PVCNamespace:           vm.Namespace,
+				TargetStorageClassName: targetSCName,
 			},
 		}
 
@@ -1056,7 +1121,7 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 		}
 	}
 	if !found {
-		return fmt.Errorf("Disk `%s` not found in virtual machine `%s/%s`", input.DiskName, namespace, name)
+		return fmt.Errorf("disk `%s` not found in virtual machine `%s/%s`", input.DiskName, namespace, name)
 	}
 
 	body, err := json.Marshal(kubevirtv1.RemoveVolumeOptions{
@@ -1111,7 +1176,7 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 	if err != nil {
 		return fmt.Errorf("cannot get vm %s/%s, err: %w", namespace, name, err)
 	}
-	newVM := getClonedVMYamlFromSourceVM(input.TargetVM, vm)
+	newVM := getClonedVMYamlFromSourceVM(input, vm)
 
 	newPVCs, secretNameMap, err := h.cloneVolumes(newVM)
 	if err != nil {
@@ -1124,7 +1189,7 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 
 	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(newPVCsString)
 	if newVM, err = h.vms.Create(newVM); err != nil {
-		return fmt.Errorf("cannot create newVM %+v, err: %w", newVM, err)
+		return fmt.Errorf("cannot create new VM %s/%s, err: %w", newVM.Namespace, newVM.Name, err)
 	}
 
 	for oldSecretName, newSecretName := range secretNameMap {
@@ -1272,20 +1337,28 @@ func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevir
 			return nil, err
 		}
 
+		// generate new volume template
+		// - longhorn v1, we need to use the new storageclass Name (for backingImage)
+		// - others, use the pvc StorageClassName
 		vmImageName := getTemplateVersionVMImageName(templateVersionName, index)
+		targetStorageClassName := fmt.Sprintf("longhorn-%s", vmImageName)
+		if _, find := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; find {
+			targetStorageClassName = *pvc.Spec.StorageClassName
+		}
+		annoImageID := fmt.Sprintf("%s/%s", vm.Namespace, vmImageName)
 		pvcName := getTemplateVersionPvcName(templateVersionName, index)
 		volumeClaimTemplates = append(volumeClaimTemplates, corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: pvcName,
 				Annotations: map[string]string{
-					util.AnnotationImageID: fmt.Sprintf("%s/%s", vm.Namespace, vmImageName),
+					util.AnnotationImageID: annoImageID,
 				},
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
 				AccessModes:      pvc.Spec.AccessModes,
 				Resources:        pvc.Spec.Resources,
 				VolumeMode:       pvc.Spec.VolumeMode,
-				StorageClassName: pointer.String(util.GetImageStorageClassName(vmImageName)),
+				StorageClassName: &targetStorageClassName,
 			},
 		})
 		sanitizedVM.Spec.Template.Spec.Volumes[index].PersistentVolumeClaim.ClaimName = pvcName
@@ -1373,10 +1446,10 @@ func getTemplateVersionUserPasswordSecretName(templateVersionName string, creden
 	return wranglername.SafeConcatName("templateversion", templateVersionName, fmt.Sprintf("credential-%d", credentialIndex), "userpassword")
 }
 
-func getClonedVMYamlFromSourceVM(newVMName string, sourceVM *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachine {
+func getClonedVMYamlFromSourceVM(input CloneInput, sourceVM *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachine {
 	newVM := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        newVMName,
+			Name:        input.TargetVM,
 			Namespace:   sourceVM.Namespace,
 			Annotations: map[string]string{},
 			Labels:      sourceVM.Labels,
@@ -1387,6 +1460,11 @@ func getClonedVMYamlFromSourceVM(newVMName string, sourceVM *kubevirtv1.VirtualM
 		if sourceAnnoValue, keyExist := sourceVM.Annotations[cloneVMAnnoKey]; keyExist {
 			newVM.Annotations[cloneVMAnnoKey] = sourceAnnoValue
 		}
+	}
+
+	runStrategy := kubevirtv1.VirtualMachineRunStrategy(input.RunStrategy)
+	if runStrategy != kubevirtv1.RunStrategyUnknown {
+		newVM.Spec.RunStrategy = &runStrategy
 	}
 	newVM.Spec.Template.Spec.Hostname = newVM.Name
 	newVM.Spec.Template.ObjectMeta.Labels[builder.LabelKeyVirtualMachineName] = newVM.Name
@@ -1481,4 +1559,37 @@ func (h *vmActionHandler) deleteResourceQuota(namespace, name string) error {
 		return err
 	}
 	return nil
+}
+
+func (h *vmActionHandler) cpuAndMemoryHotplug(namespace, name string, input CPUAndMemoryHotplugInput) error {
+	if input.Sockets == 0 && input.Memory == "" {
+		return nil
+	}
+
+	patchOps := []string{}
+	if input.Sockets != 0 {
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/cpu/sockets", "value": %d}`, input.Sockets))
+	}
+
+	if input.Memory != "" {
+		memory, err := resource.ParseQuantity(input.Memory)
+		if err != nil {
+			return fmt.Errorf("failed to parse memory quantity: %v", err)
+		}
+
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, memory.String()))
+	}
+
+	if len(patchOps) == 0 {
+		return nil
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"namespace": namespace,
+		"name":      name,
+		"patchOps":  patchOps,
+	}).Info("patch cpu and memory hotplug")
+	patchData := fmt.Sprintf("[%s]", strings.Join(patchOps, ","))
+	_, err := h.vms.Patch(namespace, name, k8stypes.JSONPatchType, []byte(patchData))
+	return err
 }

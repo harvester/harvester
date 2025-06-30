@@ -1,8 +1,19 @@
 pull_request_rules:
+- name: Automatically open v1.6 backport PR
+  conditions:
+    - base=master
+    - label="pr-backport-to/v1.6"
+  actions:
+    backport:
+      branches:
+        - v1.6
+      assignees:
+        - "{{ author }}"
+
 - name: Automatically open v1.5 backport PR
   conditions:
     - base=master
-    - label="backport-to/v1.5"
+    - label="pr-backport-to/v1.5"
   actions:
     backport:
       branches:
@@ -13,7 +24,7 @@ pull_request_rules:
 - name: Automatically open v1.4 backport PR
   conditions:
     - base=master
-    - label="backport-to/v1.4"
+    - label="pr-backport-to/v1.4"
   actions:
     backport:
       branches:
@@ -21,24 +32,22 @@ pull_request_rules:
       assignees:
         - "{{ author }}"
 
-- name: Automatically open v1.3 backport PR
-  conditions:
-    - base=master
-    - label="backport-to/v1.3"
-  actions:
-    backport:
-      branches:
-        - v1.3
-      assignees:
-        - "{{ author }}"
-
-- name: Automatically merge Renovate/Backport PRs
+- name: Automatically merge Renovate PRs
   conditions:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
-  - or:
-    - author = renovate[bot]
-    - author = mergify[bot]
+  - author = renovate[bot]
+  - -conflict
+  actions:
+    merge:
+      method: rebase
+
+- name: Automatically merge Backport PRs
+  conditions:
+  - check-success="Build binaries (x64)"
+  - check-success="Build binaries (arm64)"
+  - author = mergify[bot]
+  - -conflict
   actions:
     merge:
       method: rebase
@@ -47,8 +56,8 @@ pull_request_rules:
   conditions:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
-  - or:
-    - author = renovate[bot]
+  - author = renovate[bot]
+  - -conflict
   actions:
     review:
       type: APPROVE
@@ -58,8 +67,8 @@ pull_request_rules:
   conditions:
   - check-success="Build binaries (x64)"
   - check-success="Build binaries (arm64)"
-  - or:
-    - author = mergify[bot]
+  - author = mergify[bot]
+  - -conflict
   actions:
     review:
       type: APPROVE

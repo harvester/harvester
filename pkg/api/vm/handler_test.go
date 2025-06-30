@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	corefake "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
 	"github.com/harvester/harvester/pkg/controller/master/migration"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -25,6 +26,7 @@ func TestMigrateAction(t *testing.T) {
 		name       string
 		nodeName   string
 		vmInstance *kubevirtv1.VirtualMachineInstance
+		kubeVirt   *kubevirtv1.KubeVirt
 	}
 	type output struct {
 		vmInstanceMigrations []*kubevirtv1.VirtualMachineInstanceMigration
@@ -41,6 +43,7 @@ func TestMigrateAction(t *testing.T) {
 				namespace:  "default",
 				name:       "test",
 				vmInstance: nil,
+				kubeVirt:   nil,
 			},
 			expected: output{
 				vmInstanceMigrations: []*kubevirtv1.VirtualMachineInstanceMigration{},
@@ -87,6 +90,7 @@ func TestMigrateAction(t *testing.T) {
 						},
 					},
 				},
+				kubeVirt: nil,
 			},
 			expected: output{
 				vmInstanceMigrations: []*kubevirtv1.VirtualMachineInstanceMigration{},
@@ -113,10 +117,71 @@ func TestMigrateAction(t *testing.T) {
 						},
 					},
 				},
+				kubeVirt: nil,
 			},
 			expected: output{
 				vmInstanceMigrations: []*kubevirtv1.VirtualMachineInstanceMigration{},
 				err:                  errors.New("Can't migrate the VM, the VM is not in ready status"),
+			},
+		},
+		{
+			name: "kubevirt not found",
+			given: input{
+				namespace: "default",
+				name:      "test",
+				vmInstance: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						Phase: kubevirtv1.Running,
+						Conditions: []kubevirtv1.VirtualMachineInstanceCondition{
+							{
+								Type:   kubevirtv1.VirtualMachineInstanceReady,
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+				kubeVirt: nil,
+			},
+			expected: output{
+				vmInstanceMigrations: []*kubevirtv1.VirtualMachineInstanceMigration{},
+				err:                  apierrors.NewNotFound(kubevirtv1.Resource("kubevirts"), "kubevirt"),
+			},
+		},
+		{
+			name: "kubevirt condition not found",
+			given: input{
+				namespace: "default",
+				name:      "test",
+				vmInstance: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						Phase: kubevirtv1.Running,
+						Conditions: []kubevirtv1.VirtualMachineInstanceCondition{
+							{
+								Type:   kubevirtv1.VirtualMachineInstanceReady,
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+				kubeVirt: &kubevirtv1.KubeVirt{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "harvester-system",
+						Name:      "kubevirt",
+					},
+					Status: kubevirtv1.KubeVirtStatus{},
+				},
+			},
+			expected: output{
+				vmInstanceMigrations: []*kubevirtv1.VirtualMachineInstanceMigration{},
+				err:                  errors.New("KubeVirt is not ready"),
 			},
 		},
 		{
@@ -135,6 +200,21 @@ func TestMigrateAction(t *testing.T) {
 							{
 								Type:   kubevirtv1.VirtualMachineInstanceReady,
 								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+				kubeVirt: &kubevirtv1.KubeVirt{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "harvester-system",
+						Name:      "kubevirt",
+					},
+					Status: kubevirtv1.KubeVirtStatus{
+						Conditions: []kubevirtv1.KubeVirtCondition{
+							{
+								Type:   kubevirtv1.KubeVirtConditionAvailable,
+								Status: corev1.ConditionTrue,
+								Reason: kubevirtutil.ConditionReasonDeploymentReady,
 							},
 						},
 					},
@@ -177,6 +257,10 @@ func TestMigrateAction(t *testing.T) {
 			err := clientset.Tracker().Add(tc.given.vmInstance)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 		}
+		if tc.given.kubeVirt != nil {
+			err := clientset.Tracker().Add(tc.given.kubeVirt)
+			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+		}
 
 		for _, node := range fakeNodeList {
 			err := coreclientset.Tracker().Add(node)
@@ -184,11 +268,12 @@ func TestMigrateAction(t *testing.T) {
 		}
 
 		var handler = &vmActionHandler{
-			nodeCache: fakeclients.NodeCache(coreclientset.CoreV1().Nodes),
-			vmis:      fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
-			vmiCache:  fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
-			vmims:     fakeclients.VirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
-			vmimCache: fakeclients.VirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+			nodeCache:     fakeclients.NodeCache(coreclientset.CoreV1().Nodes),
+			kubevirtCache: fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
+			vmis:          fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
+			vmiCache:      fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+			vmims:         fakeclients.VirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+			vmimCache:     fakeclients.VirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
 		}
 
 		var actual output
@@ -477,7 +562,7 @@ func TestRemoveVolume(t *testing.T) {
 				},
 			},
 			expected: output{
-				err: errors.New("Disk `not-exist` not found in virtual machine `default/test`"),
+				err: errors.New("disk `not-exist` not found in virtual machine `default/test`"),
 			},
 		},
 	}

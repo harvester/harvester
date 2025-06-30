@@ -11,7 +11,7 @@ backport_label_pattern = r'^%s\/[\w0-9\.]+' % BACKPORT_LABEL_KEY
 # link: https://github.com/harvester/harvester/issues/2324
 # Title: [Backport v1.x] copy-the-title.
 # Description: backport the issue #link-id
-# Copy assignees and all labels except the backport-needed and add the not-require/test-plan label.
+# Copy assignees and all labels except the backport-needed.
 # Move the issue to the associated milestone and release.
 class CreateBackport(LabelAction):
     def __init__(self):
@@ -30,7 +30,7 @@ class CreateBackport(LabelAction):
             if re.match(backport_label_pattern, label['name']) is not None:
                 backport_labels.append(label)
             else:
-                # backport should not include the 'require-ui' label
+                # backport should not include the 'require/ui' label
                 # because gui issue has its own backport
                 if CREATE_GUI_ISSUE_LABEL not in label['name']:
                     normal_labels.append(label)
@@ -63,8 +63,7 @@ class Backport:
     ):
         self.__issue = None
         self.__origin_issue = repo.get_issue(issue_number)
-        self.__labels = [repo.get_label("not-require/test-plan")] + \
-                        [repo.get_label(label["name"]) for label in labels]
+        self.__labels = [repo.get_label(label["name"]) for label in labels]
 
         self.__backport_needed = repo.get_label(backport_label["name"])
         self.__ver = ""

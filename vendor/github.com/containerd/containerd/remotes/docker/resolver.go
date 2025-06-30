@@ -25,21 +25,23 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"strings"
+	"sync"
+
+	"github.com/containerd/log"
+	"github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/reference"
 	"github.com/containerd/containerd/remotes"
-	"github.com/containerd/containerd/remotes/docker/schema1"
+	"github.com/containerd/containerd/remotes/docker/schema1" //nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
 	remoteerrors "github.com/containerd/containerd/remotes/errors"
+	"github.com/containerd/containerd/tracing"
 	"github.com/containerd/containerd/version"
-	digest "github.com/opencontainers/go-digest"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/net/context/ctxhttp"
 )
 
 var (
@@ -72,6 +74,9 @@ type Authorizer interface {
 	// unmodified. It may also add an `Authorization` header as
 	//  "bearer <some bearer token>"
 	//  "basic <base64 encoded credentials>"
+	//
+	// It may return remotes/errors.ErrUnexpectedStatus, which for example,
+	// can be used by the caller to find out the status code returned by the registry.
 	Authorize(context.Context, *http.Request) error
 
 	// AddResponses adds a 401 response for the authorizer to consider when
@@ -162,7 +167,8 @@ func NewResolver(options ResolverOptions) remotes.Resolver {
 			images.MediaTypeDockerSchema2Manifest,
 			images.MediaTypeDockerSchema2ManifestList,
 			ocispec.MediaTypeImageManifest,
-			ocispec.MediaTypeImageIndex, "*/*"}, ", "))
+			ocispec.MediaTypeImageIndex, "*/*",
+		}, ", "))
 	} else {
 		resolveHeader["Accept"] = options.Headers["Accept"]
 		delete(options.Headers, "Accept")
@@ -350,26 +356,31 @@ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocisp
 				if err != nil {
 					return "", ocispec.Descriptor{}, err
 				}
-				defer resp.Body.Close()
 
 				bodyReader := countingReader{reader: resp.Body}
 
 				contentType = getManifestMediaType(resp)
-				if dgst == "" {
+				err = func() error {
+					defer resp.Body.Close()
+					if dgst != "" {
+						_, err = io.Copy(io.Discard, &bodyReader)
+						return err
+					}
+
 					if contentType == images.MediaTypeDockerSchema1Manifest {
 						b, err := schema1.ReadStripSignature(&bodyReader)
 						if err != nil {
-							return "", ocispec.Descriptor{}, err
+							return err
 						}
 
 						dgst = digest.FromBytes(b)
-					} else {
-						dgst, err = digest.FromReader(&bodyReader)
-						if err != nil {
-							return "", ocispec.Descriptor{}, err
-						}
+						return nil
 					}
-				} else if _, err := io.Copy(io.Discard, &bodyReader); err != nil {
+
+					dgst, err = digest.FromReader(&bodyReader)
+					return err
+				}()
+				if err != nil {
 					return "", ocispec.Descriptor{}, err
 				}
 				size = bodyReader.bytesRead
@@ -535,7 +546,7 @@ type request struct {
 
 func (r *request) do(ctx context.Context) (*http.Response, error) {
 	u := r.host.Scheme + "://" + r.host.Host + r.path
-	req, err := http.NewRequest(r.method, u, nil)
+	req, err := http.NewRequestWithContext(ctx, r.method, u, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -562,7 +573,7 @@ func (r *request) do(ctx context.Context) (*http.Response, error) {
 		return nil, fmt.Errorf("failed to authorize: %w", err)
 	}
 
-	var client = &http.Client{}
+	client := &http.Client{}
 	if r.host.Client != nil {
 		*client = *r.host.Client
 	}
@@ -578,7 +589,9 @@ func (r *request) do(ctx context.Context) (*http.Response, error) {
 		}
 	}
 
-	resp, err := ctxhttp.Do(ctx, client, req)
+	tracing.UpdateHTTPClient(client, tracing.Name("remotes.docker.resolver", "HTTPRequest"))
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to do request: %w", err)
 	}
@@ -641,7 +654,7 @@ func (r *request) String() string {
 	return r.host.Scheme + "://" + r.host.Host + r.path
 }
 
-func requestFields(req *http.Request) logrus.Fields {
+func requestFields(req *http.Request) log.Fields {
 	fields := map[string]interface{}{
 		"request.method": req.Method,
 	}
@@ -659,10 +672,10 @@ func requestFields(req *http.Request) logrus.Fields {
 		}
 	}
 
-	return logrus.Fields(fields)
+	return fields
 }
 
-func responseFields(resp *http.Response) logrus.Fields {
+func responseFields(resp *http.Response) log.Fields {
 	fields := map[string]interface{}{
 		"response.status": resp.Status,
 	}
@@ -677,7 +690,7 @@ func responseFields(resp *http.Response) logrus.Fields {
 		}
 	}
 
-	return logrus.Fields(fields)
+	return fields
 }
 
 // IsLocalhost checks if the registry host is local.
@@ -694,9 +707,92 @@ func IsLocalhost(host string) bool {
 	return ip.IsLoopback()
 }
 
+// NewHTTPFallback returns http.RoundTripper which allows fallback from https to
+// http for registry endpoints with configurations for both http and TLS,
+// such as defaulted localhost endpoints.
+func NewHTTPFallback(transport http.RoundTripper) http.RoundTripper {
+	return &httpFallback{
+		super: transport,
+	}
+}
+
+type httpFallback struct {
+	super http.RoundTripper
+	host  string
+	mu    sync.Mutex
+}
+
+func (f *httpFallback) RoundTrip(r *http.Request) (*http.Response, error) {
+	f.mu.Lock()
+	fallback := f.host == r.URL.Host
+	f.mu.Unlock()
+
+	// only fall back if the same host had previously fell back
+	if !fallback {
+		resp, err := f.super.RoundTrip(r)
+		if !isTLSError(err) && !isPortError(err, r.URL.Host) {
+			return resp, err
+		}
+	}
+
+	plainHTTPUrl := *r.URL
+	plainHTTPUrl.Scheme = "http"
+
+	plainHTTPRequest := *r
+	plainHTTPRequest.URL = &plainHTTPUrl
+
+	if !fallback {
+		f.mu.Lock()
+		if f.host != r.URL.Host {
+			f.host = r.URL.Host
+		}
+		f.mu.Unlock()
+
+		// update body on the second attempt
+		if r.Body != nil && r.GetBody != nil {
+			body, err := r.GetBody()
+			if err != nil {
+				return nil, err
+			}
+			plainHTTPRequest.Body = body
+		}
+	}
+
+	return f.super.RoundTrip(&plainHTTPRequest)
+}
+
+func isTLSError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var tlsErr tls.RecordHeaderError
+	if errors.As(err, &tlsErr) && string(tlsErr.RecordHeader[:]) == "HTTP/" {
+		return true
+	}
+	if strings.Contains(err.Error(), "TLS handshake timeout") {
+		return true
+	}
+
+	return false
+}
+
+func isPortError(err error, host string) bool {
+	if isConnError(err) || os.IsTimeout(err) {
+		if _, port, _ := net.SplitHostPort(host); port != "" {
+			// Port is specified, will not retry on different port with scheme change
+			return false
+		}
+		return true
+	}
+
+	return false
+}
+
 // HTTPFallback is an http.RoundTripper which allows fallback from https to http
 // for registry endpoints with configurations for both http and TLS, such as
 // defaulted localhost endpoints.
+//
+// Deprecated: Use NewHTTPFallback instead.
 type HTTPFallback struct {
 	http.RoundTripper
 }
@@ -711,6 +807,14 @@ func (f HTTPFallback) RoundTrip(r *http.Request) (*http.Response, error) {
 
 		plainHTTPRequest := *r
 		plainHTTPRequest.URL = &plainHTTPUrl
+
+		if r.Body != nil && r.GetBody != nil {
+			body, err := r.GetBody()
+			if err != nil {
+				return nil, err
+			}
+			plainHTTPRequest.Body = body
+		}
 
 		return f.RoundTripper.RoundTrip(&plainHTTPRequest)
 	}

@@ -3,23 +3,20 @@ package supportbundle
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
-	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io/v1"
-	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle/types"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
-	supportBundleUtil "github.com/harvester/harvester/pkg/util/supportbundle"
 )
 
 // Handler generates support bundles for the cluster
@@ -31,10 +28,9 @@ type Handler struct {
 	deployments             ctlappsv1.DeploymentClient
 	daemonSets              ctlappsv1.DaemonSetClient
 	services                ctlcorev1.ServiceClient
-	appCache                catalogv1.AppCache
-	managedChartCache       mgmtv3.ManagedChartCache
 	settings                v1beta1.SettingClient
 	settingCache            v1beta1.SettingCache
+	clientset               *kubernetes.Clientset
 
 	manager *Manager
 }
@@ -50,7 +46,7 @@ func (h *Handler) OnSupportBundleChanged(_ string, sb *harvesterv1.SupportBundle
 
 		imageStr := settings.SupportBundleImage.Get()
 		if imageStr == "{}" || imageStr == "" {
-			err := h.updateSupportBundleImageSetting()
+			err := settingctl.UpdateSupportBundleImage(h.clientset, h.settings)
 			if err != nil {
 				return nil, err
 			}
@@ -91,15 +87,11 @@ func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.Su
 	}
 
 	var (
-		existTime   = time.Now().Sub(t)
+		existTime   = time.Since(t)
 		expiredTime time.Duration
 	)
 
-	if expiration := settings.SupportBundleExpiration.GetInt(); expiration == 0 {
-		expiredTime = time.Duration(supportBundleUtil.SupportBundleExpirationDefault) * time.Minute
-	} else {
-		expiredTime = time.Duration(expiration) * time.Minute
-	}
+	expiredTime = determineExpiration(sb)
 
 	logrus.Debugf("[%s] support bundle status: %s exist time is %s", sb.Name, sb.Status.State, existTime.String())
 	if existTime < expiredTime {
@@ -115,30 +107,14 @@ func (h *Handler) checkExistTime(sb *harvesterv1.SupportBundle) (*harvesterv1.Su
 	return nil, nil
 }
 
-func (h *Handler) updateSupportBundleImageSetting() error {
-	harvesterManagedChart, err := h.managedChartCache.Get(settingctl.ManagedChartNamespace, settingctl.HarvesterManagedChartName)
-	if err != nil {
-		return err
-	}
-
-	app, err := h.appCache.Get(harvesterManagedChart.Spec.DefaultNamespace, harvesterManagedChart.Spec.ReleaseName)
-	if err != nil {
-		return err
-	}
-
-	return settingctl.UpdateSupportBundleImage(h.settings, h.settingCache, app)
-}
-
 func (h *Handler) checkManagerStatus(sb *harvesterv1.SupportBundle) (*harvesterv1.SupportBundle, error) {
-	var timeout int
-	var err error
-	if timeoutStr := settings.SupportBundleTimeout.Get(); timeoutStr != "" {
-		if timeout, err = strconv.Atoi(timeoutStr); err != nil {
-			return nil, err
-		}
+	timeout, err := determineTimeout(sb)
+	if err != nil {
+		return nil, err
 	}
 
-	if timeout != 0 && time.Now().After(sb.CreationTimestamp.Add(time.Duration(timeout)*time.Minute)) {
+	if timeout != 0 && time.Now().After(sb.CreationTimestamp.Add(timeout)) {
+		logrus.Errorf("[%s] support bundle generation timeout after %s", sb.Name, timeout.String())
 		return h.setError(sb, "fail to generate supportbundle: timeout")
 	}
 

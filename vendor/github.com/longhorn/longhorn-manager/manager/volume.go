@@ -150,12 +150,16 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 		}
 	}
 
+	backupTargetName := spec.BackupTargetName
+	if spec.BackupTargetName == "" {
+		backupTargetName = types.DefaultBackupTargetName
+	}
 	// restore backing image if needed
 	// TODO: We should record the secret and secret namespace in the backing image
 	// so we can auto fill in the secret and namespace when auto restore the backing image in volume creation api.
 	// Currently, if the backing image is encrypted, users need to restore it first so they can specifically assign the secret and namespace
-	if err := m.restoreBackingImage(spec.BackingImage, "", ""); err != nil {
-		return nil, errors.Wrapf(err, "failed to restore backing image %v when create volume %v", spec.BackingImage, v.Name)
+	if err := m.restoreBackingImage(backupTargetName, spec.BackingImage, "", "", string(spec.DataEngine)); err != nil {
+		return nil, errors.Wrapf(err, "failed to restore backing image %v when create volume %v", spec.BackingImage, name)
 	}
 
 	v = &longhorn.Volume{
@@ -192,6 +196,7 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 			ReplicaDiskSoftAntiAffinity: spec.ReplicaDiskSoftAntiAffinity,
 			DataEngine:                  spec.DataEngine,
 			FreezeFilesystemForSnapshot: spec.FreezeFilesystemForSnapshot,
+			BackupTargetName:            backupTargetName,
 		},
 	}
 
@@ -427,25 +432,30 @@ func (m *VolumeManager) Activate(volumeName string, frontend string) (v *longhor
 }
 
 func (m *VolumeManager) triggerBackupVolumeToSync(volume *longhorn.Volume) error {
-	backupVolumeName, isExist := volume.Labels[types.LonghornLabelBackupVolume]
-	if !isExist || backupVolumeName == "" {
-		return errors.Errorf("cannot find the backup volume label for volume: %v", volume.Name)
+	if volume.Spec.BackupTargetName == "" {
+		return errors.Errorf("failed to find the backup target label for volume: %v", volume.Name)
+	}
+	backupTargetName := volume.Spec.BackupTargetName
+
+	volumeName, isExist := volume.Labels[types.LonghornLabelBackupVolume]
+	if !isExist || volumeName == "" {
+		return errors.Errorf("failed to find the backup volume label for volume: %v", volume.Name)
 	}
 
-	backupVolume, err := m.ds.GetBackupVolume(backupVolumeName)
+	backupVolume, err := m.ds.GetBackupVolumeByBackupTargetAndVolume(backupTargetName, volumeName)
 	if err != nil {
 		// The backup volume may be deleted already.
 		// hence it's better not to block the caller to continue the handlings like DR volume activation.
 		if apierrors.IsNotFound(err) {
-			logrus.Infof("Cannot find backup volume %v to trigger the sync-up, will skip it", backupVolumeName)
+			logrus.Infof("failed to find backup volume %v of backup target %s to trigger the sync-up, will skip it", volumeName, backupTargetName)
 			return nil
 		}
-		return errors.Wrapf(err, "failed to get backup volume: %v", backupVolumeName)
+		return errors.Wrapf(err, "failed to get backup volume: %v", volumeName)
 	}
 	requestSyncTime := metav1.Time{Time: time.Now().UTC()}
 	backupVolume.Spec.SyncRequestedAt = requestSyncTime
 	if _, err = m.ds.UpdateBackupVolume(backupVolume); err != nil {
-		return errors.Wrapf(err, "failed to update backup volume: %v", backupVolumeName)
+		return errors.Wrapf(err, "failed to update backup volume: %v", backupVolume.Name)
 	}
 
 	return nil
@@ -606,6 +616,14 @@ func (m *VolumeManager) TrimFilesystem(name string) (v *longhorn.Volume, err err
 	}
 	if v.Status.FrontendDisabled {
 		return nil, fmt.Errorf("volume frontend is disabled")
+	}
+
+	// Blocks degraded v2 volume from being trimmed to maintain reliable volume
+	// head size for failed usable replica candidate selection.
+	if types.IsDataEngineV2(v.Spec.DataEngine) {
+		if v.Status.Robustness == longhorn.VolumeRobustnessDegraded {
+			return nil, fmt.Errorf("volume is degraded")
+		}
 	}
 
 	if v.Spec.AccessMode == longhorn.AccessModeReadWriteMany {
@@ -1171,12 +1189,20 @@ func (m *VolumeManager) UpdateSnapshotMaxSize(name string, snapshotMaxSize int64
 	return v, nil
 }
 
-func (m *VolumeManager) restoreBackingImage(biName, secret, secretNamespace string) error {
+func (m *VolumeManager) restoreBackingImage(backupTargetName, biName, secret, secretNamespace, dataEngine string) error {
 	if secret != "" || secretNamespace != "" {
 		_, err := m.ds.GetSecretRO(secretNamespace, secret)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get secret %v in namespace %v for the backing image %v", secret, secretNamespace, biName)
 		}
+	}
+
+	if dataEngine == "" {
+		dataEngine = string(longhorn.DataEngineTypeV1)
+	}
+
+	if longhorn.DataEngineType(dataEngine) != longhorn.DataEngineTypeV1 && longhorn.DataEngineType(dataEngine) != longhorn.DataEngineTypeV2 {
+		return fmt.Errorf("invalid data engine type %v", dataEngine)
 	}
 
 	if biName == "" {
@@ -1190,11 +1216,14 @@ func (m *VolumeManager) restoreBackingImage(biName, secret, secretNamespace stri
 	}
 	// backing image already exists
 	if bi != nil {
+		if bi.Spec.DataEngine != longhorn.DataEngineType(dataEngine) {
+			return fmt.Errorf("backing image %v already exists with different data engine type %v", biName, bi.Spec.DataEngine)
+		}
 		return nil
 	}
 
-	// try find the backup backing image
-	bbi, err := m.ds.GetBackupBackingImageRO(biName)
+	// try to find the backup backing image
+	bbi, err := m.ds.GetBackupBackingImagesWithBackupTargetNameRO(backupTargetName, biName)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get backup backing image %v", biName)
 	}
@@ -1210,11 +1239,13 @@ func (m *VolumeManager) restoreBackingImage(biName, secret, secretNamespace stri
 			Name: biName,
 		},
 		Spec: longhorn.BackingImageSpec{
+			DataEngine: longhorn.DataEngineType(dataEngine),
 			Checksum:   bbi.Status.Checksum,
 			SourceType: longhorn.BackingImageDataSourceTypeRestore,
 			SourceParameters: map[string]string{
-				longhorn.DataSourceTypeRestoreParameterBackupURL:       bbi.Status.URL,
-				longhorn.DataSourceTypeRestoreParameterConcurrentLimit: strconv.FormatInt(concurrentLimit, 10),
+				longhorn.DataSourceTypeRestoreParameterBackupTargetName: backupTargetName,
+				longhorn.DataSourceTypeRestoreParameterBackupURL:        bbi.Status.URL,
+				longhorn.DataSourceTypeRestoreParameterConcurrentLimit:  strconv.FormatInt(concurrentLimit, 10),
 			},
 			Secret:          secret,
 			SecretNamespace: secretNamespace,
@@ -1252,5 +1283,31 @@ func (m *VolumeManager) UpdateFreezeFilesystemForSnapshot(name string,
 
 	logrus.Infof("Updated volume %v field FreezeFilesystemForSnapshot from %v to %v", v.Name,
 		oldFreezeFilesystemForSnapshot, freezeFilesystemForSnapshot)
+	return v, nil
+}
+
+func (m *VolumeManager) UpdateVolumeBackupTarget(name string, backupTargetName string) (v *longhorn.Volume, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "unable to update field BackupTargetName for volume %v", name)
+	}()
+
+	v, err = m.ds.GetVolume(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if v.Spec.BackupTargetName == backupTargetName {
+		logrus.Debugf("Volume %v already set field BackupTargetName to %v", v.Name, backupTargetName)
+		return v, nil
+	}
+
+	oldBackupTargetName := v.Spec.BackupTargetName
+	v.Spec.BackupTargetName = backupTargetName
+	v, err = m.ds.UpdateVolume(v)
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Infof("Updated volume %v field BackupTargetName from %v to %v", v.Name, oldBackupTargetName, backupTargetName)
 	return v, nil
 }

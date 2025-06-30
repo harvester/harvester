@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime"
 
 	corev1 "k8s.io/api/core/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -14,7 +15,10 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	"github.com/gorilla/mux"
+
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 type Handler struct {
@@ -35,15 +39,21 @@ func (h Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (h Handler) do(rw http.ResponseWriter, _ *http.Request) error {
+func (h Handler) do(rw http.ResponseWriter, req *http.Request) error {
 
-	nodeDeviceAvailability, err := h.generateDeviceAvailability()
-	if err != nil {
-		return err
+	vars := util.EncodeVars(mux.Vars(req))
+	link := vars["link"]
+	var result []byte
+	var err error
+	switch link {
+	case deviceCapacity:
+		result, err = h.generateDeviceAvailabilityResponse()
+	case machineTypes:
+		result, err = generateMachineTypes()
 	}
-	result, err := json.Marshal(nodeDeviceAvailability)
+
 	if err != nil {
-		return fmt.Errorf("unable to marshal node device capacity: %v", err)
+		return fmt.Errorf("unable to marshal api response: %v", err)
 	}
 	_, err = rw.Write(result)
 	return err
@@ -90,4 +100,26 @@ func calculateAllocation(nodes []*corev1.Node, vms []*kubevirtv1.VirtualMachine)
 		}
 	}
 	return nodeDeviceAvailability
+}
+
+// generateDeviceAvailabilityResponse is a wrapper around
+func (h Handler) generateDeviceAvailabilityResponse() ([]byte, error) {
+	nodeDeviceAvailability, err := h.generateDeviceAvailability()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(nodeDeviceAvailability)
+}
+
+// generateMachineTypes is a helper to return machineTypes for UI to render machine types possible
+func generateMachineTypes() ([]byte, error) {
+	var machineTypes []string
+	switch runtime.GOARCH {
+	case "amd64":
+		machineTypes = append(machineTypes, "q35", "pc-q35")
+	case "arm64":
+		machineTypes = append(machineTypes, "virt")
+	}
+
+	return json.Marshal(machineTypes)
 }

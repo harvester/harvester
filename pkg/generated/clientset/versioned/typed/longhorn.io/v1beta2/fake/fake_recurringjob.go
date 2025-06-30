@@ -41,22 +41,24 @@ var recurringjobsKind = v1beta2.SchemeGroupVersion.WithKind("RecurringJob")
 
 // Get takes name of the recurringJob, and returns the corresponding recurringJob object, and an error if there is any.
 func (c *FakeRecurringJobs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.RecurringJob, err error) {
+	emptyResult := &v1beta2.RecurringJob{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(recurringjobsResource, c.ns, name), &v1beta2.RecurringJob{})
+		Invokes(testing.NewGetActionWithOptions(recurringjobsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.RecurringJob), err
 }
 
 // List takes label and field selectors, and returns the list of RecurringJobs that match those selectors.
 func (c *FakeRecurringJobs) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.RecurringJobList, err error) {
+	emptyResult := &v1beta2.RecurringJobList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(recurringjobsResource, recurringjobsKind, c.ns, opts), &v1beta2.RecurringJobList{})
+		Invokes(testing.NewListActionWithOptions(recurringjobsResource, recurringjobsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeRecurringJobs) List(ctx context.Context, opts v1.ListOptions) (resu
 // Watch returns a watch.Interface that watches the requested recurringJobs.
 func (c *FakeRecurringJobs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(recurringjobsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(recurringjobsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a recurringJob and creates it.  Returns the server's representation of the recurringJob, and an error, if there is any.
 func (c *FakeRecurringJobs) Create(ctx context.Context, recurringJob *v1beta2.RecurringJob, opts v1.CreateOptions) (result *v1beta2.RecurringJob, err error) {
+	emptyResult := &v1beta2.RecurringJob{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(recurringjobsResource, c.ns, recurringJob), &v1beta2.RecurringJob{})
+		Invokes(testing.NewCreateActionWithOptions(recurringjobsResource, c.ns, recurringJob, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.RecurringJob), err
 }
 
 // Update takes the representation of a recurringJob and updates it. Returns the server's representation of the recurringJob, and an error, if there is any.
 func (c *FakeRecurringJobs) Update(ctx context.Context, recurringJob *v1beta2.RecurringJob, opts v1.UpdateOptions) (result *v1beta2.RecurringJob, err error) {
+	emptyResult := &v1beta2.RecurringJob{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(recurringjobsResource, c.ns, recurringJob), &v1beta2.RecurringJob{})
+		Invokes(testing.NewUpdateActionWithOptions(recurringjobsResource, c.ns, recurringJob, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.RecurringJob), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeRecurringJobs) UpdateStatus(ctx context.Context, recurringJob *v1beta2.RecurringJob, opts v1.UpdateOptions) (*v1beta2.RecurringJob, error) {
+func (c *FakeRecurringJobs) UpdateStatus(ctx context.Context, recurringJob *v1beta2.RecurringJob, opts v1.UpdateOptions) (result *v1beta2.RecurringJob, err error) {
+	emptyResult := &v1beta2.RecurringJob{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(recurringjobsResource, "status", c.ns, recurringJob), &v1beta2.RecurringJob{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(recurringjobsResource, "status", c.ns, recurringJob, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.RecurringJob), err
 }
@@ -123,7 +128,7 @@ func (c *FakeRecurringJobs) Delete(ctx context.Context, name string, opts v1.Del
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeRecurringJobs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(recurringjobsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(recurringjobsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta2.RecurringJobList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeRecurringJobs) DeleteCollection(ctx context.Context, opts v1.Delete
 
 // Patch applies the patch and returns the patched recurringJob.
 func (c *FakeRecurringJobs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.RecurringJob, err error) {
+	emptyResult := &v1beta2.RecurringJob{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(recurringjobsResource, c.ns, name, pt, data, subresources...), &v1beta2.RecurringJob{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(recurringjobsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta2.RecurringJob), err
 }

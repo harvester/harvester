@@ -41,22 +41,24 @@ var clustertemplatesKind = v3.SchemeGroupVersion.WithKind("ClusterTemplate")
 
 // Get takes name of the clusterTemplate, and returns the corresponding clusterTemplate object, and an error if there is any.
 func (c *FakeClusterTemplates) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ClusterTemplate, err error) {
+	emptyResult := &v3.ClusterTemplate{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(clustertemplatesResource, c.ns, name), &v3.ClusterTemplate{})
+		Invokes(testing.NewGetActionWithOptions(clustertemplatesResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterTemplate), err
 }
 
 // List takes label and field selectors, and returns the list of ClusterTemplates that match those selectors.
 func (c *FakeClusterTemplates) List(ctx context.Context, opts v1.ListOptions) (result *v3.ClusterTemplateList, err error) {
+	emptyResult := &v3.ClusterTemplateList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(clustertemplatesResource, clustertemplatesKind, c.ns, opts), &v3.ClusterTemplateList{})
+		Invokes(testing.NewListActionWithOptions(clustertemplatesResource, clustertemplatesKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,28 +77,30 @@ func (c *FakeClusterTemplates) List(ctx context.Context, opts v1.ListOptions) (r
 // Watch returns a watch.Interface that watches the requested clusterTemplates.
 func (c *FakeClusterTemplates) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(clustertemplatesResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(clustertemplatesResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a clusterTemplate and creates it.  Returns the server's representation of the clusterTemplate, and an error, if there is any.
 func (c *FakeClusterTemplates) Create(ctx context.Context, clusterTemplate *v3.ClusterTemplate, opts v1.CreateOptions) (result *v3.ClusterTemplate, err error) {
+	emptyResult := &v3.ClusterTemplate{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(clustertemplatesResource, c.ns, clusterTemplate), &v3.ClusterTemplate{})
+		Invokes(testing.NewCreateActionWithOptions(clustertemplatesResource, c.ns, clusterTemplate, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterTemplate), err
 }
 
 // Update takes the representation of a clusterTemplate and updates it. Returns the server's representation of the clusterTemplate, and an error, if there is any.
 func (c *FakeClusterTemplates) Update(ctx context.Context, clusterTemplate *v3.ClusterTemplate, opts v1.UpdateOptions) (result *v3.ClusterTemplate, err error) {
+	emptyResult := &v3.ClusterTemplate{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(clustertemplatesResource, c.ns, clusterTemplate), &v3.ClusterTemplate{})
+		Invokes(testing.NewUpdateActionWithOptions(clustertemplatesResource, c.ns, clusterTemplate, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterTemplate), err
 }
@@ -111,7 +115,7 @@ func (c *FakeClusterTemplates) Delete(ctx context.Context, name string, opts v1.
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeClusterTemplates) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(clustertemplatesResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(clustertemplatesResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v3.ClusterTemplateList{})
 	return err
@@ -119,11 +123,12 @@ func (c *FakeClusterTemplates) DeleteCollection(ctx context.Context, opts v1.Del
 
 // Patch applies the patch and returns the patched clusterTemplate.
 func (c *FakeClusterTemplates) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterTemplate, err error) {
+	emptyResult := &v3.ClusterTemplate{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(clustertemplatesResource, c.ns, name, pt, data, subresources...), &v3.ClusterTemplate{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(clustertemplatesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v3.ClusterTemplate), err
 }

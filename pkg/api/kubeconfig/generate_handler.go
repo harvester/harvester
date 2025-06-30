@@ -247,12 +247,12 @@ func (h *GenerateHandler) ensureSaAndSecret(namespace, name string) (*corev1.Ser
 
 	secretName := sa.Name + "-token"
 	secretNamespace := sa.Namespace
-	secret, err := h.secretCache.Get(secretNamespace, secretName)
+	_, err = h.secretCache.Get(secretNamespace, secretName)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, nil, err
 	}
 	if apierrors.IsNotFound(err) {
-		secret, err = h.secretClient.Create(&corev1.Secret{
+		_, err = h.secretClient.Create(&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      secretName,
 				Namespace: secretNamespace,
@@ -286,7 +286,7 @@ func (h *GenerateHandler) ensureSaAndSecret(namespace, name string) (*corev1.Ser
 		case <-timer.C:
 			return nil, nil, fmt.Errorf("timeout while waiting for secret")
 		case <-ticker.C:
-			secret, err = h.secretCache.Get(secretNamespace, secretName)
+			secret, err := h.secretCache.Get(secretNamespace, secretName)
 			if err != nil {
 				return nil, nil, err
 			}

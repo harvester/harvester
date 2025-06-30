@@ -6,6 +6,7 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
+	"github.com/rancher/steve/pkg/stores/proxy"
 	"github.com/rancher/wrangler/v3/pkg/schemas"
 
 	"github.com/harvester/harvester/pkg/config"
@@ -30,6 +31,10 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 	t := schema.Template{
 		ID: "namespace",
 		Customize: func(s *types.APISchema) {
+			s.Store = &Store{
+				Store:   proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup, nil),
+				nsCache: scaled.CoreFactory.Core().V1().Namespace().Cache(),
+			}
 			s.Formatter = nsformatter.formatter
 			s.ResourceActions = map[string]schemas.Action{
 				updateResourceQuotaAction: {

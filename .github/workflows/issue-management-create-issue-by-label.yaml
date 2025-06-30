@@ -1,0 +1,48 @@
+name: "[Issue Management] Create Issue by Label"
+
+on:
+  issues:
+    types: [ labeled ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  create-issue:
+    name: Create Issue
+    if: 
+      contains(join(github.event.issue.labels.*.name, ', '), 'backport-needed/') || 
+      contains(join(github.event.issue.labels.*.name, ', '), 'require/ui') || 
+      contains(join(github.event.issue.labels.*.name, ', '), 'require/auto-e2e-test')
+    runs-on: ubuntu-latest
+    env:
+      EVENT: ${{ toJson(github.event) }}
+      GITHUB_OWNER: harvester
+      GITHUB_MAIN_REPOSITORY: harvester
+      GITHUB_PROJECT_NUMBER: "7"
+      E2E_PIPELINE: "Review,Ready For Testing,Testing"
+      GITHUB_REPOSITORY_TEST: tests
+      GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Install
+        run: |
+          pip install -r .github/workflows/bot/requirements.txt
+
+      - name: Create Backport Issue
+        if: contains(join(github.event.issue.labels.*.name, ', '), 'backport-needed/')
+        run: |
+          python .github/workflows/bot.py "$EVENT"
+      
+      - name: Create GUI Issue
+        if: contains(join(github.event.issue.labels.*.name, ', '), 'require/ui')
+        run: |
+          python .github/workflows/bot.py "$EVENT"
+      
+      - name: Create E2E Issue
+        if: contains(join(github.event.issue.labels.*.name, ', '), 'require/auto-e2e-test')
+        run: |
+          python .github/workflows/bot.py "$EVENT"

@@ -40,7 +40,8 @@ type RemoveVolumeInput struct {
 }
 
 type CloneInput struct {
-	TargetVM string `json:"targetVm"`
+	TargetVM    string `json:"targetVm"`
+	RunStrategy string `json:"runStrategy"`
 }
 
 type FindMigratableNodesOutput struct {
@@ -49,4 +50,9 @@ type FindMigratableNodesOutput struct {
 
 type UpdateResourceQuotaInput struct {
 	TotalSnapshotSizeQuota string `json:"totalSnapshotSizeQuota"`
+}
+
+type CPUAndMemoryHotplugInput struct {
+	Sockets uint32 `json:"sockets"`
+	Memory  string `json:"memory"`
 }

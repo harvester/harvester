@@ -25,22 +25,23 @@ import (
 type _hugoLoki interface{} //nolint:deadcode,unused
 
 // +docName:"Loki output plugin "
-// Fluentd output plugin to ship logs to a Loki server.
-// More info at https://grafana.com/docs/loki/latest/clients/fluentd/
-// >Example: [Store Nginx Access Logs in Grafana Loki with Logging Operator](../../../../quickstarts/loki-nginx/)
-//
-// ## Example output configurations
-// ```yaml
-// spec:
-//
-//	loki:
-//	  url: http://loki:3100
-//	  buffer:
-//	    timekey: 1m
-//	    timekey_wait: 30s
-//	    timekey_use_utc: true
-//
-// ```
+/*
+Fluentd output plugin to ship logs to a Loki server. For details, see [https://grafana.com/docs/loki/latest/clients/fluentd/](https://grafana.com/docs/loki/latest/clients/fluentd/).
+
+For a detailed example, see [Store Nginx Access Logs in Grafana Loki with Logging Operator](../../../../quickstarts/loki-nginx/).
+
+## Example output configurations
+
+```yaml
+spec:
+  loki:
+    url: http://loki:3100
+    buffer:
+      timekey: 1m
+      timekey_wait: 30s
+      timekey_use_utc: true
+```
+*/
 type _docLoki interface{} //nolint:deadcode,unused
 
 // +name:"Grafana Loki"
@@ -53,7 +54,7 @@ type _metaLoki interface{} //nolint:deadcode,unused
 // +kubebuilder:object:generate=true
 // +docName:"Output Config"
 type LokiOutput struct {
-	// The url of the Loki server to send logs to. (default:https://logs-us-west1.grafana.net)
+	// The url of the Loki server to send logs to. (default: `https://logs-us-west1.grafana.net`)
 	Url string `json:"url,omitempty"`
 	// Specify a username if the Loki server requires authentication.
 	// +docLink:"Secret,../secret/"
@@ -94,7 +95,7 @@ type LokiOutput struct {
 	Buffer *Buffer `json:"buffer,omitempty"`
 	// The threshold for chunk flush performance check.
 	// Parameter type is float, not time, default: 20.0 (seconds)
-	// If chunk flush takes longer time than this threshold, fluentd logs warning message and increases metric fluentd_output_status_slow_flush_count.
+	// If chunk flush takes longer time than this threshold, Fluentd logs a warning message and increases the `fluentd_output_status_slow_flush_count` metric.
 	SlowFlushLogThreshold string `json:"slow_flush_log_threshold,omitempty"`
 }
 

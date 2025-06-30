@@ -28,42 +28,54 @@ const (
 
 func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	var (
-		nsCache        = management.CoreFactory.Core().V1().Namespace().Cache()
-		podCache       = management.CoreFactory.Core().V1().Pod().Cache()
-		rqCache        = management.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()
-		pvcClient      = management.CoreFactory.Core().V1().PersistentVolumeClaim()
-		pvcCache       = pvcClient.Cache()
-		vmClient       = management.VirtFactory.Kubevirt().V1().VirtualMachine()
-		vmCache        = vmClient.Cache()
-		nodeClient     = management.CoreFactory.Core().V1().Node()
-		nodeCache      = nodeClient.Cache()
-		vmiClient      = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
-		vmiCache       = vmiClient.Cache()
-		vmBackupClient = management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
-		vmBackupCache  = vmBackupClient.Cache()
-		snapshotClient = management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
-		vmimCache      = management.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache()
-		snapshotCache  = snapshotClient.Cache()
-		crClient       = management.ControllerRevisionFactory.Apps().V1().ControllerRevision()
-		crClientCache  = crClient.Cache()
-		recorder       = management.NewRecorder(vmControllerSetHaltIfInsufficientResourceQuotaControllerName, "", "")
+		dataVolumeClient = management.CdiFactory.Cdi().V1beta1().DataVolume()
+		nsCache          = management.CoreFactory.Core().V1().Namespace().Cache()
+		podCache         = management.CoreFactory.Core().V1().Pod().Cache()
+		podClient        = management.CoreFactory.Core().V1().Pod()
+		rqCache          = management.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()
+		pvcClient        = management.CoreFactory.Core().V1().PersistentVolumeClaim()
+		pvcCache         = pvcClient.Cache()
+		vmClient         = management.VirtFactory.Kubevirt().V1().VirtualMachine()
+		vmCache          = vmClient.Cache()
+		nodeClient       = management.CoreFactory.Core().V1().Node()
+		nodeCache        = nodeClient.Cache()
+		vmiClient        = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
+		vmiCache         = vmiClient.Cache()
+		vmImgClient      = management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
+		vmImgCache       = vmImgClient.Cache()
+		vmBackupClient   = management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup()
+		vmBackupCache    = vmBackupClient.Cache()
+		snapshotClient   = management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
+		vmimCache        = management.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache()
+		snapshotCache    = snapshotClient.Cache()
+		scClient         = management.StorageFactory.Storage().V1().StorageClass()
+		scCache          = scClient.Cache()
+		settingCache     = management.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
+		recorder         = management.NewRecorder(vmControllerSetHaltIfInsufficientResourceQuotaControllerName, "", "")
 	)
 
 	// registers the vm controller
 	var vmCtrl = &VMController{
-		pvcClient:      pvcClient,
-		pvcCache:       pvcCache,
-		vmClient:       vmClient,
-		vmController:   vmClient,
-		vmiClient:      vmiClient,
-		vmiCache:       vmiCache,
-		vmBackupClient: vmBackupClient,
-		vmBackupCache:  vmBackupCache,
-		snapshotClient: snapshotClient,
-		snapshotCache:  snapshotCache,
-		recorder:       recorder,
+		dataVolumeClient: dataVolumeClient,
+		podClient:        podClient,
+		pvcClient:        pvcClient,
+		pvcCache:         pvcCache,
+		vmClient:         vmClient,
+		vmController:     vmClient,
+		vmiClient:        vmiClient,
+		vmiCache:         vmiCache,
+		vmImgClient:      vmImgClient,
+		vmImgCache:       vmImgCache,
+		vmBackupClient:   vmBackupClient,
+		vmBackupCache:    vmBackupCache,
+		snapshotClient:   snapshotClient,
+		snapshotCache:    snapshotCache,
+		scClient:         scClient,
+		scCache:          scCache,
+		settingCache:     settingCache,
+		recorder:         recorder,
 
-		vmrCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache),
+		vmrCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
 	}
 	var virtualMachineClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	virtualMachineClient.OnChange(ctx, vmControllerCreatePVCsFromAnnotationControllerName, vmCtrl.createPVCsFromAnnotation)
@@ -93,8 +105,6 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		vmClient:  vmClient,
 		vmCache:   vmCache,
 		vmiClient: virtualMachineInstanceClient,
-		crClient:  crClient,
-		crCache:   crClientCache,
 	}
 	virtualMachineInstanceClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
 

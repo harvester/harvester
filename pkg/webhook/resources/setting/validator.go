@@ -18,6 +18,7 @@ import (
 	// Although we don't use following drivers directly, we need to import them to register drivers.
 	// NFS Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/nfs/nfs.go#L47-L51
 	// S3 Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/s3/s3.go#L33-L37
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/harvester/go-common/ds"
 	"github.com/longhorn/backupstore"
 	_ "github.com/longhorn/backupstore/nfs" //nolint
@@ -35,15 +36,12 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	mapset "github.com/deckarep/golang-set/v2"
-
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester-network-controller/pkg/utils"
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/containerd"
 	nodectl "github.com/harvester/harvester/pkg/controller/master/node"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
-	storagenetworkctl "github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1b2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -51,11 +49,12 @@ import (
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	networkutil "github.com/harvester/harvester/pkg/util/network"
 	tlsutil "github.com/harvester/harvester/pkg/util/tls"
 	vmUtil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
-	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
+	webhookUtil "github.com/harvester/harvester/pkg/webhook/util"
 )
 
 const (
@@ -100,6 +99,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateAdditionalGuestMemoryOverheadRatio,
+	settings.MaxHotplugRatioSettingName:                        validateMaxHotplugRatio,
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -120,6 +120,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateUpdateAdditionalGuestMemoryOverheadRatio,
+	settings.MaxHotplugRatioSettingName:                        validateUpdateMaxHotplugRatio,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -134,6 +135,7 @@ func NewValidator(
 	vmRestoreCache ctlv1beta1.VirtualMachineRestoreCache,
 	vmCache ctlkubevirtv1.VirtualMachineCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
+	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 	featureCache mgmtv3.FeatureCache,
 	lhVolumeCache ctllhv1b2.VolumeCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
@@ -150,6 +152,7 @@ func NewValidator(
 		vmRestoreCache:     vmRestoreCache,
 		vmCache:            vmCache,
 		vmiCache:           vmiCache,
+		vmimCache:          vmimCache,
 		featureCache:       featureCache,
 		lhVolumeCache:      lhVolumeCache,
 		pvcCache:           pvcCache,
@@ -168,11 +171,17 @@ func NewValidator(
 	validateSettingUpdateFuncs[settings.StorageNetworkName] = validator.validateUpdateStorageNetwork
 	validateSettingDeleteFuncs[settings.StorageNetworkName] = validator.validateDeleteStorageNetwork
 
+	validateSettingFuncs[settings.VMMigrationNetworkSettingName] = validator.validateVMMigrationNetwork
+	validateSettingUpdateFuncs[settings.VMMigrationNetworkSettingName] = validator.validateUpdateVMMigrationNetwork
+	validateSettingDeleteFuncs[settings.VMMigrationNetworkSettingName] = validator.validateDeleteVMMigrationNetwork
+
 	validateSettingFuncs[settings.HTTPProxySettingName] = validator.validateHTTPProxy
 	validateSettingUpdateFuncs[settings.HTTPProxySettingName] = validator.validateUpdateHTTPProxy
 
 	validateSettingFuncs[settings.UpgradeConfigSettingName] = validator.validateUpgradeConfig
 	validateSettingUpdateFuncs[settings.UpgradeConfigSettingName] = validator.validateUpdateUpgradeConfig
+
+	validateSettingUpdateFuncs[settings.LonghornV2DataEngineSettingName] = validator.validateUpdateLonghornV2DataEngine
 
 	return validator
 }
@@ -187,6 +196,7 @@ type settingValidator struct {
 	vmRestoreCache     ctlv1beta1.VirtualMachineRestoreCache
 	vmCache            ctlkubevirtv1.VirtualMachineCache
 	vmiCache           ctlkubevirtv1.VirtualMachineInstanceCache
+	vmimCache          ctlkubevirtv1.VirtualMachineInstanceMigrationCache
 	featureCache       mgmtv3.FeatureCache
 	lhVolumeCache      ctllhv1b2.VolumeCache
 	pvcCache           ctlcorev1.PersistentVolumeClaimCache
@@ -341,7 +351,7 @@ func validateNoProxy(noProxy string, nodes []*corev1.Node) error {
 		}
 	}
 	if slices.Index(ds.MapValues(foundMap), false) != -1 {
-		missedNodes := ds.MapFilterFunc(foundMap, func(v bool, _ string) bool { return v == false })
+		missedNodes := ds.MapFilterFunc(foundMap, func(v bool, _ string) bool { return !v })
 		missedIPs := ds.MapKeys(missedNodes)
 		slices.Sort(missedIPs)
 		msg := fmt.Sprintf("noProxy should contain the node's IP addresses or CIDR. The node(s) %s are not covered.", strings.Join(missedIPs, ", "))
@@ -500,6 +510,10 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 		return nil
 	}
 
+	if target.RefreshIntervalInSeconds < 0 {
+		return werror.NewInvalidError("Refresh interval should be greater than or equal to 0", settings.KeywordValue)
+	}
+
 	// when target is from internal re-update, allow fast pass
 	if v.isUpdatedS3BackupTarget(target) {
 		return nil
@@ -611,15 +625,15 @@ func validateNTPServersHelper(value string) error {
 
 	fqdnNameValidator, err := regexp.Compile(FQDNMatchNameRegexString)
 	if err != nil {
-		return fmt.Errorf("Failed to compile fqdnName regexp: %v", err)
+		return fmt.Errorf("failed to compile fqdnName regexp: %v", err)
 	}
 	fqdnPatternValidator, err := regexp.Compile(FQDNMatchPatternRegexString)
 	if err != nil {
-		return fmt.Errorf("Failed to compile fqdnPattern regexp: %v", err)
+		return fmt.Errorf("failed to compile fqdnPattern regexp: %v", err)
 	}
 	startWithHTTP, err := regexp.Compile("^https?://.*")
 	if err != nil {
-		return fmt.Errorf("Failed to compile startWithHttp regexp: %v", err)
+		return fmt.Errorf("failed to compile startWithHttp regexp: %v", err)
 	}
 
 	for _, server := range ntpSettings.NTPServers {
@@ -634,8 +648,8 @@ func validateNTPServersHelper(value string) error {
 	duplicates := ds.SliceFindDuplicates(ntpSettings.NTPServers)
 	if len(duplicates) > 0 {
 		errMsg := fmt.Sprintf("duplicate NTP server: %v", duplicates)
-		logrus.Errorf(errMsg)
-		return fmt.Errorf(errMsg)
+		logrus.Errorf("%s", errMsg)
+		return fmt.Errorf("%s", errMsg)
 	}
 
 	logrus.Infof("NTP servers validation passed")
@@ -709,7 +723,7 @@ func validateSupportBundleTimeoutHelper(value string) error {
 		return nil
 	}
 
-	i, err := strconv.Atoi(value)
+	i, err := webhookUtil.StrictAtoi(value)
 	if err != nil {
 		return err
 	}
@@ -739,7 +753,7 @@ func validateSupportBundleExpirationHelper(value string) error {
 		return nil
 	}
 
-	i, err := strconv.Atoi(value)
+	i, err := webhookUtil.StrictAtoi(value)
 	if err != nil {
 		return err
 	}
@@ -769,7 +783,7 @@ func validateSupportBundleNodeCollectionTimeoutHelper(value string) error {
 		return nil
 	}
 
-	i, err := strconv.Atoi(value)
+	i, err := webhookUtil.StrictAtoi(value)
 	if err != nil {
 		return err
 	}
@@ -974,6 +988,29 @@ func (v *settingValidator) validateUpdateVolumeSnapshotClass(_ *v1beta1.Setting,
 	return v.validateVolumeSnapshotClass(newSetting)
 }
 
+func (v *settingValidator) validateUpdateLonghornV2DataEngine(oldSetting, newSetting *v1beta1.Setting) error {
+	if oldSetting.Value == newSetting.Value {
+		return nil
+	}
+
+	// check if any disk is still using for v2 data engine
+	if oldSetting.Value == "true" && newSetting.Value == "false" {
+		lhnodes, err := v.lhNodeCache.List(util.LonghornSystemNamespaceName, labels.Everything())
+		if err != nil {
+			return werror.NewInternalError(err.Error())
+		}
+		for _, node := range lhnodes {
+			for _, diskStatus := range node.Status.DiskStatus {
+				if diskStatus.Type == lhv1beta2.DiskTypeBlock {
+					return werror.NewInvalidError(fmt.Sprintf("Can't disable Longhorn V2 Data Engine, disk %s is still here.", diskStatus.DiskUUID), settings.LonghornV2DataEngineSettingName)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 func validateContainerdRegistryHelper(value string) error {
 	if value == "" {
 		return nil
@@ -999,31 +1036,63 @@ func validateUpdateContainerdRegistry(_ *v1beta1.Setting, newSetting *v1beta1.Se
 	return validateContainerdRegistry(newSetting)
 }
 
-func (v *settingValidator) validateStorageNetworkHelper(value string) error {
+func (v *settingValidator) validateNetworkHelper(value string) (*networkutil.Config, error) {
 	if value == "" {
+		// harvester will create a default setting with empty value
+		return nil, nil
+	}
+
+	var config networkutil.Config
+	if err := json.Unmarshal([]byte(value), &config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal the setting value %v, %w", value, err)
+	}
+
+	if err := v.checkNetworkVlanValid(&config); err != nil {
+		return nil, err
+	}
+
+	if err := v.checkNetworkRangeValid(&config); err != nil {
+		return nil, err
+	}
+
+	if err := v.checkVlanStatusReady(&config); err != nil {
+		return nil, err
+	}
+
+	if err := v.checkVCSpansAllNodes(&config); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+func (v *settingValidator) validateStorageNetworkHelper(value string) error {
+	config, err := v.validateNetworkHelper(value)
+	if err != nil {
+		return err
+	} else if config == nil {
 		// harvester will create a default setting with empty value
 		// storage-network will be the same in Longhorn, just skip check, don't require all VMs are stopped.
 		return nil
 	}
 
-	var config storagenetworkctl.Config
-	if err := json.Unmarshal([]byte(value), &config); err != nil {
-		return fmt.Errorf("failed to unmarshal the setting value, %v", err)
-	}
-
-	if err := v.checkStorageNetworkVlanValid(&config); err != nil {
+	if err := v.checkStorageNetworkRangeValid(config); err != nil {
 		return err
 	}
 
-	if err := v.checkStorageNetworkRangeValid(&config); err != nil {
+	return nil
+}
+
+func (v *settingValidator) validateVMMigrationNetworkHelper(value string) error {
+	config, err := v.validateNetworkHelper(value)
+	if err != nil {
 		return err
+	} else if config == nil {
+		// harvester will create a default setting with empty value
+		return nil
 	}
 
-	if err := v.checkVlanStatusReady(&config); err != nil {
-		return err
-	}
-
-	if err := v.checkVCSpansAllNodes(&config); err != nil {
+	if err := v.checkVMMigrationNetworkRangeValid(config); err != nil {
 		return err
 	}
 
@@ -1043,7 +1112,12 @@ func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) erro
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 
-	return v.checkStorageNetworkValueVaild()
+	// When a new setting is created, it's value and default are both empty, do not check storage-network usage
+	if setting.Value != "" || setting.Default != "" {
+		return v.checkStorageNetworkUsage()
+	}
+
+	return nil
 }
 
 func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
@@ -1063,11 +1137,62 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 
-	return v.checkStorageNetworkValueVaild()
+	return v.checkStorageNetworkUsage()
 }
 
 func (v *settingValidator) validateDeleteStorageNetwork(_ *v1beta1.Setting) error {
 	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.StorageNetworkName))
+}
+
+func (v *settingValidator) validateVMMigrationNetwork(setting *v1beta1.Setting) error {
+	if setting.Name != settings.VMMigrationNetworkSettingName {
+		return nil
+	}
+
+	vmims, err := v.vmimCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("Failed to list VM Migrations, err: %v", err.Error()))
+	}
+	for _, vmim := range vmims {
+		if vmim.DeletionTimestamp != nil || vmim.Status.MigrationState.Completed {
+			continue
+		}
+		return werror.NewBadRequest("There is a VM Migration in progress, please wait until it is completed before updating the VMMigrationNetwork setting")
+	}
+
+	if err := v.validateVMMigrationNetworkHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+	}
+
+	if err := v.validateVMMigrationNetworkHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+
+	return nil
+}
+
+func (v *settingValidator) validateUpdateVMMigrationNetwork(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	if newSetting.Name != settings.VMMigrationNetworkSettingName {
+		return nil
+	}
+
+	if oldSetting.Default == newSetting.Default && oldSetting.Value == newSetting.Value {
+		return nil
+	}
+
+	if err := v.validateVMMigrationNetworkHelper(newSetting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+	}
+
+	if err := v.validateVMMigrationNetworkHelper(newSetting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+
+	return nil
+}
+
+func (v *settingValidator) validateDeleteVMMigrationNetwork(_ *v1beta1.Setting) error {
+	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.VMMigrationNetworkSettingName))
 }
 
 func (v *settingValidator) findVolumesByLabelAppName(namespace string, labelAppNameValue string) ([]string, error) {
@@ -1191,7 +1316,7 @@ func (v *settingValidator) checkOnlineVolume() error {
 	return nil
 }
 
-func (v *settingValidator) checkStorageNetworkValueVaild() error {
+func (v *settingValidator) checkStorageNetworkUsage() error {
 	// check all VM are stopped, there is no VMI
 	vms, err := v.vmCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
@@ -1216,7 +1341,7 @@ func (v *settingValidator) checkStorageNetworkValueVaild() error {
 	return nil
 }
 
-func (v *settingValidator) checkVlanStatusReady(config *storagenetworkctl.Config) error {
+func (v *settingValidator) checkVlanStatusReady(config *networkutil.Config) error {
 	//mgmt cluster
 	if config.ClusterNetwork == mgmtClusterNetwork {
 		return nil
@@ -1260,7 +1385,7 @@ func getMatchNodes(vc *networkv1.VlanConfig) ([]string, error) {
 	return matchedNodes, nil
 }
 
-func (v *settingValidator) checkVCSpansAllNodes(config *storagenetworkctl.Config) error {
+func (v *settingValidator) checkVCSpansAllNodes(config *networkutil.Config) error {
 	//mgmt cluster
 	if config.ClusterNetwork == mgmtClusterNetwork {
 		return nil
@@ -1308,10 +1433,15 @@ func (v *settingValidator) checkVCSpansAllNodes(config *storagenetworkctl.Config
 	return nil
 }
 
-func (v *settingValidator) checkStorageNetworkVlanValid(config *storagenetworkctl.Config) error {
-	if config.Vlan < 1 || config.Vlan > 4094 {
-		return fmt.Errorf("The valid value range for VLAN IDs is 1 to 4094")
+func (v *settingValidator) checkNetworkVlanValid(config *networkutil.Config) error {
+	if config.Vlan > 4094 {
+		return fmt.Errorf("the valid value range for VLAN IDs is 0 to 4094")
 	}
+
+	if config.Vlan <= 1 && config.ClusterNetwork == mgmtClusterNetwork {
+		return fmt.Errorf("network with vlan id %d not allowed on %s cluster", config.Vlan, config.ClusterNetwork)
+	}
+
 	return nil
 }
 
@@ -1337,7 +1467,7 @@ func isOverlap(IP1 string, IP2 string) (bool, error) {
 	return false, nil
 }
 
-func validateIncludeExcludeRanges(config *storagenetworkctl.Config, includePrefixLen int) error {
+func validateIncludeExcludeRanges(config *networkutil.Config, includePrefixLen int) error {
 	IP1 := ""
 
 	for _, excludeIP := range config.Exclude {
@@ -1348,7 +1478,7 @@ func validateIncludeExcludeRanges(config *storagenetworkctl.Config, includePrefi
 
 		excludePrefixLen, _ := network.Mask.Size()
 		if excludePrefixLen < minSNPrefixLength {
-			return fmt.Errorf("min supported prefix lenth for storage network is %d, exclude Range PrefixLen received %d", minSNPrefixLength, excludePrefixLen)
+			return fmt.Errorf("min supported prefix length for network is %d, exclude Range PrefixLen received %d", minSNPrefixLength, excludePrefixLen)
 		}
 
 		//validate if include and exclude overlap
@@ -1382,7 +1512,7 @@ func validateIncludeExcludeRanges(config *storagenetworkctl.Config, includePrefi
 	return nil
 }
 
-func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkctl.Config) error {
+func (v *settingValidator) checkNetworkRangeValid(config *networkutil.Config) error {
 	ip, network, err := net.ParseCIDR(config.Range)
 	if err != nil {
 		return err
@@ -1393,13 +1523,17 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkc
 
 	prefixLen, _ := network.Mask.Size()
 	if prefixLen < minSNPrefixLength {
-		return fmt.Errorf("min supported prefix lenth for storage network is %d, include Range PrefixLen received %d", minSNPrefixLength, prefixLen)
+		return fmt.Errorf("min supported prefix length for network is %d, include Range PrefixLen received %d", minSNPrefixLength, prefixLen)
 	}
 
 	if err = validateIncludeExcludeRanges(config, prefixLen); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func (v *settingValidator) checkStorageNetworkRangeValid(config *networkutil.Config) error {
 	lhnodes, err := v.lhNodeCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return werror.NewInternalError(err.Error())
@@ -1413,7 +1547,7 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkc
 		MinAllocatableIPAddrs = MinAllocatableIPAddrs + 2 + (len(lhNode.Spec.Disks) * 2)
 	}
 
-	count, err := webhookutil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
 	if err != nil {
 		return err
 	}
@@ -1425,12 +1559,40 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *storagenetworkc
 	return nil
 }
 
+func (v *settingValidator) checkVMMigrationNetworkRangeValid(config *networkutil.Config) error {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	witnessNode := 0
+	for _, node := range nodes {
+		if node.Labels == nil {
+			continue
+		}
+		if _, ok := node.Labels["node-role.harvesterhci.io/witness"]; ok {
+			witnessNode++
+		}
+	}
+
+	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	if err != nil {
+		return err
+	}
+
+	// 1 node has 1 virt-handler which needs 1 IP address.
+	if count < len(nodes)-witnessNode {
+		return fmt.Errorf("allocatable IP address range is < %d,allocate sufficient range", len(nodes))
+	}
+
+	return nil
+}
+
 func validateDefaultVMTerminationGracePeriodSecondsHelper(value string) error {
 	if value == "" {
 		return nil
 	}
 
-	num, err := strconv.ParseInt(value, 10, 64)
+	num, err := webhookUtil.StrictAtoi(value)
 	if err != nil {
 		return err
 	}
@@ -1499,7 +1661,7 @@ func validateKubeConfigTTLSettingHelper(value string) error {
 		return nil
 	}
 
-	num, err := strconv.Atoi(value)
+	num, err := webhookUtil.StrictAtoi(value)
 	if err != nil {
 		return err
 	}
@@ -1616,4 +1778,30 @@ func (v *settingValidator) isSingleNode() (bool, error) {
 		return false, err
 	}
 	return len(nodes) == 1, nil
+}
+
+func validateMaxHotplugRatio(setting *v1beta1.Setting) error {
+	if err := validateMaxHotplugRatioHelper(settings.KeywordDefault, setting.Default); err != nil {
+		return err
+	}
+
+	return validateMaxHotplugRatioHelper(settings.KeywordValue, setting.Value)
+}
+
+func validateUpdateMaxHotplugRatio(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateMaxHotplugRatio(newSetting)
+}
+
+func validateMaxHotplugRatioHelper(field, value string) error {
+	if value == "" {
+		return nil
+	}
+	num, err := strconv.ParseUint(value, 10, 32)
+	if err != nil {
+		return fmt.Errorf("failed to parse %v: %v %w", field, value, err)
+	}
+	if num < util.MinHotplugRatioValue || num > util.MaxHotplugRatioValue {
+		return fmt.Errorf("%v: %v must be in range [%v .. %v]", field, value, util.MinHotplugRatioValue, util.MaxHotplugRatioValue)
+	}
+	return nil
 }

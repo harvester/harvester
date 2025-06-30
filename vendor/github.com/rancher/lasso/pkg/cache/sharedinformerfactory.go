@@ -24,10 +24,14 @@ type SharedCacheFactoryOptions struct {
 	KindNamespace  map[schema.GroupVersionKind]string
 	KindTweakList  map[schema.GroupVersionKind]TweakListOptionsFunc
 	HealthCallback func(healthy bool)
+
+	// Determines how often metrics are gathered about how many resources are
+	// cached by gvk across all caches in the sharedCacheFactory
+	MetricsCollectionPeriod time.Duration
 }
 
 type sharedCacheFactory struct {
-	lock sync.Mutex
+	lock sync.RWMutex
 
 	tweakList           TweakListOptionsFunc
 	defaultResync       time.Duration
@@ -40,6 +44,9 @@ type sharedCacheFactory struct {
 
 	caches        map[schema.GroupVersionKind]cache.SharedIndexInformer
 	startedCaches map[schema.GroupVersionKind]bool
+
+	metricsCollectionStarted bool
+	metricsCollectionPeriod  time.Duration
 }
 
 // NewSharedInformerFactoryWithOptions constructs a new instance of a SharedInformerFactory with additional options.
@@ -47,7 +54,6 @@ func NewSharedCachedFactory(sharedClientFactory client.SharedClientFactory, opts
 	opts = applyDefaults(opts)
 
 	factory := &sharedCacheFactory{
-		lock:                sync.Mutex{},
 		tweakList:           opts.DefaultTweakList,
 		defaultResync:       opts.DefaultResync,
 		defaultNamespace:    opts.DefaultNamespace,
@@ -60,6 +66,7 @@ func NewSharedCachedFactory(sharedClientFactory client.SharedClientFactory, opts
 		healthcheck: healthcheck{
 			callback: opts.HealthCallback,
 		},
+		metricsCollectionPeriod: opts.MetricsCollectionPeriod,
 	}
 
 	return factory
@@ -69,6 +76,10 @@ func applyDefaults(opts *SharedCacheFactoryOptions) *SharedCacheFactoryOptions {
 	var newOpts SharedCacheFactoryOptions
 	if opts != nil {
 		newOpts = *opts
+	}
+
+	if newOpts.MetricsCollectionPeriod == 0 {
+		newOpts.MetricsCollectionPeriod = defaultCacheMetricsCollectionPeriod
 	}
 
 	return &newOpts
@@ -106,6 +117,11 @@ func (f *sharedCacheFactory) Start(ctx context.Context) error {
 		}
 	}
 
+	if metrics.Enabled() && !f.metricsCollectionStarted {
+		f.startMetricsCollection(ctx)
+		f.metricsCollectionStarted = true
+	}
+
 	return nil
 }
 
@@ -116,7 +132,6 @@ func (f *sharedCacheFactory) WaitForCacheSync(ctx context.Context) map[schema.Gr
 
 		informers := map[schema.GroupVersionKind]cache.SharedIndexInformer{}
 		for informerType, informer := range f.caches {
-			metrics.IncTotalCachedObjects(informerType.Group, informerType.Version, informerType.Kind, float64(len(informer.GetStore().List())))
 			if f.startedCaches[informerType] {
 				informers[informerType] = informer
 			}

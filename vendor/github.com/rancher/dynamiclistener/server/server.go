@@ -36,19 +36,29 @@ type ListenOpts struct {
 	BindHost          string
 	NoRedirect        bool
 	TLSListenerConfig dynamiclistener.Config
+
+	// Override legacy behavior where server logs written to the application's logrus object
+	// were dropped unless logrus was set to debug-level (such as by launching steve with '--debug').
+	// Setting this to true results in server logs appearing at an ERROR level.
+	DisplayServerLogs bool
 }
 
 func ListenAndServe(ctx context.Context, httpsPort, httpPort int, handler http.Handler, opts *ListenOpts) error {
+	logger := logrus.StandardLogger()
+	writer := logger.WriterLevel(logrus.DebugLevel)
 	if opts == nil {
 		opts = &ListenOpts{}
 	}
+	if opts.DisplayServerLogs {
+		writer = logger.WriterLevel(logrus.ErrorLevel)
+	}
+	// Otherwise preserve legacy behaviour of displaying server logs only in debug mode.
+
+	errorLog := log.New(writer, "", log.LstdFlags)
 
 	if opts.TLSListenerConfig.TLSConfig == nil {
 		opts.TLSListenerConfig.TLSConfig = &tls.Config{}
 	}
-
-	logger := logrus.StandardLogger()
-	errorLog := log.New(logger.WriterLevel(logrus.DebugLevel), "", log.LstdFlags)
 
 	if httpsPort > 0 {
 		tlsTCPListener, err := dynamiclistener.NewTCPListener(opts.BindHost, httpsPort)

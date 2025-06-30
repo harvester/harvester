@@ -264,7 +264,8 @@ func backupMapping(bsDriver backupstore.BackupStoreDriver,
 		return err
 	}
 
-	return bsDriver.Write(blkFile, rs)
+	err = bsDriver.Write(blkFile, rs)
+	return err
 }
 
 // isBlockBeingProcessed check if the block is being processed by other goroutine and prevent redundant work

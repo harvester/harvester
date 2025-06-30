@@ -3,11 +3,14 @@ package vm
 import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/v3/pkg/data/convert"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	apiutil "github.com/harvester/harvester/pkg/api/util"
 	"github.com/harvester/harvester/pkg/controller/master/migration"
@@ -15,6 +18,7 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 )
 
 const (
@@ -29,6 +33,7 @@ const (
 	abortMigration                   = "abortMigration"
 	findMigratableNodes              = "findMigratableNodes"
 	backupVM                         = "backup"
+	snapshotVM                       = "snapshot"
 	restoreVM                        = "restore"
 	createTemplate                   = "createTemplate"
 	addVolume                        = "addVolume"
@@ -38,10 +43,13 @@ const (
 	dismissInsufficientResourceQuota = "dismissInsufficientResourceQuota"
 	updateResourceQuotaAction        = "updateResourceQuota"
 	deleteResourceQuotaAction        = "deleteResourceQuota"
+	cpuAndMemoryHotplug              = "cpuAndMemoryHotplug"
 )
 
 type vmformatter struct {
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
+	pvcCache      ctlcorev1.PersistentVolumeClaimCache
+	scCache       ctlstoragev1.StorageClassCache
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
 	clientSet     kubernetes.Clientset
 }
@@ -73,8 +81,6 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	resource.AddAction(request, addVolume)
 	resource.AddAction(request, removeVolume)
 	resource.AddAction(request, cloneVM)
-	resource.AddAction(request, migrate)
-	resource.AddAction(request, findMigratableNodes)
 
 	if canEjectCdRom(vm) {
 		resource.AddAction(request, ejectCdRom)
@@ -105,12 +111,25 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 		resource.AddAction(request, unpauseVM)
 	}
 
+	if canMigrate(vmi) {
+		resource.AddAction(request, migrate)
+		resource.AddAction(request, findMigratableNodes)
+
+		if canCPUAndMemoryHotplug(vm) {
+			resource.AddAction(request, cpuAndMemoryHotplug)
+		}
+	}
+
 	if canAbortMigrate(vmi) {
 		resource.AddAction(request, abortMigration)
 	}
 
 	if vf.canDoBackup(vm, vmi) {
 		resource.AddAction(request, backupVM)
+	}
+
+	if vf.canDoSnapshot(vm, vmi) {
+		resource.AddAction(request, snapshotVM)
 	}
 
 	if vf.canDoRestore(vm, vmi) {
@@ -234,6 +253,18 @@ func isReady(vmi *kubevirtv1.VirtualMachineInstance) bool {
 	return false
 }
 
+func canMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
+	if vmi == nil {
+		return false
+	}
+
+	if err := virtualmachineinstance.ValidateVMMigratable(vmi); err != nil {
+		return false
+	}
+
+	return true
+}
+
 func canAbortMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
 	if vmi != nil &&
 		vmi.Annotations[util.AnnotationMigrationState] == migration.StateMigrating {
@@ -255,6 +286,58 @@ func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv
 		return false
 	}
 
+	// additional check, we did not support backup with CDI volume
+	volumes := vm.Spec.Template.Spec.Volumes
+	for _, vol := range volumes {
+		if vol.PersistentVolumeClaim == nil {
+			continue
+		}
+		pvc, err := vf.pvcCache.Get(vm.Namespace, vol.PersistentVolumeClaim.ClaimName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			logrus.Errorf("Can't get PVC %s/%s, err: %+v", vm.Namespace, vol.PersistentVolumeClaim.ClaimName, err)
+			return false
+		}
+		if _, find := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; find {
+			return false
+		}
+	}
+	return true
+}
+
+func (vf *vmformatter) canDoSnapshot(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {
+	if vm.Status.SnapshotInProgress != nil {
+		return false
+	}
+
+	if vm.DeletionTimestamp != nil || (vmi != nil && vmi.DeletionTimestamp != nil) {
+		return false
+	}
+
+	if vmi != nil && vmi.Status.Phase != kubevirtv1.Running && vmi.Status.Phase != kubevirtv1.Succeeded {
+		return false
+	}
+
+	volumes := vm.Spec.Template.Spec.Volumes
+	for _, vol := range volumes {
+		if vol.PersistentVolumeClaim == nil {
+			continue
+		}
+		pvc, err := vf.pvcCache.Get(vm.Namespace, vol.PersistentVolumeClaim.ClaimName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			logrus.Errorf("Can't get PVC %s/%s, err: %+v", vm.Namespace, vol.PersistentVolumeClaim.ClaimName, err)
+			return false
+		}
+		provisioner := util.GetProvisionedPVCProvisioner(pvc, vf.scCache)
+		if find := util.GetCSIProvisionerSnapshotCapability(provisioner); !find {
+			return false
+		}
+	}
 	return true
 }
 
@@ -321,4 +404,30 @@ func canDismissInsufficientResourceQuota(vm *kubevirtv1.VirtualMachine) bool {
 		return false
 	}
 	return true
+}
+
+func canCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
+	if vm.Spec.Template.Spec.Domain.CPU != nil && (vm.Spec.Template.Spec.Domain.CPU.Cores != 1 || vm.Spec.Template.Spec.Domain.CPU.Threads != 1) {
+		return false
+	}
+	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusRunning {
+		return false
+	}
+
+	hasRestartRequiredOrHotplugMigration := false
+	for _, condition := range vm.Status.Conditions {
+		if condition.Type == kubevirtv1.VirtualMachineRestartRequired && condition.Status == corev1.ConditionTrue {
+			hasRestartRequiredOrHotplugMigration = true
+			break
+		}
+		if string(condition.Type) == string(kubevirtv1.VirtualMachineInstanceVCPUChange) && condition.Status == corev1.ConditionTrue {
+			hasRestartRequiredOrHotplugMigration = true
+			break
+		}
+		if string(condition.Type) == string(kubevirtv1.VirtualMachineInstanceMemoryChange) && condition.Status == corev1.ConditionTrue {
+			hasRestartRequiredOrHotplugMigration = true
+			break
+		}
+	}
+	return !hasRestartRequiredOrHotplugMigration
 }

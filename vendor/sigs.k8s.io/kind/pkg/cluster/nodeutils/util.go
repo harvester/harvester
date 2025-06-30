@@ -82,7 +82,7 @@ func LoadImageArchive(n nodes.Node, image io.Reader) error {
 	if err != nil {
 		return err
 	}
-	cmd := n.Command("ctr", "--namespace=k8s.io", "images", "import", "--digests", "--snapshotter="+snapshotter, "-").SetStdin(image)
+	cmd := n.Command("ctr", "--namespace=k8s.io", "images", "import", "--all-platforms", "--digests", "--snapshotter="+snapshotter, "-").SetStdin(image)
 	if err := cmd.Run(); err != nil {
 		return errors.Wrap(err, "failed to load image")
 	}
@@ -125,4 +125,32 @@ func ImageID(n nodes.Node, image string) (string, error) {
 		return "", err
 	}
 	return crictlOut.Status.ID, nil
+}
+
+// ImageTags is used to perform a reverse lookup of the ImageID to list set of available
+// RepoTags corresponding to the ImageID in question
+func ImageTags(n nodes.Node, imageID string) (map[string]bool, error) {
+	var out bytes.Buffer
+	tags := make(map[string]bool, 0)
+	if err := n.Command("crictl", "inspecti", imageID).SetStdout(&out).Run(); err != nil {
+		return tags, err
+	}
+	crictlOut := struct {
+		Status struct {
+			RepoTags []string `json:"repoTags"`
+		} `json:"status"`
+	}{}
+	if err := json.Unmarshal(out.Bytes(), &crictlOut); err != nil {
+		return tags, err
+	}
+	for _, tag := range crictlOut.Status.RepoTags {
+		tags[tag] = true
+	}
+	return tags, nil
+}
+
+// ReTagImage is used to tag an ImageID with a custom tag specified by imageName parameter
+func ReTagImage(n nodes.Node, imageID, imageName string) error {
+	var out bytes.Buffer
+	return n.Command("ctr", "--namespace=k8s.io", "images", "tag", "--force", imageID, imageName).SetStdout(&out).Run()
 }

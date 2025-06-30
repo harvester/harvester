@@ -1,0 +1,118 @@
+name: "[Issue Management] Link Backport PR Issue"
+
+on:
+  pull_request_target:
+    types: [ opened ]
+    branches:
+    - master
+    - "v*"
+
+env:
+  REPO_NAME: harvester/harvester
+
+jobs:
+  check-backport:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check if PR is a backport
+      run: |
+        title=$(cat <<EOF
+        "${{ github.event.pull_request.title }}"
+        EOF
+        )
+
+        echo "PR Title: $title"
+
+        if [[ "$(echo "$title" | sed 's/"/\\"/g')" =~ "backport #" ]]; then
+          echo "BACKPORT=true" >> $GITHUB_ENV
+        else
+          echo "BACKPORT=false" >> $GITHUB_ENV
+        fi
+
+    - name: Extract backport branch and issue number
+      if: env.BACKPORT == 'true'
+      env:
+        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+      run: |
+        # Extract branch from the target branch of the PR
+        BRANCH=$(echo "${{ github.event.pull_request.base.ref }}")
+        echo "BRANCH=$BRANCH" >> $GITHUB_ENV
+
+        # Extract issue numbers from PR body (support both formats)
+        BODY=$(cat <<__PR_BODY_EOF__
+        "${{ github.event.pull_request.body }}"
+        __PR_BODY_EOF__
+        )
+        ISSUE_NUMBERS=$(echo "$BODY" | grep -oE "${REPO_NAME}#([0-9]+)" | cut -d'#' -f2)
+        ISSUE_NUMBERS_URL=$(echo "$BODY" | grep -oE "https://github.com/${REPO_NAME}/issues/[0-9]+" | awk -F'/' '{print $NF}')
+        ISSUE_NUMBERS_SIMPLE=$(echo "$BODY" | grep -oE "#[0-9]+" | cut -c2-)
+        ALL_ISSUES=$(echo -e "$ISSUE_NUMBERS\n$ISSUE_NUMBERS_URL\n$ISSUE_NUMBERS_SIMPLE" | grep -E '^[0-9]+$' | sort -u)
+        
+        echo "ISSUE_NUMBERS: $ISSUE_NUMBERS"
+        echo "ISSUE_NUMBERS_URL: $ISSUE_NUMBERS_URL"
+        echo "ISSUE_NUMBERS_SIMPLE: $ISSUE_NUMBERS_SIMPLE"
+        echo "ALL_ISSUES: $ALL_ISSUES"
+
+        ORIGINAL_ISSUE_NUMBER=$(echo $ALL_ISSUES | xargs) # trim
+        echo "ORIGINAL_ISSUE_NUMBER=$ORIGINAL_ISSUE_NUMBER" >> $GITHUB_ENV
+
+    - name: Link the PR with the backport issue
+      if: ${{ env.BACKPORT == 'true' && env.ORIGINAL_ISSUE_NUMBER != '' }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+      run: |
+        for issue_number in ${{ env.ORIGINAL_ISSUE_NUMBER }}; do
+          echo "Found source issue ${REPO_NAME}#${issue_number}"
+          issue_title=$(gh issue view "$issue_number" --json title --jq ".title")
+
+          if [[ -n "$issue_number" && -n "$issue_title" ]]; then
+            search_title=$(cat <<EOF
+        [backport ${BRANCH}] ${issue_title}
+        EOF
+        )
+
+            echo "Searching for backport issue with title: '${search_title}'"
+
+            # Get both number and title from the search results
+            backport_issues_json=$(gh search issues "${search_title}" --state open --match title  --json number,title)
+
+            if [[ "$backport_issues_json" != "[]" && -n "$backport_issues_json" ]]; then
+              # Get the length of the JSON array
+              array_length=$(echo "$backport_issues_json" | jq 'length')
+              
+              # Loop through each issue in the JSON array
+              for ((i=0; i<$array_length; i++)); do
+                found_number=$(echo "$backport_issues_json" | jq -r ".[$i].number")
+                found_title=$(echo "$backport_issues_json" | jq -r ".[$i].title")
+                
+                # Compare the found title with our expected title
+                if [[ "$found_title" == "$search_title" ]]; then
+                  echo "Found exact match backport issue ${REPO_NAME}#${found_number} with title: '${found_title}'"
+                  echo "Linking backport issue ${REPO_NAME}#${found_number}"
+                  backport_issue_number="$found_number"
+                  break
+                else
+                  echo "Found partial match ${REPO_NAME}#${found_number} but title doesn't match exactly: '${found_title}'"
+                fi
+              done
+            fi
+
+            if [[ -n "$backport_issue_number" ]]; then
+
+              # comment on the backport issue
+              gh issue comment "${backport_issue_number}" --body "Backport PR (${BRANCH}): ${{ github.event.pull_request.html_url }}"
+
+              # comment on the PR
+              backport_issue_url=$(gh issue view "${backport_issue_number}" --json url --jq ".url")
+              gh pr comment "${{ github.event.pull_request.number }}" --body "Backport issue (${BRANCH}): ${backport_issue_url}"
+              continue
+            fi
+          fi
+
+          echo "No issue title found"
+        done

@@ -4,12 +4,18 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // BackupBackingImageSpec defines the desired state of the Longhorn backing image backup
 type BackupBackingImageSpec struct {
+	// The backing image name.
+	// +kubebuilder:validation:Required
+	BackingImage string `json:"backingImage"`
+	// The backup target name.
+	// +optional
+	// +nullable
+	BackupTargetName string `json:"backupTargetName"`
 	// The time to request run sync the remote backing image backup.
 	// +optional
 	// +nullable
 	SyncRequestedAt metav1.Time `json:"syncRequestedAt"`
 	// Is this CR created by user through API or UI.
-	// Required
 	UserCreated bool `json:"userCreated"`
 	// The labels of backing image backup.
 	// +optional
@@ -64,6 +70,12 @@ type BackupBackingImageStatus struct {
 	// Compression method
 	// +optional
 	CompressionMethod BackupCompressionMethod `json:"compressionMethod"`
+	// Record the secret if this backup backing image is encrypted
+	// +optional
+	Secret string `json:"secret"`
+	// Record the secret namespace if this backup backing image is encrypted
+	// +optional
+	SecretNamespace string `json:"secretNamespace"`
 }
 
 // +genclient

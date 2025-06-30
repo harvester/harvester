@@ -25,6 +25,8 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiuploadv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 	capi "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
@@ -54,6 +56,7 @@ func main() {
 					harvesterv1.Addon{},
 					harvesterv1.ResourceQuota{},
 					harvesterv1.ScheduleVMBackup{},
+					harvesterv1.VirtualMachineImageDownloader{},
 				},
 				GenerateTypes:   true,
 				GenerateClients: true,
@@ -63,6 +66,9 @@ func main() {
 					loggingv1.Logging{},
 					loggingv1.ClusterFlow{},
 					loggingv1.ClusterOutput{},
+					loggingv1.Flow{},
+					loggingv1.Output{},
+					loggingv1.FluentbitAgent{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
@@ -122,10 +128,12 @@ func main() {
 					longhornv1.Volume{},
 					longhornv1.Setting{},
 					longhornv1.Backup{},
+					longhornv1.BackupVolume{},
 					longhornv1.BackupBackingImage{},
 					longhornv1.Replica{},
 					longhornv1.Engine{},
 					longhornv1.Snapshot{},
+					longhornv1.BackupTarget{},
 				},
 				GenerateClients: true,
 			},
@@ -192,6 +200,22 @@ func main() {
 				GenerateTypes:   false,
 				GenerateClients: true,
 			},
+			cdiv1.CDIGroupVersionKind.Group: {
+				Types: []interface{}{
+					cdiv1.DataVolume{},
+					cdiv1.StorageProfile{},
+					cdiv1.VolumeImportSource{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			cdiuploadv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					cdiuploadv1.UploadTokenRequest{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
 		},
 	})
 	nadControllerInterfaceRefactor()
@@ -210,7 +234,7 @@ func nadControllerInterfaceRefactor() {
 		logrus.Fatalf("failed to read the network-attachment-definition file: %v", err)
 	}
 
-	output := bytes.Replace(input, []byte("networkattachmentdefinitions"), []byte("network-attachment-definitions"), -1)
+	output := bytes.ReplaceAll(input, []byte("networkattachmentdefinitions"), []byte("network-attachment-definitions"))
 
 	if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
 		logrus.Fatalf("failed to update the network-attachment-definition file: %v", err)
@@ -233,7 +257,7 @@ func capiWorkaround() {
 		if err != nil {
 			logrus.Fatalf("failed to read the clusters.cluster.x-k8s.io client file: %v", err)
 		}
-		output := bytes.Replace(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"), -1)
+		output := bytes.ReplaceAll(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"))
 
 		if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
 			logrus.Fatalf("failed to update the clusters.cluster.x-k8s.io client file: %v", err)
@@ -249,7 +273,10 @@ func loggingWorkaround() {
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/logging.banzaicloud.io_client.go",
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_clusterflow.go",
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_clusteroutput.go",
+		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_flow.go",
+		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_output.go",
 		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_logging.go",
+		"pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1/fake/fake_fluentbitagent.go",
 	}
 
 	// Replace the variable `SchemeGroupVersion` with `GroupVersion` in the above files path
@@ -258,7 +285,7 @@ func loggingWorkaround() {
 		if err != nil {
 			logrus.Fatalf("failed to read the logging.banzaicloud.io client file: %v", err)
 		}
-		output := bytes.Replace(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"), -1)
+		output := bytes.ReplaceAll(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"))
 
 		if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
 			logrus.Fatalf("failed to update the logging.banzaicloud.io client file: %v", err)

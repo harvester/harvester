@@ -1,33 +1,56 @@
+version: 2
 linters:
   disable-all: true
   enable:
-    - goimports
-    - gofmt
-    - misspell
-    - revive
+    - errcheck
+    - govet
     - gosec
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
     - prealloc
-issues:
+  formatters:
+    enable:
+      - gofmt
+  settings:
+    gosec:
+      # https://github.com/securego/gosec#available-rules
+      excludes:
+        - G101 # Look for hard coded credentials
+        - G108 # Profiling endpoint is automatically exposed on /debug/pprof
+        - G401 # Use of weak cryptographic primitive
+        - G402 # TLS InsecureSkipVerify set true
+        - G505 # Blocklisted import crypto/md5: weak cryptographic primitive
+      config:
+        G306: "0644" # Poor file permissions used when writing to a new file 
   exclude-files:
     - /zz_generated_
     - _generated
   exclude-dirs:
     - generated
+  exclusions:
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - staticcheck
+        text: "QF1003:" # could use tagged switch on errCode (staticcheck)
+      - linters:
+          - staticcheck
+        text: "QF1007:" # could merge conditional assignment into variable declaration (staticcheck)
+      - linters:
+          - staticcheck
+        text: "QF1008:" # could remove embedded field from selector (staticcheck)
+      - linters:
+          - staticcheck
+        text: "SA1019:" # function is deprecated (staticcheck)
+      - linters:
+          - staticcheck
+        text: "QF1012:" # Use fmt.Fprint(...) instead of Write([]byte(fmt.Sprint(...)))
 run:
   timeout: 5m
   tests: true
-  build-tags:
-    - test
-linters-settings:
-  goimports:
-    local-prefixes: github.com/harvester/harvester
-  gosec:
-    # https://github.com/securego/gosec#available-rules
-    excludes:
-      - G101 # Look for hard coded credentials
-      - G108 # Profiling endpoint is automatically exposed on /debug/pprof
-      - G401 # Use of weak cryptographic primitive
-      - G402 # TLS InsecureSkipVerify set true
-      - G505 # Blocklisted import crypto/md5: weak cryptographic primitive
-    config:
-      G306: "0644" # Poor file permissions used when writing to a new file

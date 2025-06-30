@@ -86,6 +86,10 @@ func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runti
 	newVM := newObj.(*kubevirtv1.VirtualMachine)
 	oldVM := oldObj.(*kubevirtv1.VirtualMachine)
 
+	if newVM == nil || newVM.DeletionTimestamp != nil {
+		return nil, nil
+	}
+
 	logrus.Debugf("update VM %s/%s", newVM.Namespace, newVM.Name)
 
 	var patchOps types.PatchOps
@@ -362,7 +366,7 @@ func (m *vmMutator) patchAffinity(vm *kubevirtv1.VirtualMachine, patchOps types.
 	newVMNetworks := vm.Spec.Template.Spec.Networks
 	logrus.Debugf("newNetworks: %+v", newVMNetworks)
 
-	if err := m.addNodeSelectorTerms(vm.Namespace, requiredNodeSelector, newVMNetworks); err != nil {
+	if err := m.addNodeSelectorTerms(vm, requiredNodeSelector, newVMNetworks); err != nil {
 		return patchOps, err
 	}
 
@@ -436,12 +440,12 @@ func makeAffinityFromVMTemplate(template *kubevirtv1.VirtualMachineInstanceTempl
 		affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = &v1.NodeSelector{}
 	}
 
-	// clear node selector terms whose key contains the prefix "network.harvesterhci.io"
+	// clear node selector terms whose key contains the prefix "network.harvesterhci.io" or equals "cpumanager"
 	nodeSelectorTerms := make([]v1.NodeSelectorTerm, 0, len(affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms))
 	for _, term := range affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
 		expressions := make([]v1.NodeSelectorRequirement, 0, len(term.MatchExpressions))
 		for _, expression := range term.MatchExpressions {
-			if !strings.HasPrefix(expression.Key, networkGroup) {
+			if !strings.HasPrefix(expression.Key, networkGroup) && (expression.Key != kubevirtv1.CPUManager) {
 				expressions = append(expressions, expression)
 			}
 		}
@@ -455,9 +459,9 @@ func makeAffinityFromVMTemplate(template *kubevirtv1.VirtualMachineInstanceTempl
 	return affinity
 }
 
-func (m *vmMutator) addNodeSelectorTerms(defaultNamespace string, nodeSelector *v1.NodeSelector, incrementalNetworks []kubevirtv1.Network) error {
+func (m *vmMutator) addNodeSelectorTerms(vm *kubevirtv1.VirtualMachine, nodeSelector *v1.NodeSelector, incrementalNetworks []kubevirtv1.Network) error {
 	for _, network := range incrementalNetworks {
-		nodeSelectorRequirement, err := m.getNodeSelectorRequirementFromNetwork(defaultNamespace, network)
+		nodeSelectorRequirement, err := m.getNodeSelectorRequirementFromNetwork(vm.Namespace, network)
 		if err != nil {
 			return err
 		}
@@ -478,6 +482,27 @@ func (m *vmMutator) addNodeSelectorTerms(defaultNamespace string, nodeSelector *
 			nodeSelector.NodeSelectorTerms = []v1.NodeSelectorTerm{{
 				MatchExpressions: []v1.NodeSelectorRequirement{*nodeSelectorRequirement},
 			}}
+		}
+	}
+
+	if isDedicatedCPU(vm) {
+		requirement := v1.NodeSelectorRequirement{
+			Key:      kubevirtv1.CPUManager,
+			Operator: v1.NodeSelectorOpIn,
+			Values:   []string{"true"},
+		}
+
+		if len(nodeSelector.NodeSelectorTerms) == 0 {
+			nodeSelector.NodeSelectorTerms = []v1.NodeSelectorTerm{{
+				MatchExpressions: []v1.NodeSelectorRequirement{requirement},
+			}}
+		} else {
+			for i, term := range nodeSelector.NodeSelectorTerms {
+				if _, ok := isContainTargetNodeSelectorRequirement(term, requirement); !ok {
+					term.MatchExpressions = append(term.MatchExpressions, requirement)
+					nodeSelector.NodeSelectorTerms[i] = term
+				}
+			}
 		}
 	}
 

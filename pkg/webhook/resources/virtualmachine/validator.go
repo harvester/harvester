@@ -10,8 +10,10 @@ import (
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
-	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
@@ -39,6 +41,8 @@ func NewValidator(
 	vmCache ctlkubevirtv1.VirtualMachineCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	nadCache ctlcniv1.NetworkAttachmentDefinitionCache,
+	settingCache ctlharvesterv1.SettingCache,
+	nodeCache v1.NodeCache,
 ) types.Validator {
 	return &vmValidator{
 		pvcCache:      pvcCache,
@@ -46,8 +50,9 @@ func NewValidator(
 		vmCache:       vmCache,
 		vmiCache:      vmiCache,
 		nadCache:      nadCache,
+		nodeCache:     nodeCache,
 
-		rqCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache),
+		rqCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
 	}
 }
 
@@ -58,8 +63,8 @@ type vmValidator struct {
 	vmCache       ctlkubevirtv1.VirtualMachineCache
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
 	nadCache      ctlcniv1.NetworkAttachmentDefinitionCache
-
-	rqCalculator *resourcequota.Calculator
+	nodeCache     v1.NodeCache
+	rqCalculator  *resourcequota.Calculator
 }
 
 func (v *vmValidator) Resource() types.Resource {
@@ -219,6 +224,10 @@ func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 		return err
 	}
 
+	if err := v.checkDedicatedCPUPlacement(vm); err != nil {
+		return err
+	}
+
 	if err := v.checkStorageResourceQuota(vm, nil); err != nil {
 		return err
 	}
@@ -237,6 +246,14 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 	}
 
 	if err := v.checkVMSpec(newVM); err != nil {
+		return err
+	}
+
+	if err := v.checkDedicatedCPUPlacement(newVM); err != nil {
+		return err
+	}
+
+	if err := v.checkVolumeReq(newVM); err != nil {
 		return err
 	}
 
@@ -277,6 +294,9 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 		message := fmt.Sprintf("the volumeClaimTemplates annotaion is invalid: %v", err)
 		return werror.NewInvalidError(message, "metadata.annotations")
 	}
+	if err := v.checkGoldenImage(vm); err != nil {
+		return err
+	}
 	if err := v.checkOccupiedPVCs(vm); err != nil {
 		return err
 	}
@@ -287,6 +307,45 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 		return err
 	}
 	return v.rqCalculator.CheckIfVMCanStartByResourceQuota(vm)
+}
+
+func (v *vmValidator) checkVolumeReq(newVM *kubevirtv1.VirtualMachine) error {
+	if newVM.Spec.Template == nil {
+		return nil
+	}
+
+	// if vm is being created by vm import controller then we need to skip pvc golden image validation
+	// this case needs to be treated differently from a standaard image scenario as user will boot directly from disk
+	imported := checkIsVirtualMachineImported(newVM)
+
+	for _, volReq := range newVM.Status.VolumeRequests {
+		if volReq.AddVolumeOptions == nil {
+			continue
+		}
+		if volReq.AddVolumeOptions.VolumeSource.PersistentVolumeClaim == nil {
+			continue
+		}
+		pvcName := volReq.AddVolumeOptions.VolumeSource.PersistentVolumeClaim.ClaimName
+		pvcNS := newVM.Namespace
+		pvc, err := v.pvcCache.Get(pvcNS, pvcName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return werror.NewInternalError(fmt.Sprintf("failed to get PVC %s/%s, err: %s", pvcNS, pvcName, err))
+		}
+
+		if imported {
+			continue
+		}
+
+		if _, ok := pvc.Annotations[util.AnnotationGoldenImage]; ok {
+			if pvc.Annotations[util.AnnotationGoldenImage] == "true" {
+				return werror.NewInvalidError(fmt.Sprintf("PVC %s/%s is a golden image, it can't be used as a hotplug volume in VM", pvcNS, pvcName), "status.volumeRequests")
+			}
+		}
+	}
+	return nil
 }
 
 func (v *vmValidator) checkVMStoppingStatus(oldVM *kubevirtv1.VirtualMachine, newVM *kubevirtv1.VirtualMachine) bool {
@@ -378,6 +437,44 @@ func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine
 	return nil
 }
 
+func (v *vmValidator) checkGoldenImage(vm *kubevirtv1.VirtualMachine) error {
+	if vm.Spec.Template == nil {
+		return nil
+	}
+
+	// if vm is being created by vm import controller then we need to skip pvc golden image validation
+	// this case needs to be treated differently from a standaard image scenario as user will boot directly from disk
+	imported := checkIsVirtualMachineImported(vm)
+
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim == nil {
+			continue
+		}
+		targetPVC, err := v.pvcCache.Get(vm.Namespace, volume.PersistentVolumeClaim.ClaimName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return werror.NewInternalError(fmt.Sprintf("failed to get PVC %s/%s, err: %s", vm.Namespace, volume.PersistentVolumeClaim.ClaimName, err))
+		}
+
+		if targetPVC.Annotations == nil {
+			continue
+		}
+
+		if imported {
+			continue
+		}
+
+		if _, ok := targetPVC.Annotations[util.AnnotationGoldenImage]; ok {
+			if targetPVC.Annotations[util.AnnotationGoldenImage] == "true" {
+				return werror.NewInvalidError(fmt.Sprintf("PVC %s/%s is a golden image, it can't be used as a volume in VM", targetPVC.Namespace, targetPVC.Name), "spec.templates.spec.volumes")
+			}
+		}
+	}
+	return nil
+}
+
 func (v *vmValidator) checkOccupiedPVCs(vm *kubevirtv1.VirtualMachine) error {
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim != nil {
@@ -451,4 +548,44 @@ func (v *vmValidator) checkReservedMemoryAnnotation(vm *kubevirtv1.VirtualMachin
 
 func (v *vmValidator) checkStorageResourceQuota(vm *kubevirtv1.VirtualMachine, oldVM *kubevirtv1.VirtualMachine) error {
 	return v.rqCalculator.CheckStorageResourceQuota(vm, oldVM)
+}
+
+func (v *vmValidator) checkDedicatedCPUPlacement(vm *kubevirtv1.VirtualMachine) error {
+	if !isDedicatedCPU(vm) {
+		return nil
+	}
+
+	// Skip check on VMs that are stopped. This allows the user to create
+	// VMs with CPU pinning enabled in advance even if the CPU Manager is
+	// currently disabled.
+	stopped, err := vmUtil.IsVMStopped(vm, v.vmiCache)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to determine whether the VM is stopped or not: %s", err.Error()))
+	}
+	if stopped {
+		return nil
+	}
+
+	selector := labels.Set{kubevirtv1.CPUManager: "true"}.AsSelector()
+	nodeList, err := v.nodeCache.List(selector)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to list nodes with labels %s: %s", selector.String(), err.Error()))
+	}
+
+	if len(nodeList) == 0 {
+		return werror.NewInvalidError("VM requests CPU pinning, but no node with activated CPU Manager was found",
+			"spec.template.spec.domain.cpu.dedicatedCpuPlacement")
+	}
+
+	return nil
+}
+
+// checkIsVirtualMachineImported checks if a virtualmachine has been created by the vm import controller
+func checkIsVirtualMachineImported(vm *kubevirtv1.VirtualMachine) bool {
+	if vm.Annotations == nil {
+		return false
+	}
+
+	_, imported := vm.Annotations[util.AnnotationVMImportController]
+	return imported
 }

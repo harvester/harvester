@@ -5,6 +5,7 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -20,20 +21,17 @@ import (
 	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
 )
 
-const (
-	fieldSourceName = "spec.source.name"
-	fieldTypeName   = "spec.type"
-)
-
 func NewValidator(
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	engineCache ctllonghornv1.EngineCache,
+	scCache ctlstoragev1.StorageClassCache,
 	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache,
 	vmCache ctlkubevirtv1.VirtualMachineCache,
 ) types.Validator {
 	return &volumeSnapshotValidator{
 		pvcCache:           pvcCache,
 		engineCache:        engineCache,
+		scCache:            scCache,
 		resourceQuotaCache: resourceQuotaCache,
 		vmCache:            vmCache,
 	}
@@ -44,6 +42,7 @@ type volumeSnapshotValidator struct {
 
 	pvcCache           ctlcorev1.PersistentVolumeClaimCache
 	engineCache        ctllonghornv1.EngineCache
+	scCache            ctlstoragev1.StorageClassCache
 	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache
 	vmCache            ctlkubevirtv1.VirtualMachineCache
 }
@@ -90,12 +89,12 @@ func (v *volumeSnapshotValidator) Create(_ *types.Request, newObj runtime.Object
 		}
 	} else if len(vms) > 0 {
 		vm := vms[0]
-		if err = webhookutil.CheckTotalSnapshotSizeOnVM(v.pvcCache, v.engineCache, vm, resourceQuota.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota[vm.Name]); err != nil {
+		if err = webhookutil.CheckTotalSnapshotSizeOnVM(v.pvcCache, v.engineCache, v.scCache, vm, resourceQuota.Spec.SnapshotLimit.VMTotalSnapshotSizeQuota[vm.Name]); err != nil {
 			return err
 		}
 	}
 
-	if err = webhookutil.CheckTotalSnapshotSizeOnNamespace(v.pvcCache, v.engineCache, newVolumeSnapshot.Namespace, resourceQuota.Spec.SnapshotLimit.NamespaceTotalSnapshotSizeQuota); err != nil {
+	if err = webhookutil.CheckTotalSnapshotSizeOnNamespace(v.pvcCache, v.engineCache, v.scCache, newVolumeSnapshot.Namespace, resourceQuota.Spec.SnapshotLimit.NamespaceTotalSnapshotSizeQuota); err != nil {
 		return err
 	}
 	return nil

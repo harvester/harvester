@@ -22,4 +22,10 @@ type ClusterFlowExpansion interface{}
 
 type ClusterOutputExpansion interface{}
 
+type FlowExpansion interface{}
+
+type FluentbitAgentExpansion interface{}
+
 type LoggingExpansion interface{}
+
+type OutputExpansion interface{}

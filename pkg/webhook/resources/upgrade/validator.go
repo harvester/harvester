@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -15,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
@@ -32,7 +34,6 @@ import (
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
-	versionWebhook "github.com/harvester/harvester/pkg/webhook/resources/version"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -41,10 +42,10 @@ const (
 	skipWebhookAnnotation                     = "harvesterhci.io/skipWebhook"
 	skipSingleReplicaDetachedVol              = "harvesterhci.io/skipSingleReplicaDetachedVol"
 	rkeInternalIPAnnotation                   = "rke2.io/internal-ip"
-	managedChartNamespace                     = "fleet-local"
+	managedChartNamespace                     = util.FleetLocalNamespaceName
 	defaultNewImageSize                uint64 = 13 * 1024 * 1024 * 1024 // 13GB, this value aggregates all tarball image sizes. It may change in the future.
 	defaultImageGCHighThresholdPercent        = 85.0                    // default value in kubelet config
-	freeSystemPartitionMsg                    = "df -h '/usr/local/'"
+	defaultMinCertsExpirationInDay            = 7
 )
 
 func NewValidator(
@@ -58,6 +59,7 @@ func NewValidator(
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
 	svmbackupCache ctlharvesterv1.ScheduleVMBackupCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
+	endpointCache v1.EndpointsCache,
 	httpClient *http.Client,
 	bearToken string,
 ) types.Validator {
@@ -72,6 +74,7 @@ func NewValidator(
 		vmBackupCache:     vmBackupCache,
 		svmbackupCache:    svmbackupCache,
 		vmiCache:          vmiCache,
+		endpointCache:     endpointCache,
 		httpClient:        httpClient,
 		bearToken:         bearToken,
 	}
@@ -90,6 +93,7 @@ type upgradeValidator struct {
 	vmBackupCache     ctlharvesterv1.VirtualMachineBackupCache
 	svmbackupCache    ctlharvesterv1.ScheduleVMBackupCache
 	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
+	endpointCache     v1.EndpointsCache
 	httpClient        *http.Client
 	bearToken         string
 }
@@ -115,10 +119,8 @@ func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error
 		return werror.NewBadRequest("version or image field are not specified.")
 	}
 
-	var version *v1beta1.Version
-	var err error
 	if newUpgrade.Spec.Version != "" && newUpgrade.Spec.Image == "" {
-		version, err = v.versionCache.Get(newUpgrade.Namespace, newUpgrade.Spec.Version)
+		_, err := v.versionCache.Get(newUpgrade.Namespace, newUpgrade.Spec.Version)
 		if err != nil {
 			return werror.NewBadRequest(fmt.Sprintf("version %s is not found", newUpgrade.Spec.Version))
 		}
@@ -144,10 +146,10 @@ func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error
 		}
 	}
 
-	return v.checkResources(version, newUpgrade)
+	return v.checkResources(newUpgrade)
 }
 
-func (v *upgradeValidator) checkResources(version *v1beta1.Version, upgrade *v1beta1.Upgrade) error {
+func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 	hasDegradedVolume, err := v.hasDegradedVolume()
 	if err != nil {
 		return werror.NewInternalError(err.Error())
@@ -178,7 +180,7 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version, upgrade *v1b
 		return err
 	}
 
-	if err := v.checkNodes(version); err != nil {
+	if err := v.checkNodes(upgrade); err != nil {
 		return err
 	}
 
@@ -186,11 +188,19 @@ func (v *upgradeValidator) checkResources(version *v1beta1.Version, upgrade *v1b
 		return err
 	}
 
+	if err := v.checkNodeMachineMatching(); err != nil {
+		return err
+	}
+
 	if err := v.checkSingleReplicaVolumes(upgrade); err != nil {
 		return err
 	}
 
-	return v.checkNonLiveMigratableVMs()
+	if err := v.checkNonLiveMigratableVMs(); err != nil {
+		return err
+	}
+
+	return v.checkCerts(upgrade)
 }
 
 func (v *upgradeValidator) hasDegradedVolume() (bool, error) {
@@ -270,21 +280,19 @@ func (v *upgradeValidator) checkScheduleVMBackups() error {
 		svmbackups[0].Namespace, svmbackups[0].Name))
 }
 
-func (v *upgradeValidator) checkNodes(version *v1beta1.Version) error {
+func (v *upgradeValidator) checkNodes(upgrade *v1beta1.Upgrade) error {
 	nodes, err := v.nodes.List(labels.Everything())
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("can't list nodes, err: %+v", err))
 	}
 
 	skipGarbageCollection := false
-	if version != nil && version.Annotations != nil {
-		if value, ok := version.Annotations[versionWebhook.SkipGarbageCollectionThreadholdCheckAnnotation]; ok {
-			v, err := strconv.ParseBool(value)
-			if err != nil {
-				return werror.NewBadRequest(fmt.Sprintf("invalid value %s for %s annotation in version %s/%s", value, versionWebhook.SkipGarbageCollectionThreadholdCheckAnnotation, version.Namespace, version.Name))
-			}
-			skipGarbageCollection = v
+	if value, ok := upgrade.Annotations[util.AnnotationSkipGarbageCollectionThresholdCheck]; ok {
+		v, err := strconv.ParseBool(value)
+		if err != nil {
+			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for %s annotation", value, util.AnnotationSkipGarbageCollectionThresholdCheck))
 		}
+		skipGarbageCollection = v
 	}
 
 	for _, node := range nodes {
@@ -358,6 +366,71 @@ func (v *upgradeValidator) checkMachines() error {
 	for _, machine := range machines {
 		if machine.Status.GetTypedPhase() != clusterv1.MachinePhaseRunning {
 			return werror.NewInternalError(fmt.Sprintf("machine %s/%s is not running", machine.Namespace, machine.Name))
+		}
+	}
+
+	return nil
+}
+
+func (v *upgradeValidator) checkNodeMachineMatching() error {
+	nodes, err := v.nodes.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalErrorFromErr(fmt.Errorf("can't list nodes, err: %w", err))
+	}
+
+	machines, err := v.machines.List(util.FleetLocalNamespaceName, labels.Everything())
+	if err != nil {
+		return werror.NewInternalErrorFromErr(fmt.Errorf("can't list machines, err: %w", err))
+	}
+
+	return isNodeMachineMatching(nodes, machines)
+}
+
+func isNodeMachineMatching(nodes []*corev1.Node, machines []*clusterv1.Machine) error {
+	if len(nodes) == 0 {
+		return werror.NewInternalError("no node was listed, this shall not happen")
+	}
+
+	if len(nodes) != len(machines) {
+		return werror.NewInternalError(fmt.Sprintf("nodes(%v) and machines(%v) do not match, check the cluster provision", len(nodes), len(machines)))
+	}
+
+	// machine refers to node via .Status.NodeRef
+	machineMap := make(map[string]string, len(nodes))
+	for _, m := range machines {
+		if m.Status.NodeRef == nil {
+			return werror.NewInternalError(fmt.Sprintf("machine %v has empty NodeRef, check the cluster provision", m.Name))
+		}
+		machineMap[m.Name] = m.Status.NodeRef.Name
+	}
+
+	for _, node := range nodes {
+		if node.Labels == nil {
+			return werror.NewInternalError(fmt.Sprintf("node %v has no labels", node.Name))
+		}
+
+		// each node should have this
+		if node.Labels[util.HarvesterManagedNodeLabelKey] != "true" {
+			return werror.NewInternalError(fmt.Sprintf("node %v has no expected label %v", node.Name, util.HarvesterManagedNodeLabelKey))
+		}
+
+		if node.Annotations == nil {
+			return werror.NewInternalError(fmt.Sprintf("node %v has no nnnotations", node.Name))
+		}
+
+		// each node should have this when it is correctly provisioned
+		mc := node.Annotations[clusterv1.MachineAnnotation]
+		if mc == "" {
+			return werror.NewInternalError(fmt.Sprintf("node %v has no expected annotation %v, check the cluster provision", node.Name, clusterv1.MachineAnnotation))
+		}
+
+		nRef, ok := machineMap[mc]
+		if !ok {
+			return werror.NewInternalError(fmt.Sprintf("node %v refers to machine %v, but the machine does not exist", node.Name, mc))
+		}
+
+		if node.Name != nRef {
+			return werror.NewInternalError(fmt.Sprintf("node %v refers to machine %v, but the machine refers to another node %v", node.Name, mc, nRef))
 		}
 	}
 
@@ -543,4 +616,41 @@ func (v *upgradeValidator) getKubeletStatsSummary(nodeName, kubeletURL string) (
 		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't parse json response %s, err: %+v", nodeName, string(body), err))
 	}
 	return summary, nil
+}
+
+func (v *upgradeValidator) checkCerts(upgrade *v1beta1.Upgrade) error {
+	kubernetesIPs, err := util.GetKubernetesIps(v.endpointCache)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("can't get list of kubernetes ip, err: %+v", err))
+	}
+	if len(kubernetesIPs) == 0 {
+		err = fmt.Errorf("cluster ip is empty")
+		logrus.WithFields(logrus.Fields{
+			"namespace": metav1.NamespaceDefault,
+			"name":      "kubernetes",
+		}).WithError(err).Error("cluster ip is empty in the endpoints")
+		return werror.NewInternalError(fmt.Sprintf("can't get kubernetes ip, err: %+v", err))
+	}
+
+	earliestExpiringCert, err := util.GetAddrsEarliestExpiringCert(kubernetesIPs)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("can't get earliest expiring cert, err: %+v", err))
+	}
+
+	minCertsExpirationInDay := defaultMinCertsExpirationInDay
+	if value, ok := upgrade.Annotations[util.AnnotationMinCertsExpirationInDay]; ok {
+		minCertsExpirationInDay, err = strconv.Atoi(value)
+		if err != nil {
+			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s", value, util.AnnotationMinCertsExpirationInDay))
+		} else if minCertsExpirationInDay <= 0 {
+			return werror.NewBadRequest(fmt.Sprintf("invalid value %s for annotation %s, it should be greater than 0", value, util.AnnotationMinCertsExpirationInDay))
+		}
+	}
+
+	expirationDate := time.Now().AddDate(0, 0, minCertsExpirationInDay)
+	if earliestExpiringCert.NotAfter.Before(expirationDate) {
+		return werror.NewBadRequest(fmt.Sprintf(
+			"earliest expiring cert for default/kubernetes ClusterIP is %s, it will expire in %s days. Please rotate RKE2 certificates.", earliestExpiringCert.NotAfter, strconv.Itoa(minCertsExpirationInDay)))
+	}
+	return nil
 }

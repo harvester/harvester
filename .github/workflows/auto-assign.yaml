@@ -1,0 +1,16 @@
+name: "[PR Management] Auto Assign"
+
+on:
+  pull_request_target:
+    types: [opened, ready_for_review]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  auto-assign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: rancher/gh-issue-mgr/auto-assign-action@main
+        with:
+          configuration-path: .github/auto-assign-config.yaml

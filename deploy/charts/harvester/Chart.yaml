@@ -13,7 +13,7 @@ sources:
   - https://github.com/harvester/harvester
 dependencies:
   - name: kubevirt-operator
-    version: 0.2.1
+    version: 0.4.0
     repository: file://dependency_charts/kubevirt-operator
     condition: kubevirt-operator.enabled
     tags:
@@ -26,16 +26,23 @@ dependencies:
     tags:
       - kubevirt
       - crd
+  - name: cdi
+    version: 0.1.1
+    repository: file://dependency_charts/cdi
+    condition: cdi.enabled
+    tags:
+      - cdi
+      - crd
   - name: harvester-network-controller
-    version: 0.5.1
+    version: 1.6.0-dev.0
     repository: https://charts.harvesterhci.io
     condition: harvester-network-controller.enabled
   - name: harvester-networkfs-manager
-    version: 0.1.0
+    version: 1.6.0-dev.0
     repository: https://charts.harvesterhci.io
     condition: harvester-networkfs-manager.enabled
   - name: harvester-node-disk-manager
-    version: 0.7.7
+    version: 1.6.0-dev.0
     repository: https://charts.harvesterhci.io
     condition: harvester-node-disk-manager.enabled
   - name: csi-snapshotter
@@ -43,21 +50,21 @@ dependencies:
     repository: file://dependency_charts/csi-snapshotter
     condition: csi-snapshotter.enabled
   - name: longhorn
-    version: 1.7.2
+    version: 1.9.0
     repository: https://charts.longhorn.io
     condition: longhorn.enabled
   - name: kube-vip
     version: 0.6.1
     repository: https://kube-vip.github.io/helm-charts
   - name: harvester-load-balancer
-    version: 0.4.0
+    version: 1.6.0-dev.0
     repository: https://charts.harvesterhci.io
   - name: whereabouts
     version: 0.1.1
     repository: file://dependency_charts/whereabouts
     condition: whereabouts.enabled
   - name: harvester-node-manager
-    version: 0.3.3
+    version: 1.6.0-dev.0
     repository: https://charts.harvesterhci.io
   - name: snapshot-validation-webhook
     version: 0.2.0

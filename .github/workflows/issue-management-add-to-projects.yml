@@ -1,0 +1,176 @@
+name: "[Issue Management] Add Issues to Projects"
+on:
+  issues:
+    types: [opened]
+
+env:
+  HARVESTER_PROJECT_URL: https://github.com/orgs/harvester/projects/7
+  COMMUNITY_PROJECT_URL: https://github.com/orgs/harvester/projects/10
+  PRODUCT_BACKLOG_PROJECT_URL: https://github.com/orgs/harvester/projects/2
+
+jobs:
+  suse-org:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Is SUSE Member
+      id: is-suse-member
+      run: |
+        USERNAME="${{ github.event.issue.user.login }}"
+        USER_DATA=$(gh api /users/$USERNAME)
+        
+        # Extract user information
+        EMAIL=$(echo "$USER_DATA" | jq -r '.email // ""')
+        COMPANY=$(echo "$USER_DATA" | jq -r '.company // ""')
+        
+        # Check if email or company contains 'suse' (case insensitive)
+        # Warning: The email or company might be fake, so this check is not perfect.
+        IS_SUSE_MEMBER="false"
+        if [[ "${EMAIL,,}" == *"suse"* ]] || [[ "${COMPANY,,}" == *"suse"* ]]; then
+          IS_SUSE_MEMBER="true"
+        fi
+        
+        # Set output variables
+        echo "isOrganization=$IS_SUSE_MEMBER" >> $GITHUB_OUTPUT
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+    
+    - name: Is Harvester Member
+      id: is-harvester-member
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@main
+      with:
+        username: ${{ github.event.issue.user.login }}
+        organization: harvester
+        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    - name: Set Require PM Review Label
+      if: ${{
+        steps.is-suse-member.outputs.isOrganization == 'true' &&
+        steps.is-harvester-member.outputs.isOrganization == 'false'
+        }}
+      run: |
+        gh issue edit ${{ github.event.issue.number }} --add-label "require/pm-review"
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    - name: Add Issue to Product Backlog Project
+      id: add-project
+      if: ${{
+        steps.is-suse-member.outputs.isOrganization == 'true' &&
+        steps.is-harvester-member.outputs.isOrganization == 'false'
+        }}
+      uses: actions/add-to-project@v1.0.2
+      with:
+        project-url: ${{ env.PRODUCT_BACKLOG_PROJECT_URL }}
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        
+
+  harvester:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Is Harvester Member
+      id: is-harvester-member
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@main
+      with:
+        username: ${{ github.event.issue.user.login }}
+        organization: harvester
+        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    - name: Add Issue to Harvester Sprint Project
+      if: steps.is-harvester-member.outputs.isOrganization == 'true'
+      uses: actions/add-to-project@v1.0.2
+      with:
+        project-url: ${{ env.HARVESTER_PROJECT_URL }}
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        labeled: kind/test
+        label-operator: NOT
+    
+    - name: Set Default Milestone to Issue
+      if: ${{
+        steps.is-harvester-member.outputs.isOrganization == 'true' &&
+        github.event.issue.milestone == null
+        }}
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+      run: |
+        ISSUE_NUMBER="${{ github.event.issue.number }}"
+
+        # Reduce the chance that milestone is modified by users and actions at the same time.
+        MILESTONE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json milestone --jq '.milestone.title')
+        if [ -z "$MILESTONE_TITLE" ]; then
+          gh issue edit "$ISSUE_NUMBER" --milestone "Planning"
+        fi
+  
+  community:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Is SUSE Member
+      id: is-suse-member
+      run: |
+        USERNAME="${{ github.event.issue.user.login }}"
+        USER_DATA=$(gh api /users/$USERNAME)
+        
+        # Extract user information
+        EMAIL=$(echo "$USER_DATA" | jq -r '.email // ""')
+        COMPANY=$(echo "$USER_DATA" | jq -r '.company // ""')
+        
+        # Check if email or company contains 'suse' (case insensitive)
+        # Warning: The email or company might be fake, so this check is not perfect.
+        IS_SUSE_MEMBER="false"
+        if [[ "${EMAIL,,}" == *"suse"* ]] || [[ "${COMPANY,,}" == *"suse"* ]]; then
+          IS_SUSE_MEMBER="true"
+        fi
+        
+        # Set output variables
+        echo "isOrganization=$IS_SUSE_MEMBER" >> $GITHUB_OUTPUT
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    - name: Is Harvester Member
+      id: is-harvester-member
+      continue-on-error: true
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@main
+      with:
+        username: ${{ github.event.issue.user.login }}
+        organization: harvester
+        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    - name: Get Issue
+      if: steps.is-harvester-member.outcome == 'success'
+      uses: rancher/gh-issue-mgr/request-action@main
+      id: issue
+      with:
+        route: GET /repos/${{ github.repository }}/issues/${{ github.event.issue.number }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    - name: Add Issue to Community Sprint Project
+      id: add-project
+      if: |
+        steps.is-harvester-member.outcome == 'success' &&
+        steps.is-harvester-member.outputs.isOrganization == 'false' && 
+        steps.is-suse-member.outputs.isOrganization == 'false'
+      uses: actions/add-to-project@v1.0.2
+      with:
+        project-url: ${{ env.COMMUNITY_PROJECT_URL }}
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    - name: Update Item To New
+      if: |
+        steps.is-harvester-member.outcome == 'success' &&
+        steps.is-harvester-member.outputs.isOrganization == 'false' && 
+        steps.is-suse-member.outputs.isOrganization == 'false' &&
+        steps.add-project.outputs.itemId != ''
+      uses: rancher/gh-issue-mgr/update-project-fields@main
+      with:
+        project-url: ${{ env.COMMUNITY_PROJECT_URL }}
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        item-id: ${{ steps.add-project.outputs.itemId }}
+        field-keys: Status,Sprint
+        field-values: "New,[0]"
+
