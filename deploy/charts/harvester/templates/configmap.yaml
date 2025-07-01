@@ -19,6 +19,7 @@ metadata:
 {{ include "harvester.labels" . | indent 4 }}
 data:
   promote.sh: |-
+    LONGHORN_NAMESPACE={{ .Values.longhorn.namespaceOverride | quote }}
     {{`KUBECTL="/host/$(readlink /host/var/lib/rancher/rke2/bin)/kubectl"
     YQ="/host/usr/bin/yq"
     ROLE_LABELS="rke.cattle.io/control-plane-role=true rke.cattle.io/etcd-role=true"
@@ -115,10 +116,10 @@ data:
     kickout_longhorn_node()
     {
       target=$1
-      found=$($KUBECTL get nodes.longhorn.io -n {{ .Values.longhorn.namespaceOverride }} |grep -q $target && echo true || echo false)
+      found=$($KUBECTL get nodes.longhorn.io -n $LONGHORN_NAMESPACE |grep -q $target && echo true || echo false)
       if [[ $found == true ]]; then
         echo "Found longhorn node $target, kicking it out..."
-        $KUBECTL delete nodes.longhorn.io $target -n {{ .Values.longhorn.namespaceOverride }}
+        $KUBECTL delete nodes.longhorn.io $target -n $LONGHORN_NAMESPACE
       fi
     }
 
