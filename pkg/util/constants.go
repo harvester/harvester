@@ -27,13 +27,13 @@ const (
 	LabelSVMBackupUID                   = prefix + "/svmbackupUID"
 	LabelSVMBackupTimestamp             = prefix + "/svmbackupTimestamp"
 	LabelVMCreator                      = prefix + "/creator"
+	LabelVMimported                     = "migration.harvesterhci.io/imported"
 	LabelNodeNameKey                    = "kubevirt.io/nodeName"
 	AnnotationStorageClassName          = prefix + "/storageClassName"
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
 	AnnotationLastRefreshTime           = prefix + "/lastRefreshTime"
 	AnnotationMacAddressName            = prefix + "/mac-address"
-	AnnotationVMImportController        = "migration.harvesterhci.io/virtualmachineimport"
 
 	AnnotationSkipRancherLoggingAddonWebhookCheck = prefix + "/skipRancherLoggingAddonWebhookCheck"
 
