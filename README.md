@@ -95,7 +95,7 @@ https://github.com/harvester/harvester/releases
 
 | Release   | Version | Type           | Release Note (Changelog)                                         | Upgrade Note                                                |
 |-----------|---------|----------------|------------------------------------------------------------------|-------------------------------------------------------------|
-| **1.5***  | 1.5.0   | Latest         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.5.0) | [🔗](https://docs.harvesterhci.io/v1.5/upgrade/v1-4-2-to-v1-5-0) |
+| **1.5***  | 1.5.1   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.5.1) | [🔗](https://docs.harvesterhci.io/v1.5/upgrade/v1-4-2-to-v1-5-1) |
 | **1.4***  | 1.4.3   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.4.3) | [🔗](https://docs.harvesterhci.io/v1.4/upgrade/v1-4-1-to-v1-4-3) |
 | **1.3***  | 1.3.2   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.3.2) | [🔗](https://docs.harvesterhci.io/v1.3/upgrade/v1-3-1-to-v1-3-2) |
 | **1.2***  | 1.2.2   | EOL            | [🔗](https://github.com/harvester/harvester/releases/tag/v1.2.2) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-2-1-to-v1-2-2) |
