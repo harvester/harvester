@@ -152,7 +152,9 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		storageclass.NewValidator(
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			clients.Core.Secret().Cache(),
-			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
+			clients.SnapshotFactory.Snapshot().V1().VolumeSnapshotClass().Cache(),
+		),
 		namespace.NewValidator(clients.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()),
 		addon.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache(),
