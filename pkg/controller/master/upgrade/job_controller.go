@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
+	jobv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
@@ -18,6 +20,7 @@ import (
 	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	upgradev1 "github.com/harvester/harvester/pkg/generated/controllers/upgrade.cattle.io/v1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -45,6 +48,7 @@ const (
 	upgradeJobTypeLabel             = "harvesterhci.io/upgradeJobType"
 	upgradeJobTypePreDrain          = "pre-drain"
 	upgradeJobTypePostDrain         = "post-drain"
+	upgradeJobTypeRestoreVM         = "restore-vm"
 	upgradeJobTypeSingleNodeUpgrade = "single-node-upgrade"
 )
 
@@ -55,10 +59,13 @@ type jobHandler struct {
 	upgradeClient ctlharvesterv1.UpgradeClient
 	upgradeCache  ctlharvesterv1.UpgradeCache
 
-	machineCache ctlclusterv1.MachineCache
-	secretClient ctlcorev1.SecretClient
-	nodeClient   ctlcorev1.NodeClient
-	nodeCache    ctlcorev1.NodeCache
+	machineCache   ctlclusterv1.MachineCache
+	secretClient   ctlcorev1.SecretClient
+	nodeClient     ctlcorev1.NodeClient
+	nodeCache      ctlcorev1.NodeCache
+	jobClient      jobv1.JobClient
+	jobCache       jobv1.JobCache
+	configMapCache ctlcorev1.ConfigMapCache
 }
 
 func (h *jobHandler) OnChanged(_ string, job *batchv1.Job) (*batchv1.Job, error) {
@@ -135,6 +142,9 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 			} else if jobType == upgradeJobTypePostDrain && nodeState == nodeStatePostDraining {
 				logrus.Debugf("Post-drain job %s is done.", job.Name)
 				if repoInfo.Release.OS == node.Status.NodeInfo.OSImage {
+					if err = h.sendRestoreVMJob(upgrade, node, repoInfo); err != nil {
+						return job, err
+					}
 					setNodeUpgradeStatus(toUpdate, nodeName, StateSucceeded, "", "")
 					postDrained = true
 				} else {
@@ -147,6 +157,9 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 			} else if jobType == upgradeJobTypeSingleNodeUpgrade {
 				logrus.Debugf("Single-node-upgrade job %s is done.", job.Name)
 				if repoInfo.Release.OS == node.Status.NodeInfo.OSImage {
+					if err = h.sendRestoreVMJob(upgrade, node, repoInfo); err != nil {
+						return job, err
+					}
 					setNodeUpgradeStatus(toUpdate, nodeName, StateSucceeded, "", "")
 				} else {
 					setNodeUpgradeStatus(toUpdate, nodeName, nodeStateWaitingReboot, "", "")
@@ -282,4 +295,51 @@ func (h *jobHandler) setNodeWaitRebootLabel(node *v1.Node, repoInfo *repoinfo.Re
 	nodeUpdate.Annotations[harvesterNodePendingOSImage] = repoInfo.Release.OS
 	_, err := h.nodeClient.Update(nodeUpdate)
 	return err
+}
+
+func (h *jobHandler) sendRestoreVMJob(upgrade *harvesterv1.Upgrade, node *v1.Node, repoInfo *repoinfo.RepoInfo) error {
+	restoreVM, err := util.IsRestoreVM()
+	if err != nil {
+		logrus.WithFields(logrus.Fields{"name": upgrade.Name, "node": node.Name}).WithError(err).
+			Errorf("Failed to get setting UpgradeConfig, skip restore VM job")
+		return nil
+	}
+	// skip if restore VM is not enabled
+	if !restoreVM {
+		return nil
+	}
+	// skip if the node is a witness node
+	if _, found := node.Labels[util.HarvesterWitnessNodeLabelKey]; found {
+		return nil
+	}
+	cmName := util.GetRestoreVMConfigMapName(upgrade.Name)
+	// skip if there is no restore VM config map or the config map does not contain any VM names
+	cm, err := h.configMapCache.Get(upgrade.Namespace, cmName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get ConfigMap %s: %w", cmName, err)
+	}
+	if cm.Data == nil || strings.TrimSpace(cm.Data[node.Name]) == "" {
+		return nil
+	}
+
+	restoreVMJob := applyRestoreVMJob(upgrade, repoInfo, node.Name)
+	_, err = h.jobCache.Get(restoreVMJob.Namespace, restoreVMJob.Name)
+	if err == nil {
+		// job already exists, no need to create it again
+		return nil
+	}
+	if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to get restore VM job for node %s: %w", node.Name, err)
+	}
+	// job does not exist, create it
+	_, err = h.jobClient.Create(restoreVMJob)
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create restore VM job for node %s: %w", node.Name, err)
+	}
+	logrus.WithFields(logrus.Fields{"upgrade": upgrade.Name, "node": node.Name}).
+		Info("Restore VM job has been created successfully")
+	return nil
 }
