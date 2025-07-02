@@ -2,6 +2,7 @@ package storageclass
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,8 +17,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
@@ -39,21 +42,29 @@ var (
 		{util.CSINodeStageSecretNameKey, util.CSINodeStageSecretNamespaceKey},
 		{util.CSINodePublishSecretNameKey, util.CSINodePublishSecretNamespaceKey},
 	}
+
+	allCDICloneStrategies = []string{string(cdiv1.CloneStrategyHostAssisted), string(cdiv1.CloneStrategySnapshot), string(cdiv1.CloneStrategyCsiClone)}
 )
 
-func NewValidator(storageClassCache ctlstoragev1.StorageClassCache, secretCache ctlcorev1.SecretCache, vmimagesCache ctlharvesterv1.VirtualMachineImageCache) types.Validator {
+func NewValidator(
+	storageClassCache ctlstoragev1.StorageClassCache,
+	secretCache ctlcorev1.SecretCache,
+	vmimagesCache ctlharvesterv1.VirtualMachineImageCache,
+	volumeSnapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache) types.Validator {
 	return &storageClassValidator{
-		storageClassCache: storageClassCache,
-		secretCache:       secretCache,
-		vmimagesCache:     vmimagesCache,
+		storageClassCache:        storageClassCache,
+		secretCache:              secretCache,
+		vmimagesCache:            vmimagesCache,
+		volumeSnapshotClassCache: volumeSnapshotClassCache,
 	}
 }
 
 type storageClassValidator struct {
 	types.DefaultValidator
-	storageClassCache ctlstoragev1.StorageClassCache
-	secretCache       ctlcorev1.SecretCache
-	vmimagesCache     ctlharvesterv1.VirtualMachineImageCache
+	storageClassCache        ctlstoragev1.StorageClassCache
+	secretCache              ctlcorev1.SecretCache
+	vmimagesCache            ctlharvesterv1.VirtualMachineImageCache
+	volumeSnapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache
 }
 
 func (v *storageClassValidator) Resource() types.Resource {
@@ -76,6 +87,7 @@ func (v *storageClassValidator) Create(_ *types.Request, newObj runtime.Object) 
 		v.validateSetUniqueDefault,
 		v.validateDataLocality,
 		v.validateEncryption,
+		v.validateCDIAnnotations,
 	}
 
 	for _, validator := range validators {
@@ -88,7 +100,18 @@ func (v *storageClassValidator) Create(_ *types.Request, newObj runtime.Object) 
 }
 
 func (v *storageClassValidator) Update(_ *types.Request, _ runtime.Object, newObj runtime.Object) error {
-	return v.validateSetUniqueDefault(newObj)
+	validators := []func(runtime.Object) error{
+		v.validateSetUniqueDefault,
+		v.validateCDIAnnotations,
+	}
+
+	for _, validator := range validators {
+		if err := validator(newObj); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (v *storageClassValidator) Delete(_ *types.Request, obj runtime.Object) error {
@@ -322,6 +345,66 @@ func (v *storageClassValidator) validateReservedStorageClass(sc *storagev1.Stora
 	if sc.Name == util.StorageClassHarvesterLonghorn {
 		if sc.Annotations[util.HelmReleaseNamespaceAnnotation] == util.HarvesterSystemNamespaceName && sc.Annotations[util.HelmReleaseNameAnnotation] == util.HarvesterChartReleaseName {
 			return werror.NewInvalidError(fmt.Sprintf(errorMessageReservedStorageClass, sc.Name), "")
+		}
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) validateCDIAnnotations(newObj runtime.Object) error {
+	sc := newObj.(*storagev1.StorageClass)
+
+	fsOverhead, fsOverheadExists := sc.Annotations[util.AnnotationCDIFSOverhead]
+	cloneStrategy, cloneStrategyExists := sc.Annotations[util.AnnotationStorageProfileCloneStrategy]
+	snapshotClass, snapshotClassExists := sc.Annotations[util.AnnotationStorageProfileSnapshotClass]
+	volumeModeAccessModes, volumeModeAccessModesExists := sc.Annotations[util.AnnotationStorageProfileVolumeModeAccessModes]
+	cdiAnnoExists := fsOverheadExists || cloneStrategyExists || snapshotClassExists || volumeModeAccessModesExists
+
+	if cdiAnnoExists && sc.Provisioner == util.CSIProvisionerLonghorn {
+		// Longhorn v1 does not support CDI annotations, so we throw error
+		if v, ok := sc.Parameters["dataEngine"]; ok {
+			if v == string(longhorn.DataEngineTypeV1) {
+				return werror.NewInvalidError("Longhorn v1 does not support CDI annotations", "")
+			}
+		}
+	}
+
+	if fsOverheadExists {
+		if !regexp.MustCompile(util.FSOverheadRegex).MatchString(fsOverhead) {
+			return werror.NewInvalidError(fmt.Sprintf("invalid filesystem overhead %s in annotation %s, must be in range [0, 1]",
+				fsOverhead, util.AnnotationCDIFSOverhead), "")
+		}
+	}
+	if cloneStrategyExists {
+		_, err := util.ToCloneStrategy(cloneStrategy)
+		if err != nil {
+			return werror.NewInvalidError(
+				fmt.Sprintf("invalid clone strategy %s in annotation %s, valid values: %s",
+					cloneStrategy,
+					util.AnnotationStorageProfileCloneStrategy,
+					strings.Join(allCDICloneStrategies, ", ")), "")
+		}
+	}
+	if snapshotClassExists {
+		if snapshotClass == "" {
+			return werror.NewInvalidError(fmt.Sprintf("snapshot class cannot be empty in annotation %s", util.AnnotationStorageProfileSnapshotClass), "")
+		}
+		if _, err := v.volumeSnapshotClassCache.Get(snapshotClass); err != nil {
+			if errors.IsNotFound(err) {
+				return werror.NewInvalidError(fmt.Sprintf("snapshot class %s in annotation %s not found", snapshotClass, util.AnnotationStorageProfileSnapshotClass), "")
+			}
+			return werror.NewInternalError(fmt.Sprintf("failed to get snapshot class %s in annotation %s, error: %v",
+				snapshotClass, util.AnnotationStorageProfileSnapshotClass, err))
+		}
+	}
+	if volumeModeAccessModesExists {
+		_, err := util.ParseVolumeModeAccessModes(volumeModeAccessModes)
+		if err != nil {
+			return werror.NewInvalidError(
+				fmt.Sprintf("invalid volume mode access modes %s in annotation %s, error: %v",
+					volumeModeAccessModes,
+					util.AnnotationStorageProfileVolumeModeAccessModes,
+					err), "")
 		}
 	}
 
