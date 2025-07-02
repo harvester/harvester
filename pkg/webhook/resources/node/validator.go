@@ -65,6 +65,9 @@ func (v *nodeValidator) Update(_ *types.Request, oldObj runtime.Object, newObj r
 	if err := v.validateCPUManagerOperation(newNode); err != nil {
 		return err
 	}
+	if err := validateWitnessRoleChange(oldNode, newNode); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -129,6 +132,43 @@ func (v *nodeValidator) validateCPUManagerOperation(node *corev1.Node) error {
 	// check if there is any vm that enable cpu pinning while cpu manager is going to be disabled
 	if err := checkCPUPinningVMIs(node, policy, v.vmiCache); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// validateWitnessRoleChange validates if the user is trying to make any change to the Witness node. Specifically,
+// they should not be able to manually remove the witness label and taint from a witness node
+func validateWitnessRoleChange(oldNode, newNode *corev1.Node) error {
+	var isWitnessNodeTaint, isWitnessNodeLabel bool
+	for _, taint := range oldNode.Spec.Taints {
+		if taint.Key == "node-role.kubernetes.io/etcd" && taint.Value == "true" && taint.Effect == corev1.TaintEffectNoExecute {
+			isWitnessNodeTaint = true
+			break
+		}
+	}
+	if val, ok := oldNode.ObjectMeta.Labels[util.HarvesterWitnessNodeLabelKey]; ok && val == "true" {
+		isWitnessNodeLabel = true
+	}
+
+	if !isWitnessNodeTaint && !isWitnessNodeLabel {
+		// oldNode is not a witness node; no need for further checks
+		return nil
+	}
+
+	var witnessTaintPersist, witnessLabelPersist bool
+	for _, taint := range newNode.Spec.Taints {
+		if taint.Key == "node-role.kubernetes.io/etcd" && taint.Value == "true" && taint.Effect == corev1.TaintEffectNoExecute {
+			witnessTaintPersist = true
+			break
+		}
+	}
+	if val, ok := newNode.ObjectMeta.Labels[util.HarvesterWitnessNodeLabelKey]; ok || val == "true" {
+		witnessLabelPersist = true
+	}
+
+	if !witnessTaintPersist || !witnessLabelPersist {
+		return werror.NewBadRequest("Cannot remove witness node taint or label from the witness node")
 	}
 
 	return nil
