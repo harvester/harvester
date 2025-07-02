@@ -2262,6 +2262,7 @@ k8s.io/component-base/version
 ## explicit; go 1.22.0
 k8s.io/component-helpers/scheduling/corev1
 k8s.io/component-helpers/scheduling/corev1/nodeaffinity
+k8s.io/component-helpers/storage/volume
 # k8s.io/gengo v0.0.0-20240826214909-a7b603a56eb7
 ## explicit; go 1.13
 k8s.io/gengo/args
@@ -2440,6 +2441,7 @@ kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme
 kubevirt.io/containerized-data-importer/pkg/common
 kubevirt.io/containerized-data-importer/pkg/controller/common
 kubevirt.io/containerized-data-importer/pkg/feature-gates
+kubevirt.io/containerized-data-importer/pkg/storagecapabilities
 kubevirt.io/containerized-data-importer/pkg/token
 kubevirt.io/containerized-data-importer/pkg/util
 # kubevirt.io/containerized-data-importer-api v1.61.0
