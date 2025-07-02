@@ -12,6 +12,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -49,6 +50,91 @@ func Test_GetNonLiveMigratableVMIs(t *testing.T) {
 					},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
 						NodeName: "node1",
+					},
+				},
+			},
+			output: []string{"default/vm1", "default/vm2"},
+			err:    nil,
+		},
+		{
+			name: "witness node",
+			nodes: []*corev1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "node1",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "node2",
+						Labels: map[string]string{
+							util.HarvesterWitnessNodeLabelKey: "true",
+						},
+					},
+				},
+			},
+			vmis: []*kubevirtv1.VirtualMachineInstance{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "vm1",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						NodeName: "node1",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "vm2",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						NodeName: "node1",
+					},
+				},
+			},
+			output: []string{"default/vm1", "default/vm2"},
+			err:    nil,
+		},
+		{
+			name: "witness node and all live migratable",
+			nodes: []*corev1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "node1",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "node2",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "node3",
+						Labels: map[string]string{
+							util.HarvesterWitnessNodeLabelKey: "true",
+						},
+					},
+				},
+			},
+			vmis: []*kubevirtv1.VirtualMachineInstance{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "vm1",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						NodeName: "node1",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "vm2",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						NodeName: "node2",
 					},
 				},
 			},

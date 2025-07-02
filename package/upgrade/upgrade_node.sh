@@ -289,7 +289,7 @@ command_pre_drain() {
   wait_longhorn_engines
 
   # Shut down non-live migratable VMs
-  upgrade-helper vm-live-migrate-detector "$HARVESTER_UPGRADE_NODE_NAME" --shutdown
+  upgrade-helper vm-live-migrate-detector "$HARVESTER_UPGRADE_NODE_NAME" --shutdown --upgrade "$HARVESTER_UPGRADE_NAME"
 
   # Live migrate VMs
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME --overwrite kubevirt.io/drain=draining:NoSchedule
@@ -707,8 +707,8 @@ command_single_node_upgrade() {
   NEW_OS_SQUASHFS_IMAGE_FILE=$(mktemp -p $UPGRADE_TMP_DIR)
   download_file "$UPGRADE_REPO_SQUASHFS_IMAGE" "$NEW_OS_SQUASHFS_IMAGE_FILE"
 
-  # Stop all VMs
-  shutdown_all_vms
+  # Shut down non-live migratable VMs
+  upgrade-helper vm-live-migrate-detector "$HARVESTER_UPGRADE_NODE_NAME" --shutdown --upgrade "$HARVESTER_UPGRADE_NAME"
   wait_vms_out
 
   echo "wait for fleet bundles before upgrading RKE2"
