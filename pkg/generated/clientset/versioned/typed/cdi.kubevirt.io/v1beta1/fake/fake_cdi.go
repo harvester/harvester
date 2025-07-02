@@ -99,18 +99,6 @@ func (c *FakeCDIs) Update(ctx context.Context, cDI *v1beta1.CDI, opts v1.UpdateO
 	return obj.(*v1beta1.CDI), err
 }
 
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeCDIs) UpdateStatus(ctx context.Context, cDI *v1beta1.CDI, opts v1.UpdateOptions) (result *v1beta1.CDI, err error) {
-	emptyResult := &v1beta1.CDI{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(cdisResource, "status", cDI, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.CDI), err
-}
-
 // Delete takes name of the cDI and deletes it. Returns an error if one occurs.
 func (c *FakeCDIs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.

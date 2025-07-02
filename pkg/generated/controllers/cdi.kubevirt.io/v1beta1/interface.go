@@ -31,6 +31,7 @@ func init() {
 }
 
 type Interface interface {
+	CDI() CDIController
 	DataVolume() DataVolumeController
 	StorageProfile() StorageProfileController
 	VolumeImportSource() VolumeImportSourceController
@@ -44,6 +45,10 @@ func New(controllerFactory controller.SharedControllerFactory) Interface {
 
 type version struct {
 	controllerFactory controller.SharedControllerFactory
+}
+
+func (v *version) CDI() CDIController {
+	return generic.NewNonNamespacedController[*v1beta1.CDI, *v1beta1.CDIList](schema.GroupVersionKind{Group: "cdi.kubevirt.io", Version: "v1beta1", Kind: "CDI"}, "cdis", v.controllerFactory)
 }
 
 func (v *version) DataVolume() DataVolumeController {

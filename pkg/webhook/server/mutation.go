@@ -11,6 +11,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/config"
 	"github.com/harvester/harvester/pkg/webhook/resources/persistentvolumeclaim"
 	"github.com/harvester/harvester/pkg/webhook/resources/pod"
+	"github.com/harvester/harvester/pkg/webhook/resources/storageclass"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinebackup"
@@ -36,6 +37,7 @@ func Mutation(clients *clients.Clients, options *config.Options) (http.Handler, 
 		virtualmachineinstance.NewMutator(vmCache),
 		virtualmachineimage.NewMutator(storageClassCache),
 		virtualmachinebackup.NewMutator(vmBackupCache),
+		storageclass.NewMutator(),
 	}
 
 	router := webhook.NewRouter()

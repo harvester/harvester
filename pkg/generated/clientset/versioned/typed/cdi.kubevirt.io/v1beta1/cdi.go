@@ -39,8 +39,6 @@ type CDIsGetter interface {
 type CDIInterface interface {
 	Create(ctx context.Context, cDI *v1beta1.CDI, opts v1.CreateOptions) (*v1beta1.CDI, error)
 	Update(ctx context.Context, cDI *v1beta1.CDI, opts v1.UpdateOptions) (*v1beta1.CDI, error)
-	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, cDI *v1beta1.CDI, opts v1.UpdateOptions) (*v1beta1.CDI, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.CDI, error)

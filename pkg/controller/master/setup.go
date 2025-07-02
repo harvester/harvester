@@ -22,8 +22,8 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/resourcequota"
 	"github.com/harvester/harvester/pkg/controller/master/schedulevmbackup"
 	"github.com/harvester/harvester/pkg/controller/master/setting"
+	"github.com/harvester/harvester/pkg/controller/master/storageclass"
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
-	"github.com/harvester/harvester/pkg/controller/master/storageprofile"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle"
 	"github.com/harvester/harvester/pkg/controller/master/template"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
@@ -60,7 +60,7 @@ var registerFuncs = []registerFunc{
 	addon.Register,
 	storagenetwork.Register,
 	pvc.Register,
-	storageprofile.Register,
+	storageclass.Register,
 	nodedrain.Register,
 	mcmsettings.Register,
 	schedulevmbackup.Register,

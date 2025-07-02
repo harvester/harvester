@@ -101,6 +101,7 @@ const (
 	// kubevirt create a CRD object automatically: type kubevirt, name kubevirt, namespace: harvester-system
 	// this object stores all kubevirt related configuration
 	KubeVirtObjectName = "kubevirt"
+	CDIObjectName      = "cdi"
 
 	HTTPProxyEnv  = "HTTP_PROXY"
 	HTTPSProxyEnv = "HTTPS_PROXY"
@@ -226,4 +227,12 @@ const (
 	HarvesterWitnessNodeLabelKey = HarvesterNodeRoleLabelPrefix + "witness"
 	HarvesterMgmtNodeLabelKey    = HarvesterNodeRoleLabelPrefix + "management"
 	HarvesterWorkerNodeLabelKey  = HarvesterNodeRoleLabelPrefix + "worker"
+
+	// CDI storage class annotations
+	AnnotationCDIPrefix                           = "cdi.harvesterhci.io"
+	AnnotationCDIFSOverhead                       = AnnotationCDIPrefix + "/filesystemOverhead"
+	AnnotationStorageProfileCloneStrategy         = AnnotationCDIPrefix + "/storageProfileCloneStrategy"
+	AnnotationStorageProfileSnapshotClass         = AnnotationCDIPrefix + "/storageProfileVolumeSnapshotClass"
+	AnnotationStorageProfileVolumeModeAccessModes = AnnotationCDIPrefix + "/storageProfileVolumeModeAccessModes"
+	FSOverheadRegex                               = `^(0(?:\.\d{1,3})?|1)$`
 )
