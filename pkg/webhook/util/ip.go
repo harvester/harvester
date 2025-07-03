@@ -17,27 +17,35 @@ func incrementIP(ip net.IP) net.IP {
 	return ip
 }
 
-func GetUsableIPAddressesCount(includeRange string, excludeRange []string) (count int, err error) {
+func GetUsableIPAddresses(includeRange string, excludeRange []string) (map[string]struct{}, error) {
 	var includeRangeList []string
 	includeRangeList = append(includeRangeList, includeRange)
 
-	includeIPAddrList, err := getIPAddressesFromSubnet(includeRangeList, true)
+	includeIPAddrMap, err := getIPAddressesFromSubnet(includeRangeList, true)
 	if err != nil {
-		return count, err
+		return includeIPAddrMap, err
 	}
 
-	excludeIPAddrList, err := getIPAddressesFromSubnet(excludeRange, false)
+	excludeIPAddrMap, err := getIPAddressesFromSubnet(excludeRange, false)
 	if err != nil {
-		return count, err
+		return nil, err
 	}
 
-	for includeIP := range includeIPAddrList {
-		if _, exists := excludeIPAddrList[includeIP]; !exists {
-			count++
+	for includeIP := range includeIPAddrMap {
+		if _, exists := excludeIPAddrMap[includeIP]; exists {
+			delete(includeIPAddrMap, includeIP)
 		}
 	}
 
-	return count, nil
+	return includeIPAddrMap, nil
+}
+
+func GetUsableIPAddressesCount(includeRange string, excludeRange []string) (int, error) {
+	usableIPAddrMap, err := GetUsableIPAddresses(includeRange, excludeRange)
+	if err != nil {
+		return 0, err
+	}
+	return len(usableIPAddrMap), nil
 }
 
 func getIPAddressesFromSubnet(ipNetSubnets []string, include bool) (ipAddrList map[string]struct{}, err error) {
