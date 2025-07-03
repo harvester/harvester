@@ -48,8 +48,18 @@ func (s *vmStore) Delete(request *types.APIRequest, _ *types.APISchema, id strin
 		}
 	}
 
+	var filteredPVCs []string
+	for _, v := range removedPVCs {
+		ok, err := s.isPVCGoldenImage(vm.Namespace, v)
+		if err != nil {
+			return types.APIObject{}, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to lookup pvc %s for vm %s/%s, %v", v, request.Namespace, request.Name, err))
+		}
+		if !ok {
+			filteredPVCs = append(filteredPVCs, v)
+		}
+	}
 	// Set removed PVCs in annotations. VMController is in charge of the cleanup.
-	if err = s.setRemovedPVCs(vm, removedPVCs); err != nil {
+	if err = s.setRemovedPVCs(vm, filteredPVCs); err != nil {
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to set removedPersistentVolumeClaims to virtualMachine %s/%s, %v", request.Namespace, request.Name, err))
 	}
 
@@ -66,4 +76,23 @@ func (s *vmStore) setRemovedPVCs(vm *kubevirtv1.VirtualMachine, removedPVCs []st
 	vmCopy.Annotations[util.RemovedPVCsAnnotationKey] = strings.Join(removedPVCs, ",")
 	_, err := s.vms.Update(vmCopy)
 	return err
+}
+
+// vm-import-controller allows golden images to be used natively as pvc with a vm
+// during a delete operation we need to skip such pvc's as they are managed by the
+// vmimage, and deletion of the vmimage will remove the pvc
+func (s *vmStore) isPVCGoldenImage(namespace, name string) (bool, error) {
+	pvcObj, err := s.pvcCache.Get(namespace, name)
+	if err != nil {
+		return false, fmt.Errorf("error looking up pvc %s/%s from cache: %w", name, namespace, err)
+	}
+
+	if pvcObj.Annotations == nil {
+		return false, nil
+	}
+	if pvcObj.Annotations[util.AnnotationGoldenImage] == "true" {
+		return true, nil
+	}
+
+	return false, nil
 }
