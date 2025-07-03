@@ -14,6 +14,7 @@ import (
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
 
+	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -83,12 +84,18 @@ func (m *pvcMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 }
 
 func (m *pvcMutator) patchGoldenImageAnnotation(pvc *corev1.PersistentVolumeClaim) (string, error) {
-	if _, err := m.vmImageCache.Get(pvc.Namespace, pvc.Name); err != nil {
+	imgObj, err := m.vmImageCache.Get(pvc.Namespace, pvc.Name)
+	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logrus.Infof("PVC %s/%s is not related to the VM image, skip patch", pvc.Namespace, pvc.Name)
 			return "", nil
 		}
 		return "", err
+	}
+
+	// longhorn backing image based pvc's do not need to be annotated as golden images
+	if imgObj.Spec.Backend == v1beta1.VMIBackendBackingImage {
+		return "", nil
 	}
 
 	annotations := pvc.GetAnnotations()
