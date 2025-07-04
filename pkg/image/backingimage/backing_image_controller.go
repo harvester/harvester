@@ -6,9 +6,11 @@ import (
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"k8s.io/apimachinery/pkg/api/errors"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/image/common"
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -16,6 +18,24 @@ import (
 type backingImageHandler struct {
 	vmiCache ctlharvesterv1beta1.VirtualMachineImageCache
 	vmio     common.VMIOperator
+}
+
+func (h *backingImageHandler) updateBackupTarget(vmi *harvesterv1.VirtualMachineImage) error {
+	target, err := settings.DecodeBackupTarget(settings.BackupTargetSet.Get())
+	if err != nil {
+		return fmt.Errorf("failed to decode backup target: %w", err)
+	}
+
+	if target.IsDefaultBackupTarget() {
+		return nil
+	}
+
+	_, err = h.vmio.UpdateBackupTarget(vmi, &harvesterv1.BackupTarget{
+		Endpoint:     target.Endpoint,
+		BucketName:   target.BucketName,
+		BucketRegion: target.BucketRegion,
+	})
+	return err
 }
 
 func (h *backingImageHandler) OnChanged(_ string, bi *lhv1beta2.BackingImage) (*lhv1beta2.BackingImage, error) {
@@ -67,6 +87,12 @@ func (h *backingImageHandler) OnChanged(_ string, bi *lhv1beta2.BackingImage) (*
 		if status.Progress != vmi.Status.Progress {
 			_, err = h.vmio.Importing(vmi, status.Message, status.Progress)
 		}
+	}
+
+	// Only update backup target for restore-type backing images if no previous error occurred.
+	updateBackup := err == nil && bi.Spec.SourceType == lhv1beta2.BackingImageDataSourceTypeRestore
+	if updateBackup {
+		err = h.updateBackupTarget(vmi)
 	}
 	return nil, err
 }
