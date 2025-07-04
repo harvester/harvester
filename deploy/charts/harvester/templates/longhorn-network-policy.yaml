@@ -4,7 +4,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: backing-image-data-source
-  namespace: longhorn-system
+  namespace: {{ .Values.longhorn.namespaceOverride }}
 spec:
   podSelector:
     matchLabels:
@@ -31,7 +31,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: backing-image-manager
-  namespace: longhorn-system
+  namespace: {{ .Values.longhorn.namespaceOverride }}
 spec:
   podSelector:
     matchLabels:
@@ -58,7 +58,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: instance-manager
-  namespace: longhorn-system
+  namespace: {{ .Values.longhorn.namespaceOverride }}
 spec:
   podSelector:
     matchLabels:
@@ -85,7 +85,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: longhorn-manager
-  namespace: longhorn-system
+  namespace: {{ .Values.longhorn.namespaceOverride }}
 spec:
   podSelector:
     matchLabels:
@@ -120,7 +120,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: longhorn-recovery-backend
-  namespace: longhorn-system
+  namespace: {{ .Values.longhorn.namespaceOverride }}
 spec:
   podSelector:
     matchLabels:
@@ -137,7 +137,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: longhorn-conversion-webhook
-  namespace: longhorn-system
+  namespace: {{ .Values.longhorn.namespaceOverride }}
 spec:
   podSelector:
     matchLabels:
@@ -154,7 +154,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: longhorn-admission-webhook
-  namespace: longhorn-system
+  namespace: {{ .Values.longhorn.namespaceOverride }}
 spec:
   podSelector:
     matchLabels:
@@ -170,7 +170,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: cattle-monitoring-prometheus
-  namespace: longhorn-system
+  namespace: {{ .Values.longhorn.namespaceOverride }}
 spec:
   podSelector:
     matchLabels:
@@ -190,7 +190,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: harvester
-  namespace: longhorn-system
+  namespace: {{ .Values.longhorn.namespaceOverride }}
 spec:
   podSelector:
     matchLabels:

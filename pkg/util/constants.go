@@ -90,6 +90,7 @@ const (
 	RancherMonitoringAlertmanager       = "rancher-monitoring-alertmanager"
 	RancherMonitoring                   = "rancher-monitoring"
 	RancherMonitoringGrafana            = "rancher-monitoring-grafana"
+	RancherClusterConfigSecretName      = "rancher-cluster-config"
 	CattleLoggingSystemNamespaceName    = "cattle-logging-system"
 	HarvesterUpgradeImageRepository     = "rancher/harvester-upgrade"
 	GrafanaPVCName                      = "rancher-monitoring-grafana"

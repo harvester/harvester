@@ -887,3 +887,96 @@ EOF
   echo "replace the grafana pod to use the new configmap"
   kubectl delete pods -n cattle-monitoring-system -l app.kubernetes.io/name=grafana || echo "failed to delete the grafana pod, wait until the related host node is rebooted and then it gets the new configmap"
 }
+
+# manage_kubeovn will apply the kubeovn-operator-crd managed chart
+# and update the kubeovn-addon to latest version
+manage_kubeovn() {
+  ## read version of kubeovn addon. The kubeovn-operator-crd has the same version as kubeovn-operator
+  ## so we can evaluate kubeovn-operator version and apply the same for kubeovn-operator-crd
+  version=$(cat /usr/local/share/addons/kubeovn-operator.yaml  | yq '.spec.version')
+  kubeovn_manifest="$(mktemp --suffix=.yaml)"
+
+  cat > "$kubeovn_manifest" <<EOF
+apiVersion: management.cattle.io/v3
+kind: ManagedChart
+metadata:
+  name: kubeovn-operator-crd
+  namespace: fleet-local
+spec:
+  chart: kubeovn-operator-crd
+  releaseName: kubeovn-operator-crd
+  version: "$version"
+  defaultNamespace: kube-system
+  repoName: harvester-charts
+  timeoutSeconds: 600
+  targets:
+  - clusterName: local
+    clusterSelector:
+      matchExpressions:
+      - key: provisioning.cattle.io/unmanaged-system-agent
+        operator: DoesNotExist
+EOF
+
+  cat "$kubeovn_manifest"
+  kubectl apply -f "$kubeovn_manifest"
+
+  # wait for managedchart to be ready before updating the addon
+  wait_managedchart_ready "kubeovn-operator-crd"
+
+  ## addon patch 
+  patch=$(cat /usr/local/share/addons/kubeovn-operator.yaml | yq '{"spec": .spec | pick(["version"])}')
+  cat > addon-patch.yaml <<EOF
+$patch
+EOF
+
+  item_count=$(kubectl get addons.harvesterhci kubeovn-operator -n kube-system -o  jsonpath='{..name}' || true)
+  if [ -z "$item_count" ]; then
+    install_addon kubeovn-operator kube-system
+  else
+    kubectl patch addons.harvesterhci kubeovn-operator -n kube-system --patch-file ./addon-patch.yaml --type merge
+  fi
+
+}
+
+# add upgrade related information to managedchart annotations
+update_managedchart_patch_file_annotations() {
+  local fname=$1
+  local tversion=$2
+  local utime=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  if [ ! -f ${fname} ]; then
+    echo "patch file $fname is not existing, skip update annotations"
+    return
+  fi
+  NEW_UPGRADE=$HARVESTER_UPGRADE_NAME yq e '.metadata.annotations."upgrade.harvesterhci.io/last-upgrade-name" = strenv(NEW_UPGRADE)' ${fname} -i
+  NEW_VERSION=${tversion} yq e '.metadata.annotations."upgrade.harvesterhci.io/last-upgrade-target-version" = strenv(NEW_VERSION)' ${fname} -i
+  NEW_TIME=${utime} yq e '.metadata.annotations."upgrade.harvesterhci.io/last-upgrade-time" = strenv(NEW_TIME)' ${fname} -i
+}
+
+update_managedchart_patch_file_unpause() {
+  local fname=$1
+  if [ ! -f ${fname} ]; then
+    echo "patch file $fname is not existing, skip update paused"
+    return
+  fi
+  yq e '.spec.paused = false' ${fname} -i
+}
+
+update_managedchart_patch_file_timeoutseconds() {
+  local fname=$1
+  if [ ! -f ${fname} ]; then
+    echo "patch file $fname is not existing, skip update timeoutSeconds"
+    return
+  fi
+
+  local cnamespace=$2
+  local cname=$3
+  local cur_timeout=$(kubectl get managedcharts.management.cattle.io -n ${cnamespace} ${cname} -o=jsonpath='{.spec.timeoutSeconds}')
+  # if there is no timeoutSeconds set on managedchart, use value 599; by default harvester-installer sets it to 600
+  # otherwise increase it by 1
+  local tseconds=$((${cur_timeout:-598} + 1))
+  if [ ${tseconds} -gt 800 ]; then
+    tseconds=600
+  fi
+  echo "the ${cnamespace}/${cname} increased timeoutSeconds is ${tseconds}"
+  NEW_TIMEOUT=${tseconds} yq e '.spec.timeoutSeconds = env(NEW_TIMEOUT)' ${fname} -i
+}

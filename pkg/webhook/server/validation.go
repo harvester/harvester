@@ -138,6 +138,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterNetworkFactory.Network().V1beta1().VlanConfig().Cache(),
 			clients.HarvesterNetworkFactory.Network().V1beta1().VlanStatus().Cache(),
 			clients.LonghornFactory.Longhorn().V1beta2().Node().Cache(),
+			clients.Core.Secret().Cache(),
 		),
 		templateversion.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate().Cache(),

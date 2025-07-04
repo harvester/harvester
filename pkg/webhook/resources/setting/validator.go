@@ -32,9 +32,12 @@ import (
 	"golang.org/x/net/http/httpproxy"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/clientcmd"
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester-network-controller/pkg/utils"
@@ -143,6 +146,7 @@ func NewValidator(
 	vcCache ctlnetworkv1.VlanConfigCache,
 	vsCache ctlnetworkv1.VlanStatusCache,
 	lhNodeCache ctllhv1b2.NodeCache,
+	secretCache ctlcorev1.SecretCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
@@ -160,6 +164,7 @@ func NewValidator(
 		vcCache:            vcCache,
 		vsCache:            vsCache,
 		lhNodeCache:        lhNodeCache,
+		secretCache:        secretCache,
 	}
 
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
@@ -183,6 +188,9 @@ func NewValidator(
 
 	validateSettingUpdateFuncs[settings.LonghornV2DataEngineSettingName] = validator.validateUpdateLonghornV2DataEngine
 
+	validateSettingFuncs[settings.RancherClusterSettingName] = validator.validateRancherCluster
+	validateSettingUpdateFuncs[settings.RancherClusterSettingName] = validator.validateUpdateRancherCluster
+
 	return validator
 }
 
@@ -204,6 +212,7 @@ type settingValidator struct {
 	vcCache            ctlnetworkv1.VlanConfigCache
 	vsCache            ctlnetworkv1.VlanStatusCache
 	lhNodeCache        ctllhv1b2.NodeCache
+	secretCache        ctlcorev1.SecretCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -1036,7 +1045,7 @@ func validateUpdateContainerdRegistry(_ *v1beta1.Setting, newSetting *v1beta1.Se
 	return validateContainerdRegistry(newSetting)
 }
 
-func (v *settingValidator) validateNetworkHelper(value string) (*networkutil.Config, error) {
+func (v *settingValidator) validateNetworkHelper(name, value string) (*networkutil.Config, error) {
 	if value == "" {
 		// harvester will create a default setting with empty value
 		return nil, nil
@@ -1063,40 +1072,48 @@ func (v *settingValidator) validateNetworkHelper(value string) (*networkutil.Con
 		return nil, err
 	}
 
+	// Add a map of setting names to their specific network range validation callbacks
+	networkRangeValidators := map[string]func(*networkutil.Config) error{
+		settings.StorageNetworkName:            v.checkStorageNetworkRangeValid,
+		settings.VMMigrationNetworkSettingName: v.checkVMMigrationNetworkRangeValid,
+	}
+	if validator, ok := networkRangeValidators[name]; ok {
+		if err := validator(&config); err != nil {
+			return nil, err
+		}
+	}
 	return &config, nil
 }
 
-func (v *settingValidator) validateStorageNetworkHelper(value string) error {
-	config, err := v.validateNetworkHelper(value)
+func (v *settingValidator) getNetworkConfig(settingName string) (*networkutil.Config, error) {
+	if settingName != settings.StorageNetworkName && settingName != settings.VMMigrationNetworkSettingName {
+		return nil, nil
+	}
+
+	networkConfigSetting, err := v.settingCache.Get(settingName)
 	if err != nil {
-		return err
-	} else if config == nil {
-		// harvester will create a default setting with empty value
-		// storage-network will be the same in Longhorn, just skip check, don't require all VMs are stopped.
-		return nil
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get %s setting, err: %v", settingName, err)
 	}
 
-	if err := v.checkStorageNetworkRangeValid(config); err != nil {
-		return err
+	if networkConfigSetting.Value != "" {
+		var config networkutil.Config
+		if err := json.Unmarshal([]byte(networkConfigSetting.Value), &config); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal the %s setting value %v, %w", settingName, networkConfigSetting.Value, err)
+		}
+		return &config, nil
 	}
 
-	return nil
-}
-
-func (v *settingValidator) validateVMMigrationNetworkHelper(value string) error {
-	config, err := v.validateNetworkHelper(value)
-	if err != nil {
-		return err
-	} else if config == nil {
-		// harvester will create a default setting with empty value
-		return nil
+	if networkConfigSetting.Default != "" {
+		var config networkutil.Config
+		if err := json.Unmarshal([]byte(networkConfigSetting.Default), &config); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal the %s setting default value %v, %w", settingName, networkConfigSetting.Default, err)
+		}
+		return &config, nil
 	}
-
-	if err := v.checkVMMigrationNetworkRangeValid(config); err != nil {
-		return err
-	}
-
-	return nil
+	return nil, nil
 }
 
 func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) error {
@@ -1104,12 +1121,27 @@ func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) erro
 		return nil
 	}
 
-	if err := v.validateStorageNetworkHelper(setting.Default); err != nil {
+	var (
+		config *networkutil.Config
+		err    error
+	)
+	if config, err = v.validateNetworkHelper(settings.StorageNetworkName, setting.Default); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
-	if err := v.validateStorageNetworkHelper(setting.Value); err != nil {
+	if valueConfig, err := v.validateNetworkHelper(settings.StorageNetworkName, setting.Value); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	} else if valueConfig != nil {
+		config = valueConfig
+	}
+
+	vmMigraionNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	if err = checkNetworkOverlap(settings.StorageNetworkName, config, settings.VMMigrationNetworkSettingName, vmMigraionNetworkConfig); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.StorageNetworkName)
 	}
 
 	// When a new setting is created, it's value and default are both empty, do not check storage-network usage
@@ -1129,12 +1161,27 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 		return nil
 	}
 
-	if err := v.validateStorageNetworkHelper(newSetting.Default); err != nil {
+	var (
+		config *networkutil.Config
+		err    error
+	)
+	if config, err = v.validateNetworkHelper(settings.StorageNetworkName, newSetting.Default); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
-	if err := v.validateStorageNetworkHelper(newSetting.Value); err != nil {
+	if valueConfig, err := v.validateNetworkHelper(settings.StorageNetworkName, newSetting.Value); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	} else if valueConfig != nil {
+		config = valueConfig
+	}
+
+	vmMigraionNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	if err = checkNetworkOverlap(settings.StorageNetworkName, config, settings.VMMigrationNetworkSettingName, vmMigraionNetworkConfig); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.StorageNetworkName)
 	}
 
 	return v.checkStorageNetworkUsage()
@@ -1160,12 +1207,24 @@ func (v *settingValidator) validateVMMigrationNetwork(setting *v1beta1.Setting) 
 		return werror.NewBadRequest("There is a VM Migration in progress, please wait until it is completed before updating the VMMigrationNetwork setting")
 	}
 
-	if err := v.validateVMMigrationNetworkHelper(setting.Default); err != nil {
+	var config *networkutil.Config
+	if config, err = v.validateNetworkHelper(settings.VMMigrationNetworkSettingName, setting.Default); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
-	if err := v.validateVMMigrationNetworkHelper(setting.Value); err != nil {
+	if valueConfig, err := v.validateNetworkHelper(settings.VMMigrationNetworkSettingName, setting.Value); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	} else if valueConfig != nil {
+		config = valueConfig
+	}
+
+	storagetNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	if err = checkNetworkOverlap(settings.VMMigrationNetworkSettingName, config, settings.StorageNetworkName, storagetNetworkConfig); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.VMMigrationNetworkSettingName)
 	}
 
 	return nil
@@ -1180,12 +1239,27 @@ func (v *settingValidator) validateUpdateVMMigrationNetwork(oldSetting *v1beta1.
 		return nil
 	}
 
-	if err := v.validateVMMigrationNetworkHelper(newSetting.Default); err != nil {
+	var (
+		config *networkutil.Config
+		err    error
+	)
+	if config, err = v.validateNetworkHelper(settings.VMMigrationNetworkSettingName, newSetting.Default); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
-	if err := v.validateVMMigrationNetworkHelper(newSetting.Value); err != nil {
+	if valueConfig, err := v.validateNetworkHelper(settings.VMMigrationNetworkSettingName, newSetting.Value); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	} else if valueConfig != nil {
+		config = valueConfig
+	}
+
+	storagetNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	if err = checkNetworkOverlap(settings.VMMigrationNetworkSettingName, config, settings.StorageNetworkName, storagetNetworkConfig); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.VMMigrationNetworkSettingName)
 	}
 
 	return nil
@@ -1587,6 +1661,29 @@ func (v *settingValidator) checkVMMigrationNetworkRangeValid(config *networkutil
 	return nil
 }
 
+func checkNetworkOverlap(c1Name string, c1 *networkutil.Config, c2Name string, c2 *networkutil.Config) error {
+	if c1 == nil || c2 == nil {
+		return nil
+	}
+
+	c1UsableIPAddresses, err := webhookUtil.GetUsableIPAddresses(c1.Range, c1.Exclude)
+	if err != nil {
+		return err
+	}
+
+	c2UsableIPAddresses, err := webhookUtil.GetUsableIPAddresses(c2.Range, c2.Exclude)
+	if err != nil {
+		return err
+	}
+
+	for c1IP := range c1UsableIPAddresses {
+		if _, ok := c2UsableIPAddresses[c1IP]; ok {
+			return fmt.Errorf("%s: the network configuration is overlapped with %s", c1Name, c2Name)
+		}
+	}
+	return nil
+}
+
 func validateDefaultVMTerminationGracePeriodSecondsHelper(value string) error {
 	if value == "" {
 		return nil
@@ -1787,4 +1884,51 @@ func validateMaxHotplugRatioHelper(field, value string) error {
 		return fmt.Errorf("%v: %v must be in range [%v .. %v]", field, value, util.MinHotplugRatioValue, util.MaxHotplugRatioValue)
 	}
 	return nil
+}
+func (v *settingValidator) validateRancherCluster(newSetting *v1beta1.Setting) error {
+	var (
+		rancherClusterConfig *settings.RancherClusterConfig
+		err                  error
+	)
+	if newSetting.Default != "" && newSetting.Default != "{}" {
+		rancherClusterConfig, err = settings.DecodeConfig[settings.RancherClusterConfig](newSetting.Default)
+		if err != nil {
+			return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+		}
+	}
+
+	if newSetting.Value != "" && newSetting.Value != "{}" {
+		rancherClusterConfig, err = settings.DecodeConfig[settings.RancherClusterConfig](newSetting.Value)
+		if err != nil {
+			return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+		}
+	}
+	if rancherClusterConfig == nil {
+		return nil
+	}
+	if rancherClusterConfig.RemoveUpstreamClusterWhenNamespaceIsDeleted {
+		secret, err := v.secretCache.Get(util.HarvesterSystemNamespaceName, util.RancherClusterConfigSecretName)
+		if err != nil {
+			return werror.NewInvalidError(
+				fmt.Sprintf("%s/%s secret not found", util.HarvesterSystemNamespaceName, util.RancherClusterConfigSecretName), "removeUpstreamClusterWhenNamespaceIsDeleted")
+		}
+		if secret.Data == nil || len(secret.Data["kubeConfig"]) == 0 {
+			return werror.NewInvalidError(
+				fmt.Sprintf("%s/%s secret is empty", util.HarvesterSystemNamespaceName, util.RancherClusterConfigSecretName), "removeUpstreamClusterWhenNamespaceIsDeleted")
+		}
+
+		kc, err := clientcmd.RESTConfigFromKubeConfig(secret.Data["kubeConfig"])
+		if err != nil {
+			return werror.NewInvalidError("kubeConfig can't be loaded", "kubeConfig")
+		}
+		_, err = dynamic.NewForConfig(kc)
+		if err != nil {
+			return werror.NewInvalidError("kubeConfig can't be used to initialize client", "kubeConfig")
+		}
+	}
+	return nil
+}
+
+func (v *settingValidator) validateUpdateRancherCluster(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return v.validateRancherCluster(newSetting)
 }

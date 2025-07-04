@@ -310,7 +310,7 @@ func (v *vmiValidator) URLConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImag
 
 func (v *vmiValidator) SecurityParameterConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error {
 	if !reflect.DeepEqual(oldVMI.Spec.SecurityParameters, newVMI.Spec.SecurityParameters) {
-		return werror.NewInvalidError("url cannot be modified", "spec.url")
+		return werror.NewInvalidError("securityParameters cannot be modified", "spec.securityParameters")
 	}
 	return nil
 }
