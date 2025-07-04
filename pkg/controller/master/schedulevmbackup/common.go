@@ -87,10 +87,6 @@ func currentVMBackups(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBack
 	for _, vb := range vmbackups {
 		lastVMBackup = vb
 
-		if vb.Status == nil {
-			continue
-		}
-
 		if vb.Status.Error != nil {
 			errVMBackups = append(errVMBackups, vb)
 			failure++
@@ -214,9 +210,6 @@ func convertVMBackupToInfo(vmbackup *harvesterv1.VirtualMachineBackup) harvester
 	var vmBackupInfo harvesterv1.VMBackupInfo
 
 	vmBackupInfo.Name = vmbackup.Name
-	if vmbackup.Status == nil {
-		return vmBackupInfo
-	}
 
 	status := vmbackup.Status
 	if status.ReadyToUse != nil {
