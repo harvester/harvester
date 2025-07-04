@@ -454,8 +454,22 @@ func (v *storageClassValidator) validateCloneStrategy(_ *storagev1.StorageClass,
 
 func (v *storageClassValidator) validateSnapshotClass(_ *storagev1.StorageClass, annotations *cdiAnnotations) error {
 	if annotations.snapshotClassExists {
-		if err := v.validateSnapshotClassAnnotation(annotations.snapshotClass); err != nil {
-			return err
+		snapshotClass := annotations.snapshotClass
+		if snapshotClass == "" {
+			return werror.NewInvalidError(
+				fmt.Sprintf("snapshot class cannot be empty in annotation %s", util.AnnotationStorageProfileSnapshotClass), "")
+		}
+
+		// Check if the VolumeSnapshotClass exists
+		if _, err := v.volumeSnapshotClassCache.Get(snapshotClass); err != nil {
+			if errors.IsNotFound(err) {
+				return werror.NewInvalidError(
+					fmt.Sprintf("snapshot class %s in annotation %s not found",
+						snapshotClass, util.AnnotationStorageProfileSnapshotClass), "")
+			}
+			return werror.NewInternalError(
+				fmt.Sprintf("failed to get snapshot class %s in annotation %s, error: %v",
+					snapshotClass, util.AnnotationStorageProfileSnapshotClass, err))
 		}
 	}
 
@@ -465,26 +479,6 @@ func (v *storageClassValidator) validateSnapshotClass(_ *storagev1.StorageClass,
 				fmt.Sprintf("snapshot class must be set in annotation %s when clone strategy is %s",
 					util.AnnotationStorageProfileSnapshotClass, cdiv1.CloneStrategySnapshot), "")
 		}
-	}
-
-	return nil
-}
-
-func (v *storageClassValidator) validateSnapshotClassAnnotation(snapshotClass string) error {
-	if snapshotClass == "" {
-		return werror.NewInvalidError(
-			fmt.Sprintf("snapshot class cannot be empty in annotation %s", util.AnnotationStorageProfileSnapshotClass), "")
-	}
-
-	if _, err := v.volumeSnapshotClassCache.Get(snapshotClass); err != nil {
-		if errors.IsNotFound(err) {
-			return werror.NewInvalidError(
-				fmt.Sprintf("snapshot class %s in annotation %s not found",
-					snapshotClass, util.AnnotationStorageProfileSnapshotClass), "")
-		}
-		return werror.NewInternalError(
-			fmt.Sprintf("failed to get snapshot class %s in annotation %s, error: %v",
-				snapshotClass, util.AnnotationStorageProfileSnapshotClass, err))
 	}
 
 	return nil
