@@ -540,6 +540,14 @@ func (v *vmValidator) checkReservedMemoryAnnotation(vm *kubevirtv1.VirtualMachin
 	if reservedMemory.Cmp(*mem) >= 0 {
 		return werror.NewInvalidError("reservedMemory cannot be equal or greater than limits.memory", field)
 	}
+	if vm.Spec.Template.Spec.Domain.Memory != nil && vm.Spec.Template.Spec.Domain.Memory.Guest != nil {
+		guestMemory := vm.Spec.Template.Spec.Domain.Memory.Guest
+		totalMemory := *guestMemory
+		totalMemory.Add(reservedMemory)
+		if totalMemory.Cmp(*mem) > 0 {
+			return werror.NewInvalidError(fmt.Sprintf("guest memory %v plus reservedMemory %v cannot be greater than limits.memory %v", guestMemory.Value(), reservedMemory.Value(), mem.Value()), field)
+		}
+	}
 	if reservedMemory.CmpInt64(0) == -1 {
 		return werror.NewInvalidError("reservedMemory cannot be less than 0", field)
 	}
