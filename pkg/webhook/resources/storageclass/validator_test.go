@@ -580,9 +580,19 @@ func Test_validateCDIAnnotations(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "missing annotations is valid",
+			name:        "missing cdi.harvesterhci.io/storageProfileVolumeModeAccessModes annotation",
 			annotations: map[string]string{},
-			expectError: false,
+			expectError: true,
+		},
+		{
+			name: "clone strategy snapshot with no snapshot class",
+			annotations: map[string]string{
+				util.AnnotationStorageProfileCloneStrategy: "snapshot",
+			},
+			vsc: &snapshotv1.VolumeSnapshotClass{
+				ObjectMeta: metav1.ObjectMeta{Name: "csi-snap-class"},
+			},
+			expectError: true,
 		},
 	}
 
@@ -614,6 +624,26 @@ func Test_validateCDIAnnotations(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_validate_default_cdi_volume_mode_access_modes(t *testing.T) {
+	sc := &storagev1.StorageClass{
+		ObjectMeta:  metav1.ObjectMeta{Name: "test-sc"},
+		Provisioner: "nfs.csi.k8s.io",
+	}
+	typedObjects := []runtime.Object{}
+	typedObjects = append(typedObjects, sc)
+	clientset := harvesterFake.NewSimpleClientset(typedObjects...)
+
+	storageClassValidator := NewValidator(
+		fakeclients.StorageClassCache(corefake.NewSimpleClientset().StorageV1().StorageClasses),
+		fakeclients.SecretCache(corefake.NewSimpleClientset().CoreV1().Secrets),
+		fakeclients.VirtualMachineImageCache(harvesterFake.NewSimpleClientset().HarvesterhciV1beta1().VirtualMachineImages),
+		fakeclients.VolumeSnapshotClassCache(clientset.SnapshotV1().VolumeSnapshotClasses),
+	).(*storageClassValidator)
+	err := storageClassValidator.validateCDIAnnotations(sc)
+
+	assert.Nil(t, err)
 }
 
 func Test_validateCDIAnnotations_lhv1(t *testing.T) {

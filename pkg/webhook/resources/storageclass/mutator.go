@@ -85,6 +85,20 @@ func generatePatchOps(sc *storagev1.StorageClass) types.PatchOps {
 				strconv.Quote(json),
 			))
 		}
+		if _, ok := sc.Annotations[util.AnnotationStorageProfileCloneStrategy]; !ok {
+			patchOps = append(patchOps, fmt.Sprintf(
+				patchAnnotation,
+				patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
+				cdiv1.CloneStrategySnapshot,
+			))
+		}
+		if _, ok := sc.Annotations[util.AnnotationStorageProfileSnapshotClass]; !ok {
+			patchOps = append(patchOps, fmt.Sprintf(
+				patchAnnotation,
+				patch.EscapeJSONPointer(util.AnnotationStorageProfileSnapshotClass),
+				strconv.Quote("lvm-snapshot"),
+			))
+		}
 	}
 
 	return patchOps

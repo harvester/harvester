@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdicaps "kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
@@ -387,15 +388,23 @@ func (v *storageClassValidator) validateCDIAnnotations(newObj runtime.Object) er
 	}
 	if snapshotClassExists {
 		if snapshotClass == "" {
-			return werror.NewInvalidError(fmt.Sprintf("snapshot class cannot be empty in annotation %s", util.AnnotationStorageProfileSnapshotClass), "")
+			return werror.NewInvalidError(
+				fmt.Sprintf("snapshot class cannot be empty in annotation %s", util.AnnotationStorageProfileSnapshotClass), "")
 		}
 		if _, err := v.volumeSnapshotClassCache.Get(snapshotClass); err != nil {
 			if errors.IsNotFound(err) {
-				return werror.NewInvalidError(fmt.Sprintf("snapshot class %s in annotation %s not found", snapshotClass, util.AnnotationStorageProfileSnapshotClass), "")
+				return werror.NewInvalidError(
+					fmt.Sprintf("snapshot class %s in annotation %s not found",
+						snapshotClass,
+						util.AnnotationStorageProfileSnapshotClass), "")
 			}
 			return werror.NewInternalError(fmt.Sprintf("failed to get snapshot class %s in annotation %s, error: %v",
 				snapshotClass, util.AnnotationStorageProfileSnapshotClass, err))
 		}
+	} else if cloneStrategyExists && cloneStrategy == string(cdiv1.CloneStrategySnapshot) {
+		// If clone strategy is snapshot, snapshot class must be set
+		return werror.NewInvalidError(fmt.Sprintf("snapshot class must be set in annotation %s when clone strategy is %s",
+			util.AnnotationStorageProfileSnapshotClass, cdiv1.CloneStrategySnapshot), "")
 	}
 	if volumeModeAccessModesExists {
 		_, err := util.ParseVolumeModeAccessModes(volumeModeAccessModes)
@@ -405,6 +414,10 @@ func (v *storageClassValidator) validateCDIAnnotations(newObj runtime.Object) er
 					volumeModeAccessModes,
 					util.AnnotationStorageProfileVolumeModeAccessModes,
 					err), "")
+		}
+	} else {
+		if _, ok := cdicaps.CapabilitiesByProvisionerKey[sc.Provisioner]; !ok {
+			return werror.NewInvalidError(fmt.Sprintf("Missing annotation %s", util.AnnotationStorageProfileVolumeModeAccessModes), "")
 		}
 	}
 

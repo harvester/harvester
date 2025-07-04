@@ -75,6 +75,12 @@ func Test_generatePatchOps(t *testing.T) {
 				fmt.Sprintf(patchAnnotation,
 					patch.EscapeJSONPointer(util.AnnotationStorageProfileVolumeModeAccessModes),
 					strconv.Quote(`{"Block":["ReadWriteOnce"]}`)),
+				fmt.Sprintf(patchAnnotation,
+					patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
+					cdiv1.CloneStrategySnapshot),
+				fmt.Sprintf(patchAnnotation,
+					patch.EscapeJSONPointer(util.AnnotationStorageProfileSnapshotClass),
+					strconv.Quote("lvm-snapshot")),
 			},
 		},
 		{
@@ -84,6 +90,28 @@ func Test_generatePatchOps(t *testing.T) {
 					Name: "lvm",
 					Annotations: map[string]string{
 						util.AnnotationStorageProfileVolumeModeAccessModes: `{"Block":["ReadWriteOnce"]}`,
+					},
+				},
+				Provisioner: util.CSIProvisionerLVM,
+			},
+			expectOps: types.PatchOps{
+				fmt.Sprintf(patchAnnotation,
+					patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
+					cdiv1.CloneStrategySnapshot),
+				fmt.Sprintf(patchAnnotation,
+					patch.EscapeJSONPointer(util.AnnotationStorageProfileSnapshotClass),
+					strconv.Quote("lvm-snapshot")),
+			},
+		},
+		{
+			name: "lvm with all annotations",
+			sc: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "lvm",
+					Annotations: map[string]string{
+						util.AnnotationStorageProfileVolumeModeAccessModes: `{"Block":["ReadWriteOnce"]}`,
+						util.AnnotationStorageProfileCloneStrategy:         string(cdiv1.CloneStrategySnapshot),
+						util.AnnotationStorageProfileSnapshotClass:         "lvm-snapshot",
 					},
 				},
 				Provisioner: util.CSIProvisionerLVM,
