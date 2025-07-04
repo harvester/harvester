@@ -1,9 +1,7 @@
 package cluster
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"runtime"
 
 	corev1 "k8s.io/api/core/v1"
@@ -11,13 +9,13 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/rancher/apiserver/pkg/apierror"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/gorilla/mux"
 
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -26,37 +24,19 @@ type Handler struct {
 	nodeCache ctlcorev1.NodeCache
 }
 
-func (h Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if err := h.do(rw, req); err != nil {
-		status := http.StatusInternalServerError
-		if e, ok := err.(*apierror.APIError); ok {
-			status = e.Code.Status
-		}
-		rw.WriteHeader(status)
-		_, _ = rw.Write([]byte(err.Error()))
-		return
-	}
-	rw.WriteHeader(http.StatusNoContent)
-}
-
-func (h Handler) do(rw http.ResponseWriter, req *http.Request) error {
-
+func (h Handler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
+	req := ctx.Req()
 	vars := util.EncodeVars(mux.Vars(req))
 	link := vars["link"]
-	var result []byte
-	var err error
+
 	switch link {
 	case deviceCapacity:
-		result, err = h.generateDeviceAvailabilityResponse()
+		return h.generateDeviceAvailabilityResponse()
 	case machineTypes:
-		result, err = generateMachineTypes()
+		return generateMachineTypes()
 	}
 
-	if err != nil {
-		return fmt.Errorf("unable to marshal api response: %v", err)
-	}
-	_, err = rw.Write(result)
-	return err
+	return nil, nil
 }
 
 func (h Handler) generateDeviceAvailability() (map[string]resource.Quantity, error) {
@@ -103,16 +83,16 @@ func calculateAllocation(nodes []*corev1.Node, vms []*kubevirtv1.VirtualMachine)
 }
 
 // generateDeviceAvailabilityResponse is a wrapper around
-func (h Handler) generateDeviceAvailabilityResponse() ([]byte, error) {
+func (h Handler) generateDeviceAvailabilityResponse() (map[string]resource.Quantity, error) {
 	nodeDeviceAvailability, err := h.generateDeviceAvailability()
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(nodeDeviceAvailability)
+	return nodeDeviceAvailability, nil
 }
 
 // generateMachineTypes is a helper to return machineTypes for UI to render machine types possible
-func generateMachineTypes() ([]byte, error) {
+func generateMachineTypes() ([]string, error) {
 	var machineTypes []string
 	switch runtime.GOARCH {
 	case "amd64":
@@ -121,5 +101,5 @@ func generateMachineTypes() ([]byte, error) {
 		machineTypes = append(machineTypes, "virt")
 	}
 
-	return json.Marshal(machineTypes)
+	return machineTypes, nil
 }
