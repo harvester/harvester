@@ -2,6 +2,7 @@ package storageclass
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,8 +17,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdicaps "kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
@@ -39,21 +43,29 @@ var (
 		{util.CSINodeStageSecretNameKey, util.CSINodeStageSecretNamespaceKey},
 		{util.CSINodePublishSecretNameKey, util.CSINodePublishSecretNamespaceKey},
 	}
+
+	allCDICloneStrategies = []string{string(cdiv1.CloneStrategyHostAssisted), string(cdiv1.CloneStrategySnapshot), string(cdiv1.CloneStrategyCsiClone)}
 )
 
-func NewValidator(storageClassCache ctlstoragev1.StorageClassCache, secretCache ctlcorev1.SecretCache, vmimagesCache ctlharvesterv1.VirtualMachineImageCache) types.Validator {
+func NewValidator(
+	storageClassCache ctlstoragev1.StorageClassCache,
+	secretCache ctlcorev1.SecretCache,
+	vmimagesCache ctlharvesterv1.VirtualMachineImageCache,
+	volumeSnapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache) types.Validator {
 	return &storageClassValidator{
-		storageClassCache: storageClassCache,
-		secretCache:       secretCache,
-		vmimagesCache:     vmimagesCache,
+		storageClassCache:        storageClassCache,
+		secretCache:              secretCache,
+		vmimagesCache:            vmimagesCache,
+		volumeSnapshotClassCache: volumeSnapshotClassCache,
 	}
 }
 
 type storageClassValidator struct {
 	types.DefaultValidator
-	storageClassCache ctlstoragev1.StorageClassCache
-	secretCache       ctlcorev1.SecretCache
-	vmimagesCache     ctlharvesterv1.VirtualMachineImageCache
+	storageClassCache        ctlstoragev1.StorageClassCache
+	secretCache              ctlcorev1.SecretCache
+	vmimagesCache            ctlharvesterv1.VirtualMachineImageCache
+	volumeSnapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache
 }
 
 func (v *storageClassValidator) Resource() types.Resource {
@@ -76,6 +88,7 @@ func (v *storageClassValidator) Create(_ *types.Request, newObj runtime.Object) 
 		v.validateSetUniqueDefault,
 		v.validateDataLocality,
 		v.validateEncryption,
+		v.validateCDIAnnotations,
 	}
 
 	for _, validator := range validators {
@@ -88,7 +101,18 @@ func (v *storageClassValidator) Create(_ *types.Request, newObj runtime.Object) 
 }
 
 func (v *storageClassValidator) Update(_ *types.Request, _ runtime.Object, newObj runtime.Object) error {
-	return v.validateSetUniqueDefault(newObj)
+	validators := []func(runtime.Object) error{
+		v.validateSetUniqueDefault,
+		v.validateCDIAnnotations,
+	}
+
+	for _, validator := range validators {
+		if err := validator(newObj); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (v *storageClassValidator) Delete(_ *types.Request, obj runtime.Object) error {
@@ -323,6 +347,165 @@ func (v *storageClassValidator) validateReservedStorageClass(sc *storagev1.Stora
 		if sc.Annotations[util.HelmReleaseNamespaceAnnotation] == util.HarvesterSystemNamespaceName && sc.Annotations[util.HelmReleaseNameAnnotation] == util.HarvesterChartReleaseName {
 			return werror.NewInvalidError(fmt.Sprintf(errorMessageReservedStorageClass, sc.Name), "")
 		}
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) validateCDIAnnotations(newObj runtime.Object) error {
+	sc := newObj.(*storagev1.StorageClass)
+
+	cdiAnnos := extractCDIAnnotations(sc)
+	if err := v.validateLonghornV1(sc, cdiAnnos); err != nil {
+		return err
+	}
+
+	validators := []func(*storagev1.StorageClass, *cdiAnnotations) error{
+		v.validateFilesystemOverhead,
+		v.validateCloneStrategy,
+		v.validateSnapshotClass,
+		v.validateVolumeModeAccessModes,
+	}
+
+	for _, validator := range validators {
+		if err := validator(sc, cdiAnnos); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+type cdiAnnotations struct {
+	fsOverhead                  string
+	fsOverheadExists            bool
+	cloneStrategy               string
+	cloneStrategyExists         bool
+	snapshotClass               string
+	snapshotClassExists         bool
+	volumeModeAccessModes       string
+	volumeModeAccessModesExists bool
+}
+
+func (c *cdiAnnotations) hasAnyAnnotation() bool {
+	return c.fsOverheadExists || c.cloneStrategyExists || c.snapshotClassExists || c.volumeModeAccessModesExists
+}
+
+func extractCDIAnnotations(sc *storagev1.StorageClass) *cdiAnnotations {
+	annotations := &cdiAnnotations{}
+
+	if sc.Annotations != nil {
+		annotations.fsOverhead, annotations.fsOverheadExists = sc.Annotations[util.AnnotationCDIFSOverhead]
+		annotations.cloneStrategy, annotations.cloneStrategyExists = sc.Annotations[util.AnnotationStorageProfileCloneStrategy]
+		annotations.snapshotClass, annotations.snapshotClassExists = sc.Annotations[util.AnnotationStorageProfileSnapshotClass]
+		annotations.volumeModeAccessModes, annotations.volumeModeAccessModesExists = sc.Annotations[util.AnnotationStorageProfileVolumeModeAccessModes]
+	}
+
+	return annotations
+}
+
+func (v *storageClassValidator) validateLonghornV1(sc *storagev1.StorageClass, annotations *cdiAnnotations) error {
+	if !annotations.hasAnyAnnotation() {
+		return nil
+	}
+
+	if sc.Provisioner != util.CSIProvisionerLonghorn {
+		return nil
+	}
+
+	// Longhorn v1 does not support CDI annotations, so we throw error
+	if dataEngine, ok := sc.Parameters["dataEngine"]; ok && dataEngine == string(longhorn.DataEngineTypeV1) {
+		return werror.NewInvalidError("longhorn v1 does not support CDI annotations", "")
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) validateFilesystemOverhead(_ *storagev1.StorageClass, annotations *cdiAnnotations) error {
+	if !annotations.fsOverheadExists {
+		return nil
+	}
+
+	if !regexp.MustCompile(util.FSOverheadRegex).MatchString(annotations.fsOverhead) {
+		return werror.NewInvalidError(
+			fmt.Sprintf("invalid filesystem overhead %s in annotation %s, must be in range [0, 1]",
+				annotations.fsOverhead, util.AnnotationCDIFSOverhead), "")
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) validateCloneStrategy(_ *storagev1.StorageClass, annotations *cdiAnnotations) error {
+	if !annotations.cloneStrategyExists {
+		return nil
+	}
+
+	_, err := util.ToCloneStrategy(annotations.cloneStrategy)
+	if err != nil {
+		return werror.NewInvalidError(
+			fmt.Sprintf("invalid clone strategy %s in annotation %s, valid values: %s",
+				annotations.cloneStrategy,
+				util.AnnotationStorageProfileCloneStrategy,
+				strings.Join(allCDICloneStrategies, ", ")), "")
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) validateSnapshotClass(_ *storagev1.StorageClass, annotations *cdiAnnotations) error {
+	if annotations.snapshotClassExists {
+		snapshotClass := annotations.snapshotClass
+		if snapshotClass == "" {
+			return werror.NewInvalidError(
+				fmt.Sprintf("snapshot class cannot be empty in annotation %s", util.AnnotationStorageProfileSnapshotClass), "")
+		}
+
+		// Check if the VolumeSnapshotClass exists
+		if _, err := v.volumeSnapshotClassCache.Get(snapshotClass); err != nil {
+			if errors.IsNotFound(err) {
+				return werror.NewInvalidError(
+					fmt.Sprintf("snapshot class %s in annotation %s not found",
+						snapshotClass, util.AnnotationStorageProfileSnapshotClass), "")
+			}
+			return werror.NewInternalError(
+				fmt.Sprintf("failed to get snapshot class %s in annotation %s, error: %v",
+					snapshotClass, util.AnnotationStorageProfileSnapshotClass, err))
+		}
+	}
+
+	if annotations.cloneStrategyExists && annotations.cloneStrategy == string(cdiv1.CloneStrategySnapshot) {
+		if !annotations.snapshotClassExists {
+			return werror.NewInvalidError(
+				fmt.Sprintf("snapshot class must be set in annotation %s when clone strategy is %s",
+					util.AnnotationStorageProfileSnapshotClass, cdiv1.CloneStrategySnapshot), "")
+		}
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) validateVolumeModeAccessModes(sc *storagev1.StorageClass, annotations *cdiAnnotations) error {
+	if annotations.volumeModeAccessModesExists {
+		return v.validateVolumeModeAccessModesAnnotation(annotations.volumeModeAccessModes)
+	}
+
+	// Check if annotation is required for this provisioner
+	if _, ok := cdicaps.CapabilitiesByProvisionerKey[sc.Provisioner]; !ok {
+		return werror.NewInvalidError(
+			fmt.Sprintf("missing annotation %s", util.AnnotationStorageProfileVolumeModeAccessModes), "")
+	}
+
+	return nil
+}
+
+func (v *storageClassValidator) validateVolumeModeAccessModesAnnotation(volumeModeAccessModes string) error {
+	_, err := util.ParseVolumeModeAccessModes(volumeModeAccessModes)
+	if err != nil {
+		return werror.NewInvalidError(
+			fmt.Sprintf("invalid volume mode access modes %s in annotation %s, error: %v",
+				volumeModeAccessModes,
+				util.AnnotationStorageProfileVolumeModeAccessModes,
+				err), "")
 	}
 
 	return nil
