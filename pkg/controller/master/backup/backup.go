@@ -612,6 +612,18 @@ func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineB
 			}
 		}
 
+		if volumeBackup.LonghornBackupName != nil {
+			if err := checkLHBackup(h.lhbackupCache, *volumeBackup.LonghornBackupName); err != nil {
+				logrus.WithError(err).WithFields(logrus.Fields{
+					"name":           vmBackupCpy.Name,
+					"namespace":      vmBackupCpy.Namespace,
+					"volumeBackup":   *volumeBackup.Name,
+					"longhornBackup": *volumeBackup.LonghornBackupName,
+				}).Warn("Longhorn backup is not ready")
+			}
+			return nil
+		}
+
 		if volumeSnapshot.Status != nil {
 			vmBackupCpy.Status.VolumeBackups[i].ReadyToUse = volumeSnapshot.Status.ReadyToUse
 			vmBackupCpy.Status.VolumeBackups[i].CreationTime = volumeSnapshot.Status.CreationTime
