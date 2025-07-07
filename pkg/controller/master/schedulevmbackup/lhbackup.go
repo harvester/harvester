@@ -56,7 +56,7 @@ func (h *svmbackupHandler) OnLHBackupChanged(_ string, lhBackup *lhv1beta2.Backu
 	}
 
 	vmBackup := h.resolveVolSnapshotRef(snapshot.Namespace, controllerRef)
-	if vmBackup == nil || vmBackup.Status == nil || vmBackup.Status.BackupTarget == nil {
+	if vmBackup == nil || vmBackup.Status.BackupTarget == nil {
 		return nil, nil
 	}
 
