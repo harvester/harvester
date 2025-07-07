@@ -7,15 +7,14 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
-	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/rancher/wrangler/v3/pkg/condition"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	wranglername "github.com/rancher/wrangler/v3/pkg/name"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -36,16 +35,16 @@ const (
 )
 
 func IsBackupReady(backup *harvesterv1.VirtualMachineBackup) bool {
-	return backup.Status != nil && backup.Status.ReadyToUse != nil && *backup.Status.ReadyToUse
+	return backup.Status.ReadyToUse != nil && *backup.Status.ReadyToUse
 }
 
 func IsBackupProgressing(backup *harvesterv1.VirtualMachineBackup) bool {
 	return GetVMBackupError(backup) == nil &&
-		(backup.Status == nil || backup.Status.ReadyToUse == nil || !*backup.Status.ReadyToUse)
+		(backup.Status.ReadyToUse == nil || !*backup.Status.ReadyToUse)
 }
 
 func isBackupMissingStatus(backup *harvesterv1.VirtualMachineBackup) bool {
-	return backup.Status == nil || backup.Status.SourceSpec == nil || backup.Status.VolumeBackups == nil
+	return backup.Status.SourceSpec == nil || backup.Status.VolumeBackups == nil
 }
 
 func isBackupTargetOnAnnotation(backup *harvesterv1.VirtualMachineBackup) bool {
@@ -56,7 +55,7 @@ func isBackupTargetOnAnnotation(backup *harvesterv1.VirtualMachineBackup) bool {
 }
 
 func isVMRestoreProgressing(vmRestore *harvesterv1.VirtualMachineRestore) bool {
-	return vmRestore.Status == nil || vmRestore.Status.Complete == nil || !*vmRestore.Status.Complete
+	return vmRestore.Status.Complete == nil || !*vmRestore.Status.Complete
 }
 
 func isVMRestoreMissingVolumes(vmRestore *harvesterv1.VirtualMachineRestore) bool {
@@ -69,55 +68,10 @@ func IsNewVMOrHasRetainPolicy(vmRestore *harvesterv1.VirtualMachineRestore) bool
 }
 
 func GetVMBackupError(vmBackup *harvesterv1.VirtualMachineBackup) *harvesterv1.Error {
-	if vmBackup.Status != nil && vmBackup.Status.Error != nil {
+	if vmBackup.Status.Error != nil {
 		return vmBackup.Status.Error
 	}
 	return nil
-}
-
-func newReadyCondition(status corev1.ConditionStatus, reason string, message string) harvesterv1.Condition {
-	return harvesterv1.Condition{
-		Type:               harvesterv1.BackupConditionReady,
-		Status:             status,
-		Message:            message,
-		Reason:             reason,
-		LastTransitionTime: currentTime().Format(time.RFC3339),
-	}
-}
-
-func newProgressingCondition(status corev1.ConditionStatus, reason string, message string) harvesterv1.Condition {
-	return harvesterv1.Condition{
-		Type:   harvesterv1.BackupConditionProgressing,
-		Status: status,
-		// wrangler use Reason to determine whether an object is in error state.
-		// ref: https://github.com/rancher/wrangler/blob/6970ad98ba7bd2755312ccfc6540a92bc9a9e316/pkg/summary/summarizers.go#L220-L243
-		Reason:             reason,
-		Message:            message,
-		LastTransitionTime: currentTime().Format(time.RFC3339),
-	}
-}
-
-func updateBackupCondition(ss *harvesterv1.VirtualMachineBackup, c harvesterv1.Condition) {
-	ss.Status.Conditions = updateCondition(ss.Status.Conditions, c)
-}
-
-func updateCondition(conditions []harvesterv1.Condition, c harvesterv1.Condition) []harvesterv1.Condition {
-	found := false
-	for i := range conditions {
-		if conditions[i].Type == c.Type {
-			if conditions[i].Status != c.Status || (conditions[i].Reason != c.Reason) || (conditions[i].Message != c.Message) {
-				conditions[i] = c
-			}
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		conditions = append(conditions, c)
-	}
-
-	return conditions
 }
 
 func translateError(e *snapshotv1.VolumeSnapshotError) *harvesterv1.Error {
@@ -139,10 +93,6 @@ var currentTime = func() *metav1.Time {
 
 func getRestoreID(vmRestore *harvesterv1.VirtualMachineRestore) string {
 	return fmt.Sprintf("%s-%s", vmRestore.Name, vmRestore.UID)
-}
-
-func updateRestoreCondition(r *harvesterv1.VirtualMachineRestore, c harvesterv1.Condition) {
-	r.Status.Conditions = updateCondition(r.Status.Conditions, c)
 }
 
 func getNewVolumes(vm *kubevirtv1.VirtualMachineSpec, vmRestore *harvesterv1.VirtualMachineRestore) ([]kubevirtv1.Volume, error) {
@@ -177,8 +127,8 @@ func configVMOwner(vm *kubevirtv1.VirtualMachine) []metav1.OwnerReference {
 			Kind:               kubevirtv1.VirtualMachineGroupVersionKind.Kind,
 			Name:               vm.Name,
 			UID:                vm.UID,
-			Controller:         pointer.BoolPtr(true),
-			BlockOwnerDeletion: pointer.BoolPtr(true),
+			Controller:         ptr.To(true),
+			BlockOwnerDeletion: ptr.To(true),
 		},
 	}
 }
@@ -311,4 +261,14 @@ func checkStorageClass(storageClassCache ctlstoragev1.StorageClassCache, name st
 // ShouldSkipNonReadyVMBackup returns true if the VMBackup should be skipped in non-ready backup checks.
 func ShouldSkipNonReadyVMBackup(vmBackup *harvesterv1.VirtualMachineBackup) bool {
 	return vmBackup.Spec.Type == harvesterv1.Snapshot || vmBackup.Status.ReadyToUse == nil || *vmBackup.Status.ReadyToUse
+}
+
+func setCondition(obj interface{}, condition condition.Cond, hasCondition bool, reason, message string) {
+	if hasCondition {
+		condition.True(obj)
+	} else {
+		condition.False(obj)
+	}
+	condition.Reason(obj, reason)
+	condition.Message(obj, message)
 }

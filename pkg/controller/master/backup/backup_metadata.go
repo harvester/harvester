@@ -23,7 +23,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/utils/pointer"
 	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -436,8 +435,8 @@ func (h *MetadataHandler) createVMBackupIfNotExist(backupMetadata VirtualMachine
 			Namespace: backupMetadata.Namespace,
 		},
 		Spec: backupMetadata.BackupSpec,
-		Status: &harvesterv1.VirtualMachineBackupStatus{
-			ReadyToUse: pointer.BoolPtr(false),
+		Status: harvesterv1.VirtualMachineBackupStatus{
+			ReadyToUse: ptr.To(false),
 			BackupTarget: &harvesterv1.BackupTarget{
 				Endpoint:     target.Endpoint,
 				BucketName:   target.BucketName,
@@ -673,7 +672,7 @@ func (h *MetadataHandler) checkReadyVMBackup(vmBackups []*harvesterv1.VirtualMac
 				"name":      vmBackup.Name,
 			}).Warn("VMBackup is not healthy, change the VMBackup to not ready")
 			status.ReadyToUse = ptr.To(false)
-			updateBackupCondition(vmBackupCopy, newReadyCondition(corev1.ConditionFalse, message, "Not Ready"))
+			setCondition(vmBackupCopy, harvesterv1.BackupConditionReady, false, message, "Not Ready")
 			if _, err := h.vmBackups.Update(vmBackupCopy); err != nil {
 				logrus.WithError(err).WithFields(logrus.Fields{
 					"namespace": vmBackup.Namespace,
