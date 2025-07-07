@@ -10,6 +10,8 @@ import (
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	wranglername "github.com/rancher/wrangler/v3/pkg/name"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +19,8 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctllonghornv2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -274,4 +278,37 @@ func decodeSnapshotID(snapshotID string) (csiSnapshotType, sourceVolumeName, id 
 
 func getVolumeSnapshotContentName(volumeBackup harvesterv1.VolumeBackup) string {
 	return fmt.Sprintf("%s-vsc", *volumeBackup.Name)
+}
+
+func checkLHBackup(backupCache ctllonghornv2.BackupCache, name string) error {
+	backup, err := backupCache.Get(util.LonghornSystemNamespaceName, name)
+	if err != nil {
+		return err
+	}
+
+	if backup.Status.State != lhv1beta2.BackupStateCompleted {
+		return fmt.Errorf("backup %s is not completed", name)
+	}
+
+	if backup.DeletionTimestamp != nil {
+		return fmt.Errorf("backup %s is being deleted", name)
+	}
+	return nil
+}
+
+func checkStorageClass(storageClassCache ctlstoragev1.StorageClassCache, name string) error {
+	storageClass, err := storageClassCache.Get(name)
+	if err != nil {
+		return err
+	}
+
+	if storageClass.DeletionTimestamp != nil {
+		return fmt.Errorf("storage class %s is being deleted", name)
+	}
+	return nil
+}
+
+// ShouldSkipNonReadyVMBackup returns true if the VMBackup should be skipped in non-ready backup checks.
+func ShouldSkipNonReadyVMBackup(vmBackup *harvesterv1.VirtualMachineBackup) bool {
+	return vmBackup.Spec.Type == harvesterv1.Snapshot || vmBackup.Status.ReadyToUse == nil || *vmBackup.Status.ReadyToUse
 }
