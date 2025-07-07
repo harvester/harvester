@@ -141,13 +141,8 @@ func (v *nodeValidator) validateCPUManagerOperation(node *corev1.Node) error {
 // they should not be able to manually remove the witness label and taint from a witness node
 func validateWitnessRoleChange(oldNode, newNode *corev1.Node) error {
 	var isWitnessNodeTaint, isWitnessNodeLabel bool
-	for _, taint := range oldNode.Spec.Taints {
-		if taint.Key == "node-role.kubernetes.io/etcd" && taint.Value == "true" && taint.Effect == corev1.TaintEffectNoExecute {
-			isWitnessNodeTaint = true
-			break
-		}
-	}
-	if val, ok := oldNode.ObjectMeta.Labels[util.HarvesterWitnessNodeLabelKey]; ok && val == "true" {
+	isWitnessNodeTaint = isWitnessNode(oldNode.Spec.Taints)
+	if _, ok := oldNode.ObjectMeta.Labels[util.HarvesterWitnessNodeLabelKey]; ok {
 		isWitnessNodeLabel = true
 	}
 
@@ -157,13 +152,8 @@ func validateWitnessRoleChange(oldNode, newNode *corev1.Node) error {
 	}
 
 	var witnessTaintPersist, witnessLabelPersist bool
-	for _, taint := range newNode.Spec.Taints {
-		if taint.Key == "node-role.kubernetes.io/etcd" && taint.Value == "true" && taint.Effect == corev1.TaintEffectNoExecute {
-			witnessTaintPersist = true
-			break
-		}
-	}
-	if val, ok := newNode.ObjectMeta.Labels[util.HarvesterWitnessNodeLabelKey]; ok || val == "true" {
+	witnessTaintPersist = isWitnessNode(newNode.Spec.Taints)
+	if _, ok := newNode.ObjectMeta.Labels[util.HarvesterWitnessNodeLabelKey]; ok {
 		witnessLabelPersist = true
 	}
 
@@ -172,6 +162,15 @@ func validateWitnessRoleChange(oldNode, newNode *corev1.Node) error {
 	}
 
 	return nil
+}
+
+func isWitnessNode(taints []corev1.Taint) bool {
+	for _, taint := range taints {
+		if taint.Key == "node-role.kubernetes.io/etcd" && taint.Value == "true" && taint.Effect == corev1.TaintEffectNoExecute {
+			return true
+		}
+	}
+	return false
 }
 
 func checkCPUManagerLabel(node *corev1.Node, policy ctlnode.CPUManagerPolicy) error {
