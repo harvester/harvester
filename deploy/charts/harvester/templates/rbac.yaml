@@ -173,6 +173,7 @@ rules:
   - storage.k8s.io
   resources:
   - storageclasses
+  - volumeattachments
   verbs:
   - get
   - list
