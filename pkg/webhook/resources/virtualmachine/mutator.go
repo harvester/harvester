@@ -17,6 +17,7 @@ import (
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -248,6 +249,7 @@ func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, 
 	var err error
 	newRequest := mem.Value() * int64(100) / int64(overcommit.Memory) / 1048576 * 1048576
 	quantity := resource.NewQuantity(newRequest, mem.Format)
+	enableCPUAndMemoryHotplug := virtualmachine.SupportCPUAndMemoryHotplug(vm)
 
 	// Reserve 100MiB (104857600 Bytes) for QEMU on guest memory
 	// Ref: https://github.com/harvester/harvester/issues/1234
@@ -275,7 +277,14 @@ func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, 
 	// when AnnotationReservedMemory is set, or AdditionalGuestMemoryOverheadRatioConfig is not set
 	// if AdditionalGuestMemoryOverheadRatioConfig and AdditionalGuestMemoryOverheadRatioConfig are both set
 	// then the VM will benefit from both
+
+	// if hotpluggable guest memory is set by the user, use it for subsequent calculations.
+	// otherwise, set the initial guest memory to be the same as the vm's memory limit.
 	guestMemory := *mem
+	if enableCPUAndMemoryHotplug && vm.Spec.Template.Spec.Domain.Memory != nil && vm.Spec.Template.Spec.Domain.Memory.Guest != nil {
+		guestMemory = *vm.Spec.Template.Spec.Domain.Memory.Guest
+	}
+
 	if useReservedMemory {
 		guestMemory.Sub(reservedMemory)
 	}
@@ -310,7 +319,7 @@ func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, 
 
 	if vm.Spec.Template.Spec.Domain.Memory == nil {
 		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"%s"}}`, &guestMemory))
-	} else {
+	} else if !enableCPUAndMemoryHotplug {
 		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, &guestMemory))
 	}
 

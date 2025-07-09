@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -189,7 +190,7 @@ func (h *Handler) OnBackupChange(_ string, vmBackup *harvesterv1.VirtualMachineB
 
 // OnBackupRemove remove remote vm backup metadata
 func (h *Handler) OnBackupRemove(_ string, vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
-	if vmBackup == nil || vmBackup.Status == nil || vmBackup.Status.BackupTarget == nil {
+	if vmBackup == nil || vmBackup.Status.BackupTarget == nil {
 		return nil, nil
 	}
 
@@ -500,18 +501,16 @@ func (h *Handler) getSecretBackupFromSecret(namespace, name string) (*harvesterv
 func (h *Handler) initBackup(backup *harvesterv1.VirtualMachineBackup, vm *kubevirtv1.VirtualMachine) error {
 	var err error
 	backupCpy := backup.DeepCopy()
-	backupCpy.Status = &harvesterv1.VirtualMachineBackupStatus{
-		ReadyToUse: pointer.BoolPtr(false),
-		SourceUID:  &vm.UID,
-		SourceSpec: &harvesterv1.VirtualMachineSourceSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:        vm.ObjectMeta.Name,
-				Namespace:   vm.ObjectMeta.Namespace,
-				Annotations: vm.ObjectMeta.Annotations,
-				Labels:      vm.ObjectMeta.Labels,
-			},
-			Spec: vm.Spec,
+	backupCpy.Status.ReadyToUse = ptr.To(false)
+	backupCpy.Status.SourceUID = ptr.To(vm.UID)
+	backupCpy.Status.SourceSpec = &harvesterv1.VirtualMachineSourceSpec{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        vm.ObjectMeta.Name,
+			Namespace:   vm.ObjectMeta.Namespace,
+			Annotations: vm.ObjectMeta.Annotations,
+			Labels:      vm.ObjectMeta.Labels,
 		},
+		Spec: vm.Spec,
 	}
 
 	if backupCpy.Status.VolumeBackups, err = h.getVolumeBackups(backup, vm); err != nil {
@@ -610,6 +609,18 @@ func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineB
 				logrus.Debugf("create volumeSnapshot %s/%s error: %v", vmBackupCpy.Namespace, snapshotName, err)
 				return err
 			}
+		}
+
+		if volumeBackup.LonghornBackupName != nil {
+			if err := checkLHBackup(h.lhbackupCache, *volumeBackup.LonghornBackupName); err != nil {
+				logrus.WithError(err).WithFields(logrus.Fields{
+					"name":           vmBackupCpy.Name,
+					"namespace":      vmBackupCpy.Namespace,
+					"volumeBackup":   *volumeBackup.Name,
+					"longhornBackup": *volumeBackup.LonghornBackupName,
+				}).Warn("Longhorn backup is not ready")
+			}
+			return nil
 		}
 
 		if volumeSnapshot.Status != nil {
@@ -780,16 +791,12 @@ func (h *Handler) createVolumeSnapshotContent(
 
 func (h *Handler) setStatusError(vmBackup *harvesterv1.VirtualMachineBackup, err error) error {
 	vmBackupCpy := vmBackup.DeepCopy()
-	if vmBackupCpy.Status == nil {
-		vmBackupCpy.Status = &harvesterv1.VirtualMachineBackupStatus{}
-	}
-
+	setCondition(vmBackupCpy, harvesterv1.BackupConditionProgressing, false, "Error", err.Error())
+	setCondition(vmBackupCpy, harvesterv1.BackupConditionReady, false, "", "Not Ready")
 	vmBackupCpy.Status.Error = &harvesterv1.Error{
 		Time:    currentTime(),
-		Message: pointer.StringPtr(err.Error()),
+		Message: ptr.To(err.Error()),
 	}
-	updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "Error", err.Error()))
-	updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "", "Not Ready"))
 
 	if _, updateErr := h.vmBackups.Update(vmBackupCpy); updateErr != nil {
 		return updateErr
@@ -890,11 +897,7 @@ func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 	}
 
 	vmBackupCopy := vmBackup.DeepCopy()
-	updateBackupCondition(vmBackupCopy, harvesterv1.Condition{
-		Type:               harvesterv1.BackupConditionMetadataReady,
-		Status:             corev1.ConditionTrue,
-		LastTransitionTime: currentTime().Format(time.RFC3339),
-	})
+	harvesterv1.BackupConditionMetadataReady.True(vmBackupCopy)
 	if !reflect.DeepEqual(vmBackup.Status, vmBackupCopy.Status) {
 		_, err = h.vmBackups.Update(vmBackupCopy)
 		return err

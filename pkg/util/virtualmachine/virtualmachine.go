@@ -2,12 +2,14 @@ package virtualmachine
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 // IsVMStopped checks VM is stopped or not. It will check two cases
@@ -49,4 +51,12 @@ func IsVMStopped(
 	}
 
 	return false, nil
+}
+
+func SupportCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
+	if vm == nil || vm.Annotations == nil {
+		return false
+	}
+
+	return strings.ToLower(vm.Annotations[util.AnnotationEnableCPUAndMemoryHotplug]) == "true"
 }

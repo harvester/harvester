@@ -18,6 +18,7 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/virtualmachine"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 )
 
@@ -411,6 +412,9 @@ func canCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
 		return false
 	}
 	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusRunning {
+		return false
+	}
+	if !virtualmachine.SupportCPUAndMemoryHotplug(vm) {
 		return false
 	}
 
