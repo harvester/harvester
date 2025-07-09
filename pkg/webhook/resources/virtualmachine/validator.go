@@ -406,7 +406,6 @@ func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine
 		newPvcMap[pvc.Name] = pvc
 	}
 
-	isResizeVolume := false
 	for name, oldPvc := range oldPvcMap {
 		newPvc, ok := newPvcMap[name]
 		if !ok || newPvc == nil {
@@ -418,19 +417,6 @@ func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine
 		// 1 means newPVC > oldPVC
 		if newPvc.Spec.Resources.Requests.Storage().Cmp(*oldPvc.Spec.Resources.Requests.Storage()) == -1 {
 			return werror.NewInvalidError(fmt.Sprintf("%s PVC requests storage can't be less than previous value", newPvc.Name), fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates))
-		} else if newPvc.Spec.Resources.Requests.Storage().Cmp(*oldPvc.Spec.Resources.Requests.Storage()) == 1 {
-			isResizeVolume = true
-		}
-	}
-
-	if isResizeVolume {
-		stopped, err := vmutil.IsVMStopped(newVM, v.vmiCache)
-		if err != nil {
-			return werror.NewInternalError(fmt.Sprintf("failed to get vm is stopped or not, err: %s", err.Error()))
-		}
-
-		if !stopped {
-			return werror.NewInvalidError("please stop the VM before resizing volumes", fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates))
 		}
 	}
 
