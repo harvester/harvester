@@ -355,12 +355,11 @@ func (v *storageClassValidator) validateReservedStorageClass(sc *storagev1.Stora
 func (v *storageClassValidator) validateCDIAnnotations(newObj runtime.Object) error {
 	sc := newObj.(*storagev1.StorageClass)
 
-	cdiAnnos := extractCDIAnnotations(sc)
-	if err := v.validateLonghornV1(sc, cdiAnnos); err != nil {
+	if err := v.validateLonghornV1(sc); err != nil {
 		return err
 	}
 
-	validators := []func(*storagev1.StorageClass, *cdiAnnotations) error{
+	validators := []func(*storagev1.StorageClass) error{
 		v.validateFilesystemOverhead,
 		v.validateCloneStrategy,
 		v.validateSnapshotClass,
@@ -368,7 +367,7 @@ func (v *storageClassValidator) validateCDIAnnotations(newObj runtime.Object) er
 	}
 
 	for _, validator := range validators {
-		if err := validator(sc, cdiAnnos); err != nil {
+		if err := validator(sc); err != nil {
 			return err
 		}
 	}
@@ -376,36 +375,8 @@ func (v *storageClassValidator) validateCDIAnnotations(newObj runtime.Object) er
 	return nil
 }
 
-type cdiAnnotations struct {
-	fsOverhead                  string
-	fsOverheadExists            bool
-	cloneStrategy               string
-	cloneStrategyExists         bool
-	snapshotClass               string
-	snapshotClassExists         bool
-	volumeModeAccessModes       string
-	volumeModeAccessModesExists bool
-}
-
-func (c *cdiAnnotations) hasAnyAnnotation() bool {
-	return c.fsOverheadExists || c.cloneStrategyExists || c.snapshotClassExists || c.volumeModeAccessModesExists
-}
-
-func extractCDIAnnotations(sc *storagev1.StorageClass) *cdiAnnotations {
-	annotations := &cdiAnnotations{}
-
-	if sc.Annotations != nil {
-		annotations.fsOverhead, annotations.fsOverheadExists = sc.Annotations[util.AnnotationCDIFSOverhead]
-		annotations.cloneStrategy, annotations.cloneStrategyExists = sc.Annotations[util.AnnotationStorageProfileCloneStrategy]
-		annotations.snapshotClass, annotations.snapshotClassExists = sc.Annotations[util.AnnotationStorageProfileSnapshotClass]
-		annotations.volumeModeAccessModes, annotations.volumeModeAccessModesExists = sc.Annotations[util.AnnotationStorageProfileVolumeModeAccessModes]
-	}
-
-	return annotations
-}
-
-func (v *storageClassValidator) validateLonghornV1(sc *storagev1.StorageClass, annotations *cdiAnnotations) error {
-	if !annotations.hasAnyAnnotation() {
+func (v *storageClassValidator) validateLonghornV1(sc *storagev1.StorageClass) error {
+	if !hasCDIAnnotations(sc) {
 		return nil
 	}
 
@@ -413,7 +384,7 @@ func (v *storageClassValidator) validateLonghornV1(sc *storagev1.StorageClass, a
 		return nil
 	}
 
-	// Longhorn v1 does not support CDI annotations, so we throw error
+	// Longhorn v1 does not support CDI annotations
 	if dataEngine, ok := sc.Parameters["dataEngine"]; ok && dataEngine == string(longhorn.DataEngineTypeV1) {
 		return werror.NewInvalidError("longhorn v1 does not support CDI annotations", "")
 	}
@@ -421,30 +392,60 @@ func (v *storageClassValidator) validateLonghornV1(sc *storagev1.StorageClass, a
 	return nil
 }
 
-func (v *storageClassValidator) validateFilesystemOverhead(_ *storagev1.StorageClass, annotations *cdiAnnotations) error {
-	if !annotations.fsOverheadExists {
+func hasCDIAnnotations(sc *storagev1.StorageClass) bool {
+	if sc.Annotations == nil {
+		return false
+	}
+
+	cdiAnnotations := []string{
+		util.AnnotationCDIFSOverhead,
+		util.AnnotationStorageProfileCloneStrategy,
+		util.AnnotationStorageProfileSnapshotClass,
+		util.AnnotationStorageProfileVolumeModeAccessModes,
+	}
+
+	for _, anno := range cdiAnnotations {
+		if _, exists := sc.Annotations[anno]; exists {
+			return true
+		}
+	}
+	return false
+}
+
+func (v *storageClassValidator) validateFilesystemOverhead(sc *storagev1.StorageClass) error {
+	if sc.Annotations == nil {
 		return nil
 	}
 
-	if !regexp.MustCompile(util.FSOverheadRegex).MatchString(annotations.fsOverhead) {
+	value, exists := sc.Annotations[util.AnnotationCDIFSOverhead]
+	if !exists {
+		return nil
+	}
+
+	if !regexp.MustCompile(util.FSOverheadRegex).MatchString(value) {
 		return werror.NewInvalidError(
 			fmt.Sprintf("invalid filesystem overhead %s in annotation %s, must be in range [0, 1]",
-				annotations.fsOverhead, util.AnnotationCDIFSOverhead), "")
+				value, util.AnnotationCDIFSOverhead), "")
 	}
 
 	return nil
 }
 
-func (v *storageClassValidator) validateCloneStrategy(_ *storagev1.StorageClass, annotations *cdiAnnotations) error {
-	if !annotations.cloneStrategyExists {
+func (v *storageClassValidator) validateCloneStrategy(sc *storagev1.StorageClass) error {
+	if sc.Annotations == nil {
 		return nil
 	}
 
-	_, err := util.ToCloneStrategy(annotations.cloneStrategy)
+	value, exists := sc.Annotations[util.AnnotationStorageProfileCloneStrategy]
+	if !exists {
+		return nil
+	}
+
+	_, err := util.ToCloneStrategy(value)
 	if err != nil {
 		return werror.NewInvalidError(
 			fmt.Sprintf("invalid clone strategy %s in annotation %s, valid values: %s",
-				annotations.cloneStrategy,
+				value,
 				util.AnnotationStorageProfileCloneStrategy,
 				strings.Join(allCDICloneStrategies, ", ")), "")
 	}
@@ -452,9 +453,15 @@ func (v *storageClassValidator) validateCloneStrategy(_ *storagev1.StorageClass,
 	return nil
 }
 
-func (v *storageClassValidator) validateSnapshotClass(_ *storagev1.StorageClass, annotations *cdiAnnotations) error {
-	if annotations.snapshotClassExists {
-		snapshotClass := annotations.snapshotClass
+func (v *storageClassValidator) validateSnapshotClass(sc *storagev1.StorageClass) error {
+	if sc.Annotations == nil {
+		return nil
+	}
+
+	snapshotClass, snapshotClassExists := sc.Annotations[util.AnnotationStorageProfileSnapshotClass]
+	cloneStrategy, cloneStrategyExists := sc.Annotations[util.AnnotationStorageProfileCloneStrategy]
+
+	if snapshotClassExists {
 		if snapshotClass == "" {
 			return werror.NewInvalidError(
 				fmt.Sprintf("snapshot class cannot be empty in annotation %s", util.AnnotationStorageProfileSnapshotClass), "")
@@ -473,8 +480,8 @@ func (v *storageClassValidator) validateSnapshotClass(_ *storagev1.StorageClass,
 		}
 	}
 
-	if annotations.cloneStrategyExists && annotations.cloneStrategy == string(cdiv1.CloneStrategySnapshot) {
-		if !annotations.snapshotClassExists {
+	if cloneStrategyExists && cloneStrategy == string(cdiv1.CloneStrategySnapshot) {
+		if !snapshotClassExists {
 			return werror.NewInvalidError(
 				fmt.Sprintf("snapshot class must be set in annotation %s when clone strategy is %s",
 					util.AnnotationStorageProfileSnapshotClass, cdiv1.CloneStrategySnapshot), "")
@@ -484,9 +491,14 @@ func (v *storageClassValidator) validateSnapshotClass(_ *storagev1.StorageClass,
 	return nil
 }
 
-func (v *storageClassValidator) validateVolumeModeAccessModes(sc *storagev1.StorageClass, annotations *cdiAnnotations) error {
-	if annotations.volumeModeAccessModesExists {
-		return v.validateVolumeModeAccessModesAnnotation(annotations.volumeModeAccessModes)
+func (v *storageClassValidator) validateVolumeModeAccessModes(sc *storagev1.StorageClass) error {
+	if sc.Annotations == nil {
+		return nil
+	}
+
+	value, exists := sc.Annotations[util.AnnotationStorageProfileVolumeModeAccessModes]
+	if exists {
+		return v.validateVolumeModeAccessModesAnnotation(value)
 	}
 
 	// Check if annotation is required for this provisioner

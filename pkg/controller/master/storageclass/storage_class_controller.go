@@ -45,12 +45,8 @@ func (h *storageClassHandler) OnChanged(_ string, sc *storagev1.StorageClass) (*
 func (h *storageClassHandler) syncCDI(sc *storagev1.StorageClass) error {
 	// If the storage class is Longhorn v1, we don't need to sync CDI settings or
 	// storage profile, as we don't support CDI for Longhorn v1.
-	if sc.Provisioner == util.CSIProvisionerLonghorn {
-		if v, ok := sc.Parameters["dataEngine"]; ok {
-			if v == string(longhornv1.DataEngineTypeV1) {
-				return nil
-			}
-		}
+	if isLonghornV1(sc) {
+		return nil
 	}
 
 	if err := h.syncCDISettings(sc); err != nil {
@@ -63,59 +59,64 @@ func (h *storageClassHandler) syncCDI(sc *storagev1.StorageClass) error {
 	return nil
 }
 
+func isLonghornV1(sc *storagev1.StorageClass) bool {
+	// Check if the storage class is Longhorn v1 by checking the provisioner and parameters
+	return sc.Provisioner == util.CSIProvisionerLonghorn &&
+		sc.Parameters["dataEngine"] == string(longhornv1.DataEngineTypeV1)
+}
+
 // syncCDISettings updates the CDI based on the annotations of the StorageClass.
 func (h *storageClassHandler) syncCDISettings(sc *storagev1.StorageClass) error {
 	cdi, err := h.cdiCache.Get(util.CDIObjectName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
-				Warnf("CDI %s not found, skipping update", sc.Name)
+			logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).Warnf("CDI %s not found, skipping update", sc.Name)
 			return nil
 		}
 		return err
 	}
-
 	toUpdate := cdi.DeepCopy()
-	// Check FileSystemOverhead
-	if v, ok := sc.Annotations[util.AnnotationCDIFSOverhead]; ok {
-		// Skip if v is not in regex pattern `^(0(?:\.\d{1,3})?|1)$`
+	v, hasAnno := sc.Annotations[util.AnnotationCDIFSOverhead]
+	if hasAnno {
 		if !regexp.MustCompile(util.FSOverheadRegex).MatchString(v) {
-			logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
-				Warnf("Invalid filesystem overhead %s, not match %s, skipping update", v, util.FSOverheadRegex)
+			logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).Warnf("Invalid filesystem overhead %s, not match %s, skipping update", v, util.FSOverheadRegex)
 			return nil
 		}
-
-		if toUpdate.Spec.Config == nil {
-			toUpdate.Spec.Config = &cdiv1.CDIConfigSpec{}
-		}
-		if toUpdate.Spec.Config.FilesystemOverhead == nil {
-			toUpdate.Spec.Config.FilesystemOverhead = &cdiv1.FilesystemOverhead{}
-		}
-		if toUpdate.Spec.Config.FilesystemOverhead.StorageClass == nil {
-			toUpdate.Spec.Config.FilesystemOverhead.StorageClass = make(map[string]cdiv1.Percent, 1)
-		}
-		if string(toUpdate.Spec.Config.FilesystemOverhead.StorageClass[sc.Name]) != v {
-			toUpdate.Spec.Config.FilesystemOverhead.StorageClass[sc.Name] = cdiv1.Percent(v)
-		}
-	} else if toUpdate.Spec.Config.FilesystemOverhead != nil {
-		_, ok := toUpdate.Spec.Config.FilesystemOverhead.StorageClass[sc.Name]
-		if ok {
-			// Remove the storage class from FilesystemOverhead if the annotation is not present
-			delete(toUpdate.Spec.Config.FilesystemOverhead.StorageClass, sc.Name)
-		}
+		setFilesystemOverhead(toUpdate, sc.Name, v)
+	} else {
+		removeFilesystemOverhead(toUpdate, sc.Name)
 	}
-
-	if !reflect.DeepEqual(toUpdate, cdi) {
-		_, err := h.cdiClient.Update(toUpdate)
-		if err != nil {
-			logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
-				WithError(err).
-				Errorf("Failed to update CDI %s", util.CDIObjectName)
-			return fmt.Errorf("failed to update CDIConfig: %w", err)
-		}
+	if reflect.DeepEqual(toUpdate, cdi) {
+		return nil
 	}
-
+	if _, err := h.cdiClient.Update(toUpdate); err != nil {
+		logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).WithError(err).Errorf("Failed to update CDI %s", util.CDIObjectName)
+		return fmt.Errorf("failed to update CDIConfig: %w", err)
+	}
 	return nil
+}
+
+// setFilesystemOverhead sets the filesystem overhead for a storage class in the CDI config.
+func setFilesystemOverhead(cdi *cdiv1.CDI, scName, value string) {
+	if cdi.Spec.Config == nil {
+		cdi.Spec.Config = &cdiv1.CDIConfigSpec{}
+	}
+	if cdi.Spec.Config.FilesystemOverhead == nil {
+		cdi.Spec.Config.FilesystemOverhead = &cdiv1.FilesystemOverhead{}
+	}
+	if cdi.Spec.Config.FilesystemOverhead.StorageClass == nil {
+		cdi.Spec.Config.FilesystemOverhead.StorageClass = make(map[string]cdiv1.Percent, 1)
+	}
+	if string(cdi.Spec.Config.FilesystemOverhead.StorageClass[scName]) != value {
+		cdi.Spec.Config.FilesystemOverhead.StorageClass[scName] = cdiv1.Percent(value)
+	}
+}
+
+// removeFilesystemOverhead removes the filesystem overhead entry for a storage class if it exists.
+func removeFilesystemOverhead(cdi *cdiv1.CDI, scName string) {
+	if cdi.Spec.Config != nil && cdi.Spec.Config.FilesystemOverhead != nil && cdi.Spec.Config.FilesystemOverhead.StorageClass != nil {
+		delete(cdi.Spec.Config.FilesystemOverhead.StorageClass, scName)
+	}
 }
 
 // syncStorageProfile updates the StorageProfile associated with the given StorageClass
@@ -139,59 +140,66 @@ func (h *storageClassHandler) syncStorageProfile(sc *storagev1.StorageClass) err
 
 	toUpdate := profile.DeepCopy()
 
-	updateCloneStrategy(sc, toUpdate)
+	if err = updateCloneStrategy(sc, toUpdate); err != nil {
+		logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
+			WithError(err).
+			Errorf("Failed to update CloneStrategy in StorageProfile %s", profileName)
+		return err
+	}
+
 	if err := h.updateSnapshotClass(sc, toUpdate); err != nil {
+		logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
+			WithError(err).
+			Errorf("Failed to update SnapshotClass in StorageProfile %s", profileName)
+		return err
+	}
+
+	if err := updateClaimPropertySets(sc, toUpdate); err != nil {
+		logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
+			WithError(err).
+			Errorf("Failed to update ClaimPropertySets in StorageProfile %s", profileName)
+		return err
+	}
+
+	if reflect.DeepEqual(toUpdate, profile) {
+		return nil
+	}
+
+	if _, err := h.storageProfileClient.Update(toUpdate); err != nil {
 		logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
 			WithError(err).
 			Errorf("Failed to update StorageProfile %s", profileName)
 		return err
 	}
-	updateClaimPropertySets(sc, toUpdate)
-
-	if !reflect.DeepEqual(toUpdate, profile) {
-		_, err := h.storageProfileClient.Update(toUpdate)
-		if err != nil {
-			logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
-				WithError(err).
-				Errorf("Failed to update StorageProfile %s", profileName)
-			return err
-		}
-	}
 	return nil
 }
 
 // updateCloneStrategy updates the CloneStrategy in the StorageProfile based on the StorageClass annotation.
-func updateCloneStrategy(sc *storagev1.StorageClass, profile *cdiv1.StorageProfile) {
+func updateCloneStrategy(sc *storagev1.StorageClass, profile *cdiv1.StorageProfile) error {
 	if v, ok := sc.Annotations[util.AnnotationStorageProfileCloneStrategy]; ok {
 		if profile.Spec.CloneStrategy == nil || string(*profile.Spec.CloneStrategy) != v {
 			cloneStrategy, err := util.ToCloneStrategy(v)
 			if err != nil {
-				logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
-					WithError(err).
-					Warnf("Invalid clone strategy %s", v)
+				return fmt.Errorf("invalid clone strategy %s: %w", v, err)
 			}
 			profile.Spec.CloneStrategy = cloneStrategy
 		}
 	} else if profile.Spec.CloneStrategy != nil {
 		profile.Spec.CloneStrategy = nil
 	}
+	return nil
 }
 
 // updateSnapshotClass updates the SnapshotClass in the StorageProfile based on the StorageClass annotation.
 func (h *storageClassHandler) updateSnapshotClass(sc *storagev1.StorageClass, profile *cdiv1.StorageProfile) error {
 	if v, ok := sc.Annotations[util.AnnotationStorageProfileSnapshotClass]; ok {
 		if v == "" {
-			logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
-				Warnf("SnapshotClass annotation is empty, skip updating SnapshotClass in StorageProfile %s", profile.Name)
-			return nil
+			return fmt.Errorf("SnapshotClass annotation is empty")
 		}
 		// check if the corresponding volume snapshot class exists
 		if _, err := h.volumeSnapshotClassCache.Get(v); err != nil {
 			if apierrors.IsNotFound(err) {
-				logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
-					Warnf("VolumeSnapshotClass %s not found, skipping update of SnapshotClass in StorageProfile %s", v, profile.Name)
-				// If the VolumeSnapshotClass does not exist, we do not update the SnapshotClass in the StorageProfile
-				return nil
+				return fmt.Errorf("VolumeSnapshotClass %s not found", v)
 			}
 			return fmt.Errorf("failed to get VolumeSnapshotClass %s: %w", v, err)
 		}
@@ -206,13 +214,11 @@ func (h *storageClassHandler) updateSnapshotClass(sc *storagev1.StorageClass, pr
 }
 
 // updateClaimPropertySets updates the ClaimPropertySets in the StorageProfile based on the StorageClass annotation.
-func updateClaimPropertySets(sc *storagev1.StorageClass, profile *cdiv1.StorageProfile) {
+func updateClaimPropertySets(sc *storagev1.StorageClass, profile *cdiv1.StorageProfile) error {
 	if v, ok := sc.Annotations[util.AnnotationStorageProfileVolumeModeAccessModes]; ok {
 		parsed, err := util.ParseVolumeModeAccessModes(v)
 		if err != nil {
-			logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
-				WithError(err).
-				Warnf("Invalid JSON for %s", util.AnnotationStorageProfileVolumeModeAccessModes)
+			return fmt.Errorf("invalid JSON for %s: %w", util.AnnotationStorageProfileVolumeModeAccessModes, err)
 		}
 		if !equalsClaimPropertySets(profile.Spec.ClaimPropertySets, parsed) {
 			profile.Spec.ClaimPropertySets = parsed
@@ -220,6 +226,7 @@ func updateClaimPropertySets(sc *storagev1.StorageClass, profile *cdiv1.StorageP
 	} else if profile.Spec.ClaimPropertySets != nil {
 		profile.Spec.ClaimPropertySets = nil
 	}
+	return nil
 }
 
 // equalsClaimPropertySets compares two slices of ClaimPropertySet.

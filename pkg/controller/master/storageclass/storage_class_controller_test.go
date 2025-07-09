@@ -109,11 +109,12 @@ func Test_syncStorageProfile(t *testing.T) {
 	fs := corev1.PersistentVolumeFilesystem
 
 	tests := []struct {
-		name       string
-		sc         *storagev1.StorageClass
-		sp         *cdiv1.StorageProfile
-		vsc        *storagesnapshotv1.VolumeSnapshotClass
-		expectedSP *cdiv1.StorageProfile
+		name        string
+		sc          *storagev1.StorageClass
+		sp          *cdiv1.StorageProfile
+		vsc         *storagesnapshotv1.VolumeSnapshotClass
+		expectedSP  *cdiv1.StorageProfile
+		expectedErr bool
 	}{
 		{
 			name: "skip update storage profile if not found",
@@ -122,8 +123,6 @@ func Test_syncStorageProfile(t *testing.T) {
 					Name: "sc",
 				},
 			},
-			sp:         nil,
-			expectedSP: nil,
 		},
 		{
 			name: "update clone strategy",
@@ -198,9 +197,7 @@ func Test_syncStorageProfile(t *testing.T) {
 			sp: &cdiv1.StorageProfile{
 				ObjectMeta: metav1.ObjectMeta{Name: "sc"},
 			},
-			expectedSP: &cdiv1.StorageProfile{
-				ObjectMeta: metav1.ObjectMeta{Name: "sc"},
-			},
+			expectedErr: true,
 		},
 		{
 			name: "remove snapshot class",
@@ -279,9 +276,7 @@ func Test_syncStorageProfile(t *testing.T) {
 			sp: &cdiv1.StorageProfile{
 				ObjectMeta: metav1.ObjectMeta{Name: "sc"},
 			},
-			expectedSP: &cdiv1.StorageProfile{
-				ObjectMeta: metav1.ObjectMeta{Name: "sc"},
-			},
+			expectedErr: true,
 		},
 	}
 
@@ -303,6 +298,10 @@ func Test_syncStorageProfile(t *testing.T) {
 			}
 
 			err := handler.syncStorageProfile(tc.sc)
+			if tc.expectedErr {
+				assert.Error(t, err, "expected error but got none")
+				return
+			}
 			assert.NoError(t, err)
 
 			actualSP, err := storageProfileCache.Get(tc.sc.Name)

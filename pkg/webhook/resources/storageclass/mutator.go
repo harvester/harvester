@@ -54,52 +54,93 @@ func (m *storageClassMutator) Update(_ *types.Request, oldObj runtime.Object, ne
 // generatePatchOps generates patch operations for the storage class
 func generatePatchOps(sc *storagev1.StorageClass) types.PatchOps {
 	var patchOps types.PatchOps
+
 	switch sc.Provisioner {
 	case util.CSIProvisionerLonghorn:
-		if sc.Parameters != nil {
-			if v, ok := sc.Parameters["dataEngine"]; ok {
-				if v == string(longhornv1.DataEngineTypeV2) {
-					if _, ok := sc.Annotations[util.AnnotationStorageProfileCloneStrategy]; !ok {
-						patchOps = append(patchOps, fmt.Sprintf(
-							patchAnnotation,
-							patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
-							cdiv1.CloneStrategyHostAssisted,
-						))
-					}
-					if _, ok := sc.Annotations[util.AnnotationStorageProfileSnapshotClass]; !ok {
-						patchOps = append(patchOps, fmt.Sprintf(
-							patchAnnotation,
-							patch.EscapeJSONPointer(util.AnnotationStorageProfileSnapshotClass),
-							"longhorn-snapshot",
-						))
-					}
-				}
-			}
-		}
+		patchOps = append(patchOps, generateLonghornPatchOps(sc)...)
 	case util.CSIProvisionerLVM:
-		json := `{"Block":["ReadWriteOnce"]}`
-		if _, ok := sc.Annotations[util.AnnotationStorageProfileVolumeModeAccessModes]; !ok {
-			patchOps = append(patchOps, fmt.Sprintf(
-				patchAnnotation,
-				patch.EscapeJSONPointer(util.AnnotationStorageProfileVolumeModeAccessModes),
-				strconv.Quote(json),
-			))
-		}
-		if _, ok := sc.Annotations[util.AnnotationStorageProfileCloneStrategy]; !ok {
-			patchOps = append(patchOps, fmt.Sprintf(
-				patchAnnotation,
-				patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
-				cdiv1.CloneStrategySnapshot,
-			))
-		}
-		if _, ok := sc.Annotations[util.AnnotationStorageProfileSnapshotClass]; !ok {
-			patchOps = append(patchOps, fmt.Sprintf(
-				patchAnnotation,
-				patch.EscapeJSONPointer(util.AnnotationStorageProfileSnapshotClass),
-				strconv.Quote("lvm-snapshot"),
-			))
-		}
+		patchOps = append(patchOps, generateLVMPatchOps(sc)...)
 	}
 
 	return patchOps
+}
+
+func generateLonghornPatchOps(sc *storagev1.StorageClass) types.PatchOps {
+	var patchOps types.PatchOps
+
+	if !isLonghornV2(sc) {
+		return patchOps
+	}
+
+	// Add clone strategy annotation
+	if shouldAddAnnotation(sc, util.AnnotationStorageProfileCloneStrategy) {
+		patchOps = append(patchOps, fmt.Sprintf(
+			patchAnnotation,
+			patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
+			cdiv1.CloneStrategyHostAssisted,
+		))
+	}
+
+	// Add snapshot class annotation
+	if shouldAddAnnotation(sc, util.AnnotationStorageProfileSnapshotClass) {
+		patchOps = append(patchOps, fmt.Sprintf(
+			patchAnnotation,
+			patch.EscapeJSONPointer(util.AnnotationStorageProfileSnapshotClass),
+			"longhorn-snapshot",
+		))
+	}
+
+	return patchOps
+}
+
+func generateLVMPatchOps(sc *storagev1.StorageClass) types.PatchOps {
+	var patchOps types.PatchOps
+
+	// Add volume mode access modes annotation
+	if shouldAddAnnotation(sc, util.AnnotationStorageProfileVolumeModeAccessModes) {
+		json := `{"Block":["ReadWriteOnce"]}`
+		patchOps = append(patchOps, fmt.Sprintf(
+			patchAnnotation,
+			patch.EscapeJSONPointer(util.AnnotationStorageProfileVolumeModeAccessModes),
+			strconv.Quote(json),
+		))
+	}
+
+	// Add clone strategy annotation
+	if shouldAddAnnotation(sc, util.AnnotationStorageProfileCloneStrategy) {
+		patchOps = append(patchOps, fmt.Sprintf(
+			patchAnnotation,
+			patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
+			cdiv1.CloneStrategySnapshot,
+		))
+	}
+
+	// Add snapshot class annotation
+	if shouldAddAnnotation(sc, util.AnnotationStorageProfileSnapshotClass) {
+		patchOps = append(patchOps, fmt.Sprintf(
+			patchAnnotation,
+			patch.EscapeJSONPointer(util.AnnotationStorageProfileSnapshotClass),
+			strconv.Quote("lvm-snapshot"),
+		))
+	}
+
+	return patchOps
+}
+
+func isLonghornV2(sc *storagev1.StorageClass) bool {
+	if sc.Parameters == nil {
+		return false
+	}
+
+	dataEngine, exists := sc.Parameters["dataEngine"]
+	return exists && dataEngine == string(longhornv1.DataEngineTypeV2)
+}
+
+func shouldAddAnnotation(sc *storagev1.StorageClass, annotation string) bool {
+	if sc.Annotations == nil {
+		return true
+	}
+
+	_, exists := sc.Annotations[annotation]
+	return !exists
 }
