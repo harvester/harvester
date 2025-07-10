@@ -141,11 +141,21 @@ func (h *VMController) createPVCsFromAnnotation(_ string, vm *kubevirtv1.Virtual
 
 		toUpdate := pvc.DeepCopy()
 		toUpdate.Spec.Resources.Requests = pvcAnno.Spec.Resources.Requests
-		if !reflect.DeepEqual(toUpdate, pvc) {
-			if _, err = h.pvcClient.Update(toUpdate); err != nil {
-				return nil, err
-			}
+		if reflect.DeepEqual(toUpdate, pvc) {
+			continue
 		}
+
+		_, err = h.pvcClient.Update(toUpdate)
+		if err == nil {
+			continue
+		}
+
+		if strings.Contains(err.Error(), util.PVCExpandErrorPrefix) {
+			logrus.Warnf("PVC expand error: %v", err)
+			continue
+		}
+
+		return nil, err
 	}
 
 	return nil, nil
