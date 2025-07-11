@@ -11585,6 +11585,14 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.ControllerRevisionRef": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.CustomBlockSize": {
         "type": "object",
         "required": [
@@ -11887,6 +11895,15 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.DiskIOThreads": {
+        "type": "object",
+        "properties": {
+          "supplementalPoolThreadCount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.DiskTarget": {
         "type": "object",
         "properties": {
@@ -11946,6 +11963,9 @@
           },
           "firmware": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.Firmware"
+          },
+          "ioThreads": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DiskIOThreads"
           },
           "ioThreadsPolicy": {
             "type": "string"
@@ -12374,6 +12394,26 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.InstancetypeStatusRef": {
+        "type": "object",
+        "properties": {
+          "controllerRevisionRef": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.ControllerRevisionRef"
+          },
+          "inferFromVolume": {
+            "type": "string"
+          },
+          "inferFromVolumeFailurePolicy": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.Interface": {
         "type": "object",
         "required": [
@@ -12605,6 +12645,9 @@
             "type": "boolean"
           },
           "allowPostCopy": {
+            "type": "boolean"
+          },
+          "allowWorkloadDisruption": {
             "type": "boolean"
           },
           "bandwidthPerMigration": {
@@ -13654,6 +13697,9 @@
               "default": ""
             }
           },
+          "linkState": {
+            "type": "string"
+          },
           "mac": {
             "type": "string"
           },
@@ -14133,12 +14179,18 @@
             "type": "integer",
             "format": "int64"
           },
+          "instancetypeRef": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.InstancetypeStatusRef"
+          },
           "memoryDumpRequest": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachineMemoryDumpRequest"
           },
           "observedGeneration": {
             "type": "integer",
             "format": "int64"
+          },
+          "preferenceRef": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.InstancetypeStatusRef"
           },
           "printableStatus": {
             "type": "string"

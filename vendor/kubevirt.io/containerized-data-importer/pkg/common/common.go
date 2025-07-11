@@ -254,12 +254,6 @@ const (
 	VddkConfigDataKey = "vddk-init-image"
 	// AwaitingVDDK is a Pending condition reason that indicates the PVC is waiting for a VDDK image
 	AwaitingVDDK = "AwaitingVDDK"
-	// VddkArgsDir is the path to the volume mount containing extra VDDK arguments
-	VddkArgsDir = "/vddk-args"
-	// VddkArgsVolName is the name of the volume referencing the extra VDDK arguments ConfigMap
-	VddkArgsVolName = "vddk-extra-args"
-	// VddkArgsKeyName is the name of the key that must be present in the VDDK arguments ConfigMap
-	VddkArgsKeyName = "vddk-config-file"
 
 	// UploadContentTypeHeader is the header upload clients may use to set the content type explicitly
 	UploadContentTypeHeader = "x-cdi-content-type"
