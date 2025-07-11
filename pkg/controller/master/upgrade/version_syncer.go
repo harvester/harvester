@@ -189,22 +189,27 @@ func (s *versionSyncer) syncVersions(resp CheckUpgradeResponse, currentVersion s
 
 // cleanupVersions remove version resources that's can't be upgraded to anymore
 func (s *versionSyncer) cleanupVersions(currentVersion string, remoteVersions []Version) error {
-	versions, err := s.versionClient.List(s.namespace, metav1.ListOptions{})
+	versionList, err := s.versionClient.List(s.namespace, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
 
-	for _, version := range remoteVersions {
-		for i, v := range versions.Items {
-			versionObj := v
-			if !canUpgrade(currentVersion, &versionObj, version) {
-				if err := s.versionClient.Delete(v.Namespace, v.Name, &metav1.DeleteOptions{}); err != nil {
+	remainingVersions := versionList.Items
+
+	for _, remote := range remoteVersions {
+		versions := remainingVersions
+		remainingVersions = []harvesterv1.Version{}
+
+		for _, version := range versions {
+			if !canUpgrade(currentVersion, &version, remote) {
+				if err := s.versionClient.Delete(version.Namespace, version.Name, &metav1.DeleteOptions{}); err != nil {
 					if apierrors.IsNotFound(err) {
 						continue // likely object has been removed so we can continue
 					}
 					return err
 				}
-				versions.Items = append(versions.Items[:i], versions.Items[i+1:]...)
+			} else {
+				remainingVersions = append(remainingVersions, version)
 			}
 		}
 	}
