@@ -626,3 +626,137 @@ func TestCheckCPUPinningVMIs(t *testing.T) {
 		}
 	}
 }
+
+func Test_validateWitnessRoleChange(t *testing.T) {
+	tests := []struct {
+		name        string
+		oldNode     *corev1.Node
+		newNode     *corev1.Node
+		expectedErr bool
+	}{
+		{
+			name: "user should not be able to remove witness node taint from a node",
+			oldNode: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+					Labels: map[string]string{
+						util.HarvesterWitnessNodeLabelKey: "true",
+					},
+				},
+				Spec: corev1.NodeSpec{
+					Taints: []corev1.Taint{
+						{
+							Key:    "node-role.kubernetes.io/etcd",
+							Value:  "true",
+							Effect: corev1.TaintEffectNoExecute,
+						},
+					},
+				},
+			},
+			newNode: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+					Labels: map[string]string{
+						util.HarvesterWitnessNodeLabelKey: "true",
+					},
+				},
+			},
+			expectedErr: true,
+		},
+		{
+			name: "user should not be able to remove witness node label from a node",
+			oldNode: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+					Labels: map[string]string{
+						util.HarvesterWitnessNodeLabelKey: "true",
+					},
+				},
+				Spec: corev1.NodeSpec{
+					Taints: []corev1.Taint{
+						{
+							Key:    "node-role.kubernetes.io/etcd",
+							Value:  "true",
+							Effect: corev1.TaintEffectNoExecute,
+						},
+					},
+				},
+			},
+			newNode: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+				},
+				Spec: corev1.NodeSpec{
+					Taints: []corev1.Taint{
+						{
+							Key:    "node-role.kubernetes.io/etcd",
+							Value:  "true",
+							Effect: corev1.TaintEffectNoExecute,
+						},
+					},
+				},
+			},
+			expectedErr: true,
+		},
+		{
+			name: "user should be able to add and remove unrelated label/taint from a node",
+			oldNode: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+					Labels: map[string]string{
+						util.HarvesterWitnessNodeLabelKey: "true",
+						"oldLabel":                        "oldValue",
+					},
+				},
+				Spec: corev1.NodeSpec{
+					Taints: []corev1.Taint{
+						{
+							Key:    "node-role.kubernetes.io/etcd",
+							Value:  "true",
+							Effect: corev1.TaintEffectNoExecute,
+						},
+						{
+							Key:    "oldkey",
+							Value:  "oldValue",
+							Effect: corev1.TaintEffectNoSchedule,
+						},
+					},
+				},
+			},
+			newNode: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+					Labels: map[string]string{
+						util.HarvesterWitnessNodeLabelKey: "true",
+						"newLabel":                        "newValue",
+					},
+				},
+				Spec: corev1.NodeSpec{
+					Taints: []corev1.Taint{
+						{
+							Key:    "node-role.kubernetes.io/etcd",
+							Value:  "true",
+							Effect: corev1.TaintEffectNoExecute,
+						},
+						{
+							Key:    "newKey",
+							Value:  "newValue",
+							Effect: corev1.TaintEffectNoSchedule,
+						},
+					},
+				},
+			},
+			expectedErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateWitnessRoleChange(tt.oldNode, tt.newNode)
+			if tt.expectedErr {
+				assert.NotNil(t, err, tt.name)
+			} else {
+				assert.Nil(t, err, tt.name)
+			}
+		})
+	}
+}
