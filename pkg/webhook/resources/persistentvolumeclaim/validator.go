@@ -181,7 +181,7 @@ func (v *pvcValidator) checkExpand(pvc *corev1.PersistentVolumeClaim) error {
 		return err
 	}
 	if !isKubevirtExpandEnabled(kubevirt) {
-		return werror.NewInvalidError("kubevirt ExpandDisks not included in featureGate", "")
+		return werror.NewInvalidError(util.PVCExpandErrorPrefix+": kubevirt ExpandDisks not included in featureGate", "")
 	}
 
 	hotpluggedFSPVC, err := v.isHotpluggedFilesystemPVC(pvc)
@@ -191,7 +191,7 @@ func (v *pvcValidator) checkExpand(pvc *corev1.PersistentVolumeClaim) error {
 	if hotpluggedFSPVC {
 		return werror.NewInvalidError(
 			fmt.Sprintf(
-				"Expansion of hotplugged PVC '%s/%s' in filesystem mode is not supported",
+				util.PVCExpandErrorPrefix+": Expansion of hotplugged PVC '%s/%s' in filesystem mode is not supported",
 				pvc.Namespace,
 				pvc.Name,
 			),
@@ -206,7 +206,7 @@ func (v *pvcValidator) checkExpand(pvc *corev1.PersistentVolumeClaim) error {
 	if !expandable {
 		return werror.NewInvalidError(
 			fmt.Sprintf(
-				"pvc %s/%s is not online expandable with its provider",
+				util.PVCExpandErrorPrefix+": pvc %s/%s is not online expandable with its provider",
 				pvc.Namespace,
 				pvc.Name,
 			),

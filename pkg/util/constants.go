@@ -226,4 +226,6 @@ const (
 	HarvesterWitnessNodeLabelKey = HarvesterNodeRoleLabelPrefix + "witness"
 	HarvesterMgmtNodeLabelKey    = HarvesterNodeRoleLabelPrefix + "management"
 	HarvesterWorkerNodeLabelKey  = HarvesterNodeRoleLabelPrefix + "worker"
+
+	PVCExpandErrorPrefix = "PVC_EXPAND"
 )
