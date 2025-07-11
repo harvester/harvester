@@ -205,6 +205,7 @@ func main() {
 					cdiv1.DataVolume{},
 					cdiv1.StorageProfile{},
 					cdiv1.VolumeImportSource{},
+					cdiv1.CDI{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
