@@ -9,6 +9,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/schemas"
 
 	"github.com/harvester/harvester/pkg/config"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
 const (
@@ -17,14 +18,15 @@ const (
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Options) error {
 	server.BaseSchemas.MustImportAndCustomize(RestoreSnapshotInput{}, nil)
-	actionHandler := ActionHandler{
+	actionHandler := harvesterServer.NewHandler(&ActionHandler{
 		pvcs:              scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),
 		pvcCache:          scaled.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
 		volumes:           scaled.LonghornFactory.Longhorn().V1beta2().Volume(),
 		volumeCache:       scaled.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
 		snapshotCache:     scaled.SnapshotFactory.Snapshot().V1().VolumeSnapshot().Cache(),
 		storageClassCache: scaled.StorageFactory.Storage().V1().StorageClass().Cache(),
-	}
+	})
+
 	t := schema.Template{
 		ID: volumesnapshotSchemaID,
 		Customize: func(s *types.APISchema) {
@@ -34,7 +36,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 				},
 			}
 			s.ActionHandlers = map[string]http.Handler{
-				actionRestore: &actionHandler,
+				actionRestore: actionHandler,
 			}
 		},
 		Formatter: Formatter,
