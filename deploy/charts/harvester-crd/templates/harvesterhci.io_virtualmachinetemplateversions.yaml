@@ -2634,7 +2634,11 @@ spec:
                                             state:
                                               description: |-
                                                 State represents the requested operational state of the interface.
-                                                The (only) value supported is `absent`, expressing a request to remove the interface.
+                                                The supported values are:
+                                                `absent`, expressing a request to remove the interface.
+                                                `down`, expressing a request to set the link down.
+                                                `up`, expressing a request to set the link up.
+                                                Empty value functions as `up`.
                                               type: string
                                             tag:
                                               description: If specified, the virtual
@@ -3065,6 +3069,17 @@ spec:
                                           UUID reported by the vmi bios.
                                           Defaults to a random generated uid.
                                         type: string
+                                    type: object
+                                  ioThreads:
+                                    description: IOThreads specifies the IOThreads
+                                      options.
+                                    properties:
+                                      supplementalPoolThreadCount:
+                                        description: SupplementalPoolThreadCount specifies
+                                          how many iothreads are allocated for the
+                                          supplementalPool policy.
+                                        format: int32
+                                        type: integer
                                     type: object
                                   ioThreadsPolicy:
                                     description: |-
@@ -3961,9 +3976,8 @@ spec:
                                             the volume can be hotplugged and hotunplugged.
                                           type: boolean
                                         name:
-                                          description: |-
-                                            Name of both the DataVolume and the PVC in the same namespace.
-                                            After PVC population the DataVolume is garbage collected by default.
+                                          description: Name of both the DataVolume
+                                            and the PVC in the same namespace.
                                           type: string
                                       required:
                                       - name
