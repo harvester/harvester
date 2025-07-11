@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"kubevirt.io/kubevirt/pkg/instancetype"
 	"kubevirt.io/kubevirt/pkg/monitoring/metrics/common/client"
 	"kubevirt.io/kubevirt/pkg/monitoring/metrics/common/workqueue"
 	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
@@ -41,34 +42,31 @@ var (
 		vmSnapshotMetrics,
 	}
 
-	vmInformer                  cache.SharedIndexInformer
-	vmiInformer                 cache.SharedIndexInformer
-	clusterInstanceTypeInformer cache.SharedIndexInformer
-	instanceTypeInformer        cache.SharedIndexInformer
-	clusterPreferenceInformer   cache.SharedIndexInformer
-	preferenceInformer          cache.SharedIndexInformer
-	vmiMigrationInformer        cache.SharedIndexInformer
-	clusterConfig               *virtconfig.ClusterConfig
+	vmInformer                    cache.SharedIndexInformer
+	vmiInformer                   cache.SharedIndexInformer
+	persistentVolumeClaimInformer cache.SharedIndexInformer
+	vmiMigrationInformer          cache.SharedIndexInformer
+	kvPodInformer                 cache.SharedIndexInformer
+	clusterConfig                 *virtconfig.ClusterConfig
+	instancetypeMethods           *instancetype.InstancetypeMethods
 )
 
 func SetupMetrics(
 	vm cache.SharedIndexInformer,
 	vmi cache.SharedIndexInformer,
-	clusterInstanceType cache.SharedIndexInformer,
-	instanceType cache.SharedIndexInformer,
-	clusterPreference cache.SharedIndexInformer,
-	preference cache.SharedIndexInformer,
+	pvc cache.SharedIndexInformer,
 	vmiMigration cache.SharedIndexInformer,
+	pod cache.SharedIndexInformer,
 	virtClusterConfig *virtconfig.ClusterConfig,
+	methods *instancetype.InstancetypeMethods,
 ) error {
 	vmInformer = vm
 	vmiInformer = vmi
-	clusterInstanceTypeInformer = clusterInstanceType
-	instanceTypeInformer = instanceType
-	clusterPreferenceInformer = clusterPreference
-	preferenceInformer = preference
+	persistentVolumeClaimInformer = pvc
 	vmiMigrationInformer = vmiMigration
+	kvPodInformer = pod
 	clusterConfig = virtClusterConfig
+	instancetypeMethods = methods
 
 	if err := client.SetupMetrics(); err != nil {
 		return err
@@ -107,24 +105,24 @@ func ListMetrics() []operatormetrics.Metric {
 
 func PhaseTransitionTimeBuckets() []float64 {
 	return []float64{
-		(0.5 * time.Second.Seconds()),
-		(1 * time.Second.Seconds()),
-		(2 * time.Second.Seconds()),
-		(5 * time.Second.Seconds()),
-		(10 * time.Second.Seconds()),
-		(20 * time.Second.Seconds()),
-		(30 * time.Second.Seconds()),
-		(40 * time.Second.Seconds()),
-		(50 * time.Second.Seconds()),
-		(60 * time.Second).Seconds(),
-		(90 * time.Second).Seconds(),
-		(2 * time.Minute).Seconds(),
-		(3 * time.Minute).Seconds(),
-		(5 * time.Minute).Seconds(),
-		(10 * time.Minute).Seconds(),
-		(20 * time.Minute).Seconds(),
-		(30 * time.Minute).Seconds(),
-		(1 * time.Hour).Seconds(),
+		0.5 * time.Second.Seconds(),
+		1 * time.Second.Seconds(),
+		2 * time.Second.Seconds(),
+		5 * time.Second.Seconds(),
+		10 * time.Second.Seconds(),
+		20 * time.Second.Seconds(),
+		30 * time.Second.Seconds(),
+		40 * time.Second.Seconds(),
+		50 * time.Second.Seconds(),
+		60 * time.Second.Seconds(),
+		90 * time.Second.Seconds(),
+		2 * time.Minute.Seconds(),
+		3 * time.Minute.Seconds(),
+		5 * time.Minute.Seconds(),
+		10 * time.Minute.Seconds(),
+		20 * time.Minute.Seconds(),
+		30 * time.Minute.Seconds(),
+		1 * time.Hour.Seconds(),
 	}
 }
 

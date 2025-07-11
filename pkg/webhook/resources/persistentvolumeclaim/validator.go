@@ -13,7 +13,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
+	kvirtfeatures "kubevirt.io/kubevirt/pkg/virt-config/featuregate"
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -162,7 +162,7 @@ func (v *pvcValidator) isHotpluggedFilesystemPVC(pvc *corev1.PersistentVolumeCla
 func isKubevirtExpandEnabled(kubevirt *kubevirtv1.KubeVirt) bool {
 	featureGates := kubevirt.Spec.Configuration.DeveloperConfiguration.FeatureGates
 	for _, f := range featureGates {
-		if f == virtconfig.ExpandDisksGate {
+		if f == kvirtfeatures.ExpandDisksGate {
 			return true
 		}
 	}

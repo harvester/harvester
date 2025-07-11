@@ -1,7 +1,7 @@
 dependencies:
 - name: kubevirt-operator
   repository: file://dependency_charts/kubevirt-operator
-  version: 0.4.0
+  version: 0.5.0
 - name: kubevirt
   repository: file://dependency_charts/kubevirt
   version: 0.1.0
@@ -34,9 +34,9 @@ dependencies:
   version: 0.1.1
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
-  version: v1.6.0-dev.0
+  version: 1.6.0-dev.0
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
   version: 0.2.0
-digest: sha256:5719dc1b28869879352d6301e6cf45f55c6070ee62339d1eb668f5599cb0af17
-generated: "2025-06-26T14:52:56.638344812+08:00"
+digest: sha256:540e02d8cbd44153489a9e3d2c630fb5df4b87a3fa63bc6d9a621b7e7ba4cd92
+generated: "2025-07-11T13:08:33.016661535+08:00"
