@@ -7,9 +7,10 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
+	"k8s.io/utils/pointer"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
@@ -39,8 +40,8 @@ func (h *Handler) updateBackupProgress(volumeBackup *harvesterv1.VolumeBackup) e
 func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) error {
 	var vmBackupCpy = vmBackup.DeepCopy()
 	if IsBackupProgressing(vmBackupCpy) {
-		setCondition(vmBackupCpy, harvesterv1.BackupConditionProgressing, true, "", "Operation in progress")
-		setCondition(vmBackupCpy, harvesterv1.BackupConditionReady, false, "", "Not ready")
+		updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionTrue, "", "Operation in progress"))
+		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "", "Not ready"))
 	}
 
 	ready := true
@@ -74,23 +75,28 @@ func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) e
 	}
 
 	if ready && (vmBackupCpy.Status.ReadyToUse == nil || !*vmBackupCpy.Status.ReadyToUse) {
-		vmBackupCpy.Status.ReadyToUse = ptr.To(true)
 		vmBackupCpy.Status.CreationTime = currentTime()
 		vmBackupCpy.Status.Error = nil
-		setCondition(vmBackupCpy, harvesterv1.BackupConditionProgressing, false, "", "Operation complete")
-		setCondition(vmBackupCpy, harvesterv1.BackupConditionReady, true, "", "Operation complete")
+		updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "", "Operation complete"))
+		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionTrue, "", "Operation complete"))
 	}
 
 	// check if the status need to update the error status
 	if errorMessage != "" && (vmBackupCpy.Status.Error == nil || vmBackupCpy.Status.Error.Message == nil || *vmBackupCpy.Status.Error.Message != errorMessage) {
-		vmBackupCpy.Status.ReadyToUse = ptr.To(false)
-		setCondition(vmBackupCpy, harvesterv1.BackupConditionProgressing, false, "Error", errorMessage)
-		setCondition(vmBackupCpy, harvesterv1.BackupConditionReady, false, "", "Not ready")
+		vmBackupCpy.Status.Error = &harvesterv1.Error{
+			Time:    currentTime(),
+			Message: pointer.StringPtr(errorMessage),
+		}
+		updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "Error", errorMessage))
+		updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "", "Not Ready"))
 	}
 
+	vmBackupCpy.Status.ReadyToUse = pointer.BoolPtr(ready)
+
 	if !reflect.DeepEqual(vmBackup.Status, vmBackupCpy.Status) {
-		_, err := h.vmBackups.Update(vmBackupCpy)
-		return err
+		if _, err := h.vmBackups.Update(vmBackupCpy); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -156,14 +162,14 @@ func (h *Handler) OnLHBackupChanged(_ string, lhBackup *lhv1beta2.Backup) (*lhv1
 
 	if controllerRef != nil {
 		vmBackup := h.resolveVolSnapshotRef(snapshot.Namespace, controllerRef)
-		if vmBackup == nil || vmBackup.Status.BackupTarget == nil {
+		if vmBackup == nil || vmBackup.Status == nil || vmBackup.Status.BackupTarget == nil {
 			return nil, nil
 		}
 
 		vmBackupCpy := vmBackup.DeepCopy()
 		for i, volumeBackup := range vmBackupCpy.Status.VolumeBackups {
 			if *volumeBackup.Name == snapshot.Name {
-				vmBackupCpy.Status.VolumeBackups[i].LonghornBackupName = ptr.To(lhBackup.Name)
+				vmBackupCpy.Status.VolumeBackups[i].LonghornBackupName = pointer.StringPtr(lhBackup.Name)
 			}
 		}
 

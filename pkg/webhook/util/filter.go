@@ -3,6 +3,7 @@ package util
 import (
 	"fmt"
 
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -31,11 +32,12 @@ func HasInProgressingVMRestoreOnSameTarget(cache ctlharvesterv1.VirtualMachineRe
 	}
 
 	for _, vmRestore := range vmRestores {
-		if vmRestore == nil {
-			continue
-		}
-		if harvesterv1.BackupConditionProgressing.IsTrue(vmRestore) {
-			return true, nil
+		if vmRestore != nil && vmRestore.Status != nil {
+			for _, condition := range vmRestore.Status.Conditions {
+				if condition.Type == harvesterv1.BackupConditionProgressing && condition.Status == v1.ConditionTrue {
+					return true, nil
+				}
+			}
 		}
 	}
 	return false, nil
