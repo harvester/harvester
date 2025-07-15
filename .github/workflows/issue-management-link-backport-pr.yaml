@@ -69,6 +69,9 @@ jobs:
         for issue_number in ${{ env.ORIGINAL_ISSUE_NUMBER }}; do
           echo "Found source issue ${REPO_NAME}#${issue_number}"
           issue_title=$(gh issue view "$issue_number" --json title --jq ".title")
+          
+          # Reset backport_issue_number for each iteration
+          backport_issue_number=""
 
           if [[ -n "$issue_number" && -n "$issue_title" ]]; then
             search_title=$(cat <<EOF
