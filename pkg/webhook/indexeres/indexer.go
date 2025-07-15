@@ -73,14 +73,14 @@ func RegisterIndexers(clients *clients.Clients) {
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
-	if obj.Status.SourceUID != nil {
+	if obj.Status != nil && obj.Status.SourceUID != nil {
 		return []string{string(*obj.Status.SourceUID)}, nil
 	}
 	return []string{}, nil
 }
 
 func vmBackupSnapshotByPVCNamespaceAndName(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
-	if obj.Spec.Type == harvesterv1.Backup {
+	if obj.Spec.Type == harvesterv1.Backup || obj.Status == nil {
 		return []string{}, nil
 	}
 
@@ -99,6 +99,10 @@ func vmBackupByIsProgressing(obj *harvesterv1.VirtualMachineBackup) ([]string, e
 
 func vmBackupByStorageClassName(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
 	storageClassNames := []string{}
+	if obj.Status == nil {
+		return storageClassNames, nil
+	}
+
 	for _, volumeBackup := range obj.Status.VolumeBackups {
 		storageClassNames = append(storageClassNames, *volumeBackup.PersistentVolumeClaim.Spec.StorageClassName)
 	}
