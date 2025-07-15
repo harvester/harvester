@@ -9276,12 +9276,7 @@
             ]
           },
           "status": {
-            "default": {},
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineBackupStatus"
-              }
-            ]
+            "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineBackupStatus"
           }
         }
       },
@@ -9653,12 +9648,7 @@
             ]
           },
           "status": {
-            "default": {},
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineRestoreStatus"
-              }
-            ]
+            "$ref": "#/components/schemas/harvesterhci.io.v1beta1.VirtualMachineRestoreStatus"
           }
         }
       },
