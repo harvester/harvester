@@ -13,20 +13,18 @@ https://github.com/harvester/harvester/issues/3015
 
 ### Goals
 
-- Provide a way to select a specific CPU model each VM.
-- Provide a way to select specific CPU features each VM.
-- Provide a documentation on how to configure cluster-wide CPU model.
-- Provide a VM template with CPU model and features to reduce the creation time.
+- Support selecting a common CPU model and inputing features while creating a VM.
+- Support configuring cluster-wide CPU model in Harvester settings.
+- Support migration between two different host and cpu models.
+- Propagate the scheduling error on GUI.
 
 ### Non-goals
 
 - Change the underlying KubeVirt CPU model or migration logic.
-- Provide a generic CPU model for all nodes.
-
 
 ## Introduction
 
-Before this enhancement, we need to understand how the cpu model and feature works in KubeVirt. To make the CPU model and migration logic even easier to grasp, let's use a visual analogy with colored shapes:
+Before this enhancement, we need to understand how the CPU model and features work in KubeVirt. To make the CPU model and migration logic even easier to grasp, let's use a visual analogy with colored shapes:
 
 Imagine you have colored shapes representing CPU configurations:
 
@@ -51,13 +49,13 @@ Here's how they interact:
   A person requires an object with a specific color and shape (e.g., Red Circle) and is moving to a new location.  
   The new location must provide an object that matches the color and shape (e.g., a Red Circle or a Red-Blue Circle).
 
-A Node can provide objects with different shapes and colors. For example, a Node might provide a "Red Square", a "Blue Circle", and a "Red-Blue Circle". 
+A node can provide objects with different shapes and colors. For example, a Node might provide a "Red Square", a "Blue Circle", and a "Red-Blue Circle". 
 
-A VM is like the person requires different objects. 
+A VM is like a person who requires different objects. 
 
 Migration is like moving a person with colored shape requirements to a new location that can fulfill those requirements. The destination must provide objects that meet the person's color and shape needs.
 
-You can treat shapes as `cpu-model.node.kubevirt.io/{cpu model}` and colors as `cpu-feature.node.kubevirt.io/{cpu feature}`. For more detailed please check the Node section on this enhancement.
+You can treat shapes as `cpu-model.node.kubevirt.io/{cpu model}` and colors as `cpu-feature.node.kubevirt.io/{cpu feature}`. For more details, please check the Node section of this enhancement.
 
 ## Proposal
 
@@ -67,25 +65,26 @@ Due to multiple nodes, we can't show a big matrix for all the CPU models and fea
 
 #### Story 1
 
-I have multiple nodes that have a common CPU model called `Nehalem`. For some reason, I'll need to migrate mv VMs to other nodes without manually shutting down. To ensure compatibility, I create my MVs with `Nehalem` as the CPU model.
+I have multiple nodes that have a common CPU model called `Nehalem`. For some reason, I'll need to migrate my VMs to other nodes without manually shutting down. To ensure compatibility, I create my VMs with `Nehalem` as the CPU model.
 
 #### Story 2
 
-Due to specific requirements, my VMs need to support the `avx` CPU feature. I configure the CPU feature `avx` with the `require` policy. As a result, my VMs will only be scheduled to nodes that support the `avx` CPU feature.
-
-
-#### Story 3
-
-For certain reasons, I don’t want my VMs to have the `avx` CPU feature. Therefore, I configure the CPU feature `avx` with the `forbid` policy. This ensures that my VMs will not be scheduled to nodes that support the avx CPU feature.
+I have multiple nodes that have different CPU models. I would like to migrate my VM between the nodes. So, I configure a Harvester special defined annotation to force migration.
 
 
 ### User Experience In Detail
 
-Users need to understand their requirements and strategy of using virtual machine.
+In general, there are two ways to migrate VMs between nodes.
 
-- Do they need a specfic cpu model for VMs?
-- Do they need a specific cpu feature for VMs?
-- Do they need to migrate VM to different cluster without manually shutting down? They need to understand [how live migration works](https://docs.harvesterhci.io/v1.4/vm/live-migration/#how-migration-works).
+- Use a common CPU model
+- Use a Harvester special defined annotation
+
+Before users use the feature, we need to ensure they know what the difference is between these two ways.
+
+- If they know later joined nodes still have common CPU models, they can select a common CPU model for further migration.
+- If they're not sure whether later joined nodes have very different CPU models or not, they can use the annotation to force migrate.
+
+In either case, we need to add a ["learn more for migration"](https://docs.harvesterhci.io/v1.5/vm/live-migration/#how-migration-works) link when users try to customize the CPU model and feature.
 
 ### API changes
 
@@ -93,26 +92,31 @@ No.
 
 ## Design
 
-The CPU models and featres are like this:
+The CPU models are like this:
 
-- Node-1 cpuModel: Nehalem, Penryn, cpuFeatures: avx
-- Node-2 cpuModel: Nehalem, Westmere, cpuFeatures: avx, avx2
-- Node-3 cpuModel: Nehalem, SandyBridge, cpuFeatures: avx, bmi2
-- Node-4 cpuModel: Nehalem, Westmere, cpuFeatures: avx, clwb
+- Node-1 cpuModel: Nehalem, Penryn
+- Node-2 cpuModel: Nehalem, Westmere
+- Node-3 cpuModel: Nehalem, SandyBridge
+- Node-4 cpuModel: Nehalem, Westmere
 
-We'll make the common one with green color and uncommon one with yellow color. When selecting the CPU features, we also provide a policy field.
+We'll only show the common one.
 
-![](20250407-cpu-model-features-selection/01-models-and-features.png)
-
-If users select the uncommon one, we'll show the warning message.
-
-![](20250407-cpu-model-features-selection/02-warning-message.png)
+![](20250407-cpu-model-features-selection/01-custom-model.png)
 
 Besides custom model, we should also provide [`host-passthrough`](https://kubevirt.io/user-guide/compute/virtual_hardware/#cpu-model-special-cases).
 
 ![](20250407-cpu-model-features-selection/03-different-model.png)
 
-![](20250407-cpu-model-features-selection/04-custom-model.png)
+
+We also support inputting features.
+
+![](20250407-cpu-model-features-selection/02-feature-01.png)
+
+![](20250407-cpu-model-features-selection/02-feature-02.png)
+
+Last, if you accept any risks of force migrating between nodes, you can check the checkbox.
+
+![](20250407-cpu-model-features-selection/04-force-migration.png)
 
 > These are just examples. The real one will match our Harvester GUI style.
 
@@ -120,15 +124,13 @@ Besides custom model, we should also provide [`host-passthrough`](https://kubevi
 
 #### Frontend
 
-Frontend needs to create a new tab in VM creation page and provide a dropdown selection menu for selecting models and features. This selection is also available in the VM template page. Then, calculate the common and uncommon CPU models and features across all nodes. 
+Frontend needs to create a new tab in the VM creation page and provide a dropdown selection menu for models and an input box for features. This selection is also available in the VM template page. Then, calculate the common CPU models across all nodes. 
 
 - If users select the common one, we'll show the option with green mark.
-- If users select the uncommon one, we'll show the option with yellow mark and a warning message.
 
-The data of CPU models and features are from node's labels:
+The data of CPU models are from node's labels:
 
 - The model is from `cpu-feature.node.kubevirt.io/{model}` of node's labels. 
-- The feature is from `cpu-feature.node.kubevirt.io/{feature}` of node's labels.
 
 This is node's labels example:
 
@@ -173,48 +175,52 @@ Since VM spec in `virtualmachinetemplateversion` is same, please use same logic 
 
 Action Items:
 
-- [ ] Create a new tab in VM creation page.
-- [ ] Create a new tab in VM template page.
-- [ ] Provide a dropdown selection menu for selecting models and features.
-- [ ] Calculate common and uncommon the CPU models and features across all nodes.
+- [ ] Create a new tab in the VM creation page.
+- [ ] Create a new tab in the VM template page.
+- [ ] Provide a dropdown selection menu for models and an input box for features.
+- [ ] Provide a force migration checkbox while selecting the host-model option.
+- [ ] Calculate the common CPU models across all nodes.
+- [ ] Propagate the scheduling error on GUI.
 
 #### Backend
 
 Backend should reject the unreasonable request from frontend. When users try to migrate a VM, the `findMigratableNodes` action should return available nodes that matched the selected CPU model and features to avoid scheduling failure.
 
+About force migration, we'll introduce a new annotation called `harvesterhci.io/forceMigration`. When a POD is created, the `*.kubevirt.io` in `spec.nodeSelector` will be removed if the POD contains the annotation. In this way, we can ignore those `*.kubevirt.io` nodeSelectors and force migrate the VM between different CPU models ([Example Commit](https://github.com/Yu-Jack/harvester/commit/7d6e9f6a8ae58a532ead1bec26547e161e55b1dc)).
+
+That being said, it's not an official way provided by the underlying system. Hence, we'll warn users if they really know what they're doing. Otherwise, we suggest that selecting the common CPU model would be an appropriate way.
+
 Action Items:
 
+- [ ] Support force migration by mutating POD when POD is created with the `harvesterhci.io/forceMigration` annotation.
 - [ ] Validate if the selected CPU model and features exist in nodes or not.
 - [ ] Filter the nodes based on the selected CPU model and features when calling `findMigratableNodesByVMI`.
-- [ ] Write a documentation on different usage of policy field in the VM spec.
-- [ ] Write a documentation on how to configure cluster-wide CPU model in KubeVirt.
+- [ ] Write documentation on different usage of the policy field in the VM spec.
+- [ ] Write documentation on how to configure cluster-wide CPU model in KubeVirt.
 
 ### Test plan
 
 - Case 1: Select the common CPU model
-- Case 2: Select the common CPU feature
+- Case 2: Input a feature
   - Case 2A: With `require` policy
   - Case 2B: With `forbid` policy
   - Case 2C: With `disable` policy
-- Case 3: Select the common CPU model and feature
-- Case 4: Select the uncommon CPU model
-- Case 5: Select the uncommon CPU feature
-- Case 6: Select the uncommon CPU model and feature
 
-After selecting the CPU model and feature, try to migrate the VM to another node.
+After selecting the CPU model and inputting features, try to migrate the VM to another node.
 
-In case 4, 5 and 6, try to migrate the VM to unmatched node and check the result. It should be failed.
+- Case 3: Select host model and check the "force migration" checkbox
 
+Prepare two nodes with different CPU models and migrate the VM between them for Case 3.
 
 ### Upgrade strategy
 
-Current VM uses the default cpu model (host-model). If users would like to change the cpu model, they need to restart the VM.
+The current VM uses the default CPU model (host-model). If users would like to change the CPU model, they need to restart the VM.
 
 ## Note
 
 ### Real World Example of CPU Model and Feature
 
-In order to have a better understanding how the CPU model and feature works in KubeVirt, I'll provide some real spec examples.
+In order to have a better understanding of how the CPU model and features work in KubeVirt, I'll provide some real spec examples.
 
 Let's say we have a Node with the following CPU models and features:
 
