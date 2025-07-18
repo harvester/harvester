@@ -612,16 +612,13 @@ func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineB
 			}
 		}
 
-		if volumeBackup.LonghornBackupName != nil {
-			if err := checkLHBackup(h.lhbackupCache, *volumeBackup.LonghornBackupName); err != nil {
-				logrus.WithError(err).WithFields(logrus.Fields{
-					"name":           vmBackupCpy.Name,
-					"namespace":      vmBackupCpy.Namespace,
-					"volumeBackup":   *volumeBackup.Name,
-					"longhornBackup": *volumeBackup.LonghornBackupName,
-				}).Warn("Longhorn backup is not ready")
-			}
-			return nil
+		shouldSkip, err := h.shouldSkipVolumeSnapshotUpdate(vmBackup, volumeBackup)
+		if err != nil {
+			return err
+		}
+
+		if shouldSkip {
+			continue
 		}
 
 		if volumeSnapshot.Status != nil {
@@ -629,7 +626,6 @@ func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineB
 			vmBackupCpy.Status.VolumeBackups[i].CreationTime = volumeSnapshot.Status.CreationTime
 			vmBackupCpy.Status.VolumeBackups[i].Error = translateError(volumeSnapshot.Status.Error)
 		}
-
 	}
 
 	if !reflect.DeepEqual(vmBackup.Status, vmBackupCpy.Status) {
@@ -1039,4 +1035,77 @@ func (h *Handler) configureCSIDriverVolumeSnapshotClassNames(vmBackup *harvester
 		return nil, err
 	}
 	return h.vmBackups.Update(vmBackupCpy)
+}
+
+// shouldSkipVolumeSnapshotUpdate checks if the Longhorn backup is ready and if the volume is in the backup target.
+// The check is needed when a VMBackup changes from ready to non-ready state.
+// We would like to avoid the controller change the VMBackup to ready again blindly,
+// because related volume snapshot status doesn't really reflect backup state.
+func (h *Handler) shouldSkipVolumeSnapshotUpdate(vmBackup *harvesterv1.VirtualMachineBackup, volumeBackup harvesterv1.VolumeBackup) (bool, error) {
+	isChangedBackupToNonReady := false
+	for _, condition := range vmBackup.Status.Conditions {
+		if condition.Type == harvesterv1.BackupConditionReady && condition.Message == changeToNonReadyMessage {
+			isChangedBackupToNonReady = true
+			break
+		}
+	}
+
+	if volumeBackup.LonghornBackupName == nil || !isChangedBackupToNonReady {
+		return false, nil
+	}
+
+	conditionMsg, err := checkLHBackup(h.lhbackupCache, *volumeBackup.LonghornBackupName)
+	if err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"name":           vmBackup.Name,
+			"namespace":      vmBackup.Namespace,
+			"volumeBackup":   *volumeBackup.Name,
+			"longhornBackup": *volumeBackup.LonghornBackupName,
+		}).Warn("cannot check longhorn backup")
+		return true, err
+	}
+
+	if conditionMsg != "" {
+		logrus.WithFields(logrus.Fields{
+			"name":           vmBackup.Name,
+			"namespace":      vmBackup.Namespace,
+			"volumeBackup":   *volumeBackup.Name,
+			"longhornBackup": *volumeBackup.LonghornBackupName,
+			logrus.ErrorKey:  conditionMsg,
+		}).Infof("longhorn backup is not ready")
+		return true, nil
+	}
+
+	backupTargetValue := settings.BackupTargetSet.Get()
+	target, err := settings.DecodeBackupTarget(backupTargetValue)
+	if err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"name":      vmBackup.Name,
+			"namespace": vmBackup.Namespace,
+		}).Warnf("failed to decode backup target %s", backupTargetValue)
+		return true, err
+	}
+
+	conditionMsg, err = checkVolumeInBackupTarget(vmBackup, &volumeBackup, target)
+	if err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"name":           vmBackup.Name,
+			"namespace":      vmBackup.Namespace,
+			"volumeBackup":   *volumeBackup.Name,
+			"longhornBackup": *volumeBackup.LonghornBackupName,
+		}).Warnf("failed to check volume in backup target")
+		return true, err
+	}
+
+	if conditionMsg != "" {
+		logrus.WithFields(logrus.Fields{
+			"name":           vmBackup.Name,
+			"namespace":      vmBackup.Namespace,
+			"volumeBackup":   *volumeBackup.Name,
+			"longhornBackup": *volumeBackup.LonghornBackupName,
+			logrus.ErrorKey:  conditionMsg,
+		}).Infof("volume is not in backup target")
+		return true, nil
+	}
+	return false, nil
 }
