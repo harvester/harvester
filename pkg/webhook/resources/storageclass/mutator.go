@@ -15,6 +15,8 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
+const emptyAnnotationsPatch = `{"op": "add", "path": "/metadata/annotations", "value": {}}`
+
 var patchAnnotation = `{"op": "add", "path": "/metadata/annotations/%s", "value": %s}`
 
 func NewMutator() types.Mutator {
@@ -44,15 +46,15 @@ func (m *storageClassMutator) Resource() types.Resource {
 }
 
 func (m *storageClassMutator) Create(_ *types.Request, newObj runtime.Object) (types.PatchOps, error) {
-	return generatePatchOps(newObj.(*storagev1.StorageClass)), nil
+	return generateCDIAnnoPatchOps(newObj.(*storagev1.StorageClass)), nil
 }
 
 func (m *storageClassMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
-	return generatePatchOps(newObj.(*storagev1.StorageClass)), nil
+	return generateCDIAnnoPatchOps(newObj.(*storagev1.StorageClass)), nil
 }
 
-// generatePatchOps generates patch operations for the storage class
-func generatePatchOps(sc *storagev1.StorageClass) types.PatchOps {
+// generateCDIAnnoPatchOps generates cdi annotations patch for the storage class
+func generateCDIAnnoPatchOps(sc *storagev1.StorageClass) types.PatchOps {
 	var patchOps types.PatchOps
 
 	switch sc.Provisioner {
@@ -60,6 +62,11 @@ func generatePatchOps(sc *storagev1.StorageClass) types.PatchOps {
 		patchOps = append(patchOps, generateLonghornPatchOps(sc)...)
 	case util.CSIProvisionerLVM:
 		patchOps = append(patchOps, generateLVMPatchOps(sc)...)
+	}
+
+	if len(patchOps) > 0 && sc.Annotations == nil {
+		// append empty annotations map as the first operation
+		patchOps = append([]string{emptyAnnotationsPatch}, patchOps...)
 	}
 
 	return patchOps
@@ -77,7 +84,7 @@ func generateLonghornPatchOps(sc *storagev1.StorageClass) types.PatchOps {
 		patchOps = append(patchOps, fmt.Sprintf(
 			patchAnnotation,
 			patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
-			cdiv1.CloneStrategyHostAssisted,
+			strconv.Quote(string(cdiv1.CloneStrategyHostAssisted)),
 		))
 	}
 
@@ -86,7 +93,7 @@ func generateLonghornPatchOps(sc *storagev1.StorageClass) types.PatchOps {
 		patchOps = append(patchOps, fmt.Sprintf(
 			patchAnnotation,
 			patch.EscapeJSONPointer(util.AnnotationStorageProfileSnapshotClass),
-			"longhorn-snapshot",
+			strconv.Quote("longhorn-snapshot"),
 		))
 	}
 
@@ -111,7 +118,7 @@ func generateLVMPatchOps(sc *storagev1.StorageClass) types.PatchOps {
 		patchOps = append(patchOps, fmt.Sprintf(
 			patchAnnotation,
 			patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
-			cdiv1.CloneStrategySnapshot,
+			strconv.Quote(string(cdiv1.CloneStrategySnapshot)),
 		))
 	}
 
