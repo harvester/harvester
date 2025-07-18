@@ -45,10 +45,13 @@ func (v *nodeValidator) Resource() types.Resource {
 		APIVersion: corev1.SchemeGroupVersion.Version,
 		ObjectType: &corev1.Node{},
 		OperationTypes: []admissionregv1.OperationType{
+			admissionregv1.Create,
 			admissionregv1.Update,
 		},
 	}
 }
+
+// func (v *nodeValidator) Create() error {}
 
 func (v *nodeValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	oldNode := oldObj.(*corev1.Node)
