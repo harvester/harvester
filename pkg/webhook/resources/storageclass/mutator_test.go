@@ -1,6 +1,7 @@
 package storageclass
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"testing"
@@ -30,12 +31,13 @@ func Test_generatePatchOps(t *testing.T) {
 				Parameters:  map[string]string{"dataEngine": string(longhornv1.DataEngineTypeV2)},
 			},
 			expectOps: types.PatchOps{
+				emptyAnnotationsPatch,
 				fmt.Sprintf(patchAnnotation,
 					patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
-					cdiv1.CloneStrategyHostAssisted),
+					strconv.Quote(string(cdiv1.CloneStrategyHostAssisted))),
 				fmt.Sprintf(patchAnnotation,
 					patch.EscapeJSONPointer(util.AnnotationStorageProfileSnapshotClass),
-					"longhorn-snapshot"),
+					strconv.Quote("longhorn-snapshot")),
 			},
 		},
 		{
@@ -77,7 +79,7 @@ func Test_generatePatchOps(t *testing.T) {
 					strconv.Quote(`{"Block":["ReadWriteOnce"]}`)),
 				fmt.Sprintf(patchAnnotation,
 					patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
-					cdiv1.CloneStrategySnapshot),
+					strconv.Quote(string(cdiv1.CloneStrategySnapshot))),
 				fmt.Sprintf(patchAnnotation,
 					patch.EscapeJSONPointer(util.AnnotationStorageProfileSnapshotClass),
 					strconv.Quote("lvm-snapshot")),
@@ -97,7 +99,7 @@ func Test_generatePatchOps(t *testing.T) {
 			expectOps: types.PatchOps{
 				fmt.Sprintf(patchAnnotation,
 					patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
-					cdiv1.CloneStrategySnapshot),
+					strconv.Quote(string(cdiv1.CloneStrategySnapshot))),
 				fmt.Sprintf(patchAnnotation,
 					patch.EscapeJSONPointer(util.AnnotationStorageProfileSnapshotClass),
 					strconv.Quote("lvm-snapshot")),
@@ -122,7 +124,12 @@ func Test_generatePatchOps(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ops := generatePatchOps(tc.sc)
+			ops := generateCDIAnnoPatchOps(tc.sc)
+			for _, op := range ops {
+				var js any
+				err := json.Unmarshal([]byte(op), &js)
+				assert.NoError(t, err, "patch operation should be valid JSON: %s", op)
+			}
 			assert.Equal(t, tc.expectOps, ops)
 		})
 	}

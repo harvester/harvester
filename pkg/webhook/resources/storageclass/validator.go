@@ -355,6 +355,17 @@ func (v *storageClassValidator) validateReservedStorageClass(sc *storagev1.Stora
 func (v *storageClassValidator) validateCDIAnnotations(newObj runtime.Object) error {
 	sc := newObj.(*storagev1.StorageClass)
 
+	if !hasCDIAnnotations(sc) {
+		// For other provisioners, we require the volume access modes annotation if it don't have default value in CDI capabilities.
+		if _, ok := cdicaps.CapabilitiesByProvisionerKey[sc.Provisioner]; !ok && sc.Provisioner != util.CSIProvisionerLonghorn && sc.Provisioner != util.CSIProvisionerLVM {
+			return werror.NewInvalidError(
+				fmt.Sprintf("missing annotation %s. volume access modes are required for CDI integration to work with storage class provisioner %s.",
+					util.AnnotationStorageProfileVolumeModeAccessModes, sc.Provisioner), "")
+		}
+		// No need to do validation if it doesn't have any CDI annotations
+		return nil
+	}
+
 	if err := v.validateLonghornV1(sc); err != nil {
 		return err
 	}
@@ -376,10 +387,6 @@ func (v *storageClassValidator) validateCDIAnnotations(newObj runtime.Object) er
 }
 
 func (v *storageClassValidator) validateLonghornV1(sc *storagev1.StorageClass) error {
-	if !hasCDIAnnotations(sc) {
-		return nil
-	}
-
 	if sc.Provisioner != util.CSIProvisionerLonghorn {
 		return nil
 	}
@@ -413,10 +420,6 @@ func hasCDIAnnotations(sc *storagev1.StorageClass) bool {
 }
 
 func (v *storageClassValidator) validateFilesystemOverhead(sc *storagev1.StorageClass) error {
-	if sc.Annotations == nil {
-		return nil
-	}
-
 	value, exists := sc.Annotations[util.AnnotationCDIFSOverhead]
 	if !exists {
 		return nil
@@ -424,7 +427,7 @@ func (v *storageClassValidator) validateFilesystemOverhead(sc *storagev1.Storage
 
 	if !regexp.MustCompile(util.FSOverheadRegex).MatchString(value) {
 		return werror.NewInvalidError(
-			fmt.Sprintf("invalid filesystem overhead %s in annotation %s, must be in range [0, 1]",
+			fmt.Sprintf("invalid filesystem overhead %s in annotation %s, must be in the range [0.00, 1.00] (up to 3 decimal places)",
 				value, util.AnnotationCDIFSOverhead), "")
 	}
 
@@ -432,10 +435,6 @@ func (v *storageClassValidator) validateFilesystemOverhead(sc *storagev1.Storage
 }
 
 func (v *storageClassValidator) validateCloneStrategy(sc *storagev1.StorageClass) error {
-	if sc.Annotations == nil {
-		return nil
-	}
-
 	value, exists := sc.Annotations[util.AnnotationStorageProfileCloneStrategy]
 	if !exists {
 		return nil
@@ -454,10 +453,6 @@ func (v *storageClassValidator) validateCloneStrategy(sc *storagev1.StorageClass
 }
 
 func (v *storageClassValidator) validateSnapshotClass(sc *storagev1.StorageClass) error {
-	if sc.Annotations == nil {
-		return nil
-	}
-
 	snapshotClass, snapshotClassExists := sc.Annotations[util.AnnotationStorageProfileSnapshotClass]
 	cloneStrategy, cloneStrategyExists := sc.Annotations[util.AnnotationStorageProfileCloneStrategy]
 
@@ -492,19 +487,9 @@ func (v *storageClassValidator) validateSnapshotClass(sc *storagev1.StorageClass
 }
 
 func (v *storageClassValidator) validateVolumeModeAccessModes(sc *storagev1.StorageClass) error {
-	if sc.Annotations == nil {
-		return nil
-	}
-
 	value, exists := sc.Annotations[util.AnnotationStorageProfileVolumeModeAccessModes]
 	if exists {
 		return v.validateVolumeModeAccessModesAnnotation(value)
-	}
-
-	// Check if annotation is required for this provisioner
-	if _, ok := cdicaps.CapabilitiesByProvisionerKey[sc.Provisioner]; !ok {
-		return werror.NewInvalidError(
-			fmt.Sprintf("missing annotation %s", util.AnnotationStorageProfileVolumeModeAccessModes), "")
 	}
 
 	return nil
