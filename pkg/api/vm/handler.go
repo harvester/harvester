@@ -478,9 +478,24 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 			toUpdateVmi.Spec.NodeSelector = make(map[string]string)
 		}
 		toUpdateVmi.Annotations[util.AnnotationMigrationTarget] = nodeName
-		toUpdateVmi.Spec.NodeSelector[corev1.LabelHostname] = nodeName
 
 		if err := util.VirtClientUpdateVmi(ctx, h.virtRestClient, h.namespace, namespace, vmName, toUpdateVmi); err != nil {
+			logrus.Errorf("failed to update vmi %s/%s with migration target %s: %v", namespace, vmName, nodeName, err)
+			return err
+		}
+
+		vm, err := h.vmCache.Get(namespace, vmName)
+		if err != nil {
+			return fmt.Errorf("failed to get virtual machine %s/%s: %v", namespace, vmName, err)
+		}
+		toUpdateVM := vm.DeepCopy()
+		if toUpdateVM.Spec.Template.Spec.NodeSelector == nil {
+			toUpdateVM.Spec.Template.Spec.NodeSelector = make(map[string]string)
+		}
+
+		toUpdateVM.Spec.Template.Spec.NodeSelector[corev1.LabelHostname] = nodeName
+		if _, err := h.vms.Update(toUpdateVM); err != nil {
+			logrus.Errorf("failed to update VM %s/%s with migration target %s: %v", namespace, vmName, nodeName, err)
 			return err
 		}
 	}
