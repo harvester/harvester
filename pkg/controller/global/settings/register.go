@@ -43,7 +43,7 @@ func (s *settingsProvider) Get(name string) string {
 		return value
 	}
 
-	logrus.Infof("Attempting to fetch setting %s from cache", name)
+	logrus.Debugf("Attempting to fetch setting %s from cache", name)
 	obj, err := s.settingsLister.Get(name)
 	if err != nil {
 		logrus.Warnf("Failed to fetch setting %s from cache, attempting direct API call: %v", name, err)
@@ -60,7 +60,7 @@ func (s *settingsProvider) Get(name string) string {
 		return obj.Default
 	}
 
-	logrus.Infof("Setting %s found with value: %s", name, obj.Value)
+	logrus.Debugf("Setting %s found with value: %s", name, obj.Value)
 	return obj.Value
 }
 
