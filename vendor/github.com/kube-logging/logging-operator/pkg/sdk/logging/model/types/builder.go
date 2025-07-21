@@ -50,7 +50,7 @@ func (s *SystemBuilder) RegisterFlow(f *Flow) error {
 
 // Check if we need to register a flow at all?
 func (s *SystemBuilder) RegisterErrorFlow(f *Flow) error {
-	if f.PluginMeta.Tag != "@ERROR" && f.FlowID != "@ERROR" {
+	if f.Tag != "@ERROR" && f.FlowID != "@ERROR" {
 		return errors.New("you can only register Error flow with @ERROR label")
 	}
 	for _, e := range s.flows {

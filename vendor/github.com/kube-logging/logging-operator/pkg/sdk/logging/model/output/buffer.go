@@ -43,17 +43,17 @@ type Buffer struct {
 	Tags *string `json:"tags,omitempty"`
 	// The path where buffer chunks are stored. The '*' is replaced with random characters. It's highly recommended to leave this default. (default: operator generated)
 	Path string `json:"path,omitempty"`
-	// The max size of each chunks: events will be written into chunks until the size of chunks become this size (default: 8MB)
-	ChunkLimitSize string `json:"chunk_limit_size,omitempty" plugin:"default:8MB"`
+	// The max size of each chunks: events will be written into chunks until the size of chunks become this size
+	ChunkLimitSize string `json:"chunk_limit_size,omitempty"`
 	// The max number of events that each chunks can store in it
 	ChunkLimitRecords int `json:"chunk_limit_records,omitempty"`
 	// The size limitation of this buffer plugin instance. Once the total size of stored buffer reached this threshold, all append operations will fail with error (and data will be lost)
 	TotalLimitSize string `json:"total_limit_size,omitempty"`
-	//The queue length limitation of this buffer plugin instance
+	// The queue length limitation of this buffer plugin instance
 	QueueLimitLength int `json:"queue_limit_length,omitempty"`
 	// The percentage of chunk size threshold for flushing. output plugin will flush the chunk when actual size reaches chunk_limit_size * chunk_full_threshold (== 8MB * 0.95 in default)
 	ChunkFullThreshold string `json:"chunk_full_threshold,omitempty"`
-	//Limit the number of queued chunks. If you set smaller flush_interval, e.g. 1s, there are lots of small queued chunks in buffer. This is not good with file buffer because it consumes lots of fd resources when output destination has a problem. This parameter mitigates such situations.
+	// Limit the number of queued chunks. If you set smaller flush_interval, e.g. 1s, there are lots of small queued chunks in buffer. This is not good with file buffer because it consumes lots of fd resources when output destination has a problem. This parameter mitigates such situations.
 	QueuedChunksLimitSize int `json:"queued_chunks_limit_size,omitempty"`
 	// If you set this option to gzip, you can get Fluentd to compress data records before writing to buffer chunks.
 	Compress string `json:"compress,omitempty"`

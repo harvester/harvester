@@ -26,7 +26,7 @@ type _hugoRelabel interface{} //nolint:deadcode,unused
 
 // +docName:"Relabel"
 /*
-Available in Logging Operator version 4.2 and later.
+Available in Logging operator version 4.2 and later.
 
 The relabel output uses the [relabel output plugin of Fluentd](https://docs.fluentd.org/output/relabel) to route events back to a specific Flow, where they can be processed again.
 

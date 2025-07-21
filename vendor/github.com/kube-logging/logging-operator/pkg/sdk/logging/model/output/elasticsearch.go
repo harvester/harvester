@@ -263,6 +263,8 @@ type ElasticsearchOutput struct {
 	// If set to true, the output uses the [legacy index template format](https://www.elastic.co/guide/en/elasticsearch/reference/7.13/indices-templates-v1.html). Otherwise, it uses the [composable index template](https://www.elastic.co/guide/en/elasticsearch/reference/7.13/index-templates.html) format. (default: true)
 	// +kubebuilder:validation:Optional
 	UseLegacyTemplate *bool `json:"use_legacy_template,omitempty"`
+	// Option for adding gzip compression of output data. Valid options: default_compression, best_compression, best_speed, no_compression. (default: no_compression)
+	CompressionLevel string `json:"compression_level,omitempty"`
 }
 
 func (e *ElasticsearchOutput) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {

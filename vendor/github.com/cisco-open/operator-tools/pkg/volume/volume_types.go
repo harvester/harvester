@@ -19,18 +19,21 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
-//nolint:unused,deadcode
 // +docName:"Kubernetes volume abstraction"
 // Refers to different types of volumes to be mounted to pods: emptyDir, hostPath, pvc
 //
 // Leverages core types from kubernetes/api/core/v1
+//
+//nolint:unused,deadcode
 type _docKubernetesVolume interface{}
 
-//nolint:unused,deadcode
 // +name:"KubernetesVolume"
 // +description:"Kubernetes volume abstraction"
+//
+//nolint:unused,deadcode
 type _metaKubernetesVolume interface{}
 
 // +kubebuilder:object:generate=true
@@ -43,7 +46,8 @@ type KubernetesVolume struct {
 	SecretSource   *corev1.SecretVolumeSource   `json:"secret,omitempty"`
 	// PersistentVolumeClaim defines the Spec and the Source at the same time.
 	// The PVC will be created with the configured spec and the name defined in the source.
-	PersistentVolumeClaim *PersistentVolumeClaim `json:"pvc,omitempty"`
+	PersistentVolumeClaim *PersistentVolumeClaim        `json:"pvc,omitempty"`
+	ConfigMapSource       *corev1.ConfigMapVolumeSource `json:"configMap,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
@@ -51,6 +55,8 @@ type KubernetesVolume struct {
 type PersistentVolumeClaim struct {
 	PersistentVolumeClaimSpec corev1.PersistentVolumeClaimSpec         `json:"spec,omitempty"`
 	PersistentVolumeSource    corev1.PersistentVolumeClaimVolumeSource `json:"source,omitempty"`
+	Labels                    map[string]string                        `json:"labels,omitempty"`
+	Annotations               map[string]string                        `json:"annotations,omitempty"`
 }
 
 // `path` is the path in case the hostPath volume type is used and no path has been defined explicitly
@@ -92,6 +98,11 @@ func (v *KubernetesVolume) GetVolume(name string) (corev1.Volume, error) {
 			Secret: v.SecretSource,
 		}
 		return volume, nil
+	} else if v.ConfigMapSource != nil {
+		volume.VolumeSource = corev1.VolumeSource{
+			ConfigMap: v.ConfigMapSource,
+		}
+		return volume, nil
 	}
 	// return a default emptydir volume if none configured
 	volume.VolumeSource = corev1.VolumeSource{
@@ -104,8 +115,13 @@ func (v *KubernetesVolume) ApplyPVCForStatefulSet(containerName string, path str
 	if v.PersistentVolumeClaim == nil {
 		return errors.New("PVC definition is missing, unable to apply on statefulset")
 	}
+
+	m := meta(v.PersistentVolumeClaim.PersistentVolumeSource.ClaimName)
+	m.Labels = labels.Merge(m.Labels, v.PersistentVolumeClaim.Labels)
+	m.Annotations = labels.Merge(m.Annotations, v.PersistentVolumeClaim.Annotations)
+
 	pvc := corev1.PersistentVolumeClaim{
-		ObjectMeta: meta(v.PersistentVolumeClaim.PersistentVolumeSource.ClaimName),
+		ObjectMeta: m,
 		Spec:       v.PersistentVolumeClaim.PersistentVolumeClaimSpec,
 		Status: corev1.PersistentVolumeClaimStatus{
 			Phase: corev1.ClaimPending,

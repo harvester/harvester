@@ -51,22 +51,24 @@ type FluentdSpec struct {
 	TLS                    FluentdTLS        `json:"tls,omitempty"`
 	Image                  ImageSpec         `json:"image,omitempty"`
 	DisablePvc             bool              `json:"disablePvc,omitempty"`
+	EnabledIPv6            bool              `json:"enabledIPv6,omitempty"`
 	// BufferStorageVolume is by default configured as PVC using FluentdPvcSpec
 	// +docLink:"volume.KubernetesVolume,https://github.com/cisco-open/operator-tools/tree/master/docs/types"
 	BufferStorageVolume volume.KubernetesVolume `json:"bufferStorageVolume,omitempty"`
 	ExtraVolumes        []ExtraVolume           `json:"extraVolumes,omitempty"`
 	// Deprecated, use bufferStorageVolume
-	FluentdPvcSpec          *volume.KubernetesVolume    `json:"fluentdPvcSpec,omitempty"`
-	VolumeMountChmod        bool                        `json:"volumeMountChmod,omitempty"`
-	VolumeModImage          ImageSpec                   `json:"volumeModImage,omitempty"`
-	ConfigReloaderImage     ImageSpec                   `json:"configReloaderImage,omitempty"`
-	Resources               corev1.ResourceRequirements `json:"resources,omitempty"`
-	ConfigCheckResources    corev1.ResourceRequirements `json:"configCheckResources,omitempty"`
-	ConfigReloaderResources corev1.ResourceRequirements `json:"configReloaderResources,omitempty"`
-	LivenessProbe           *corev1.Probe               `json:"livenessProbe,omitempty"`
-	LivenessDefaultCheck    bool                        `json:"livenessDefaultCheck,omitempty"`
-	ReadinessProbe          *corev1.Probe               `json:"readinessProbe,omitempty"`
-	ReadinessDefaultCheck   ReadinessDefaultCheck       `json:"readinessDefaultCheck,omitempty"`
+	FluentdPvcSpec                         *volume.KubernetesVolume    `json:"fluentdPvcSpec,omitempty"`
+	VolumeMountChmod                       bool                        `json:"volumeMountChmod,omitempty"`
+	VolumeModImage                         ImageSpec                   `json:"volumeModImage,omitempty"`
+	ConfigReloaderImage                    ImageSpec                   `json:"configReloaderImage,omitempty"`
+	ConfigReloaderUseGracefulReloadWebhook bool                        `json:"configReloaderUseGracefulReloadWebhook,omitempty"`
+	Resources                              corev1.ResourceRequirements `json:"resources,omitempty"`
+	ConfigCheckResources                   corev1.ResourceRequirements `json:"configCheckResources,omitempty"`
+	ConfigReloaderResources                corev1.ResourceRequirements `json:"configReloaderResources,omitempty"`
+	LivenessProbe                          *corev1.Probe               `json:"livenessProbe,omitempty"`
+	LivenessDefaultCheck                   bool                        `json:"livenessDefaultCheck,omitempty"`
+	ReadinessProbe                         *corev1.Probe               `json:"readinessProbe,omitempty"`
+	ReadinessDefaultCheck                  ReadinessDefaultCheck       `json:"readinessDefaultCheck,omitempty"`
 	// Fluentd port inside the container (24240 by default).
 	// The headless service port is controlled by this field as well.
 	// Note that the default ClusterIP service port is always 24240, regardless of this field.
@@ -80,10 +82,14 @@ type FluentdSpec struct {
 	BufferVolumeImage         ImageSpec                         `json:"bufferVolumeImage,omitempty"`
 	BufferVolumeArgs          []string                          `json:"bufferVolumeArgs,omitempty"`
 	BufferVolumeResources     corev1.ResourceRequirements       `json:"bufferVolumeResources,omitempty"`
+	BufferVolumeLivenessProbe *corev1.Probe                     `json:"bufferVolumeLivenessProbe,omitempty"`
 	Security                  *Security                         `json:"security,omitempty"`
 	Scaling                   *FluentdScaling                   `json:"scaling,omitempty"`
 	Workers                   int32                             `json:"workers,omitempty"`
 	RootDir                   string                            `json:"rootDir,omitempty"`
+	// Set the logging format. Allowed values are: "text" (default) and "json".
+	// +kubebuilder:validation:enum=json,text
+	LogFormat string `json:"logFormat,omitempty"`
 	// +kubebuilder:validation:enum=fatal,error,warn,info,debug,trace
 	LogLevel string `json:"logLevel,omitempty"`
 	// Ignore same log lines
@@ -110,6 +116,9 @@ type FluentdSpec struct {
 	// Available in Logging operator version 4.5 and later.
 	// Configure sidecar container in Fluentd pods, for example: [https://github.com/kube-logging/logging-operator/config/samples/logging_logging_fluentd_sidecars.yaml](https://github.com/kube-logging/logging-operator/config/samples/logging_logging_fluentd_sidecars.yaml).
 	SidecarContainers []corev1.Container `json:"sidecarContainers,omitempty"`
+	// Overrides the default logging level configCheck setup
+	// This field is not used directly, just copied over the field in the logging resource if defined
+	ConfigCheck *ConfigCheck `json:"configCheck,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
@@ -134,7 +143,7 @@ func (f *FluentdSpec) GetFluentdMetricsPath() string {
 }
 
 func (f *FluentdSpec) SetDefaults() error {
-	if f != nil { // nolint:nestif
+	if f != nil { //nolint:nestif
 		if f.FluentdPvcSpec != nil {
 			return errors.New("`fluentdPvcSpec` field is deprecated, use: `bufferStorageVolume`")
 		}
@@ -142,7 +151,11 @@ func (f *FluentdSpec) SetDefaults() error {
 			f.Image.Repository = DefaultFluentdImageRepository
 		}
 		if f.Image.Tag == "" {
-			f.Image.Tag = DefaultFluentdImageTag
+			if Version == "" {
+				f.Image.Tag = DefaultFluentdImageTag
+			} else {
+				f.Image.Tag = fmt.Sprintf("%s-%s", Version, "full")
+			}
 		}
 		if f.Image.PullPolicy == "" {
 			f.Image.PullPolicy = "IfNotPresent"
@@ -157,13 +170,25 @@ func (f *FluentdSpec) SetDefaults() error {
 			f.Security.RoleBasedAccessControlCreate = util.BoolPointer(true)
 		}
 		if f.Security.SecurityContext == nil {
-			f.Security.SecurityContext = &corev1.SecurityContext{}
+			f.Security.SecurityContext = &corev1.SecurityContext{
+				RunAsUser:    util.IntPointer64(100),
+				RunAsGroup:   util.IntPointer64(101),
+				RunAsNonRoot: util.BoolPointer(true),
+			}
 		}
 		if f.Security.PodSecurityContext == nil {
-			f.Security.PodSecurityContext = &corev1.PodSecurityContext{}
+			f.Security.PodSecurityContext = &corev1.PodSecurityContext{
+				RunAsUser:    util.IntPointer64(100),
+				RunAsGroup:   util.IntPointer64(101),
+				RunAsNonRoot: util.BoolPointer(true),
+				FSGroup:      util.IntPointer64(101),
+			}
 		}
 		if f.Security.PodSecurityContext.FSGroup == nil {
 			f.Security.PodSecurityContext.FSGroup = util.IntPointer64(101)
+		}
+		if f.Security.CreateOpenShiftSCC == nil {
+			f.Security.CreateOpenShiftSCC = util.BoolPointer(false)
 		}
 		if f.Workers <= 0 {
 			f.Workers = 1
@@ -223,7 +248,11 @@ func (f *FluentdSpec) SetDefaults() error {
 			f.ConfigReloaderImage.Repository = DefaultFluentdConfigReloaderImageRepository
 		}
 		if f.ConfigReloaderImage.Tag == "" {
-			f.ConfigReloaderImage.Tag = DefaultFluentdConfigReloaderImageTag
+			if Version == "" {
+				f.ConfigReloaderImage.Tag = DefaultFluentdConfigReloaderImageTag
+			} else {
+				f.ConfigReloaderImage.Tag = Version
+			}
 		}
 		if f.ConfigReloaderImage.PullPolicy == "" {
 			f.ConfigReloaderImage.PullPolicy = "IfNotPresent"
@@ -232,23 +261,43 @@ func (f *FluentdSpec) SetDefaults() error {
 			f.BufferVolumeImage.Repository = DefaultFluentdBufferVolumeImageRepository
 		}
 		if f.BufferVolumeImage.Tag == "" {
-			f.BufferVolumeImage.Tag = DefaultFluentdBufferVolumeImageTag
+			if Version == "" {
+				f.BufferVolumeImage.Tag = DefaultFluentdBufferVolumeImageTag
+			} else {
+				f.BufferVolumeImage.Tag = Version
+			}
 		}
 		if f.BufferVolumeImage.PullPolicy == "" {
 			f.BufferVolumeImage.PullPolicy = "IfNotPresent"
 		}
 		if f.BufferVolumeResources.Limits == nil {
 			f.BufferVolumeResources.Limits = corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("10M"),
-				corev1.ResourceCPU:    resource.MustParse("50m"),
+				corev1.ResourceMemory: resource.MustParse("100M"),
+				corev1.ResourceCPU:    resource.MustParse("100m"),
 			}
 		}
 		if f.BufferVolumeResources.Requests == nil {
 			f.BufferVolumeResources.Requests = corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("10M"),
-				corev1.ResourceCPU:    resource.MustParse("1m"),
+				corev1.ResourceMemory: resource.MustParse("20M"),
+				corev1.ResourceCPU:    resource.MustParse("2m"),
 			}
 		}
+		if f.BufferVolumeLivenessProbe == nil {
+			f.BufferVolumeLivenessProbe = &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Port:   intstr.FromString("buffer-metrics"),
+						Scheme: corev1.URISchemeHTTP,
+					},
+				},
+				InitialDelaySeconds: 600,
+				TimeoutSeconds:      5,
+				PeriodSeconds:       30,
+				SuccessThreshold:    1,
+				FailureThreshold:    3,
+			}
+		}
+
 		if f.Resources.Limits == nil {
 			f.Resources.Limits = corev1.ResourceList{
 				corev1.ResourceMemory: resource.MustParse("400M"),
@@ -274,7 +323,11 @@ func (f *FluentdSpec) SetDefaults() error {
 			f.Scaling.Drain.Image.Repository = DefaultFluentdDrainWatchImageRepository
 		}
 		if f.Scaling.Drain.Image.Tag == "" {
-			f.Scaling.Drain.Image.Tag = DefaultFluentdDrainWatchImageTag
+			if Version == "" {
+				f.Scaling.Drain.Image.Tag = DefaultFluentdDrainWatchImageTag
+			} else {
+				f.Scaling.Drain.Image.Tag = Version
+			}
 		}
 		if f.Scaling.Drain.Image.PullPolicy == "" {
 			f.Scaling.Drain.Image.PullPolicy = "IfNotPresent"
@@ -400,7 +453,7 @@ func (e *ExtraVolume) ApplyVolumeForPodSpec(spec *corev1.PodSpec) error {
 
 // +kubebuilder:object:generate=true
 
-// FluentdScaling enables configuring the scaling behaviour of the fluentd statefulset
+// FluentdScaling enables configuring the scaling behavior of the fluentd statefulset
 type FluentdScaling struct {
 	Replicas            int                `json:"replicas,omitempty"`
 	PodManagementPolicy string             `json:"podManagementPolicy,omitempty"`

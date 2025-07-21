@@ -15,8 +15,9 @@
 package v1beta1
 
 import (
-	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/filter"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/filter"
 )
 
 // +name:"FlowSpec"
@@ -55,9 +56,10 @@ type Select struct {
 }
 
 type Exclude struct {
-	Labels         map[string]string `json:"labels,omitempty"`
-	Hosts          []string          `json:"hosts,omitempty"`
-	ContainerNames []string          `json:"container_names,omitempty"`
+	Labels          map[string]string `json:"labels,omitempty"`
+	NamespaceLabels map[string]string `json:"namespace_labels,omitempty"`
+	Hosts           []string          `json:"hosts,omitempty"`
+	ContainerNames  []string          `json:"container_names,omitempty"`
 }
 
 // Filter definition for FlowSpec
@@ -76,8 +78,6 @@ type Filter struct {
 	Grep                *filter.GrepConfig                `json:"grep,omitempty"`
 	Prometheus          *filter.PrometheusConfig          `json:"prometheus,omitempty"`
 	Throttle            *filter.Throttle                  `json:"throttle,omitempty"`
-	SumoLogic           *filter.SumoLogic                 `json:"sumologic,omitempty"`
-	EnhanceK8s          *filter.EnhanceK8s                `json:"enhanceK8s,omitempty"`
 	KubeEventsTimestamp *filter.KubeEventsTimestampConfig `json:"kube_events_timestamp,omitempty"`
 }
 

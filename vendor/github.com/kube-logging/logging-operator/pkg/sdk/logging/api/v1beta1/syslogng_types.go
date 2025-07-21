@@ -16,6 +16,9 @@ package v1beta1
 
 import (
 	"github.com/cisco-open/operator-tools/pkg/typeoverride"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/syslogng/filter"
 )
@@ -29,10 +32,25 @@ type _hugoSyslogNGSpec interface{} //nolint:deadcode,unused
 // +description:"SyslogNGSpec defines the desired state of SyslogNG"
 type _metaSyslogNGSpec interface{} //nolint:deadcode,unused
 
+const (
+	defaultSyslogngImageRepository           = "ghcr.io/axoflow/axosyslog"
+	defaultSyslogngImageTag                  = "4.11.0"
+	defaultPrometheusExporterImageRepository = "ghcr.io/axoflow/axosyslog-metrics-exporter"
+	defaultPrometheusExporterImageTag        = "0.0.9"
+	defaultConfigReloaderImageRepository     = "ghcr.io/kube-logging/logging-operator/syslog-ng-reloader"
+	defaultConfigReloaderImageTag            = "latest"
+	defaultBufferVolumeImageRepository       = "ghcr.io/kube-logging/logging-operator/node-exporter"
+	defaultBufferVolumeImageTag              = "latest"
+)
+
 // +kubebuilder:object:generate=true
 
 // SyslogNGSpec defines the desired state of SyslogNG
 type SyslogNGSpec struct {
+	SyslogNGImage                       *BasicImageSpec              `json:"syslogNGImage,omitempty"`
+	ConfigReloadImage                   *BasicImageSpec              `json:"configReloadImage,omitempty"`
+	MetricsExporterImage                *BasicImageSpec              `json:"metricsExporterImage,omitempty"`
+	BufferVolumeMetricsImage            *BasicImageSpec              `json:"bufferVolumeMetricsImage,omitempty"`
 	TLS                                 SyslogNGTLS                  `json:"tls,omitempty"`
 	ReadinessDefaultCheck               ReadinessDefaultCheck        `json:"readinessDefaultCheck,omitempty"`
 	SkipRBACCreate                      bool                         `json:"skipRBACCreate,omitempty"`
@@ -44,6 +62,8 @@ type SyslogNGSpec struct {
 	MetricsServiceOverrides             *typeoverride.Service        `json:"metricsService,omitempty"`
 	BufferVolumeMetrics                 *BufferMetrics               `json:"bufferVolumeMetrics,omitempty"`
 	BufferVolumeMetricsServiceOverrides *typeoverride.Service        `json:"bufferVolumeMetricsService,omitempty"`
+	BufferVolumeMetricsResources        corev1.ResourceRequirements  `json:"bufferVolumeMetricsResources,omitempty"`
+	BufferVolumeMetricsLivenessProbe    *corev1.Probe                `json:"bufferVolumeMetricsLivenessProbe,omitempty"`
 	GlobalOptions                       *GlobalOptions               `json:"globalOptions,omitempty"`
 	JSONKeyPrefix                       string                       `json:"jsonKeyPrefix,omitempty"`
 	JSONKeyDelimiter                    string                       `json:"jsonKeyDelim,omitempty"`
@@ -58,7 +78,9 @@ type SyslogNGSpec struct {
 	// Available in Logging operator version 4.5 and later.
 	// Create [custom log metrics for sources and outputs]({{< relref "/docs/examples/custom-syslog-ng-metrics.md" >}}).
 	SourceMetrics []filter.MetricsProbe `json:"sourceMetrics,omitempty"`
-	// TODO: option to turn on/off buffer volume PVC
+	// Overrides the default logging level configCheck setup.
+	// This field is not used directly, just copied over the field in the logging resource if defined.
+	ConfigCheck *ConfigCheck `json:"configCheck,omitempty"`
 }
 
 //
@@ -118,6 +140,70 @@ func (s *SyslogNGSpec) SetDefaults() {
 			}
 			if s.Metrics.Interval == "" {
 				s.Metrics.Interval = "15s"
+			}
+		}
+		if s.SyslogNGImage == nil {
+			s.SyslogNGImage = &BasicImageSpec{
+				Repository: defaultSyslogngImageRepository,
+				Tag:        defaultSyslogngImageTag,
+			}
+		}
+		if s.ConfigReloadImage == nil {
+			s.ConfigReloadImage = &BasicImageSpec{}
+		}
+		if s.ConfigReloadImage.Repository == "" {
+			s.ConfigReloadImage.Repository = defaultConfigReloaderImageRepository
+		}
+		if s.ConfigReloadImage.Tag == "" {
+			if Version == "" {
+				s.ConfigReloadImage.Tag = defaultConfigReloaderImageTag
+			} else {
+				s.ConfigReloadImage.Tag = Version
+			}
+		}
+		if s.MetricsExporterImage == nil {
+			s.MetricsExporterImage = &BasicImageSpec{
+				Repository: defaultPrometheusExporterImageRepository,
+				Tag:        defaultPrometheusExporterImageTag,
+			}
+		}
+		if s.BufferVolumeMetricsImage == nil {
+			s.BufferVolumeMetricsImage = &BasicImageSpec{}
+		}
+		if s.BufferVolumeMetricsImage.Repository == "" {
+			s.BufferVolumeMetricsImage.Repository = defaultBufferVolumeImageRepository
+		}
+		if s.BufferVolumeMetricsImage.Tag == "" {
+			if Version == "" {
+				s.BufferVolumeMetricsImage.Tag = defaultBufferVolumeImageTag
+			} else {
+				s.BufferVolumeMetricsImage.Tag = Version
+			}
+		}
+		if s.BufferVolumeMetricsResources.Limits == nil {
+			s.BufferVolumeMetricsResources.Limits = corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("100M"),
+				corev1.ResourceCPU:    resource.MustParse("100m"),
+			}
+		}
+		if s.BufferVolumeMetricsResources.Requests == nil {
+			s.BufferVolumeMetricsResources.Requests = corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("20M"),
+				corev1.ResourceCPU:    resource.MustParse("2m"),
+			}
+		}
+		if s.BufferVolumeMetricsLivenessProbe == nil {
+			s.BufferVolumeMetricsLivenessProbe = &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Port:   intstr.FromString("buffer-metrics"),
+						Scheme: corev1.URISchemeHTTP,
+					},
+				},
+				InitialDelaySeconds: 600,
+				TimeoutSeconds:      5,
+				PeriodSeconds:       30,
+				SuccessThreshold:    1,
 			}
 		}
 	}

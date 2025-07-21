@@ -19,6 +19,7 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/cisco-open/operator-tools/pkg/secret"
+
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/types"
 )
 
@@ -65,13 +66,16 @@ type ParserConfig struct {
 // +kubebuilder:object:generate=true
 // +docName:"Parse Section"
 type ParseSection struct {
-	// Parse type: apache2, apache_error, nginx, syslog, csv, tsv, ltsv, json, multiline, none, logfmt, grok, multiline_grok
+	// Parse type: apache2, apache_error, nginx, syslog, csv, tsv, ltsv, json, multiline, none, logfmt, grok, multiline_grok, multi_format
 	Type string `json:"type,omitempty"`
+	// Only available when using type: multi_format
+	// If set, add this key to record with value being pattern format_name
+	FormatKey string `json:"format_key,omitempty"`
 	// Regexp expression to evaluate
 	Expression string `json:"expression,omitempty"`
 	// Specify time field for event time. If the event doesn't have this field, current time is used.
 	TimeKey string `json:"time_key,omitempty"`
-	// Names for fields on each line. (seperated by coma)
+	// Names for fields on each line. (separated by coma)
 	Keys string `json:"keys,omitempty"`
 	//  Specify null value pattern.
 	NullValuePattern string `json:"null_value_pattern,omitempty"`
@@ -132,7 +136,7 @@ type ParseSection struct {
 // +kubebuilder:object:generate=true
 // +docName:"Parse Section (single)"
 type SingleParseSection struct {
-	// Parse type: apache2, apache_error, nginx, syslog, csv, tsv, ltsv, json, multiline, none, logfmt, grok, multiline_grok
+	// Parse type: apache2, apache_error, nginx, syslog, csv, tsv, ltsv, json, multiline, none, logfmt, grok, multiline_grok, multi_format
 	Type string `json:"type,omitempty"`
 	// Regexp expression to evaluate
 	Expression string `json:"expression,omitempty"`
@@ -160,6 +164,9 @@ type SingleParseSection struct {
 	Timezone string `json:"timezone,omitempty"`
 	// Only available when using type: multi_format
 	Format string `json:"format,omitempty"`
+	// Only available when using type: multi_format
+	// Value added to format key entry
+	FormatName string `json:"format_name,omitempty"`
 	// Only available when using format: grok, multiline_grok.
 	// The pattern of grok. You cannot specify multiple grok pattern with this.
 	GrokPattern string `json:"grok_pattern,omitempty"`
@@ -341,7 +348,11 @@ func (p *ParserConfig) ToDirective(secretLoader secret.SecretLoader, id string) 
 	parserConfig := p.DeepCopy()
 
 	if parserConfig.KeyName == "" {
-		parserConfig.KeyName = types.GetLogKey()
+		if logKeyProvider, ok := secretLoader.(types.LogKeyProvider); ok {
+			parserConfig.KeyName = logKeyProvider.GetLogKey()
+		} else {
+			parserConfig.KeyName = types.GetLogKey()
+		}
 	}
 	if params, err := types.NewStructToStringMapper(secretLoader).StringsMap(parserConfig); err != nil {
 		return nil, err

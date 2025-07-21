@@ -71,9 +71,9 @@ type LogZOutput struct {
 	// Define LogZ endpoint URL
 	Endpoint *Endpoint `json:"endpoint"`
 	// Should the appender add a timestamp to your logs on their process time (recommended).
-	OutputIncludeTime bool `json:"output_include_time,omitempty"`
+	OutputIncludeTime *bool `json:"output_include_time,omitempty"`
 	// Should the appender add the fluentd tag to the document, called "fluentd_tag"
-	OutputIncludeTags bool `json:"output_include_tags,omitempty"`
+	OutputIncludeTags *bool `json:"output_include_tags,omitempty"`
 	// Timeout in seconds that the http persistent connection will stay open without traffic.
 	HTTPIdleTimeout int `json:"http_idle_timeout,omitempty"`
 	// How many times to resend failed bulks.
