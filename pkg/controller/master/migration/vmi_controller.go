@@ -5,7 +5,6 @@ import (
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -68,11 +67,12 @@ func (h *Handler) OnVmiChanged(_ string, vmi *kubevirtv1.VirtualMachineInstance)
 
 func (h *Handler) resetHarvesterMigrationStateInVMI(vmi *kubevirtv1.VirtualMachineInstance) error {
 	toUpdate := vmi.DeepCopy()
+
 	delete(toUpdate.Annotations, util.AnnotationMigrationUID)
 	delete(toUpdate.Annotations, util.AnnotationMigrationState)
+
 	if vmi.Annotations[util.AnnotationMigrationTarget] != "" {
 		delete(toUpdate.Annotations, util.AnnotationMigrationTarget)
-		delete(toUpdate.Spec.NodeSelector, corev1.LabelHostname)
 	}
 
 	if err := util.VirtClientUpdateVmi(context.Background(), h.restClient, h.namespace, vmi.Namespace, vmi.Name, toUpdate); err != nil {
