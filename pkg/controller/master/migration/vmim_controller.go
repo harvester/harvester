@@ -93,6 +93,7 @@ func (h *Handler) syncVM(vmi *kubevirtv1.VirtualMachineInstance) error {
 		toUpdateVM.Annotations = make(map[string]string)
 	}
 	toUpdateVM.Annotations[util.AnnotationTimestamp] = time.Now().Format(time.RFC3339)
+	delete(toUpdateVM.Spec.Template.Spec.NodeSelector, corev1.LabelHostname)
 
 	_, err = h.vms.Update(toUpdateVM)
 	return err
