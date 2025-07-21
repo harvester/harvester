@@ -24,6 +24,7 @@ const (
 	resourceQuotaNamespace = "rs"
 	resourceQuotaName      = "rq1"
 	uid                    = "6afcf4d9-b8a7-464a-a4e9-abe81fc7eacd"
+	vmimUID                = "8afcf4d9-b8a7-464a-a4e9-abe81fc7eacd"
 
 	longVMIName = "a-very-long-name-exceeds-the-63-length-and-it-reports-error-in-old-version"
 
@@ -91,6 +92,10 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 						Name:      "vm1",
 						Namespace: resourceQuotaNamespace,
 						UID:       uid,
+						Annotations: map[string]string{
+							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
+							util.AnnotationMigrationState: StatePending,
+						},
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{
 						Domain: kubevirtv1.DomainSpec{
@@ -107,6 +112,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vmim1",
 						Namespace: resourceQuotaNamespace,
+						UID:       vmimUID,
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
 					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
@@ -153,6 +159,10 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 						Name:      longVMIName,
 						Namespace: resourceQuotaNamespace,
 						UID:       uid,
+						Annotations: map[string]string{
+							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
+							util.AnnotationMigrationState: StatePending,
+						},
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{
 						Domain: kubevirtv1.DomainSpec{
@@ -169,6 +179,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vmim1",
 						Namespace: resourceQuotaNamespace,
+						UID:       vmimUID,
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: longVMIName},
 					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
@@ -217,6 +228,10 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vm1",
 						Namespace: resourceQuotaNamespace,
+						Annotations: map[string]string{
+							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
+							util.AnnotationMigrationState: StatePending,
+						},
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{
 						Domain: kubevirtv1.DomainSpec{
@@ -233,6 +248,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vmim1",
 						Namespace: resourceQuotaNamespace,
+						UID:       vmimUID,
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
 					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
@@ -280,6 +296,10 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 						Name:      "vm1",
 						Namespace: resourceQuotaNamespace,
 						UID:       uid,
+						Annotations: map[string]string{
+							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
+							util.AnnotationMigrationState: StatePending,
+						},
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{
 						Domain: kubevirtv1.DomainSpec{
@@ -296,6 +316,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vmim1",
 						Namespace: resourceQuotaNamespace,
+						UID:       vmimUID,
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
 					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
@@ -338,6 +359,10 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vm1",
 						Namespace: resourceQuotaNamespace,
+						Annotations: map[string]string{
+							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
+							util.AnnotationMigrationState: StatePending,
+						},
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{
 						Domain: kubevirtv1.DomainSpec{
@@ -354,6 +379,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vmim1",
 						Namespace: resourceQuotaNamespace,
+						UID:       vmimUID,
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
 					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
@@ -394,6 +420,10 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vm1",
 						Namespace: resourceQuotaNamespace,
+						Annotations: map[string]string{
+							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
+							util.AnnotationMigrationState: StatePending,
+						},
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{
 						Domain: kubevirtv1.DomainSpec{
@@ -410,6 +440,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vmim1",
 						Namespace: resourceQuotaNamespace,
+						UID:       vmimUID,
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
 					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
@@ -450,6 +481,10 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vm1",
 						Namespace: resourceQuotaNamespace,
+						Annotations: map[string]string{
+							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
+							util.AnnotationMigrationState: StatePending,
+						},
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{
 						Domain: kubevirtv1.DomainSpec{
@@ -466,6 +501,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vmim1",
 						Namespace: resourceQuotaNamespace,
+						UID:       vmimUID,
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
 					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
@@ -504,6 +540,10 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vm1",
 						Namespace: resourceQuotaNamespace,
+						Annotations: map[string]string{
+							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
+							util.AnnotationMigrationState: StatePending,
+						},
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{
 						Domain: kubevirtv1.DomainSpec{
@@ -520,6 +560,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "vmim1",
 						Namespace: resourceQuotaNamespace,
+						UID:       vmimUID,
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
 					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
