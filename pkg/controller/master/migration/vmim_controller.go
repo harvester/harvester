@@ -16,11 +16,12 @@ import (
 
 const (
 	// StateMigrating represents kubevirt MigrationScheduling, MigrationScheduled, MigrationPreparingTarget, MigrationTargetReady, MigrationRunning
-	StateMigrating         = "Migrating"
+	StateMigrating = "Migrating"
+
 	StateAbortingMigration = "Aborting migration"
 
 	// StatePending represents kubevirt MigrationPhaseUnset, MigrationPending
-	StatePending = "Pending"
+	StatePending = "Pending migration"
 )
 
 // The handler adds the AnnotationMigrationUID annotation to the VMI when vmim starts.
