@@ -15,14 +15,17 @@ import (
 )
 
 const (
+	// StateMigrating represents kubevirt MigrationScheduling, MigrationScheduled, MigrationPreparingTarget, MigrationTargetReady, MigrationRunning
 	StateMigrating         = "Migrating"
 	StateAbortingMigration = "Aborting migration"
+
+	// StatePending represents kubevirt MigrationPhaseUnset, MigrationPending
+	StatePending = "Pending"
 )
 
 // The handler adds the AnnotationMigrationUID annotation to the VMI when vmim starts.
 // This is mainly for the period when vmim is created but VMI.status.migrationState is not updated before
 // the target pod is running.
-
 func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanceMigration) (*kubevirtv1.VirtualMachineInstanceMigration, error) {
 	if vmim == nil {
 		return nil, nil
@@ -39,16 +42,24 @@ func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanc
 	}
 
 	abortRequested := isAbortRequest(vmim)
-
+	phase := vmim.Status.Phase
 	// debug log shows, after vmim was deleted, the OnChange here may be called two times
-	logrus.Debugf("syncing vmim %s/%s/%s phase %v abortRequested %v deleted %t", vmim.Namespace, vmim.Name, vmi.Name, vmim.Status.Phase, abortRequested, vmim.DeletionTimestamp != nil)
-	if vmim.Status.Phase == kubevirtv1.MigrationPending && !abortRequested {
+	logrus.Debugf("syncing vmim %s/%s/%s phase %v abortRequested %v deleted %t", vmim.Namespace, vmim.Name, vmi.Name, phase, abortRequested, vmim.DeletionTimestamp != nil)
+
+	if phase == kubevirtv1.MigrationPhaseUnset && !abortRequested {
+		// set StatePending for UI status showing and menu rendering
+		return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StatePending)
+	} else if phase == kubevirtv1.MigrationPending && !abortRequested {
+		err := h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StatePending)
+		if err != nil {
+			return nil, err
+		}
 		return vmim, h.scaleResourceQuota(vmi)
-	} else if vmim.Status.Phase != kubevirtv1.MigrationFailed && abortRequested {
+	} else if phase != kubevirtv1.MigrationFailed && abortRequested {
 		return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateAbortingMigration)
-	} else if vmim.Status.Phase == kubevirtv1.MigrationScheduling {
+	} else if phase == kubevirtv1.MigrationScheduling || phase == kubevirtv1.MigrationScheduled || phase == kubevirtv1.MigrationPreparingTarget || phase == kubevirtv1.MigrationTargetReady || phase == kubevirtv1.MigrationRunning {
 		return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateMigrating)
-	} else if vmi.Annotations[util.AnnotationMigrationUID] == string(vmim.UID) && vmim.Status.Phase == kubevirtv1.MigrationFailed {
+	} else if vmi.Annotations[util.AnnotationMigrationUID] == string(vmim.UID) && phase == kubevirtv1.MigrationFailed {
 		// There are cases when VMIM failed but the status is not reported in VMI.status.migrationState
 		// https://github.com/kubevirt/kubevirt/issues/5503
 		if err := h.resetHarvesterMigrationStateInVmiAndSyncVM(vmi); err != nil {

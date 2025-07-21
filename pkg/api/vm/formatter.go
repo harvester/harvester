@@ -255,7 +255,7 @@ func isReady(vmi *kubevirtv1.VirtualMachineInstance) bool {
 }
 
 func canMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
-	if vmi == nil {
+	if vmi == nil || vmi.DeletionTimestamp != nil || vmi.Annotations[util.AnnotationMigrationState] != "" {
 		return false
 	}
 
@@ -267,11 +267,10 @@ func canMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
 }
 
 func canAbortMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
-	if vmi != nil &&
-		vmi.Annotations[util.AnnotationMigrationState] == migration.StateMigrating {
-		return true
+	if vmi == nil {
+		return false
 	}
-	return false
+	return vmi.Annotations[util.AnnotationMigrationState] == migration.StateMigrating || vmi.Annotations[util.AnnotationMigrationState] == migration.StatePending
 }
 
 func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {
