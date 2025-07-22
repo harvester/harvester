@@ -4,6 +4,7 @@ package listprocessor
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/data"
 	"github.com/rancher/wrangler/v3/pkg/data/convert"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -353,26 +355,61 @@ func matchesAll(obj map[string]interface{}, filters []OrFilter) bool {
 }
 
 // SortList sorts the slice by the provided sort criteria.
+// Convert the sorted list so we calculate the sort values only once per node,
+// making this an O(n) operation rather than an O(n**2) one.
+//
+// list of u.U => list of { *u.U, []stringValues } =>
+// sorted list of { *u.U, []stringValues } =>
+// final list of u.U from the above sorted list
+//
+// We do this because it's much faster to compare two string arrays then to compare
+// the string arrays based on walking objects repeatedly
 func SortList(list []unstructured.Unstructured, s Sort) []unstructured.Unstructured {
 	if len(s.Fields) == 0 {
 		return list
 	}
-	sort.Slice(list, func(i, j int) bool {
-		leftNode := list[i].Object
-		rightNode := list[j].Object
-		for i, field := range s.Fields {
-			leftValue := convert.ToString(data.GetValueN(leftNode, field...))
-			rightValue := convert.ToString(data.GetValueN(rightNode, field...))
-			if leftValue != rightValue {
-				if s.Orders[i] == ASC {
-					return leftValue < rightValue
-				}
-				return rightValue < leftValue
+	type transformedData struct {
+		originalItem *unstructured.Unstructured
+		stringValues []string
+	}
+	transformedList := make([]transformedData, len(list))
+	for i := range list {
+		td := &transformedList[i]
+		td.originalItem = &list[i]
+		td.stringValues = make([]string, len(s.Fields))
+		for j, fields := range s.Fields {
+			val, ok := data.GetValueFromAny(list[i].Object, fields...)
+			if ok {
+				td.stringValues[j] = val.(string)
+			} else {
+				logrus.Debugf("Failed to walk list item %d with fields %s", i, fields)
+				td.stringValues[j] = ""
 			}
 		}
-		return false
-	})
-	return list
+	}
+	// We can't use slices.Compare(leftNode.stringValues, rightNode.stringValues)
+	// because some comparisons might use ASC-order, and others DESC-order.
+	sortFunc := func(leftNode, rightNode transformedData) int {
+		for i := range leftNode.stringValues {
+			diff := strings.Compare(leftNode.stringValues[i], rightNode.stringValues[i])
+			if diff == 0 {
+				// the two substrings are the same, so continue walking the arrays
+				continue
+			}
+			if s.Orders[i] == DESC {
+				// reversing sort order just means inverting the comparison value
+				diff *= -1
+			}
+			return diff
+		}
+		return 0
+	}
+	slices.SortStableFunc(transformedList, sortFunc)
+	newList := make([]unstructured.Unstructured, len(list))
+	for i := range transformedList {
+		newList[i] = *transformedList[i].originalItem
+	}
+	return newList
 }
 
 // PaginateList returns a subset of the result based on the pagination criteria as well as the total number of pages the caller can expect.

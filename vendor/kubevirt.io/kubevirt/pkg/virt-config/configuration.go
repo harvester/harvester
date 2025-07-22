@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017, 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -177,7 +177,7 @@ func defaultClusterConfig(cpuArch string) *v1.KubeVirtConfiguration {
 	}
 	supportedQEMUGuestAgentVersions := strings.Split(strings.TrimRight(SupportedGuestAgentVersions, ","), ",")
 	defaultDiskVerification := &v1.DiskVerification{
-		MemoryLimit: resource.NewScaledQuantity(DefaultDiskVerificationMemoryLimitMBytes, resource.Mega),
+		MemoryLimit: resource.NewQuantity(DefaultDiskVerificationMemoryLimitBytes, resource.BinarySI),
 	}
 	defaultEvictionStrategy := v1.EvictionStrategyNone
 

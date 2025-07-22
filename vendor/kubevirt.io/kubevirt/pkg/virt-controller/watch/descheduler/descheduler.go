@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright The KubeVirt Authors
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -43,6 +43,14 @@ const EvictOnlyAnnotation = "descheduler.alpha.kubernetes.io/request-evict-only"
 
 // EvictionInProgressAnnotation indicates pods whose eviction was initiated by an external component.
 const EvictionInProgressAnnotation = "descheduler.alpha.kubernetes.io/eviction-in-progress"
+
+// EvictPodAnnotationKeyAlpha can be used to explicitly opt-in a pod to be eventually descheduled.
+// The descheduler will only check the presence of the annotation and not its value.
+const EvictPodAnnotationKeyAlpha = "descheduler.alpha.kubernetes.io/evict"
+
+// EvictPodAnnotationKeyBeta can be used to explicitly opt-in/out a pod to be eventually descheduled.
+// The descheduler will check the annotation value with a Boolean logic.
+const EvictPodAnnotationKeyBeta = "descheduler.beta.kubernetes.io/evict"
 
 func MarkEvictionInProgress(virtClient kubecli.KubevirtClient, sourcePod *k8sv1.Pod) error {
 	if _, exists := sourcePod.GetAnnotations()[EvictionInProgressAnnotation]; exists {

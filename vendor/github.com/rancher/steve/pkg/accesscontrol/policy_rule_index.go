@@ -1,12 +1,12 @@
 package accesscontrol
 
 import (
-	"fmt"
 	"sort"
 
 	rbacv1controllers "github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apiserver/pkg/authentication/serviceaccount"
 )
 
 const (
@@ -72,7 +72,7 @@ func indexSubjects(kind string, subjects []rbacv1.Subject) []string {
 			result = append(result, subject.Name)
 		} else if kind == userKind && subjectIsServiceAccount(subject) {
 			// Index is for Users and this references a service account
-			result = append(result, fmt.Sprintf("serviceaccount:%s:%s", subject.Namespace, subject.Name))
+			result = append(result, serviceaccount.MakeUsername(subject.Namespace, subject.Name))
 		}
 	}
 	return result
@@ -98,14 +98,31 @@ func addResourceAccess(accessSet *AccessSet, namespace string, rule rbacv1.Polic
 			}
 			for _, resourceName := range names {
 				for _, verb := range rule.Verbs {
+					access := Access{
+						Namespace:    namespace,
+						ResourceName: resourceName,
+					}
+
+					// The first condition namespace != All is to determine if it is a RoleBinding.
+					// The second and third conditions are to check if the resource is for "namespaces" in core group.
+					// In kubernetes, rule are valid if they satisfy the following
+					// 	- Should be `namespaces` GR
+					//  - From RoleBindings in `namespace`
+					//  - From Rule with  ResourceName `*`` or the `namespace` itself.
+					// Ref: https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/apiserver/pkg/endpoints/request/requestinfo.go#L194
+					// If the ResourceName is `All` || namespace itself then only the current namespace is considered as Resourcename
+					// In the case of Rolebinding for the resource "namespaces" in core group, access.Namespace
+					// is set to All since namespace on the resource "namespaces" is not valid.
+					if namespace != All && resource == "namespaces" && group == "" && (resourceName == All || resourceName == namespace) {
+						access.Namespace = All
+						access.ResourceName = namespace
+					}
+
 					accessSet.Add(verb,
 						schema.GroupResource{
 							Group:    group,
 							Resource: resource,
-						}, Access{
-							Namespace:    namespace,
-							ResourceName: resourceName,
-						})
+						}, access)
 				}
 			}
 		}
@@ -164,27 +181,29 @@ func (p *policyRuleIndex) getRoleBindings(subjectName string) []*rbacv1.RoleBind
 
 // getRoleRefs gathers rules from roles granted to a given subject through RoleBindings and ClusterRoleBindings
 func (p *policyRuleIndex) getRoleRefs(subjectName string) subjectGrants {
-	var clusterRoleBindings []roleRef
-	for _, crb := range p.getClusterRoleBindings(subjectName) {
+	crbs := p.getClusterRoleBindings(subjectName)
+	clusterRoleBindings := make([]roleRef, len(crbs))
+	for x, crb := range crbs {
 		rules, resourceVersion := p.getRules(All, crb.RoleRef)
-		clusterRoleBindings = append(clusterRoleBindings, roleRef{
+		clusterRoleBindings[x] = roleRef{
 			roleName:        crb.RoleRef.Name,
 			resourceVersion: resourceVersion,
 			rules:           rules,
 			kind:            clusterRoleKind,
-		})
+		}
 	}
 
-	var roleBindings []roleRef
-	for _, rb := range p.getRoleBindings(subjectName) {
+	rbs := p.getRoleBindings(subjectName)
+	roleBindings := make([]roleRef, len(rbs))
+	for x, rb := range rbs {
 		rules, resourceVersion := p.getRules(rb.Namespace, rb.RoleRef)
-		roleBindings = append(roleBindings, roleRef{
+		roleBindings[x] = roleRef{
 			roleName:        rb.RoleRef.Name,
 			namespace:       rb.Namespace,
 			resourceVersion: resourceVersion,
 			rules:           rules,
 			kind:            roleKind,
-		})
+		}
 	}
 
 	return subjectGrants{
