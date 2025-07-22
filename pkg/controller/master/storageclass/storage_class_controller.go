@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/conversion"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
@@ -232,28 +233,39 @@ func updateClaimPropertySets(sc *storagev1.StorageClass, profile *cdiv1.StorageP
 	return profile, nil
 }
 
+func claimPropertySetSemanticallyEqual(a, b cdiv1.ClaimPropertySet) bool {
+	equalities := conversion.EqualitiesOrDie(
+		func(a, b *corev1.PersistentVolumeMode) bool {
+			return a == b
+		},
+		func(a, b []corev1.PersistentVolumeAccessMode) bool {
+			slices.Sort(a)
+			slices.Sort(b)
+			return slices.Equal(a, b)
+		},
+	)
+
+	return equalities.DeepEqual(a, b)
+}
+
 // equalsClaimPropertySets compares two slices of ClaimPropertySet.
 // It returns true if both slices contain the same ClaimPropertySets, regardless of order.
 func equalsClaimPropertySets(a, b []cdiv1.ClaimPropertySet) bool {
-	normalize := func(list []cdiv1.ClaimPropertySet) []cdiv1.ClaimPropertySet {
-		normalized := make([]cdiv1.ClaimPropertySet, len(list))
-		for i, item := range list {
-			accessModes := append([]corev1.PersistentVolumeAccessMode(nil), item.AccessModes...)
-			// Sort access modes and add to normalized
-			slices.Sort(accessModes)
-			normalized[i] = cdiv1.ClaimPropertySet{
-				AccessModes: accessModes,
-				VolumeMode:  item.VolumeMode,
-			}
-		}
-		// Sort volume modes
-		sort.Slice(normalized, func(i, j int) bool {
-			return *normalized[i].VolumeMode < *normalized[j].VolumeMode
-		})
-		return normalized
+	if len(a) != len(b) {
+		return false
 	}
 
-	normA := normalize(a)
-	normB := normalize(b)
-	return reflect.DeepEqual(normA, normB)
+	sort.Slice(a, func(i, j int) bool {
+		return *(a[i].VolumeMode) < *(a[j].VolumeMode)
+	})
+	sort.Slice(b, func(i, j int) bool {
+		return *(b[i].VolumeMode) < *(b[j].VolumeMode)
+	})
+
+	for i := range a {
+		if !claimPropertySetSemanticallyEqual(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
 }
