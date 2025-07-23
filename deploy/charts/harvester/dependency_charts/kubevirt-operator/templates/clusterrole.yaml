@@ -7,33 +7,6 @@ metadata:
     operator.kubevirt.io: ""
     rbac.authorization.k8s.io/aggregate-to-admin: "true"
 rules:
-  - apiGroups:
-      - kubevirt.io
-    resources:
-      - kubevirts
-    verbs:
-      - get
-      - delete
-      - create
-      - update
-      - patch
-      - list
-      - watch
-      - deletecollection
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  # NB(thxCode): name should not be customized as below:
-  # name: {{ template "kubevirt-operator.fullname" . }}
-  # because we need to keep it as same as all-in-one YAML from upstream.
-  name: kubevirt-operator
-  labels:
-{{ include "kubevirt-operator.labels" . | indent 4 }}
-    kubevirt.io: ""
-    app.kubernetes.io/name: virt-operator
-    app.kubernetes.io/component: operator
-rules:
 - apiGroups:
   - kubevirt.io
   resources:
@@ -233,6 +206,7 @@ rules:
   - persistentvolumeclaims
   verbs:
   - get
+  - list
 - apiGroups:
   - kubevirt.io
   resources:
@@ -629,6 +603,15 @@ rules:
   - get
   - delete
 - apiGroups:
+  - resource.k8s.io
+  resources:
+  - resourceslices
+  - resourceclaims
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
   - kubevirt.io
   resources:
   - virtualmachineinstances
@@ -702,6 +685,48 @@ rules:
 - apiGroups:
   - kubevirt.io
   resources:
+  - virtualmachineinstances
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+- apiGroups:
+  - kubevirt.io
+  resources:
+  - virtualmachineinstancemigrations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kubevirt.io
+  resources:
+  - kubevirts
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - update
+  - create
+  - patch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kubevirt.io
+  resources:
   - kubevirts
   verbs:
   - get
@@ -727,6 +752,8 @@ rules:
   - virtualmachineinstances/sev/fetchcertchain
   - virtualmachineinstances/sev/querylaunchmeasurement
   - virtualmachineinstances/usbredir
+  - virtualmachines/objectgraph
+  - virtualmachineinstances/objectgraph
   verbs:
   - get
 - apiGroups:
@@ -883,6 +910,8 @@ rules:
   - virtualmachineinstances/sev/fetchcertchain
   - virtualmachineinstances/sev/querylaunchmeasurement
   - virtualmachineinstances/usbredir
+  - virtualmachines/objectgraph
+  - virtualmachineinstances/objectgraph
   verbs:
   - get
 - apiGroups:
@@ -1043,6 +1072,8 @@ rules:
   - virtualmachineinstances/userlist
   - virtualmachineinstances/sev/fetchcertchain
   - virtualmachineinstances/sev/querylaunchmeasurement
+  - virtualmachines/objectgraph
+  - virtualmachineinstances/objectgraph
   verbs:
   - get
 - apiGroups:

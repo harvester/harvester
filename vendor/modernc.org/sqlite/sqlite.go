@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"reflect"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,6 +55,11 @@ const (
 	ptrSize                 = unsafe.Sizeof(uintptr(0))
 	sqliteLockedSharedcache = sqlite3.SQLITE_LOCKED | (1 << 8)
 )
+
+// https://gitlab.com/cznic/sqlite/-/issues/199
+func init() {
+	sqlite3.PatchIssue199()
+}
 
 // Error represents sqlite library error code.
 type Error struct {
@@ -504,6 +510,9 @@ func (s *stmt) exec(ctx context.Context, args []driver.NamedValue) (r driver.Res
 	}
 
 	defer func() {
+		if ctx != nil && atomic.LoadInt32(&done) != 0 {
+			r, err = nil, ctx.Err()
+		}
 		if pstmt != 0 {
 			// ensure stmt finalized.
 			e := s.c.finalize(pstmt)
@@ -513,10 +522,6 @@ func (s *stmt) exec(ctx context.Context, args []driver.NamedValue) (r driver.Res
 				// returned error.
 				err = e
 			}
-		}
-
-		if ctx != nil && atomic.LoadInt32(&done) != 0 {
-			r, err = nil, ctx.Err()
 		}
 	}()
 
@@ -619,6 +624,12 @@ func (s *stmt) query(ctx context.Context, args []driver.NamedValue) (r driver.Ro
 	var allocs []uintptr
 
 	defer func() {
+		if ctx != nil && atomic.LoadInt32(&done) != 0 {
+			r, err = nil, ctx.Err()
+		} else if r == nil && err == nil {
+			r, err = newRows(s.c, pstmt, allocs, true)
+		}
+
 		if pstmt != 0 {
 			// ensure stmt finalized.
 			e := s.c.finalize(pstmt)
@@ -630,11 +641,6 @@ func (s *stmt) query(ctx context.Context, args []driver.NamedValue) (r driver.Ro
 			}
 		}
 
-		if ctx != nil && atomic.LoadInt32(&done) != 0 {
-			r, err = nil, ctx.Err()
-		} else if r == nil && err == nil {
-			r, err = newRows(s.c, pstmt, allocs, true)
-		}
 	}()
 
 	for psql := s.psql; *(*byte)(unsafe.Pointer(psql)) != 0 && atomic.LoadInt32(&done) == 0; {
@@ -884,7 +890,25 @@ func applyQueryParams(c *conn, query string) error {
 		return err
 	}
 
+	var a []string
 	for _, v := range q["_pragma"] {
+		a = append(a, v)
+	}
+	// Push 'busy_timeout' first, the rest in lexicographic order, case insenstive.
+	// See https://gitlab.com/cznic/sqlite/-/issues/198#note_2233423463 for
+	// discussion.
+	sort.Slice(a, func(i, j int) bool {
+		x, y := strings.TrimSpace(strings.ToLower(a[i])), strings.TrimSpace(strings.ToLower(a[j]))
+		if strings.HasPrefix(x, "busy_timeout") {
+			return true
+		}
+		if strings.HasPrefix(y, "busy_timeout") {
+			return false
+		}
+
+		return x < y
+	})
+	for _, v := range a {
 		cmd := "pragma " + v
 		_, err := c.exec(context.Background(), cmd, nil)
 		if err != nil {
@@ -1462,6 +1486,27 @@ func (c *conn) closeV2(db uintptr) error {
 	}
 
 	return nil
+}
+
+// ResetSession is called prior to executing a query on the connection if the
+// connection has been used before. If the driver returns ErrBadConn the
+// connection is discarded.
+func (c *conn) ResetSession(ctx context.Context) error {
+	if !c.usable() {
+		return driver.ErrBadConn
+	}
+
+	return nil
+}
+
+// IsValid is called prior to placing the connection into the connection pool.
+// The connection will be discarded if false is returned.
+func (c *conn) IsValid() bool {
+	return c.usable()
+}
+
+func (c *conn) usable() bool {
+	return c.db != 0 && sqlite3.Xsqlite3_is_interrupted(c.tls, c.db) == 0
 }
 
 // FunctionImpl describes an [application-defined SQL function]. If Scalar is
@@ -2183,7 +2228,9 @@ func functionArgs(tls *libc.TLS, argc int32, argv uintptr) []driver.Value {
 			size := sqlite3.Xsqlite3_value_bytes(tls, valPtr)
 			blobPtr := sqlite3.Xsqlite3_value_blob(tls, valPtr)
 			v := make([]byte, size)
-			copy(v, (*libc.RawMem)(unsafe.Pointer(blobPtr))[:size:size])
+			if size != 0 {
+				copy(v, (*libc.RawMem)(unsafe.Pointer(blobPtr))[:size:size])
+			}
 			args[i] = v
 		default:
 			panic(fmt.Sprintf("unexpected argument type %q passed by sqlite", valType))
@@ -2496,4 +2543,30 @@ func Limit(c *sql.Conn, id int, newVal int) (r int, err error) {
 	})
 	return r, err
 
+}
+
+// C documentation
+//
+//	int sqlite3_bind_blob(sqlite3_stmt*, int, const void*, int n, void(*)(void*));
+func (c *conn) bindBlob(pstmt uintptr, idx1 int, value []byte) (uintptr, error) {
+	if value == nil {
+		if rc := sqlite3.Xsqlite3_bind_null(c.tls, pstmt, int32(idx1)); rc != sqlite3.SQLITE_OK {
+			return 0, c.errstr(rc)
+		}
+		return 0, nil
+	}
+
+	p, err := c.malloc(len(value))
+	if err != nil {
+		return 0, err
+	}
+	if len(value) != 0 {
+		copy((*libc.RawMem)(unsafe.Pointer(p))[:len(value):len(value)], value)
+	}
+	if rc := sqlite3.Xsqlite3_bind_blob(c.tls, pstmt, int32(idx1), p, int32(len(value)), 0); rc != sqlite3.SQLITE_OK {
+		c.free(p)
+		return 0, c.errstr(rc)
+	}
+
+	return p, nil
 }

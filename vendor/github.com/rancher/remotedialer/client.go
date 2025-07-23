@@ -3,6 +3,7 @@ package remotedialer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -27,8 +28,15 @@ func ClientConnect(ctx context.Context, wsURL string, headers http.Header, diale
 	return nil
 }
 
-// ConnectToProxy connect to websocket server
+// ConnectToProxy connects to the websocket server.
+// Local connections on behalf of the remote host will be dialed using a default net.Dialer.
 func ConnectToProxy(rootCtx context.Context, proxyURL string, headers http.Header, auth ConnectAuthorizer, dialer *websocket.Dialer, onConnect func(context.Context, *Session) error) error {
+	return ConnectToProxyWithDialer(rootCtx, proxyURL, headers, auth, dialer, nil, onConnect)
+}
+
+// ConnectToProxyWithDialer connects to the websocket server.
+// Local connections on behalf of the remote host will be dialed using the provided Dialer function.
+func ConnectToProxyWithDialer(rootCtx context.Context, proxyURL string, headers http.Header, auth ConnectAuthorizer, dialer *websocket.Dialer, localDialer Dialer, onConnect func(context.Context, *Session) error) error {
 	logrus.WithField("url", proxyURL).Info("Connecting to proxy")
 
 	if dialer == nil {
@@ -56,8 +64,9 @@ func ConnectToProxy(rootCtx context.Context, proxyURL string, headers http.Heade
 
 	ctx, cancel := context.WithCancel(rootCtx)
 	defer cancel()
+	ctx = context.WithValue(ctx, ContextKeyCaller, fmt.Sprintf("ConnectToProxy: url: %s", proxyURL))
 
-	session := NewClientSession(auth, ws)
+	session := NewClientSessionWithDialer(auth, ws, localDialer)
 	defer session.Close()
 
 	if onConnect != nil {

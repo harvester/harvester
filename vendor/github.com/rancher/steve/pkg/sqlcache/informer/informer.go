@@ -6,12 +6,19 @@ package informer
 
 import (
 	"context"
+	"errors"
+	"sort"
+	"strconv"
 	"time"
 
+	"github.com/rancher/steve/pkg/sqlcache/db"
 	"github.com/rancher/steve/pkg/sqlcache/partition"
+	"github.com/rancher/steve/pkg/sqlcache/sqltypes"
 	sqlStore "github.com/rancher/steve/pkg/sqlcache/store"
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
@@ -19,14 +26,28 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+var defaultRefreshTime = 5 * time.Second
+
 // Informer is a SQLite-backed cache.SharedIndexInformer that can execute queries on listprocessor structs
 type Informer struct {
 	cache.SharedIndexInformer
 	ByOptionsLister
 }
 
+type WatchOptions struct {
+	ResourceVersion string
+	Filter          WatchFilter
+}
+
+type WatchFilter struct {
+	ID        string
+	Selector  labels.Selector
+	Namespace string
+}
+
 type ByOptionsLister interface {
-	ListByOptions(ctx context.Context, lo ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, string, error)
+	ListByOptions(ctx context.Context, lo *sqltypes.ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, string, error)
+	Watch(ctx context.Context, options WatchOptions, eventsCh chan<- watch.Event) error
 }
 
 // this is set to a var so that it can be overridden by test code for mocking purposes
@@ -34,15 +55,38 @@ var newInformer = cache.NewSharedIndexInformer
 
 // NewInformer returns a new SQLite-backed Informer for the type specified by schema in unstructured.Unstructured form
 // using the specified client
-func NewInformer(client dynamic.ResourceInterface, fields [][]string, transform cache.TransformFunc, gvk schema.GroupVersionKind, db sqlStore.DBClient, shouldEncrypt bool, namespaced bool) (*Informer, error) {
+func NewInformer(ctx context.Context, client dynamic.ResourceInterface, fields [][]string, transform cache.TransformFunc, gvk schema.GroupVersionKind, db db.Client, shouldEncrypt bool, namespaced bool, watchable bool, maxEventsCount int) (*Informer, error) {
+	watchFunc := func(options metav1.ListOptions) (watch.Interface, error) {
+		return client.Watch(ctx, options)
+	}
+	if !watchable {
+		watchFunc = func(options metav1.ListOptions) (watch.Interface, error) {
+			ctx, cancel := context.WithCancel(ctx)
+			return newSyntheticWatcher(ctx, cancel).watch(client, options, defaultRefreshTime)
+		}
+	}
 	listWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			a, err := client.List(context.Background(), options)
+			a, err := client.List(ctx, options)
+			if err != nil {
+				return nil, err
+			}
+			// We want the list to be consistent when there are going to be relists
+			sort.SliceStable(a.Items, func(i int, j int) bool {
+				var err error
+				rvI, err1 := strconv.Atoi(a.Items[i].GetResourceVersion())
+				err = errors.Join(err, err1)
+				rvJ, err2 := strconv.Atoi(a.Items[j].GetResourceVersion())
+				err = errors.Join(err, err2)
+				if err != nil {
+					logrus.Debug("ResourceVersion not a number, falling back to string comparison")
+					return a.Items[i].GetResourceVersion() < a.Items[j].GetResourceVersion()
+				}
+				return rvI < rvJ
+			})
 			return a, err
 		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return client.Watch(context.Background(), options)
-		},
+		WatchFunc: watchFunc,
 	}
 
 	example := &unstructured.Unstructured{}
@@ -68,11 +112,17 @@ func NewInformer(client dynamic.ResourceInterface, fields [][]string, transform 
 
 	name := informerNameFromGVK(gvk)
 
-	s, err := sqlStore.NewStore(example, cache.DeletionHandlingMetaNamespaceKeyFunc, db, shouldEncrypt, name)
+	s, err := sqlStore.NewStore(ctx, example, cache.DeletionHandlingMetaNamespaceKeyFunc, db, shouldEncrypt, name)
 	if err != nil {
 		return nil, err
 	}
-	loi, err := NewListOptionIndexer(fields, s, namespaced)
+
+	opts := ListOptionIndexerOptions{
+		Fields:             fields,
+		IsNamespaced:       namespaced,
+		MaximumEventsCount: maxEventsCount,
+	}
+	loi, err := NewListOptionIndexer(ctx, s, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +142,13 @@ func NewInformer(client dynamic.ResourceInterface, fields [][]string, transform 
 //   - the total number of resources (returned list might be a subset depending on pagination options in lo)
 //   - a continue token, if there are more pages after the returned one
 //   - an error instead of all of the above if anything went wrong
-func (i *Informer) ListByOptions(ctx context.Context, lo ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, string, error) {
+func (i *Informer) ListByOptions(ctx context.Context, lo *sqltypes.ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, string, error) {
 	return i.ByOptionsLister.ListByOptions(ctx, lo, partitions, namespace)
+}
+
+// SetSyntheticWatchableInterval - call this function to override the default interval time of 5 seconds
+func SetSyntheticWatchableInterval(interval time.Duration) {
+	defaultRefreshTime = interval
 }
 
 func informerNameFromGVK(gvk schema.GroupVersionKind) string {

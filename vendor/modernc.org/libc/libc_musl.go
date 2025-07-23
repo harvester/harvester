@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build linux && (amd64 || loong64)
+//go:build linux && (amd64 || arm64 || loong64 || ppc64le || s390x || riscv64 || 386 || arm)
 
 //go:generate go run generator.go
 
@@ -15,7 +15,7 @@
 // have generated some Go code from C you should stick to the version of this
 // package that you used at that time and was tested with your payload. The
 // correct way to upgrade to a newer version of this package is to first
-// recompile (C to Go) your code with a newwer version if ccgo that depends on
+// recompile (C to Go) your code with a newer version of ccgo that depends on
 // the new libc version.
 //
 // If you use C to Go translated code provided by others, stick to the version
@@ -119,10 +119,12 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
+	"time"
 	"unsafe"
 
+	guuid "github.com/google/uuid"
 	"golang.org/x/sys/unix"
+	"modernc.org/libc/uuid/uuid"
 	"modernc.org/memory"
 )
 
@@ -155,6 +157,7 @@ func init() {
 
 	Xprogram_invocation_name = mustCString(nm)
 	Xprogram_invocation_short_name = mustCString(filepath.Base(nm))
+	X__libc.Fpage_size = Tsize_t(os.Getpagesize())
 }
 
 // RawMem64 represents the biggest uint64 array the runtime can handle.
@@ -226,29 +229,6 @@ func CString(s string) (uintptr, error) {
 	return p, nil
 }
 
-// GoBytes returns a byte slice from a C char* having length len bytes.
-func GoBytes(s uintptr, len int) []byte {
-	return unsafe.Slice((*byte)(unsafe.Pointer(s)), len)
-}
-
-// GoString returns the value of a C string at s.
-func GoString(s uintptr) string {
-	if s == 0 {
-		return ""
-	}
-
-	var buf []byte
-	for {
-		b := *(*byte)(unsafe.Pointer(s))
-		if b == 0 {
-			return string(buf)
-		}
-
-		buf = append(buf, b)
-		s++
-	}
-}
-
 func mustMalloc(sz Tsize_t) (r uintptr) {
 	if r = Xmalloc(nil, sz); r != 0 || sz == 0 {
 		return r
@@ -276,15 +256,18 @@ type TLS struct {
 	allocaStack         []int
 	allocas             []uintptr
 	jumpBuffers         []uintptr
+	pendingSignals      chan os.Signal
 	pthread             uintptr // *t__pthread
 	pthreadCleanupItems []pthreadCleanupItem
 	pthreadKeyValues    map[Tpthread_key_t]uintptr
+	sigHandlers         map[int32]uintptr
 	sp                  int
 	stack               []tlsStackSlot
 
 	ID int32
 
-	ownsPthread bool
+	checkSignals bool
+	ownsPthread  bool
 }
 
 var __ccgo_environOnce sync.Once
@@ -309,7 +292,13 @@ func NewTLS() (r *TLS) {
 		ID:          id,
 		ownsPthread: true,
 		pthread:     pthread,
+		sigHandlers: map[int32]uintptr{},
 	}
+}
+
+// StackSlots reports the number of tls stack slots currently in use.
+func (tls *TLS) StackSlots() int {
+	return tls.sp
 }
 
 // int *__errno_location(void)
@@ -402,6 +391,29 @@ func (tls *TLS) Alloc(n0 int) (r uintptr) {
 func (tls *TLS) Free(n int) {
 	//TODO shrink stacks if possible. Tcl is currently against.
 	tls.sp--
+	if !tls.checkSignals {
+		return
+	}
+
+	select {
+	case sig := <-tls.pendingSignals:
+		signum := int32(sig.(unix.Signal))
+		h, ok := tls.sigHandlers[signum]
+		if !ok {
+			break
+		}
+
+		switch h {
+		case SIG_DFL:
+			// nop
+		case SIG_IGN:
+			// nop
+		default:
+			(*(*func(*TLS, int32))(unsafe.Pointer(&struct{ uintptr }{h})))(tls, signum)
+		}
+	default:
+		// nop
+	}
 }
 
 func (tls *TLS) alloca(n Tsize_t) (r uintptr) {
@@ -473,6 +485,10 @@ func Xexit(tls *TLS, code int32) {
 	for _, v := range atExit {
 		v()
 	}
+	atExitHandlersMu.Lock()
+	for _, v := range atExitHandlers {
+		(*(*func(*TLS))(unsafe.Pointer(&struct{ uintptr }{v})))(tls)
+	}
 	os.Exit(int(code))
 }
 
@@ -484,7 +500,7 @@ var abort Tsigaction
 
 func Xabort(tls *TLS) {
 	X__libc_sigaction(tls, SIGABRT, uintptr(unsafe.Pointer(&abort)), 0)
-	unix.Kill(unix.Getpid(), syscall.Signal(SIGABRT))
+	unix.Kill(unix.Getpid(), unix.Signal(SIGABRT))
 	panic(todo("unrechable"))
 }
 
@@ -606,16 +622,56 @@ func ___synccall(tls *TLS, fn, ctx uintptr) {
 	(*(*func(*TLS, uintptr))(unsafe.Pointer(&struct{ uintptr }{fn})))(tls, ctx)
 }
 
+// func ___randname(tls *TLS, template uintptr) (r1 uintptr) {
+// 	bp := tls.Alloc(16)
+// 	defer tls.Free(16)
+// 	var i int32
+// 	var r uint64
+// 	var _ /* ts at bp+0 */ Ttimespec
+// 	X__clock_gettime(tls, CLOCK_REALTIME, bp)
+// 	goto _2
+// _2:
+// 	r = uint64((*(*Ttimespec)(unsafe.Pointer(bp))).Ftv_sec+(*(*Ttimespec)(unsafe.Pointer(bp))).Ftv_nsec) + uint64(tls.ID)*uint64(65537)
+// 	i = 0
+// 	for {
+// 		if !(i < int32(6)) {
+// 			break
+// 		}
+// 		*(*int8)(unsafe.Pointer(template + uintptr(i))) = int8(uint64('A') + r&uint64(15) + r&uint64(16)*uint64(2))
+// 		goto _3
+// 	_3:
+// 		i++
+// 		r >>= uint64(5)
+// 	}
+// 	return template
+// }
+
+// #include <time.h>
+// #include <stdint.h>
+// #include "pthread_impl.h"
+//
+// /* This assumes that a check for the
+//
+//	template size has already been made */
+//
+// char *__randname(char *template)
+//
+//	{
+//		int i;
+//		struct timespec ts;
+//		unsigned long r;
+//
+//		__clock_gettime(CLOCK_REALTIME, &ts);
+//		r = ts.tv_sec + ts.tv_nsec + __pthread_self()->tid * 65537UL;
+//		for (i=0; i<6; i++, r>>=5)
+//			template[i] = 'A'+(r&15)+(r&16)*2;
+//
+//		return template;
+//	}
 func ___randname(tls *TLS, template uintptr) (r1 uintptr) {
-	bp := tls.Alloc(16)
-	defer tls.Free(16)
 	var i int32
-	var r uint64
-	var _ /* ts at bp+0 */ Ttimespec
-	X__clock_gettime(tls, CLOCK_REALTIME, bp)
-	goto _2
-_2:
-	r = uint64((*(*Ttimespec)(unsafe.Pointer(bp))).Ftv_sec+(*(*Ttimespec)(unsafe.Pointer(bp))).Ftv_nsec) + uint64(tls.ID)*uint64(65537)
+	ts := time.Now().UnixNano()
+	r := uint64(ts) + uint64(tls.ID)*65537
 	i = 0
 	for {
 		if !(i < int32(6)) {
@@ -645,24 +701,33 @@ func Xfork(t *TLS) int32 {
 const SIG_DFL = 0
 const SIG_IGN = 1
 
-var sigHandlers = map[int32]uintptr{}
-
 func Xsignal(tls *TLS, signum int32, handler uintptr) (r uintptr) {
-	r, sigHandlers[signum] = sigHandlers[signum], handler
-	sigHandlers[signum] = handler
+	r, tls.sigHandlers[signum] = tls.sigHandlers[signum], handler
 	switch handler {
 	case SIG_DFL:
-		gosignal.Reset(syscall.Signal(signum))
+		gosignal.Reset(unix.Signal(signum))
 	case SIG_IGN:
-		gosignal.Ignore(syscall.Signal(signum))
+		gosignal.Ignore(unix.Signal(signum))
 	default:
-		panic(todo(""))
+		if tls.pendingSignals == nil {
+			tls.pendingSignals = make(chan os.Signal, 3)
+			tls.checkSignals = true
+		}
+		gosignal.Notify(tls.pendingSignals, unix.Signal(signum))
 	}
 	return r
 }
 
+var (
+	atExitHandlersMu sync.Mutex
+	atExitHandlers   []uintptr
+)
+
 func Xatexit(tls *TLS, func_ uintptr) (r int32) {
-	return -1
+	atExitHandlersMu.Lock()
+	atExitHandlers = append(atExitHandlers, func_)
+	atExitHandlersMu.Unlock()
+	return 0
 }
 
 var __sync_synchronize_dummy int32
@@ -1012,22 +1077,43 @@ func Xsysctlbyname(t *TLS, name, oldp, oldlenp, newp uintptr, newlen Tsize_t) in
 
 // void uuid_copy(uuid_t dst, uuid_t src);
 func Xuuid_copy(t *TLS, dst, src uintptr) {
-	panic(todo(""))
+	if __ccgo_strace {
+		trc("t=%v src=%v, (%v:)", t, src, origin(2))
+	}
+	*(*uuid.Uuid_t)(unsafe.Pointer(dst)) = *(*uuid.Uuid_t)(unsafe.Pointer(src))
 }
 
 // int uuid_parse( char *in, uuid_t uu);
 func Xuuid_parse(t *TLS, in uintptr, uu uintptr) int32 {
-	panic(todo(""))
+	if __ccgo_strace {
+		trc("t=%v in=%v uu=%v, (%v:)", t, in, uu, origin(2))
+	}
+	r, err := guuid.Parse(GoString(in))
+	if err != nil {
+		return -1
+	}
+
+	copy((*RawMem)(unsafe.Pointer(uu))[:unsafe.Sizeof(uuid.Uuid_t{})], r[:])
+	return 0
 }
 
 // void uuid_generate_random(uuid_t out);
 func Xuuid_generate_random(t *TLS, out uintptr) {
-	panic(todo(""))
+	if __ccgo_strace {
+		trc("t=%v out=%v, (%v:)", t, out, origin(2))
+	}
+	x := guuid.New()
+	copy((*RawMem)(unsafe.Pointer(out))[:], x[:])
 }
 
 // void uuid_unparse(uuid_t uu, char *out);
 func Xuuid_unparse(t *TLS, uu, out uintptr) {
-	panic(todo(""))
+	if __ccgo_strace {
+		trc("t=%v out=%v, (%v:)", t, out, origin(2))
+	}
+	s := (*guuid.UUID)(unsafe.Pointer(uu)).String()
+	copy((*RawMem)(unsafe.Pointer(out))[:], s)
+	*(*byte)(unsafe.Pointer(out + uintptr(len(s)))) = 0
 }
 
 var Xzero_struct_address Taddress

@@ -41,41 +41,50 @@ func GetValue(data map[string]interface{}, keys ...string) (interface{}, bool) {
 	return nil, false
 }
 
-// GetValueFromAny retrieves a value from the provided collection, which must be a map[string]interface or a []interface.
+// GetValueFromAny retrieves a value from the provided collection, which must be a map[string]interface, []interface, or []string (as a final value)
 // Keys are always strings.
 // For a map, a key denotes the key in the map whose value we want to retrieve.
 // For the slice, it denotes the index (starting at 0) of the value we want to retrieve.
 // Returns the retrieved value (if any) and a bool indicating if the value was found.
 func GetValueFromAny(data interface{}, keys ...string) (interface{}, bool) {
-	for i, key := range keys {
-		if i == len(keys)-1 {
-			if dataMap, ok := data.(map[string]interface{}); ok {
-				val, ok := dataMap[key]
-				return val, ok
+	if len(keys) == 0 {
+		return nil, false
+	}
+	for _, key := range keys {
+		if d2, ok := data.(map[string]interface{}); ok {
+			data, ok = d2[key]
+			if !ok {
+				return nil, false
 			}
-			if dataSlice, ok := data.([]interface{}); ok {
-				return itemByIndex(dataSlice, key)
-			}
+			continue
 		}
-		if dataMap, ok := data.(map[string]interface{}); ok {
-			data, _ = dataMap[key]
-		} else if dataSlice, ok := data.([]interface{}); ok {
-			data, _ = itemByIndex(dataSlice, key)
+		// So it must be an array. Verify the index and then continue
+		// with a type-assertion switch block for the two different types of arrays we expect
+		keyInt, err := strconv.Atoi(key)
+		if err != nil || keyInt < 0 {
+			return nil, false
+		}
+		switch node := data.(type) {
+		case []interface{}:
+			if keyInt >= len(node) {
+				return nil, false
+			}
+			data = node[keyInt]
+		case []string:
+			if keyInt >= len(node) {
+				return nil, false
+			}
+			data = node[keyInt]
+			// If we're at the end of the keys, we'll return the value at the end of this function
+			// Otherwise we'll try to index into the string and hit the default case,
+			// and return <nil, false>
+			// See the "keys nested too far on a string array" test.
+		default:
+			return nil, false
 		}
 	}
 
-	return nil, false
-}
-
-func itemByIndex(dataSlice []interface{}, key string) (interface{}, bool) {
-	keyInt, err := strconv.Atoi(key)
-	if err != nil {
-		return nil, false
-	}
-	if keyInt >= len(dataSlice) || keyInt < 0 {
-		return nil, false
-	}
-	return dataSlice[keyInt], true
+	return data, true
 }
 
 // PutValue updates the value of a given map at the index specified by keys that denote the path to the value in the

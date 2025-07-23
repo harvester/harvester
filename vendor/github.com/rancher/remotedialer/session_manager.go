@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+
 	"github.com/rancher/remotedialer/metrics"
 )
 
@@ -64,6 +65,16 @@ func (sm *sessionManager) addListener(listener sessionListener) {
 			listener.sessionAdded(k, session.sessionKey)
 		}
 	}
+}
+
+func (sm *sessionManager) listClients() []string {
+	sm.Lock()
+	defer sm.Unlock()
+	clients := make([]string, 0, len(sm.clients))
+	for c := range sm.clients {
+		clients = append(clients, c)
+	}
+	return clients
 }
 
 func (sm *sessionManager) getDialer(clientKey string) (Dialer, error) {
