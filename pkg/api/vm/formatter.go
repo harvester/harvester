@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -50,6 +51,7 @@ const (
 type vmformatter struct {
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
 	pvcCache      ctlcorev1.PersistentVolumeClaimCache
+	nodeCache     ctlcorev1.NodeCache
 	scCache       ctlstoragev1.StorageClassCache
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
 	clientSet     kubernetes.Clientset
@@ -112,7 +114,7 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 		resource.AddAction(request, unpauseVM)
 	}
 
-	if canMigrate(vmi) {
+	if canMigrate(vf.nodeCache, vmi) {
 		resource.AddAction(request, migrate)
 		resource.AddAction(request, findMigratableNodes)
 
@@ -254,8 +256,18 @@ func isReady(vmi *kubevirtv1.VirtualMachineInstance) bool {
 	return false
 }
 
-func canMigrate(vmi *kubevirtv1.VirtualMachineInstance) bool {
+func canMigrate(nodeCache ctlcorev1.NodeCache, vmi *kubevirtv1.VirtualMachineInstance) bool {
 	if vmi == nil || vmi.DeletionTimestamp != nil || vmi.Annotations[util.AnnotationMigrationState] != "" {
+		return false
+	}
+
+	nodes, err := nodeCache.List(labels.Everything())
+	if err != nil {
+		logrus.WithError(err).Error("Failed to list nodes for migration check")
+		return false
+	}
+
+	if len(nodes) < 2 {
 		return false
 	}
 
