@@ -144,7 +144,7 @@ func (v *VMBuilder) VirtualMachineInstanceTemplateLabels(labels map[string]strin
 	}
 
 	for key, value := range labels {
-		vmiTemplate.OjectMeta.Labels[key] = value
+		vmiTemplate.ObjectMeta.Labels[key] = value
 	}
 	return v
 }
