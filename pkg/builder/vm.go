@@ -131,6 +131,24 @@ func (v *VMBuilder) Labels(labels map[string]string) *VMBuilder {
 	return v
 }
 
+// VirtualMachineInstanceTemplateLabels is similar to the Labels method, but it
+// sets the labels in the template spec. Unlike lables on the VirtualMachine
+// object, labels in the template spec will propagate to the VMI and the
+// launcher pod.
+func (v *VMBuilder) VirtualMachineInstanceTemplateLabels(labels map[string]string) *VMBuilder {
+	vmiTemplate := v.VirtualMachine.Spec.Template
+
+	if vmiTemplate.ObjectMeta.Labels == nil {
+		vmiTemplate.ObjectMeta.Labels = labels
+		return v
+	}
+
+	for key, value := range labels {
+		vmiTemplate.OjectMeta.Labels[key] = value
+	}
+	return v
+}
+
 func (v *VMBuilder) Annotations(annotations map[string]string) *VMBuilder {
 	if v.VirtualMachine.ObjectMeta.Annotations == nil {
 		v.VirtualMachine.ObjectMeta.Annotations = annotations
