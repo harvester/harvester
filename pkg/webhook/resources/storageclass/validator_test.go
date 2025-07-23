@@ -523,7 +523,7 @@ func Test_validateCDIAnnotations(t *testing.T) {
 				util.AnnotationCDIFSOverhead:                       "0.85",
 				util.AnnotationStorageProfileCloneStrategy:         "snapshot",
 				util.AnnotationStorageProfileSnapshotClass:         "csi-snap-class",
-				util.AnnotationStorageProfileVolumeModeAccessModes: `{"Block":["ReadWriteOnce"],"Filesystem":["ReadWriteMany"]}`,
+				util.AnnotationStorageProfileVolumeModeAccessModes: `{"Block":["ReadWriteOnce","ReadOnlyMany","ReadWriteOncePod"],"Filesystem":["ReadWriteMany"]}`,
 			},
 			vsc: &snapshotv1.VolumeSnapshotClass{
 				ObjectMeta: metav1.ObjectMeta{Name: "csi-snap-class"},

@@ -51,6 +51,8 @@ func ToAccessMode(v string) (*corev1.PersistentVolumeAccessMode, error) {
 		accessMode = corev1.ReadOnlyMany
 	case string(corev1.ReadWriteMany):
 		accessMode = corev1.ReadWriteMany
+	case string(corev1.ReadWriteOncePod):
+		accessMode = corev1.ReadWriteOncePod
 	default:
 		return nil, fmt.Errorf("invalid access mode %s", v)
 	}
