@@ -494,6 +494,7 @@ longhorn:
     priorityClass: &longhornPriorityClass system-cluster-critical
     autoCleanupSnapshotWhenDeleteBackup: true
     orphanResourceAutoDeletion: instance
+    autoDeletePodWhenVolumeDetachedUnexpectedly: false
 
   # after upgrade to longhorn 1.6.0, we need to set the priorityClass for longhorn-manager, longhorn-driver and longhorn-ui
   # or it will be default one longhorn-critical
