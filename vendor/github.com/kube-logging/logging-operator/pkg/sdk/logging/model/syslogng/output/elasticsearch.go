@@ -69,6 +69,8 @@ type ElasticsearchOutput struct {
 	LogstashPrefixSeparator string `json:"logstash_prefix_separator,omitempty" syslog-ng:"ignore"`
 	// Set the suffix for logs in logstash format. Default: `"${YEAR}.${MONTH}.${DAY}"`
 	LogStashSuffix string `json:"logstash_suffix,omitempty" syslog-ng:"ignore"`
+	// This option enables putting outgoing messages into the disk buffer of the destination to avoid message loss in case of a system failure on the destination side. For details, see the [Syslog-ng DiskBuffer options](../disk_buffer/). (default: false)
+	DiskBuffer *DiskBuffer `json:"disk_buffer,omitempty"`
 }
 
 func (o *ElasticsearchOutput) BeforeRender() {

@@ -125,7 +125,11 @@ func (c *Concat) ToDirective(secretLoader secret.SecretLoader, id string) (types
 	}
 	concatConfig := c.DeepCopy()
 	if concatConfig.Key == "" {
-		concatConfig.Key = types.GetLogKey()
+		if logKeyProvider, ok := secretLoader.(types.LogKeyProvider); ok {
+			concatConfig.Key = logKeyProvider.GetLogKey()
+		} else {
+			concatConfig.Key = types.GetLogKey()
+		}
 	}
 	if params, err := types.NewStructToStringMapper(secretLoader).StringsMap(concatConfig); err != nil {
 		return nil, err

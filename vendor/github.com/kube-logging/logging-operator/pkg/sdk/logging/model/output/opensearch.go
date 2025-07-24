@@ -133,6 +133,8 @@ type OpenSearchOutput struct {
 	SSLCACert *secret.Secret `json:"ca_file,omitempty"`
 	// If you want to configure SSL/TLS version, you can specify ssl_version parameter. [SSLv23, TLSv1, TLSv1_1, TLSv1_2]
 	SslVersion string `json:"ssl_version,omitempty"`
+	// https://github.com/fluent/fluent-plugin-opensearch#remove_keys
+	RemoveKeys string `json:"remove_keys,omitempty"`
 	// Remove keys on update will not update the configured keys in OpenSearch when a record is being updated. This setting only has any effect if the write operation is update or upsert.
 	RemoveKeysOnUpdate string `json:"remove_keys_on_update,omitempty"`
 	// This setting allows remove_keys_on_update to be configured with a key in each record, in much the same way as target_index_key works.

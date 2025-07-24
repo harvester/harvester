@@ -50,17 +50,21 @@ type ClusterMatch struct {
 }
 
 type ClusterSelect struct {
-	Namespaces     []string          `json:"namespaces,omitempty"`
-	Labels         map[string]string `json:"labels,omitempty"`
-	Hosts          []string          `json:"hosts,omitempty"`
-	ContainerNames []string          `json:"container_names,omitempty"`
+	Namespaces      []string          `json:"namespaces,omitempty"`
+	NamespacesRegex []string          `json:"namespaces_regex,omitempty"`
+	Labels          map[string]string `json:"labels,omitempty"`
+	NamespaceLabels map[string]string `json:"namespace_labels,omitempty"`
+	Hosts           []string          `json:"hosts,omitempty"`
+	ContainerNames  []string          `json:"container_names,omitempty"`
 }
 
 type ClusterExclude struct {
-	Namespaces     []string          `json:"namespaces,omitempty"`
-	Labels         map[string]string `json:"labels,omitempty"`
-	Hosts          []string          `json:"hosts,omitempty"`
-	ContainerNames []string          `json:"container_names,omitempty"`
+	Namespaces      []string          `json:"namespaces,omitempty"`
+	NamespacesRegex []string          `json:"namespaces_regex,omitempty"`
+	Labels          map[string]string `json:"labels,omitempty"`
+	NamespaceLabels map[string]string `json:"namespace_labels,omitempty"`
+	Hosts           []string          `json:"hosts,omitempty"`
+	ContainerNames  []string          `json:"container_names,omitempty"`
 }
 
 // ClusterFlowSpec is the Kubernetes spec for ClusterFlows

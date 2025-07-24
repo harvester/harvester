@@ -23,6 +23,10 @@ import (
 
 var ContainerRuntime = "containerd"
 
+type LogKeyProvider interface {
+	GetLogKey() string
+}
+
 func GetLogKey() string {
 	switch ContainerRuntime {
 	case "docker":

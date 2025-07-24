@@ -83,4 +83,6 @@ type SplunkHECOutput struct {
 	ExtraQueries []string `json:"extra_queries,omitempty"`
 	// Additional HTTP request content-type option.
 	ContentType string `json:"content_type,omitempty"`
+	// This option enables putting outgoing messages into the disk buffer of the destination to avoid message loss in case of a system failure on the destination side. For details, see the [Syslog-ng DiskBuffer options](../disk_buffer/). (default: false)
+	DiskBuffer *DiskBuffer `json:"disk_buffer,omitempty"`
 }

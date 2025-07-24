@@ -61,16 +61,22 @@ type HTTPOutputConfig struct {
 	ContentType string `json:"content_type,omitempty"`
 	// Using array format of JSON. This parameter is used and valid only for json format. When json_array as true, Content-Profile should be application/json and be able to use JSON data for the HTTP request body.  (default: false)
 	JsonArray bool `json:"json_array,omitempty"`
+	// The option to compress HTTP request body. [text,gzip] (default: text)
+	Compress string `json:"compress,omitempty"`
 	// +docLink:"Format,../format/"
 	Format *Format `json:"format,omitempty"`
 	// Additional headers for HTTP request.
 	Headers map[string]string `json:"headers,omitempty"`
+	// Additional headers from placeholders for HTTP request.
+	HeadersFromPlaceholders map[string]string `json:"headers_from_placeholders,omitempty"`
 	// Connection open timeout in seconds.
 	OpenTimeout int `json:"open_timeout,omitempty"`
 	// Read timeout in seconds.
 	ReadTimeout int `json:"read_timeout,omitempty"`
 	// TLS timeout in seconds.
 	SSLTimeout int `json:"ssl_timeout,omitempty"`
+	// Try to reuse connection. This will improve performance. (default: false)
+	ReuseConnections bool `json:"reuse_connections,omitempty"`
 	// The default version of TLS transport. [TLSv1_1, TLSv1_2] (default: TLSv1_2)
 	TlsVersion string `json:"tls_version,omitempty"`
 	// The cipher configuration of TLS transport. (default: ALL:!aNULL:!eNULL:!SSLv2)

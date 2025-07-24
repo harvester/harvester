@@ -20,66 +20,61 @@ import (
 	"github.com/kube-logging/logging-operator/pkg/sdk/logging/model/types"
 )
 
-// +name:"GELF"
+// +name:"Gelf"
 // +weight:"200"
-type _hugoGELF interface{} //nolint:deadcode,unused
+type _hugoGelf interface{} //nolint:deadcode,unused
 
-// +kubebuilder:object:generate=true
-// +docName:"[GELF Output](https://github.com/hotschedules/fluent-plugin-gelf-hs)"
-// Fluentd output plugin for GELF.
-type _docGELF interface{} //nolint:deadcode,unused
+// +docName:"Gelf output plugin for Fluentd"
+/*
+For details, see [https://github.com/bmichalkiewicz/fluent-plugin-gelf-best](https://github.com/bmichalkiewicz/fluent-plugin-gelf-best).
+
+## Example
+```yaml
+spec:
+  gelf:
+    host: gelf-host
+    port: 12201
+```
+*/
+type _docGelf interface{} //nolint:deadcode,unused
 
 // +name:"Gelf"
-// +url:"https://github.com/hotschedules/fluent-plugin-gelf-hs"
-// +version:"1.0.8"
-// +description:"Output plugin writes events to GELF"
+// +url:"https://github.com/bmichalkiewicz/fluent-plugin-gelf-best"
+// +version:"1.3.4"
+// +description:"Output plugin writes logs to Graylog"
 // +status:"Testing"
 type _metaGelf interface{} //nolint:deadcode,unused
 
 // +kubebuilder:object:generate=true
 // +docName:"Output Config"
-type GELFOutputConfig struct {
+type GelfOutputConfig struct {
 	// Destination host
 	Host string `json:"host"`
 	// Destination host port
 	Port int `json:"port"`
 	// Transport Protocol (default: "udp")
 	Protocol string `json:"protocol,omitempty"`
-	// Enable TlS (default: false)
+	// Enable TLS (default: false)
 	TLS *bool `json:"tls,omitempty"`
-	// TLS options (default: {}). For details, see [https://github.com/graylog-labs/gelf-rb/blob/72916932b789f7a6768c3cdd6ab69a3c942dbcef/lib/gelf/transport/tcp_tls.rb#L7-L12](https://github.com/graylog-labs/gelf-rb/blob/72916932b789f7a6768c3cdd6ab69a3c942dbcef/lib/gelf/transport/tcp_tls.rb#L7-L12).
+	// TLS Options.
+	// For details, see [https://github.com/graylog-labs/gelf-rb/blob/72916932b789f7a6768c3cdd6ab69a3c942dbcef/lib/gelf/transport/tcp_tls.rb#L7-L12](https://github.com/graylog-labs/gelf-rb/blob/72916932b789f7a6768c3cdd6ab69a3c942dbcef/lib/gelf/transport/tcp_tls.rb#L7-L12). (default: {})
 	TLSOptions map[string]string `json:"tls_options,omitempty"`
+	// MaxBytes specifies the maximum size, in bytes, of each individual log message.
+	// For details, see [https://github.com/Graylog2/graylog2-server/issues/873](https://github.com/Graylog2/graylog2-server/issues/873)
+	// Available since ghcr.io/kube-logging/fluentd:v1.16-4.10-full (default: 3200)
+	MaxBytes int `json:"max_bytes,omitempty"`
+	// UdpTransportType specifies the UDP chunk size by choosing either WAN or LAN mode.
+	// The choice between WAN and LAN affects the UDP chunk size depending on whether you are sending logs within your local network (LAN) or over a longer route (e.g., through the internet). Set this option accordingly.
+	// For more details, see:
+	// [https://github.com/manet-marketing/gelf_redux/blob/9db64353b6672805152c17642ea8ad39eafb5875/lib/gelf/notifier.rb#L22](https://github.com/manet-marketing/gelf_redux/blob/9db64353b6672805152c17642ea8ad39eafb5875/lib/gelf/notifier.rb#L22)
+	// Available since ghcr.io/kube-logging/logging-operator/fluentd:5.3.0-full (default: WAN)
+	UdpTransportType string `json:"udp_transport_type,omitempty"`
+	// Available since ghcr.io/kube-logging/fluentd:v1.16-4.8-full
+	// +docLink:"Buffer,../buffer/"
+	Buffer *Buffer `json:"buffer,omitempty"`
 }
 
-//
-/*
-## Example `GELF` output configurations
-
-{{< highlight yaml >}}
-apiVersion: logging.banzaicloud.io/v1beta1
-kind: Output
-metadata:
-  name: gelf-output-sample
-spec:
-  gelf:
-    host: gelf-host
-    port: 12201
-{{</ highlight >}}
-
-Fluentd config result:
-
-{{< highlight xml >}}
-<match **>
-	@type gelf
-	@id test_gelf
-	host gelf-host
-	port 12201
-</match>
-{{</ highlight >}}
-*/
-type _expGELF interface{} //nolint:deadcode,unused
-
-func (s *GELFOutputConfig) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {
+func (s *GelfOutputConfig) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {
 	pluginType := "gelf"
 	gelf := &types.OutputPlugin{
 		PluginMeta: types.PluginMeta{
@@ -93,6 +88,14 @@ func (s *GELFOutputConfig) ToDirective(secretLoader secret.SecretLoader, id stri
 		return nil, err
 	} else {
 		gelf.Params = params
+	}
+	if s.Buffer == nil {
+		s.Buffer = &Buffer{}
+	}
+	if buffer, err := s.Buffer.ToDirective(secretLoader, id); err != nil {
+		return nil, err
+	} else {
+		gelf.SubDirectives = append(gelf.SubDirectives, buffer)
 	}
 	return gelf, nil
 }
