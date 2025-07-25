@@ -59,7 +59,6 @@ var kindToTagMappings = map[string]string{
 	"SupportBundle":                   "Support Bundles",
 	"Upgrade":                         "Upgrades",
 	"ClusterNetwork":                  "Networks",
-	"NodeNetwork":                     "Networks",
 	"NetworkAttachmentDefinition":     "Networks",
 }
 

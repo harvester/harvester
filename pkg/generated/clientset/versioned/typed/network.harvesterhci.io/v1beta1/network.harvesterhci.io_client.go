@@ -30,7 +30,6 @@ type NetworkV1beta1Interface interface {
 	RESTClient() rest.Interface
 	ClusterNetworksGetter
 	LinkMonitorsGetter
-	NodeNetworksGetter
 	VlanConfigsGetter
 	VlanStatusesGetter
 }
@@ -46,10 +45,6 @@ func (c *NetworkV1beta1Client) ClusterNetworks() ClusterNetworkInterface {
 
 func (c *NetworkV1beta1Client) LinkMonitors() LinkMonitorInterface {
 	return newLinkMonitors(c)
-}
-
-func (c *NetworkV1beta1Client) NodeNetworks() NodeNetworkInterface {
-	return newNodeNetworks(c)
 }
 
 func (c *NetworkV1beta1Client) VlanConfigs() VlanConfigInterface {
