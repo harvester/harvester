@@ -14,9 +14,9 @@ func Name(prefix string, s ...string) string {
 	digest := crc32.ChecksumIEEE([]byte(name))
 	suffix := fmt.Sprintf("%08x", digest)
 	// The name contains no more than 63 characters
-	maxLengthOfName := maxLengthOfName - 1 - len(suffix)
-	if len(name) > maxLengthOfName {
-		name = name[:maxLengthOfName]
+	maxLength := maxLengthOfName - 1 - len(suffix)
+	if len(name) > maxLength {
+		name = name[:maxLength]
 	}
 
 	return name + "-" + suffix
