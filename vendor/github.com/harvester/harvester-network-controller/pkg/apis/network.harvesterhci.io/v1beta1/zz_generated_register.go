@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Harvester Network Controller Authors
+Copyright 2025 Harvester Network Controller Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import (
 var (
 	ClusterNetworkResourceName = "clusternetworks"
 	LinkMonitorResourceName    = "linkmonitors"
-	NodeNetworkResourceName    = "nodenetworks"
 	VlanConfigResourceName     = "vlanconfigs"
 	VlanStatusResourceName     = "vlanstatuses"
 )
@@ -60,8 +59,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ClusterNetworkList{},
 		&LinkMonitor{},
 		&LinkMonitorList{},
-		&NodeNetwork{},
-		&NodeNetworkList{},
 		&VlanConfig{},
 		&VlanConfigList{},
 		&VlanStatus{},

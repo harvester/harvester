@@ -26,7 +26,6 @@ func AggregatedWebServices() []*restful.WebService {
 
 	harvesterNetworkv1beta1API := NewGroupVersionWebService(networkv1beta1.SchemeGroupVersion)
 	NewGenericResource(harvesterNetworkv1beta1API, "clusternetworks", &networkv1beta1.ClusterNetwork{}, "ClusterNetwork", &networkv1beta1.ClusterNetworkList{}, false, defaultActions)
-	NewGenericResource(harvesterNetworkv1beta1API, "nodenetworks", &networkv1beta1.NodeNetwork{}, "NodeNetwork", &networkv1beta1.NodeNetworkList{}, false, defaultActions)
 
 	// core
 	corev1API := NewGroupVersionWebService(corev1.SchemeGroupVersion)

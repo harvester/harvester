@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Harvester Network Controller Authors
+Copyright 2025 Harvester Network Controller Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,23 +36,6 @@ type ClusterNetworkList struct {
 
 func NewClusterNetwork(namespace, name string, obj ClusterNetwork) *ClusterNetwork {
 	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ClusterNetwork").ToAPIVersionAndKind()
-	obj.Name = name
-	obj.Namespace = namespace
-	return &obj
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// NodeNetworkList is a list of NodeNetwork resources
-type NodeNetworkList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
-
-	Items []NodeNetwork `json:"items"`
-}
-
-func NewNodeNetwork(namespace, name string, obj NodeNetwork) *NodeNetwork {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("NodeNetwork").ToAPIVersionAndKind()
 	obj.Name = name
 	obj.Namespace = namespace
 	return &obj

@@ -36,10 +36,6 @@ func (c *FakeNetworkV1beta1) LinkMonitors() v1beta1.LinkMonitorInterface {
 	return &FakeLinkMonitors{c}
 }
 
-func (c *FakeNetworkV1beta1) NodeNetworks() v1beta1.NodeNetworkInterface {
-	return &FakeNodeNetworks{c}
-}
-
 func (c *FakeNetworkV1beta1) VlanConfigs() v1beta1.VlanConfigInterface {
 	return &FakeVlanConfigs{c}
 }
