@@ -2,6 +2,7 @@ package generic
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -103,8 +104,15 @@ func (c *Factory) setControllerFactoryWithLock() error {
 
 func (c *Factory) Sync(ctx context.Context) error {
 	if c.cacheFactory != nil {
-		_ = c.cacheFactory.Start(ctx)
-		c.cacheFactory.WaitForCacheSync(ctx)
+		if err := c.cacheFactory.Start(ctx); err != nil {
+			return err
+		}
+		syncStatus := c.cacheFactory.WaitForCacheSync(ctx)
+		for informerType, synced := range syncStatus {
+			if !synced {
+				return fmt.Errorf("cache sync failed for informer %s", informerType.Kind)
+			}
+		}
 	}
 	return nil
 }

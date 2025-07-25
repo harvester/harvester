@@ -38,22 +38,29 @@ type Uplink struct {
 
 type LinkAttrs struct {
 	// +optional
+	// +kubebuilder:validation:Minimum:=0
 	MTU int `json:"mtu,omitempty"`
 	// +optional
+	// +kubebuilder:validation:Minimum:=-1
+	// +kubebuilder:default:=-1
 	TxQLen int `json:"txQLen,omitempty"`
 	// +optional
 	HardwareAddr net.HardwareAddr `json:"hardwareAddr,omitempty"`
 }
 
-// TODO: reference: https://www.kernel.org/doc/Documentation/networking/bonding.txt
+// reference: https://www.kernel.org/doc/Documentation/networking/bonding.txt
 type BondOptions struct {
 	// +optional
+	// +kubebuilder:default:="active-backup"
 	Mode BondMode `json:"mode,omitempty"`
 	// +optional
+	// +kubebuilder:validation:Minimum:=-1
+	// +kubebuilder:default:=-1
 	Miimon int `json:"miimon,omitempty"`
 }
 
 // +kubebuilder:validation:Enum={"balance-rr","active-backup","balance-xor","broadcast","802.3ad","balance-tlb","balance-alb"}
+
 type BondMode string
 
 const (
