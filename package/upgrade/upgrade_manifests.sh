@@ -704,12 +704,21 @@ spec:
         - name: httpd
           image: rancher/harvester-cluster-repo:$REPO_OS_VERSION
 EOF
+
   kubectl patch deployment harvester-cluster-repo -n cattle-system --patch-file ./cluster_repo.yaml --type strategic
+  # harvester-cluster-repo might not change the version tag, but the charts are changed
+  # above patch sometimes shows `deployment.apps/harvester-cluster-repo patched (no change)`
+  # alway restart the deployment to ensure it has runs with latest image
+  echo "Restart deployment harvester-cluster-repo after patch"
+  kubectl rollout restart deployment harvester-cluster-repo -n cattle-system
 
   until kubectl -n cattle-system rollout status -w deployment/harvester-cluster-repo; do
     echo "Waiting for harvester-cluster-repo deployment ready..."
     sleep 5
   done
+
+  echo "The new harvester-cluster-repo pod"
+  kubectl get pods -n cattle-system -l app=harvester-cluster-repo -o wide
 
   # Force update cluster repo catalog index
   last_repo_download_time=$(get_cluster_repo_index_download_time)
