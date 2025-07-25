@@ -64,6 +64,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/guonaihong/gout v0.1.3
 	github.com/harvester/go-common v0.0.0-20250109132713-e748ce72a7ba
+	github.com/harvester/harvester-network-controller v1.6.0-rc3
 	github.com/harvester/node-manager v0.3.1
 	github.com/iancoleman/strcase v0.2.0
 	github.com/k3s-io/helm-controller v0.16.1

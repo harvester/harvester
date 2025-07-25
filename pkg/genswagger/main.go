@@ -405,7 +405,7 @@ func indef(s []string) []string {
 }
 
 func fixedTime(openapi *spec3.OpenAPI) {
-	d := openapi.Components.Schemas[defTimeKey] // TODO: check if this schema exists, and if `schemas` is the right place to look
+	d := openapi.Components.Schemas[defTimeKey]
 	d.SchemaProps.Format = ""
 	d.SchemaProps.Default = defTimeValue
 

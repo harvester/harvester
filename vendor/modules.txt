@@ -452,7 +452,7 @@ github.com/guonaihong/gout/interface
 ## explicit; go 1.23
 github.com/harvester/go-common/ds
 github.com/harvester/go-common/version
-# github.com/harvester/harvester-network-controller v0.3.1 => github.com/harvester/harvester-network-controller v1.6.0-rc3
+# github.com/harvester/harvester-network-controller v1.6.0-rc3 => github.com/harvester/harvester-network-controller v1.6.0-rc3
 ## explicit; go 1.24.0
 github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io
 github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1
