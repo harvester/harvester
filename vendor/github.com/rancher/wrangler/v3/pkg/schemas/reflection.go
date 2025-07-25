@@ -88,13 +88,14 @@ func (s *Schemas) Import(obj interface{}, externalOverrides ...interface{}) (*Sc
 
 func (s *Schemas) newSchemaFromType(t reflect.Type, typeName string) (*Schema, error) {
 	schema := &Schema{
-		ID:                typeName,
-		CodeName:          t.Name(),
-		PkgName:           t.PkgPath(),
-		ResourceFields:    map[string]Field{},
-		ResourceActions:   map[string]Action{},
-		CollectionActions: map[string]Action{},
-		Attributes:        map[string]interface{}{},
+		ID:                  typeName,
+		CodeName:            t.Name(),
+		PkgName:             t.PkgPath(),
+		ResourceFields:      map[string]Field{},
+		ResourceActions:     map[string]Action{},
+		CollectionActions:   map[string]Action{},
+		Attributes:          map[string]interface{}{},
+		ResourcePermissions: ResourcePermissions{},
 	}
 
 	s.processingTypes[t] = schema

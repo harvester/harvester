@@ -22,8 +22,6 @@ type ClusterNetworkExpansion interface{}
 
 type LinkMonitorExpansion interface{}
 
-type NodeNetworkExpansion interface{}
-
 type VlanConfigExpansion interface{}
 
 type VlanStatusExpansion interface{}
