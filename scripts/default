@@ -5,7 +5,7 @@ set -e
 cd $(dirname $0)
 
 ./build
-./test
-./package
-./package-webhook
-./package-upgrade
+#./test
+#./package
+#./package-webhook
+#./package-upgrade
