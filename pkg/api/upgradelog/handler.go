@@ -22,6 +22,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlupgradelog "github.com/harvester/harvester/pkg/controller/master/upgradelog"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -82,28 +83,17 @@ type Handler struct {
 	upgradeLogClient ctlharvesterv1.UpgradeLogClient
 }
 
-func (h Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if err := h.doAction(rw, req); err != nil {
-		status := http.StatusInternalServerError
-		if e, ok := err.(*apierror.APIError); ok {
-			status = e.Code.Status
-		}
-		rw.WriteHeader(status)
-		_, _ = rw.Write([]byte(err.Error()))
-		return
-	}
-}
-
-func (h Handler) doAction(rw http.ResponseWriter, req *http.Request) error {
+func (h Handler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
+	req, rw := ctx.Req(), ctx.RespWriter()
 	vars := util.EncodeVars(mux.Vars(req))
 
 	if req.Method == http.MethodGet {
-		return h.doGet(vars["link"], rw, req)
+		return nil, h.doGet(vars["link"], rw, req)
 	} else if req.Method == http.MethodPost {
-		return h.doPost(vars["action"], rw, req)
+		return nil, h.doPost(vars["action"], rw, req)
 	}
 
-	return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported method %s", req.Method))
+	return nil, apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported method %s", req.Method))
 }
 
 func (h Handler) doGet(link string, rw http.ResponseWriter, req *http.Request) error {
