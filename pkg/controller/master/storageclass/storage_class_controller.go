@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"time"
 
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
@@ -22,7 +23,7 @@ import (
 )
 
 type storageClassHandler struct {
-	storageClassClient       ctlstoragev1.StorageClassClient
+	storageClassController   ctlstoragev1.StorageClassController
 	storageProfileClient     ctlcdiv1.StorageProfileClient
 	storageProfileCache      ctlcdiv1.StorageProfileCache
 	cdiClient                ctlcdiv1.CDIClient
@@ -131,9 +132,11 @@ func (h *storageClassHandler) syncStorageProfile(sc *storagev1.StorageClass) err
 	profileName := sc.Name
 	profile, err := h.storageProfileCache.Get(profileName)
 	if err != nil {
+		// StorageProfile doesn't exist yet. The CDI controller will automatically create
+		// one for each StorageClass, so we'll retry in a moment to let that happen.
 		if apierrors.IsNotFound(err) {
-			logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).
-				Warnf("StorageProfile %s not found, skipping update", profileName)
+			logrus.WithFields(logrus.Fields{"storageclass": sc.Name}).Warnf("StorageProfile %s not found, retrying later", profileName)
+			h.storageClassController.EnqueueAfter(sc.Name, 1*time.Second)
 			return nil
 		}
 		return err

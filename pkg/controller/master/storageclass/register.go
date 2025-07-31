@@ -17,7 +17,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	volumeSnapshotClasses := management.SnapshotFactory.Snapshot().V1().VolumeSnapshotClass()
 
 	storageClassHandler := &storageClassHandler{
-		storageClassClient:       storageClasses,
+		storageClassController:   storageClasses,
 		storageProfileClient:     storageProfiles,
 		storageProfileCache:      storageProfiles.Cache(),
 		cdiClient:                cdi,
