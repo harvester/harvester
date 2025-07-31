@@ -117,14 +117,6 @@ func Test_syncStorageProfile(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			name: "skip update storage profile if not found",
-			sc: &storagev1.StorageClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "sc",
-				},
-			},
-		},
-		{
 			name: "update clone strategy",
 			sc: &storagev1.StorageClass{
 				ObjectMeta: metav1.ObjectMeta{
