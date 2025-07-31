@@ -4,6 +4,7 @@ Package factory provides a cache factory for the sql-based cache.
 package factory
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -13,7 +14,6 @@ import (
 	"github.com/rancher/steve/pkg/sqlcache/db"
 	"github.com/rancher/steve/pkg/sqlcache/encryption"
 	"github.com/rancher/steve/pkg/sqlcache/informer"
-	sqlStore "github.com/rancher/steve/pkg/sqlcache/store"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -28,7 +28,7 @@ const EncryptAllEnvVar = "CATTLE_ENCRYPT_CACHE_ALL"
 // CacheFactory builds Informer instances and keeps a cache of instances it created
 type CacheFactory struct {
 	wg         wait.Group
-	dbClient   DBClient
+	dbClient   db.Client
 	stopCh     chan struct{}
 	mutex      sync.RWMutex
 	encryptAll bool
@@ -44,20 +44,10 @@ type guardedInformer struct {
 	mutex    *sync.Mutex
 }
 
-type newInformer func(client dynamic.ResourceInterface, fields [][]string, transform cache.TransformFunc, gvk schema.GroupVersionKind, db sqlStore.DBClient, shouldEncrypt bool, namespace bool) (*informer.Informer, error)
-
-type DBClient interface {
-	informer.DBClient
-	sqlStore.DBClient
-	connector
-}
+type newInformer func(ctx context.Context, client dynamic.ResourceInterface, fields [][]string, transform cache.TransformFunc, gvk schema.GroupVersionKind, db db.Client, shouldEncrypt bool, namespace bool, watchable bool) (*informer.Informer, error)
 
 type Cache struct {
 	informer.ByOptionsLister
-}
-
-type connector interface {
-	NewConnection() error
 }
 
 var defaultEncryptedResourceTypes = map[schema.GroupVersionKind]struct{}{
@@ -95,7 +85,7 @@ func NewCacheFactory() (*CacheFactory, error) {
 
 // CacheFor returns an informer for given GVK, using sql store indexed with fields, using the specified client. For virtual fields, they must be added by the transform function
 // and specified by fields to be used for later fields.
-func (f *CacheFactory) CacheFor(fields [][]string, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, namespaced bool, watchable bool) (Cache, error) {
+func (f *CacheFactory) CacheFor(ctx context.Context, fields [][]string, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, namespaced bool, watchable bool) (Cache, error) {
 	// First of all block Reset() until we are done
 	f.mutex.RLock()
 	defer f.mutex.RUnlock()
@@ -131,7 +121,7 @@ func (f *CacheFactory) CacheFor(fields [][]string, transform cache.TransformFunc
 
 		_, encryptResourceAlways := defaultEncryptedResourceTypes[gvk]
 		shouldEncrypt := f.encryptAll || encryptResourceAlways
-		i, err := f.newInformer(client, fields, transform, gvk, f.dbClient, shouldEncrypt, namespaced)
+		i, err := f.newInformer(ctx, client, fields, transform, gvk, f.dbClient, shouldEncrypt, namespaced, watchable)
 		if err != nil {
 			return Cache{}, err
 		}
