@@ -1042,19 +1042,25 @@ func (h *Handler) configureCSIDriverVolumeSnapshotClassNames(vmBackup *harvester
 // We would like to avoid the controller change the VMBackup to ready again blindly,
 // because related volume snapshot status doesn't really reflect backup state.
 func (h *Handler) shouldSkipVolumeSnapshotUpdate(vmBackup *harvesterv1.VirtualMachineBackup, volumeBackup harvesterv1.VolumeBackup) (bool, error) {
-	isChangedBackupToNonReady := false
+	isChangedBackToNonReady := false
 	for _, condition := range vmBackup.Status.Conditions {
 		if condition.Type == harvesterv1.BackupConditionReady && condition.Message == changeToNonReadyMessage {
-			isChangedBackupToNonReady = true
+			isChangedBackToNonReady = true
 			break
 		}
 	}
 
-	if volumeBackup.LonghornBackupName == nil || !isChangedBackupToNonReady {
+	if volumeBackup.LonghornBackupName == nil || !isChangedBackToNonReady {
 		return false, nil
 	}
 
 	conditionMsg, err := checkLHBackup(h.lhbackupCache, *volumeBackup.LonghornBackupName)
+	if apierrors.IsNotFound(err) {
+		// Don't return not found error here, because it changes the VMBackup status message and there will not have "Change back to non-ready" message.
+		// In the next reconcile, the shouldSkipVolumeSnapshotUpdate will return false, so the volume backup will get updated from VolumeSnapshot.
+		return true, nil
+	}
+
 	if err != nil {
 		logrus.WithError(err).WithFields(logrus.Fields{
 			"name":           vmBackup.Name,
