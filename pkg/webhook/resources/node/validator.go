@@ -17,15 +17,17 @@ import (
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
+	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func NewValidator(nodeCache v1.NodeCache, jobCache ctlbatchv1.JobCache, vmiCache ctlkubevirtv1.VirtualMachineInstanceCache) types.Validator {
+func NewValidator(nodeCache v1.NodeCache, jobCache ctlbatchv1.JobCache, vmCache ctlkubevirtv1.VirtualMachineCache, vmiCache ctlkubevirtv1.VirtualMachineInstanceCache) types.Validator {
 	return &nodeValidator{
 		nodeCache: nodeCache,
 		jobCache:  jobCache,
+		vmCache:   vmCache,
 		vmiCache:  vmiCache,
 	}
 }
@@ -34,6 +36,7 @@ type nodeValidator struct {
 	types.DefaultValidator
 	nodeCache v1.NodeCache
 	jobCache  ctlbatchv1.JobCache
+	vmCache   ctlkubevirtv1.VirtualMachineCache
 	vmiCache  ctlkubevirtv1.VirtualMachineInstanceCache
 }
 
@@ -129,8 +132,12 @@ func (v *nodeValidator) validateCPUManagerOperation(node *corev1.Node) error {
 	if err := checkMasterNodeJobs(node, v.nodeCache, v.jobCache); err != nil {
 		return err
 	}
-	// check if there is any vm that enable cpu pinning while cpu manager is going to be disabled
+	// check if there is any running vmis that enable cpu pinning while cpu manager is going to be disabled
 	if err := checkCPUPinningVMIs(node, policy, v.vmiCache); err != nil {
+		return err
+	}
+	// check if there is at least one node has cpu manager enabled if there is any vm with cpu pinning
+	if err := checkCPUManagerEnabledForPinnedVMs(policy, v.nodeCache, v.vmCache); err != nil {
 		return err
 	}
 
@@ -260,4 +267,76 @@ func getCPUManagerRunningJobNamesOnNodes(jobCache ctlbatchv1.JobCache, nodeNames
 		jobNames[i] = job.Name
 	}
 	return jobNames, nil
+}
+
+// checkCPUManagerEnabledForPinnedVMs checks if there is at least one node with CPU Manager enabled
+// when there are VMs with CPU pinning enabled. If not, it returns an error.
+// This is necessary because we have a webhook that prevents VMs being created/updated with CPU pinning
+// when there is no node with CPU Manager enabled.
+// see https://github.com/harvester/harvester/commit/079cee711f0d3e91966cd4e97039920e346a6c4c
+func checkCPUManagerEnabledForPinnedVMs(policy ctlnode.CPUManagerPolicy, nodeCache v1.NodeCache, vmCache ctlkubevirtv1.VirtualMachineCache) error {
+	if policy == ctlnode.CPUManagerStaticPolicy {
+		return nil
+	}
+
+	cpuManagerNodeCount, err := countNodesWithCPUManager(nodeCache)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	if cpuManagerNodeCount != 1 {
+		return nil
+	}
+
+	cpuPinnedVMs, err := vmCache.GetByIndex(indexeresutil.VMByCPUPinningIndex, indexeresutil.CPUPinningEnabled)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	if len(cpuPinnedVMs) == 0 {
+		return nil
+	}
+
+	vmList := formatVMList(cpuPinnedVMs)
+	return werror.NewBadRequest(
+		"At least one node must have CPU Manager enabled when a VM is using CPU pinning. " +
+			"Please remove CPU pinning from the following VM(s) to proceed: " + vmList)
+
+}
+
+func countNodesWithCPUManager(nodeCache v1.NodeCache) (int, error) {
+	nodes, err := nodeCache.List(labels.Everything())
+	if err != nil {
+		return 0, werror.NewInternalError(err.Error())
+	}
+
+	count := 0
+	for _, node := range nodes {
+		if isNodeCPUManagerEnabled(node) {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func isNodeCPUManagerEnabled(node *corev1.Node) bool {
+	labelValue, exists := node.Labels[kubevirtv1.CPUManager]
+	if !exists {
+		return false
+	}
+
+	enabled, err := strconv.ParseBool(labelValue)
+	if err != nil {
+		return false
+	}
+
+	return enabled
+}
+
+func formatVMList(vms []*kubevirtv1.VirtualMachine) string {
+	vmStrs := make([]string, len(vms))
+	for i, vm := range vms {
+		vmStrs[i] = fmt.Sprintf("%s/%s", vm.Namespace, vm.Name)
+	}
+	return strings.Join(vmStrs, ", ")
 }

@@ -70,6 +70,7 @@ func RegisterIndexers(clients *clients.Clients) {
 
 	vmCache := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	vmCache.AddIndexer(VMByMacAddress, vmByMacaddrs)
+	vmInformer.AddIndexer(indexeresutil.VMByCPUPinningIndex, indexeresutil.VMByCPUPinning)
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
