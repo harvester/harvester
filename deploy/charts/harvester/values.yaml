@@ -123,34 +123,34 @@ kubevirt:
 cdi:
   enabled: true
   containers:
-    version: &cdiVersion 1.61.0-150600.3.12.1
+    version: &cdiVersion 1.62.0-150700.9.3.1
     operator:
       image:
-        repository: registry.suse.com/suse/sles/15.6/cdi-operator
+        repository: registry.suse.com/suse/sles/15.7/cdi-operator
         tag: *cdiVersion
     controller:
       image:
-        repository: registry.suse.com/suse/sles/15.6/cdi-controller
+        repository: registry.suse.com/suse/sles/15.7/cdi-controller
         tag: *cdiVersion
     importer:
       image:
-        repository: registry.suse.com/suse/sles/15.6/cdi-importer
+        repository: registry.suse.com/suse/sles/15.7/cdi-importer
         tag: *cdiVersion
     cloner:
       image:
-        repository: registry.suse.com/suse/sles/15.6/cdi-cloner
+        repository: registry.suse.com/suse/sles/15.7/cdi-cloner
         tag: *cdiVersion
     apiserver:
       image:
-        repository: registry.suse.com/suse/sles/15.6/cdi-apiserver
+        repository: registry.suse.com/suse/sles/15.7/cdi-apiserver
         tag: *cdiVersion
     uploadserver:
       image:
-        repository: registry.suse.com/suse/sles/15.6/cdi-uploadserver
+        repository: registry.suse.com/suse/sles/15.7/cdi-uploadserver
         tag: *cdiVersion
     uploadproxy:
       image:
-        repository: registry.suse.com/suse/sles/15.6/cdi-uploadproxy
+        repository: registry.suse.com/suse/sles/15.7/cdi-uploadproxy
         tag: *cdiVersion
     hook:
       image:
