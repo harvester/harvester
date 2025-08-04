@@ -12,54 +12,9 @@ To report an issue, click the "New Issue" button and select the appropriate issu
 
 We use GitHub Project to manage issues, please see https://github.com/harvester/harvester/wiki/Issue-Management for more information. Note you must be a member of the Harvester organization to see the project. Feel free to delegate the issue management to maintainers if you are not a member.
 
-## Submitting Code Changes
+### Developer Guide
 
-Code changes must be submitted via GitHub pull requests. Here are some general guidelines:
-
-- Find or create an issue first. Every PR should link to at least one issue. Please add the issue URL below the `**Related Issue**` header.
-- Fork the repository that you want to contribute. Make and commit changes in your fork repository.
-- Sign your work with a sign-off statement in the commit messages.
-- Create a pull request that targets an appropriate branch by following the PR description template.
-- Provide a test plan in the PR description.
-- Make sure all the checks pass in the PR.
-
-
-### Commit message format
-
-We didn't enforce the commit message format, any reasonable format is acceptable. One recommendation is [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
-
-### Branch strategy
-
-The branch strategy of the harvester/harvester repo is:
-
-- Create a pull request that targets the `master` branch.
-- Backport your change to stable branches with backport pull requests.
-
-Please see https://github.com/harvester/harvester/wiki/Branch-Strategy#harvesterharvester for more information. Note you must create backport issue and link backport PR to backport issues.
-
-### How to Test Your Changes Locally
-
-You need a Linux box with docker for the development. After you make some change to the code, you can run the integration test with:
-
-```
-make ci
-```
-
-To build a Harvester ISO, you can run the command:
-
-```
-make build-iso
-```
-
-And check the `dist/artifacts` for the resulting files. You can test the ISO on physical servers or use [Vagrant](https://github.com/harvester/ipxe-examples/tree/main/vagrant-pxe-harvester) to test the ISO on virtual machines.
-
-### Code Style
-
-The code must be linted with `golangci-lint`. You can manually run the linter/configure your IDE with the [config](https://github.com/harvester/harvester/blob/master/.golangci.yaml) or run the command to do a validation:
-
-```
-make validate
-```
+For developers who want to contribute to Harvester, please refer to our [Developer Guide](./DEVELOPER_GUIDE.md) which covers development environment setup, coding standards, testing procedures, and debugging guidelines. The guide includes information on prerequisites, local development workflow, and how to build and test your changes.
 
 ## Contribute to Harvester Documentation
 
