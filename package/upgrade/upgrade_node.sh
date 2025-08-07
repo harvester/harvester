@@ -45,6 +45,30 @@ sparsify_passive_img()
   fi
 }
 
+# elemental scans /dev for blockdevices and checks for their mount points
+# if the disk is already mounted then the current logic remounts them as read/write partition
+# and if a partition is not mounted elemental tries to just mount it as a read/write partition
+# in case of multipath devices, the /dev/mapper device is not detected, and elemental
+# finds the path making the disk as not mounted. 
+# due to change introduced by https://github.com/rancher/elemental-toolkit/pull/2302 elemental reconciles
+# the actual disk partition in use and finds the correct mapper device related to the cos partition
+# however the logic still scans the underlying disk for mount path
+# elemental assumes disk is not mounted and tries to mount the mapper device to a new partition
+# in the case, below COS_STATE is normally mounted as a readonly partition under /run/initramfs/cos-state
+# when multipath is enabled for boot disks, elemental tries to mount COS_STATE under /run/cos/state
+# the partition is mounted as readonly partition as elemental is not aware that the partition is already mounted
+# this results in upgrade being broken since the partition is mounted in readonly state, and we need to ensure
+# remount option is select. Mounting the partition under /run/cos/state works around this,
+# as elemental now finds a disk mounted under /run/cos/state and uses the `remount` option to mount the partition
+check_and_mount_state(){
+  MAPPER_IN_USE=$(chroot ${HOST_DIR} blkid -L COS_STATE |grep mapper)
+  if [ -n "$MAPPER_IN_USE" ]; then
+    echo "mapper devices in use, performing mount of COS_STATE partition"
+    mkdir -p ${HOST_DIR}/run/cos/state
+    chroot ${HOST_DIR} mount -L COS_STATE /run/cos/state
+  fi
+}
+
 is_mounted()
 {
   mount | awk -v DIR="$1" '{ if ($3 == DIR) { exit 0 } } ENDFILE { exit 1 }'
@@ -64,6 +88,11 @@ clean_up_tmp_files()
   if [ -n "$tmp_rootfs_squashfs" ]; then
     echo "Try to remove $tmp_rootfs_squashfs..."
     rm -vf "$tmp_rootfs_squashfs"
+  fi
+
+  if is_mounted "/run/cos/state"; then
+    echo "Trying to unmount /run/cos/state"
+    umount /run/cos/state || echo "Umount /run/cos/state failed with return code: $?"
   fi
 }
 
@@ -586,9 +615,15 @@ EOF
   # make sure the current passive image isn't using too much disk space
   sparsify_passive_img
 
+  # perform mount of /run/cos/state if needed when multipath is being used for boot
+  check_and_mount_state
+
+  # copy elemental from upgrade image so latest elemental binary is used for upgrades.
+  cp /usr/local/bin/elemental $HOST_DIR/tmp/elemental
+
   elemental_upgrade_log="${UPGRADE_TMP_DIR#"$HOST_DIR"}/elemental-upgrade-$(date +%Y%m%d%H%M%S).log"
   local ret=0
-  chroot $HOST_DIR elemental upgrade \
+  chroot $HOST_DIR /tmp/elemental upgrade \
     --logfile "$elemental_upgrade_log" \
     --directory ${tmp_rootfs_mount#"$HOST_DIR"} \
     --config-dir ${tmp_elemental_config_dir#"$HOST_DIR"} \
@@ -619,7 +654,9 @@ EOF
   if [ ${multiPathEnabled} == false ]
   then
     thirdPartyArgs=$(chroot $HOST_DIR grub2-editenv /oem/grubenv list |grep third_party_kernel_args | awk -F"third_party_kernel_args=" '{print $2}')
-    if [[ ${thirdPartyArgs} != *"multipath=off"* ]]
+    # tweaked check to ensure the multipath arguments are only added in 1.6.x if they are not present
+    # users may have multipath=on for externalStorageSupport and we need to respect that
+    if [[ ${thirdPartyArgs} != *"multipath"* ]]
     then
       thirdPartyArgs="${thirdPartyArgs} multipath=off"
       thirdPartyArgs=$(echo ${thirdPartyArgs} | xargs)
