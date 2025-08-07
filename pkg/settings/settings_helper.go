@@ -171,7 +171,7 @@ type ImagePreloadOption struct {
 type UpgradeConfig struct {
 	// Options for the Image Preload phase of Harvester Upgrade
 	PreloadOption ImagePreloadOption `json:"imagePreloadOption,omitempty"`
-	// set true to restore vm to the pre-upgrade state, this option only works under single node.
+	// set true to restore vm to the pre-upgrade state
 	RestoreVM bool `json:"restoreVM,omitempty"`
 }
 
