@@ -18,15 +18,12 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Check if PR is a backport
+      env:
+        TITLE: ${{ github.event.pull_request.title }}
       run: |
-        title=$(cat <<EOF
-        "${{ github.event.pull_request.title }}"
-        EOF
-        )
+        echo "PR Title: $TITLE"
 
-        echo "PR Title: $title"
-
-        if [[ "$(echo "$title" | sed 's/"/\\"/g')" =~ "backport #" ]]; then
+        if [[ "${{ contains(github.event.pull_request.title, 'backport #') }}" == "true" ]]; then
           echo "BACKPORT=true" >> $GITHUB_ENV
         else
           echo "BACKPORT=false" >> $GITHUB_ENV
@@ -37,16 +34,14 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
         GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        BASE_REF: ${{ github.event.pull_request.base.ref }}
+        BODY: ${{ github.event.pull_request.body }}
       run: |
         # Extract branch from the target branch of the PR
-        BRANCH=$(echo "${{ github.event.pull_request.base.ref }}")
+        BRANCH="$BASE_REF"
         echo "BRANCH=$BRANCH" >> $GITHUB_ENV
 
         # Extract issue numbers from PR body (support both formats)
-        BODY=$(cat <<__PR_BODY_EOF__
-        "${{ github.event.pull_request.body }}"
-        __PR_BODY_EOF__
-        )
         ISSUE_NUMBERS=$(echo "$BODY" | grep -oE "${REPO_NAME}#([0-9]+)" | cut -d'#' -f2)
         ISSUE_NUMBERS_URL=$(echo "$BODY" | grep -oE "https://github.com/${REPO_NAME}/issues/[0-9]+" | awk -F'/' '{print $NF}')
         ISSUE_NUMBERS_SIMPLE=$(echo "$BODY" | grep -oE "#[0-9]+" | cut -c2-)
@@ -74,10 +69,7 @@ jobs:
           backport_issue_number=""
 
           if [[ -n "$issue_number" && -n "$issue_title" ]]; then
-            search_title=$(cat <<EOF
-        [backport ${BRANCH}] ${issue_title}
-        EOF
-        )
+            search_title="[backport ${BRANCH}] ${issue_title}"
 
             echo "Searching for backport issue with title: '${search_title}'"
 

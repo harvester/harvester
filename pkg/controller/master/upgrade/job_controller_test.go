@@ -349,17 +349,21 @@ func TestJobHandler_sendRestoreVMJob(t *testing.T) {
 				k8sObjects = append(k8sObjects, job)
 			}
 
-			k8sClientset := k8sfake.NewSimpleClientset(k8sObjects...)
-			harvesterClientset := fake.NewSimpleClientset(tc.given.upgrade)
-
+			var harvesterObjects []runtime.Object
+			harvesterObjects = append(harvesterObjects, tc.given.upgrade)
 			// Mock the setting
 			if tc.given.restoreVM {
-				err := settings.UpgradeConfigSet.Set(`{"restoreVM":true}`)
-				assert.NoError(t, err, "Failed to set restoreVM to true")
-			} else {
-				err := settings.UpgradeConfigSet.Set(`{"restoreVM":false}`)
-				assert.NoError(t, err, "Failed to set restoreVM to false")
+				setting := &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"restoreVM":true}`,
+				}
+				harvesterObjects = append(harvesterObjects, setting)
 			}
+
+			k8sClientset := k8sfake.NewSimpleClientset(k8sObjects...)
+			harvesterClientset := fake.NewSimpleClientset(harvesterObjects...)
 
 			handler := &jobHandler{
 				namespace:      util.HarvesterSystemNamespaceName,
@@ -367,6 +371,7 @@ func TestJobHandler_sendRestoreVMJob(t *testing.T) {
 				jobClient:      fakeclients.JobClient(k8sClientset.BatchV1().Jobs),
 				jobCache:       fakeclients.JobCache(k8sClientset.BatchV1().Jobs),
 				configMapCache: fakeclients.ConfigmapCache(k8sClientset.CoreV1().ConfigMaps),
+				settingCache:   fakeclients.HarvesterSettingCache(harvesterClientset.HarvesterhciV1beta1().Settings),
 			}
 
 			// Create mock repo info

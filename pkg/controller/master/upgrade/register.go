@@ -107,6 +107,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		jobClient:      jobs,
 		jobCache:       jobs.Cache(),
 		configMapCache: configMaps.Cache(),
+		settingCache:   settings.Cache(),
 	}
 	jobs.OnChange(ctx, jobControllerName, jobHandler.OnChanged)
 
