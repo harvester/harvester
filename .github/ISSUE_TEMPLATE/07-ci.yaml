@@ -1,6 +1,7 @@
 name: CI request
 description: Create a CI task
 title: "[CI] "
+type: "CI"
 labels: [ "kind/task", "area/ci" ]
 assignees:
 -
