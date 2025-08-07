@@ -1,6 +1,7 @@
 name: Task request
 description: Create a task
 title: "[TASK] "
+type: "Task"
 labels: [ "kind/task" ]
 assignees:
 -
