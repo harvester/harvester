@@ -1,6 +1,7 @@
 name: Document request
 description: Create or update a document
 title: "[DOC] "
+type: "Doc"
 labels: [ "kind/doc", "require/doc" ]
 assignees:
 -
