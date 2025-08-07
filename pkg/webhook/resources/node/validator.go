@@ -137,7 +137,7 @@ func (v *nodeValidator) validateCPUManagerOperation(node *corev1.Node) error {
 		return err
 	}
 	// check if there is at least one node has cpu manager enabled if there is any vm with cpu pinning
-	if err := checkCPUManagerEnabledForPinnedVMs(policy, v.nodeCache, v.vmCache); err != nil {
+	if err := checkCPUManagerEnabledForPinnedVMs(node, policy, v.nodeCache, v.vmCache); err != nil {
 		return err
 	}
 
@@ -274,63 +274,42 @@ func getCPUManagerRunningJobNamesOnNodes(jobCache ctlbatchv1.JobCache, nodeNames
 // This is necessary because we have a webhook that prevents VMs being created/updated with CPU pinning
 // when there is no node with CPU Manager enabled.
 // see https://github.com/harvester/harvester/commit/079cee711f0d3e91966cd4e97039920e346a6c4c
-func checkCPUManagerEnabledForPinnedVMs(policy ctlnode.CPUManagerPolicy, nodeCache v1.NodeCache, vmCache ctlkubevirtv1.VirtualMachineCache) error {
+func checkCPUManagerEnabledForPinnedVMs(
+	node *corev1.Node,
+	policy ctlnode.CPUManagerPolicy,
+	nodeCache v1.NodeCache,
+	vmCache ctlkubevirtv1.VirtualMachineCache,
+) error {
+	// Skip check if the policy is set to 'static'
 	if policy == ctlnode.CPUManagerStaticPolicy {
 		return nil
 	}
 
-	cpuManagerNodeCount, err := countNodesWithCPUManager(nodeCache)
+	// Get all nodes with CPU Manager enabled
+	selector := labels.Set{kubevirtv1.CPUManager: "true"}.AsSelector()
+	nodesWithCPUManager, err := nodeCache.List(selector)
 	if err != nil {
 		return werror.NewInternalError(err.Error())
 	}
 
-	if cpuManagerNodeCount != 1 {
-		return nil
-	}
-
-	cpuPinnedVMs, err := vmCache.GetByIndex(indexeresutil.VMByCPUPinningIndex, indexeresutil.CPUPinningEnabled)
-	if err != nil {
-		return werror.NewInternalError(err.Error())
-	}
-
-	if len(cpuPinnedVMs) == 0 {
-		return nil
-	}
-
-	vmList := formatVMList(cpuPinnedVMs)
-	return werror.NewBadRequest(
-		"At least one node must have CPU Manager enabled when a VM is using CPU pinning. " +
-			"Please remove CPU pinning from the following VM(s) to proceed: " + vmList)
-
-}
-
-func countNodesWithCPUManager(nodeCache v1.NodeCache) (int, error) {
-	nodes, err := nodeCache.List(labels.Everything())
-	if err != nil {
-		return 0, werror.NewInternalError(err.Error())
-	}
-
-	count := 0
-	for _, node := range nodes {
-		if isNodeCPUManagerEnabled(node) {
-			count++
+	// Only perform further checks if this node is the only one with CPU Manager enabled
+	// and user aims to disable it (i.e. set cpu manager policy to 'none')
+	if len(nodesWithCPUManager) == 1 && nodesWithCPUManager[0].UID == node.UID {
+		cpuPinnedVMs, err := vmCache.GetByIndex(indexeresutil.VMByCPUPinningIndex, indexeresutil.CPUPinningEnabled)
+		if err != nil {
+			return werror.NewInternalError(err.Error())
 		}
-	}
-	return count, nil
-}
 
-func isNodeCPUManagerEnabled(node *corev1.Node) bool {
-	labelValue, exists := node.Labels[kubevirtv1.CPUManager]
-	if !exists {
-		return false
-	}
+		if len(cpuPinnedVMs) == 0 {
+			return nil
+		}
 
-	enabled, err := strconv.ParseBool(labelValue)
-	if err != nil {
-		return false
+		vmList := formatVMList(cpuPinnedVMs)
+		return werror.NewBadRequest(
+			"At least one node must have CPU Manager enabled when a VM is using CPU pinning. " +
+				"Please remove CPU pinning from the following VM(s) to proceed: " + vmList)
 	}
-
-	return enabled
+	return nil
 }
 
 func formatVMList(vms []*kubevirtv1.VirtualMachine) string {
