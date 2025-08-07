@@ -45,6 +45,15 @@ sparsify_passive_img()
   fi
 }
 
+check_and_mount_state(){
+  MAPPER_IN_USE=$(chroot ${HOST_DIR} blkid -L COS_STATE |grep mapper)
+  if [ -n "$MAPPER_IN_USE" ]; then
+    echo "mapper devices in use, performing mount of COS_STATE partition"
+    mkdir -p ${HOST_DIR}/run/cos/state
+    chroot ${HOST_DIR} mount -L COS_STATE /run/cos/state
+  fi
+}
+
 is_mounted()
 {
   mount | awk -v DIR="$1" '{ if ($3 == DIR) { exit 0 } } ENDFILE { exit 1 }'
@@ -64,6 +73,11 @@ clean_up_tmp_files()
   if [ -n "$tmp_rootfs_squashfs" ]; then
     echo "Try to remove $tmp_rootfs_squashfs..."
     rm -vf "$tmp_rootfs_squashfs"
+  fi
+
+  if is_mounted "/run/cos/state"; then
+    echo "Trying to unmount /run/cos/state"
+    umount /run/cos/state || echo "Umount /run/cos/state failed with return code: $?"
   fi
 }
 
@@ -586,9 +600,15 @@ EOF
   # make sure the current passive image isn't using too much disk space
   sparsify_passive_img
 
+  # perform mount of /run/cos/state if needed when multipath is being used for boot
+  check_and_mount_state
+
+  # copy elemental from upgrade image so latest elemental binary is used for upgrades.
+  cp /usr/local/bin/elemental $HOST_DIR/tmp/elemental
+
   elemental_upgrade_log="${UPGRADE_TMP_DIR#"$HOST_DIR"}/elemental-upgrade-$(date +%Y%m%d%H%M%S).log"
   local ret=0
-  chroot $HOST_DIR elemental upgrade \
+  chroot $HOST_DIR /tmp/elemental upgrade \
     --logfile "$elemental_upgrade_log" \
     --directory ${tmp_rootfs_mount#"$HOST_DIR"} \
     --config-dir ${tmp_elemental_config_dir#"$HOST_DIR"} \
@@ -619,7 +639,9 @@ EOF
   if [ ${multiPathEnabled} == false ]
   then
     thirdPartyArgs=$(chroot $HOST_DIR grub2-editenv /oem/grubenv list |grep third_party_kernel_args | awk -F"third_party_kernel_args=" '{print $2}')
-    if [[ ${thirdPartyArgs} != *"multipath=off"* ]]
+    # tweaked check to ensure the multipath arguments are only added in 1.6.x if they are not present
+    # users may have multipath=on for externalStorageSupport and we need to respect that
+    if [[ ${thirdPartyArgs} != *"multipath"* ]]
     then
       thirdPartyArgs="${thirdPartyArgs} multipath=off"
       thirdPartyArgs=$(echo ${thirdPartyArgs} | xargs)
