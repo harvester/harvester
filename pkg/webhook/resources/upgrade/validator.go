@@ -58,6 +58,7 @@ func NewValidator(
 	versionCache ctlharvesterv1.VersionCache,
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
 	svmbackupCache ctlharvesterv1.ScheduleVMBackupCache,
+	settingCache ctlharvesterv1.SettingCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	endpointCache v1.EndpointsCache,
 	httpClient *http.Client,
@@ -75,6 +76,7 @@ func NewValidator(
 		svmbackupCache:    svmbackupCache,
 		vmiCache:          vmiCache,
 		endpointCache:     endpointCache,
+		settingCache:      settingCache,
 		httpClient:        httpClient,
 		bearToken:         bearToken,
 	}
@@ -94,6 +96,7 @@ type upgradeValidator struct {
 	svmbackupCache    ctlharvesterv1.ScheduleVMBackupCache
 	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
 	endpointCache     v1.EndpointsCache
+	settingCache      ctlharvesterv1.SettingCache
 	httpClient        *http.Client
 	bearToken         string
 }
@@ -196,7 +199,7 @@ func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 		return err
 	}
 
-	restoreVM, err := util.IsRestoreVM()
+	restoreVM, err := util.IsRestoreVM(v.settingCache)
 	if err != nil {
 		return err
 	}

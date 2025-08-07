@@ -66,6 +66,7 @@ type jobHandler struct {
 	jobClient      jobv1.JobClient
 	jobCache       jobv1.JobCache
 	configMapCache ctlcorev1.ConfigMapCache
+	settingCache   ctlharvesterv1.SettingCache
 }
 
 func (h *jobHandler) OnChanged(_ string, job *batchv1.Job) (*batchv1.Job, error) {
@@ -298,7 +299,7 @@ func (h *jobHandler) setNodeWaitRebootLabel(node *v1.Node, repoInfo *repoinfo.Re
 }
 
 func (h *jobHandler) sendRestoreVMJob(upgrade *harvesterv1.Upgrade, node *v1.Node, repoInfo *repoinfo.RepoInfo) error {
-	restoreVM, err := util.IsRestoreVM()
+	restoreVM, err := util.IsRestoreVM(h.settingCache)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{"name": upgrade.Name, "node": node.Name}).WithError(err).
 			Errorf("Failed to get setting UpgradeConfig, skip restore VM job")
