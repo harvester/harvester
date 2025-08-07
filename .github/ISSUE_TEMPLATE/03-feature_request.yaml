@@ -1,6 +1,7 @@
 name: Feature request
 description: Suggest a feature or enhancement
 title: "[FEATURE] "
+type: "Feature"
 labels: [ "kind/feature", "require/hep", "require/doc", "require/auto-e2e-test" ]
 assignees:
 -
