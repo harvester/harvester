@@ -12,8 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
@@ -24,7 +23,6 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
-	vmutil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	indexerwebhook "github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -42,7 +40,6 @@ func NewValidator(
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	nadCache ctlcniv1.NetworkAttachmentDefinitionCache,
 	settingCache ctlharvesterv1.SettingCache,
-	nodeCache v1.NodeCache,
 ) types.Validator {
 	return &vmValidator{
 		pvcCache:      pvcCache,
@@ -50,7 +47,6 @@ func NewValidator(
 		vmCache:       vmCache,
 		vmiCache:      vmiCache,
 		nadCache:      nadCache,
-		nodeCache:     nodeCache,
 
 		rqCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
 	}
@@ -63,7 +59,6 @@ type vmValidator struct {
 	vmCache       ctlkubevirtv1.VirtualMachineCache
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
 	nadCache      ctlcniv1.NetworkAttachmentDefinitionCache
-	nodeCache     v1.NodeCache
 	rqCalculator  *resourcequota.Calculator
 }
 
@@ -224,10 +219,6 @@ func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 		return err
 	}
 
-	if err := v.checkDedicatedCPUPlacement(vm); err != nil {
-		return err
-	}
-
 	if err := v.checkStorageResourceQuota(vm, nil); err != nil {
 		return err
 	}
@@ -246,10 +237,6 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 	}
 
 	if err := v.checkVMSpec(newVM); err != nil {
-		return err
-	}
-
-	if err := v.checkDedicatedCPUPlacement(newVM); err != nil {
 		return err
 	}
 
@@ -542,34 +529,4 @@ func (v *vmValidator) checkReservedMemoryAnnotation(vm *kubevirtv1.VirtualMachin
 
 func (v *vmValidator) checkStorageResourceQuota(vm *kubevirtv1.VirtualMachine, oldVM *kubevirtv1.VirtualMachine) error {
 	return v.rqCalculator.CheckStorageResourceQuota(vm, oldVM)
-}
-
-func (v *vmValidator) checkDedicatedCPUPlacement(vm *kubevirtv1.VirtualMachine) error {
-	if !isDedicatedCPU(vm) {
-		return nil
-	}
-
-	// Skip check on VMs that are stopped. This allows the user to create
-	// VMs with CPU pinning enabled in advance even if the CPU Manager is
-	// currently disabled.
-	stopped, err := vmutil.IsVMStopped(vm, v.vmiCache)
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("failed to determine whether the VM is stopped or not: %s", err.Error()))
-	}
-	if stopped {
-		return nil
-	}
-
-	selector := labels.Set{kubevirtv1.CPUManager: "true"}.AsSelector()
-	nodeList, err := v.nodeCache.List(selector)
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("failed to list nodes with labels %s: %s", selector.String(), err.Error()))
-	}
-
-	if len(nodeList) == 0 {
-		return werror.NewInvalidError("VM requests CPU pinning, but no node with activated CPU Manager was found",
-			"spec.template.spec.domain.cpu.dedicatedCpuPlacement")
-	}
-
-	return nil
 }
