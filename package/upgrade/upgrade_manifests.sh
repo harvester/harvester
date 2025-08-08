@@ -573,6 +573,13 @@ upgrade_rancher() {
     exit 1
   fi
 
+  # Clusters with witness node should have rancher's replicas set to -2
+  local witness_node_count=$(kubectl get nodes -l "node-role.harvesterhci.io/witness=true" -o json 2>/dev/null | jq -r '.items | length' || echo 0)
+  if [ "$witness_node_count" -gt 0 ]; then
+      echo "Cluster has witness nodes"
+      RANCHER_REPLICAS=-2 yq e '.replicas = env(RANCHER_REPLICAS)' values.yaml -i
+  fi
+
   # drop the potential manual patch upon shell-image to v0.1.26 on Harvester v1.3.2
   local shellimage=$(kubectl get settings.management.cattle.io shell-image -ojsonpath='{.value}')
   if [[ "$shellimage" = "rancher/shell:v0.1.26" ]]; then
