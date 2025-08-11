@@ -1,8 +1,8 @@
-name: CI request
-description: Create a CI task
-title: "[CI] "
+name: Infra request
+description: Create an Infra task
+title: "[INFRA] "
 type: "Task"
-labels: [ "kind/task", "area/ci" ]
+labels: [ "kind/task", "area/infra" ]
 assignees:
 -
 body:
