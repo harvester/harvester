@@ -2,6 +2,7 @@
 name: Release task
 about: Create a release task
 title: "[RELEASE] Release v"
+type: "Task"
 labels: kind/release
 assignees: ''
 

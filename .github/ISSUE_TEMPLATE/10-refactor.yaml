@@ -1,8 +1,8 @@
-name: CI request
-description: Create a CI task
-title: "[CI] "
+name: Refactor task
+about: Suggest a refactoring request for an existing implementation
+title: "[REFACTOR] "
 type: "Task"
-labels: [ "kind/task", "area/ci" ]
+labels: [ "kind/refactor" ]
 assignees:
 -
 body:
