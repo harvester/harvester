@@ -23,6 +23,7 @@ import (
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
@@ -327,7 +328,7 @@ func (v *restoreValidator) checkBackupTarget(vmBackup *v1beta1.VirtualMachineBac
 		return fmt.Errorf("backup target is not set")
 	}
 
-	if !util.IsBackupTargetSame(vmBackup.Status.BackupTarget, backupTarget) {
+	if !backuputil.IsBackupTargetSame(vmBackup.Status.BackupTarget, backupTarget) {
 		return fmt.Errorf("backup target %+v is not matched in vmBackup %s/%s", backupTarget, vmBackup.Namespace, vmBackup.Name)
 	}
 

@@ -24,6 +24,7 @@ import (
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 )
 
 const (
@@ -106,7 +107,7 @@ func (h *backupBackingImageHandler) OnBackupBackingImageChange(_ string, backupB
 		return nil, nil
 	}
 
-	bsDriver, err := util.GetBackupStoreDriver(h.secretCache, target)
+	bsDriver, err := backuputil.GetBackupStoreDriver(h.secretCache, target)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +131,7 @@ func (h *backupBackingImageHandler) OnBackupBackingImageChange(_ string, backupB
 	}
 
 	shouldUpload := true
-	destPath := util.GetVMImageMetadataFilePath(vmImage.Namespace, vmImage.Name)
+	destPath := backuputil.GetVMImageMetadataFilePath(vmImage.Namespace, vmImage.Name)
 	if bsDriver.FileExists(destPath) {
 		if remoteVMImageMetadata, err := loadVMImageMetadataInBackupTarget(destPath, bsDriver); err != nil {
 			return nil, err

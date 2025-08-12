@@ -26,6 +26,7 @@ import (
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 )
 
 const (
@@ -288,7 +289,7 @@ func (bib *Backend) deleteVMImageMetadata(vmi *harvesterv1.VirtualMachineImage) 
 		return nil
 	}
 
-	if !util.IsBackupTargetSame(vmi.Status.BackupTarget, target) {
+	if !backuputil.IsBackupTargetSame(vmi.Status.BackupTarget, target) {
 		logrus.WithFields(logrus.Fields{
 			"namespace":            vmio.GetNamespace(vmi),
 			"name":                 vmio.GetName(vmi),
@@ -298,12 +299,12 @@ func (bib *Backend) deleteVMImageMetadata(vmi *harvesterv1.VirtualMachineImage) 
 		return nil
 	}
 
-	bsDriver, err := util.GetBackupStoreDriver(bib.secretCache, target)
+	bsDriver, err := backuputil.GetBackupStoreDriver(bib.secretCache, target)
 	if err != nil {
 		return err
 	}
 
-	destURL := util.GetVMImageMetadataFilePath(vmio.GetNamespace(vmi), vmio.GetName(vmi))
+	destURL := backuputil.GetVMImageMetadataFilePath(vmio.GetNamespace(vmi), vmio.GetName(vmi))
 	if exist := bsDriver.FileExists(destURL); exist {
 		logrus.WithFields(logrus.Fields{
 			"namespace":    vmio.GetNamespace(vmi),
