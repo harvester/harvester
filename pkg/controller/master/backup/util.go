@@ -25,6 +25,7 @@ import (
 	ctllonghornv2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 )
 
 const (
@@ -314,7 +315,7 @@ func checkStorageClass(storageClassCache ctlstoragev1.StorageClassCache, name st
 
 func checkVolumeInBackupTarget(vmBackup *harvesterv1.VirtualMachineBackup, volumeBackup *harvesterv1.VolumeBackup, target *settings.BackupTarget) (string, error) {
 	volumeName := volumeBackup.PersistentVolumeClaim.Spec.VolumeName
-	volumes, err := backupstore.List(volumeName, util.ConstructEndpoint(target), false)
+	volumes, err := backupstore.List(volumeName, backuputil.ConstructEndpoint(target), false)
 	if err != nil {
 		// The backup target may be offline. In this case, we don't want to trigger reconciliation.
 		return err.Error(), nil

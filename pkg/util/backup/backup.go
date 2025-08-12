@@ -1,4 +1,4 @@
-package util
+package backup
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -31,14 +32,14 @@ func ConstructEndpoint(target *settings.BackupTarget) string {
 
 func GetBackupStoreDriver(secretCache ctlcorev1.SecretCache, target *settings.BackupTarget) (backupstore.BackupStoreDriver, error) {
 	if target.Type == settings.S3BackupType {
-		secret, err := secretCache.Get(LonghornSystemNamespaceName, BackupTargetSecretName)
+		secret, err := secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
 		if err != nil {
 			return nil, err
 		}
-		os.Setenv(AWSAccessKey, string(secret.Data[AWSAccessKey]))
-		os.Setenv(AWSSecretKey, string(secret.Data[AWSSecretKey]))
-		os.Setenv(AWSEndpoints, string(secret.Data[AWSEndpoints]))
-		os.Setenv(AWSCERT, string(secret.Data[AWSCERT]))
+		os.Setenv(util.AWSAccessKey, string(secret.Data[util.AWSAccessKey]))
+		os.Setenv(util.AWSSecretKey, string(secret.Data[util.AWSSecretKey]))
+		os.Setenv(util.AWSEndpoints, string(secret.Data[util.AWSEndpoints]))
+		os.Setenv(util.AWSCERT, string(secret.Data[util.AWSCERT]))
 	}
 
 	endpoint := ConstructEndpoint(target)

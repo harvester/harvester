@@ -42,6 +42,7 @@ import (
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 )
 
 const (
@@ -208,7 +209,7 @@ func (h *Handler) OnBackupRemove(_ string, vmBackup *harvesterv1.VirtualMachineB
 	// when we delete VM Backup and its backup target is not same as current backup target,
 	// VolumeSnapshot and VolumeSnapshotContent may not be deleted immediately.
 	// We should force delete them to avoid that users re-config backup target back and associated LH Backup may be deleted.
-	if !util.IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
+	if !backuputil.IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
 		if err := h.forceDeleteVolumeSnapshotAndContent(vmBackup.Namespace, vmBackup.Status.VolumeBackups); err != nil {
 			return nil, err
 		}
@@ -819,11 +820,11 @@ func (h *Handler) deleteVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		return nil
 	}
 
-	if !util.IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
+	if !backuputil.IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
 		return nil
 	}
 
-	bsDriver, err := util.GetBackupStoreDriver(h.secretCache, target)
+	bsDriver, err := backuputil.GetBackupStoreDriver(h.secretCache, target)
 	if err != nil {
 		return err
 	}
@@ -854,11 +855,11 @@ func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		return nil
 	}
 
-	if !util.IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
+	if !backuputil.IsBackupTargetSame(vmBackup.Status.BackupTarget, target) {
 		return nil
 	}
 
-	bsDriver, err := util.GetBackupStoreDriver(h.secretCache, target)
+	bsDriver, err := backuputil.GetBackupStoreDriver(h.secretCache, target)
 	if err != nil {
 		return err
 	}
