@@ -33,6 +33,7 @@ import (
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 )
 
 const (
@@ -232,23 +233,23 @@ func (h *MetadataHandler) renewBackupTarget(setting *harvesterv1.Setting) (*harv
 }
 
 func (h *MetadataHandler) syncVMImage(target *settings.BackupTarget) error {
-	bsDriver, err := util.GetBackupStoreDriver(h.secretCache, target)
+	bsDriver, err := backuputil.GetBackupStoreDriver(h.secretCache, target)
 	if err != nil {
 		return err
 	}
 
-	namespaceFolders, err := bsDriver.List(filepath.Join(util.VMImageMetadataFolderPath))
+	namespaceFolders, err := bsDriver.List(filepath.Join(backuputil.VMImageMetadataFolderPath))
 	if err != nil {
 		return err
 	}
 
 	for _, namespaceFolder := range namespaceFolders {
-		fileNames, err := bsDriver.List(filepath.Join(util.VMImageMetadataFolderPath, namespaceFolder))
+		fileNames, err := bsDriver.List(filepath.Join(backuputil.VMImageMetadataFolderPath, namespaceFolder))
 		if err != nil {
 			return err
 		}
 		for _, fileName := range fileNames {
-			imageMetadata, err := loadVMImageMetadataInBackupTarget(filepath.Join(util.VMImageMetadataFolderPath, namespaceFolder, fileName), bsDriver)
+			imageMetadata, err := loadVMImageMetadataInBackupTarget(filepath.Join(backuputil.VMImageMetadataFolderPath, namespaceFolder, fileName), bsDriver)
 			if err != nil {
 				return err
 			}
@@ -364,7 +365,7 @@ func (h *MetadataHandler) createVMImageIfNotExist(imageMetadata VirtualMachineIm
 }
 
 func (h *MetadataHandler) syncVMBackup(target *settings.BackupTarget) error {
-	bsDriver, err := util.GetBackupStoreDriver(h.secretCache, target)
+	bsDriver, err := backuputil.GetBackupStoreDriver(h.secretCache, target)
 	if err != nil {
 		return err
 	}
@@ -532,7 +533,7 @@ func (h *MetadataHandler) checkDependentLonghornBackupExist(target *settings.Bac
 
 		volumeName := vb.PersistentVolumeClaim.Spec.VolumeName
 		// check whether data is in the backup target
-		volumes, err := backupstore.List(volumeName, util.ConstructEndpoint(target), false)
+		volumes, err := backupstore.List(volumeName, backuputil.ConstructEndpoint(target), false)
 		if err != nil || volumes[volumeName] == nil {
 			logrus.WithError(err).WithFields(logrus.Fields{
 				"namespace": backupMetadata.Namespace,
