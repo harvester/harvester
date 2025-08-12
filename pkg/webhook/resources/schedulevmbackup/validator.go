@@ -14,6 +14,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -82,7 +83,7 @@ func (v *scheuldeVMBackupValidator) checkTargetHealth() error {
 		return fmt.Errorf("setting %s is not set", settings.BackupTargetSettingName)
 	}
 
-	if _, err := util.GetBackupStoreDriver(v.secretCache, target); err != nil {
+	if _, err := backuputil.GetBackupStoreDriver(v.secretCache, target); err != nil {
 		return err
 	}
 

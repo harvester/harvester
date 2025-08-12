@@ -52,6 +52,7 @@ import (
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	networkutil "github.com/harvester/harvester/pkg/util/network"
 	tlsutil "github.com/harvester/harvester/pkg/util/tls"
 	vmUtil "github.com/harvester/harvester/pkg/util/virtualmachine"
@@ -569,7 +570,7 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	// GetBackupStoreDriver tests whether the driver can List objects, so we don't need to do it again here.
 	// S3: https://github.com/longhorn/backupstore/blob/56ddc538b85950b02c37432e4854e74f2647ca61/s3/s3.go#L38-L87
 	// NFS: https://github.com/longhorn/backupstore/blob/56ddc538b85950b02c37432e4854e74f2647ca61/nfs/nfs.go#L46-L81
-	endpoint := util.ConstructEndpoint(target)
+	endpoint := backuputil.ConstructEndpoint(target)
 	if _, err := backupstore.GetBackupStoreDriver(endpoint); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}

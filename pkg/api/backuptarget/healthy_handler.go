@@ -16,6 +16,7 @@ import (
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 )
 
 type HealthyHandler struct {
@@ -53,7 +54,7 @@ func (h *HealthyHandler) ServeHTTP(rw http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	_, err = util.GetBackupStoreDriver(h.secretCache, target)
+	_, err = backuputil.GetBackupStoreDriver(h.secretCache, target)
 	if err != nil {
 		util.ResponseError(rw, http.StatusServiceUnavailable, fmt.Errorf("can't connect to backup target %+v, error: %w", target, err))
 		return

@@ -23,6 +23,7 @@ import (
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 )
 
 const (
@@ -171,7 +172,7 @@ func (h *TargetHandler) updateLonghornTarget(backupTarget *settings.BackupTarget
 	}
 
 	lhBackupTargetCpy := lhBackupTarget.DeepCopy()
-	lhBackupTargetCpy.Spec.BackupTargetURL = util.ConstructEndpoint(backupTarget)
+	lhBackupTargetCpy.Spec.BackupTargetURL = backuputil.ConstructEndpoint(backupTarget)
 
 	if reflect.DeepEqual(lhBackupTarget, lhBackupTargetCpy) {
 		return nil
