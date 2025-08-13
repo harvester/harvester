@@ -49,7 +49,7 @@ sparsify_passive_img()
 # if the disk is already mounted then the current logic remounts them as read/write partition
 # and if a partition is not mounted elemental tries to just mount it as a read/write partition
 # in case of multipath devices, the /dev/mapper device is not detected, and elemental
-# finds the path making the disk as not mounted. 
+# finds the path making the disk as not mounted.
 # due to change introduced by https://github.com/rancher/elemental-toolkit/pull/2302 elemental reconciles
 # the actual disk partition in use and finds the correct mapper device related to the cos partition
 # however the logic still scans the underlying disk for mount path
@@ -61,7 +61,7 @@ sparsify_passive_img()
 # remount option is select. Mounting the partition under /run/cos/state works around this,
 # as elemental now finds a disk mounted under /run/cos/state and uses the `remount` option to mount the partition
 check_and_mount_state(){
-  MAPPER_IN_USE=$(chroot ${HOST_DIR} blkid -L COS_STATE |grep mapper)
+  local MAPPER_IN_USE=$(chroot ${HOST_DIR} blkid -L COS_STATE | grep mapper)
   if [ -n "$MAPPER_IN_USE" ]; then
     echo "mapper devices in use, performing mount of COS_STATE partition"
     mkdir -p ${HOST_DIR}/run/cos/state
@@ -352,7 +352,7 @@ EOF
 wait_rke2_upgrade() {
   # RKE2 doesn't show '-rcX' in nodeInfo, so we remove '-rcX' in $REPO_RKE2_VERSION.
   # Warning: we can't upgrade from a '-rcX' to another in the same minor version like v1.22.12-rc1+rke2r1 to v1.22.12-rc2+rke2r1.
-  REPO_RKE2_VERSION_WITHOUT_RC=$(echo -n $REPO_RKE2_VERSION | sed 's/-rc[[:digit:]]*//g') 
+  REPO_RKE2_VERSION_WITHOUT_RC=$(echo -n $REPO_RKE2_VERSION | sed 's/-rc[[:digit:]]*//g')
   until [ "$(get_node_rke2_version)" = "$REPO_RKE2_VERSION_WITHOUT_RC" ]
   do
     echo "Waiting for RKE2 to be upgraded..."
@@ -482,7 +482,7 @@ set_rke2_device_permissions() {
 "nonroot-devices": true
 EOF
   fi
-} 
+}
 
 # Delete the cpu_manager_state file during the initramfs stage. During a reboot, this state file is always reverted
 # because it was originally created during the system installation, becoming part of the root filesystem. As a result,
@@ -589,7 +589,7 @@ upgrade_os() {
     echo "Skip upgrading OS. The OS version is already \"$CURRENT_OS_VERSION\"."
     return
   fi
-  
+
   # upgrade OS image and reboot
   if [ -n "$NEW_OS_SQUASHFS_IMAGE_FILE" ]; then
     tmp_rootfs_squashfs="$NEW_OS_SQUASHFS_IMAGE_FILE"
@@ -648,7 +648,7 @@ EOF
   # PATCH2: add /oem/grubcustom if it does not exist
   # grubcustom use source to load, so we can use touch directly
   GRUBENV_FILE="/oem/grubcustom"
-  chroot $HOST_DIR /bin/bash -c "if ! [ -f ${GRUBENV_FILE} ]; then touch ${GRUBENV_FILE}; fi" 
+  chroot $HOST_DIR /bin/bash -c "if ! [ -f ${GRUBENV_FILE} ]; then touch ${GRUBENV_FILE}; fi"
 
   multiPathEnabled=$(yq '.os.externalStorageConfig.enabled // false' ${HOST_DIR}/oem/harvester.config)
   if [ ${multiPathEnabled} == false ]
@@ -685,7 +685,7 @@ stages:
          group: 0
          content: W1VuaXRdCkRlc2NyaXB0aW9uPURldmljZS1NYXBwZXIgTXVsdGlwYXRoIERldmljZSBDb250cm9sbGVyCkJlZm9yZT1sdm0yLWFjdGl2YXRpb24tZWFybHkuc2VydmljZQpCZWZvcmU9bG9jYWwtZnMtcHJlLnRhcmdldCBibGstYXZhaWxhYmlsaXR5LnNlcnZpY2Ugc2h1dGRvd24udGFyZ2V0CldhbnRzPXN5c3RlbWQtdWRldmQta2VybmVsLnNvY2tldApBZnRlcj1zeXN0ZW1kLXVkZXZkLWtlcm5lbC5zb2NrZXQKQWZ0ZXI9bXVsdGlwYXRoZC5zb2NrZXQgc3lzdGVtZC1yZW1vdW50LWZzLnNlcnZpY2UKQmVmb3JlPWluaXRyZC1jbGVhbnVwLnNlcnZpY2UKRGVmYXVsdERlcGVuZGVuY2llcz1ubwpDb25mbGljdHM9c2h1dGRvd24udGFyZ2V0CkNvbmZsaWN0cz1pbml0cmQtY2xlYW51cC5zZXJ2aWNlCkNvbmRpdGlvbktlcm5lbENvbW1hbmRMaW5lPSFub21wYXRoCkNvbmRpdGlvblZpcnR1YWxpemF0aW9uPSFjb250YWluZXIKCltTZXJ2aWNlXQpUeXBlPW5vdGlmeQpOb3RpZnlBY2Nlc3M9bWFpbgpFeGVjU3RhcnQ9L3NiaW4vbXVsdGlwYXRoZCAtZCAtcwpFeGVjUmVsb2FkPS9zYmluL211bHRpcGF0aGQgcmVjb25maWd1cmUKVGFza3NNYXg9aW5maW5pdHkKCltJbnN0YWxsXQpXYW50ZWRCeT1zeXNpbml0LnRhcmdldA==
          encoding: base64
-         ownerstring: ""         
+         ownerstring: ""
 EOF
   fi
 
