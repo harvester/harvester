@@ -61,6 +61,7 @@ const (
 var (
 	cloneVMAnnotationKeys = []string{
 		util.AnnotationReservedMemory,
+		util.AnnotationEnableCPUAndMemoryHotplug,
 	}
 )
 
