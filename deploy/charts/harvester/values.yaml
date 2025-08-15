@@ -91,6 +91,10 @@ kubevirt:
         ## and then the user can focus on the above "defaultNetworkInterface".
         ##
         permitBridgeInterfaceOnPodNetwork: true
+        ## enable managedTap binding so allow vxlan based VM's to get DHCP correctly
+        binding:
+          managedtap:
+            domainAttachmentType: managedTap
 
     customizeComponents:
       patches:
