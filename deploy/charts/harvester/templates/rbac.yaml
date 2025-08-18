@@ -202,3 +202,13 @@ rules:
   verbs:
   - get
   - list
+- apiGroups:
+  - snapshot.storage.k8s.io
+  resources:
+  - volumesnapshots
+  - volumesnapshotcontents
+  - volumesnapshotclasses
+  - volumesnapshots/status
+  - volumesnapshotcontents/status
+  verbs:
+  - '*'
