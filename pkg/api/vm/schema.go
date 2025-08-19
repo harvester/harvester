@@ -106,6 +106,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		nodeCache:     nodes.Cache(),
 		scCache:       storageClasses.Cache(),
 		vmBackupCache: backups.Cache(),
+		settingCache:  settings.Cache(),
 		clientSet:     *scaled.Management.ClientSet,
 	}
 
