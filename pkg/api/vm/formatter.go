@@ -18,6 +18,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/indexeres"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/virtualmachine"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
@@ -54,6 +55,7 @@ type vmformatter struct {
 	nodeCache     ctlcorev1.NodeCache
 	scCache       ctlstoragev1.StorageClassCache
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
+	settingCache  ctlharvesterv1.SettingCache
 	clientSet     kubernetes.Clientset
 }
 
@@ -315,6 +317,20 @@ func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv
 		if _, find := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; find {
 			return false
 		}
+	}
+
+	backupTargetSetting, err := vf.settingCache.Get(settings.BackupTargetSettingName)
+	if err != nil {
+		logrus.WithError(err).Errorf("Can't get setting %s", settings.BackupTargetSettingName)
+		return false
+	}
+	target, err := settings.DecodeBackupTarget(backupTargetSetting.Value)
+	if err != nil {
+		logrus.WithError(err).Errorf("Can't decode %s setting %s", settings.BackupTargetSettingName, backupTargetSetting.Value)
+		return false
+	}
+	if target.IsDefaultBackupTarget() {
+		return false
 	}
 	return true
 }
