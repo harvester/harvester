@@ -76,7 +76,7 @@ During the installation, you can either choose to **create a new Harvester clust
 1. Configure `NTP servers` to make sure all nodes' times are synchronized. This defaults to `0.suse.pool.ntp.org`. Use commas as a delimiter to add more NTP servers.
 1. (Optional) If you need to use an HTTP proxy to access the outside world, enter the proxy URL address here. Otherwise, leave this blank.
 1. (Optional) You can choose to import SSH keys by providing `HTTP URL`. For example, your GitHub public keys `https://github.com/<username>.keys` can be used.
-1. (Optional) If you need to customize the host with a [Harvester configuration](./harvester-configuration.md) file, enter the `HTTP URL` here.
+1. (Optional) If you need to customize the host with a [Harvester configuration](https://docs.harvesterhci.io/latest/install/harvester-configuration). file, enter the `HTTP URL` here.
 1. Review and confirm your installation options. After confirming the installation options, Harvester will be installed on your host. The installation may take a few minutes to complete.
 1. Once the installation is complete, your node restarts. After the restart, the Harvester console displays the management URL and status. The default URL of the web interface is `https://your-virtual-ip`. You can use `F12` to switch from the Harvester console to the Shell and type `exit` to go back to the Harvester console.
 ![iso-installed.png](./docs/assets/iso-installed.png)
