@@ -383,72 +383,6 @@ disable:
 EOF
 }
 
-convert_nodenetwork_to_vlanconfig() {
-  # sometimes (e.g. apiserver is busy/not ready), the kubectl may fail, use the saved value
-  if [ -z "$UPGRADE_PREVIOUS_VERSION" ]; then
-    detect_upgrade
-  fi
-  detect_node_current_harvester_version
-  echo "The UPGRADE_PREVIOUS_VERSION is $UPGRADE_PREVIOUS_VERSION, NODE_CURRENT_HARVESTER_VERSION is $NODE_CURRENT_HARVESTER_VERSION, will check nodenetwork upgrade node option"
-
-  if test "$UPGRADE_PREVIOUS_VERSION" != "v1.0.3" && test "$NODE_CURRENT_HARVESTER_VERSION" != "v1.0.3"; then
-    echo "There is nothing to do in nodenetwork"
-    return
-  fi
-
-  # Don't need to convert nodenetwork if harvester-mgmt is used as vlan interface in any nodenetwork
-  [[ $(kubectl get nodenetwork -o yaml | yq '.items[].spec.nic | select(. == "harvester-mgmt")') ]] &&
-  echo "Don't need to convert nodenetwork because harvester-mgmt is used as VLAN interface in not less than one nodenetwork" && return
-
-  local name=${HARVESTER_UPGRADE_NODE_NAME}-vlan
-  local EXIT_CODE=$?
-  # when object is not existing, kubectl will return 1
-  nn=$(kubectl get nodenetwork "$name" -o yaml) || EXIT_CODE=$?
-  if [ $EXIT_CODE != 0 ]; then
-    echo "Cannot find nodenetwork $name, skip patch"
-    return
-  fi
-
-  vlan_interface=$(echo "$nn" | yq '.spec.nic')
-
-  # the default ${HARVESTER_UPGRADE_NODE_NAME}-vlan has no nics
-  [[ "$vlan_interface" == "null" ]] && echo "Default/invalid nodenetwork $name without any nics, skip patch" && return
-
-  type=$(echo "$nn" | yq e '.spec.nic as $nic | .status.networkLinkStatus.[$nic].type')
-  if [ "$type" == "bond" ]; then
-    vlan_interface_details=$(v="$vlan_interface" yq '.install.networks.[env(v)]' $HOST_DIR/oem/harvester.config)
-    nics=($(echo "$vlan_interface_details" | yq '.interfaces[].name'))
-    mtu=$(echo "$vlan_interface_details" | yq '.mtu')
-    mode=$(echo "$vlan_interface_details" | yq '.bondoptions.mode')
-    miimon=$(echo "$vlan_interface_details" | yq '.bondoptions.miimon')
-  else
-    nics=("$vlan_interface")
-    mtu=0
-    mode="active-backup"
-    miimon=0
-  fi
-
-  # below code is idempotent
-
-  kubectl apply -f - <<EOF
-apiVersion: network.harvesterhci.io/v1beta1
-kind: VlanConfig
-metadata:
-  name: $name
-spec:
-  clusterNetwork: vlan
-  nodeSelector:
-    kubernetes.io/hostname: "$HARVESTER_UPGRADE_NODE_NAME"
-  uplink:
-    bondOptions:
-      mode: $mode
-      miimon: $miimon
-    linkAttributes:
-      mtu: $mtu
-    nics: [$(IFS=,; echo "${nics[*]}")]
-EOF
-}
-
 # host / is mounted under /host in the upgrade pod
 set_max_pods() {
 cat > /host/etc/rancher/rke2/config.yaml.d/99-max-pods.yaml <<EOF
@@ -535,51 +469,6 @@ calculateCPUReservedInMilliCPU() {
   fi
 
   echo $reserved
-}
-
-replace_with_mgmtvlan() {
-  if [ -z "$UPGRADE_PREVIOUS_VERSION" ]; then
-    detect_upgrade
-  fi
-
-  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.5\.[0-9]$ ]]; then
-    echo "version: $UPGRADE_PREVIOUS_VERSION does not require patching mgmt vlan"
-    return
-  fi
-
-  #files to update with mgmt vlan
-  #updating 90_custom.yaml will update setup_bond.sh,setup_bridge.sh after reboot
-  local CUSTOM90_FILE="${HOST_DIR}/oem/90_custom.yaml"
-  local CONFIG_FILE="${HOST_DIR}/oem/harvester.config"
-
-  # Check if the harvester config file exists
-  if [[ ! -f "$CONFIG_FILE" ]]; then
-    echo "Error: Config file '$CONFIG_FILE' not found."
-    return
-  fi
-
-  # Check if 90_custom.yaml file exists
-  if [[ ! -f "$CUSTOM90_FILE" ]]; then
-    echo "File not found: $CUSTOM90_FILE"
-    return
-  fi
-
-  # Search for the mgmt vlanid installed in the config file
-  vlan_id=$(yq '.install.managementinterface.vlanid' $CONFIG_FILE)
-
-  if [[ "$vlan_id" -ge 2 && "$vlan_id" -le 4094 ]]; then
-    # Replace the range with the VLAN ID
-    sed -i "s/accept all vlan, PVID=1 by default/accept $vlan_id,PVID=1 by default/" $CUSTOM90_FILE
-    sed -i "s/bridge vlan add vid 2-4094/bridge vlan add vid $vlan_id/" "$CUSTOM90_FILE"
-    echo "Updated $CUSTOM90_FILE with VLAN ID $vlan_id"
-  else
-    echo "VLAN ID: $vlan_id remove bridge vlan"
-    sed -i "s/accept all vlan, PVID=1 by default/PVID=1 by default/" $CUSTOM90_FILE
-    # match contents of bridge vlan add vid 2-4094 using yaml/v3 format
-    sed -i '/^[[:space:]]*bridge vlan add vid 2-4094 dev \(\$INTERFACE\|mgmt-bo\)\( self\)\?[[:space:]]*$/d' $CUSTOM90_FILE
-    # match contents of bridge vlan add vid 2-4094 using yaml/v2 format (escape characters and command spanning multiple lines)
-    perl -0777 -i -pe 's/bridge vlan add vid 2-4094.*?(?:\\n|\\t)+//gs' $CUSTOM90_FILE
-  fi
 }
 
 upgrade_os() {
@@ -724,11 +613,6 @@ command_post_drain() {
 
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME kubevirt.io/drain- || true
 
-  convert_nodenetwork_to_vlanconfig
-
-  #replace the range vlans with mgmt vlan in wicked scripts and 90_custom.yaml file before node reboot
-  replace_with_mgmtvlan
-
   upgrade_os
 }
 
@@ -765,11 +649,6 @@ command_single_node_upgrade() {
 
   wait_rke2_upgrade
   clean_rke2_archives
-
-  convert_nodenetwork_to_vlanconfig
-
-  #replace the range vlans with mgmt vlan in wicked scripts and 90_custom.yaml file before node reboot
-  replace_with_mgmtvlan
 
   # Upgrade OS
   upgrade_os

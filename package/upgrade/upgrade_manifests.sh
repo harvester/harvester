@@ -562,8 +562,6 @@ upgrade_rancher() {
   cd $UPGRADE_TMP_DIR/rancher
 
   ./helm get values rancher -n cattle-system -o yaml >values.yaml
-  # Remove extraEnv fields from values.yaml. We don't want config like CATTLE_SHELL_IMAGE to overwrite shell-image setting.
-  yq -i 'del(.extraEnv)' values.yaml
   echo "Rancher values:"
   cat values.yaml
 
@@ -580,16 +578,6 @@ upgrade_rancher() {
   if [[ "$witness_nodes_count" -gt 0 && "$total_nodes_count" -eq 3 ]]; then
       echo "3-node cluster with witness node detected, setting Rancher replicas to -2"
       RANCHER_REPLICAS=-2 yq e '.replicas = env(RANCHER_REPLICAS)' values.yaml -i
-  fi
-
-  # drop the potential manual patch upon shell-image to v0.1.26 on Harvester v1.3.2
-  local shellimage=$(kubectl get settings.management.cattle.io shell-image -ojsonpath='{.value}')
-  if [[ "$shellimage" = "rancher/shell:v0.1.26" ]]; then
-    echo "rancher shell-image is $shellimage, will be reverted to empty"
-    kubectl patch settings.management.cattle.io shell-image --type merge -p '{"value":""}'
-    kubectl get settings.management.cattle.io shell-image
-  else
-    echo "rancher shell-image is $shellimage, patch is not needed"
   fi
 
   if [ "$RANCHER_CURRENT_VERSION" = "$REPO_RANCHER_VERSION" ]; then
@@ -738,57 +726,6 @@ EOF
     echo "Waiting for cluster repo catalog index update..."
     sleep 5
   done
-}
-
-upgrade_network(){
-  [[ $UPGRADE_PREVIOUS_VERSION != "v1.0.3" ]] && return
-
-  shutdown_all_vms
-  wait_all_vms_shutdown
-  modify_nad_bridge
-  delete_canal_flannel_iface
-}
-
-wait_all_vms_shutdown() {
-    local vm_count="$(get_all_running_vm_count)"
-
-    until [ "$vm_count" = "0" ]
-    do
-      echo "Waiting for VM shutdown...($vm_count left)"
-      sleep 5
-      vm_count="$(get_all_running_vm_count)"
-    done
-}
-
-get_all_running_vm_count() {
-  local count
-
-  count=$(kubectl get vmi -A -ojson | jq '.items | length' || true)
-  echo $count
-}
-
-delete_canal_flannel_iface() {
-  kubectl delete helmchartconfig rke2-canal -n kube-system || true
-  kubectl patch configmap rke2-canal-config -n kube-system -p '{"data":{"canal_iface": ""}}' --type merge
-}
-
-modify_nad_bridge() {
-  [[ $(kubectl get clusternetwork vlan -o yaml | yq '.enable') == "false" ]] && echo "VLAN is disabled" && return
-
-  local bridge="vlan-br"
-  [[ $(kubectl get nodenetwork -o yaml | yq '.items[].spec.nic | select(. == "harvester-mgmt")') ]] && bridge="mgmt-br"
-
-  kubectl get net-attach-def -A -o json |
-  jq -r '.items[] | [.metadata.name, .metadata.namespace] | @tsv' |
-      while IFS=$'\t' read -r name namespace; do
-        if [ -z "$name" ]; then
-          break
-        fi
-        local nad=$(kubectl get net-attach-def -n "$namespace" "$name" -o yaml)
-        local config=$(echo "$nad" | yq '.spec.config')
-        export new_config=$(echo "$config" | jq -c --arg v "$bridge" '.bridge = $v')
-        echo "$nad" | yq '.spec.config = strenv(new_config)' | kubectl apply -f -
-      done
 }
 
 ensure_ingress_class_name() {
@@ -1309,7 +1246,6 @@ upgrade_rancher
 patch_local_cluster_details
 update_local_rke_state_secret
 upgrade_harvester_cluster_repo
-upgrade_network
 ensure_ingress_class_name
 apply_extra_nonversion_manifests
 upgrade_harvester
