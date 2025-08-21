@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	// Although we don't use following drivers directly, we need to import them to register drivers.
 	// NFS Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/nfs/nfs.go#L47-L51
@@ -1833,6 +1834,22 @@ func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 	concurrency := upgradeConfig.PreloadOption.Strategy.Concurrency
 	if concurrency < 0 {
 		return fmt.Errorf("invalid image preload concurrency: %d", concurrency)
+	}
+
+	// If LogReadyTimeout is not set by the user, JSON unmarshalling will set it to 0 by default.
+	// We return nil in that case from the perspective of unit tests
+	timeoutStr := upgradeConfig.LogReadyTimeout
+	if timeoutStr == "" {
+		return nil
+	}
+	timeout, err := strconv.Atoi(timeoutStr)
+	if err != nil {
+		return fmt.Errorf("invalid value for image preload timeout: %s", timeoutStr)
+	}
+	timeoutDuration := time.Duration(timeout) * time.Minute
+	// If the user set LogReadyTimeout to a value not in the permissible range, we return an error
+	if timeoutDuration < util.MinUpgradeLogReadyTimeout || timeoutDuration > util.MaxUpgradeLogReadyTimeout {
+		return fmt.Errorf("invalid logReadyTimeout must be between %s to %s minutes, given: %d", util.MinUpgradeLogReadyTimeout, util.MaxUpgradeLogReadyTimeout, timeoutDuration)
 	}
 
 	return nil
