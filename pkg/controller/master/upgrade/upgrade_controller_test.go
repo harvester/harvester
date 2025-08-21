@@ -2,6 +2,7 @@ package upgrade
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -171,6 +172,31 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					ImageIDStatus(fmt.Sprintf("%s/%s", upgradeNamespace, testUpgradeImage)).
 					ImageReadyCondition(v1.ConditionUnknown, "", "").Build(),
 			},
+		},
+		{
+			name: "cleanup plan completed upgrade should be skipped",
+			given: input{
+				key: testUpgradeName,
+				upgrade: newTestUpgradeBuilder().
+					InitStatus().
+					LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").
+					ImageReadyCondition(v1.ConditionTrue, "", "").
+					RepoProvisionedCondition(v1.ConditionTrue, "", "").
+					NodesPreparedCondition(v1.ConditionTrue, "", "").
+					ChartUpgradeStatus(v1.ConditionTrue, "", "").
+					NodesUpgradedCondition(v1.ConditionTrue, "", "").
+					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(cleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					Build(),
+				version: newVersionBuilder(testVersion).Build(),
+				vmi:     newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
+				nodes: []*v1.Node{
+					newNodeBuilder("node-1").Managed().ControlPlane().Build(),
+					newNodeBuilder("node-2").Managed().ControlPlane().Build(),
+					newNodeBuilder("node-3").Managed().ControlPlane().Build(),
+				},
+			},
+			expected: output{},
 		},
 	}
 	for _, tc := range testCases {
