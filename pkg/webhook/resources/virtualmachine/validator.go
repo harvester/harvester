@@ -265,6 +265,12 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 		return err
 	}
 
+	if err := v.storageClassOfVolumeChanged(oldVM, newVM); err != nil {
+		return err
+	}
+
+	// This logic will return in case interfaces are existing and not changed
+	// make sure new validation logic is added above this comment
 	if oldVM.Spec.Template != nil && newVM.Spec.Template != nil && reflect.DeepEqual(oldVM.Spec.Template.Spec.Domain.Devices.Interfaces, newVM.Spec.Template.Spec.Domain.Devices.Interfaces) {
 		return nil
 	}
@@ -529,4 +535,41 @@ func (v *vmValidator) checkReservedMemoryAnnotation(vm *kubevirtv1.VirtualMachin
 
 func (v *vmValidator) checkStorageResourceQuota(vm *kubevirtv1.VirtualMachine, oldVM *kubevirtv1.VirtualMachine) error {
 	return v.rqCalculator.CheckStorageResourceQuota(vm, oldVM)
+}
+
+func (v *vmValidator) storageClassOfVolumeChanged(oldVM, newVM *kubevirtv1.VirtualMachine) error {
+	oldVMvolumeClaimTemplates := oldVM.Annotations[util.AnnotationVolumeClaimTemplates]
+	newVMvolumeClaimTemplates := newVM.Annotations[util.AnnotationVolumeClaimTemplates]
+
+	if oldVMvolumeClaimTemplates == "" ||
+		newVMvolumeClaimTemplates == "" ||
+		oldVMvolumeClaimTemplates == newVMvolumeClaimTemplates {
+		return nil
+	}
+
+	var oldVMpvcs []*corev1.PersistentVolumeClaim
+	if err := json.Unmarshal([]byte(oldVMvolumeClaimTemplates), &oldVMpvcs); err != nil {
+		return fmt.Errorf("invalid %v annotation, error: %w", util.AnnotationVolumeClaimTemplates, err)
+	}
+	var newVMpvcs []*corev1.PersistentVolumeClaim
+	if err := json.Unmarshal([]byte(newVMvolumeClaimTemplates), &newVMpvcs); err != nil {
+		return fmt.Errorf("invalid %v annotation, error: %w", util.AnnotationVolumeClaimTemplates, err)
+	}
+
+	for _, oldVMpvc := range oldVMpvcs {
+		for _, newVMpvc := range newVMpvcs {
+			if oldVMpvc.Name == newVMpvc.Name {
+				if *newVMpvc.Spec.StorageClassName != *oldVMpvc.Spec.StorageClassName {
+					return fmt.Errorf("storage class %v of volume %v in annotation %v cannot be changed to %v",
+						*oldVMpvc.Spec.StorageClassName,
+						oldVMpvc.Name,
+						util.AnnotationVolumeClaimTemplates,
+						*newVMpvc.Spec.StorageClassName)
+				}
+				continue
+			}
+		}
+	}
+
+	return nil
 }
