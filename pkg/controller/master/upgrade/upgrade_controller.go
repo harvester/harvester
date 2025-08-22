@@ -211,7 +211,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		// try to clean up images before purging the repo VM
 		_, exists := upgrade.Annotations[imageCleanupPlanCompletedAnnotation]
 		if exists {
-			return nil, h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
+			return h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
 		}
 
 		// repo VM is required for the image cleaning procedure, bring it up if it's down
@@ -247,7 +247,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 	// upgrade failed
 	if harvesterv1.UpgradeCompleted.IsFalse(upgrade) {
 		// clean upgrade repo VMs.
-		return nil, h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
+		return h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
 	}
 
 	if harvesterv1.ImageReady.IsTrue(upgrade) && harvesterv1.RepoProvisioned.GetStatus(upgrade) == "" {
@@ -393,7 +393,7 @@ func (h *upgradeHandler) OnRemove(_ string, upgrade *harvesterv1.Upgrade) (*harv
 	}
 
 	logrus.Debugf("Deleting upgrade %s", upgrade.Name)
-	return upgrade, h.cleanup(upgrade, true)
+	return h.cleanup(upgrade, true)
 }
 
 func (h *upgradeHandler) cleanupImages(upgrade *harvesterv1.Upgrade, repo *Repo) error {
@@ -416,17 +416,17 @@ func (h *upgradeHandler) cleanupImages(upgrade *harvesterv1.Upgrade, repo *Repo)
 	return nil
 }
 
-func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) error {
+func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (*harvesterv1.Upgrade, error) {
 	// delete repo related resources like vm, image and service
 	repo := NewUpgradeRepo(h.ctx, upgrade, h)
 	if err := repo.Cleanup(); err != nil {
-		return err
+		return nil, err
 	}
 
 	// remove rkeConfig in fleet-local/local cluster
-	cluster, err := h.clusterCache.Get("fleet-local", "local")
+	cluster, err := h.clusterCache.Get(util.FleetLocalNamespaceName, util.LocalClusterName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	clusterToUpdate := cluster.DeepCopy()
 	provisionGeneration := clusterToUpdate.Spec.RKEConfig.ProvisionGeneration
@@ -440,7 +440,7 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 	if !reflect.DeepEqual(clusterToUpdate, cluster) {
 		logrus.Info("Update cluster fleet-local/local")
 		if _, err := h.clusterClient.Update(clusterToUpdate); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -450,7 +450,7 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 	}
 	plans, err := h.planCache.List(sucNamespace, sets.AsSelector())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// clean jobs and plans
@@ -461,30 +461,31 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 			}
 			jobs, err := h.jobCache.List(plan.Namespace, set.AsSelector())
 			if err != nil {
-				return err
+				return nil, err
 			}
 			for _, job := range jobs {
 				logrus.Debugf("Deleting job %s/%s", job.Namespace, job.Name)
 				if err := h.jobClient.Delete(job.Namespace, job.Name, &metav1.DeleteOptions{}); err != nil {
-					return err
+					return nil, err
 				}
 			}
 		}
 
 		logrus.Debugf("Deleting plan %s/%s", plan.Namespace, plan.Name)
 		if err := h.planClient.Delete(plan.Namespace, plan.Name, &metav1.DeleteOptions{}); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	// restore Longhorn replica-replenishment-wait-interval and
 	// auto-cleanup-system-generated-snapshot settings (multi-node cluster only)
+	toUpdate := upgrade.DeepCopy()
 	if upgrade.Status.SingleNode == "" {
-		if err := h.loadReplicaReplenishmentFromUpgradeAnnotation(upgrade); err != nil {
-			return err
+		if err := h.loadReplicaReplenishmentFromUpgradeAnnotation(upgrade, toUpdate); err != nil {
+			return nil, err
 		}
-		if err := h.loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade); err != nil {
-			return err
+		if err := h.loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade, toUpdate); err != nil {
+			return nil, err
 		}
 	}
 
@@ -492,24 +493,28 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 	if harvesterv1.LogReady.IsTrue(upgrade) && upgrade.Status.UpgradeLog != "" {
 		upgradeLog, err := h.upgradeLogCache.Get(upgradeNamespace, upgrade.Status.UpgradeLog)
 		if err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil
+			if !apierrors.IsNotFound(err) {
+				return nil, err
 			}
-			return err
-		}
-		upgradeLogToUpdate := upgradeLog.DeepCopy()
-		harvesterv1.UpgradeEnded.SetStatus(upgradeLogToUpdate, string(corev1.ConditionTrue))
-		harvesterv1.UpgradeEnded.Reason(upgradeLogToUpdate, "")
-		harvesterv1.UpgradeEnded.Message(upgradeLogToUpdate, "")
-		if !reflect.DeepEqual(upgradeLogToUpdate, upgradeLog) {
-			logrus.Infof("Update upgradeLog %s/%s", upgradeLog.Namespace, upgradeLog.Name)
-			if _, err := h.upgradeLogClient.Update(upgradeLogToUpdate); err != nil {
-				return err
+		} else {
+			upgradeLogToUpdate := upgradeLog.DeepCopy()
+			harvesterv1.UpgradeEnded.SetStatus(upgradeLogToUpdate, string(corev1.ConditionTrue))
+			harvesterv1.UpgradeEnded.Reason(upgradeLogToUpdate, "")
+			harvesterv1.UpgradeEnded.Message(upgradeLogToUpdate, "")
+			if !reflect.DeepEqual(upgradeLogToUpdate, upgradeLog) {
+				logrus.Infof("Update upgradeLog %s/%s", upgradeLog.Namespace, upgradeLog.Name)
+				if _, err := h.upgradeLogClient.Update(upgradeLogToUpdate); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
 
-	return h.resumeManagedCharts()
+	if err := h.resumeManagedCharts(); err != nil {
+		return nil, err
+	}
+
+	return h.upgradeClient.Update(toUpdate)
 }
 
 func (h *upgradeHandler) resumeManagedCharts() error {
@@ -744,17 +749,21 @@ func (h *upgradeHandler) saveReplicaReplenishmentToUpgradeAnnotation(upgrade *ha
 	return nil
 }
 
-func (h *upgradeHandler) loadReplicaReplenishmentFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade) error {
+func (h *upgradeHandler) loadReplicaReplenishmentFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade, toUpdate *harvesterv1.Upgrade) error {
 	str, ok := upgrade.Annotations[replicaReplenishmentAnnotation]
 	if !ok {
-		logrus.Warn("no original replica-replenishment-wait-interval value set")
+		logrus.Info("no original replica-replenishment-wait-interval value set")
 		return nil
 	}
 	value, err := strconv.Atoi(str)
 	if err != nil {
 		return err
 	}
-	return h.setReplicaReplenishmentValue(value)
+	if err := h.setReplicaReplenishmentValue(value); err != nil {
+		return err
+	}
+	delete(toUpdate.Annotations, replicaReplenishmentAnnotation)
+	return nil
 }
 
 func (h *upgradeHandler) setReplicaReplenishmentValue(value int) error {
@@ -792,13 +801,17 @@ func (h *upgradeHandler) saveAutoCleanupSystemGeneratedSnapshotToUpgradeAnnotati
 	return nil
 }
 
-func (h *upgradeHandler) loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade) error {
+func (h *upgradeHandler) loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade, toUpdate *harvesterv1.Upgrade) error {
 	value, ok := upgrade.Annotations[autoCleanupSystemGeneratedSnapshotAnnotation]
 	if !ok {
 		logrus.Warnf("no original %s value set", autoCleanupSystemGeneratedSnapshotSetting)
 		return nil
 	}
-	return h.setAutoCleanupSystemGeneratedSnapshotValue(value)
+	if err := h.setAutoCleanupSystemGeneratedSnapshotValue(value); err != nil {
+		return err
+	}
+	delete(toUpdate.Annotations, autoCleanupSystemGeneratedSnapshotAnnotation)
+	return nil
 }
 
 func (h *upgradeHandler) setAutoCleanupSystemGeneratedSnapshotValue(value string) error {
