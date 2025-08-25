@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type ClusterLoggingsGetter interface {
 
 // ClusterLoggingInterface has methods to work with ClusterLogging resources.
 type ClusterLoggingInterface interface {
-	Create(ctx context.Context, clusterLogging *v3.ClusterLogging, opts v1.CreateOptions) (*v3.ClusterLogging, error)
-	Update(ctx context.Context, clusterLogging *v3.ClusterLogging, opts v1.UpdateOptions) (*v3.ClusterLogging, error)
+	Create(ctx context.Context, clusterLogging *managementcattleiov3.ClusterLogging, opts v1.CreateOptions) (*managementcattleiov3.ClusterLogging, error)
+	Update(ctx context.Context, clusterLogging *managementcattleiov3.ClusterLogging, opts v1.UpdateOptions) (*managementcattleiov3.ClusterLogging, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, clusterLogging *v3.ClusterLogging, opts v1.UpdateOptions) (*v3.ClusterLogging, error)
+	UpdateStatus(ctx context.Context, clusterLogging *managementcattleiov3.ClusterLogging, opts v1.UpdateOptions) (*managementcattleiov3.ClusterLogging, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ClusterLogging, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ClusterLoggingList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ClusterLogging, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ClusterLoggingList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterLogging, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ClusterLogging, err error)
 	ClusterLoggingExpansion
 }
 
 // clusterLoggings implements ClusterLoggingInterface
 type clusterLoggings struct {
-	*gentype.ClientWithList[*v3.ClusterLogging, *v3.ClusterLoggingList]
+	*gentype.ClientWithList[*managementcattleiov3.ClusterLogging, *managementcattleiov3.ClusterLoggingList]
 }
 
 // newClusterLoggings returns a ClusterLoggings
 func newClusterLoggings(c *ManagementV3Client, namespace string) *clusterLoggings {
 	return &clusterLoggings{
-		gentype.NewClientWithList[*v3.ClusterLogging, *v3.ClusterLoggingList](
+		gentype.NewClientWithList[*managementcattleiov3.ClusterLogging, *managementcattleiov3.ClusterLoggingList](
 			"clusterloggings",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.ClusterLogging { return &v3.ClusterLogging{} },
-			func() *v3.ClusterLoggingList { return &v3.ClusterLoggingList{} }),
+			func() *managementcattleiov3.ClusterLogging { return &managementcattleiov3.ClusterLogging{} },
+			func() *managementcattleiov3.ClusterLoggingList { return &managementcattleiov3.ClusterLoggingList{} },
+		),
 	}
 }

@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type ClusterTemplatesGetter interface {
 
 // ClusterTemplateInterface has methods to work with ClusterTemplate resources.
 type ClusterTemplateInterface interface {
-	Create(ctx context.Context, clusterTemplate *v3.ClusterTemplate, opts v1.CreateOptions) (*v3.ClusterTemplate, error)
-	Update(ctx context.Context, clusterTemplate *v3.ClusterTemplate, opts v1.UpdateOptions) (*v3.ClusterTemplate, error)
+	Create(ctx context.Context, clusterTemplate *managementcattleiov3.ClusterTemplate, opts v1.CreateOptions) (*managementcattleiov3.ClusterTemplate, error)
+	Update(ctx context.Context, clusterTemplate *managementcattleiov3.ClusterTemplate, opts v1.UpdateOptions) (*managementcattleiov3.ClusterTemplate, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ClusterTemplate, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ClusterTemplateList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ClusterTemplate, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ClusterTemplateList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterTemplate, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ClusterTemplate, err error)
 	ClusterTemplateExpansion
 }
 
 // clusterTemplates implements ClusterTemplateInterface
 type clusterTemplates struct {
-	*gentype.ClientWithList[*v3.ClusterTemplate, *v3.ClusterTemplateList]
+	*gentype.ClientWithList[*managementcattleiov3.ClusterTemplate, *managementcattleiov3.ClusterTemplateList]
 }
 
 // newClusterTemplates returns a ClusterTemplates
 func newClusterTemplates(c *ManagementV3Client, namespace string) *clusterTemplates {
 	return &clusterTemplates{
-		gentype.NewClientWithList[*v3.ClusterTemplate, *v3.ClusterTemplateList](
+		gentype.NewClientWithList[*managementcattleiov3.ClusterTemplate, *managementcattleiov3.ClusterTemplateList](
 			"clustertemplates",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.ClusterTemplate { return &v3.ClusterTemplate{} },
-			func() *v3.ClusterTemplateList { return &v3.ClusterTemplateList{} }),
+			func() *managementcattleiov3.ClusterTemplate { return &managementcattleiov3.ClusterTemplate{} },
+			func() *managementcattleiov3.ClusterTemplateList { return &managementcattleiov3.ClusterTemplateList{} },
+		),
 	}
 }

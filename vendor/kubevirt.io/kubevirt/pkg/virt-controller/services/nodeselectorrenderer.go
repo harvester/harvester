@@ -12,16 +12,18 @@ import (
 )
 
 type NodeSelectorRenderer struct {
-	cpuFeatureLabels []string
-	cpuModelLabel    string
-	hasDedicatedCPU  bool
-	hyperv           bool
-	podNodeSelectors map[string]string
-	tscFrequency     *int64
-	vmiFeatures      *v1.Features
-	realtimeEnabled  bool
-	sevEnabled       bool
-	sevESEnabled     bool
+	cpuFeatureLabels       []string
+	cpuModelLabel          string
+	machineTypeLabel       string
+	hasDedicatedCPU        bool
+	hyperv                 bool
+	podNodeSelectors       map[string]string
+	tscFrequency           *int64
+	vmiFeatures            *v1.Features
+	realtimeEnabled        bool
+	sevEnabled             bool
+	sevESEnabled           bool
+	SecureExecutionEnabled bool
 }
 
 type NodeSelectorRendererOption func(renderer *NodeSelectorRenderer)
@@ -57,6 +59,11 @@ func (nsr *NodeSelectorRenderer) Render() map[string]string {
 	if nsr.cpuModelLabel != "" && nsr.cpuModelLabel != cpuModelLabel(v1.CPUModeHostModel) && nsr.cpuModelLabel != cpuModelLabel(v1.CPUModeHostPassthrough) {
 		nsr.enableSelectorLabel(nsr.cpuModelLabel)
 	}
+
+	if nsr.machineTypeLabel != "" {
+		nsr.enableSelectorLabel(nsr.machineTypeLabel)
+	}
+
 	for _, cpuFeatureLabel := range nsr.cpuFeatureLabels {
 		nsr.enableSelectorLabel(cpuFeatureLabel)
 	}
@@ -72,6 +79,9 @@ func (nsr *NodeSelectorRenderer) Render() map[string]string {
 	}
 	if nsr.sevESEnabled {
 		nsr.enableSelectorLabel(v1.SEVESLabel)
+	}
+	if nsr.SecureExecutionEnabled {
+		nsr.enableSelectorLabel(v1.SecureExecutionLabel)
 	}
 
 	return nsr.podNodeSelectors
@@ -101,6 +111,12 @@ func WithSEVESSelector() NodeSelectorRendererOption {
 	}
 }
 
+func WithSecureExecutionSelector() NodeSelectorRendererOption {
+	return func(renderer *NodeSelectorRenderer) {
+		renderer.SecureExecutionEnabled = true
+	}
+}
+
 func WithDedicatedCPU() NodeSelectorRendererOption {
 	return func(renderer *NodeSelectorRenderer) {
 		renderer.hasDedicatedCPU = true
@@ -118,6 +134,13 @@ func WithModelAndFeatureLabels(modelLabel string, cpuFeatureLabels ...string) No
 	return func(renderer *NodeSelectorRenderer) {
 		renderer.cpuFeatureLabels = cpuFeatureLabels
 		renderer.cpuModelLabel = modelLabel
+	}
+}
+
+func WithMachineType(machineType string) NodeSelectorRendererOption {
+	return func(renderer *NodeSelectorRenderer) {
+		machineTypeLabelKey := v1.SupportedMachineTypeLabel + machineType
+		renderer.machineTypeLabel = machineTypeLabelKey
 	}
 }
 

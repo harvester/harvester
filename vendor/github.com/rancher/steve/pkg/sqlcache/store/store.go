@@ -19,12 +19,13 @@ import (
 )
 
 const (
-	upsertStmtFmt   = `REPLACE INTO "%s"(key, object, objectnonce, dekid) VALUES (?, ?, ?, ?)`
-	deleteStmtFmt   = `DELETE FROM "%s" WHERE key = ?`
-	getStmtFmt      = `SELECT object, objectnonce, dekid FROM "%s" WHERE key = ?`
-	listStmtFmt     = `SELECT object, objectnonce, dekid FROM "%s"`
-	listKeysStmtFmt = `SELECT key FROM "%s"`
-	createTableFmt  = `CREATE TABLE IF NOT EXISTS "%s" (
+	upsertStmtFmt    = `REPLACE INTO "%s"(key, object, objectnonce, dekid) VALUES (?, ?, ?, ?)`
+	deleteStmtFmt    = `DELETE FROM "%s" WHERE key = ?`
+	deleteAllStmtFmt = `DELETE FROM "%s"`
+	getStmtFmt       = `SELECT object, objectnonce, dekid FROM "%s" WHERE key = ?`
+	listStmtFmt      = `SELECT object, objectnonce, dekid FROM "%s"`
+	listKeysStmtFmt  = `SELECT key FROM "%s"`
+	createTableFmt   = `CREATE TABLE IF NOT EXISTS "%s" (
 		key TEXT UNIQUE NOT NULL PRIMARY KEY,
 		object BLOB,
 		objectnonce BLOB,
@@ -34,80 +35,78 @@ const (
 
 // Store is a SQLite-backed cache.Store
 type Store struct {
-	DBClient
+	db.Client
 
+	ctx           context.Context
 	name          string
 	typ           reflect.Type
 	keyFunc       cache.KeyFunc
 	shouldEncrypt bool
 
-	upsertQuery   string
-	deleteQuery   string
-	getQuery      string
-	listQuery     string
-	listKeysQuery string
+	upsertQuery    string
+	deleteQuery    string
+	deleteAllQuery string
+	getQuery       string
+	listQuery      string
+	listKeysQuery  string
 
-	upsertStmt   *sql.Stmt
-	deleteStmt   *sql.Stmt
-	getStmt      *sql.Stmt
-	listStmt     *sql.Stmt
-	listKeysStmt *sql.Stmt
+	upsertStmt    *sql.Stmt
+	deleteStmt    *sql.Stmt
+	deleteAllStmt *sql.Stmt
+	getStmt       *sql.Stmt
+	listStmt      *sql.Stmt
+	listKeysStmt  *sql.Stmt
 
-	afterUpsert []func(key string, obj any, tx db.TXClient) error
-	afterDelete []func(key string, tx db.TXClient) error
+	afterAdd       []func(key string, obj any, tx transaction.Client) error
+	afterUpdate    []func(key string, obj any, tx transaction.Client) error
+	afterDelete    []func(key string, obj any, tx transaction.Client) error
+	afterDeleteAll []func(tx transaction.Client) error
 }
 
 // Test that Store implements cache.Indexer
 var _ cache.Store = (*Store)(nil)
 
-type DBClient interface {
-	BeginTx(ctx context.Context, forWriting bool) (db.TXClient, error)
-	Prepare(stmt string) *sql.Stmt
-	QueryForRows(ctx context.Context, stmt transaction.Stmt, params ...any) (*sql.Rows, error)
-	ReadObjects(rows db.Rows, typ reflect.Type, shouldDecrypt bool) ([]any, error)
-	ReadStrings(rows db.Rows) ([]string, error)
-	ReadInt(rows db.Rows) (int, error)
-	Upsert(tx db.TXClient, stmt *sql.Stmt, key string, obj any, shouldEncrypt bool) error
-	CloseStmt(closable db.Closable) error
-}
-
 // NewStore creates a SQLite-backed cache.Store for objects of the given example type
-func NewStore(example any, keyFunc cache.KeyFunc, c DBClient, shouldEncrypt bool, name string) (*Store, error) {
+func NewStore(ctx context.Context, example any, keyFunc cache.KeyFunc, c db.Client, shouldEncrypt bool, name string) (*Store, error) {
 	s := &Store{
-		name:          name,
-		typ:           reflect.TypeOf(example),
-		DBClient:      c,
-		keyFunc:       keyFunc,
-		shouldEncrypt: shouldEncrypt,
-		afterUpsert:   []func(key string, obj any, tx db.TXClient) error{},
-		afterDelete:   []func(key string, tx db.TXClient) error{},
+		ctx:            ctx,
+		name:           name,
+		typ:            reflect.TypeOf(example),
+		Client:         c,
+		keyFunc:        keyFunc,
+		shouldEncrypt:  shouldEncrypt,
+		afterAdd:       []func(key string, obj any, tx transaction.Client) error{},
+		afterUpdate:    []func(key string, obj any, tx transaction.Client) error{},
+		afterDelete:    []func(key string, obj any, tx transaction.Client) error{},
+		afterDeleteAll: []func(tx transaction.Client) error{},
 	}
 
-	// once multiple informerfactories are needed, this can accept the case where table already exists error is received
-	txC, err := s.BeginTx(context.Background(), true)
-	if err != nil {
-		return nil, err
-	}
 	dbName := db.Sanitize(s.name)
-	createTableQuery := fmt.Sprintf(createTableFmt, dbName)
-	err = txC.Exec(createTableQuery)
-	if err != nil {
-		return nil, &db.QueryError{QueryString: createTableQuery, Err: err}
-	}
 
-	err = txC.Commit()
+	// once multiple informer-factories are needed, this can accept the case where table already exists error is received
+	err := s.WithTransaction(ctx, true, func(tx transaction.Client) error {
+		createTableQuery := fmt.Sprintf(createTableFmt, dbName)
+		_, err := tx.Exec(createTableQuery)
+		if err != nil {
+			return &db.QueryError{QueryString: createTableQuery, Err: err}
+		}
+
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	s.upsertQuery = fmt.Sprintf(upsertStmtFmt, dbName)
 	s.deleteQuery = fmt.Sprintf(deleteStmtFmt, dbName)
+	s.deleteAllQuery = fmt.Sprintf(deleteAllStmtFmt, dbName)
 	s.getQuery = fmt.Sprintf(getStmtFmt, dbName)
 	s.listQuery = fmt.Sprintf(listStmtFmt, dbName)
 	s.listKeysQuery = fmt.Sprintf(listKeysStmtFmt, dbName)
 
 	s.upsertStmt = s.Prepare(s.upsertQuery)
 	s.deleteStmt = s.Prepare(s.deleteQuery)
+	s.deleteAllStmt = s.Prepare(s.deleteAllQuery)
 	s.getStmt = s.Prepare(s.getQuery)
 	s.listStmt = s.Prepare(s.listQuery)
 	s.listKeysStmt = s.Prepare(s.listKeysQuery)
@@ -116,49 +115,27 @@ func NewStore(example any, keyFunc cache.KeyFunc, c DBClient, shouldEncrypt bool
 }
 
 /* Core methods */
-// upsert saves an obj with its key, or updates key with obj if it exists in this Store
-func (s *Store) upsert(key string, obj any) error {
-	tx, err := s.BeginTx(context.Background(), true)
-	if err != nil {
-		return err
-	}
-
-	err = s.Upsert(tx, s.upsertStmt, key, obj, s.shouldEncrypt)
-	if err != nil {
-		return &db.QueryError{QueryString: s.upsertQuery, Err: err}
-	}
-
-	err = s.runAfterUpsert(key, obj, tx)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
 
 // deleteByKey deletes the object associated with key, if it exists in this Store
-func (s *Store) deleteByKey(key string) error {
-	tx, err := s.BeginTx(context.Background(), true)
-	if err != nil {
-		return err
-	}
+func (s *Store) deleteByKey(key string, obj any) error {
+	return s.WithTransaction(s.ctx, true, func(tx transaction.Client) error {
+		_, err := tx.Stmt(s.deleteStmt).Exec(key)
+		if err != nil {
+			return &db.QueryError{QueryString: s.deleteQuery, Err: err}
+		}
 
-	err = tx.StmtExec(tx.Stmt(s.deleteStmt), key)
-	if err != nil {
-		return &db.QueryError{QueryString: s.deleteQuery, Err: err}
-	}
+		err = s.runAfterDelete(key, obj, tx)
+		if err != nil {
+			return err
+		}
 
-	err = s.runAfterDelete(key, tx)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
+		return nil
+	})
 }
 
 // GetByKey returns the object associated with the given object's key
 func (s *Store) GetByKey(key string) (item any, exists bool, err error) {
-	rows, err := s.QueryForRows(context.TODO(), s.getStmt, key)
+	rows, err := s.QueryForRows(s.ctx, s.getStmt, key)
 	if err != nil {
 		return nil, false, &db.QueryError{QueryString: s.getQuery, Err: err}
 	}
@@ -183,7 +160,19 @@ func (s *Store) Add(obj any) error {
 		return err
 	}
 
-	err = s.upsert(key, obj)
+	err = s.WithTransaction(s.ctx, true, func(tx transaction.Client) error {
+		err := s.Upsert(tx, s.upsertStmt, key, obj, s.shouldEncrypt)
+		if err != nil {
+			return &db.QueryError{QueryString: s.upsertQuery, Err: err}
+		}
+
+		err = s.runAfterAdd(key, obj, tx)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 	if err != nil {
 		log.Errorf("Error in Store.Add for type %v: %v", s.name, err)
 		return err
@@ -193,7 +182,29 @@ func (s *Store) Add(obj any) error {
 
 // Update saves an obj, or updates it if it exists in this Store
 func (s *Store) Update(obj any) error {
-	return s.Add(obj)
+	key, err := s.keyFunc(obj)
+	if err != nil {
+		return err
+	}
+
+	err = s.WithTransaction(s.ctx, true, func(tx transaction.Client) error {
+		err := s.Upsert(tx, s.upsertStmt, key, obj, s.shouldEncrypt)
+		if err != nil {
+			return &db.QueryError{QueryString: s.upsertQuery, Err: err}
+		}
+
+		err = s.runAfterUpdate(key, obj, tx)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		log.Errorf("Error in Store.Update for type %v: %v", s.name, err)
+		return err
+	}
+	return nil
 }
 
 // Delete deletes the given object, if it exists in this Store
@@ -202,7 +213,7 @@ func (s *Store) Delete(obj any) error {
 	if err != nil {
 		return err
 	}
-	err = s.deleteByKey(key)
+	err = s.deleteByKey(key, obj)
 	if err != nil {
 		log.Errorf("Error in Store.Delete for type %v: %v", s.name, err)
 		return err
@@ -213,7 +224,7 @@ func (s *Store) Delete(obj any) error {
 // List returns a list of all the currently known objects
 // Note: I/O errors will panic this function, as the interface signature does not allow returning errors
 func (s *Store) List() []any {
-	rows, err := s.QueryForRows(context.TODO(), s.listStmt)
+	rows, err := s.QueryForRows(s.ctx, s.listStmt)
 	if err != nil {
 		panic(&db.QueryError{QueryString: s.listQuery, Err: err})
 	}
@@ -228,7 +239,7 @@ func (s *Store) List() []any {
 // Note: Atm it doesn't appear returning nil in the case of an error has any detrimental effects. An error is not
 // uncommon enough nor does it appear to necessitate a panic.
 func (s *Store) ListKeys() []string {
-	rows, err := s.QueryForRows(context.TODO(), s.listKeysStmt)
+	rows, err := s.QueryForRows(s.ctx, s.listKeysStmt)
 	if err != nil {
 		fmt.Printf("Unexpected error in store.ListKeys: while executing query: %s got error: %v", s.listKeysQuery, err)
 		return []string{}
@@ -262,50 +273,40 @@ func (s *Store) Replace(objects []any, _ string) error {
 		}
 		objectMap[key] = object
 	}
-	return s.replaceByKey(objectMap)
+	err := s.replaceByKey(objectMap)
+	if err != nil {
+		log.Errorf("Error in Store.Replace for type %v: %v", s.name, err)
+		return err
+	}
+	return nil
 }
 
 // replaceByKey will delete the contents of the Store, using instead the given key to obj map
 func (s *Store) replaceByKey(objects map[string]any) error {
-	txC, err := s.BeginTx(context.Background(), true)
-	if err != nil {
-		return err
-	}
+	return s.WithTransaction(s.ctx, true, func(txC transaction.Client) error {
+		_, err := txC.Stmt(s.deleteAllStmt).Exec()
+		if err != nil {
+			return &db.QueryError{QueryString: s.deleteAllQuery, Err: err}
+		}
 
-	txCListKeys := txC.Stmt(s.listKeysStmt)
-
-	rows, err := s.QueryForRows(context.TODO(), txCListKeys)
-	if err != nil {
-		return err
-	}
-	keys, err := s.ReadStrings(rows)
-	if err != nil {
-		return err
-	}
-
-	for _, key := range keys {
-		err = txC.StmtExec(txC.Stmt(s.deleteStmt), key)
+		err = s.runAfterDeleteAll(txC)
 		if err != nil {
 			return err
 		}
-		err = s.runAfterDelete(key, txC)
-		if err != nil {
-			return err
-		}
-	}
 
-	for key, obj := range objects {
-		err = s.Upsert(txC, s.upsertStmt, key, obj, s.shouldEncrypt)
-		if err != nil {
-			return err
+		for key, obj := range objects {
+			err = s.Upsert(txC, s.upsertStmt, key, obj, s.shouldEncrypt)
+			if err != nil {
+				return err
+			}
+			err = s.runAfterAdd(key, obj, txC)
+			if err != nil {
+				return err
+			}
 		}
-		err = s.runAfterUpsert(key, obj, txC)
-		if err != nil {
-			return err
-		}
-	}
 
-	return txC.Commit()
+		return nil
+	})
 }
 
 // Resync is a no-op and is deprecated
@@ -314,11 +315,6 @@ func (s *Store) Resync() error {
 }
 
 /* Utilities */
-
-// RegisterAfterUpsert registers a func to be called after each upsert
-func (s *Store) RegisterAfterUpsert(f func(key string, obj any, txC db.TXClient) error) {
-	s.afterUpsert = append(s.afterUpsert, f)
-}
 
 func (s *Store) GetName() string {
 	return s.name
@@ -332,10 +328,29 @@ func (s *Store) GetType() reflect.Type {
 	return s.typ
 }
 
-// keep
-// runAfterUpsert executes functions registered to run after upsert
-func (s *Store) runAfterUpsert(key string, obj any, txC db.TXClient) error {
-	for _, f := range s.afterUpsert {
+// RegisterAfterAdd registers a func to be called after each add event
+func (s *Store) RegisterAfterAdd(f func(key string, obj any, txC transaction.Client) error) {
+	s.afterAdd = append(s.afterAdd, f)
+}
+
+// RegisterAfterUpdate registers a func to be called after each update event
+func (s *Store) RegisterAfterUpdate(f func(key string, obj any, txC transaction.Client) error) {
+	s.afterUpdate = append(s.afterUpdate, f)
+}
+
+// RegisterAfterDelete registers a func to be called after each deletion
+func (s *Store) RegisterAfterDelete(f func(key string, obj any, txC transaction.Client) error) {
+	s.afterDelete = append(s.afterDelete, f)
+}
+
+// RegisterAfterDelete registers a func to be called after each deletion
+func (s *Store) RegisterAfterDeleteAll(f func(txC transaction.Client) error) {
+	s.afterDeleteAll = append(s.afterDeleteAll, f)
+}
+
+// runAfterAdd executes functions registered to run after add event
+func (s *Store) runAfterAdd(key string, obj any, txC transaction.Client) error {
+	for _, f := range s.afterAdd {
 		err := f(key, obj, txC)
 		if err != nil {
 			return err
@@ -344,16 +359,33 @@ func (s *Store) runAfterUpsert(key string, obj any, txC db.TXClient) error {
 	return nil
 }
 
-// RegisterAfterDelete registers a func to be called after each deletion
-func (s *Store) RegisterAfterDelete(f func(key string, txC db.TXClient) error) {
-	s.afterDelete = append(s.afterDelete, f)
+// runAfterUpdate executes functions registered to run after update event
+func (s *Store) runAfterUpdate(key string, obj any, txC transaction.Client) error {
+	for _, f := range s.afterUpdate {
+		err := f(key, obj, txC)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// keep
-// runAfterDelete executes functions registered to run after upsert
-func (s *Store) runAfterDelete(key string, txC db.TXClient) error {
+// runAfterDelete executes functions registered to run after delete event
+func (s *Store) runAfterDelete(key string, obj any, txC transaction.Client) error {
 	for _, f := range s.afterDelete {
-		err := f(key, txC)
+		err := f(key, obj, txC)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// runAfterDeleteAll executes functions registered to run after delete events when
+// the database is being replaced.
+func (s *Store) runAfterDeleteAll(txC transaction.Client) error {
+	for _, f := range s.afterDeleteAll {
+		err := f(txC)
 		if err != nil {
 			return err
 		}

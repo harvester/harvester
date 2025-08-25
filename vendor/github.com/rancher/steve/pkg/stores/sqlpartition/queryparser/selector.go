@@ -22,7 +22,7 @@ https://github.com/kubernetes/apimachinery/blob/90df4d1d2d40ea9b3a522bec6e357723
 /**
 Main changes:
 
-1. The upstream `selector.go` file does parsing and applying to the objects being test.
+1. The upstream `selector.go` file does parsing and applying to the objects being tested.
 We only care about the parser, so the selection part is dropped.
 
 2. I dropped label value validation in the parser
@@ -469,6 +469,33 @@ IdentifierLoop:
 	return IdentifierToken, s // otherwise is an identifier
 }
 
+func (l *Lexer) scanQuotedString(delim byte) (tok Token, lit string) {
+	var buffer []byte
+	inEscape := false
+StringLoop:
+	for {
+		switch ch := l.read(); {
+		case ch == 0:
+			s := string(buffer)
+			if len(s) > 12 {
+				s = s[0:10] + "..."
+			}
+			return ErrorToken, fmt.Sprintf("unterminated string starting with '%s'", s)
+		case inEscape:
+			buffer = append(buffer, ch)
+			inEscape = false
+		case ch == '\\':
+			inEscape = true
+		case ch == delim:
+			// Don't include the end-delimiter
+			break StringLoop
+		default:
+			buffer = append(buffer, ch)
+		}
+	}
+	return QuotedStringToken, string(buffer)
+}
+
 // scanSpecialSymbol scans string starting with special symbol.
 // special symbol identify non literal operators. "!=", "==", "=", "!~"
 func (l *Lexer) scanSpecialSymbol() (Token, string) {
@@ -521,6 +548,8 @@ func (l *Lexer) Lex() (Token, string) {
 	case isIdentifierStartChar(ch):
 		l.unread()
 		return l.scanIDOrKeyword()
+	case ch == '"' || ch == '\'':
+		return l.scanQuotedString(ch)
 	default:
 		return ErrorToken, fmt.Sprintf("unexpected character '%c'", ch)
 	}

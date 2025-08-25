@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -72,6 +73,7 @@ func serve(ctx context.Context, dialer websocket.Dialer, url string, headers htt
 		return err
 	}
 	defer conn.Close()
+	ctx = context.WithValue(ctx, remotedialer.ContextKeyCaller, fmt.Sprintf("steve server: url:%s", url))
 
 	go func() {
 		<-ctx.Done()

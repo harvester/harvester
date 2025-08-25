@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017,2018 Red Hat, Inc.
+ * Copyright 2017,The KubeVirt Authors.
  *
  */
 
@@ -410,7 +410,6 @@ type MigrationMetadata struct {
 	UID            types.UID        `xml:"uid,omitempty"`
 	StartTimestamp *metav1.Time     `xml:"startTimestamp,omitempty"`
 	EndTimestamp   *metav1.Time     `xml:"endTimestamp,omitempty"`
-	Completed      bool             `xml:"completed,omitempty"`
 	Failed         bool             `xml:"failed,omitempty"`
 	FailureReason  string           `xml:"failureReason,omitempty"`
 	AbortStatus    string           `xml:"abortStatus,omitempty"`
@@ -516,26 +515,31 @@ type MemoryDevice struct {
 }
 
 type Devices struct {
-	Emulator    string             `xml:"emulator,omitempty"`
-	Interfaces  []Interface        `xml:"interface"`
-	Channels    []Channel          `xml:"channel"`
-	HostDevices []HostDevice       `xml:"hostdev,omitempty"`
-	Controllers []Controller       `xml:"controller,omitempty"`
-	Video       []Video            `xml:"video"`
-	Graphics    []Graphics         `xml:"graphics"`
-	Ballooning  *MemBalloon        `xml:"memballoon,omitempty"`
-	Disks       []Disk             `xml:"disk"`
-	Inputs      []Input            `xml:"input"`
-	Serials     []Serial           `xml:"serial"`
-	Consoles    []Console          `xml:"console"`
-	Watchdogs   []Watchdog         `xml:"watchdog,omitempty"`
-	Rng         *Rng               `xml:"rng,omitempty"`
-	Filesystems []FilesystemDevice `xml:"filesystem,omitempty"`
-	Redirs      []RedirectedDevice `xml:"redirdev,omitempty"`
-	SoundCards  []SoundCard        `xml:"sound,omitempty"`
-	TPMs        []TPM              `xml:"tpm,omitempty"`
-	VSOCK       *VSOCK             `xml:"vsock,omitempty"`
-	Memory      *MemoryDevice      `xml:"memory,omitempty"`
+	Emulator     string             `xml:"emulator,omitempty"`
+	Interfaces   []Interface        `xml:"interface"`
+	Channels     []Channel          `xml:"channel"`
+	HostDevices  []HostDevice       `xml:"hostdev,omitempty"`
+	PanicDevices []PanicDevice      `xml:"panic,omitempty"`
+	Controllers  []Controller       `xml:"controller,omitempty"`
+	Video        []Video            `xml:"video"`
+	Graphics     []Graphics         `xml:"graphics"`
+	Ballooning   *MemBalloon        `xml:"memballoon,omitempty"`
+	Disks        []Disk             `xml:"disk"`
+	Inputs       []Input            `xml:"input"`
+	Serials      []Serial           `xml:"serial"`
+	Consoles     []Console          `xml:"console"`
+	Watchdogs    []Watchdog         `xml:"watchdog,omitempty"`
+	Rng          *Rng               `xml:"rng,omitempty"`
+	Filesystems  []FilesystemDevice `xml:"filesystem,omitempty"`
+	Redirs       []RedirectedDevice `xml:"redirdev,omitempty"`
+	SoundCards   []SoundCard        `xml:"sound,omitempty"`
+	TPMs         []TPM              `xml:"tpm,omitempty"`
+	VSOCK        *VSOCK             `xml:"vsock,omitempty"`
+	Memory       *MemoryDevice      `xml:"memory,omitempty"`
+}
+
+type PanicDevice struct {
+	Model *v1.PanicDeviceModel `xml:"model,attr,omitempty"`
 }
 
 type TPM struct {
@@ -635,12 +639,13 @@ type HostDeviceSource struct {
 
 // Controller represens libvirt controller element https://libvirt.org/formatdomain.html#elementsControllers
 type Controller struct {
-	Type    string            `xml:"type,attr"`
-	Index   string            `xml:"index,attr"`
-	Model   string            `xml:"model,attr,omitempty"`
-	Driver  *ControllerDriver `xml:"driver,omitempty"`
-	Alias   *Alias            `xml:"alias,omitempty"`
-	Address *Address          `xml:"address,omitempty"`
+	Type      string            `xml:"type,attr"`
+	Index     string            `xml:"index,attr"`
+	Model     string            `xml:"model,attr,omitempty"`
+	Driver    *ControllerDriver `xml:"driver,omitempty"`
+	Alias     *Alias            `xml:"alias,omitempty"`
+	Address   *Address          `xml:"address,omitempty"`
+	PCIHole64 *PCIHole64        `xml:"pcihole64,omitempty"`
 }
 
 // END Controller -----------------------------
@@ -653,6 +658,14 @@ type ControllerDriver struct {
 }
 
 // END ControllerDriver
+
+// BEGIN PCIHole64
+type PCIHole64 struct {
+	Value uint   `xml:",chardata"`
+	Unit  string `xml:"unit,attr,omitempty"`
+}
+
+// END PCIHole64
 
 // BEGIN Disk -----------------------------
 
@@ -989,7 +1002,7 @@ type OSType struct {
 }
 
 type OSACPI struct {
-	Table ACPITable `xml:"table,omitempty"`
+	Table []ACPITable `xml:"table,omitempty"`
 }
 
 type ACPITable struct {
@@ -1146,6 +1159,9 @@ type Address struct {
 	Unit       string `xml:"unit,attr,omitempty"`
 	UUID       string `xml:"uuid,attr,omitempty"`
 	Device     string `xml:"device,attr,omitempty"`
+	CSSID      string `xml:"cssid,attr,omitempty"`
+	SSID       string `xml:"ssid,attr,omitempty"`
+	DevNo      string `xml:"devno,attr,omitempty"`
 }
 
 //END Video -------------------

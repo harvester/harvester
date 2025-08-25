@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type APIServicesGetter interface {
 
 // APIServiceInterface has methods to work with APIService resources.
 type APIServiceInterface interface {
-	Create(ctx context.Context, aPIService *v3.APIService, opts v1.CreateOptions) (*v3.APIService, error)
-	Update(ctx context.Context, aPIService *v3.APIService, opts v1.UpdateOptions) (*v3.APIService, error)
+	Create(ctx context.Context, aPIService *managementcattleiov3.APIService, opts v1.CreateOptions) (*managementcattleiov3.APIService, error)
+	Update(ctx context.Context, aPIService *managementcattleiov3.APIService, opts v1.UpdateOptions) (*managementcattleiov3.APIService, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, aPIService *v3.APIService, opts v1.UpdateOptions) (*v3.APIService, error)
+	UpdateStatus(ctx context.Context, aPIService *managementcattleiov3.APIService, opts v1.UpdateOptions) (*managementcattleiov3.APIService, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.APIService, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.APIServiceList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.APIService, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.APIServiceList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.APIService, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.APIService, err error)
 	APIServiceExpansion
 }
 
 // aPIServices implements APIServiceInterface
 type aPIServices struct {
-	*gentype.ClientWithList[*v3.APIService, *v3.APIServiceList]
+	*gentype.ClientWithList[*managementcattleiov3.APIService, *managementcattleiov3.APIServiceList]
 }
 
 // newAPIServices returns a APIServices
 func newAPIServices(c *ManagementV3Client) *aPIServices {
 	return &aPIServices{
-		gentype.NewClientWithList[*v3.APIService, *v3.APIServiceList](
+		gentype.NewClientWithList[*managementcattleiov3.APIService, *managementcattleiov3.APIServiceList](
 			"apiservices",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.APIService { return &v3.APIService{} },
-			func() *v3.APIServiceList { return &v3.APIServiceList{} }),
+			func() *managementcattleiov3.APIService { return &managementcattleiov3.APIService{} },
+			func() *managementcattleiov3.APIServiceList { return &managementcattleiov3.APIServiceList{} },
+		),
 	}
 }

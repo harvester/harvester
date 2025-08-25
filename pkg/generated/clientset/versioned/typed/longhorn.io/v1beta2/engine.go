@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type EnginesGetter interface {
 
 // EngineInterface has methods to work with Engine resources.
 type EngineInterface interface {
-	Create(ctx context.Context, engine *v1beta2.Engine, opts v1.CreateOptions) (*v1beta2.Engine, error)
-	Update(ctx context.Context, engine *v1beta2.Engine, opts v1.UpdateOptions) (*v1beta2.Engine, error)
+	Create(ctx context.Context, engine *longhornv1beta2.Engine, opts v1.CreateOptions) (*longhornv1beta2.Engine, error)
+	Update(ctx context.Context, engine *longhornv1beta2.Engine, opts v1.UpdateOptions) (*longhornv1beta2.Engine, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, engine *v1beta2.Engine, opts v1.UpdateOptions) (*v1beta2.Engine, error)
+	UpdateStatus(ctx context.Context, engine *longhornv1beta2.Engine, opts v1.UpdateOptions) (*longhornv1beta2.Engine, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.Engine, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.EngineList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.Engine, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.EngineList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.Engine, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.Engine, err error)
 	EngineExpansion
 }
 
 // engines implements EngineInterface
 type engines struct {
-	*gentype.ClientWithList[*v1beta2.Engine, *v1beta2.EngineList]
+	*gentype.ClientWithList[*longhornv1beta2.Engine, *longhornv1beta2.EngineList]
 }
 
 // newEngines returns a Engines
 func newEngines(c *LonghornV1beta2Client, namespace string) *engines {
 	return &engines{
-		gentype.NewClientWithList[*v1beta2.Engine, *v1beta2.EngineList](
+		gentype.NewClientWithList[*longhornv1beta2.Engine, *longhornv1beta2.EngineList](
 			"engines",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.Engine { return &v1beta2.Engine{} },
-			func() *v1beta2.EngineList { return &v1beta2.EngineList{} }),
+			func() *longhornv1beta2.Engine { return &longhornv1beta2.Engine{} },
+			func() *longhornv1beta2.EngineList { return &longhornv1beta2.EngineList{} },
+		),
 	}
 }

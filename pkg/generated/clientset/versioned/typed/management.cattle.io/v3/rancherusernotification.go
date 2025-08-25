@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,36 @@ type RancherUserNotificationsGetter interface {
 
 // RancherUserNotificationInterface has methods to work with RancherUserNotification resources.
 type RancherUserNotificationInterface interface {
-	Create(ctx context.Context, rancherUserNotification *v3.RancherUserNotification, opts v1.CreateOptions) (*v3.RancherUserNotification, error)
-	Update(ctx context.Context, rancherUserNotification *v3.RancherUserNotification, opts v1.UpdateOptions) (*v3.RancherUserNotification, error)
+	Create(ctx context.Context, rancherUserNotification *managementcattleiov3.RancherUserNotification, opts v1.CreateOptions) (*managementcattleiov3.RancherUserNotification, error)
+	Update(ctx context.Context, rancherUserNotification *managementcattleiov3.RancherUserNotification, opts v1.UpdateOptions) (*managementcattleiov3.RancherUserNotification, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.RancherUserNotification, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.RancherUserNotificationList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.RancherUserNotification, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.RancherUserNotificationList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.RancherUserNotification, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.RancherUserNotification, err error)
 	RancherUserNotificationExpansion
 }
 
 // rancherUserNotifications implements RancherUserNotificationInterface
 type rancherUserNotifications struct {
-	*gentype.ClientWithList[*v3.RancherUserNotification, *v3.RancherUserNotificationList]
+	*gentype.ClientWithList[*managementcattleiov3.RancherUserNotification, *managementcattleiov3.RancherUserNotificationList]
 }
 
 // newRancherUserNotifications returns a RancherUserNotifications
 func newRancherUserNotifications(c *ManagementV3Client) *rancherUserNotifications {
 	return &rancherUserNotifications{
-		gentype.NewClientWithList[*v3.RancherUserNotification, *v3.RancherUserNotificationList](
+		gentype.NewClientWithList[*managementcattleiov3.RancherUserNotification, *managementcattleiov3.RancherUserNotificationList](
 			"rancherusernotifications",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.RancherUserNotification { return &v3.RancherUserNotification{} },
-			func() *v3.RancherUserNotificationList { return &v3.RancherUserNotificationList{} }),
+			func() *managementcattleiov3.RancherUserNotification {
+				return &managementcattleiov3.RancherUserNotification{}
+			},
+			func() *managementcattleiov3.RancherUserNotificationList {
+				return &managementcattleiov3.RancherUserNotificationList{}
+			},
+		),
 	}
 }

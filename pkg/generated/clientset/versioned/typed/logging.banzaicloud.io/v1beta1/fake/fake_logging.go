@@ -19,120 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	loggingbanzaicloudiov1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1"
 	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeLoggings implements LoggingInterface
-type FakeLoggings struct {
+// fakeLoggings implements LoggingInterface
+type fakeLoggings struct {
+	*gentype.FakeClientWithList[*v1beta1.Logging, *v1beta1.LoggingList]
 	Fake *FakeLoggingV1beta1
 }
 
-var loggingsResource = v1beta1.GroupVersion.WithResource("loggings")
-
-var loggingsKind = v1beta1.GroupVersion.WithKind("Logging")
-
-// Get takes name of the logging, and returns the corresponding logging object, and an error if there is any.
-func (c *FakeLoggings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Logging, err error) {
-	emptyResult := &v1beta1.Logging{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(loggingsResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeLoggings(fake *FakeLoggingV1beta1) loggingbanzaicloudiov1beta1.LoggingInterface {
+	return &fakeLoggings{
+		gentype.NewFakeClientWithList[*v1beta1.Logging, *v1beta1.LoggingList](
+			fake.Fake,
+			"",
+			v1beta1.GroupVersion.WithResource("loggings"),
+			v1beta1.GroupVersion.WithKind("Logging"),
+			func() *v1beta1.Logging { return &v1beta1.Logging{} },
+			func() *v1beta1.LoggingList { return &v1beta1.LoggingList{} },
+			func(dst, src *v1beta1.LoggingList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta1.LoggingList) []*v1beta1.Logging { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1beta1.LoggingList, items []*v1beta1.Logging) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta1.Logging), err
-}
-
-// List takes label and field selectors, and returns the list of Loggings that match those selectors.
-func (c *FakeLoggings) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.LoggingList, err error) {
-	emptyResult := &v1beta1.LoggingList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(loggingsResource, loggingsKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta1.LoggingList{ListMeta: obj.(*v1beta1.LoggingList).ListMeta}
-	for _, item := range obj.(*v1beta1.LoggingList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested loggings.
-func (c *FakeLoggings) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(loggingsResource, opts))
-}
-
-// Create takes the representation of a logging and creates it.  Returns the server's representation of the logging, and an error, if there is any.
-func (c *FakeLoggings) Create(ctx context.Context, logging *v1beta1.Logging, opts v1.CreateOptions) (result *v1beta1.Logging, err error) {
-	emptyResult := &v1beta1.Logging{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(loggingsResource, logging, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.Logging), err
-}
-
-// Update takes the representation of a logging and updates it. Returns the server's representation of the logging, and an error, if there is any.
-func (c *FakeLoggings) Update(ctx context.Context, logging *v1beta1.Logging, opts v1.UpdateOptions) (result *v1beta1.Logging, err error) {
-	emptyResult := &v1beta1.Logging{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(loggingsResource, logging, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.Logging), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeLoggings) UpdateStatus(ctx context.Context, logging *v1beta1.Logging, opts v1.UpdateOptions) (result *v1beta1.Logging, err error) {
-	emptyResult := &v1beta1.Logging{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(loggingsResource, "status", logging, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.Logging), err
-}
-
-// Delete takes name of the logging and deletes it. Returns an error if one occurs.
-func (c *FakeLoggings) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(loggingsResource, name, opts), &v1beta1.Logging{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeLoggings) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(loggingsResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta1.LoggingList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched logging.
-func (c *FakeLoggings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Logging, err error) {
-	emptyResult := &v1beta1.Logging{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(loggingsResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.Logging), err
 }

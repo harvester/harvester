@@ -19,104 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeProjectCatalogs implements ProjectCatalogInterface
-type FakeProjectCatalogs struct {
+// fakeProjectCatalogs implements ProjectCatalogInterface
+type fakeProjectCatalogs struct {
+	*gentype.FakeClientWithList[*v3.ProjectCatalog, *v3.ProjectCatalogList]
 	Fake *FakeManagementV3
-	ns   string
 }
 
-var projectcatalogsResource = v3.SchemeGroupVersion.WithResource("projectcatalogs")
-
-var projectcatalogsKind = v3.SchemeGroupVersion.WithKind("ProjectCatalog")
-
-// Get takes name of the projectCatalog, and returns the corresponding projectCatalog object, and an error if there is any.
-func (c *FakeProjectCatalogs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ProjectCatalog, err error) {
-	emptyResult := &v3.ProjectCatalog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(projectcatalogsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeProjectCatalogs(fake *FakeManagementV3, namespace string) managementcattleiov3.ProjectCatalogInterface {
+	return &fakeProjectCatalogs{
+		gentype.NewFakeClientWithList[*v3.ProjectCatalog, *v3.ProjectCatalogList](
+			fake.Fake,
+			namespace,
+			v3.SchemeGroupVersion.WithResource("projectcatalogs"),
+			v3.SchemeGroupVersion.WithKind("ProjectCatalog"),
+			func() *v3.ProjectCatalog { return &v3.ProjectCatalog{} },
+			func() *v3.ProjectCatalogList { return &v3.ProjectCatalogList{} },
+			func(dst, src *v3.ProjectCatalogList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.ProjectCatalogList) []*v3.ProjectCatalog { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.ProjectCatalogList, items []*v3.ProjectCatalog) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.ProjectCatalog), err
-}
-
-// List takes label and field selectors, and returns the list of ProjectCatalogs that match those selectors.
-func (c *FakeProjectCatalogs) List(ctx context.Context, opts v1.ListOptions) (result *v3.ProjectCatalogList, err error) {
-	emptyResult := &v3.ProjectCatalogList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(projectcatalogsResource, projectcatalogsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ProjectCatalogList), err
-}
-
-// Watch returns a watch.Interface that watches the requested projectCatalogs.
-func (c *FakeProjectCatalogs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(projectcatalogsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a projectCatalog and creates it.  Returns the server's representation of the projectCatalog, and an error, if there is any.
-func (c *FakeProjectCatalogs) Create(ctx context.Context, projectCatalog *v3.ProjectCatalog, opts v1.CreateOptions) (result *v3.ProjectCatalog, err error) {
-	emptyResult := &v3.ProjectCatalog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(projectcatalogsResource, c.ns, projectCatalog, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ProjectCatalog), err
-}
-
-// Update takes the representation of a projectCatalog and updates it. Returns the server's representation of the projectCatalog, and an error, if there is any.
-func (c *FakeProjectCatalogs) Update(ctx context.Context, projectCatalog *v3.ProjectCatalog, opts v1.UpdateOptions) (result *v3.ProjectCatalog, err error) {
-	emptyResult := &v3.ProjectCatalog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(projectcatalogsResource, c.ns, projectCatalog, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ProjectCatalog), err
-}
-
-// Delete takes name of the projectCatalog and deletes it. Returns an error if one occurs.
-func (c *FakeProjectCatalogs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(projectcatalogsResource, c.ns, name, opts), &v3.ProjectCatalog{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeProjectCatalogs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(projectcatalogsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.ProjectCatalogList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched projectCatalog.
-func (c *FakeProjectCatalogs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ProjectCatalog, err error) {
-	emptyResult := &v3.ProjectCatalog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(projectcatalogsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ProjectCatalog), err
 }

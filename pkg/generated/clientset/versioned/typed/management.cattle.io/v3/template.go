@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type TemplatesGetter interface {
 
 // TemplateInterface has methods to work with Template resources.
 type TemplateInterface interface {
-	Create(ctx context.Context, template *v3.Template, opts v1.CreateOptions) (*v3.Template, error)
-	Update(ctx context.Context, template *v3.Template, opts v1.UpdateOptions) (*v3.Template, error)
+	Create(ctx context.Context, template *managementcattleiov3.Template, opts v1.CreateOptions) (*managementcattleiov3.Template, error)
+	Update(ctx context.Context, template *managementcattleiov3.Template, opts v1.UpdateOptions) (*managementcattleiov3.Template, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, template *v3.Template, opts v1.UpdateOptions) (*v3.Template, error)
+	UpdateStatus(ctx context.Context, template *managementcattleiov3.Template, opts v1.UpdateOptions) (*managementcattleiov3.Template, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.Template, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.TemplateList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.Template, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.TemplateList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Template, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.Template, err error)
 	TemplateExpansion
 }
 
 // templates implements TemplateInterface
 type templates struct {
-	*gentype.ClientWithList[*v3.Template, *v3.TemplateList]
+	*gentype.ClientWithList[*managementcattleiov3.Template, *managementcattleiov3.TemplateList]
 }
 
 // newTemplates returns a Templates
 func newTemplates(c *ManagementV3Client) *templates {
 	return &templates{
-		gentype.NewClientWithList[*v3.Template, *v3.TemplateList](
+		gentype.NewClientWithList[*managementcattleiov3.Template, *managementcattleiov3.TemplateList](
 			"templates",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.Template { return &v3.Template{} },
-			func() *v3.TemplateList { return &v3.TemplateList{} }),
+			func() *managementcattleiov3.Template { return &managementcattleiov3.Template{} },
+			func() *managementcattleiov3.TemplateList { return &managementcattleiov3.TemplateList{} },
+		),
 	}
 }

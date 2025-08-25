@@ -19,104 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeClusterCatalogs implements ClusterCatalogInterface
-type FakeClusterCatalogs struct {
+// fakeClusterCatalogs implements ClusterCatalogInterface
+type fakeClusterCatalogs struct {
+	*gentype.FakeClientWithList[*v3.ClusterCatalog, *v3.ClusterCatalogList]
 	Fake *FakeManagementV3
-	ns   string
 }
 
-var clustercatalogsResource = v3.SchemeGroupVersion.WithResource("clustercatalogs")
-
-var clustercatalogsKind = v3.SchemeGroupVersion.WithKind("ClusterCatalog")
-
-// Get takes name of the clusterCatalog, and returns the corresponding clusterCatalog object, and an error if there is any.
-func (c *FakeClusterCatalogs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ClusterCatalog, err error) {
-	emptyResult := &v3.ClusterCatalog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(clustercatalogsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeClusterCatalogs(fake *FakeManagementV3, namespace string) managementcattleiov3.ClusterCatalogInterface {
+	return &fakeClusterCatalogs{
+		gentype.NewFakeClientWithList[*v3.ClusterCatalog, *v3.ClusterCatalogList](
+			fake.Fake,
+			namespace,
+			v3.SchemeGroupVersion.WithResource("clustercatalogs"),
+			v3.SchemeGroupVersion.WithKind("ClusterCatalog"),
+			func() *v3.ClusterCatalog { return &v3.ClusterCatalog{} },
+			func() *v3.ClusterCatalogList { return &v3.ClusterCatalogList{} },
+			func(dst, src *v3.ClusterCatalogList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.ClusterCatalogList) []*v3.ClusterCatalog { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.ClusterCatalogList, items []*v3.ClusterCatalog) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.ClusterCatalog), err
-}
-
-// List takes label and field selectors, and returns the list of ClusterCatalogs that match those selectors.
-func (c *FakeClusterCatalogs) List(ctx context.Context, opts v1.ListOptions) (result *v3.ClusterCatalogList, err error) {
-	emptyResult := &v3.ClusterCatalogList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(clustercatalogsResource, clustercatalogsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ClusterCatalogList), err
-}
-
-// Watch returns a watch.Interface that watches the requested clusterCatalogs.
-func (c *FakeClusterCatalogs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(clustercatalogsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a clusterCatalog and creates it.  Returns the server's representation of the clusterCatalog, and an error, if there is any.
-func (c *FakeClusterCatalogs) Create(ctx context.Context, clusterCatalog *v3.ClusterCatalog, opts v1.CreateOptions) (result *v3.ClusterCatalog, err error) {
-	emptyResult := &v3.ClusterCatalog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(clustercatalogsResource, c.ns, clusterCatalog, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ClusterCatalog), err
-}
-
-// Update takes the representation of a clusterCatalog and updates it. Returns the server's representation of the clusterCatalog, and an error, if there is any.
-func (c *FakeClusterCatalogs) Update(ctx context.Context, clusterCatalog *v3.ClusterCatalog, opts v1.UpdateOptions) (result *v3.ClusterCatalog, err error) {
-	emptyResult := &v3.ClusterCatalog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(clustercatalogsResource, c.ns, clusterCatalog, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ClusterCatalog), err
-}
-
-// Delete takes name of the clusterCatalog and deletes it. Returns an error if one occurs.
-func (c *FakeClusterCatalogs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(clustercatalogsResource, c.ns, name, opts), &v3.ClusterCatalog{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeClusterCatalogs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(clustercatalogsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.ClusterCatalogList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched clusterCatalog.
-func (c *FakeClusterCatalogs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterCatalog, err error) {
-	emptyResult := &v3.ClusterCatalog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(clustercatalogsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ClusterCatalog), err
 }

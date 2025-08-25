@@ -19,129 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeNodeTemplates implements NodeTemplateInterface
-type FakeNodeTemplates struct {
+// fakeNodeTemplates implements NodeTemplateInterface
+type fakeNodeTemplates struct {
+	*gentype.FakeClientWithList[*v3.NodeTemplate, *v3.NodeTemplateList]
 	Fake *FakeManagementV3
-	ns   string
 }
 
-var nodetemplatesResource = v3.SchemeGroupVersion.WithResource("nodetemplates")
-
-var nodetemplatesKind = v3.SchemeGroupVersion.WithKind("NodeTemplate")
-
-// Get takes name of the nodeTemplate, and returns the corresponding nodeTemplate object, and an error if there is any.
-func (c *FakeNodeTemplates) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.NodeTemplate, err error) {
-	emptyResult := &v3.NodeTemplate{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(nodetemplatesResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeNodeTemplates(fake *FakeManagementV3, namespace string) managementcattleiov3.NodeTemplateInterface {
+	return &fakeNodeTemplates{
+		gentype.NewFakeClientWithList[*v3.NodeTemplate, *v3.NodeTemplateList](
+			fake.Fake,
+			namespace,
+			v3.SchemeGroupVersion.WithResource("nodetemplates"),
+			v3.SchemeGroupVersion.WithKind("NodeTemplate"),
+			func() *v3.NodeTemplate { return &v3.NodeTemplate{} },
+			func() *v3.NodeTemplateList { return &v3.NodeTemplateList{} },
+			func(dst, src *v3.NodeTemplateList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.NodeTemplateList) []*v3.NodeTemplate { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.NodeTemplateList, items []*v3.NodeTemplate) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.NodeTemplate), err
-}
-
-// List takes label and field selectors, and returns the list of NodeTemplates that match those selectors.
-func (c *FakeNodeTemplates) List(ctx context.Context, opts v1.ListOptions) (result *v3.NodeTemplateList, err error) {
-	emptyResult := &v3.NodeTemplateList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(nodetemplatesResource, nodetemplatesKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.NodeTemplateList{ListMeta: obj.(*v3.NodeTemplateList).ListMeta}
-	for _, item := range obj.(*v3.NodeTemplateList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested nodeTemplates.
-func (c *FakeNodeTemplates) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(nodetemplatesResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a nodeTemplate and creates it.  Returns the server's representation of the nodeTemplate, and an error, if there is any.
-func (c *FakeNodeTemplates) Create(ctx context.Context, nodeTemplate *v3.NodeTemplate, opts v1.CreateOptions) (result *v3.NodeTemplate, err error) {
-	emptyResult := &v3.NodeTemplate{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(nodetemplatesResource, c.ns, nodeTemplate, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.NodeTemplate), err
-}
-
-// Update takes the representation of a nodeTemplate and updates it. Returns the server's representation of the nodeTemplate, and an error, if there is any.
-func (c *FakeNodeTemplates) Update(ctx context.Context, nodeTemplate *v3.NodeTemplate, opts v1.UpdateOptions) (result *v3.NodeTemplate, err error) {
-	emptyResult := &v3.NodeTemplate{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(nodetemplatesResource, c.ns, nodeTemplate, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.NodeTemplate), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeNodeTemplates) UpdateStatus(ctx context.Context, nodeTemplate *v3.NodeTemplate, opts v1.UpdateOptions) (result *v3.NodeTemplate, err error) {
-	emptyResult := &v3.NodeTemplate{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(nodetemplatesResource, "status", c.ns, nodeTemplate, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.NodeTemplate), err
-}
-
-// Delete takes name of the nodeTemplate and deletes it. Returns an error if one occurs.
-func (c *FakeNodeTemplates) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(nodetemplatesResource, c.ns, name, opts), &v3.NodeTemplate{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeNodeTemplates) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(nodetemplatesResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.NodeTemplateList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched nodeTemplate.
-func (c *FakeNodeTemplates) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.NodeTemplate, err error) {
-	emptyResult := &v3.NodeTemplate{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(nodetemplatesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.NodeTemplate), err
 }

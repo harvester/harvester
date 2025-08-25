@@ -9,36 +9,25 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	apitypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
-
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
+	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/sqlcache/informer"
 	"github.com/rancher/steve/pkg/sqlcache/informer/factory"
 	"github.com/rancher/steve/pkg/sqlcache/partition"
+	"github.com/rancher/steve/pkg/sqlcache/sqltypes"
+	"github.com/rancher/steve/pkg/stores/queryhelper"
 	"github.com/rancher/wrangler/v3/pkg/data"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 	"github.com/rancher/wrangler/v3/pkg/schemas"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/rancher/wrangler/v3/pkg/summary"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/rancher/steve/pkg/attributes"
 	controllerschema "github.com/rancher/steve/pkg/controllers/schema"
@@ -48,6 +37,21 @@ import (
 	metricsStore "github.com/rancher/steve/pkg/stores/metrics"
 	"github.com/rancher/steve/pkg/stores/sqlpartition/listprocessor"
 	"github.com/rancher/steve/pkg/stores/sqlproxy/tablelistconvert"
+
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	apitypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -62,7 +66,7 @@ var (
 	// Please keep the gvkKey entries in alphabetical order, on a field-by-field basis
 	typeSpecificIndexedFields = map[string][][]string{
 		gvkKey("", "v1", "ConfigMap"): {
-			{"metadata", "labels[harvesterhci.io/cloud-init-template]"}},
+			{"metadata", "labels", "harvesterhci.io/cloud-init-template"}},
 		gvkKey("", "v1", "Event"): {
 			{"_type"},
 			{"involvedObject", "kind"},
@@ -71,7 +75,7 @@ var (
 			{"reason"},
 		},
 		gvkKey("", "v1", "Namespace"): {
-			{"metadata", "labels[field.cattle.io/projectId]"}},
+			{"metadata", "labels", "field.cattle.io/projectId"}},
 		gvkKey("", "v1", "Node"): {
 			{"status", "nodeInfo", "kubeletVersion"},
 			{"status", "nodeInfo", "operatingSystem"}},
@@ -84,18 +88,26 @@ var (
 		gvkKey("", "v1", "Pod"): {
 			{"spec", "containers", "image"},
 			{"spec", "nodeName"}},
+		gvkKey("", "v1", "ReplicationController"): {
+			{"spec", "template", "spec", "containers", "image"}},
 		gvkKey("", "v1", "Service"): {
 			{"spec", "clusterIP"},
 			{"spec", "type"},
 		},
 		gvkKey("apps", "v1", "DaemonSet"): {
-			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
+			{"metadata", "annotations", "field.cattle.io/publicEndpoints"},
+			{"spec", "template", "spec", "containers", "image"},
 		},
 		gvkKey("apps", "v1", "Deployment"): {
-			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
+			{"metadata", "annotations", "field.cattle.io/publicEndpoints"},
+			{"spec", "template", "spec", "containers", "image"},
+		},
+		gvkKey("apps", "v1", "ReplicaSet"): {
+			{"spec", "template", "spec", "containers", "image"},
 		},
 		gvkKey("apps", "v1", "StatefulSet"): {
-			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
+			{"metadata", "annotations", "field.cattle.io/publicEndpoints"},
+			{"spec", "template", "spec", "containers", "image"},
 		},
 		gvkKey("autoscaling", "v2", "HorizontalPodAutoscaler"): {
 			{"spec", "scaleTargetRef", "name"},
@@ -104,16 +116,18 @@ var (
 			{"status", "currentReplicas"},
 		},
 		gvkKey("batch", "v1", "CronJob"): {
-			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
+			{"metadata", "annotations", "field.cattle.io/publicEndpoints"},
+			{"spec", "jobTemplate", "spec", "template", "spec", "containers", "image"},
 		},
 		gvkKey("batch", "v1", "Job"): {
-			{"metadata", "annotations[field.cattle.io/publicEndpoints]"},
+			{"metadata", "annotations", "field.cattle.io/publicEndpoints"},
+			{"spec", "template", "spec", "containers", "image"},
 		},
 		gvkKey("catalog.cattle.io", "v1", "App"): {
 			{"spec", "chart", "metadata", "name"},
 		},
 		gvkKey("catalog.cattle.io", "v1", "ClusterRepo"): {
-			{"metadata", "annotations[clusterrepo.cattle.io/hidden]"},
+			{"metadata", "annotations", "clusterrepo.cattle.io/hidden"},
 			{"spec", "gitBranch"},
 			{"spec", "gitRepo"},
 		},
@@ -124,8 +138,10 @@ var (
 		},
 		gvkKey("cluster.x-k8s.io", "v1beta1", "Machine"): {
 			{"spec", "clusterName"}},
+		gvkKey("cluster.x-k8s.io", "v1beta1", "MachineDeployment"): {
+			{"spec", "clusterName"}},
 		gvkKey("management.cattle.io", "v3", "Cluster"): {
-			{"metadata", "labels[provider.cattle.io]"},
+			{"metadata", "labels", "provider.cattle.io"},
 			{"spec", "internal"},
 			{"spec", "displayName"},
 			{"status", "connected"},
@@ -137,18 +153,25 @@ var (
 			{"spec", "clusterName"}},
 		gvkKey("management.cattle.io", "v3", "NodeTemplate"): {
 			{"spec", "clusterName"}},
+		gvkKey("management.cattle.io", "v3", "Project"): {
+			{"spec", "clusterName"}},
 		gvkKey("networking.k8s.io", "v1", "Ingress"): {
 			{"spec", "rules", "host"},
 			{"spec", "ingressClassName"},
 		},
 		gvkKey("provisioning.cattle.io", "v1", "Cluster"): {
-			{"metadata", "labels[provider.cattle.io]"},
+			{"metadata", "annotations", "provisioning.cattle.io/management-cluster-display-name"},
+			{"metadata", "labels", "provider.cattle.io"},
 			{"status", "clusterName"},
 			{"status", "provider"},
 		},
+		gvkKey("rke.cattle.io", "v1", "ETCDSnapshot"): {
+			{"snapshotFile", "createdAt"},
+			{"spec", "clusterName"},
+		},
 		gvkKey("storage.k8s.io", "v1", "StorageClass"): {
 			{"provisioner"},
-			{"metadata", "annotations[storageclass.kubernetes.io/is-default-class]"},
+			{"metadata", "annotations", "storageclass.kubernetes.io/is-default-class"},
 		},
 	}
 	commonIndexFields = [][]string{
@@ -196,7 +219,7 @@ type Cache interface {
 	//   - the total number of resources (returned list might be a subset depending on pagination options in lo)
 	//   - a continue token, if there are more pages after the returned one
 	//   - an error instead of all of the above if anything went wrong
-	ListByOptions(ctx context.Context, lo informer.ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, string, error)
+	ListByOptions(ctx context.Context, lo *sqltypes.ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, string, error)
 }
 
 // WarningBuffer holds warnings that may be returned from the kubernetes api
@@ -217,10 +240,11 @@ type RelationshipNotifier interface {
 }
 
 type TransformBuilder interface {
-	GetTransformFunc(gvk schema.GroupVersionKind) cache.TransformFunc
+	GetTransformFunc(gvk schema.GroupVersionKind, colDefs []common.ColumnDefinition) cache.TransformFunc
 }
 
 type Store struct {
+	ctx              context.Context
 	clientGetter     ClientGetter
 	notifier         RelationshipNotifier
 	cacheFactory     CacheFactory
@@ -229,22 +253,26 @@ type Store struct {
 	lock             sync.Mutex
 	columnSetter     SchemaColumnSetter
 	transformBuilder TransformBuilder
+
+	watchers *Watchers
 }
 
 type CacheFactoryInitializer func() (CacheFactory, error)
 
 type CacheFactory interface {
-	CacheFor(fields [][]string, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, namespaced bool, watchable bool) (factory.Cache, error)
+	CacheFor(ctx context.Context, fields [][]string, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, namespaced bool, watchable bool) (factory.Cache, error)
 	Reset() error
 }
 
 // NewProxyStore returns a Store implemented directly on top of kubernetes.
-func NewProxyStore(c SchemaColumnSetter, clientGetter ClientGetter, notifier RelationshipNotifier, scache virtualCommon.SummaryCache, factory CacheFactory) (*Store, error) {
+func NewProxyStore(ctx context.Context, c SchemaColumnSetter, clientGetter ClientGetter, notifier RelationshipNotifier, scache virtualCommon.SummaryCache, factory CacheFactory) (*Store, error) {
 	store := &Store{
+		ctx:              ctx,
 		clientGetter:     clientGetter,
 		notifier:         notifier,
 		columnSetter:     c,
 		transformBuilder: virtual.NewTransformBuilder(scache),
+		watchers:         newWatchers(),
 	}
 
 	if factory == nil {
@@ -277,7 +305,7 @@ func (s *Store) Reset() error {
 }
 
 func defaultInitializeCacheFactory() (CacheFactory, error) {
-	informerFactory, err := factory.NewCacheFactory()
+	informerFactory, err := factory.NewCacheFactory(factory.CacheFactoryOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +319,7 @@ func (s *Store) initializeNamespaceCache() error {
 	nsSchema := baseNSSchema
 
 	// make sure any relevant columns are set to the ns schema
-	if err := s.columnSetter.SetColumns(context.Background(), &nsSchema); err != nil {
+	if err := s.columnSetter.SetColumns(s.ctx, &nsSchema); err != nil {
 		return fmt.Errorf("failed to set columns for proxy stores namespace informer: %w", err)
 	}
 
@@ -307,14 +335,15 @@ func (s *Store) initializeNamespaceCache() error {
 
 	// get any type-specific fields that steve is interested in
 	fields = append(fields, getFieldForGVK(gvk)...)
+	cols := common.GetColumnDefinitions(&nsSchema)
 
 	// get the type-specific transform func
-	transformFunc := s.transformBuilder.GetTransformFunc(gvk)
+	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols)
 
 	// get the ns informer
 	tableClient := &tablelistconvert.Client{ResourceInterface: client}
 	attrs := attributes.GVK(&nsSchema)
-	nsInformer, err := s.cacheFactory.CacheFor(fields, transformFunc, tableClient, attrs, false, true)
+	nsInformer, err := s.cacheFactory.CacheFor(s.ctx, fields, transformFunc, tableClient, attrs, false, true)
 	if err != nil {
 		return err
 	}
@@ -351,7 +380,7 @@ func getFieldsFromSchema(schema *types.APISchema) [][]string {
 	}
 	for _, colDef := range colDefs {
 		field := strings.TrimPrefix(colDef.Field, "$.")
-		fields = append(fields, strings.Split(field, "."))
+		fields = append(fields, queryhelper.SafeSplit(field))
 	}
 	return fields
 }
@@ -446,80 +475,6 @@ func returnErr(err error, c chan watch.Event) {
 	}
 }
 
-func (s *Store) listAndWatch(apiOp *types.APIRequest, client dynamic.ResourceInterface, schema *types.APISchema, w types.WatchRequest, result chan watch.Event) {
-	rev := w.Revision
-	if rev == "-1" || rev == "0" {
-		rev = ""
-	}
-
-	timeout := int64(60 * 30)
-	timeoutSetting := os.Getenv(watchTimeoutEnv)
-	if timeoutSetting != "" {
-		userSetTimeout, err := strconv.Atoi(timeoutSetting)
-		if err != nil {
-			logrus.Debugf("could not parse %s environment variable, error: %v", watchTimeoutEnv, err)
-		} else {
-			timeout = int64(userSetTimeout)
-		}
-	}
-	k8sClient, _ := metricsStore.Wrap(client, nil)
-	watcher, err := k8sClient.Watch(apiOp, metav1.ListOptions{
-		Watch:           true,
-		TimeoutSeconds:  &timeout,
-		ResourceVersion: rev,
-		LabelSelector:   w.Selector,
-	})
-	if err != nil {
-		returnErr(errors.Wrapf(err, "stopping watch for %s: %v", schema.ID, err), result)
-		return
-	}
-	defer watcher.Stop()
-	logrus.Debugf("opening watcher for %s", schema.ID)
-
-	eg, ctx := errgroup.WithContext(apiOp.Context())
-
-	go func() {
-		<-ctx.Done()
-		watcher.Stop()
-	}()
-
-	if s.notifier != nil {
-		eg.Go(func() error {
-			for rel := range s.notifier.OnInboundRelationshipChange(ctx, schema, apiOp.Namespace) {
-				obj, _, err := s.byID(apiOp, schema, rel.Namespace, rel.Name)
-				if err == nil {
-					rowToObject(obj)
-					result <- watch.Event{Type: watch.Modified, Object: obj}
-				} else {
-					returnErr(errors.Wrapf(err, "notifier watch error: %v", err), result)
-				}
-			}
-			return fmt.Errorf("closed")
-		})
-	}
-
-	eg.Go(func() error {
-		for event := range watcher.ResultChan() {
-			if event.Type == watch.Error {
-				if status, ok := event.Object.(*metav1.Status); ok {
-					returnErr(fmt.Errorf("event watch error: %s", status.Message), result)
-				} else {
-					logrus.Debugf("event watch error: could not decode event object %T", event.Object)
-				}
-				continue
-			}
-			if unstr, ok := event.Object.(*unstructured.Unstructured); ok {
-				rowToObject(unstr)
-			}
-			result <- event
-		}
-		return fmt.Errorf("closed")
-	})
-
-	_ = eg.Wait()
-	return
-}
-
 // WatchNames returns a channel of events filtered by an allowed set of names.
 // In plain kubernetes, if a user has permission to 'list' or 'watch' a defined set of resource names,
 // performing the list or watch will result in a Forbidden error, because the user does not have permission
@@ -528,7 +483,7 @@ func (s *Store) listAndWatch(apiOp *types.APIRequest, client dynamic.ResourceInt
 // be returned in watch.
 func (s *Store) WatchNames(apiOp *types.APIRequest, schema *types.APISchema, w types.WatchRequest, names sets.Set[string]) (chan watch.Event, error) {
 	buffer := &WarningBuffer{}
-	adminClient, err := s.clientGetter.TableAdminClientForWatch(apiOp, schema, apiOp.Namespace, buffer)
+	adminClient, err := s.clientGetter.TableAdminClientForWatch(apiOp, schema, "", buffer)
 	if err != nil {
 		return nil, err
 	}
@@ -569,19 +524,69 @@ func (s *Store) WatchNames(apiOp *types.APIRequest, schema *types.APISchema, w t
 // Watch returns a channel of events for a list or resource.
 func (s *Store) Watch(apiOp *types.APIRequest, schema *types.APISchema, w types.WatchRequest) (chan watch.Event, error) {
 	buffer := &WarningBuffer{}
-	client, err := s.clientGetter.TableClientForWatch(apiOp, schema, apiOp.Namespace, buffer)
+	client, err := s.clientGetter.TableAdminClientForWatch(apiOp, schema, "", buffer)
 	if err != nil {
 		return nil, err
 	}
 	return s.watch(apiOp, schema, w, client)
 }
 
+type Watchers struct {
+	watchers map[string]struct{}
+}
+
+func newWatchers() *Watchers {
+	return &Watchers{
+		watchers: make(map[string]struct{}),
+	}
+}
+
 func (s *Store) watch(apiOp *types.APIRequest, schema *types.APISchema, w types.WatchRequest, client dynamic.ResourceInterface) (chan watch.Event, error) {
+	// warnings from inside the informer are discarded
+	gvk := attributes.GVK(schema)
+	fields := getFieldsFromSchema(schema)
+	fields = append(fields, getFieldForGVK(gvk)...)
+	transformFunc := s.transformBuilder.GetTransformFunc(gvk, nil)
+	tableClient := &tablelistconvert.Client{ResourceInterface: client}
+	attrs := attributes.GVK(schema)
+	ns := attributes.Namespaced(schema)
+	inf, err := s.cacheFactory.CacheFor(s.ctx, fields, transformFunc, tableClient, attrs, ns, controllerschema.IsListWatchable(schema))
+	if err != nil {
+		return nil, err
+	}
+
+	var selector labels.Selector
+	if w.Selector != "" {
+		selector, err = labels.Parse(w.Selector)
+		if err != nil {
+			return nil, fmt.Errorf("invalid selector: %w", err)
+		}
+	}
+
 	result := make(chan watch.Event)
 	go func() {
-		s.listAndWatch(apiOp, client, schema, w, result)
+		defer close(result)
+
+		ctx := apiOp.Context()
+		idNamespace, _ := kv.RSplit(w.ID, "/")
+		if idNamespace == "" {
+			idNamespace = apiOp.Namespace
+		}
+
+		opts := informer.WatchOptions{
+			ResourceVersion: w.Revision,
+			Filter: informer.WatchFilter{
+				ID:        w.ID,
+				Namespace: idNamespace,
+				Selector:  selector,
+			},
+		}
+		err := inf.ByOptionsLister.Watch(ctx, opts, result)
+		if err != nil {
+			returnErr(err, result)
+			return
+		}
 		logrus.Debugf("closing watcher for %s", schema.ID)
-		close(result)
 	}()
 	return result, nil
 }
@@ -738,30 +743,54 @@ func (s *Store) Delete(apiOp *types.APIRequest, schema *types.APISchema, id stri
 //   - the total number of resources (returned list might be a subset depending on pagination options in apiOp)
 //   - a continue token, if there are more pages after the returned one
 //   - an error instead of all of the above if anything went wrong
-func (s *Store) ListByPartitions(apiOp *types.APIRequest, schema *types.APISchema, partitions []partition.Partition) ([]unstructured.Unstructured, int, string, error) {
+func (s *Store) ListByPartitions(apiOp *types.APIRequest, apiSchema *types.APISchema, partitions []partition.Partition) (*unstructured.UnstructuredList, int, string, error) {
 	opts, err := listprocessor.ParseQuery(apiOp, s.namespaceCache)
 	if err != nil {
 		return nil, 0, "", err
 	}
 	// warnings from inside the informer are discarded
 	buffer := WarningBuffer{}
-	client, err := s.clientGetter.TableAdminClient(apiOp, schema, "", &buffer)
+	client, err := s.clientGetter.TableAdminClient(apiOp, apiSchema, "", &buffer)
 	if err != nil {
 		return nil, 0, "", err
 	}
-	gvk := attributes.GVK(schema)
-	fields := getFieldsFromSchema(schema)
+	gvk := attributes.GVK(apiSchema)
+	fields := getFieldsFromSchema(apiSchema)
 	fields = append(fields, getFieldForGVK(gvk)...)
-	transformFunc := s.transformBuilder.GetTransformFunc(gvk)
+	cols := common.GetColumnDefinitions(apiSchema)
+
+	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols)
 	tableClient := &tablelistconvert.Client{ResourceInterface: client}
-	attrs := attributes.GVK(schema)
-	ns := attributes.Namespaced(schema)
-	inf, err := s.cacheFactory.CacheFor(fields, transformFunc, tableClient, attrs, ns, controllerschema.IsListWatchable(schema))
+	attrs := attributes.GVK(apiSchema)
+	ns := attributes.Namespaced(apiSchema)
+	inf, err := s.cacheFactory.CacheFor(s.ctx, fields, transformFunc, tableClient, attrs, ns, controllerschema.IsListWatchable(apiSchema))
 	if err != nil {
 		return nil, 0, "", err
+	}
+	if gvk.Group == "ext.cattle.io" && (gvk.Kind == "Token" || gvk.Kind == "Kubeconfig") {
+		accessSet := accesscontrol.AccessSetFromAPIRequest(apiOp)
+		// See https://github.com/rancher/rancher/blob/7266e5e624f0d610c76ab0af33e30f5b72e11f61/pkg/ext/stores/tokens/tokens.go#L1186C2-L1195C3
+		// for similar code on how we determine if a user is admin
+		if accessSet == nil || !accessSet.Grants("list", schema.GroupResource{
+			Resource: "*",
+		}, "", "") {
+			user, ok := request.UserFrom(apiOp.Request.Context())
+			if !ok {
+				return nil, 0, "", apierror.NewAPIError(validation.MissingRequired, "failed to get user info from the request.Context object")
+			}
+			opts.Filters = append(opts.Filters, sqltypes.OrFilter{
+				Filters: []sqltypes.Filter{
+					{
+						Field:   []string{"metadata", "labels", "cattle.io/user-id"},
+						Matches: []string{user.GetName()},
+						Op:      sqltypes.Eq,
+					},
+				},
+			})
+		}
 	}
 
-	list, total, continueToken, err := inf.ListByOptions(apiOp.Context(), opts, partitions, apiOp.Namespace)
+	list, total, continueToken, err := inf.ListByOptions(apiOp.Context(), &opts, partitions, apiOp.Namespace)
 	if err != nil {
 		if errors.Is(err, informer.ErrInvalidColumn) {
 			return nil, 0, "", apierror.NewAPIError(validation.InvalidBodyContent, err.Error())
@@ -769,7 +798,7 @@ func (s *Store) ListByPartitions(apiOp *types.APIRequest, schema *types.APISchem
 		return nil, 0, "", err
 	}
 
-	return list.Items, total, continueToken, nil
+	return list, total, continueToken, nil
 }
 
 // WatchByPartitions returns a channel of events for a list or resource belonging to any of the specified partitions

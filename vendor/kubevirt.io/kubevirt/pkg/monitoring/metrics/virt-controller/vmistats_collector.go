@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2023 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/machadovilaca/operator-observability/pkg/operatormetrics"
+	"github.com/rhobs/operator-observability-toolkit/pkg/operatormetrics"
 	k8sv1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	none  = "<none>"
+	none  = "" // Empty values will be ignored by operator-observability and label will not be created
 	other = "<other>"
 
 	annotationPrefix        = "vm.kubevirt.io/"
@@ -99,7 +99,7 @@ var (
 				"interface associated with the VMI in the 'address' label, and about the type of address, such as " +
 				"internal IP, in the 'type' label.",
 		},
-		[]string{"node", "namespace", "name", "network_name", "address", "type"},
+		[]string{"node", "namespace", "name", "vnic_name", "interface_name", "address", "type"},
 	)
 
 	vmiMigrationStartTime = operatormetrics.NewGaugeVec(
@@ -124,12 +124,12 @@ var (
 			Help: "Details of VirtualMachineInstance (VMI) vNIC interfaces, such as vNIC name, binding type, " +
 				"network name, and binding name for each vNIC of a running instance.",
 		},
-		[]string{"name", "namespace", "vnic_name", "binding_type", "network", "binding_name"},
+		[]string{"name", "namespace", "vnic_name", "binding_type", "network", "binding_name", "model"},
 	)
 )
 
 func vmiStatsCollectorCallback() []operatormetrics.CollectorResult {
-	cachedObjs := vmiInformer.GetIndexer().List()
+	cachedObjs := informers.VMI.GetIndexer().List()
 	if len(cachedObjs) == 0 {
 		log.Log.V(4).Infof("No VMIs detected")
 		return []operatormetrics.CollectorResult{}
@@ -238,7 +238,7 @@ func getVMIMachine(vmi *k6tv1.VirtualMachineInstance) (guestOSMachineType string
 }
 
 func getVMIPod(vmi *k6tv1.VirtualMachineInstance) string {
-	objs, err := kvPodInformer.GetIndexer().ByIndex(cache.NamespaceIndex, vmi.Namespace)
+	objs, err := informers.KVPod.GetIndexer().ByIndex(cache.NamespaceIndex, vmi.Namespace)
 	if err != nil {
 		return none
 	}
@@ -261,30 +261,38 @@ func getVMIPod(vmi *k6tv1.VirtualMachineInstance) string {
 
 func getVMIInstancetype(vmi *k6tv1.VirtualMachineInstance) string {
 	if instancetypeName, ok := vmi.Annotations[k6tv1.InstancetypeAnnotation]; ok {
-		return fetchResourceName(instancetypeName, instancetypeMethods.InstancetypeStore)
+		key := types.NamespacedName{
+			Namespace: vmi.Namespace,
+			Name:      instancetypeName,
+		}
+		return fetchResourceName(key.String(), stores.Instancetype)
 	}
 
-	if instancetypeName, ok := vmi.Annotations[k6tv1.ClusterInstancetypeAnnotation]; ok {
-		return fetchResourceName(instancetypeName, instancetypeMethods.ClusterInstancetypeStore)
+	if clusterInstancetypeName, ok := vmi.Annotations[k6tv1.ClusterInstancetypeAnnotation]; ok {
+		return fetchResourceName(clusterInstancetypeName, stores.ClusterInstancetype)
 	}
 
 	return none
 }
 
 func getVMIPreference(vmi *k6tv1.VirtualMachineInstance) string {
-	if instancetypeName, ok := vmi.Annotations[k6tv1.PreferenceAnnotation]; ok {
-		return fetchResourceName(instancetypeName, instancetypeMethods.PreferenceStore)
+	if preferenceName, ok := vmi.Annotations[k6tv1.PreferenceAnnotation]; ok {
+		key := types.NamespacedName{
+			Namespace: vmi.Namespace,
+			Name:      preferenceName,
+		}
+		return fetchResourceName(key.String(), stores.Preference)
 	}
 
-	if instancetypeName, ok := vmi.Annotations[k6tv1.ClusterPreferenceAnnotation]; ok {
-		return fetchResourceName(instancetypeName, instancetypeMethods.ClusterPreferenceStore)
+	if clusterPreferenceName, ok := vmi.Annotations[k6tv1.ClusterPreferenceAnnotation]; ok {
+		return fetchResourceName(clusterPreferenceName, stores.ClusterPreference)
 	}
 
 	return none
 }
 
-func fetchResourceName(name string, store cache.Store) string {
-	obj, ok, err := store.GetByKey(name)
+func fetchResourceName(key string, store cache.Store) string {
+	obj, ok, err := store.GetByKey(key)
 	if err != nil || !ok {
 		return other
 	}
@@ -296,7 +304,7 @@ func fetchResourceName(name string, store cache.Store) string {
 
 	vendorName := apiObj.GetLabels()[instancetypeVendorLabel]
 	if _, isWhitelisted := whitelistedInstanceTypeVendors[vendorName]; isWhitelisted {
-		return name
+		return apiObj.GetName()
 	}
 
 	return other
@@ -348,15 +356,22 @@ func collectVMIInterfacesInfo(vmi *k6tv1.VirtualMachineInstance) []operatormetri
 }
 
 func collectVMIInterfaceInfo(vmi *k6tv1.VirtualMachineInstance, iface k6tv1.VirtualMachineInstanceNetworkInterface) *operatormetrics.CollectorResult {
-	if iface.IP == "" && iface.Name == "" {
-		return nil
+	interfaceType := "ExternalInterface"
+
+	if iface.IP == "" {
+		if iface.Name == "" && iface.InterfaceName == "" {
+			// Avoid duplicate metric labels error
+			return nil
+		}
+
+		interfaceType = "SystemInterface"
 	}
 
 	return &operatormetrics.CollectorResult{
 		Metric: vmiAddresses,
 		Labels: []string{
 			vmi.Status.NodeName, vmi.Namespace, vmi.Name,
-			iface.Name, iface.IP, "InternalIP",
+			iface.Name, iface.InterfaceName, iface.IP, interfaceType,
 		},
 		Value: 1.0,
 	}
@@ -371,7 +386,6 @@ func collectVMIMigrationTime(vmi *k6tv1.VirtualMachineInstance) []operatormetric
 	}
 
 	migrationName = getMigrationNameFromMigrationUID(vmi.Namespace, vmi.Status.MigrationState.MigrationUID)
-
 	if vmi.Status.MigrationState.StartTimestamp != nil {
 		cr = append(cr, operatormetrics.CollectorResult{
 			Metric: vmiMigrationStartTime,
@@ -406,7 +420,7 @@ func calculateMigrationStatus(migrationState *k6tv1.VirtualMachineInstanceMigrat
 }
 
 func getMigrationNameFromMigrationUID(namespace string, migrationUID types.UID) string {
-	objs, err := vmiMigrationInformer.GetIndexer().ByIndex(cache.NamespaceIndex, namespace)
+	objs, err := informers.VMIMigration.GetIndexer().ByIndex(cache.NamespaceIndex, namespace)
 	if err != nil {
 		return none
 	}
@@ -430,6 +444,10 @@ func CollectVmisVnicInfo(vmi *k6tv1.VirtualMachineInstance) []operatormetrics.Co
 	networks := vmi.Spec.Networks
 
 	for _, iface := range interfaces {
+		model := "<none>"
+		if iface.Model != "" {
+			model = iface.Model
+		}
 		bindingType, bindingName := getBinding(iface)
 		networkName, matchFound := getNetworkName(iface.Name, networks)
 
@@ -446,6 +464,7 @@ func CollectVmisVnicInfo(vmi *k6tv1.VirtualMachineInstance) []operatormetrics.Co
 				bindingType,
 				networkName,
 				bindingName,
+				model,
 			},
 			Value: 1.0,
 		})

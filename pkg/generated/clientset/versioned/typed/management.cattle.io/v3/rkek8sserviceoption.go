@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,34 @@ type RkeK8sServiceOptionsGetter interface {
 
 // RkeK8sServiceOptionInterface has methods to work with RkeK8sServiceOption resources.
 type RkeK8sServiceOptionInterface interface {
-	Create(ctx context.Context, rkeK8sServiceOption *v3.RkeK8sServiceOption, opts v1.CreateOptions) (*v3.RkeK8sServiceOption, error)
-	Update(ctx context.Context, rkeK8sServiceOption *v3.RkeK8sServiceOption, opts v1.UpdateOptions) (*v3.RkeK8sServiceOption, error)
+	Create(ctx context.Context, rkeK8sServiceOption *managementcattleiov3.RkeK8sServiceOption, opts v1.CreateOptions) (*managementcattleiov3.RkeK8sServiceOption, error)
+	Update(ctx context.Context, rkeK8sServiceOption *managementcattleiov3.RkeK8sServiceOption, opts v1.UpdateOptions) (*managementcattleiov3.RkeK8sServiceOption, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.RkeK8sServiceOption, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.RkeK8sServiceOptionList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.RkeK8sServiceOption, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.RkeK8sServiceOptionList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.RkeK8sServiceOption, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.RkeK8sServiceOption, err error)
 	RkeK8sServiceOptionExpansion
 }
 
 // rkeK8sServiceOptions implements RkeK8sServiceOptionInterface
 type rkeK8sServiceOptions struct {
-	*gentype.ClientWithList[*v3.RkeK8sServiceOption, *v3.RkeK8sServiceOptionList]
+	*gentype.ClientWithList[*managementcattleiov3.RkeK8sServiceOption, *managementcattleiov3.RkeK8sServiceOptionList]
 }
 
 // newRkeK8sServiceOptions returns a RkeK8sServiceOptions
 func newRkeK8sServiceOptions(c *ManagementV3Client, namespace string) *rkeK8sServiceOptions {
 	return &rkeK8sServiceOptions{
-		gentype.NewClientWithList[*v3.RkeK8sServiceOption, *v3.RkeK8sServiceOptionList](
+		gentype.NewClientWithList[*managementcattleiov3.RkeK8sServiceOption, *managementcattleiov3.RkeK8sServiceOptionList](
 			"rkek8sserviceoptions",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.RkeK8sServiceOption { return &v3.RkeK8sServiceOption{} },
-			func() *v3.RkeK8sServiceOptionList { return &v3.RkeK8sServiceOptionList{} }),
+			func() *managementcattleiov3.RkeK8sServiceOption { return &managementcattleiov3.RkeK8sServiceOption{} },
+			func() *managementcattleiov3.RkeK8sServiceOptionList {
+				return &managementcattleiov3.RkeK8sServiceOptionList{}
+			},
+		),
 	}
 }

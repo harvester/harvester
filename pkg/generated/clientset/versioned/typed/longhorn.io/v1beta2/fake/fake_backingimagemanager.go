@@ -19,129 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	longhorniov1beta2 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2"
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeBackingImageManagers implements BackingImageManagerInterface
-type FakeBackingImageManagers struct {
+// fakeBackingImageManagers implements BackingImageManagerInterface
+type fakeBackingImageManagers struct {
+	*gentype.FakeClientWithList[*v1beta2.BackingImageManager, *v1beta2.BackingImageManagerList]
 	Fake *FakeLonghornV1beta2
-	ns   string
 }
 
-var backingimagemanagersResource = v1beta2.SchemeGroupVersion.WithResource("backingimagemanagers")
-
-var backingimagemanagersKind = v1beta2.SchemeGroupVersion.WithKind("BackingImageManager")
-
-// Get takes name of the backingImageManager, and returns the corresponding backingImageManager object, and an error if there is any.
-func (c *FakeBackingImageManagers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.BackingImageManager, err error) {
-	emptyResult := &v1beta2.BackingImageManager{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(backingimagemanagersResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeBackingImageManagers(fake *FakeLonghornV1beta2, namespace string) longhorniov1beta2.BackingImageManagerInterface {
+	return &fakeBackingImageManagers{
+		gentype.NewFakeClientWithList[*v1beta2.BackingImageManager, *v1beta2.BackingImageManagerList](
+			fake.Fake,
+			namespace,
+			v1beta2.SchemeGroupVersion.WithResource("backingimagemanagers"),
+			v1beta2.SchemeGroupVersion.WithKind("BackingImageManager"),
+			func() *v1beta2.BackingImageManager { return &v1beta2.BackingImageManager{} },
+			func() *v1beta2.BackingImageManagerList { return &v1beta2.BackingImageManagerList{} },
+			func(dst, src *v1beta2.BackingImageManagerList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta2.BackingImageManagerList) []*v1beta2.BackingImageManager {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1beta2.BackingImageManagerList, items []*v1beta2.BackingImageManager) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta2.BackingImageManager), err
-}
-
-// List takes label and field selectors, and returns the list of BackingImageManagers that match those selectors.
-func (c *FakeBackingImageManagers) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.BackingImageManagerList, err error) {
-	emptyResult := &v1beta2.BackingImageManagerList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(backingimagemanagersResource, backingimagemanagersKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta2.BackingImageManagerList{ListMeta: obj.(*v1beta2.BackingImageManagerList).ListMeta}
-	for _, item := range obj.(*v1beta2.BackingImageManagerList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested backingImageManagers.
-func (c *FakeBackingImageManagers) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(backingimagemanagersResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a backingImageManager and creates it.  Returns the server's representation of the backingImageManager, and an error, if there is any.
-func (c *FakeBackingImageManagers) Create(ctx context.Context, backingImageManager *v1beta2.BackingImageManager, opts v1.CreateOptions) (result *v1beta2.BackingImageManager, err error) {
-	emptyResult := &v1beta2.BackingImageManager{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(backingimagemanagersResource, c.ns, backingImageManager, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.BackingImageManager), err
-}
-
-// Update takes the representation of a backingImageManager and updates it. Returns the server's representation of the backingImageManager, and an error, if there is any.
-func (c *FakeBackingImageManagers) Update(ctx context.Context, backingImageManager *v1beta2.BackingImageManager, opts v1.UpdateOptions) (result *v1beta2.BackingImageManager, err error) {
-	emptyResult := &v1beta2.BackingImageManager{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(backingimagemanagersResource, c.ns, backingImageManager, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.BackingImageManager), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeBackingImageManagers) UpdateStatus(ctx context.Context, backingImageManager *v1beta2.BackingImageManager, opts v1.UpdateOptions) (result *v1beta2.BackingImageManager, err error) {
-	emptyResult := &v1beta2.BackingImageManager{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(backingimagemanagersResource, "status", c.ns, backingImageManager, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.BackingImageManager), err
-}
-
-// Delete takes name of the backingImageManager and deletes it. Returns an error if one occurs.
-func (c *FakeBackingImageManagers) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(backingimagemanagersResource, c.ns, name, opts), &v1beta2.BackingImageManager{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeBackingImageManagers) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(backingimagemanagersResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta2.BackingImageManagerList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched backingImageManager.
-func (c *FakeBackingImageManagers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.BackingImageManager, err error) {
-	emptyResult := &v1beta2.BackingImageManager{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(backingimagemanagersResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.BackingImageManager), err
 }

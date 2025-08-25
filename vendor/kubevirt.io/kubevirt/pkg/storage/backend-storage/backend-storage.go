@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2023 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -41,6 +41,7 @@ import (
 	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
 	"kubevirt.io/kubevirt/pkg/controller"
 	"kubevirt.io/kubevirt/pkg/pointer"
+	"kubevirt.io/kubevirt/pkg/tpm"
 	"kubevirt.io/kubevirt/pkg/util"
 	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
 )
@@ -48,6 +49,10 @@ import (
 const (
 	PVCPrefix = "persistent-state-for"
 	PVCSize   = "10Mi"
+
+	// LabelApplyStorageProfile is a label used by the CDI mutating webhook
+	// to modify the PVC according to the storage profile.
+	LabelApplyStorageProfile = "cdi.kubevirt.io/applyStorageProfile"
 )
 
 func basePVC(vmi *corev1.VirtualMachineInstance) string {
@@ -259,18 +264,12 @@ func (bs *BackendStorage) labelLegacyPVC(pvc *v1.PersistentVolumeClaim, name str
 
 func CurrentPVCName(vmi *corev1.VirtualMachineInstance) string {
 	for _, volume := range vmi.Status.VolumeStatus {
-		if strings.HasPrefix(volume.Name, basePVC(vmi)) {
-			return volume.Name
+		if strings.Contains(volume.Name, basePVC(vmi)) {
+			return volume.PersistentVolumeClaimInfo.ClaimName
 		}
 	}
 
 	return ""
-}
-
-func HasPersistentTPMDevice(vmiSpec *corev1.VirtualMachineInstanceSpec) bool {
-	return vmiSpec.Domain.Devices.TPM != nil &&
-		vmiSpec.Domain.Devices.TPM.Persistent != nil &&
-		*vmiSpec.Domain.Devices.TPM.Persistent
 }
 
 func HasPersistentEFI(vmiSpec *corev1.VirtualMachineInstanceSpec) bool {
@@ -282,14 +281,14 @@ func HasPersistentEFI(vmiSpec *corev1.VirtualMachineInstanceSpec) bool {
 }
 
 func IsBackendStorageNeededForVMI(vmiSpec *corev1.VirtualMachineInstanceSpec) bool {
-	return HasPersistentTPMDevice(vmiSpec) || HasPersistentEFI(vmiSpec)
+	return tpm.HasPersistentDevice(vmiSpec) || HasPersistentEFI(vmiSpec)
 }
 
 func IsBackendStorageNeededForVM(vm *corev1.VirtualMachine) bool {
 	if vm.Spec.Template == nil {
 		return false
 	}
-	return HasPersistentTPMDevice(&vm.Spec.Template.Spec) || HasPersistentEFI(&vm.Spec.Template.Spec)
+	return tpm.HasPersistentDevice(&vm.Spec.Template.Spec) || HasPersistentEFI(&vm.Spec.Template.Spec)
 }
 
 // MigrationHandoff runs at the end of a successful live migration.
@@ -504,6 +503,15 @@ func (bs *BackendStorage) createPVC(vmi *corev1.VirtualMachineInstance, labels m
 			*metav1.NewControllerRef(vmi, corev1.VirtualMachineInstanceGroupVersionKind),
 		}
 	}
+
+	// Adding this label to allow the PVC to be processed by the CDI WebhookPvcRendering mutating webhook,
+	// which must be enabled in the CDI CR via feature gate.
+	// This mutating webhook processes the PVC based on its associated StorageProfile.
+	// For example, a profile can define a minimum supported volume size via the annotation:
+	// cdi.kubevirt.io/minimumSupportedPvcSize: 4Gi
+	// This helps avoid issues with provisioners that reject the hardcoded 10Mi PVC size used here.
+	labels[LabelApplyStorageProfile] = "true"
+
 	pvc := &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName:    basePVC(vmi) + "-",
