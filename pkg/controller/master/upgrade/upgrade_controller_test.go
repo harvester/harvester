@@ -205,7 +205,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			},
 		},
 		{
-			name: "annotaions should be removed after restoring",
+			name: "annotations to store original longhorn settings should be removed after restoring",
 			given: input{
 				key: testUpgradeName,
 				upgrade: newTestUpgradeBuilder().
