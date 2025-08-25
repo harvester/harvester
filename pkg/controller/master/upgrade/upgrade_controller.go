@@ -804,7 +804,7 @@ func (h *upgradeHandler) saveAutoCleanupSystemGeneratedSnapshotToUpgradeAnnotati
 func (h *upgradeHandler) loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade, toUpdate *harvesterv1.Upgrade) error {
 	value, ok := upgrade.Annotations[autoCleanupSystemGeneratedSnapshotAnnotation]
 	if !ok {
-		logrus.Warnf("no original %s value set", autoCleanupSystemGeneratedSnapshotSetting)
+		logrus.Infof("no original %s value set", autoCleanupSystemGeneratedSnapshotSetting)
 		return nil
 	}
 	if err := h.setAutoCleanupSystemGeneratedSnapshotValue(value); err != nil {
