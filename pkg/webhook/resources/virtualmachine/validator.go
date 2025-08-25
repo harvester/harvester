@@ -260,12 +260,8 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 		}
 	}
 
-	// Check resize volumes
-	if err := v.checkResizeVolumes(oldVM, newVM); err != nil {
-		return err
-	}
-
-	if err := v.storageClassOfVolumeChanged(oldVM, newVM); err != nil {
+	// Check volume annotations
+	if err := v.checkVolumeAnnotations(oldVM, newVM); err != nil {
 		return err
 	}
 
@@ -378,7 +374,7 @@ func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(vm *kubevirtv1.Virtual
 	return nil
 }
 
-func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine) error {
+func (v *vmValidator) checkVolumeAnnotations(oldVM, newVM *kubevirtv1.VirtualMachine) error {
 	if oldVM.Annotations[util.AnnotationVolumeClaimTemplates] == "" || newVM.Annotations[util.AnnotationVolumeClaimTemplates] == "" {
 		return nil
 	}
@@ -410,6 +406,21 @@ func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine
 		// 1 means newPVC > oldPVC
 		if newPvc.Spec.Resources.Requests.Storage().Cmp(*oldPvc.Spec.Resources.Requests.Storage()) == -1 {
 			return werror.NewInvalidError(fmt.Sprintf("%s PVC requests storage can't be less than previous value", newPvc.Name), fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates))
+		}
+	}
+
+	for _, oldVMpvc := range oldPvcs {
+		for _, newVMpvc := range newPvcs {
+			if oldVMpvc.Name == newVMpvc.Name {
+				if *newVMpvc.Spec.StorageClassName != *oldVMpvc.Spec.StorageClassName {
+					return fmt.Errorf("storage class %v of volume %v in annotation %v cannot be changed to %v",
+						*oldVMpvc.Spec.StorageClassName,
+						oldVMpvc.Name,
+						util.AnnotationVolumeClaimTemplates,
+						*newVMpvc.Spec.StorageClassName)
+				}
+				continue
+			}
 		}
 	}
 
@@ -535,41 +546,4 @@ func (v *vmValidator) checkReservedMemoryAnnotation(vm *kubevirtv1.VirtualMachin
 
 func (v *vmValidator) checkStorageResourceQuota(vm *kubevirtv1.VirtualMachine, oldVM *kubevirtv1.VirtualMachine) error {
 	return v.rqCalculator.CheckStorageResourceQuota(vm, oldVM)
-}
-
-func (v *vmValidator) storageClassOfVolumeChanged(oldVM, newVM *kubevirtv1.VirtualMachine) error {
-	oldVMvolumeClaimTemplates := oldVM.Annotations[util.AnnotationVolumeClaimTemplates]
-	newVMvolumeClaimTemplates := newVM.Annotations[util.AnnotationVolumeClaimTemplates]
-
-	if oldVMvolumeClaimTemplates == "" ||
-		newVMvolumeClaimTemplates == "" ||
-		oldVMvolumeClaimTemplates == newVMvolumeClaimTemplates {
-		return nil
-	}
-
-	var oldVMpvcs []*corev1.PersistentVolumeClaim
-	if err := json.Unmarshal([]byte(oldVMvolumeClaimTemplates), &oldVMpvcs); err != nil {
-		return fmt.Errorf("invalid %v annotation, error: %w", util.AnnotationVolumeClaimTemplates, err)
-	}
-	var newVMpvcs []*corev1.PersistentVolumeClaim
-	if err := json.Unmarshal([]byte(newVMvolumeClaimTemplates), &newVMpvcs); err != nil {
-		return fmt.Errorf("invalid %v annotation, error: %w", util.AnnotationVolumeClaimTemplates, err)
-	}
-
-	for _, oldVMpvc := range oldVMpvcs {
-		for _, newVMpvc := range newVMpvcs {
-			if oldVMpvc.Name == newVMpvc.Name {
-				if *newVMpvc.Spec.StorageClassName != *oldVMpvc.Spec.StorageClassName {
-					return fmt.Errorf("storage class %v of volume %v in annotation %v cannot be changed to %v",
-						*oldVMpvc.Spec.StorageClassName,
-						oldVMpvc.Name,
-						util.AnnotationVolumeClaimTemplates,
-						*newVMpvc.Spec.StorageClassName)
-				}
-				continue
-			}
-		}
-	}
-
-	return nil
 }
