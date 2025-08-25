@@ -46,6 +46,8 @@ import (
 	fakenetworkv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/network.harvesterhci.io/v1beta1/fake"
 	networkingv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/networking.k8s.io/v1"
 	fakenetworkingv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/networking.k8s.io/v1/fake"
+	provisioningv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/provisioning.cattle.io/v1"
+	fakeprovisioningv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/provisioning.cattle.io/v1/fake"
 	snapshotv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1"
 	fakesnapshotv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/snapshot.storage.k8s.io/v1/fake"
 	storagev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1"
@@ -180,6 +182,11 @@ func (c *Clientset) NetworkV1beta1() networkv1beta1.NetworkV1beta1Interface {
 // NetworkingV1 retrieves the NetworkingV1Client
 func (c *Clientset) NetworkingV1() networkingv1.NetworkingV1Interface {
 	return &fakenetworkingv1.FakeNetworkingV1{Fake: &c.Fake}
+}
+
+// ProvisioningV1 retrieves the ProvisioningV1Client
+func (c *Clientset) ProvisioningV1() provisioningv1.ProvisioningV1Interface {
+	return &fakeprovisioningv1.FakeProvisioningV1{Fake: &c.Fake}
 }
 
 // SnapshotV1 retrieves the SnapshotV1Client
