@@ -4,8 +4,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	corefake "k8s.io/client-go/kubernetes/fake"
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -659,6 +662,190 @@ func Test_virtualMachineValidator_duplicateMacAddress(t *testing.T) {
 				assert.NotNil(t, err, tc.name)
 			} else {
 				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func TestVmValidator_Update(t *testing.T) {
+	templateVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"harvesterhci.io/volumeClaimTemplates": `[{"metadata":{"name":"test-disk-0",` +
+					`"annotations":{"harvesterhci.io/imageId":"default/image"}},` +
+					`"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}` +
+					`,"volumeMode":"Block","storageClassName":"longhorn-image"}}]`,
+			},
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Networks: []kubevirtv1.Network{
+						{
+							Name: "nic-1",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Multus: &kubevirtv1.MultusNetwork{
+									NetworkName: "default/vlan-1",
+								},
+							},
+						},
+					},
+					Domain: kubevirtv1.DomainSpec{
+						Devices: kubevirtv1.Devices{
+							Interfaces: []kubevirtv1.Interface{
+								{
+									Name:       "nic-1",
+									MacAddress: "00:00:00:00:00:01",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name          string
+		oldVM         *kubevirtv1.VirtualMachine
+		newVM         *kubevirtv1.VirtualMachine
+		oldObjMeta    *metav1.ObjectMeta
+		newObjMeta    *metav1.ObjectMeta
+		newSpec       *kubevirtv1.VirtualMachineSpec
+		expectedError bool
+	}{
+		{
+			name:  "storage class name is changed which results in rejection",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			newObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"metadata":{"name":"test-disk-0",` +
+						`"annotations":{"harvesterhci.io/imageId":"default/image"}},` +
+						`"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}` +
+						`,"volumeMode":"Block","storageClassName":"longhorn"}}]`,
+				},
+			},
+			newSpec:       nil,
+			expectedError: true,
+		},
+		{
+			name:  "annotation removed resulting in success",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			newObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+			},
+			newSpec:       nil,
+			expectedError: false,
+		},
+		{
+			name:  "annotation added resulting in success",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			newObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"metadata":{"name":"test-disk-0"` +
+						`,"annotations":{"harvesterhci.io/imageId":"default/image"}},"spec":{"accessModes"` +
+						`:["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}},"volumeMode":` +
+						`"Block","storageClassName":"longhorn-image"}},{"metadata":{"name":"test-disk-1",` +
+						`"annotations":{"harvesterhci.io/imageId":"default/image"}},"spec":{"accessModes":` +
+						`["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}},"volumeMode":` +
+						`"Block","storageClassName":"longhorn"}}]`,
+				},
+			},
+			newSpec:       nil,
+			expectedError: false,
+		},
+		{
+			name:  "annotations with bad json are rejected",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			newObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"]`,
+				},
+			},
+			newSpec:       nil,
+			expectedError: true,
+		},
+		{
+			name:  "empty annotation is allowed on both objects",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			oldObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": "",
+				},
+			},
+			newObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": "",
+				},
+			},
+			newSpec:       nil,
+			expectedError: false,
+		},
+		{
+			name:  "nil storage class name is handled properly",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			newObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"metadata":{"name":"test-disk-0"` +
+						`,"annotations":{"harvesterhci.io/imageId":"default/image"}},"spec":{"accessModes"` +
+						`:["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}},"volumeMode":` +
+						`"Block"}},{"metadata":{"name":"test-disk-1",` +
+						`"annotations":{"harvesterhci.io/imageId":"default/image"}},"spec":{"accessModes":` +
+						`["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}},"volumeMode":` +
+						`"Block"}}]`,
+				},
+			},
+			newSpec:       nil,
+			expectedError: false,
+		},
+	}
+
+	corefakeclientset := corefake.NewClientset()
+	err := corefakeclientset.Tracker().Add(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+		Name: templateVM.Namespace,
+	}})
+	assert.NoError(t, err)
+	fakeNSCache := fakeclients.NamespaceCache(corefakeclientset.CoreV1().Namespaces)
+	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.oldObjMeta != nil {
+				test.oldVM.ObjectMeta = *test.oldObjMeta
+			}
+			if test.newObjMeta != nil {
+				test.newVM.ObjectMeta = *test.newObjMeta
+			}
+			if test.newSpec != nil {
+				test.newVM.Spec = *test.newSpec
+			}
+			err := validator.Update(nil, test.oldVM, test.newVM)
+
+			if test.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

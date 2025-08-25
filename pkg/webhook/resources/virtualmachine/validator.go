@@ -260,11 +260,13 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 		}
 	}
 
-	// Check resize volumes
-	if err := v.checkResizeVolumes(oldVM, newVM); err != nil {
+	// Check volume annotations
+	if err := v.checkVolumeAnnotations(oldVM, newVM); err != nil {
 		return err
 	}
 
+	// This logic will return in case interfaces are existing and not changed
+	// make sure new validation logic is added above this comment
 	if oldVM.Spec.Template != nil && newVM.Spec.Template != nil && reflect.DeepEqual(oldVM.Spec.Template.Spec.Domain.Devices.Interfaces, newVM.Spec.Template.Spec.Domain.Devices.Interfaces) {
 		return nil
 	}
@@ -372,8 +374,9 @@ func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(vm *kubevirtv1.Virtual
 	return nil
 }
 
-func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine) error {
-	if oldVM.Annotations[util.AnnotationVolumeClaimTemplates] == "" || newVM.Annotations[util.AnnotationVolumeClaimTemplates] == "" {
+func (v *vmValidator) checkVolumeAnnotations(oldVM, newVM *kubevirtv1.VirtualMachine) error {
+	if oldVM.Annotations[util.AnnotationVolumeClaimTemplates] == "" || newVM.Annotations[util.AnnotationVolumeClaimTemplates] == "" ||
+		oldVM.Annotations[util.AnnotationVolumeClaimTemplates] == newVM.Annotations[util.AnnotationVolumeClaimTemplates] {
 		return nil
 	}
 
@@ -393,6 +396,7 @@ func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine
 		newPvcMap[pvc.Name] = pvc
 	}
 
+	var scChanged strings.Builder
 	for name, oldPvc := range oldPvcMap {
 		newPvc, ok := newPvcMap[name]
 		if !ok || newPvc == nil {
@@ -405,6 +409,15 @@ func (v *vmValidator) checkResizeVolumes(oldVM, newVM *kubevirtv1.VirtualMachine
 		if newPvc.Spec.Resources.Requests.Storage().Cmp(*oldPvc.Spec.Resources.Requests.Storage()) == -1 {
 			return werror.NewInvalidError(fmt.Sprintf("%s PVC requests storage can't be less than previous value", newPvc.Name), fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates))
 		}
+
+		if oldPvc.Spec.StorageClassName != nil && newPvc.Spec.StorageClassName != nil &&
+			*newPvc.Spec.StorageClassName != *oldPvc.Spec.StorageClassName {
+			scChanged.WriteString(fmt.Sprintf(" new name %s in volume %s;", *newPvc.Spec.StorageClassName, oldPvc.Name))
+		}
+	}
+	if scChanged.Len() > 0 {
+		return fmt.Errorf("storage class names for the volumes in the %s annotation cannot be changed;%s",
+			util.AnnotationVolumeClaimTemplates, scChanged.String())
 	}
 
 	return nil
