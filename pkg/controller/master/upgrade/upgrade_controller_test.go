@@ -2,9 +2,11 @@ package upgrade
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
+	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	upgradeapiv1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -17,7 +19,9 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -77,13 +81,37 @@ func newTestVirtualMachineImage() *harvesterv1.VirtualMachineImage {
 	}
 }
 
+func newLonghornSetting(name, value string) *lhv1beta2.Setting {
+	return &lhv1beta2.Setting{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: util.LonghornSystemNamespaceName,
+			Name:      name,
+		},
+		Value: value,
+	}
+}
+
+func newCluster(namespace, name string) *provisioningv1.Cluster {
+	return &provisioningv1.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: provisioningv1.ClusterSpec{
+			RKEConfig: &provisioningv1.RKEConfig{},
+		},
+	}
+}
+
 func TestUpgradeHandler_OnChanged(t *testing.T) {
 	type input struct {
-		key     string
-		upgrade *harvesterv1.Upgrade
-		version *harvesterv1.Version
-		vmi     *harvesterv1.VirtualMachineImage
-		nodes   []*v1.Node
+		key        string
+		upgrade    *harvesterv1.Upgrade
+		version    *harvesterv1.Version
+		vmi        *harvesterv1.VirtualMachineImage
+		cluster    *provisioningv1.Cluster
+		lhsettings []*lhv1beta2.Setting
+		nodes      []*v1.Node
 	}
 	type output struct {
 		plan       *upgradeapiv1.Plan
@@ -104,6 +132,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 				upgrade: newTestUpgradeBuilder().WithLogEnabled(false).Build(),
 				version: newVersionBuilder(testVersion).Build(),
 				vmi:     newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
+				cluster: newCluster(util.FleetLocalNamespaceName, util.LocalClusterName),
 			},
 			expected: output{
 				upgrade: newTestUpgradeBuilder().InitStatus().
@@ -118,6 +147,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 				upgrade: newTestUpgradeBuilder().WithLogEnabled(true).Build(),
 				version: newVersionBuilder(testVersion).Build(),
 				vmi:     newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
+				cluster: newCluster(util.FleetLocalNamespaceName, util.LocalClusterName),
 			},
 			expected: output{
 				upgradeLog: prepareUpgradeLog(newTestUpgradeBuilder().Build()),
@@ -136,6 +166,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").Build(),
 				version: newVersionBuilder(testVersion).Build(),
 				vmi:     newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
+				cluster: newCluster(util.FleetLocalNamespaceName, util.LocalClusterName),
 				nodes: []*v1.Node{
 					newNodeBuilder("node-1").Managed().ControlPlane().Build(),
 					newNodeBuilder("node-2").Managed().ControlPlane().Build(),
@@ -158,6 +189,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").Build(),
 				version: newVersionBuilder(testVersion).Build(),
 				vmi:     newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
+				cluster: newCluster(util.FleetLocalNamespaceName, util.LocalClusterName),
 				nodes: []*v1.Node{
 					newNodeBuilder("node-1").Managed().ControlPlane().Build(),
 					newNodeBuilder("node-2").Managed().ControlPlane().Build(),
@@ -172,25 +204,77 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					ImageReadyCondition(v1.ConditionUnknown, "", "").Build(),
 			},
 		},
+		{
+			name: "annotaions should be removed after restoring",
+			given: input{
+				key: testUpgradeName,
+				upgrade: newTestUpgradeBuilder().
+					InitStatus().
+					LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").
+					ImageReadyCondition(v1.ConditionTrue, "", "").
+					RepoProvisionedCondition(v1.ConditionTrue, "", "").
+					NodesPreparedCondition(v1.ConditionTrue, "", "").
+					ChartUpgradeStatus(v1.ConditionTrue, "", "").
+					NodesUpgradedCondition(v1.ConditionTrue, "", "").
+					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(autoCleanupSystemGeneratedSnapshotAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(replicaReplenishmentAnnotation, strconv.Itoa(600)).Build(),
+				version: newVersionBuilder(testVersion).Build(),
+				vmi:     newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
+				cluster: newCluster(util.FleetLocalNamespaceName, util.LocalClusterName),
+				lhsettings: []*lhv1beta2.Setting{
+					newLonghornSetting(replicaReplenishmentWaitIntervalSetting, strconv.Itoa(1200)),
+					newLonghornSetting(autoCleanupSystemGeneratedSnapshotSetting, strconv.FormatBool(false)),
+				},
+				nodes: []*v1.Node{
+					newNodeBuilder("node-1").Managed().ControlPlane().Build(),
+					newNodeBuilder("node-2").Managed().ControlPlane().Build(),
+					newNodeBuilder("node-3").Managed().ControlPlane().Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					InitStatus().
+					LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").
+					ImageReadyCondition(v1.ConditionTrue, "", "").
+					RepoProvisionedCondition(v1.ConditionTrue, "", "").
+					NodesPreparedCondition(v1.ConditionTrue, "", "").
+					ChartUpgradeStatus(v1.ConditionTrue, "", "").
+					NodesUpgradedCondition(v1.ConditionTrue, "", "").
+					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).Build(),
+			},
+		},
 	}
 	for _, tc := range testCases {
-		var clientset = fake.NewSimpleClientset(tc.given.upgrade, tc.given.version, tc.given.vmi)
+		var objs = []runtime.Object{tc.given.upgrade, tc.given.version, tc.given.vmi, tc.given.cluster}
+		for _, setting := range tc.given.lhsettings {
+			objs = append(objs, setting)
+		}
+		var clientset = fake.NewSimpleClientset(objs...)
 		var nodes []runtime.Object
 		for _, node := range tc.given.nodes {
 			nodes = append(nodes, node)
 		}
 		var k8sclientset = k8sfake.NewSimpleClientset(nodes...)
 		var handler = &upgradeHandler{
-			namespace:        harvesterSystemNamespace,
-			nodeCache:        fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-			planClient:       fakeclients.PlanClient(clientset.UpgradeV1().Plans),
-			upgradeClient:    fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
-			upgradeCache:     fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
-			upgradeLogClient: fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
-			versionCache:     fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
-			vmClient:         fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
-			vmImageClient:    fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
-			vmImageCache:     fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			namespace:         harvesterSystemNamespace,
+			nodeCache:         fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+			planClient:        fakeclients.PlanClient(clientset.UpgradeV1().Plans),
+			planCache:         fakeclients.PlanCache(clientset.UpgradeV1().Plans),
+			upgradeClient:     fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+			upgradeCache:      fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+			upgradeLogClient:  fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
+			versionCache:      fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
+			vmClient:          fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+			vmImageClient:     fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			vmImageCache:      fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			vmCache:           fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+			serviceClient:     fakeclients.ServiceClient(k8sclientset.CoreV1().Services),
+			lhSettingCache:    fakeclients.LonghornSettingCache(clientset.LonghornV1beta2().Settings),
+			lhSettingClient:   fakeclients.LonghornSettingClient(clientset.LonghornV1beta2().Settings),
+			managedChartCache: fakeclients.ManagedChartCache(clientset.ManagementV3().ManagedCharts),
+			clusterClient:     fakeclients.ClusterClient(clientset.ProvisioningV1().Clusters),
+			clusterCache:      fakeclients.ClusterCache(clientset.ProvisioningV1().Clusters),
 		}
 		var actual output
 		actual.upgrade, actual.err = handler.OnChanged(tc.given.key, tc.given.upgrade)

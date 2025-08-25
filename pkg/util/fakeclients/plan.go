@@ -51,8 +51,16 @@ func (c PlanCache) Get(namespace, name string) (*upgradeapiv1.Plan, error) {
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c PlanCache) List(_ string, _ labels.Selector) ([]*upgradeapiv1.Plan, error) {
-	panic("implement me")
+func (c PlanCache) List(namespace string, selector labels.Selector) ([]*upgradeapiv1.Plan, error) {
+	list, err := c(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*upgradeapiv1.Plan, 0, len(list.Items))
+	for i := range list.Items {
+		result = append(result, &list.Items[i])
+	}
+	return result, err
 }
 
 func (c PlanCache) AddIndexer(_ string, _ generic.Indexer[*upgradeapiv1.Plan]) {
