@@ -799,6 +799,26 @@ func TestVmValidator_Update(t *testing.T) {
 			newSpec:       nil,
 			expectedError: false,
 		},
+		{
+			name:  "nil storage class name is handled properly",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			newObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"metadata":{"name":"test-disk-0"` +
+						`,"annotations":{"harvesterhci.io/imageId":"default/image"}},"spec":{"accessModes"` +
+						`:["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}},"volumeMode":` +
+						`"Block"}},{"metadata":{"name":"test-disk-1",` +
+						`"annotations":{"harvesterhci.io/imageId":"default/image"}},"spec":{"accessModes":` +
+						`["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}},"volumeMode":` +
+						`"Block"}}]`,
+				},
+			},
+			newSpec:       nil,
+			expectedError: false,
+		},
 	}
 
 	corefakeclientset := corefake.NewClientset()
@@ -811,6 +831,9 @@ func TestVmValidator_Update(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.oldObjMeta != nil {
+				test.oldVM.ObjectMeta = *test.oldObjMeta
+			}
 			if test.newObjMeta != nil {
 				test.newVM.ObjectMeta = *test.newObjMeta
 			}

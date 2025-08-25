@@ -375,7 +375,8 @@ func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(vm *kubevirtv1.Virtual
 }
 
 func (v *vmValidator) checkVolumeAnnotations(oldVM, newVM *kubevirtv1.VirtualMachine) error {
-	if oldVM.Annotations[util.AnnotationVolumeClaimTemplates] == "" || newVM.Annotations[util.AnnotationVolumeClaimTemplates] == "" {
+	if oldVM.Annotations[util.AnnotationVolumeClaimTemplates] == "" || newVM.Annotations[util.AnnotationVolumeClaimTemplates] == "" ||
+		oldVM.Annotations[util.AnnotationVolumeClaimTemplates] == newVM.Annotations[util.AnnotationVolumeClaimTemplates] {
 		return nil
 	}
 
@@ -395,6 +396,7 @@ func (v *vmValidator) checkVolumeAnnotations(oldVM, newVM *kubevirtv1.VirtualMac
 		newPvcMap[pvc.Name] = pvc
 	}
 
+	var scChanged strings.Builder
 	for name, oldPvc := range oldPvcMap {
 		newPvc, ok := newPvcMap[name]
 		if !ok || newPvc == nil {
@@ -407,21 +409,15 @@ func (v *vmValidator) checkVolumeAnnotations(oldVM, newVM *kubevirtv1.VirtualMac
 		if newPvc.Spec.Resources.Requests.Storage().Cmp(*oldPvc.Spec.Resources.Requests.Storage()) == -1 {
 			return werror.NewInvalidError(fmt.Sprintf("%s PVC requests storage can't be less than previous value", newPvc.Name), fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates))
 		}
-	}
 
-	for _, oldVMpvc := range oldPvcs {
-		for _, newVMpvc := range newPvcs {
-			if oldVMpvc.Name == newVMpvc.Name {
-				if *newVMpvc.Spec.StorageClassName != *oldVMpvc.Spec.StorageClassName {
-					return fmt.Errorf("storage class %v of volume %v in annotation %v cannot be changed to %v",
-						*oldVMpvc.Spec.StorageClassName,
-						oldVMpvc.Name,
-						util.AnnotationVolumeClaimTemplates,
-						*newVMpvc.Spec.StorageClassName)
-				}
-				continue
-			}
+		if oldPvc.Spec.StorageClassName != nil && newPvc.Spec.StorageClassName != nil &&
+			*newPvc.Spec.StorageClassName != *oldPvc.Spec.StorageClassName {
+			scChanged.WriteString(fmt.Sprintf(" new name %s in volume %s;", *newPvc.Spec.StorageClassName, oldPvc.Name))
 		}
+	}
+	if scChanged.Len() > 0 {
+		return fmt.Errorf("storage class names for the volumes in the %s annotation cannot be changed;%s",
+			util.AnnotationVolumeClaimTemplates, scChanged.String())
 	}
 
 	return nil
