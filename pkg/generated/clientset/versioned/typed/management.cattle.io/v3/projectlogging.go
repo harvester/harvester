@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type ProjectLoggingsGetter interface {
 
 // ProjectLoggingInterface has methods to work with ProjectLogging resources.
 type ProjectLoggingInterface interface {
-	Create(ctx context.Context, projectLogging *v3.ProjectLogging, opts v1.CreateOptions) (*v3.ProjectLogging, error)
-	Update(ctx context.Context, projectLogging *v3.ProjectLogging, opts v1.UpdateOptions) (*v3.ProjectLogging, error)
+	Create(ctx context.Context, projectLogging *managementcattleiov3.ProjectLogging, opts v1.CreateOptions) (*managementcattleiov3.ProjectLogging, error)
+	Update(ctx context.Context, projectLogging *managementcattleiov3.ProjectLogging, opts v1.UpdateOptions) (*managementcattleiov3.ProjectLogging, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, projectLogging *v3.ProjectLogging, opts v1.UpdateOptions) (*v3.ProjectLogging, error)
+	UpdateStatus(ctx context.Context, projectLogging *managementcattleiov3.ProjectLogging, opts v1.UpdateOptions) (*managementcattleiov3.ProjectLogging, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ProjectLogging, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ProjectLoggingList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ProjectLogging, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ProjectLoggingList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ProjectLogging, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ProjectLogging, err error)
 	ProjectLoggingExpansion
 }
 
 // projectLoggings implements ProjectLoggingInterface
 type projectLoggings struct {
-	*gentype.ClientWithList[*v3.ProjectLogging, *v3.ProjectLoggingList]
+	*gentype.ClientWithList[*managementcattleiov3.ProjectLogging, *managementcattleiov3.ProjectLoggingList]
 }
 
 // newProjectLoggings returns a ProjectLoggings
 func newProjectLoggings(c *ManagementV3Client, namespace string) *projectLoggings {
 	return &projectLoggings{
-		gentype.NewClientWithList[*v3.ProjectLogging, *v3.ProjectLoggingList](
+		gentype.NewClientWithList[*managementcattleiov3.ProjectLogging, *managementcattleiov3.ProjectLoggingList](
 			"projectloggings",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.ProjectLogging { return &v3.ProjectLogging{} },
-			func() *v3.ProjectLoggingList { return &v3.ProjectLoggingList{} }),
+			func() *managementcattleiov3.ProjectLogging { return &managementcattleiov3.ProjectLogging{} },
+			func() *managementcattleiov3.ProjectLoggingList { return &managementcattleiov3.ProjectLoggingList{} },
+		),
 	}
 }

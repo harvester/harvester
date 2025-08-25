@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type AuthConfigsGetter interface {
 
 // AuthConfigInterface has methods to work with AuthConfig resources.
 type AuthConfigInterface interface {
-	Create(ctx context.Context, authConfig *v3.AuthConfig, opts v1.CreateOptions) (*v3.AuthConfig, error)
-	Update(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (*v3.AuthConfig, error)
+	Create(ctx context.Context, authConfig *managementcattleiov3.AuthConfig, opts v1.CreateOptions) (*managementcattleiov3.AuthConfig, error)
+	Update(ctx context.Context, authConfig *managementcattleiov3.AuthConfig, opts v1.UpdateOptions) (*managementcattleiov3.AuthConfig, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (*v3.AuthConfig, error)
+	UpdateStatus(ctx context.Context, authConfig *managementcattleiov3.AuthConfig, opts v1.UpdateOptions) (*managementcattleiov3.AuthConfig, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.AuthConfig, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.AuthConfigList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.AuthConfig, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.AuthConfigList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.AuthConfig, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.AuthConfig, err error)
 	AuthConfigExpansion
 }
 
 // authConfigs implements AuthConfigInterface
 type authConfigs struct {
-	*gentype.ClientWithList[*v3.AuthConfig, *v3.AuthConfigList]
+	*gentype.ClientWithList[*managementcattleiov3.AuthConfig, *managementcattleiov3.AuthConfigList]
 }
 
 // newAuthConfigs returns a AuthConfigs
 func newAuthConfigs(c *ManagementV3Client) *authConfigs {
 	return &authConfigs{
-		gentype.NewClientWithList[*v3.AuthConfig, *v3.AuthConfigList](
+		gentype.NewClientWithList[*managementcattleiov3.AuthConfig, *managementcattleiov3.AuthConfigList](
 			"authconfigs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.AuthConfig { return &v3.AuthConfig{} },
-			func() *v3.AuthConfigList { return &v3.AuthConfigList{} }),
+			func() *managementcattleiov3.AuthConfig { return &managementcattleiov3.AuthConfig{} },
+			func() *managementcattleiov3.AuthConfigList { return &managementcattleiov3.AuthConfigList{} },
+		),
 	}
 }

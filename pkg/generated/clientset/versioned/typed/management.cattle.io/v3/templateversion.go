@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type TemplateVersionsGetter interface {
 
 // TemplateVersionInterface has methods to work with TemplateVersion resources.
 type TemplateVersionInterface interface {
-	Create(ctx context.Context, templateVersion *v3.TemplateVersion, opts v1.CreateOptions) (*v3.TemplateVersion, error)
-	Update(ctx context.Context, templateVersion *v3.TemplateVersion, opts v1.UpdateOptions) (*v3.TemplateVersion, error)
+	Create(ctx context.Context, templateVersion *managementcattleiov3.TemplateVersion, opts v1.CreateOptions) (*managementcattleiov3.TemplateVersion, error)
+	Update(ctx context.Context, templateVersion *managementcattleiov3.TemplateVersion, opts v1.UpdateOptions) (*managementcattleiov3.TemplateVersion, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, templateVersion *v3.TemplateVersion, opts v1.UpdateOptions) (*v3.TemplateVersion, error)
+	UpdateStatus(ctx context.Context, templateVersion *managementcattleiov3.TemplateVersion, opts v1.UpdateOptions) (*managementcattleiov3.TemplateVersion, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.TemplateVersion, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.TemplateVersionList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.TemplateVersion, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.TemplateVersionList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.TemplateVersion, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.TemplateVersion, err error)
 	TemplateVersionExpansion
 }
 
 // templateVersions implements TemplateVersionInterface
 type templateVersions struct {
-	*gentype.ClientWithList[*v3.TemplateVersion, *v3.TemplateVersionList]
+	*gentype.ClientWithList[*managementcattleiov3.TemplateVersion, *managementcattleiov3.TemplateVersionList]
 }
 
 // newTemplateVersions returns a TemplateVersions
 func newTemplateVersions(c *ManagementV3Client) *templateVersions {
 	return &templateVersions{
-		gentype.NewClientWithList[*v3.TemplateVersion, *v3.TemplateVersionList](
+		gentype.NewClientWithList[*managementcattleiov3.TemplateVersion, *managementcattleiov3.TemplateVersionList](
 			"templateversions",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.TemplateVersion { return &v3.TemplateVersion{} },
-			func() *v3.TemplateVersionList { return &v3.TemplateVersionList{} }),
+			func() *managementcattleiov3.TemplateVersion { return &managementcattleiov3.TemplateVersion{} },
+			func() *managementcattleiov3.TemplateVersionList { return &managementcattleiov3.TemplateVersionList{} },
+		),
 	}
 }

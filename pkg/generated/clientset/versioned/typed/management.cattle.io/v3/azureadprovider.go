@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type AzureADProvidersGetter interface {
 
 // AzureADProviderInterface has methods to work with AzureADProvider resources.
 type AzureADProviderInterface interface {
-	Create(ctx context.Context, azureADProvider *v3.AzureADProvider, opts v1.CreateOptions) (*v3.AzureADProvider, error)
-	Update(ctx context.Context, azureADProvider *v3.AzureADProvider, opts v1.UpdateOptions) (*v3.AzureADProvider, error)
+	Create(ctx context.Context, azureADProvider *managementcattleiov3.AzureADProvider, opts v1.CreateOptions) (*managementcattleiov3.AzureADProvider, error)
+	Update(ctx context.Context, azureADProvider *managementcattleiov3.AzureADProvider, opts v1.UpdateOptions) (*managementcattleiov3.AzureADProvider, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.AzureADProvider, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.AzureADProviderList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.AzureADProvider, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.AzureADProviderList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.AzureADProvider, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.AzureADProvider, err error)
 	AzureADProviderExpansion
 }
 
 // azureADProviders implements AzureADProviderInterface
 type azureADProviders struct {
-	*gentype.ClientWithList[*v3.AzureADProvider, *v3.AzureADProviderList]
+	*gentype.ClientWithList[*managementcattleiov3.AzureADProvider, *managementcattleiov3.AzureADProviderList]
 }
 
 // newAzureADProviders returns a AzureADProviders
 func newAzureADProviders(c *ManagementV3Client) *azureADProviders {
 	return &azureADProviders{
-		gentype.NewClientWithList[*v3.AzureADProvider, *v3.AzureADProviderList](
+		gentype.NewClientWithList[*managementcattleiov3.AzureADProvider, *managementcattleiov3.AzureADProviderList](
 			"azureadproviders",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.AzureADProvider { return &v3.AzureADProvider{} },
-			func() *v3.AzureADProviderList { return &v3.AzureADProviderList{} }),
+			func() *managementcattleiov3.AzureADProvider { return &managementcattleiov3.AzureADProvider{} },
+			func() *managementcattleiov3.AzureADProviderList { return &managementcattleiov3.AzureADProviderList{} },
+		),
 	}
 }

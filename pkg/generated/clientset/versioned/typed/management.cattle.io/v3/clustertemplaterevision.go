@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,38 @@ type ClusterTemplateRevisionsGetter interface {
 
 // ClusterTemplateRevisionInterface has methods to work with ClusterTemplateRevision resources.
 type ClusterTemplateRevisionInterface interface {
-	Create(ctx context.Context, clusterTemplateRevision *v3.ClusterTemplateRevision, opts v1.CreateOptions) (*v3.ClusterTemplateRevision, error)
-	Update(ctx context.Context, clusterTemplateRevision *v3.ClusterTemplateRevision, opts v1.UpdateOptions) (*v3.ClusterTemplateRevision, error)
+	Create(ctx context.Context, clusterTemplateRevision *managementcattleiov3.ClusterTemplateRevision, opts v1.CreateOptions) (*managementcattleiov3.ClusterTemplateRevision, error)
+	Update(ctx context.Context, clusterTemplateRevision *managementcattleiov3.ClusterTemplateRevision, opts v1.UpdateOptions) (*managementcattleiov3.ClusterTemplateRevision, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, clusterTemplateRevision *v3.ClusterTemplateRevision, opts v1.UpdateOptions) (*v3.ClusterTemplateRevision, error)
+	UpdateStatus(ctx context.Context, clusterTemplateRevision *managementcattleiov3.ClusterTemplateRevision, opts v1.UpdateOptions) (*managementcattleiov3.ClusterTemplateRevision, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ClusterTemplateRevision, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ClusterTemplateRevisionList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ClusterTemplateRevision, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ClusterTemplateRevisionList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterTemplateRevision, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ClusterTemplateRevision, err error)
 	ClusterTemplateRevisionExpansion
 }
 
 // clusterTemplateRevisions implements ClusterTemplateRevisionInterface
 type clusterTemplateRevisions struct {
-	*gentype.ClientWithList[*v3.ClusterTemplateRevision, *v3.ClusterTemplateRevisionList]
+	*gentype.ClientWithList[*managementcattleiov3.ClusterTemplateRevision, *managementcattleiov3.ClusterTemplateRevisionList]
 }
 
 // newClusterTemplateRevisions returns a ClusterTemplateRevisions
 func newClusterTemplateRevisions(c *ManagementV3Client, namespace string) *clusterTemplateRevisions {
 	return &clusterTemplateRevisions{
-		gentype.NewClientWithList[*v3.ClusterTemplateRevision, *v3.ClusterTemplateRevisionList](
+		gentype.NewClientWithList[*managementcattleiov3.ClusterTemplateRevision, *managementcattleiov3.ClusterTemplateRevisionList](
 			"clustertemplaterevisions",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.ClusterTemplateRevision { return &v3.ClusterTemplateRevision{} },
-			func() *v3.ClusterTemplateRevisionList { return &v3.ClusterTemplateRevisionList{} }),
+			func() *managementcattleiov3.ClusterTemplateRevision {
+				return &managementcattleiov3.ClusterTemplateRevision{}
+			},
+			func() *managementcattleiov3.ClusterTemplateRevisionList {
+				return &managementcattleiov3.ClusterTemplateRevisionList{}
+			},
+		),
 	}
 }

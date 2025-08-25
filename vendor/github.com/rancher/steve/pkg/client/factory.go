@@ -7,11 +7,19 @@ import (
 
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/attributes"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
+)
+
+const (
+	// defaultQPS and defaultBurst are used to configure the rest.Config for
+	// factory created clients.
+	defaultQPS   float32 = 10000
+	defaultBurst int     = 100
 )
 
 type Factory struct {
@@ -30,6 +38,8 @@ type addQuery struct {
 	next   http.RoundTripper
 }
 
+var _ utilnet.RoundTripperWrapper = (*addQuery)(nil)
+
 func (a *addQuery) RoundTrip(req *http.Request) (*http.Response, error) {
 	q := req.URL.Query()
 	for k, v := range a.values {
@@ -40,10 +50,45 @@ func (a *addQuery) RoundTrip(req *http.Request) (*http.Response, error) {
 	return a.next.RoundTrip(req)
 }
 
-func NewFactory(cfg *rest.Config, impersonate bool) (*Factory, error) {
+func (a *addQuery) WrappedRoundTripper() http.RoundTripper {
+	return a.next
+}
+
+type factoryOptions struct {
+	qps   float32
+	burst int
+}
+
+func defaultFactoryOptions() *factoryOptions {
+	return &factoryOptions{
+		qps:   defaultQPS,
+		burst: defaultBurst,
+	}
+}
+
+// WithQPSAndBurst configures the rest.Config used for creating the clients in
+// the factory with the provided burst and qps configuration.
+//
+// See https://pkg.go.dev/k8s.io/client-go/rest#Config for more.
+func WithQPSAndBurst(qps float32, burst int) FactoryOption {
+	return func(opts *factoryOptions) {
+		opts.qps = qps
+		opts.burst = burst
+	}
+}
+
+// FactoryOption is an option-func for configuring the newly created factory.
+type FactoryOption func(*factoryOptions)
+
+func NewFactory(cfg *rest.Config, impersonate bool, opts ...FactoryOption) (*Factory, error) {
 	clientCfg := rest.CopyConfig(cfg)
-	clientCfg.QPS = 10000
-	clientCfg.Burst = 100
+	options := defaultFactoryOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	clientCfg.QPS = options.qps
+	clientCfg.Burst = options.burst
 
 	watchClientCfg := rest.CopyConfig(clientCfg)
 	watchClientCfg.Timeout = 30 * time.Minute

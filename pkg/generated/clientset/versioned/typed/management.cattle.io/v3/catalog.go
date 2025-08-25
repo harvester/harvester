@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type CatalogsGetter interface {
 
 // CatalogInterface has methods to work with Catalog resources.
 type CatalogInterface interface {
-	Create(ctx context.Context, catalog *v3.Catalog, opts v1.CreateOptions) (*v3.Catalog, error)
-	Update(ctx context.Context, catalog *v3.Catalog, opts v1.UpdateOptions) (*v3.Catalog, error)
+	Create(ctx context.Context, catalog *managementcattleiov3.Catalog, opts v1.CreateOptions) (*managementcattleiov3.Catalog, error)
+	Update(ctx context.Context, catalog *managementcattleiov3.Catalog, opts v1.UpdateOptions) (*managementcattleiov3.Catalog, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, catalog *v3.Catalog, opts v1.UpdateOptions) (*v3.Catalog, error)
+	UpdateStatus(ctx context.Context, catalog *managementcattleiov3.Catalog, opts v1.UpdateOptions) (*managementcattleiov3.Catalog, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.Catalog, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.CatalogList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.Catalog, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.CatalogList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Catalog, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.Catalog, err error)
 	CatalogExpansion
 }
 
 // catalogs implements CatalogInterface
 type catalogs struct {
-	*gentype.ClientWithList[*v3.Catalog, *v3.CatalogList]
+	*gentype.ClientWithList[*managementcattleiov3.Catalog, *managementcattleiov3.CatalogList]
 }
 
 // newCatalogs returns a Catalogs
 func newCatalogs(c *ManagementV3Client) *catalogs {
 	return &catalogs{
-		gentype.NewClientWithList[*v3.Catalog, *v3.CatalogList](
+		gentype.NewClientWithList[*managementcattleiov3.Catalog, *managementcattleiov3.CatalogList](
 			"catalogs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.Catalog { return &v3.Catalog{} },
-			func() *v3.CatalogList { return &v3.CatalogList{} }),
+			func() *managementcattleiov3.Catalog { return &managementcattleiov3.Catalog{} },
+			func() *managementcattleiov3.CatalogList { return &managementcattleiov3.CatalogList{} },
+		),
 	}
 }

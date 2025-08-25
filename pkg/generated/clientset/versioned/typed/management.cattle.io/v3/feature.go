@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type FeaturesGetter interface {
 
 // FeatureInterface has methods to work with Feature resources.
 type FeatureInterface interface {
-	Create(ctx context.Context, feature *v3.Feature, opts v1.CreateOptions) (*v3.Feature, error)
-	Update(ctx context.Context, feature *v3.Feature, opts v1.UpdateOptions) (*v3.Feature, error)
+	Create(ctx context.Context, feature *managementcattleiov3.Feature, opts v1.CreateOptions) (*managementcattleiov3.Feature, error)
+	Update(ctx context.Context, feature *managementcattleiov3.Feature, opts v1.UpdateOptions) (*managementcattleiov3.Feature, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, feature *v3.Feature, opts v1.UpdateOptions) (*v3.Feature, error)
+	UpdateStatus(ctx context.Context, feature *managementcattleiov3.Feature, opts v1.UpdateOptions) (*managementcattleiov3.Feature, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.Feature, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.FeatureList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.Feature, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.FeatureList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Feature, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.Feature, err error)
 	FeatureExpansion
 }
 
 // features implements FeatureInterface
 type features struct {
-	*gentype.ClientWithList[*v3.Feature, *v3.FeatureList]
+	*gentype.ClientWithList[*managementcattleiov3.Feature, *managementcattleiov3.FeatureList]
 }
 
 // newFeatures returns a Features
 func newFeatures(c *ManagementV3Client) *features {
 	return &features{
-		gentype.NewClientWithList[*v3.Feature, *v3.FeatureList](
+		gentype.NewClientWithList[*managementcattleiov3.Feature, *managementcattleiov3.FeatureList](
 			"features",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.Feature { return &v3.Feature{} },
-			func() *v3.FeatureList { return &v3.FeatureList{} }),
+			func() *managementcattleiov3.Feature { return &managementcattleiov3.Feature{} },
+			func() *managementcattleiov3.FeatureList { return &managementcattleiov3.FeatureList{} },
+		),
 	}
 }

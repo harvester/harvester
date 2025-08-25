@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -141,7 +141,7 @@ func (c *ephemeralDiskCreator) CreateEphemeralImages(vmi *v1.VirtualMachineInsta
 }
 
 func createBackingDisk(backingFile string, backingFormat string, imagePath string) ([]byte, error) {
-	// #nosec No risk for attacket injection. Parameters are predefined strings
+	// #nosec No risk for attacker injection. Parameters are predefined strings
 	cmd := exec.Command("qemu-img",
 		"create",
 		"-f",

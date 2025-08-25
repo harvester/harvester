@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,36 @@ type MultiClusterAppRevisionsGetter interface {
 
 // MultiClusterAppRevisionInterface has methods to work with MultiClusterAppRevision resources.
 type MultiClusterAppRevisionInterface interface {
-	Create(ctx context.Context, multiClusterAppRevision *v3.MultiClusterAppRevision, opts v1.CreateOptions) (*v3.MultiClusterAppRevision, error)
-	Update(ctx context.Context, multiClusterAppRevision *v3.MultiClusterAppRevision, opts v1.UpdateOptions) (*v3.MultiClusterAppRevision, error)
+	Create(ctx context.Context, multiClusterAppRevision *managementcattleiov3.MultiClusterAppRevision, opts v1.CreateOptions) (*managementcattleiov3.MultiClusterAppRevision, error)
+	Update(ctx context.Context, multiClusterAppRevision *managementcattleiov3.MultiClusterAppRevision, opts v1.UpdateOptions) (*managementcattleiov3.MultiClusterAppRevision, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.MultiClusterAppRevision, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.MultiClusterAppRevisionList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.MultiClusterAppRevision, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.MultiClusterAppRevisionList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.MultiClusterAppRevision, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.MultiClusterAppRevision, err error)
 	MultiClusterAppRevisionExpansion
 }
 
 // multiClusterAppRevisions implements MultiClusterAppRevisionInterface
 type multiClusterAppRevisions struct {
-	*gentype.ClientWithList[*v3.MultiClusterAppRevision, *v3.MultiClusterAppRevisionList]
+	*gentype.ClientWithList[*managementcattleiov3.MultiClusterAppRevision, *managementcattleiov3.MultiClusterAppRevisionList]
 }
 
 // newMultiClusterAppRevisions returns a MultiClusterAppRevisions
 func newMultiClusterAppRevisions(c *ManagementV3Client, namespace string) *multiClusterAppRevisions {
 	return &multiClusterAppRevisions{
-		gentype.NewClientWithList[*v3.MultiClusterAppRevision, *v3.MultiClusterAppRevisionList](
+		gentype.NewClientWithList[*managementcattleiov3.MultiClusterAppRevision, *managementcattleiov3.MultiClusterAppRevisionList](
 			"multiclusterapprevisions",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.MultiClusterAppRevision { return &v3.MultiClusterAppRevision{} },
-			func() *v3.MultiClusterAppRevisionList { return &v3.MultiClusterAppRevisionList{} }),
+			func() *managementcattleiov3.MultiClusterAppRevision {
+				return &managementcattleiov3.MultiClusterAppRevision{}
+			},
+			func() *managementcattleiov3.MultiClusterAppRevisionList {
+				return &managementcattleiov3.MultiClusterAppRevisionList{}
+			},
+		),
 	}
 }

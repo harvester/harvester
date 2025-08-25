@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/rancher/apiserver/pkg/types"
@@ -32,6 +33,7 @@ func (s *WatchSession) stop(sub Subscribe, resp chan<- types.APIEvent) {
 			Namespace:    sub.Namespace,
 			ID:           sub.ID,
 			Selector:     sub.Selector,
+			Mode:         string(sub.Mode),
 		}
 	}
 	delete(s.watchers, sub.key())
@@ -86,28 +88,47 @@ func (s *WatchSession) stream(ctx context.Context, sub Subscribe, result chan<- 
 		Namespace:    sub.Namespace,
 		ID:           sub.ID,
 		Selector:     sub.Selector,
+		Mode:         string(sub.Mode),
+	}
+
+	if sub.Mode == SubscriptionModeNotification {
+		debounceRate := time.Duration(sub.DebounceMs) * time.Millisecond
+		if debounceRate == 0 {
+			debounceRate = 5000 * time.Millisecond
+		}
+
+		debounce := newDebouncer(debounceRate, c)
+		go debounce.Run(ctx)
+		c = debounce.NotificationsChan()
 	}
 
 	if c == nil {
 		<-s.apiOp.Context().Done()
 	} else {
 		for event := range c {
-			if event.Error == nil {
-				event.ID = sub.ID
-				event.Selector = sub.Selector
-				select {
-				case result <- event:
-				default:
-					// handle slow consumer
-					go func() {
-						for range c {
-							// continue to drain until close
-						}
-					}()
-					return nil
-				}
-			} else {
+			if event.Error != nil {
 				sendErr(result, event.Error, sub)
+				continue
+			}
+
+			event.ID = sub.ID
+			event.Selector = sub.Selector
+			event.ResourceType = sub.ResourceType
+			event.Namespace = sub.Namespace
+			event.Mode = string(sub.Mode)
+
+			select {
+			case result <- event:
+			// Give enough time for consumer to handle events, for
+			// example when many objects are in the c channel
+			case <-time.After(10 * time.Millisecond):
+				// handle slow consumer
+				go func() {
+					for range c {
+						// continue to drain until close
+					}
+				}()
+				return nil
 			}
 		}
 	}
@@ -179,6 +200,7 @@ func sendErr(resp chan<- types.APIEvent, err error, sub Subscribe) {
 		Namespace:    sub.Namespace,
 		ID:           sub.ID,
 		Selector:     sub.Selector,
+		Mode:         string(sub.Mode),
 		Error:        err,
 	}
 }

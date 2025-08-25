@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,38 @@ type VirtualMachineTemplateVersionsGetter interface {
 
 // VirtualMachineTemplateVersionInterface has methods to work with VirtualMachineTemplateVersion resources.
 type VirtualMachineTemplateVersionInterface interface {
-	Create(ctx context.Context, virtualMachineTemplateVersion *v1beta1.VirtualMachineTemplateVersion, opts v1.CreateOptions) (*v1beta1.VirtualMachineTemplateVersion, error)
-	Update(ctx context.Context, virtualMachineTemplateVersion *v1beta1.VirtualMachineTemplateVersion, opts v1.UpdateOptions) (*v1beta1.VirtualMachineTemplateVersion, error)
+	Create(ctx context.Context, virtualMachineTemplateVersion *harvesterhciiov1beta1.VirtualMachineTemplateVersion, opts v1.CreateOptions) (*harvesterhciiov1beta1.VirtualMachineTemplateVersion, error)
+	Update(ctx context.Context, virtualMachineTemplateVersion *harvesterhciiov1beta1.VirtualMachineTemplateVersion, opts v1.UpdateOptions) (*harvesterhciiov1beta1.VirtualMachineTemplateVersion, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, virtualMachineTemplateVersion *v1beta1.VirtualMachineTemplateVersion, opts v1.UpdateOptions) (*v1beta1.VirtualMachineTemplateVersion, error)
+	UpdateStatus(ctx context.Context, virtualMachineTemplateVersion *harvesterhciiov1beta1.VirtualMachineTemplateVersion, opts v1.UpdateOptions) (*harvesterhciiov1beta1.VirtualMachineTemplateVersion, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.VirtualMachineTemplateVersion, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.VirtualMachineTemplateVersionList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*harvesterhciiov1beta1.VirtualMachineTemplateVersion, error)
+	List(ctx context.Context, opts v1.ListOptions) (*harvesterhciiov1beta1.VirtualMachineTemplateVersionList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VirtualMachineTemplateVersion, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *harvesterhciiov1beta1.VirtualMachineTemplateVersion, err error)
 	VirtualMachineTemplateVersionExpansion
 }
 
 // virtualMachineTemplateVersions implements VirtualMachineTemplateVersionInterface
 type virtualMachineTemplateVersions struct {
-	*gentype.ClientWithList[*v1beta1.VirtualMachineTemplateVersion, *v1beta1.VirtualMachineTemplateVersionList]
+	*gentype.ClientWithList[*harvesterhciiov1beta1.VirtualMachineTemplateVersion, *harvesterhciiov1beta1.VirtualMachineTemplateVersionList]
 }
 
 // newVirtualMachineTemplateVersions returns a VirtualMachineTemplateVersions
 func newVirtualMachineTemplateVersions(c *HarvesterhciV1beta1Client, namespace string) *virtualMachineTemplateVersions {
 	return &virtualMachineTemplateVersions{
-		gentype.NewClientWithList[*v1beta1.VirtualMachineTemplateVersion, *v1beta1.VirtualMachineTemplateVersionList](
+		gentype.NewClientWithList[*harvesterhciiov1beta1.VirtualMachineTemplateVersion, *harvesterhciiov1beta1.VirtualMachineTemplateVersionList](
 			"virtualmachinetemplateversions",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.VirtualMachineTemplateVersion { return &v1beta1.VirtualMachineTemplateVersion{} },
-			func() *v1beta1.VirtualMachineTemplateVersionList { return &v1beta1.VirtualMachineTemplateVersionList{} }),
+			func() *harvesterhciiov1beta1.VirtualMachineTemplateVersion {
+				return &harvesterhciiov1beta1.VirtualMachineTemplateVersion{}
+			},
+			func() *harvesterhciiov1beta1.VirtualMachineTemplateVersionList {
+				return &harvesterhciiov1beta1.VirtualMachineTemplateVersionList{}
+			},
+		),
 	}
 }

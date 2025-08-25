@@ -19,116 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeCloudCredentials implements CloudCredentialInterface
-type FakeCloudCredentials struct {
+// fakeCloudCredentials implements CloudCredentialInterface
+type fakeCloudCredentials struct {
+	*gentype.FakeClientWithList[*v3.CloudCredential, *v3.CloudCredentialList]
 	Fake *FakeManagementV3
-	ns   string
 }
 
-var cloudcredentialsResource = v3.SchemeGroupVersion.WithResource("cloudcredentials")
-
-var cloudcredentialsKind = v3.SchemeGroupVersion.WithKind("CloudCredential")
-
-// Get takes name of the cloudCredential, and returns the corresponding cloudCredential object, and an error if there is any.
-func (c *FakeCloudCredentials) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.CloudCredential, err error) {
-	emptyResult := &v3.CloudCredential{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(cloudcredentialsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeCloudCredentials(fake *FakeManagementV3, namespace string) managementcattleiov3.CloudCredentialInterface {
+	return &fakeCloudCredentials{
+		gentype.NewFakeClientWithList[*v3.CloudCredential, *v3.CloudCredentialList](
+			fake.Fake,
+			namespace,
+			v3.SchemeGroupVersion.WithResource("cloudcredentials"),
+			v3.SchemeGroupVersion.WithKind("CloudCredential"),
+			func() *v3.CloudCredential { return &v3.CloudCredential{} },
+			func() *v3.CloudCredentialList { return &v3.CloudCredentialList{} },
+			func(dst, src *v3.CloudCredentialList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.CloudCredentialList) []*v3.CloudCredential { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.CloudCredentialList, items []*v3.CloudCredential) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.CloudCredential), err
-}
-
-// List takes label and field selectors, and returns the list of CloudCredentials that match those selectors.
-func (c *FakeCloudCredentials) List(ctx context.Context, opts v1.ListOptions) (result *v3.CloudCredentialList, err error) {
-	emptyResult := &v3.CloudCredentialList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(cloudcredentialsResource, cloudcredentialsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.CloudCredentialList{ListMeta: obj.(*v3.CloudCredentialList).ListMeta}
-	for _, item := range obj.(*v3.CloudCredentialList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested cloudCredentials.
-func (c *FakeCloudCredentials) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(cloudcredentialsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a cloudCredential and creates it.  Returns the server's representation of the cloudCredential, and an error, if there is any.
-func (c *FakeCloudCredentials) Create(ctx context.Context, cloudCredential *v3.CloudCredential, opts v1.CreateOptions) (result *v3.CloudCredential, err error) {
-	emptyResult := &v3.CloudCredential{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(cloudcredentialsResource, c.ns, cloudCredential, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.CloudCredential), err
-}
-
-// Update takes the representation of a cloudCredential and updates it. Returns the server's representation of the cloudCredential, and an error, if there is any.
-func (c *FakeCloudCredentials) Update(ctx context.Context, cloudCredential *v3.CloudCredential, opts v1.UpdateOptions) (result *v3.CloudCredential, err error) {
-	emptyResult := &v3.CloudCredential{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(cloudcredentialsResource, c.ns, cloudCredential, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.CloudCredential), err
-}
-
-// Delete takes name of the cloudCredential and deletes it. Returns an error if one occurs.
-func (c *FakeCloudCredentials) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(cloudcredentialsResource, c.ns, name, opts), &v3.CloudCredential{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeCloudCredentials) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(cloudcredentialsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.CloudCredentialList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched cloudCredential.
-func (c *FakeCloudCredentials) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.CloudCredential, err error) {
-	emptyResult := &v3.CloudCredential{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(cloudcredentialsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.CloudCredential), err
 }

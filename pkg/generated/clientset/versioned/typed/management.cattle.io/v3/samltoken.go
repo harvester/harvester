@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type SamlTokensGetter interface {
 
 // SamlTokenInterface has methods to work with SamlToken resources.
 type SamlTokenInterface interface {
-	Create(ctx context.Context, samlToken *v3.SamlToken, opts v1.CreateOptions) (*v3.SamlToken, error)
-	Update(ctx context.Context, samlToken *v3.SamlToken, opts v1.UpdateOptions) (*v3.SamlToken, error)
+	Create(ctx context.Context, samlToken *managementcattleiov3.SamlToken, opts v1.CreateOptions) (*managementcattleiov3.SamlToken, error)
+	Update(ctx context.Context, samlToken *managementcattleiov3.SamlToken, opts v1.UpdateOptions) (*managementcattleiov3.SamlToken, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.SamlToken, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.SamlTokenList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.SamlToken, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.SamlTokenList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.SamlToken, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.SamlToken, err error)
 	SamlTokenExpansion
 }
 
 // samlTokens implements SamlTokenInterface
 type samlTokens struct {
-	*gentype.ClientWithList[*v3.SamlToken, *v3.SamlTokenList]
+	*gentype.ClientWithList[*managementcattleiov3.SamlToken, *managementcattleiov3.SamlTokenList]
 }
 
 // newSamlTokens returns a SamlTokens
 func newSamlTokens(c *ManagementV3Client) *samlTokens {
 	return &samlTokens{
-		gentype.NewClientWithList[*v3.SamlToken, *v3.SamlTokenList](
+		gentype.NewClientWithList[*managementcattleiov3.SamlToken, *managementcattleiov3.SamlTokenList](
 			"samltokens",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.SamlToken { return &v3.SamlToken{} },
-			func() *v3.SamlTokenList { return &v3.SamlTokenList{} }),
+			func() *managementcattleiov3.SamlToken { return &managementcattleiov3.SamlToken{} },
+			func() *managementcattleiov3.SamlTokenList { return &managementcattleiov3.SamlTokenList{} },
+		),
 	}
 }

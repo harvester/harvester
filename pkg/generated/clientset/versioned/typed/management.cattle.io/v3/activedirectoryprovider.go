@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,36 @@ type ActiveDirectoryProvidersGetter interface {
 
 // ActiveDirectoryProviderInterface has methods to work with ActiveDirectoryProvider resources.
 type ActiveDirectoryProviderInterface interface {
-	Create(ctx context.Context, activeDirectoryProvider *v3.ActiveDirectoryProvider, opts v1.CreateOptions) (*v3.ActiveDirectoryProvider, error)
-	Update(ctx context.Context, activeDirectoryProvider *v3.ActiveDirectoryProvider, opts v1.UpdateOptions) (*v3.ActiveDirectoryProvider, error)
+	Create(ctx context.Context, activeDirectoryProvider *managementcattleiov3.ActiveDirectoryProvider, opts v1.CreateOptions) (*managementcattleiov3.ActiveDirectoryProvider, error)
+	Update(ctx context.Context, activeDirectoryProvider *managementcattleiov3.ActiveDirectoryProvider, opts v1.UpdateOptions) (*managementcattleiov3.ActiveDirectoryProvider, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ActiveDirectoryProvider, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ActiveDirectoryProviderList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ActiveDirectoryProvider, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ActiveDirectoryProviderList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ActiveDirectoryProvider, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ActiveDirectoryProvider, err error)
 	ActiveDirectoryProviderExpansion
 }
 
 // activeDirectoryProviders implements ActiveDirectoryProviderInterface
 type activeDirectoryProviders struct {
-	*gentype.ClientWithList[*v3.ActiveDirectoryProvider, *v3.ActiveDirectoryProviderList]
+	*gentype.ClientWithList[*managementcattleiov3.ActiveDirectoryProvider, *managementcattleiov3.ActiveDirectoryProviderList]
 }
 
 // newActiveDirectoryProviders returns a ActiveDirectoryProviders
 func newActiveDirectoryProviders(c *ManagementV3Client) *activeDirectoryProviders {
 	return &activeDirectoryProviders{
-		gentype.NewClientWithList[*v3.ActiveDirectoryProvider, *v3.ActiveDirectoryProviderList](
+		gentype.NewClientWithList[*managementcattleiov3.ActiveDirectoryProvider, *managementcattleiov3.ActiveDirectoryProviderList](
 			"activedirectoryproviders",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.ActiveDirectoryProvider { return &v3.ActiveDirectoryProvider{} },
-			func() *v3.ActiveDirectoryProviderList { return &v3.ActiveDirectoryProviderList{} }),
+			func() *managementcattleiov3.ActiveDirectoryProvider {
+				return &managementcattleiov3.ActiveDirectoryProvider{}
+			},
+			func() *managementcattleiov3.ActiveDirectoryProviderList {
+				return &managementcattleiov3.ActiveDirectoryProviderList{}
+			},
+		),
 	}
 }

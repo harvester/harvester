@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,34 @@ type GlobalDnsProvidersGetter interface {
 
 // GlobalDnsProviderInterface has methods to work with GlobalDnsProvider resources.
 type GlobalDnsProviderInterface interface {
-	Create(ctx context.Context, globalDnsProvider *v3.GlobalDnsProvider, opts v1.CreateOptions) (*v3.GlobalDnsProvider, error)
-	Update(ctx context.Context, globalDnsProvider *v3.GlobalDnsProvider, opts v1.UpdateOptions) (*v3.GlobalDnsProvider, error)
+	Create(ctx context.Context, globalDnsProvider *managementcattleiov3.GlobalDnsProvider, opts v1.CreateOptions) (*managementcattleiov3.GlobalDnsProvider, error)
+	Update(ctx context.Context, globalDnsProvider *managementcattleiov3.GlobalDnsProvider, opts v1.UpdateOptions) (*managementcattleiov3.GlobalDnsProvider, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.GlobalDnsProvider, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.GlobalDnsProviderList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.GlobalDnsProvider, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.GlobalDnsProviderList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.GlobalDnsProvider, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.GlobalDnsProvider, err error)
 	GlobalDnsProviderExpansion
 }
 
 // globalDnsProviders implements GlobalDnsProviderInterface
 type globalDnsProviders struct {
-	*gentype.ClientWithList[*v3.GlobalDnsProvider, *v3.GlobalDnsProviderList]
+	*gentype.ClientWithList[*managementcattleiov3.GlobalDnsProvider, *managementcattleiov3.GlobalDnsProviderList]
 }
 
 // newGlobalDnsProviders returns a GlobalDnsProviders
 func newGlobalDnsProviders(c *ManagementV3Client, namespace string) *globalDnsProviders {
 	return &globalDnsProviders{
-		gentype.NewClientWithList[*v3.GlobalDnsProvider, *v3.GlobalDnsProviderList](
+		gentype.NewClientWithList[*managementcattleiov3.GlobalDnsProvider, *managementcattleiov3.GlobalDnsProviderList](
 			"globaldnsproviders",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.GlobalDnsProvider { return &v3.GlobalDnsProvider{} },
-			func() *v3.GlobalDnsProviderList { return &v3.GlobalDnsProviderList{} }),
+			func() *managementcattleiov3.GlobalDnsProvider { return &managementcattleiov3.GlobalDnsProvider{} },
+			func() *managementcattleiov3.GlobalDnsProviderList {
+				return &managementcattleiov3.GlobalDnsProviderList{}
+			},
+		),
 	}
 }

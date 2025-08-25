@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type ManagedChartsGetter interface {
 
 // ManagedChartInterface has methods to work with ManagedChart resources.
 type ManagedChartInterface interface {
-	Create(ctx context.Context, managedChart *v3.ManagedChart, opts v1.CreateOptions) (*v3.ManagedChart, error)
-	Update(ctx context.Context, managedChart *v3.ManagedChart, opts v1.UpdateOptions) (*v3.ManagedChart, error)
+	Create(ctx context.Context, managedChart *managementcattleiov3.ManagedChart, opts v1.CreateOptions) (*managementcattleiov3.ManagedChart, error)
+	Update(ctx context.Context, managedChart *managementcattleiov3.ManagedChart, opts v1.UpdateOptions) (*managementcattleiov3.ManagedChart, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, managedChart *v3.ManagedChart, opts v1.UpdateOptions) (*v3.ManagedChart, error)
+	UpdateStatus(ctx context.Context, managedChart *managementcattleiov3.ManagedChart, opts v1.UpdateOptions) (*managementcattleiov3.ManagedChart, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ManagedChart, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ManagedChartList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ManagedChart, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ManagedChartList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ManagedChart, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ManagedChart, err error)
 	ManagedChartExpansion
 }
 
 // managedCharts implements ManagedChartInterface
 type managedCharts struct {
-	*gentype.ClientWithList[*v3.ManagedChart, *v3.ManagedChartList]
+	*gentype.ClientWithList[*managementcattleiov3.ManagedChart, *managementcattleiov3.ManagedChartList]
 }
 
 // newManagedCharts returns a ManagedCharts
 func newManagedCharts(c *ManagementV3Client, namespace string) *managedCharts {
 	return &managedCharts{
-		gentype.NewClientWithList[*v3.ManagedChart, *v3.ManagedChartList](
+		gentype.NewClientWithList[*managementcattleiov3.ManagedChart, *managementcattleiov3.ManagedChartList](
 			"managedcharts",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.ManagedChart { return &v3.ManagedChart{} },
-			func() *v3.ManagedChartList { return &v3.ManagedChartList{} }),
+			func() *managementcattleiov3.ManagedChart { return &managementcattleiov3.ManagedChart{} },
+			func() *managementcattleiov3.ManagedChartList { return &managementcattleiov3.ManagedChartList{} },
+		),
 	}
 }

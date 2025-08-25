@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type EtcdBackupsGetter interface {
 
 // EtcdBackupInterface has methods to work with EtcdBackup resources.
 type EtcdBackupInterface interface {
-	Create(ctx context.Context, etcdBackup *v3.EtcdBackup, opts v1.CreateOptions) (*v3.EtcdBackup, error)
-	Update(ctx context.Context, etcdBackup *v3.EtcdBackup, opts v1.UpdateOptions) (*v3.EtcdBackup, error)
+	Create(ctx context.Context, etcdBackup *managementcattleiov3.EtcdBackup, opts v1.CreateOptions) (*managementcattleiov3.EtcdBackup, error)
+	Update(ctx context.Context, etcdBackup *managementcattleiov3.EtcdBackup, opts v1.UpdateOptions) (*managementcattleiov3.EtcdBackup, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, etcdBackup *v3.EtcdBackup, opts v1.UpdateOptions) (*v3.EtcdBackup, error)
+	UpdateStatus(ctx context.Context, etcdBackup *managementcattleiov3.EtcdBackup, opts v1.UpdateOptions) (*managementcattleiov3.EtcdBackup, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.EtcdBackup, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.EtcdBackupList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.EtcdBackup, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.EtcdBackupList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.EtcdBackup, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.EtcdBackup, err error)
 	EtcdBackupExpansion
 }
 
 // etcdBackups implements EtcdBackupInterface
 type etcdBackups struct {
-	*gentype.ClientWithList[*v3.EtcdBackup, *v3.EtcdBackupList]
+	*gentype.ClientWithList[*managementcattleiov3.EtcdBackup, *managementcattleiov3.EtcdBackupList]
 }
 
 // newEtcdBackups returns a EtcdBackups
 func newEtcdBackups(c *ManagementV3Client, namespace string) *etcdBackups {
 	return &etcdBackups{
-		gentype.NewClientWithList[*v3.EtcdBackup, *v3.EtcdBackupList](
+		gentype.NewClientWithList[*managementcattleiov3.EtcdBackup, *managementcattleiov3.EtcdBackupList](
 			"etcdbackups",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.EtcdBackup { return &v3.EtcdBackup{} },
-			func() *v3.EtcdBackupList { return &v3.EtcdBackupList{} }),
+			func() *managementcattleiov3.EtcdBackup { return &managementcattleiov3.EtcdBackup{} },
+			func() *managementcattleiov3.EtcdBackupList { return &managementcattleiov3.EtcdBackupList{} },
+		),
 	}
 }

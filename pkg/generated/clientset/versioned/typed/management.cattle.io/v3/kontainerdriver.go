@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type KontainerDriversGetter interface {
 
 // KontainerDriverInterface has methods to work with KontainerDriver resources.
 type KontainerDriverInterface interface {
-	Create(ctx context.Context, kontainerDriver *v3.KontainerDriver, opts v1.CreateOptions) (*v3.KontainerDriver, error)
-	Update(ctx context.Context, kontainerDriver *v3.KontainerDriver, opts v1.UpdateOptions) (*v3.KontainerDriver, error)
+	Create(ctx context.Context, kontainerDriver *managementcattleiov3.KontainerDriver, opts v1.CreateOptions) (*managementcattleiov3.KontainerDriver, error)
+	Update(ctx context.Context, kontainerDriver *managementcattleiov3.KontainerDriver, opts v1.UpdateOptions) (*managementcattleiov3.KontainerDriver, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, kontainerDriver *v3.KontainerDriver, opts v1.UpdateOptions) (*v3.KontainerDriver, error)
+	UpdateStatus(ctx context.Context, kontainerDriver *managementcattleiov3.KontainerDriver, opts v1.UpdateOptions) (*managementcattleiov3.KontainerDriver, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.KontainerDriver, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.KontainerDriverList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.KontainerDriver, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.KontainerDriverList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.KontainerDriver, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.KontainerDriver, err error)
 	KontainerDriverExpansion
 }
 
 // kontainerDrivers implements KontainerDriverInterface
 type kontainerDrivers struct {
-	*gentype.ClientWithList[*v3.KontainerDriver, *v3.KontainerDriverList]
+	*gentype.ClientWithList[*managementcattleiov3.KontainerDriver, *managementcattleiov3.KontainerDriverList]
 }
 
 // newKontainerDrivers returns a KontainerDrivers
 func newKontainerDrivers(c *ManagementV3Client) *kontainerDrivers {
 	return &kontainerDrivers{
-		gentype.NewClientWithList[*v3.KontainerDriver, *v3.KontainerDriverList](
+		gentype.NewClientWithList[*managementcattleiov3.KontainerDriver, *managementcattleiov3.KontainerDriverList](
 			"kontainerdrivers",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.KontainerDriver { return &v3.KontainerDriver{} },
-			func() *v3.KontainerDriverList { return &v3.KontainerDriverList{} }),
+			func() *managementcattleiov3.KontainerDriver { return &managementcattleiov3.KontainerDriver{} },
+			func() *managementcattleiov3.KontainerDriverList { return &managementcattleiov3.KontainerDriverList{} },
+		),
 	}
 }
