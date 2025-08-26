@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	http "net/http"
+	"net/http"
 
-	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	v1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	rest "k8s.io/client-go/rest"
 )
 
@@ -95,10 +95,10 @@ func New(c rest.Interface) *SnapshotV1Client {
 }
 
 func setConfigDefaults(config *rest.Config) error {
-	gv := volumesnapshotv1.SchemeGroupVersion
+	gv := v1.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
+	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()

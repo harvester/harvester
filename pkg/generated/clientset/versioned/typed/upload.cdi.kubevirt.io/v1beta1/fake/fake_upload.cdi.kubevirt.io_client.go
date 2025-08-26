@@ -29,7 +29,7 @@ type FakeUploadV1beta1 struct {
 }
 
 func (c *FakeUploadV1beta1) UploadTokenRequests(namespace string) v1beta1.UploadTokenRequestInterface {
-	return newFakeUploadTokenRequests(c, namespace)
+	return &FakeUploadTokenRequests{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

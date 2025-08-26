@@ -20,11 +20,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 
 	"k8s.io/gengo/v2/types"
 	openapi "k8s.io/kube-openapi/pkg/common"
@@ -63,34 +61,6 @@ func (c *CELTag) Validate() error {
 	return nil
 }
 
-// isKnownTagCommentKey returns true if the given key is a known comment tag key.
-// Known keys are identified by the json field tags in the commentTags struct.
-// If the key is a composite key, only the first key part is checked, and is
-// expected to be separated by the remainder of the key by a ':' or '[' delimiter.
-func isKnownTagCommentKey(key string) bool {
-	split := func(r rune) bool { return r == ':' || r == '[' }
-	commentTags := strings.FieldsFunc(key, split)
-	if len(commentTags) == 0 {
-		return false
-	}
-	_, ok := tagKeys()[commentTags[0]]
-	return ok
-}
-
-var tagKeys = sync.OnceValue(func() map[string]struct{} {
-	result := map[string]struct{}{}
-	t := reflect.TypeOf(commentTags{})
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		if jsonTag := field.Tag.Get("json"); jsonTag != "" {
-			if key, _, _ := strings.Cut(jsonTag, ","); key != "" {
-				result[key] = struct{}{}
-			}
-		}
-	}
-	return result
-})
-
 // commentTags represents the parsed comment tags for a given type. These types are then used to generate schema validations.
 // These only include the newer prefixed tags. The older tags are still supported,
 // but are not included in this struct. Comment Tags are transformed into a
@@ -105,29 +75,7 @@ var tagKeys = sync.OnceValue(func() map[string]struct{} {
 // - +listMapKeys
 // - +mapType
 type commentTags struct {
-	Nullable         *bool         `json:"nullable,omitempty"`
-	Format           *string       `json:"format,omitempty"`
-	Maximum          *float64      `json:"maximum,omitempty"`
-	ExclusiveMaximum *bool         `json:"exclusiveMaximum,omitempty"`
-	Minimum          *float64      `json:"minimum,omitempty"`
-	ExclusiveMinimum *bool         `json:"exclusiveMinimum,omitempty"`
-	MaxLength        *int64        `json:"maxLength,omitempty"`
-	MinLength        *int64        `json:"minLength,omitempty"`
-	Pattern          *string       `json:"pattern,omitempty"`
-	MaxItems         *int64        `json:"maxItems,omitempty"`
-	MinItems         *int64        `json:"minItems,omitempty"`
-	UniqueItems      *bool         `json:"uniqueItems,omitempty"`
-	MultipleOf       *float64      `json:"multipleOf,omitempty"`
-	Enum             []interface{} `json:"enum,omitempty"`
-	MaxProperties    *int64        `json:"maxProperties,omitempty"`
-	MinProperties    *int64        `json:"minProperties,omitempty"`
-
-	// Nested commentTags for extending the schemas of subfields at point-of-use
-	// when you cant annotate them directly. Cannot be used to add properties
-	// or remove validations on the overridden schema.
-	Items                *commentTags            `json:"items,omitempty"`
-	Properties           map[string]*commentTags `json:"properties,omitempty"`
-	AdditionalProperties *commentTags            `json:"additionalProperties,omitempty"`
+	spec.SchemaProps
 
 	CEL []CELTag `json:"cel,omitempty"`
 
@@ -138,75 +86,9 @@ type commentTags struct {
 
 // Returns the schema for the given CommentTags instance.
 // This is the final authoritative schema for the comment tags
-func (c *commentTags) ValidationSchema() (*spec.Schema, error) {
-	if c == nil {
-		return nil, nil
-	}
-
-	isNullable := c.Nullable != nil && *c.Nullable
-	format := ""
-	if c.Format != nil {
-		format = *c.Format
-	}
-	isExclusiveMaximum := c.ExclusiveMaximum != nil && *c.ExclusiveMaximum
-	isExclusiveMinimum := c.ExclusiveMinimum != nil && *c.ExclusiveMinimum
-	isUniqueItems := c.UniqueItems != nil && *c.UniqueItems
-	pattern := ""
-	if c.Pattern != nil {
-		pattern = *c.Pattern
-	}
-
-	var transformedItems *spec.SchemaOrArray
-	var transformedProperties map[string]spec.Schema
-	var transformedAdditionalProperties *spec.SchemaOrBool
-
-	if c.Items != nil {
-		items, err := c.Items.ValidationSchema()
-		if err != nil {
-			return nil, fmt.Errorf("failed to transform items: %w", err)
-		}
-		transformedItems = &spec.SchemaOrArray{Schema: items}
-	}
-
-	if c.Properties != nil {
-		properties := make(map[string]spec.Schema)
-		for key, value := range c.Properties {
-			property, err := value.ValidationSchema()
-			if err != nil {
-				return nil, fmt.Errorf("failed to transform property %q: %w", key, err)
-			}
-			properties[key] = *property
-		}
-		transformedProperties = properties
-	}
-
-	if c.AdditionalProperties != nil {
-		additionalProperties, err := c.AdditionalProperties.ValidationSchema()
-		if err != nil {
-			return nil, fmt.Errorf("failed to transform additionalProperties: %w", err)
-		}
-		transformedAdditionalProperties = &spec.SchemaOrBool{Schema: additionalProperties, Allows: true}
-	}
-
+func (c commentTags) ValidationSchema() (*spec.Schema, error) {
 	res := spec.Schema{
-		SchemaProps: spec.SchemaProps{
-			Nullable:         isNullable,
-			Format:           format,
-			Maximum:          c.Maximum,
-			ExclusiveMaximum: isExclusiveMaximum,
-			Minimum:          c.Minimum,
-			ExclusiveMinimum: isExclusiveMinimum,
-			MaxLength:        c.MaxLength,
-			MinLength:        c.MinLength,
-			Pattern:          pattern,
-			MaxItems:         c.MaxItems,
-			MinItems:         c.MinItems,
-			UniqueItems:      isUniqueItems,
-			MultipleOf:       c.MultipleOf,
-			Enum:             c.Enum,
-			MaxProperties:    c.MaxProperties,
-			MinProperties:    c.MinProperties,
-		},
+		SchemaProps: c.SchemaProps,
 	}
 
 	if len(c.CEL) > 0 {
@@ -221,18 +103,6 @@ func (c *commentTags) ValidationSchema() (*spec.Schema, error) {
 		}
 
 		res.VendorExtensible.AddExtension("x-kubernetes-validations", celTagMap)
-	}
-
-	// Dont add structural properties directly to this schema. This schema
-	// is used only for validation.
-	if transformedItems != nil || len(transformedProperties) > 0 || transformedAdditionalProperties != nil {
-		res.AllOf = append(res.AllOf, spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Items:                transformedItems,
-				Properties:           transformedProperties,
-				AdditionalProperties: transformedAdditionalProperties,
-			},
-		})
 	}
 
 	return &res, nil
@@ -264,7 +134,7 @@ func (c commentTags) Validate() error {
 	if c.Minimum != nil && c.Maximum != nil && *c.Minimum > *c.Maximum {
 		err = errors.Join(err, fmt.Errorf("minimum %f is greater than maximum %f", *c.Minimum, *c.Maximum))
 	}
-	if (c.ExclusiveMinimum != nil || c.ExclusiveMaximum != nil) && c.Minimum != nil && c.Maximum != nil && *c.Minimum == *c.Maximum {
+	if (c.ExclusiveMinimum || c.ExclusiveMaximum) && c.Minimum != nil && c.Maximum != nil && *c.Minimum == *c.Maximum {
 		err = errors.Join(err, fmt.Errorf("exclusiveMinimum/Maximum cannot be set when minimum == maximum"))
 	}
 	if c.MinLength != nil && c.MaxLength != nil && *c.MinLength > *c.MaxLength {
@@ -276,10 +146,10 @@ func (c commentTags) Validate() error {
 	if c.MinProperties != nil && c.MaxProperties != nil && *c.MinProperties > *c.MaxProperties {
 		err = errors.Join(err, fmt.Errorf("minProperties %d is greater than maxProperties %d", *c.MinProperties, *c.MaxProperties))
 	}
-	if c.Pattern != nil {
-		_, e := regexp.Compile(*c.Pattern)
+	if c.Pattern != "" {
+		_, e := regexp.Compile(c.Pattern)
 		if e != nil {
-			err = errors.Join(err, fmt.Errorf("invalid pattern %q: %v", *c.Pattern, e))
+			err = errors.Join(err, fmt.Errorf("invalid pattern %q: %v", c.Pattern, e))
 		}
 	}
 	if c.MultipleOf != nil && *c.MultipleOf == 0 {
@@ -305,23 +175,10 @@ func (c commentTags) ValidateType(t *types.Type) error {
 	typeString, _ := openapi.OpenAPITypeFormat(resolvedType.String()) // will be empty for complicated types
 
 	// Structs and interfaces may dynamically be any type, so we cant validate them
-	// easily.
+	// easily. We may be able to if we check that they don't implement all the
+	// override functions, but for now we just skip them.
 	if resolvedType.Kind == types.Interface || resolvedType.Kind == types.Struct {
-		// Skip validation for structs and interfaces which implement custom
-		// overrides
-		//
-		// Only check top-level t type without resolving alias to mirror generator
-		// behavior. Generator only checks the top level type without resolving
-		// alias. The `has*Method` functions can be changed to add this behavior in the
-		// future if needed.
-		elemT := resolvePtrType(t)
-		if hasOpenAPIDefinitionMethod(elemT) ||
-			hasOpenAPIDefinitionMethods(elemT) ||
-			hasOpenAPIV3DefinitionMethod(elemT) ||
-			hasOpenAPIV3OneOfMethod(elemT) {
-
-			return nil
-		}
+		return nil
 	}
 
 	isArray := resolvedType.Kind == types.Slice || resolvedType.Kind == types.Array
@@ -329,7 +186,6 @@ func (c commentTags) ValidateType(t *types.Type) error {
 	isString := typeString == "string"
 	isInt := typeString == "integer"
 	isFloat := typeString == "number"
-	isStruct := resolvedType.Kind == types.Struct
 
 	if c.MaxItems != nil && !isArray {
 		err = errors.Join(err, fmt.Errorf("maxItems can only be used on array types"))
@@ -337,13 +193,13 @@ func (c commentTags) ValidateType(t *types.Type) error {
 	if c.MinItems != nil && !isArray {
 		err = errors.Join(err, fmt.Errorf("minItems can only be used on array types"))
 	}
-	if c.UniqueItems != nil && !isArray {
+	if c.UniqueItems && !isArray {
 		err = errors.Join(err, fmt.Errorf("uniqueItems can only be used on array types"))
 	}
-	if c.MaxProperties != nil && !(isMap || isStruct) {
+	if c.MaxProperties != nil && !isMap {
 		err = errors.Join(err, fmt.Errorf("maxProperties can only be used on map types"))
 	}
-	if c.MinProperties != nil && !(isMap || isStruct) {
+	if c.MinProperties != nil && !isMap {
 		err = errors.Join(err, fmt.Errorf("minProperties can only be used on map types"))
 	}
 	if c.MinLength != nil && !isString {
@@ -352,7 +208,7 @@ func (c commentTags) ValidateType(t *types.Type) error {
 	if c.MaxLength != nil && !isString {
 		err = errors.Join(err, fmt.Errorf("maxLength can only be used on string types"))
 	}
-	if c.Pattern != nil && !isString {
+	if c.Pattern != "" && !isString {
 		err = errors.Join(err, fmt.Errorf("pattern can only be used on string types"))
 	}
 	if c.Minimum != nil && !isInt && !isFloat {
@@ -364,62 +220,22 @@ func (c commentTags) ValidateType(t *types.Type) error {
 	if c.MultipleOf != nil && !isInt && !isFloat {
 		err = errors.Join(err, fmt.Errorf("multipleOf can only be used on numeric types"))
 	}
-	if c.ExclusiveMinimum != nil && !isInt && !isFloat {
+	if c.ExclusiveMinimum && !isInt && !isFloat {
 		err = errors.Join(err, fmt.Errorf("exclusiveMinimum can only be used on numeric types"))
 	}
-	if c.ExclusiveMaximum != nil && !isInt && !isFloat {
+	if c.ExclusiveMaximum && !isInt && !isFloat {
 		err = errors.Join(err, fmt.Errorf("exclusiveMaximum can only be used on numeric types"))
-	}
-	if c.AdditionalProperties != nil && !isMap {
-		err = errors.Join(err, fmt.Errorf("additionalProperties can only be used on map types"))
-
-		if err == nil {
-			err = errors.Join(err, c.AdditionalProperties.ValidateType(t))
-		}
-	}
-	if c.Items != nil && !isArray {
-		err = errors.Join(err, fmt.Errorf("items can only be used on array types"))
-
-		if err == nil {
-			err = errors.Join(err, c.Items.ValidateType(t))
-		}
-	}
-	if c.Properties != nil {
-		if !isStruct && !isMap {
-			err = errors.Join(err, fmt.Errorf("properties can only be used on struct types"))
-		} else if isStruct && err == nil {
-			for key, tags := range c.Properties {
-				if member := memberWithJSONName(resolvedType, key); member == nil {
-					err = errors.Join(err, fmt.Errorf("property used in comment tag %q not found in struct %s", key, resolvedType.String()))
-				} else if nestedErr := tags.ValidateType(member.Type); nestedErr != nil {
-					err = errors.Join(err, fmt.Errorf("failed to validate property %q: %w", key, nestedErr))
-				}
-			}
-		}
 	}
 
 	return err
 }
 
-func memberWithJSONName(t *types.Type, key string) *types.Member {
-	for _, member := range t.Members {
-		tags := getJsonTags(&member)
-		if len(tags) > 0 && tags[0] == key {
-			return &member
-		} else if member.Embedded {
-			if embeddedMember := memberWithJSONName(member.Type, key); embeddedMember != nil {
-				return embeddedMember
-			}
-		}
-	}
-	return nil
-}
-
-// ParseCommentTags parses the given comments into a CommentTags type. Validates the parsed comment tags, and returns the result.
+// Parses the given comments into a CommentTags type. Validates the parsed comment tags, and returns the result.
 // Accepts an optional type to validate against, and a prefix to filter out markers not related to validation.
 // Accepts a prefix to filter out markers not related to validation.
 // Returns any errors encountered while parsing or validating the comment tags.
 func ParseCommentTags(t *types.Type, comments []string, prefix string) (*spec.Schema, error) {
+
 	markers, err := parseMarkers(comments, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse marker comments: %w", err)
@@ -639,8 +455,6 @@ func parseMarkers(markerComments []string, prefix string) (map[string]any, error
 
 		if len(key) == 0 {
 			return nil, fmt.Errorf("cannot have empty key for marker comment")
-		} else if !isKnownTagCommentKey(key) {
-			continue
 		} else if _, ok := parseSymbolReference(value, ""); ok {
 			// Skip ref markers
 			continue

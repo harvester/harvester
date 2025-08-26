@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	context "context"
+	"context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,32 +37,31 @@ type ProjectCatalogsGetter interface {
 
 // ProjectCatalogInterface has methods to work with ProjectCatalog resources.
 type ProjectCatalogInterface interface {
-	Create(ctx context.Context, projectCatalog *managementcattleiov3.ProjectCatalog, opts v1.CreateOptions) (*managementcattleiov3.ProjectCatalog, error)
-	Update(ctx context.Context, projectCatalog *managementcattleiov3.ProjectCatalog, opts v1.UpdateOptions) (*managementcattleiov3.ProjectCatalog, error)
+	Create(ctx context.Context, projectCatalog *v3.ProjectCatalog, opts v1.CreateOptions) (*v3.ProjectCatalog, error)
+	Update(ctx context.Context, projectCatalog *v3.ProjectCatalog, opts v1.UpdateOptions) (*v3.ProjectCatalog, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ProjectCatalog, error)
-	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ProjectCatalogList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ProjectCatalog, error)
+	List(ctx context.Context, opts v1.ListOptions) (*v3.ProjectCatalogList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ProjectCatalog, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ProjectCatalog, err error)
 	ProjectCatalogExpansion
 }
 
 // projectCatalogs implements ProjectCatalogInterface
 type projectCatalogs struct {
-	*gentype.ClientWithList[*managementcattleiov3.ProjectCatalog, *managementcattleiov3.ProjectCatalogList]
+	*gentype.ClientWithList[*v3.ProjectCatalog, *v3.ProjectCatalogList]
 }
 
 // newProjectCatalogs returns a ProjectCatalogs
 func newProjectCatalogs(c *ManagementV3Client, namespace string) *projectCatalogs {
 	return &projectCatalogs{
-		gentype.NewClientWithList[*managementcattleiov3.ProjectCatalog, *managementcattleiov3.ProjectCatalogList](
+		gentype.NewClientWithList[*v3.ProjectCatalog, *v3.ProjectCatalogList](
 			"projectcatalogs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *managementcattleiov3.ProjectCatalog { return &managementcattleiov3.ProjectCatalog{} },
-			func() *managementcattleiov3.ProjectCatalogList { return &managementcattleiov3.ProjectCatalogList{} },
-		),
+			func() *v3.ProjectCatalog { return &v3.ProjectCatalog{} },
+			func() *v3.ProjectCatalogList { return &v3.ProjectCatalogList{} }),
 	}
 }

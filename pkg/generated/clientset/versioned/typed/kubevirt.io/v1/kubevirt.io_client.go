@@ -19,11 +19,11 @@ limitations under the License.
 package v1
 
 import (
-	http "net/http"
+	"net/http"
 
-	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
-	corev1 "kubevirt.io/api/core/v1"
+	v1 "kubevirt.io/api/core/v1"
 )
 
 type KubevirtV1Interface interface {
@@ -110,10 +110,10 @@ func New(c rest.Interface) *KubevirtV1Client {
 }
 
 func setConfigDefaults(config *rest.Config) error {
-	gv := corev1.SchemeGroupVersion
+	gv := v1.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
+	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()

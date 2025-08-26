@@ -29,19 +29,19 @@ type FakeNetworkV1beta1 struct {
 }
 
 func (c *FakeNetworkV1beta1) ClusterNetworks() v1beta1.ClusterNetworkInterface {
-	return newFakeClusterNetworks(c)
+	return &FakeClusterNetworks{c}
 }
 
 func (c *FakeNetworkV1beta1) LinkMonitors() v1beta1.LinkMonitorInterface {
-	return newFakeLinkMonitors(c)
+	return &FakeLinkMonitors{c}
 }
 
 func (c *FakeNetworkV1beta1) VlanConfigs() v1beta1.VlanConfigInterface {
-	return newFakeVlanConfigs(c)
+	return &FakeVlanConfigs{c}
 }
 
 func (c *FakeNetworkV1beta1) VlanStatuses() v1beta1.VlanStatusInterface {
-	return newFakeVlanStatuses(c)
+	return &FakeVlanStatuses{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

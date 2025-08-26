@@ -29,67 +29,67 @@ type FakeHarvesterhciV1beta1 struct {
 }
 
 func (c *FakeHarvesterhciV1beta1) Addons(namespace string) v1beta1.AddonInterface {
-	return newFakeAddons(c, namespace)
+	return &FakeAddons{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) KeyPairs(namespace string) v1beta1.KeyPairInterface {
-	return newFakeKeyPairs(c, namespace)
+	return &FakeKeyPairs{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) Preferences(namespace string) v1beta1.PreferenceInterface {
-	return newFakePreferences(c, namespace)
+	return &FakePreferences{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) ResourceQuotas(namespace string) v1beta1.ResourceQuotaInterface {
-	return newFakeResourceQuotas(c, namespace)
+	return &FakeResourceQuotas{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) ScheduleVMBackups(namespace string) v1beta1.ScheduleVMBackupInterface {
-	return newFakeScheduleVMBackups(c, namespace)
+	return &FakeScheduleVMBackups{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) Settings() v1beta1.SettingInterface {
-	return newFakeSettings(c)
+	return &FakeSettings{c}
 }
 
 func (c *FakeHarvesterhciV1beta1) SupportBundles(namespace string) v1beta1.SupportBundleInterface {
-	return newFakeSupportBundles(c, namespace)
+	return &FakeSupportBundles{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) Upgrades(namespace string) v1beta1.UpgradeInterface {
-	return newFakeUpgrades(c, namespace)
+	return &FakeUpgrades{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) UpgradeLogs(namespace string) v1beta1.UpgradeLogInterface {
-	return newFakeUpgradeLogs(c, namespace)
+	return &FakeUpgradeLogs{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) Versions(namespace string) v1beta1.VersionInterface {
-	return newFakeVersions(c, namespace)
+	return &FakeVersions{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) VirtualMachineBackups(namespace string) v1beta1.VirtualMachineBackupInterface {
-	return newFakeVirtualMachineBackups(c, namespace)
+	return &FakeVirtualMachineBackups{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) VirtualMachineImages(namespace string) v1beta1.VirtualMachineImageInterface {
-	return newFakeVirtualMachineImages(c, namespace)
+	return &FakeVirtualMachineImages{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) VirtualMachineImageDownloaders(namespace string) v1beta1.VirtualMachineImageDownloaderInterface {
-	return newFakeVirtualMachineImageDownloaders(c, namespace)
+	return &FakeVirtualMachineImageDownloaders{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) VirtualMachineRestores(namespace string) v1beta1.VirtualMachineRestoreInterface {
-	return newFakeVirtualMachineRestores(c, namespace)
+	return &FakeVirtualMachineRestores{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) VirtualMachineTemplates(namespace string) v1beta1.VirtualMachineTemplateInterface {
-	return newFakeVirtualMachineTemplates(c, namespace)
+	return &FakeVirtualMachineTemplates{c, namespace}
 }
 
 func (c *FakeHarvesterhciV1beta1) VirtualMachineTemplateVersions(namespace string) v1beta1.VirtualMachineTemplateVersionInterface {
-	return newFakeVirtualMachineTemplateVersions(c, namespace)
+	return &FakeVirtualMachineTemplateVersions{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

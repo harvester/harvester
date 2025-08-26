@@ -29,15 +29,15 @@ type FakeSnapshotV1 struct {
 }
 
 func (c *FakeSnapshotV1) VolumeSnapshots(namespace string) v1.VolumeSnapshotInterface {
-	return newFakeVolumeSnapshots(c, namespace)
+	return &FakeVolumeSnapshots{c, namespace}
 }
 
 func (c *FakeSnapshotV1) VolumeSnapshotClasses() v1.VolumeSnapshotClassInterface {
-	return newFakeVolumeSnapshotClasses(c)
+	return &FakeVolumeSnapshotClasses{c}
 }
 
 func (c *FakeSnapshotV1) VolumeSnapshotContents() v1.VolumeSnapshotContentInterface {
-	return newFakeVolumeSnapshotContents(c)
+	return &FakeVolumeSnapshotContents{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

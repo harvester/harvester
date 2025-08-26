@@ -19,34 +19,129 @@ limitations under the License.
 package fake
 
 import (
-	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
+	"context"
+
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	gentype "k8s.io/client-go/gentype"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	types "k8s.io/apimachinery/pkg/types"
+	watch "k8s.io/apimachinery/pkg/watch"
+	testing "k8s.io/client-go/testing"
 )
 
-// fakeCatalogTemplateVersions implements CatalogTemplateVersionInterface
-type fakeCatalogTemplateVersions struct {
-	*gentype.FakeClientWithList[*v3.CatalogTemplateVersion, *v3.CatalogTemplateVersionList]
+// FakeCatalogTemplateVersions implements CatalogTemplateVersionInterface
+type FakeCatalogTemplateVersions struct {
 	Fake *FakeManagementV3
+	ns   string
 }
 
-func newFakeCatalogTemplateVersions(fake *FakeManagementV3, namespace string) managementcattleiov3.CatalogTemplateVersionInterface {
-	return &fakeCatalogTemplateVersions{
-		gentype.NewFakeClientWithList[*v3.CatalogTemplateVersion, *v3.CatalogTemplateVersionList](
-			fake.Fake,
-			namespace,
-			v3.SchemeGroupVersion.WithResource("catalogtemplateversions"),
-			v3.SchemeGroupVersion.WithKind("CatalogTemplateVersion"),
-			func() *v3.CatalogTemplateVersion { return &v3.CatalogTemplateVersion{} },
-			func() *v3.CatalogTemplateVersionList { return &v3.CatalogTemplateVersionList{} },
-			func(dst, src *v3.CatalogTemplateVersionList) { dst.ListMeta = src.ListMeta },
-			func(list *v3.CatalogTemplateVersionList) []*v3.CatalogTemplateVersion {
-				return gentype.ToPointerSlice(list.Items)
-			},
-			func(list *v3.CatalogTemplateVersionList, items []*v3.CatalogTemplateVersion) {
-				list.Items = gentype.FromPointerSlice(items)
-			},
-		),
-		fake,
+var catalogtemplateversionsResource = v3.SchemeGroupVersion.WithResource("catalogtemplateversions")
+
+var catalogtemplateversionsKind = v3.SchemeGroupVersion.WithKind("CatalogTemplateVersion")
+
+// Get takes name of the catalogTemplateVersion, and returns the corresponding catalogTemplateVersion object, and an error if there is any.
+func (c *FakeCatalogTemplateVersions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.CatalogTemplateVersion, err error) {
+	emptyResult := &v3.CatalogTemplateVersion{}
+	obj, err := c.Fake.
+		Invokes(testing.NewGetActionWithOptions(catalogtemplateversionsResource, c.ns, name, options), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
 	}
+	return obj.(*v3.CatalogTemplateVersion), err
+}
+
+// List takes label and field selectors, and returns the list of CatalogTemplateVersions that match those selectors.
+func (c *FakeCatalogTemplateVersions) List(ctx context.Context, opts v1.ListOptions) (result *v3.CatalogTemplateVersionList, err error) {
+	emptyResult := &v3.CatalogTemplateVersionList{}
+	obj, err := c.Fake.
+		Invokes(testing.NewListActionWithOptions(catalogtemplateversionsResource, catalogtemplateversionsKind, c.ns, opts), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+
+	label, _, _ := testing.ExtractFromListOptions(opts)
+	if label == nil {
+		label = labels.Everything()
+	}
+	list := &v3.CatalogTemplateVersionList{ListMeta: obj.(*v3.CatalogTemplateVersionList).ListMeta}
+	for _, item := range obj.(*v3.CatalogTemplateVersionList).Items {
+		if label.Matches(labels.Set(item.Labels)) {
+			list.Items = append(list.Items, item)
+		}
+	}
+	return list, err
+}
+
+// Watch returns a watch.Interface that watches the requested catalogTemplateVersions.
+func (c *FakeCatalogTemplateVersions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+	return c.Fake.
+		InvokesWatch(testing.NewWatchActionWithOptions(catalogtemplateversionsResource, c.ns, opts))
+
+}
+
+// Create takes the representation of a catalogTemplateVersion and creates it.  Returns the server's representation of the catalogTemplateVersion, and an error, if there is any.
+func (c *FakeCatalogTemplateVersions) Create(ctx context.Context, catalogTemplateVersion *v3.CatalogTemplateVersion, opts v1.CreateOptions) (result *v3.CatalogTemplateVersion, err error) {
+	emptyResult := &v3.CatalogTemplateVersion{}
+	obj, err := c.Fake.
+		Invokes(testing.NewCreateActionWithOptions(catalogtemplateversionsResource, c.ns, catalogTemplateVersion, opts), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.CatalogTemplateVersion), err
+}
+
+// Update takes the representation of a catalogTemplateVersion and updates it. Returns the server's representation of the catalogTemplateVersion, and an error, if there is any.
+func (c *FakeCatalogTemplateVersions) Update(ctx context.Context, catalogTemplateVersion *v3.CatalogTemplateVersion, opts v1.UpdateOptions) (result *v3.CatalogTemplateVersion, err error) {
+	emptyResult := &v3.CatalogTemplateVersion{}
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateActionWithOptions(catalogtemplateversionsResource, c.ns, catalogTemplateVersion, opts), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.CatalogTemplateVersion), err
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeCatalogTemplateVersions) UpdateStatus(ctx context.Context, catalogTemplateVersion *v3.CatalogTemplateVersion, opts v1.UpdateOptions) (result *v3.CatalogTemplateVersion, err error) {
+	emptyResult := &v3.CatalogTemplateVersion{}
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(catalogtemplateversionsResource, "status", c.ns, catalogTemplateVersion, opts), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.CatalogTemplateVersion), err
+}
+
+// Delete takes name of the catalogTemplateVersion and deletes it. Returns an error if one occurs.
+func (c *FakeCatalogTemplateVersions) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+	_, err := c.Fake.
+		Invokes(testing.NewDeleteActionWithOptions(catalogtemplateversionsResource, c.ns, name, opts), &v3.CatalogTemplateVersion{})
+
+	return err
+}
+
+// DeleteCollection deletes a collection of objects.
+func (c *FakeCatalogTemplateVersions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionActionWithOptions(catalogtemplateversionsResource, c.ns, opts, listOpts)
+
+	_, err := c.Fake.Invokes(action, &v3.CatalogTemplateVersionList{})
+	return err
+}
+
+// Patch applies the patch and returns the patched catalogTemplateVersion.
+func (c *FakeCatalogTemplateVersions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.CatalogTemplateVersion, err error) {
+	emptyResult := &v3.CatalogTemplateVersion{}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceActionWithOptions(catalogtemplateversionsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.CatalogTemplateVersion), err
 }

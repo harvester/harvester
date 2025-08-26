@@ -29,91 +29,91 @@ type FakeLonghornV1beta2 struct {
 }
 
 func (c *FakeLonghornV1beta2) BackingImages(namespace string) v1beta2.BackingImageInterface {
-	return newFakeBackingImages(c, namespace)
+	return &FakeBackingImages{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) BackingImageDataSources(namespace string) v1beta2.BackingImageDataSourceInterface {
-	return newFakeBackingImageDataSources(c, namespace)
+	return &FakeBackingImageDataSources{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) BackingImageManagers(namespace string) v1beta2.BackingImageManagerInterface {
-	return newFakeBackingImageManagers(c, namespace)
+	return &FakeBackingImageManagers{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) Backups(namespace string) v1beta2.BackupInterface {
-	return newFakeBackups(c, namespace)
+	return &FakeBackups{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) BackupBackingImages(namespace string) v1beta2.BackupBackingImageInterface {
-	return newFakeBackupBackingImages(c, namespace)
+	return &FakeBackupBackingImages{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) BackupTargets(namespace string) v1beta2.BackupTargetInterface {
-	return newFakeBackupTargets(c, namespace)
+	return &FakeBackupTargets{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) BackupVolumes(namespace string) v1beta2.BackupVolumeInterface {
-	return newFakeBackupVolumes(c, namespace)
+	return &FakeBackupVolumes{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) Engines(namespace string) v1beta2.EngineInterface {
-	return newFakeEngines(c, namespace)
+	return &FakeEngines{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) EngineImages(namespace string) v1beta2.EngineImageInterface {
-	return newFakeEngineImages(c, namespace)
+	return &FakeEngineImages{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) InstanceManagers(namespace string) v1beta2.InstanceManagerInterface {
-	return newFakeInstanceManagers(c, namespace)
+	return &FakeInstanceManagers{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) Nodes(namespace string) v1beta2.NodeInterface {
-	return newFakeNodes(c, namespace)
+	return &FakeNodes{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) Orphans(namespace string) v1beta2.OrphanInterface {
-	return newFakeOrphans(c, namespace)
+	return &FakeOrphans{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) RecurringJobs(namespace string) v1beta2.RecurringJobInterface {
-	return newFakeRecurringJobs(c, namespace)
+	return &FakeRecurringJobs{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) Replicas(namespace string) v1beta2.ReplicaInterface {
-	return newFakeReplicas(c, namespace)
+	return &FakeReplicas{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) Settings(namespace string) v1beta2.SettingInterface {
-	return newFakeSettings(c, namespace)
+	return &FakeSettings{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) ShareManagers(namespace string) v1beta2.ShareManagerInterface {
-	return newFakeShareManagers(c, namespace)
+	return &FakeShareManagers{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) Snapshots(namespace string) v1beta2.SnapshotInterface {
-	return newFakeSnapshots(c, namespace)
+	return &FakeSnapshots{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) SupportBundles(namespace string) v1beta2.SupportBundleInterface {
-	return newFakeSupportBundles(c, namespace)
+	return &FakeSupportBundles{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) SystemBackups(namespace string) v1beta2.SystemBackupInterface {
-	return newFakeSystemBackups(c, namespace)
+	return &FakeSystemBackups{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) SystemRestores(namespace string) v1beta2.SystemRestoreInterface {
-	return newFakeSystemRestores(c, namespace)
+	return &FakeSystemRestores{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) Volumes(namespace string) v1beta2.VolumeInterface {
-	return newFakeVolumes(c, namespace)
+	return &FakeVolumes{c, namespace}
 }
 
 func (c *FakeLonghornV1beta2) VolumeAttachments(namespace string) v1beta2.VolumeAttachmentInterface {
-	return newFakeVolumeAttachments(c, namespace)
+	return &FakeVolumeAttachments{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	context "context"
+	"context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,32 +37,31 @@ type ClusterCatalogsGetter interface {
 
 // ClusterCatalogInterface has methods to work with ClusterCatalog resources.
 type ClusterCatalogInterface interface {
-	Create(ctx context.Context, clusterCatalog *managementcattleiov3.ClusterCatalog, opts v1.CreateOptions) (*managementcattleiov3.ClusterCatalog, error)
-	Update(ctx context.Context, clusterCatalog *managementcattleiov3.ClusterCatalog, opts v1.UpdateOptions) (*managementcattleiov3.ClusterCatalog, error)
+	Create(ctx context.Context, clusterCatalog *v3.ClusterCatalog, opts v1.CreateOptions) (*v3.ClusterCatalog, error)
+	Update(ctx context.Context, clusterCatalog *v3.ClusterCatalog, opts v1.UpdateOptions) (*v3.ClusterCatalog, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ClusterCatalog, error)
-	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ClusterCatalogList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ClusterCatalog, error)
+	List(ctx context.Context, opts v1.ListOptions) (*v3.ClusterCatalogList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ClusterCatalog, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterCatalog, err error)
 	ClusterCatalogExpansion
 }
 
 // clusterCatalogs implements ClusterCatalogInterface
 type clusterCatalogs struct {
-	*gentype.ClientWithList[*managementcattleiov3.ClusterCatalog, *managementcattleiov3.ClusterCatalogList]
+	*gentype.ClientWithList[*v3.ClusterCatalog, *v3.ClusterCatalogList]
 }
 
 // newClusterCatalogs returns a ClusterCatalogs
 func newClusterCatalogs(c *ManagementV3Client, namespace string) *clusterCatalogs {
 	return &clusterCatalogs{
-		gentype.NewClientWithList[*managementcattleiov3.ClusterCatalog, *managementcattleiov3.ClusterCatalogList](
+		gentype.NewClientWithList[*v3.ClusterCatalog, *v3.ClusterCatalogList](
 			"clustercatalogs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *managementcattleiov3.ClusterCatalog { return &managementcattleiov3.ClusterCatalog{} },
-			func() *managementcattleiov3.ClusterCatalogList { return &managementcattleiov3.ClusterCatalogList{} },
-		),
+			func() *v3.ClusterCatalog { return &v3.ClusterCatalog{} },
+			func() *v3.ClusterCatalogList { return &v3.ClusterCatalogList{} }),
 	}
 }

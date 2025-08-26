@@ -29,19 +29,19 @@ type FakeCatalogV1 struct {
 }
 
 func (c *FakeCatalogV1) Apps(namespace string) v1.AppInterface {
-	return newFakeApps(c, namespace)
+	return &FakeApps{c, namespace}
 }
 
 func (c *FakeCatalogV1) ClusterRepos() v1.ClusterRepoInterface {
-	return newFakeClusterRepos(c)
+	return &FakeClusterRepos{c}
 }
 
 func (c *FakeCatalogV1) Operations(namespace string) v1.OperationInterface {
-	return newFakeOperations(c, namespace)
+	return &FakeOperations{c, namespace}
 }
 
 func (c *FakeCatalogV1) UIPlugins(namespace string) v1.UIPluginInterface {
-	return newFakeUIPlugins(c, namespace)
+	return &FakeUIPlugins{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

@@ -29,11 +29,11 @@ type FakeClusterV1beta1 struct {
 }
 
 func (c *FakeClusterV1beta1) Clusters(namespace string) v1beta1.ClusterInterface {
-	return newFakeClusters(c, namespace)
+	return &FakeClusters{c, namespace}
 }
 
 func (c *FakeClusterV1beta1) Machines(namespace string) v1beta1.MachineInterface {
-	return newFakeMachines(c, namespace)
+	return &FakeMachines{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

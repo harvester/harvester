@@ -29,43 +29,43 @@ type FakeCdiV1beta1 struct {
 }
 
 func (c *FakeCdiV1beta1) CDIs() v1beta1.CDIInterface {
-	return newFakeCDIs(c)
+	return &FakeCDIs{c}
 }
 
 func (c *FakeCdiV1beta1) CDIConfigs() v1beta1.CDIConfigInterface {
-	return newFakeCDIConfigs(c)
+	return &FakeCDIConfigs{c}
 }
 
 func (c *FakeCdiV1beta1) DataImportCrons(namespace string) v1beta1.DataImportCronInterface {
-	return newFakeDataImportCrons(c, namespace)
+	return &FakeDataImportCrons{c, namespace}
 }
 
 func (c *FakeCdiV1beta1) DataSources(namespace string) v1beta1.DataSourceInterface {
-	return newFakeDataSources(c, namespace)
+	return &FakeDataSources{c, namespace}
 }
 
 func (c *FakeCdiV1beta1) DataVolumes() v1beta1.DataVolumeInterface {
-	return newFakeDataVolumes(c)
+	return &FakeDataVolumes{c}
 }
 
 func (c *FakeCdiV1beta1) ObjectTransfers() v1beta1.ObjectTransferInterface {
-	return newFakeObjectTransfers(c)
+	return &FakeObjectTransfers{c}
 }
 
 func (c *FakeCdiV1beta1) StorageProfiles() v1beta1.StorageProfileInterface {
-	return newFakeStorageProfiles(c)
+	return &FakeStorageProfiles{c}
 }
 
 func (c *FakeCdiV1beta1) VolumeCloneSources(namespace string) v1beta1.VolumeCloneSourceInterface {
-	return newFakeVolumeCloneSources(c, namespace)
+	return &FakeVolumeCloneSources{c, namespace}
 }
 
 func (c *FakeCdiV1beta1) VolumeImportSources() v1beta1.VolumeImportSourceInterface {
-	return newFakeVolumeImportSources(c)
+	return &FakeVolumeImportSources{c}
 }
 
 func (c *FakeCdiV1beta1) VolumeUploadSources(namespace string) v1beta1.VolumeUploadSourceInterface {
-	return newFakeVolumeUploadSources(c, namespace)
+	return &FakeVolumeUploadSources{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

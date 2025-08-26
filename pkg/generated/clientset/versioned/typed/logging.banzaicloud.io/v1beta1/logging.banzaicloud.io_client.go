@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta1
 
 import (
-	http "net/http"
+	"net/http"
 
-	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	apiv1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	rest "k8s.io/client-go/rest"
 )
 
@@ -110,10 +110,10 @@ func New(c rest.Interface) *LoggingV1beta1Client {
 }
 
 func setConfigDefaults(config *rest.Config) error {
-	gv := apiv1beta1.GroupVersion
+	gv := v1beta1.GroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
+	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()

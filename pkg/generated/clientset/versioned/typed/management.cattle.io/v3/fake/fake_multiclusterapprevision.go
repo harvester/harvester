@@ -19,34 +19,116 @@ limitations under the License.
 package fake
 
 import (
-	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
+	"context"
+
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	gentype "k8s.io/client-go/gentype"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	types "k8s.io/apimachinery/pkg/types"
+	watch "k8s.io/apimachinery/pkg/watch"
+	testing "k8s.io/client-go/testing"
 )
 
-// fakeMultiClusterAppRevisions implements MultiClusterAppRevisionInterface
-type fakeMultiClusterAppRevisions struct {
-	*gentype.FakeClientWithList[*v3.MultiClusterAppRevision, *v3.MultiClusterAppRevisionList]
+// FakeMultiClusterAppRevisions implements MultiClusterAppRevisionInterface
+type FakeMultiClusterAppRevisions struct {
 	Fake *FakeManagementV3
+	ns   string
 }
 
-func newFakeMultiClusterAppRevisions(fake *FakeManagementV3, namespace string) managementcattleiov3.MultiClusterAppRevisionInterface {
-	return &fakeMultiClusterAppRevisions{
-		gentype.NewFakeClientWithList[*v3.MultiClusterAppRevision, *v3.MultiClusterAppRevisionList](
-			fake.Fake,
-			namespace,
-			v3.SchemeGroupVersion.WithResource("multiclusterapprevisions"),
-			v3.SchemeGroupVersion.WithKind("MultiClusterAppRevision"),
-			func() *v3.MultiClusterAppRevision { return &v3.MultiClusterAppRevision{} },
-			func() *v3.MultiClusterAppRevisionList { return &v3.MultiClusterAppRevisionList{} },
-			func(dst, src *v3.MultiClusterAppRevisionList) { dst.ListMeta = src.ListMeta },
-			func(list *v3.MultiClusterAppRevisionList) []*v3.MultiClusterAppRevision {
-				return gentype.ToPointerSlice(list.Items)
-			},
-			func(list *v3.MultiClusterAppRevisionList, items []*v3.MultiClusterAppRevision) {
-				list.Items = gentype.FromPointerSlice(items)
-			},
-		),
-		fake,
+var multiclusterapprevisionsResource = v3.SchemeGroupVersion.WithResource("multiclusterapprevisions")
+
+var multiclusterapprevisionsKind = v3.SchemeGroupVersion.WithKind("MultiClusterAppRevision")
+
+// Get takes name of the multiClusterAppRevision, and returns the corresponding multiClusterAppRevision object, and an error if there is any.
+func (c *FakeMultiClusterAppRevisions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.MultiClusterAppRevision, err error) {
+	emptyResult := &v3.MultiClusterAppRevision{}
+	obj, err := c.Fake.
+		Invokes(testing.NewGetActionWithOptions(multiclusterapprevisionsResource, c.ns, name, options), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
 	}
+	return obj.(*v3.MultiClusterAppRevision), err
+}
+
+// List takes label and field selectors, and returns the list of MultiClusterAppRevisions that match those selectors.
+func (c *FakeMultiClusterAppRevisions) List(ctx context.Context, opts v1.ListOptions) (result *v3.MultiClusterAppRevisionList, err error) {
+	emptyResult := &v3.MultiClusterAppRevisionList{}
+	obj, err := c.Fake.
+		Invokes(testing.NewListActionWithOptions(multiclusterapprevisionsResource, multiclusterapprevisionsKind, c.ns, opts), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+
+	label, _, _ := testing.ExtractFromListOptions(opts)
+	if label == nil {
+		label = labels.Everything()
+	}
+	list := &v3.MultiClusterAppRevisionList{ListMeta: obj.(*v3.MultiClusterAppRevisionList).ListMeta}
+	for _, item := range obj.(*v3.MultiClusterAppRevisionList).Items {
+		if label.Matches(labels.Set(item.Labels)) {
+			list.Items = append(list.Items, item)
+		}
+	}
+	return list, err
+}
+
+// Watch returns a watch.Interface that watches the requested multiClusterAppRevisions.
+func (c *FakeMultiClusterAppRevisions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+	return c.Fake.
+		InvokesWatch(testing.NewWatchActionWithOptions(multiclusterapprevisionsResource, c.ns, opts))
+
+}
+
+// Create takes the representation of a multiClusterAppRevision and creates it.  Returns the server's representation of the multiClusterAppRevision, and an error, if there is any.
+func (c *FakeMultiClusterAppRevisions) Create(ctx context.Context, multiClusterAppRevision *v3.MultiClusterAppRevision, opts v1.CreateOptions) (result *v3.MultiClusterAppRevision, err error) {
+	emptyResult := &v3.MultiClusterAppRevision{}
+	obj, err := c.Fake.
+		Invokes(testing.NewCreateActionWithOptions(multiclusterapprevisionsResource, c.ns, multiClusterAppRevision, opts), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.MultiClusterAppRevision), err
+}
+
+// Update takes the representation of a multiClusterAppRevision and updates it. Returns the server's representation of the multiClusterAppRevision, and an error, if there is any.
+func (c *FakeMultiClusterAppRevisions) Update(ctx context.Context, multiClusterAppRevision *v3.MultiClusterAppRevision, opts v1.UpdateOptions) (result *v3.MultiClusterAppRevision, err error) {
+	emptyResult := &v3.MultiClusterAppRevision{}
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateActionWithOptions(multiclusterapprevisionsResource, c.ns, multiClusterAppRevision, opts), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.MultiClusterAppRevision), err
+}
+
+// Delete takes name of the multiClusterAppRevision and deletes it. Returns an error if one occurs.
+func (c *FakeMultiClusterAppRevisions) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+	_, err := c.Fake.
+		Invokes(testing.NewDeleteActionWithOptions(multiclusterapprevisionsResource, c.ns, name, opts), &v3.MultiClusterAppRevision{})
+
+	return err
+}
+
+// DeleteCollection deletes a collection of objects.
+func (c *FakeMultiClusterAppRevisions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionActionWithOptions(multiclusterapprevisionsResource, c.ns, opts, listOpts)
+
+	_, err := c.Fake.Invokes(action, &v3.MultiClusterAppRevisionList{})
+	return err
+}
+
+// Patch applies the patch and returns the patched multiClusterAppRevision.
+func (c *FakeMultiClusterAppRevisions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.MultiClusterAppRevision, err error) {
+	emptyResult := &v3.MultiClusterAppRevision{}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceActionWithOptions(multiclusterapprevisionsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.MultiClusterAppRevision), err
 }

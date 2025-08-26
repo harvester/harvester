@@ -29,11 +29,11 @@ type FakeWhereaboutsV1alpha1 struct {
 }
 
 func (c *FakeWhereaboutsV1alpha1) IPPools() v1alpha1.IPPoolInterface {
-	return newFakeIPPools(c)
+	return &FakeIPPools{c}
 }
 
 func (c *FakeWhereaboutsV1alpha1) OverlappingRangeIPReservations(namespace string) v1alpha1.OverlappingRangeIPReservationInterface {
-	return newFakeOverlappingRangeIPReservations(c, namespace)
+	return &FakeOverlappingRangeIPReservations{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

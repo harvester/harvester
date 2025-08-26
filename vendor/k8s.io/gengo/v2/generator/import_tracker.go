@@ -18,7 +18,6 @@ package generator
 
 import (
 	"go/token"
-	"path/filepath"
 	"strings"
 
 	"k8s.io/klog/v2"
@@ -46,7 +45,7 @@ import (
 func NewImportTrackerForPackage(local string, typesToAdd ...*types.Type) *namer.DefaultImportTracker {
 	tracker := namer.NewDefaultImportTracker(types.Name{Package: local})
 	tracker.IsInvalidType = func(*types.Type) bool { return false }
-	tracker.LocalName = func(name types.Name) string { return goTrackerLocalName(&tracker, local, name) }
+	tracker.LocalName = func(name types.Name) string { return goTrackerLocalName(&tracker, name) }
 	tracker.PrintImport = func(path, name string) string { return name + " \"" + path + "\"" }
 
 	tracker.AddTypes(typesToAdd...)
@@ -57,7 +56,7 @@ func NewImportTracker(typesToAdd ...*types.Type) *namer.DefaultImportTracker {
 	return NewImportTrackerForPackage("", typesToAdd...)
 }
 
-func goTrackerLocalName(tracker namer.ImportTracker, localPkg string, t types.Name) string {
+func goTrackerLocalName(tracker namer.ImportTracker, t types.Name) string {
 	path := t.Package
 
 	// Using backslashes in package names causes gengo to produce Go code which
@@ -65,7 +64,6 @@ func goTrackerLocalName(tracker namer.ImportTracker, localPkg string, t types.Na
 	if strings.ContainsRune(path, '\\') {
 		klog.Warningf("Warning: backslash used in import path '%v', this is unsupported.\n", path)
 	}
-	localLeaf := filepath.Base(localPkg)
 
 	dirs := strings.Split(path, namer.GoSeperator)
 	for n := len(dirs) - 1; n >= 0; n-- {
@@ -76,13 +74,8 @@ func goTrackerLocalName(tracker namer.ImportTracker, localPkg string, t types.Na
 		// packages, but aren't legal go names. So we'll sanitize.
 		name = strings.ReplaceAll(name, ".", "")
 		name = strings.ReplaceAll(name, "-", "")
-		if _, found := tracker.PathOf(name); found || name == localLeaf {
-			// This name collides with some other package.
-			// Or, this name is tne same name as the local package,
-			// which we avoid because it can be confusing. For example,
-			// if the local package is v1, we to avoid importing
-			// another package using the v1 name, and instead import
-			// it with a more qualified name, such as metav1.
+		if _, found := tracker.PathOf(name); found {
+			// This name collides with some other package
 			continue
 		}
 

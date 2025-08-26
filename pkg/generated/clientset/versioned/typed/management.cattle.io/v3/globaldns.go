@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	context "context"
+	"context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,34 +37,33 @@ type GlobalDnsesGetter interface {
 
 // GlobalDnsInterface has methods to work with GlobalDns resources.
 type GlobalDnsInterface interface {
-	Create(ctx context.Context, globalDns *managementcattleiov3.GlobalDns, opts v1.CreateOptions) (*managementcattleiov3.GlobalDns, error)
-	Update(ctx context.Context, globalDns *managementcattleiov3.GlobalDns, opts v1.UpdateOptions) (*managementcattleiov3.GlobalDns, error)
+	Create(ctx context.Context, globalDns *v3.GlobalDns, opts v1.CreateOptions) (*v3.GlobalDns, error)
+	Update(ctx context.Context, globalDns *v3.GlobalDns, opts v1.UpdateOptions) (*v3.GlobalDns, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, globalDns *managementcattleiov3.GlobalDns, opts v1.UpdateOptions) (*managementcattleiov3.GlobalDns, error)
+	UpdateStatus(ctx context.Context, globalDns *v3.GlobalDns, opts v1.UpdateOptions) (*v3.GlobalDns, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.GlobalDns, error)
-	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.GlobalDnsList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.GlobalDns, error)
+	List(ctx context.Context, opts v1.ListOptions) (*v3.GlobalDnsList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.GlobalDns, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.GlobalDns, err error)
 	GlobalDnsExpansion
 }
 
 // globalDnses implements GlobalDnsInterface
 type globalDnses struct {
-	*gentype.ClientWithList[*managementcattleiov3.GlobalDns, *managementcattleiov3.GlobalDnsList]
+	*gentype.ClientWithList[*v3.GlobalDns, *v3.GlobalDnsList]
 }
 
 // newGlobalDnses returns a GlobalDnses
 func newGlobalDnses(c *ManagementV3Client, namespace string) *globalDnses {
 	return &globalDnses{
-		gentype.NewClientWithList[*managementcattleiov3.GlobalDns, *managementcattleiov3.GlobalDnsList](
+		gentype.NewClientWithList[*v3.GlobalDns, *v3.GlobalDnsList](
 			"globaldnses",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *managementcattleiov3.GlobalDns { return &managementcattleiov3.GlobalDns{} },
-			func() *managementcattleiov3.GlobalDnsList { return &managementcattleiov3.GlobalDnsList{} },
-		),
+			func() *v3.GlobalDns { return &v3.GlobalDns{} },
+			func() *v3.GlobalDnsList { return &v3.GlobalDnsList{} }),
 	}
 }

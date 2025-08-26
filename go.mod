@@ -22,6 +22,12 @@ replace (
 	go.qase.io/client => github.com/rancher/qase-go/client v0.0.0-20231114201952-65195ec001fa
 
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.15.1-rancher2
+
+	// Please check reason in https://github.com/harvester/harvester/issues/8719#issue-3251235542 why we used these version temporarily in these modules:
+	// k8s.io/code-generator
+	// k8s.io/gengo/v2
+	// k8s.io/kube-openapi
+
 	k8s.io/api => k8s.io/api v0.32.5
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.32.5
 	k8s.io/apimachinery => k8s.io/apimachinery v0.32.5
@@ -30,7 +36,7 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.32.5
 	k8s.io/cloud-provider => k8s.io/cloud-provider v0.32.5
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.32.5
-	k8s.io/code-generator => k8s.io/code-generator v0.32.5
+	k8s.io/code-generator => k8s.io/code-generator v0.31.5
 	k8s.io/component-base => k8s.io/component-base v0.32.5
 	k8s.io/component-helpers => k8s.io/component-helpers v0.32.5
 	k8s.io/controller-manager => k8s.io/controller-manager v0.32.5
@@ -39,11 +45,11 @@ replace (
 	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.32.5
 	k8s.io/endpointslice => k8s.io/endpointslice v0.32.5
 	k8s.io/gengo => k8s.io/gengo v0.0.0-20240826214909-a7b603a56eb7
-	k8s.io/gengo/v2 => k8s.io/gengo/v2 v2.0.0-20250207200755-1244d31929d7
+	k8s.io/gengo/v2 => k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70
 	k8s.io/kms => k8s.io/kms v0.32.5
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.32.5
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.32.5
-	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff
+	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340
 	k8s.io/kube-proxy => k8s.io/kube-proxy v0.32.5
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.32.5
 	k8s.io/kubectl => k8s.io/kubectl v0.32.5
@@ -351,6 +357,5 @@ require (
 	sigs.k8s.io/controller-runtime v0.20.2 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
 	sigs.k8s.io/kustomize/api v0.19.0 // indirect
-	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.7.0 // indirect
 )

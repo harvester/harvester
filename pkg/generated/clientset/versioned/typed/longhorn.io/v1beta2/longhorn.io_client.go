@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	http "net/http"
+	"net/http"
 
-	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	rest "k8s.io/client-go/rest"
 )
 
@@ -190,10 +190,10 @@ func New(c rest.Interface) *LonghornV1beta2Client {
 }
 
 func setConfigDefaults(config *rest.Config) error {
-	gv := longhornv1beta2.SchemeGroupVersion
+	gv := v1beta2.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
+	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()

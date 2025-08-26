@@ -29,27 +29,27 @@ type FakeKubevirtV1 struct {
 }
 
 func (c *FakeKubevirtV1) KubeVirts(namespace string) v1.KubeVirtInterface {
-	return newFakeKubeVirts(c, namespace)
+	return &FakeKubeVirts{c, namespace}
 }
 
 func (c *FakeKubevirtV1) VirtualMachines(namespace string) v1.VirtualMachineInterface {
-	return newFakeVirtualMachines(c, namespace)
+	return &FakeVirtualMachines{c, namespace}
 }
 
 func (c *FakeKubevirtV1) VirtualMachineInstances(namespace string) v1.VirtualMachineInstanceInterface {
-	return newFakeVirtualMachineInstances(c, namespace)
+	return &FakeVirtualMachineInstances{c, namespace}
 }
 
 func (c *FakeKubevirtV1) VirtualMachineInstanceMigrations(namespace string) v1.VirtualMachineInstanceMigrationInterface {
-	return newFakeVirtualMachineInstanceMigrations(c, namespace)
+	return &FakeVirtualMachineInstanceMigrations{c, namespace}
 }
 
 func (c *FakeKubevirtV1) VirtualMachineInstancePresets(namespace string) v1.VirtualMachineInstancePresetInterface {
-	return newFakeVirtualMachineInstancePresets(c, namespace)
+	return &FakeVirtualMachineInstancePresets{c, namespace}
 }
 
 func (c *FakeKubevirtV1) VirtualMachineInstanceReplicaSets(namespace string) v1.VirtualMachineInstanceReplicaSetInterface {
-	return newFakeVirtualMachineInstanceReplicaSets(c, namespace)
+	return &FakeVirtualMachineInstanceReplicaSets{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

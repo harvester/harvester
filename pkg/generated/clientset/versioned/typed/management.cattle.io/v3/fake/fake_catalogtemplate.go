@@ -19,32 +19,129 @@ limitations under the License.
 package fake
 
 import (
-	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
+	"context"
+
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	gentype "k8s.io/client-go/gentype"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	types "k8s.io/apimachinery/pkg/types"
+	watch "k8s.io/apimachinery/pkg/watch"
+	testing "k8s.io/client-go/testing"
 )
 
-// fakeCatalogTemplates implements CatalogTemplateInterface
-type fakeCatalogTemplates struct {
-	*gentype.FakeClientWithList[*v3.CatalogTemplate, *v3.CatalogTemplateList]
+// FakeCatalogTemplates implements CatalogTemplateInterface
+type FakeCatalogTemplates struct {
 	Fake *FakeManagementV3
+	ns   string
 }
 
-func newFakeCatalogTemplates(fake *FakeManagementV3, namespace string) managementcattleiov3.CatalogTemplateInterface {
-	return &fakeCatalogTemplates{
-		gentype.NewFakeClientWithList[*v3.CatalogTemplate, *v3.CatalogTemplateList](
-			fake.Fake,
-			namespace,
-			v3.SchemeGroupVersion.WithResource("catalogtemplates"),
-			v3.SchemeGroupVersion.WithKind("CatalogTemplate"),
-			func() *v3.CatalogTemplate { return &v3.CatalogTemplate{} },
-			func() *v3.CatalogTemplateList { return &v3.CatalogTemplateList{} },
-			func(dst, src *v3.CatalogTemplateList) { dst.ListMeta = src.ListMeta },
-			func(list *v3.CatalogTemplateList) []*v3.CatalogTemplate { return gentype.ToPointerSlice(list.Items) },
-			func(list *v3.CatalogTemplateList, items []*v3.CatalogTemplate) {
-				list.Items = gentype.FromPointerSlice(items)
-			},
-		),
-		fake,
+var catalogtemplatesResource = v3.SchemeGroupVersion.WithResource("catalogtemplates")
+
+var catalogtemplatesKind = v3.SchemeGroupVersion.WithKind("CatalogTemplate")
+
+// Get takes name of the catalogTemplate, and returns the corresponding catalogTemplate object, and an error if there is any.
+func (c *FakeCatalogTemplates) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.CatalogTemplate, err error) {
+	emptyResult := &v3.CatalogTemplate{}
+	obj, err := c.Fake.
+		Invokes(testing.NewGetActionWithOptions(catalogtemplatesResource, c.ns, name, options), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
 	}
+	return obj.(*v3.CatalogTemplate), err
+}
+
+// List takes label and field selectors, and returns the list of CatalogTemplates that match those selectors.
+func (c *FakeCatalogTemplates) List(ctx context.Context, opts v1.ListOptions) (result *v3.CatalogTemplateList, err error) {
+	emptyResult := &v3.CatalogTemplateList{}
+	obj, err := c.Fake.
+		Invokes(testing.NewListActionWithOptions(catalogtemplatesResource, catalogtemplatesKind, c.ns, opts), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+
+	label, _, _ := testing.ExtractFromListOptions(opts)
+	if label == nil {
+		label = labels.Everything()
+	}
+	list := &v3.CatalogTemplateList{ListMeta: obj.(*v3.CatalogTemplateList).ListMeta}
+	for _, item := range obj.(*v3.CatalogTemplateList).Items {
+		if label.Matches(labels.Set(item.Labels)) {
+			list.Items = append(list.Items, item)
+		}
+	}
+	return list, err
+}
+
+// Watch returns a watch.Interface that watches the requested catalogTemplates.
+func (c *FakeCatalogTemplates) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+	return c.Fake.
+		InvokesWatch(testing.NewWatchActionWithOptions(catalogtemplatesResource, c.ns, opts))
+
+}
+
+// Create takes the representation of a catalogTemplate and creates it.  Returns the server's representation of the catalogTemplate, and an error, if there is any.
+func (c *FakeCatalogTemplates) Create(ctx context.Context, catalogTemplate *v3.CatalogTemplate, opts v1.CreateOptions) (result *v3.CatalogTemplate, err error) {
+	emptyResult := &v3.CatalogTemplate{}
+	obj, err := c.Fake.
+		Invokes(testing.NewCreateActionWithOptions(catalogtemplatesResource, c.ns, catalogTemplate, opts), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.CatalogTemplate), err
+}
+
+// Update takes the representation of a catalogTemplate and updates it. Returns the server's representation of the catalogTemplate, and an error, if there is any.
+func (c *FakeCatalogTemplates) Update(ctx context.Context, catalogTemplate *v3.CatalogTemplate, opts v1.UpdateOptions) (result *v3.CatalogTemplate, err error) {
+	emptyResult := &v3.CatalogTemplate{}
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateActionWithOptions(catalogtemplatesResource, c.ns, catalogTemplate, opts), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.CatalogTemplate), err
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeCatalogTemplates) UpdateStatus(ctx context.Context, catalogTemplate *v3.CatalogTemplate, opts v1.UpdateOptions) (result *v3.CatalogTemplate, err error) {
+	emptyResult := &v3.CatalogTemplate{}
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(catalogtemplatesResource, "status", c.ns, catalogTemplate, opts), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.CatalogTemplate), err
+}
+
+// Delete takes name of the catalogTemplate and deletes it. Returns an error if one occurs.
+func (c *FakeCatalogTemplates) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+	_, err := c.Fake.
+		Invokes(testing.NewDeleteActionWithOptions(catalogtemplatesResource, c.ns, name, opts), &v3.CatalogTemplate{})
+
+	return err
+}
+
+// DeleteCollection deletes a collection of objects.
+func (c *FakeCatalogTemplates) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionActionWithOptions(catalogtemplatesResource, c.ns, opts, listOpts)
+
+	_, err := c.Fake.Invokes(action, &v3.CatalogTemplateList{})
+	return err
+}
+
+// Patch applies the patch and returns the patched catalogTemplate.
+func (c *FakeCatalogTemplates) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.CatalogTemplate, err error) {
+	emptyResult := &v3.CatalogTemplate{}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceActionWithOptions(catalogtemplatesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.CatalogTemplate), err
 }

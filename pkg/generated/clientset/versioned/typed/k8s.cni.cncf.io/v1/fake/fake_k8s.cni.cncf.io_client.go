@@ -29,7 +29,7 @@ type FakeK8sCniCncfIoV1 struct {
 }
 
 func (c *FakeK8sCniCncfIoV1) NetworkAttachmentDefinitions(namespace string) v1.NetworkAttachmentDefinitionInterface {
-	return newFakeNetworkAttachmentDefinitions(c, namespace)
+	return &FakeNetworkAttachmentDefinitions{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

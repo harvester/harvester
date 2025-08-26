@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	context "context"
+	"context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,34 +37,33 @@ type MultiClusterAppsGetter interface {
 
 // MultiClusterAppInterface has methods to work with MultiClusterApp resources.
 type MultiClusterAppInterface interface {
-	Create(ctx context.Context, multiClusterApp *managementcattleiov3.MultiClusterApp, opts v1.CreateOptions) (*managementcattleiov3.MultiClusterApp, error)
-	Update(ctx context.Context, multiClusterApp *managementcattleiov3.MultiClusterApp, opts v1.UpdateOptions) (*managementcattleiov3.MultiClusterApp, error)
+	Create(ctx context.Context, multiClusterApp *v3.MultiClusterApp, opts v1.CreateOptions) (*v3.MultiClusterApp, error)
+	Update(ctx context.Context, multiClusterApp *v3.MultiClusterApp, opts v1.UpdateOptions) (*v3.MultiClusterApp, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, multiClusterApp *managementcattleiov3.MultiClusterApp, opts v1.UpdateOptions) (*managementcattleiov3.MultiClusterApp, error)
+	UpdateStatus(ctx context.Context, multiClusterApp *v3.MultiClusterApp, opts v1.UpdateOptions) (*v3.MultiClusterApp, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.MultiClusterApp, error)
-	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.MultiClusterAppList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.MultiClusterApp, error)
+	List(ctx context.Context, opts v1.ListOptions) (*v3.MultiClusterAppList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.MultiClusterApp, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.MultiClusterApp, err error)
 	MultiClusterAppExpansion
 }
 
 // multiClusterApps implements MultiClusterAppInterface
 type multiClusterApps struct {
-	*gentype.ClientWithList[*managementcattleiov3.MultiClusterApp, *managementcattleiov3.MultiClusterAppList]
+	*gentype.ClientWithList[*v3.MultiClusterApp, *v3.MultiClusterAppList]
 }
 
 // newMultiClusterApps returns a MultiClusterApps
 func newMultiClusterApps(c *ManagementV3Client, namespace string) *multiClusterApps {
 	return &multiClusterApps{
-		gentype.NewClientWithList[*managementcattleiov3.MultiClusterApp, *managementcattleiov3.MultiClusterAppList](
+		gentype.NewClientWithList[*v3.MultiClusterApp, *v3.MultiClusterAppList](
 			"multiclusterapps",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *managementcattleiov3.MultiClusterApp { return &managementcattleiov3.MultiClusterApp{} },
-			func() *managementcattleiov3.MultiClusterAppList { return &managementcattleiov3.MultiClusterAppList{} },
-		),
+			func() *v3.MultiClusterApp { return &v3.MultiClusterApp{} },
+			func() *v3.MultiClusterAppList { return &v3.MultiClusterAppList{} }),
 	}
 }

@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"golang.org/x/tools/imports"
-
 	"k8s.io/gengo/v2/namer"
 	"k8s.io/gengo/v2/types"
 	"k8s.io/klog/v2"
@@ -115,13 +114,7 @@ func assembleGoFile(w io.Writer, f *File) {
 }
 
 func importsWrapper(src []byte) ([]byte, error) {
-	opt := imports.Options{
-		Comments:   true,
-		TabIndent:  true,
-		TabWidth:   8,
-		FormatOnly: true, // Disable the insertion and deletion of imports
-	}
-	return imports.Process("", src, &opt)
+	return imports.Process("", src, nil)
 }
 
 func NewGoFile() *DefaultFileType {

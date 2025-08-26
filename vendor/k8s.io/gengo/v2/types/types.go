@@ -16,10 +16,7 @@ limitations under the License.
 
 package types
 
-import (
-	gotypes "go/types"
-	"strings"
-)
+import "strings"
 
 // Ref makes a reference to the given type. It can only be used for e.g.
 // passing to namers.
@@ -101,7 +98,6 @@ const (
 	DeclarationOf Kind = "DeclarationOf"
 	Unknown       Kind = ""
 	Unsupported   Kind = "Unsupported"
-	TypeParam     Kind = "TypeParam"
 
 	// Protobuf is protobuf type.
 	Protobuf Kind = "Protobuf"
@@ -328,9 +324,6 @@ type Type struct {
 	// If Kind == Struct
 	Members []Member
 
-	// If Kind == Struct
-	TypeParams map[string]*Type
-
 	// If Kind == Map, Slice, Pointer, or Chan
 	Elem *Type
 
@@ -361,9 +354,6 @@ type Type struct {
 
 	// If Kind == Array
 	Len int64
-
-	// The underlying Go type.
-	GoType gotypes.Type
 }
 
 // String returns the name of the type.
@@ -408,11 +398,6 @@ func (t *Type) IsAnonymousStruct() bool {
 	return (t.Kind == Struct && t.Name.Name == "struct{}") || (t.Kind == Alias && t.Underlying.IsAnonymousStruct())
 }
 
-// IsComparable returns whether the type is comparable.
-func (t *Type) IsComparable() bool {
-	return gotypes.Comparable(t.GoType)
-}
-
 // A single struct member
 type Member struct {
 	// The name of the member.
@@ -438,20 +423,14 @@ func (m Member) String() string {
 	return m.Name + " " + m.Type.String()
 }
 
-// ParamResult represents a parameter or a result of a method's signature.
-type ParamResult struct {
-	// The name of the parameter or result.
-	Name string
-	// The type of this parameter or result.
-	Type *Type
-}
-
 // Signature is a function's signature.
 type Signature struct {
 	// If a method of some type, this is the type it's a member of.
-	Receiver   *Type
-	Parameters []*ParamResult
-	Results    []*ParamResult
+	Receiver       *Type
+	Parameters     []*Type
+	ParameterNames []string
+	Results        []*Type
+	ResultNames    []string
 
 	// True if the last in parameter is of the form ...T.
 	Variadic bool
@@ -463,10 +442,6 @@ type Signature struct {
 
 // Built in types.
 var (
-	Any = &Type{
-		Name: Name{Name: "any"},
-		Kind: Interface,
-	}
 	String = &Type{
 		Name: Name{Name: "string"},
 		Kind: Builtin,
@@ -530,7 +505,6 @@ var (
 
 	builtins = &Package{
 		Types: map[string]*Type{
-			"any":     Any,
 			"bool":    Bool,
 			"string":  String,
 			"int":     Int,
@@ -554,16 +528,6 @@ var (
 		Name:    "",
 	}
 )
-
-func PointerTo(t *Type) *Type {
-	return &Type{
-		Name: Name{
-			Name: "*" + t.Name.String(),
-		},
-		Kind: Pointer,
-		Elem: t,
-	}
-}
 
 func IsInteger(t *Type) bool {
 	switch t {

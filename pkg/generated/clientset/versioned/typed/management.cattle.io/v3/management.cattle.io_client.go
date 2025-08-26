@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	http "net/http"
+	"net/http"
 
-	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	rest "k8s.io/client-go/rest"
 )
 
@@ -415,10 +415,10 @@ func New(c rest.Interface) *ManagementV3Client {
 }
 
 func setConfigDefaults(config *rest.Config) error {
-	gv := managementcattleiov3.SchemeGroupVersion
+	gv := v3.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
+	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()

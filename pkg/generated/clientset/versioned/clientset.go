@@ -19,8 +19,8 @@ limitations under the License.
 package versioned
 
 import (
-	fmt "fmt"
-	http "net/http"
+	"fmt"
+	"net/http"
 
 	batchv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1"
 	catalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1"
