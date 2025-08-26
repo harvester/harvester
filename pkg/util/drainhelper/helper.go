@@ -37,8 +37,9 @@ const (
 )
 
 var (
-	errSingleControlPlaneNode = errors.New("single controlplane cluster, cannot place controlplane in maintenance mode")
-	errHAControlPlaneNode     = errors.New("another controlplane is already in maintenance mode, cannot place current node in maintenance mode")
+	ErrNodeDrainNotPossible   = errors.New("draining of this node is not possible")
+	errSingleControlPlaneNode = fmt.Errorf("%w: single controlplane cluster, cannot place controlplane in maintenance mode", ErrNodeDrainNotPossible)
+	errHAControlPlaneNode     = fmt.Errorf("%w: another controlplane is already in maintenance mode, cannot place current node in maintenance mode", ErrNodeDrainNotPossible)
 )
 
 func defaultDrainHelper(ctx context.Context, cfg *rest.Config) (*drain.Helper, error) {
@@ -76,8 +77,14 @@ func DrainNode(ctx context.Context, cfg *rest.Config, node *corev1.Node) error {
 	return drain.RunNodeDrain(d, node.Name)
 }
 
-// DrainPossible is a helper method to check node object and query remaining nodes in cluster
-// to identify if it is possible to place the current mode in maintenance mode
+// DrainPossible is a helper method to check a node object and query remaining
+// nodes in the cluster to identify if it is possible to place the current mode
+// in maintenance mode.
+// Returns true if it is possible to drain the node, false if not possible. If
+// true and an error are returned, then the drain operation can be reconciled
+// again since the error does not rule out the possibility of a drain. If false
+// and an error are returned, then the conditions for a drain are not met and
+// reconciling does not make sense.
 func DrainPossible(nodeCache ctlcorev1.NodeCache, node *corev1.Node) error {
 	_, cpLabelOK := node.Labels["node-role.kubernetes.io/control-plane"]
 	_, etcdLabelOK := node.Labels["node-role.kubernetes.io/etcd"]

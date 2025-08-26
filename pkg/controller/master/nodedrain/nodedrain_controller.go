@@ -2,6 +2,7 @@ package nodedrain
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/rest"
@@ -26,10 +28,8 @@ import (
 )
 
 const (
-	nodeDrainController  = "node-drain-controller"
-	defaultWorkloadType  = "VirtualMachineInstance"
-	defaultSingleCPCount = 1
-	defaultHACPCount     = 3
+	nodeDrainController = "node-drain-controller"
+	defaultWorkloadType = "VirtualMachineInstance"
 )
 
 // ControllerHandler to drain nodes.
@@ -77,121 +77,152 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 	if node == nil || node.DeletionTimestamp != nil {
 		return node, nil
 	}
-	_, ok := node.Annotations[drainhelper.DrainAnnotation]
 
+	_, ok := node.Annotations[drainhelper.DrainAnnotation]
 	if !ok {
 		return node, nil
 	}
 
 	_, forced := node.Annotations[drainhelper.ForcedDrain]
 
-	if ok {
-		// still running a check in the background to avoid maintenance issues when using object annotations
-		// directly
-		err := drainhelper.DrainPossible(ndc.nodeCache, node)
-		if err != nil {
-			return node, err
-		}
+	logrus.WithFields(logrus.Fields{
+		"node_name": node.Name,
+		"forced":    forced,
+	}).Info("Attempting to place node in maintenance mode")
 
-		logrus.WithFields(logrus.Fields{
-			"node_name": node.Name,
-		}).Info("attempting to place node in maintenance mode")
+	// still running a check in the background to avoid maintenance issues when using object annotations
+	// directly
+	err := drainhelper.DrainPossible(ndc.nodeCache, node)
+	if err != nil {
+		if errors.Is(err, drainhelper.ErrNodeDrainNotPossible) {
+			logrus.WithFields(logrus.Fields{
+				"node_name": node.Name,
+			}).Warnf("Draining is not possible: %v", err)
 
-		// List of VMs that need to be forcibly shutdown before maintenance
-		// mode.
-		shutdownVMs := make(map[string][]string)
+			nodeCopy := node.DeepCopy()
 
-		if !forced {
-			var maintainModeStrategyVMs []string
+			// Cleanup annotations to avoid recurring approaches to drain the node.
+			delete(nodeCopy.Annotations, ctlnode.MaintainStatusAnnotationKey)
+			delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
+			delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
 
-			// Get the list of VMs that are labeled to forcibly shut down
-			// before maintenance mode.
-			maintainModeStrategyVMIs, err := ndc.listVMILabelMaintainModeStrategy(node)
-			if err != nil {
-				return node, fmt.Errorf("error in the listing of VMIs that are to be administratively stopped before migration: %w", err)
+			_, errUpdate := ndc.nodes.Update(nodeCopy)
+			if errUpdate != nil {
+				return node, errors.Join(err, fmt.Errorf("failed to update node to clean up annotations: %w", errUpdate))
 			}
 
-			// Annotate these VMs so that they can be restarted immediately
-			// when the node has finally switched into maintenance mode or
-			// when the maintenance mode is disabled for the node.
-			//
-			// Note, forcing a shutdown of all VMs via the UI setting will
-			// override the individual settings of VMs that are labelled
-			// with 'harvesterhci.io/maintain-mode-strategy'. These VMs are
-			// NOT restarted in this case.
-			for _, vmi := range maintainModeStrategyVMIs {
-				vmName, err := findVM(vmi)
-				if err != nil {
-					return node, err
-				}
+			// Do not reconcile again.
+			return nil, err
+		}
 
-				// Append the VM to the list of VMs that need to be shut down.
-				maintainModeStrategyVMs = append(maintainModeStrategyVMs, fmt.Sprintf("%s/%s", vmi.Namespace, vmName))
+		return node, err
+	}
 
-				// Skip and do not annotate VMs that do not have to be restarted
-				// at several stages of the maintenance mode. These are VMs with
-				// the label values:
-				// - Shutdown
-				if !slices.Contains([]string{
-					util.MaintainModeStrategyShutdownAndRestartAfterEnable,
-					util.MaintainModeStrategyShutdownAndRestartAfterDisable},
-					vmi.Labels[util.LabelMaintainModeStrategy]) {
+	// List of VMs that need to be forcibly shutdown before maintenance
+	// mode.
+	shutdownVMs := make(map[string][]string)
+
+	if !forced {
+		var maintainModeStrategyVMs []string
+
+		// Get the list of VMs that are labeled to forcibly shut down
+		// before maintenance mode.
+		maintainModeStrategyVMIs, err := ndc.listVMILabelMaintainModeStrategy(node)
+		if err != nil {
+			return node, fmt.Errorf("error in the listing of VMIs that are to be administratively stopped before migration: %w", err)
+		}
+
+		// Annotate these VMs so that they can be restarted immediately
+		// when the node has finally switched into maintenance mode or
+		// when the maintenance mode is disabled for the node.
+		//
+		// Note, forcing a shutdown of all VMs via the UI setting will
+		// override the individual settings of VMs that are labelled
+		// with 'harvesterhci.io/maintain-mode-strategy'. These VMs are
+		// NOT restarted in this case.
+		maintainModeStrategyLabelsToSkip := []string{
+			util.MaintainModeStrategyShutdownAndRestartAfterEnable,
+			util.MaintainModeStrategyShutdownAndRestartAfterDisable,
+		}
+		for _, vmi := range maintainModeStrategyVMIs {
+			vmName, err := findVM(vmi)
+			if err != nil {
+				return node, err
+			}
+
+			// Append the VM to the list of VMs that need to be shut down.
+			maintainModeStrategyVMs = append(maintainModeStrategyVMs, fmt.Sprintf("%s/%s", vmi.Namespace, vmName))
+
+			// Skip and do not annotate VMs that do not have to be restarted
+			// at several stages of the maintenance mode. These are VMs with
+			// the label values:
+			// - Shutdown
+			if !slices.Contains(maintainModeStrategyLabelsToSkip, vmi.Labels[util.LabelMaintainModeStrategy]) {
+				continue
+			}
+
+			vm, err := ndc.virtualMachineCache.Get(vmi.Namespace, vmName)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
 					continue
 				}
+				return node, fmt.Errorf("error looking up VM %s/%s: %w", vmi.Namespace, vmName, err)
+			}
 
-				vm, err := ndc.virtualMachineCache.Get(vmi.Namespace, vmName)
-				if err != nil {
-					return node, fmt.Errorf("error looking up VM %s/%s: %w", vmi.Namespace, vmName, err)
-				}
-
+			if vm.Annotations[util.AnnotationMaintainModeStrategyNodeName] != node.Name {
 				vmCopy := vm.DeepCopy()
 				vmCopy.Annotations[util.AnnotationMaintainModeStrategyNodeName] = node.Name
+
 				_, err = ndc.virtualMachineClient.Update(vmCopy)
 				if err != nil {
 					return node, err
 				}
 			}
-
-			shutdownVMs[util.MaintainModeStrategyKey] = maintainModeStrategyVMs
 		}
 
-		// Shutdown ALL VMs on that node forcibly? This is activated by a
-		// checkbox in the maintenance mode dialog in the UI.
-		if forced {
-			shutdownVMs, err = ndc.FindNonMigratableVMS(node)
-			if err != nil {
-				return node, fmt.Errorf("error listing VMIs in scope for shutdown: %v", err)
-			}
-		}
+		shutdownVMs[util.MaintainModeStrategyKey] = maintainModeStrategyVMs
+	}
 
-		for _, v := range getUniqueVMSfromConditionMap(shutdownVMs) {
-			// Fetch VMI again in case it has been modified.
-			err := ndc.findAndStopVM(v)
-			if err != nil {
-				return node, err
-			}
-
-			ns, name := splitNamespacedName(v)
-			logrus.WithFields(logrus.Fields{
-				"node_name":           node.Name,
-				"namespace":           ns,
-				"virtualmachine_name": name,
-			}).Info("force stopping VM")
-		}
-
-		// run node drain
-		nodeCopy := node.DeepCopy()
-		err = drainhelper.DrainNode(ndc.context, ndc.restConfig, nodeCopy)
+	// Shutdown ALL VMs on that node forcibly? This is activated by a
+	// checkbox in the maintenance mode dialog in the UI.
+	if forced {
+		shutdownVMs, err = ndc.FindNonMigratableVMS(node)
 		if err != nil {
+			return node, fmt.Errorf("error listing VMIs in scope for shutdown: %w", err)
+		}
+	}
+
+	for _, v := range getUniqueVMSfromConditionMap(shutdownVMs) {
+		// Fetch VMI again in case it has been modified.
+		err := ndc.findAndStopVM(v)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
 			return node, err
 		}
 
-		nodeCopy.Annotations[ctlnode.MaintainStatusAnnotationKey] = ctlnode.MaintainStatusRunning
-		delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
-		delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
-		return ndc.nodes.Update(nodeCopy)
+		ns, name := splitNamespacedName(v)
+		logrus.WithFields(logrus.Fields{
+			"node_name":           node.Name,
+			"namespace":           ns,
+			"virtualmachine_name": name,
+		}).Info("force stopping VM")
 	}
-	return node, nil
+
+	nodeCopy := node.DeepCopy()
+
+	// run node drain
+	err = drainhelper.DrainNode(ndc.context, ndc.restConfig, nodeCopy)
+	if err != nil {
+		return node, err
+	}
+
+	nodeCopy.Annotations[ctlnode.MaintainStatusAnnotationKey] = ctlnode.MaintainStatusRunning
+	delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
+	delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
+
+	return ndc.nodes.Update(nodeCopy)
 }
 
 // findAndStopVM is a wrapper function to identify the owner VM for a VMI, and patch the run strategy
