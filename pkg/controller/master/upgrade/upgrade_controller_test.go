@@ -205,7 +205,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			},
 		},
 		{
-			name: "annotations to store original longhorn settings should be removed after restoring",
+			name: "harvesterhci.io/longhorn-settings-restored annotation should be set after restoring",
 			given: input{
 				key: testUpgradeName,
 				upgrade: newTestUpgradeBuilder().
@@ -241,7 +241,10 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					NodesPreparedCondition(v1.ConditionTrue, "", "").
 					ChartUpgradeStatus(v1.ConditionTrue, "", "").
 					NodesUpgradedCondition(v1.ConditionTrue, "", "").
-					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).Build(),
+					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(longhornSettingsRestoredAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(autoCleanupSystemGeneratedSnapshotAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(replicaReplenishmentAnnotation, strconv.Itoa(600)).Build(),
 			},
 		},
 	}

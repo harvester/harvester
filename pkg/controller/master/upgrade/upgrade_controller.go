@@ -72,6 +72,7 @@ const (
 	autoCleanupSystemGeneratedSnapshotSetting    = "auto-cleanup-system-generated-snapshot"
 	autoCleanupSystemGeneratedSnapshotAnnotation = "harvesterhci.io/" + autoCleanupSystemGeneratedSnapshotSetting
 
+	longhornSettingsRestoredAnnotation  = "harvesterhci.io/longhorn-settings-restored"
 	imageCleanupPlanCompletedAnnotation = "harvesterhci.io/image-cleanup-plan-completed"
 	skipVersionCheckAnnotation          = "harvesterhci.io/skip-version-check"
 	defaultImagePreloadConcurrency      = 1
@@ -481,11 +482,15 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 	// auto-cleanup-system-generated-snapshot settings (multi-node cluster only)
 	toUpdate := upgrade.DeepCopy()
 	if upgrade.Status.SingleNode == "" {
-		if err := h.loadReplicaReplenishmentFromUpgradeAnnotation(upgrade, toUpdate); err != nil {
-			return nil, err
-		}
-		if err := h.loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade, toUpdate); err != nil {
-			return nil, err
+		_, exists := upgrade.Annotations[longhornSettingsRestoredAnnotation]
+		if !exists {
+			if err := h.loadReplicaReplenishmentFromUpgradeAnnotation(upgrade); err != nil {
+				return nil, err
+			}
+			if err := h.loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade); err != nil {
+				return nil, err
+			}
+			toUpdate.Annotations[longhornSettingsRestoredAnnotation] = strconv.FormatBool(true)
 		}
 	}
 
@@ -749,10 +754,10 @@ func (h *upgradeHandler) saveReplicaReplenishmentToUpgradeAnnotation(upgrade *ha
 	return nil
 }
 
-func (h *upgradeHandler) loadReplicaReplenishmentFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade, toUpdate *harvesterv1.Upgrade) error {
+func (h *upgradeHandler) loadReplicaReplenishmentFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade) error {
 	str, ok := upgrade.Annotations[replicaReplenishmentAnnotation]
 	if !ok {
-		logrus.Info("no original replica-replenishment-wait-interval value set")
+		logrus.Warn("no original replica-replenishment-wait-interval value set")
 		return nil
 	}
 	value, err := strconv.Atoi(str)
@@ -762,7 +767,6 @@ func (h *upgradeHandler) loadReplicaReplenishmentFromUpgradeAnnotation(upgrade *
 	if err := h.setReplicaReplenishmentValue(value); err != nil {
 		return err
 	}
-	delete(toUpdate.Annotations, replicaReplenishmentAnnotation)
 	return nil
 }
 
@@ -801,16 +805,15 @@ func (h *upgradeHandler) saveAutoCleanupSystemGeneratedSnapshotToUpgradeAnnotati
 	return nil
 }
 
-func (h *upgradeHandler) loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade, toUpdate *harvesterv1.Upgrade) error {
+func (h *upgradeHandler) loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade) error {
 	value, ok := upgrade.Annotations[autoCleanupSystemGeneratedSnapshotAnnotation]
 	if !ok {
-		logrus.Infof("no original %s value set", autoCleanupSystemGeneratedSnapshotSetting)
+		logrus.Warnf("no original %s value set", autoCleanupSystemGeneratedSnapshotSetting)
 		return nil
 	}
 	if err := h.setAutoCleanupSystemGeneratedSnapshotValue(value); err != nil {
 		return err
 	}
-	delete(toUpdate.Annotations, autoCleanupSystemGeneratedSnapshotAnnotation)
 	return nil
 }
 
