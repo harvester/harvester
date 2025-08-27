@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
 	"github.com/harvester/harvester/pkg/util"
@@ -196,5 +197,78 @@ func Test_volumeMountPatch(t *testing.T) {
 		result, err := volumeMountPatch(testCase.input.target, testCase.input.path, testCase.input.volumeMount)
 		assert.Equal(t, testCase.output, result)
 		assert.Empty(t, err)
+	}
+}
+
+func Test_shouldPatch(t *testing.T) {
+	type input struct {
+		pod	corev1.Pod
+	}
+	var testCases = []struct {
+		name   string
+		input  input
+		output bool
+	}{
+		{
+			name: "should patch some pods on longhorn-system namespace",
+			input: input{
+				pod: corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "longhorn-system",
+						Labels: map[string]string{
+							"longhorn.io/component": "backing-image-data-source",
+						},
+					},
+				},
+			},
+			output: true,
+		},
+		{
+			name: "should patch some pods on harvester-system namespace",
+			input: input{
+				pod: corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "harvester-system",
+						Labels: map[string]string{
+							"app.kubernetes.io/name":      "harvester",
+							"app.kubernetes.io/component": "apiserver",
+						},
+					},
+				},
+			},
+			output: true,
+		},
+		{
+			name: "should patch pods with label app=rancher on cattle-system namespace",
+			input: input{
+				pod: corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "cattle-system",
+						Labels: map[string]string{
+							"app": "rancher",
+						},
+					},
+				},
+			},
+			output: true,
+		},
+		{
+			name: "should not patch pods with label app=rancher on other namespaces",
+			input: input{
+				pod: corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Labels: map[string]string{
+							"app": "rancher",
+						},
+					},
+				},
+			},
+			output: false,
+		},
+	}
+	for _, testCase := range testCases {
+		result := shouldPatch(&testCase.input.pod)
+		assert.Equal(t, testCase.output, result, "case %q", testCase.name)
 	}
 }
