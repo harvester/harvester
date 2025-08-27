@@ -88,8 +88,13 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 
 	// still running a check in the background to avoid maintenance issues when using object annotations
 	// directly
-	err := drainhelper.DrainPossible(ndc.nodeCache, node)
+	drainPossible, err := drainhelper.DrainPossible(ndc.nodeCache, node)
 	if err != nil {
+		if !drainPossible {
+			// Fail hard since the conditions for draining the node are not met.
+			// Return the error and do not try to reconcile again.
+			return nil, err
+		}
 		return node, err
 	}
 

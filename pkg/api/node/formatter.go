@@ -335,7 +335,8 @@ func (h ActionHandler) listUnhealthyVM(rw http.ResponseWriter, node *corev1.Node
 }
 
 func (h ActionHandler) maintenancePossible(node *corev1.Node) error {
-	return drainhelper.DrainPossible(h.nodeCache, node)
+	_, err := drainhelper.DrainPossible(h.nodeCache, node)
+	return err
 }
 
 func (h ActionHandler) powerActionPossible(rw http.ResponseWriter, node string) error {
