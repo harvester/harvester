@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	apiserver "github.com/rancher/apiserver/pkg/server"
@@ -22,6 +23,7 @@ import (
 	"github.com/rancher/steve/pkg/schema/definitions"
 	"github.com/rancher/steve/pkg/server/handler"
 	"github.com/rancher/steve/pkg/server/router"
+	"github.com/rancher/steve/pkg/sqlcache/informer/factory"
 	metricsStore "github.com/rancher/steve/pkg/stores/metrics"
 	"github.com/rancher/steve/pkg/stores/proxy"
 	"github.com/rancher/steve/pkg/stores/sqlpartition"
@@ -42,6 +44,8 @@ type ExtensionAPIServer interface {
 	http.Handler
 	// Run configures the API server and make the HTTP handler available
 	Run(ctx context.Context) error
+	// Registered returns a channel that will be close once the registration requests are received from the kube-apiserver.
+	Registered() <-chan struct{}
 }
 
 type Server struct {
@@ -56,6 +60,8 @@ type Server struct {
 	APIServer       *apiserver.Server
 	ClusterRegistry string
 	Version         string
+
+	cacheFactory *factory.CacheFactory
 
 	extensionAPIServer ExtensionAPIServer
 
@@ -85,6 +91,8 @@ type Options struct {
 	// SQLCache enables the SQLite-based caching mechanism
 	SQLCache bool
 
+	SQLCacheFactoryOptions factory.CacheFactoryOptions
+
 	// ExtensionAPIServer enables an extension API server that will be served
 	// under /ext
 	// If nil, Steve's default http handler for unknown routes will be served.
@@ -97,6 +105,15 @@ type Options struct {
 func New(ctx context.Context, restConfig *rest.Config, opts *Options) (*Server, error) {
 	if opts == nil {
 		opts = &Options{}
+	}
+
+	var cacheFactory *factory.CacheFactory
+	if opts.SQLCache {
+		var err error
+		cacheFactory, err = factory.NewCacheFactory(opts.SQLCacheFactoryOptions)
+		if err != nil {
+			return nil, fmt.Errorf("creating SQL cache factory: %w", err)
+		}
 	}
 
 	server := &Server{
@@ -113,6 +130,7 @@ func New(ctx context.Context, restConfig *rest.Config, opts *Options) (*Server, 
 		Version:                    opts.ServerVersion,
 		// SQLCache enables the SQLite-based lasso caching mechanism
 		SQLCache:           opts.SQLCache,
+		cacheFactory:       cacheFactory,
 		extensionAPIServer: opts.ExtensionAPIServer,
 	}
 
@@ -187,7 +205,7 @@ func setup(ctx context.Context, server *Server) error {
 
 	var onSchemasHandler schemacontroller.SchemasHandlerFunc
 	if server.SQLCache {
-		s, err := sqlproxy.NewProxyStore(cols, cf, summaryCache, summaryCache, nil)
+		s, err := sqlproxy.NewProxyStore(ctx, cols, cf, summaryCache, summaryCache, server.cacheFactory)
 		if err != nil {
 			panic(err)
 		}
@@ -206,7 +224,7 @@ func setup(ctx context.Context, server *Server) error {
 		store := metricsStore.NewMetricsStore(errStore)
 		// end store setup code
 
-		for _, template := range resources.DefaultSchemaTemplatesForStore(store, server.BaseSchemas, summaryCache, asl, server.controllers.K8s.Discovery()) {
+		for _, template := range resources.DefaultSchemaTemplatesForStore(store, server.BaseSchemas, summaryCache, asl, server.controllers.K8s.Discovery(), common.TemplateOptions{InSQLMode: true}) {
 			sf.AddTemplate(template)
 		}
 
@@ -220,7 +238,7 @@ func setup(ctx context.Context, server *Server) error {
 			return nil
 		}
 	} else {
-		for _, template := range resources.DefaultSchemaTemplates(cf, server.BaseSchemas, summaryCache, asl, server.controllers.K8s.Discovery(), server.controllers.Core.Namespace().Cache()) {
+		for _, template := range resources.DefaultSchemaTemplates(cf, server.BaseSchemas, summaryCache, asl, server.controllers.K8s.Discovery(), server.controllers.Core.Namespace().Cache(), common.TemplateOptions{InSQLMode: false}) {
 			sf.AddTemplate(template)
 		}
 		onSchemasHandler = ccache.OnSchemas
@@ -237,7 +255,16 @@ func setup(ctx context.Context, server *Server) error {
 		onSchemasHandler,
 		sf)
 
-	apiServer, handler, err := handler.New(server.RESTConfig, sf, server.authMiddleware, server.next, server.router, server.extensionAPIServer)
+	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		select {
+		case <-server.extensionAPIServer.Registered():
+			server.next.ServeHTTP(rw, req)
+		default:
+			http.NotFoundHandler().ServeHTTP(rw, req)
+		}
+	})
+
+	apiServer, handler, err := handler.New(server.RESTConfig, sf, server.authMiddleware, next, server.router, server.extensionAPIServer)
 	if err != nil {
 		return err
 	}

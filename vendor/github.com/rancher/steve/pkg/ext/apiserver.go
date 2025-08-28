@@ -23,7 +23,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
-	utilversion "k8s.io/apiserver/pkg/util/version"
+	"k8s.io/component-base/version"
 	openapicommon "k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 )
@@ -74,7 +74,7 @@ type ExtensionAPIServerOptions struct {
 	//
 	// If nil, the default version is the version of the Kubernetes Go library
 	// compiled in the final binary.
-	EffectiveVersion utilversion.EffectiveVersion
+	EffectiveVersion version.EffectiveVersion
 
 	SNICerts []dynamiccertificates.SNICertKeyContentProvider
 }
@@ -108,6 +108,8 @@ type ExtensionAPIServer struct {
 
 	handlerMu sync.RWMutex
 	handler   http.Handler
+
+	registeredChan <-chan struct{}
 }
 
 type emptyAddresses struct{}
@@ -129,19 +131,42 @@ func NewExtensionAPIServer(scheme *runtime.Scheme, codecs serializer.CodecFactor
 		return nil, fmt.Errorf("listener must be provided")
 	}
 
+	if opts.GetOpenAPIDefinitions == nil {
+		return nil, fmt.Errorf("GetOpenAPIDefinitions must be provided")
+	}
+
+	if opts.Authorizer == nil {
+		// We need an authorizer to allow us to wrap it with a check for kube-apisevrer registration requests.
+		return nil, fmt.Errorf("authorizer must be provided")
+	}
+
 	recommendedOpts := genericoptions.NewRecommendedOptions("", codecs.LegacyCodec())
 	recommendedOpts.SecureServing.Listener = opts.Listener
+
+	registered := make(chan struct{})
+
+	var once sync.Once
 
 	resolver := &request.RequestInfoFactory{APIPrefixes: sets.NewString("apis", "api"), GrouplessAPIPrefixes: sets.NewString("api")}
 	config := genericapiserver.NewRecommendedConfig(codecs)
 	config.RequestInfoResolver = resolver
 	config.Authorization = genericapiserver.AuthorizationInfo{
-		Authorizer: opts.Authorizer,
+		Authorizer: authorizer.AuthorizerFunc(func(ctx context.Context, a authorizer.Attributes) (authorizer.Decision, string, error) {
+			switch a.GetUser().GetName() {
+			case "system:aggregator", "system:kube-aggregator":
+				once.Do(func() {
+					close(registered)
+				})
+			}
+
+			return opts.Authorizer.Authorize(ctx, a)
+		}),
 	}
+
 	// The default kube effective version ends up being the version of the
 	// library. (The value is hardcoded but it is kept up-to-date via some
 	// automation)
-	config.EffectiveVersion = utilversion.DefaultKubeEffectiveVersion()
+	config.EffectiveVersion = version.DefaultKubeEffectiveVersion()
 	if opts.EffectiveVersion != nil {
 		config.EffectiveVersion = opts.EffectiveVersion
 	}
@@ -189,6 +214,7 @@ func NewExtensionAPIServer(scheme *runtime.Scheme, codecs serializer.CodecFactor
 		genericAPIServer: genericServer,
 		apiGroups:        make(map[string]genericapiserver.APIGroupInfo),
 		authorizer:       opts.Authorizer,
+		registeredChan:   registered,
 	}
 
 	return extensionAPIServer, nil
@@ -300,4 +326,8 @@ func getDefinitionName(scheme *runtime.Scheme, replacements map[string]string) f
 		}
 		return definitionName, defGVK
 	}
+}
+
+func (s *ExtensionAPIServer) Registered() <-chan struct{} {
+	return s.registeredChan
 }

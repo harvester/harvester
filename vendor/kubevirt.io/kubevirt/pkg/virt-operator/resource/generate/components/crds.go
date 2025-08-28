@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 package components
@@ -596,7 +596,6 @@ func NewVirtualMachineRestoreCrd() (*extv1.CustomResourceDefinition, error) {
 		{Name: "TargetName", Type: "string", JSONPath: ".spec.target.name"},
 		{Name: "Complete", Type: "boolean", JSONPath: ".status.complete"},
 		{Name: "RestoreTime", Type: "date", JSONPath: ".status.restoreTime"},
-		{Name: "Error", Type: "string", JSONPath: errorMessageJSONPath},
 	})
 	if err != nil {
 		return nil, err
@@ -680,13 +679,13 @@ func NewVirtualMachineInstancetypeCrd() (*extv1.CustomResourceDefinition, error)
 		},
 		Versions: []extv1.CustomResourceDefinitionVersion{{
 			Name:               instancetypev1alpha1.SchemeGroupVersion.Version,
-			Served:             true,
+			Served:             false,
 			Storage:            false,
 			Deprecated:         true,
 			DeprecationWarning: pointer.P("instancetype.kubevirt.io/v1alpha1 VirtualMachineInstancetypes is now deprecated and will be removed in v1."),
 		}, {
 			Name:               instancetypev1alpha2.SchemeGroupVersion.Version,
-			Served:             true,
+			Served:             false,
 			Storage:            false,
 			Deprecated:         true,
 			DeprecationWarning: pointer.P("instancetype.kubevirt.io/v1alpha2 VirtualMachineInstancetypes is now deprecated and will be removed in v1."),
@@ -721,13 +720,13 @@ func NewVirtualMachineClusterInstancetypeCrd() (*extv1.CustomResourceDefinition,
 		},
 		Versions: []extv1.CustomResourceDefinitionVersion{{
 			Name:               instancetypev1alpha1.SchemeGroupVersion.Version,
-			Served:             true,
+			Served:             false,
 			Storage:            false,
 			Deprecated:         true,
 			DeprecationWarning: pointer.P("instancetype.kubevirt.io/v1alpha1 VirtualMachineClusterInstanceTypes is now deprecated and will be removed in v1."),
 		}, {
 			Name:               instancetypev1alpha2.SchemeGroupVersion.Version,
-			Served:             true,
+			Served:             false,
 			Storage:            false,
 			Deprecated:         true,
 			DeprecationWarning: pointer.P("instancetype.kubevirt.io/v1alpha2 VirtualMachineClusterInstanceTypes is now deprecated and will be removed in v1."),
@@ -763,13 +762,13 @@ func NewVirtualMachinePreferenceCrd() (*extv1.CustomResourceDefinition, error) {
 		},
 		Versions: []extv1.CustomResourceDefinitionVersion{{
 			Name:               instancetypev1alpha1.SchemeGroupVersion.Version,
-			Served:             true,
+			Served:             false,
 			Storage:            false,
 			Deprecated:         true,
 			DeprecationWarning: pointer.P("instancetype.kubevirt.io/v1alpha1 VirtualMachinePreferences is now deprecated and will be removed in v1."),
 		}, {
 			Name:               instancetypev1alpha2.SchemeGroupVersion.Version,
-			Served:             true,
+			Served:             false,
 			Storage:            false,
 			Deprecated:         true,
 			DeprecationWarning: pointer.P("instancetype.kubevirt.io/v1alpha2 VirtualMachinePreferences is now deprecated and will be removed in v1."),
@@ -804,13 +803,13 @@ func NewVirtualMachineClusterPreferenceCrd() (*extv1.CustomResourceDefinition, e
 		},
 		Versions: []extv1.CustomResourceDefinitionVersion{{
 			Name:               instancetypev1alpha1.SchemeGroupVersion.Version,
-			Served:             true,
+			Served:             false,
 			Storage:            false,
 			Deprecated:         true,
 			DeprecationWarning: pointer.P("instancetype.kubevirt.io/v1alpha1 VirtualMachineClusterPreferences is now deprecated and will be removed in v1."),
 		}, {
 			Name:               instancetypev1alpha2.SchemeGroupVersion.Version,
-			Served:             true,
+			Served:             false,
 			Storage:            false,
 			Deprecated:         true,
 			DeprecationWarning: pointer.P("instancetype.kubevirt.io/v1alpha2 VirtualMachineClusterPreferences is now deprecated and will be removed in v1."),
@@ -846,9 +845,6 @@ func NewMigrationPolicyCrd() (*extv1.CustomResourceDefinition, error) {
 			Plural:   migrations.ResourceMigrationPolicies,
 			Singular: "migrationpolicy",
 			Kind:     migrationsv1.MigrationPolicyKind.Kind,
-			Categories: []string{
-				"all",
-			},
 		},
 	}
 	err := addFieldsToAllVersions(crd, &extv1.CustomResourceSubresources{
