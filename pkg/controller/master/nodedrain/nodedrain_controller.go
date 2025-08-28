@@ -86,22 +86,36 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 
 	_, forced := node.Annotations[drainhelper.ForcedDrain]
 
+	logrus.WithFields(logrus.Fields{
+		"node_name": node.Name,
+		"forced":    forced,
+	}).Info("attempting to place node in maintenance mode")
+
 	// still running a check in the background to avoid maintenance issues when using object annotations
 	// directly
 	drainPossible, err := drainhelper.DrainPossible(ndc.nodeCache, node)
 	if err != nil {
 		if !drainPossible {
+			logrus.WithFields(logrus.Fields{
+				"node_name": node.Name,
+			}).Warnf("draining not possible: %v", err)
+
+			// Cleanup annotations to avoid recurring approaches to drain the node.
+			nodeCopy := node.DeepCopy()
+			delete(nodeCopy.Annotations, ctlnode.MaintainStatusAnnotationKey)
+			delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
+			delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
+
+			if _, updateErr := ndc.nodes.Update(nodeCopy); updateErr != nil {
+				return node, fmt.Errorf("failed to cleanup node annotations because draining is not possible: %w", updateErr)
+			}
+
 			// Fail hard since the conditions for draining the node are not met.
 			// Return the error and do not try to reconcile again.
 			return nil, err
 		}
 		return node, err
 	}
-
-	logrus.WithFields(logrus.Fields{
-		"node_name": node.Name,
-		"forced":    forced,
-	}).Info("attempting to place node in maintenance mode")
 
 	// List of VMs that need to be forcibly shutdown before maintenance
 	// mode.
