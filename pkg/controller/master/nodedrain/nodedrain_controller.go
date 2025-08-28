@@ -27,10 +27,8 @@ import (
 )
 
 const (
-	nodeDrainController  = "node-drain-controller"
-	defaultWorkloadType  = "VirtualMachineInstance"
-	defaultSingleCPCount = 1
-	defaultHACPCount     = 3
+	nodeDrainController = "node-drain-controller"
+	defaultWorkloadType = "VirtualMachineInstance"
 )
 
 // ControllerHandler to drain nodes.
@@ -86,22 +84,33 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 
 	_, forced := node.Annotations[drainhelper.ForcedDrain]
 
+	logrus.WithFields(logrus.Fields{
+		"node_name": node.Name,
+		"forced":    forced,
+	}).Info("Attempting to place node in maintenance mode")
+
 	// still running a check in the background to avoid maintenance issues when using object annotations
 	// directly
 	drainPossible, err := drainhelper.DrainPossible(ndc.nodeCache, node)
 	if err != nil {
 		if !drainPossible {
-			// Fail hard since the conditions for draining the node are not met.
-			// Return the error and do not try to reconcile again.
-			return nil, err
+			logrus.WithFields(logrus.Fields{
+				"node_name": node.Name,
+			}).Warnf("Draining is not possible: %v", err)
+
+			nodeCopy := node.DeepCopy()
+
+			// Cleanup annotations to avoid recurring approaches to drain the node.
+			delete(nodeCopy.Annotations, ctlnode.MaintainStatusAnnotationKey)
+			delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
+			delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
+
+			// Return the updated resource and do not try to reconcile again.
+			return ndc.nodes.Update(nodeCopy)
 		}
+
 		return node, err
 	}
-
-	logrus.WithFields(logrus.Fields{
-		"node_name": node.Name,
-		"forced":    forced,
-	}).Info("attempting to place node in maintenance mode")
 
 	// List of VMs that need to be forcibly shutdown before maintenance
 	// mode.
@@ -195,8 +204,9 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		}).Info("force stopping VM")
 	}
 
-	// run node drain
 	nodeCopy := node.DeepCopy()
+
+	// run node drain
 	err = drainhelper.DrainNode(ndc.context, ndc.restConfig, nodeCopy)
 	if err != nil {
 		return node, err
