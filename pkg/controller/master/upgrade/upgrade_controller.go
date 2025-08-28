@@ -764,10 +764,7 @@ func (h *upgradeHandler) loadReplicaReplenishmentFromUpgradeAnnotation(upgrade *
 	if err != nil {
 		return err
 	}
-	if err := h.setReplicaReplenishmentValue(value); err != nil {
-		return err
-	}
-	return nil
+	return h.setReplicaReplenishmentValue(value)
 }
 
 func (h *upgradeHandler) setReplicaReplenishmentValue(value int) error {
@@ -811,10 +808,7 @@ func (h *upgradeHandler) loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnota
 		logrus.Warnf("no original %s value set", autoCleanupSystemGeneratedSnapshotSetting)
 		return nil
 	}
-	if err := h.setAutoCleanupSystemGeneratedSnapshotValue(value); err != nil {
-		return err
-	}
-	return nil
+	return h.setAutoCleanupSystemGeneratedSnapshotValue(value)
 }
 
 func (h *upgradeHandler) setAutoCleanupSystemGeneratedSnapshotValue(value string) error {
