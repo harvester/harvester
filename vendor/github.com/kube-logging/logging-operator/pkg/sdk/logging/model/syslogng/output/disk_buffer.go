@@ -45,5 +45,5 @@ type DiskBuffer struct {
 	// Use this option if the option reliable() is set to yes. This option contains the size of the messages in bytes that is used in the memory part of the disk buffer.
 	MemBufSize *int64 `json:"mem_buf_size,omitempty"`
 	// The number of messages stored in the output buffer of the destination.
-	QOutSize *int64 `json:"q_out_size,omitempty"`
+	QOutSize *int64 `json:"qout_size,omitempty"`
 }

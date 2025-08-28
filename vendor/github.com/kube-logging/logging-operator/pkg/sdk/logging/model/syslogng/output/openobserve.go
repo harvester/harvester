@@ -68,6 +68,8 @@ type OpenobserveOutput struct {
 	// Arguments to the `$format-json()` template function.
 	// Default: `"--scope rfc5424 --exclude DATE --key ISODATE @timestamp=${ISODATE}"`
 	Record string `json:"record,omitempty"`
+	// This option enables putting outgoing messages into the disk buffer of the destination to avoid message loss in case of a system failure on the destination side. For details, see the [Syslog-ng DiskBuffer options](../disk_buffer/). (default: false)
+	DiskBuffer *DiskBuffer `json:"disk_buffer,omitempty"`
 }
 
 func (o *OpenobserveOutput) BeforeRender() {
@@ -82,5 +84,4 @@ func (o *OpenobserveOutput) BeforeRender() {
 	if o.Stream == "" {
 		o.Stream = "default"
 	}
-
 }

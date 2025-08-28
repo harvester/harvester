@@ -1,6 +1,9 @@
 # cel.dev/expr v0.20.0
 ## explicit; go 1.21.1
 cel.dev/expr
+# dario.cat/mergo v1.0.1
+## explicit; go 1.13
+dario.cat/mergo
 # emperror.dev/errors v0.8.1
 ## explicit; go 1.12
 emperror.dev/errors
@@ -21,11 +24,11 @@ github.com/MakeNowJust/heredoc
 # github.com/Masterminds/goutils v1.1.1
 ## explicit
 github.com/Masterminds/goutils
-# github.com/Masterminds/semver/v3 v3.3.0
+# github.com/Masterminds/semver/v3 v3.3.1
 ## explicit; go 1.21
 github.com/Masterminds/semver/v3
-# github.com/Masterminds/sprig/v3 v3.2.3
-## explicit; go 1.13
+# github.com/Masterminds/sprig/v3 v3.3.0
+## explicit; go 1.21
 github.com/Masterminds/sprig/v3
 # github.com/Masterminds/squirrel v1.5.4
 ## explicit; go 1.14
@@ -124,8 +127,8 @@ github.com/chai2010/gettext-go
 github.com/chai2010/gettext-go/mo
 github.com/chai2010/gettext-go/plural
 github.com/chai2010/gettext-go/po
-# github.com/cisco-open/operator-tools v0.34.0
-## explicit; go 1.20
+# github.com/cisco-open/operator-tools v0.37.0
+## explicit; go 1.22.0
 github.com/cisco-open/operator-tools/pkg/secret
 github.com/cisco-open/operator-tools/pkg/typeoverride
 github.com/cisco-open/operator-tools/pkg/types
@@ -173,8 +176,8 @@ github.com/coreos/go-systemd/v22/journal
 # github.com/cpuguy83/go-md2man/v2 v2.0.5
 ## explicit; go 1.11
 github.com/cpuguy83/go-md2man/v2/md2man
-# github.com/cyphar/filepath-securejoin v0.2.5
-## explicit; go 1.13
+# github.com/cyphar/filepath-securejoin v0.3.1
+## explicit; go 1.20
 github.com/cyphar/filepath-securejoin
 # github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 ## explicit
@@ -244,7 +247,7 @@ github.com/evanphx/json-patch/v5/internal/json
 # github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f
 ## explicit; go 1.15
 github.com/exponent-io/jsonpath
-# github.com/fatih/color v1.16.0
+# github.com/fatih/color v1.18.0
 ## explicit; go 1.17
 github.com/fatih/color
 # github.com/felixge/httpsnoop v1.0.4
@@ -353,7 +356,7 @@ github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/timestamp
 # github.com/gomodule/redigo v2.0.0+incompatible
 ## explicit
-# github.com/google/btree v1.1.2
+# github.com/google/btree v1.1.3
 ## explicit; go 1.18
 github.com/google/btree
 # github.com/google/cel-go v0.23.2
@@ -474,7 +477,7 @@ github.com/hashicorp/go-multierror
 github.com/hashicorp/golang-lru/v2
 github.com/hashicorp/golang-lru/v2/internal
 github.com/hashicorp/golang-lru/v2/simplelru
-# github.com/huandu/xstrings v1.4.0
+# github.com/huandu/xstrings v1.5.0
 ## explicit; go 1.12
 github.com/huandu/xstrings
 # github.com/iancoleman/orderedmap v0.3.0
@@ -495,7 +498,7 @@ github.com/jinzhu/copier
 # github.com/jmespath/go-jmespath v0.4.0
 ## explicit; go 1.14
 github.com/jmespath/go-jmespath
-# github.com/jmoiron/sqlx v1.3.5
+# github.com/jmoiron/sqlx v1.4.0
 ## explicit; go 1.10
 github.com/jmoiron/sqlx
 github.com/jmoiron/sqlx/reflectx
@@ -529,8 +532,11 @@ github.com/klauspost/compress/internal/le
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/kube-logging/logging-operator/pkg/sdk v0.11.1-0.20240314152935-421fefebc813
-## explicit; go 1.21
+# github.com/kube-logging/logging-operator v0.0.0-20250424202944-7e1f9aad6e21
+## explicit; go 1.24.1
+github.com/kube-logging/logging-operator/pkg/resources/kubetool
+# github.com/kube-logging/logging-operator/pkg/sdk v0.12.0
+## explicit; go 1.24.1
 github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1
 github.com/kube-logging/logging-operator/pkg/sdk/logging/maps/mapstrstr
 github.com/kube-logging/logging-operator/pkg/sdk/logging/model/common
@@ -818,7 +824,7 @@ github.com/pmezard/go-difflib/difflib
 # github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55
 ## explicit; go 1.14
 github.com/power-devops/perfstat
-# github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.78.2 => github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0
+# github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.82.0 => github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0
 ## explicit; go 1.17
 github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring
 github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1
@@ -1088,8 +1094,8 @@ github.com/rivo/uniseg
 # github.com/robfig/cron v1.2.0
 ## explicit
 github.com/robfig/cron
-# github.com/rubenv/sql-migrate v1.5.2
-## explicit; go 1.17
+# github.com/rubenv/sql-migrate v1.7.0
+## explicit; go 1.21
 github.com/rubenv/sql-migrate
 github.com/rubenv/sql-migrate/sqlparse
 # github.com/russross/blackfriday/v2 v2.1.0
@@ -1100,8 +1106,8 @@ github.com/russross/blackfriday/v2
 github.com/shirou/gopsutil/v3/common
 github.com/shirou/gopsutil/v3/disk
 github.com/shirou/gopsutil/v3/internal/common
-# github.com/shopspring/decimal v1.3.1
-## explicit; go 1.13
+# github.com/shopspring/decimal v1.4.0
+## explicit; go 1.10
 github.com/shopspring/decimal
 # github.com/sirupsen/logrus v1.9.3
 ## explicit; go 1.13
@@ -2344,7 +2350,7 @@ k8s.io/kube-openapi/pkg/validation/errors
 k8s.io/kube-openapi/pkg/validation/spec
 k8s.io/kube-openapi/pkg/validation/strfmt
 k8s.io/kube-openapi/pkg/validation/strfmt/bson
-# k8s.io/kubectl v0.30.1 => k8s.io/kubectl v0.31.5
+# k8s.io/kubectl v0.31.1 => k8s.io/kubectl v0.31.5
 ## explicit; go 1.22.0
 k8s.io/kubectl/pkg/cmd/util
 k8s.io/kubectl/pkg/cmd/util/podcmd
@@ -2602,7 +2608,7 @@ sigs.k8s.io/cli-utils/pkg/kstatus/status
 ## explicit; go 1.21
 sigs.k8s.io/cluster-api/api/v1beta1
 sigs.k8s.io/cluster-api/errors
-# sigs.k8s.io/controller-runtime v0.19.7
+# sigs.k8s.io/controller-runtime v0.20.4 => sigs.k8s.io/controller-runtime v0.19.7
 ## explicit; go 1.22.0
 sigs.k8s.io/controller-runtime
 sigs.k8s.io/controller-runtime/pkg/builder
@@ -2834,3 +2840,4 @@ sigs.k8s.io/yaml/goyaml.v3
 # k8s.io/mount-utils => k8s.io/mount-utils v0.31.5
 # k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.31.5
 # k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.31.5
+# sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.19.7

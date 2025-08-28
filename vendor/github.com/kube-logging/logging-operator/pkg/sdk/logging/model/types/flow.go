@@ -55,7 +55,7 @@ func (s *System) GetDirectives() []Directive {
 type Flow struct {
 	PluginMeta
 
-	//Flow id for metrics
+	// Flow id for metrics
 	FlowID string
 	// Chain of Filters that will process the event. Can be zero or more.
 	Filters []Filter `json:"filters,omitempty"`
@@ -108,7 +108,7 @@ func (f *Flow) WithOutputs(output ...Output) *Flow {
 }
 
 func NewFlow(matches []FlowMatch, id, name, namespace, flowLabel string, includeLabelInRouter *bool) (*Flow, error) {
-	var addRoute bool = true
+	addRoute := true
 	if flowLabel == "" {
 		var err error
 		flowLabel, err = calculateFlowLabel(matches, name, namespace)
@@ -160,6 +160,17 @@ func calculateFlowLabel(matches []FlowMatch, name, namespace string) (string, er
 				return "", err
 			}
 			if _, err := io.WriteString(b, match.Labels[k]); err != nil {
+				return "", err
+			}
+		}
+		// Make sure the generated label is consistent
+		nsLabelKeys := mapstrstr.Keys(match.NamespaceLabels)
+		sort.Strings(nsLabelKeys)
+		for _, k := range nsLabelKeys {
+			if _, err := io.WriteString(b, k); err != nil {
+				return "", err
+			}
+			if _, err := io.WriteString(b, match.NamespaceLabels[k]); err != nil {
 				return "", err
 			}
 		}

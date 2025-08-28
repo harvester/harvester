@@ -73,7 +73,7 @@ type ElasticsearchGenId struct {
 	RecordKeys string `json:"record_keys,omitempty"`
 	// You can specify to use entire record in events for hash generation seed.
 	UseEntireRecord bool `json:"use_entire_record,omitempty"`
-	// You can specify separator charactor to creating seed for hash generation.
+	// You can specify separator character to creating seed for hash generation.
 	Separator string `json:"separator,omitempty"`
 	// You can specify hash algorithm. Support algorithms md5, sha1, sha256, sha512. Default: sha1
 	HashType string `json:"hash_type,omitempty"`

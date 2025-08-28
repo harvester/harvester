@@ -104,6 +104,8 @@ type ForwardOutput struct {
 	// Parameter type is float, not time, default: 20.0 (seconds)
 	// If chunk flush takes longer time than this threshold, fluentd logs warning message and increases metric fluentd_output_status_slow_flush_count.
 	SlowFlushLogThreshold string `json:"slow_flush_log_threshold,omitempty"`
+	// Format forwarded events time as an epoch Integer with second resolution. Useful when forwarding to old ( <= 0.12 ) Fluentd servers.
+	TimeAsInteger bool `json:"time_as_integer,omitempty"`
 }
 
 func (f *ForwardOutput) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {

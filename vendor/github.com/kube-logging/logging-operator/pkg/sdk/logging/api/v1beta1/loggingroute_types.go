@@ -65,7 +65,7 @@ type Tenant struct {
 // +kubebuilder:printcolumn:name="Notices",type="integer",JSONPath=".status.noticesCount",description="Number of notices"
 // +kubebuilder:storageversion
 
-// LoggingRoute (experimental)
+// LoggingRoute
 // Connects a log collector with log aggregators from other logging domains and routes relevant logs based on watch namespaces
 type LoggingRoute struct {
 	metav1.TypeMeta   `json:",inline"`
