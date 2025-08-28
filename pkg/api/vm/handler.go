@@ -470,35 +470,37 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 			return apierror.NewAPIError(validation.InvalidBodyContent, "The VM is currently running on the target node")
 		}
 
-		// set vmi node selector before starting the migration
-		toUpdateVmi := vmi.DeepCopy()
-		if toUpdateVmi.Annotations == nil {
-			toUpdateVmi.Annotations = make(map[string]string)
-		}
-		if toUpdateVmi.Spec.NodeSelector == nil {
-			toUpdateVmi.Spec.NodeSelector = make(map[string]string)
-		}
-		toUpdateVmi.Annotations[util.AnnotationMigrationTarget] = nodeName
+		vmim.Spec.AddedNodeSelector = map[string]string{corev1.LabelHostname: nodeName}
 
-		if err := util.VirtClientUpdateVmi(ctx, h.virtRestClient, h.namespace, namespace, vmName, toUpdateVmi); err != nil {
-			logrus.Errorf("failed to update vmi %s/%s with migration target %s: %v", namespace, vmName, nodeName, err)
-			return err
-		}
+		// // set vmi node selector before starting the migration
+		// toUpdateVmi := vmi.DeepCopy()
+		// if toUpdateVmi.Annotations == nil {
+		// 	toUpdateVmi.Annotations = make(map[string]string)
+		// }
+		// if toUpdateVmi.Spec.NodeSelector == nil {
+		// 	toUpdateVmi.Spec.NodeSelector = make(map[string]string)
+		// }
+		// toUpdateVmi.Annotations[util.AnnotationMigrationTarget] = nodeName
 
-		vm, err := h.vmCache.Get(namespace, vmName)
-		if err != nil {
-			return fmt.Errorf("failed to get virtual machine %s/%s: %v", namespace, vmName, err)
-		}
-		toUpdateVM := vm.DeepCopy()
-		if toUpdateVM.Spec.Template.Spec.NodeSelector == nil {
-			toUpdateVM.Spec.Template.Spec.NodeSelector = make(map[string]string)
-		}
+		// if err := util.VirtClientUpdateVmi(ctx, h.virtRestClient, h.namespace, namespace, vmName, toUpdateVmi); err != nil {
+		// 	logrus.Errorf("failed to update vmi %s/%s with migration target %s: %v", namespace, vmName, nodeName, err)
+		// 	return err
+		// }
 
-		toUpdateVM.Spec.Template.Spec.NodeSelector[corev1.LabelHostname] = nodeName
-		if _, err := h.vms.Update(toUpdateVM); err != nil {
-			logrus.Errorf("failed to update VM %s/%s with migration target %s: %v", namespace, vmName, nodeName, err)
-			return err
-		}
+		// vm, err := h.vmCache.Get(namespace, vmName)
+		// if err != nil {
+		// 	return fmt.Errorf("failed to get virtual machine %s/%s: %v", namespace, vmName, err)
+		// }
+		// toUpdateVM := vm.DeepCopy()
+		// if toUpdateVM.Spec.Template.Spec.NodeSelector == nil {
+		// 	toUpdateVM.Spec.Template.Spec.NodeSelector = make(map[string]string)
+		// }
+
+		// toUpdateVM.Spec.Template.Spec.NodeSelector[corev1.LabelHostname] = nodeName
+		// if _, err := h.vms.Update(toUpdateVM); err != nil {
+		// 	logrus.Errorf("failed to update VM %s/%s with migration target %s: %v", namespace, vmName, nodeName, err)
+		// 	return err
+		// }
 	}
 
 	vmimc, err := h.vmims.Create(vmim)

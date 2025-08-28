@@ -71,9 +71,9 @@ func (h *Handler) resetHarvesterMigrationStateInVMI(vmi *kubevirtv1.VirtualMachi
 	delete(toUpdate.Annotations, util.AnnotationMigrationUID)
 	delete(toUpdate.Annotations, util.AnnotationMigrationState)
 
-	if vmi.Annotations[util.AnnotationMigrationTarget] != "" {
-		delete(toUpdate.Annotations, util.AnnotationMigrationTarget)
-	}
+	// if vmi.Annotations[util.AnnotationMigrationTarget] != "" {
+	// 	delete(toUpdate.Annotations, util.AnnotationMigrationTarget)
+	// }
 
 	if err := util.VirtClientUpdateVmi(context.Background(), h.restClient, h.namespace, vmi.Namespace, vmi.Name, toUpdate); err != nil {
 		return err
