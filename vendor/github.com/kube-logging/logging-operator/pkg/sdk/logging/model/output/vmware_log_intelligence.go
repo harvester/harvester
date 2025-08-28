@@ -87,11 +87,11 @@ type LogIntelligenceHeaders struct {
 	Structure string `json:"structure" plugin:"default:simple"`
 }
 
-// LogIntelligenceHeadersOut is used to convert the input LogIntelligenceHeaders to a fluentd
+// logIntelligenceHeadersOut is used to convert the input LogIntelligenceHeaders to a fluentd
 // output that uses the correct key names for the VMware Log Intelligence plugin. This allows the
-// Ouput to accept the config is snake_case (as other output plugins do) but output the fluentd
+// Output to accept the config is snake_case (as other output plugins do) but output the fluentd
 // <headers> config with the proper key names (ie. content_type -> Content-Type)
-type LogIntelligenceHeadersOut struct {
+type logIntelligenceHeadersOut struct {
 	// Authorization Bearer token for http request to VMware Log Intelligence
 	Authorization *secret.Secret `json:"Authorization"`
 	// Content Type for http request to VMware Log Intelligence
@@ -100,7 +100,7 @@ type LogIntelligenceHeadersOut struct {
 	Structure string `json:"structure" plugin:"default:simple"`
 }
 
-func (l *LogIntelligenceHeadersOut) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {
+func (l *logIntelligenceHeadersOut) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {
 	return types.NewFlatDirective(types.PluginMeta{
 		Directive: "headers",
 	}, l, secretLoader)
@@ -123,7 +123,7 @@ func (v *VMwareLogIntelligenceOutputConfig) ToDirective(secretLoader secret.Secr
 		vmwli.Params = params
 	}
 
-	h := LogIntelligenceHeadersOut{
+	h := logIntelligenceHeadersOut{
 		ContentType:   v.Headers.ContentType,
 		Authorization: v.Headers.Authorization,
 		Structure:     v.Headers.Structure,

@@ -45,8 +45,12 @@ func (r *Router) GetSections() []Directive {
 type FlowMatch struct {
 	// Optional set of kubernetes labels
 	Labels map[string]string `json:"labels,omitempty"`
+	// Optional set of kubernetes namespace labels
+	NamespaceLabels map[string]string `json:"namespace_labels,omitempty"`
 	// Optional namespace
 	Namespaces []string `json:"namespaces,omitempty"`
+	// Optional regex list for matching namespace
+	NamespacesRegex []string `json:"namespaces_regex,omitempty"`
 	// ContainerNames
 	ContainerNames []string `json:"container_names,omitempty"`
 	// Hosts
@@ -67,6 +71,9 @@ func (f FlowMatch) GetParams() Params {
 	if len(f.Namespaces) > 0 {
 		params["namespaces"] = strings.Join(f.Namespaces, ",")
 	}
+	if len(f.NamespacesRegex) > 0 {
+		params["namespaces_regex"] = strings.Join(f.NamespacesRegex, ",")
+	}
 	if len(f.ContainerNames) > 0 {
 		params["container_names"] = strings.Join(f.ContainerNames, ",")
 	}
@@ -81,6 +88,15 @@ func (f FlowMatch) GetParams() Params {
 			sb = append(sb, key+":"+f.Labels[key])
 		}
 		params["labels"] = strings.Join(sb, ",")
+	}
+	if len(f.NamespaceLabels) > 0 {
+		var sb []string
+		keys := mapstrstr.Keys(f.NamespaceLabels)
+		sort.Strings(keys)
+		for _, key := range keys {
+			sb = append(sb, key+":"+f.NamespaceLabels[key])
+		}
+		params["namespace_labels"] = strings.Join(sb, ",")
 	}
 	return params
 }

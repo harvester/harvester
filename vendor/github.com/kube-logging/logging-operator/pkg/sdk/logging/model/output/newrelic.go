@@ -84,7 +84,7 @@ func (c *NewRelicOutputConfig) ToDirective(secretLoader secret.SecretLoader, id 
 	} else {
 		newrelic.Params = params
 	}
-	if err := c.validateKeys(newrelic, secretLoader); err != nil {
+	if err := c.validateKeys(); err != nil {
 		return nil, err
 	}
 	if c.Buffer == nil {
@@ -105,12 +105,12 @@ func (c *NewRelicOutputConfig) ToDirective(secretLoader secret.SecretLoader, id 
 	return newrelic, nil
 }
 
-func (c *NewRelicOutputConfig) validateKeys(newrelic *types.OutputPlugin, secretLoader secret.SecretLoader) error {
+func (c *NewRelicOutputConfig) validateKeys() error {
 	if c.APIKey != nil && c.LicenseKey != nil {
 		return errors.New("api_key and license_key cannot be set simultaneously")
 	}
 	if c.APIKey == nil && c.LicenseKey == nil {
-		return errors.New("Either api_key or license_key must be configured")
+		return errors.New("either api_key or license_key must be configured")
 	}
 	return nil
 }
