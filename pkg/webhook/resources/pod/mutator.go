@@ -18,18 +18,18 @@ import (
 )
 
 var matchingLabelsForNamespace = map[string][]labels.Set {
-	"longhorn-system": {
+	util.LonghornSystemNamespaceName: {
 		{
 			"longhorn.io/component": "backing-image-data-source",
 		},
 	},
-	"harvester-system": {
+	util.HarvesterSystemNamespaceName: {
 		{
 			"app.kubernetes.io/name":      "harvester",
 			"app.kubernetes.io/component": "apiserver",
 		},
 	},
-	"cattle-system": {
+	util.CattleSystemNamespaceName: {
 		{
 			"app": "rancher",
 		},
