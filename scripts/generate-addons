@@ -6,8 +6,7 @@ TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 SCRIPTS_DIR="${TOP_DIR}/scripts"
 UPGRADE_DIR="${TOP_DIR}/package/upgrade"
 ADDONS_DIR="${TOP_DIR}/../addons"
-HARVESTER_ADDONS_VERSION="main"
-
+HARVESTER_ADDONS_VERSION="${HARVESTER_ADDONS_VERSION:-main}"
 
 ## package addon yamls
 git clone --branch ${HARVESTER_ADDONS_VERSION} --single-branch --depth 1 https://github.com/harvester/addons.git ${ADDONS_DIR}
