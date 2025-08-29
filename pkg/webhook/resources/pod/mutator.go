@@ -235,15 +235,15 @@ func volumeMountPatch(target []corev1.VolumeMount, path string, volumeMount core
 }
 
 func shouldPatch(pod *corev1.Pod) bool {
+	matchingLabels, exists := matchingLabelsForNamespace[pod.Namespace]
+	if !exists {
+		return false
+	}
+
 	podLabels := labels.Set(pod.Labels)
-	for namespace, ls := range matchingLabelsForNamespace {
-		if pod.Namespace != namespace {
-			continue
-		}
-		for _, v := range ls {
-			if v.AsSelector().Matches(podLabels) {
-				return true
-			}
+	for _, ls := range matchingLabels {
+		if ls.AsSelector().Matches(podLabels) {
+			return true
 		}
 	}
 	return false
