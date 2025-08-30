@@ -77,11 +77,13 @@ func Test_meetsControlPlaneRequirementsHA(t *testing.T) {
 	k8sclientset := k8sfake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
 
 	nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
-	err := DrainPossible(nodeCache, testNode)
+	drainPossible, err := DrainPossible(nodeCache, testNode)
 	assert.NoError(err, "expected no error while checking testNode")
+	assert.True(drainPossible, "expected that it is possible to drain the node")
 
-	err = DrainPossible(nodeCache, cpNode2)
+	drainPossible, err = DrainPossible(nodeCache, cpNode2)
 	assert.NoError(err, "expected no error while checking cpNode2")
+	assert.True(drainPossible, "expected that it is possible to drain the node")
 }
 
 func Test_failsControlPlaneRequirementsHA(t *testing.T) {
@@ -98,8 +100,9 @@ func Test_failsControlPlaneRequirementsHA(t *testing.T) {
 	_, err := nodeClient.Update(cpNode1)
 	assert.NoError(err, "expected no error while updating cpNode1")
 
-	err = DrainPossible(nodeCache, cpNode2)
+	drainPossible, err := DrainPossible(nodeCache, cpNode2)
 	assert.True(errors.Is(err, errHAControlPlaneNode), "expected error while checking cpNode2")
+	assert.False(drainPossible, "expected that it is not possible to drain the node")
 }
 
 func Test_failsControlPlaneRequirementsSingleNode(t *testing.T) {
@@ -110,17 +113,19 @@ func Test_failsControlPlaneRequirementsSingleNode(t *testing.T) {
 
 	nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
 
-	err := DrainPossible(nodeCache, cpNode1)
+	drainPossible, err := DrainPossible(nodeCache, cpNode1)
 	assert.Error(err, "expected error while trying to place cpNode1 in maintenance mode")
 	assert.True(errors.Is(err, errSingleControlPlaneNode), "expected error singleControlPlaneNodeError")
+	assert.False(drainPossible, "expected that it is not possible to drain the node")
 }
 
 func Test_meetsWorkerRequirement(t *testing.T) {
 	assert := require.New(t)
 	k8sclientset := k8sfake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
 	nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
-	err := DrainPossible(nodeCache, testNode)
+	drainPossible, err := DrainPossible(nodeCache, testNode)
 	assert.NoError(err, "expected no error while place worker node in drain")
+	assert.True(drainPossible, "expected that it is possible to drain the node")
 }
 
 func Test_maintainModeStrategyFilter_Skip(t *testing.T) {
