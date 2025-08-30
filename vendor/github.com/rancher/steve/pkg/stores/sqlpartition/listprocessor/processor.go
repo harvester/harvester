@@ -35,7 +35,7 @@ const (
 	notOp = "!"
 )
 
-var labelsRegex = regexp.MustCompile(`^(metadata)\.(labels)\[(.+)\]$`)
+var endsWithBracket = regexp.MustCompile(`^(.+)\[(.+)]$`)
 var mapK8sOpToRancherOp = map[selection.Operator]informer.Op{
 	selection.Equals:           informer.Eq,
 	selection.DoubleEquals:     informer.Eq,
@@ -191,17 +191,16 @@ func getLimit(apiOp *types.APIRequest) int {
 	return limit
 }
 
-// splitQuery takes a single-string metadata-labels filter and converts it into an array of 3 accessor strings,
-// where the first two strings are always "metadata" and "labels", and the third is the label name.
-// This is more complex than doing something like `strings.Split(".", "metadata.labels.fieldName")
-// because the fieldName can be more complex - in particular it can contain "."s) and needs to be
-// bracketed, as in `metadata.labels[rancher.io/cattle.and.beef]".
-// The `labelsRegex` looks for the bracketed form.
+// splitQuery takes a single-string k8s object accessor and returns its separate fields in a slice.
+// "Simple" accessors of the form `metadata.labels.foo` => ["metadata", "labels", "foo"]
+// but accessors with square brackets need to be broken on the brackets, as in
+// "metadata.annotations[k8s.io/this-is-fun]" => ["metadata", "annotations", "k8s.io/this-is-fun"]
+// We assume in the kubernetes/rancher world json keys are always alphanumeric-underscorish, so
+// we only look for square brackets at the end of the string.
 func splitQuery(query string) []string {
-	m := labelsRegex.FindStringSubmatch(query)
-	if m != nil && len(m) == 4 {
-		// m[0] contains the entire string, so just return all but that first item in `m`
-		return m[1:]
+	m := endsWithBracket.FindStringSubmatch(query)
+	if m != nil {
+		return append(strings.Split(m[1], "."), m[2])
 	}
 	return strings.Split(query, ".")
 }
@@ -219,7 +218,7 @@ func parseNamespaceOrProjectFilters(ctx context.Context, projOrNS string, op inf
 							Op:      informer.Eq,
 						},
 						{
-							Field:   []string{"metadata", "labels[field.cattle.io/projectId]"},
+							Field:   []string{"metadata", "labels", "field.cattle.io/projectId"},
 							Matches: []string{pn},
 							Op:      informer.Eq,
 						},

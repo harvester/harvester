@@ -27,6 +27,8 @@ func initBaseDirs(home string) {
 	baseDirs.runtime = pathutil.EnvPath(envRuntimeDir, filepath.Join("/run/user", strconv.Itoa(os.Getuid())))
 
 	// Initialize non-standard directories.
+	baseDirs.binHome = pathutil.EnvPath(envBinHome, filepath.Join(home, ".local", "bin"))
+
 	appDirs := []string{
 		filepath.Join(baseDirs.dataHome, "applications"),
 		filepath.Join(home, ".local/share/applications"),

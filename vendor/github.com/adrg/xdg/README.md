@@ -41,8 +41,9 @@ Provides an implementation of the [XDG Base Directory Specification](https://spe
 The specification defines a set of standard paths for storing application files,
 including data and configuration files. For portability and flexibility reasons,
 applications should use the XDG defined locations instead of hardcoding paths.
-The package also includes the locations of well known [user directories](https://wiki.archlinux.org/index.php/XDG_user_directories), as well as
-other common directories such as fonts and applications.
+
+The package also includes the locations of well known [user directories](https://wiki.archlinux.org/index.php/XDG_user_directories),
+support for the non-standard `XDG_BIN_HOME` directory, as well as other common directories such as fonts and applications.
 
 The current implementation supports **most flavors of Unix**, **Windows**, **macOS** and **Plan 9**.  
 On Windows, where XDG environment variables are not usually set, the package uses [Known Folders](https://docs.microsoft.com/en-us/windows/win32/shell/known-folders)
@@ -70,15 +71,16 @@ Sensible fallback locations are used for the folders which are not set.
     <summary><strong>Unix-like operating systems</strong></summary>
     <br/>
 
-| <a href="#xdg-base-directory"><img width="400" height="0"></a> | <a href="#xdg-base-directory"><img width="500" height="0"></a><p>Unix</p> | <a href="#xdg-base-directory"><img width="600" height="0"></a><p>macOS</p>                                            | <a href="#xdg-base-directory"><img width="500" height="0"></a><p>Plan 9</p> |
-| :------------------------------------------------------------: | :-----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------: |
-| <kbd><b>XDG_DATA_HOME</b></kbd>                                | <kbd>~/.local/share</kbd>                                                 | <kbd>~/Library/Application&nbsp;Support</kbd>                                                                         | <kbd>$home/lib</kbd>                                                        |
-| <kbd><b>XDG_DATA_DIRS</b></kbd>                                | <kbd>/usr/local/share</kbd><br/><kbd>/usr/share</kbd>                     | <kbd>/Library/Application&nbsp;Support</kbd>                                                                          | <kbd>/lib</kbd>                                                             |
-| <kbd><b>XDG_CONFIG_HOME</b></kbd>                              | <kbd>~/.config</kbd>                                                      | <kbd>~/Library/Application&nbsp;Support</kbd>                                                                         | <kbd>$home/lib</kbd>                                                        |
-| <kbd><b>XDG_CONFIG_DIRS</b></kbd>                              | <kbd>/etc/xdg</kbd>                                                       | <kbd>~/Library/Preferences</kbd><br/><kbd>/Library/Application&nbsp;Support</kbd><br/><kbd>/Library/Preferences</kbd> | <kbd>/lib</kbd>                                                             |
-| <kbd><b>XDG_STATE_HOME</b></kbd>                               | <kbd>~/.local/state</kbd>                                                 | <kbd>~/Library/Application&nbsp;Support</kbd>                                                                         | <kbd>$home/lib/state</kbd>                                                  |
-| <kbd><b>XDG_CACHE_HOME</b></kbd>                               | <kbd>~/.cache</kbd>                                                       | <kbd>~/Library/Caches</kbd>                                                                                           | <kbd>$home/lib/cache</kbd>                                                  |
-| <kbd><b>XDG_RUNTIME_DIR</b></kbd>                              | <kbd>/run/user/UID</kbd>                                                  | <kbd>~/Library/Application&nbsp;Support</kbd>                                                                         | <kbd>/tmp</kbd>                                                             |
+| <a href="#xdg-base-directory"><img width="400" height="0"></a> | <a href="#xdg-base-directory"><img width="500" height="0"></a><p>Unix</p> | <a href="#xdg-base-directory"><img width="600" height="0"></a><p>macOS</p>                                                                          | <a href="#xdg-base-directory"><img width="500" height="0"></a><p>Plan 9</p> |
+| :------------------------------------------------------------: | :-----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------: |
+| <kbd><b>XDG_DATA_HOME</b></kbd>                                | <kbd>~/.local/share</kbd>                                                 | <kbd>~/Library/Application&nbsp;Support</kbd>                                                                                                       | <kbd>$home/lib</kbd>                                                        |
+| <kbd><b>XDG_DATA_DIRS</b></kbd>                                | <kbd>/usr/local/share</kbd><br/><kbd>/usr/share</kbd>                     | <kbd>/Library/Application&nbsp;Support</kbd><kbd>~/.local/share</kbd>                                                                               | <kbd>/lib</kbd>                                                             |
+| <kbd><b>XDG_CONFIG_HOME</b></kbd>                              | <kbd>~/.config</kbd>                                                      | <kbd>~/Library/Application&nbsp;Support</kbd>                                                                                                       | <kbd>$home/lib</kbd>                                                        |
+| <kbd><b>XDG_CONFIG_DIRS</b></kbd>                              | <kbd>/etc/xdg</kbd>                                                       | <kbd>~/Library/Preferences</kbd><br/><kbd>/Library/Application&nbsp;Support</kbd><br/><kbd>/Library/Preferences</kbd><br/><kbd>&#126;/.config</kbd> | <kbd>/lib</kbd>                                                             |
+| <kbd><b>XDG_STATE_HOME</b></kbd>                               | <kbd>~/.local/state</kbd>                                                 | <kbd>~/Library/Application&nbsp;Support</kbd>                                                                                                       | <kbd>$home/lib/state</kbd>                                                  |
+| <kbd><b>XDG_CACHE_HOME</b></kbd>                               | <kbd>~/.cache</kbd>                                                       | <kbd>~/Library/Caches</kbd>                                                                                                                         | <kbd>$home/lib/cache</kbd>                                                  |
+| <kbd><b>XDG_RUNTIME_DIR</b></kbd>                              | <kbd>/run/user/$UID</kbd>                                                 | <kbd>~/Library/Application&nbsp;Support</kbd>                                                                                                       | <kbd>/tmp</kbd>                                                             |
+| <kbd><b>XDG_BIN_HOME</b></kbd>                                 | <kbd>~/.local/bin</kbd>                                                   | <kbd>~/.local/bin</kbd>                                                                                                                             | <kbd>$home/bin</kbd>                                                        |
 
 </details>
 
@@ -95,6 +97,7 @@ Sensible fallback locations are used for the folders which are not set.
 | <kbd><b>XDG_STATE_HOME</b></kbd>                               | <kbd>LocalAppData</kbd>                                                                   | <kbd>%LOCALAPPDATA%</kbd>                                                        |
 | <kbd><b>XDG_CACHE_HOME</b></kbd>                               | <kbd>LocalAppData\cache</kbd>                                                             | <kbd>%LOCALAPPDATA%\cache</kbd>                                                  |
 | <kbd><b>XDG_RUNTIME_DIR</b></kbd>                              | <kbd>LocalAppData</kbd>                                                                   | <kbd>%LOCALAPPDATA%</kbd>                                                        |
+| <kbd><b>XDG_BIN_HOME</b></kbd>                                 | <kbd>UserProgramFiles</kbd>                                                               | <kbd>%LOCALAPPDATA%\Programs</kbd>                                               |
 
 </details>
 
@@ -163,11 +166,11 @@ as shown in the following tables.
     <summary><strong>Microsoft Windows</strong></summary>
     <br/>
 
-| <a href="#other-directories"><img width="400" height="0"></a> | <a href="#other-directories"><img width="300" height="0"></a><p>Known&nbsp;Folder(s)</p> | <a href="#other-directories"><img width="1300" height="0"></a><p>Fallback(s)</p>                                                        |
-| :-----------------------------------------------------------: | :--------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------------------------------------------: |
-| <kbd><b>Home</b></kbd>                                        | <kbd>Profile</kbd>                                                                       | <kbd>%USERPROFILE%</kbd>                                                                                                                |
-| <kbd><b>Applications</b></kbd>                                | <kbd>Programs</kbd><br/><kbd>CommonPrograms</kbd>                                        | <kbd>%APPDATA%\Microsoft\Windows\Start&nbsp;Menu\Programs</kbd><br/><kbd>%ProgramData%\Microsoft\Windows\Start&nbsp;Menu\Programs</kbd> |
-| <kbd><b>Fonts</b></kbd>                                       | <kbd>Fonts</kbd>                                                                         | <kbd>%SystemRoot%\Fonts</kbd><br/><kbd>%LOCALAPPDATA%\Microsoft\Windows\Fonts</kbd>                                                     |
+| <a href="#other-directories"><img width="400" height="0"></a> | <a href="#other-directories"><img width="300" height="0"></a><p>Known&nbsp;Folder(s)</p>                                                                                               | <a href="#other-directories"><img width="1300" height="0"></a><p>Fallback(s)</p>                                                                                                                                                                                                                     |
+| :-----------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| <kbd><b>Home</b></kbd>                                        | <kbd>Profile</kbd>                                                                                                                                                                     | <kbd>%USERPROFILE%</kbd>                                                                                                                                                                                                                                                                             |
+| <kbd><b>Applications</b></kbd>                                | <kbd>Programs</kbd><br/><kbd>CommonPrograms</kbd> <br/><kbd>ProgramFiles</kbd><br/><kbd>ProgramFilesCommon</kbd><br/><kbd>UserProgramFiles</kbd><br/><kbd>UserProgramFilesCommon</kbd> | <kbd>%APPDATA%\Microsoft\Windows\Start&nbsp;Menu\Programs</kbd><br/><kbd>%ProgramData%\Microsoft\Windows\Start&nbsp;Menu\Programs</kbd><br/><kbd>%ProgramFiles%</kbd><br/><kbd>%ProgramFiles%\Common Files</kbd><br/><kbd>%LOCALAPPDATA%\Programs</kbd><br/><kbd>%LOCALAPPDATA%\Programs\Common</kbd>|
+| <kbd><b>Fonts</b></kbd>                                       | <kbd>Fonts</kbd>                                                                                                                                                                       | <kbd>%SystemRoot%\Fonts</kbd><br/><kbd>%LOCALAPPDATA%\Microsoft\Windows\Fonts</kbd>                                                                                                                                                                                                                  |
 
 </details>
 
@@ -193,6 +196,7 @@ func main() {
 	log.Println("Home state directory:", xdg.StateHome)
 	log.Println("Cache directory:", xdg.CacheHome)
 	log.Println("Runtime directory:", xdg.RuntimeDir)
+	log.Println("Home binaries directory:", xdg.BinHome)
 
 	// Other common directories.
 	log.Println("Home directory:", xdg.Home)
@@ -203,6 +207,9 @@ func main() {
 	// ConfigFile takes one parameter which must contain the name of the file,
 	// but it can also contain a set of parent directories. If the directories
 	// don't exist, they will be created relative to the base config directory.
+	// It is recommended for files to be saved inside an application directory
+	// relative to the base directory rather than directly inside the base
+	// directory (e.g. `appname/config.yaml` instead of `appname-config.yaml`).
 	configFilePath, err := xdg.ConfigFile("appname/config.yaml")
 	if err != nil {
 		log.Fatal(err)
@@ -277,7 +284,8 @@ See [CONTRIBUTING.MD](CONTRIBUTING.md).
 [djdv](https://github.com/djdv),
 [rrjjvv](https://github.com/rrjjvv),
 [GreyXor](https://github.com/GreyXor),
-[Rican7](https://github.com/Rican7).
+[Rican7](https://github.com/Rican7),
+[nothub](https://github.com/nothub).
 
 ## References
 
