@@ -2,7 +2,7 @@ module github.com/harvester/harvester
 
 go 1.23.0
 
-toolchain go1.24.1
+toolchain go1.25.0
 
 replace (
 	github.com/containerd/containerd => github.com/containerd/containerd v1.6.18
