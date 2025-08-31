@@ -13,8 +13,12 @@ COMMIT=$(git rev-parse --short=8 HEAD)
 COMMIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 COMMIT_BRANCH_FORMATTED=$(echo "${COMMIT_BRANCH}" | sed -E 's/[^a-zA-Z0-9.]+/-/g')
 GIT_TAG=$(git tag -l --contains HEAD | head -n 1)
+if [[ "$GIT_TAG" == *"-dev-"* ]]; then
+  SPRINT_RELEASE="-dev-"
+fi
 
-if [[ -z "$DIRTY" && -n "$GIT_TAG" ]]; then
+if [[ -z "$DIRTY" && -n "$GIT_TAG" && -z "$SPRINT_RELEASE" ]]; then
+    echo "Checking minimum upgradable version, if no minimum upgradeable version, will fail with `Error: no matches found`"
     VERSION=$GIT_TAG
     # Search for minimum upgradable version.
     # If the release does not come with a corresponding minimum upgradable version, the build will error out.
