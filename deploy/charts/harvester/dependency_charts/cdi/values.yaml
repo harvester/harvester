@@ -14,7 +14,7 @@ cdi:
     nodeSelector:
       kubernetes.io/os: linux
 
-hookImage: rancher/kubectl:v1.32.3
+hookImage: rancher/kubectl:v1.34.0
 hookRestartPolicy: OnFailure
 hookSecurityContext:
   seccompProfile:
