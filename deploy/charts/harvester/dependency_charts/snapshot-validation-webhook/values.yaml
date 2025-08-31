@@ -16,7 +16,7 @@ rbac:
 
 image:
   repository: registry.k8s.io/sig-storage/snapshot-validation-webhook
-  tag: v6.3.3
+  tag: v6.3.4
   pullPolicy: IfNotPresent
 
 podAnnotations: {}
