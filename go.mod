@@ -9,11 +9,11 @@ replace (
 	github.com/docker/distribution => github.com/docker/distribution v2.8.0+incompatible // oras dep requires a replace is set
 	github.com/docker/docker => github.com/docker/docker v20.10.9+incompatible // oras dep requires a replace is set
 	github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.7.7
-	github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
-	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200521150516-05eb9880269c
+	github.com/openshift/api => github.com/openshift/api 4a165b214722
+	github.com/openshift/client-go => github.com/openshift/client-go 6193816ae379
 	github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.34.0
-	github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20230124173128-2207cfed1803
-	github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20230124173128-2207cfed1803
+	github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis 051761279a03
+	github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client 051761279a03
 
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.9.0-rancher1
 	k8s.io/api => k8s.io/api v0.26.13
@@ -34,7 +34,7 @@ replace (
 	k8s.io/kms => k8s.io/kms v0.26.13
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.26.13
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.26.13
-	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340
+	k8s.io/kube-openapi => k8s.io/kube-openapi d7b6acb124c3
 	k8s.io/kube-proxy => k8s.io/kube-proxy v0.26.13
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.26.13
 	k8s.io/kubectl => k8s.io/kubectl v0.26.13
@@ -58,10 +58,10 @@ require (
 	github.com/docker/go-units v0.5.0
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful/v3 v3.11.3
-	github.com/gobuffalo/flect v1.0.2
+	github.com/gobuffalo/flect v1.0.3
 	github.com/gorilla/mux v1.8.1
 	github.com/guonaihong/gout v0.1.3
-	github.com/harvester/go-common v0.0.0-20240627083535-c1208a490f89
+	github.com/harvester/go-common 7e8ff083ebf9
 	github.com/harvester/harvester-network-controller v0.3.1
 	github.com/harvester/node-manager v0.1.5-0.20230614075852-de2da3ef3aca
 	github.com/iancoleman/strcase v0.2.0
@@ -70,14 +70,14 @@ require (
 	github.com/kube-logging/logging-operator/pkg/sdk v0.9.1
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1
-	github.com/longhorn/backupstore v0.0.0-20241227145911-8de988de7eff
+	github.com/longhorn/backupstore 794abf817297
 	github.com/longhorn/longhorn-manager v1.6.4
-	github.com/mattn/go-isatty v0.0.17
+	github.com/mattn/go-isatty v0.0.20
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo/v2 v2.9.4
 	github.com/onsi/gomega v1.27.6
-	github.com/openshift/api v0.0.0
+	github.com/openshift/api v0.0.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.64.1
 	github.com/rancher/apiserver v0.0.0-20230120214941-e88c32739dc7
@@ -88,14 +88,14 @@ require (
 	github.com/rancher/rancher v0.0.0-20230124173128-2207cfed1803
 	github.com/rancher/rancher/pkg/apis v0.0.0
 	github.com/rancher/steve v0.0.0-20221209194631-acf9d31ce0dd
-	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20230803010539-04a0b9ef5858
+	github.com/rancher/system-upgrade-controller/pkg/apis 745300be18f9
 	github.com/rancher/wrangler v1.1.2
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/gjson v1.9.3
-	github.com/urfave/cli v1.22.16
+	github.com/urfave/cli v1.22.17
 	go.uber.org/multierr v1.11.0
 	golang.org/x/crypto v0.36.0
 	golang.org/x/net v0.38.0
@@ -110,11 +110,11 @@ require (
 	k8s.io/apiserver v0.28.15
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/component-helpers v0.28.15
-	k8s.io/gengo v0.0.0-20240228010128-51d4e06bde70
-	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340
+	k8s.io/gengo f1dc67e67210
+	k8s.io/kube-openapi d7b6acb124c3
 	k8s.io/kubectl v0.25.0
 	k8s.io/kubelet v0.26.13
-	k8s.io/utils v0.0.0-20241210054802-24370beab758
+	k8s.io/utils 0af2bda4dd1d
 	kubevirt.io/api v1.1.1
 	kubevirt.io/client-go v1.1.1
 	kubevirt.io/containerized-data-importer-api v1.57.0-alpha1
