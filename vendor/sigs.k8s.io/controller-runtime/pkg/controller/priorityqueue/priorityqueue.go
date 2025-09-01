@@ -19,10 +19,7 @@ import (
 type AddOpts struct {
 	After       time.Duration
 	RateLimited bool
-	// Priority is the priority of the item. Higher values
-	// indicate higher priority.
-	// Defaults to zero if unset.
-	Priority *int
+	Priority    int
 }
 
 // PriorityQueue is a priority queue for a controller. It
@@ -132,10 +129,6 @@ type priorityqueue[T comparable] struct {
 }
 
 func (w *priorityqueue[T]) AddWithOpts(o AddOpts, items ...T) {
-	if w.shutdown.Load() {
-		return
-	}
-
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
@@ -157,13 +150,13 @@ func (w *priorityqueue[T]) AddWithOpts(o AddOpts, items ...T) {
 			item := &item[T]{
 				Key:          key,
 				AddedCounter: w.addedCounter,
-				Priority:     ptr.Deref(o.Priority, 0),
+				Priority:     o.Priority,
 				ReadyAt:      readyAt,
 			}
 			w.items[key] = item
 			w.queue.ReplaceOrInsert(item)
 			if item.ReadyAt == nil {
-				w.metrics.add(key, item.Priority)
+				w.metrics.add(key)
 			}
 			w.addedCounter++
 			continue
@@ -172,17 +165,13 @@ func (w *priorityqueue[T]) AddWithOpts(o AddOpts, items ...T) {
 		// The b-tree de-duplicates based on ordering and any change here
 		// will affect the order - Just delete and re-add.
 		item, _ := w.queue.Delete(w.items[key])
-		if newPriority := ptr.Deref(o.Priority, 0); newPriority > item.Priority {
-			// Update depth metric only if the item in the queue was already added to the depth metric.
-			if item.ReadyAt == nil || w.becameReady.Has(key) {
-				w.metrics.updateDepthWithPriorityMetric(item.Priority, newPriority)
-			}
-			item.Priority = newPriority
+		if o.Priority > item.Priority {
+			item.Priority = o.Priority
 		}
 
 		if item.ReadyAt != nil && (readyAt == nil || readyAt.Before(*item.ReadyAt)) {
 			if readyAt == nil && !w.becameReady.Has(key) {
-				w.metrics.add(key, item.Priority)
+				w.metrics.add(key)
 			}
 			item.ReadyAt = readyAt
 		}
@@ -234,7 +223,7 @@ func (w *priorityqueue[T]) spin() {
 						return false
 					}
 					if !w.becameReady.Has(item.Key) {
-						w.metrics.add(item.Key, item.Priority)
+						w.metrics.add(item.Key)
 						w.becameReady.Insert(item.Key)
 					}
 				}
@@ -250,7 +239,7 @@ func (w *priorityqueue[T]) spin() {
 					return true
 				}
 
-				w.metrics.get(item.Key, item.Priority)
+				w.metrics.get(item.Key)
 				w.locked.Insert(item.Key)
 				w.waiters.Add(-1)
 				delete(w.items, item.Key)
@@ -281,15 +270,9 @@ func (w *priorityqueue[T]) AddRateLimited(item T) {
 }
 
 func (w *priorityqueue[T]) GetWithPriority() (_ T, priority int, shutdown bool) {
-	if w.shutdown.Load() {
-		var zero T
-		return zero, 0, true
-	}
-
 	w.waiters.Add(1)
 
 	w.notifyItemOrWaiterAdded()
-
 	item := <-w.get
 
 	return item.Key, item.Priority, w.shutdown.Load()

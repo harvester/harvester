@@ -8,13 +8,13 @@ replace (
 	github.com/docker/docker => github.com/docker/docker v25.0.6+incompatible // oras dep requires a replace is set
 	github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.9.1
 	github.com/google/cel-go => github.com/google/cel-go v0.22.0
+	github.com/google/gnostic-models => github.com/google/gnostic-models v0.6.9
 	github.com/harvester/harvester-network-controller => github.com/harvester/harvester-network-controller v1.6.0-rc3
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200521150516-05eb9880269c
 	github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190128024246-5eb7ae5bdb7a
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring => github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0
 	github.com/rancher/lasso => github.com/rancher/lasso v0.0.0-20241202185148-04649f379358
-
 	github.com/rancher/rancher => github.com/rancher/rancher v0.0.0-20240919204204-3da2ae0cabd1
 	github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20240919204204-3da2ae0cabd1
 	github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20240919204204-3da2ae0cabd1
@@ -58,7 +58,6 @@ replace (
 	k8s.io/mount-utils => k8s.io/mount-utils v0.32.5
 	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.32.5
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.32.5
-	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.22.0
 )
 
 require (
@@ -360,5 +359,4 @@ require (
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
 	sigs.k8s.io/kustomize/api v0.18.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.7.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
