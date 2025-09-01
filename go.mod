@@ -7,6 +7,7 @@ replace (
 	github.com/docker/distribution => github.com/docker/distribution v2.8.2+incompatible // oras dep requires a replace is set
 	github.com/docker/docker => github.com/docker/docker v25.0.6+incompatible // oras dep requires a replace is set
 	github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.9.1
+	github.com/google/cel-go => github.com/google/cel-go v0.22.0
 	github.com/harvester/harvester-network-controller => github.com/harvester/harvester-network-controller v1.6.0-rc3
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200521150516-05eb9880269c
@@ -33,7 +34,7 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.32.5
 	k8s.io/cloud-provider => k8s.io/cloud-provider v0.32.5
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.32.5
-	k8s.io/code-generator => k8s.io/code-generator v0.32.5
+	k8s.io/code-generator => k8s.io/code-generator v0.31.5
 	k8s.io/component-base => k8s.io/component-base v0.32.5
 	k8s.io/component-helpers => k8s.io/component-helpers v0.32.5
 	k8s.io/controller-manager => k8s.io/controller-manager v0.32.5
