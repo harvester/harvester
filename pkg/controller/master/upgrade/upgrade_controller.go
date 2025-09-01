@@ -465,16 +465,20 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 				return nil, err
 			}
 			for _, job := range jobs {
-				logrus.Debugf("Deleting job %s/%s", job.Namespace, job.Name)
-				if err := h.jobClient.Delete(job.Namespace, job.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-					return nil, err
+				if job.DeletionTimestamp == nil {
+					logrus.Debugf("Deleting job %s/%s", job.Namespace, job.Name)
+					if err := h.jobClient.Delete(job.Namespace, job.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+						return nil, err
+					}
 				}
 			}
 		}
 
-		logrus.Debugf("Deleting plan %s/%s", plan.Namespace, plan.Name)
-		if err := h.planClient.Delete(plan.Namespace, plan.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-			return nil, err
+		if plan.DeletionTimestamp == nil {
+			logrus.Debugf("Deleting plan %s/%s", plan.Namespace, plan.Name)
+			if err := h.planClient.Delete(plan.Namespace, plan.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+				return nil, err
+			}
 		}
 	}
 
