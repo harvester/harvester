@@ -9755,6 +9755,9 @@
             "type": "integer",
             "format": "int64"
           },
+          "ignoreStoreReadErrorWithClusterBreakingPotential": {
+            "type": "boolean"
+          },
           "kind": {
             "type": "string"
           },
@@ -10528,6 +10531,24 @@
           }
         }
       },
+      "k8s.io.v1.PodResourceClaim": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "default": ""
+          },
+          "resourceClaimName": {
+            "type": "string"
+          },
+          "resourceClaimTemplateName": {
+            "type": "string"
+          }
+        }
+      },
       "k8s.io.v1.Preconditions": {
         "type": "object",
         "properties": {
@@ -10770,6 +10791,9 @@
       "kubevirt.io.api.core.v1.ACPI": {
         "type": "object",
         "properties": {
+          "msdmNameRef": {
+            "type": "string"
+          },
           "slicNameRef": {
             "type": "string"
           }
@@ -11230,6 +11254,75 @@
       "kubevirt.io.api.core.v1.DeprecatedInterfaceSlirp": {
         "type": "object"
       },
+      "kubevirt.io.api.core.v1.DeviceAttribute": {
+        "type": "object",
+        "properties": {
+          "mDevUUID": {
+            "type": "string"
+          },
+          "pciAddress": {
+            "type": "string"
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.DeviceResourceClaimStatus": {
+        "type": "object",
+        "properties": {
+          "attributes": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeviceAttribute"
+          },
+          "name": {
+            "type": "string"
+          },
+          "resourceClaimName": {
+            "type": "string"
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.DeviceStatus": {
+        "type": "object",
+        "properties": {
+          "gpuStatuses": {
+            "type": "array",
+            "items": {
+              "default": {},
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeviceStatusInfo"
+                }
+              ]
+            },
+            "x-kubernetes-list-type": "atomic"
+          },
+          "hostDeviceStatuses": {
+            "type": "array",
+            "items": {
+              "default": {},
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeviceStatusInfo"
+                }
+              ]
+            },
+            "x-kubernetes-list-type": "atomic"
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.DeviceStatusInfo": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "deviceResourceClaimStatus": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeviceResourceClaimStatus"
+          },
+          "name": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.Devices": {
         "type": "object",
         "properties": {
@@ -11338,6 +11431,17 @@
           "networkInterfaceMultiqueue": {
             "type": "boolean"
           },
+          "panicDevices": {
+            "type": "array",
+            "items": {
+              "default": {},
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.PanicDevice"
+                }
+              ]
+            }
+          },
           "rng": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.Rng"
           },
@@ -11350,8 +11454,19 @@
           "useVirtioTransitional": {
             "type": "boolean"
           },
+          "video": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VideoDevice"
+          },
           "watchdog": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.Watchdog"
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.Diag288Watchdog": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
           }
         }
       },
@@ -11723,17 +11838,21 @@
       "kubevirt.io.api.core.v1.GPU": {
         "type": "object",
         "required": [
-          "deviceName",
           "name"
         ],
         "properties": {
+          "claimName": {
+            "type": "string"
+          },
           "deviceName": {
-            "type": "string",
-            "default": ""
+            "type": "string"
           },
           "name": {
             "type": "string",
             "default": ""
+          },
+          "requestName": {
+            "type": "string"
           },
           "tag": {
             "type": "string"
@@ -11760,17 +11879,21 @@
       "kubevirt.io.api.core.v1.HostDevice": {
         "type": "object",
         "required": [
-          "deviceName",
           "name"
         ],
         "properties": {
+          "claimName": {
+            "type": "string"
+          },
           "deviceName": {
-            "type": "string",
-            "default": ""
+            "type": "string"
           },
           "name": {
             "type": "string",
             "default": ""
+          },
+          "requestName": {
+            "type": "string"
           },
           "tag": {
             "type": "string"
@@ -12253,6 +12376,14 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.PanicDevice": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.PersistentVolumeClaimInfo": {
         "type": "object",
         "properties": {
@@ -12651,6 +12782,9 @@
       "kubevirt.io.api.core.v1.TPMDevice": {
         "type": "object",
         "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
           "persistent": {
             "type": "boolean"
           }
@@ -12742,6 +12876,14 @@
         "properties": {
           "display": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VGPUDisplayOptions"
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.VideoDevice": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
           }
         }
       },
@@ -13057,9 +13199,78 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationSource": {
+        "type": "object",
+        "required": [
+          "connectURL",
+          "migrationID"
+        ],
+        "properties": {
+          "connectURL": {
+            "type": "string",
+            "default": ""
+          },
+          "migrationID": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationSourceState": {
+        "type": "object",
+        "properties": {
+          "domainName": {
+            "type": "string"
+          },
+          "domainNamespace": {
+            "type": "string"
+          },
+          "migrationUID": {
+            "type": "string"
+          },
+          "node": {
+            "type": "string"
+          },
+          "nodeSelectors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          "persistentStatePVCName": {
+            "type": "string"
+          },
+          "pod": {
+            "type": "string"
+          },
+          "selinuxContext": {
+            "type": "string"
+          },
+          "syncAddress": {
+            "type": "string"
+          },
+          "virtualMachineInstanceUID": {
+            "type": "string"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationSpec": {
         "type": "object",
         "properties": {
+          "addedNodeSelector": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          "receive": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationTarget"
+          },
+          "sendTo": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationSource"
+          },
           "vmiName": {
             "type": "string"
           }
@@ -13089,6 +13300,9 @@
           "migrationConfiguration": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.MigrationConfiguration"
           },
+          "migrationNetworkType": {
+            "type": "string"
+          },
           "migrationPolicyName": {
             "type": "string"
           },
@@ -13106,6 +13320,9 @@
           },
           "sourcePod": {
             "type": "string"
+          },
+          "sourceState": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationSourceState"
           },
           "startTimestamp": {
             "$ref": "#/components/schemas/k8s.io.v1.Time"
@@ -13150,6 +13367,9 @@
           },
           "targetPod": {
             "type": "string"
+          },
+          "targetState": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationTargetState"
           }
         }
       },
@@ -13184,6 +13404,90 @@
               ]
             },
             "x-kubernetes-list-type": "atomic"
+          },
+          "synchronizationAddresses": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "default": ""
+            },
+            "x-kubernetes-list-type": "atomic"
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationTarget": {
+        "type": "object",
+        "required": [
+          "migrationID"
+        ],
+        "properties": {
+          "migrationID": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationTargetState": {
+        "type": "object",
+        "properties": {
+          "attachmentPodUID": {
+            "type": "string"
+          },
+          "cpuSet": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            },
+            "x-kubernetes-list-type": "atomic"
+          },
+          "directMigrationNodePorts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          "domainDetected": {
+            "type": "boolean"
+          },
+          "domainName": {
+            "type": "string"
+          },
+          "domainNamespace": {
+            "type": "string"
+          },
+          "domainReadyTimestamp": {
+            "$ref": "#/components/schemas/k8s.io.v1.Time"
+          },
+          "migrationUID": {
+            "type": "string"
+          },
+          "node": {
+            "type": "string"
+          },
+          "nodeAddress": {
+            "type": "string"
+          },
+          "nodeTopology": {
+            "type": "string"
+          },
+          "persistentStatePVCName": {
+            "type": "string"
+          },
+          "pod": {
+            "type": "string"
+          },
+          "selinuxContext": {
+            "type": "string"
+          },
+          "syncAddress": {
+            "type": "string"
+          },
+          "virtualMachineInstanceUID": {
+            "type": "string"
           }
         }
       },
@@ -13312,6 +13616,21 @@
           "readinessProbe": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.Probe"
           },
+          "resourceClaims": {
+            "type": "array",
+            "items": {
+              "default": {},
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/k8s.io.v1.PodResourceClaim"
+                }
+              ]
+            },
+            "x-kubernetes-list-map-keys": [
+              "name"
+            ],
+            "x-kubernetes-list-type": "map"
+          },
           "schedulerName": {
             "type": "string"
           },
@@ -13394,6 +13713,9 @@
           },
           "currentCPUTopology": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.CPUTopology"
+          },
+          "deviceStatus": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeviceStatus"
           },
           "evacuationNodeName": {
             "type": "string"
@@ -13919,6 +14241,9 @@
           "name"
         ],
         "properties": {
+          "diag288": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.Diag288Watchdog"
+          },
           "i6300esb": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.I6300ESBWatchdog"
           },

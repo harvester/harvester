@@ -74,8 +74,8 @@ type NewClientFunc func(config *rest.Config, options Options) (Client, error)
 // New returns a new Client using the provided config and Options.
 //
 // By default, the client surfaces warnings returned by the server. To
-// suppress warnings, set config.WarningHandlerWithContext = rest.NoWarnings{}. To
-// define custom behavior, implement the rest.WarningHandlerWithContext interface.
+// suppress warnings, set config.WarningHandler = rest.NoWarnings{}. To
+// define custom behavior, implement the rest.WarningHandler interface.
 // See [sigs.k8s.io/controller-runtime/pkg/log.KubeAPIWarningLogger] for
 // an example.
 //
@@ -112,9 +112,10 @@ func newClient(config *rest.Config, options Options) (*client, error) {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()
 	}
 
-	if config.WarningHandler == nil && config.WarningHandlerWithContext == nil {
+	if config.WarningHandler == nil {
 		// By default, we surface warnings.
-		config.WarningHandlerWithContext = log.NewKubeAPIWarningLogger(
+		config.WarningHandler = log.NewKubeAPIWarningLogger(
+			log.Log.WithName("KubeAPIWarningLogger"),
 			log.KubeAPIWarningLoggerOptions{
 				Deduplicate: false,
 			},
@@ -326,16 +327,6 @@ func (c *client) Patch(ctx context.Context, obj Object, patch Patch, opts ...Pat
 		return c.metadataClient.Patch(ctx, obj, patch, opts...)
 	default:
 		return c.typedClient.Patch(ctx, obj, patch, opts...)
-	}
-}
-
-func (c *client) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...ApplyOption) error {
-	switch obj := obj.(type) {
-	case *unstructuredApplyConfiguration:
-		defer c.resetGroupVersionKind(obj, obj.GetObjectKind().GroupVersionKind())
-		return c.unstructuredClient.Apply(ctx, obj, opts...)
-	default:
-		return c.typedClient.Apply(ctx, obj, opts...)
 	}
 }
 
