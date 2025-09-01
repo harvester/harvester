@@ -471,6 +471,37 @@ calculateCPUReservedInMilliCPU() {
   echo $reserved
 }
 
+generate_networkmanager_config() {
+   if [ -z "$UPGRADE_PREVIOUS_VERSION" ]; then
+    detect_upgrade
+  fi
+
+  # NetworkManager is new in Harvester v1.7.0, and we can only upgrade to
+  # v1.7.x from v1.6.x, which means we only need to generate NetworkManager
+  # config if the previous version is v1.6.x.
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.6\.[0-9]$ ]]; then
+    echo "version: $UPGRADE_PREVIOUS_VERSION does not require generating NetworkManager config"
+    return
+  fi
+
+  # Just in case NetworkManager config has already been generated
+  # and/or potentially modified by the user, let's not overwrite it.
+  if [ -e ${HOST_DIR}/oem/91_networkmanager.yaml ]; then
+    echo "skipping NetworkManager config generation (${HOST_DIR}/oem/91_networkmanager.yaml already exists)"
+    return
+  fi
+
+  echo "Generating NetworkManager config..."
+  # Whether this succeeds or fails, it will print a message either way...
+  /usr/local/bin/harvester-installer generate-network-yaml --config ${HOST_DIR}/oem/harvester.config --cloud-init ${HOST_DIR}/oem/91_networkmanager.yaml 2>&1
+  # ...but because we're running with set -e, if the above fails, the script
+  # will abort, and the rest of the OS upgrade will not proceed.  If that
+  # happens, the upgrade job will probably be re-run indefinitely.  Is it
+  # better to get stuck here in that way?  Or would it be better to barrel
+  # on regardless and continue the OS upgrade with the knowledge that
+  # when the node comes back up after reboot, networking may be broken?
+}
+
 upgrade_os() {
   # The trap will be only effective from this point to the end of the execution
   trap clean_up_tmp_files EXIT
@@ -613,6 +644,8 @@ command_post_drain() {
 
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME kubevirt.io/drain- || true
 
+  generate_networkmanager_config
+
   upgrade_os
 }
 
@@ -649,6 +682,8 @@ command_single_node_upgrade() {
 
   wait_rke2_upgrade
   clean_rke2_archives
+
+  generate_networkmanager_config
 
   # Upgrade OS
   upgrade_os

@@ -1,4 +1,6 @@
+ARG HARVESTER_INSTALLER_REF=master-head
 FROM registry.opensuse.org/isv/rancher/harvester/os/v1.6/main/baseos:v1.6 as baseos
+FROM rancher/harvester-installer:${HARVESTER_INSTALLER_REF} as installer
 FROM registry.suse.com/bci/bci-base:15.7
 
 ARG ARCH=amd64
@@ -16,6 +18,8 @@ RUN curl -sfL https://github.com/kubevirt/kubevirt/releases/download/v1.4.0/virt
     curl -sfL https://github.com/rancher/wharfie/releases/download/v0.6.8/wharfie-${ARCH}  -o /usr/bin/wharfie && chmod +x /usr/bin/wharfie
 # Copy elemental binary to be used for upgrades
 COPY --from=baseos /usr/bin/elemental /usr/local/bin/elemental
+# Copy harvester-installer binary to be used to generate networkmanager config
+COPY --from=installer /usr/bin/harvester-installer /usr/local/bin/harvester-installer
 COPY do_upgrade_node.sh /usr/local/bin/
 COPY upgrade_node.sh /usr/local/bin/
 COPY upgrade_manifests.sh /usr/local/bin/

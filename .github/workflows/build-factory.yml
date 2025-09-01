@@ -152,6 +152,7 @@ jobs:
         build-args: |
           ARCH=${{ env.arch }}
           VERSION=${{ inputs.build_version }}
+          HARVESTER_INSTALLER_REF=${{ inputs.image_tag }}
   
   manifest-images:
     name: Manifest images

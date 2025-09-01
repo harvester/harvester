@@ -25,7 +25,11 @@ fi
 
 cp ../../bin/upgrade-helper .
 
-docker build -f ${DOCKERFILE} --build-arg ARCH=${ARCH} -t ${IMAGE} .
+BUILD_ARGS="--build-arg ARCH=${ARCH}"
+if [ -n "${HARVESTER_INSTALLER_REF}" ]; then
+    BUILD_ARGS="${BUILD_ARGS} --build-arg HARVESTER_INSTALLER_REF=${HARVESTER_INSTALLER_REF}"
+fi
+docker build -f ${DOCKERFILE} ${BUILD_ARGS} -t ${IMAGE} .
 echo Built ${IMAGE}
 
 IMAGE_PUSH=${REPO}/harvester-upgrade:${IMAGE_PUSH_TAG}
