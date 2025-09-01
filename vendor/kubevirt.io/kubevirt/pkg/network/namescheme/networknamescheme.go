@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2022 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -175,4 +175,26 @@ func UpdatePrimaryPodIfaceNameFromVMIStatus(
 	updatedPodIfaceNamesByNetworkName[primaryNetwork.Name] = primaryIfaceStatus.PodInterfaceName
 
 	return updatedPodIfaceNamesByNetworkName
+}
+
+func HasOrdinalSecondaryIfaces(
+	networks []v1.Network,
+	ifaceStatuses []v1.VirtualMachineInstanceNetworkInterface,
+) bool {
+	secondaryNets := vmispec.FilterMultusNonDefaultNetworks(networks)
+	if len(secondaryNets) == 0 {
+		return false
+	}
+
+	ifaceStatusesByName := vmispec.IndexInterfaceStatusByName(ifaceStatuses, nil)
+	for _, net := range secondaryNets {
+		ifaceStatus, ok := ifaceStatusesByName[net.Name]
+		if ok && ifaceStatus.PodInterfaceName != "" {
+			return OrdinalSecondaryInterfaceName(ifaceStatus.PodInterfaceName)
+		}
+	}
+
+	// Naming scheme is unknown - therefore assume the most conservative option:
+	// This VMI has a pod which uses an ordinal network naming scheme.
+	return true
 }

@@ -92,7 +92,7 @@ func (s *Store) List(apiOp *types.APIRequest, schema *types.APISchema) (types.AP
 
 	result.Count = total
 
-	for _, item := range list {
+	for _, item := range list.Items {
 		item := item.DeepCopy()
 		// the sql cache automatically adds the ID through a transformFunc. Because of this, we have a different set of reserved fields for the SQL cache
 		result.Objects = append(result.Objects, partition.ToAPI(schema, item, nil, s.sqlReservedFields))
@@ -100,6 +100,7 @@ func (s *Store) List(apiOp *types.APIRequest, schema *types.APISchema) (types.AP
 
 	result.Revision = ""
 	result.Continue = continueToken
+	result.Revision = list.GetResourceVersion()
 	return result, nil
 }
 

@@ -27,6 +27,7 @@ const (
 	prVolumeName    = "pr-helper-socket-vol"
 	devDirVol       = "dev-dir"
 	SidecarShimName = "sidecar-shim"
+	etcMultipath    = "etc-multipath"
 )
 
 func RenderPrHelperContainer(image string, pullPolicy corev1.PullPolicy) corev1.Container {
@@ -50,11 +51,17 @@ func RenderPrHelperContainer(image string, pullPolicy corev1.PullPolicy) corev1.
 				MountPath:        "/dev",
 				MountPropagation: pointer.P(corev1.MountPropagationHostToContainer),
 			},
+			{
+				Name:             etcMultipath,
+				MountPath:        "/etc/multipath",
+				MountPropagation: &bidi,
+			},
 		},
 		SecurityContext: &corev1.SecurityContext{
 			RunAsUser:  pointer.P(int64(util.RootUser)),
 			Privileged: pointer.P(true),
 		},
+		TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 	}
 }
 
@@ -143,6 +150,7 @@ func NewHandlerDaemonSet(namespace, repository, imagePrefix, version, launcherVe
 					MountPath: nodeLabellerVolumePath,
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		},
 	}
 
@@ -167,6 +175,7 @@ func NewHandlerDaemonSet(namespace, repository, imagePrefix, version, launcherVe
 					corev1.ResourceMemory: resource.MustParse("20Mi"),
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		})
 	}
 
@@ -330,10 +339,8 @@ func NewHandlerDaemonSet(namespace, repository, imagePrefix, version, launcherVe
 
 	container.Resources = corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceCPU: resource.MustParse("10m"),
-			// 325Mi - base memory request
-			// +32Mi - to account for the buffer used to verify containerdisk checksums
-			corev1.ResourceMemory: resource.MustParse("357Mi"),
+			corev1.ResourceCPU:    resource.MustParse("10m"),
+			corev1.ResourceMemory: resource.MustParse("325Mi"),
 		},
 	}
 	if prHelperImage == "" {
@@ -358,8 +365,14 @@ func NewHandlerDaemonSet(namespace, repository, imagePrefix, version, launcherVe
 				HostPath: &corev1.HostPathVolumeSource{
 					Path: "/dev",
 				},
-			},
-		})
+			}}, corev1.Volume{
+			Name: etcMultipath,
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/etc/multipath",
+					Type: pointer.P(corev1.HostPathDirectoryOrCreate),
+				},
+			}})
 		pod.Containers = append(pod.Containers, RenderPrHelperContainer(prHelperImage, pullPolicy))
 	}
 	return daemonset

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017, 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -72,7 +72,7 @@ const (
 	DefaultAARCH64OVMFPath                          = "/usr/share/AAVMF"
 	DefaultMemBalloonStatsPeriod             uint32 = 10
 	DefaultCPUAllocationRatio                       = 10
-	DefaultDiskVerificationMemoryLimitMBytes        = 2000
+	DefaultDiskVerificationMemoryLimitBytes         = 2000 * 1024 * 1024
 	DefaultVirtAPILogVerbosity                      = 2
 	DefaultVirtControllerLogVerbosity               = 2
 	DefaultVirtHandlerLogVerbosity                  = 2
@@ -90,23 +90,11 @@ const (
 	DefaultVirtWebhookClientBurst         = 400
 
 	DefaultMaxHotplugRatio   = 4
-	DefaultVMRolloutStrategy = v1.VMRolloutStrategyStage
+	DefaultVMRolloutStrategy = v1.VMRolloutStrategyLiveUpdate
 )
-
-func IsAMD64(arch string) bool {
-	return arch == "amd64"
-}
 
 func IsARM64(arch string) bool {
 	return arch == "arm64"
-}
-
-func IsPPC64(arch string) bool {
-	return arch == "ppc64le"
-}
-
-func IsS390X(arch string) bool {
-	return arch == "s390x"
 }
 
 func (c *ClusterConfig) GetMemBalloonStatsPeriod() uint32 {
@@ -210,10 +198,6 @@ func (c *ClusterConfig) GetDefaultNetworkInterface() string {
 
 func (c *ClusterConfig) GetDefaultArchitecture() string {
 	return c.GetConfig().ArchitectureConfiguration.DefaultArchitecture
-}
-
-func (c *ClusterConfig) IsSlirpInterfaceEnabled() bool {
-	return *c.GetConfig().NetworkConfiguration.DeprecatedPermitSlirpInterface
 }
 
 func (c *ClusterConfig) GetSMBIOS() *v1.SMBiosConfiguration {
@@ -347,6 +331,7 @@ const (
 	virtController
 	virtOperator
 	virtLauncher
+	virtSynchronizationController
 )
 
 // Gets the component verbosity. nodeName can be empty, then it's ignored.
@@ -370,6 +355,8 @@ func (c *ClusterConfig) getComponentVerbosity(component virtComponent, nodeName 
 		return logConf.VirtOperator
 	case virtLauncher:
 		return logConf.VirtLauncher
+	case virtSynchronizationController:
+		return logConf.VirtSynchronizationController
 	default:
 		log.Log.Errorf("getComponentVerbosity called with an unknown virtComponent: %v", component)
 		return 0
@@ -394,6 +381,10 @@ func (c *ClusterConfig) GetVirtOperatorVerbosity(nodeName string) uint {
 
 func (c *ClusterConfig) GetVirtLauncherVerbosity() uint {
 	return c.getComponentVerbosity(virtLauncher, "")
+}
+
+func (c *ClusterConfig) GetVirtSynchronizationControllerVerbosity() uint {
+	return c.getComponentVerbosity(virtSynchronizationController, "")
 }
 
 // GetMinCPUModel return minimal cpu which is used in node-labeller
@@ -466,7 +457,7 @@ func (c *ClusterConfig) GetMaxHotplugRatio() uint32 {
 
 func (c *ClusterConfig) IsVMRolloutStrategyLiveUpdate() bool {
 	liveConfig := c.GetConfig().VMRolloutStrategy
-	return liveConfig != nil && *liveConfig == v1.VMRolloutStrategyLiveUpdate
+	return liveConfig == nil || *liveConfig == v1.VMRolloutStrategyLiveUpdate
 }
 
 func (c *ClusterConfig) GetNetworkBindings() map[string]v1.InterfaceBindingPlugin {
@@ -487,11 +478,15 @@ func (config *ClusterConfig) VGADisplayForEFIGuestsEnabled() bool {
 }
 
 func (c *ClusterConfig) GetInstancetypeReferencePolicy() v1.InstancetypeReferencePolicy {
-	// Default to the Reference InstancetypeReferencePolicy
-	policy := v1.Reference
 	instancetypeConfig := c.GetConfig().Instancetype
-	if c.isFeatureGateEnabled(featuregate.InstancetypeReferencePolicy) && instancetypeConfig != nil && instancetypeConfig.ReferencePolicy != nil {
-		policy = *instancetypeConfig.ReferencePolicy
+	if instancetypeConfig != nil && instancetypeConfig.ReferencePolicy != nil {
+		return *instancetypeConfig.ReferencePolicy
 	}
-	return policy
+	// Default to the Reference InstancetypeReferencePolicy
+	return v1.Reference
+}
+
+func (c *ClusterConfig) ClusterProfilerEnabled() bool {
+	return c.GetConfig().DeveloperConfiguration.ClusterProfiler ||
+		c.isFeatureGateDefined(featuregate.ClusterProfiler)
 }

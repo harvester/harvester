@@ -47,9 +47,10 @@ func DefaultSchemaTemplates(cf *client.Factory,
 	summaryCache *summarycache.SummaryCache,
 	lookup accesscontrol.AccessSetLookup,
 	discovery discovery.DiscoveryInterface,
-	namespaceCache corecontrollers.NamespaceCache) []schema.Template {
+	namespaceCache corecontrollers.NamespaceCache,
+	options common.TemplateOptions) []schema.Template {
 	return []schema.Template{
-		common.DefaultTemplate(cf, summaryCache, lookup, namespaceCache),
+		common.DefaultTemplate(cf, summaryCache, lookup, namespaceCache, options),
 		apigroups.Template(discovery),
 		{
 			ID:        "configmap",
@@ -77,10 +78,11 @@ func DefaultSchemaTemplatesForStore(store types.Store,
 	baseSchemas *types.APISchemas,
 	summaryCache *summarycache.SummaryCache,
 	lookup accesscontrol.AccessSetLookup,
-	discovery discovery.DiscoveryInterface) []schema.Template {
+	discovery discovery.DiscoveryInterface,
+	options common.TemplateOptions) []schema.Template {
 
 	return []schema.Template{
-		common.DefaultTemplateForStore(store, summaryCache, lookup),
+		common.DefaultTemplateForStore(store, summaryCache, lookup, options),
 		apigroups.Template(discovery),
 		{
 			ID:        "configmap",
