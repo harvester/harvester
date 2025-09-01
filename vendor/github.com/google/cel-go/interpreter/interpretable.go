@@ -109,47 +109,6 @@ type InterpretableConstructor interface {
 	Type() ref.Type
 }
 
-// ObservableInterpretable is an Interpretable which supports stateful observation, such as tracing
-// or cost-tracking.
-type ObservableInterpretable struct {
-	Interpretable
-	observers []StatefulObserver
-}
-
-// ID implements the Interpretable method to get the expression id associated with the step.
-func (oi *ObservableInterpretable) ID() int64 {
-	return oi.Interpretable.ID()
-}
-
-// Eval proxies to the ObserveEval method while invoking a no-op callback to report the observations.
-func (oi *ObservableInterpretable) Eval(vars Activation) ref.Val {
-	return oi.ObserveEval(vars, func(any) {})
-}
-
-// ObserveEval evaluates an interpretable and performs per-evaluation state-tracking.
-//
-// This method is concurrency safe and the expectation is that the observer function will use
-// a switch statement to determine the type of the state which has been reported back from the call.
-func (oi *ObservableInterpretable) ObserveEval(vars Activation, observer func(any)) ref.Val {
-	var err error
-	// Initialize the state needed for the observers to function.
-	for _, obs := range oi.observers {
-		vars, err = obs.InitState(vars)
-		if err != nil {
-			return types.WrapErr(err)
-		}
-		// Provide an initial reference to the state to ensure state is available
-		// even in cases of interrupting errors generated during evaluation.
-		observer(obs.GetState(vars))
-	}
-	result := oi.Interpretable.Eval(vars)
-	// Get the state which needs to be reported back as having been observed.
-	for _, obs := range oi.observers {
-		observer(obs.GetState(vars))
-	}
-	return result
-}
-
 // Core Interpretable implementations used during the program planning phase.
 
 type evalTestOnly struct {
@@ -196,6 +155,9 @@ func (q *testOnlyQualifier) Qualify(vars Activation, obj any) (any, error) {
 	}
 	if unk, isUnk := out.(types.Unknown); isUnk {
 		return unk, nil
+	}
+	if opt, isOpt := out.(types.Optional); isOpt {
+		return opt.HasValue(), nil
 	}
 	return present, nil
 }
@@ -800,9 +762,6 @@ func (fold *evalFold) Eval(ctx Activation) ref.Val {
 	defer releaseFolder(f)
 
 	foldRange := fold.iterRange.Eval(ctx)
-	if types.IsUnknownOrError(foldRange) {
-		return foldRange
-	}
 	if fold.iterVar2 != "" {
 		var foldable traits.Foldable
 		switch r := foldRange.(type) {
@@ -860,9 +819,9 @@ type evalWatch struct {
 }
 
 // Eval implements the Interpretable interface method.
-func (e *evalWatch) Eval(vars Activation) ref.Val {
-	val := e.Interpretable.Eval(vars)
-	e.observer(vars, e.ID(), e.Interpretable, val)
+func (e *evalWatch) Eval(ctx Activation) ref.Val {
+	val := e.Interpretable.Eval(ctx)
+	e.observer(e.ID(), e.Interpretable, val)
 	return val
 }
 
@@ -921,7 +880,7 @@ func (e *evalWatchAttr) AddQualifier(q Qualifier) (Attribute, error) {
 // Eval implements the Interpretable interface method.
 func (e *evalWatchAttr) Eval(vars Activation) ref.Val {
 	val := e.InterpretableAttribute.Eval(vars)
-	e.observer(vars, e.ID(), e.InterpretableAttribute, val)
+	e.observer(e.ID(), e.InterpretableAttribute, val)
 	return val
 }
 
@@ -942,7 +901,7 @@ func (e *evalWatchConstQual) Qualify(vars Activation, obj any) (any, error) {
 	} else {
 		val = e.adapter.NativeToValue(out)
 	}
-	e.observer(vars, e.ID(), e.ConstantQualifier, val)
+	e.observer(e.ID(), e.ConstantQualifier, val)
 	return out, err
 }
 
@@ -958,7 +917,7 @@ func (e *evalWatchConstQual) QualifyIfPresent(vars Activation, obj any, presence
 		val = types.Bool(present)
 	}
 	if present || presenceOnly {
-		e.observer(vars, e.ID(), e.ConstantQualifier, val)
+		e.observer(e.ID(), e.ConstantQualifier, val)
 	}
 	return out, present, err
 }
@@ -985,7 +944,7 @@ func (e *evalWatchAttrQual) Qualify(vars Activation, obj any) (any, error) {
 	} else {
 		val = e.adapter.NativeToValue(out)
 	}
-	e.observer(vars, e.ID(), e.Attribute, val)
+	e.observer(e.ID(), e.Attribute, val)
 	return out, err
 }
 
@@ -1001,7 +960,7 @@ func (e *evalWatchAttrQual) QualifyIfPresent(vars Activation, obj any, presenceO
 		val = types.Bool(present)
 	}
 	if present || presenceOnly {
-		e.observer(vars, e.ID(), e.Attribute, val)
+		e.observer(e.ID(), e.Attribute, val)
 	}
 	return out, present, err
 }
@@ -1022,7 +981,7 @@ func (e *evalWatchQual) Qualify(vars Activation, obj any) (any, error) {
 	} else {
 		val = e.adapter.NativeToValue(out)
 	}
-	e.observer(vars, e.ID(), e.Qualifier, val)
+	e.observer(e.ID(), e.Qualifier, val)
 	return out, err
 }
 
@@ -1038,7 +997,7 @@ func (e *evalWatchQual) QualifyIfPresent(vars Activation, obj any, presenceOnly 
 		val = types.Bool(present)
 	}
 	if present || presenceOnly {
-		e.observer(vars, e.ID(), e.Qualifier, val)
+		e.observer(e.ID(), e.Qualifier, val)
 	}
 	return out, present, err
 }
@@ -1052,7 +1011,7 @@ type evalWatchConst struct {
 // Eval implements the Interpretable interface method.
 func (e *evalWatchConst) Eval(vars Activation) ref.Val {
 	val := e.Value()
-	e.observer(vars, e.ID(), e.InterpretableConst, val)
+	e.observer(e.ID(), e.InterpretableConst, val)
 	return val
 }
 
@@ -1225,13 +1184,13 @@ func (a *evalAttr) Eval(ctx Activation) ref.Val {
 }
 
 // Qualify proxies to the Attribute's Qualify method.
-func (a *evalAttr) Qualify(vars Activation, obj any) (any, error) {
-	return a.attr.Qualify(vars, obj)
+func (a *evalAttr) Qualify(ctx Activation, obj any) (any, error) {
+	return a.attr.Qualify(ctx, obj)
 }
 
 // QualifyIfPresent proxies to the Attribute's QualifyIfPresent method.
-func (a *evalAttr) QualifyIfPresent(vars Activation, obj any, presenceOnly bool) (any, bool, error) {
-	return a.attr.QualifyIfPresent(vars, obj, presenceOnly)
+func (a *evalAttr) QualifyIfPresent(ctx Activation, obj any, presenceOnly bool) (any, bool, error) {
+	return a.attr.QualifyIfPresent(ctx, obj, presenceOnly)
 }
 
 func (a *evalAttr) IsOptional() bool {
@@ -1264,9 +1223,9 @@ func (c *evalWatchConstructor) ID() int64 {
 }
 
 // Eval implements the Interpretable Eval function.
-func (c *evalWatchConstructor) Eval(vars Activation) ref.Val {
-	val := c.constructor.Eval(vars)
-	c.observer(vars, c.ID(), c.constructor, val)
+func (c *evalWatchConstructor) Eval(ctx Activation) ref.Val {
+	val := c.constructor.Eval(ctx)
+	c.observer(c.ID(), c.constructor, val)
 	return val
 }
 
@@ -1282,7 +1241,7 @@ func invalidOptionalElementInit(value ref.Val) ref.Val {
 func newFolder(eval *evalFold, ctx Activation) *folder {
 	f := folderPool.Get().(*folder)
 	f.evalFold = eval
-	f.activation = ctx
+	f.Activation = ctx
 	return f
 }
 
@@ -1303,7 +1262,7 @@ func releaseFolder(f *folder) {
 // cel.bind or cel.@block.
 type folder struct {
 	*evalFold
-	activation Activation
+	Activation
 
 	// fold state objects.
 	accuVal     ref.Val
@@ -1331,7 +1290,7 @@ func (f *folder) foldIterable(iterable traits.Iterable) ref.Val {
 		// Update the accumulation value and check for eval interuption.
 		f.accuVal = f.step.Eval(f)
 		f.initialized = true
-		if f.interruptable && checkInterrupt(f.activation) {
+		if f.interruptable && checkInterrupt(f.Activation) {
 			f.interrupted = true
 			return f.evalResult()
 		}
@@ -1357,7 +1316,7 @@ func (f *folder) FoldEntry(key, val any) bool {
 	// Update the accumulation value and check for eval interuption.
 	f.accuVal = f.step.Eval(f)
 	f.initialized = true
-	if f.interruptable && checkInterrupt(f.activation) {
+	if f.interruptable && checkInterrupt(f.Activation) {
 		f.interrupted = true
 		return false
 	}
@@ -1371,7 +1330,7 @@ func (f *folder) ResolveName(name string) (any, bool) {
 	if name == f.accuVar {
 		if !f.initialized {
 			f.initialized = true
-			initVal := f.accu.Eval(f.activation)
+			initVal := f.accu.Eval(f.Activation)
 			if !f.exhaustive {
 				if l, isList := initVal.(traits.Lister); isList && l.Size() == types.IntZero {
 					initVal = types.NewMutableList(f.adapter)
@@ -1396,32 +1355,7 @@ func (f *folder) ResolveName(name string) (any, bool) {
 			return f.iterVar2Val, true
 		}
 	}
-	return f.activation.ResolveName(name)
-}
-
-// Parent returns the activation embedded into the folder.
-func (f *folder) Parent() Activation {
-	return f.activation
-}
-
-// UnknownAttributePatterns implements the PartialActivation interface returning the unknown patterns
-// if they were provided to the input activation, or an empty set if the proxied activation is not partial.
-func (f *folder) UnknownAttributePatterns() []*AttributePattern {
-	if pv, ok := f.activation.(partialActivationConverter); ok {
-		if partial, isPartial := pv.AsPartialActivation(); isPartial {
-			return partial.UnknownAttributePatterns()
-		}
-	}
-	return []*AttributePattern{}
-}
-
-func (f *folder) AsPartialActivation() (PartialActivation, bool) {
-	if pv, ok := f.activation.(partialActivationConverter); ok {
-		if _, isPartial := pv.AsPartialActivation(); isPartial {
-			return f, true
-		}
-	}
-	return nil, false
+	return f.Activation.ResolveName(name)
 }
 
 // evalResult computes the final result of the fold after all entries have been folded and accumulated.
@@ -1447,7 +1381,7 @@ func (f *folder) evalResult() ref.Val {
 // reset clears any state associated with folder evaluation.
 func (f *folder) reset() {
 	f.evalFold = nil
-	f.activation = nil
+	f.Activation = nil
 	f.accuVal = nil
 	f.iterVar1Val = nil
 	f.iterVar2Val = nil

@@ -237,13 +237,8 @@ func visit(expr Expr, visitor Visitor, order visitOrder, depth, maxDepth int) {
 	case StructKind:
 		s := expr.AsStruct()
 		for _, f := range s.Fields() {
-			if order == preOrder {
-				visitor.VisitEntryExpr(f)
-			}
+			visitor.VisitEntryExpr(f)
 			visit(f.AsStructField().Value(), visitor, order, depth+1, maxDepth)
-			if order == postOrder {
-				visitor.VisitEntryExpr(f)
-			}
 		}
 	}
 	if order == postOrder {

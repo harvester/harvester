@@ -128,7 +128,7 @@ func DefaultNameSystem() string {
 	return "public"
 }
 
-func targetForGroup(gv clientgentypes.GroupVersion, typeList []*types.Type, clientsetDir, clientsetPkg string, groupPkgName string, groupGoName string, apiPath string, inputPkg string, applyBuilderPkg string, boilerplate []byte, prefersProtobuf bool) generator.Target {
+func targetForGroup(gv clientgentypes.GroupVersion, typeList []*types.Type, clientsetDir, clientsetPkg string, groupPkgName string, groupGoName string, apiPath string, inputPkg string, applyBuilderPkg string, boilerplate []byte) generator.Target {
 	subdir := []string{"typed", strings.ToLower(groupPkgName), strings.ToLower(gv.Version.NonEmpty())}
 	gvDir := filepath.Join(clientsetDir, filepath.Join(subdir...))
 	gvPkg := path.Join(clientsetPkg, path.Join(subdir...))
@@ -160,9 +160,8 @@ func targetForGroup(gv clientgentypes.GroupVersion, typeList []*types.Type, clie
 					group:                     gv.Group.NonEmpty(),
 					version:                   gv.Version.String(),
 					groupGoName:               groupGoName,
-					prefersProtobuf:           prefersProtobuf,
 					typeToMatch:               t,
-					imports:                   generator.NewImportTrackerForPackage(gvPkg),
+					imports:                   generator.NewImportTracker(),
 				})
 			}
 
@@ -178,7 +177,7 @@ func targetForGroup(gv clientgentypes.GroupVersion, typeList []*types.Type, clie
 				groupGoName:      groupGoName,
 				apiPath:          apiPath,
 				types:            typeList,
-				imports:          generator.NewImportTrackerForPackage(gvPkg),
+				imports:          generator.NewImportTracker(),
 			})
 
 			expansionFileName := "generated_expansion.go"
@@ -215,7 +214,7 @@ func targetForClientset(args *args.Args, clientsetDir, clientsetPkg string, grou
 					groups:           args.Groups,
 					groupGoNames:     groupGoNames,
 					clientsetPackage: clientsetPkg,
-					imports:          generator.NewImportTrackerForPackage(clientsetPkg),
+					imports:          generator.NewImportTracker(),
 				},
 			}
 			return generators
@@ -261,7 +260,7 @@ NextGroup:
 					OutputPath:     schemeDir,
 					Groups:         args.Groups,
 					GroupGoNames:   groupGoNames,
-					ImportTracker:  generator.NewImportTrackerForPackage(schemePkg),
+					ImportTracker:  generator.NewImportTracker(),
 					CreateRegistry: internalClient,
 				},
 			}
@@ -425,7 +424,7 @@ func GetTargets(context *generator.Context, args *args.Args) []generator.Target 
 				targetForGroup(
 					gv, orderer.OrderTypes(types), clientsetDir, clientsetPkg,
 					group.PackageName, groupGoNames[gv], args.ClientsetAPIPath,
-					inputPath, args.ApplyConfigurationPackage, boilerplate, args.PrefersProtobuf))
+					inputPath, args.ApplyConfigurationPackage, boilerplate))
 			if args.FakeClient {
 				targetList = append(targetList,
 					fake.TargetForGroup(gv, orderer.OrderTypes(types), clientsetDir, clientsetPkg, group.PackageName, groupGoNames[gv], inputPath, args.ApplyConfigurationPackage, boilerplate))

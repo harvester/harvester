@@ -164,9 +164,9 @@ var (
 			traits.SubtractorType,
 	}
 	// ListType represents the runtime list type.
-	ListType = NewListType(DynType)
+	ListType = NewListType(nil)
 	// MapType represents the runtime map type.
-	MapType = NewMapType(DynType, DynType)
+	MapType = NewMapType(nil, nil)
 	// NullType represents the type of a null value.
 	NullType = &Type{
 		kind:            NullTypeKind,
@@ -376,10 +376,6 @@ func (t *Type) TypeName() string {
 	return t.runtimeTypeName
 }
 
-func (t *Type) format(sb *strings.Builder) {
-	sb.WriteString(t.TypeName())
-}
-
 // WithTraits creates a copy of the current Type and sets the trait mask to the traits parameter.
 //
 // This method should be used with Opaque types where the type acts like a container, e.g. vector.
@@ -399,9 +395,6 @@ func (t *Type) WithTraits(traits int) *Type {
 
 // String returns a human-readable definition of the type name.
 func (t *Type) String() string {
-	if t.Kind() == TypeParamKind {
-		return fmt.Sprintf("<%s>", t.DeclaredTypeName())
-	}
 	if len(t.Parameters()) == 0 {
 		return t.DeclaredTypeName()
 	}
@@ -773,19 +766,6 @@ func ProtoAsType(t *celpb.Type) (*Type, error) {
 	default:
 		return nil, fmt.Errorf("unsupported type: %v", t)
 	}
-}
-
-// TypeToProto converts from a CEL-native type representation to canonical CEL celpb.Type protobuf type.
-func TypeToProto(t *Type) (*celpb.Type, error) {
-	exprType, err := TypeToExprType(t)
-	if err != nil {
-		return nil, err
-	}
-	var pbtype celpb.Type
-	if err = convertProto(exprType, &pbtype); err != nil {
-		return nil, err
-	}
-	return &pbtype, nil
 }
 
 func maybeWrapper(t *Type, pbType *exprpb.Type) *exprpb.Type {
