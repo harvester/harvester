@@ -138,7 +138,11 @@ func CreateOrUpdate[T runtime.Object](
 			return nil, false, convertError(fmt.Errorf("object was of type %T, not of expected type %T", obj, zeroT))
 		}
 
-		newObj, err := createFn(ctx, tObj, &metav1.CreateOptions{})
+		newObj, err := createFn(ctx, tObj, &metav1.CreateOptions{
+			DryRun:          options.DryRun,
+			FieldManager:    options.FieldManager,
+			FieldValidation: options.FieldValidation,
+		})
 		if err != nil {
 			return nil, false, convertError(err)
 		}

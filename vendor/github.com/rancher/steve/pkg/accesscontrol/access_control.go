@@ -8,6 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+const accessSetAttribute = "accessSet"
+
 type AccessControl struct {
 	apiserver.SchemaBasedAccess
 }
@@ -25,8 +27,8 @@ func (a *AccessControl) CanDo(apiOp *types.APIRequest, resource, verb, namespace
 		}
 	}
 	group, resource := kv.Split(resource, "/")
-	accessSet := apiOp.Schemas.Attributes["accessSet"].(*AccessSet)
-	if accessSet.Grants(verb, schema.GroupResource{
+	accessSet := AccessSetFromAPIRequest(apiOp)
+	if accessSet != nil && accessSet.Grants(verb, schema.GroupResource{
 		Group:    group,
 		Resource: resource,
 	}, namespace, name) {
@@ -43,4 +45,24 @@ func (a *AccessControl) CanWatch(apiOp *types.APIRequest, schema *types.APISchem
 		}
 	}
 	return a.SchemaBasedAccess.CanWatch(apiOp, schema)
+}
+
+// SetAccessSetAttribute stores the provided accessSet using a predefined attribute
+func SetAccessSetAttribute(schemas *types.APISchemas, accessSet *AccessSet) {
+	if schemas.Attributes == nil {
+		schemas.Attributes = map[string]interface{}{}
+	}
+	schemas.Attributes[accessSetAttribute] = accessSet
+}
+
+// AccessSetFromAPIRequest retrieves an AccessSet from the APIRequest Schemas attributes, if defined.
+// This attribute must have been previously set by using SetAccessSetAttribute
+func AccessSetFromAPIRequest(req *types.APIRequest) *AccessSet {
+	if req == nil || req.Schemas == nil {
+		return nil
+	}
+	if v, ok := req.Schemas.Attributes[accessSetAttribute]; ok {
+		return v.(*AccessSet)
+	}
+	return nil
 }

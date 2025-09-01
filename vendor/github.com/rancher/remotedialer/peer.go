@@ -82,6 +82,7 @@ func (p *peer) start(ctx context.Context, s *Server) {
 		},
 		HandshakeTimeout: HandshakeTimeOut,
 	}
+	ctx = context.WithValue(ctx, ContextKeyCaller, fmt.Sprintf("Peer url:%s, id:%s", p.url, p.id))
 
 outer:
 	for {

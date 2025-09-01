@@ -18,18 +18,24 @@ func initBaseDirs(home string) {
 
 	// Initialize standard directories.
 	baseDirs.dataHome = pathutil.EnvPath(envDataHome, homeAppSupport)
-	baseDirs.data = pathutil.EnvPathList(envDataDirs, rootAppSupport)
+	baseDirs.data = pathutil.EnvPathList(envDataDirs,
+		rootAppSupport,
+		filepath.Join(home, ".local", "share"),
+	)
 	baseDirs.configHome = pathutil.EnvPath(envConfigHome, homeAppSupport)
 	baseDirs.config = pathutil.EnvPathList(envConfigDirs,
 		filepath.Join(home, "Library", "Preferences"),
 		rootAppSupport,
 		"/Library/Preferences",
+		filepath.Join(home, ".config"),
 	)
 	baseDirs.stateHome = pathutil.EnvPath(envStateHome, homeAppSupport)
 	baseDirs.cacheHome = pathutil.EnvPath(envCacheHome, filepath.Join(home, "Library", "Caches"))
 	baseDirs.runtime = pathutil.EnvPath(envRuntimeDir, homeAppSupport)
 
 	// Initialize non-standard directories.
+	baseDirs.binHome = pathutil.EnvPath(envBinHome, filepath.Join(home, ".local", "bin"))
+
 	baseDirs.applications = []string{
 		"/Applications",
 	}

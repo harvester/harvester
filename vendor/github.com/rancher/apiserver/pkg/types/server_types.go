@@ -95,6 +95,7 @@ type AccessControl interface {
 	CanDelete(apiOp *APIRequest, obj APIObject, schema *APISchema) error
 	CanWatch(apiOp *APIRequest, schema *APISchema) error
 	CanDo(apiOp *APIRequest, resource, verb, namespace, name string) error
+	CanPatch(apiOp *APIRequest, obj APIObject, schema *APISchema) error
 }
 
 type APIRequest struct {
@@ -231,6 +232,7 @@ type APIEvent struct {
 	ID           string    `json:"id,omitempty"`
 	Selector     string    `json:"selector,omitempty"`
 	Revision     string    `json:"revision,omitempty"`
+	Mode         string    `json:"mode,omitempty"`
 	Object       APIObject `json:"-"`
 	Error        error     `json:"-"`
 	// Data is the output format of the object

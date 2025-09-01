@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017, 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -25,15 +25,22 @@ import "kubevirt.io/kubevirt/pkg/virt-config/featuregate"
  This module is intended for determining whether an optional feature is enabled or not at the cluster-level.
 */
 
+func (config *ClusterConfig) isFeatureGateDefined(featureGate string) bool {
+	for _, fg := range config.GetConfig().DeveloperConfiguration.FeatureGates {
+		if fg == featureGate {
+			return true
+		}
+	}
+	return false
+}
+
 func (config *ClusterConfig) isFeatureGateEnabled(featureGate string) bool {
 	if fg := featuregate.FeatureGateInfo(featureGate); fg != nil && fg.State == featuregate.GA {
 		return true
 	}
 
-	for _, fg := range config.GetConfig().DeveloperConfiguration.FeatureGates {
-		if fg == featureGate {
-			return true
-		}
+	if config.isFeatureGateDefined(featureGate) {
+		return true
 	}
 	return false
 }
@@ -126,10 +133,6 @@ func (config *ClusterConfig) RootEnabled() bool {
 	return config.isFeatureGateEnabled(featuregate.Root)
 }
 
-func (config *ClusterConfig) ClusterProfilerEnabled() bool {
-	return config.isFeatureGateEnabled(featuregate.ClusterProfiler)
-}
-
 func (config *ClusterConfig) WorkloadEncryptionSEVEnabled() bool {
 	return config.isFeatureGateEnabled(featuregate.WorkloadEncryptionSEV)
 }
@@ -158,10 +161,6 @@ func (config *ClusterConfig) PersistentReservationEnabled() bool {
 	return config.isFeatureGateEnabled(featuregate.PersistentReservation)
 }
 
-func (config *ClusterConfig) VMPersistentStateEnabled() bool {
-	return config.isFeatureGateEnabled(featuregate.VMPersistentState)
-}
-
 func (config *ClusterConfig) MultiArchitectureEnabled() bool {
 	return config.isFeatureGateEnabled(featuregate.MultiArchitecture)
 }
@@ -170,6 +169,46 @@ func (config *ClusterConfig) AlignCPUsEnabled() bool {
 	return config.isFeatureGateEnabled(featuregate.AlignCPUsGate)
 }
 
+func (config *ClusterConfig) ImageVolumeEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.ImageVolume)
+}
+
+func (config *ClusterConfig) VideoConfigEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.VideoConfig)
+}
+
 func (config *ClusterConfig) NodeRestrictionEnabled() bool {
 	return config.isFeatureGateEnabled(featuregate.NodeRestrictionGate)
+}
+
+func (config *ClusterConfig) ObjectGraphEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.ObjectGraph)
+}
+
+func (config *ClusterConfig) DeclarativeHotplugVolumesEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.DeclarativeHotplugVolumesGate)
+}
+
+func (config *ClusterConfig) SecureExecutionEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.SecureExecution)
+}
+
+func (config *ClusterConfig) PanicDevicesEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.PanicDevicesGate)
+}
+
+func (config *ClusterConfig) PasstIPStackMigrationEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.PasstIPStackMigration)
+}
+
+func (config *ClusterConfig) GPUsWithDRAGateEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.GPUsWithDRAGate)
+}
+
+func (config *ClusterConfig) HostDevicesWithDRAEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.HostDevicesWithDRAGate)
+}
+
+func (config *ClusterConfig) DecentralizedLiveMigrationEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.DecentralizedLiveMigration)
 }

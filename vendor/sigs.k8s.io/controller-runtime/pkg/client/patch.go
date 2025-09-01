@@ -27,6 +27,8 @@ import (
 
 var (
 	// Apply uses server-side apply to patch the given object.
+	//
+	// Deprecated: Use client.Client.Apply() instead.
 	Apply Patch = applyPatch{}
 
 	// Merge uses the raw object as a merge patch, without modifications.

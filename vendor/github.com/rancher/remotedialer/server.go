@@ -79,6 +79,10 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func (s *Server) ListClients() []string {
+	return s.sessions.listClients()
+}
+
 func (s *Server) auth(req *http.Request) (clientKey string, authed, peer bool, err error) {
 	id := req.Header.Get(ID)
 	token := req.Header.Get(Token)

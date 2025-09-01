@@ -7,14 +7,17 @@ import (
 	"encoding/json"
 	"io"
 
+	// helm v2 is long since deprecated
+	// Unlike helm v3, it uses Protobuf encoding, so we can't use generic decoding without the message descriptors.
+	// The relevant types were vendored, since they won't change anymore. We should consider dropping support for Helm v2.
+	rspb "github.com/rancher/steve/pkg/resources/formatters/internal/legacytypes/helmv2api"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/norman/types/convert"
 	"github.com/rancher/wrangler/v3/pkg/data"
 	"github.com/sirupsen/logrus"
-	"helm.sh/helm/v3/pkg/release"
-	rspb "k8s.io/helm/pkg/proto/hapi/release"
 )
 
 var (
@@ -57,7 +60,7 @@ func HandleHelmData(request *types.APIRequest, resource *types.RawResource) {
 	}
 }
 
-func Pod(request *types.APIRequest, resource *types.RawResource) {
+func Pod(_ *types.APIRequest, resource *types.RawResource) {
 	data := resource.APIObject.Data()
 	fields := data.StringSlice("metadata", "fields")
 	if len(fields) > 2 {
@@ -67,7 +70,7 @@ func Pod(request *types.APIRequest, resource *types.RawResource) {
 
 // decodeHelm3 receives a helm3 release data string, decodes the string data using the standard base64 library
 // and unmarshals the data into release.Release struct to return it.
-func decodeHelm3(data string) (*release.Release, error) {
+func decodeHelm3(data string) (any, error) {
 	b, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
 		return nil, err
@@ -77,25 +80,23 @@ func decodeHelm3(data string) (*release.Release, error) {
 	if len(b) <= 3 {
 		return nil, ErrNotHelmRelease
 	}
+	var r io.Reader = bytes.NewReader(b)
 
 	// For backwards compatibility with releases that were stored before
 	// compression was introduced we skip decompression if the
 	// gzip magic header is not found
 	if bytes.Equal(b[0:3], magicGzip) {
-		r, err := gzip.NewReader(bytes.NewReader(b))
+		gzr, err := gzip.NewReader(r)
 		if err != nil {
 			return nil, err
 		}
-		b2, err := io.ReadAll(r)
-		if err != nil {
-			return nil, err
-		}
-		b = b2
+		defer gzr.Close()
+		r = gzr
 	}
 
-	var rls release.Release
-	// unmarshal release object bytes
-	if err := json.Unmarshal(b, &rls); err != nil {
+	var rls json.RawMessage
+	// unmarshal JSON release payload
+	if err := json.NewDecoder(r).Decode(&rls); err != nil {
 		return nil, err
 	}
 	return &rls, nil
@@ -116,6 +117,8 @@ func decodeHelm2(data string) (*rspb.Release, error) {
 		if err != nil {
 			return nil, err
 		}
+		defer r.Close()
+
 		b2, err := io.ReadAll(r)
 		if err != nil {
 			return nil, err

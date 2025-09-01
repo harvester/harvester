@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"reflect"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,6 +55,11 @@ const (
 	ptrSize                 = unsafe.Sizeof(uintptr(0))
 	sqliteLockedSharedcache = sqlite3.SQLITE_LOCKED | (1 << 8)
 )
+
+// https://gitlab.com/cznic/sqlite/-/issues/199
+func init() {
+	sqlite3.PatchIssue199()
+}
 
 // Error represents sqlite library error code.
 type Error struct {
@@ -884,7 +890,25 @@ func applyQueryParams(c *conn, query string) error {
 		return err
 	}
 
+	var a []string
 	for _, v := range q["_pragma"] {
+		a = append(a, v)
+	}
+	// Push 'busy_timeout' first, the rest in lexicographic order, case insenstive.
+	// See https://gitlab.com/cznic/sqlite/-/issues/198#note_2233423463 for
+	// discussion.
+	sort.Slice(a, func(i, j int) bool {
+		x, y := strings.TrimSpace(strings.ToLower(a[i])), strings.TrimSpace(strings.ToLower(a[j]))
+		if strings.HasPrefix(x, "busy_timeout") {
+			return true
+		}
+		if strings.HasPrefix(y, "busy_timeout") {
+			return false
+		}
+
+		return x < y
+	})
+	for _, v := range a {
 		cmd := "pragma " + v
 		_, err := c.exec(context.Background(), cmd, nil)
 		if err != nil {
@@ -1462,6 +1486,27 @@ func (c *conn) closeV2(db uintptr) error {
 	}
 
 	return nil
+}
+
+// ResetSession is called prior to executing a query on the connection if the
+// connection has been used before. If the driver returns ErrBadConn the
+// connection is discarded.
+func (c *conn) ResetSession(ctx context.Context) error {
+	if !c.usable() {
+		return driver.ErrBadConn
+	}
+
+	return nil
+}
+
+// IsValid is called prior to placing the connection into the connection pool.
+// The connection will be discarded if false is returned.
+func (c *conn) IsValid() bool {
+	return c.usable()
+}
+
+func (c *conn) usable() bool {
+	return c.db != 0 && sqlite3.Xsqlite3_is_interrupted(c.tls, c.db) == 0
 }
 
 // FunctionImpl describes an [application-defined SQL function]. If Scalar is
