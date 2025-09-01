@@ -484,10 +484,10 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 
 	// restore Longhorn replica-replenishment-wait-interval and
 	// auto-cleanup-system-generated-snapshot settings (multi-node cluster only)
-	toUpdate := upgrade.DeepCopy()
 	if upgrade.Status.SingleNode == "" {
 		_, exists := upgrade.Annotations[longhornSettingsRestoredAnnotation]
 		if !exists {
+			toUpdate := upgrade.DeepCopy()
 			if err := h.loadReplicaReplenishmentFromUpgradeAnnotation(upgrade); err != nil {
 				return nil, err
 			}
@@ -495,6 +495,7 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 				return nil, err
 			}
 			toUpdate.Annotations[longhornSettingsRestoredAnnotation] = strconv.FormatBool(true)
+			return h.upgradeClient.Update(toUpdate)
 		}
 	}
 
@@ -519,11 +520,7 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 		}
 	}
 
-	if err := h.resumeManagedCharts(); err != nil {
-		return nil, err
-	}
-
-	return h.upgradeClient.Update(toUpdate)
+	return nil, h.resumeManagedCharts()
 }
 
 func (h *upgradeHandler) resumeManagedCharts() error {
