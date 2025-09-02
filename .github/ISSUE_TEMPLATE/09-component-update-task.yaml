@@ -22,7 +22,7 @@ body:
         - [ ] Embedded Rancher @FrankYang0529
         - [ ] RKE2 @FrankYang0529
         - [ ] Longhorn @Vicente-Cheng
-        - [ ] KubeVirt @Vicente-Cheng
+        - [ ] KubeVirt @Vicente-Cheng (also virtctl)
       - Libraries
         - [ ] Go @harvester/dev
         - [ ] K8s @harvester/dev
