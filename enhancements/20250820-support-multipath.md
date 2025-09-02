@@ -4,12 +4,12 @@ Support for multipath disk devices in Harvester to enable reliable storage acces
 
 ## Summary
 
-This enhancement introduces multipath device recognition and management in Harvester's node-disk-manager component, allowing users to configure and utilize multipath storage devices safely while ensuring proper identification and avoiding conflicts with existing Longhorn v2 and LVM dm-devices.
+This enhancement introduces multipath device recognition and management in Harvester's node-disk-manager component, allowing users to configure and utilize multipath storage devices safely while ensuring proper identification and avoiding conflicts with existing Longhorn v2 and LVM DM-devices.
 
 ### Related Issues
 
 - Primary Issue: https://github.com/harvester/harvester/issues/6975
-- Non-wwn Device Handling Issue: https://github.com/harvester/harvester/issues/6261 (out of scope for this enhancement)
+- Non-WWN Device Handling Issue: https://github.com/harvester/harvester/issues/6261 (out of scope for this enhancement)
 
 ## Motivation
 
@@ -17,7 +17,7 @@ This enhancement introduces multipath device recognition and management in Harve
 
 - Enable Harvester to recognize and manage multipath disk devices properly
 - Support multipath device configuration in Harvester installer with extended configuration options
-- Distinguish between multipath devices and Longhorn v2 dm-devices to avoid conflicts
+- Distinguish between multipath devices and Longhorn v2 DM-devices to avoid conflicts
 - Ensure multipath devices are back after starting multipathd service when multipathd service is disabled.
 
 ### Non-goals
@@ -56,7 +56,7 @@ No direct API changes to existing Harvester APIs. The enhancement extends the in
 
 The multipath support is implemented through modifications to Harvester's node-disk-manager component:
 
-1. **Enhanced Device Recognition:** Added support for multipath device identification by extending device property extraction to handle `DM_SERIAL` and `DM_WWN` attributes specific to multipath devices. For example, we'll retrevive WWN value in this order from `udevadm info`: `ID_WWN_WITH_EXTENSION` -> `ID_WWN` -> `DM_WWN` and SERIAL value in this order: `ID_SERIAL_SHORT` -> `ID_SERIAL` -> `DM_SERIAL`
+1. **Enhanced Device Recognition:** Added support for multipath device identification by extending device property extraction to handle `DM_SERIAL` and `DM_WWN` attributes specific to multipath devices. For example, we'll retrieve WWN value in this order from `udevadm info`: `ID_WWN_WITH_EXTENSION` -> `ID_WWN` -> `DM_WWN` and SERIAL value in this order: `ID_SERIAL_SHORT` -> `ID_SERIAL` -> `DM_SERIAL`
 
 2. **Device Filtering:** Implemented logic to distinguish multipath devices from other dm-devices (such as Longhorn v2 volumes) using `multipath -C dm-x` command-line for verification. It will return an exit code of 0 if the dm-x device belongs to multipath service; otherwise, it will return 1. Besides, we also need to check whether /dev/xxx is managed by multipath service, using `multipath -c /dev/xxx`. It will also return an exit code of 0 if the /dev/xxx is managed by multipath service; otherwise, it will return 1. Besides, we should have a way to filter out other multipath devices that are used in other CSI drivers. We have this issue https://github.com/harvester/harvester/issues/5059 to filter out block device. We can make use of that mechanism to filter out multipath devices.
 
