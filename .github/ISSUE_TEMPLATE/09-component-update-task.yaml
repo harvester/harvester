@@ -17,7 +17,10 @@ body:
       - For built-in components/add-ons, the version should be aligned with the Harvester version.
     value: |
       Components to be updated for Harvester version vX.Y.Z:
-        
+
+      - System Components
+        - [ ] OBS Projects @tserong
+        - [ ] OS2 @tserong
       - Main Components
         - [ ] Embedded Rancher @FrankYang0529
         - [ ] RKE2 @FrankYang0529
