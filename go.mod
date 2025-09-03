@@ -3,6 +3,17 @@ module github.com/harvester/harvester
 go 1.24.2
 
 replace (
+	// k8s.io/code-generator still remains v0.31.5 due to kubevirt v1.6.0.
+	// kubevirt v1.6.0 is still using v0.31.1 code generator, but v0.32.5 code generator has a big change about fake clientset.
+	// Check more details in https://github.com/harvester/harvester/issues/8719#issue-3251235542.
+	//
+	// Due to lower version of code generator, the following replacements are needed:
+	//
+	// k8s.io/gengo/v2
+	// k8s.io/kube-openapi
+	// github.com/google/cel-go
+	// github.com/google/gnostic-models
+
 	github.com/containerd/containerd => github.com/containerd/containerd v1.7.27
 	github.com/docker/distribution => github.com/docker/distribution v2.8.2+incompatible // oras dep requires a replace is set
 	github.com/docker/docker => github.com/docker/docker v25.0.6+incompatible // oras dep requires a replace is set
@@ -21,10 +32,6 @@ replace (
 	// handle rancher dependenices
 	go.qase.io/client => github.com/rancher/qase-go/client v0.0.0-20231114201952-65195ec001fa
 
-	// Please check reason in https://github.com/harvester/harvester/issues/8719#issue-3251235542 why we used these version temporarily in these modules:
-	// k8s.io/code-generator
-	// k8s.io/gengo/v2
-	// k8s.io/kube-openapi
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.15.1-rancher2
 	k8s.io/api => k8s.io/api v0.32.5
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.32.5
