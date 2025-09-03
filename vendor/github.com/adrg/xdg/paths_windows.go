@@ -25,10 +25,17 @@ func initBaseDirs(home string, kf *knownFolders) {
 	baseDirs.runtime = pathutil.EnvPath(envRuntimeDir, kf.localAppData)
 
 	// Initialize non-standard directories.
+	baseDirs.binHome = pathutil.EnvPath(envBinHome, kf.userProgramFiles)
+
 	baseDirs.applications = []string{
 		kf.programs,
 		kf.commonPrograms,
+		kf.programFiles,
+		kf.programFilesCommon,
+		kf.userProgramFiles,
+		kf.userProgramFilesCommon,
 	}
+
 	baseDirs.fonts = []string{
 		kf.fonts,
 		filepath.Join(kf.localAppData, "Microsoft", "Windows", "Fonts"),
@@ -47,24 +54,28 @@ func initUserDirs(home string, kf *knownFolders) {
 }
 
 type knownFolders struct {
-	systemDrive    string
-	systemRoot     string
-	programData    string
-	userProfile    string
-	userProfiles   string
-	roamingAppData string
-	localAppData   string
-	desktop        string
-	downloads      string
-	documents      string
-	music          string
-	pictures       string
-	videos         string
-	templates      string
-	public         string
-	fonts          string
-	programs       string
-	commonPrograms string
+	systemDrive            string
+	systemRoot             string
+	programData            string
+	userProfile            string
+	userProfiles           string
+	roamingAppData         string
+	localAppData           string
+	desktop                string
+	downloads              string
+	documents              string
+	music                  string
+	pictures               string
+	videos                 string
+	templates              string
+	public                 string
+	fonts                  string
+	programs               string
+	commonPrograms         string
+	programFiles           string
+	programFilesCommon     string
+	userProgramFiles       string
+	userProgramFilesCommon string
 }
 
 func initKnownFolders(home string) *knownFolders {
@@ -155,6 +166,30 @@ func initKnownFolders(home string) *knownFolders {
 		windows.FOLDERID_CommonPrograms,
 		nil,
 		[]string{filepath.Join(kf.programData, "Microsoft", "Windows", "Start Menu", "Programs")},
+	)
+	kf.programFiles = pathutil.KnownFolder(
+		windows.FOLDERID_ProgramFiles,
+		[]string{"ProgramFiles"},
+		[]string{filepath.Join(kf.systemDrive, "Program Files")},
+	)
+	kf.programFilesCommon = pathutil.KnownFolder(
+		windows.FOLDERID_ProgramFilesCommon,
+		nil,
+		[]string{filepath.Join(kf.programFiles, "Common Files")},
+	)
+	kf.userProgramFiles = pathutil.KnownFolder(
+		windows.FOLDERID_UserProgramFiles,
+		nil,
+		[]string{
+			filepath.Join(kf.localAppData, "Programs"),
+		},
+	)
+	kf.userProgramFilesCommon = pathutil.KnownFolder(
+		windows.FOLDERID_UserProgramFilesCommon,
+		nil,
+		[]string{
+			filepath.Join(kf.userProgramFiles, "Common"),
+		},
 	)
 
 	return kf
