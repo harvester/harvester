@@ -7,6 +7,7 @@ import (
 
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/attributes"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -30,6 +31,8 @@ type addQuery struct {
 	next   http.RoundTripper
 }
 
+var _ utilnet.RoundTripperWrapper = (*addQuery)(nil)
+
 func (a *addQuery) RoundTrip(req *http.Request) (*http.Response, error) {
 	q := req.URL.Query()
 	for k, v := range a.values {
@@ -38,6 +41,10 @@ func (a *addQuery) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Set("Accept", "application/json;as=Table;v=v1;g=meta.k8s.io,application/json;as=Table;v=v1beta1;g=meta.k8s.io")
 	req.URL.RawQuery = q.Encode()
 	return a.next.RoundTrip(req)
+}
+
+func (a *addQuery) WrappedRoundTripper() http.RoundTripper {
+	return a.next
 }
 
 func NewFactory(cfg *rest.Config, impersonate bool) (*Factory, error) {

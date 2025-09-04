@@ -42,6 +42,13 @@ func (*SchemaBasedAccess) CanUpdate(apiOp *types.APIRequest, obj types.APIObject
 	return apierror.NewAPIError(validation.PermissionDenied, "can not update "+schema.ID)
 }
 
+func (*SchemaBasedAccess) CanPatch(apiOp *types.APIRequest, obj types.APIObject, schema *types.APISchema) error {
+	if slice.ContainsString(schema.ResourceMethods, http.MethodPatch) {
+		return nil
+	}
+	return apierror.NewAPIError(validation.PermissionDenied, "can not patch "+schema.ID)
+}
+
 func (*SchemaBasedAccess) CanDelete(apiOp *types.APIRequest, obj types.APIObject, schema *types.APISchema) error {
 	if slice.ContainsString(schema.ResourceMethods, http.MethodDelete) {
 		return nil
@@ -67,6 +74,8 @@ func (a *SchemaBasedAccess) CanDo(apiOp *types.APIRequest, resource, verb, names
 		return a.CanUpdate(apiOp, types.APIObject{}, schema)
 	case http.MethodPost:
 		return a.CanCreate(apiOp, schema)
+	case http.MethodPatch:
+		return a.CanPatch(apiOp, types.APIObject{}, schema)
 	default:
 		return apierror.NewAPIError(validation.PermissionDenied, fmt.Sprintf("can not %s %s %s/%s"+verb, schema.ID, namespace, name))
 	}
