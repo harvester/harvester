@@ -99,7 +99,9 @@ func Test_failsControlPlaneRequirementsHA(t *testing.T) {
 	assert.NoError(err, "expected no error while updating cpNode1")
 
 	err = DrainPossible(nodeCache, cpNode2)
+	assert.Error(err, "expected error while trying to place cpNode2 in maintenance mode")
 	assert.True(errors.Is(err, errHAControlPlaneNode), "expected error while checking cpNode2")
+	assert.True(errors.Is(err, ErrNodeDrainNotPossible), "expected error ErrNodeDrainNotPossible")
 }
 
 func Test_failsControlPlaneRequirementsSingleNode(t *testing.T) {
@@ -113,6 +115,7 @@ func Test_failsControlPlaneRequirementsSingleNode(t *testing.T) {
 	err := DrainPossible(nodeCache, cpNode1)
 	assert.Error(err, "expected error while trying to place cpNode1 in maintenance mode")
 	assert.True(errors.Is(err, errSingleControlPlaneNode), "expected error singleControlPlaneNodeError")
+	assert.True(errors.Is(err, ErrNodeDrainNotPossible), "expected error ErrNodeDrainNotPossible")
 }
 
 func Test_meetsWorkerRequirement(t *testing.T) {
