@@ -13,3 +13,21 @@ func ExcludeWitnessNodes(nodes []*corev1.Node) []*corev1.Node {
 	}
 	return nonWitnessNodes
 }
+
+func AddOrUpdateConditionToNode(node *corev1.Node, newCondition corev1.NodeCondition) {
+	found := false
+	for i := range node.Status.Conditions {
+		c := &node.Status.Conditions[i]
+		if c.Type == newCondition.Type {
+			found = true
+			c.Status = newCondition.Status
+			c.LastHeartbeatTime = newCondition.LastHeartbeatTime
+			c.LastTransitionTime = newCondition.LastTransitionTime
+			c.Reason = newCondition.Reason
+			c.Message = newCondition.Message
+		}
+	}
+	if !found {
+		node.Status.Conditions = append(node.Status.Conditions, newCondition)
+	}
+}
