@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // Unique eliminates the duplicate paths from the provided slice and returns
@@ -52,7 +51,6 @@ func First(paths []string) string {
 // relative to the selected parent path.
 func Create(name string, paths []string) (string, error) {
 	searchedPaths := make([]string, 0, len(paths))
-
 	for _, p := range paths {
 		p = filepath.Join(p, name)
 
@@ -67,8 +65,8 @@ func Create(name string, paths []string) (string, error) {
 		searchedPaths = append(searchedPaths, dir)
 	}
 
-	return "", fmt.Errorf("could not create any of the following paths: %s",
-		strings.Join(searchedPaths, ", "))
+	return "", fmt.Errorf("could not create any of the following paths: %v",
+		searchedPaths)
 }
 
 // Search searches for the file with the specified `name` in the provided
@@ -76,7 +74,6 @@ func Create(name string, paths []string) (string, error) {
 // but it can also contain a set of parent directories.
 func Search(name string, paths []string) (string, error) {
 	searchedPaths := make([]string, 0, len(paths))
-
 	for _, p := range paths {
 		p = filepath.Join(p, name)
 		if Exists(p) {
@@ -86,8 +83,8 @@ func Search(name string, paths []string) (string, error) {
 		searchedPaths = append(searchedPaths, filepath.Dir(p))
 	}
 
-	return "", fmt.Errorf("could not locate `%s` in any of the following paths: %s",
-		filepath.Base(name), strings.Join(searchedPaths, ", "))
+	return "", fmt.Errorf("could not locate `%s` in any of the following paths: %v",
+		filepath.Base(name), searchedPaths)
 }
 
 // EnvPath returns the value of the environment variable with the specified
