@@ -10,6 +10,7 @@ This enhancement introduces multipath device recognition and management in Harve
 
 - Primary Issue: https://github.com/harvester/harvester/issues/6975
 - Non-WWN Device Handling Issue: https://github.com/harvester/harvester/issues/6261 (out of scope for this enhancement)
+- Support filter list on NDM: https://github.com/harvester/harvester/issues/5059 (out of scope for this enhancement)
 
 ## Motivation
 
@@ -17,12 +18,13 @@ This enhancement introduces multipath device recognition and management in Harve
 
 - Enable Harvester to recognize and manage multipath disk devices properly
 - Support multipath device configuration in Harvester installer with extended configuration options
-- Distinguish between multipath devices and Longhorn v2 DM-devices to avoid conflicts
+- Distinguish between multipath devices and deliberate vendor devices (ex: Longhorn v2 DM-devices) to avoid conflicts
 - Ensure multipath devices are back after starting multipathd service when multipathd service is disabled.
 
 ### Non-goals
 
 - Implementing multipath configuration without DM_WWN support (this will be addressed in a separate issue #6261)
+- Guaranteeing optimal multipathd performance
 
 ## Proposal
 
