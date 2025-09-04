@@ -6,5 +6,33 @@
         "master",
         "v1.5",
         "v1.6"
+    ],
+    "packageRules": [
+        {
+            "description": "Block specific Go modules from major/minor/patch version updates",
+            "matchManagers": [
+                "gomod"
+            ],
+            "matchPackageNames": [
+                "github.com/k8snetworkplumbingwg/whereabouts"
+            ],
+            "matchUpdateTypes": [
+                "major",
+                "minor",
+                "patch"
+            ],
+            "enabled": false
+        },
+        {
+            "description": "Block specific image updates for major/minor/patch version updates",
+            "matchManagers": [
+                "docker"
+            ],
+            "matchPackageNames": [
+                "ghcr.io/k8snetworkplumbingwg/whereabouts",
+                "ghcr.io/kube-vip/kube-vip-iptables"
+            ],
+            "enabled": false
+        }
     ]
 }
