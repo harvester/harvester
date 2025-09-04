@@ -295,19 +295,6 @@ lower_version_check()
   fi
 }
 
-shutdown_all_vms()
-{
-  kubectl get vmi -A -o json |
-    jq -r '.items[] | [.metadata.name, .metadata.namespace] | @tsv' |
-    while IFS=$'\t' read -r name namespace; do
-      if [ -z "$name" ]; then
-        break
-      fi
-      echo "Stop ${namespace}/${name}"
-      virtctl stop $name -n $namespace
-    done
-}
-
 wait_for_fleet_bundles()
 {
   # wait for the changes to be applied to bundle object first
