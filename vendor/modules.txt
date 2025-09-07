@@ -256,7 +256,7 @@ github.com/gammazero/workerpool
 github.com/ghodss/yaml
 # github.com/gin-gonic/gin v1.7.0 => github.com/gin-gonic/gin v1.10.1
 ## explicit; go 1.20
-# github.com/go-errors/errors v1.4.2
+# github.com/go-errors/errors v1.5.1
 ## explicit; go 1.14
 github.com/go-errors/errors
 # github.com/go-gorp/gorp/v3 v3.1.0
