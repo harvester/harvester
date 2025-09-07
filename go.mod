@@ -56,7 +56,7 @@ require (
 	github.com/deckarep/golang-set/v2 v2.8.0
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful/v3 v3.13.0
-	github.com/go-errors/errors v1.4.2
+	github.com/go-errors/errors v1.5.1
 	github.com/gobuffalo/flect v1.0.2
 	github.com/gorilla/mux v1.8.1
 	github.com/guonaihong/gout v0.1.3
