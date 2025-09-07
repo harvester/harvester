@@ -2,14 +2,15 @@ package decode
 
 import (
 	//"net/http"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/guonaihong/gout/core"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/guonaihong/gout/core"
+	"github.com/guonaihong/gout/json"
 )
 
 type setter interface {
@@ -20,20 +21,7 @@ type setter interface {
 		tagValue string) error
 }
 
-type defaultSet map[string][]string
-
 var emptyField = reflect.StructField{}
-
-func (d defaultSet) Set(
-
-	value reflect.Value,
-
-	sf reflect.StructField,
-
-	tagValue string) error {
-
-	return setForm(d, value, sf, tagValue)
-}
 
 func setForm(m map[string][]string,
 	value reflect.Value,

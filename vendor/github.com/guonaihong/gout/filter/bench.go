@@ -2,11 +2,12 @@ package filter
 
 import (
 	"context"
+	"net/http"
+	"time"
+
 	"github.com/guonaihong/gout/bench"
 	"github.com/guonaihong/gout/core"
 	"github.com/guonaihong/gout/dataflow"
-	"net/http"
-	"time"
 )
 
 // Bench provide benchmark features
@@ -111,7 +112,7 @@ func (b *Bench) Do() error {
 	b.Run(r)
 
 	if b.r != nil {
-		*b.r = *r
+		b.r.ReportData = r.ReportData
 	}
 	return nil
 }
