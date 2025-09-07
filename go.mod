@@ -63,7 +63,7 @@ require (
 	github.com/harvester/go-common v0.0.0-20250109132713-e748ce72a7ba
 	github.com/harvester/harvester-network-controller v0.3.1
 	github.com/harvester/node-manager v0.3.1
-	github.com/iancoleman/strcase v0.2.0
+	github.com/iancoleman/strcase v0.3.0
 	github.com/k3s-io/helm-controller v0.16.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.0
 	github.com/k8snetworkplumbingwg/whereabouts v0.8.0
