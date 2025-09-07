@@ -57,7 +57,7 @@ dependencies:
     version: 0.6.1
     repository: https://kube-vip.github.io/helm-charts
   - name: harvester-load-balancer
-    version: 1.5.2-rc1
+    version: 1.6.0
     repository: https://charts.harvesterhci.io
   - name: whereabouts
     version: 0.1.1
