@@ -437,7 +437,7 @@ github.com/huandu/xstrings
 # github.com/iancoleman/orderedmap v0.3.0
 ## explicit; go 1.16
 github.com/iancoleman/orderedmap
-# github.com/iancoleman/strcase v0.2.0
+# github.com/iancoleman/strcase v0.3.0
 ## explicit; go 1.16
 github.com/iancoleman/strcase
 # github.com/imdario/mergo v0.3.16
