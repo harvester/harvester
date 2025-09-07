@@ -1,7 +1,7 @@
 package decode
 
 import (
-	"encoding/json"
+	"github.com/guonaihong/gout/json"
 	"io"
 )
 
@@ -11,7 +11,7 @@ type JSONDecode struct {
 }
 
 // NewJSONDecode create a new json decoder
-func NewJSONDecode(obj interface{}) *JSONDecode {
+func NewJSONDecode(obj interface{}) Decoder {
 	if obj == nil {
 		return nil
 	}
@@ -22,6 +22,11 @@ func NewJSONDecode(obj interface{}) *JSONDecode {
 func (j *JSONDecode) Decode(r io.Reader) error {
 	decode := json.NewDecoder(r)
 	return decode.Decode(j.obj)
+}
+
+// Decode obj
+func (j *JSONDecode) Value() interface{} {
+	return j.obj
 }
 
 // JSON json decoder

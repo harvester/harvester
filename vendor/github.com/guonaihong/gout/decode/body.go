@@ -2,10 +2,11 @@ package decode
 
 import (
 	"fmt"
-	"github.com/guonaihong/gout/core"
 	"io"
 	"io/ioutil"
 	"reflect"
+
+	"github.com/guonaihong/gout/core"
 )
 
 // BodyDecode body decoder structure
@@ -14,7 +15,7 @@ type BodyDecode struct {
 }
 
 // NewBodyDecode create a new body decoder
-func NewBodyDecode(obj interface{}) *BodyDecode {
+func NewBodyDecode(obj interface{}) Decoder {
 	if obj == nil {
 		return nil
 	}
@@ -40,6 +41,11 @@ var convertBodyFunc = map[reflect.Kind]convert{
 // Decode body decoder
 func (b *BodyDecode) Decode(r io.Reader) error {
 	return Body(r, b.obj)
+}
+
+// Decode obj
+func (b *BodyDecode) Value() interface{} {
+	return b.obj
 }
 
 // Body body decoder

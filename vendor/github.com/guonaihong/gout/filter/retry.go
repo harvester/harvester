@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/guonaihong/gout/dataflow"
 	"math"
 	"math/rand"
 	"net/http"
 	"time"
+
+	"github.com/guonaihong/gout/dataflow"
+	pkgerr "github.com/pkg/errors"
 )
 
 var (
@@ -125,18 +127,19 @@ func (r *Retry) Do() (err error) {
 	tk := time.NewTimer(r.maxWaitTime)
 	client := r.df.Client()
 
+	var resp *http.Response
 	for i := 0; i < r.attempt; i++ {
 
 		// 这里只要调用Func方法，且回调函数返回ErrRetry 会生成新的*http.Request对象
 		// 不使用DataFlow.Do()方法原因基于两方面考虑
 		// 1.为了效率只需经过一次编码器得到*http.Request,如果需要重试几次后面是多次使用解码器.Bind()函数
 		// 2.为了更灵活的控制
-		resp, err := client.Do(req)
+		resp, err = client.Do(req)
 		if r.cb != nil {
 			err = r.cb(r.genContext(resp, err))
 			if err != nil {
 				if resp != nil {
-					r.df.Bind(req, resp) //为的是输出debug信息
+					_ = r.df.Bind(req, resp) //为的是输出debug信息
 					resp.Body.Close()
 				}
 
@@ -179,5 +182,8 @@ func (r *Retry) Do() (err error) {
 		r.currAttempt++
 	}
 
+	if err != nil {
+		return pkgerr.Wrap(ErrRetryFail, err.Error())
+	}
 	return ErrRetryFail
 }
