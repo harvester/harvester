@@ -13,7 +13,7 @@ dependencies:
   version: 1.6.0
 - name: harvester-networkfs-manager
   repository: https://charts.harvesterhci.io
-  version: 1.5.2-rc1
+  version: 1.6.0
 - name: harvester-node-disk-manager
   repository: https://charts.harvesterhci.io
   version: 1.6.0
@@ -38,5 +38,5 @@ dependencies:
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
   version: 0.2.0
-digest: sha256:b3cb1914c50ecc65335db30e7b19eb98fc9c2079698f9a12f16c461bc7b5d82f
-generated: "2025-09-07T09:02:32.761177807Z"
+digest: sha256:825e39acbb97117e9d886ee0b99880a54ca4a54d9253d2c1a99761cb9a54b623
+generated: "2025-09-07T09:44:55.761670888Z"
