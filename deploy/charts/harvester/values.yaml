@@ -149,7 +149,7 @@ cdi:
     hook:
       image:
         repository: rancher/kubectl
-        tag: v1.32.3
+        tag: v1.34.0
   
   spec:
     cloneStrategyOverride: copy
@@ -227,7 +227,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: v1.5-head
+      tag: v1.6-head
 
     ## Specify whether to run in HCI mode. This option enables additional controllers.
     ## defaults to "false", this will be enabled in ISO mode installation.
@@ -412,16 +412,16 @@ harvester-network-controller:
     repository: rancher/harvester-network-controller
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v1.5.2-rc1
+    tag: v1.6.0-rc1
   helper:
     image:
       repository: rancher/harvester-network-helper
-      tag: v1.5.2-rc1
+      tag: v1.6.0-rc1
   webhook:
     image:
       repository: rancher/harvester-network-webhook
       pullPolicy: IfNotPresent
-      tag: v1.5.2-rc1
+      tag: v1.6.0-rc1
 
 harvester-networkfs-manager:
   ## Specify to install harvester networkfs manager,
@@ -432,7 +432,7 @@ harvester-networkfs-manager:
     repository: rancher/harvester-networkfs-manager
     pullPolicy: IfNotPresent 
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v1.5.2-rc1
+    tag: v1.6.0-rc1
 
 harvester-node-disk-manager:
   ## Specify to install harvester node disk manager,
@@ -446,14 +446,14 @@ harvester-node-disk-manager:
     repository: rancher/harvester-node-disk-manager
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v1.5.2-rc1
+    tag: v1.6.0-rc1
   
   webhook:
     image:
       repository: rancher/harvester-node-disk-manager-webhook
       pullPolicy: IfNotPresent
       # Overrides the image tag whose default is the chart appVersion.
-      tag: v1.5.2-rc1
+      tag: v1.6.0-rc1
 
 csi-snapshotter:
   ## Specify whether to install the csi-snapshotter
@@ -461,7 +461,7 @@ csi-snapshotter:
 
   image:
     repository: registry.k8s.io/sig-storage/snapshot-controller
-    tag: v6.3.3
+    tag: v6.3.4
 
 longhorn:
   ## Specify whether to install longhorn,
@@ -521,7 +521,7 @@ webhook:
 
     ## Specify the tag of image.
     ##
-    tag: v1.5-head
+    tag: v1.6-head
 
   httpsPort: 9443
 
@@ -535,25 +535,25 @@ webhook:
 upgrade:
   image:
     repository: rancher/harvester-upgrade
-    tag: v1.5-head
+    tag: v1.6-head
 
 harvester-load-balancer:
   enabled: false
   image:
     imagePullPolicy: Always
     repository: rancher/harvester-load-balancer
-    tag: v1.5.2-rc1
+    tag: v1.6.0-rc1
   webhook:
     image:
       imagePullPolicy: IfNotPresent
       repository: rancher/harvester-load-balancer-webhook
-      tag: v1.5.2-rc1
+      tag: v1.6.0-rc1
 
 kube-vip:
   enabled: false
   image:
     repository: ghcr.io/kube-vip/kube-vip-iptables
-    tag: v0.8.1
+    tag: v0.9.2
   nodeSelector:
     node-role.kubernetes.io/control-plane: "true"
   # https://github.com/kube-vip/kube-vip/blob/main/pkg/kubevip/config_envvar.go
@@ -572,7 +572,7 @@ support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
-    tag: v0.0.46
+    tag: v0.0.65
 
 generalJob:
   image:
@@ -581,31 +581,31 @@ generalJob:
     # In the Golang limitation, we couldn't parse like "tag": 12.20.
     # So, we must use "tag": "12.20" instead.
     # More details in PR-4896 (https://github.com/harvester/harvester/pull/4896)
-    tag: 15.6
+    tag: 15.7
 
 whereabouts:
   enabled: true
   image:
     pullPolicy: IfNotPresent
     repository: ghcr.io/k8snetworkplumbingwg/whereabouts
-    tag: "v0.8.0"
+    tag: "v0.9.2"
 
 harvester-node-manager:
   image:
     pullPolicy: IfNotPresent
     repository: rancher/harvester-node-manager
-    tag: v1.5.2-rc1
+    tag: v1.6.0-rc1
   webhook:
     image:
       pullPolicy: IfNotPresent
       repository: rancher/harvester-node-manager-webhook
-      tag: v1.5.2-rc1
+      tag: v1.6.0-rc1
 
 snapshot-validation-webhook:
   enabled: true
   image:
     repository: registry.k8s.io/sig-storage/snapshot-validation-webhook
-    tag: v6.3.3
+    tag: v6.3.4
     pullPolicy: IfNotPresent
 
 enableLonghornNetworkPolicy: true
