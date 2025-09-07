@@ -43,23 +43,6 @@ func NewClusterNetwork(namespace, name string, obj ClusterNetwork) *ClusterNetwo
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// NodeNetworkList is a list of NodeNetwork resources
-type NodeNetworkList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
-
-	Items []NodeNetwork `json:"items"`
-}
-
-func NewNodeNetwork(namespace, name string, obj NodeNetwork) *NodeNetwork {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("NodeNetwork").ToAPIVersionAndKind()
-	obj.Name = name
-	obj.Namespace = namespace
-	return &obj
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // VlanConfigList is a list of VlanConfig resources
 type VlanConfigList struct {
 	metav1.TypeMeta `json:",inline"`

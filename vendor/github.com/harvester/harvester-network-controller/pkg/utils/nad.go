@@ -25,6 +25,13 @@ const (
 	Manual Mode = "manual"
 )
 
+type NetworkType string
+
+const (
+	L2VlanNetwork   NetworkType = "L2VlanNetwork"
+	UntaggedNetwork NetworkType = "UntaggedNetwork"
+)
+
 type NadSelectedNetworks []nadv1.NetworkSelectionElement
 
 type Layer3NetworkConf struct {
@@ -33,24 +40,35 @@ type Layer3NetworkConf struct {
 	Gateway      string       `json:"gateway,omitempty"`
 	ServerIPAddr string       `json:"serverIPAddr,omitempty"`
 	Connectivity Connectivity `json:"connectivity,omitempty"`
+	Outdated     bool         `json:"outdated,omitempty"`
 }
 
 func NewLayer3NetworkConf(conf string) (*Layer3NetworkConf, error) {
+	if conf == "" {
+		return &Layer3NetworkConf{}, nil
+	}
+
 	networkConf := &Layer3NetworkConf{}
 
 	if err := json.Unmarshal([]byte(conf), networkConf); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unmarshal %s faield, error: %w", conf, err)
 	}
 
 	// validate
 	if networkConf.Mode != "" && networkConf.Mode != Auto && networkConf.Mode != Manual {
 		return nil, fmt.Errorf("unknown mode %s", networkConf.Mode)
 	}
-	if _, _, err := net.ParseCIDR(networkConf.CIDR); networkConf.CIDR != "" && err != nil {
-		return nil, fmt.Errorf("invalid CIDR %s", networkConf.CIDR)
-	}
-	if networkConf.Gateway != "" && net.ParseIP(networkConf.Gateway) == nil {
-		return nil, fmt.Errorf("invalid gateway %s", networkConf.Gateway)
+
+	// validate cidr and gateway when the mode is manual
+	if networkConf.Mode == Manual {
+		_, ipnet, err := net.ParseCIDR(networkConf.CIDR)
+		if err != nil || (ipnet != nil && isMaskZero(ipnet)) {
+			return nil, fmt.Errorf("the CIDR %s is invalid", networkConf.CIDR)
+		}
+
+		if net.ParseIP(networkConf.Gateway) == nil {
+			return nil, fmt.Errorf("the gateway %s is invalid", networkConf.Gateway)
+		}
 	}
 
 	return networkConf, nil
@@ -96,10 +114,20 @@ type NetConf struct {
 	Vlan         int    `json:"vlan"`
 }
 
-func IsVlanNAD(nad *nadv1.NetworkAttachmentDefinition) bool {
+func IsVlanNad(nad *nadv1.NetworkAttachmentDefinition) bool {
 	if nad == nil || nad.Spec.Config == "" || nad.Labels == nil || nad.Labels[KeyNetworkType] == "" ||
 		nad.Labels[KeyClusterNetworkLabel] == "" || nad.Labels[KeyVlanLabel] == "" {
 		return false
+	}
+
+	return true
+}
+
+func isMaskZero(ipnet *net.IPNet) bool {
+	for _, b := range ipnet.Mask {
+		if b != 0 {
+			return false
+		}
 	}
 
 	return true
