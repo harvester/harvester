@@ -6,7 +6,7 @@ image:
   repository: ghcr.io/k8snetworkplumbingwg/whereabouts
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v0.5.4-amd64"
+  tag: "v0.6.3-amd64"
 
 updateStrategy: RollingUpdate
 imagePullSecrets: []
