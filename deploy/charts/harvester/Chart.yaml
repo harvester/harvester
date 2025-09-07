@@ -34,7 +34,7 @@ dependencies:
       - cdi
       - crd
   - name: harvester-network-controller
-    version: 1.5.2-rc1
+    version: 1.6.0
     repository: https://charts.harvesterhci.io
     condition: harvester-network-controller.enabled
   - name: harvester-networkfs-manager
