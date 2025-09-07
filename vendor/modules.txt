@@ -218,7 +218,7 @@ github.com/dustin/go-humanize
 # github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 ## explicit; go 1.13
 github.com/ehazlett/simplelog
-# github.com/emicklei/go-restful/v3 v3.12.1
+# github.com/emicklei/go-restful/v3 v3.13.0
 ## explicit; go 1.13
 github.com/emicklei/go-restful/v3
 github.com/emicklei/go-restful/v3/log
