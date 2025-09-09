@@ -1,5 +1,7 @@
 package util
 
+import corev1 "k8s.io/api/core/v1"
+
 const (
 	prefix                              = "harvesterhci.io"
 	RemovedPVCsAnnotationKey            = prefix + "/removedPersistentVolumeClaims"
@@ -33,6 +35,7 @@ const (
 	LabelHarvesterUpgrade               = prefix + "/upgrade"
 	LabelHarvesterUpgradeState          = prefix + "/upgradeState"
 	LabelHarvesterUpgradeComponent      = prefix + "/upgradeComponent"
+	LabelInjectError                    = prefix + "/injectError"
 	AnnotationStorageClassName          = prefix + "/storageClassName"
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
@@ -308,4 +311,11 @@ const (
 	HarvesterManagedPSSValue = "true"
 
 	GoArchArm64 = "arm64"
+)
+
+const (
+	NodeConditionTypeMaintenanceMode corev1.NodeConditionType = "MaintenanceMode"
+	NodeConditionReasonRunning       string                   = "Running"
+	NodeConditionReasonCompleted     string                   = "Completed"
+	NodeConditionReasonError         string                   = "Error"
 )
