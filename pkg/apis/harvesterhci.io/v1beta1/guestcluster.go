@@ -54,9 +54,33 @@ type GuestClusterStatus struct {
 	Conditions []Condition `json:"conditions,omitempty"`
 }
 
+/*
 type ResourceInfo struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	TypeMeta   metav1.TypeMeta   `json:"typemeta,omitempty"`
+	ObjectMeta metav1.ObjectMeta `json:"metadata,omitempty"`
+	// +optional
+	Deleted bool `json:"deleted,omitempty"`
+}
+*/
+
+type ResourceInfo struct {
+	// +optional
+	Kind string `json:"kind,omitempty"`
+
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+
+	// +optional
+	Name string `json:"name,omitempty"`
+
+	// +optional
+	GenerateName string `json:"generateName,omitempty"`
+
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
+	UID types.UID `json:"uid,omitempty"`
+
 	// +optional
 	Deleted bool `json:"deleted,omitempty"`
 }
