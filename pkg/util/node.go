@@ -84,7 +84,7 @@ func IsManagementRole(node *corev1.Node) bool {
 	return false
 }
 
-// count the number of nodes running instance manager pod
+// CountNonWitnessNodes count the number of nodes running instance manager pod
 func CountNonWitnessNodes(nodes []*corev1.Node) int {
 	count := 0
 
@@ -95,4 +95,53 @@ func CountNonWitnessNodes(nodes []*corev1.Node) int {
 	}
 
 	return count
+}
+
+func AddOrUpdateConditionToNode(node *corev1.Node, newCondition corev1.NodeCondition) {
+	found := false
+
+	for i := range node.Status.Conditions {
+		c := &node.Status.Conditions[i]
+		if c.Type == newCondition.Type {
+			found = true
+			c.Status = newCondition.Status
+			c.LastHeartbeatTime = newCondition.LastHeartbeatTime
+			c.LastTransitionTime = newCondition.LastTransitionTime
+			c.Reason = newCondition.Reason
+			c.Message = newCondition.Message
+		}
+	}
+
+	if !found {
+		node.Status.Conditions = append(node.Status.Conditions, newCondition)
+	}
+}
+
+func RemoveConditionFromNode(node *corev1.Node, condType corev1.NodeConditionType) bool {
+	numConditions := len(node.Status.Conditions)
+	if numConditions == 0 {
+		return false
+	}
+
+	newConditions := make([]corev1.NodeCondition, 0, numConditions)
+
+	for _, c := range node.Status.Conditions {
+		if c.Type != condType {
+			newConditions = append(newConditions, c)
+		}
+	}
+
+	node.Status.Conditions = newConditions
+
+	return numConditions != len(newConditions)
+}
+
+func GetConditionFromNode(node *corev1.Node, condType corev1.NodeConditionType) *corev1.NodeCondition {
+	for i := range node.Status.Conditions {
+		c := &node.Status.Conditions[i]
+		if c.Type == condType {
+			return c
+		}
+	}
+	return nil
 }
