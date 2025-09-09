@@ -3,20 +3,20 @@ module github.com/harvester/harvester
 go 1.23.4
 
 replace (
-	github.com/containerd/containerd => github.com/containerd/containerd v1.7.27
+	github.com/containerd/containerd => github.com/containerd/containerd v1.7.28
 	github.com/docker/distribution => github.com/docker/distribution v2.8.2+incompatible // oras dep requires a replace is set
 	github.com/docker/docker => github.com/docker/docker v25.0.6+incompatible // oras dep requires a replace is set
 	github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.10.1
-	github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
-	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200521150516-05eb9880269c
+	github.com/openshift/api => github.com/openshift/api be976da65495
+	github.com/openshift/client-go => github.com/openshift/client-go 6193816ae379
 	github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.35.0
 	github.com/rancher/lasso => github.com/rancher/lasso v0.0.0-20240705194423-b2a060d103c1
 
 	github.com/rancher/rancher => github.com/rancher/rancher v0.0.0-20240919204204-3da2ae0cabd1
-	github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20240919204204-3da2ae0cabd1
-	github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20240919204204-3da2ae0cabd1
+	github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis c4d9d051f4bc
+	github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client c4d9d051f4bc
 	// handle rancher dependenices
-	go.qase.io/client => github.com/rancher/qase-go/client v0.0.0-20231114201952-65195ec001fa
+	go.qase.io/client => github.com/rancher/qase-go/client 142ff3dfec16
 
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.15.1-rancher2
 	k8s.io/api => k8s.io/api v0.31.5
@@ -38,7 +38,7 @@ replace (
 	k8s.io/kms => k8s.io/kms v0.31.5
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.31.5
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.31.5
-	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340
+	k8s.io/kube-openapi => k8s.io/kube-openapi d67c058d9372
 	k8s.io/kube-proxy => k8s.io/kube-proxy v0.31.5
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.31.5
 	k8s.io/kubectl => k8s.io/kubectl v0.31.5
@@ -57,27 +57,27 @@ require (
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful/v3 v3.13.0
 	github.com/go-errors/errors v1.5.1
-	github.com/gobuffalo/flect v1.0.2
+	github.com/gobuffalo/flect v1.0.3
 	github.com/gorilla/mux v1.8.1
 	github.com/guonaihong/gout v0.3.11
-	github.com/harvester/go-common v0.0.0-20250109132713-e748ce72a7ba
+	github.com/harvester/go-common a03d83f41a0f
 	github.com/harvester/harvester-network-controller v0.3.1
-	github.com/harvester/node-manager v0.3.1
+	github.com/harvester/node-manager v0.3.4
 	github.com/iancoleman/strcase v0.3.0
-	github.com/k3s-io/helm-controller v0.16.1
-	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.0
+	github.com/k3s-io/helm-controller v0.16.13
+	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
 	github.com/k8snetworkplumbingwg/whereabouts v0.8.0
 	github.com/kube-logging/logging-operator/pkg/sdk v0.11.1-0.20240314152935-421fefebc813
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1
-	github.com/longhorn/backupstore v0.0.0-20250227220202-651bd33886fe
+	github.com/longhorn/backupstore 794abf817297
 	github.com/longhorn/longhorn-manager v1.8.1
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo/v2 v2.25.3
 	github.com/onsi/gomega v1.38.2
-	github.com/openshift/api v0.0.0
+	github.com/openshift/api v0.0.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.72.0
 	github.com/rancher/apiserver v0.0.0-20240708202538-39a6f2535146
@@ -88,7 +88,7 @@ require (
 	github.com/rancher/rancher v0.0.0-20240618122559-b9ec494d4f6f
 	github.com/rancher/rancher/pkg/apis v0.0.0
 	github.com/rancher/steve v0.0.0-20240911190153-79304d93b49b
-	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20240301001845-4eacc2dabbde
+	github.com/rancher/system-upgrade-controller/pkg/apis a8d5a372d82c
 	github.com/rancher/wrangler v1.1.2
 	github.com/rancher/wrangler/v3 v3.1.0
 	github.com/robfig/cron v1.2.0
@@ -97,7 +97,7 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/gjson v1.14.2
-	github.com/urfave/cli v1.22.16
+	github.com/urfave/cli v1.22.17
 	go.uber.org/multierr v1.11.0
 	golang.org/x/crypto v0.41.0
 	golang.org/x/net v0.43.0
@@ -115,7 +115,7 @@ require (
 	k8s.io/kube-openapi v0.31.5
 	k8s.io/kubectl v0.31.1
 	k8s.io/kubelet v0.26.13
-	k8s.io/utils v0.0.0-20241210054802-24370beab758
+	k8s.io/utils 0af2bda4dd1d
 	kubevirt.io/api v1.4.0
 	kubevirt.io/client-go v1.4.0
 	kubevirt.io/containerized-data-importer v1.61.1

@@ -25,7 +25,7 @@ dependencies:
   version: 1.9.1
 - name: kube-vip
   repository: https://kube-vip.github.io/helm-charts
-  version: 0.8.1
+  version: 0.8.2
 - name: harvester-load-balancer
   repository: https://charts.harvesterhci.io
   version: 1.6.0
@@ -38,5 +38,5 @@ dependencies:
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
   version: 0.2.0
-digest: sha256:825e39acbb97117e9d886ee0b99880a54ca4a54d9253d2c1a99761cb9a54b623
-generated: "2025-09-07T09:44:55.761670888Z"
+digest: sha256:39a27603467d7730ebb6fefdd929e9fe699e2847c5d0d0dbf7f09f3ace01aeb0
+generated: "2025-09-09T21:40:31.570012169Z"
