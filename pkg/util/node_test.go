@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -28,7 +29,7 @@ func TestGetNodeCondition_FoundFirstMatch(t *testing.T) {
 	}
 
 	cond := FindNodeStatusCondition(conditions, corev1.NodeReady)
-	assert.NotNil(t, cond, "expected to find NodeReady condition")
+	require.NotNil(t, cond, "expected to find NodeReady condition")
 	assert.Equal(t, corev1.NodeReady, cond.Type)
 	assert.Equal(t, "ready", cond.Reason)
 }
@@ -40,7 +41,7 @@ func TestGetNodeCondition_MultipleSameType_ReturnsFirstAndIsCopy(t *testing.T) {
 	}
 
 	cond := FindNodeStatusCondition(conditions, corev1.NodeReady)
-	assert.NotNil(t, cond, "expected to find NodeReady condition")
+	require.NotNil(t, cond, "expected to find NodeReady condition")
 	assert.Equal(t, "first", cond.Reason)
 
 	// Mutate the returned condition and ensure the original slice element
@@ -54,7 +55,7 @@ func TestSetNodeCondition_AppendsWhenMissing(t *testing.T) {
 
 	SetNodeStatusCondition(node, corev1.NodeReady, corev1.ConditionTrue, "reason", "message")
 
-	assert.Len(t, node.Status.Conditions, 1, "expected one condition appended")
+	require.Len(t, node.Status.Conditions, 1, "expected one condition appended")
 	c := node.Status.Conditions[0]
 	assert.Equal(t, corev1.NodeReady, c.Type)
 	assert.Equal(t, corev1.ConditionTrue, c.Status)
@@ -83,7 +84,7 @@ func TestSetNodeCondition_UpdatesExisting_SameStatus(t *testing.T) {
 
 	SetNodeStatusCondition(node, corev1.NodeReady, corev1.ConditionTrue, "new-reason", "new-msg")
 
-	assert.Len(t, node.Status.Conditions, 1)
+	require.Len(t, node.Status.Conditions, 1)
 	c := node.Status.Conditions[0]
 	assert.Equal(t, corev1.ConditionTrue, c.Status)
 	assert.Equal(t, "new-reason", c.Reason)
@@ -113,7 +114,7 @@ func TestSetNodeCondition_UpdatesExisting_StatusChanged(t *testing.T) {
 
 	SetNodeStatusCondition(node, corev1.NodeReady, corev1.ConditionFalse, "changed-reason", "changed-msg")
 
-	assert.Len(t, node.Status.Conditions, 1)
+	require.Len(t, node.Status.Conditions, 1)
 	c := node.Status.Conditions[0]
 	assert.Equal(t, corev1.ConditionFalse, c.Status)
 	assert.Equal(t, "changed-reason", c.Reason)
@@ -122,4 +123,32 @@ func TestSetNodeCondition_UpdatesExisting_StatusChanged(t *testing.T) {
 	assert.True(t, c.LastTransitionTime.Time.After(initialTime.Time))
 	// Heartbeat should also be updated.
 	assert.True(t, c.LastHeartbeatTime.Time.After(initialTime.Time))
+}
+
+func Test_RemoveNodeStatusCondition(t *testing.T) {
+	node := &corev1.Node{
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{
+					Type:               NodeConditionTypeMaintenanceMode,
+					Status:             corev1.ConditionTrue,
+					LastHeartbeatTime:  metav1.Now(),
+					LastTransitionTime: metav1.Now(),
+					Reason:             NodeConditionReasonCompleted,
+					Message:            "Maintenance mode enabled",
+				},
+				{
+					Type:               "foo",
+					Status:             corev1.ConditionFalse,
+					LastHeartbeatTime:  metav1.Now(),
+					LastTransitionTime: metav1.Now(),
+					Reason:             "bar",
+					Message:            "Qui aromata regit, universum regit",
+				},
+			},
+		},
+	}
+	removed := RemoveNodeStatusCondition(node, NodeConditionTypeMaintenanceMode)
+	assert.Len(t, node.Status.Conditions, 1)
+	assert.True(t, removed)
 }
