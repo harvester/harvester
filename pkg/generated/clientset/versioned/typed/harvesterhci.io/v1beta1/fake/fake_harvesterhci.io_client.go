@@ -32,6 +32,10 @@ func (c *FakeHarvesterhciV1beta1) Addons(namespace string) v1beta1.AddonInterfac
 	return &FakeAddons{c, namespace}
 }
 
+func (c *FakeHarvesterhciV1beta1) GuestClusters(namespace string) v1beta1.GuestClusterInterface {
+	return &FakeGuestClusters{c, namespace}
+}
+
 func (c *FakeHarvesterhciV1beta1) KeyPairs(namespace string) v1beta1.KeyPairInterface {
 	return &FakeKeyPairs{c, namespace}
 }

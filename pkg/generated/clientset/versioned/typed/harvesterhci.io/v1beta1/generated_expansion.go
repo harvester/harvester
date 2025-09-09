@@ -20,6 +20,8 @@ package v1beta1
 
 type AddonExpansion interface{}
 
+type GuestClusterExpansion interface{}
+
 type KeyPairExpansion interface{}
 
 type PreferenceExpansion interface{}

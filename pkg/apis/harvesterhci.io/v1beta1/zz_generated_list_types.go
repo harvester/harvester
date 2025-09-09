@@ -295,3 +295,20 @@ func NewVirtualMachineImageDownloader(namespace, name string, obj VirtualMachine
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// GuestClusterList is a list of GuestCluster resources
+type GuestClusterList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []GuestCluster `json:"items"`
+}
+
+func NewGuestCluster(namespace, name string, obj GuestCluster) *GuestCluster {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("GuestCluster").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
