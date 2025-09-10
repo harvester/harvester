@@ -1275,14 +1275,23 @@ func (h *vmActionHandler) cloneVolumes(newVM *kubevirtv1.VirtualMachine) ([]core
 				}
 				volume.CloudInitNoCloud.NetworkDataSecretRef.Name = secretNameMap[volume.CloudInitNoCloud.NetworkDataSecretRef.Name]
 			}
+		} else if volume.Secret != nil {
+			cloneSecretVolume(&volume, secretNameMap)
 		} else if volume.ContainerDisk != nil {
 			continue
 		} else {
-			return nil, nil, fmt.Errorf("invalid volume %s, only support PersistentVolumeClaim, CloudInitNoCloud, and ContainerDisk", volume.Name)
+			return nil, nil, fmt.Errorf("invalid volume %s, only support PersistentVolumeClaim, CloudInitNoCloud, Secret, and ContainerDisk", volume.Name)
 		}
 		newVM.Spec.Template.Spec.Volumes[i] = volume
 	}
 	return newPVCs, secretNameMap, nil
+}
+
+func cloneSecretVolume(volume *kubevirtv1.Volume, secretNameMap map[string]string) {
+	if _, ok := secretNameMap[volume.Secret.SecretName]; !ok {
+		secretNameMap[volume.Secret.SecretName] = names.SimpleNameGenerator.GenerateName("clone-")
+	}
+	volume.Secret.SecretName = secretNameMap[volume.Secret.SecretName]
 }
 
 func (h *vmActionHandler) sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kubevirtv1.VirtualMachine, withData bool) (harvesterv1.VirtualMachineSourceSpec, error) {
