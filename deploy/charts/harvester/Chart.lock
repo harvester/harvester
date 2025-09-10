@@ -10,33 +10,33 @@ dependencies:
   version: 0.1.1
 - name: harvester-network-controller
   repository: https://charts.harvesterhci.io
-  version: 1.6.0
+  version: 1.5.2-rc1
 - name: harvester-networkfs-manager
   repository: https://charts.harvesterhci.io
-  version: 1.6.0
+  version: 1.5.2-rc1
 - name: harvester-node-disk-manager
   repository: https://charts.harvesterhci.io
-  version: 1.6.0
+  version: 1.5.2-rc1
 - name: csi-snapshotter
   repository: file://dependency_charts/csi-snapshotter
   version: 0.2.0
 - name: longhorn
   repository: https://charts.longhorn.io
-  version: 1.9.1
+  version: 1.8.2
 - name: kube-vip
   repository: https://kube-vip.github.io/helm-charts
-  version: 0.8.1
+  version: 0.6.1
 - name: harvester-load-balancer
   repository: https://charts.harvesterhci.io
-  version: 1.6.0
+  version: 1.5.2-rc1
 - name: whereabouts
   repository: file://dependency_charts/whereabouts
   version: 0.1.1
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
-  version: 1.6.0
+  version: 1.5.2-rc1
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
   version: 0.2.0
-digest: sha256:825e39acbb97117e9d886ee0b99880a54ca4a54d9253d2c1a99761cb9a54b623
-generated: "2025-09-07T09:44:55.761670888Z"
+digest: sha256:1ec5bdf27695e11da0fee2f2c9c999eddde74e72af8c18cacae2b522c09d3400
+generated: "2025-09-10T11:23:03.797015+08:00"
