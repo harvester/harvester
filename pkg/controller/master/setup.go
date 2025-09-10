@@ -9,6 +9,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/controller/master/addon"
 	"github.com/harvester/harvester/pkg/controller/master/backup"
+	"github.com/harvester/harvester/pkg/controller/master/guestcluster"
 	"github.com/harvester/harvester/pkg/controller/master/image"
 	"github.com/harvester/harvester/pkg/controller/master/keypair"
 	"github.com/harvester/harvester/pkg/controller/master/kubevirt"
@@ -67,6 +68,7 @@ var registerFuncs = []registerFunc{
 	resourcequota.Register,
 	vmimagedownloader.Register,
 	kubevirt.Register,
+	guestcluster.Register,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {
