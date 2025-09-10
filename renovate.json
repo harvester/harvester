@@ -28,10 +28,6 @@
             "matchManagers": [
                 "docker"
             ],
-            "matchPackageNames": [
-                "ghcr.io/k8snetworkplumbingwg/whereabouts",
-                "ghcr.io/kube-vip/kube-vip-iptables"
-            ],
             "enabled": false
         }
     ]
