@@ -233,7 +233,7 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 			Status:             corev1.ConditionFalse,
 			LastHeartbeatTime:  metav1.Now(),
 			LastTransitionTime: metav1.Now(),
-			Reason:             util.NodeConditionReasonFailed,
+			Reason:             util.NodeConditionReasonError,
 			Message:            err.Error(),
 		}
 		util.AddOrUpdateConditionToNode(nodeCopy, condition)
