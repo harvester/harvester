@@ -243,5 +243,5 @@ const (
 	NodeConditionReasonRunning       = "Running"
 	NodeConditionReasonCompleted     = "Completed"
 	NodeConditionReasonNotPossible   = "NotPossible"
-	NodeConditionReasonFailed        = "Failed"
+	NodeConditionReasonError         = "Error"
 )
