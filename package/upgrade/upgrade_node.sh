@@ -575,7 +575,10 @@ replace_with_mgmtvlan() {
   else
     echo "VLAN ID: $vlan_id remove bridge vlan"
     sed -i "s/accept all vlan, PVID=1 by default/PVID=1 by default/" $CUSTOM90_FILE
-    sed -i "/bridge vlan add vid/d" $CUSTOM90_FILE
+    # match contents of bridge vlan add vid 2-4094 using yaml/v3 format
+    sed -i '/^[[:space:]]*bridge vlan add vid 2-4094 dev \(\$INTERFACE\|mgmt-bo\)\( self\)\?[[:space:]]*$/d' $CUSTOM90_FILE
+    # match contents of bridge vlan add vid 2-4094 using yaml/v2 format (escape characters and command spanning multiple lines)
+    perl -0777 -i -pe 's/bridge vlan add vid 2-4094.*?(?:\\n|\\t)+//gs' $CUSTOM90_FILE
   fi
 }
 
