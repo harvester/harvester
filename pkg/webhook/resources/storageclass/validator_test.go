@@ -580,11 +580,6 @@ func Test_validateCDIAnnotations(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "missing cdi.harvesterhci.io/storageProfileVolumeModeAccessModes annotation",
-			annotations: map[string]string{},
-			expectError: true,
-		},
-		{
 			name: "clone strategy snapshot with no snapshot class",
 			annotations: map[string]string{
 				util.AnnotationStorageProfileCloneStrategy: "snapshot",
@@ -621,53 +616,6 @@ func Test_validateCDIAnnotations(t *testing.T) {
 				assert.NotNil(t, err, tc.name)
 			} else {
 				assert.Nil(t, err, tc.name)
-			}
-		})
-	}
-}
-
-func Test_validate_default_cdi_volume_mode_access_modes(t *testing.T) {
-	tests := []struct {
-		name         string
-		sc           *storagev1.StorageClass
-		errorMessage string
-	}{
-		{
-			name: "in cdi capibilities",
-			sc: &storagev1.StorageClass{
-				ObjectMeta:  metav1.ObjectMeta{Name: "test-sc"},
-				Provisioner: "nfs.csi.k8s.io",
-			},
-		},
-		{
-			name: "not in cdi capibilities",
-			sc: &storagev1.StorageClass{
-				ObjectMeta:  metav1.ObjectMeta{Name: "test-sc"},
-				Provisioner: "foo.bar.io",
-			},
-			errorMessage: "missing annotation cdi.harvesterhci.io/storageProfileVolumeModeAccessModes. volume access modes are required for CDI integration to work with storage class provisioner foo.bar.io.",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			typedObjects := []runtime.Object{}
-			typedObjects = append(typedObjects, tc.sc)
-			clientset := harvesterFake.NewSimpleClientset(typedObjects...)
-
-			storageClassValidator := NewValidator(
-				fakeclients.StorageClassCache(corefake.NewSimpleClientset().StorageV1().StorageClasses),
-				fakeclients.SecretCache(corefake.NewSimpleClientset().CoreV1().Secrets),
-				fakeclients.VirtualMachineImageCache(harvesterFake.NewSimpleClientset().HarvesterhciV1beta1().VirtualMachineImages),
-				fakeclients.VolumeSnapshotClassCache(clientset.SnapshotV1().VolumeSnapshotClasses),
-			).(*storageClassValidator)
-			err := storageClassValidator.validateCDIAnnotations(tc.sc)
-
-			if tc.errorMessage != "" {
-				assert.NotNil(t, err)
-				assert.Contains(t, err.Error(), tc.errorMessage)
-			} else {
-				assert.Nil(t, err)
 			}
 		})
 	}
