@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	cdicaps "kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
@@ -355,14 +354,8 @@ func (v *storageClassValidator) validateReservedStorageClass(sc *storagev1.Stora
 func (v *storageClassValidator) validateCDIAnnotations(newObj runtime.Object) error {
 	sc := newObj.(*storagev1.StorageClass)
 
+	// No need to do validation if it doesn't have any CDI annotations
 	if !hasCDIAnnotations(sc) {
-		// For other provisioners, we require the volume access modes annotation if it don't have default value in CDI capabilities.
-		if _, ok := cdicaps.CapabilitiesByProvisionerKey[sc.Provisioner]; !ok && sc.Provisioner != util.CSIProvisionerLonghorn && sc.Provisioner != util.CSIProvisionerLVM {
-			return werror.NewInvalidError(
-				fmt.Sprintf("missing annotation %s. volume access modes are required for CDI integration to work with storage class provisioner %s.",
-					util.AnnotationStorageProfileVolumeModeAccessModes, sc.Provisioner), "")
-		}
-		// No need to do validation if it doesn't have any CDI annotations
 		return nil
 	}
 
