@@ -237,3 +237,11 @@ const (
 	FSOverheadRegex                               = `^(0(?:\.\d{1,3})?|1)$`
 	PVCExpandErrorPrefix                          = "PVC_EXPAND"
 )
+
+const (
+	NodeConditionTypeMaintenanceMode = "MaintenanceMode"
+	NodeConditionReasonRunning       = "Running"
+	NodeConditionReasonCompleted     = "Completed"
+	NodeConditionReasonNotPossible   = "NotPossible"
+	NodeConditionReasonError         = "Error"
+)
