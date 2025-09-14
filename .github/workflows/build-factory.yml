@@ -207,8 +207,8 @@ jobs:
         docker pull --platform linux/amd64 rancher/harvester-upgrade:${{ inputs.image_tag }}-amd64
         docker pull --platform linux/arm64 rancher/harvester-upgrade:${{ inputs.image_tag }}-arm64
         docker buildx imagetools create -t rancher/harvester-upgrade:${{ inputs.image_tag }} \
-          rancher/harvester-upgrade:${{ inputs.image_tag }}-head-amd64 \
-          rancher/harvester-upgrade:${{ inputs.image_tag }}-head-arm64
+          rancher/harvester-upgrade:${{ inputs.image_tag }}-amd64 \
+          rancher/harvester-upgrade:${{ inputs.image_tag }}-arm64
 
   build-iso:
     name: Build ISO
