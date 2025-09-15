@@ -51,6 +51,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		node.NewValidator(
 			clients.Core.Node().Cache(),
 			clients.Batch.Job().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache()),
 		persistentvolumeclaim.NewValidator(
 			clients.Core.PersistentVolumeClaim().Cache(),
