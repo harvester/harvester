@@ -10,6 +10,9 @@ import (
 const (
 	VMByPVCIndex        = "harvesterhci.io/vm-by-pvc"
 	VMByHotplugPVCIndex = "harvesterhci.io/vm-by-hp-pvc"
+	VMByCPUPinningIndex = "harvesterhci.io/vm-by-cpu-pinning"
+
+	CPUPinningEnabled = "enabled"
 )
 
 func VMByPVC(obj *kubevirtv1.VirtualMachine) ([]string, error) {
@@ -42,6 +45,18 @@ func VMByHotplugPVC(obj *kubevirtv1.VirtualMachine) ([]string, error) {
 		if isVolumeHotplugged(volume) {
 			results = append(results, ref.Construct(obj.Namespace, volume.PersistentVolumeClaim.ClaimName))
 		}
+	}
+	return results, nil
+}
+
+func VMByCPUPinning(obj *kubevirtv1.VirtualMachine) ([]string, error) {
+	if obj == nil || obj.Spec.Template == nil {
+		return nil, nil
+	}
+
+	var results []string
+	if obj.Spec.Template.Spec.Domain.CPU != nil && obj.Spec.Template.Spec.Domain.CPU.DedicatedCPUPlacement {
+		return []string{CPUPinningEnabled}, nil
 	}
 	return results, nil
 }

@@ -15,6 +15,7 @@ import (
 	kubevirtv1api "kubevirt.io/api/core/v1"
 
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	indexerwebhook "github.com/harvester/harvester/pkg/webhook/indexeres"
 )
 
@@ -136,6 +137,17 @@ func (c VirtualMachineCache) GetByIndex(indexName, key string) (vms []*kubevirtv
 				if vmInterface.MacAddress != "" && vmInterface.MacAddress == key {
 					vms = append(vms, &vmList.Items[i])
 				}
+			}
+		}
+	case indexeresutil.VMByCPUPinningIndex:
+		vmList, err = c("").List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		for _, vm := range vmList.Items {
+			if vm.Spec.Template != nil && vm.Spec.Template.Spec.Domain.CPU != nil && vm.Spec.Template.Spec.Domain.CPU.DedicatedCPUPlacement {
+				vms = append(vms, &vm)
 			}
 		}
 
