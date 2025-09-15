@@ -90,7 +90,8 @@ For the second cluster, after the cluster is up, we need to run `systemctl enabl
 Additionally, you need to prepare two LUNs pointing to the same disk. If you're not sure about the setup, it should look like this in the `virt-install` command line:
 
 ```
-# Same serial numbers, and same physical disk
+# 1. Same serial numbers, and same physical disk
+# 2. Same serial numbers, same WWN, and same physical disk
 --disk path=/var/lib/libvirt/images/mydisk1.img,bus=scsi,cache=none,shareable=on,serial=disk1 \
 --disk path=/var/lib/libvirt/images/mydisk1.img,bus=scsi,cache=none,shareable=on,serial=disk1 \
 ```
