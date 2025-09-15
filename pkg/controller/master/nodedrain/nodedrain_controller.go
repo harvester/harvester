@@ -223,11 +223,19 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		}).Info("force stopping VM")
 	}
 
+	logrus.WithFields(logrus.Fields{
+		"node_name": node.Name,
+	}).Info("Starting to drain the node...")
+
 	nodeCopy := node.DeepCopy()
 
 	// run node drain
 	err = drainhelper.DrainNode(ndc.context, ndc.restConfig, nodeCopy)
 	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"node_name": node.Name,
+		}).Errorf("Failed to drain the node: %v", err)
+
 		condition := corev1.NodeCondition{
 			Type:               util.NodeConditionTypeMaintenanceMode,
 			Status:             corev1.ConditionFalse,
@@ -237,10 +245,12 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 			Message:            err.Error(),
 		}
 		util.AddOrUpdateConditionToNode(nodeCopy, condition)
+
 		nodeCopy, errUpdate := ndc.nodes.UpdateStatus(nodeCopy)
 		if errUpdate != nil {
 			return node, errors.Join(err, fmt.Errorf("failed to set condition %s: %w", condition.String(), errUpdate))
 		}
+
 		return nodeCopy, err
 	}
 
