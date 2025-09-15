@@ -69,9 +69,6 @@ const (
 	replicaReplenishmentAnnotation           = "harvesterhci.io/" + replicaReplenishmentWaitIntervalSetting
 	extendedReplicaReplenishmentWaitInterval = 1800
 
-	autoCleanupSystemGeneratedSnapshotSetting    = "auto-cleanup-system-generated-snapshot"
-	autoCleanupSystemGeneratedSnapshotAnnotation = "harvesterhci.io/" + autoCleanupSystemGeneratedSnapshotSetting
-
 	imageCleanupPlanCompletedAnnotation = "harvesterhci.io/image-cleanup-plan-completed"
 	skipVersionCheckAnnotation          = "harvesterhci.io/skip-version-check"
 	defaultImagePreloadConcurrency      = 1
@@ -355,22 +352,6 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				}
 			}
 
-			// Disable auto-cleanup-system-generated-snapshot to avoid
-			// https://github.com/harvester/harvester/issues/7679
-			// (skip if it's already disabled)
-			autoCleanupSystemGeneratedSnapshotValue, err := h.getAutoCleanupSystemGeneratedSnapshotValue()
-			if err != nil {
-				return nil, err
-			}
-			if autoCleanupSystemGeneratedSnapshotValue != "false" {
-				if err := h.saveAutoCleanupSystemGeneratedSnapshotToUpgradeAnnotation(toUpdate); err != nil {
-					return nil, err
-				}
-				if err := h.setAutoCleanupSystemGeneratedSnapshotValue("false"); err != nil {
-					return nil, err
-				}
-			}
-
 			// go with RKE2 pre-drain/post-drain hooks
 			logrus.Infof("Start upgrading Kubernetes runtime to %s", info.Release.Kubernetes)
 			if err := h.upgradeKubernetes(info.Release.Kubernetes); err != nil {
@@ -481,9 +462,6 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) e
 	// auto-cleanup-system-generated-snapshot settings (multi-node cluster only)
 	if upgrade.Status.SingleNode == "" {
 		if err := h.loadReplicaReplenishmentFromUpgradeAnnotation(upgrade); err != nil {
-			return err
-		}
-		if err := h.loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade); err != nil {
 			return err
 		}
 	}
@@ -765,50 +743,6 @@ func (h *upgradeHandler) setReplicaReplenishmentValue(value int) error {
 	toUpdate := replicaReplenishmentWaitInterval.DeepCopy()
 	toUpdate.Value = strconv.Itoa(value)
 	if !reflect.DeepEqual(toUpdate, replicaReplenishmentWaitInterval) {
-		if _, err := h.lhSettingClient.Update(toUpdate); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (h *upgradeHandler) getAutoCleanupSystemGeneratedSnapshotValue() (string, error) {
-	autoCleanupSystemGeneratedSnapshot, err := h.lhSettingCache.Get(util.LonghornSystemNamespaceName, autoCleanupSystemGeneratedSnapshotSetting)
-	if err != nil {
-		return "", err
-	}
-	return autoCleanupSystemGeneratedSnapshot.Value, nil
-}
-
-func (h *upgradeHandler) saveAutoCleanupSystemGeneratedSnapshotToUpgradeAnnotation(upgrade *harvesterv1.Upgrade) error {
-	autoCleanupSystemGeneratedSnapshotValue, err := h.getAutoCleanupSystemGeneratedSnapshotValue()
-	if err != nil {
-		return err
-	}
-	if upgrade.Annotations == nil {
-		upgrade.Annotations = make(map[string]string)
-	}
-	upgrade.Annotations[autoCleanupSystemGeneratedSnapshotAnnotation] = autoCleanupSystemGeneratedSnapshotValue
-	return nil
-}
-
-func (h *upgradeHandler) loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade) error {
-	value, ok := upgrade.Annotations[autoCleanupSystemGeneratedSnapshotAnnotation]
-	if !ok {
-		logrus.Warnf("no original %s value set", autoCleanupSystemGeneratedSnapshotSetting)
-		return nil
-	}
-	return h.setAutoCleanupSystemGeneratedSnapshotValue(value)
-}
-
-func (h *upgradeHandler) setAutoCleanupSystemGeneratedSnapshotValue(value string) error {
-	autoCleanupSystemGeneratedSnapshot, err := h.lhSettingCache.Get(util.LonghornSystemNamespaceName, autoCleanupSystemGeneratedSnapshotSetting)
-	if err != nil {
-		return err
-	}
-	toUpdate := autoCleanupSystemGeneratedSnapshot.DeepCopy()
-	toUpdate.Value = value
-	if !reflect.DeepEqual(toUpdate, autoCleanupSystemGeneratedSnapshot) {
 		if _, err := h.lhSettingClient.Update(toUpdate); err != nil {
 			return err
 		}
