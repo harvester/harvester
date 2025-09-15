@@ -242,6 +242,5 @@ const (
 	NodeConditionTypeMaintenanceMode = "MaintenanceMode"
 	NodeConditionReasonRunning       = "Running"
 	NodeConditionReasonCompleted     = "Completed"
-	NodeConditionReasonNotPossible   = "NotPossible"
 	NodeConditionReasonError         = "Error"
 )
