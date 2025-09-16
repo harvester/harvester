@@ -13,9 +13,8 @@ https://github.com/harvester/harvester/issues/3015
 
 ### Goals
 
-- Support selecting a common CPU model and inputing features while creating a VM.
-- Support configuring cluster-wide CPU model in Harvester settings.
-- Support migration between two different host and cpu models.
+- Support per-VM ang global CPU model/features selections.
+- Support force migration between two different host and cpu models.
 - Propagate the scheduling error on GUI.
 
 ### Non-goals
@@ -36,6 +35,8 @@ Here's how they interact:
 - Scenario 1: Person requiring a specific color  
     A person requires an object with a specific color (e.g., Red).  
     You can give the person any shape that is red (e.g., a Red Square, a Red Circle, or a Red-Blue Circle).
+    However, red color might be only provided with a specific shape. It also means that a feature might be only provided with a specific CPU model.
+
 
 - Scenario 2: Person requiring a specific shape  
   A person requires an object with a specific shape (e.g., Circle).  
@@ -124,7 +125,12 @@ Last, if you accept any risks of force migrating between nodes, you can check th
 
 #### Frontend
 
-Frontend needs to create a new tab in the VM creation page and provide a dropdown selection menu for models and an input box for features. This selection is also available in the VM template page. Then, calculate the common CPU models across all nodes. 
+We'll have two ways to configure this.
+
+- Per-VM CPU model/features while creating the VM
+- Global VM CPU model/features in settings
+
+Frontend needs to create a new tab in the VM creation page and provide a dropdown selection menu for models and an input box for features. This selection is also available in the VM template page and global settings. Then, calculate the common CPU models across all nodes. 
 
 - If users select the common one, we'll show the option with green mark.
 
@@ -178,7 +184,7 @@ Action Items:
 - [ ] Create a new tab in the VM creation page.
 - [ ] Create a new tab in the VM template page.
 - [ ] Provide a dropdown selection menu for models and an input box for features.
-- [ ] Provide a force migration checkbox while selecting the host-model option.
+- [ ] Provide a force migration checkbox while selecting the host-model option. (We will confirm whether kubevirt supports.)
 - [ ] Calculate the common CPU models across all nodes.
 - [ ] Propagate the scheduling error on GUI.
 
