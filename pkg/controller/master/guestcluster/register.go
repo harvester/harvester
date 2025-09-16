@@ -12,16 +12,22 @@ const (
 
 func Register(ctx context.Context, management *config.Management, _ config.Options) error {
 	var (
-		vmClient     = management.VirtFactory.Kubevirt().V1().VirtualMachine()
-		vmCache      = vmClient.Cache()
+		vmClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
+		vmCache  = vmClient.Cache()
+
+		guestClusterClient = management.HarvesterFactory.Harvesterhci().V1beta1().GuestCluster()
+		guestClusterCache  = guestClusterClient.Cache()
+
 		settingCache = management.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
 	)
 
 	// registers the vm controller
 	var vmCtrl = &VMController{
-		vmClient:     vmClient,
-		vmCache:      vmCache,
-		vmController: vmClient,
+		vmClient:           vmClient,
+		vmCache:            vmCache,
+		vmController:       vmClient,
+		guestClusterClient: guestClusterClient,
+		guestClusterCache:  guestClusterCache,
 
 		settingCache: settingCache,
 	}
