@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
@@ -19,16 +20,17 @@ import (
 )
 
 const (
-	maintainNodeControllerName  = "maintain-node-controller"
-	MaintainStatusAnnotationKey = "harvesterhci.io/maintain-status"
-	MaintainStatusComplete      = "completed"
-	MaintainStatusRunning       = "running"
+	maintainNodeControllerName        = "maintain-node-controller"
+	MaintainStatusAnnotationKey       = "harvesterhci.io/maintain-status"
+	MaintainStatusComplete            = "completed"
+	MaintainStatusRunning             = "running"
+	maintainErrorRetentionTimeSeconds = 60
 )
 
 // maintainNodeHandler updates maintenance status of a node in its annotations, so that we can tell whether the node is
 // entering maintenance mode(migrating VMs on it) or in maintenance mode(VMs migrated).
 type maintainNodeHandler struct {
-	nodes                       ctlcorev1.NodeClient
+	nodes                       ctlcorev1.NodeController
 	nodeCache                   ctlcorev1.NodeCache
 	virtualMachineClient        v1.VirtualMachineClient
 	virtualMachineCache         v1.VirtualMachineCache
@@ -61,9 +63,22 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 	}
 
 	if maintenanceStatus, ok := node.Annotations[MaintainStatusAnnotationKey]; !ok || maintenanceStatus != MaintainStatusRunning {
+		// Make sure the maintenance mode status condition is cleaned up when
+		// there is no "harvesterhci.io/maintain-status" annotation.
 		if !ok {
-			// Make sure the maintenance mode status condition is cleaned up
-			// when there is no "harvesterhci.io/maintain-status" annotation.
+			// If it is an error status condition, delay the cleanup so that
+			// there is some time to display the error on the `Hosts` page
+			// (Wrangler collects such status conditions and the UI displays
+			// them).
+			condition := util.GetConditionFromNode(node, util.NodeConditionTypeMaintenanceMode)
+			if condition != nil && condition.Reason == util.NodeConditionReasonError {
+				retentionTime := time.Duration(maintainErrorRetentionTimeSeconds) * time.Second
+				if time.Since(condition.LastHeartbeatTime.Time) <= retentionTime {
+					h.nodes.EnqueueAfter(node.Name, 5*time.Second)
+					return node, nil
+				}
+			}
+
 			nodeCopy := node.DeepCopy()
 			util.RemoveConditionFromNode(nodeCopy, util.NodeConditionTypeMaintenanceMode)
 			if !reflect.DeepEqual(node.Status.Conditions, nodeCopy.Status.Conditions) {

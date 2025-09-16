@@ -41,3 +41,12 @@ func RemoveConditionFromNode(node *corev1.Node, condType corev1.NodeConditionTyp
 	}
 	node.Status.Conditions = newConditions
 }
+
+func GetConditionFromNode(node *corev1.Node, condType corev1.NodeConditionType) *corev1.NodeCondition {
+	for _, c := range node.Status.Conditions {
+		if c.Type == condType {
+			return &c
+		}
+	}
+	return nil
+}

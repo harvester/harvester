@@ -79,3 +79,31 @@ func Test_RemoveConditionFromNode(t *testing.T) {
 	RemoveConditionFromNode(node, NodeConditionTypeMaintenanceMode)
 	assert.Len(t, node.Status.Conditions, 1)
 }
+
+func Test_GetConditionFromNode_1(t *testing.T) {
+	node := &corev1.Node{
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{
+					Type:               NodeConditionTypeMaintenanceMode,
+					Status:             corev1.ConditionTrue,
+					LastHeartbeatTime:  metav1.Now(),
+					LastTransitionTime: metav1.Now(),
+					Reason:             NodeConditionReasonCompleted,
+					Message:            "Draining the node is completed",
+				},
+			},
+		},
+	}
+	condition := GetConditionFromNode(node, NodeConditionTypeMaintenanceMode)
+	assert.NotNil(t, condition)
+	assert.Equal(t, condition.Type, NodeConditionTypeMaintenanceMode)
+}
+
+func Test_GetConditionFromNode_2(t *testing.T) {
+	node := &corev1.Node{
+		Status: corev1.NodeStatus{},
+	}
+	condition := GetConditionFromNode(node, NodeConditionTypeMaintenanceMode)
+	assert.Nil(t, condition)
+}
