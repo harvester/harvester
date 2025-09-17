@@ -97,25 +97,23 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		if errors.Is(err, drainhelper.ErrNodeDrainNotPossible) {
 			logrus.WithFields(logrus.Fields{
 				"node_name": node.Name,
-			}).Warnf("Draining is not possible: %v", err)
+			}).Errorf("Enabling maintenance mode is impossible: %v", err)
 
-			nodeCopy := node.DeepCopy()
-
-			// Cleanup annotations to avoid recurring approaches to drain the node.
-			delete(nodeCopy.Annotations, ctlnode.MaintainStatusAnnotationKey)
-			delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
-			delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
-
-			_, errUpdate := ndc.nodes.Update(nodeCopy)
+			_, errUpdate := ndc.cleanupMaintenanceModeAnnotations(node)
 			if errUpdate != nil {
-				return node, errors.Join(err, fmt.Errorf("failed to update node to clean up annotations: %w", errUpdate))
+				return node, errors.Join(err, errUpdate)
 			}
 
-			// Do not reconcile again.
+			// Abort ultimately; do not reconcile again.
 			return nil, err
 		}
 
 		return node, err
+	}
+
+	nonMigratableVMs, err := ndc.FindNonMigratableVMS(node)
+	if err != nil {
+		return node, fmt.Errorf("error getting non-migratable VMs: %w", err)
 	}
 
 	// List of VMs that need to be forcibly shutdown before maintenance
@@ -124,6 +122,30 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 
 	if !forced {
 		var maintainModeStrategyVMs []string
+
+		// Make sure there are no VMs that are non-migratable. Abort the
+		// approach to place a node into maintenance mode if there are
+		// such VMs.
+		if len(nonMigratableVMs) > 0 {
+			reasons := make([]string, 0, len(nonMigratableVMs))
+			for condition, vms := range nonMigratableVMs {
+				reasons = append(reasons, fmt.Sprintf("%s cannot be migrated due to %s", strings.Join(vms, ","), condition))
+			}
+
+			msg := fmt.Sprintf("non-migratable VMs found: %s. Use the %q annotation to bypass this situation", strings.Join(reasons, "; "), drainhelper.ForcedDrain)
+
+			logrus.WithFields(logrus.Fields{
+				"node_name": node.Name,
+			}).Errorf("Enabling maintenance mode is impossible: %s", msg)
+
+			_, err := ndc.cleanupMaintenanceModeAnnotations(node)
+			if err != nil {
+				return node, err
+			}
+
+			// Abort ultimately; do not reconcile again.
+			return nil, fmt.Errorf("enabling maintenance mode is impossible: %s", msg)
+		}
 
 		// Get the list of VMs that are labeled to forcibly shut down
 		// before maintenance mode.
@@ -186,10 +208,7 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 	// Shutdown ALL VMs on that node forcibly? This is activated by a
 	// checkbox in the maintenance mode dialog in the UI.
 	if forced {
-		shutdownVMs, err = ndc.FindNonMigratableVMS(node)
-		if err != nil {
-			return node, fmt.Errorf("error listing VMIs in scope for shutdown: %w", err)
-		}
+		shutdownVMs = nonMigratableVMs
 	}
 
 	for _, v := range getUniqueVMSfromConditionMap(shutdownVMs) {
@@ -545,4 +564,16 @@ func (ndc *ControllerHandler) listVMILabelMaintainModeStrategy(node *corev1.Node
 	}
 	return virtualmachineinstance.ListByNode(node, labels.NewSelector().Add(*req),
 		ndc.virtualMachineInstanceCache)
+}
+
+func (ndc *ControllerHandler) cleanupMaintenanceModeAnnotations(node *corev1.Node) (*corev1.Node, error) {
+	nodeCopy := node.DeepCopy()
+	delete(nodeCopy.Annotations, ctlnode.MaintainStatusAnnotationKey)
+	delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
+	delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
+	nodeUpdate, err := ndc.nodes.Update(nodeCopy)
+	if err != nil {
+		return node, fmt.Errorf("failed to clean up maintenance mode annotations: %w", err)
+	}
+	return nodeUpdate, nil
 }
