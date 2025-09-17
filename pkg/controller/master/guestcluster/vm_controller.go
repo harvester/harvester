@@ -4,7 +4,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -34,29 +34,64 @@ const (
 	creatorKey        = "docker-machine-driver-harvester"
 )
 
+func getGuestClusterVMInfo(vm *kubevirtv1.VirtualMachine) (string, bool) {
+	gc := vm.Labels[guestClusterLabel]
+	creator := vm.Labels[creatorLabel]
+	if creator == creatorKey && gc != "" {
+		return gc, true
+	}
+	return "", false
+}
+
 func (h *VMController) OnChange(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 	if vm == nil || vm.DeletionTimestamp != nil {
 		return nil, nil
 	}
 
-	gc := vm.Labels[guestClusterLabel]
-	creator := vm.Labels[creatorLabel]
-	if creator == creatorKey && gc != "" {
-		logrus.Infof("detect guest cluster: %s/%s", creator, gc)
-		return vm, h.CreateOrUpdateGuestCluster(vm, gc)
+	gcName, ok := getGuestClusterVMInfo(vm)
+	if !ok {
+		return vm, nil
 	}
 
-	return vm, nil
+	// find guest vm
+	logrus.Infof("detect guest cluster: %s/%s", creatorKey, gcName)
+	return vm, h.CreateOrUpdateGuestCluster(vm, gcName)
 }
 
 func (h *VMController) OnDelete(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
-	if vm == nil || vm.DeletionTimestamp != nil {
+	if vm == nil {
 		return nil, nil
 	}
 
 	// to do: remove the potential recorded vm info
+	gcName, ok := getGuestClusterVMInfo(vm)
+	if !ok {
+		return vm, nil
+	}
 
-	return nil, nil
+	gc, err := h.guestClusterCache.Get(util.HarvesterSystemNamespaceName, gcName)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		// vm is onDelete, but related guestCluster is not found, skip
+		return vm, nil
+	}
+
+	// update
+	_, ok = gc.Spec.Machines[vm.UID]
+	if !ok {
+		return vm, nil
+	}
+
+	// update guest cluster to remove this onDelete VM
+	gcCopy := gc.DeepCopy()
+	delete(gcCopy.Spec.Machines, vm.UID)
+	if _, err := h.guestClusterClient.Update(gcCopy); err != nil {
+		return nil, err
+	}
+
+	return vm, nil
 }
 
 func (h *VMController) CreateOrUpdateGuestCluster(vm *kubevirtv1.VirtualMachine, gcName string) error {
@@ -99,6 +134,10 @@ func (h *VMController) createGuestCluster(vm *kubevirtv1.VirtualMachine, gcName 
 		UID:          vm.UID,
 	}
 	gc := &harvesterv1.GuestCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gcName,
+			Namespace: util.HarvesterSystemNamespaceName,
+		},
 		Spec: harvesterv1.GuestClusterSpec{
 			Machines: map[types.UID]harvesterv1.ResourceInfo{
 				obj.UID: obj,
