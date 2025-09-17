@@ -12,6 +12,7 @@ import (
 	v1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/client-go/rest"
 
+	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io"
 	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
@@ -39,6 +40,7 @@ type Clients struct {
 	CoreFactory              *ctrlcorev1.Factory
 	HarvesterNetworkFactory  *ctlnetwork.Factory
 	LoggingFactory           *ctlloggingv1.Factory
+	CdiFactory               *ctlcdiv1.Factory
 }
 
 func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, error) {
@@ -151,6 +153,14 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		return nil, err
 	}
 
+	cdiFactory, err := ctlcdiv1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
+	if err != nil {
+		return nil, err
+	}
+	if err = cdiFactory.Start(ctx, threadiness); err != nil {
+		return nil, err
+	}
+
 	return &Clients{
 		Clients:                  *clients,
 		HarvesterFactory:         harvesterFactory,
@@ -166,5 +176,6 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		CoreFactory:              coreFactory,
 		HarvesterNetworkFactory:  harvesterNetworkFactory,
 		LoggingFactory:           loggingFactory,
+		CdiFactory:               cdiFactory,
 	}, nil
 }

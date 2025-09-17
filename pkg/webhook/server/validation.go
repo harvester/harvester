@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
@@ -46,6 +47,11 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		return nil, nil, err
 	}
 
+	client, err := client.New(clients.RESTConfig, client.Options{})
+	if err != nil {
+		return nil, nil, err
+	}
+
 	resources := []types.Resource{}
 	validators := []types.Validator{
 		node.NewValidator(
@@ -79,7 +85,9 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.K8s.AuthorizationV1().SelfSubjectAccessReviews(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion().Cache(),
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
-			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
+			clients.CdiFactory.Cdi().V1beta1().StorageProfile().Cache(),
+			client),
 		upgrade.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
 			clients.Core.Node().Cache(),
