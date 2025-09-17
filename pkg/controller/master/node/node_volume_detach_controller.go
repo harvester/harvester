@@ -92,13 +92,7 @@ func (c *nodeVolumeDetachController) OnNodeChanged(_ string, node *corev1.Node) 
 			if err != nil {
 				return node, err
 			}
-			logrus.Debugf("pvc: %s/%s, wait: %t", pvc.Namespace, pvc.Name, wait)
-			if !wait {
-				logrus.Infof("detach the volume %s of pvc %s/%s on node %s", volume.Name, pvc.Namespace, pvc.Name, node.Name)
-				if err := c.detachVolumeFromNode(pvc, node); err != nil {
-					return node, err
-				}
-			} else {
+			if wait {
 				waitVolumeNames = append(waitVolumeNames, volume.Name)
 			}
 		}
@@ -200,24 +194,6 @@ func (c *nodeVolumeDetachController) checkDetachVolume(pvc *corev1.PersistentVol
 	}
 
 	return false, nil
-}
-
-// detachVolume detaches a volume from a node
-func (c *nodeVolumeDetachController) detachVolumeFromNode(pvc *corev1.PersistentVolumeClaim, node *corev1.Node) error {
-	volume, err := c.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
-	if err != nil {
-		return fmt.Errorf("can't find volume %s/%s, err: %w", util.LonghornSystemNamespaceName, pvc.Spec.VolumeName, err)
-	}
-
-	// skip if volume is not attached to the node
-	if volume.Spec.NodeID == "" || volume.Spec.NodeID != node.Name {
-		return nil
-	}
-
-	toUpdate := volume.DeepCopy()
-	toUpdate.Spec.NodeID = ""
-	_, err = c.volumes.Update(toUpdate)
-	return err
 }
 
 // isNodeInDraining checks whether a node is in draining
