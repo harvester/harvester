@@ -32,6 +32,7 @@ func init() {
 
 type Interface interface {
 	Addon() AddonController
+	GuestCluster() GuestClusterController
 	KeyPair() KeyPairController
 	Preference() PreferenceController
 	ResourceQuota() ResourceQuotaController
@@ -61,6 +62,10 @@ type version struct {
 
 func (v *version) Addon() AddonController {
 	return generic.NewController[*v1beta1.Addon, *v1beta1.AddonList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Addon"}, "addons", true, v.controllerFactory)
+}
+
+func (v *version) GuestCluster() GuestClusterController {
+	return generic.NewController[*v1beta1.GuestCluster, *v1beta1.GuestClusterList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "GuestCluster"}, "guestclusters", true, v.controllerFactory)
 }
 
 func (v *version) KeyPair() KeyPairController {
