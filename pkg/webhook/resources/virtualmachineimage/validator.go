@@ -1,11 +1,13 @@
 package virtualmachineimage
 
 import (
+	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -24,12 +26,14 @@ func NewValidator(
 	ssar authorizationv1client.SelfSubjectAccessReviewInterface,
 	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache,
 	scCache ctlstoragev1.StorageClassCache,
-	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache) types.Validator {
+	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
+	spCache ctlcdiv1.StorageProfileCache,
+	client client.Client) types.Validator {
 
 	vmiv := common.GetVMIValidator(vmiCache, scCache, ssar, podCache, pvcCache, vmTemplateVersionCache, vmBackupCache)
 	validators := map[v1beta1.VMIBackend]backend.Validator{
 		v1beta1.VMIBackendBackingImage: backingimage.GetValidator(vmiv),
-		v1beta1.VMIBackendCDI:          cdi.GetValidator(vmiv),
+		v1beta1.VMIBackendCDI:          cdi.GetValidator(vmiv, scCache, spCache, client),
 	}
 
 	return &virtualMachineImageValidator{
