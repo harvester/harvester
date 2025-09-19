@@ -99,17 +99,19 @@ func (cv *Validator) checkVolumeModeAccessModes(vmImg *harvesterv1.VirtualMachin
 		return werror.NewInvalidError(fmt.Sprintf("failed to get storage profile %q: %v", vmImg.Spec.TargetStorageClassName, err), "spec.targetStorageClassName")
 	}
 
-	if len(sp.Spec.ClaimPropertySets) == 0 {
-		sc, err := cv.scCache.Get(vmImg.Spec.TargetStorageClassName)
-		if err != nil {
-			return werror.NewInvalidError(fmt.Sprintf("failed to get storage class %q: %v", vmImg.Spec.TargetStorageClassName, err), "spec.targetStorageClassName")
-		}
-		if _, found := cdicaps.GetCapabilities(cv.client, sc); !found {
-			return werror.NewInvalidError(
-				fmt.Sprintf("no default volume mode or access mode, please specify %s annotation in storage class %q",
-					util.AnnotationStorageProfileVolumeModeAccessModes, vmImg.Spec.TargetStorageClassName),
-				"spec.targetStorageClassName")
-		}
+	if len(sp.Spec.ClaimPropertySets) != 0 {
+		return nil
+	}
+
+	sc, err := cv.scCache.Get(vmImg.Spec.TargetStorageClassName)
+	if err != nil {
+		return werror.NewInvalidError(fmt.Sprintf("failed to get storage class %q: %v", vmImg.Spec.TargetStorageClassName, err), "spec.targetStorageClassName")
+	}
+	if _, found := cdicaps.GetCapabilities(cv.client, sc); !found {
+		return werror.NewInvalidError(
+			fmt.Sprintf("no default volume mode or access mode, please specify %s annotation in storage class %q",
+				util.AnnotationStorageProfileVolumeModeAccessModes, vmImg.Spec.TargetStorageClassName),
+			"spec.targetStorageClassName")
 	}
 
 	return nil
