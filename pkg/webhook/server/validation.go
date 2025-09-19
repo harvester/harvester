@@ -71,6 +71,9 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
 			clients.CNIFactory.K8s().V1().NetworkAttachmentDefinition().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().KubeVirt().Cache(),
+			clients.LonghornFactory.Longhorn().V1beta2().Engine().Cache(),
+			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
 		virtualmachineimage.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
