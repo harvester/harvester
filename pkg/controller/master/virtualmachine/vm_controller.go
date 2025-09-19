@@ -151,7 +151,7 @@ func (h *VMController) createPVCsFromAnnotation(_ string, vm *kubevirtv1.Virtual
 		}
 
 		if strings.Contains(err.Error(), util.PVCExpandErrorPrefix) {
-			logrus.Warnf("PVC expand error: %v", err)
+			logrus.Warnf("in VM controller, PVC expand error: %v", err)
 			continue
 		}
 
