@@ -240,6 +240,16 @@ func (v *VMBuilder) RunStrategy(runStrategy kubevirtv1.VirtualMachineRunStrategy
 	return v
 }
 
+func (v *VMBuilder) DedicatedCPUPlacement(pinned bool) *VMBuilder {
+	v.VirtualMachine.Spec.Template.Spec.Domain.CPU.DedicatedCPUPlacement = pinned
+	return v
+}
+
+func (v *VMBuilder) IsolateEmulatorThread(isolated bool) *VMBuilder {
+	v.VirtualMachine.Spec.Template.Spec.Domain.CPU.IsolateEmulatorThread = isolated
+	return v
+}
+
 func (v *VMBuilder) VM() (*kubevirtv1.VirtualMachine, error) {
 	if v.VirtualMachine.Spec.Template.ObjectMeta.Annotations == nil {
 		v.VirtualMachine.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
