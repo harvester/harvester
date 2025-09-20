@@ -50,6 +50,10 @@ func (h *Handler) updateCertificates(sslCertificate *settings.SSLCertificate) er
 		return err
 	}
 
+	if err := h.redeployDaemonset(util.KubeSystemNamespace, util.Rke2IngressNginxControllerName); err != nil {
+		return err
+	}
+
 	return h.redeployDeployment(util.CattleSystemNamespaceName, rancherDeploymentName)
 }
 
