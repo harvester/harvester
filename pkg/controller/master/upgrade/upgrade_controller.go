@@ -53,7 +53,6 @@ const (
 	harvesterLatestUpgradeLabel    = "harvesterhci.io/latestUpgrade"
 	harvesterUpgradeComponentLabel = "harvesterhci.io/upgradeComponent"
 	harvesterNodeLabel             = "harvesterhci.io/node"
-	upgradeImageRepository         = "rancher/harvester-upgrade"
 
 	harvesterNodePendingOSImage = "harvesterhci.io/pendingOSImage"
 

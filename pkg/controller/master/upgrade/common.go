@@ -14,6 +14,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -235,7 +236,7 @@ func prepareCleanupPlan(upgrade *harvesterv1.Upgrade, imageList []string) *upgra
 				},
 			},
 			Upgrade: &upgradev1.ContainerSpec{
-				Image: fmt.Sprintf("%s:%s", upgradeImageRepository, imageVersion),
+				Image: upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
 				Command: []string{
 					"sh", "-c", imageCleanupScript,
 				},
@@ -314,7 +315,7 @@ func preparePlan(upgrade *harvesterv1.Upgrade, concurrency int) *upgradev1.Plan 
 				},
 			},
 			Upgrade: &upgradev1.ContainerSpec{
-				Image:   fmt.Sprintf("%s:%s", upgradeImageRepository, imageVersion),
+				Image:   upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
 				Command: []string{"do_upgrade_node.sh"},
 				Args:    []string{"prepare"},
 				Env: []corev1.EnvVar{
@@ -366,7 +367,7 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo, nod
 					Containers: []corev1.Container{
 						{
 							Name:    "apply",
-							Image:   fmt.Sprintf("%s:%s", upgradeImageRepository, imageVersion),
+							Image:   upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
 							Command: []string{"do_upgrade_node.sh"},
 							Args:    []string{jobType},
 							Env: []corev1.EnvVar{
@@ -464,7 +465,7 @@ func applyRestoreVMJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo
 					Containers: []corev1.Container{
 						{
 							Name:    "apply",
-							Image:   fmt.Sprintf("%s:%s", upgradeImageRepository, imageVersion),
+							Image:   upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
 							Command: []string{"upgrade-helper"},
 							Args: []string{
 								"restore-vm",
@@ -525,7 +526,7 @@ func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo
 					Containers: []corev1.Container{
 						{
 							Name:    "apply",
-							Image:   fmt.Sprintf("%s:%s", upgradeImageRepository, imageVersion),
+							Image:   upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
 							Command: []string{"upgrade_manifests.sh"},
 							Env: []corev1.EnvVar{
 								{
