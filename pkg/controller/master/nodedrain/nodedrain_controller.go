@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/rest"
@@ -97,18 +98,30 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		if errors.Is(err, drainhelper.ErrNodeDrainNotPossible) {
 			logrus.WithFields(logrus.Fields{
 				"node_name": node.Name,
-			}).Warnf("Draining is not possible: %v", err)
+			}).Errorf("Draining is not possible: %v", err)
 
 			nodeCopy := node.DeepCopy()
 
-			// Cleanup annotations to avoid recurring approaches to drain the node.
 			delete(nodeCopy.Annotations, ctlnode.MaintainStatusAnnotationKey)
 			delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
 			delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
-
-			_, errUpdate := ndc.nodes.Update(nodeCopy)
+			nodeCopy, errUpdate := ndc.nodes.Update(nodeCopy)
 			if errUpdate != nil {
 				return node, errors.Join(err, fmt.Errorf("failed to update node to clean up annotations: %w", errUpdate))
+			}
+
+			condition := corev1.NodeCondition{
+				Type:               util.NodeConditionTypeMaintenanceMode,
+				Status:             corev1.ConditionFalse,
+				LastHeartbeatTime:  metav1.Now(),
+				LastTransitionTime: metav1.Now(),
+				Reason:             util.NodeConditionReasonError,
+				Message:            err.Error(),
+			}
+			util.AddOrUpdateConditionToNode(nodeCopy, condition)
+			_, errUpdate = ndc.nodes.UpdateStatus(nodeCopy)
+			if errUpdate != nil {
+				return node, errors.Join(err, fmt.Errorf("failed to set condition %s: %w", condition.String(), errUpdate))
 			}
 
 			// Do not reconcile again.
@@ -210,19 +223,56 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		}).Info("force stopping VM")
 	}
 
+	logrus.WithFields(logrus.Fields{
+		"node_name": node.Name,
+	}).Info("Starting to drain the node...")
+
 	nodeCopy := node.DeepCopy()
 
 	// run node drain
 	err = drainhelper.DrainNode(ndc.context, ndc.restConfig, nodeCopy)
 	if err != nil {
-		return node, err
+		logrus.WithFields(logrus.Fields{
+			"node_name": node.Name,
+		}).Errorf("Failed to drain the node: %v", err)
+
+		condition := corev1.NodeCondition{
+			Type:               util.NodeConditionTypeMaintenanceMode,
+			Status:             corev1.ConditionFalse,
+			LastHeartbeatTime:  metav1.Now(),
+			LastTransitionTime: metav1.Now(),
+			Reason:             util.NodeConditionReasonError,
+			Message:            err.Error(),
+		}
+		util.AddOrUpdateConditionToNode(nodeCopy, condition)
+
+		nodeCopy, errUpdate := ndc.nodes.UpdateStatus(nodeCopy)
+		if errUpdate != nil {
+			return node, errors.Join(err, fmt.Errorf("failed to set condition %s: %w", condition.String(), errUpdate))
+		}
+
+		return nodeCopy, err
 	}
 
 	nodeCopy.Annotations[ctlnode.MaintainStatusAnnotationKey] = ctlnode.MaintainStatusRunning
 	delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
 	delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
 
-	return ndc.nodes.Update(nodeCopy)
+	nodeCopy, err = ndc.nodes.Update(nodeCopy)
+	if err != nil {
+		return node, err
+	}
+
+	util.AddOrUpdateConditionToNode(nodeCopy, corev1.NodeCondition{
+		Type:               util.NodeConditionTypeMaintenanceMode,
+		Status:             corev1.ConditionTrue,
+		LastHeartbeatTime:  metav1.Now(),
+		LastTransitionTime: metav1.Now(),
+		Reason:             util.NodeConditionReasonRunning,
+		Message:            "Draining the node is running",
+	})
+
+	return ndc.nodes.UpdateStatus(nodeCopy)
 }
 
 // findAndStopVM is a wrapper function to identify the owner VM for a VMI, and patch the run strategy

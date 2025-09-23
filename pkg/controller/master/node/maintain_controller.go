@@ -3,10 +3,13 @@ package node
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"time"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -17,16 +20,17 @@ import (
 )
 
 const (
-	maintainNodeControllerName  = "maintain-node-controller"
-	MaintainStatusAnnotationKey = "harvesterhci.io/maintain-status"
-	MaintainStatusComplete      = "completed"
-	MaintainStatusRunning       = "running"
+	maintainNodeControllerName        = "maintain-node-controller"
+	MaintainStatusAnnotationKey       = "harvesterhci.io/maintain-status"
+	MaintainStatusComplete            = "completed"
+	MaintainStatusRunning             = "running"
+	maintainErrorRetentionTimeSeconds = 60
 )
 
 // maintainNodeHandler updates maintenance status of a node in its annotations, so that we can tell whether the node is
 // entering maintenance mode(migrating VMs on it) or in maintenance mode(VMs migrated).
 type maintainNodeHandler struct {
-	nodes                       ctlcorev1.NodeClient
+	nodes                       ctlcorev1.NodeController
 	nodeCache                   ctlcorev1.NodeCache
 	virtualMachineClient        v1.VirtualMachineClient
 	virtualMachineCache         v1.VirtualMachineCache
@@ -57,7 +61,33 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 	if node == nil || node.DeletionTimestamp != nil {
 		return node, nil
 	}
+
 	if maintenanceStatus, ok := node.Annotations[MaintainStatusAnnotationKey]; !ok || maintenanceStatus != MaintainStatusRunning {
+		// Make sure the maintenance mode status condition is cleaned up when
+		// there is no "harvesterhci.io/maintain-status" annotation.
+		if !ok {
+			// If it is an error status condition, delay the cleanup so that
+			// there is some time to display the error on the `Hosts` page
+			// (Wrangler collects such status conditions and the UI displays
+			// them).
+			condition := util.GetConditionFromNode(node, util.NodeConditionTypeMaintenanceMode)
+			if condition != nil && condition.Reason == util.NodeConditionReasonError {
+				retentionTime := time.Duration(maintainErrorRetentionTimeSeconds) * time.Second
+				if time.Since(condition.LastHeartbeatTime.Time) <= retentionTime {
+					h.nodes.EnqueueAfter(node.Name, 5*time.Second)
+					return node, nil
+				}
+			}
+
+			nodeCopy := node.DeepCopy()
+			util.RemoveConditionFromNode(nodeCopy, util.NodeConditionTypeMaintenanceMode)
+			if !reflect.DeepEqual(node.Status.Conditions, nodeCopy.Status.Conditions) {
+				if _, err := h.nodes.UpdateStatus(nodeCopy); err != nil {
+					return node, fmt.Errorf("failed to clean up %q condition: %w", util.NodeConditionTypeMaintenanceMode, err)
+				}
+				return nodeCopy, nil
+			}
+		}
 		return node, nil
 	}
 
@@ -109,9 +139,24 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 		}
 	}
 
-	toUpdate := node.DeepCopy()
-	toUpdate.Annotations[MaintainStatusAnnotationKey] = MaintainStatusComplete
-	return h.nodes.Update(toUpdate)
+	nodeCopy := node.DeepCopy()
+
+	nodeCopy.Annotations[MaintainStatusAnnotationKey] = MaintainStatusComplete
+	nodeCopy, err = h.nodes.Update(nodeCopy)
+	if err != nil {
+		return node, err
+	}
+
+	util.AddOrUpdateConditionToNode(nodeCopy, corev1.NodeCondition{
+		Type:               util.NodeConditionTypeMaintenanceMode,
+		Status:             corev1.ConditionTrue,
+		LastHeartbeatTime:  metav1.Now(),
+		LastTransitionTime: metav1.Now(),
+		Reason:             util.NodeConditionReasonCompleted,
+		Message:            "Draining the node is completed",
+	})
+
+	return h.nodes.UpdateStatus(nodeCopy)
 }
 
 // OnNodeRemoved Ensure that all "harvesterhci.io/maintain-mode-strategy-node-name"
