@@ -3454,6 +3454,13 @@ func schema_pkg_apis_harvesterhciio_v1beta1_UpgradeSpec(ref common.ReferenceCall
 							Format:  "",
 						},
 					},
+					"upgradeImage": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Specifies the image to be used for upgrade operations. Please note that this field is intended for development and testing purposes only.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},

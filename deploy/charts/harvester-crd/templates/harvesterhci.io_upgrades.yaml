@@ -42,6 +42,11 @@ spec:
               logEnabled:
                 default: true
                 type: boolean
+              upgradeImage:
+                description: |-
+                  Specifies the image to be used for upgrade operations.
+                  Please note that this field is intended for development and testing purposes only.
+                type: string
               version:
                 type: string
             type: object

@@ -1,8 +1,11 @@
 package v1beta1
 
 import (
+	"fmt"
+
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 )
 
 var (
@@ -43,6 +46,11 @@ type UpgradeSpec struct {
 	// +optional
 	// +kubebuilder:default:=true
 	LogEnabled bool `json:"logEnabled" default:"true"`
+
+	// Specifies the image to be used for upgrade operations.
+	// Please note that this field is intended for development and testing purposes only.
+	// +optional
+	UpgradeImage *string `json:"upgradeImage,omitempty"`
 }
 
 type UpgradeStatus struct {
@@ -66,4 +74,11 @@ type NodeUpgradeStatus struct {
 	State   string `json:"state,omitempty"`
 	Reason  string `json:"reason,omitempty"`
 	Message string `json:"message,omitempty"`
+}
+
+// GetUpgradeImage returns the upgrade image as a Docker image reference, e.g. `rancher/harvester-upgrade:latest`.
+// If the `spec.upgradeImage` field is not provided, it constructs the image reference using the provided repository and tag.
+func (u *Upgrade) GetUpgradeImage(repository, tag string) string {
+	defaultValue := fmt.Sprintf("%s:%s", repository, tag)
+	return ptr.Deref(u.Spec.UpgradeImage, defaultValue)
 }
