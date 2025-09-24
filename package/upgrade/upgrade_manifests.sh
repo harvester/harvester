@@ -1114,13 +1114,8 @@ upgrade_addon_rancher_monitoring()
   echo "upgrade addon rancher-monitoring"
 
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
-  # in v1.5.0, patch version is OK
-  upgrade_addon_try_patch_version_only "rancher-monitoring" "cattle-monitoring-system" $REPO_MONITORING_CHART_VERSION
-
-  # patch configmap and replace grafana pod if necessary
-  if [ "$REPO_MONITORING_CHART_VERSION" = "105.1.2+up61.3.2" ]; then
-    patch_grafana_nginx_proxy_config_configmap
-  fi
+  # in v1.7.0 it has a few patches
+  upgrade_addon_rancher_monitoring_with_patches $REPO_MONITORING_CHART_VERSION
 }
 
 # NOTE: review in each release, add corresponding process
@@ -1130,24 +1125,6 @@ upgrade_addon_rancher_logging()
   # .spec.valuesContent has dynamic fields, cannot merge simply, review in each release
   # the eventrouter image tag is aligned with Harvester tag, e.g. v1.5.1-rc3, v1.6.0
   upgrade_addon_rancher_logging_with_patch_eventrouter_image $REPO_LOGGING_CHART_VERSION $REPO_LOGGING_CHART_HARVESTER_EVENTROUTER_VERSION
-}
-
-# NOTE: review in each release, add corresponding process, runs before rancher-logging is bumped
-upgrade_harvester_upgradelog_loggingref() {
-  echo "upgrade harvester upgradelog loggingref"
-  # in v1.5.0, new rancher-logging is bumped, loggingref is required
-  if [ "${REPO_LOGGING_CHART_VERSION}" = "105.2.0+up4.10.0" ]; then
-    upgrade_harvester_upgradelog_with_patch_loggingref "${REPO_LOGGING_CHART_VERSION}"
-  fi
-}
-
-# adapt upgradeLog to new logging stack requirements, runs after rancher-logging is bumped
-upgrade_harvester_upgradelog_logging_fluentd_fluentbit() {
-  echo "upgrade harvester upgradelog logging fluend fluentbit"
-  # in v1.5.0, new rancher-logging is bumped, fluentbitagent and others are required
-  if [ "${REPO_LOGGING_CHART_VERSION}" = "105.2.0+up4.10.0" ]; then
-    upgrade_harvester_upgradelog_with_patch_logging_fluentd_fluentbit "${REPO_LOGGING_CHART_VERSION}"
-  fi
 }
 
 upgrade_addons()
@@ -1161,11 +1138,8 @@ upgrade_addons()
   # the rancher-monitoring and rancher-logging addon have flexible user-configurable fields
   # from v1.2.0, they are upgraded per following
   upgrade_addon_rancher_monitoring
-  # the upgradelog may be affected by the new rancher-logging
-  upgrade_harvester_upgradelog_loggingref
+
   upgrade_addon_rancher_logging
-  # after rancher-logging is upgraded, upgrade upgradelog if necessary
-  upgrade_harvester_upgradelog_logging_fluentd_fluentbit
 
   upgrade_nvidia_driver_toolkit_addon
 
