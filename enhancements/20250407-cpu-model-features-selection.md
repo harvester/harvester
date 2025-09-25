@@ -14,12 +14,12 @@ https://github.com/harvester/harvester/issues/3015
 ### Goals
 
 - Support per-VM ang global CPU model/features selections.
-- Support force migration between two different host and cpu models.
 - Propagate the scheduling error on GUI.
 
 ### Non-goals
 
 - Change the underlying KubeVirt CPU model or migration logic.
+- Force migration. It should be done [by upstream](https://github.com/kubevirt/kubevirt/issues/15623).
 
 ## Introduction
 
@@ -68,11 +68,6 @@ Due to multiple nodes, we can't show a big matrix for all the CPU models and fea
 
 I have multiple nodes that have a common CPU model called `Nehalem`. For some reason, I'll need to migrate my VMs to other nodes without manually shutting down. To ensure compatibility, I create my VMs with `Nehalem` as the CPU model.
 
-#### Story 2
-
-I have multiple nodes that have different CPU models. I would like to migrate my VM between the nodes. So, I configure a Harvester special defined annotation to force migration.
-
-
 ### User Experience In Detail
 
 In general, there are two ways to migrate VMs between nodes.
@@ -83,7 +78,6 @@ In general, there are two ways to migrate VMs between nodes.
 Before users use the feature, we need to ensure they know what the difference is between these two ways.
 
 - If they know later joined nodes still have common CPU models, they can select a common CPU model for further migration.
-- If they're not sure whether later joined nodes have very different CPU models or not, they can use the annotation to force migrate.
 
 In either case, we need to add a ["learn more for migration"](https://docs.harvesterhci.io/v1.5/vm/live-migration/#how-migration-works) link when users try to customize the CPU model and feature.
 
@@ -95,31 +89,18 @@ No.
 
 The CPU models are like this:
 
-- Node-1 cpuModel: Nehalem, Penryn
-- Node-2 cpuModel: Nehalem, Westmere
-- Node-3 cpuModel: Nehalem, SandyBridge
-- Node-4 cpuModel: Nehalem, Westmere
+- Node-1 cpuModel: IvyBridge, Penryn
+- Node-2 cpuModel: IvyBridge, Westmere
+- Node-3 cpuModel: IvyBridge, SandyBridge
+- Node-4 cpuModel: IvyBridge, Westmere
 
-We'll only show the common one.
+We'll only show the common one. These are just examples. The real one will match our Harvester GUI style.
 
 ![](20250407-cpu-model-features-selection/01-custom-model.png)
 
-Besides custom model, we should also provide [`host-passthrough`](https://kubevirt.io/user-guide/compute/virtual_hardware/#cpu-model-special-cases).
-
-![](20250407-cpu-model-features-selection/03-different-model.png)
+![](20250407-cpu-model-features-selection/02-custom-model.png)
 
 
-We also support inputting features.
-
-![](20250407-cpu-model-features-selection/02-feature-01.png)
-
-![](20250407-cpu-model-features-selection/02-feature-02.png)
-
-Last, if you accept any risks of force migrating between nodes, you can check the checkbox.
-
-![](20250407-cpu-model-features-selection/04-force-migration.png)
-
-> These are just examples. The real one will match our Harvester GUI style.
 
 ### Implementation Overview
 
@@ -184,7 +165,6 @@ Action Items:
 - [ ] Create a new tab in the VM creation page.
 - [ ] Create a new tab in the VM template page.
 - [ ] Provide a dropdown selection menu for models and an input box for features.
-- [ ] Provide a force migration checkbox while selecting the host-model option. (We will confirm whether kubevirt supports.)
 - [ ] Calculate the common CPU models across all nodes.
 - [ ] Propagate the scheduling error on GUI.
 
@@ -192,13 +172,8 @@ Action Items:
 
 Backend should reject the unreasonable request from frontend. When users try to migrate a VM, the `findMigratableNodes` action should return available nodes that matched the selected CPU model and features to avoid scheduling failure.
 
-About force migration, we'll introduce a new annotation called `harvesterhci.io/forceMigration`. When a POD is created, the `*.kubevirt.io` in `spec.nodeSelector` will be removed if the POD contains the annotation. In this way, we can ignore those `*.kubevirt.io` nodeSelectors and force migrate the VM between different CPU models ([Example Commit](https://github.com/Yu-Jack/harvester/commit/7d6e9f6a8ae58a532ead1bec26547e161e55b1dc)).
-
-That being said, it's not an official way provided by the underlying system. Hence, we'll warn users if they really know what they're doing. Otherwise, we suggest that selecting the common CPU model would be an appropriate way.
-
 Action Items:
 
-- [ ] Support force migration by mutating POD when POD is created with the `harvesterhci.io/forceMigration` annotation.
 - [ ] Validate if the selected CPU model and features exist in nodes or not.
 - [ ] Filter the nodes based on the selected CPU model and features when calling `findMigratableNodesByVMI`.
 - [ ] Write documentation on different usage of the policy field in the VM spec.
@@ -213,10 +188,6 @@ Action Items:
   - Case 2C: With `disable` policy
 
 After selecting the CPU model and inputting features, try to migrate the VM to another node.
-
-- Case 3: Select host model and check the "force migration" checkbox
-
-Prepare two nodes with different CPU models and migrate the VM between them for Case 3.
 
 ### Upgrade strategy
 
