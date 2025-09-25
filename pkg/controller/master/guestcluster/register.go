@@ -1,0 +1,50 @@
+package guestcluster
+
+import (
+	"context"
+
+	"github.com/harvester/harvester/pkg/config"
+)
+
+const (
+	guestClusterVMController = "GuestClusterVMController"
+	guestClusterController   = "GuestClusterVMController"
+)
+
+func Register(ctx context.Context, management *config.Management, _ config.Options) error {
+	var (
+		vmClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
+		vmCache  = vmClient.Cache()
+
+		guestClusterClient = management.HarvesterFactory.Harvesterhci().V1beta1().GuestCluster()
+		guestClusterCache  = guestClusterClient.Cache()
+
+		settingCache = management.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
+	)
+
+	// registers the vm controller
+	var vmCtrl = &VMController{
+		vmClient:           vmClient,
+		vmCache:            vmCache,
+		vmController:       vmClient,
+		guestClusterClient: guestClusterClient,
+		guestClusterCache:  guestClusterCache,
+
+		settingCache: settingCache,
+	}
+	var virtualMachineClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
+	virtualMachineClient.OnChange(ctx, guestClusterVMController, vmCtrl.OnChange)
+	virtualMachineClient.OnRemove(ctx, guestClusterVMController, vmCtrl.OnDelete)
+
+	// registers the guest cluster controller
+	var gcCtrl = &GuestClusterController{
+		guestClusterClient: guestClusterClient,
+		guestClusterCache:  guestClusterCache,
+
+		settingCache: settingCache,
+	}
+	var gcClient = management.HarvesterFactory.Harvesterhci().V1beta1().GuestCluster()
+	gcClient.OnChange(ctx, guestClusterController, gcCtrl.OnChange)
+
+	return nil
+}

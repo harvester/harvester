@@ -29,6 +29,7 @@ import (
 
 var (
 	AddonResourceName                         = "addons"
+	GuestClusterResourceName                  = "guestclusters"
 	KeyPairResourceName                       = "keypairs"
 	PreferenceResourceName                    = "preferences"
 	ResourceQuotaResourceName                 = "resourcequotas"
@@ -69,6 +70,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Addon{},
 		&AddonList{},
+		&GuestCluster{},
+		&GuestClusterList{},
 		&KeyPair{},
 		&KeyPairList{},
 		&Preference{},
