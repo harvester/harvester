@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdicaps "kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
@@ -51,12 +52,14 @@ func NewValidator(
 	storageClassCache ctlstoragev1.StorageClassCache,
 	secretCache ctlcorev1.SecretCache,
 	vmimagesCache ctlharvesterv1.VirtualMachineImageCache,
-	volumeSnapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache) types.Validator {
+	volumeSnapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache,
+	client client.Client) types.Validator {
 	return &storageClassValidator{
 		storageClassCache:        storageClassCache,
 		secretCache:              secretCache,
 		vmimagesCache:            vmimagesCache,
 		volumeSnapshotClassCache: volumeSnapshotClassCache,
+		client:                   client,
 	}
 }
 
@@ -66,6 +69,7 @@ type storageClassValidator struct {
 	secretCache              ctlcorev1.SecretCache
 	vmimagesCache            ctlharvesterv1.VirtualMachineImageCache
 	volumeSnapshotClassCache ctlsnapshotv1.VolumeSnapshotClassCache
+	client                   client.Client
 }
 
 func (v *storageClassValidator) Resource() types.Resource {
@@ -357,7 +361,7 @@ func (v *storageClassValidator) validateCDIAnnotations(newObj runtime.Object) er
 
 	if !hasCDIAnnotations(sc) {
 		// For other provisioners, we require the volume access modes annotation if it don't have default value in CDI capabilities.
-		if _, ok := cdicaps.CapabilitiesByProvisionerKey[sc.Provisioner]; !ok && sc.Provisioner != util.CSIProvisionerLonghorn && sc.Provisioner != util.CSIProvisionerLVM {
+		if _, found := cdicaps.GetCapabilities(v.client, sc); !found {
 			return werror.NewInvalidError(
 				fmt.Sprintf("missing annotation %s. volume access modes are required for CDI integration to work with storage class provisioner %s.",
 					util.AnnotationStorageProfileVolumeModeAccessModes, sc.Provisioner), "")
