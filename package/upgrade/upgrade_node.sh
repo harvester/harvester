@@ -594,11 +594,26 @@ EOF
 
   elemental_upgrade_log="${UPGRADE_TMP_DIR#"$HOST_DIR"}/elemental-upgrade-$(date +%Y%m%d%H%M%S).log"
   local ret=0
+  # elemental-toolkit built for SL Micro 6.1 needs a newer glibc than
+  # is available on SLE Micro 5.5 hosts.  We can work around this by
+  # bind mounting /lib64 from this newer container into the host
+  # environment, but we only want to do this if we know there's a
+  # problem (if the host is already running SL Micro 6.1, then bind
+  # mounting /lib64 from a SLE 15 SP7 container will actually break
+  # things).
+  local glibc_too_old=$(chroot $HOST_DIR /tmp/elemental version 2>&1 | grep 'GLIBC.*not found')
+  if [ -n "$glibc_too_old" ]; then
+    echo "GLIBC on host is too old for new elemental build; bind mounting /lib64 to fix"
+    mount -o bind /lib64 $HOST_DIR/lib64
+  fi
   chroot $HOST_DIR /tmp/elemental upgrade \
     --logfile "$elemental_upgrade_log" \
     --directory ${tmp_rootfs_mount#"$HOST_DIR"} \
     --config-dir ${tmp_elemental_config_dir#"$HOST_DIR"} \
     --debug || ret=$?
+  if [ -n "$glibc_too_old" ]; then
+    umount $HOST_DIR/lib64
+  fi
   if [ "$ret" != 0 ]; then
     echo "elemental upgrade failed with return code: $ret"
     cat "$HOST_DIR$elemental_upgrade_log"
