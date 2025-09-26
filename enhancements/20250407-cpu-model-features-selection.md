@@ -11,6 +11,8 @@ https://github.com/harvester/harvester/issues/3015
 
 ## Motivation
 
+Primarily, this HEP addresses the limitation of the current default host-model CPU model used by Harvester, where it blocks migrations that are technically legit and possible.
+
 ### Goals
 
 - Support per-VM ang global CPU model/features selections.
@@ -70,16 +72,7 @@ I have multiple nodes that have a common CPU model called `Nehalem`. For some re
 
 ### User Experience In Detail
 
-In general, there are two ways to migrate VMs between nodes.
-
-- Use a common CPU model
-- Use a Harvester special defined annotation
-
-Before users use the feature, we need to ensure they know what the difference is between these two ways.
-
-- If they know later joined nodes still have common CPU models, they can select a common CPU model for further migration.
-
-In either case, we need to add a ["learn more for migration"](https://docs.harvesterhci.io/v1.5/vm/live-migration/#how-migration-works) link when users try to customize the CPU model and feature.
+If the cluster consists of mainly homogeneous nodes (including new nodes), users can define an universal common CPU model to ensure compatible migrations among the nodes.
 
 ### API changes
 
