@@ -1,0 +1,175 @@
+---
+# PVC for storing ISO and extracted contents
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: iso-repo-pvc
+  namespace: harvester-system
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: harvester-longhorn
+  volumeMode: Filesystem
+  storageClassName: longhorn-static
+  resources:
+    requests:
+      storage: 20Gi
+---
+# Nginx Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iso-repo-server
+  namespace: harvester-system
+  labels:
+    app: iso-repo-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: iso-repo-server
+  template:
+    metadata:
+      labels:
+        app: iso-repo-server
+    spec:
+      initContainers:
+      - name: iso-downloader
+        image: brandboat/harvester-upgrade:HARV-8077-fix-2-head
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          set -e
+
+          WORK_DIR="/iso"
+          LOCK_FILE="leader.lock"
+          READY_FLAG="harvester.iso.ready"
+          ISO_URL="https://harvester.harvester-system.svc.cluster.local:8443/v1/harvester/harvesterhci.io.virtualmachineimages/default/image-485m9?link=download"
+
+          if mkdir "$WORK_DIR"/"$LOCK_FILE" 2>/dev/null; then
+            trap "rmdir $WORK_DIR/$LOCK_FILE; rm -vf $WORK_DIR/$READY_FLAG; exit 1" EXIT
+
+            echo "$POD_NAME is the leader, start preparing the ISO image..."
+
+            echo "Extracting TLS certificates from cattle-system/tls-rancher-internal..."
+            kubectl get secret tls-rancher-internal -n cattle-system -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/tls.crt
+
+            # TODO cert?
+            curl -kL -o harvester.iso.gz --cacert /tmp/tls.crt $ISO_URL
+
+            echo "Download completed, extracting harvester.iso..."
+            gzip -dc harvester.iso.gz > "$WORK_DIR"/harvester.iso
+
+            echo "harvester.iso is ready"
+            touch "$WORK_DIR"/"$READY_FLAG"
+
+            trap - EXIT
+          else
+            echo "$POD_NAME is a follower, waiting for harvester.iso downloaded..."
+
+            if [ -f "$WORK_DIR"/"$READY_FLAG" ]; then
+              echo "harvester.iso already exists"
+            else
+              until [ -f "$WORK_DIR"/"$READY_FLAG" ]; do
+                echo "harvester.iso is not ready yet, waiting..."
+                sleep 10
+              done
+              echo "harvester.iso is ready"
+            fi
+          fi
+        volumeMounts:
+        - name: iso
+          mountPath: /iso
+      containers:
+      - command:
+        - sh
+        - -c
+        - |
+          # Mount ISO content directly to /srv/www/htdocs for nginx to serve
+          mount -o loop,ro /iso/harvester.iso /srv/www/htdocs
+          echo "harvester.iso mounted successfully to /srv/www/htdocs"
+          trap "umount -v /srv/www/htdocs; exit 0" EXIT
+          while true; do sleep 30; done
+        image: brandboat/harvester-upgrade:HARV-8077-fix-2-head
+        imagePullPolicy: IfNotPresent
+        name: iso-mounter
+        resources: {}
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /iso
+          name: iso
+        - mountPath: /srv/www/htdocs
+          mountPropagation: Bidirectional
+          name: share-mount
+      - command:
+        - sh
+        - -c
+        - |
+          echo "Starting Nginx..."
+          nginx -g "daemon off;"
+        image: brandboat/harvester-upgrade:HARV-8077-fix-2-head
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - |
+              cat /srv/www/htdocs/harvester-release.yaml 2>&1 /dev/null
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: repo
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 1
+          httpGet:
+            path: /harvester-release.yaml
+            port: 80
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources: {}
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /srv/www/htdocs
+          mountPropagation: Bidirectional
+          name: share-mount
+      dnsPolicy: ClusterFirst   
+      serviceAccount: harvester   
+      volumes:
+      - name: iso
+        persistentVolumeClaim:
+          claimName: iso-repo-pvc
+      - emptyDir: {}
+        name: share-mount
+---
+# Service to expose nginx
+apiVersion: v1
+kind: Service
+metadata:
+  name: iso-repo-service
+  namespace: harvester-system
+  labels:
+    app: iso-repo-server
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: iso-repo-server
