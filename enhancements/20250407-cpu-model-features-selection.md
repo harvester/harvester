@@ -15,7 +15,7 @@ Primarily, this HEP addresses the limitation of the current default host-model C
 
 ### Goals
 
-- Support per-VM ang global CPU model/features selections.
+- Support per-VM and global CPU model/features selections.
 - Propagate the scheduling error on GUI.
 
 ### Non-goals
@@ -25,44 +25,48 @@ Primarily, this HEP addresses the limitation of the current default host-model C
 
 ## Introduction
 
-Before this enhancement, we need to understand how the CPU model and features work in KubeVirt. To make the CPU model and migration logic even easier to grasp, let's use a visual analogy with colored shapes:
+Before this enhancement, we need to understand how the CPU model and features work in KubeVirt.
 
-Imagine you have colored shapes representing CPU configurations:
+In general, we can use `lscpu` to check CPU model and features in the node.
 
-- Shapes: Represent CPU models (e.g., Circle, Square, Triangle).
-- Colors: Represent CPU features (e.g., Red, Blue, Green).
+```
+Architecture:                x86_64
+  CPU op-mode(s):            32-bit, 64-bit
+  Address sizes:             46 bits physical, 48 bits virtual
+Vendor ID:                   GenuineIntel
+  Model name:                12th Gen Intel(R) Core(TM) i9-12950HX
+    Flags:                   fpu vme de pse tsc msr pae ....
+```
 
-Here's how they interact:
+KubeVirt has a labeler to label the node with above information. Hence, you'll see below information on the node resource.
 
-- Scenario 1: Person requiring a specific color  
-    A person requires an object with a specific color (e.g., Red).  
-    You can give the person any shape that is red (e.g., a Red Square, a Red Circle, or a Red-Blue Circle).
-    However, red color might be only provided with a specific shape. It also means that a feature might be only provided with a specific CPU model.
+```yaml
+kind: Node
+metadata:
+  name: my-node-1
+  labels:
+    host-model-cpu.node.kubevirt.io/SierraForest: "true"
+    cpu-model.node.kubevirt.io/IvyBridge: "true"
+    cpu-model.node.kubevirt.io/SandyBridge: "true"
+    cpu-model-migration.node.kubevirt.io/IvyBridge: "true"
+    cpu-model-migration.node.kubevirt.io/SandyBridge: "true"
+    cpu-feature.node.kubevirt.io/fpu: "true"
+    cpu-feature.node.kubevirt.io/vme: "true"
+```
 
+Harvester uses `host-model` as default CPU model. The migration process will be like:
 
-- Scenario 2: Person requiring a specific shape  
-  A person requires an object with a specific shape (e.g., Circle).  
-  You can give the person any circle, regardless of its color (e.g., a Red Circle, a Blue Circle, or a Red-Blue Circle).
+- Start a migration.
+- Fill out the nodeSelector in the new POD with
+  - A CPU model in `cpu-model-migration.node.kubevirt.io/SierraForest`
+  - Some features in `cpu-feature.node.kubevirt.io/xxx`.
+- Start the new POD.
 
-- Scenario 3: Person requiring a specific color and shape  
-  A person requires an object with a specific color and shape (e.g., Red Circle).  
-  You must give the person an object that matches the color and shape (e.g., a Red Circle or a Red-Blue Circle).
-
-- Scenario 4: Person requiring a moving to a new location  
-  A person requires an object with a specific color and shape (e.g., Red Circle) and is moving to a new location.  
-  The new location must provide an object that matches the color and shape (e.g., a Red Circle or a Red-Blue Circle).
-
-A node can provide objects with different shapes and colors. For example, a Node might provide a "Red Square", a "Blue Circle", and a "Red-Blue Circle". 
-
-A VM is like a person who requires different objects. 
-
-Migration is like moving a person with colored shape requirements to a new location that can fulfill those requirements. The destination must provide objects that meet the person's color and shape needs.
-
-You can treat shapes as `cpu-model.node.kubevirt.io/{cpu model}` and colors as `cpu-feature.node.kubevirt.io/{cpu feature}`. For more details, please check the Node section of this enhancement.
+That being said, if the CPU Model is from a different generation, the migration might fail with default `host-model`. However, different CPU generations could still have some common CPU models. For example, let's use `IvyBridge` as a common cpu model in different CPU generations. That means if we use `IvyBridge` as the CPU model in the `virtualmachine` spec, this VM can be migrated to another node even though the nodes' CPU generations are different.
 
 ## Proposal
 
-Due to multiple nodes, we can't show a big matrix for all the CPU models and features. Instead, we'll provide a dropdown selection menu with colored mark.
+Due to multiple nodes, we can't show a big matrix for all the CPU models and features. Instead, we'll provide a new UI that allows users to select or input the CPU model and features.
 
 ### User Stories
 
@@ -72,7 +76,7 @@ I have multiple nodes that have a common CPU model called `Nehalem`. For some re
 
 ### User Experience In Detail
 
-If the cluster consists of mainly homogeneous nodes (including new nodes), users can define an universal common CPU model to ensure compatible migrations among the nodes.
+If the cluster consists of mainly homogeneous nodes (including new nodes), users can define a universal common CPU model to ensure compatible migrations among the nodes.
 
 ### API changes
 
@@ -106,13 +110,13 @@ We'll have two ways to configure this.
 
 Frontend needs to create a new tab in the VM creation page and provide a dropdown selection menu for models and an input box for features. This selection is also available in the VM template page and global settings. Then, calculate the common CPU models across all nodes. 
 
-- If users select the common one, we'll show the option with green mark.
+- If users select the common one, we'll show the option with a green mark.
 
 The data of CPU models are from node's labels:
 
-- The model is from `cpu-feature.node.kubevirt.io/{model}` of node's labels. 
+- The model is from `cpu-feature.node.kubevirt.io/{model}` of the node's labels. 
 
-This is node's labels example:
+This is a node's labels example:
 
 ```yaml
 kind: Node
@@ -147,10 +151,10 @@ spec:
 - `cpu.model` is optional. If omitted, the default value is `host-model`.
 - `cpu.features` is optional.
   - If `cpu.features` is provided, each item in the array must include a `cpu.features[].name` field. 
-  - `cpu.features[].policy` is optional. if omitted, the default value is `require`.  
+  - `cpu.features[].policy` is optional. If omitted, the default value is `require`.  
     Valid values are: `force`, `require`, `optional`, `disable`, `forbid`.
 
-Since VM spec in `virtualmachinetemplateversion` is same, please use same logic to fill the model and features.
+Since VM spec in `virtualmachinetemplateversion` is the same, please use the same logic to fill the model and features.
 
 
 Action Items:
@@ -163,7 +167,7 @@ Action Items:
 
 #### Backend
 
-Backend should reject the unreasonable request from frontend. When users try to migrate a VM, the `findMigratableNodes` action should return available nodes that matched the selected CPU model and features to avoid scheduling failure.
+Backend should reject unreasonable requests from the frontend. When users try to migrate a VM, the `findMigratableNodes` action should return available nodes that match the selected CPU model and features to avoid scheduling failure.
 
 Action Items:
 
