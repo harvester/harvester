@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
@@ -46,6 +47,11 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		return nil, nil, err
 	}
 
+	client, err := client.New(clients.RESTConfig, client.Options{})
+	if err != nil {
+		return nil, nil, err
+	}
+
 	resources := []types.Resource{}
 	validators := []types.Validator{
 		node.NewValidator(
@@ -71,6 +77,9 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
 			clients.CNIFactory.K8s().V1().NetworkAttachmentDefinition().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().KubeVirt().Cache(),
+			clients.LonghornFactory.Longhorn().V1beta2().Engine().Cache(),
+			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
 		virtualmachineimage.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
@@ -154,6 +163,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.Core.Secret().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.SnapshotFactory.Snapshot().V1().VolumeSnapshotClass().Cache(),
+			client,
 		),
 		namespace.NewValidator(clients.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()),
 		addon.NewValidator(

@@ -3,14 +3,12 @@ package virtualmachine
 import (
 	"testing"
 
+	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	corefake "k8s.io/client-go/kubernetes/fake"
-
-	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -653,7 +651,7 @@ func Test_virtualMachineValidator_duplicateMacAddress(t *testing.T) {
 	fakeVMCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
 	fakeNadCache := fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions)
 
-	validator := NewValidator(nil, nil, nil, nil, nil, nil, fakeVMCache, nil, fakeNadCache, nil).(*vmValidator)
+	validator := NewValidator(nil, nil, nil, nil, nil, nil, fakeVMCache, nil, fakeNadCache, nil, nil, nil, nil).(*vmValidator)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -827,7 +825,7 @@ func TestVmValidator_Update(t *testing.T) {
 	}})
 	assert.NoError(t, err)
 	fakeNSCache := fakeclients.NamespaceCache(corefakeclientset.CoreV1().Namespaces)
-	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
+	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -8716,6 +8716,9 @@
             "type": "boolean",
             "default": false
           },
+          "upgradeImage": {
+            "type": "string"
+          },
           "version": {
             "type": "string",
             "default": ""

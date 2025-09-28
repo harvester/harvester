@@ -53,7 +53,6 @@ const (
 	harvesterLatestUpgradeLabel    = "harvesterhci.io/latestUpgrade"
 	harvesterUpgradeComponentLabel = "harvesterhci.io/upgradeComponent"
 	harvesterNodeLabel             = "harvesterhci.io/node"
-	upgradeImageRepository         = "rancher/harvester-upgrade"
 
 	harvesterNodePendingOSImage = "harvesterhci.io/pendingOSImage"
 
@@ -150,10 +149,15 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			toUpdate.Status.UpgradeLog = upgradeLog.Name
 		}
 		harvesterv1.LogReady.CreateUnknownIfNotExists(toUpdate)
+		harvesterv1.LogReady.LastUpdated(toUpdate, time.Now().UTC().Format(time.RFC3339))
 		return h.upgradeClient.Update(toUpdate)
 	}
 
-	if (harvesterv1.LogReady.IsTrue(upgrade) || harvesterv1.LogReady.IsFalse(upgrade)) && harvesterv1.ImageReady.GetStatus(upgrade) == "" {
+	if upgrade.Spec.LogEnabled && harvesterv1.LogReady.IsUnknown(upgrade) {
+		return h.checkLogReadyCondition(upgrade)
+	}
+
+	if harvesterv1.UpgradeCompleted.IsUnknown(upgrade) && harvesterv1.ImageReady.GetStatus(upgrade) == "" {
 		logrus.Info("Creating upgrade repo image")
 		toUpdate := upgrade.DeepCopy()
 
@@ -356,22 +360,6 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				}
 			}
 
-			// Disable auto-cleanup-system-generated-snapshot to avoid
-			// https://github.com/harvester/harvester/issues/7679
-			// (skip if it's already disabled)
-			autoCleanupSystemGeneratedSnapshotValue, err := h.getAutoCleanupSystemGeneratedSnapshotValue()
-			if err != nil {
-				return nil, err
-			}
-			if autoCleanupSystemGeneratedSnapshotValue != "false" {
-				if err := h.saveAutoCleanupSystemGeneratedSnapshotToUpgradeAnnotation(toUpdate); err != nil {
-					return nil, err
-				}
-				if err := h.setAutoCleanupSystemGeneratedSnapshotValue("false"); err != nil {
-					return nil, err
-				}
-			}
-
 			// go with RKE2 pre-drain/post-drain hooks
 			logrus.Infof("Start upgrading Kubernetes runtime to %s", info.Release.Kubernetes)
 			if err := h.upgradeKubernetes(info.Release.Kubernetes); err != nil {
@@ -489,9 +477,6 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 		if !exists {
 			toUpdate := upgrade.DeepCopy()
 			if err := h.loadReplicaReplenishmentFromUpgradeAnnotation(upgrade); err != nil {
-				return nil, err
-			}
-			if err := h.loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade); err != nil {
 				return nil, err
 			}
 			toUpdate.Annotations[longhornSettingsRestoredAnnotation] = strconv.FormatBool(true)
@@ -783,50 +768,6 @@ func (h *upgradeHandler) setReplicaReplenishmentValue(value int) error {
 	return nil
 }
 
-func (h *upgradeHandler) getAutoCleanupSystemGeneratedSnapshotValue() (string, error) {
-	autoCleanupSystemGeneratedSnapshot, err := h.lhSettingCache.Get(util.LonghornSystemNamespaceName, autoCleanupSystemGeneratedSnapshotSetting)
-	if err != nil {
-		return "", err
-	}
-	return autoCleanupSystemGeneratedSnapshot.Value, nil
-}
-
-func (h *upgradeHandler) saveAutoCleanupSystemGeneratedSnapshotToUpgradeAnnotation(upgrade *harvesterv1.Upgrade) error {
-	autoCleanupSystemGeneratedSnapshotValue, err := h.getAutoCleanupSystemGeneratedSnapshotValue()
-	if err != nil {
-		return err
-	}
-	if upgrade.Annotations == nil {
-		upgrade.Annotations = make(map[string]string)
-	}
-	upgrade.Annotations[autoCleanupSystemGeneratedSnapshotAnnotation] = autoCleanupSystemGeneratedSnapshotValue
-	return nil
-}
-
-func (h *upgradeHandler) loadAutoCleanupSystemGeneratedSnapshotFromUpgradeAnnotation(upgrade *harvesterv1.Upgrade) error {
-	value, ok := upgrade.Annotations[autoCleanupSystemGeneratedSnapshotAnnotation]
-	if !ok {
-		logrus.Warnf("no original %s value set", autoCleanupSystemGeneratedSnapshotSetting)
-		return nil
-	}
-	return h.setAutoCleanupSystemGeneratedSnapshotValue(value)
-}
-
-func (h *upgradeHandler) setAutoCleanupSystemGeneratedSnapshotValue(value string) error {
-	autoCleanupSystemGeneratedSnapshot, err := h.lhSettingCache.Get(util.LonghornSystemNamespaceName, autoCleanupSystemGeneratedSnapshotSetting)
-	if err != nil {
-		return err
-	}
-	toUpdate := autoCleanupSystemGeneratedSnapshot.DeepCopy()
-	toUpdate.Value = value
-	if !reflect.DeepEqual(toUpdate, autoCleanupSystemGeneratedSnapshot) {
-		if _, err := h.lhSettingClient.Update(toUpdate); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (h *upgradeHandler) startVM(ctx context.Context, vm *kubevirtv1.VirtualMachine) error {
 	body, err := json.Marshal(kubevirtv1.StartOptions{})
 	if err != nil {
@@ -841,4 +782,62 @@ func (h *upgradeHandler) startVM(ctx context.Context, vm *kubevirtv1.VirtualMach
 		Body(body).
 		Do(ctx)
 	return res.Error()
+}
+
+// checkLogReadyCondition times out LogReady condition, and fails the Upgrade, if UpgradeConfig.LogReadyTimeout
+// time has passed since UpgradeLog's logging infrastructure setup started
+func (h *upgradeHandler) checkLogReadyCondition(upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
+	upgradeConfig, err := settings.DecodeConfig[settings.UpgradeConfig](settings.UpgradeConfigSet.Get())
+	if err != nil {
+		logrus.Errorf("Failed to get UpgradeConfig")
+		return upgrade, err
+	}
+
+	timeoutStr := upgradeConfig.LogReadyTimeout
+	timeout, err := strconv.Atoi(timeoutStr)
+	if err != nil {
+		return upgrade, fmt.Errorf("invalid value for image preload timeout: %s", timeoutStr)
+	}
+	timeoutDuration := time.Duration(timeout) * time.Minute
+
+	if timeoutStr == "" || timeoutDuration < util.MinUpgradeLogReadyTimeout || timeoutDuration > util.MaxUpgradeLogReadyTimeout {
+		logrus.Warnf("invalid logReadyTimeout must be between %s to %s minutes, given: %s", util.MinUpgradeLogReadyTimeout, util.MaxUpgradeLogReadyTimeout, timeoutStr)
+		logrus.Infof("Using default timeoutStr: %v", util.DefaultUpgradeLogReadyTimeout)
+		timeoutDuration = util.DefaultUpgradeLogReadyTimeout
+	}
+
+	ts := harvesterv1.LogReady.GetLastUpdated(upgrade)
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		logrus.Errorf("Failed to parse last updated time: %v", err)
+		return upgrade, nil
+	}
+	if time.Since(t) >= timeoutDuration {
+		toUpdate := upgrade.DeepCopy()
+		message := "Timed out creating upgrade logging infrastructure"
+		upgradeLog, err := h.upgradeLogCache.Get(util.HarvesterSystemNamespaceName, upgrade.Status.UpgradeLog)
+		if err != nil {
+			logrus.Errorf("Failed to get upgrade log: %v", err)
+			setLogReadyCondition(toUpdate, corev1.ConditionFalse, "UpgradeLogGetFailed", "Failed to get upgrade log")
+			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, "Timeout", message)
+			return h.upgradeClient.Update(toUpdate)
+		}
+		logrus.Infof("Timed out waiting for UpgradeLog %s's %s condition to pass", upgradeLog.Name, harvesterv1.LogReady)
+
+		toUpdateUpgradeLog := upgradeLog.DeepCopy()
+		harvesterv1.InfraReady.SetStatus(toUpdateUpgradeLog, string(metav1.ConditionFalse))
+		harvesterv1.InfraReady.Reason(toUpdateUpgradeLog, "Timeout")
+		harvesterv1.InfraReady.Message(toUpdateUpgradeLog, message)
+		_, err = h.upgradeLogClient.Update(toUpdateUpgradeLog)
+		if err != nil {
+			return upgrade, fmt.Errorf("Failed to update upgradeLog: %v", err)
+		}
+		setLogReadyCondition(toUpdate, corev1.ConditionFalse, "Timeout", message)
+		setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, "Timeout", message)
+		return h.upgradeClient.Update(toUpdate)
+	}
+
+	logrus.Debug("Waiting for LogReady condition to be set")
+	h.upgradeController.EnqueueAfter(upgrade.Namespace, upgrade.Name, time.Second*5)
+	return upgrade, nil
 }
