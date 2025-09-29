@@ -13,3 +13,12 @@ func ExcludeWitnessNodes(nodes []*corev1.Node) []*corev1.Node {
 	}
 	return nonWitnessNodes
 }
+
+// IsNodeInMaintenanceMode checks if the node is going into or already in maintenance mode.
+func IsNodeInMaintenanceMode(node *corev1.Node) bool {
+	if node == nil {
+		return false
+	}
+	_, ok := node.Annotations[AnnotationMaintainStatus]
+	return ok
+}

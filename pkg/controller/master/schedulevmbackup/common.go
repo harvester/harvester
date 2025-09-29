@@ -9,6 +9,7 @@ import (
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"go.uber.org/multierr"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -473,4 +474,17 @@ func newVMBackups(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup, 
 	}
 
 	return vmbackup, nil
+}
+
+func (h *svmbackupHandler) getNodeFromBackupSource(svmbackup *harvesterv1.ScheduleVMBackup) (*corev1.Node, error) {
+	vmName := svmbackup.Spec.VMBackupSpec.Source.Name
+	vmi, err := h.vmiCache.Get(svmbackup.Namespace, vmName)
+	if err != nil {
+		return nil, err
+	}
+	node, err := h.nodeCache.Get(vmi.Status.NodeName)
+	if err != nil {
+		return nil, err
+	}
+	return node, nil
 }

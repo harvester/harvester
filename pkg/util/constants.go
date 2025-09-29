@@ -165,6 +165,7 @@ const (
 
 	RKEControlPlaneRoleLabel = "rke.cattle.io/control-plane-role"
 
+	AnnotationMaintainStatus                           = prefix + "/maintain-status"
 	LabelMaintainModeStrategy                          = prefix + "/maintain-mode-strategy"
 	AnnotationMaintainModeStrategyNodeName             = prefix + "/maintain-mode-strategy-node-name"
 	MaintainModeStrategyMigrate                        = "Migrate"
