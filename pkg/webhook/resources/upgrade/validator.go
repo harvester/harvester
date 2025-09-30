@@ -39,6 +39,7 @@ import (
 
 const (
 	upgradeStateLabel                         = "harvesterhci.io/upgradeState"
+	upgradeCleanupLabel                       = "harvesterhci.io/upgradeCleanup"
 	skipWebhookAnnotation                     = "harvesterhci.io/skipWebhook"
 	skipSingleReplicaDetachedVol              = "harvesterhci.io/skipSingleReplicaDetachedVol"
 	rkeInternalIPAnnotation                   = "rke2.io/internal-ip"
@@ -141,6 +142,22 @@ func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error
 	if len(upgrades) > 0 {
 		msg := fmt.Sprintf("cannot proceed until previous upgrade %q completes", upgrades[0].Name)
 		return werror.NewConflict(msg)
+	}
+
+	reqCleanup, err := labels.NewRequirement(upgradeCleanupLabel, selection.In, []string{upgrade.StatePending})
+	if err != nil {
+		return werror.NewBadRequest(fmt.Sprintf("failed to create the '%s' resource selection label: %s", upgradeCleanupLabel, err))
+	}
+	upgrades, err = v.upgrades.List(newUpgrade.Namespace, labels.NewSelector().Add(*reqCleanup))
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("can't list upgrades, err: %+v", err))
+	}
+	if len(upgrades) > 0 {
+		msg := "cannot proceed until the following upgrades completed their cleanup process: "
+		for _, u := range upgrades {
+			msg += fmt.Sprintf("%s,", u.Name)
+		}
+		return werror.NewConflict(msg[:len(msg)-1])
 	}
 
 	if newUpgrade.Annotations != nil {
