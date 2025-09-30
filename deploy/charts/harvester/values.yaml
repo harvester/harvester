@@ -494,7 +494,7 @@ longhorn:
 
   defaultSettings:
     ## Specify the concurrent automatic engine upgrade per node limit
-    concurrentAutomaticEngineUpgradePerNodeLimit: 3
+    concurrentAutomaticEngineUpgradePerNodeLimit: "3"
     priorityClass: &longhornPriorityClass system-cluster-critical
     autoCleanupSnapshotWhenDeleteBackup: true
     orphanResourceAutoDeletion: instance
