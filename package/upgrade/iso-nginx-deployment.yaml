@@ -86,7 +86,6 @@ spec:
         - sh
         - -c
         - |
-          # Mount ISO content directly to /srv/www/htdocs for nginx to serve
           mount -o loop,ro /iso/harvester.iso /srv/www/htdocs
           echo "harvester.iso mounted successfully to /srv/www/htdocs"
           trap "umount -v /srv/www/htdocs; exit 0" EXIT

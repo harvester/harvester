@@ -13,6 +13,7 @@ import (
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
+// TODO: remove this file
 func TestPodHandler_OnChanged(t *testing.T) {
 	type input struct {
 		key     string

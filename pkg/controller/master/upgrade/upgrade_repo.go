@@ -13,6 +13,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -76,14 +77,10 @@ func (r *Repo) Bootstrap() error {
 	if image == "" {
 		return errors.New("upgrade repo image is not provided")
 	}
-	upgradeImage, err := r.GetImage(image)
-	if err != nil {
-		return err
-	}
 
 	logrus.Infof("Create upgrade repo vm with image %v and service", image)
 
-	_, err = r.createVM(upgradeImage)
+	_, err := r.createRepoDeployment()
 	if err != nil {
 		return err
 	}
@@ -420,6 +417,242 @@ func (r *Repo) deleteImage(pvcName string) error {
 
 func (r *Repo) getRepoServiceName() string {
 	return fmt.Sprintf("%s%s", repoServiceNamePrefix, r.upgrade.Name)
+}
+
+func (r *Repo) createRepoDeployment() (*appsv1.Deployment, error) {
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "iso-repo-pvc",
+			Namespace: upgradeNamespace,
+			OwnerReferences: []metav1.OwnerReference{
+				upgradeReference(r.upgrade),
+			},
+			Labels: map[string]string{
+				harvesterUpgradeLabel:          r.upgrade.Name,
+				harvesterUpgradeComponentLabel: upgradeComponentRepo,
+			},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
+			// TODO: make storage class configurable? default storage class?
+			StorageClassName: pointer.String("longhorn-static"),
+			VolumeMode:       &[]corev1.PersistentVolumeMode{corev1.PersistentVolumeFilesystem}[0],
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("20Gi"),
+				},
+			},
+		},
+	}
+
+	// Create PVC first (or get if already exists)
+	_, err := r.h.pvcClient.Create(pvc)
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return nil, fmt.Errorf("failed to create PVC: %w", err)
+	}
+
+	image := fmt.Sprintf("%s:%s", util.HarvesterUpgradeImageRepository, r.upgrade.Status.PreviousVersion)
+	isoImage := fmt.Sprintf("%s/%s", upgradeNamespace, r.upgrade.Status.ImageID)
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: upgradeNamespace,
+			Name:      r.getVMName(),
+			OwnerReferences: []metav1.OwnerReference{
+				upgradeReference(r.upgrade),
+			},
+			Labels: map[string]string{
+				harvesterUpgradeLabel:          r.upgrade.Name,
+				harvesterUpgradeComponentLabel: upgradeComponentRepo,
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: pointer.Int32(2),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					harvesterUpgradeLabel:          r.upgrade.Name,
+					harvesterUpgradeComponentLabel: upgradeComponentRepo,
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						harvesterUpgradeLabel:          r.upgrade.Name,
+						harvesterUpgradeComponentLabel: upgradeComponentRepo,
+					},
+				},
+				Spec: corev1.PodSpec{
+					ServiceAccountName: "harvester",
+					DNSPolicy:          corev1.DNSClusterFirst,
+					InitContainers: []corev1.Container{
+						{
+							Name:  "iso-downloader",
+							Image: image,
+							Env: []corev1.EnvVar{
+								{
+									Name:  "ISO_IMAGE",
+									Value: isoImage,
+								},
+							},
+							Command: []string{"/bin/sh"},
+							Args: []string{
+								"-c",
+								`set -e
+WORK_DIR="/iso"
+LOCK_FILE="leader.lock"
+READY_FLAG="harvester.iso.ready"
+ISO_URL="https://harvester.harvester-system.svc.cluster.local:8443/v1/harvester/harvesterhci.io.virtualmachineimages/$ISO_IMAGE?link=download"
+
+if mkdir "$WORK_DIR"/"$LOCK_FILE" 2>/dev/null; then
+  trap "rmdir $WORK_DIR/$LOCK_FILE; rm -vf $WORK_DIR/$READY_FLAG; exit 1" EXIT
+
+  echo "$POD_NAME is the leader, start preparing the ISO image..."
+
+  echo "Extracting TLS certificates from cattle-system/tls-rancher-internal..."
+  kubectl get secret tls-rancher-internal -n cattle-system -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/tls.crt
+
+  # TODO cert?
+  curl -kL -o harvester.iso.gz --cacert /tmp/tls.crt $ISO_URL
+
+  echo "Download completed, extracting harvester.iso..."
+  gzip -dc harvester.iso.gz > "$WORK_DIR"/harvester.iso
+
+  echo "harvester.iso is ready"
+  touch "$WORK_DIR"/"$READY_FLAG"
+
+  trap - EXIT
+else
+  echo "$POD_NAME is a follower, waiting for harvester.iso downloaded..."
+
+  if [ -f "$WORK_DIR"/"$READY_FLAG" ]; then
+    echo "harvester.iso already exists"
+  else
+    until [ -f "$WORK_DIR"/"$READY_FLAG" ]; do
+      echo "harvester.iso is not ready yet, waiting..."
+      sleep 10
+    done
+    echo "harvester.iso is ready"
+  fi
+fi`,
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "iso",
+									MountPath: "/iso",
+								},
+							},
+						},
+					},
+					Containers: []corev1.Container{
+						{
+							Name:            "iso-mounter",
+							Image:           image,
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Command:         []string{"sh"},
+							Args: []string{
+								"-c",
+								`mount -o loop,ro /iso/harvester.iso /srv/www/htdocs
+echo "harvester.iso mounted successfully to /srv/www/htdocs"
+trap "umount -v /srv/www/htdocs; exit 0" EXIT
+while true; do sleep 30; done`,
+							},
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: pointer.Bool(true),
+							},
+							TerminationMessagePath:   "/dev/termination-log",
+							TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "iso",
+									MountPath: "/iso",
+								},
+								{
+									Name:             "share-mount",
+									MountPath:        "/srv/www/htdocs",
+									MountPropagation: &[]corev1.MountPropagationMode{corev1.MountPropagationBidirectional}[0],
+								},
+							},
+						},
+						{
+							Name:            "repo",
+							Image:           image,
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Command:         []string{"sh"},
+							Args: []string{
+								"-c",
+								`echo "Starting Nginx..."
+nginx -g "daemon off;"`,
+							},
+							Ports: []corev1.ContainerPort{
+								{
+									ContainerPort: 80,
+									Protocol:      corev1.ProtocolTCP,
+								},
+							},
+							LivenessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									Exec: &corev1.ExecAction{
+										Command: []string{
+											"sh",
+											"-c",
+											"cat /srv/www/htdocs/harvester-release.yaml 2>&1 /dev/null",
+										},
+									},
+								},
+								FailureThreshold: 3,
+								PeriodSeconds:    10,
+								SuccessThreshold: 1,
+								TimeoutSeconds:   5,
+							},
+							ReadinessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									HTTPGet: &corev1.HTTPGetAction{
+										Path:   "/harvester-release.yaml",
+										Port:   intstr.FromInt(80),
+										Scheme: corev1.URISchemeHTTP,
+									},
+								},
+								FailureThreshold:    1,
+								InitialDelaySeconds: 5,
+								PeriodSeconds:       10,
+								SuccessThreshold:    1,
+								TimeoutSeconds:      5,
+							},
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: pointer.Bool(true),
+							},
+							TerminationMessagePath:   "/dev/termination-log",
+							TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:             "share-mount",
+									MountPath:        "/srv/www/htdocs",
+									MountPropagation: &[]corev1.MountPropagationMode{corev1.MountPropagationBidirectional}[0],
+								},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "iso",
+							VolumeSource: corev1.VolumeSource{
+								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+									ClaimName: pvc.Name,
+								},
+							},
+						},
+						{
+							Name: "share-mount",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return r.h.deploymentClient.Create(deploy)
 }
 
 func (r *Repo) createService() (*corev1.Service, error) {

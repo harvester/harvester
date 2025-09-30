@@ -14,6 +14,7 @@ import (
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	provisioningctrl "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/condition"
+	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
@@ -98,12 +99,13 @@ type upgradeHandler struct {
 	managedChartCache  mgmtv3.ManagedChartCache
 	managedChartClient mgmtv3.ManagedChartClient
 
-	vmImageClient ctlharvesterv1.VirtualMachineImageClient
-	vmImageCache  ctlharvesterv1.VirtualMachineImageCache
-	vmClient      kubevirtctrl.VirtualMachineClient
-	vmCache       kubevirtctrl.VirtualMachineCache
-	serviceClient ctlcorev1.ServiceClient
-	pvcClient     ctlcorev1.PersistentVolumeClaimClient
+	vmImageClient    ctlharvesterv1.VirtualMachineImageClient
+	vmImageCache     ctlharvesterv1.VirtualMachineImageCache
+	vmClient         kubevirtctrl.VirtualMachineClient
+	vmCache          kubevirtctrl.VirtualMachineCache
+	serviceClient    ctlcorev1.ServiceClient
+	pvcClient        ctlcorev1.PersistentVolumeClaimClient
+	deploymentClient ctlappsv1.DeploymentClient
 
 	clusterClient provisioningctrl.ClusterClient
 	clusterCache  provisioningctrl.ClusterCache
