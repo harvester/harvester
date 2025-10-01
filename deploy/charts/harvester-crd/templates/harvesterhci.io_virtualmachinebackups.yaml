@@ -35,7 +35,7 @@ spec:
       type: date
     - jsonPath: .status.error.message
       name: ERROR
-      type: date
+      type: string
     name: v1beta1
     schema:
       openAPIV3Schema:
@@ -169,8 +169,6 @@ spec:
                   type: object
                 type: array
               source:
-                description: SourceSpec contains the vm spec source of the backup
-                  target
                 properties:
                   metadata:
                     type: object
@@ -4774,8 +4772,6 @@ spec:
                   - volumeName
                   type: object
                 type: array
-            required:
-            - source
             type: object
         required:
         - spec
