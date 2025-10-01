@@ -785,6 +785,14 @@ patch_longhorn_settings() {
     echo "longhorn detachManuallyAttachedVolumesWhenCordoned has been set in managedchart, do not patch again"
   fi
 
+  EXIT_CODE=0
+  local value=$(yq -e -r '.spec.values.longhorn.defaultSettings.concurrentAutomaticEngineUpgradePerNodeLimit' $target) || EXIT_CODE=$?
+  if [ $EXIT_CODE = 0 ]; then
+    # this works even if it's already a string, because the `yq` above gives us the unquoted value
+    echo "patch longhorn concurrentAutomaticEngineUpgradePerNodeLimit to string"
+    yq ".spec.values.longhorn.defaultSettings.concurrentAutomaticEngineUpgradePerNodeLimit = \"$value\"" -i $target
+  fi
+
   echo "longhorn related config"
   yq -e '.spec.values.longhorn' $target || echo "fail to get info .spec.values.longhorn"
 }
