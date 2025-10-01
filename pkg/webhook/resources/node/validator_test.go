@@ -760,3 +760,170 @@ func Test_validateWitnessRoleChange(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckCPUManagerEnabledForPinnedVMs(t *testing.T) {
+	node0 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-0",
+			UID:  "node-0-uid",
+			Labels: map[string]string{
+				kubevirtv1.CPUManager: "true",
+			},
+		},
+	}
+	node1 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-1",
+			UID:  "node-1-uid",
+			Labels: map[string]string{
+				kubevirtv1.CPUManager: "true",
+			},
+		},
+	}
+	node2 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-2",
+			UID:  "node-2-uid",
+			Labels: map[string]string{
+				kubevirtv1.CPUManager: "false",
+			},
+		},
+	}
+
+	cpuPinned := kubevirtv1.VirtualMachineSpec{
+		Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+			Spec: kubevirtv1.VirtualMachineInstanceSpec{
+				Domain: kubevirtv1.DomainSpec{
+					CPU: &kubevirtv1.CPU{
+						DedicatedCPUPlacement: true,
+					},
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name   string
+		node   *corev1.Node
+		policy ctlnode.CPUManagerPolicy
+		nodes  []*corev1.Node
+		vms    []*kubevirtv1.VirtualMachine
+		errMsg string
+	}{
+		{
+			name:   "valid update: enabling CPU manager policy to static",
+			node:   node0,
+			policy: ctlnode.CPUManagerStaticPolicy,
+			nodes:  []*corev1.Node{node0},
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-0",
+						Namespace: "default",
+					},
+					Spec: cpuPinned,
+				},
+			},
+			errMsg: "",
+		},
+		{
+			name:   "valid update: multiple nodes with CPU manager enabled",
+			node:   node0,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node1},
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-0",
+						Namespace: "default",
+					},
+					Spec: cpuPinned,
+				},
+			},
+			errMsg: "",
+		},
+		{
+			name:   "valid update: single node with CPU manager but no CPU pinned VMs",
+			node:   node0,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node2},
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-0",
+						Namespace: "default",
+					},
+				},
+			},
+			errMsg: "",
+		},
+		{
+			name:   "invalid update: single node with CPU manager and CPU pinned VMs exists",
+			node:   node0,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node2},
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-0",
+						Namespace: "default",
+					},
+					Spec: cpuPinned,
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-1",
+						Namespace: "test",
+					},
+					Spec: cpuPinned,
+				},
+			},
+			errMsg: "At least one node must have CPU Manager enabled when a VM is using CPU pinning. Please remove CPU pinning from the following VM(s) to proceed: default/vm-0, test/vm-1",
+		},
+		{
+			name:   "valid update: node without CPU manager label",
+			node:   node2,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node2},
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-0",
+						Namespace: "default",
+					},
+					Spec: cpuPinned,
+				},
+			},
+			errMsg: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			k8sclientset := k8sfake.NewSimpleClientset()
+			client := fake.NewSimpleClientset()
+
+			for _, node := range tc.nodes {
+				err := k8sclientset.Tracker().Add(node)
+				assert.Nil(t, err, "Mock node should add into fake controller tracker")
+			}
+
+			for _, vm := range tc.vms {
+				err := client.Tracker().Add(vm)
+				assert.Nil(t, err, "Mock VM should add into fake controller tracker")
+			}
+
+			nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
+			vmCache := fakeclients.VirtualMachineCache(client.KubevirtV1().VirtualMachines)
+
+			err := checkCPUManagerEnabledForPinnedVMs(tc.node, tc.policy, nodeCache, vmCache)
+
+			if tc.errMsg != "" {
+				assert.NotNil(t, err, tc.name)
+				assert.Contains(t, tc.errMsg, err.Error(), tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
