@@ -933,7 +933,7 @@ func getSystemCerts() *x509.CertPool {
 
 func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachineBackup) bool {
 	for _, vmBackup := range vmBackups {
-		if vmBackup.DeletionTimestamp != nil || vmBackup.Status == nil || !*vmBackup.Status.ReadyToUse {
+		if vmBackup.DeletionTimestamp != nil || vmBackup.Status.ReadyToUse == nil || !*vmBackup.Status.ReadyToUse {
 			return true
 		}
 	}
@@ -942,7 +942,7 @@ func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachine
 
 func hasVMRestoreInCreatingOrDeletingProgress(vmRestores []*v1beta1.VirtualMachineRestore) bool {
 	for _, vmRestore := range vmRestores {
-		if vmRestore.DeletionTimestamp != nil || vmRestore.Status == nil || !*vmRestore.Status.Complete {
+		if vmRestore.DeletionTimestamp != nil || vmRestore.Status.Complete == nil || !*vmRestore.Status.Complete {
 			return true
 		}
 	}
