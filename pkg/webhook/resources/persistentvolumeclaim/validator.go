@@ -17,7 +17,6 @@ import (
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
@@ -31,7 +30,6 @@ func NewValidator(pvcCache v1.PersistentVolumeClaimCache,
 	vmCache ctlkv1.VirtualMachineCache,
 	kubevirtCache ctlkv1.KubeVirtCache,
 	imageCache ctlharvesterv1.VirtualMachineImageCache,
-	engineCache ctllonghornv1.EngineCache,
 	scCache ctlstoragev1.StorageClassCache,
 	settingCache ctlharvesterv1.SettingCache) types.Validator {
 	return &pvcValidator{
@@ -39,7 +37,6 @@ func NewValidator(pvcCache v1.PersistentVolumeClaimCache,
 		vmCache:       vmCache,
 		kubevirtCache: kubevirtCache,
 		imageCache:    imageCache,
-		engineCache:   engineCache,
 		scCache:       scCache,
 		settingCache:  settingCache,
 	}
@@ -51,7 +48,6 @@ type pvcValidator struct {
 	vmCache       ctlkv1.VirtualMachineCache
 	imageCache    ctlharvesterv1.VirtualMachineImageCache
 	kubevirtCache ctlkv1.KubeVirtCache
-	engineCache   ctllonghornv1.EngineCache
 	scCache       ctlstoragev1.StorageClassCache
 	settingCache  ctlharvesterv1.SettingCache
 }
@@ -153,7 +149,7 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 		return nil
 	}
 
-	return webhookutil.CheckExpand(newPVC, v.vmCache, v.kubevirtCache, v.engineCache, v.scCache, v.settingCache)
+	return webhookutil.CheckExpand(newPVC, v.vmCache, v.kubevirtCache, v.scCache, v.settingCache)
 }
 
 func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) error {
