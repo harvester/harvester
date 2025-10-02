@@ -20,7 +20,6 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
@@ -42,7 +41,6 @@ func NewValidator(
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	nadCache ctlcniv1.NetworkAttachmentDefinitionCache,
 	kubevirtCache ctlkubevirtv1.KubeVirtCache,
-	engineCache ctllonghornv1.EngineCache,
 	scCache ctlstoragev1.StorageClassCache,
 	settingCache ctlharvesterv1.SettingCache,
 ) types.Validator {
@@ -53,7 +51,6 @@ func NewValidator(
 		vmiCache:      vmiCache,
 		nadCache:      nadCache,
 		kubevirtCache: kubevirtCache,
-		engineCache:   engineCache,
 		scCache:       scCache,
 		settingCache:  settingCache,
 
@@ -69,7 +66,6 @@ type vmValidator struct {
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
 	nadCache      ctlcniv1.NetworkAttachmentDefinitionCache
 	kubevirtCache ctlkubevirtv1.KubeVirtCache
-	engineCache   ctllonghornv1.EngineCache
 	scCache       ctlstoragev1.StorageClassCache
 	settingCache  ctlharvesterv1.SettingCache
 	rqCalculator  *resourcequota.Calculator
@@ -475,7 +471,7 @@ func (v *vmValidator) checkPVCStorageRequestChange(newPvc, oldPvc *corev1.Persis
 		return err
 	}
 
-	return webhookutil.CheckExpand(pvc, v.vmCache, v.kubevirtCache, v.engineCache, v.scCache, v.settingCache)
+	return webhookutil.CheckExpand(pvc, v.vmCache, v.kubevirtCache, v.scCache, v.settingCache)
 }
 
 func (v *vmValidator) checkGoldenImage(vm *kubevirtv1.VirtualMachine) error {
