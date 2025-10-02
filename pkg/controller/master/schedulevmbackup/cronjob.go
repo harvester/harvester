@@ -3,6 +3,7 @@ package schedulevmbackup
 import (
 	"time"
 
+	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
@@ -33,6 +34,20 @@ func (h *svmbackupHandler) OnCronjobChanged(_ string, cronJob *batchv1.CronJob) 
 
 	if !errors.IsNotFound(err) {
 		return nil, err
+	}
+
+	// Skip the cron job if the VM is running on a node which is going into / is in maintenance mode.
+	node, err := h.getNodeFromBackupSource(svmbackup)
+	if err != nil {
+		return nil, err
+	}
+	if util.IsNodeInMaintenanceMode(node) {
+		logrus.WithFields(logrus.Fields{
+			"name":      cronJob.Name,
+			"namespace": cronJob.Namespace,
+			"node":      node.Name,
+		}).Info("Skip cron job since the node is going into or is already in maintenance mode.")
+		return nil, nil
 	}
 
 	if _, err := newVMBackups(h, svmbackup, timestamp); err != nil {
