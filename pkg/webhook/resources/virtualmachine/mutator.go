@@ -317,10 +317,16 @@ func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, 
 		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "%s"}`, quantity))
 	}
 
+	// patch guest memory
 	if vm.Spec.Template.Spec.Domain.Memory == nil {
 		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"%s"}}`, &guestMemory))
 	} else if !enableCPUAndMemoryHotplug {
 		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, &guestMemory))
+	}
+
+	// patch maxSockets
+	if !enableCPUAndMemoryHotplug {
+		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`)
 	}
 
 	return patchOps, nil

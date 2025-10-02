@@ -54,6 +54,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "256Mi"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"924Mi"}}`, // 1Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 			},
 			setting: "",
 		},
@@ -71,6 +72,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "1Gi"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"3996Mi"}}`, // 4Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 			},
 			setting: "",
 		},
@@ -88,6 +90,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "4Gi"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"16284Mi"}}`, // 16Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 			},
 			setting: "",
 		},
@@ -118,6 +121,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			memory: nil,
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"924Mi"}}`, // 1Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"500m","memory":"256Mi"}}`,
 			},
 		},
@@ -132,6 +136,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			memory: nil,
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"924Mi"}}`, // 1Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"100m","memory":"102Mi"}}`,
 			},
 			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
@@ -149,6 +154,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			},
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "924Mi"}`, // 1Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"100m","memory":"102Mi"}}`,
 			},
 			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
@@ -182,6 +188,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "256Mi"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"640Mi"}}`, // 1Gi - 384Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 			},
 			setting: "",
 		},
@@ -199,6 +206,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "1Gi"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"3712Mi"}}`, // 4Gi - 384Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 			},
 			setting: "",
 		},
@@ -435,6 +443,7 @@ func TestPatchResourceOvercommitWithAdditionalGuestMemoryOverheadRatio(t *testin
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "1Gi"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"3996Mi"}}`, // 4Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 			},
 			overcommitSetting:    "",
 			overheadRatio:        "invalid",
@@ -457,6 +466,7 @@ func TestPatchResourceOvercommitWithAdditionalGuestMemoryOverheadRatio(t *testin
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "2Gi"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"7Gi"}}`, // 8Gi - 1Gi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 			},
 			overcommitSetting:    "",
 			overheadRatio:        "invalid",
@@ -480,6 +490,7 @@ func TestPatchResourceOvercommitWithAdditionalGuestMemoryOverheadRatio(t *testin
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "1Gi"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"4Gi"}}`, // 4Gi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 			},
 			overcommitSetting:    "",
 			overheadRatio:        settings.AdditionalGuestMemoryOverheadRatioDefault,
@@ -502,6 +513,7 @@ func TestPatchResourceOvercommitWithAdditionalGuestMemoryOverheadRatio(t *testin
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "1Gi"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"3Gi"}}`, // 3Gi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 			},
 			overcommitSetting:    "",
 			overheadRatio:        "4.8",
@@ -524,6 +536,7 @@ func TestPatchResourceOvercommitWithAdditionalGuestMemoryOverheadRatio(t *testin
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "1Gi"}`,
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"3996Mi"}}`, // 4Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
 			},
 			overcommitSetting:    "",
 			overheadRatio:        "0.0", // means clear current setting
@@ -757,6 +770,7 @@ func TestPatchResourceOvercommitWithDedicatedCPUPlacement(t *testing.T) {
 	assert.Equal(t,
 		[]string{
 			"{\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/memory\", \"value\": {\"guest\":\"924Mi\"}}",
+			"{\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/cpu/maxSockets\", \"value\": 1}",
 			"{\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/resources/requests\", \"value\": {\"cpu\":\"8\",\"memory\":\"1Gi\"}}"},
 		actual)
 }
