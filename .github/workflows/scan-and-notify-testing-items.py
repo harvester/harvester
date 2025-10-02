@@ -170,6 +170,10 @@ def list_issues_in_project(github_token, project_id, desired_status=None):
             data = response.json()
             items = data['data']['node']['items']['nodes']
             for item in items:
+                if item['status'] is None:
+                    # example
+                    # {'content': {}, 'status': None, 'sprint': None}
+                    continue
                 status = item['status']['name']
                 if desired_status and status not in desired_status:
                     continue
@@ -207,6 +211,10 @@ def flatten_issues(title, blocks, issues, user_mapping, issue_template_url):
         # Combine issues into chunks of 5
         issue_texts = []
         for i, issue in enumerate(issues):
+            if issue["content"] == {}:
+                # example
+                # {'content': {}, 'status': {'name': 'Ready For Testing'}, 'sprint': {'title': 'Sprint 18', 'startDate': '2025-07-07'}}
+                continue
             number = issue["content"]["number"]
             title = issue["content"]["title"]
             issue_url = f"{issue_template_url}{number}"
