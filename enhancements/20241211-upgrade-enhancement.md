@@ -318,6 +318,77 @@ type Version struct {
 
 The overall architecture of Harvester Upgrade V2 is as follows.
 
+```mermaid
+graph TD
+  %% Objects
+  subgraph Harvester_Main["Harvester Main"]
+    US[Upgrade Shim]
+  end
+
+  subgraph Upgrade_Toolkit["Upgrade Toolkit"]
+    VMIMAGE[(VirtualMachineImage: harvester.iso)]
+    subgraph Upgrade_Repo["Upgrade Repository"]
+      PVC[(RWX PVC)]
+      SVC[Service]
+      UR1[(Repo Pod #1)]
+      URn[(Repo Pod #n)]
+    end
+    UM[Upgrade Manager]
+    ClusterUpgradeJob[Job: cluster-upgrade]
+  end
+
+  subgraph Cattle_System_NS["cattle-system ns"]
+    SUC[System Upgrade Controller]
+    PlanPreload[[Plan: image-preload]]
+    PlanRKE2[[Plan: node-upgrade - RKE2]]
+    PlanOS[[Plan: node-upgrade - OS]]
+    Rancher[Rancher]
+    ClusterCR[Cluster CR]
+  end
+
+  subgraph Cluster_Nodes["All Cluster Nodes"]
+    direction LR
+    N1{{Node A}}
+    N2{{Node B}}
+    Nn{{Node N}}
+    subgraph Supply_Path["Image Distribution"]
+      Spegel[Spegel]
+    end
+  end
+
+  %% Relations
+  US -- watches --> VersionCR[Version CR]
+  US -- reconciles --> UpgradePlanCR[UpgradePlan CR]
+  US -- creates --> VMIMAGE
+  US -- creates --> Upgrade_Repo
+  PVC -- download/extract --> VMIMAGE
+  PVC --> UR1
+  PVC --> URn
+  SVC -. load balance .-> UR1
+  SVC -. load balance .-> URn
+
+  UR1 -- preload Upgrade Manager image on nodes --> N1
+  URn -- preload Upgrade Manager image on nodes --> Nn
+
+  US -- creates --> UM
+  UM -- reconciles --> UpgradePlanCR
+
+  UM -. (optional) creates .-> Upgrade_Repo
+  UM -- creates/reconciles --> PlanPreload
+  UM -- deletes --> ClusterCR
+  UM -- creates --> ClusterUpgradeJob
+  UM -- creates/reconciles --> PlanRKE2
+  UM -- (optional) creates/reconciles --> PlanOS
+
+  SUC -- executes --> PlanRKE2
+  SUC -- executes --> PlanOS
+
+  PlanRKE2 -- prepare/drain/upgrade --> Cluster_Nodes
+  PlanOS -- prepare/drain/upgrade --> Cluster_Nodes
+
+  Rancher -. reconciles .-> ClusterCR
+```
+
 ### Upgrade Shim
 
 Upgrade Shim should be the least frequently changed and the most stable part of the entire Harvester Upgrade mechanics. This implies it should be as simple as possible, avoiding any sophisticated approaches. This part also lives with other controllers in the Harvester main program. Upgrade Shim is responsible for the following tasks:
