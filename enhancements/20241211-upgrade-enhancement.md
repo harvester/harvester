@@ -404,6 +404,133 @@ The challenge of switching to SUC Plans is that the node-upgrade phase is no lon
 
 Overview on how the enhancement will be implemented.
 
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant K8s as Kubernetes API (Control Plane)
+    participant HARV as Harvester Controllers
+    participant US as Upgrade Shim
+    participant UM as Upgrade Manager
+    participant SUC as System Upgrade Controller
+    participant UR as Upgrade Repository
+    participant Nodes as Node Agents/Jobs
+
+    Note over User,Nodes: Phase 1: Preparation
+    User->>K8s: Create Version
+
+    Note over User,Nodes: Phase 2: Upgrade Initiation (Shim is in charge)
+    User->>K8s: Create UpgradePlan
+    K8s-->>US: Watch: UpgradePlan created
+    US->>K8s: Create VirtualMachineImage
+    K8s-->>HARV: Watch: VirtualMachineImage created
+    activate HARV
+    HARV->>K8s: Update VirtualMachineImage status (Imported)
+    deactivate HARV
+    K8s-->>US: Watch: VirtualMachineImage imported
+    US->>K8s: Create Upgrade Repository
+    K8s-->>Nodes: Schedule pods
+    Nodes->>UR: Create
+    UR->>UR: Download ISO image
+    activate UR
+    deactivate UR
+
+    Note over User,Nodes: Phase 3: Manager Bootstrap (Shim is in charge)
+    UR->>Nodes: Preload Manager container image
+    activate Nodes
+    Nodes->>K8s: Update pod status (Ready)
+    deactivate Nodes
+    K8s-->>US: Watch: Repository ready
+    US->>K8s: Create Upgrade Manager
+    K8s-->>Nodes: Schedule pods
+    Nodes->>K8s: Update pod status (Ready)
+    US->>K8s: Update UpgradePlan status
+    K8s-->>UM: Watch: UpgradePlan status [repository created]
+
+    Note over User,Nodes: Phase 4: Image Preloading (Manager takes over)
+    UM->>K8s: Create Plan (image-preload)
+    K8s-->>SUC: Watch: Plan created
+    loop For each node batch (node-by-node by default)
+        SUC->>K8s: Create Jobs (image-preload)
+        K8s-->>Nodes: Schedule Jobs
+        Nodes->>UR: Get container image tarballs
+        activate Nodes
+        Nodes->>Nodes: Preload container images
+        Nodes->>K8s: Update Job status
+        deactivate Nodes
+        K8s-->>SUC: Watch: Jobs complete
+        SUC->>K8s: Update Plan status
+    end
+    K8s-->>UM: Watch: Plans complete
+
+    Note over User,Nodes: Phase 5: Cluster Upgrade
+    UM->>K8s: Ensure Cluster CR deleted (decouple from Rancher)
+    UM->>K8s: Create Job (cluster-upgrade)
+    K8s->>Nodes: Schedule Job
+    Nodes->>Nodes: Upgrade charts
+    activate Nodes
+    Nodes->>K8s: Update Job status
+    deactivate Nodes
+    K8s-->>UM: Watch: Job complete
+
+    Note over User,Nodes: Phase 6: Node Upgrade - RKE2
+    UM->>K8s: Create Plan (RKE2 upgrade)
+    loop For each node group
+        K8s-->>SUC: Watch: Plan CR created
+        SUC->>K8s: Create Jobs
+        K8s-->>Nodes: Schedule Jobs
+        Nodes->>Nodes: VM evacuation
+        activate Nodes
+        Nodes->>K8s: Request self-drain
+        deactivate Nodes
+        K8s->>Nodes: Drain pods
+        Nodes->>Nodes: RKE2 upgrade
+        activate Nodes
+        Nodes->>K8s: Update Job/Node status
+        deactivate Nodes
+        K8s-->>SUC: Watch: Jobs complete
+        SUC->>K8s: Update Plan status
+    end
+    K8s-->>UM: Watch: Plan complete
+
+    Note over User,Nodes: Phase 7: Node Upgrade - OS (Optional)
+    opt OS Upgrade requested
+        UM->>K8s: Create Plan (OS upgrade)
+        loop For each node group
+            K8s-->>SUC: Watch: Plan CR created
+            SUC->>K8s: Create Jobs
+            K8s-->>Nodes: Schedule Jobs
+            Nodes->>Nodes: VM evacuation
+            activate Nodes
+            Nodes->>K8s: Request self-drain
+            deactivate Nodes
+            K8s->>Nodes: Drain pods
+            Nodes->>Nodes: OS upgrade
+            activate Nodes
+            Nodes->>Nodes: Reboot
+            Nodes->>K8s: Update Job/Node status
+            deactivate Nodes
+            K8s-->>SUC: Watch: Jobs complete
+            SUC->>K8s: Update Plan status
+        end
+        K8s-->>UM: Watch: Plan complete
+    end
+
+    Note over User,Nodes: Phase 8: Cleanup
+    UM->>K8s: Delete Plans
+    UM->>K8s: Delete Jobs
+    UM->>K8s: Update UpgradePlan status
+    K8s-->>US: Watch: UpgradePlan status [resource cleaned up]
+
+    Note over User,Nodes: Phase 9: Finalization (Shim takes over)
+    US->>K8s: Delete Upgrade Manager
+    US->>K8s: Delete Upgrade Repository
+    UM->>K8s: Update UpgradePlan status (Succeeded)
+    K8s-->>US: Watch: UpgradePlan succeeded
+
+    User->>K8s: Get UpgradePlan status
+    K8s-->>User: Upgrade complete
+```
+
 #### Upgrade Shim
 
 Upgrade Shim reconciles the Version and Upgrade CRs.
