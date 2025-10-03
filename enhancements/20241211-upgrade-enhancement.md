@@ -80,19 +80,18 @@ As a cluster administrator, I want to upgrade my Harvester cluster to the latest
 The upgrade workflow remains consistent with previous versions, with steps outlined below:
 
 1. Administrator checks current cluster version and available upgrades
-   - CLI: `kubectl get settings.harvesterhci server-version`
+   - CLI: `kubectl get settings.harvesterhci.io server-version`
    - UI: Navigate to the cluster dashboard page and look for the "Version" string
 1. Administrator reviews upgrade prerequisites and release notes
-   - Check compatibility matrix
-   - Review breaking changes and know issues
+   - Check support matrix
+   - Review breaking changes and known issues
    - Verify cluster status with the pre-flight check script
 1. Administrator initiates upgrade process
-   - CLI: `kubectl apply -f upgrade-plan.yaml`
+   - CLI: `kubectl create -f upgradeplan.yaml`
    - UI: Click "Upgrade" button, select target version
 1. Administrator monitors upgrade progress
    - Real-time status in the Upgrade modal on the UI dashboard
-   - CLI: `kubectl -n harvester-system get upgrades -w`
-   - Node-by-node progression visibility
+   - CLI: `kubectl get upgradeplans.management.harvesterhci.io <upgradeplan-name> -w`
 1. Administrator validates post-upgrade functionality
    - Verify all VMs are running
    - Check storage and networking
@@ -102,32 +101,51 @@ The upgrade workflow remains consistent with previous versions, with steps outli
    - Start another round of upgrade after the cluster becomes stable
    - Support contact information
 
----
-
-1. The user creates a Version CR with the ISO URL and checksum and then clicks the "Upgrade" button on the dashboard UI. Or equivalently, the user uploads the ISO image to the Harvester cluster, and then creates an Upgrade CR with the ISO image.
-1. The Upgrade Shim prepares the upgrade environment.
-   1. (Optionally) set up the Upgrade Log infrastructure according to the user's configuration.
-   1. Ensure the ISO image is available
-   1. Spin up Upgrade Repository
-   1. Deploy Upgrade Manager
-1. The Upgrade Manager takes over the upgrade process.
-   1. Check the eligibility of the upgrade.
-   1. Kick off the image preloading phase by annotating the Upgrade CR.
-   1. Wait for the Upgrade Image Preloader to finish the image preloading.
-1. The Upgrade Image Preloader running alongside the Upgrade Repository on each node watches the Upgrade CR and starts the image preloading process.
-
 ### API Changes
 
-⚠ Work-in-Progress ⚠: This section is still under construction.
+Introducing new APIs: **UpgradePlan** and **Version**. This new UpgradePlan CRD (Custom Resource Definition) is designed to work closely with the Version CRD. The Version CRD is almost identical to the previous version, as the surrounding functions do not change significantly. The existing Upgrade Responder mechanic can be preserved, albeit with a slight change to the CRD API group. Both CRDs will be under the `management.harvesterhci.io` API group and be cluster-scoped. Being cluster-scoped not only fits the semantics as both APIs are relevant to upgrading the entire cluster, but not just for any specific component, but also provides a better mechanism when it comes to resource purge. In Upgrade V1, both CRDs are namespaced-scope, which results in the inability to cascade delete the owned resources that reside in namespaces other than `harvester-system`. We had no choice but to write dedicated code to actively wipe them out when deletion happens to Upgrade CRs.
 
-Introducing a new API: **UpgradePlan**. This new CRD (Custom Resource Definition) is designed to work closely with the existing **Version** CRD. The Version CRD intentionally keeps the same as before because we don't want to break the Upgrade Responder mechanic, which works pretty well so far.
+The UpgradePlan CRD looks like the following:
 
 ```go
-type UpgradeMode string
+const (
+	// Available means the UpgradePlan is ready to be reconciled.
+	UpgradePlanAvailable string = "Available"
+	// Progressing means the cluster is currently applying the UpgradePlan.
+	UpgradePlanProgressing string = "Progressing"
+	// Degraded means the progress of the upgrade is stalled due to issues.
+	UpgradePlanDegraded string = "Degraded"
+)
 
 const (
-	Automatic   UpgradeMode = "automatic"
-	Interactive UpgradeMode = "interactive"
+	NodeStateImagePreloading     string = "ImagePreloading"
+	NodeStateImagePreloaded      string = "ImagePreloaded"
+	NodeStateKubernetesUpgrading string = "KubernetesUpgrading"
+	NodeStateKubernetesUpgraded  string = "KubernetesUpgraded"
+	NodeStateOSUpgrading         string = "OSUpgrading"
+	NodeStateOSUpgraded          string = "OSUpgraded"
+)
+
+const (
+	UpgradePlanPhaseInitializing       UpgradePlanPhase = "Initializing"
+	UpgradePlanPhaseInitialized        UpgradePlanPhase = "Initialized"
+	UpgradePlanPhaseISODownloading     UpgradePlanPhase = "ISODownloading"
+	UpgradePlanPhaseISODownloaded      UpgradePlanPhase = "ISODownloaded"
+	UpgradePlanPhaseRepoCreating       UpgradePlanPhase = "RepoCreating"
+	UpgradePlanPhaseRepoCreated        UpgradePlanPhase = "RepoCreated"
+	UpgradePlanPhaseMetadataPopulating UpgradePlanPhase = "MetadataPopulating"
+	UpgradePlanPhaseMetadataPopulated  UpgradePlanPhase = "MetadataPopulated"
+	UpgradePlanPhaseImagePreloading    UpgradePlanPhase = "ImagePreloading"
+	UpgradePlanPhaseImagePreloaded     UpgradePlanPhase = "ImagePreloaded"
+	UpgradePlanPhaseClusterUpgrading   UpgradePlanPhase = "ClusterUpgrading"
+	UpgradePlanPhaseClusterUpgraded    UpgradePlanPhase = "ClusterUpgraded"
+	UpgradePlanPhaseNodeUpgrading      UpgradePlanPhase = "NodeUpgrading"
+	UpgradePlanPhaseNodeUpgraded       UpgradePlanPhase = "NodeUpgraded"
+	UpgradePlanPhaseCleaningUp         UpgradePlanPhase = "CleaningUp"
+	UpgradePlanPhaseCleanedUp          UpgradePlanPhase = "CleanedUp"
+
+	UpgradePlanPhaseSucceeded UpgradePlanPhase = "Succeeded"
+	UpgradePlanPhaseFailed    UpgradePlanPhase = "Failed"
 )
 
 type NodeUpgradeStatus struct {
@@ -136,45 +154,163 @@ type NodeUpgradeStatus struct {
 	Message string `json:"message,omitempty"`
 }
 
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:resource:scope=Namespaced
+// UpgradePlanPhase defines what overall phase UpgradePlan is in
+type UpgradePlanPhase string
 
-type Upgrade struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   UpgradeSpec   `json:"spec"`
-	Status UpgradeStatus `json:"status,omitempty"`
+type UpgradePlanPhaseTransitionTimestamp struct {
+	Phase                    UpgradePlanPhase `json:"phase"`
+	PhaseTransitionTimestamp metav1.Time      `json:"phaseTransitionTimestamp"`
 }
 
-type UpgradeSpec struct {
-	// +optional
+type ReleaseMetadata struct {
+	Harvester            string `json:"harvester,omitempty"`
+	HarvesterChart       string `json:"harvesterChart,omitempty"`
+	OS                   string `json:"os,omitempty"`
+	Kubernetes           string `json:"kubernetes,omitempty"`
+	Rancher              string `json:"rancher,omitempty"`
+	MonitoringChart      string `json:"monitoringChart,omitempty"`
+	MinUpgradableVersion string `json:"minUpgradableVersion,omitempty"`
+}
+
+// UpgradePlanSpec defines the desired state of UpgradePlan
+type UpgradePlanSpec struct {
+	// version refers to the corresponding version resource in the same namespace.
+	// +required
 	Version string `json:"version"`
+
+	// upgrade can be specified to opt for any other specific upgrade image. If not provided, the version resource name is used.
+	// For instance, specifying "dev" for the field can go for the "rancher/harvester-upgrade:dev" image.
 	// +optional
-	Image string `json:"image"`
+	Upgrade *string `json:"upgrade,omitempty"`
+
+	// force indicates the UpgradePlan will be forcibly applied, ignoring any pre-upgrade check failures. Default to "false".
 	// +optional
-	// +kubebuilder:default:=true
-	LogEnabled bool `json:"logEnabled" default:"true"`
-	// +kubebuilder:default:=true
-	Mode UpgradeMode `json:"mode" default:"automatic"`
+	Force *bool `json:"force,omitempty"`
+
+	// mode represents the manipulative style of the UpgradePlan. Can be either of "automatic" or "interactive". Default to "automatic".
+	// +optional
+	Mode *string `json:"mode,omitempty"`
 }
 
-type UpgradeStatus struct {
+// UpgradePlanStatus defines the observed state of UpgradePlan.
+type UpgradePlanStatus struct {
+	// conditions represent the current state of the UpgradePlan resource.
+	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
+	//
+	// The status of each condition is one of True, False, or Unknown.
+	// +listType=map
+	// +listMapKey=type
 	// +optional
-	PreviousVersion string `json:"previousVersion,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// isoImageID refers to the namespaced name of the VM image that will be used for the upgrade.
 	// +optional
-	ImageID string `json:"imageID,omitempty"`
+	ISOImageID *string `json:"isoImageID,omitempty"`
+
+	// nodeStatuses reflect each node's upgrade status for node specific tasks.
+	// +mapType=atomic
 	// +optional
-	RepoInfo string `json:"repoInfo,omitempty"`
+	NodeUpgradeStatuses map[string]NodeUpgradeStatus `json:"nodeUpgradeStatuses,omitempty"`
+
+	// phase shows what overall phase the UpgradePlan resource is in.
+	Phase UpgradePlanPhase `json:"phase,omitempty"`
+
+	// phaseTransitionTimestamp is the timestamp of when the last phase change occurred.
+	// +listType=atomic
 	// +optional
-	SingleNode string `json:"singleNode,omitempty"`
+	PhaseTransitionTimestamps []UpgradePlanPhaseTransitionTimestamp `json:"phaseTransitionTimestamps,omitempty"`
+
+	// previousVersion is the Harvester version before upgrade.
 	// +optional
-	NodeStatuses map[string]NodeUpgradeStatus `json:"nodeStatuses,omitempty"`
+	PreviousVersion *string `json:"previousVersion,omitempty"`
+
+	// releaseMetadata reflects the essential metadata extracted from the artifact.
 	// +optional
-	Conditions []Condition `json:"conditions,omitempty"`
+	ReleaseMetadata *ReleaseMetadata `json:"releaseMetadata,omitempty"`
+
+	// version is the snapshot of the associated Version resource
 	// +optional
-	UpgradeLog string `json:"upgradeLog,omitempty"`
+	Version *VersionSpec `json:"version,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster,shortName=up;ups
+// +kubebuilder:printcolumn:name="VERSION",type="string",JSONPath=`.spec.version`
+// +kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="AVAILABLE",type=string,JSONPath=`.status.conditions[?(@.type=='Available')].status`
+// +kubebuilder:printcolumn:name="PROGRESSING",type=string,JSONPath=`.status.conditions[?(@.type=='Progressing')].status`
+// +kubebuilder:printcolumn:name="DEGRADED",type=string,JSONPath=`.status.conditions[?(@.type=='Degraded')].status`
+
+// UpgradePlan is the Schema for the upgradeplans API
+type UpgradePlan struct {
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is a standard object metadata
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty,omitzero"`
+
+	// spec defines the desired state of UpgradePlan
+	// +required
+	Spec UpgradePlanSpec `json:"spec"`
+
+	// status defines the observed state of UpgradePlan
+	// +optional
+	Status UpgradePlanStatus `json:"status,omitempty,omitzero"`
+}
+```
+
+The Version CRD looks like the following (preserving almost all the fields from previous `harvesterhci.io` Version CRD):
+
+```go
+
+// VersionSpec defines the desired state of Version
+type VersionSpec struct {
+	// +required
+	ISODownloadURL string `json:"isoURL"`
+
+	// +optional
+	ISOChecksum *string `json:"isoChecksum,omitempty"`
+
+	// +optional
+	ReleaseDate *string `json:"releaseDate,omitempty"`
+
+	// +optional
+	Tags []string `json:"tags,omitempty"`
+}
+
+// VersionStatus defines the observed state of Version.
+type VersionStatus struct {
+	// conditions represent the current state of the Version resource.
+	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
+	//
+	// The status of each condition is one of True, False, or Unknown.
+	// +listType=map
+	// +listMapKey=type
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="ISOURL",type="string",JSONPath=`.spec.isoURL`
+
+// Version is the Schema for the versions API
+type Version struct {
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is a standard object metadata
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty,omitzero"`
+
+	// spec defines the desired state of Version
+	// +required
+	Spec VersionSpec `json:"spec"`
+
+	// status defines the observed state of Version
+	// +optional
+	Status VersionStatus `json:"status,omitempty,omitzero"`
 }
 ```
 
@@ -182,9 +318,7 @@ type UpgradeStatus struct {
 
 The overall architecture of Harvester Upgrade V2 is as follows.
 
-### Implementation Overview
-
-#### Upgrade Shim
+### Upgrade Shim
 
 Upgrade Shim should be the least frequently changed and the most stable part of the entire Harvester Upgrade mechanics. This implies it should be as simple as possible, avoiding any sophisticated approaches. This part also lives with other controllers in the Harvester main program. Upgrade Shim is responsible for the following tasks:
 
@@ -195,37 +329,38 @@ Upgrade Shim should be the least frequently changed and the most stable part of 
    1. (Optional) Preloading the Upgrade Manager container image
    1. Deploying Upgrade Manager
 
-#### Upgrade Repository
+### Upgrade Repository
 
 Upgrade Repository is the warehouse that is built on the shipped ISO image. It serves other upgrade-relevant components, not just artifacts, but also metadata. The proposed design is to replace the upgrade-repo VM with a set of upgrade-repo pods that are behind a consistent service endpoint, providing a highly available in-cluster upgrade-repo service. This can be further enhanced by increasing speed and saving traffic through the introduction of Spegel.
 
-Note: Spegel cannot replace the Upgrade Repository entirely because, in the end, container images and other artifacts have to somehow appear on one of the nodes to be distributed among others through Spegel.
+> [!NOTE]
+> Spegel cannot replace the Upgrade Repository entirely because, in the end, container images and other artifacts have to somehow appear on one of the nodes to be distributed among others through Spegel.
 
-##### Plan 1 - Static Pods with BackingImage Disk Files
+#### Plan 1 - Static Pods with BackingImage Disk Files
 
 The main idea is to leverage static pods, Longhorn BackingImage disk files, and hostPath volumes. The `minNumberOfCopies` field of the BackingImage for the ISO image is set to the number of nodes of the cluster (subject to change) to distribute the disk files to all nodes. By mounting the BackingImage disk file directly to a specific path on the host filesystem for each node, static pods on each node can access the ISO image content using the hostPath volume.
 
 Plan 1 is efficient since it leverages Longhorn's BackingImage subsystem to distribute the ISO images in parallel. The initial scaffolding is rapid because the ISO image should be ready on each node by then. However, the drawbacks include interfering with the host filesystem, handling tedious teardown code, the intolerance of unpersistent mountpoints to host reboots, reliance on the System Upgrade Controller for static pod deployment, and high dependency on the Longhorn BackingImage subsystem's inner workings.
 
-##### Plan 2 - Deployment with RWX Volume
+#### Plan 2 - Deployment with RWX Volume
 
 Although ROX (ReadOnlyMany) access mode is more suitable here, it is currently unsupported by Longhorn. The alternative way is to use the RWX volume that is implemented via NFS under the hood. This plan aims to create an upgrade-repo Deployment with multiple replica pods that mount the same shared RWX volume backed by Longhorn. The leader pod's initial container (the downloader) downloads the ISO image from the BackingImage download endpoint. It places the downloaded image in the Longhorn shared RWX volume, accessible by other upgrade-repo pods. The sidecar containers (the mounters) then mount the ISO image in the shared volume to another bidirectional shared mount that is only shared across containers in the same pod. The main containers (the HTTP servers) serve the files from that shared path.
 
 Plan 2 does not mess with the host filesystem and is more robust even under the chaos of an upgrading cluster. The drawback is unnecessary compression/decompression back and forth overhead, resulting in a longer preparation time compared to the previous VM-based implementation. Also, the share manager pod of the RWX volume becomes the SPOF (Single Point of Failure) of the entire upgrade-repo architecture.
 
-#### Upgrade Manager Preloader
+### Upgrade Manager Preloader
 
 This is another glue layer with the same position as the Upgrade Shim, but it does fewer things. It simply preloads the Upgrade Manager container image to each node, allowing Upgrade Manager to start without friction. Upgrade Shim is responsible for kick-starting the preloader when users initiate upgrades, i.e., create Upgrade CRs.
 
 Technically, Upgrade Shim creates a Plan CR for System Upgrade Controller to create Jobs running on each node.
 
-#### Upgrade Manager
+### Upgrade Manager
 
 The promotion of Upgrade Manager is to eliminate the two-version fix cycle paradox. Even further, its duty is deliberately stretched to cover most of the Harvester Upgrade mechanics to serve the same purpose. Besides, upgrade-related logic is only needed during upgrades and is rarely used at other times, so it does not need to exist all the time. That's the decisive reason not to deploy Upgrade Manager as a permanent deployment.
 
 The introduction of Upgrade Manager is the most crucial part of the Harvester Upgrade V2 enhancement. It not only separates the upgrade reconcile loops from the bulky Harvester controller manager, but also changes how node-upgrade used to work in Upgrade V1. It encompasses two stages to give us enough time to incorporate all the changes and make them take effect.
 
-##### Stage 1 - Transition Period (version N-1 to N upgrades, where N is the debut minor version of Harvester Upgrade V2)
+#### Stage 1 - Transition Period (version N-1 to N upgrades, where N is the debut minor version of Harvester Upgrade V2)
 
 The inner workings of Upgrade Manager in this stage will be essentially the same as before; the significant difference is that it is built and packaged separately from the primary Harvester artifact. It will also have its own Deployment in contrast to the main Harvester controller manager Deployment. The main concerns will be:
 
@@ -234,13 +369,14 @@ The inner workings of Upgrade Manager in this stage will be essentially the same
 
 The decision is straightforward: since Upgrade Shim initiates Upgrade Manager, to ensure workflow symmetry, it should also be performed by Upgrade Shim for teardown.
 
-Note: The N-to-N upgrades, including patch version upgrades, are deemed stage 1. For instance, the following upgrade paths are the case:
+> [!NOTE]
+> The N-to-N upgrades, including patch version upgrades, are deemed stage 1. For instance, the following upgrade paths are the case:
+>
+> - v1.7.0 -> v1.7.0
+> - v1.7.0 -> v1.7.1
+> - v1.7.1 -> v1.7.1
 
-- v1.7.0 -> v1.7.0
-- v1.7.0 -> v1.7.1
-- v1.7.1 -> v1.7.1
-
-##### Stage 2 - Complete Upgrade V2 (version N to N+1 upgrades, where N is the debut minor version of Harvester Upgrade V2)
+#### Stage 2 - Complete Upgrade V2 (version N to N+1 upgrades, where N is the debut minor version of Harvester Upgrade V2)
 
 Harvester Upgrade V2 is fully unlocked in this stage. The cluster-upgrade phase largely remains the same. In the node-upgrade phase, Rancher v2prov will be dropped, and Harvester Upgrade will no longer rely on the embedded Rancher and Rancher System Agent on each node. Instead, System Upgrade Controller becomes a crucial companion.
 
@@ -261,13 +397,14 @@ Since the hook mechanism in Rancher v2prov is no longer usable, Upgrade Manager 
 
 The challenge of switching to SUC Plans is that the node-upgrade phase is no longer executed as a control loop, but as a one-time task. Upgrade Manager needs to reconcile Plans instead of machine-plan Secrets, and there will be no other entities, such as the embedded Rancher, which abstracts the lifecycle management of downstream clusters, to organize the upgrade nuances.
 
-*The infinite-retry vs. fail-fast will be a key topic for discussion.*
+> [!IMPORTANT]
+> The infinite-retry vs. fail-fast will be a key topic for discussion.
 
-#### Overall Workflow in Detail
+### Implementation Overview
 
 Overview on how the enhancement will be implemented.
 
-##### Upgrade Shim
+#### Upgrade Shim
 
 Upgrade Shim reconciles the Version and Upgrade CRs.
 
@@ -281,7 +418,7 @@ Upgrade Shim does the following when an Upgrade CR gets created (if the associat
 1. Run the Upgrade Manager preloader
 1. Create the Upgrade Manager Deployment with its replicas set to zero; the container image used is sourced from the Upgrade CR (so it's possible to run an off-version Upgrade Manager)
 
-##### Upgrade Repository
+#### Upgrade Repository
 
 Upgrade Repository serves upgrade-related metadata and artifacts.
 
@@ -463,7 +600,7 @@ spec:
     app.kubernetes.io/component: upgrade-repo
 ```
 
-##### Upgrade Manager
+#### Upgrade Manager
 
 Upgrade Manager reconciles Upgrade CRs.
 
@@ -556,33 +693,63 @@ spec:
 
 ### Test Plan
 
-⚠ Work-in-Progress ⚠: This section is still under construction.
+Although there are two stages for Upgrade Manager, the **Transition** stage and the **Complete Upgrade V2** stage, the differences are intrinsic and should be inconceivable to users. The test plan should be the same as before. As a side note, there should be no differences in single-node cluster upgrades and others, unlike Upgrade V1, thanks to the unification of the inner workings of the node-upgrade phase. The test plan should cover the following cluster formations:
 
-Since there are two stages for Upgrade Manager, the transition stage and the complete Upgrade V2 stage, we can categorize test plans into two major parts. Moreover, test plans for upgrades can be simplified. There should be no differences in single-node cluster upgrades and others, unlike Upgrade V1, thanks to the unification of the inner workings of node upgrades.
+- Single-node cluster
+- Two-node cluster (one management node and one worker node)
+- Three-node cluster (three management node)
+- Three-node cluster with one witness node (two management nodes and one witness node)
+- Four-node cluster (three management nodes and one worker node)
 
-#### Transition Stage
+The detailed steps are as follows (taking upgrading to v1.5.2 as an example):
 
-**Single-node Cluster Upgrade**
-
-**Two-node Cluster (one management node and one worker node) Upgrade**
-
-**Three-node Cluster (three management node) Upgrade**
-
-**Three-node Cluster with one witness node (two management nodes and one witness node) Upgrade**
-
-**Four-node Cluster (three management nodes and one worker node) Upgrade**
-
-#### Complete Upgrade V2 Stage
-
-**Single-node Cluster Upgrade**
-
-**Two-node Cluster (one management node and one worker node) Upgrade**
-
-**Three-node Cluster (three management node) Upgrade**
-
-**Three-node Cluster with one witness node (two management nodes and one witness node) Upgrade**
-
-**Four-node Cluster (three management nodes and one worker node) Upgrade**
+1. Create a Harvester cluster
+1. Get the ISO image and put it in a place that can be downloaded by the cluster through HTTP
+1. Create the Version CR via `kubectl create`
+   ```yaml
+   apiVersion: management.harvesterhci.io/v1beta1
+   kind: Version
+   metadata:
+     name: v1.5.2
+   spec:
+     isoChecksum: 'fe189148de9921b2d9c3966c8bf10d7dbb7a3acbdb26e4b1669cbf1cff5cf96bdd7821217f8e92d10f82aa948fe3a1411070bc6ea9bbbf1dfb5c1689896bca8e'
+     isoURL: https://releases.rancher.com/harvester/v1.5.2/harvester-v1.5.2-amd64.iso
+     releaseDate: '20250917'
+   ```
+1. Click the "Upgrade" button on the Harvester dashboard
+   Or, instead, create the UpgradePlan CR via `kubectl create`
+   ```yaml
+   apiVersion: management.harvesterhci.io/v1beta1
+   kind: UpgradePlan
+   metadata:
+     generateName: hvst-upgrade-
+   spec:
+     version: v1.5.2  # refer to the name of the Version CR
+   ```
+1. After the upgrade process completes successfully, check whether the components are all upgraded (comparing with the metadata file packaged in the ISO image)
+   ```shell
+   $ isoinfo -J -i harvester-v1.5.2-amd64.iso -x /harvester-release.yaml
+   harvester: v1.5.2
+   harvesterChart: 1.5.2
+   installer: 745386f
+   os: Harvester v1.5.2
+   kubernetes: v1.32.7+rke2r1
+   rancher: v2.11.3
+   monitoringChart: 105.1.2+up61.3.2
+   loggingChart: 105.2.0+up4.10.0
+   kubevirt: 1.4.1-150600.5.21.2
+   minUpgradableVersion: 'v1.4.2'
+   rancherDependencies:
+     fleet:
+       chart: 106.1.2+up0.12.4
+       app: 0.12.4
+     fleet-crd:
+       chart: 106.1.2+up0.12.4
+       app: 0.12.4
+     rancher-webhook:
+       chart: 106.0.3+up0.7.3
+       app: 0.7.3
+   ```
 
 ### Upgrade Strategy
 
@@ -594,11 +761,12 @@ Harvester Upgrade V2 will be gradually rolled out in multiple (hopefully two) Ha
 
 **The third phase** is where Upgrade V2 unleashes its full potential. Upgrade Shim and Repository largely remain the same as in the second phase; however, Upgrade Manager works differently internally, especially in the node-upgrade part. Besides, since we use the new version Upgrade Manager in almost the entire upgrade procedure, it becomes possible to introduce any changes at an early stage of an upgrade. This is even true for introducing the Upgrade V2 API.
 
-For instance, if Harvester Upgrade V2 is first introduced in Harvester v1.7.0, it can only take effect for upgrades to v1.7.1 and v1.8.x versions from v1.7.0. To be precise, the upgrades to v1.7.y from v1.7.x goes down the Upgrade V2 path, but with Upgrade Manager, which works pretty much the same as the old upgrade controller. Finally, clusters upgrade to v1.7.x from v1.6.x still goes down the Upgrade V1 path.
+For instance, if Harvester Upgrade V2 is first introduced in Harvester v1.7.0, it can only take effect for upgrades to v1.7.1 and v1.8.x versions from v1.7.0. To be precise, the upgrades to v1.7.y from v1.7.x goes down the semi-Upgrade V2 path, with Upgrade Manager, which works pretty much the same as the old upgrade controller. Finally, clusters upgrade to v1.7.x from v1.6.x still goes down the Upgrade V1 path.
 
 In summary, we still need to handle the (hopefully) last time two-release fix cycle paradox by planning the rollout strategy carefully.
 
-Note: It's totally feasible to drop the entire third phase if we realize dropping Rancher v2prov is impossible due to other reasons. The rollout strategy is deliberately designed to be flexible.
+> [!IMPORTANT]
+> It's totally feasible to drop the entire third phase if we realize dropping Rancher v2prov is impossible due to other reasons. The rollout strategy is deliberately designed to be flexible.
 
 ## Note [optional]
 
