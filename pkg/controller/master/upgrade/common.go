@@ -147,6 +147,9 @@ func markComplete(upgrade *harvesterv1.Upgrade) {
 		harvesterv1.NodesUpgraded.IsTrue(upgrade) {
 		harvesterv1.UpgradeCompleted.True(upgrade)
 		upgrade.Labels[upgradeStateLabel] = StateSucceeded
+		if v, exists := upgrade.Labels[upgradeCleanupLabel]; !exists || v != StatePending {
+			upgrade.Labels[upgradeCleanupLabel] = StatePending
+		}
 	}
 	if harvesterv1.ImageReady.IsFalse(upgrade) || harvesterv1.RepoProvisioned.IsFalse(upgrade) ||
 		harvesterv1.SystemServicesUpgraded.IsFalse(upgrade) || harvesterv1.NodesUpgraded.IsFalse(upgrade) {

@@ -35,6 +35,7 @@ const (
 	StateUpgradingNodes          = "UpgradingNodes"
 	StateSucceeded               = "Succeeded"
 	StateFailed                  = "Failed"
+	StatePending                 = "Pending"
 
 	nodeStateImagesPreloading       = "Images preloading"
 	nodeStateImagesPreloaded        = "Images preloaded"
@@ -46,6 +47,7 @@ const (
 	upgradeNodeLabel                = "upgrade.cattle.io/node"
 	upgradeStateLabel               = "harvesterhci.io/upgradeState"
 	upgradeJobTypeLabel             = "harvesterhci.io/upgradeJobType"
+	upgradeCleanupLabel             = "harvesterhci.io/upgradeCleanup"
 	upgradeJobTypePreDrain          = "pre-drain"
 	upgradeJobTypePostDrain         = "post-drain"
 	upgradeJobTypeRestoreVM         = "restore-vm"
@@ -182,7 +184,6 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 		LabelSelector: fmt.Sprintf("%s=%s", rancherPlanSecretMachineLabel, machineName),
 		FieldSelector: fmt.Sprintf("type=%s", rancherPlanSecretType),
 	})
-
 	if err != nil {
 		return job, err
 	}

@@ -244,7 +244,8 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(longhornSettingsRestoredAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(autoCleanupSystemGeneratedSnapshotAnnotation, strconv.FormatBool(true)).
-					WithAnnotation(replicaReplenishmentAnnotation, strconv.Itoa(600)).Build(),
+					WithAnnotation(replicaReplenishmentAnnotation, strconv.Itoa(600)).
+					WithLabel(upgradeCleanupLabel, StateSucceeded).Build(),
 			},
 		},
 	}
