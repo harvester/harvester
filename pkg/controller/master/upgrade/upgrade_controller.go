@@ -263,8 +263,19 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 
 	// upgrade failed
 	if harvesterv1.UpgradeCompleted.IsFalse(upgrade) {
+		logrus.Infof("upgrade failed... starting post-upgrade cleanup")
+		if upgrade.Labels[upgradeCleanupLabel] == StateSucceeded {
+			logrus.Infof("post-upgrade cleanup already completed")
+			return upgrade, nil
+		}
 		// clean upgrade repo VMs.
-		return h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
+		latest, err := h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
+		if err != nil {
+			return nil, err
+		}
+		logrus.Infof("successfully completed post-upgrade cleanup")
+		latest.Labels[upgradeCleanupLabel] = StateSucceeded
+		return h.upgradeClient.Update(latest)
 	}
 
 	if harvesterv1.ImageReady.IsTrue(upgrade) && harvesterv1.RepoProvisioned.GetStatus(upgrade) == "" {
