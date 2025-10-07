@@ -213,6 +213,18 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `volumeName` are required")
 		}
 		return nil, h.removeVolume(r.Context(), namespace, name, input)
+	case addNic:
+		var input AddNicInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		return nil, h.addNic(r.Context(), namespace, name, input)
+	case removeNic:
+		var input RemoveNicInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		return nil, h.removeNic(r.Context(), namespace, name, input)
 	case cloneVM:
 		var input CloneInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -1162,6 +1174,62 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 
 		return h.updateVMVolumeClaimTemplate(vm, removeVolumeClaimTemplate)
 	})
+}
+
+// addNic add a hotplug NIC with given interface name and network name.
+func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, input AddNicInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	vmCopy := vm.DeepCopy()
+
+	// TODO: check interface name is unique
+
+	newIface := kubevirtv1.Interface{
+		Name:                   input.InterfaceName,
+		Model:                  "virtio",
+		InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{Bridge: &kubevirtv1.InterfaceBridge{}},
+	}
+	vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces = append(vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces, newIface)
+
+	newNetwork := kubevirtv1.Network{
+		Name:          input.InterfaceName,
+		NetworkSource: kubevirtv1.NetworkSource{Multus: &kubevirtv1.MultusNetwork{NetworkName: input.NetworkName}},
+	}
+	vmCopy.Spec.Template.Spec.Networks = append(vmCopy.Spec.Template.Spec.Networks, newNetwork)
+
+	_, err = h.vms.Update(vmCopy)
+	return err
+}
+
+// removeNic remove a hotplug NIC by its interface name
+func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string, input RemoveNicInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	vmCopy := vm.DeepCopy()
+
+	var tgtIface *kubevirtv1.Interface
+	for _, iface := range vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces {
+		// TODO: should check this
+		// Hot-unplug is supported only for interfaces connected through bridge binding.
+		if iface.Name == input.InterfaceName {
+			tgtIface = &iface
+			break
+		}
+	}
+
+	if tgtIface == nil {
+		return fmt.Errorf("cannot find interface %s", input.InterfaceName)
+	}
+
+	tgtIface.State = kubevirtv1.InterfaceStateAbsent
+	_, err = h.vms.Update(vmCopy)
+	return err
 }
 
 // cloneVM creates a VM which uses volume cloning from the source VM.

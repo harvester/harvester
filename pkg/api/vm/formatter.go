@@ -41,6 +41,8 @@ const (
 	createTemplate                   = "createTemplate"
 	addVolume                        = "addVolume"
 	removeVolume                     = "removeVolume"
+	addNic                           = "addNic"
+	removeNic                        = "removeNic"
 	cloneVM                          = "clone"
 	forceStopVM                      = "forceStop"
 	dismissInsufficientResourceQuota = "dismissInsufficientResourceQuota"
@@ -86,6 +88,10 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	resource.AddAction(request, addVolume)
 	resource.AddAction(request, removeVolume)
 	resource.AddAction(request, cloneVM)
+
+	// TODO: check canHotplugNic
+	resource.AddAction(request, addNic)
+	resource.AddAction(request, removeNic)
 
 	if canEjectCdRom(vm) {
 		resource.AddAction(request, ejectCdRom)

@@ -39,6 +39,15 @@ type RemoveVolumeInput struct {
 	DiskName string `json:"diskName"`
 }
 
+type AddNicInput struct {
+	InterfaceName string `json:"interfaceName"`
+	NetworkName   string `json:"networkName"`
+}
+
+type RemoveNicInput struct {
+	InterfaceName string `json:"interfaceName"`
+}
+
 type CloneInput struct {
 	TargetVM    string `json:"targetVm"`
 	RunStrategy string `json:"runStrategy"`
