@@ -14,8 +14,10 @@ import (
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	provisioningctrl "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/condition"
+	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -48,10 +50,10 @@ const (
 	sucNamespace                   = util.CattleSystemNamespaceName    // refer public defined cattle-system
 	upgradeServiceAccount          = "system-upgrade-controller"
 	harvesterSystemNamespace       = util.HarvesterSystemNamespaceName
-	harvesterUpgradeLabel          = "harvesterhci.io/upgrade"
+	harvesterUpgradeLabel          = util.LabelHarvesterUpgrade
 	harvesterManagedLabel          = util.HarvesterManagedNodeLabelKey
 	harvesterLatestUpgradeLabel    = "harvesterhci.io/latestUpgrade"
-	harvesterUpgradeComponentLabel = "harvesterhci.io/upgradeComponent"
+	harvesterUpgradeComponentLabel = util.LabelHarvesterUpgradeComponent
 	harvesterNodeLabel             = "harvesterhci.io/node"
 
 	harvesterNodePendingOSImage = "harvesterhci.io/pendingOSImage"
@@ -62,7 +64,7 @@ const (
 	rke2PreDrainAnnotation  = "rke.cattle.io/pre-drain"
 	rke2PostDrainAnnotation = "rke.cattle.io/post-drain"
 
-	upgradeComponentRepo = "repo"
+	upgradeComponentRepo = util.HarvesterUpgradeComponentRepo
 
 	replicaReplenishmentWaitIntervalSetting  = "replica-replenishment-wait-interval"
 	replicaReplenishmentAnnotation           = "harvesterhci.io/" + replicaReplenishmentWaitIntervalSetting
@@ -102,12 +104,14 @@ type upgradeHandler struct {
 	managedChartCache  mgmtv3.ManagedChartCache
 	managedChartClient mgmtv3.ManagedChartClient
 
-	vmImageClient ctlharvesterv1.VirtualMachineImageClient
-	vmImageCache  ctlharvesterv1.VirtualMachineImageCache
-	vmClient      kubevirtctrl.VirtualMachineClient
-	vmCache       kubevirtctrl.VirtualMachineCache
-	serviceClient ctlcorev1.ServiceClient
-	pvcClient     ctlcorev1.PersistentVolumeClaimClient
+	vmImageClient    ctlharvesterv1.VirtualMachineImageClient
+	vmImageCache     ctlharvesterv1.VirtualMachineImageCache
+	vmClient         kubevirtctrl.VirtualMachineClient
+	vmCache          kubevirtctrl.VirtualMachineCache
+	serviceClient    ctlcorev1.ServiceClient
+	pvcClient        ctlcorev1.PersistentVolumeClaimClient
+	deploymentClient ctlappsv1.DeploymentClient
+	deploymentCache  ctlappsv1.DeploymentCache
 
 	clusterClient provisioningctrl.ClusterClient
 	clusterCache  provisioningctrl.ClusterCache
@@ -116,6 +120,8 @@ type upgradeHandler struct {
 	lhSettingCache  ctllhv1.SettingCache
 
 	vmRestClient rest.Interface
+	scClient     ctlstoragev1.StorageClassClient
+	scCache      ctlstoragev1.StorageClassCache
 }
 
 func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
@@ -168,6 +174,19 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		if upgrade.Spec.Image == "" {
 			version, err := h.versionCache.Get(h.namespace, upgrade.Spec.Version)
 			if err != nil {
+				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
+				return h.upgradeClient.Update(toUpdate)
+			}
+
+			err = repo.CreateStorageClass()
+			if err != nil && apierrors.IsAlreadyExists(err) {
+				sc, err := h.scCache.Get(repo.getStorageClassName())
+				if err != nil {
+					setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
+					return h.upgradeClient.Update(toUpdate)
+				}
+				logrus.Infof("Reuse the existing storage class: %s", sc.Name)
+			} else if err != nil && !apierrors.IsAlreadyExists(err) {
 				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
 				return h.upgradeClient.Update(toUpdate)
 			}
@@ -235,18 +254,30 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			return h.upgradeClient.Update(latest)
 		}
 
-		// repo VM is required for the image cleaning procedure, bring it up if it's down
-		logrus.Info("Try to start repo VM for image pruning")
-		vm, err := h.vmCache.Get(repo.GetVMNamespace(), repo.GetVMName())
-		if err != nil {
-			logrus.Warnf("Failed to get repo VM %s/%s from cache, error %s", repo.GetVMNamespace(), repo.GetVMName(), err.Error())
-			return nil, err
+		vm, errVM := h.vmCache.Get(repo.GetVMNamespace(), repo.GetVMName())
+		_, errDeployment := h.deploymentCache.Get(repo.GetVMNamespace(), repo.GetVMName())
+		if errVM != nil && !apierrors.IsNotFound(errVM) {
+			return nil, fmt.Errorf("failed to get repo VM %s/%s from cache: %w", repo.GetVMNamespace(), repo.GetVMName(), errVM)
+		}
+		if errDeployment != nil && !apierrors.IsNotFound(errDeployment) {
+			return nil, fmt.Errorf("failed to get repo deployment %s/%s from cache: %w", repo.GetVMNamespace(), repo.GetVMName(), errDeployment)
 		}
 
-		if !vmReady.IsTrue(vm) {
-			if err = h.startVM(context.Background(), vm); err != nil {
-				logrus.Warnf("Failed to start repo vm %s/%s for image pruning, error %s", vm.Namespace, vm.Name, err.Error())
-				return nil, err
+		// Check if both VM and Deployment are missing for backward compatibility:
+		// - versions before v1.7.0: Uses VM for preload stage
+		// - v1.7.0+: Uses Deployment only
+		// - v1.6.x to v1.7.x upgrade: Still requires VM during transition
+		vmNotFound := errVM != nil && apierrors.IsNotFound(errVM)
+		deploymentNotFound := errDeployment != nil && apierrors.IsNotFound(errDeployment)
+		if vmNotFound && deploymentNotFound {
+			return nil, fmt.Errorf("both repo VM and Deployment %s/%s not found", repo.GetVMNamespace(), repo.GetVMName())
+		}
+
+		if !vmNotFound && !vmReady.IsTrue(vm) {
+			// repo VM is required for the image cleaning procedure, bring it up if it's down
+			logrus.Info("Try to start repo VM for image pruning")
+			if err := h.startVM(context.Background(), vm); err != nil {
+				return nil, fmt.Errorf("failed to start repo vm %s/%s for image pruning: %w", vm.Namespace, vm.Name, err)
 			}
 		}
 
@@ -283,7 +314,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 	}
 
 	if harvesterv1.ImageReady.IsTrue(upgrade) && harvesterv1.RepoProvisioned.GetStatus(upgrade) == "" {
-		logrus.Info("Starting upgrade repo VM")
+		logrus.Info("Starting upgrade repo")
 		toUpdate := upgrade.DeepCopy()
 		if err := repo.Bootstrap(); err != nil && !apierrors.IsAlreadyExists(err) {
 			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")

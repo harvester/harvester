@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -62,6 +63,8 @@ func NewValidator(
 	settingCache ctlharvesterv1.SettingCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	endpointCache v1.EndpointsCache,
+	vmImageCache ctlharvesterv1.VirtualMachineImageCache,
+	pvcCache v1.PersistentVolumeClaimCache,
 	httpClient *http.Client,
 	bearToken string,
 ) types.Validator {
@@ -78,6 +81,8 @@ func NewValidator(
 		vmiCache:          vmiCache,
 		endpointCache:     endpointCache,
 		settingCache:      settingCache,
+		vmImageCache:      vmImageCache,
+		pvcCache:          pvcCache,
 		httpClient:        httpClient,
 		bearToken:         bearToken,
 	}
@@ -98,6 +103,8 @@ type upgradeValidator struct {
 	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
 	endpointCache     v1.EndpointsCache
 	settingCache      ctlharvesterv1.SettingCache
+	vmImageCache      ctlharvesterv1.VirtualMachineImageCache
+	pvcCache          v1.PersistentVolumeClaimCache
 	httpClient        *http.Client
 	bearToken         string
 }
@@ -213,6 +220,10 @@ func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 	}
 
 	if err := v.checkSingleReplicaVolumes(upgrade); err != nil {
+		return err
+	}
+
+	if err := v.checkVMImageRequirements(upgrade); err != nil {
 		return err
 	}
 
@@ -685,4 +696,57 @@ func (v *upgradeValidator) checkCerts(upgrade *v1beta1.Upgrade) error {
 			"earliest expiring cert for default/kubernetes ClusterIP is %s, it will expire in %s days. Please rotate RKE2 certificates.", earliestExpiringCert.NotAfter, strconv.Itoa(minCertsExpirationInDay)))
 	}
 	return nil
+}
+
+func (v *upgradeValidator) checkVMImageRequirements(upgrade *v1beta1.Upgrade) error {
+	if upgrade.Spec.Image == "" {
+		return nil
+	}
+
+	vmImage, err := util.GetUpgradeImage(upgrade.Spec.Image, v.vmImageCache)
+	if err != nil {
+		return err
+	}
+
+	if vmImage.Namespace != upgrade.Namespace {
+		return werror.NewBadRequest(fmt.Sprintf("VM image %s/%s is not in the same namespace as upgrade %s/%s",
+			vmImage.Namespace, vmImage.Name, upgrade.Namespace, upgrade.Name))
+	}
+
+	if vmImage.Spec.Backend == v1beta1.VMIBackendBackingImage {
+		return werror.NewBadRequest(fmt.Sprintf("VM image %s/%s uses backingImage backend, which is not supported for upgrade, please use cdi backend instead.", vmImage.Namespace, vmImage.Name))
+	}
+
+	var pvcNamespace, pvcName string
+	if vmImage.Spec.PVCName != "" && vmImage.Spec.PVCNamespace != "" {
+		pvcNamespace = vmImage.Spec.PVCNamespace
+		pvcName = vmImage.Spec.PVCName
+	} else {
+		pvcNamespace = vmImage.Namespace
+		pvcName = vmImage.Name
+	}
+
+	pvc, err := v.pvcCache.Get(pvcNamespace, pvcName)
+	if err != nil {
+		return werror.NewBadRequest(fmt.Sprintf("failed to get PVC %s/%s for VM image %s/%s: %v",
+			pvcNamespace, pvcName, vmImage.Namespace, vmImage.Name, err))
+	}
+
+	if !checkPVCRequirementForUpgradeImage(pvc) {
+		return werror.NewBadRequest(fmt.Sprintf("PVC %s/%s for VM image %s/%s does not meet the upgrade requirements: volume mode must be 'Filesystem' and access mode must include 'ReadWriteMany'",
+			pvc.Namespace, pvc.Name, vmImage.Namespace, vmImage.Name))
+	}
+
+	return nil
+}
+
+func checkPVCRequirementForUpgradeImage(pvc *corev1.PersistentVolumeClaim) bool {
+	// Check volume mode is Filesystem
+	if pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode != corev1.PersistentVolumeFilesystem {
+		return false
+	}
+
+	// Check access mode contains ReadWriteMany
+	hasRWX := slices.Contains(pvc.Spec.AccessModes, corev1.ReadWriteMany)
+	return hasRWX
 }
