@@ -36,6 +36,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/volumesnapshot"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	"github.com/harvester/harvester/pkg/webhook/util"
+	"github.com/harvester/harvester/pkg/webhook/resources/machine"
 )
 
 func Validation(clients *clients.Clients, options *config.Options) (http.Handler, []types.Resource, error) {
@@ -198,6 +199,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
 			clients.AppsFactory.Apps().V1().Deployment().Cache(),
 		),
+		machine.NewValidator(client, clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache()),
 	}
 
 	router := webhook.NewRouter()
