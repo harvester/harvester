@@ -10,13 +10,13 @@ dependencies:
   version: 0.2.0
 - name: harvester-network-controller
   repository: https://charts.harvesterhci.io
-  version: 1.6.1-rc1
+  version: 1.6.1-rc2
 - name: harvester-networkfs-manager
   repository: https://charts.harvesterhci.io
-  version: 1.6.1-rc1
+  version: 1.6.1-rc2
 - name: harvester-node-disk-manager
   repository: https://charts.harvesterhci.io
-  version: 1.6.1-rc1
+  version: 1.6.1-rc2
 - name: csi-snapshotter
   repository: file://dependency_charts/csi-snapshotter
   version: 0.2.0
@@ -28,15 +28,15 @@ dependencies:
   version: 0.6.1
 - name: harvester-load-balancer
   repository: https://charts.harvesterhci.io
-  version: 1.6.1-rc1
+  version: 1.6.1-rc2
 - name: whereabouts
   repository: file://dependency_charts/whereabouts
   version: 0.1.1
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
-  version: 1.6.1-rc1
+  version: 1.6.1-rc2
 - name: snapshot-validation-webhook
   repository: file://dependency_charts/snapshot-validation-webhook
   version: 0.2.0
-digest: sha256:69686fdd1617a5ddbe669944f7cbb6bce1febb15fd437803b3236827cf8ee070
-generated: "2025-10-01T05:22:28.479922165Z"
+digest: sha256:08f2afc0d3695e1b519b359b6f3fae3e57edd812fb0c8e655d0439feb72dad93
+generated: "2025-10-08T08:13:51.265729004Z"
