@@ -194,6 +194,31 @@ func (s *HarvesterServer) Scaled() *config.Scaled {
 	return config.ScaledWithContext(s.Context)
 }
 
+// noopExtensionAPIServer is a no-op implementation of ExtensionAPIServer
+type noopExtensionAPIServer struct {
+	registered chan struct{}
+}
+
+func newNoopExtensionAPIServer() *noopExtensionAPIServer {
+	ch := make(chan struct{})
+	close(ch) // immediately close the channel to indicate "registered"
+	return &noopExtensionAPIServer{
+		registered: ch,
+	}
+}
+
+func (n *noopExtensionAPIServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	http.NotFoundHandler().ServeHTTP(rw, req)
+}
+
+func (n *noopExtensionAPIServer) Run(ctx context.Context) error {
+	return nil // no-op
+}
+
+func (n *noopExtensionAPIServer) Registered() <-chan struct{} {
+	return n.registered
+}
+
 func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 	factory, err := controller.NewSharedControllerFactoryFromConfig(s.RESTConfig, Scheme)
 	if err != nil {
@@ -238,6 +263,10 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 		AuthMiddleware:  steveauth.ExistingContext,
 		Router:          router.Routes,
 		AccessSetLookup: s.ASL,
+
+		// FIXME: Steve requires an ExtensionAPIServer, otherwise it panics.
+		// We can remove this line after bumping rancher/steve to v0.6.20.
+		ExtensionAPIServer: newNoopExtensionAPIServer(),
 	})
 	if err != nil {
 		return err
