@@ -44,7 +44,7 @@ var (
 )
 
 const (
-	//system upgrade controller is deployed in cattle-system namespace
+	// system upgrade controller is deployed in cattle-system namespace
 	upgradeNamespace               = util.HarvesterSystemNamespaceName // refer public defined harvester-system
 	sucNamespace                   = util.CattleSystemNamespaceName    // refer public defined cattle-system
 	upgradeServiceAccount          = "system-upgrade-controller"
@@ -216,10 +216,22 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 
 	// clean upgrade repo VMs and images if a upgrade succeeds.
 	if harvesterv1.UpgradeCompleted.IsTrue(upgrade) {
+		logrus.Infof("starting post-upgrade cleanup")
 		// try to clean up images before purging the repo VM
 		_, exists := upgrade.Annotations[imageCleanupPlanCompletedAnnotation]
 		if exists {
-			return h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
+			if upgrade.Labels[upgradeCleanupLabel] == StateSucceeded {
+				logrus.Infof("post-upgrade cleanup already completed")
+				return upgrade, nil
+			}
+
+			latest, err := h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
+			if err != nil {
+				return nil, err
+			}
+			logrus.Infof("successfully completed post-upgrade cleanup")
+			latest.Labels[upgradeCleanupLabel] = StateSucceeded
+			return h.upgradeClient.Update(latest)
 		}
 
 		vm, errVM := h.vmCache.Get(repo.GetVMNamespace(), repo.GetVMName())
@@ -270,8 +282,19 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 
 	// upgrade failed
 	if harvesterv1.UpgradeCompleted.IsFalse(upgrade) {
+		logrus.Infof("upgrade failed... starting post-upgrade cleanup")
+		if upgrade.Labels[upgradeCleanupLabel] == StateSucceeded {
+			logrus.Infof("post-upgrade cleanup already completed")
+			return upgrade, nil
+		}
 		// clean upgrade repo VMs.
-		return h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
+		latest, err := h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
+		if err != nil {
+			return nil, err
+		}
+		logrus.Infof("successfully completed post-upgrade cleanup")
+		latest.Labels[upgradeCleanupLabel] = StateSucceeded
+		return h.upgradeClient.Update(latest)
 	}
 
 	if harvesterv1.ImageReady.IsTrue(upgrade) && harvesterv1.RepoProvisioned.GetStatus(upgrade) == "" {
@@ -524,7 +547,7 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 		}
 	}
 
-	return nil, h.resumeManagedCharts()
+	return upgrade, h.resumeManagedCharts()
 }
 
 func (h *upgradeHandler) resumeManagedCharts() error {
