@@ -70,6 +70,8 @@ func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patch
 		return patchOps, err
 	}
 
+	patchOps = patchDefaultCPU(vm, patchOps)
+
 	patchOps, err = m.patchAffinity(vm, patchOps)
 	if err != nil {
 		return nil, err
@@ -102,6 +104,8 @@ func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runti
 	if err != nil {
 		return patchOps, err
 	}
+
+	patchOps = patchDefaultCPU(newVM, patchOps)
 
 	needUpdateRunStrategy, err := needUpdateRunStrategy(oldVM, newVM)
 	if err != nil {
@@ -579,4 +583,26 @@ func hostDevicesOvercommitNeeded(oldVM, newVM *kubevirtv1.VirtualMachine) bool {
 
 func isDedicatedCPU(vm *kubevirtv1.VirtualMachine) bool {
 	return vm.Spec.Template.Spec.Domain.CPU != nil && vm.Spec.Template.Spec.Domain.CPU.DedicatedCPUPlacement
+}
+
+func patchDefaultCPU(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) []string {
+	cpu := vm.Spec.Template.Spec.Domain.CPU
+	if cpu == nil {
+		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu", "value": {"cores": 1, "sockets": 1, "threads": 1}}`)
+		return patchOps
+	}
+
+	if cpu.Cores == 0 {
+		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/cores", "value": 1}`)
+	}
+
+	if cpu.Sockets == 0 {
+		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/sockets", "value": 1}`)
+	}
+
+	if cpu.Threads == 0 {
+		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/threads", "value": 1}`)
+	}
+
+	return patchOps
 }
