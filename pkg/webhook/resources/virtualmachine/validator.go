@@ -301,6 +301,9 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 	if err := v.checkTerminationGracePeriodSeconds(vm); err != nil {
 		return err
 	}
+	if err := v.checkEmptyMemory(vm); err != nil {
+		return err
+	}
 	if err := v.checkReservedMemoryAnnotation(vm); err != nil {
 		return err
 	}
@@ -630,4 +633,16 @@ func volumeSupportRWXForVM(accessModes []corev1.PersistentVolumeAccessMode, prov
 		}
 	}
 	return false
+}
+
+func (v *vmValidator) checkEmptyMemory(vm *kubevirtv1.VirtualMachine) error {
+	guestMem := resource.NewQuantity(0, resource.BinarySI)
+	if vm.Spec.Template.Spec.Domain.Memory != nil {
+		guestMem = vm.Spec.Template.Spec.Domain.Memory.Guest
+	}
+	limitMem := vm.Spec.Template.Spec.Domain.Resources.Limits.Memory()
+	if guestMem.IsZero() && limitMem.IsZero() {
+		return werror.NewInvalidError("either memory.guest or resources.limits.memory must be set", "spec.template.spec.domain")
+	}
+	return nil
 }
