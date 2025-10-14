@@ -15,4 +15,6 @@ limitations under the License.
 */
 
 // Package errors makes a set of error message handlers available for use by Cluster API Providers.
+//
+// Deprecated: This package will be removed in one of the next releases.
 package errors

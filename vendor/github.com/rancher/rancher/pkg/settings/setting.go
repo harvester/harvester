@@ -9,18 +9,18 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-
 	v32 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	authsettings "github.com/rancher/rancher/pkg/auth/settings"
 	"github.com/rancher/rancher/pkg/buildconfig"
 	fleetconst "github.com/rancher/rancher/pkg/fleet"
+	"github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 const (
-	RancherVersionDev                 = "2.9.99"
-	DefaultMaxUIPluginFileSizeInBytes = 20 * 1024 * 1024 // 20MB
+	RancherVersionDev                 = "2.11.99"
+	DefaultMaxUIPluginFileSizeInBytes = 30 * 1024 * 1024 // 30MB
 	AgentTLSModeStrict                = "strict"
 	AgentTLSModeSystemStore           = "system-store"
 )
@@ -56,7 +56,7 @@ var (
 		"cattle-elemental-system",
 	}
 
-	AgentImage          = NewSetting("agent-image", "rancher/rancher-agent:v2.9-head")
+	AgentImage          = NewSetting("agent-image", "rancher/rancher-agent:head")
 	AgentRolloutTimeout = NewSetting("agent-rollout-timeout", "300s")
 	AgentRolloutWait    = NewSetting("agent-rollout-wait", "true")
 	// AgentTLSMode is translated to the environment variable STRICT_VERIFY when rendering the cluster/node agent manifests and should not be specified as a default agent setting as it has no direct effect on the agent itself.
@@ -70,10 +70,10 @@ var (
 	CLIURLLinux                         = NewSetting("cli-url-linux", "https://releases.rancher.com/cli/v1.0.0-alpha8/rancher-linux-amd64-v1.0.0-alpha8.tar.gz")
 	CLIURLWindows                       = NewSetting("cli-url-windows", "https://releases.rancher.com/cli/v1.0.0-alpha8/rancher-windows-386-v1.0.0-alpha8.zip")
 	ClusterControllerStartCount         = NewSetting("cluster-controller-start-count", "50")
-	EngineInstallURL                    = NewSetting("engine-install-url", "https://releases.rancher.com/install-docker/27.1.sh")
+	EngineInstallURL                    = NewSetting("engine-install-url", "https://releases.rancher.com/install-docker/28.1.sh")
 	EngineISOURL                        = NewSetting("engine-iso-url", "https://releases.rancher.com/os/latest/rancheros-vmware.iso")
 	EngineNewestVersion                 = NewSetting("engine-newest-version", "v17.12.0")
-	EngineSupportedRange                = NewSetting("engine-supported-range", "~v1.11.2 || ~v1.12.0 || ~v1.13.0 || ~v17.03.0 || ~v17.06.0 || ~v17.09.0 || ~v18.06.0 || ~v18.09.0 || ~v19.03.0 || ~v20.10.0 || ~v23.0.0 || ~v24.0.0 || ~v25.0.0 || ~v26.0.0 || ~v26.1.0 || ~v27.0.0 || ~v27.1.0")
+	EngineSupportedRange                = NewSetting("engine-supported-range", "~v1.11.2 || ~v1.12.0 || ~v1.13.0 || ~v17.03.0 || ~v17.06.0 || ~v17.09.0 || ~v18.06.0 || ~v18.09.0 || ~v19.03.0 || ~v20.10.0 || ~v23.0.0 || ~v24.0.0 || ~v25.0.0 || ~v26.0.0 || ~v26.1.0|| ~v27.0.0|| ~v27.1.0|| ~v27.2.0|| ~v27.3.0|| ~v27.4.0|| ~v27.5.0|| ~v28.0.0|| ~v28.1.0")
 	FirstLogin                          = NewSetting("first-login", "true")
 	GlobalRegistryEnabled               = NewSetting("global-registry-enabled", "false")
 	GithubProxyAPIURL                   = NewSetting("github-proxy-api-url", "https://api.github.com")
@@ -90,7 +90,7 @@ var (
 	KubernetesVersionToSystemImages     = NewSetting("k8s-version-to-images", "")
 	KubernetesVersionsCurrent           = NewSetting("k8s-versions-current", "")
 	KubernetesVersionsDeprecated        = NewSetting("k8s-versions-deprecated", "")
-	KDMBranch                           = NewSetting("kdm-branch", "release-v2.9")
+	KDMBranch                           = NewSetting("kdm-branch", "release-v2.11")
 	MachineVersion                      = NewSetting("machine-version", "dev")
 	Namespace                           = NewSetting("namespace", os.Getenv("CATTLE_NAMESPACE"))
 	PasswordMinLength                   = NewSetting("password-min-length", "12")
@@ -104,14 +104,13 @@ var (
 	WinsAgentVersion                    = NewSetting("wins-agent-version", "")
 	CSIProxyAgentVersion                = NewSetting("csi-proxy-agent-version", "")
 	CSIProxyAgentURL                    = NewSetting("csi-proxy-agent-url", "https://acs-mirror.azureedge.net/csi-proxy/%[1]s/binaries/csi-proxy-%[1]s.tar.gz")
-	SystemAgentInstallScript            = NewSetting("system-agent-install-script", "https://github.com/rancher/system-agent/releases/download/v0.3.9/install.sh") // To ensure consistency between SystemAgentInstallScript default value and CATTLE_SYSTEM_AGENT_INSTALL_SCRIPT to utilize the local system-agent-install.sh script when both values are equal.
-	WinsAgentInstallScript              = NewSetting("wins-agent-install-script", "https://raw.githubusercontent.com/rancher/wins/v0.4.18/install.ps1")
+	SystemAgentInstallScript            = NewSetting("system-agent-install-script", "https://github.com/rancher/system-agent/releases/download/v0.3.12/install.sh") // To ensure consistency between SystemAgentInstallScript default value and CATTLE_SYSTEM_AGENT_INSTALL_SCRIPT to utilize the local system-agent-install.sh script when both values are equal.
+	WinsAgentInstallScript              = NewSetting("wins-agent-install-script", "https://raw.githubusercontent.com/rancher/wins/v0.5.1/install.ps1")
 	SystemAgentInstallerImage           = NewSetting("system-agent-installer-image", "") // Defined via environment variable
 	SystemAgentUpgradeImage             = NewSetting("system-agent-upgrade-image", "")   // Defined via environment variable
 	WinsAgentUpgradeImage               = NewSetting("wins-agent-upgrade-image", "")
 	SystemNamespaces                    = NewSetting("system-namespaces", strings.Join(systemNamespaces, ","))
 	SystemUpgradeControllerChartVersion = NewSetting("system-upgrade-controller-chart-version", "")
-	TelemetryOpt                        = NewSetting("telemetry-opt", "")
 	TLSMinVersion                       = NewSetting("tls-min-version", "1.2")
 	TLSCiphers                          = NewSetting("tls-ciphers", "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305")
 	WhitelistDomain                     = NewSetting("whitelist-domain", "forums.rancher.com")
@@ -122,22 +121,25 @@ var (
 	ClusterTemplateEnforcement          = NewSetting("cluster-template-enforcement", "false")
 	InitialDockerRootDir                = NewSetting("initial-docker-root-dir", "/var/lib/docker")
 	SystemCatalog                       = NewSetting("system-catalog", "external") // Options are 'external' or 'bundled'
-	ChartDefaultBranch                  = NewSetting("chart-default-branch", "release-v2.9")
+	ChartDefaultBranch                  = NewSetting("chart-default-branch", "release-v2.11")
 	SystemManagedChartsOperationTimeout = NewSetting("system-managed-charts-operation-timeout", "300s")
 	FleetDefaultWorkspaceName           = NewSetting("fleet-default-workspace-name", fleetconst.ClustersDefaultNamespace) // fleetWorkspaceName to assign to clusters with none
 	ShellImage                          = NewSetting("shell-image", buildconfig.DefaultShellVersion)
 	IgnoreNodeName                      = NewSetting("ignore-node-name", "") // nodes to ignore when syncing v1.node to v3.node
 	NoDefaultAdmin                      = NewSetting("no-default-admin", "")
-	RestrictedDefaultAdmin              = NewSetting("restricted-default-admin", "false") // When bootstrapping the admin for the first time, give them the global role restricted-admin
 	AKSUpstreamRefresh                  = NewSetting("aks-refresh", "300")
+	EKSUpstreamRefreshCron              = NewSetting("eks-refresh-cron", "*/5 * * * *") // EKSUpstreamRefreshCron is deprecated and will be replaced by EKSUpstreamRefresh
 	EKSUpstreamRefresh                  = NewSetting("eks-refresh", "300")
 	GKEUpstreamRefresh                  = NewSetting("gke-refresh", "300")
 	HideLocalCluster                    = NewSetting("hide-local-cluster", "false")
-	MachineProvisionImage               = NewSetting("machine-provision-image", "rancher/machine:v0.15.0-rancher116")
+	MachineProvisionImage               = NewSetting("machine-provision-image", "rancher/machine:v0.15.0-rancher127")
 	SystemFeatureChartRefreshSeconds    = NewSetting("system-feature-chart-refresh-seconds", "21600")
 	ClusterAgentDefaultAffinity         = NewSetting("cluster-agent-default-affinity", ClusterAgentAffinity)
 	FleetAgentDefaultAffinity           = NewSetting("fleet-agent-default-affinity", FleetAgentAffinity)
 	MaxUIPluginFileByteSize             = NewSetting("max-ui-plugin-file-byte-size", strconv.Itoa(DefaultMaxUIPluginFileSizeInBytes)) // Max file size in bytes for ui plugins
+
+	ClusterAgentDefaultPriorityClass       = NewSetting("cluster-agent-default-priority-class", ClusterAgentPriorityClass)
+	ClusterAgentDefaultPodDisruptionBudget = NewSetting("cluster-agent-default-pod-disruption-budget", ClusterAgentPodDisruptionBudget)
 
 	Rke2DefaultVersion = NewSetting("rke2-default-version", "")
 	K3sDefaultVersion  = NewSetting("k3s-default-version", "")
@@ -150,6 +152,12 @@ var (
 
 	// AuthUserSessionTTLMinutes represents the time to live for tokens used for login sessions in minutes.
 	AuthUserSessionTTLMinutes = NewSetting("auth-user-session-ttl-minutes", "960") // 16 hours
+
+	// AuthUserSessionIdleTTLMinutes represents the time to live without user activity for tokens controlling a login session, in minutes.
+	// By default, the value for auth-user-session-idle-ttl-minutes should be set
+	// to the same value as auth-user-session-ttl-minutes (for backward compatibility reasons),
+	// and it must never be greater than this value.
+	AuthUserSessionIdleTTLMinutes = NewSetting("auth-user-session-idle-ttl-minutes", "960") // 16 hours
 
 	// ChartDefaultURL represents the default URL for the system charts repo. It should only be set for test or
 	// debug purposes.
@@ -221,7 +229,10 @@ var (
 	// RancherWebhookVersion is the exact version of the webhook that Rancher will install.
 	RancherWebhookVersion = NewSetting("rancher-webhook-version", "")
 
-	// RancherWebhookVersion is the exact version of the webhook that Rancher will install.
+	// RemoteDialerProxyVersion is the exact version of the RDP that Rancher will install.
+	RemoteDialerProxyVersion = NewSetting("remotedialer-proxy-version", "")
+
+	// RancherProvisioningCAPIVersion is the exact version of the cluster api controller that Rancher will install.
 	RancherProvisioningCAPIVersion = NewSetting("rancher-provisioning-capi-version", "")
 
 	// RKE2ChartDefaultBranch represents the default branch for the RKE2 charts repo.
@@ -231,9 +242,17 @@ var (
 	// debug purposes.
 	RKE2ChartDefaultURL = NewSetting("rke2-chart-default-url", "https://git.rancher.io/")
 
-	// SystemDefaultRegistry is the default contrainer registry used for images.
+	// S3BucketCheckTimeout is the timeout for checking if an s3 bucket for etcd backups exists,
+	// in the go duration string format.
+	S3BucketCheckTimeout = NewSetting("s3-bucket-check-timeout", "30s")
+
+	// SystemDefaultRegistry is the default container registry used for images.
 	// The environmental variable "CATTLE_BASE_REGISTRY" controls the default value of this setting.
 	SystemDefaultRegistry = NewSetting("system-default-registry", os.Getenv("CATTLE_BASE_REGISTRY"))
+
+	// K3sBasedUpgraderUninstallConcurrency defines the maximum number of clusters
+	// for which the K3s-based-upgrade handler can simultaneously uninstall the legacy K3s-based upgrade app.
+	K3sBasedUpgraderUninstallConcurrency = NewSetting("k3s-based-upgrader-uninstall-concurrency", "5")
 
 	// UIBanners holds configuration to display a custom fixed banner in the header, footer, or both
 	UIBanners = NewSetting("ui-banners", "{}")
@@ -253,7 +272,7 @@ var (
 	UIDashboardPath = NewSetting("ui-dashboard-path", "/usr/share/rancher/ui-dashboard")
 
 	// UIDashboardIndex depends on ui-offline-preferred, use this version of the dashboard instead of the one contained in Rancher Manager.
-	UIDashboardIndex = NewSetting("ui-dashboard-index", "https://releases.rancher.com/dashboard/release-2.9/index.html")
+	UIDashboardIndex = NewSetting("ui-dashboard-index", "https://releases.rancher.com/dashboard/release-2.11/index.html")
 
 	// UIDashboardHarvesterLegacyPlugin depending on ui-offline-preferred and if a Harvester Cluster does not contain it's own Harvester plugin, use this version of the plugin instead.
 	UIDashboardHarvesterLegacyPlugin = NewSetting("ui-dashboard-harvester-legacy-plugin", "https://releases.rancher.com/harvester-ui/plugin/harvester-1.0.3-head/harvester-1.0.3-head.umd.min.js")
@@ -268,7 +287,7 @@ var (
 	UIFeedBackForm = NewSetting("ui-feedback-form", "")
 
 	// UIIndex depends on ui-offline-preferred, use this version of the old ember UI instead of the one contained in Rancher Manager.
-	UIIndex = NewSetting("ui-index", "https://releases.rancher.com/ui/release-2.9/index.html")
+	UIIndex = NewSetting("ui-index", "https://releases.rancher.com/ui/release-2.11/index.html")
 
 	// UIIssues use a url address to send new 'File an Issue' reports instead of sending users to the Github issues page.
 	// Deprecated in favour of UICustomLinks = NewSetting("ui-custom-links", {}).
@@ -323,7 +342,9 @@ var (
 	SkipHostedClusterChartInstallation = NewSetting("skip-hosted-cluster-chart-installation", os.Getenv("CATTLE_SKIP_HOSTED_CLUSTER_CHART_INSTALLATION"))
 	MachineProvisionImagePullPolicy    = NewSetting("machine-provision-image-pull-policy", string(v1.PullAlways))
 
-	// The following settings are only used by the UI, but need to be known to Rancher so that they're not removed.
+	// The following settings are only used outside of Rancher (for example,
+	// by the UI) but need to be known so that Rancher doesn't remove them
+	// on startup.
 	_ = NewSetting("eula-agreed", "")
 	_ = NewSetting("display-add-extension-repos-banner", "")
 	_ = NewSetting("ui-logo-light", "")
@@ -333,6 +354,24 @@ var (
 	_ = NewSetting("has-support", "")
 	_ = NewSetting("auth-password-requirements-description", "")
 	_ = NewSetting("api-host", "")
+
+	// UnprivilegedJailUser controls whether jailed commands execute under a separate (unprivileged/non-root) user
+	// account. Setting it to false is only recommended for testing and development environments.
+	UnprivilegedJailUser = NewSetting("unprivileged-jail-user", "true")
+
+	// ImportedClusterVersionManagement enables the version management feature on imported RKE2/K3s cluster,
+	// and the local cluster if it is an RKE2/K3s cluster.
+	// The per-cluster version management annotation overrides this global setting at the cluster level.
+	// For existing clusters where the cluster-level version management is set to 'system-default',
+	// changing this flag will trigger a redeployment of the cluster agent during the next reconciliation
+	// (by default every 5 minutes, or as soon as the cluster is edited, whichever comes first).
+	// Valid values: ture, false
+	ImportedClusterVersionManagement = NewSetting("imported-cluster-version-management", "true")
+
+	// This is the limit for request bodies sent to /v3-public/* endpoints in
+	// bytes.
+	// The default = 1MiB
+	APIBodyLimit = NewSetting("public-api-body-limit", "1Mi")
 )
 
 // FullShellImage returns the full private registry name of the rancher shell image.
@@ -358,6 +397,7 @@ func init() {
 	// setup auth setting
 	authsettings.AuthUserInfoResyncCron = AuthUserInfoResyncCron
 	authsettings.AuthUserSessionTTLMinutes = AuthUserSessionTTLMinutes
+	authsettings.AuthUserSessionIdleTTLMinutes = AuthUserSessionIdleTTLMinutes
 	authsettings.AuthUserInfoMaxAgeSeconds = AuthUserInfoMaxAgeSeconds
 	authsettings.FirstLogin = FirstLogin
 
@@ -449,6 +489,28 @@ func (s Setting) GetInt() int {
 	return i
 }
 
+// GetQuantityAsInt64 will return the currently stored value of the setting as an int64
+// parsed from a Kubernetes Quantity format string.
+//
+// See https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource#ParseQuantity for
+// format details.
+//
+// If the quantity cannot be expressed as an int64 d will be returned.
+func (s Setting) GetQuantityAsInt64(d int64) (int64, error) {
+	v := s.Get()
+	i, err := resource.ParseQuantity(v)
+	if err != nil {
+		return 0, fmt.Errorf("parsing setting: %w", err)
+	}
+
+	q, ok := i.AsInt64()
+	if ok {
+		return q, nil
+	}
+
+	return d, nil
+}
+
 // SetProvider will set the given provider as the global provider for all settings.
 func SetProvider(p Provider) error {
 	if err := p.SetAll(settings); err != nil {
@@ -527,10 +589,21 @@ func DefaultAgentSettingsAsEnvVars() []v1.EnvVar {
 	return envVars
 }
 
+func IsReleaseServerVersion(serverVersion string) bool {
+	if strings.HasPrefix(serverVersion, "dev") ||
+		strings.HasPrefix(serverVersion, "master") ||
+		serverVersion == "" ||
+		strings.HasSuffix(serverVersion, "-head") ||
+		strings.HasSuffix(serverVersion, "-main") {
+		return false
+	}
+	return true
+}
+
 // GetRancherVersion will return the stored server version without the 'v' prefix.
 func GetRancherVersion() string {
 	rancherVersion := ServerVersion.Get()
-	if strings.HasPrefix(rancherVersion, "dev") || strings.HasPrefix(rancherVersion, "master") || strings.HasSuffix(rancherVersion, "-head") {
+	if !IsReleaseServerVersion(rancherVersion) {
 		return RancherVersionDev
 	}
 	return strings.TrimPrefix(rancherVersion, "v")
