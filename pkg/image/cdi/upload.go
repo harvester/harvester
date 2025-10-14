@@ -41,8 +41,6 @@ type Uploader struct {
 	cdiUploadClient  ctlcdiuploadv1.UploadTokenRequestClient
 	httpClient       http.Client
 	vmio             common.VMIOperator
-
-	foundError error
 }
 
 func GetUploader(dataVolumeClient ctlcdiv1.DataVolumeClient,
@@ -65,7 +63,7 @@ func GetUploader(dataVolumeClient ctlcdiv1.DataVolumeClient,
 }
 
 func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.Request) error {
-	var err error
+	var err, uploadErr error
 	defer func() {
 		if err != nil {
 			if updateErr := cu.vmio.FailUpload(vmImg, err.Error()); updateErr != nil {
@@ -237,11 +235,11 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	uploadReq.Header.Add("Authorization", "Bearer "+token)
 
 	// create VMI progress updater
-	go cu.updateVMImageProgress(vmImg, updaterCond, progress, fileSize)
+	go cu.updateVMImageProgress(vmImg, updaterCond, progress, fileSize, &uploadErr)
 	defer func() {
 		updaterLocker.Lock()
 		logrus.Debugf("Calling wake up with defer function (err: %v), need to update the VMImage status", err)
-		cu.foundError = err
+		uploadErr = err
 		updaterCond.Signal()
 		updaterLocker.Unlock()
 	}()
@@ -303,13 +301,13 @@ func (cu *Uploader) waitDataVolumeStatus(namespace, name string, targetState cdi
 	return false, nil
 }
 
-func (cu *Uploader) updateVMImageProgress(vmImg *harvesterv1.VirtualMachineImage, cond *sync.Cond, updater *ProgressUpdater, targetSize int64) {
+func (cu *Uploader) updateVMImageProgress(vmImg *harvesterv1.VirtualMachineImage, cond *sync.Cond, updater *ProgressUpdater, targetSize int64, anyErr *error) {
 	for {
 		cond.L.Lock()
 		cond.Wait()
 
-		if cu.foundError != nil {
-			logrus.Debugf("Found error, stop the progress updater")
+		if *anyErr != nil {
+			logrus.Debugf("Found error (%v), stop the progress updater", *anyErr)
 			cond.L.Unlock()
 			// we could ignore failure update here, another defer function will handle it
 			return
