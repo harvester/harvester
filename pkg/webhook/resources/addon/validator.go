@@ -25,13 +25,14 @@ const (
 	vClusterAddonNamespace = "rancher-vcluster"
 )
 
-func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache) types.Validator {
+func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache) types.Validator {
 	return &addonValidator{
 		addons:             addons,
 		flowCache:          flowCache,
 		outputCache:        outputCache,
 		clusterFlowCache:   clusterFlowCache,
 		clusterOutputCache: clusterOutputCache,
+		upgradeLogCache:    upgradeLogCache,
 	}
 }
 
@@ -43,6 +44,7 @@ type addonValidator struct {
 	outputCache        ctlloggingv1.OutputCache
 	clusterFlowCache   ctlloggingv1.ClusterFlowCache
 	clusterOutputCache ctlloggingv1.ClusterOutputCache
+	upgradeLogCache    ctlharvesterv1.UpgradeLogCache
 }
 
 func (v *addonValidator) Resource() types.Resource {
@@ -147,6 +149,17 @@ func (v *addonValidator) validateRancherLoggingAddon(newAddon *v1beta1.Addon) er
 
 	if err := loger.ClusterFlowsDangling(newAddon.Namespace); err != nil {
 		return werror.NewBadRequest(fmt.Sprintf("%s, fix or delete it before enabling addon", err.Error()))
+	}
+
+	// validate no `upgradeLog` CRs exist as they deployed rancher-logging as a managedchart
+	// so we need to block enablement to avoid issues during addon helm install
+	upgradeLogList, err := v.upgradeLogCache.List(util.HarvesterSystemNamespaceName, labels.Everything())
+	if err != nil {
+		return werror.NewBadRequest(fmt.Sprintf("error list upgradelog objects: %v", err.Error()))
+	}
+
+	if len(upgradeLogList) > 0 {
+		return werror.NewBadRequest("rancher-logging addon cannot be enabled as upgradeLog objects exist in the cluster, fix or delete before enabling addon")
 	}
 
 	return nil
