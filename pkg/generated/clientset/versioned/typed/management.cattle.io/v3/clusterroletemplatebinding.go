@@ -39,6 +39,8 @@ type ClusterRoleTemplateBindingsGetter interface {
 type ClusterRoleTemplateBindingInterface interface {
 	Create(ctx context.Context, clusterRoleTemplateBinding *v3.ClusterRoleTemplateBinding, opts v1.CreateOptions) (*v3.ClusterRoleTemplateBinding, error)
 	Update(ctx context.Context, clusterRoleTemplateBinding *v3.ClusterRoleTemplateBinding, opts v1.UpdateOptions) (*v3.ClusterRoleTemplateBinding, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+	UpdateStatus(ctx context.Context, clusterRoleTemplateBinding *v3.ClusterRoleTemplateBinding, opts v1.UpdateOptions) (*v3.ClusterRoleTemplateBinding, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ClusterRoleTemplateBinding, error)

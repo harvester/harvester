@@ -105,6 +105,19 @@ func (c *FakeClusterRoleTemplateBindings) Update(ctx context.Context, clusterRol
 	return obj.(*v3.ClusterRoleTemplateBinding), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeClusterRoleTemplateBindings) UpdateStatus(ctx context.Context, clusterRoleTemplateBinding *v3.ClusterRoleTemplateBinding, opts v1.UpdateOptions) (result *v3.ClusterRoleTemplateBinding, err error) {
+	emptyResult := &v3.ClusterRoleTemplateBinding{}
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(clusterroletemplatebindingsResource, "status", c.ns, clusterRoleTemplateBinding, opts), emptyResult)
+
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.ClusterRoleTemplateBinding), err
+}
+
 // Delete takes name of the clusterRoleTemplateBinding and deletes it. Returns an error if one occurs.
 func (c *FakeClusterRoleTemplateBindings) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.

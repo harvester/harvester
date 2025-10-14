@@ -39,6 +39,8 @@ type GlobalRoleBindingsGetter interface {
 type GlobalRoleBindingInterface interface {
 	Create(ctx context.Context, globalRoleBinding *v3.GlobalRoleBinding, opts v1.CreateOptions) (*v3.GlobalRoleBinding, error)
 	Update(ctx context.Context, globalRoleBinding *v3.GlobalRoleBinding, opts v1.UpdateOptions) (*v3.GlobalRoleBinding, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+	UpdateStatus(ctx context.Context, globalRoleBinding *v3.GlobalRoleBinding, opts v1.UpdateOptions) (*v3.GlobalRoleBinding, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.GlobalRoleBinding, error)

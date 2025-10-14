@@ -99,6 +99,18 @@ func (c *FakeGlobalRoleBindings) Update(ctx context.Context, globalRoleBinding *
 	return obj.(*v3.GlobalRoleBinding), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeGlobalRoleBindings) UpdateStatus(ctx context.Context, globalRoleBinding *v3.GlobalRoleBinding, opts v1.UpdateOptions) (result *v3.GlobalRoleBinding, err error) {
+	emptyResult := &v3.GlobalRoleBinding{}
+	obj, err := c.Fake.
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(globalrolebindingsResource, "status", globalRoleBinding, opts), emptyResult)
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v3.GlobalRoleBinding), err
+}
+
 // Delete takes name of the globalRoleBinding and deletes it. Returns an error if one occurs.
 func (c *FakeGlobalRoleBindings) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
