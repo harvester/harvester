@@ -67,7 +67,7 @@ type ClusterGroupStatus struct {
 	Display ClusterGroupDisplay `json:"display,omitempty"`
 	// ResourceCounts contains the number of resources in each state over
 	// all bundles in the cluster group.
-	ResourceCounts GitRepoResourceCounts `json:"resourceCounts,omitempty"`
+	ResourceCounts ResourceCounts `json:"resourceCounts,omitempty"`
 }
 
 type ClusterGroupDisplay struct {

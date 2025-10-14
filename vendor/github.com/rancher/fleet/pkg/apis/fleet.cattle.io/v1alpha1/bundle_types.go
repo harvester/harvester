@@ -32,6 +32,9 @@ const (
 	// but there are some changes that were not made from the Git
 	// Repository.
 	Modified BundleState = "Modified"
+
+	// SecretTypeBundleValues is the secret type used to store the helm values
+	SecretTypeBundleValues = "fleet.cattle.io/bundle-values/v1alpha1"
 )
 
 var (
@@ -115,6 +118,17 @@ type BundleSpec struct {
 	// ContentsID stores the contents id when deploying contents using an OCI registry.
 	// +nullable
 	ContentsID string `json:"contentsId,omitempty"`
+
+	// HelmAppOptions stores the options relative to HelmApp resources
+	// Non-nil HelmAppOptions indicate that the source of resources is a Helm chart,
+	// not a git repository.
+	// +nullable
+	HelmAppOptions *BundleHelmOptions `json:"helmAppOptions,omitempty"`
+
+	// ValuesHash is the hash of the values used to render the Helm chart.
+	// It changes when any values from fleet.yaml, values from ValuesFiles or values from target
+	// customization changes.
+	ValuesHash string `json:"valuesHash,omitempty"`
 }
 
 type BundleRef struct {
@@ -227,6 +241,12 @@ type BundleTarget struct {
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
 	// DoNotDeploy if set to true, will not deploy to this target.
 	DoNotDeploy bool `json:"doNotDeploy,omitempty"`
+	// NamespaceLabels are labels that will be appended to the namespace created by Fleet.
+	// +nullable
+	NamespaceLabels map[string]string `json:"namespaceLabels,omitempty"`
+	// NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet.
+	// +nullable
+	NamespaceAnnotations map[string]string `json:"namespaceAnnotations,omitempty"`
 }
 
 // BundleSummary contains the number of bundle deployments in each state and a
@@ -300,9 +320,8 @@ const (
 	// BundleDeploymentConditionInstalled indicates the bundledeployment
 	// has been installed.
 	BundleDeploymentConditionInstalled = "Installed"
-	// BundleDeploymentConditionDeployed is used by the bundledeployment
-	// controller. It is true if the handler returns no error and false if
-	// an error is returned.
+	// BundleDeploymentConditionDeployed indicates whether the deployment
+	// succeeded.
 	BundleDeploymentConditionDeployed  = "Deployed"
 	BundleDeploymentConditionMonitored = "Monitored"
 )
@@ -401,4 +420,13 @@ type PartitionStatus struct {
 	Unavailable int `json:"unavailable,omitempty"`
 	// Summary is a summary state for the partition, calculated over its non-ready resources.
 	Summary BundleSummary `json:"summary,omitempty"`
+}
+
+type BundleHelmOptions struct {
+	// SecretName stores the secret name for storing credentials when accessing
+	// a remote helm repository defined in a HelmApp resource
+	SecretName string `json:"helmAppSecretName,omitempty"`
+
+	// InsecureSkipTLSverify will use insecure HTTPS to clone the helm app resource.
+	InsecureSkipTLSverify bool `json:"helmAppInsecureSkipTLSVerify,omitempty"`
 }
