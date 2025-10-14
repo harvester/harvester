@@ -52,32 +52,12 @@ func (c *FakeManagementV3) AzureADProviders() v3.AzureADProviderInterface {
 	return &FakeAzureADProviders{c}
 }
 
-func (c *FakeManagementV3) Catalogs() v3.CatalogInterface {
-	return &FakeCatalogs{c}
-}
-
-func (c *FakeManagementV3) CatalogTemplates(namespace string) v3.CatalogTemplateInterface {
-	return &FakeCatalogTemplates{c, namespace}
-}
-
-func (c *FakeManagementV3) CatalogTemplateVersions(namespace string) v3.CatalogTemplateVersionInterface {
-	return &FakeCatalogTemplateVersions{c, namespace}
-}
-
 func (c *FakeManagementV3) CloudCredentials(namespace string) v3.CloudCredentialInterface {
 	return &FakeCloudCredentials{c, namespace}
 }
 
 func (c *FakeManagementV3) Clusters() v3.ClusterInterface {
 	return &FakeClusters{c}
-}
-
-func (c *FakeManagementV3) ClusterCatalogs(namespace string) v3.ClusterCatalogInterface {
-	return &FakeClusterCatalogs{c, namespace}
-}
-
-func (c *FakeManagementV3) ClusterLoggings(namespace string) v3.ClusterLoggingInterface {
-	return &FakeClusterLoggings{c, namespace}
 }
 
 func (c *FakeManagementV3) ClusterProxyConfigs(namespace string) v3.ClusterProxyConfigInterface {
@@ -136,14 +116,6 @@ func (c *FakeManagementV3) GithubProviders() v3.GithubProviderInterface {
 	return &FakeGithubProviders{c}
 }
 
-func (c *FakeManagementV3) GlobalDnses(namespace string) v3.GlobalDnsInterface {
-	return &FakeGlobalDnses{c, namespace}
-}
-
-func (c *FakeManagementV3) GlobalDnsProviders(namespace string) v3.GlobalDnsProviderInterface {
-	return &FakeGlobalDnsProviders{c, namespace}
-}
-
 func (c *FakeManagementV3) GlobalRoles() v3.GlobalRoleInterface {
 	return &FakeGlobalRoles{c}
 }
@@ -174,14 +146,6 @@ func (c *FakeManagementV3) LocalProviders() v3.LocalProviderInterface {
 
 func (c *FakeManagementV3) ManagedCharts(namespace string) v3.ManagedChartInterface {
 	return &FakeManagedCharts{c, namespace}
-}
-
-func (c *FakeManagementV3) MultiClusterApps(namespace string) v3.MultiClusterAppInterface {
-	return &FakeMultiClusterApps{c, namespace}
-}
-
-func (c *FakeManagementV3) MultiClusterAppRevisions(namespace string) v3.MultiClusterAppRevisionInterface {
-	return &FakeMultiClusterAppRevisions{c, namespace}
 }
 
 func (c *FakeManagementV3) Nodes(namespace string) v3.NodeInterface {
@@ -224,14 +188,6 @@ func (c *FakeManagementV3) Projects(namespace string) v3.ProjectInterface {
 	return &FakeProjects{c, namespace}
 }
 
-func (c *FakeManagementV3) ProjectCatalogs(namespace string) v3.ProjectCatalogInterface {
-	return &FakeProjectCatalogs{c, namespace}
-}
-
-func (c *FakeManagementV3) ProjectLoggings(namespace string) v3.ProjectLoggingInterface {
-	return &FakeProjectLoggings{c, namespace}
-}
-
 func (c *FakeManagementV3) ProjectNetworkPolicies(namespace string) v3.ProjectNetworkPolicyInterface {
 	return &FakeProjectNetworkPolicies{c, namespace}
 }
@@ -270,18 +226,6 @@ func (c *FakeManagementV3) SamlTokens() v3.SamlTokenInterface {
 
 func (c *FakeManagementV3) Settings() v3.SettingInterface {
 	return &FakeSettings{c}
-}
-
-func (c *FakeManagementV3) Templates() v3.TemplateInterface {
-	return &FakeTemplates{c}
-}
-
-func (c *FakeManagementV3) TemplateContents() v3.TemplateContentInterface {
-	return &FakeTemplateContents{c}
-}
-
-func (c *FakeManagementV3) TemplateVersions() v3.TemplateVersionInterface {
-	return &FakeTemplateVersions{c}
 }
 
 func (c *FakeManagementV3) Tokens() v3.TokenInterface {

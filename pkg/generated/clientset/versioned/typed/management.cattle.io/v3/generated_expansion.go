@@ -30,19 +30,9 @@ type AuthTokenExpansion interface{}
 
 type AzureADProviderExpansion interface{}
 
-type CatalogExpansion interface{}
-
-type CatalogTemplateExpansion interface{}
-
-type CatalogTemplateVersionExpansion interface{}
-
 type CloudCredentialExpansion interface{}
 
 type ClusterExpansion interface{}
-
-type ClusterCatalogExpansion interface{}
-
-type ClusterLoggingExpansion interface{}
 
 type ClusterProxyConfigExpansion interface{}
 
@@ -72,10 +62,6 @@ type GithubConfigExpansion interface{}
 
 type GithubProviderExpansion interface{}
 
-type GlobalDnsExpansion interface{}
-
-type GlobalDnsProviderExpansion interface{}
-
 type GlobalRoleExpansion interface{}
 
 type GlobalRoleBindingExpansion interface{}
@@ -91,10 +77,6 @@ type KontainerDriverExpansion interface{}
 type LocalProviderExpansion interface{}
 
 type ManagedChartExpansion interface{}
-
-type MultiClusterAppExpansion interface{}
-
-type MultiClusterAppRevisionExpansion interface{}
 
 type NodeExpansion interface{}
 
@@ -116,10 +98,6 @@ type PrincipalExpansion interface{}
 
 type ProjectExpansion interface{}
 
-type ProjectCatalogExpansion interface{}
-
-type ProjectLoggingExpansion interface{}
-
 type ProjectNetworkPolicyExpansion interface{}
 
 type ProjectRoleTemplateBindingExpansion interface{}
@@ -139,12 +117,6 @@ type SamlProviderExpansion interface{}
 type SamlTokenExpansion interface{}
 
 type SettingExpansion interface{}
-
-type TemplateExpansion interface{}
-
-type TemplateContentExpansion interface{}
-
-type TemplateVersionExpansion interface{}
 
 type TokenExpansion interface{}
 

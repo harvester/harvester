@@ -34,13 +34,8 @@ type ManagementV3Interface interface {
 	AuthProvidersGetter
 	AuthTokensGetter
 	AzureADProvidersGetter
-	CatalogsGetter
-	CatalogTemplatesGetter
-	CatalogTemplateVersionsGetter
 	CloudCredentialsGetter
 	ClustersGetter
-	ClusterCatalogsGetter
-	ClusterLoggingsGetter
 	ClusterProxyConfigsGetter
 	ClusterRegistrationTokensGetter
 	ClusterRoleTemplateBindingsGetter
@@ -55,8 +50,6 @@ type ManagementV3Interface interface {
 	GenericOIDCProvidersGetter
 	GithubConfigsGetter
 	GithubProvidersGetter
-	GlobalDnsesGetter
-	GlobalDnsProvidersGetter
 	GlobalRolesGetter
 	GlobalRoleBindingsGetter
 	GoogleOAuthProvidersGetter
@@ -65,8 +58,6 @@ type ManagementV3Interface interface {
 	KontainerDriversGetter
 	LocalProvidersGetter
 	ManagedChartsGetter
-	MultiClusterAppsGetter
-	MultiClusterAppRevisionsGetter
 	NodesGetter
 	NodeDriversGetter
 	NodePoolsGetter
@@ -77,8 +68,6 @@ type ManagementV3Interface interface {
 	PreferencesGetter
 	PrincipalsGetter
 	ProjectsGetter
-	ProjectCatalogsGetter
-	ProjectLoggingsGetter
 	ProjectNetworkPoliciesGetter
 	ProjectRoleTemplateBindingsGetter
 	RancherUserNotificationsGetter
@@ -89,9 +78,6 @@ type ManagementV3Interface interface {
 	SamlProvidersGetter
 	SamlTokensGetter
 	SettingsGetter
-	TemplatesGetter
-	TemplateContentsGetter
-	TemplateVersionsGetter
 	TokensGetter
 	UsersGetter
 	UserAttributesGetter
@@ -126,32 +112,12 @@ func (c *ManagementV3Client) AzureADProviders() AzureADProviderInterface {
 	return newAzureADProviders(c)
 }
 
-func (c *ManagementV3Client) Catalogs() CatalogInterface {
-	return newCatalogs(c)
-}
-
-func (c *ManagementV3Client) CatalogTemplates(namespace string) CatalogTemplateInterface {
-	return newCatalogTemplates(c, namespace)
-}
-
-func (c *ManagementV3Client) CatalogTemplateVersions(namespace string) CatalogTemplateVersionInterface {
-	return newCatalogTemplateVersions(c, namespace)
-}
-
 func (c *ManagementV3Client) CloudCredentials(namespace string) CloudCredentialInterface {
 	return newCloudCredentials(c, namespace)
 }
 
 func (c *ManagementV3Client) Clusters() ClusterInterface {
 	return newClusters(c)
-}
-
-func (c *ManagementV3Client) ClusterCatalogs(namespace string) ClusterCatalogInterface {
-	return newClusterCatalogs(c, namespace)
-}
-
-func (c *ManagementV3Client) ClusterLoggings(namespace string) ClusterLoggingInterface {
-	return newClusterLoggings(c, namespace)
 }
 
 func (c *ManagementV3Client) ClusterProxyConfigs(namespace string) ClusterProxyConfigInterface {
@@ -210,14 +176,6 @@ func (c *ManagementV3Client) GithubProviders() GithubProviderInterface {
 	return newGithubProviders(c)
 }
 
-func (c *ManagementV3Client) GlobalDnses(namespace string) GlobalDnsInterface {
-	return newGlobalDnses(c, namespace)
-}
-
-func (c *ManagementV3Client) GlobalDnsProviders(namespace string) GlobalDnsProviderInterface {
-	return newGlobalDnsProviders(c, namespace)
-}
-
 func (c *ManagementV3Client) GlobalRoles() GlobalRoleInterface {
 	return newGlobalRoles(c)
 }
@@ -248,14 +206,6 @@ func (c *ManagementV3Client) LocalProviders() LocalProviderInterface {
 
 func (c *ManagementV3Client) ManagedCharts(namespace string) ManagedChartInterface {
 	return newManagedCharts(c, namespace)
-}
-
-func (c *ManagementV3Client) MultiClusterApps(namespace string) MultiClusterAppInterface {
-	return newMultiClusterApps(c, namespace)
-}
-
-func (c *ManagementV3Client) MultiClusterAppRevisions(namespace string) MultiClusterAppRevisionInterface {
-	return newMultiClusterAppRevisions(c, namespace)
 }
 
 func (c *ManagementV3Client) Nodes(namespace string) NodeInterface {
@@ -298,14 +248,6 @@ func (c *ManagementV3Client) Projects(namespace string) ProjectInterface {
 	return newProjects(c, namespace)
 }
 
-func (c *ManagementV3Client) ProjectCatalogs(namespace string) ProjectCatalogInterface {
-	return newProjectCatalogs(c, namespace)
-}
-
-func (c *ManagementV3Client) ProjectLoggings(namespace string) ProjectLoggingInterface {
-	return newProjectLoggings(c, namespace)
-}
-
 func (c *ManagementV3Client) ProjectNetworkPolicies(namespace string) ProjectNetworkPolicyInterface {
 	return newProjectNetworkPolicies(c, namespace)
 }
@@ -344,18 +286,6 @@ func (c *ManagementV3Client) SamlTokens() SamlTokenInterface {
 
 func (c *ManagementV3Client) Settings() SettingInterface {
 	return newSettings(c)
-}
-
-func (c *ManagementV3Client) Templates() TemplateInterface {
-	return newTemplates(c)
-}
-
-func (c *ManagementV3Client) TemplateContents() TemplateContentInterface {
-	return newTemplateContents(c)
-}
-
-func (c *ManagementV3Client) TemplateVersions() TemplateVersionInterface {
-	return newTemplateVersions(c)
 }
 
 func (c *ManagementV3Client) Tokens() TokenInterface {
