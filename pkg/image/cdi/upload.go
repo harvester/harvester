@@ -220,6 +220,8 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	progress := &ProgressUpdater{
 		targetBytes:       fileSize,
 		lastTime:          time.Now(),
+		imageNS:           vmImg.Namespace,
+		imageName:         vmImg.Name,
 		vmImgUpdateLocker: updaterLocker,
 		vmImgCond:         updaterCond,
 	}
@@ -266,13 +268,9 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 		return err
 	}
 
-	// final wake up, we need to wait the DataVolume status to be succeeded
-	// ensure the VMImage status is updated, wake up the updater
-	if err := wait.PollUntilContextTimeout(context.Background(), tickPolling, tickTimeout, true, func(context.Context) (bool, error) {
-		return cu.waitDataVolumeStatus(dvNamespace, dvName, cdiv1.Succeeded)
-	}); err != nil {
-		return fmt.Errorf("failed to wait for VMImage status: %v", err)
-	}
+	// we don't wait the DataVolume to be Succeeded here.
+	// the controller will help with that.
+	// for the progress, we set it to 99% here on progress updater
 
 	return nil
 }
@@ -302,12 +300,18 @@ func (cu *Uploader) waitDataVolumeStatus(namespace, name string, targetState cdi
 }
 
 func (cu *Uploader) updateVMImageProgress(vmImg *harvesterv1.VirtualMachineImage, cond *sync.Cond, updater *ProgressUpdater, targetSize int64, anyErr *error) {
+	uploadCompleted := false
+
+	// get the NS/Name for logging purpose
+	// the vmImg might be update in the loop (which means it might be a nil object if deleted)
+	vmImgNS := vmImg.Namespace
+	vmImgName := vmImg.Name
 	for {
 		cond.L.Lock()
 		cond.Wait()
 
 		if *anyErr != nil {
-			logrus.Debugf("Found error (%v), stop the progress updater", *anyErr)
+			logrus.Errorf("Found error (%v) during upload image (%s/%s), stop the progress updater", *anyErr, vmImgNS, vmImgName)
 			cond.L.Unlock()
 			// we could ignore failure update here, another defer function will handle it
 			return
@@ -317,7 +321,7 @@ func (cu *Uploader) updateVMImageProgress(vmImg *harvesterv1.VirtualMachineImage
 		// ensure the vmImage is the latest
 		vmImg, err = cu.vmio.GetVMImageObj(vmImg.Namespace, vmImg.Name)
 		if err != nil {
-			logrus.Errorf("[updateVMImageProgress] failed to get VMImage %s/%s: %v, ignore the latest", vmImg.Namespace, vmImg.Name, err)
+			logrus.Errorf("[updateVMImageProgress] failed to get VMImage %s/%s: %v, ignore the latest", vmImgNS, vmImgName, err)
 			cond.L.Unlock()
 			continue
 		}
@@ -349,7 +353,9 @@ func (cu *Uploader) updateVMImageProgress(vmImg *harvesterv1.VirtualMachineImage
 		progress := (float64(currentBytes) / float64(targetSize)) * 100
 		if progress >= 100 {
 			// keep almost done progress, we need to wait the DataVolume status to be succeeded
+			// on the controller side
 			progress = 99
+			uploadCompleted = true
 		}
 		logrus.Debugf("DataVolume %s/%s upload progress: %d/%d (%v)", targetDVNs, targetDVName, currentBytes, targetSize, progress)
 		_, err = cu.vmio.Importing(vmImg, "Image Importing", int(progress))
@@ -357,5 +363,9 @@ func (cu *Uploader) updateVMImageProgress(vmImg *harvesterv1.VirtualMachineImage
 			logrus.Errorf("failed to update VMImage status: %v", err)
 		}
 		cond.L.Unlock()
+		if uploadCompleted {
+			logrus.Infof("Upload image (%s/%s) completed, stop the progress updater", vmImgNS, vmImgName)
+			return
+		}
 	}
 }

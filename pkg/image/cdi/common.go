@@ -32,6 +32,8 @@ const (
 type ProgressUpdater struct {
 	totalBytes  int64
 	targetBytes int64
+	imageNS     string
+	imageName   string
 	lastTime    time.Time
 	rwlock      sync.RWMutex
 
@@ -50,7 +52,7 @@ func (pu *ProgressUpdater) Write(p []byte) (n int, err error) {
 
 	now := time.Now()
 	if now.Sub(pu.lastTime) > 1*time.Second || almostCompleted {
-		logrus.Infof("Downloaded %d bytes", pu.totalBytes)
+		logrus.Infof("Downloaded %d bytes for image %s/%s", pu.totalBytes, pu.imageNS, pu.imageName)
 		pu.vmImgUpdateLocker.Lock()
 		pu.vmImgCond.Signal()
 		pu.vmImgUpdateLocker.Unlock()
