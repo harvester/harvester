@@ -45,6 +45,7 @@ func (v *nodeValidator) Resource() types.Resource {
 		APIVersion: corev1.SchemeGroupVersion.Version,
 		ObjectType: &corev1.Node{},
 		OperationTypes: []admissionregv1.OperationType{
+			admissionregv1.Create,
 			admissionregv1.Update,
 		},
 	}
