@@ -84,7 +84,7 @@ func generateLonghornPatchOps(sc *storagev1.StorageClass) types.PatchOps {
 		patchOps = append(patchOps, fmt.Sprintf(
 			patchAnnotation,
 			patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
-			strconv.Quote(string(cdiv1.CloneStrategyHostAssisted)),
+			strconv.Quote(string(cdiv1.CloneStrategyCsiClone)),
 		))
 	}
 
