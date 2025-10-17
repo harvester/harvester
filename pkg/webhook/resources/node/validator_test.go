@@ -760,3 +760,375 @@ func Test_validateWitnessRoleChange(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckCPUManagerEnabledForPinnedVMs(t *testing.T) {
+	node0 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-0",
+			UID:  "node-0-uid",
+			Labels: map[string]string{
+				kubevirtv1.CPUManager: "true",
+				"zone":                "zone-a",
+				"instance-type":       "high-cpu",
+			},
+		},
+	}
+	node1 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-1",
+			UID:  "node-1-uid",
+			Labels: map[string]string{
+				kubevirtv1.CPUManager: "true",
+				"zone":                "zone-b",
+				"instance-type":       "high-cpu",
+			},
+		},
+	}
+	node2 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-2",
+			UID:  "node-2-uid",
+			Labels: map[string]string{
+				kubevirtv1.CPUManager: "false",
+				"zone":                "zone-a",
+			},
+		},
+	}
+
+	createVM := func(name, namespace string, cpuPinned bool, nodeSelector map[string]string) *kubevirtv1.VirtualMachine {
+		vm := &kubevirtv1.VirtualMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+			},
+			Spec: kubevirtv1.VirtualMachineSpec{
+				Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							CPU: &kubevirtv1.CPU{
+								DedicatedCPUPlacement: cpuPinned,
+							},
+						},
+						NodeSelector: nodeSelector,
+					},
+				},
+			},
+		}
+		return vm
+	}
+
+	testCases := []struct {
+		name   string
+		node   *corev1.Node
+		policy ctlnode.CPUManagerPolicy
+		nodes  []*corev1.Node
+		vms    []*kubevirtv1.VirtualMachine
+		errMsg string
+	}{
+		{
+			name:   "valid update: enabling CPU manager policy to static",
+			node:   node0,
+			policy: ctlnode.CPUManagerStaticPolicy,
+			nodes:  []*corev1.Node{node0},
+			vms: []*kubevirtv1.VirtualMachine{
+				createVM("vm-0", "default", true, nil),
+			},
+			errMsg: "",
+		},
+		{
+			name:   "valid update: multiple nodes with CPU manager enabled",
+			node:   node0,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node1},
+			vms: []*kubevirtv1.VirtualMachine{
+				createVM("vm-0", "default", true, nil),
+			},
+			errMsg: "",
+		},
+		{
+			name:   "valid update: single node with CPU manager but no CPU pinned VMs",
+			node:   node0,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node2},
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-0",
+						Namespace: "default",
+					},
+				},
+			},
+			errMsg: "",
+		},
+		{
+			name:   "invalid update: single node with CPU manager and CPU pinned VMs exists",
+			node:   node0,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node2}, // node2 has CPUManager: false
+			vms: []*kubevirtv1.VirtualMachine{
+				// No NodeSelector, so it's not bound but still counts as last node case
+				createVM("vm-0", "default", true, nil),
+				createVM("vm-1", "test", true, nil),
+			},
+			errMsg: "Cannot disable CPU Manager on the last enabled node when VM(s) with CPU pinning exist",
+		},
+		{
+			name:   "valid update: node without CPU manager label",
+			node:   node2,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node2},
+			vms: []*kubevirtv1.VirtualMachine{
+				createVM("vm-0", "default", true, nil),
+			},
+			errMsg: "",
+		},
+		{
+			name:   "invalid update: VM bound to current node via NodeSelector",
+			node:   node0,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node1},
+			vms: []*kubevirtv1.VirtualMachine{
+				createVM("bound-vm", "default", true, map[string]string{
+					"zone": "zone-a", // Only node0 has zone-a
+				}),
+			},
+			errMsg: "Cannot disable CPU Manager on this node because the following VM(s) with CPU pinning are bound to this node via Node Scheduling rules and cannot be scheduled on other CPU Manager enabled nodes. Please remove CPU pinning or update Node Scheduling rules for these VM(s): default/bound-vm",
+		},
+		{
+			name:   "valid update: VM with NodeSelector can run on multiple CPU Manager enabled nodes",
+			node:   node0,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node1},
+			vms: []*kubevirtv1.VirtualMachine{
+				createVM("multi-node-vm", "default", true, map[string]string{
+					"instance-type": "high-cpu", // Both node0 and node1 have this label
+				}),
+			},
+			errMsg: "",
+		},
+		{
+			name:   "invalid update: multiple VMs bound to current node",
+			node:   node0,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node1},
+			vms: []*kubevirtv1.VirtualMachine{
+				createVM("bound-vm-1", "default", true, map[string]string{
+					"zone": "zone-a",
+				}),
+				createVM("bound-vm-2", "test", true, map[string]string{
+					"zone": "zone-a",
+				}),
+			},
+			errMsg: "Cannot disable CPU Manager on this node because the following VM(s) with CPU pinning are bound to this node via Node Scheduling rules and cannot be scheduled on other CPU Manager enabled nodes. Please remove CPU pinning or update Node Scheduling rules for these VM(s): default/bound-vm-1, test/bound-vm-2",
+		},
+		{
+			name:   "valid update: VM with NodeSelector but no CPU pinning",
+			node:   node0,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node1},
+			vms: []*kubevirtv1.VirtualMachine{
+				createVM("no-cpu-pinning-vm", "default", false, map[string]string{
+					"zone": "zone-a",
+				}),
+			},
+			errMsg: "",
+		},
+		{
+			name:   "valid update: VM without NodeSelector (not bound to any node)",
+			node:   node0,
+			policy: ctlnode.CPUManagerNonePolicy,
+			nodes:  []*corev1.Node{node0, node1},
+			vms: []*kubevirtv1.VirtualMachine{
+				createVM("unbound-vm", "default", true, nil),
+			},
+			errMsg: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			k8sclientset := k8sfake.NewSimpleClientset()
+			client := fake.NewSimpleClientset()
+
+			for _, node := range tc.nodes {
+				err := k8sclientset.Tracker().Add(node)
+				assert.Nil(t, err, "Mock node should add into fake controller tracker")
+			}
+
+			for _, vm := range tc.vms {
+				err := client.Tracker().Add(vm)
+				assert.Nil(t, err, "Mock VM should add into fake controller tracker")
+			}
+
+			nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
+			vmCache := fakeclients.VirtualMachineCache(client.KubevirtV1().VirtualMachines)
+
+			err := checkCPUManagerEnabledForPinnedVMs(tc.node, tc.policy, nodeCache, vmCache)
+
+			if tc.errMsg != "" {
+				assert.NotNil(t, err, tc.name)
+				assert.Contains(t, err.Error(), tc.errMsg, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func TestVMMatchesNode(t *testing.T) {
+	testCases := []struct {
+		name     string
+		spec     *kubevirtv1.VirtualMachineInstanceSpec
+		node     *corev1.Node
+		expected bool
+	}{
+		{
+			name: "no constraints - should match any node",
+			spec: &kubevirtv1.VirtualMachineInstanceSpec{},
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "NodeSelector matches",
+			spec: &kubevirtv1.VirtualMachineInstanceSpec{
+				NodeSelector: map[string]string{
+					"kubernetes.io/hostname": "node1",
+				},
+			},
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+					Labels: map[string]string{
+						"kubernetes.io/hostname": "node1",
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "NodeSelector does not match",
+			spec: &kubevirtv1.VirtualMachineInstanceSpec{
+				NodeSelector: map[string]string{
+					"kubernetes.io/hostname": "node1",
+				},
+			},
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node2",
+					Labels: map[string]string{
+						"kubernetes.io/hostname": "node2",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "NodeAffinity matches",
+			spec: &kubevirtv1.VirtualMachineInstanceSpec{
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchExpressions: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "kubernetes.io/hostname",
+											Operator: corev1.NodeSelectorOpNotIn,
+											Values:   []string{"foobar"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+					Labels: map[string]string{
+						"kubernetes.io/hostname": "node1",
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "NodeAffinity does not match",
+			spec: &kubevirtv1.VirtualMachineInstanceSpec{
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchExpressions: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "kubernetes.io/hostname",
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"node2"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+					Labels: map[string]string{
+						"kubernetes.io/hostname": "node1",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Both NodeSelector and NodeAffinity must match (AND logic)",
+			spec: &kubevirtv1.VirtualMachineInstanceSpec{
+				NodeSelector: map[string]string{
+					"kubernetes.io/hostname": "node1",
+				},
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchExpressions: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "zone",
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"us-east"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+					Labels: map[string]string{
+						"kubernetes.io/hostname": "node1",
+						"zone":                   "us-west", // NodeAffinity doesn't match
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := vmMatchesNode(tc.spec, tc.node)
+			assert.Equal(t, tc.expected, result, tc.name)
+		})
+	}
+}
