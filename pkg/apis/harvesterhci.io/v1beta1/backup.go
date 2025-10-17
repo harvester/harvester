@@ -49,16 +49,14 @@ const (
 // +kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.spec.type`
 // +kubebuilder:printcolumn:name="READY_TO_USE",type=boolean,JSONPath=`.status.readyToUse`
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=`.metadata.creationTimestamp`
-// +kubebuilder:printcolumn:name="ERROR",type=date,JSONPath=`.status.error.message`
+// +kubebuilder:printcolumn:name="ERROR",type=string,JSONPath=`.status.error.message`
 
 type VirtualMachineBackup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec VirtualMachineBackupSpec `json:"spec"`
-
-	// +optional
-	Status *VirtualMachineBackupStatus `json:"status,omitempty" default:""`
+	Spec   VirtualMachineBackupSpec   `json:"spec"`
+	Status VirtualMachineBackupStatus `json:"status,omitempty"`
 }
 
 type VirtualMachineBackupSpec struct {
@@ -84,8 +82,7 @@ type VirtualMachineBackupStatus struct {
 	// +optional
 	CSIDriverVolumeSnapshotClassNames map[string]string `json:"csiDriverVolumeSnapshotClassNames,omitempty"`
 
-	// +kubebuilder:validation:Required
-	// SourceSpec contains the vm spec source of the backup target
+	// +optional
 	SourceSpec *VirtualMachineSourceSpec `json:"source,omitempty"`
 
 	// +optional
@@ -189,10 +186,8 @@ type VirtualMachineRestore struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec VirtualMachineRestoreSpec `json:"spec"`
-
-	// +optional
-	Status *VirtualMachineRestoreStatus `json:"status,omitempty"`
+	Spec   VirtualMachineRestoreSpec   `json:"spec"`
+	Status VirtualMachineRestoreStatus `json:"status,omitempty"`
 }
 
 // VirtualMachineRestoreSpec is the spec for a VirtualMachineRestore resource
