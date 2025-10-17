@@ -6,6 +6,7 @@ import (
 	jobV1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -112,7 +113,7 @@ func (h *secretHandler) createHookJob(upgrade *harvesterv1.Upgrade, nodeName str
 	}
 
 	_, err = h.jobClient.Create(applyNodeJob(upgrade, repoInfo, nodeName, jobType))
-	if err != nil {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
 
