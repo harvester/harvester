@@ -170,6 +170,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.LoggingFactory.Logging().V1beta1().Output().Cache(),
 			clients.LoggingFactory.Logging().V1beta1().ClusterFlow().Cache(),
 			clients.LoggingFactory.Logging().V1beta1().ClusterOutput().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().UpgradeLog().Cache(),
 		),
 		version.NewValidator(),
 		volumesnapshot.NewValidator(

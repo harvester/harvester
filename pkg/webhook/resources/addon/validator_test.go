@@ -425,7 +425,8 @@ func Test_validateUpdatedAddon(t *testing.T) {
 	fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
 	fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
 	fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-	validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache).(*addonValidator)
+	upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+	validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache).(*addonValidator)
 
 	for _, tc := range testCases {
 		err := validator.validateUpdatedAddon(tc.newAddon, tc.oldAddon)
@@ -500,7 +501,8 @@ func Test_validateNewAddon(t *testing.T) {
 		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
 		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache).(*addonValidator)
+		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache).(*addonValidator)
 		for _, addon := range tc.addonList {
 			err := harvesterClientSet.Tracker().Add(addon)
 			assert.Nil(t, err)
@@ -860,7 +862,8 @@ func Test_validateRancherLoggingAddonWithClusterFlow(t *testing.T) {
 		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
 		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache).(*addonValidator)
+		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache).(*addonValidator)
 		for _, cf := range tc.clusterFlows {
 			err := harvesterClientSet.Tracker().Add(cf)
 			assert.Nil(t, err)
@@ -1140,13 +1143,119 @@ func Test_validateRancherLoggingAddonWithFlow(t *testing.T) {
 		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
 		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache).(*addonValidator)
+		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache).(*addonValidator)
 		for _, cf := range tc.flows {
 			err := harvesterClientSet.Tracker().Add(cf)
 			assert.Nil(t, err)
 		}
 		for _, co := range tc.outputs {
 			err := harvesterClientSet.Tracker().Add(co)
+			assert.Nil(t, err)
+		}
+
+		err := validator.validateUpdatedAddon(tc.newAddon, tc.oldAddon)
+		if tc.expectedError {
+			assert.NotNil(t, err, tc.name)
+		} else {
+			assert.Nil(t, err, tc.name)
+		}
+	}
+}
+
+func Test_validateRancherLoggingWithUpgradeLog(t *testing.T) {
+
+	var testCases = []struct {
+		name          string
+		oldAddon      *harvesterv1.Addon
+		newAddon      *harvesterv1.Addon
+		upgradeLogs   []*harvesterv1.UpgradeLog
+		expectedError bool
+	}{
+		{
+			name: "user can't enable rancher-logging addon with existing upgradeLog objects",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs: []*harvesterv1.UpgradeLog{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "hvst-upgrade-xxxx-upgradelog",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Spec: harvesterv1.UpgradeLogSpec{},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "user can successfully enable rancher-logging addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs:   []*harvesterv1.UpgradeLog{},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+
+		harvesterClientSet := harvesterFake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
+		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache).(*addonValidator)
+		for _, upgradeLog := range tc.upgradeLogs {
+			err := harvesterClientSet.Tracker().Add(upgradeLog)
 			assert.Nil(t, err)
 		}
 

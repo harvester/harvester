@@ -31,8 +31,8 @@ func (c UpgradeLogClient) Delete(namespace, name string, options *metav1.DeleteO
 func (c UpgradeLogClient) Get(namespace, name string, options metav1.GetOptions) (*harvesterv1.UpgradeLog, error) {
 	return c(namespace).Get(context.TODO(), name, options)
 }
-func (c UpgradeLogClient) List(_ string, _ metav1.ListOptions) (*harvesterv1.UpgradeLogList, error) {
-	panic("implement me")
+func (c UpgradeLogClient) List(namespace string, options metav1.ListOptions) (*harvesterv1.UpgradeLogList, error) {
+	return c(namespace).List(context.TODO(), options)
 }
 func (c UpgradeLogClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
@@ -50,9 +50,18 @@ type UpgradeLogCache func(string) harv1type.UpgradeLogInterface
 func (c UpgradeLogCache) Get(namespace, name string) (*harvesterv1.UpgradeLog, error) {
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
-func (c UpgradeLogCache) List(_ string, _ labels.Selector) ([]*harvesterv1.UpgradeLog, error) {
-	panic("implement me")
+func (c UpgradeLogCache) List(namespace string, selector labels.Selector) ([]*harvesterv1.UpgradeLog, error) {
+	list, err := c(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*harvesterv1.UpgradeLog, 0, len(list.Items))
+	for i := range list.Items {
+		result = append(result, &list.Items[i])
+	}
+	return result, err
 }
+
 func (c UpgradeLogCache) AddIndexer(_ string, _ generic.Indexer[*harvesterv1.UpgradeLog]) {
 	panic("implement me")
 }
