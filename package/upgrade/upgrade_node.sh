@@ -213,14 +213,51 @@ wait_vms_out_or_shutdown()
       break
     fi
 
+    check_migrations_phase "Scheduling"
+    check_migrations_phase "Pending"
+    check_migrations_phase "Failed"
+
     echo "Waiting for VM live-migration or shutdown...(count: $vm_count)"
     sleep 5
   done
   echo "all VMs on node $HARVESTER_UPGRADE_NODE_NAME have been live-migrated or shutdown"
 }
 
-shutdown_repo_vm()
-{
+check_migrations_phase() {
+  local migration_phase="${1}"
+  local running_vmis=($(kubectl get vmi -A -lkubevirt.io/nodeName="${HARVESTER_UPGRADE_NODE_NAME}" -ojsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}'))
+  for vmi in "${running_vmis[@]}"; do
+    vmi_namespace=$(echo "${vmi}" | cut -d '/' -f1)
+    vmi_name=$(echo "${vmi}" | cut -d '/' -f2)
+    vmims=($(kubectl get vmim -n "${vmi_namespace}" -lkubevirt.io/vmi-name=${vmi_name} -ojsonpath="{.items[?(@.status.phase=='${migration_phase}')].metadata.name}"))
+    for vmim in "${vmims[@]}"; do
+      # filter out non-upgrade related vmims to avoid shutting down the vm due
+      # to any previous unrelated pre-upgrade migration failures.
+      # the vmim's name prefix is used as the filter because the vmim doesn't
+      # have any labels or annotations that reference the upgrade resource.
+      # all upgrade-related vmims have the 'kubevirt-evacuation-' prefix.
+      if [[ "${vmim}" != "kubevirt-evacuation"* ]]; then
+        echo "skipping non-upgrade related vmim ${vmim}"
+        continue
+      fi
+
+      echo "found virtual machine migration. phase:${migration_phase}, node:${HARVESTER_UPGRADE_NODE_NAME}, ns: ${vmi_namespace}, vm:${vmi_name}, vmim:${vmim}"
+
+      # if the warning events confirmed a migration failure, shutdown this vm
+      if [ "${migration_phase}" = "Failed" ]; then
+        warnings=$(kubectl -n "${vmi_namespace}" events --for=virtualmachineinstancemigration/"${vmim}" --types=warning -ojsonpath='{.items[*].reason}' 2>/dev/null)
+        if [ ! -z "${warnings}" ]; then
+          if echo "${warnings}" | grep -i -q "failedmigration"; then
+            echo "shutting down virtual machine ${vmi_namespace}/${vmi_name} due to failed migration. vmim: ${vmi_namespace}/${vmim}, reasons: ${warnings}"
+            virtctl -n "${vmi_namespace}" stop "${vmi_name}" || true # don't fail upgrade if virtctl failed
+          fi
+        fi
+      fi
+    done
+  done
+}
+
+shutdown_repo_vm() {
   # We don't need to live-migrate upgrade repo VM. Just make sure it's up when we need it.
   # Shutdown it if it's running on this upgrading node.
   repo_vm_name="upgrade-repo-$HARVESTER_UPGRADE_NAME"
