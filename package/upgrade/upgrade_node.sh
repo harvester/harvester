@@ -627,6 +627,10 @@ stages:
 EOF
   fi
 
+  # SLE Micro 5.5 uses /usr/lib/ssh/sftp-server
+  # SL Micro 6.1 uses /usr/libexec/ssh/sftp-server
+  sed -i 's%/usr/lib/ssh/sftp-server%/usr/libexec/ssh/sftp-server%' ${HOST_DIR}/etc/ssh/sshd_config.d/sftp.conf
+
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
 
