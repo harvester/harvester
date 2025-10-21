@@ -31,7 +31,8 @@ func GetAdditionalGuestMemoryOverheadRatioWithoutError(settingCache ctlharvester
 		return &value
 	}
 	if agmorc.IsEmpty() {
-		return nil
+		value = settings.AdditionalGuestMemoryOverheadRatioDefault
+		return &value
 	}
 	value = agmorc.Value()
 	return &value
