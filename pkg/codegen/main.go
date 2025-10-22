@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -238,14 +237,14 @@ func main() {
 // `networkattachementdefinitions` that will raises crd not found exception of the NAD controller.
 func nadControllerInterfaceRefactor() {
 	absPath, _ := filepath.Abs("pkg/generated/controllers/k8s.cni.cncf.io/v1/interface.go")
-	input, err := ioutil.ReadFile(absPath)
+	input, err := os.ReadFile(absPath)
 	if err != nil {
 		logrus.Fatalf("failed to read the network-attachment-definition file: %v", err)
 	}
 
 	output := bytes.ReplaceAll(input, []byte("networkattachmentdefinitions"), []byte("network-attachment-definitions"))
 
-	if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
+	if err = os.WriteFile(absPath, output, 0600); err != nil {
 		logrus.Fatalf("failed to update the network-attachment-definition file: %v", err)
 	}
 }
@@ -262,13 +261,13 @@ func capiWorkaround() {
 
 	// Replace the variable `SchemeGroupVersion` with `GroupVersion` in the above files path
 	for _, absPath := range files {
-		input, err := ioutil.ReadFile(absPath)
+		input, err := os.ReadFile(absPath)
 		if err != nil {
 			logrus.Fatalf("failed to read the clusters.cluster.x-k8s.io client file: %v", err)
 		}
 		output := bytes.ReplaceAll(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"))
 
-		if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
+		if err = os.WriteFile(absPath, output, 0600); err != nil {
 			logrus.Fatalf("failed to update the clusters.cluster.x-k8s.io client file: %v", err)
 		}
 	}
@@ -290,13 +289,13 @@ func loggingWorkaround() {
 
 	// Replace the variable `SchemeGroupVersion` with `GroupVersion` in the above files path
 	for _, absPath := range files {
-		input, err := ioutil.ReadFile(absPath)
+		input, err := os.ReadFile(absPath)
 		if err != nil {
 			logrus.Fatalf("failed to read the logging.banzaicloud.io client file: %v", err)
 		}
 		output := bytes.ReplaceAll(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"))
 
-		if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
+		if err = os.WriteFile(absPath, output, 0600); err != nil {
 			logrus.Fatalf("failed to update the logging.banzaicloud.io client file: %v", err)
 		}
 	}
