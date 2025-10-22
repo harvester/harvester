@@ -645,6 +645,7 @@ upgrade_rancher() {
   wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
   pre_patch_timestamp=$(fleet_agent_timestamp)
   patch_fleet_cluster
+  wait_for_fleet_agent $pre_patch_timestamp
   wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
 
   # After fleet-controller POD is restarted, it will check until the local cluster is imported, after that, redeploy the fleet-agent
