@@ -14,6 +14,7 @@ import (
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	provisioningctrl "github.com/rancher/rancher/pkg/generated/controllers/provisioning.cattle.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/condition"
+	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
@@ -98,12 +99,14 @@ type upgradeHandler struct {
 	managedChartCache  mgmtv3.ManagedChartCache
 	managedChartClient mgmtv3.ManagedChartClient
 
-	vmImageClient ctlharvesterv1.VirtualMachineImageClient
-	vmImageCache  ctlharvesterv1.VirtualMachineImageCache
-	vmClient      kubevirtctrl.VirtualMachineClient
-	vmCache       kubevirtctrl.VirtualMachineCache
-	serviceClient ctlcorev1.ServiceClient
-	pvcClient     ctlcorev1.PersistentVolumeClaimClient
+	vmImageClient    ctlharvesterv1.VirtualMachineImageClient
+	vmImageCache     ctlharvesterv1.VirtualMachineImageCache
+	vmClient         kubevirtctrl.VirtualMachineClient
+	vmCache          kubevirtctrl.VirtualMachineCache
+	serviceClient    ctlcorev1.ServiceClient
+	pvcClient        ctlcorev1.PersistentVolumeClaimClient
+	deploymentClient ctlappsv1.DeploymentClient
+	deploymentCache  ctlappsv1.DeploymentCache
 
 	clusterClient provisioningctrl.ClusterClient
 	clusterCache  provisioningctrl.ClusterCache
@@ -231,16 +234,32 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			return h.upgradeClient.Update(latest)
 		}
 
-		// repo VM is required for the image cleaning procedure, bring it up if it's down
-		logrus.Info("Try to start repo VM for image pruning")
-		vm, err := h.vmCache.Get(repo.GetVMNamespace(), repo.GetVMName())
-		if err != nil {
-			logrus.Warnf("Failed to get repo VM %s/%s from cache, error %s", repo.GetVMNamespace(), repo.GetVMName(), err.Error())
-			return nil, err
+		vm, errVM := h.vmCache.Get(repo.GetVMNamespace(), repo.GetVMName())
+		_, errDeployment := h.deploymentCache.Get(repo.GetVMNamespace(), repo.GetVMName())
+		if errVM != nil && !apierrors.IsNotFound(errVM) {
+			logrus.Warnf("Failed to get repo VM %s/%s from cache, error %s", repo.GetVMNamespace(), repo.GetVMName(), errVM.Error())
+			return nil, errVM
+		}
+		if errDeployment != nil && !apierrors.IsNotFound(errDeployment) {
+			logrus.Warnf("Failed to get repo deployment %s/%s from cache, error %s", repo.GetVMNamespace(), repo.GetVMName(), errDeployment.Error())
+			return nil, errDeployment
 		}
 
-		if !vmReady.IsTrue(vm) {
-			if err = h.startVM(context.Background(), vm); err != nil {
+		// Check if both VM and Deployment are missing for backward compatibility:
+		// - versions before v1.7.0: Uses VM for preload stage
+		// - v1.7.0+: Uses Deployment only
+		// - v1.6.x to v1.7.x upgrade: Still requires VM during transition
+		vmNotFound := errVM != nil && apierrors.IsNotFound(errVM)
+		deploymentNotFound := errDeployment != nil && apierrors.IsNotFound(errDeployment)
+		if vmNotFound && deploymentNotFound {
+			logrus.Errorf("Both repo VM and Deployment %s/%s not found", repo.GetVMNamespace(), repo.GetVMName())
+			return nil, fmt.Errorf("both repo VM and Deployment %s/%s not found", repo.GetVMNamespace(), repo.GetVMName())
+		}
+
+		if !vmNotFound && !vmReady.IsTrue(vm) {
+			// repo VM is required for the image cleaning procedure, bring it up if it's down
+			logrus.Info("Try to start repo VM for image pruning")
+			if err := h.startVM(context.Background(), vm); err != nil {
 				logrus.Warnf("Failed to start repo vm %s/%s for image pruning, error %s", vm.Namespace, vm.Name, err.Error())
 				return nil, err
 			}
