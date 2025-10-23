@@ -373,7 +373,7 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 	//Formula - https://docs.harvesterhci.io/v1.4/advanced/storagenetwork/
 	//Dynamic parameters like number of images download/upload, backing-image-manager and backing-image-ds are skipped
 	//and only the number of nodes each running an instance-manager pod is used
-	MinAllocatableIPAddrs := len(nodes)
+	MinAllocatableIPAddrs := util.CountNonWitnessNodes(nodes)
 
 	var config network.Config
 
