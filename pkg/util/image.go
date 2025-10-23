@@ -72,11 +72,47 @@ func GetBackingImageDataSourceName(backingImageCache ctllhv1.BackingImageCache, 
 	return GetBackingImageName(backingImageCache, image)
 }
 
-func GetImageStorageClassName(image *harvesterv1.VirtualMachineImage) string {
-	if image.Spec.Backend == harvesterv1.VMIBackendCDI {
-		return image.Spec.TargetStorageClassName
+func legacyStorageClassName(imageName string) string {
+	return fmt.Sprintf("longhorn-%s", imageName)
+}
+
+func GenerateStorageClassName(imageUID string) string {
+	return lhutil.AutoCorrectName(fmt.Sprintf("longhorn-%s", imageUID), lhdatastore.NameMaximumLength)
+}
+
+func GetStorageClass(storageClassCache ctlstoragev1.StorageClassCache, image *harvesterv1.VirtualMachineImage) (*storagev1.StorageClass, error) {
+	// For backward compatibility, try to get the storage class with legacy name first.
+	// If it exists, return it directly.
+	// If not, try with a new name format based on the image UID, which can avoid name conflict. Because
+	// the legacy name is based on image name, so two images with the same name but in different namespaces
+	// would generate the same storage class name (StorageClass doesn't have namespace).
+	sc, err := storageClassCache.Get(legacyStorageClassName(image.Name))
+	if err == nil {
+		return sc, nil
 	}
-	return fmt.Sprintf("longhorn-%s", image.Name)
+
+	if !errors.IsNotFound(err) {
+		return nil, err
+	}
+
+	return storageClassCache.Get(GenerateStorageClassName(string(image.UID)))
+}
+
+func GetImageStorageClassName(storageClassCache ctlstoragev1.StorageClassCache, image *harvesterv1.VirtualMachineImage) (string, error) {
+	if image.Spec.Backend == harvesterv1.VMIBackendCDI {
+		return image.Spec.TargetStorageClassName, nil
+	}
+
+	sc, err := GetStorageClass(storageClassCache, image)
+	if err == nil {
+		return sc.Name, nil
+	}
+
+	if !errors.IsNotFound(err) {
+		return "", err
+	}
+
+	return GenerateStorageClassName(string(image.UID)), nil
 }
 
 func GetImageStorageClassParameters(backingImageCache ctllhv1.BackingImageCache, image *harvesterv1.VirtualMachineImage) (map[string]string, error) {
