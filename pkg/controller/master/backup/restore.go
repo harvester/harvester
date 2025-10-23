@@ -421,26 +421,51 @@ func (h *RestoreHandler) initStatus(restore *harvesterv1.VirtualMachineRestore) 
 	return nil
 }
 
-func (h *RestoreHandler) initVolumesStatus(vmRestore *harvesterv1.VirtualMachineRestore, backup *harvesterv1.VirtualMachineBackup) error {
-	restoreCpy := vmRestore.DeepCopy()
+// getDeletedVolumesFromCurrentVM extracts PVC volume names from the current VM referenced in backup's spec.source
+func (h *RestoreHandler) getDeletedVolumesFromCurrentVM(backup *harvesterv1.VirtualMachineBackup) ([]string, error) {
+	if backup.Spec.Source.Kind != kubevirtv1.VirtualMachineGroupVersionKind.Kind {
+		return nil, fmt.Errorf("unsupported backup source kind: %s, expected %s", backup.Spec.Source.Kind, kubevirtv1.VirtualMachineGroupVersionKind.Kind)
+	}
 
-	if restoreCpy.Status.VolumeRestores == nil {
-		volumeRestores, err := getVolumeRestores(restoreCpy, backup)
+	currentVM, err := h.vmCache.Get(backup.Namespace, backup.Spec.Source.Name)
+	if apierrors.IsNotFound(err) {
+		// VM not found, return empty list
+		return []string{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var deletedVolumes []string
+	for _, volume := range currentVM.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			deletedVolumes = append(deletedVolumes, volume.PersistentVolumeClaim.ClaimName)
+		}
+	}
+
+	return deletedVolumes, nil
+}
+
+func (h *RestoreHandler) initVolumesStatus(vmr *harvesterv1.VirtualMachineRestore, vmb *harvesterv1.VirtualMachineBackup) error {
+	vmrCpy := vmr.DeepCopy()
+
+	if vmrCpy.Status.VolumeRestores == nil {
+		volumeRestores, err := getVolumeRestores(vmrCpy, vmb)
 		if err != nil {
 			return err
 		}
-		restoreCpy.Status.VolumeRestores = volumeRestores
+		vmrCpy.Status.VolumeRestores = volumeRestores
 	}
 
-	if !IsNewVMOrHasRetainPolicy(vmRestore) && vmRestore.Status.DeletedVolumes == nil {
-		var deletedVolumes []string
-		for _, vol := range backup.Status.VolumeBackups {
-			deletedVolumes = append(deletedVolumes, vol.PersistentVolumeClaim.ObjectMeta.Name)
+	if !IsNewVMOrHasRetainPolicy(vmr) && vmr.Status.DeletedVolumes == nil {
+		deletedVolumes, err := h.getDeletedVolumesFromCurrentVM(vmb)
+		if err != nil {
+			return err
 		}
-		restoreCpy.Status.DeletedVolumes = deletedVolumes
+		vmrCpy.Status.DeletedVolumes = deletedVolumes
 	}
 
-	if _, err := h.restores.Update(restoreCpy); err != nil {
+	if _, err := h.restores.Update(vmrCpy); err != nil {
 		return err
 	}
 	return nil
