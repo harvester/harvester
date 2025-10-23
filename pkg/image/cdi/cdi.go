@@ -65,11 +65,7 @@ func (b *Backend) Check(vmImg *harvesterv1.VirtualMachineImage) error {
 	targetDVName := b.vmio.GetName(vmImg)
 	targetDV, err := b.dataVolumeClient.Get(targetDVNs, targetDVName, metav1.GetOptions{})
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			logrus.Infof("DataVolume %s/%s not found, waiting for the initialization", targetDVNs, targetDVName)
-			return err
-		}
-		return fmt.Errorf("failed to get DataVolume %s/%s: %v", targetDVNs, targetDVName, err)
+		return b.handleDataVolumeError(err, vmImg, targetDVNs, targetDVName)
 	}
 
 	// upload source type will update the progress on the upload handler
@@ -100,6 +96,17 @@ func (b *Backend) Check(vmImg *harvesterv1.VirtualMachineImage) error {
 	}
 
 	return nil
+}
+
+func (b *Backend) handleDataVolumeError(err error, vmImg *harvesterv1.VirtualMachineImage, targetDVNs, targetDVName string) error {
+	if apierrors.IsNotFound(err) {
+		if vmImg.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeUpload {
+			return common.ErrRetryLater
+		}
+		logrus.Infof("DataVolume %s/%s not found, waiting for initialization", targetDVNs, targetDVName)
+		return err
+	}
+	return fmt.Errorf("failed to get DataVolume %s/%s: %v", targetDVNs, targetDVName, err)
 }
 
 func (b *Backend) UpdateVirtualSize(vmi *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
