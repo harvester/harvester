@@ -12,6 +12,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
+
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
@@ -91,17 +93,18 @@ type VMIOperator interface {
 type vmiOperator struct {
 	client     ctlharvesterv1.VirtualMachineImageClient
 	cache      ctlharvesterv1.VirtualMachineImageCache
+	scCache    ctlstoragev1.StorageClassCache
 	httpClient http.Client
 }
 
-func GetVMIOperator(client ctlharvesterv1.VirtualMachineImageClient, cache ctlharvesterv1.VirtualMachineImageCache, httpClient http.Client) (VMIOperator, error) {
+func GetVMIOperator(client ctlharvesterv1.VirtualMachineImageClient, cache ctlharvesterv1.VirtualMachineImageCache, scCache ctlstoragev1.StorageClassCache, httpClient http.Client) (VMIOperator, error) {
 	if client == nil {
 		return nil, fmt.Errorf("failed to get VMI operator: client is nil")
 	}
 	if cache == nil {
 		return nil, fmt.Errorf("failed to get VMI operator: cache is nil")
 	}
-	return &vmiOperator{client, cache, httpClient}, nil
+	return &vmiOperator{client, cache, scCache, httpClient}, nil
 }
 
 func (vmio *vmiOperator) UpdateVMI(oldVMI, newVMI *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
@@ -309,7 +312,13 @@ func (vmio *vmiOperator) stateTransit(old *harvesterv1.VirtualMachineImage, stat
 	case VMImageStateInitialized:
 		newVMI := old.DeepCopy()
 		newVMI.Status.AppliedURL = newVMI.Spec.URL
-		newVMI.Status.StorageClassName = util.GetImageStorageClassName(newVMI)
+
+		storageClassName, err := util.GetImageStorageClassName(vmio.scCache, newVMI)
+		if err != nil {
+			return old, err
+		}
+
+		newVMI.Status.StorageClassName = storageClassName
 		newVMI.Status.Progress = 0
 
 		harvesterv1.ImageImported.Unknown(newVMI)
