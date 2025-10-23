@@ -289,7 +289,7 @@ func (h *VMController) removeVMBackupSnapshot(vm *kubevirtv1.VirtualMachine) err
 	}
 
 	for _, vmBackup := range vmBackups {
-		if vmBackup.Spec.Type == harvesterv1.Backup || vmBackup.Status == nil {
+		if vmBackup.Spec.Type == harvesterv1.Backup {
 			continue
 		}
 

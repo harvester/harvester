@@ -438,7 +438,7 @@ func (h *MetadataHandler) createVMBackupIfNotExist(backupMetadata VirtualMachine
 			Namespace: backupMetadata.Namespace,
 		},
 		Spec: backupMetadata.BackupSpec,
-		Status: &harvesterv1.VirtualMachineBackupStatus{
+		Status: harvesterv1.VirtualMachineBackupStatus{
 			ReadyToUse: pointer.BoolPtr(false),
 			BackupTarget: &harvesterv1.BackupTarget{
 				Endpoint:     target.Endpoint,
@@ -674,7 +674,7 @@ func (h *MetadataHandler) checkReadyVMBackup(vmBackups []*harvesterv1.VirtualMac
 				"name":      vmBackup.Name,
 			}).Warn("VMBackup is not healthy, change the VMBackup to not ready")
 			status.ReadyToUse = ptr.To(false)
-			updateBackupCondition(vmBackupCopy, newReadyCondition(corev1.ConditionFalse, message, changeToNonReadyMessage))
+			setCondition(vmBackupCopy, harvesterv1.BackupConditionReady, false, message, changeToNonReadyMessage)
 			if _, err := h.vmBackups.Update(vmBackupCopy); err != nil {
 				logrus.WithError(err).WithFields(logrus.Fields{
 					"namespace": vmBackup.Namespace,
