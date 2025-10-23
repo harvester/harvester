@@ -10,6 +10,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvbatchv1 "github.com/harvester/harvester/pkg/generated/controllers/batch/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 )
@@ -43,6 +44,8 @@ type svmbackupHandler struct {
 	lhbackupCache        ctllonghornv2.BackupCache
 	lhbackupClient       ctllonghornv2.BackupClient
 	snapshotContentCache ctlsnapshotv1.VolumeSnapshotContentCache
+	nodeCache            ctlcorev1.NodeCache
+	vmiCache             ctlkubevirtv1.VirtualMachineInstanceCache
 	clientset            *kubernetes.Clientset
 }
 
@@ -56,6 +59,8 @@ func Register(ctx context.Context, management *config.Management, options config
 	secrets := management.CoreFactory.Core().V1().Secret()
 	lhbackups := management.LonghornFactory.Longhorn().V1beta2().Backup()
 	snapshotContents := management.SnapshotFactory.Snapshot().V1().VolumeSnapshotContent()
+	nodes := management.CoreFactory.Core().V1().Node()
+	vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 
 	svmbackupHandler := &svmbackupHandler{
 		svmbackupController:  svmbackups,
@@ -76,6 +81,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		lhbackupClient:       lhbackups,
 		snapshotContentCache: snapshotContents.Cache(),
 		clientset:            management.ClientSet,
+		nodeCache:            nodes.Cache(),
+		vmiCache:             vmis.Cache(),
 	}
 
 	svmbackups.OnChange(ctx, scheduleVMBackupControllerName, svmbackupHandler.OnChanged)

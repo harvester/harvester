@@ -18,7 +18,7 @@ import (
 
 const (
 	maintainNodeControllerName  = "maintain-node-controller"
-	MaintainStatusAnnotationKey = "harvesterhci.io/maintain-status"
+	MaintainStatusAnnotationKey = util.AnnotationMaintainStatus
 	MaintainStatusComplete      = "completed"
 	MaintainStatusRunning       = "running"
 )
@@ -121,7 +121,7 @@ func (h *maintainNodeHandler) OnNodeRemoved(_ string, node *corev1.Node) (*corev
 		return node, nil
 	}
 
-	if _, ok := node.Annotations[MaintainStatusAnnotationKey]; !ok {
+	if !util.IsNodeInMaintenanceMode(node) {
 		return node, nil
 	}
 
