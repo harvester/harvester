@@ -20,6 +20,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
+	nodectl "github.com/harvester/harvester/pkg/controller/master/node"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -373,7 +374,13 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 	//Formula - https://docs.harvesterhci.io/v1.4/advanced/storagenetwork/
 	//Dynamic parameters like number of images download/upload, backing-image-manager and backing-image-ds are skipped
 	//and only the number of nodes each running an instance-manager pod is used
-	MinAllocatableIPAddrs := len(nodes)
+	MinAllocatableIPAddrs := 0
+	for _, node := range nodes {
+		//skip witness nodes which do not run LH Pods
+		if !nodectl.IsWitnessNode(node, nodectl.IsManagementRole(node)) {
+			MinAllocatableIPAddrs++
+		}
+	}
 
 	var config network.Config
 
