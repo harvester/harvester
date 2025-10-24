@@ -62,6 +62,7 @@ func (v *pvcValidator) Resource() types.Resource {
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Delete,
 			admissionregv1.Update,
+			admissionregv1.Create,
 		},
 	}
 }
@@ -150,6 +151,21 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 	}
 
 	return webhookutil.CheckExpand(newPVC, v.vmCache, v.kubevirtCache, v.scCache, v.settingCache)
+}
+
+func (v *pvcValidator) Create(request *types.Request, newObj runtime.Object) error {
+	newPVC := newObj.(*corev1.PersistentVolumeClaim)
+
+	if newPVC.Spec.StorageClassName == nil {
+		return nil
+	}
+
+	if *newPVC.Spec.StorageClassName == util.StorageClassLonghornStatic || *newPVC.Spec.StorageClassName == util.StorageClassVmstatePersistence {
+		message := fmt.Sprintf("can not create volume with the reserved storage class %s", *newPVC.Spec.StorageClassName)
+		return werror.NewInvalidError(message, "spec.storageClassName")
+	}
+
+	return nil
 }
 
 func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) error {
