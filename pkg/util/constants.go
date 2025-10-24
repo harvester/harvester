@@ -190,8 +190,11 @@ const (
 	LablelVClusterAppNameKey   = "app"
 	LablelVClusterAppNameValue = "vcluster"
 
-	StorageClassHarvesterLonghorn = "harvester-longhorn" // the initial & default storageclass
-	HarvesterChartReleaseName     = "harvester"          // the release name
+	StorageClassHarvesterLonghorn  = "harvester-longhorn"  // the initial & default storageclass
+	StorageClassLonghornStatic     = "longhorn-static"     // internal storageclass used for management of existing Longhorn volumes
+	StorageClassVmstatePersistence = "vmstate-persistence" // internal storageclass used for TPM and UEFI persistence
+
+	HarvesterChartReleaseName = "harvester" // the release name
 
 	// copied from helm pkg/action/validate.go
 	HelmReleaseNameAnnotation      = "meta.helm.sh/release-name"
