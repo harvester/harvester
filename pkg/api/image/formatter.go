@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apisv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -104,8 +105,13 @@ func (h Handler) uploadImage(_ http.ResponseWriter, req *http.Request) error {
 	if err != nil {
 		return err
 	}
+	err = h.uploaders[util.GetVMIBackend(vmi)].DoUpload(vmi, req)
+	if err != nil {
+		logrus.Error(err)
+		return err
+	}
 
-	return h.uploaders[util.GetVMIBackend(vmi)].DoUpload(vmi, req)
+	return nil
 }
 
 func (h Handler) cancelDownloadImage(req *http.Request) error {
