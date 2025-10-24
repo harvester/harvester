@@ -114,7 +114,7 @@ Frontend needs to create a new tab in the VM creation page and provide a dropdow
 
 The data of CPU models are from node's labels:
 
-- The model is from `cpu-feature.node.kubevirt.io/{model}` of the node's labels. 
+- The model is from `cpu-model.node.kubevirt.io/{model}` of the node's labels. 
 
 This is a node's labels example:
 
@@ -159,8 +159,7 @@ Since VM spec in `virtualmachinetemplateversion` is the same, please use the sam
 
 Action Items:
 
-- [ ] Create a new tab in the VM creation page.
-- [ ] Create a new tab in the VM template page.
+- [ ] Create the new configurations in the "Advance Options" of the VM creation page and the VM template page.
 - [ ] Provide a dropdown selection menu for models and an input box for features.
 - [ ] Calculate the common CPU models across all nodes.
 - [ ] Propagate the scheduling error on GUI.
