@@ -330,7 +330,9 @@ def send_slack_notification(user_mapping, issues_dict,
 
     summary_payload = {
         "channel": slack_channel,
-        "blocks": summary_blocks
+        "blocks": summary_blocks,
+        "unfurl_links": False,
+        "unfurl_media": False
     }
 
     headers = {
@@ -371,7 +373,9 @@ def send_slack_notification(user_mapping, issues_dict,
         instruction_payload = {
             "channel": slack_channel,
             "blocks": instruction_blocks,
-            "thread_ts": thread_ts
+            "thread_ts": thread_ts,
+            "unfurl_links": False,
+            "unfurl_media": False
         }
 
         # Send instructions message
@@ -401,7 +405,9 @@ def send_slack_notification(user_mapping, issues_dict,
             previous_sprint_payload = {
                 "channel": slack_channel,
                 "blocks": previous_sprint_blocks,
-                "thread_ts": thread_ts
+                "thread_ts": thread_ts,
+                "unfurl_links": False,
+                "unfurl_media": False
             }
 
             response = requests.post(slack_api_url,
@@ -431,7 +437,9 @@ def send_slack_notification(user_mapping, issues_dict,
             older_sprints_payload = {
                 "channel": slack_channel,
                 "blocks": older_sprints_blocks,
-                "thread_ts": thread_ts
+                "thread_ts": thread_ts,
+                "unfurl_links": False,
+                "unfurl_media": False
             }
 
             response = requests.post(slack_api_url,
@@ -461,7 +469,9 @@ def send_slack_notification(user_mapping, issues_dict,
             testing_payload = {
                 "channel": slack_channel,
                 "blocks": testing_blocks,
-                "thread_ts": thread_ts
+                "thread_ts": thread_ts,
+                "unfurl_links": False,
+                "unfurl_media": False
             }
 
             response = requests.post(slack_api_url,
@@ -491,7 +501,9 @@ def send_slack_notification(user_mapping, issues_dict,
             older_testing_payload = {
                 "channel": slack_channel,
                 "blocks": older_testing_blocks,
-                "thread_ts": thread_ts
+                "thread_ts": thread_ts,
+                "unfurl_links": False,
+                "unfurl_media": False
             }
 
             response = requests.post(slack_api_url,
@@ -538,7 +550,7 @@ def scan_and_notify(github_org, github_repo, github_project):
     if not last_day:
         print("Today %s is not in last day of current sprint" %
               datetime.now().date())
-        # return
+        return
 
     project_id = project.get("id")
     issues_dict = list_issues_in_project(
