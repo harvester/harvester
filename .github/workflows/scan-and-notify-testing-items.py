@@ -380,7 +380,7 @@ def send_slack_notification(user_mapping, current_issues, non_current_issues,
             if previous_sprint_response_data.get('ok'):
                 previous_sprint_ts = previous_sprint_response_data.get('ts')
                 prev_channel_id = previous_sprint_response_data.get('channel')
-                add_emoji_reactions(slack_bot_token, prev_channel_id,
+                add_emoji_reactions(prev_channel_id,
                                     previous_sprint_ts, headers)
             else:
                 print("Slack API error for previous sprint thread message: " +
@@ -410,7 +410,7 @@ def send_slack_notification(user_mapping, current_issues, non_current_issues,
             if older_sprints_response_data.get('ok'):
                 older_sprints_ts = older_sprints_response_data.get('ts')
                 older_channel_id = older_sprints_response_data.get('channel')
-                add_emoji_reactions(slack_bot_token, older_channel_id,
+                add_emoji_reactions(older_channel_id,
                                     older_sprints_ts, headers)
             else:
                 print("Slack API error for older sprints thread message: " +
