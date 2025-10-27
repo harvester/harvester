@@ -288,6 +288,30 @@ def flatten_issues(title, blocks, issues, user_mapping, issue_template_url):
     return blocks
 
 
+def send_thread_message(slack_api_url, headers, channel, blocks, thread_ts,
+                       message_type):
+    """Send a thread message with blocks and add emoji reactions"""
+    payload = {
+        "channel": channel,
+        "blocks": blocks,
+        "thread_ts": thread_ts,
+        "unfurl_links": False,
+        "unfurl_media": False
+    }
+
+    response = requests.post(slack_api_url, json=payload, headers=headers)
+    response.raise_for_status()
+
+    response_data = response.json()
+    if response_data.get('ok'):
+        message_ts = response_data.get('ts')
+        channel_id = response_data.get('channel')
+        add_emoji_reactions(channel_id, message_ts, headers)
+    else:
+        print(f"Slack API error for {message_type} thread message: " +
+              f"{response_data.get('error')}")
+
+
 def send_slack_notification(user_mapping, issues_dict,
                             group_id, group_name, issue_template_url,
                             slack_bot_token, slack_channel):
@@ -393,7 +417,7 @@ def send_slack_notification(user_mapping, issues_dict,
             print("Slack API error for instruction thread message: " +
                   f"{instruction_response_data.get('error')}")
 
-        # Send previous sprint issues in separate thread message
+        # Send previous sprint Ready for Testing issues
         if current_ready:
             previous_sprint_blocks = []
             previous_sprint_blocks.append({"type": "divider"})
@@ -402,28 +426,9 @@ def send_slack_notification(user_mapping, issues_dict,
                 previous_sprint_blocks, current_ready, user_mapping,
                 issue_template_url)
 
-            previous_sprint_payload = {
-                "channel": slack_channel,
-                "blocks": previous_sprint_blocks,
-                "thread_ts": thread_ts,
-                "unfurl_links": False,
-                "unfurl_media": False
-            }
-
-            response = requests.post(slack_api_url,
-                                     json=previous_sprint_payload,
-                                     headers=headers)
-            response.raise_for_status()
-
-            previous_sprint_response_data = response.json()
-            if previous_sprint_response_data.get('ok'):
-                previous_sprint_ts = previous_sprint_response_data.get('ts')
-                prev_channel_id = previous_sprint_response_data.get('channel')
-                add_emoji_reactions(prev_channel_id,
-                                    previous_sprint_ts, headers)
-            else:
-                print("Slack API error for previous sprint thread message: " +
-                      f"{previous_sprint_response_data.get('error')}")
+            send_thread_message(slack_api_url, headers, slack_channel,
+                              previous_sprint_blocks, thread_ts,
+                              "previous sprint Ready for Testing")
 
         # Send older sprints Ready for Testing issues
         if non_current_ready:
@@ -434,29 +439,10 @@ def send_slack_notification(user_mapping, issues_dict,
                 older_sprints_blocks, non_current_ready, user_mapping,
                 issue_template_url)
 
-            older_sprints_payload = {
-                "channel": slack_channel,
-                "blocks": older_sprints_blocks,
-                "thread_ts": thread_ts,
-                "unfurl_links": False,
-                "unfurl_media": False
-            }
+            send_thread_message(slack_api_url, headers, slack_channel,
+                              older_sprints_blocks, thread_ts,
+                              "older sprints Ready for Testing")
 
-            response = requests.post(slack_api_url,
-                                     json=older_sprints_payload,
-                                     headers=headers)
-            response.raise_for_status()
-
-            older_sprints_response_data = response.json()
-            if older_sprints_response_data.get('ok'):
-                older_sprints_ts = older_sprints_response_data.get('ts')
-                older_channel_id = older_sprints_response_data.get('channel')
-                add_emoji_reactions(older_channel_id,
-                                    older_sprints_ts, headers)
-            else:
-                print("Slack API error for older sprints thread message: " +
-                      f"{older_sprints_response_data.get('error')}")
-        
         # Send previous sprint Testing issues
         if current_testing:
             testing_blocks = []
@@ -466,28 +452,9 @@ def send_slack_notification(user_mapping, issues_dict,
                 testing_blocks, current_testing, user_mapping,
                 issue_template_url)
 
-            testing_payload = {
-                "channel": slack_channel,
-                "blocks": testing_blocks,
-                "thread_ts": thread_ts,
-                "unfurl_links": False,
-                "unfurl_media": False
-            }
-
-            response = requests.post(slack_api_url,
-                                     json=testing_payload,
-                                     headers=headers)
-            response.raise_for_status()
-
-            testing_response_data = response.json()
-            if testing_response_data.get('ok'):
-                testing_ts = testing_response_data.get('ts')
-                testing_channel_id = testing_response_data.get('channel')
-                add_emoji_reactions(testing_channel_id,
-                                    testing_ts, headers)
-            else:
-                print("Slack API error for testing thread message: " +
-                      f"{testing_response_data.get('error')}")
+            send_thread_message(slack_api_url, headers, slack_channel,
+                              testing_blocks, thread_ts,
+                              "previous sprint Testing")
 
         # Send older sprints Testing issues
         if non_current_testing:
@@ -498,28 +465,9 @@ def send_slack_notification(user_mapping, issues_dict,
                 older_testing_blocks, non_current_testing, user_mapping,
                 issue_template_url)
 
-            older_testing_payload = {
-                "channel": slack_channel,
-                "blocks": older_testing_blocks,
-                "thread_ts": thread_ts,
-                "unfurl_links": False,
-                "unfurl_media": False
-            }
-
-            response = requests.post(slack_api_url,
-                                     json=older_testing_payload,
-                                     headers=headers)
-            response.raise_for_status()
-
-            older_testing_response_data = response.json()
-            if older_testing_response_data.get('ok'):
-                older_testing_ts = older_testing_response_data.get('ts')
-                older_testing_channel_id = older_testing_response_data.get('channel')
-                add_emoji_reactions(older_testing_channel_id,
-                                    older_testing_ts, headers)
-            else:
-                print("Slack API error for older testing thread message: " +
-                      f"{older_testing_response_data.get('error')}")
+            send_thread_message(slack_api_url, headers, slack_channel,
+                              older_testing_blocks, thread_ts,
+                              "older sprints Testing")
 
 
 def scan_and_notify(github_org, github_repo, github_project):
