@@ -183,8 +183,11 @@ def list_issues_in_project(github_token, project_id, desired_status=None):
 
     cursor = None
 
-    current_issues = []
-    non_current_issues = []
+    # Separate issues by status and sprint
+    current_ready_for_testing = []
+    non_current_ready_for_testing = []
+    current_testing = []
+    non_current_testing = []
 
     current_sprint = get_current_sprint(github_token, project_id)
     print(f"Current sprint: {current_sprint}")
@@ -207,10 +210,19 @@ def list_issues_in_project(github_token, project_id, desired_status=None):
                 if desired_status and status not in desired_status:
                     continue
                 sprint = item['sprint']
-                if not sprint or not sprint.get('startDate') or not current_sprint or sprint['startDate'] != current_sprint['startDate']:
-                    non_current_issues.append(item)
-                else:
-                    current_issues.append(item)
+                is_current_sprint = sprint and sprint.get('startDate') and current_sprint and sprint['startDate'] == current_sprint['startDate']
+                
+                # Categorize by status and sprint
+                if status == "Ready For Testing":
+                    if is_current_sprint:
+                        current_ready_for_testing.append(item)
+                    else:
+                        non_current_ready_for_testing.append(item)
+                elif status == "Testing":
+                    if is_current_sprint:
+                        current_testing.append(item)
+                    else:
+                        non_current_testing.append(item)
 
             page_info = data['data']['node']['items']['pageInfo']
             if page_info['hasNextPage']:
@@ -220,7 +232,12 @@ def list_issues_in_project(github_token, project_id, desired_status=None):
         else:
             raise Exception(f"Query failed to run by returning code of {response.status_code}. {response.text}")
 
-    return current_issues, non_current_issues
+    return {
+        'current_ready_for_testing': current_ready_for_testing,
+        'non_current_ready_for_testing': non_current_ready_for_testing,
+        'current_testing': current_testing,
+        'non_current_testing': non_current_testing
+    }
 
 
 def flatten_issues(title, blocks, issues, user_mapping, issue_template_url):
@@ -271,27 +288,43 @@ def flatten_issues(title, blocks, issues, user_mapping, issue_template_url):
     return blocks
 
 
-def send_slack_notification(user_mapping, current_issues, non_current_issues,
+def send_slack_notification(user_mapping, issues_dict,
                             group_id, group_name, issue_template_url,
                             slack_bot_token, slack_channel):
-    if len(current_issues) == 0 and len(non_current_issues) == 0:
+    current_ready = issues_dict['current_ready_for_testing']
+    non_current_ready = issues_dict['non_current_ready_for_testing']
+    current_testing = issues_dict['current_testing']
+    non_current_testing = issues_dict['non_current_testing']
+    
+    total_ready = len(current_ready) + len(non_current_ready)
+    total_testing = len(current_testing) + len(non_current_testing)
+    
+    if total_ready == 0 and total_testing == 0:
         print("Nothing to notify")
         return
 
-    # Send summary message first using chat.postMessage API
-    total_issues = len(current_issues) + len(non_current_issues)
+    # Build summary message with separate counts
+    summary_text = f"Hello <!subteam^{group_id}|{group_name}>, this is a reminder. \n\n"
+    
+    if total_ready > 0:
+        summary_text += f"There are *{total_ready}* 'Ready for Testing' issues:\n"
+        summary_text += f"  - {len(current_ready)} from previous sprint\n"
+        summary_text += f"  - {len(non_current_ready)} from older sprints\n"
+    
+    if total_testing > 0:
+        if total_ready > 0:
+            summary_text += "\n"
+        summary_text += f"There are *{total_testing}* 'Testing' issues:\n"
+        summary_text += f"  - {len(current_testing)} from previous sprint\n"
+        summary_text += f"  - {len(non_current_testing)} from older sprints\n"
+    
+    summary_text += "\nPlease finish verifying them using the corresponding sprint release soon. Details in thread 👇"
+    
     summary_blocks = [{
         "type": "section",
         "text": {
             "type": "mrkdwn",
-            "text": f"Hello <!subteam^{group_id}|{group_name}>, " +
-                    "this is a reminder. \n\n" +
-                    f"There are *{total_issues}* 'Ready for Testing' " +
-                    "or 'Testing' issues:\n" +
-                    f"  - {len(current_issues)} from previous sprint\n" +
-                    f"  - {len(non_current_issues)} from older sprints\n\n" +
-                    "Please finish verifying them using the corresponding " +
-                    "sprint release soon. Details in thread 👇"
+            "text": summary_text
         }
     }]
 
@@ -357,12 +390,12 @@ def send_slack_notification(user_mapping, current_issues, non_current_issues,
                   f"{instruction_response_data.get('error')}")
 
         # Send previous sprint issues in separate thread message
-        if current_issues:
+        if current_ready:
             previous_sprint_blocks = []
             previous_sprint_blocks.append({"type": "divider"})
             previous_sprint_blocks = flatten_issues(
                 "Ready for Testing Issues from Previous Sprint",
-                previous_sprint_blocks, current_issues, user_mapping,
+                previous_sprint_blocks, current_ready, user_mapping,
                 issue_template_url)
 
             previous_sprint_payload = {
@@ -386,13 +419,13 @@ def send_slack_notification(user_mapping, current_issues, non_current_issues,
                 print("Slack API error for previous sprint thread message: " +
                       f"{previous_sprint_response_data.get('error')}")
 
-        # Send older sprints issues in separate thread message
-        if non_current_issues:
+        # Send older sprints Ready for Testing issues
+        if non_current_ready:
             older_sprints_blocks = []
             older_sprints_blocks.append({"type": "divider"})
             older_sprints_blocks = flatten_issues(
                 "Ready for Testing Issues from Older Sprints",
-                older_sprints_blocks, non_current_issues, user_mapping,
+                older_sprints_blocks, non_current_ready, user_mapping,
                 issue_template_url)
 
             older_sprints_payload = {
@@ -415,6 +448,66 @@ def send_slack_notification(user_mapping, current_issues, non_current_issues,
             else:
                 print("Slack API error for older sprints thread message: " +
                       f"{older_sprints_response_data.get('error')}")
+        
+        # Send previous sprint Testing issues
+        if current_testing:
+            testing_blocks = []
+            testing_blocks.append({"type": "divider"})
+            testing_blocks = flatten_issues(
+                "Testing Issues from Previous Sprint",
+                testing_blocks, current_testing, user_mapping,
+                issue_template_url)
+
+            testing_payload = {
+                "channel": slack_channel,
+                "blocks": testing_blocks,
+                "thread_ts": thread_ts
+            }
+
+            response = requests.post(slack_api_url,
+                                     json=testing_payload,
+                                     headers=headers)
+            response.raise_for_status()
+
+            testing_response_data = response.json()
+            if testing_response_data.get('ok'):
+                testing_ts = testing_response_data.get('ts')
+                testing_channel_id = testing_response_data.get('channel')
+                add_emoji_reactions(testing_channel_id,
+                                    testing_ts, headers)
+            else:
+                print("Slack API error for testing thread message: " +
+                      f"{testing_response_data.get('error')}")
+
+        # Send older sprints Testing issues
+        if non_current_testing:
+            older_testing_blocks = []
+            older_testing_blocks.append({"type": "divider"})
+            older_testing_blocks = flatten_issues(
+                "Testing Issues from Older Sprints",
+                older_testing_blocks, non_current_testing, user_mapping,
+                issue_template_url)
+
+            older_testing_payload = {
+                "channel": slack_channel,
+                "blocks": older_testing_blocks,
+                "thread_ts": thread_ts
+            }
+
+            response = requests.post(slack_api_url,
+                                     json=older_testing_payload,
+                                     headers=headers)
+            response.raise_for_status()
+
+            older_testing_response_data = response.json()
+            if older_testing_response_data.get('ok'):
+                older_testing_ts = older_testing_response_data.get('ts')
+                older_testing_channel_id = older_testing_response_data.get('channel')
+                add_emoji_reactions(older_testing_channel_id,
+                                    older_testing_ts, headers)
+            else:
+                print("Slack API error for older testing thread message: " +
+                      f"{older_testing_response_data.get('error')}")
 
 
 def scan_and_notify(github_org, github_repo, github_project):
@@ -445,20 +538,25 @@ def scan_and_notify(github_org, github_repo, github_project):
     if not last_day:
         print("Today %s is not in last day of current sprint" %
               datetime.now().date())
-        return
+        # return
 
     project_id = project.get("id")
-    current_issues, non_current_issues = list_issues_in_project(
+    issues_dict = list_issues_in_project(
         github_token,
         project_id,
         ["Ready For Testing", "Testing"])
 
-    print("Number of \"Ready For Testing\" and \"Testing\" issues " +
-          "for current sprint:", len(current_issues))
-    print("Number of \"Ready For Testing\" and \"Testing\" issues " +
-          "for non-current sprint:", len(non_current_issues))
+    current_ready = issues_dict['current_ready_for_testing']
+    non_current_ready = issues_dict['non_current_ready_for_testing']
+    current_testing = issues_dict['current_testing']
+    non_current_testing = issues_dict['non_current_testing']
 
-    send_slack_notification(user_mapping, current_issues, non_current_issues,
+    print(f"Number of 'Ready For Testing' issues for current sprint: {len(current_ready)}")
+    print(f"Number of 'Ready For Testing' issues for non-current sprint: {len(non_current_ready)}")
+    print(f"Number of 'Testing' issues for current sprint: {len(current_testing)}")
+    print(f"Number of 'Testing' issues for non-current sprint: {len(non_current_testing)}")
+
+    send_slack_notification(user_mapping, issues_dict,
                             group_id, group_name, issue_template_url,
                             slack_bot_token, slack_channel)
 
