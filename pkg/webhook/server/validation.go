@@ -12,7 +12,6 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/config"
 	"github.com/harvester/harvester/pkg/webhook/resources/addon"
 	"github.com/harvester/harvester/pkg/webhook/resources/bundle"
-	"github.com/harvester/harvester/pkg/webhook/resources/bundledeployment"
 	"github.com/harvester/harvester/pkg/webhook/resources/datavolume"
 	"github.com/harvester/harvester/pkg/webhook/resources/keypair"
 	"github.com/harvester/harvester/pkg/webhook/resources/managedchart"
@@ -153,9 +152,6 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache()),
 		managedchart.NewValidator(),
 		bundle.NewValidator(),
-		bundledeployment.NewValidator(
-			clients.FleetFactory.Fleet().V1alpha1().Cluster().Cache(),
-		),
 		storageclass.NewValidator(
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			clients.Core.Secret().Cache(),
