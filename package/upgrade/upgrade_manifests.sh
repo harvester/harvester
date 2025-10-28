@@ -571,6 +571,23 @@ upgrade_rancher() {
     exit 1
   fi
 
+  # Check whether fleet is in values.yaml. If not, add fleet image.
+  local fleet_field_exists=$(yq e '.fleet' values.yaml || echo "null")
+  if [ "$fleet_field_exists" = "null" ]; then
+    echo "Add fleet field to values.yaml"
+    cat >> values.yaml <<EOF
+fleet: |
+  image:
+    repository: rancher/fleet
+    tag: v0.13.4
+    imagePullPolicy: IfNotPresent
+  agentImage:
+    repository: rancher/fleet-agent
+    tag: v0.13.4
+    imagePullPolicy: IfNotPresent
+EOF
+  fi
+
   # Clusters with witness node should have rancher's replicas set to -2 if the total number of nodes is 3.
   local total_nodes_count=$(kubectl get nodes -o json 2>/dev/null | jq -r '.items | length' || echo 0)
   local witness_nodes_count=$(kubectl get nodes -l "node-role.harvesterhci.io/witness=true" -o json 2>/dev/null | jq -r '.items | length' || echo 0)
