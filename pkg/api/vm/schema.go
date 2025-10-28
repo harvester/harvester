@@ -149,6 +149,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				updateResourceQuotaAction:        actionHandler,
 				deleteResourceQuotaAction:        actionHandler,
 				cpuAndMemoryHotplug:              actionHandler,
+				findHotpluggableVmNetworks:       actionHandler,
+				findHotunpluggableNics:           actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
 				startVM:    {},

@@ -288,6 +288,10 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
 		return nil, h.cpuAndMemoryHotplug(namespace, name, input)
+	case findHotpluggableVmNetworks:
+		return nil, h.findHotpluggableVmNetworks(rw, namespace, name)
+	case findHotunpluggableNics:
+		return nil, h.findHotunpluggableNics(rw, namespace, name)
 	default:
 		return nil, apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -1236,6 +1240,69 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 		return err
 	}
 	return h.migrate(ctx, namespace, name, "")
+}
+
+func (h *vmActionHandler) findHotpluggableVmNetworks(rw http.ResponseWriter, namespace, name string) error {
+	nads, err := h.nadCache.List(namespace, labels.NewSelector())
+	if err != nil {
+		return err
+	}
+
+	networkNames := make([]string, 0)
+	for _, nad := range nads {
+		if nad.Labels[builder.LabelKeyNetworkType] == builder.NetworkTypeVLAN {
+			networkNames = append(networkNames, nad.Name)
+		}
+	}
+	resp := FindHotpluggableVmNetworksOutput{
+		Networks: networkNames,
+	}
+
+	util.ResponseOKWithBody(rw, resp)
+	return nil
+}
+
+func (h *vmActionHandler) findHotunpluggableNics(rw http.ResponseWriter, namespace, name string) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	validNetworks := make(map[string]struct{})
+	for _, network := range vm.Spec.Template.Spec.Networks {
+		if network.Multus != nil {
+			parts := strings.SplitN(network.Multus.NetworkName, "\\", 2)
+			nadName := parts[len(parts)-1]
+			nadNamespace := namespace
+			if len(parts) > 1 {
+				nadNamespace = parts[0]
+			}
+			nad, err := h.nadCache.Get(nadNamespace, nadName)
+			if err != nil {
+				return err
+			}
+
+			if nad.Labels[builder.LabelKeyNetworkType] == builder.NetworkTypeVLAN {
+				validNetworks[network.Name] = struct{}{}
+			}
+		}
+	}
+
+	iterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
+	ifaceNames := make([]string, 0, len(iterfaces))
+	for _, iface := range iterfaces {
+		if iface.Model == "virtio" && iface.Bridge != nil && iface.State != kubevirtv1.InterfaceStateAbsent {
+			if _, exists := validNetworks[iface.Name]; exists {
+				ifaceNames = append(ifaceNames, iface.Name)
+			}
+		}
+	}
+	resp := FindHotunpluggableNicsOutput{
+		Interfaces: ifaceNames,
+	}
+
+	util.ResponseOKWithBody(rw, resp)
+	return nil
 }
 
 // cloneVM creates a VM which uses volume cloning from the source VM.
