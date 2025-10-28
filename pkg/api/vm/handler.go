@@ -1201,7 +1201,10 @@ func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, in
 	vmCopy.Spec.Template.Spec.Networks = append(vmCopy.Spec.Template.Spec.Networks, newNetwork)
 
 	_, err = h.vms.Update(vmCopy)
-	return err
+	if err != nil {
+		return err
+	}
+	return h.migrate(ctx, namespace, name, "")
 }
 
 // removeNic remove a hotplug NIC by its interface name
@@ -1229,7 +1232,10 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 
 	tgtIface.State = kubevirtv1.InterfaceStateAbsent
 	_, err = h.vms.Update(vmCopy)
-	return err
+	if err != nil {
+		return err
+	}
+	return h.migrate(ctx, namespace, name, "")
 }
 
 // cloneVM creates a VM which uses volume cloning from the source VM.
