@@ -181,7 +181,7 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, restore *harvesterv1.Virtual
 		return nil, nil
 	}
 
-	if restore.Status.Complete == nil {
+	if !isVMRestoreInit(restore) {
 		return nil, h.initStatus(restore)
 	}
 
@@ -212,7 +212,7 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, restore *harvesterv1.Virtual
 // we use Retain policy in VolumeSnapshotContent.
 // We need to delete VolumeSnapshotContent by restore controller, or there will have remaining VolumeSnapshotContent in the system.
 func (h *RestoreHandler) RestoreOnRemove(_ string, restore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
-	if restore == nil || restore.Status.Complete == nil {
+	if restore == nil || !isVMRestoreInit(restore) {
 		return nil, nil
 	}
 
