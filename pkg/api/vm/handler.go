@@ -1213,7 +1213,7 @@ func (h *vmActionHandler) getHotunpluggableNetworks(vm *kubevirtv1.VirtualMachin
 	validNetworks := make(map[string]struct{})
 	for _, network := range vm.Spec.Template.Spec.Networks {
 		if network.Multus != nil {
-			parts := strings.SplitN(network.Multus.NetworkName, "\\", 2)
+			parts := strings.SplitN(network.Multus.NetworkName, "/", 2)
 			nadName := parts[len(parts)-1]
 			nadNamespace := namespace
 			if len(parts) > 1 {
