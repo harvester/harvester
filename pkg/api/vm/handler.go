@@ -1255,22 +1255,23 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 
 	vmCopy := vm.DeepCopy()
 
-	var tgtIface *kubevirtv1.Interface
-	for _, iface := range vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces {
-		if iface.Name == input.InterfaceName {
-			if isInterfaceHotunpluggable(iface, hotunpluggableNetworks) {
-				tgtIface = &iface
+	found := false
+	interfaces := vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces
+	for idx := range interfaces {
+		if interfaces[idx].Name == input.InterfaceName {
+			if isInterfaceHotunpluggable(interfaces[idx], hotunpluggableNetworks) {
+				interfaces[idx].State = kubevirtv1.InterfaceStateAbsent
+				found = true
 				break
 			}
 			return fmt.Errorf("interface %s is not hot-unpluggable", input.InterfaceName)
 		}
 	}
 
-	if tgtIface == nil {
+	if !found {
 		return fmt.Errorf("interface %s doesn't exist", input.InterfaceName)
 	}
 
-	tgtIface.State = kubevirtv1.InterfaceStateAbsent
 	_, err = h.vms.Update(vmCopy)
 	if err != nil {
 		return err
