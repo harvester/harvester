@@ -1215,6 +1215,26 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 		return err
 	}
 
+	validNetworks := make(map[string]struct{})
+	for _, network := range vm.Spec.Template.Spec.Networks {
+		if network.Multus != nil {
+			parts := strings.SplitN(network.Multus.NetworkName, "\\", 2)
+			nadName := parts[len(parts)-1]
+			nadNamespace := namespace
+			if len(parts) > 1 {
+				nadNamespace = parts[0]
+			}
+			nad, err := h.nadCache.Get(nadNamespace, nadName)
+			if err != nil {
+				return err
+			}
+
+			if nad.Labels[builder.LabelKeyNetworkType] == builder.NetworkTypeVLAN {
+				validNetworks[network.Name] = struct{}{}
+			}
+		}
+	}
+
 	vmCopy := vm.DeepCopy()
 
 	var tgtIface *kubevirtv1.Interface
@@ -1222,13 +1242,17 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 		// TODO: should check this
 		// Hot-unplug is supported only for interfaces connected through bridge binding.
 		if iface.Name == input.InterfaceName {
+			if _, exists := validNetworks[input.InterfaceName]; !exists {
+				return fmt.Errorf("interface %s is not hot-unpluggable", input.InterfaceName)
+			}
+
 			tgtIface = &iface
 			break
 		}
 	}
 
 	if tgtIface == nil {
-		return fmt.Errorf("cannot find interface %s", input.InterfaceName)
+		return fmt.Errorf("interface %s doesn't exist", input.InterfaceName)
 	}
 
 	tgtIface.State = kubevirtv1.InterfaceStateAbsent
