@@ -225,6 +225,8 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
 		return nil, h.removeNic(r.Context(), namespace, name, input)
+	case findHotunpluggableNics:
+		return nil, h.findHotunpluggableNics(rw, namespace, name)
 	case cloneVM:
 		var input CloneInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -288,10 +290,6 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
 		return nil, h.cpuAndMemoryHotplug(namespace, name, input)
-	case findHotpluggableVmNetworks:
-		return nil, h.findHotpluggableVmNetworks(rw, namespace, name)
-	case findHotunpluggableNics:
-		return nil, h.findHotunpluggableNics(rw, namespace, name)
 	default:
 		return nil, apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -1239,26 +1237,6 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 		return err
 	}
 	return h.migrate(ctx, namespace, name, "")
-}
-
-func (h *vmActionHandler) findHotpluggableVmNetworks(rw http.ResponseWriter, namespace, name string) error {
-	nads, err := h.nadCache.List(namespace, labels.NewSelector())
-	if err != nil {
-		return err
-	}
-
-	networkNames := make([]string, 0)
-	for _, nad := range nads {
-		if nad.Labels[builder.LabelKeyNetworkType] == builder.NetworkTypeVLAN {
-			networkNames = append(networkNames, nad.Name)
-		}
-	}
-	resp := FindHotpluggableVmNetworksOutput{
-		Networks: networkNames,
-	}
-
-	util.ResponseOKWithBody(rw, resp)
-	return nil
 }
 
 func (h *vmActionHandler) findHotunpluggableNics(rw http.ResponseWriter, namespace, name string) error {

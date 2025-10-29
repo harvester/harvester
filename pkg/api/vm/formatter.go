@@ -43,7 +43,6 @@ const (
 	removeVolume                     = "removeVolume"
 	addNic                           = "addNic"
 	removeNic                        = "removeNic"
-	findHotpluggableVmNetworks       = "findHotpluggableVmNetworks"
 	findHotunpluggableNics           = "findHotunpluggableNics"
 	cloneVM                          = "clone"
 	forceStopVM                      = "forceStop"
@@ -94,7 +93,6 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	// TODO: check canHotplugNic
 	resource.AddAction(request, addNic)
 	resource.AddAction(request, removeNic)
-	resource.AddAction(request, findHotpluggableVmNetworks)
 	resource.AddAction(request, findHotunpluggableNics)
 
 	if canEjectCdRom(vm) {

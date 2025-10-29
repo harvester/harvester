@@ -143,14 +143,13 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				removeVolume:                     actionHandler,
 				addNic:                           actionHandler,
 				removeNic:                        actionHandler,
+				findHotunpluggableNics:           actionHandler,
 				cloneVM:                          actionHandler,
 				forceStopVM:                      actionHandler,
 				dismissInsufficientResourceQuota: actionHandler,
 				updateResourceQuotaAction:        actionHandler,
 				deleteResourceQuotaAction:        actionHandler,
 				cpuAndMemoryHotplug:              actionHandler,
-				findHotpluggableVmNetworks:       actionHandler,
-				findHotunpluggableNics:           actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
 				startVM:    {},
