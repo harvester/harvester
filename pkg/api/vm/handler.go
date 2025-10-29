@@ -1208,13 +1208,8 @@ func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, in
 	return h.migrate(ctx, namespace, name, "")
 }
 
-// removeNic remove a hotplug NIC by its interface name
-func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string, input RemoveNicInput) error {
-	vm, err := h.vmCache.Get(namespace, name)
-	if err != nil {
-		return err
-	}
-
+func (h *vmActionHandler) getHotunpluggableNetworks(vm *kubevirtv1.VirtualMachine) (map[string]struct{}, error) {
+	namespace := vm.ObjectMeta.Namespace
 	validNetworks := make(map[string]struct{})
 	for _, network := range vm.Spec.Template.Spec.Networks {
 		if network.Multus != nil {
@@ -1226,7 +1221,7 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 			}
 			nad, err := h.nadCache.Get(nadNamespace, nadName)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			if nad.Labels[builder.LabelKeyNetworkType] == builder.NetworkTypeVLAN {
@@ -1235,19 +1230,39 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 		}
 	}
 
+	return validNetworks, nil
+}
+
+func isInterfaceHotunpluggable(iface kubevirtv1.Interface, hotunpluggableNetworks map[string]struct{}) bool {
+	_, isNetworkHotunpluggable := hotunpluggableNetworks[iface.Name]
+	if iface.Model == "virtio" && iface.Bridge != nil && iface.State != kubevirtv1.InterfaceStateAbsent && isNetworkHotunpluggable {
+		return true
+	}
+	return false
+}
+
+// removeNic remove a hotplug NIC by its interface name
+func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string, input RemoveNicInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	hotunpluggableNetworks, err := h.getHotunpluggableNetworks(vm)
+	if err != nil {
+		return err
+	}
+
 	vmCopy := vm.DeepCopy()
 
 	var tgtIface *kubevirtv1.Interface
 	for _, iface := range vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces {
-		// TODO: should check this
-		// Hot-unplug is supported only for interfaces connected through bridge binding.
 		if iface.Name == input.InterfaceName {
-			if _, exists := validNetworks[input.InterfaceName]; !exists {
-				return fmt.Errorf("interface %s is not hot-unpluggable", input.InterfaceName)
+			if isInterfaceHotunpluggable(iface, hotunpluggableNetworks) {
+				tgtIface = &iface
+				break
 			}
-
-			tgtIface = &iface
-			break
+			return fmt.Errorf("interface %s is not hot-unpluggable", input.InterfaceName)
 		}
 	}
 
@@ -1269,33 +1284,16 @@ func (h *vmActionHandler) findHotunpluggableNics(rw http.ResponseWriter, namespa
 		return err
 	}
 
-	validNetworks := make(map[string]struct{})
-	for _, network := range vm.Spec.Template.Spec.Networks {
-		if network.Multus != nil {
-			parts := strings.SplitN(network.Multus.NetworkName, "\\", 2)
-			nadName := parts[len(parts)-1]
-			nadNamespace := namespace
-			if len(parts) > 1 {
-				nadNamespace = parts[0]
-			}
-			nad, err := h.nadCache.Get(nadNamespace, nadName)
-			if err != nil {
-				return err
-			}
-
-			if nad.Labels[builder.LabelKeyNetworkType] == builder.NetworkTypeVLAN {
-				validNetworks[network.Name] = struct{}{}
-			}
-		}
+	hotunpluggableNetworks, err := h.getHotunpluggableNetworks(vm)
+	if err != nil {
+		return err
 	}
 
 	iterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
 	ifaceNames := make([]string, 0, len(iterfaces))
 	for _, iface := range iterfaces {
-		if iface.Model == "virtio" && iface.Bridge != nil && iface.State != kubevirtv1.InterfaceStateAbsent {
-			if _, exists := validNetworks[iface.Name]; exists {
-				ifaceNames = append(ifaceNames, iface.Name)
-			}
+		if isInterfaceHotunpluggable(iface, hotunpluggableNetworks) {
+			ifaceNames = append(ifaceNames, iface.Name)
 		}
 	}
 	resp := FindHotunpluggableNicsOutput{
