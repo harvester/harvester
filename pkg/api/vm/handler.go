@@ -1189,10 +1189,9 @@ func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, in
 
 	vmCopy := vm.DeepCopy()
 
-	// TODO: check interface name is unique
-
 	newIface := kubevirtv1.Interface{
 		Name:                   input.InterfaceName,
+		MacAddress:             input.MacAddress,
 		Model:                  "virtio",
 		InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{Bridge: &kubevirtv1.InterfaceBridge{}},
 	}

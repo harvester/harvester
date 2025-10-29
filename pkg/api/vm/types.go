@@ -42,6 +42,7 @@ type RemoveVolumeInput struct {
 type AddNicInput struct {
 	InterfaceName string `json:"interfaceName"`
 	NetworkName   string `json:"networkName"`
+	MacAddress    string `json:"macAddress"`
 }
 
 type RemoveNicInput struct {
