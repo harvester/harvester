@@ -188,6 +188,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				removeNic: {
 					Input: "removeNicInput",
 				},
+				findHotunpluggableNics: {},
 				cloneVM: {
 					Input: "cloneInput",
 				},
