@@ -90,11 +90,6 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	resource.AddAction(request, removeVolume)
 	resource.AddAction(request, cloneVM)
 
-	// TODO: check canHotplugNic
-	resource.AddAction(request, addNic)
-	resource.AddAction(request, removeNic)
-	resource.AddAction(request, findHotunpluggableNics)
-
 	if canEjectCdRom(vm) {
 		resource.AddAction(request, ejectCdRom)
 	}
@@ -130,6 +125,12 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 		if canCPUAndMemoryHotplug(vm) {
 			resource.AddAction(request, cpuAndMemoryHotplug)
+		}
+
+		if canHotplugNic(vm) {
+			resource.AddAction(request, addNic)
+			resource.AddAction(request, removeNic)
+			resource.AddAction(request, findHotunpluggableNics)
 		}
 	}
 
@@ -469,4 +470,11 @@ func canCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
 		}
 	}
 	return !hasRestartRequiredOrHotplugMigration
+}
+
+func canHotplugNic(vm *kubevirtv1.VirtualMachine) bool {
+	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusRunning {
+		return false
+	}
+	return virtualmachine.SupportHotplugNic(vm)
 }
