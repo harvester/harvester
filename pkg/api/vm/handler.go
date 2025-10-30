@@ -19,6 +19,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/rancher/wrangler/v3/pkg/slice"
 	"github.com/sirupsen/logrus"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1224,7 +1225,12 @@ func (h *vmActionHandler) getHotunpluggableNetworks(vm *kubevirtv1.VirtualMachin
 				return nil, err
 			}
 
-			if nad.Labels[builder.LabelKeyNetworkType] == builder.NetworkTypeVLAN {
+			var conf cnitypes.PluginConf
+			if err := json.Unmarshal([]byte(nad.Spec.Config), &conf); err != nil {
+				return nil, err
+			}
+
+			if conf.Type == "bridge" {
 				validNetworks[network.Name] = struct{}{}
 			}
 		}
