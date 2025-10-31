@@ -19,6 +19,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/namespace"
 	"github.com/harvester/harvester/pkg/webhook/resources/node"
 	"github.com/harvester/harvester/pkg/webhook/resources/persistentvolumeclaim"
+	"github.com/harvester/harvester/pkg/webhook/resources/podeviction"
 	"github.com/harvester/harvester/pkg/webhook/resources/resourcequota"
 	"github.com/harvester/harvester/pkg/webhook/resources/schedulevmbackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/secret"
@@ -191,6 +192,10 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		datavolume.NewValidator(
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
+		),
+		podeviction.NewValidator(
+			clients.Core.Pod().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
 		),
 	}
 
