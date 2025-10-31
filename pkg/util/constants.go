@@ -67,6 +67,12 @@ const (
 	AnnotationSkipGarbageCollectionThresholdCheck = prefix + "/skipGarbageCollectionThresholdCheck"
 	AnnotationMinCertsExpirationInDay             = prefix + "/minCertsExpirationInDay"
 
+	// AnnotationUpgradeImage indicates the VM image used for Harvester upgrades.
+	// This annotation triggers the VM image controller to create a RWX filesystem data volume
+	// for the upgrade repository Deployment. The UI also uses this annotation during
+	// airgap upgrades when uploading images.
+	AnnotationUpgradeImage = prefix + "/os-upgrade-image"
+
 	HarvesterManagedNodeLabelKey = prefix + "/managed"
 
 	HarvesterPromoteNodeLabelKey        = prefix + "/promote-node"
