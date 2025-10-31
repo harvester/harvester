@@ -66,6 +66,9 @@ func (b *Backend) Check(vmImg *harvesterv1.VirtualMachineImage) error {
 	targetDV, err := b.dataVolumeClient.Get(targetDVNs, targetDVName, metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
+			if vmImg.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeUpload {
+				return common.ErrRetryLater
+			}
 			logrus.Infof("DataVolume %s/%s not found, waiting for the initialization", targetDVNs, targetDVName)
 			return err
 		}
