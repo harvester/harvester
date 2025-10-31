@@ -94,6 +94,8 @@ type upgradeHandler struct {
 	versionCache      ctlharvesterv1.VersionCache
 	planClient        upgradectlv1.PlanClient
 	planCache         upgradectlv1.PlanCache
+	addonClient       ctlharvesterv1.AddonClient
+	addonCache        ctlharvesterv1.AddonCache
 
 	managedChartCache  mgmtv3.ManagedChartCache
 	managedChartClient mgmtv3.ManagedChartClient
@@ -258,6 +260,10 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			return h.upgradeClient.Update(toUpdate)
 		}
 
+		if err := h.reenableAddons(upgrade); err != nil {
+			return nil, err
+		}
+
 		return upgrade, nil
 	}
 
@@ -383,6 +389,9 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				}
 			}
 
+			if err := h.disableAddons(toUpdate); err != nil {
+				return h.upgradeClient.Update(toUpdate)
+			}
 			// go with RKE2 pre-drain/post-drain hooks
 			logrus.Infof("Start upgrading Kubernetes runtime to %s", info.Release.Kubernetes)
 			if err := h.upgradeKubernetes(info.Release.Kubernetes); err != nil {
@@ -528,6 +537,9 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 		}
 	}
 
+	if err := h.reenableAddons(upgrade); err != nil {
+		return nil, err
+	}
 	return upgrade, h.resumeManagedCharts()
 }
 
@@ -863,4 +875,50 @@ func (h *upgradeHandler) checkLogReadyCondition(upgrade *harvesterv1.Upgrade) (*
 	logrus.Debug("Waiting for LogReady condition to be set")
 	h.upgradeController.EnqueueAfter(upgrade.Namespace, upgrade.Name, time.Second*5)
 	return upgrade, nil
+}
+
+func (h *upgradeHandler) disableAddons(upgrade *harvesterv1.Upgrade) error {
+	addon, err := h.addonCache.Get(util.KubeSystemNamespace, util.DeschedulerAddon)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	if addon != nil && addon.Spec.Enabled {
+		logrus.Info("Descheduler addon is enabled, disabling it for upgrade")
+		upgrade.Annotations[util.AnnotationReenableDeschedulerAddon] = "true"
+		toUpdate := addon.DeepCopy()
+		toUpdate.Spec.Enabled = false
+		if _, err := h.addonClient.Update(toUpdate); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *upgradeHandler) reenableAddons(upgrade *harvesterv1.Upgrade) error {
+	reenableStr, ok := upgrade.Annotations[util.AnnotationReenableDeschedulerAddon]
+	if !ok {
+		return nil
+	}
+	if reenableStr == "true" {
+		addon, err := h.addonCache.Get(util.KubeSystemNamespace, util.DeschedulerAddon)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+
+		if addon != nil && !addon.Spec.Enabled {
+			logrus.Info("Re-enabling descheduler addon after upgrade")
+			toUpdate := addon.DeepCopy()
+			toUpdate.Spec.Enabled = true
+			if _, err := h.addonClient.Update(toUpdate); err != nil {
+				return err
+			}
+		}
+		toUpdate := upgrade.DeepCopy()
+		delete(toUpdate.Annotations, util.AnnotationReenableDeschedulerAddon)
+		if _, err := h.upgradeClient.Update(toUpdate); err != nil {
+			return err
+		}
+	}
+	return nil
 }
