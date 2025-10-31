@@ -1,5 +1,11 @@
 package network
 
+import (
+	"crypto/rand"
+	"fmt"
+	"net"
+)
+
 const (
 	BridgeSuffix = "-br"
 	CNIVersion   = "0.3.1"
@@ -56,4 +62,27 @@ func CreateBridgeConfig(config Config) BridgeConfig {
 	}
 
 	return bridgeConfig
+}
+
+// generates a random Locally Administered Unicast MAC Address.
+func GenerateLAAMacAddress() (net.HardwareAddr, error) {
+	buf := make([]byte, 6)
+
+	_, err := rand.Read(buf)
+	if err != nil {
+		return nil, fmt.Errorf("error reading random bytes: %w", err)
+	}
+
+	// Set the Local Bit (the 2nd least significant bit) to 1.
+	// Binary: 00000010 (Hex: 0x02).
+	buf[0] |= 0x02
+
+	// Clear the Multicast Bit (the least significant bit) to 0, ensuring Unicast.
+	// Binary: 11111110 (Hex: 0xFE).
+	buf[0] &= 0xFE
+
+	// The resulting first octet will be in the format XX:... where the second-least significant bit
+	// of the X is '1' and the least significant bit is '0', making the first byte
+	// end in one of {2, 6, A, E}.
+	return net.HardwareAddr(buf), nil
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net"
 	"testing"
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -1254,5 +1255,177 @@ func TestPatchAffinity(t *testing.T) {
 			assert.Nil(t, err, tc.name)
 		}
 		assert.Equal(t, types.PatchOps{string(bytes)}, patchOps)
+	}
+}
+
+func TestPatchInterfaceMacAddress(t *testing.T) {
+	type patch struct {
+		Op    string       `json:"op"`
+		Path  string       `json:"path"`
+		Value string       `json:"value"`
+	}
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		interfaces  []kubevirtv1.Interface
+		patchOps    []patch
+	}{
+		{
+			name:        "1 interface with MacAddress",
+			annotations: nil,
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "default",
+					Model: "virtio",
+					MacAddress: "de:ad:00:00:be:af",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			patchOps:    nil,
+		},
+		{
+			name:        "1 interface without MacAddress",
+			annotations: nil,
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "default",
+					Model: "virtio",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			patchOps: []patch{
+				{Op: "replace", Path: "/spec/template/spec/domain/devices/interfaces/0/macAddress", Value: "GENERATED"},
+			},
+		},
+		{
+			name:        "1 interface with MacAddress in the annotation",
+			annotations: map[string]string{
+				"harvesterhci.io/mac-address": `{"default":"c2:c7:74:4b:4a:77"}`,
+			},
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "default",
+					Model: "virtio",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			patchOps:    nil,
+		},
+		{
+			name:        "2 interfaces with MacAddress",
+			annotations: nil,
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "default",
+					Model: "virtio",
+					MacAddress: "de:ad:00:00:be:af",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+				{
+					Name: "default",
+					Model: "virtio",
+					MacAddress: "de:ad:00:00:be:bf",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			patchOps: nil,
+		},
+		{
+			name:        "3 interfaces 2 without MacAddress",
+			annotations: nil,
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "default",
+					Model: "virtio",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+				{
+					Name: "default",
+					Model: "virtio",
+					MacAddress: "de:ad:00:00:be:af",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+				{
+					Name: "default",
+					Model: "virtio",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			patchOps: []patch{
+				{Op: "replace", Path: "/spec/template/spec/domain/devices/interfaces/0/macAddress", Value: "GENERATED"},
+				{Op: "replace", Path: "/spec/template/spec/domain/devices/interfaces/2/macAddress", Value: "GENERATED"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// arrage
+			clientset := fake.NewSimpleClientset()
+			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: tc.annotations,
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{},
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									Interfaces: tc.interfaces,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			// act
+			actualPatchOps, err := mutator.(*vmMutator).patchInterfaceMacAddress(vm, nil)
+
+			// assert
+			assert.Nil(t, err, tc.name)
+			assert.Equal(t, len(tc.patchOps), len(actualPatchOps), tc.name)
+
+			for idx, patchOp := range(actualPatchOps) {
+				testMsg := fmt.Sprintf("test: %s, idx: %d", tc.name, idx)
+				var actual patch
+				err := json.Unmarshal([]byte(patchOp), &actual)
+				if err != nil {
+					assert.Nil(t, err, testMsg)
+				}
+
+				expected := tc.patchOps[idx]
+				assert.Equal(t, expected.Op, actual.Op, testMsg)
+				assert.Equal(t, expected.Path, actual.Path, testMsg)
+
+				// mac is randomly generated
+				mac, err := net.ParseMAC(actual.Value)
+				assert.Nil(t, err, tc.name, testMsg)
+
+				// local bit should be 1
+				// multicast bit should be 0
+				assert.Equal(t, uint8(0x02), mac[0] & 0x03, testMsg)
+			}
+		})
 	}
 }

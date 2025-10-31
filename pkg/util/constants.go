@@ -239,4 +239,6 @@ const (
 	AnnotationStorageProfileVolumeModeAccessModes = AnnotationCDIPrefix + "/storageProfileVolumeModeAccessModes"
 	FSOverheadRegex                               = `^(0(?:\.\d{1,3})?|1)$`
 	PVCExpandErrorPrefix                          = "PVC_EXPAND"
+
+	VirtualMachineCreatorNodeDriver = "docker-machine-driver-harvester"
 )

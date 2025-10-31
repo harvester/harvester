@@ -60,3 +60,21 @@ func SupportCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
 
 	return strings.ToLower(vm.Annotations[util.AnnotationEnableCPUAndMemoryHotplug]) == "true"
 }
+
+func SupportHotplugNic(vm *kubevirtv1.VirtualMachine) bool {
+	if vm == nil {
+		return false
+	}
+
+	if vm.Labels != nil && vm.Labels[util.LabelVMCreator] == util.VirtualMachineCreatorNodeDriver {
+		return false
+	}
+
+	for _, iface := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
+		if iface.MacAddress == "" {
+			return false
+		}
+	}
+
+	return true
+}

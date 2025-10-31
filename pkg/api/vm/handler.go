@@ -19,6 +19,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/rancher/wrangler/v3/pkg/slice"
 	"github.com/sirupsen/logrus"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -213,6 +214,20 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `volumeName` are required")
 		}
 		return nil, h.removeVolume(r.Context(), namespace, name, input)
+	case addNic:
+		var input AddNicInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		return nil, h.addNic(r.Context(), namespace, name, input)
+	case removeNic:
+		var input RemoveNicInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		return nil, h.removeNic(r.Context(), namespace, name, input)
+	case findHotunpluggableNics:
+		return nil, h.findHotunpluggableNics(rw, namespace, name)
 	case cloneVM:
 		var input CloneInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -1162,6 +1177,138 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 
 		return h.updateVMVolumeClaimTemplate(vm, removeVolumeClaimTemplate)
 	})
+}
+
+// addNic add a hotplug NIC with given interface name and network name.
+func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, input AddNicInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	vmCopy := vm.DeepCopy()
+
+	newIface := kubevirtv1.Interface{
+		Name:                   input.InterfaceName,
+		MacAddress:             input.MacAddress,
+		Model:                  "virtio",
+		InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{Bridge: &kubevirtv1.InterfaceBridge{}},
+	}
+	vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces = append(vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces, newIface)
+
+	newNetwork := kubevirtv1.Network{
+		Name:          input.InterfaceName,
+		NetworkSource: kubevirtv1.NetworkSource{Multus: &kubevirtv1.MultusNetwork{NetworkName: input.NetworkName}},
+	}
+	vmCopy.Spec.Template.Spec.Networks = append(vmCopy.Spec.Template.Spec.Networks, newNetwork)
+
+	_, err = h.vms.Update(vmCopy)
+	if err != nil {
+		return err
+	}
+	return h.migrate(ctx, namespace, name, "")
+}
+
+func (h *vmActionHandler) getHotunpluggableNetworks(vm *kubevirtv1.VirtualMachine) (map[string]struct{}, error) {
+	namespace := vm.ObjectMeta.Namespace
+	validNetworks := make(map[string]struct{})
+	for _, network := range vm.Spec.Template.Spec.Networks {
+		if network.Multus != nil {
+			parts := strings.SplitN(network.Multus.NetworkName, "/", 2)
+			nadName := parts[len(parts)-1]
+			nadNamespace := namespace
+			if len(parts) > 1 {
+				nadNamespace = parts[0]
+			}
+			nad, err := h.nadCache.Get(nadNamespace, nadName)
+			if err != nil {
+				return nil, err
+			}
+
+			var conf cnitypes.PluginConf
+			if err := json.Unmarshal([]byte(nad.Spec.Config), &conf); err != nil {
+				return nil, err
+			}
+
+			if conf.Type == "bridge" {
+				validNetworks[network.Name] = struct{}{}
+			}
+		}
+	}
+
+	return validNetworks, nil
+}
+
+func isInterfaceHotunpluggable(iface kubevirtv1.Interface, hotunpluggableNetworks map[string]struct{}) bool {
+	_, isNetworkHotunpluggable := hotunpluggableNetworks[iface.Name]
+	if iface.Model == "virtio" && iface.Bridge != nil && iface.State != kubevirtv1.InterfaceStateAbsent && isNetworkHotunpluggable {
+		return true
+	}
+	return false
+}
+
+// removeNic remove a hotplug NIC by its interface name
+func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string, input RemoveNicInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	hotunpluggableNetworks, err := h.getHotunpluggableNetworks(vm)
+	if err != nil {
+		return err
+	}
+
+	vmCopy := vm.DeepCopy()
+
+	found := false
+	interfaces := vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces
+	for idx := range interfaces {
+		if interfaces[idx].Name == input.InterfaceName {
+			if isInterfaceHotunpluggable(interfaces[idx], hotunpluggableNetworks) {
+				interfaces[idx].State = kubevirtv1.InterfaceStateAbsent
+				found = true
+				break
+			}
+			return fmt.Errorf("interface %s is not hot-unpluggable", input.InterfaceName)
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("interface %s doesn't exist", input.InterfaceName)
+	}
+
+	_, err = h.vms.Update(vmCopy)
+	if err != nil {
+		return err
+	}
+	return h.migrate(ctx, namespace, name, "")
+}
+
+func (h *vmActionHandler) findHotunpluggableNics(rw http.ResponseWriter, namespace, name string) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	hotunpluggableNetworks, err := h.getHotunpluggableNetworks(vm)
+	if err != nil {
+		return err
+	}
+
+	iterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
+	ifaceNames := make([]string, 0, len(iterfaces))
+	for _, iface := range iterfaces {
+		if isInterfaceHotunpluggable(iface, hotunpluggableNetworks) {
+			ifaceNames = append(ifaceNames, iface.Name)
+		}
+	}
+	resp := FindHotunpluggableNicsOutput{
+		Interfaces: ifaceNames,
+	}
+
+	util.ResponseOKWithBody(rw, resp)
+	return nil
 }
 
 // cloneVM creates a VM which uses volume cloning from the source VM.
