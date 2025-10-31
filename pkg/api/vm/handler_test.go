@@ -740,6 +740,16 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 		},
 		{
 			ObjectMeta: metav1.ObjectMeta{
+				Name: "node4",
+				Labels: map[string]string{
+					"user.custom/label": "a",
+					"network":           "b",
+					"zone":              "zone3",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
 				Name: "unschedulable-node",
 				Labels: map[string]string{
 					"network": "a",

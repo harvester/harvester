@@ -621,6 +621,15 @@ func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.Virt
 		}
 	}
 
+	for key, value := range vmi.Labels {
+		r, err := convertLabelToSelector(key, value)
+		if err != nil {
+			return nil, err
+		}
+		if r != nil {
+			nodeSelector = nodeSelector.Add(*r)
+		}
+	}
 	return nodeSelector, nil
 }
 
@@ -1494,6 +1503,18 @@ func convertNodeSelectorRequirementToSelector(req corev1.NodeSelectorRequirement
 	default:
 		return &labels.Requirement{}, fmt.Errorf("unsupported operator: %v", req.Operator)
 	}
+}
+
+func convertLabelToSelector(key, value string) (*labels.Requirement, error) {
+	switch true {
+	case strings.HasPrefix(key, kubevirtv1.CPUModelLabel):
+		return labels.NewRequirement(key, selection.In, []string{value})
+	case key == kubevirtv1.NodeSchedulable:
+		return labels.NewRequirement(key, selection.In, []string{value})
+	case key == corev1.LabelArchStable:
+		return labels.NewRequirement(key, selection.In, []string{value})
+	}
+	return nil, nil
 }
 
 func (h *vmActionHandler) updateResourceQuota(namespace, name string, input UpdateResourceQuotaInput) error {
