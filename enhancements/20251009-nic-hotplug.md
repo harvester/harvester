@@ -95,9 +95,17 @@ Content-Type: application/json
 
 ### Implementation Overview
 
+#### Check whether the VM is hot-pluggable / hot-unpluggable
+
+If the VM is a guest cluster VM (with label `harvesterhci.io/creator: docker-machine-driver-harvester`), it would be not hot-pluggable / hot-unpluggable before the integration with Rancher Manager is done. This protection ensures the stability of the guest cluster.
+
+If the VM is not live-migratable, then it isn't hot-pluggable / hot-unpluggable.
+
+If the VM is currently in transitional state, then it isn't hot-pluggable / hot-unpluggable until it reaches the stable running state.
+
 #### Hot-pluggable VM Networks
 
-In this milestone, NetworkAttachmentDefinitions with `bridge` type in their cni configs are hot-pluggable and hot-unpluggable. Namely, `UntaggedNetwork`, `L2VlanNetwork`, and `L2VlanTrunkNetwork` are supported while `OverlayNetwork` isn't.
+In the current milestone, NetworkAttachmentDefinitions with `bridge` type in their cni configs are hot-pluggable and hot-unpluggable. Namely, `UntaggedNetwork`, `L2VlanNetwork`, and `L2VlanTrunkNetwork` are supported while `OverlayNetwork` isn't.
 
 #### Network Interface Hot-plug Actions
 
