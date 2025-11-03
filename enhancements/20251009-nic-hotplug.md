@@ -54,7 +54,6 @@ Content-Type: application/json
 {
   "interfaceName": "dynif1",
   "networkName": "default/vmnet1",
-  "bindingMethod": "bridge",
   "macAddress": "da:59:6c:5e:8b:fb"  // empty string or missing field indicates the Mac address is auto-generated
 }
 
@@ -75,26 +74,9 @@ Content-Type: application/json
 - status code: 204
 ```
 
-**List Hotpluggable VM Networks** which returns bridge vlan based VM Networks that can be used to create hot plug NICs for the VM
+**Find hot-pluggable NICs** which returns interfaces that can be hot-unplugged for the VM
 ```
-POST /v1/harvester/vm/<vm>?action=listHotpluggableVmNetworks
-Content-Type: application/json
-
-# Response
-- status code: 200
-- body:
-{
-  "networks": [
-    "ns1/vmnet1",
-    "ns1/vmnet2"
-    "ns2/vmnet3"
-  ]
-}
-```
-
-**List hot-pluggable NICs** which returns interfaces that can be hot-unplugged for the VM
-```
-POST /v1/harvester/vm/<vm>?action=listHotunpluggableNics
+POST /v1/harvester/vm/<vm>?action=findHotunpluggableNics
 Content-Type: application/json
 
 # Response
@@ -113,20 +95,22 @@ Content-Type: application/json
 
 ### Implementation Overview
 
+#### Hot-pluggable VM Networks
+
+In this milestone, NetworkAttachmentDefinitions with `bridge` type in their cni configs are hot-pluggable and hot-unpluggable. Namely, `UntaggedNetwork`, `L2VlanNetwork`, and `L2VlanTrunkNetwork` are supported while `OverlayNetwork` isn't.
+
 #### Network Interface Hot-plug Actions
 
 The API server will provide the following new actions for `VirtualMachine` resources.
 
-- `addNic` will patch the `VirtualMachine` resource by adding new elements to `spec.template.spec.domain.devices.interfaces` and `spec.template.spec.networks`. The interface `model` will be hardcoded to `virtio`, and only `bridge` and `SR-IOV` binding methods will be permitted.
+- `addNic` will patch the `VirtualMachine` resource by adding new elements to `spec.template.spec.domain.devices.interfaces` and `spec.template.spec.networks`. The interface `model` will be hardcoded to `virtio` while the binding method would be `bridge`. The network must be a Hot-pluggable VM Network.
 
 - `removeNic` will patch the `VirtualMachine` resource by setting the `state` of the specified interface in `spec.template.spec.domain.devices.interfaces` to `absent`. This action will only be permitted for interfaces using the `bridge` binding method.
 
-- `listHotpluggableVmNetworks` will list all the NetworkAttachmentDefinition with label `network.harvesterhci.io/type=L2VlanNetwork`
-
-- `listHotunpluggableNics` will check elements in `spec.template.spec.domain.devices.interfaces` and `spec.template.spec.networks`, then get a list of names of interfaces that satisfied the following conditions.
+- `findHotunpluggableNics` will check elements in `spec.template.spec.domain.devices.interfaces` and `spec.template.spec.networks`, then get a list of names of interfaces that satisfied the following conditions.
   - the model is `virtio`.
   - the binding method is `bridge`.
-  - the network source is multus and the reference NetworkAttachmentDefinition should be labeled with `network.harvesterhci.io/type=L2VlanNetwork`.
+  - the network source is multus and the reference NetworkAttachmentDefinition must be a Hot-pluggable VM Network.
 
 All these actions will be available when the VM is possible to hot-plug NICs:
 - It has to be live-migratable.
@@ -152,10 +136,10 @@ The controller would backfill the observed MAC addresses from the annotation to 
 
 #### Functional tests
 
-1. Verify that a `virtio` model NIC with the `bridge` binding method can be added to a running VM.
-2. Verify that a `virtio` model NIC with the `bridge` binding method can be removed from a running VM.
-3. Verify that only NetworkAttachmentDefinitions with label `network.harvesterhci.io/type=L2VlanNetwork` should be returned while listing Hotpluggable VM Networks.
-4. Verify that only the expected interfaces as mentioned above should be returned while listing hot-unpluggable NICs.
+1. Verify that a `virtio` model NIC with the `bridge` binding method can be hot-plugging to a running VM.
+2. Verify that a `virtio` model NIC with the `bridge` binding method can be hot-unplugging from a running VM.
+3. Verify that only Hot-pluggable VM Networks should be selectable while hot-plugging.
+4. Verify that only the expected interfaces should be returned while listing hot-unpluggable NICs.
 5. Verify that non-live-migratable VMs or VMs with missing MAC addresses in the spec shouldn't be allowed to hotplug NICs.
 
 ### Upgrade strategy
