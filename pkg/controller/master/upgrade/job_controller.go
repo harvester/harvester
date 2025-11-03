@@ -153,6 +153,7 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 				} else {
 					setNodeUpgradeStatus(toUpdate, nodeName, nodeStateWaitingReboot, "", "")
 					if err := h.setNodeWaitRebootLabel(node, repoInfo); err != nil {
+						logrus.Warnf("Failed to set wait-reboot label on node %s: %v, this might cause the potential issue.", node.Name, err)
 						return nil, err
 					}
 					// postDrain ack will be handled in node controller
@@ -167,6 +168,7 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 				} else {
 					setNodeUpgradeStatus(toUpdate, nodeName, nodeStateWaitingReboot, "", "")
 					if err := h.setNodeWaitRebootLabel(node, repoInfo); err != nil {
+						logrus.Warnf("Failed to set wait-reboot label on node %s: %v, this might cause the potential issue.", node.Name, err)
 						return nil, err
 					}
 				}
