@@ -1,9 +1,8 @@
-# Selection for CPU models and features for VMs
-
+# Selection for CPU models for VMs
 
 ## Summary
 
-Harvester doesn't provide the options for selecting CPU models and features for VMs. This enhancement is to provide a way to select CPU models and features for VMs.
+Harvester doesn't provide the options for selecting CPU models for VMs. This enhancement is to provide a way to select CPU models for VMs.
 
 ### Related Issues
 
@@ -15,13 +14,14 @@ Primarily, this HEP addresses the limitation of the current default host-model C
 
 ### Goals
 
-- Support per-VM and global CPU model/features selections.
+- Support per-VM and global CPU model selections.
 - Propagate the scheduling error on GUI.
 
 ### Non-goals
 
 - Change the underlying KubeVirt CPU model or migration logic.
 - Force migration. It should be done [by upstream](https://github.com/kubevirt/kubevirt/issues/15623).
+- Support cpu features selection.
 
 ## Introduction
 
@@ -66,7 +66,7 @@ That being said, if the CPU Model is from a different generation, the migration 
 
 ## Proposal
 
-Due to multiple nodes, we can't show a big matrix for all the CPU models and features. Instead, we'll provide a new UI that allows users to select or input the CPU model and features.
+Due to multiple nodes, we can't show a big matrix for all the CPU models. Instead, we'll provide a new UI that allows users to select or input the CPU model.
 
 ### User Stories
 
@@ -80,7 +80,97 @@ If the cluster consists of mainly homogeneous nodes (including new nodes), users
 
 ### API changes
 
-No.
+Backend should provide a API to let frontend geenrate a selection list.
+
+API: `GET /v1/harvester/node?link=getCpuMigrationCapabilities`
+
+```json
+{
+  "totalNodes": "<total number of ready nodes in the cluster>",
+  "models": {
+    "<cpu-model-name>": {
+      "readyCount": "<number of ready nodes that support this CPU model>",
+      "migrationSafe": "<boolean: true if readyCount equals totalNodes, false otherwise>"
+    }
+  }
+}
+```
+
+**Field Descriptions:**
+- `totalNodes`: Total number of ready nodes in the cluster
+- `models`: Object containing all available CPU models in the cluster
+  - `<cpu-model-name>`: The name of the CPU model (e.g., "IvyBridge", "Penryn")
+    - `readyCount`: Number of ready nodes that support this CPU model
+      - if `readyCount` is greater than zero, that cpu model can be migrated to some nodes in the cluster.
+      - if `readyCount` is equal to one, that cpu model can't be migratet.
+    - `migrationSafe`: Boolean flag indicating if VM with this CPU model can migrate to any node
+      - `true`: CPU model is available on all nodes (`readyCount == totalNodes`)
+      - `false`: CPU model is only available on some nodes or one node (`readyCount < totalNodes`)
+
+About cache, we won't add it in this version, please check [discussion here](https://github.com/harvester/harvester/pull/7937#discussion_r2479700572).
+
+### Case 1
+
+- Node-1 cpuModel: IvyBridge, Penryn
+- Node-2 cpuModel: IvyBridge, Westmere
+- Node-3 cpuModel: IvyBridge, SandyBridge
+- Node-4 cpuModel: IvyBridge, Westmere
+
+
+```json
+{  
+  "totalNodes": 10,  
+  "models": {  
+    "IvyBridge": {  
+      "readyCount": 4,  
+      "migrationSafe": true  
+    },  
+    "Penryn": {  
+      "readyCount": 1,  
+      "migrationSafe": false  
+    }  ,
+    "Westmere": {  
+      "readyCount": 2,  
+      "migrationSafe": false  
+    }  ,
+    "SandyBridge": {  
+      "readyCount": 1,  
+      "migrationSafe": false  
+    }  
+  }
+}  
+```
+
+### Case 2
+
+- Node-1 cpuModel: IvyBridge, Penryn
+- Node-2 cpuModel: IvyBridge
+- Node-3 cpuModel: SandyBridge
+- Node-4 cpuModel: Westmere
+
+```json
+{  
+  "totalNodes": 4,  
+  "models": {  
+    "IvyBridge": {  
+      "readyCount": 2,  
+      "migrationSafe": false  
+    },  
+    "Penryn": {  
+      "readyCount": 1,  
+      "migrationSafe": false  
+    },
+    "SandyBridge": {  
+      "readyCount": 1,  
+      "migrationSafe": false  
+    },
+    "Westmere": {  
+      "readyCount": 1,  
+      "migrationSafe": false  
+    }
+  }
+}  
+```
 
 ## Design
 
@@ -91,13 +181,17 @@ The CPU models are like this:
 - Node-3 cpuModel: IvyBridge, SandyBridge
 - Node-4 cpuModel: IvyBridge, Westmere
 
-We'll only show the common one. These are just examples. The real one will match our Harvester GUI style.
+Possible UI/UX:
 
-![](20250407-cpu-model-features-selection/01-custom-model.png)
-
-![](20250407-cpu-model-features-selection/02-custom-model.png)
-
-
+```
+CPU Model:
+--Migtable--
+IvyBridge
+Westmere
+--Non-Migratable--
+SandyBridge
+Penryn
+```
 
 ### Implementation Overview
 
@@ -105,85 +199,32 @@ We'll only show the common one. These are just examples. The real one will match
 
 We'll have two ways to configure this.
 
-- Per-VM CPU model/features while creating the VM
-- Global VM CPU model/features in settings
+- Per-VM CPU model while creating the VM
+- Global VM CPU model in settings
 
-Frontend needs to create a new tab in the VM creation page and provide a dropdown selection menu for models and an input box for features. This selection is also available in the VM template page and global settings. Then, calculate the common CPU models across all nodes. 
-
-- If users select the common one, we'll show the option with a green mark.
-
-The data of CPU models are from node's labels:
-
-- The model is from `cpu-model.node.kubevirt.io/{model}` of the node's labels. 
-
-This is a node's labels example:
-
-```yaml
-kind: Node
-metadata:
-  name: my-node-1
-  labels:
-    host-model-cpu.node.kubevirt.io/Common-CPU: "true"
-    cpu-model.node.kubevirt.io/Intel-A: "true"
-    cpu-model.node.kubevirt.io/Common-CPU: "true"
-    cpu-model-migration.node.kubevirt.io/Intel-A: "true"
-    cpu-model-migration.node.kubevirt.io/Common-CPU: "true"
-    cpu-feature.node.kubevirt.io/avx2: "true"
-    cpu-feature.node.kubevirt.io/sse4_2: "true"
-```
-
-The VM spec is:
-
-```yaml
-kind: VirtualMachine
-name: my-vm-2
-spec:
-  template:
-    spec:
-      domain:
-      cpu:
-        model: Intel-A
-        features:
-        - name: avx2
-          policy: require
-```
-
-- `cpu.model` is optional. If omitted, the default value is `host-model`.
-- `cpu.features` is optional.
-  - If `cpu.features` is provided, each item in the array must include a `cpu.features[].name` field. 
-  - `cpu.features[].policy` is optional. If omitted, the default value is `require`.  
-    Valid values are: `force`, `require`, `optional`, `disable`, `forbid`.
-
-Since VM spec in `virtualmachinetemplateversion` is the same, please use the same logic to fill the model and features.
+Frontend needs to create a new tab in the VM creation page and provide a dropdown selection menu for models. This selection is also available in the VM template page and global settings. 
 
 
 Action Items:
 
 - [ ] Create the new configurations in the "Advance Options" of the VM creation page and the VM template page.
-- [ ] Provide a dropdown selection menu for models and an input box for features.
-- [ ] Calculate the common CPU models across all nodes.
+- [ ] Provide a dropdown selection menu for models.
 - [ ] Propagate the scheduling error on GUI.
 
 #### Backend
 
-Backend should reject unreasonable requests from the frontend. When users try to migrate a VM, the `findMigratableNodes` action should return available nodes that match the selected CPU model and features to avoid scheduling failure.
+Backend should reject unreasonable requests from the frontend. When users try to migrate a VM, the `findMigratableNodes` action should return available nodes that match the selected CPU model failure.
 
 Action Items:
 
-- [ ] Validate if the selected CPU model and features exist in nodes or not.
-- [ ] Filter the nodes based on the selected CPU model and features when calling `findMigratableNodesByVMI`.
+- [ ] Provide a CPU migration capabilities API for frontend.
+- [ ] Filter the nodes based on the selected CPU model when calling `findMigratableNodesByVMI`.
 - [ ] Write documentation on different usage of the policy field in the VM spec.
 - [ ] Write documentation on how to configure cluster-wide CPU model in KubeVirt.
 
 ### Test plan
 
-- Case 1: Select the common CPU model
-- Case 2: Input a feature
-  - Case 2A: With `require` policy
-  - Case 2B: With `forbid` policy
-  - Case 2C: With `disable` policy
-
-After selecting the CPU model and inputting features, try to migrate the VM to another node.
+Ensure users can select CPU model and migrate the VM.
 
 ### Upgrade strategy
 
