@@ -18,6 +18,7 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 )
 
 func TestMigrateAction(t *testing.T) {
@@ -800,4 +801,78 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 			assert.Equalf(t, tt.want, got, "findMigratableNodesByVMI(%v)", tt.args.vmi)
 		})
 	}
+}
+
+func Test_isVmNetworkHotpluggable(t *testing.T) {
+	type input struct {
+		nad *cniv1.NetworkAttachmentDefinition
+	}
+	type output struct {
+		isHotpluggable bool
+	}
+	testCases := []struct {
+		name     string
+		given    input
+		expected output
+	}{
+			{
+				name: "L2VlanNetwork is hot-pluggable",
+				given: input{
+					nad: &cniv1.NetworkAttachmentDefinition{
+						Spec: cniv1.NetworkAttachmentDefinitionSpec{
+							Config: `{"cniVersion":"0.3.1","name":"vlan1","type":"bridge","bridge":"mgmt-br","promiscMode":true,"vlan":1,"ipam":{}}`,
+						},
+					},
+				},
+				expected: output{
+					isHotpluggable: true,
+				},
+			},
+			{
+				name: "L2VlanTrunkNetwork is hot-pluggable",
+				given: input{
+					nad: &cniv1.NetworkAttachmentDefinition{
+						Spec: cniv1.NetworkAttachmentDefinitionSpec{
+							Config: `{"cniVersion":"0.3.1","name":"vlan1-10","type":"bridge","bridge":"mgmt-br","promiscMode":true,"vlan":0,"ipam":{},"vlanTrunk":[{"minID":1,"maxID":10}]}`,
+						},
+					},
+				},
+				expected: output{
+					isHotpluggable: true,
+				},
+			},
+			{
+				name: "UntaggedNetwork is hot-pluggable",
+				given: input{
+					nad: &cniv1.NetworkAttachmentDefinition{
+						Spec: cniv1.NetworkAttachmentDefinitionSpec{
+							Config: `{"cniVersion":"0.3.1","name":"untagged","type":"bridge","bridge":"mgmt-br","promiscMode":true,"ipam":{}}`,
+						},
+					},
+				},
+				expected: output{
+					isHotpluggable: true,
+				},
+			},
+			{
+				name: "OverlayNetwork isn't hot-pluggable",
+				given: input{
+					nad: &cniv1.NetworkAttachmentDefinition{
+						Spec: cniv1.NetworkAttachmentDefinitionSpec{
+							Config: `{"cniVersion":"0.3.1","name":"overlay","type":"kube-ovn","provider":"overlay.default.ovn","server_socket":"/run/openvswitch/kube-ovn-daemon.sock"}`,
+						},
+					},
+				},
+				expected: output{
+					isHotpluggable: false,
+				},
+			},
+	}
+
+	for _, tc := range testCases {
+		result, err := isVmNetworkHotpluggable(tc.given.nad)
+		assert.Nil(t, err, "case %q", tc.name)
+		assert.Equal(t, tc.expected.isHotpluggable, result, tc.name)
+	}
+
 }
