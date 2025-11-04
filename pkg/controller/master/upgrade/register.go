@@ -45,6 +45,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	lhSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	configMaps := management.CoreFactory.Core().V1().ConfigMap()
+	addons := management.HarvesterFactory.Harvesterhci().V1beta1().Addon()
 
 	virtSubsrcConfig := rest.CopyConfig(management.RestConfig)
 	virtSubsrcConfig.GroupVersion = &schema.GroupVersion{Group: "subresources.kubevirt.io", Version: "v1"}
@@ -69,6 +70,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		versionCache:       versions.Cache(),
 		planClient:         plans,
 		planCache:          plans.Cache(),
+		addonClient:        addons,
+		addonCache:         addons.Cache(),
 		managedChartClient: managedcharts,
 		managedChartCache:  managedcharts.Cache(),
 		vmImageClient:      vmImages,
@@ -152,6 +155,14 @@ func Register(ctx context.Context, management *config.Management, options config
 		versionSyncer: versionSyncer,
 	}
 	settings.OnChange(ctx, settingControllerName, settingHandler.OnChanged)
+
+	addOnHandler := &addonHandler{
+		namespace:    options.Namespace,
+		upgradeCache: upgrades.Cache(),
+		addonClient:  addons,
+		addonCache:   addons.Cache(),
+	}
+	addons.OnChange(ctx, "harvester-descheduler-addon-controller", addOnHandler.OnChanged)
 
 	go versionSyncer.start()
 
