@@ -104,8 +104,8 @@ API: `GET /v1/harvester/node?link=getCpuMigrationCapabilities`
       - if `readyCount` is greater than zero, that cpu model can be migrated to some nodes in the cluster.
       - if `readyCount` is equal to one, that cpu model can't be migratet.
     - `migrationSafe`: Boolean flag indicating if VM with this CPU model can migrate to any node
-      - `true`: CPU model is available on all nodes (`readyCount == totalNodes`)
-      - `false`: CPU model is only available on some nodes or one node (`readyCount < totalNodes`)
+      - `true`: CPU model is available for migration
+      - `false`: CPU model is not available for migration
 
 About cache, we won't add it in this version, please check [discussion here](https://github.com/harvester/harvester/pull/7937#discussion_r2479700572).
 
@@ -119,10 +119,10 @@ About cache, we won't add it in this version, please check [discussion here](htt
 
 ```json
 {  
-  "totalNodes": 10,  
-  "models": {  
+  "totalNodes": 10,
+  "models": {
     "IvyBridge": {  
-      "readyCount": 4,  
+      "readyCount": 4,
       "migrationSafe": true  
     },  
     "Penryn": {  
@@ -131,7 +131,7 @@ About cache, we won't add it in this version, please check [discussion here](htt
     }  ,
     "Westmere": {  
       "readyCount": 2,  
-      "migrationSafe": false  
+      "migrationSafe": true  
     }  ,
     "SandyBridge": {  
       "readyCount": 1,  
@@ -154,7 +154,7 @@ About cache, we won't add it in this version, please check [discussion here](htt
   "models": {  
     "IvyBridge": {  
       "readyCount": 2,  
-      "migrationSafe": false  
+      "migrationSafe": true  
     },  
     "Penryn": {  
       "readyCount": 1,  
