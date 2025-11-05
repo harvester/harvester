@@ -212,8 +212,8 @@ type UpgradePlanStatus struct {
 	// +optional
 	NodeUpgradeStatuses map[string]NodeUpgradeStatus `json:"nodeUpgradeStatuses,omitempty"`
 
-	// phase shows what overall phase the UpgradePlan resource is in.
-	Phase UpgradePlanPhase `json:"phase,omitempty"`
+	// currentPhase shows what overall phase the UpgradePlan resource is in.
+	CurrentPhase UpgradePlanPhase `json:"currentPhase,omitempty"`
 
 	// phaseTransitionTimestamp is the timestamp of when the last phase change occurred.
 	// +listType=atomic
@@ -237,7 +237,7 @@ type UpgradePlanStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster,shortName=up;ups
 // +kubebuilder:printcolumn:name="VERSION",type="string",JSONPath=`.spec.version`
-// +kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="CURRENTPHASE",type="string",JSONPath=`.status.currentPhase`
 // +kubebuilder:printcolumn:name="AVAILABLE",type=string,JSONPath=`.status.conditions[?(@.type=='Available')].status`
 // +kubebuilder:printcolumn:name="PROGRESSING",type=string,JSONPath=`.status.conditions[?(@.type=='Progressing')].status`
 // +kubebuilder:printcolumn:name="DEGRADED",type=string,JSONPath=`.status.conditions[?(@.type=='Degraded')].status`
