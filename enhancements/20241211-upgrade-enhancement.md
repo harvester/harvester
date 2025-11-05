@@ -174,7 +174,7 @@ type ReleaseMetadata struct {
 
 // UpgradePlanSpec defines the desired state of UpgradePlan
 type UpgradePlanSpec struct {
-	// version refers to the corresponding version resource in the same namespace.
+	// version refers to the corresponding version resource.
 	// +required
 	Version string `json:"version"`
 
@@ -228,7 +228,7 @@ type UpgradePlanStatus struct {
 	// +optional
 	ReleaseMetadata *ReleaseMetadata `json:"releaseMetadata,omitempty"`
 
-	// version is the snapshot of the associated Version resource
+	// version is the snapshot of the associated Version resource.
 	// +optional
 	Version *VersionSpec `json:"version,omitempty"`
 }
