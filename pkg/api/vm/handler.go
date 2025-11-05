@@ -1243,7 +1243,7 @@ func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, in
 	if err != nil {
 		return err
 	}
-	return h.migrate(ctx, namespace, name, "")
+	return nil
 }
 
 func (h *vmActionHandler) getHotunpluggableNetworks(vm *kubevirtv1.VirtualMachine) (map[string]struct{}, error) {
@@ -1312,7 +1312,7 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 	if err != nil {
 		return err
 	}
-	return h.migrate(ctx, namespace, name, "")
+	return nil
 }
 
 // findHotunpluggableNics return a list of NIC names that could be hot-unplugged
