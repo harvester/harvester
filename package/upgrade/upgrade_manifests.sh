@@ -579,11 +579,11 @@ upgrade_rancher() {
 fleet: |
   image:
     repository: rancher/fleet
-    tag: v0.13.4
+    tag: v0.14.0-rc.1
     imagePullPolicy: IfNotPresent
   agentImage:
     repository: rancher/fleet-agent
-    tag: v0.13.4
+    tag: v0.14.0-rc.1
     imagePullPolicy: IfNotPresent
 EOF
   fi
