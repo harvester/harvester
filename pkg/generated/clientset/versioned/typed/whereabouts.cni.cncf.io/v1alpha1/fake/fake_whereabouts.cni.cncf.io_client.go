@@ -32,6 +32,10 @@ func (c *FakeWhereaboutsV1alpha1) IPPools() v1alpha1.IPPoolInterface {
 	return &FakeIPPools{c}
 }
 
+func (c *FakeWhereaboutsV1alpha1) NodeSlicePools(namespace string) v1alpha1.NodeSlicePoolInterface {
+	return &FakeNodeSlicePools{c, namespace}
+}
+
 func (c *FakeWhereaboutsV1alpha1) OverlappingRangeIPReservations(namespace string) v1alpha1.OverlappingRangeIPReservationInterface {
 	return &FakeOverlappingRangeIPReservations{c, namespace}
 }
