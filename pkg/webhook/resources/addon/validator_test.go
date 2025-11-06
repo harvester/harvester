@@ -1214,13 +1214,94 @@ func Test_validateRancherLoggingWithUpgradeLog(t *testing.T) {
 			upgradeLogs: []*harvesterv1.UpgradeLog{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "hvst-upgrade-xxxx-upgradelog",
+						Name:      "hvst-upgrade-xxxx-upgradelog1",
 						Namespace: util.HarvesterSystemNamespaceName,
 					},
 					Spec: harvesterv1.UpgradeLogSpec{},
 				},
 			},
 			expectedError: true,
+		},
+		{
+			name: "user can't disable rancher-logging addon with existing upgradeLog objects",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs: []*harvesterv1.UpgradeLog{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "hvst-upgrade-xxxx-upgradelog2", // relies on rancher-logging to deploy logging-operator
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Spec: harvesterv1.UpgradeLogSpec{},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "user can't enable rancher-logging addon with existing upgradeLog objects, but error is bypassed",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+					Annotations: map[string]string{
+						util.AnnotationSkipRancherLoggingAddonWebhookCheck: "true", // bypass the check
+					},
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs: []*harvesterv1.UpgradeLog{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "hvst-upgrade-xxxx-upgradelog3",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Spec: harvesterv1.UpgradeLogSpec{},
+				},
+			},
+			expectedError: false,
 		},
 		{
 			name: "user can successfully enable rancher-logging addon",
@@ -1273,6 +1354,219 @@ func Test_validateRancherLoggingWithUpgradeLog(t *testing.T) {
 		}
 
 		err := validator.validateUpdatedAddon(tc.newAddon, tc.oldAddon)
+		if tc.expectedError {
+			assert.NotNil(t, err, tc.name)
+		} else {
+			assert.Nil(t, err, tc.name)
+		}
+	}
+}
+
+func Test_validateRancherLoggingWithUpgradeLogThenUpgradeAddon(t *testing.T) {
+
+	var testCases = []struct {
+		name          string
+		oldAddon      *harvesterv1.Addon
+		newAddon      *harvesterv1.Addon
+		upgradeLogs   []*harvesterv1.UpgradeLog
+		expectedError bool
+	}{
+		{
+			name: "user can upgrade rancher-logging addon with existing upgradeLog objects, addon is disabled",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version2",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs: []*harvesterv1.UpgradeLog{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "hvst-upgrade-xxxx-upgradelog3",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Spec: harvesterv1.UpgradeLogSpec{},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "user can upgrade rancher-logging addon with existing upgradeLog objects, addon is enabled",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version2",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs: []*harvesterv1.UpgradeLog{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "hvst-upgrade-xxxx-upgradelog4",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Spec: harvesterv1.UpgradeLogSpec{},
+				},
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		harvesterClientSet := harvesterFake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
+		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache).(*addonValidator)
+		for _, upgradeLog := range tc.upgradeLogs {
+			err := harvesterClientSet.Tracker().Add(upgradeLog)
+			assert.Nil(t, err)
+		}
+
+		err := validator.validateUpdatedAddon(tc.newAddon, tc.oldAddon)
+		if tc.expectedError {
+			assert.NotNil(t, err, tc.name)
+		} else {
+			assert.Nil(t, err, tc.name)
+		}
+	}
+}
+
+func Test_validateDeleteAddon(t *testing.T) {
+	var testCases = []struct {
+		name          string
+		oldAddon      *harvesterv1.Addon
+		expectedError bool
+	}{
+		{
+			name: "user cannot delete rancher-logging addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "user cannot delete rancher-monitoring addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherMonitoringName,
+					Namespace: util.CattleMonitoringSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "user cannot delete rancher-monitoring addon even when hacking with experimental label",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherMonitoringName,
+					Namespace: util.CattleMonitoringSystemNamespaceName,
+					Labels: map[string]string{
+						util.AddonExperimentalLabel: "true",
+					},
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "user can delete test experimental addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test",
+					Labels: map[string]string{
+						util.AddonExperimentalLabel: "true",
+					},
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		harvesterClientSet := harvesterFake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
+		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache).(*addonValidator)
+
+		err := validator.Delete(nil, tc.oldAddon)
 		if tc.expectedError {
 			assert.NotNil(t, err, tc.name)
 		} else {
@@ -1354,5 +1648,4 @@ func Test_validateVersionedVClusterAddon(t *testing.T) {
 			assert.NoError(err, tc.name)
 		}
 	}
-
 }
