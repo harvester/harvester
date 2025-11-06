@@ -1191,6 +1191,16 @@ func (h *vmActionHandler) getVmNetwork(name, vmNamespaceFallback string) (*cniv1
 }
 
 func isVmNetworkHotpluggable(nad *cniv1.NetworkAttachmentDefinition) (bool, error) {
+	if nad.DeletionTimestamp != nil {
+		return false, nil
+	}
+
+	// nads from this namespace are reserved and not hotpluggable
+	// they were used for special cases, like migration network or storage network
+	if util.IsNadCreatedBySystem(nad) {
+		return false, nil
+	}
+
 	conf, err := util.DecodeNadConfigToNetConf(nad)
 	if err != nil {
 		return false, err

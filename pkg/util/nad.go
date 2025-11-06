@@ -29,3 +29,7 @@ func DecodeNadConfigToNetConf(nad *cniv1.NetworkAttachmentDefinition) (*NetConf,
 func (nc *NetConf) IsBridgeCNI() bool {
 	return nc.Type == "bridge"
 }
+
+func IsNadCreatedBySystem(nad *cniv1.NetworkAttachmentDefinition) bool {
+	return nad.Namespace == HarvesterSystemNamespaceName
+}

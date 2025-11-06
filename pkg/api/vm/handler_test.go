@@ -815,58 +815,112 @@ func Test_isVmNetworkHotpluggable(t *testing.T) {
 		given    input
 		expected output
 	}{
-			{
-				name: "L2VlanNetwork is hot-pluggable",
-				given: input{
-					nad: &cniv1.NetworkAttachmentDefinition{
-						Spec: cniv1.NetworkAttachmentDefinitionSpec{
-							Config: `{"cniVersion":"0.3.1","name":"vlan1","type":"bridge","bridge":"mgmt-br","promiscMode":true,"vlan":1,"ipam":{}}`,
-						},
+		{
+			name: "L2VlanNetwork is hot-pluggable",
+			given: input{
+				nad: &cniv1.NetworkAttachmentDefinition{
+					Spec: cniv1.NetworkAttachmentDefinitionSpec{
+						Config: `{"cniVersion":"0.3.1","name":"vlan1","type":"bridge","bridge":"mgmt-br","promiscMode":true,"vlan":1,"ipam":{}}`,
 					},
 				},
-				expected: output{
-					isHotpluggable: true,
-				},
 			},
-			{
-				name: "L2VlanTrunkNetwork is hot-pluggable",
-				given: input{
-					nad: &cniv1.NetworkAttachmentDefinition{
-						Spec: cniv1.NetworkAttachmentDefinitionSpec{
-							Config: `{"cniVersion":"0.3.1","name":"vlan1-10","type":"bridge","bridge":"mgmt-br","promiscMode":true,"vlan":0,"ipam":{},"vlanTrunk":[{"minID":1,"maxID":10}]}`,
-						},
+			expected: output{
+				isHotpluggable: true,
+			},
+		},
+		{
+			name: "L2VlanTrunkNetwork is hot-pluggable",
+			given: input{
+				nad: &cniv1.NetworkAttachmentDefinition{
+					Spec: cniv1.NetworkAttachmentDefinitionSpec{
+						Config: `{"cniVersion":"0.3.1","name":"vlan1-10","type":"bridge","bridge":"mgmt-br","promiscMode":true,"vlan":0,"ipam":{},"vlanTrunk":[{"minID":1,"maxID":10}]}`,
 					},
 				},
-				expected: output{
-					isHotpluggable: true,
-				},
 			},
-			{
-				name: "UntaggedNetwork is hot-pluggable",
-				given: input{
-					nad: &cniv1.NetworkAttachmentDefinition{
-						Spec: cniv1.NetworkAttachmentDefinitionSpec{
-							Config: `{"cniVersion":"0.3.1","name":"untagged","type":"bridge","bridge":"mgmt-br","promiscMode":true,"ipam":{}}`,
-						},
+			expected: output{
+				isHotpluggable: true,
+			},
+		},
+		{
+			name: "UntaggedNetwork is hot-pluggable",
+			given: input{
+				nad: &cniv1.NetworkAttachmentDefinition{
+					Spec: cniv1.NetworkAttachmentDefinitionSpec{
+						Config: `{"cniVersion":"0.3.1","name":"untagged","type":"bridge","bridge":"mgmt-br","promiscMode":true,"ipam":{}}`,
 					},
 				},
-				expected: output{
-					isHotpluggable: true,
-				},
 			},
-			{
-				name: "OverlayNetwork isn't hot-pluggable",
-				given: input{
-					nad: &cniv1.NetworkAttachmentDefinition{
-						Spec: cniv1.NetworkAttachmentDefinitionSpec{
-							Config: `{"cniVersion":"0.3.1","name":"overlay","type":"kube-ovn","provider":"overlay.default.ovn","server_socket":"/run/openvswitch/kube-ovn-daemon.sock"}`,
-						},
+			expected: output{
+				isHotpluggable: true,
+			},
+		},
+		{
+			name: "OverlayNetwork isn't hot-pluggable",
+			given: input{
+				nad: &cniv1.NetworkAttachmentDefinition{
+					Spec: cniv1.NetworkAttachmentDefinitionSpec{
+						Config: `{"cniVersion":"0.3.1","name":"overlay","type":"kube-ovn","provider":"overlay.default.ovn","server_socket":"/run/openvswitch/kube-ovn-daemon.sock"}`,
 					},
 				},
-				expected: output{
-					isHotpluggable: false,
+			},
+			expected: output{
+				isHotpluggable: false,
+			},
+		},
+		{
+			name: "migration network isn't hot-pluggable, although it's already filtered out from FE",
+			given: input{
+				nad: &cniv1.NetworkAttachmentDefinition{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "vm-migration-network-rqmmg",
+						Namespace: "harvester-system",
+						Annotations: map[string]string{
+							"vm-migration-network.settings.harvesterhci.io": "true",
+						},
+						Labels: map[string]string{
+							"network.harvesterhci.io/clusternetwork": "migration",
+							"network.harvesterhci.io/ready": "true",
+							"network.harvesterhci.io/type": "L2VlanNetwork",
+							"network.harvesterhci.io/vlan-id": "1",
+							"vm-migration-network.settings.harvesterhci.io/hash": "194c07126764f0ebcd996eee3c7c4c0735fa3145",
+						},
+					},
+					Spec: cniv1.NetworkAttachmentDefinitionSpec{
+						Config: `{"cniVersion":"0.3.1","type":"bridge","bridge":"migration-br","promiscMode":true,"vlan":1,"ipam":{"type":"whereabouts","range":"172.16.0.0/24"}}`,
+					},
 				},
 			},
+			expected: output{
+				isHotpluggable: false,
+			},
+		},
+		{
+			name: "storage network isn't hot-pluggable, although it's already filtered out from FE",
+			given: input{
+				nad: &cniv1.NetworkAttachmentDefinition{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "storagenetwork-bz9vj",
+						Namespace: "harvester-system",
+						Annotations: map[string]string{
+							"storage-network.settings.harvesterhci.io": "true",
+						},
+						Labels: map[string]string{
+							"network.harvesterhci.io/clusternetwork": "storage",
+							"network.harvesterhci.io/ready": "true",
+							"network.harvesterhci.io/type": "L2VlanNetwork",
+							"network.harvesterhci.io/vlan-id": "99",
+							"storage-network.settings.harvesterhci.io/hash": "c8c41cfbdc1a85e7cbd0d3204b441fd13cc109e3",
+						},
+					},
+					Spec: cniv1.NetworkAttachmentDefinitionSpec{
+						Config: `{"cniVersion":"0.3.1","type":"bridge","bridge":"storage-br","promiscMode":true,"vlan":99,"ipam":{"type":"whereabouts","range":"10.0.99.0/24"}}`,
+					},
+				},
+			},
+			expected: output{
+				isHotpluggable: false,
+			},
+		},
 	}
 
 	for _, tc := range testCases {
