@@ -19,7 +19,6 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/rancher/wrangler/v3/pkg/slice"
 	"github.com/sirupsen/logrus"
-	cnitypes "github.com/containernetworking/cni/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -53,6 +52,7 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
+	"github.com/harvester/harvester/pkg/util/virtualmachine"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 )
 
@@ -1191,12 +1191,12 @@ func (h *vmActionHandler) getVmNetwork(name, vmNamespaceFallback string) (*cniv1
 }
 
 func isVmNetworkHotpluggable(nad *cniv1.NetworkAttachmentDefinition) (bool, error) {
-	var conf cnitypes.PluginConf
-	if err := json.Unmarshal([]byte(nad.Spec.Config), &conf); err != nil {
+	conf, err := util.DecodeNadConfigToNetConf(nad)
+	if err != nil {
 		return false, err
 	}
 
-	if conf.Type != "bridge" {
+	if !conf.IsBridgeCNI() {
 		return false, nil
 	}
 
@@ -1246,37 +1246,6 @@ func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, in
 	return nil
 }
 
-func (h *vmActionHandler) getHotunpluggableNetworks(vm *kubevirtv1.VirtualMachine) (map[string]struct{}, error) {
-	namespace := vm.ObjectMeta.Namespace
-	validNetworks := make(map[string]struct{})
-	for _, network := range vm.Spec.Template.Spec.Networks {
-		if network.Multus != nil {
-			nad, err := h.getVmNetwork(network.Multus.NetworkName, namespace)
-			if err != nil {
-				return nil, err
-			}
-
-			ok, err := isVmNetworkHotpluggable(nad)
-			if err != nil {
-				return nil, err
-			}
-			if ok {
-				validNetworks[network.Name] = struct{}{}
-			}
-		}
-	}
-
-	return validNetworks, nil
-}
-
-func isInterfaceHotunpluggable(iface kubevirtv1.Interface, hotunpluggableNetworks map[string]struct{}) bool {
-	_, isNetworkHotunpluggable := hotunpluggableNetworks[iface.Name]
-	if iface.Model == "virtio" && iface.Bridge != nil && iface.State != kubevirtv1.InterfaceStateAbsent && isNetworkHotunpluggable {
-		return true
-	}
-	return false
-}
-
 // removeNic remove a hotplug NIC by its interface name
 func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string, input RemoveNicInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
@@ -1284,9 +1253,8 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 		return err
 	}
 
-	hotunpluggableNetworks, err := h.getHotunpluggableNetworks(vm)
-	if err != nil {
-		return err
+	if !virtualmachine.SupportHotUnplugNic(vm) {
+		return fmt.Errorf("%s/%s doesn't support HotUnplugNic", namespace, name)
 	}
 
 	vmCopy := vm.DeepCopy()
@@ -1295,7 +1263,7 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 	interfaces := vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces
 	for idx := range interfaces {
 		if interfaces[idx].Name == input.InterfaceName {
-			if isInterfaceHotunpluggable(interfaces[idx], hotunpluggableNetworks) {
+			if virtualmachine.IsInterfaceHotUnpluggable(interfaces[idx]) {
 				interfaces[idx].State = kubevirtv1.InterfaceStateAbsent
 				found = true
 				break
@@ -1322,16 +1290,13 @@ func (h *vmActionHandler) findHotunpluggableNics(rw http.ResponseWriter, namespa
 		return err
 	}
 
-	hotunpluggableNetworks, err := h.getHotunpluggableNetworks(vm)
-	if err != nil {
-		return err
-	}
-
-	iterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
-	ifaceNames := make([]string, 0, len(iterfaces))
-	for _, iface := range iterfaces {
-		if isInterfaceHotunpluggable(iface, hotunpluggableNetworks) {
-			ifaceNames = append(ifaceNames, iface.Name)
+	ifaceNames := make([]string, 0)
+	if virtualmachine.SupportHotUnplugNic(vm) {
+		iterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
+		for _, iface := range iterfaces {
+			if virtualmachine.IsInterfaceHotUnpluggable(iface) {
+				ifaceNames = append(ifaceNames, iface.Name)
+			}
 		}
 	}
 	resp := FindHotunpluggableNicsOutput{

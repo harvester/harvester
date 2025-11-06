@@ -129,6 +129,9 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 
 		if canHotplugNic(vm) {
 			resource.AddAction(request, addNic)
+		}
+
+		if canHotUnplugNic(vm) {
 			resource.AddAction(request, removeNic)
 			resource.AddAction(request, findHotunpluggableNics)
 		}
@@ -477,4 +480,11 @@ func canHotplugNic(vm *kubevirtv1.VirtualMachine) bool {
 		return false
 	}
 	return virtualmachine.SupportHotplugNic(vm)
+}
+
+func canHotUnplugNic(vm *kubevirtv1.VirtualMachine) bool {
+	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusRunning {
+		return false
+	}
+	return virtualmachine.SupportHotUnplugNic(vm)
 }

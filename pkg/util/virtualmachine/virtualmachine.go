@@ -61,15 +61,19 @@ func SupportCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
 	return strings.ToLower(vm.Annotations[util.AnnotationEnableCPUAndMemoryHotplug]) == "true"
 }
 
-func SupportHotplugNic(vm *kubevirtv1.VirtualMachine) bool {
+func supportNicHotActionCommon(vm *kubevirtv1.VirtualMachine) bool {
 	if vm == nil {
 		return false
 	}
 
+	// for stability, guest cluster VMs aren't allowed until integration with Rancher Manger is done
 	if vm.Labels != nil && vm.Labels[util.LabelVMCreator] == util.VirtualMachineCreatorNodeDriver {
 		return false
 	}
 
+	// to prevent unexpected RestartRequired condition due to missing macAddress in VM spec,
+	// caused by our existing implmentation for preserving MAC addresses, VMs without macAddress defined in VM spec are not allowed
+	// until backfilling MAC addresses to VM spec while stopping VM by the new reconciliation logic
 	for _, iface := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
 		if iface.MacAddress == "" {
 			return false
@@ -77,4 +81,44 @@ func SupportHotplugNic(vm *kubevirtv1.VirtualMachine) bool {
 	}
 
 	return true
+}
+
+func SupportHotplugNic(vm *kubevirtv1.VirtualMachine) bool {
+	return supportNicHotActionCommon(vm)
+}
+
+func IsInterfaceHotUnpluggable(iface kubevirtv1.Interface) bool {
+	if iface.State == kubevirtv1.InterfaceStateAbsent {
+		return false
+	}
+
+	if iface.Bridge == nil {
+		return false
+	}
+
+	if iface.Model != "" && iface.Model != "virtio" {
+		return false
+	}
+
+	return true
+}
+
+func SupportHotUnplugNic(vm *kubevirtv1.VirtualMachine) bool {
+	if !supportNicHotActionCommon(vm) {
+		return false
+	}
+
+	ifaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
+	if len(ifaces) <= 1 {
+		return false
+	}
+
+	for _, iface := range ifaces {
+		if IsInterfaceHotUnpluggable(iface) {
+			// as long as there is at least one hot-unpluggable interface
+			return true
+		}
+	}
+
+	return false
 }
