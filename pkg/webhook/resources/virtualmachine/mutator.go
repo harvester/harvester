@@ -634,7 +634,7 @@ func (m *vmMutator) patchInterfaceMacAddress(vm *kubevirtv1.VirtualMachine, patc
 	for idx, iface := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
 		if iface.MacAddress == "" {
 			if mac, exists := MacAddressInAnnotation[iface.Name]; exists {
-				logrus.Infof("MAC address (%s) has already been observed in the annotation for %s", mac, iface.Name)
+				logrus.Debugf("MAC address (%s) has already been observed in the annotation for %s", mac, iface.Name)
 				continue
 			}
 			mac, err := network.GenerateLAAMacAddress()
