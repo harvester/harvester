@@ -105,6 +105,11 @@ func (h *VMNetworkController) updateVMMacAddressFromAnnotation(vmi *kubevirtv1.V
 		return err
 	}
 
+	// no need to patch VM spec when both VM and VMI are registered for deletion
+	if vm.DeletionTimestamp != nil {
+		return nil
+	}
+
 	macAddressFromAnnotation, exists := vm.Annotations[util.AnnotationMacAddressName]
 	if !exists {
 		return nil
