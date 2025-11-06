@@ -243,4 +243,8 @@ const (
 	PVCExpandErrorPrefix                          = "PVC_EXPAND"
 
 	VirtualMachineCreatorNodeDriver = "docker-machine-driver-harvester"
+
+	// Addons
+	AddonPrefix            = "addon." + prefix
+	AddonExperimentalLabel = AddonPrefix + "/experimental"
 )
