@@ -62,6 +62,7 @@ func (v *addonValidator) Resource() types.Resource {
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Create,
 			admissionregv1.Update,
+			admissionregv1.Delete,
 		},
 	}
 }
@@ -109,12 +110,23 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 		return validateVClusterAddon(newAddon)
 	}
 
-	if newAddon.Name == util.RancherLoggingName && newAddon.Spec.Enabled {
-		if newAddon.Annotations != nil && newAddon.Annotations[util.AnnotationSkipRancherLoggingAddonWebhookCheck] == "true" {
+	if newAddon.Name == util.RancherLoggingName {
+		if newAddon.Annotations[util.AnnotationSkipRancherLoggingAddonWebhookCheck] == "true" {
 			return nil
 		}
 
-		return v.validateRancherLoggingAddon(newAddon)
+		// check when addon is `enabled`
+		//   block if upgradeLog has deployed a managedchart as logging-operator
+		if !oldAddon.Spec.Enabled && newAddon.Spec.Enabled {
+			return v.validateEnableRancherLoggingAddon(newAddon)
+		}
+
+		// check when addon is `disabled`
+		//   block if upgradeLog sits on top of rancher-logging addon
+		if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
+			return v.validateDisableRancherLoggingAddon(newAddon)
+		}
+
 	}
 
 	if newAddon.Name == util.DeschedulerName && newAddon.Spec.Enabled {
@@ -163,7 +175,7 @@ func validateVClusterAddon(newAddon *v1beta1.Addon) error {
 	return werror.NewBadRequest(fmt.Sprintf("invalid fqdn %s provided for %s addon", addonContent.Hostname, vClusterAddonName))
 }
 
-func (v *addonValidator) validateRancherLoggingAddon(newAddon *v1beta1.Addon) error {
+func (v *addonValidator) validateEnableRancherLoggingAddon(newAddon *v1beta1.Addon) error {
 	loger := logging.NewLogging(v.flowCache, v.outputCache, v.clusterFlowCache, v.clusterOutputCache)
 
 	if err := loger.FlowsDangling(newAddon.Namespace); err != nil {
@@ -174,17 +186,60 @@ func (v *addonValidator) validateRancherLoggingAddon(newAddon *v1beta1.Addon) er
 		return werror.NewBadRequest(fmt.Sprintf("%s, fix or delete it before enabling addon", err.Error()))
 	}
 
+	// when rancher-logging is disabled, then upgradeLog deploys a managedchart as the logging operator
+	// block the enabling until upgradeLog is gone to avoid issues during addon helm install
+	upgradeLogRunning, namespacedName, err := v.isUpgradeLogRunning()
+	if err != nil {
+		return err
+	}
+
+	if upgradeLogRunning {
+		return werror.NewBadRequest(fmt.Sprintf("%v addon cannot be enabled as upgradeLog %v exists in the cluster, fix or delete before enabling addon", util.RancherLoggingName, namespacedName))
+	}
+
+	return nil
+}
+
+func (v *addonValidator) validateDisableRancherLoggingAddon(newAddon *v1beta1.Addon) error {
+	// if rancher-logging is enabled, then upgradeLog utilizes it
+	// block the disabling until upgradeLog is gone
+	upgradeLogRunning, namespacedName, err := v.isUpgradeLogRunning()
+	if err != nil {
+		return err
+	}
+
+	if upgradeLogRunning {
+		return werror.NewBadRequest(fmt.Sprintf("%v addon cannot be disabled as upgradeLog %v exists in the cluster, fix or delete before disabling addon", util.RancherLoggingName, namespacedName))
+	}
+
+	return nil
+}
+
+func (v *addonValidator) isUpgradeLogRunning() (bool, string, error) {
 	// validate no `upgradeLog` CRs exist as they deployed rancher-logging as a managedchart
 	// so we need to block enablement to avoid issues during addon helm install
 	upgradeLogList, err := v.upgradeLogCache.List(util.HarvesterSystemNamespaceName, labels.Everything())
 	if err != nil {
-		return werror.NewBadRequest(fmt.Sprintf("error list upgradelog objects: %v", err.Error()))
+		return false, "", werror.NewBadRequest(fmt.Sprintf("error list upgradeLog objects: %v", err.Error()))
 	}
 
 	if len(upgradeLogList) > 0 {
-		return werror.NewBadRequest("rancher-logging addon cannot be enabled as upgradeLog objects exist in the cluster, fix or delete before enabling addon")
+		return true, fmt.Sprintf("%s/%s", upgradeLogList[0].Namespace, upgradeLogList[0].Name), nil
 	}
 
+	return false, "", nil
+}
+
+func (v *addonValidator) Delete(_ *types.Request, oldObj runtime.Object) error {
+	oldAddon := oldObj.(*v1beta1.Addon)
+	if oldAddon == nil {
+		return nil
+	}
+	// don't allow delete non-experimental addons
+	//  strictly protect rancher-monitoring and rancher-logging
+	if oldAddon.Name == util.RancherLoggingName || oldAddon.Name == util.RancherMonitoringName || oldAddon.Labels[util.AddonExperimentalLabel] != "true" {
+		return werror.NewBadRequest(fmt.Sprintf("%v/%v addon cannot be deleted", oldAddon.Namespace, oldAddon.Name))
+	}
 	return nil
 }
 
