@@ -1243,6 +1243,10 @@ func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, in
 	if err != nil {
 		return err
 	}
+
+	// https://kubevirt.io/user-guide/network/hotplug_interfaces/#migration-based-hotplug
+	// Manually migrating the VM is not required since we have LiveUpdate roll-out strategy and KubeVirt >= v1.6
+
 	return nil
 }
 
@@ -1280,6 +1284,10 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 	if err != nil {
 		return err
 	}
+
+	// https://kubevirt.io/user-guide/network/hotplug_interfaces/#migration-based-hotplug
+	// Manually migrating the VM is not required since we have LiveUpdate roll-out strategy and KubeVirt >= v1.6
+
 	return nil
 }
 
