@@ -17,7 +17,7 @@ type addonHandler struct {
 }
 
 func (h *addonHandler) OnChanged(_ string, addon *harvesterv1.Addon) (*harvesterv1.Addon, error) {
-	if addon == nil || addon.DeletionTimestamp != nil || addon.Name != util.DeschedulerName || addon.Labels == nil {
+	if addon == nil || addon.DeletionTimestamp != nil || addon.Name != util.DeschedulerName || addon.Labels == nil || !addon.Spec.Enabled {
 		return addon, nil
 	}
 
