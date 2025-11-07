@@ -471,7 +471,7 @@ csi-snapshotter:
 
   image:
     repository: registry.k8s.io/sig-storage/snapshot-controller
-    tag: v6.3.4
+    tag: v8.3.0
 
 longhorn:
   ## Specify whether to install longhorn,
@@ -612,13 +612,6 @@ harvester-node-manager:
       pullPolicy: IfNotPresent
       repository: rancher/harvester-node-manager-webhook
       tag: v1.7.0-rc1
-
-snapshot-validation-webhook:
-  enabled: true
-  image:
-    repository: registry.k8s.io/sig-storage/snapshot-validation-webhook
-    tag: v6.3.4
-    pullPolicy: IfNotPresent
 
 enableLonghornNetworkPolicy: true
 
