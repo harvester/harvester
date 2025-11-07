@@ -1267,8 +1267,8 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 		return err
 	}
 
-	if !virtualmachine.SupportHotUnplugNic(vm) {
-		return fmt.Errorf("%s/%s doesn't support HotUnplugNic", namespace, name)
+	if _, err := virtualmachine.SupportHotUnplugNic(vm); err != nil {
+		return err
 	}
 
 	vmCopy := vm.DeepCopy()
@@ -1277,7 +1277,7 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 	interfaces := vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces
 	for idx := range interfaces {
 		if interfaces[idx].Name == input.InterfaceName {
-			if virtualmachine.IsInterfaceHotUnpluggable(interfaces[idx]) {
+			if ok, _ := virtualmachine.IsInterfaceHotUnpluggable(interfaces[idx]); ok {
 				interfaces[idx].State = kubevirtv1.InterfaceStateAbsent
 				found = true
 				break
@@ -1309,10 +1309,10 @@ func (h *vmActionHandler) findHotunpluggableNics(rw http.ResponseWriter, namespa
 	}
 
 	ifaceNames := make([]string, 0)
-	if virtualmachine.SupportHotUnplugNic(vm) {
+	if ok, _ := virtualmachine.SupportHotUnplugNic(vm); ok {
 		iterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
 		for _, iface := range iterfaces {
-			if virtualmachine.IsInterfaceHotUnpluggable(iface) {
+			if ok, _ := virtualmachine.IsInterfaceHotUnpluggable(iface); ok {
 				ifaceNames = append(ifaceNames, iface.Name)
 			}
 		}
