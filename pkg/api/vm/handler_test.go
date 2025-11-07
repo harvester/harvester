@@ -3,6 +3,7 @@ package vm
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -914,6 +915,22 @@ func Test_isVmNetworkHotpluggable(t *testing.T) {
 					},
 					Spec: cniv1.NetworkAttachmentDefinitionSpec{
 						Config: `{"cniVersion":"0.3.1","type":"bridge","bridge":"storage-br","promiscMode":true,"vlan":99,"ipam":{"type":"whereabouts","range":"10.0.99.0/24"}}`,
+					},
+				},
+			},
+			expected: output{
+				isHotpluggable: false,
+			},
+		},
+		{
+			name: "deletion requested NAD is not hot-pluggable",
+			given: input{
+				nad: &cniv1.NetworkAttachmentDefinition{
+					ObjectMeta: metav1.ObjectMeta{
+						DeletionTimestamp: &metav1.Time{Time: time.Now()},
+					},
+					Spec: cniv1.NetworkAttachmentDefinitionSpec{
+						Config: `{"cniVersion":"0.3.1","name":"untagged","type":"bridge","bridge":"mgmt-br","promiscMode":true,"ipam":{}}`,
 					},
 				},
 			},

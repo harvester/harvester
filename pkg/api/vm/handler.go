@@ -1195,7 +1195,7 @@ func isVmNetworkHotpluggable(nad *cniv1.NetworkAttachmentDefinition) (bool, erro
 		return false, nil
 	}
 
-	// nads from this namespace are reserved and not hotpluggable
+	// nads created by system are not hotpluggable
 	// they were used for special cases, like migration network or storage network
 	if util.IsNadCreatedBySystem(nad) {
 		return false, nil
