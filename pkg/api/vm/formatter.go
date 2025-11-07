@@ -476,15 +476,9 @@ func canCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
 }
 
 func canHotplugNic(vm *kubevirtv1.VirtualMachine) bool {
-	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusRunning {
-		return false
-	}
 	return virtualmachine.SupportHotplugNic(vm)
 }
 
 func canHotUnplugNic(vm *kubevirtv1.VirtualMachine) bool {
-	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusRunning {
-		return false
-	}
 	return virtualmachine.SupportHotUnplugNic(vm)
 }
