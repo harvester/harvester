@@ -12,6 +12,7 @@ const (
 	vmiControllerReconcileFromHostLabelsControllerName           = "VMIController.ReconcileFromHostLabels"
 	vmControllerBackfillObservedNetworkMac                       = "VMController.BackfillObservedNetworkMacAddress"
 	vmControllerSetDefaultManagementNetworkMac                   = "VMController.SetDefaultManagementNetworkMacAddress"
+	vmControllerIgnoreNonMigratableVMI                           = "VMController.IgnoreNonMigratableVMI"
 	vmControllerStoreRunStrategyControllerName                   = "VMController.StoreRunStrategyToAnnotation"
 	vmControllerSyncLabelsToVmi                                  = "VMController.SyncLabelsToVmi"
 	vmControllerSetHaltIfInsufficientResourceQuotaControllerName = "VMController.SetHaltIfInsufficientResourceQuota"
@@ -110,5 +111,10 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	virtualMachineInstanceClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
 	virtualMachineInstanceClient.OnRemove(ctx, vmControllerBackfillObservedNetworkMac, vmNetworkCtl.BackfillObservedNetworkMacAddress)
 
+	var vmiDeschedulerCtrl = &VMIDeschedulerController{
+		vmClient: vmClient,
+		vmCache:  vmCache,
+	}
+	virtualMachineInstanceClient.OnChange(ctx, vmControllerIgnoreNonMigratableVMI, vmiDeschedulerCtrl.IgnoreNonMigratableVM)
 	return nil
 }
