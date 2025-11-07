@@ -1238,7 +1238,7 @@ func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, in
 	newIface := kubevirtv1.Interface{
 		Name:                   input.InterfaceName,
 		MacAddress:             input.MacAddress,
-		Model:                  "virtio",
+		Model:                  kubevirtv1.VirtIO,
 		InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{Bridge: &kubevirtv1.InterfaceBridge{}},
 	}
 	vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces = append(vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces, newIface)

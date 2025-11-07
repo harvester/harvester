@@ -96,7 +96,7 @@ func IsInterfaceHotUnpluggable(iface kubevirtv1.Interface) bool {
 		return false
 	}
 
-	if iface.Model != "" && iface.Model != "virtio" {
+	if iface.Model != "" && iface.Model != kubevirtv1.VirtIO {
 		return false
 	}
 
