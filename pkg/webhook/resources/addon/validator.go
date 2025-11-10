@@ -18,6 +18,7 @@ import (
 	"github.com/harvester/harvester/pkg/util/logging"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 )
 
 const (
@@ -27,7 +28,7 @@ const (
 	vCluster0300           = "v0.30.0"
 )
 
-func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache) types.Validator {
+func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache, nodeCache ctlcorev1.NodeCache) types.Validator {
 	return &addonValidator{
 		addons:             addons,
 		flowCache:          flowCache,
@@ -35,6 +36,7 @@ func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowC
 		clusterFlowCache:   clusterFlowCache,
 		clusterOutputCache: clusterOutputCache,
 		upgradeLogCache:    upgradeLogCache,
+		nodeCache:          nodeCache,
 	}
 }
 
@@ -47,6 +49,7 @@ type addonValidator struct {
 	clusterFlowCache   ctlloggingv1.ClusterFlowCache
 	clusterOutputCache ctlloggingv1.ClusterOutputCache
 	upgradeLogCache    ctlharvesterv1.UpgradeLogCache
+	nodeCache          ctlcorev1.NodeCache
 }
 
 func (v *addonValidator) Resource() types.Resource {
@@ -114,6 +117,14 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 		return v.validateRancherLoggingAddon(newAddon)
 	}
 
+	if newAddon.Name == util.DeschedulerName && newAddon.Spec.Enabled {
+		if newAddon.Annotations != nil && newAddon.Annotations[util.AnnotationSkipDeschedulerAddonWebhookCheck] == "true" {
+			return nil
+		}
+
+		return v.validateDeschedulerAddon(newAddon)
+	}
+
 	return nil
 }
 
@@ -174,5 +185,17 @@ func (v *addonValidator) validateRancherLoggingAddon(newAddon *v1beta1.Addon) er
 		return werror.NewBadRequest("rancher-logging addon cannot be enabled as upgradeLog objects exist in the cluster, fix or delete before enabling addon")
 	}
 
+	return nil
+}
+
+func (v *addonValidator) validateDeschedulerAddon(newAddon *v1beta1.Addon) error {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewBadRequest(fmt.Sprintf("error listing nodes: %v", err.Error()))
+	}
+
+	if len(nodes) <= 1 {
+		return werror.NewBadRequest("descheduler addon cannot be enabled as not enough nodes exist in the cluster")
+	}
 	return nil
 }
