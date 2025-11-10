@@ -57,7 +57,11 @@ N/A
 
 ### Upgrade strategy
 
-N/A
+During Harvester upgrade, if the Descheduler AddOn is enabled, it may cause unexpected pod evictions. To mitigate this, the AddOn controller will temporarily disable the Descheduler AddOn before the upgrade and enable it after the upgrade is complete.
+
+- After SystemServicesUpgraded condition is true, the upgrade controller adds the current upgrade information to the Descheduler AddOn labels and set "harvesterhci.io/reenable-descheduler-addon" annotation to the upgrade CR. Since we update two objects in one upgrade step, we need to make sure both AddOn and Upgrade CR are updated successfully before disabling the Descheduler AddOn. This avoids the scenario where only one of them is updated successfully, causing the Descheduler to be disabled permanently.
+- The AddOn controller watches the Descheduler AddOn labels. When it sees the label with the current upgrade information, it disables the Descheduler deployment.
+- After the upgrade is complete, the upgrade controller checks whether there is "harvesterhci.io/reenable-descheduler-addon" annotation in the Upgrade CR. If it exists, it enables the Descheduler AddOn and removes the annotation on the upgrade CR and the label on the Descheduler AddOn.
 
 ## Note [optional]
 
