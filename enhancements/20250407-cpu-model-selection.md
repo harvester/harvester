@@ -87,6 +87,7 @@ API: `GET /v1/harvester/node?link=getCpuMigrationCapabilities`
 ```json
 {
   "totalNodes": "<total number of ready nodes in the cluster>",
+  "globalModels": ["host-model", "host-passthrough", "one from kubevirt spec.configuration.cpuModel"],
   "models": {
     "<cpu-model-name>": {
       "readyCount": "<number of ready nodes that support this CPU model>",
@@ -98,14 +99,18 @@ API: `GET /v1/harvester/node?link=getCpuMigrationCapabilities`
 
 **Field Descriptions:**
 - `totalNodes`: Total number of ready nodes in the cluster
+- `globalModels`: Array of special CPU models that are always available
+  - `host-model`: Uses the host's CPU model (default behavior)
+  - `host-passthrough`: Passes through the host's CPU features directly
+  - KubeVirt configuration CPU model: The CPU model set in `kubevirt.spec.configuration.cpuModel` (if configured)
 - `models`: Object containing all available CPU models in the cluster
   - `<cpu-model-name>`: The name of the CPU model (e.g., "IvyBridge", "Penryn")
     - `readyCount`: Number of ready nodes that support this CPU model
       - if `readyCount` is greater than zero, that cpu model can be migrated to some nodes in the cluster.
-      - if `readyCount` is equal to one, that cpu model can't be migratet.
+      - if `readyCount` is equal to one, that cpu model can't be migrated.
     - `migrationSafe`: Boolean flag indicating if VM with this CPU model can migrate to any node
-      - `true`: CPU model is available for migration
-      - `false`: CPU model is not available for migration
+      - `true`: CPU model is available for migration on some nodes
+      - `false`: CPU model is not available for migration on all nodes
 
 About cache, we won't add it in this version, please check [discussion here](https://github.com/harvester/harvester/pull/7937#discussion_r2479700572).
 
@@ -120,6 +125,7 @@ About cache, we won't add it in this version, please check [discussion here](htt
 ```json
 {  
   "totalNodes": 10,
+  "globalModels": ["host-model", "host-passthrough"],
   "models": {
     "IvyBridge": {  
       "readyCount": 4,
@@ -151,6 +157,7 @@ About cache, we won't add it in this version, please check [discussion here](htt
 ```json
 {  
   "totalNodes": 4,  
+  "globalModels": ["host-model", "host-passthrough"],
   "models": {  
     "IvyBridge": {  
       "readyCount": 2,  
@@ -172,6 +179,39 @@ About cache, we won't add it in this version, please check [discussion here](htt
 }  
 ```
 
+### Case 3
+
+- Node-1 cpuModel: IvyBridge, Penryn
+- Node-2 cpuModel: IvyBridge, Westmere
+- Node-3 cpuModel: IvyBridge, SandyBridge
+- Node-4 cpuModel: IvyBridge, Westmere
+- KubeVirt configuration: cpuModel is set to "IvyBridge" by users
+
+```json
+{  
+  "totalNodes": 4,
+  "globalModels": ["host-model", "host-passthrough", "IvyBridge"],
+  "models": {
+    "IvyBridge": {  
+      "readyCount": 4,
+      "migrationSafe": true  
+    },  
+    "Penryn": {  
+      "readyCount": 1,  
+      "migrationSafe": false  
+    },
+    "Westmere": {  
+      "readyCount": 2,  
+      "migrationSafe": false  
+    },
+    "SandyBridge": {  
+      "readyCount": 1,  
+      "migrationSafe": false  
+    }  
+  }
+}  
+```
+
 ## Design
 
 The CPU models are like this:
@@ -185,13 +225,22 @@ Possible UI/UX:
 
 ```
 CPU Model:
---Migtable--
+--Global Models--
+host-model (default)
+host-passthrough
+IvyBridge (cluster-wide setting)
+--Migratable Models--
 IvyBridge
 Westmere
---Non-Migratable--
+--Non-Migratable Models--
 SandyBridge
 Penryn
 ```
+
+Note: The UI should group CPU models into three categories:
+1. **Global Models**: Special models that are always available (host-model, host-passthrough, and cluster-wide configured model)
+2. **Migratable Models**: CPU models with `migrationSafe: true`
+3. **Non-Migratable Models**: CPU models with `migrationSafe: false`
 
 ### Implementation Overview
 
