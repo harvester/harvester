@@ -571,23 +571,6 @@ upgrade_rancher() {
     exit 1
   fi
 
-  # Check whether fleet is in values.yaml. If not, add fleet image.
-  local fleet_field_exists=$(yq e '.fleet' values.yaml || echo "null")
-  if [ "$fleet_field_exists" = "null" ]; then
-    echo "Add fleet field to values.yaml"
-    cat >> values.yaml <<EOF
-fleet: |
-  image:
-    repository: rancher/fleet
-    tag: v0.14.0-rc.1
-    imagePullPolicy: IfNotPresent
-  agentImage:
-    repository: rancher/fleet-agent
-    tag: v0.14.0-rc.1
-    imagePullPolicy: IfNotPresent
-EOF
-  fi
-
   # Clusters with witness node should have rancher's replicas set to -2 if the total number of nodes is 3.
   local total_nodes_count=$(kubectl get nodes -o json 2>/dev/null | jq -r '.items | length' || echo 0)
   local witness_nodes_count=$(kubectl get nodes -l "node-role.harvesterhci.io/witness=true" -o json 2>/dev/null | jq -r '.items | length' || echo 0)
@@ -616,7 +599,7 @@ EOF
 
   save_fleet_controller_configmap
 
-  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false"' values.yaml
+  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false,turtles=false,embedded-cluster-api=true"' values.yaml
 
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
   echo "Rancher patch file to be run via helm upgrade"
