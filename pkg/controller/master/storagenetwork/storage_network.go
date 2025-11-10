@@ -20,6 +20,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/controller/master/kubevirt"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -79,6 +80,7 @@ type Handler struct {
 	networkAttachmentDefinitions      ctlcniv1.NetworkAttachmentDefinitionClient
 	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache
 	whereaboutsCNIIPPoolCache         whereaboutscniv1.IPPoolCache
+	whereaboutsCNIIPPoolClient        whereaboutscniv1.IPPoolClient
 	settingsController                ctlharvesterv1.SettingController
 	nodeCache                         ctlcorev1.NodeCache
 }
@@ -113,6 +115,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		networkAttachmentDefinitions:      networkAttachmentDefinitions,
 		networkAttachmentDefinitionsCache: networkAttachmentDefinitions.Cache(),
 		whereaboutsCNIIPPoolCache:         whereaboutsCNI.IPPool().Cache(),
+		whereaboutsCNIIPPoolClient:        whereaboutsCNI.IPPool(),
 		settingsController:                settings,
 		nodeCache:                         node.Cache(),
 	}
@@ -288,6 +291,10 @@ func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkA
 	}
 
 	if len(nads.Items) == 0 {
+		err := h.cleanUpOldSNIPPool()
+		if err != nil {
+			return nil, err
+		}
 		return h.createNad(setting)
 	}
 
@@ -812,4 +819,57 @@ func (h *Handler) updateLonghornStorageNetwork(storageNetwork string) error {
 		return err
 	}
 	return nil
+}
+
+func (h *Handler) cleanUpOldSNIPPool() error {
+	ipPools, err := h.whereaboutsCNIIPPoolCache.List(util.KubeSystemNamespace, labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	nads, err := h.networkAttachmentDefinitions.List(util.HarvesterSystemNamespaceName, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	migrationPoolNames := h.getMigrationPoolNames(nads.Items)
+	for _, ipPool := range ipPools {
+		if _, keep := migrationPoolNames[ipPool.Name]; keep {
+			continue
+		}
+		err := h.whereaboutsCNIIPPoolClient.Delete(util.KubeSystemNamespace, ipPool.Name, &metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (h *Handler) getMigrationPoolNames(nads []nadv1.NetworkAttachmentDefinition) map[string]bool {
+	migrationPools := make(map[string]bool)
+	for _, nad := range nads {
+		annotations := nad.GetAnnotations()
+
+		if val, ok := annotations[kubevirt.VMMigrationNetworkPrefix]; !ok || val != "true" {
+			continue
+		}
+		var config network.BridgeConfig
+		if err := json.Unmarshal([]byte(nad.Spec.Config), &config); err != nil {
+			continue
+		}
+
+		poolName := h.cidrToIPPoolName(config.IPAM.Range)
+		if poolName != "" {
+			migrationPools[poolName] = true
+		}
+	}
+	return migrationPools
+}
+
+func (h *Handler) cidrToIPPoolName(cidr string) string {
+	if cidr == "" {
+		return ""
+	}
+	return strings.Replace(cidr, "/", "-", 1)
 }

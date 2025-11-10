@@ -60,6 +60,8 @@ import (
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	webhookUtil "github.com/harvester/harvester/pkg/webhook/util"
+	nettypes "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	lhmtypes "github.com/longhorn/longhorn-manager/types"
 )
 
 const (
@@ -149,6 +151,7 @@ func NewValidator(
 	vsCache ctlnetworkv1.VlanStatusCache,
 	lhNodeCache ctllhv1b2.NodeCache,
 	secretCache ctlcorev1.SecretCache,
+	podCache ctlcorev1.PodCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
@@ -167,6 +170,7 @@ func NewValidator(
 		vsCache:            vsCache,
 		lhNodeCache:        lhNodeCache,
 		secretCache:        secretCache,
+		podCache:           podCache,
 	}
 
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
@@ -218,6 +222,7 @@ type settingValidator struct {
 	vsCache            ctlnetworkv1.VlanStatusCache
 	lhNodeCache        ctllhv1b2.NodeCache
 	secretCache        ctlcorev1.SecretCache
+	podCache           ctlcorev1.PodCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -1189,6 +1194,10 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 		return werror.NewInvalidError(err.Error(), settings.StorageNetworkName)
 	}
 
+	if err := v.checkLeftoverPodIPs(oldSetting, newSetting); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.StorageNetworkName)
+	}
+
 	return v.checkStorageNetworkUsage()
 }
 
@@ -1449,6 +1458,66 @@ func (v *settingValidator) checkVlanStatusReady(config *networkutil.Config) erro
 	}
 
 	return nil
+}
+
+func (v *settingValidator) checkLeftoverPodIPs(oldSetting, newSetting *v1beta1.Setting) error {
+	if oldSetting.Value == newSetting.Value {
+		return nil
+	}
+
+	if oldSetting.Value != "" && newSetting.Value == "" {
+		return nil
+	}
+
+	if oldSetting.Value != "" && newSetting.Value != "" {
+		return nil
+	}
+
+	pods, err := v.podCache.List(util.LonghornSystemNamespaceName, labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	podsFromStorageNetwork := filterPodsByStorageNetwork(pods)
+	if len(podsFromStorageNetwork) > 0 {
+		podNames := extractPodNamesFromObj(podsFromStorageNetwork)
+		return fmt.Errorf("the following pods: %s still contain IPs from previous storage network; clean them up before re-enabling", strings.Join(podNames, ", "))
+	}
+
+	return nil
+}
+
+func filterPodsByStorageNetwork(pods []*corev1.Pod) []*corev1.Pod {
+	podsFromStorageNetwork := make([]*corev1.Pod, 0)
+	for _, pod := range pods {
+		networkInterface := pod.Annotations[string(lhmtypes.CNIAnnotationNetworkStatus)]
+		if networkInterface != "" && isPartOfStorageNetwork(networkInterface) {
+			podsFromStorageNetwork = append(podsFromStorageNetwork, pod)
+			continue
+		}
+	}
+	return podsFromStorageNetwork
+}
+
+func isPartOfStorageNetwork(networkInterface string) bool {
+	var networkStatuses []nettypes.NetworkStatus
+	if err := json.Unmarshal([]byte(networkInterface), &networkStatuses); err != nil {
+		return false
+	}
+	for _, status := range networkStatuses {
+		if status.Interface != "" && status.Interface == lhmtypes.StorageNetworkInterface {
+			return true
+		}
+	}
+	return false
+}
+
+func extractPodNamesFromObj(pods []*corev1.Pod) []string {
+	podNames := make([]string, 0)
+	for _, pod := range pods {
+		podNames = append(podNames, pod.Name)
+	}
+	return podNames
 }
 
 func getMatchNodes(vc *networkv1.VlanConfig) ([]string, error) {

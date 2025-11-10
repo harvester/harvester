@@ -22,6 +22,7 @@ import (
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io"
 	ctlnetwork "github.com/harvester/harvester/pkg/generated/controllers/network.harvesterhci.io"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
+	whereaboutscniv1 "github.com/harvester/harvester/pkg/generated/controllers/whereabouts.cni.cncf.io"
 )
 
 type Clients struct {
@@ -41,6 +42,7 @@ type Clients struct {
 	HarvesterNetworkFactory  *ctlnetwork.Factory
 	LoggingFactory           *ctlloggingv1.Factory
 	AppsFactory              *ctlappsv1.Factory
+	WhereaboutsFactory       *whereaboutscniv1.Factory
 }
 
 func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, error) {
@@ -161,6 +163,15 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		return nil, err
 	}
 
+	whereaboutsFactory, err := whereaboutscniv1.NewFactoryFromConfigWithOptions(rest, (*whereaboutscniv1.FactoryOptions)(clients.FactoryOptions))
+	if err != nil {
+		return nil, err
+	}
+	if err = whereaboutsFactory.Start(ctx, threadiness); err != nil {
+
+		return nil, err
+	}
+
 	return &Clients{
 		Clients:                  *clients,
 		HarvesterFactory:         harvesterFactory,
@@ -177,5 +188,6 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		HarvesterNetworkFactory:  harvesterNetworkFactory,
 		LoggingFactory:           loggingFactory,
 		AppsFactory:              appsFactory,
+		WhereaboutsFactory:       whereaboutsFactory,
 	}, nil
 }
