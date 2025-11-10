@@ -3,7 +3,7 @@ package addon
 import (
 	"fmt"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -24,6 +24,8 @@ import (
 const (
 	vClusterAddonName      = "rancher-vcluster"
 	vClusterAddonNamespace = "rancher-vcluster"
+	vCluster0190           = "v0.19.0"
+	vCluster0300           = "v0.30.0"
 )
 
 func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache, nodeCache ctlcorev1.NodeCache) types.Validator {
@@ -128,22 +130,32 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 
 func validateVClusterAddon(newAddon *v1beta1.Addon) error {
 	type contentValues struct {
-		Hostname string `yaml:"hostname"`
+		Hostname string `yaml:"hostname,omitempty"`
+		Global   struct {
+			Hostname string `yaml:"hostname,omitempty"`
+		} `yaml:"global,omitempty"`
 	}
 
 	addonContent := &contentValues{}
-
 	// valuesContent contains a yaml string
 	if err := yaml.Unmarshal([]byte(newAddon.Spec.ValuesContent), addonContent); err != nil {
 		return werror.NewInternalError(fmt.Sprintf("unable to parse contentValues: %v for %s addon", err, vClusterAddonName))
 	}
 
+	// currently we only support v0.19.0 and v0.30.0 of vcluster
+	// the parsing is designed to handle only these two versions for now
+	var hostname string
+	if newAddon.Spec.Version == vCluster0190 {
+		hostname = addonContent.Hostname
+	} else {
+		hostname = addonContent.Global.Hostname
+	}
 	// ip addresses are valid fqdns
 	// this check will return error if hostname is fqdn
 	// but an ip address
-	if fqdnErrs := validationutil.IsFullyQualifiedDomainName(field.NewPath(""), addonContent.Hostname); len(fqdnErrs) == 0 {
-		if ipErrs := validationutil.IsValidIP(field.NewPath(""), addonContent.Hostname); len(ipErrs) == 0 {
-			return werror.NewBadRequest(fmt.Sprintf("%s is not a valid hostname", addonContent.Hostname))
+	if fqdnErrs := validationutil.IsFullyQualifiedDomainName(field.NewPath(""), hostname); len(fqdnErrs) == 0 {
+		if ipErrs := validationutil.IsValidIP(field.NewPath(""), hostname); len(ipErrs) == 0 {
+			return werror.NewBadRequest(fmt.Sprintf("%s is not a valid hostname", hostname))
 		}
 		return nil
 	}

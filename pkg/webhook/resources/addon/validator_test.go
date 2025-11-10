@@ -5,6 +5,7 @@ import (
 
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -320,7 +321,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 				Spec: harvesterv1.AddonSpec{
 					Repo:          "repo1",
 					Chart:         "vcluster",
-					Version:       "version1",
+					Version:       vCluster0190,
 					Enabled:       true,
 					ValuesContent: "hostname: rancher.172.19.108.3.sslip.io\nrancherVersion: v2.7.4\nbootstrapPassword: harvesterAdmin\n",
 				},
@@ -350,7 +351,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 				Spec: harvesterv1.AddonSpec{
 					Repo:          "repo1",
 					Chart:         "vcluster",
-					Version:       "version1",
+					Version:       vCluster0190,
 					Enabled:       true,
 					ValuesContent: "hostname: 172.19.108.3\nrancherVersion: v2.7.4\nbootstrapPassword: harvesterAdmin\n",
 				},
@@ -380,7 +381,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 				Spec: harvesterv1.AddonSpec{
 					Repo:          "repo1",
 					Chart:         "vcluster",
-					Version:       "version1",
+					Version:       vCluster0190,
 					Enabled:       true,
 					ValuesContent: "hostname: FakeAddress.com\nrancherVersion: v2.7.4\nbootstrapPassword: harvesterAdmin\n",
 				},
@@ -410,7 +411,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 				Spec: harvesterv1.AddonSpec{
 					Repo:          "repo1",
 					Chart:         "vcluster",
-					Version:       "version1",
+					Version:       vCluster0190,
 					Enabled:       true,
 					ValuesContent: "hostname: \nrancherVersion: v2.7.4\nbootstrapPassword: harvesterAdmin\n",
 				},
@@ -1278,4 +1279,80 @@ func Test_validateRancherLoggingWithUpgradeLog(t *testing.T) {
 			assert.Nil(t, err, tc.name)
 		}
 	}
+}
+
+func Test_validateVersionedVClusterAddon(t *testing.T) {
+	assert := require.New(t)
+	var testCases = []struct {
+		name          string
+		addon         *harvesterv1.Addon
+		expectedError bool
+	}{
+		{
+			name: "v0.19.0 with valid hostname",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "rancher-vcluster",
+					Namespace: "rancher-vcluster",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Version:       vCluster0190,
+					ValuesContent: "hostname: demo.com",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "v0.19.0 with invalid hostname",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "rancher-vcluster",
+					Namespace: "rancher-vcluster",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Version:       vCluster0190,
+					ValuesContent: "global:\n  hostname: demo.com",
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "v0.30.0 with invalid hostname",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "rancher-vcluster",
+					Namespace: "rancher-vcluster",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Version:       vCluster0300,
+					ValuesContent: `hostname: demo.com`,
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "v0.30.0 with valid hostname",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "rancher-vcluster",
+					Namespace: "rancher-vcluster",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Version:       vCluster0300,
+					ValuesContent: "global:\n  hostname: demo.com",
+				},
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		err := validateVClusterAddon(tc.addon)
+		if tc.expectedError {
+			assert.Error(err, tc.name)
+		} else {
+			assert.NoError(err, tc.name)
+		}
+	}
+
 }
