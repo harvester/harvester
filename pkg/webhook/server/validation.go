@@ -101,8 +101,6 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
 			clients.Core.Endpoints().Cache(),
-			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
-			clients.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
 			&http.Client{
 				Transport: transport,
 				Timeout:   time.Second * 20,
