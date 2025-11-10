@@ -1255,9 +1255,9 @@ func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, in
 	}
 
 	// https://kubevirt.io/user-guide/network/hotplug_interfaces/#migration-based-hotplug
-	// Manually migrating the VM is not required since we have LiveUpdate roll-out strategy and KubeVirt >= v1.6
-
-	return nil
+	// Although it's not required to manually migrate the VM as mentioned in the document,
+	// we still immediately call the migration here for better UX instead of waiting KubeVirt to discover and reconcile.
+	return h.migrate(ctx, namespace, name, "")
 }
 
 // removeNic remove a hotplug NIC by its interface name
@@ -1296,9 +1296,9 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 	}
 
 	// https://kubevirt.io/user-guide/network/hotplug_interfaces/#migration-based-hotplug
-	// Manually migrating the VM is not required since we have LiveUpdate roll-out strategy and KubeVirt >= v1.6
-
-	return nil
+	// Although it's not required to manually migrate the VM as mentioned in the document,
+	// we still immediately call the migration here for better UX instead of waiting KubeVirt to discover and reconcile.
+	return h.migrate(ctx, namespace, name, "")
 }
 
 // findHotunpluggableNics return a list of NIC names that could be hot-unplugged
