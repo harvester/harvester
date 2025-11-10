@@ -1254,6 +1254,8 @@ func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, in
 		return err
 	}
 
+	logrus.Infof("VM %s/%s has interface %s backed by network %s hot-plugged", namespace, name, input.InterfaceName, input.NetworkName)
+
 	// https://kubevirt.io/user-guide/network/hotplug_interfaces/#migration-based-hotplug
 	// Although it's not required to manually migrate the VM as mentioned in the document,
 	// we still immediately call the migration here for better UX instead of waiting KubeVirt to discover and reconcile.
@@ -1294,6 +1296,8 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 	if err != nil {
 		return err
 	}
+
+	logrus.Infof("VM %s/%s has interface %s hot-unplugged", namespace, name, input.InterfaceName)
 
 	// https://kubevirt.io/user-guide/network/hotplug_interfaces/#migration-based-hotplug
 	// Although it's not required to manually migrate the VM as mentioned in the document,
