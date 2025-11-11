@@ -502,6 +502,9 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 			if err := h.loadReplicaReplenishmentFromUpgradeAnnotation(upgrade); err != nil {
 				return nil, err
 			}
+			if toUpdate.Annotations == nil {
+				toUpdate.Annotations = make(map[string]string)
+			}
 			toUpdate.Annotations[longhornSettingsRestoredAnnotation] = strconv.FormatBool(true)
 			return h.upgradeClient.Update(toUpdate)
 		}
