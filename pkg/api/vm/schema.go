@@ -36,6 +36,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	server.BaseSchemas.MustImportAndCustomize(CreateTemplateInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(AddVolumeInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(RemoveVolumeInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(AddNicInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(RemoveNicInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(CloneInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(CPUAndMemoryHotplugInput{}, nil)
 
@@ -139,6 +141,9 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				createTemplate:                   actionHandler,
 				addVolume:                        actionHandler,
 				removeVolume:                     actionHandler,
+				addNic:                           actionHandler,
+				removeNic:                        actionHandler,
+				findHotunpluggableNics:           actionHandler,
 				cloneVM:                          actionHandler,
 				forceStopVM:                      actionHandler,
 				dismissInsufficientResourceQuota: actionHandler,
@@ -177,6 +182,13 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				removeVolume: {
 					Input: "removeVolumeInput",
 				},
+				addNic: {
+					Input: "addNicInput",
+				},
+				removeNic: {
+					Input: "removeNicInput",
+				},
+				findHotunpluggableNics: {},
 				cloneVM: {
 					Input: "cloneInput",
 				},
