@@ -11,6 +11,8 @@ import (
 	validationutil "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlloggingv1 "github.com/harvester/harvester/pkg/generated/controllers/logging.banzaicloud.io/v1beta1"
@@ -111,22 +113,28 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 	}
 
 	if newAddon.Name == util.RancherLoggingName {
-		if newAddon.Annotations[util.AnnotationSkipRancherLoggingAddonWebhookCheck] == "true" {
+		if oldAddon.Spec.Enabled == newAddon.Spec.Enabled {
+			// spec `enabled` is not changed
 			return nil
 		}
-
+		skip := newAddon.Annotations[util.AnnotationSkipRancherLoggingAddonWebhookCheck] == "true"
 		// check when addon is `enabled`
 		//   block if upgradeLog has deployed a managedchart as logging-operator
-		if !oldAddon.Spec.Enabled && newAddon.Spec.Enabled {
+		if newAddon.Spec.Enabled {
+			if skip {
+				logrus.Warnf("%v addon is enabled but webhook check is skipped", util.RancherLoggingName)
+				return nil
+			}
 			return v.validateEnableRancherLoggingAddon(newAddon)
 		}
 
 		// check when addon is `disabled`
 		//   block if upgradeLog sits on top of rancher-logging addon
-		if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
-			return v.validateDisableRancherLoggingAddon(newAddon)
+		if skip {
+			logrus.Warnf("%v addon is disabled but webhook check is skipped", util.RancherLoggingName)
+			return nil
 		}
-
+		return v.validateDisableRancherLoggingAddon(newAddon)
 	}
 
 	if newAddon.Name == util.DeschedulerName && newAddon.Spec.Enabled {
@@ -194,7 +202,7 @@ func (v *addonValidator) validateEnableRancherLoggingAddon(newAddon *v1beta1.Add
 	}
 
 	if upgradeLogRunning {
-		return werror.NewBadRequest(fmt.Sprintf("%v addon cannot be enabled as upgradeLog %v exists in the cluster, fix or delete before enabling addon", util.RancherLoggingName, namespacedName))
+		return werror.NewBadRequest(fmt.Sprintf("%v addon cannot be enabled as upgradeLog %v exists in the cluster, wait until the Harvester upgrade is finished or removed", util.RancherLoggingName, namespacedName))
 	}
 
 	return nil
@@ -209,7 +217,7 @@ func (v *addonValidator) validateDisableRancherLoggingAddon(newAddon *v1beta1.Ad
 	}
 
 	if upgradeLogRunning {
-		return werror.NewBadRequest(fmt.Sprintf("%v addon cannot be disabled as upgradeLog %v exists in the cluster, fix or delete before disabling addon", util.RancherLoggingName, namespacedName))
+		return werror.NewBadRequest(fmt.Sprintf("%v addon cannot be disabled as upgradeLog %v exists in the cluster, wait until the Harvester upgrade is finished or removed", util.RancherLoggingName, namespacedName))
 	}
 
 	return nil
