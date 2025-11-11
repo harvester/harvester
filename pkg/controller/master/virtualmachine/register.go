@@ -10,6 +10,7 @@ import (
 const (
 	vmControllerCreatePVCsFromAnnotationControllerName           = "VMController.CreatePVCsFromAnnotation"
 	vmiControllerReconcileFromHostLabelsControllerName           = "VMIController.ReconcileFromHostLabels"
+	vmControllerBackfillObservedNetworkMac                       = "VMController.BackfillObservedNetworkMacAddress"
 	vmControllerSetDefaultManagementNetworkMac                   = "VMController.SetDefaultManagementNetworkMacAddress"
 	vmControllerStoreRunStrategyControllerName                   = "VMController.StoreRunStrategyToAnnotation"
 	vmControllerSyncLabelsToVmi                                  = "VMController.SyncLabelsToVmi"
@@ -107,6 +108,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		vmiClient: virtualMachineInstanceClient,
 	}
 	virtualMachineInstanceClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
+	virtualMachineInstanceClient.OnRemove(ctx, vmControllerBackfillObservedNetworkMac, vmNetworkCtl.BackfillObservedNetworkMacAddress)
 
 	return nil
 }
