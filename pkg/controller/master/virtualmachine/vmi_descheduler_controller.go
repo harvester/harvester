@@ -32,18 +32,23 @@ func (h *VMIDeschedulerController) IgnoreNonMigratableVM(id string, vmi *kubevir
 		return vmi, err
 	}
 
+	vmCopy := vm.DeepCopy()
+	if vmCopy.Annotations == nil {
+		vmCopy.Annotations = make(map[string]string)
+	}
+
 	if !vmi.IsMigratable() {
 		logrus.Infof("VM %s/%s is non-migratable, skipping descheduling", vm.Namespace, vm.Name)
-		vmCopy := vm.DeepCopy()
-		if vmCopy.Annotations == nil {
-			vmCopy.Annotations = make(map[string]string)
-		}
 		vmCopy.Annotations[deschedulerPreferNoEvictionAnnotationKey] = "true"
-		if !reflect.DeepEqual(vm.Annotations, vmCopy.Annotations) {
-			_, err = h.vmClient.Update(vmCopy)
-			if err != nil {
-				return vmi, err
-			}
+	} else {
+		logrus.Infof("VM %s/%s is migratable, removing skipping descheduling annotation", vm.Namespace, vm.Name)
+		delete(vmCopy.Annotations, deschedulerPreferNoEvictionAnnotationKey)
+	}
+
+	if !reflect.DeepEqual(vm.Annotations, vmCopy.Annotations) {
+		_, err = h.vmClient.Update(vmCopy)
+		if err != nil {
+			return vmi, err
 		}
 	}
 	return vmi, nil
