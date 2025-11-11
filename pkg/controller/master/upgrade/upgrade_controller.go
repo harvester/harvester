@@ -262,10 +262,6 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			return h.upgradeClient.Update(toUpdate)
 		}
 
-		if err := h.reenableAddons(upgrade); err != nil {
-			return nil, err
-		}
-
 		return upgrade, nil
 	}
 
