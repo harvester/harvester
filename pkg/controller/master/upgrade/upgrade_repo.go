@@ -17,6 +17,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
@@ -418,11 +419,9 @@ func (r *Repo) getImagesDiffList() ([]string, error) {
 }
 
 func (r *Repo) CreateDeployment(vmImage *harvesterv1.VirtualMachineImage) (*appsv1.Deployment, error) {
-	var replicas int32
-	if r.upgrade.Status.SingleNode == "" {
-		replicas = 1
-	} else {
-		replicas = 2
+	replicas, err := r.getDeploymentReplicaCount()
+	if err != nil {
+		return nil, err
 	}
 
 	deployment := &appsv1.Deployment{
@@ -438,7 +437,7 @@ func (r *Repo) CreateDeployment(vmImage *harvesterv1.VirtualMachineImage) (*apps
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: ptr.To(replicas),
+			Replicas: replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					harvesterUpgradeLabel:          r.upgrade.Name,
@@ -554,4 +553,24 @@ func (r *Repo) deleteDeployment() error {
 
 func (r *Repo) GetDeploymentName() string {
 	return fmt.Sprintf("%s%s", repoServiceNamePrefix, r.upgrade.Name)
+}
+
+func (r *Repo) getDeploymentReplicaCount() (*int32, error) {
+	nodes, err := r.h.nodeCache.List(labels.Everything())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes: %w", err)
+	}
+	nonWitnessNodes := util.ExcludeWitnessNodes(nodes)
+	if len(nonWitnessNodes) == 0 {
+		return nil, errors.New("no non-witness nodes found in the cluster")
+	}
+
+	var replicas int32
+	if len(nonWitnessNodes) == 1 {
+		replicas = 1
+	} else {
+		replicas = 2
+	}
+
+	return &replicas, nil
 }
