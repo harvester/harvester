@@ -1175,7 +1175,6 @@ func Test_validateRancherLoggingAddonWithFlow(t *testing.T) {
 }
 
 func Test_validateRancherLoggingWithUpgradeLog(t *testing.T) {
-
 	var testCases = []struct {
 		name          string
 		oldAddon      *harvesterv1.Addon
@@ -1262,7 +1261,7 @@ func Test_validateRancherLoggingWithUpgradeLog(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "user can't enable rancher-logging addon with existing upgradeLog objects, but error is bypassed",
+			name: "user can't enable rancher-logging addon with existing upgradeLog objects, but webhook check is bypassed",
 			oldAddon: &harvesterv1.Addon{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      util.RancherLoggingName,
@@ -1296,6 +1295,48 @@ func Test_validateRancherLoggingWithUpgradeLog(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "hvst-upgrade-xxxx-upgradelog3",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Spec: harvesterv1.UpgradeLogSpec{},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "user can't disable rancher-logging addon with existing upgradeLog objects, but webhook check is bypassed",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+					Annotations: map[string]string{
+						util.AnnotationSkipRancherLoggingAddonWebhookCheck: "true", // bypass the check
+					},
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs: []*harvesterv1.UpgradeLog{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "hvst-upgrade-xxxx-upgradelog4",
 						Namespace: util.HarvesterSystemNamespaceName,
 					},
 					Spec: harvesterv1.UpgradeLogSpec{},
@@ -1459,7 +1500,7 @@ func Test_validateRancherLoggingWithUpgradeLogThenUpgradeAddon(t *testing.T) {
 		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
 		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil).(*addonValidator)
 		for _, upgradeLog := range tc.upgradeLogs {
 			err := harvesterClientSet.Tracker().Add(upgradeLog)
 			assert.Nil(t, err)
@@ -1564,7 +1605,7 @@ func Test_validateDeleteAddon(t *testing.T) {
 		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
 		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil).(*addonValidator)
 
 		err := validator.Delete(nil, tc.oldAddon)
 		if tc.expectedError {
