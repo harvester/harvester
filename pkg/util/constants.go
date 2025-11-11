@@ -243,4 +243,11 @@ const (
 	PVCExpandErrorPrefix                          = "PVC_EXPAND"
 
 	VirtualMachineCreatorNodeDriver = "docker-machine-driver-harvester"
+
+	// KubeOVN annotations
+	AnnotationKubeOVNPrefix		= "ovn.kubernetes.io"
+	AnnotationKubeOvnMAC           	= prefix + "/mac_address"
+	AnnotationKubeOvnIP            	= prefix + "/ip_address"
+	AnnotationPatternKubeOvnIP	= "%s.%s.kubernetes.io/ip_address"
+	AnnotationPatternKubeOvnMAC	= "%s.%s.kubernetes.io/mac_address"
 )
