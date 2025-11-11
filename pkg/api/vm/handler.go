@@ -51,8 +51,8 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
-	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 	"github.com/harvester/harvester/pkg/util/virtualmachine"
+	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 )
 
@@ -335,7 +335,7 @@ func (h *vmActionHandler) startPreCheck(namespace, name string) error {
 			if err != nil {
 				return err
 			}
-			if volumeapi.IsResizing(pvc) {
+			if volumeapi.IsResizing(pvc, h.storageClassCache) {
 				return fmt.Errorf("can not start the VM %s/%s which has a resizing volume %s/%s", vm.Namespace, vm.Name, pvcNamespace, pvcName)
 			}
 		}
