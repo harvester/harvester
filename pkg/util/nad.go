@@ -30,6 +30,10 @@ func (nc *NetConf) IsBridgeCNI() bool {
 	return nc.Type == "bridge"
 }
 
+func (nc *NetConf) IsKubeOVNCNI() bool {
+	return nc.Type == "kube-ovn"
+}
+
 func IsNadCreatedBySystem(nad *cniv1.NetworkAttachmentDefinition) bool {
 	return nad.Namespace == HarvesterSystemNamespaceName
 }
