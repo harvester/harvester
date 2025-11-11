@@ -73,9 +73,9 @@ Another example, the following setting will pause all the nodes in the cluster b
 }
 ```
 
-When the user triggers an upgrade for the cluster by clicking the "Upgrade" button on the dashboard UI or manually creating the Upgrade custom resource, the relevant setting will be automatically applied. Note that it will not take effect if the user configures the setting after the upgrade has started. During the node upgrade phase, the user can observe each node's upgrade progress in the Upgrade custom resource and in the upgrade dialog.
+When the user triggers an upgrade for the cluster by clicking the "Upgrade" button on the dashboard UI or manually creating the Upgrade custom resource, the relevant setting will be automatically applied. Note that it will not take effect if the user configures the setting after the upgrade has started. Changes to the setting can only take effect in the next upgrade. During the node upgrade phase, the user can observe each node's upgrade progress in the Upgrade custom resource and in the upgrade dialog.
 
-After the user completes the tasks and is ready to continue with the node upgrade, they can remove the annotation from the node or click the "Resume" button on the upgrade dialog to proceed.
+After the user completes the tasks and is ready to continue with the node upgrade, they can update the annotation on the Upgrade custom resource or click the "Resume" button on the upgrade dialog to proceed.
 
 ### API changes
 
@@ -85,11 +85,9 @@ There are no actual API changes involved.
 
 ### Implementation Overview
 
-The implementation includes two major parts: a set of new setting fields and the node annotation manipulation. Users configure the `nodeUpgradeOption` fields in the `upgrade-config` setting to specify their node upgrade preferences. The upgrade controller then annotates the nodes marked for pause according to the setting when the upgrade is initiated.
+Users configure the `nodeUpgradeOption` fields in the `upgrade-config` setting to specify their node upgrade preferences. When the upgrade is created, the mutator webhook references the setting and replicates its value as an annotation on the creating Upgrade custom resource. The annotation acts as the single source of truth of the entire pausable node upgrade function.
 
-During the node upgrade phase, the secret controller reconciles the machine-plan secrets. When the time comes (when the machine-plan secret for a node is annotated as eligible to upgrade), it checks whether the node has the annotation before creating the pre-drain job. When the annotation is removed from the node, the secret controller is triggered again and reconciles the machine-plan secrets to create the corresponding pre-drain job, thus continuing the original node upgrade flow.
-
-In theory, a successful upgrade should have no node-upgrade-pause annotations left on the node objects (users should have removed them because they consented to proceed with the node upgrade). For cases such as failed or aborted upgrades (where the Upgrade custom resource is removed in the middle of an upgrade), the annotation must be cleaned up automatically by the upgrade controller.
+During the node upgrade phase, the secret controller reconciles the machine-plan secrets. When the time comes (when the machine-plan secret for a node is annotated as eligible to upgrade), it loads up the annotation and checks whether the node is marked as pausable before creating the pre-drain job. When the annotation is updated to unpause the node, the corresponding machine-plan secret is put on the workqueue so the secret controller can reconcile it again to create the pre-drain job for the unpaused node, thus continuing the original node upgrade flow.
 
 ### Test plan
 
@@ -104,13 +102,15 @@ The following assumes the master-head version already includes the proposed enha
    ```json
    {
      "nodeUpgradeOption": {
-       "mode": "manual"
+       "strategy": {
+         "mode": "manual"
+       }
      }
    }
    ```
 1. Trigger an upgrade using the same master-head version ISO image
 1. The upgrade should be paused when entering the node upgrade phase
-1. Consent the node upgrade to proceed by removing the node-upgrade-pause annotation on the node
+1. Consent the node upgrade to proceed by updating the annotation on the Upgrade custom resource
 1. The entire upgrade should finish successfully
 
 #### Multi-node cluster upgrade
@@ -120,34 +120,20 @@ The following assumes the master-head version already includes the proposed enha
    ```json
    {
      "nodeUpgradeOption": {
-       "mode": "manual",
-       "pauseNodes": [
-         "node-2",
-         "node-3"
-       ]
+       "strategy": {
+         "mode": "manual",
+         "pauseNodes": [
+           "node-2",
+           "node-3"
+         ]
+       }
      }
    }
    ```
 1. Trigger an upgrade using the same master-head version ISO image
 1. The upgrade should be paused for `node-2` and `node-3` (the order is not guaranteed) before they enter the pre-draining state
-1. Consent the node upgrades to proceed by removing the node-upgrade-pause annotation on the nodes, respectively
+1. Consent the node upgrades to proceed by updating the annotation on the Upgrade custom resource (need to do this twice as there are two pause nodes)
 1. The entire upgrade should finish successfully
-
-#### Aborted upgrade
-
-1. Prepare a three-node cluster with the master-head version
-1. Configure the `upgrade-config` setting:
-   ```json
-   {
-     "nodeUpgradeOption": {
-       "mode": "manual"
-     }
-   }
-   ```
-1. Trigger an upgrade using the same master-head version ISO image
-1. Check whether all nodes have the node-upgrade-pause annotation
-1. Remove the Upgrade custom resource during the image-preload phase
-1. Check that all nodes should have no node-upgrade-pause annotations left
 
 ### Upgrade strategy
 
