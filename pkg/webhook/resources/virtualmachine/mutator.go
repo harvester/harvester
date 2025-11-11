@@ -17,6 +17,7 @@ import (
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/network"
 	"github.com/harvester/harvester/pkg/util/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -82,6 +83,11 @@ func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patch
 		return nil, err
 	}
 
+	patchOps, err = m.patchInterfaceMacAddress(vm, patchOps)
+	if err != nil {
+		return nil, err
+	}
+
 	return patchOps, nil
 }
 
@@ -122,6 +128,11 @@ func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runti
 	}
 
 	patchOps, err = m.patchTerminationGracePeriodSeconds(newVM, patchOps)
+	if err != nil {
+		return nil, err
+	}
+
+	patchOps, err = m.patchInterfaceMacAddress(newVM, patchOps)
 	if err != nil {
 		return nil, err
 	}
@@ -605,4 +616,34 @@ func patchDefaultCPU(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) []s
 	}
 
 	return patchOps
+}
+
+func (m *vmMutator) patchInterfaceMacAddress(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
+	if vm == nil || vm.Spec.Template == nil {
+		return patchOps, nil
+	}
+
+	MacAddressInAnnotation := make(map[string]string)
+	if raw, exists := vm.ObjectMeta.Annotations[util.AnnotationMacAddressName]; exists {
+		err := json.Unmarshal([]byte(raw), &MacAddressInAnnotation)
+		if err != nil {
+			logrus.Warnf("unable to unmarshal %s: %s", util.AnnotationMacAddressName, raw)
+		}
+	}
+
+	for idx, iface := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
+		if iface.MacAddress == "" {
+			if mac, exists := MacAddressInAnnotation[iface.Name]; exists {
+				logrus.Debugf("MAC address (%s) has already been observed in the annotation for %s", mac, iface.Name)
+				continue
+			}
+			mac, err := network.GenerateLAAMacAddress()
+			if err != nil {
+				return patchOps, fmt.Errorf("failed to generated proper MAC address for %s with error: %v", iface.Name, err)
+			}
+			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/devices/interfaces/%d/macAddress", "value": "%s"}`, idx, mac))
+		}
+	}
+
+	return patchOps, nil
 }
