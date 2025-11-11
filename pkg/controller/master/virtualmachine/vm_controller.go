@@ -1,6 +1,7 @@
 package virtualmachine
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -12,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -23,12 +25,15 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/image/cdi"
 	"github.com/harvester/harvester/pkg/indexeres"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	rqutils "github.com/harvester/harvester/pkg/util/resourcequota"
+	"github.com/tidwall/gjson"
 )
 
 // A list of labels that are always automatically synchronized with the
@@ -53,6 +58,10 @@ type VMController struct {
 	snapshotClient   ctlsnapshotv1.VolumeSnapshotClient
 	snapshotCache    ctlsnapshotv1.VolumeSnapshotCache
 	settingCache     ctlharvesterv1.SettingCache
+	secretClient     v1.SecretClient
+	secretCache      v1.SecretCache
+	nadClient        ctlcniv1.NetworkAttachmentDefinitionClient
+	nadCache         ctlcniv1.NetworkAttachmentDefinitionCache
 	recorder         record.EventRecorder
 
 	vmrCalculator *rqutils.Calculator
@@ -523,4 +532,141 @@ func (h *VMController) getPVCStorageClass(pvc *corev1.PersistentVolumeClaim) (*s
 		return nil, fmt.Errorf("failed to get StorageClass %s: %w", *pvc.Spec.StorageClassName, err)
 	}
 	return sc, nil
+}
+
+// parse cloud-init network-data from VM
+func (h *VMController) getNetworkData(vm *kubevirtv1.VirtualMachine) (string, error) {
+	for _, vol := range vm.Spec.Template.Spec.Volumes {
+		if vol.CloudInitNoCloud == nil {
+			continue
+		}
+
+		if vol.CloudInitNoCloud.NetworkDataSecretRef == nil {
+			continue
+		}
+		secName := vol.CloudInitNoCloud.NetworkDataSecretRef.Name
+		sec, err := h.secretCache.Get(vm.Namespace, secName)
+		if err != nil {
+			return "", err
+		}
+
+		netDataB64, ok := sec.Data["networkdata"]
+		if !ok {
+			continue
+		}
+		netData, err := base64.StdEncoding.DecodeString(string(netDataB64))
+		if err != nil {
+			return "", err
+		}
+		return string(netData), nil
+	}
+	return "", nil
+}
+
+// parseAllStaticIPs returns map[interface]ipCIDR
+func (h *VMController) parseAllStaticIPs(networkData string) map[string]string {
+	m := make(map[string]string)
+	ethernets := gjson.Get(networkData, "ethernets")
+	ethernets.ForEach(func(iface, cfg gjson.Result) bool {
+		if ip := cfg.Get("addresses.0").String(); ip != "" {
+			m[iface.Str] = ip
+		}
+		return true
+	})
+	return m
+}
+
+func (h *VMController) parseMAC(networkData, iface string) string {
+	return gjson.Get(networkData, "ethernets."+iface+".macaddress").String()
+}
+
+func kubeOvnAnnoKeys(nadName, nadNS, iface string) (ipKey, macKey string) {
+	// nadName may contain dots -> replace to avoid ambiguity
+	safeName := strings.ReplaceAll(nadName, ".", "-")
+	return fmt.Sprintf(util.AnnotationPatternKubeOvnIP, safeName, nadNS, iface),
+		fmt.Sprintf(util.AnnotationPatternKubeOvnMAC, safeName, nadNS, iface)
+}
+
+// logicalIfaceName returns the Linux interface name that KubeVirt will create
+// for the n-th multus network: eth1, eth2, … (eth0 is always the primary pod network).
+func logicalIfaceName(index int) string {
+	return fmt.Sprintf("eth%d", index)
+}
+
+func (h *VMController) isDefaultNetworkKubeOVN(vm *kubevirtv1.VirtualMachine) bool {
+	// Harvester stores the default NAD name in a setting or uses "default";
+	// adapt the name if your cluster uses another NAD for the primary network.
+	nad, err := h.nadCache.Get(vm.Namespace, settings.DefaultNetwork.Get())
+	if err != nil {
+		return false
+	}
+
+	conf, err := util.DecodeNadConfigToNetConf(nad)
+
+	return err == nil && conf.IsKubeOVNCNI()
+}
+
+// SetKubeOvnPerNICStaticIPs assigns static IP/MAC from cloud-init to *both* primary
+// (flat annotation) and secondary KubeOVN NICs (per-NIC annotation) in one pass.
+func (h *VMController) SetKubeOvnPerNICStaticIPs(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	if vm == nil || vm.DeletionTimestamp != nil {
+		return vm, nil
+	}
+
+	netData, err := h.getNetworkData(vm)
+	if err != nil {
+		return vm, err
+	}
+	if netData == "" {
+		return vm, nil
+	}
+	iface2ip := h.parseAllStaticIPs(netData)
+
+	toUpdate := vm.DeepCopy()
+	if toUpdate.Annotations == nil {
+		toUpdate.Annotations = make(map[string]string)
+	}
+
+	for idx, net := range vm.Spec.Template.Spec.Networks {
+		logicalIface := logicalIfaceName(idx)
+		ipCIDR, hasStatic := iface2ip[logicalIface]
+		if !hasStatic {
+			continue
+		}
+		ip := strings.Split(ipCIDR, "/")[0]
+		mac := h.parseMAC(netData, logicalIface)
+
+		// decide which annotation key(s) to use
+		var ipKey, macKey string
+		if net.Multus == nil { // PRIMARY
+			if !h.isDefaultNetworkKubeOVN(vm) {
+				continue
+			}
+			ipKey, macKey = util.AnnotationKubeOvnIP, util.AnnotationKubeOvnMAC
+		} else { // SECONDARY
+			nad, err := h.nadCache.Get(vm.Namespace, net.Multus.NetworkName)
+			if err != nil {
+				continue
+			}
+
+			conf, err := util.DecodeNadConfigToNetConf(nad)
+			if err == nil && conf.IsKubeOVNCNI() {
+				ipKey, macKey = kubeOvnAnnoKeys(net.Multus.NetworkName, vm.Namespace, logicalIface)
+			}
+		}
+
+		// write once
+		if ipKey == "" {
+			continue
+		}
+		toUpdate.Annotations[ipKey] = ip
+		if mac != "" && macKey != "" {
+			toUpdate.Annotations[macKey] = mac
+		}
+	}
+
+	if !equality.Semantic.DeepEqual(vm.Annotations, toUpdate.Annotations) {
+		return h.vmClient.Update(toUpdate)
+	}
+	return vm, nil
 }
