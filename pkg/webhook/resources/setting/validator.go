@@ -1478,21 +1478,20 @@ func (v *settingValidator) checkLeftoverPodIPs(oldSetting, newSetting *v1beta1.S
 		return err
 	}
 
-	podsFromStorageNetwork := filterPodsByStorageNetwork(pods)
-	if len(podsFromStorageNetwork) > 0 {
-		podNames := extractPodNamesFromObj(podsFromStorageNetwork)
+	podNames := filterPodsByStorageNetwork(pods)
+	if len(podNames) > 0 {
 		return fmt.Errorf("the following pods: %s still contain IPs from previous storage network; clean them up before re-enabling", strings.Join(podNames, ", "))
 	}
 
 	return nil
 }
 
-func filterPodsByStorageNetwork(pods []*corev1.Pod) []*corev1.Pod {
-	podsFromStorageNetwork := make([]*corev1.Pod, 0)
+func filterPodsByStorageNetwork(pods []*corev1.Pod) []string {
+	podsFromStorageNetwork := make([]string, 0)
 	for _, pod := range pods {
 		networkInterface := pod.Annotations[string(lhmtypes.CNIAnnotationNetworkStatus)]
 		if networkInterface != "" && isPartOfStorageNetwork(networkInterface) {
-			podsFromStorageNetwork = append(podsFromStorageNetwork, pod)
+			podsFromStorageNetwork = append(podsFromStorageNetwork, pod.Name)
 			continue
 		}
 	}
@@ -1504,20 +1503,15 @@ func isPartOfStorageNetwork(networkInterface string) bool {
 	if err := json.Unmarshal([]byte(networkInterface), &networkStatuses); err != nil {
 		return false
 	}
+	if len(networkStatuses) <= 1 {
+		return false
+	}
 	for _, status := range networkStatuses {
 		if status.Interface != "" && status.Interface == lhmtypes.StorageNetworkInterface {
 			return true
 		}
 	}
 	return false
-}
-
-func extractPodNamesFromObj(pods []*corev1.Pod) []string {
-	podNames := make([]string, 0)
-	for _, pod := range pods {
-		podNames = append(podNames, pod.Name)
-	}
-	return podNames
 }
 
 func getMatchNodes(vc *networkv1.VlanConfig) ([]string, error) {
