@@ -1507,7 +1507,7 @@ func isPartOfStorageNetwork(networkInterface string) bool {
 		return false
 	}
 	for _, status := range networkStatuses {
-		if status.Interface != "" && status.Interface == lhmtypes.StorageNetworkInterface {
+		if status.Interface == lhmtypes.StorageNetworkInterface {
 			return true
 		}
 	}
