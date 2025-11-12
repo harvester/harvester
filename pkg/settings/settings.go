@@ -59,7 +59,7 @@ var (
 	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
 	NTPServers             = NewSetting(NTPServersSettingName, "")
 	WhiteListedSettings    = []string{ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
-	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "restoreVM": false, "logReadyTimeout": "5"}`)
+	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto"}},"restoreVM": false, "logReadyTimeout": "5"}`)
 	MaxHotplugRatio        = NewSetting(MaxHotplugRatioSettingName, "4")
 	VMMigrationNetwork     = NewSetting(VMMigrationNetworkSettingName, "")
 	KubeVirtMigration      = NewSetting(KubeVirtMigrationSettingName, `{"parallelOutboundMigrationsPerNode":2,"parallelMigrationsPerCluster":5,"allowAutoConverge":false,"bandwidthPerMigration":0,"completionTimeoutPerGiB":150,"progressTimeout":150,"unsafeMigrationOverride":false,"allowPostCopy":false,"allowWorkloadDisruption":false,"disableTLS":false,"matchSELinuxLevelOnMigration":false}`)
