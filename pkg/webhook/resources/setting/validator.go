@@ -1832,7 +1832,47 @@ func validateUpgradeConfigHelper(setting *v1beta1.Setting) (*settings.UpgradeCon
 	return config, nil
 }
 
-func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
+func (v *settingValidator) checkNodesExist(nodeNames []string) error {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	existingNodes := make(map[string]struct{}, len(nodes))
+	for _, node := range nodes {
+		existingNodes[node.Name] = struct{}{}
+	}
+
+	var missing []string
+	for _, name := range nodeNames {
+		if _, exists := existingNodes[name]; !exists {
+			missing = append(missing, name)
+		}
+	}
+
+	if len(missing) > 0 {
+		return werror.NewBadRequest(fmt.Sprintf("nodes not found: %v", missing))
+	}
+
+	return nil
+}
+
+func (v *settingValidator) checkNodeUpgradeOption(nodeUpgradeOption *settings.NodeUpgradeOption) error {
+	if nodeUpgradeOption == nil || nodeUpgradeOption.Strategy == nil || nodeUpgradeOption.Strategy.Mode == nil {
+		return nil
+	}
+
+	modeType := *nodeUpgradeOption.Strategy.Mode
+	switch modeType {
+	case settings.AutoType, settings.ManualType:
+	default:
+		return fmt.Errorf("invalid node upgrade strategy mode: %s", modeType)
+	}
+
+	return v.checkNodesExist(nodeUpgradeOption.Strategy.PauseNodes)
+}
+
+func (v *settingValidator) validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 	upgradeConfig, err := validateUpgradeConfigHelper(setting)
 	if err != nil {
 		return err
@@ -1857,6 +1897,10 @@ func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 		return fmt.Errorf("invalid image preload concurrency: %d", concurrency)
 	}
 
+	if err := v.checkNodeUpgradeOption(upgradeConfig.NodeUpgradeOption); err != nil {
+		return err
+	}
+
 	// If LogReadyTimeout is not set by the user, JSON unmarshalling will set it to 0 by default.
 	// We return nil in that case from the perspective of unit tests
 	timeoutStr := upgradeConfig.LogReadyTimeout
@@ -1877,7 +1921,7 @@ func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 }
 
 func (v *settingValidator) validateUpgradeConfig(setting *v1beta1.Setting) error {
-	return validateUpgradeConfigFields(setting)
+	return v.validateUpgradeConfigFields(setting)
 }
 
 func (v *settingValidator) validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
