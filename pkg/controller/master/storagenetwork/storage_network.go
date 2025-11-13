@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	ctlmgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
@@ -21,7 +20,6 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
-	"github.com/harvester/harvester/pkg/controller/master/kubevirt"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -831,47 +829,21 @@ func (h *Handler) cleanUpOldSNIPPool(setting *harvesterv1.Setting) error {
 		return nil
 	}
 
-	nads, err := h.networkAttachmentDefinitions.List(util.HarvesterSystemNamespaceName, metav1.ListOptions{})
-	if err != nil {
+	var config network.Config
+	if err := json.Unmarshal([]byte(setting.Value), &config); err != nil {
+		return fmt.Errorf("parsing value error %v", err)
+	}
+
+	ipPoolName := h.cidrToIPPoolName(config.Range)
+
+	err = h.whereaboutsCNIIPPoolClient.Delete(util.KubeSystemNamespace, ipPoolName, &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
-
-	migrationPoolNames := h.getMigrationPoolNames(nads.Items)
-	for _, ipPool := range ipPools {
-		if _, keep := migrationPoolNames[ipPool.Name]; keep {
-			continue
-		}
-		err := h.whereaboutsCNIIPPoolClient.Delete(util.KubeSystemNamespace, ipPool.Name, &metav1.DeleteOptions{})
-		if err != nil && !apierrors.IsNotFound(err) {
-			h.settingsController.EnqueueAfter(setting.Name, 2*time.Second)
-			return err
-		}
+	if err != nil && apierrors.IsNotFound(err) {
+		return nil
 	}
-
-	return nil
-}
-
-func (h *Handler) getMigrationPoolNames(nads []nadv1.NetworkAttachmentDefinition) map[string]bool {
-	migrationPools := make(map[string]bool)
-	for _, nad := range nads {
-		annotations := nad.GetAnnotations()
-
-		if val, ok := annotations[kubevirt.VMMigrationNetworkPrefix]; !ok || val != "true" {
-			continue
-		}
-		var config network.BridgeConfig
-		if err := json.Unmarshal([]byte(nad.Spec.Config), &config); err != nil {
-			logrus.Errorf("unable to unmarshal config %s error: %s while attempting to get migration pool names; skipping",
-				nad.Spec.Config, err.Error())
-			continue
-		}
-
-		poolName := h.cidrToIPPoolName(config.IPAM.Range)
-		if poolName != "" {
-			migrationPools[poolName] = true
-		}
-	}
-	return migrationPools
+	return fmt.Errorf("IPPool: %s is being deleted; requeue", ipPoolName)
 }
 
 func (h *Handler) cidrToIPPoolName(cidr string) string {
