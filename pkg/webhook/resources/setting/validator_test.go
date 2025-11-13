@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -847,6 +849,7 @@ func Test_validateNTPServers(t *testing.T) {
 func Test_validateUpgradeConfig(t *testing.T) {
 	tests := []struct {
 		name        string
+		nodes       []*corev1.Node
 		args        *v1beta1.Setting
 		expectedErr bool
 	}{
@@ -995,6 +998,40 @@ func Test_validateUpgradeConfig(t *testing.T) {
 			expectedErr: false,
 		},
 		{
+			name: "node upgrade with auto mode",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto"}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "node upgrade with manual mode",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto"}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name:  "node upgrade with manual mode for node-1 only",
+			nodes: newNodes("node-0", "node-1", "node-2"),
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto","pauseNodes":["node-1"]}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name:  "node upgrade with manual mode for a non-existing node should be rejected",
+			nodes: newNodes("node-0", "node-1", "node-2"),
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto","pauseNodes":["node-100"]}}}`,
+			},
+			expectedErr: true,
+		},
+		{
 			name: "enable restoreVM",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
@@ -1030,8 +1067,20 @@ func Test_validateUpgradeConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateUpgradeConfigFields(tt.args)
-			assert.Equal(t, tt.expectedErr, err != nil)
+			clientset := fake.NewSimpleClientset()
+			var nodes []runtime.Object
+			for _, node := range tt.nodes {
+				nodes = append(nodes, node)
+			}
+			k8sclientset := k8sfake.NewSimpleClientset(nodes...)
+
+			v := &settingValidator{
+				settingCache: fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				nodeCache:    fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+			}
+
+			err := v.validateUpgradeConfig(tt.args)
+			assert.Equal(t, tt.expectedErr, err != nil, err)
 		})
 	}
 }
@@ -1280,4 +1329,12 @@ func Test_validateMaxHotplugRatio(t *testing.T) {
 		})
 
 	}
+}
+
+func newNodes(nodeNames ...string) []*corev1.Node {
+	var nodes []*corev1.Node
+	for _, nn := range nodeNames {
+		nodes = append(nodes, &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: nn}})
+	}
+	return nodes
 }
