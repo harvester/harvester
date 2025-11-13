@@ -2,10 +2,16 @@ package upgrade
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/v3/pkg/relatedresource"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 )
@@ -20,6 +26,40 @@ const (
 	secretControllerName     = "harvester-upgrade-secret-controller"
 	nodeControllerName       = "harvester-upgrade-node-controller"
 )
+
+type handler struct {
+	nodeCache ctlcorev1.NodeCache
+}
+
+func (h *handler) NotifyUnpausedMachinePlanSecret(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
+	if upgrade, ok := obj.(*harvesterv1.Upgrade); ok {
+		for key, val := range upgrade.Annotations {
+			if val == "pause" {
+				continue
+			}
+			nodeName, ok := extractNodeName(key)
+			if !ok {
+				continue
+			}
+			node, err := h.nodeCache.Get(nodeName)
+			if err != nil {
+				return nil, err
+			}
+			machinePlanSecret, ok := node.Annotations["cluster.x-k8s.io/machine"]
+			if !ok {
+				return nil, fmt.Errorf("machine-plan secret not found on node %s", node.Name)
+			}
+			return []relatedresource.Key{
+				{
+					Name:      machinePlanSecret,
+					Namespace: "fleet-local",
+				},
+			}, nil
+		}
+	}
+
+	return nil, nil
+}
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	if !options.HCIMode {
@@ -167,7 +207,21 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 	addons.OnChange(ctx, "harvester-descheduler-addon-controller", addOnHandler.OnChanged)
 
+	h := &handler{
+		nodeCache: nodes.Cache(),
+	}
+	relatedresource.Watch(ctx, "watch-upgrade", h.NotifyUnpausedMachinePlanSecret, secrets, upgrades)
+
 	go versionSyncer.start()
 
 	return nil
+}
+
+func extractNodeName(s string) (string, bool) {
+	nodeNamePattern := regexp.MustCompile(`^harvesterhci\.io/(.+)$`)
+	matches := nodeNamePattern.FindStringSubmatch(s)
+	if len(matches) > 1 {
+		return matches[1], true
+	}
+	return "", false
 }
