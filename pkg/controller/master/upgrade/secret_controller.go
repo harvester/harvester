@@ -78,6 +78,10 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 	switch upgrade.Status.NodeStatuses[nodeName].State {
 	case nodeStateImagesPreloaded:
 		if secret.Annotations[rke2PreDrainAnnotation] != secret.Annotations[preDrainAnnotation] {
+			if shouldPauseNodeUpgrade(upgrade, nodeName) {
+				logrus.Infof("Pause creating pre-drain job on %s", nodeName)
+				return nil, nil
+			}
 			if err := checkEligibleToDrain(upgrade, nodeName); err != nil {
 				return nil, err
 			}
