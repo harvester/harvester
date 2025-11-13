@@ -15,6 +15,7 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	"github.com/harvester/harvester/pkg/webhook/util"
 )
 
 func Test_validateOvercommitConfig(t *testing.T) {
@@ -1015,7 +1016,7 @@ func Test_validateUpgradeConfig(t *testing.T) {
 		},
 		{
 			name:  "node upgrade with manual mode for node-1 only",
-			nodes: newNodes("node-0", "node-1", "node-2"),
+			nodes: util.NewNodes("node-0", "node-1", "node-2"),
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
 				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto","pauseNodes":["node-1"]}}}`,
@@ -1024,7 +1025,7 @@ func Test_validateUpgradeConfig(t *testing.T) {
 		},
 		{
 			name:  "node upgrade with manual mode for a non-existing node should be rejected",
-			nodes: newNodes("node-0", "node-1", "node-2"),
+			nodes: util.NewNodes("node-0", "node-1", "node-2"),
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
 				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto","pauseNodes":["node-100"]}}}`,
@@ -1329,12 +1330,4 @@ func Test_validateMaxHotplugRatio(t *testing.T) {
 		})
 
 	}
-}
-
-func newNodes(nodeNames ...string) []*corev1.Node {
-	var nodes []*corev1.Node
-	for _, nn := range nodeNames {
-		nodes = append(nodes, &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: nn}})
-	}
-	return nodes
 }
