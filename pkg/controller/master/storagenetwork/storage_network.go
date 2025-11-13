@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	ctlmgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
@@ -291,7 +292,7 @@ func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkA
 	}
 
 	if len(nads.Items) == 0 {
-		err := h.cleanUpOldSNIPPool()
+		err := h.cleanUpOldSNIPPool(setting)
 		if err != nil {
 			return nil, err
 		}
@@ -821,10 +822,13 @@ func (h *Handler) updateLonghornStorageNetwork(storageNetwork string) error {
 	return nil
 }
 
-func (h *Handler) cleanUpOldSNIPPool() error {
+func (h *Handler) cleanUpOldSNIPPool(setting *harvesterv1.Setting) error {
 	ipPools, err := h.whereaboutsCNIIPPoolCache.List(util.KubeSystemNamespace, labels.Everything())
 	if err != nil {
 		return err
+	}
+	if len(ipPools) == 0 {
+		return nil
 	}
 
 	nads, err := h.networkAttachmentDefinitions.List(util.HarvesterSystemNamespaceName, metav1.ListOptions{})
@@ -839,6 +843,7 @@ func (h *Handler) cleanUpOldSNIPPool() error {
 		}
 		err := h.whereaboutsCNIIPPoolClient.Delete(util.KubeSystemNamespace, ipPool.Name, &metav1.DeleteOptions{})
 		if err != nil && !apierrors.IsNotFound(err) {
+			h.settingsController.EnqueueAfter(setting.Name, 2*time.Second)
 			return err
 		}
 	}
@@ -856,6 +861,8 @@ func (h *Handler) getMigrationPoolNames(nads []nadv1.NetworkAttachmentDefinition
 		}
 		var config network.BridgeConfig
 		if err := json.Unmarshal([]byte(nad.Spec.Config), &config); err != nil {
+			logrus.Errorf("unable to unmarshal config %s error: %s while attempting to get migration pool names; skipping",
+				nad.Spec.Config, err.Error())
 			continue
 		}
 
