@@ -154,6 +154,7 @@ func main() {
 			},
 			corev1.GroupName: {
 				Types: []interface{}{
+					corev1.Node{},
 					corev1.PersistentVolume{},
 					corev1.ResourceQuota{},
 				},
