@@ -31,6 +31,7 @@ func init() {
 }
 
 type Interface interface {
+	Node() NodeController
 	PersistentVolume() PersistentVolumeController
 	ResourceQuota() ResourceQuotaController
 }
@@ -43,6 +44,10 @@ func New(controllerFactory controller.SharedControllerFactory) Interface {
 
 type version struct {
 	controllerFactory controller.SharedControllerFactory
+}
+
+func (v *version) Node() NodeController {
+	return generic.NewNonNamespacedController[*v1.Node, *v1.NodeList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"}, "nodes", v.controllerFactory)
 }
 
 func (v *version) PersistentVolume() PersistentVolumeController {
