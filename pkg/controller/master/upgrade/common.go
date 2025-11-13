@@ -53,6 +53,18 @@ fi
 `
 )
 
+func shouldPauseNodeUpgrade(upgrade *harvesterv1.Upgrade, nodeName string) bool {
+	key := fmt.Sprintf("%s/%s", util.Prefix, nodeName)
+	val, ok := upgrade.Annotations[key]
+	if !ok {
+		return false
+	}
+	if val != "pause" {
+		return false
+	}
+	return true
+}
+
 func setNodeUpgradeStatus(upgrade *harvesterv1.Upgrade, nodeName string, state, reason, message string) {
 	if upgrade == nil {
 		return
