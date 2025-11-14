@@ -11,14 +11,14 @@ import (
 )
 
 const (
-	upgradeControllerName = "harvester-upgrade-controller"
-	planControllerName    = "harvester-plan-controller"
-	jobControllerName     = "harvester-upgrade-job-controller"
-	podControllerName     = "harvester-upgrade-pod-controller"
-	settingControllerName = "harvester-version-setting-controller"
-	vmImageControllerName = "harvester-upgrade-vm-image-controller"
-	secretControllerName  = "harvester-upgrade-secret-controller"
-	nodeControllerName    = "harvester-upgrade-node-controller"
+	upgradeControllerName    = "harvester-upgrade-controller"
+	planControllerName       = "harvester-plan-controller"
+	jobControllerName        = "harvester-upgrade-job-controller"
+	deploymentControllerName = "harvester-upgrade-deployment-controller"
+	settingControllerName    = "harvester-version-setting-controller"
+	vmImageControllerName    = "harvester-upgrade-vm-image-controller"
+	secretControllerName     = "harvester-upgrade-secret-controller"
+	nodeControllerName       = "harvester-upgrade-node-controller"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
@@ -34,7 +34,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	managedcharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	nodes := management.CoreFactory.Core().V1().Node()
 	jobs := management.BatchFactory.Batch().V1().Job()
-	pods := management.CoreFactory.Core().V1().Pod()
+	deployments := management.AppsFactory.Apps().V1().Deployment()
 	vmImages := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	services := management.CoreFactory.Core().V1().Service()
@@ -46,6 +46,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	lhSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	configMaps := management.CoreFactory.Core().V1().ConfigMap()
 	addons := management.HarvesterFactory.Harvesterhci().V1beta1().Addon()
+	storageClasses := management.StorageFactory.Storage().V1().StorageClass()
 
 	virtSubsrcConfig := rest.CopyConfig(management.RestConfig)
 	virtSubsrcConfig.GroupVersion = &schema.GroupVersion{Group: "subresources.kubevirt.io", Version: "v1"}
@@ -85,6 +86,10 @@ func Register(ctx context.Context, management *config.Management, options config
 		lhSettingClient:    lhSettings,
 		lhSettingCache:     lhSettings.Cache(),
 		vmRestClient:       virtSubresourceClient,
+		deploymentClient:   deployments,
+		deploymentCache:    deployments.Cache(),
+		scClient:           storageClasses,
+		scCache:            storageClasses.Cache(),
 	}
 	upgrades.OnChange(ctx, upgradeControllerName, controller.OnChanged)
 	upgrades.OnRemove(ctx, upgradeControllerName, controller.OnRemove)
@@ -114,13 +119,11 @@ func Register(ctx context.Context, management *config.Management, options config
 	}
 	jobs.OnChange(ctx, jobControllerName, jobHandler.OnChanged)
 
-	podHandler := &podHandler{
-		namespace:     options.Namespace,
-		planCache:     plans.Cache(),
+	deploymentHandler := &deploymentHandler{
 		upgradeClient: upgrades,
 		upgradeCache:  upgrades.Cache(),
 	}
-	pods.OnChange(ctx, podControllerName, podHandler.OnChanged)
+	deployments.OnChange(ctx, deploymentControllerName, deploymentHandler.OnChanged)
 
 	vmImageHandler := &vmImageHandler{
 		namespace:     options.Namespace,

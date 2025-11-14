@@ -141,13 +141,56 @@ check_version()
   fi
 }
 
+get_repo_deployment_status()
+{
+  local deployment_name="upgrade-repo-$HARVESTER_UPGRADE_NAME"
+  kubectl get deployment $deployment_name -n $UPGRADE_NAMESPACE -o=jsonpath='{.status.conditions[?(@.type=="Available")].status}'
+}
+
 get_repo_vm_status()
 {
   kubectl get virtualmachines.kubevirt.io $UPGRADE_REPO_VM_NAME -n $UPGRADE_NAMESPACE -o=jsonpath='{.status.printableStatus}'
 }
 
-wait_repo()
+# Detect which type of upgrade repo is being used
+detect_repo_type()
 {
+  local deployment_name="upgrade-repo-$HARVESTER_UPGRADE_NAME"
+
+  if kubectl get deployment $deployment_name -n $UPGRADE_NAMESPACE &>/dev/null; then
+    echo "deployment"
+    return
+  fi
+
+  if kubectl get virtualmachines.kubevirt.io $UPGRADE_REPO_VM_NAME -n $UPGRADE_NAMESPACE &>/dev/null; then
+    echo "vm"
+    return
+  fi
+
+  # Return empty if neither exists
+  echo ""
+}
+
+# Wait for deployment to be ready
+wait_repo_deployment()
+{
+  echo "Waiting for upgrade repo deployment to be ready..."
+
+  # Wait for deployment to exist and be available
+  until [[ "$(get_repo_deployment_status)" == "True" ]]
+  do
+    echo "Upgrade repo deployment is not ready yet, waiting..."
+    sleep 10
+  done
+
+  echo "Upgrade repo deployment is ready."
+}
+
+# Wait for VM to be running
+wait_repo_vm()
+{
+  echo "Waiting for upgrade repo VM to be running..."
+
   # Start upgrade repo VM in case it's shut down due to migration timeout or job failure
   until [[ "$(get_repo_vm_status)" == "Running" ]]
   do
@@ -156,11 +199,41 @@ wait_repo()
     sleep 10
   done
 
+  echo "Upgrade repo VM is running."
+}
+
+# Wait for upgrade repo to be ready
+wait_repo()
+{
+  local repo_type=""
+
+  # Wait until either Deployment or VM resource exists
+  echo "Waiting for upgrade repo resource (Deployment or VM) to be created..."
+  until [[ -n "$repo_type" ]]; do
+    repo_type=$(detect_repo_type)
+    echo "Upgrade repo resource not found yet, waiting..."
+    sleep 10
+  done
+
+  echo "Detected upgrade repo type: $repo_type"
+
+  # Wait for the specific resource to be ready
+  if [[ "$repo_type" == "deployment" ]]; then
+    # v1.7.0+ Deployment-based repo
+    wait_repo_deployment
+  else
+    # v1.6.x and earlier VM-based repo
+    wait_repo_vm
+  fi
+
+  # Wait for HTTP endpoint to be accessible
   until curl -sfL $UPGRADE_REPO_RELEASE_FILE
   do
-    echo "Wait for upgrade repo ready..."
+    echo "Wait for upgrade repo HTTP endpoint ready..."
     sleep 5
   done
+
+  echo "Upgrade repo is fully ready and accessible."
 }
 
 import_image_archives_from_repo() {

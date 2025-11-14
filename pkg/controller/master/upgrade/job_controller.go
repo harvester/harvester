@@ -45,7 +45,7 @@ const (
 	nodeStateWaitingReboot          = "Waiting Reboot"
 	upgradePlanLabel                = "upgrade.cattle.io/plan"
 	upgradeNodeLabel                = "upgrade.cattle.io/node"
-	upgradeStateLabel               = "harvesterhci.io/upgradeState"
+	upgradeStateLabel               = util.LabelHarvesterUpgradeState
 	upgradeJobTypeLabel             = "harvesterhci.io/upgradeJobType"
 	upgradeCleanupLabel             = "harvesterhci.io/upgradeCleanup"
 	upgradeJobTypePreDrain          = "pre-drain"
