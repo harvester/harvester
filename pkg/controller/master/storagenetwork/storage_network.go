@@ -836,6 +836,7 @@ func (h *Handler) cleanUpOldSNIPPool(setting *harvesterv1.Setting) error {
 
 	ipPoolName := h.cidrToIPPoolName(config.Range)
 
+	logrus.Warnf("Deleting old IPPool: %s", ipPoolName)
 	err = h.whereaboutsCNIIPPoolClient.Delete(util.KubeSystemNamespace, ipPoolName, &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
