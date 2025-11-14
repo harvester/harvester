@@ -821,23 +821,14 @@ func (h *Handler) updateLonghornStorageNetwork(storageNetwork string) error {
 }
 
 func (h *Handler) cleanUpOldSNIPPool(setting *harvesterv1.Setting) error {
-	ipPools, err := h.whereaboutsCNIIPPoolCache.List(util.KubeSystemNamespace, labels.Everything())
-	if err != nil {
-		return err
-	}
-	if len(ipPools) == 0 {
-		return nil
-	}
-
 	var config network.Config
 	if err := json.Unmarshal([]byte(setting.Value), &config); err != nil {
 		return fmt.Errorf("parsing value error %v", err)
 	}
-
 	ipPoolName := h.cidrToIPPoolName(config.Range)
 
 	logrus.Warnf("Deleting old IPPool: %s", ipPoolName)
-	err = h.whereaboutsCNIIPPoolClient.Delete(util.KubeSystemNamespace, ipPoolName, &metav1.DeleteOptions{})
+	err := h.whereaboutsCNIIPPoolClient.Delete(util.KubeSystemNamespace, ipPoolName, &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
