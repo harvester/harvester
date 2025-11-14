@@ -22,6 +22,9 @@ var (
 	NodesUpgraded condition.Cond = "NodesUpgraded"
 	// SystemServicesUpgraded is true when Harvester chart is upgraded
 	SystemServicesUpgraded condition.Cond = "SystemServicesUpgraded"
+
+	// Paused is true when the entire upgrade process is paused due to node upgrade pause made by user
+	Paused condition.Cond = "Paused"
 )
 
 // +genclient
