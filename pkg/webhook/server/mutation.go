@@ -13,6 +13,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/pod"
 	"github.com/harvester/harvester/pkg/webhook/resources/storageclass"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
+	"github.com/harvester/harvester/pkg/webhook/resources/upgrade"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinebackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineimage"
@@ -25,6 +26,7 @@ func Mutation(clients *clients.Clients, options *config.Options) (http.Handler, 
 	settingCache := clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
 	storageClassCache := clients.StorageFactory.Storage().V1().StorageClass().Cache()
 	nadCache := clients.CNIFactory.K8s().V1().NetworkAttachmentDefinition().Cache()
+	nodeCache := clients.CoreFactory.Core().V1().Node().Cache()
 	vmBackupCache := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()
 	pvcCache := clients.Core.PersistentVolumeClaim().Cache()
 	vmImgCache := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()
@@ -33,6 +35,7 @@ func Mutation(clients *clients.Clients, options *config.Options) (http.Handler, 
 		persistentvolumeclaim.NewMutator(pvcCache, vmImgCache),
 		pod.NewMutator(settingCache),
 		templateversion.NewMutator(),
+		upgrade.NewMutator(nodeCache, settingCache),
 		virtualmachine.NewMutator(settingCache, nadCache),
 		virtualmachineinstance.NewMutator(vmCache),
 		virtualmachineimage.NewMutator(storageClassCache),
