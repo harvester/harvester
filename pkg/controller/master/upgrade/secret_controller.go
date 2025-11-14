@@ -6,7 +6,6 @@ import (
 
 	jobV1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	"github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -84,10 +83,10 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 		if secret.Annotations[rke2PreDrainAnnotation] != secret.Annotations[preDrainAnnotation] {
 			if shouldPauseNodeUpgrade(upgrade, nodeName) {
 				logrus.Infof("Pause creating pre-drain job on %s", nodeName)
-				setPauseCondition(upgradeCpy, corev1.ConditionTrue, "NodeUpgrade", fmt.Sprintf("node upgrade for %s is administratively paused as requested", nodeName))
+				setPauseCondition(upgradeCpy, v1.ConditionTrue, "NodeUpgrade", fmt.Sprintf("node upgrade for %s is administratively paused as requested", nodeName))
 				break
 			}
-			setPauseCondition(upgradeCpy, corev1.ConditionFalse, "", "")
+			setPauseCondition(upgradeCpy, v1.ConditionFalse, "", "")
 			if err := checkEligibleToDrain(upgrade, nodeName); err != nil {
 				return nil, err
 			}
