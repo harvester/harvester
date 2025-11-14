@@ -2,9 +2,11 @@ package upgrade
 
 import (
 	"fmt"
+	"reflect"
 
 	jobV1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -75,13 +77,17 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 		return secret, nil
 	}
 
+	upgradeCpy := upgrade.DeepCopy()
+
 	switch upgrade.Status.NodeStatuses[nodeName].State {
 	case nodeStateImagesPreloaded:
 		if secret.Annotations[rke2PreDrainAnnotation] != secret.Annotations[preDrainAnnotation] {
 			if shouldPauseNodeUpgrade(upgrade, nodeName) {
 				logrus.Infof("Pause creating pre-drain job on %s", nodeName)
-				return nil, nil
+				setPauseCondition(upgradeCpy, corev1.ConditionTrue, "NodeUpgrade", fmt.Sprintf("node upgrade for %s is administratively paused as requested", nodeName))
+				break
 			}
+			setPauseCondition(upgradeCpy, corev1.ConditionFalse, "", "")
 			if err := checkEligibleToDrain(upgrade, nodeName); err != nil {
 				return nil, err
 			}
@@ -99,6 +105,13 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 			if err := h.createHookJob(upgrade, nodeName, upgradeJobTypePostDrain, nodeStatePostDraining); err != nil {
 				return nil, err
 			}
+		}
+	}
+
+	if !reflect.DeepEqual(upgradeCpy, upgrade) {
+		logrus.Infof("Update upgrade %s/%s", upgrade.Namespace, upgrade.Name)
+		if _, err := h.upgradeClient.Update(upgradeCpy); err != nil {
+			return nil, err
 		}
 	}
 
