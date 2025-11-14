@@ -398,8 +398,10 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		singleNodeName := upgrade.Status.SingleNode
 		if shouldPauseNodeUpgrade(upgrade, singleNodeName) {
 			logrus.Infof("Pause creating single-node-upgrade job on %s", singleNodeName)
-			return upgrade, nil
+			setPauseCondition(toUpdate, corev1.ConditionTrue, "NodeUpgrade", fmt.Sprintf("node upgrade for %s is administratively paused as requested", singleNodeName))
+			return h.upgradeClient.Update(toUpdate)
 		}
+		setPauseCondition(toUpdate, corev1.ConditionFalse, "", "")
 		if singleNodeName != "" {
 			logrus.Info("Start single node upgrade job")
 			if _, err = h.jobClient.Create(applyNodeJob(upgrade, info, singleNodeName, upgradeJobTypeSingleNodeUpgrade)); err != nil && !apierrors.IsAlreadyExists(err) {
