@@ -49,13 +49,13 @@ func (h *handler) NotifyUnpausedMachinePlanSecret(_ string, _ string, obj runtim
 				}
 				return nil, err
 			}
-			machinePlanSecret, ok := node.Annotations["cluster.x-k8s.io/machine"]
+			machineName, ok := node.Annotations["cluster.x-k8s.io/machine"]
 			if !ok {
-				return nil, fmt.Errorf("machine-plan secret not found on node %s", node.Name)
+				return nil, fmt.Errorf("machine name not found on node %s", node.Name)
 			}
 			return []relatedresource.Key{
 				{
-					Name:      machinePlanSecret,
+					Name:      fmt.Sprintf("%s-machine-plan", machineName),
 					Namespace: "fleet-local",
 				},
 			}, nil
