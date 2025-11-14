@@ -7,6 +7,7 @@ import (
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/relatedresource"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
@@ -43,6 +44,9 @@ func (h *handler) NotifyUnpausedMachinePlanSecret(_ string, _ string, obj runtim
 			}
 			node, err := h.nodeCache.Get(nodeName)
 			if err != nil {
+				if apierrors.IsNotFound(err) {
+					continue
+				}
 				return nil, err
 			}
 			machinePlanSecret, ok := node.Annotations["cluster.x-k8s.io/machine"]
