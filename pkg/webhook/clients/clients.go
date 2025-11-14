@@ -45,6 +45,7 @@ type Clients struct {
 	WhereaboutsFactory       *whereaboutscniv1.Factory
 }
 
+//revive:disable:cyclomatic
 func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, error) {
 	clients, err := clients.NewFromConfig(rest, nil)
 	if err != nil {
