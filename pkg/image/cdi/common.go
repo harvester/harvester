@@ -18,6 +18,7 @@ import (
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 var (
@@ -117,6 +118,13 @@ func generateDVTargetStorage(vmi *harvesterv1.VirtualMachineImage) (*cdiv1.Stora
 		return nil, fmt.Errorf("virtual size is not set")
 	}
 	targetDVStorage.Resources.Requests[corev1.ResourceStorage] = *resource.NewQuantity(vmi.Status.VirtualSize, resource.DecimalSI)
+	// for upgrade repo deployment usage, we need to create RWX filesystem data volume
+	// so that it can be mounted to multiple pods.
+	if vmi.Annotations != nil && vmi.Annotations[util.AnnotationUpgradeImage] == "True" {
+		targetDVStorage.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}
+		volumeMode := corev1.PersistentVolumeFilesystem
+		targetDVStorage.VolumeMode = &volumeMode
+	}
 	return targetDVStorage, nil
 }
 
