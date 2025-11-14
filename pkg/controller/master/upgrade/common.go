@@ -138,6 +138,13 @@ func setUpgradeCompletedCondition(upgrade *harvesterv1.Upgrade, state string, st
 	harvesterv1.UpgradeCompleted.Message(upgrade, message)
 }
 
+func setPauseCondition(upgrade *harvesterv1.Upgrade, status corev1.ConditionStatus, reason, message string) {
+	harvesterv1.NodesUpgraded.SetStatus(upgrade, string(status))
+	harvesterv1.Paused.Reason(upgrade, reason)
+	harvesterv1.Paused.Message(upgrade, message)
+
+}
+
 func setHelmChartUpgradeStatus(upgrade *harvesterv1.Upgrade, status corev1.ConditionStatus, reason, message string) {
 	if upgrade == nil ||
 		harvesterv1.SystemServicesUpgraded.IsTrue(upgrade) ||
