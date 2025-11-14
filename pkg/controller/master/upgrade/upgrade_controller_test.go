@@ -279,6 +279,10 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			managedChartCache: fakeclients.ManagedChartCache(clientset.ManagementV3().ManagedCharts),
 			clusterClient:     fakeclients.ClusterClient(clientset.ProvisioningV1().Clusters),
 			clusterCache:      fakeclients.ClusterCache(clientset.ProvisioningV1().Clusters),
+			deploymentClient:  fakeclients.DeploymentClient(k8sclientset.AppsV1().Deployments),
+			deploymentCache:   fakeclients.DeploymentCache(k8sclientset.AppsV1().Deployments),
+			scClient:          fakeclients.StorageClassClient(k8sclientset.StorageV1().StorageClasses),
+			scCache:           fakeclients.StorageClassCache(k8sclientset.StorageV1().StorageClasses),
 		}
 		var actual output
 		actual.upgrade, actual.err = handler.OnChanged(tc.given.key, tc.given.upgrade)

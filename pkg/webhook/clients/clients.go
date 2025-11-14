@@ -6,6 +6,7 @@ import (
 	ctlfleetv1 "github.com/rancher/rancher/pkg/generated/controllers/fleet.cattle.io"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
 	"github.com/rancher/wrangler/v3/pkg/clients"
+	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps"
 	ctrlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
 	storagev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
@@ -39,6 +40,7 @@ type Clients struct {
 	CoreFactory              *ctrlcorev1.Factory
 	HarvesterNetworkFactory  *ctlnetwork.Factory
 	LoggingFactory           *ctlloggingv1.Factory
+	AppsFactory              *ctlappsv1.Factory
 }
 
 func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, error) {
@@ -151,6 +153,14 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		return nil, err
 	}
 
+	appsFactory, err := ctlappsv1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
+	if err != nil {
+		return nil, err
+	}
+	if err = appsFactory.Start(ctx, threadiness); err != nil {
+		return nil, err
+	}
+
 	return &Clients{
 		Clients:                  *clients,
 		HarvesterFactory:         harvesterFactory,
@@ -166,5 +176,6 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		CoreFactory:              coreFactory,
 		HarvesterNetworkFactory:  harvesterNetworkFactory,
 		LoggingFactory:           loggingFactory,
+		AppsFactory:              appsFactory,
 	}, nil
 }
