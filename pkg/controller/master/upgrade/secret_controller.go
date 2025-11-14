@@ -83,10 +83,10 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 		if secret.Annotations[rke2PreDrainAnnotation] != secret.Annotations[preDrainAnnotation] {
 			if shouldPauseNodeUpgrade(upgrade, nodeName) {
 				logrus.Infof("Pause creating pre-drain job on %s", nodeName)
-				setPauseCondition(upgradeCpy, v1.ConditionTrue, "NodeUpgrade", fmt.Sprintf("node upgrade for %s is administratively paused as requested", nodeName))
+				setPausedCondition(upgradeCpy, v1.ConditionTrue, "NodeUpgrade", fmt.Sprintf("node upgrade for %s is administratively paused as requested", nodeName))
 				break
 			}
-			setPauseCondition(upgradeCpy, v1.ConditionFalse, "", "")
+			setPausedCondition(upgradeCpy, v1.ConditionFalse, "", "")
 			if err := checkEligibleToDrain(upgrade, nodeName); err != nil {
 				return nil, err
 			}
