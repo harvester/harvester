@@ -6,9 +6,9 @@ import (
 )
 
 func NewNodes(nodeNames ...string) []*corev1.Node {
-	var nodes []*corev1.Node
-	for _, nn := range nodeNames {
-		nodes = append(nodes, &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: nn}})
+	nodes := make([]*corev1.Node, len(nodeNames))
+	for i, nn := range nodeNames {
+		nodes[i] = &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: nn}}
 	}
 	return nodes
 }
