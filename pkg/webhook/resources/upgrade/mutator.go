@@ -1,17 +1,20 @@
 package upgrade
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -123,10 +126,18 @@ func addPauseAnnotations(upgrade *harvesterv1.Upgrade, patchOps types.PatchOps, 
 		patchOps = append(patchOps, `{"op": "add", "path": "/metadata/annotations", "value": {}}`)
 	}
 
+	nodeMap := make(map[string]string, len(nodeNames))
 	for _, nodeName := range nodeNames {
-		patchOps = append(patchOps,
-			fmt.Sprintf(`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1%s", "value": "pause"}`, nodeName))
+		nodeMap[nodeName] = util.NodePause
 	}
+
+	nodeMapJSON, err := json.Marshal(nodeMap)
+	if err != nil {
+		logrus.Errorf("failed to marshal node map for upgrade %s/%s: %v", upgrade.Namespace, upgrade.Name, err)
+		return nil
+	}
+
+	patchOps = append(patchOps, fmt.Sprintf(`{"op": "add", "path": "/metadata/annotations/%s", "value": %q}`, patch.EscapeJSONPointer(util.AnnotationNodeUpgradePauseMap), string(nodeMapJSON)))
 
 	return patchOps
 }
