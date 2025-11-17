@@ -404,6 +404,9 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				return h.upgradeClient.Update(toUpdate)
 			}
 			logrus.Infof("Unpause pre-drain job creation for node %s", singleNodeName)
+			if err := clearNodePause(toUpdate, singleNodeName); err != nil {
+				return upgrade, err
+			}
 			setNodeUpgradeStatus(toUpdate, singleNodeName, nodeStateImagesPreloaded, "", "")
 			setDegradedCondition(toUpdate, corev1.ConditionFalse, "", "")
 			logrus.Info("Start single node upgrade job")

@@ -1,6 +1,7 @@
 package upgrade
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -53,13 +54,57 @@ fi
 `
 )
 
-func shouldPauseNodeUpgrade(upgrade *harvesterv1.Upgrade, nodeName string) bool {
-	key := fmt.Sprintf("%s/%s", util.Prefix, nodeName)
-	val, ok := upgrade.Annotations[key]
+func getNodeUpgradePauseMap(upgrade *harvesterv1.Upgrade) (map[string]string, error) {
+	if upgrade.Annotations == nil {
+		return nil, nil
+	}
+
+	value, ok := upgrade.Annotations[util.AnnotationNodeUpgradePauseMap]
 	if !ok {
+		return nil, nil
+	}
+
+	var pauseMap map[string]string
+	if err := json.Unmarshal([]byte(value), &pauseMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal node upgrade pause map: %w", err)
+	}
+
+	return pauseMap, nil
+}
+
+func shouldPauseNodeUpgrade(upgrade *harvesterv1.Upgrade, nodeName string) bool {
+	pauseMap, err := getNodeUpgradePauseMap(upgrade)
+	if err != nil || pauseMap == nil {
 		return false
 	}
-	return val == "pause"
+
+	return pauseMap[nodeName] == util.NodePause
+}
+
+// clearNodePause removes the specified node from the node upgrade pause map annotation.
+func clearNodePause(upgrade *harvesterv1.Upgrade, nodeName string) error {
+	pauseMap, err := getNodeUpgradePauseMap(upgrade)
+	if err != nil {
+		return err
+	}
+	if pauseMap == nil {
+		return nil
+	}
+
+	delete(pauseMap, nodeName)
+
+	if len(pauseMap) == 0 {
+		delete(upgrade.Annotations, util.AnnotationNodeUpgradePauseMap)
+		return nil
+	}
+
+	updatedValue, err := json.Marshal(pauseMap)
+	if err != nil {
+		return fmt.Errorf("failed to marshal node upgrade pause map: %w", err)
+	}
+
+	upgrade.Annotations[util.AnnotationNodeUpgradePauseMap] = string(updatedValue)
+	return nil
 }
 
 func setNodeUpgradeStatus(upgrade *harvesterv1.Upgrade, nodeName string, state, reason, message string) {
