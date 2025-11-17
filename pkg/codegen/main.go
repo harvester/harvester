@@ -57,6 +57,7 @@ func main() {
 					harvesterv1.ResourceQuota{},
 					harvesterv1.ScheduleVMBackup{},
 					harvesterv1.VirtualMachineImageDownloader{},
+
 				},
 				GenerateTypes:   true,
 				GenerateClients: true,
