@@ -57,8 +57,20 @@ func (c PersistentVolumeClaimCache) Get(namespace, name string) (*corev1.Persist
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c PersistentVolumeClaimCache) List(_ string, _ labels.Selector) ([]*corev1.PersistentVolumeClaim, error) {
-	panic("implement me")
+func (c PersistentVolumeClaimCache) List(namespace string, selector labels.Selector) ([]*corev1.PersistentVolumeClaim, error) {
+	list, err := c(namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*corev1.PersistentVolumeClaim, 0, len(list.Items))
+	for _, item := range list.Items {
+		obj := item
+		result = append(result, &obj)
+	}
+	return result, err
 }
 
 func (c PersistentVolumeClaimCache) AddIndexer(_ string, _ generic.Indexer[*corev1.PersistentVolumeClaim]) {

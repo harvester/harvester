@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	lhmtypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,7 +15,14 @@ import (
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	"github.com/harvester/harvester/pkg/webhook/types"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
+
+	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester-network-controller/pkg/utils"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func Test_validateOvercommitConfig(t *testing.T) {
@@ -1180,7 +1188,7 @@ func Test_validateAdditionalGuestMemoryOverheadRatio(t *testing.T) {
 	}
 }
 
-func Test_validateStorageNetworkConfig(t *testing.T) {
+func Test_validateCreateStorageNetworkConfig(t *testing.T) {
 	tests := []struct {
 		name   string
 		args   *v1beta1.Setting
@@ -1272,6 +1280,193 @@ func Test_validateStorageNetworkConfig(t *testing.T) {
 	}
 }
 
+func Test_validateUpdateStorageNetworkConfig(t *testing.T) {
+	tests := []struct {
+		name          string
+		k8sObjects    []runtime.Object
+		harvObjects   []runtime.Object
+		baseSetting   *v1beta1.Setting
+		updateSetting *v1beta1.Setting
+		updateErrMsg  string
+		expectErr     bool
+	}{
+		{
+			name: "update with no changes is allowed",
+			k8sObjects: []runtime.Object{
+				newK8SNode("node1"),
+			},
+			harvObjects: []runtime.Object{
+				newCusterNetwork("storage"),
+				newVlanStatus("storage", corev1.ConditionTrue),
+				newVlanConfig("node1", "storage"),
+			},
+			baseSetting:   newStorageSetting("50", "storage", "192.168.50.0/24"),
+			updateSetting: newStorageSetting("50", "storage", "192.168.50.0/24"),
+			expectErr:     false,
+		},
+		{
+			name: "leftover pods with storage network rejects enablement until clean up",
+			k8sObjects: []runtime.Object{
+				newK8SNode("node1"),
+				&corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: util.LonghornSystemNamespaceName,
+						Name:      "instance-manager-87b9c730ea2a93c40e1f89bb29818b4c",
+						Annotations: map[string]string{string(lhmtypes.CNIAnnotationNetworkStatus): `
+									    [{
+			                                 "name": "k8s-pod-network",
+			                                 "ips": [
+			                                     "10.52.1.20"
+			                                 ],
+			                                 "default": true,
+			                                 "dns": {}
+			                             },{
+			                                 "name": "harvester-system/storagenetwork-sbctz",
+			                                 "interface": "lhnet1",
+			                                 "ips": [
+			                                     "192.168.50.1"
+			                                 ],
+			                                 "mac": "22:9d:bb:dc:36:9c",
+			                                 "dns": {}
+			                             }]
+									`},
+					},
+				},
+			},
+			harvObjects: []runtime.Object{
+				newCusterNetwork("storage"),
+				newVlanStatus("storage", corev1.ConditionTrue),
+				newVlanConfig("node1", "storage"),
+			},
+			baseSetting:   &v1beta1.Setting{ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName}},
+			updateSetting: newStorageSetting("50", "storage", "192.168.50.0/24"),
+			updateErrMsg:  "clean them up before re-enabling",
+			expectErr:     true,
+		},
+		{
+			name: "pod storage network works only on first enablement of storage network",
+			k8sObjects: []runtime.Object{
+				newK8SNode("node1"),
+				&corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: util.LonghornSystemNamespaceName,
+						Name:      "instance-manager-87b9c730ea2a93c40e1f89bb29818b4c",
+						Annotations: map[string]string{string(lhmtypes.CNIAnnotationNetworkStatus): `
+									    [{
+			                                 "name": "k8s-pod-network",
+			                                 "ips": [
+			                                     "10.52.1.20"
+			                                 ],
+			                                 "default": true,
+			                                 "dns": {}
+			                             },{
+			                                 "name": "harvester-system/storagenetwork-sbctz",
+			                                 "interface": "lhnet1",
+			                                 "ips": [
+			                                     "192.168.50.1"
+			                                 ],
+			                                 "mac": "22:9d:bb:dc:36:9c",
+			                                 "dns": {}
+			                             }]
+									`},
+					},
+				},
+			},
+			harvObjects: []runtime.Object{
+				newCusterNetwork("storage"),
+				newVlanStatus("storage", corev1.ConditionTrue),
+				newVlanConfig("node1", "storage"),
+			},
+			baseSetting:   newStorageSetting("50", "storage", "192.168.50.0/24"),
+			updateSetting: newStorageSetting("50", "storage", "192.168.50.0/24"),
+			expectErr:     false,
+		},
+		{
+			name: "new storage network with pod with only pod network is allowed",
+			k8sObjects: []runtime.Object{
+				newK8SNode("node1"),
+				&corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: util.LonghornSystemNamespaceName,
+						Name:      "instance-manager-87b9c730ea2a93c40e1f89bb29818b4c",
+						Annotations: map[string]string{string(lhmtypes.CNIAnnotationNetworkStatus): `
+									    [{
+			                                 "name": "k8s-pod-network",
+			                                 "ips": [
+			                                     "10.52.1.20"
+			                                 ],
+			                                 "default": true,
+			                                 "dns": {}
+			                             }]
+									`},
+					},
+				},
+			},
+			harvObjects: []runtime.Object{
+				newCusterNetwork("storage"),
+				newVlanStatus("storage", corev1.ConditionTrue),
+				newVlanConfig("node1", "storage"),
+			},
+			baseSetting:   &v1beta1.Setting{ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName}},
+			updateSetting: newStorageSetting("50", "storage", "192.168.50.0/24"),
+			expectErr:     false,
+		},
+		{
+			name: "pod with 2 networks exist on enable",
+			k8sObjects: []runtime.Object{
+				newK8SNode("node1"),
+				&corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: util.LonghornSystemNamespaceName,
+						Name:      "migration-pod-87b9c730ea2a93c40e1f89bb29818b4c",
+						Annotations: map[string]string{string(lhmtypes.CNIAnnotationNetworkStatus): `
+						    [{
+                                 "name": "k8s-pod-network",
+                                 "ips": [
+                                     "10.52.1.20"
+                                 ],
+                                 "default": true,
+                                 "dns": {}
+                             },{
+                                 "name": "migration",
+                                 "interface": "migrationnet1",
+                                 "ips": [
+                                     "192.168.50.1"
+                                 ],
+                                 "mac": "22:9d:bb:dc:36:9c",
+                                 "dns": {}
+                             }]
+						`},
+					},
+				},
+			},
+			harvObjects: []runtime.Object{
+				newCusterNetwork("storage"),
+				newVlanStatus("storage", corev1.ConditionTrue),
+				newVlanConfig("node1", "storage"),
+			},
+			baseSetting:   &v1beta1.Setting{ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName}},
+			updateSetting: newStorageSetting("50", "storage", "192.168.50.0/24"),
+			expectErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := newTestingClient(tt.k8sObjects, tt.harvObjects)
+			err := v.Create(nil, tt.baseSetting)
+			assert.NoError(t, err)
+			err = v.Update(nil, tt.baseSetting, tt.updateSetting)
+			if tt.expectErr {
+				assert.True(t, strings.Contains(err.Error(), tt.updateErrMsg))
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+
+	}
+}
+
 func Test_validateMaxHotplugRatio(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -1350,5 +1545,70 @@ func Test_validateMaxHotplugRatio(t *testing.T) {
 			}
 		})
 
+	}
+}
+
+func newTestingClient(k8sObjects []runtime.Object, havesterObjects []runtime.Object) types.Validator {
+	harvClientset := fake.NewSimpleClientset(
+		havesterObjects...,
+	)
+	var k8sclientset = k8sfake.NewSimpleClientset(k8sObjects...)
+	return NewValidator(fakeclients.HarvesterSettingCache(harvClientset.HarvesterhciV1beta1().Settings),
+		fakeclients.NodeCache(k8sclientset.CoreV1().Nodes), nil, nil, nil,
+		fakeclients.VirtualMachineCache(harvClientset.KubevirtV1().VirtualMachines), nil, nil, nil,
+		fakeclients.LonghornVolumeCache(harvClientset.LonghornV1beta2().Volumes),
+		fakeclients.PersistentVolumeClaimCache(k8sclientset.CoreV1().PersistentVolumeClaims),
+		fakeclients.ClusterNetworkCache(harvClientset.NetworkV1beta1().ClusterNetworks),
+		fakeclients.VlanConfigCache(harvClientset.NetworkV1beta1().VlanConfigs),
+		fakeclients.VlanStatusCache(harvClientset.NetworkV1beta1().VlanStatuses),
+		fakeclients.LonghornNodeCache(harvClientset.LonghornV1beta2().Nodes), nil,
+		fakeclients.PodCache(k8sclientset.CoreV1().Pods))
+}
+
+func newCusterNetwork(name string) *networkv1.ClusterNetwork {
+	return &networkv1.ClusterNetwork{ObjectMeta: metav1.ObjectMeta{Name: name}}
+}
+
+func newVlanStatus(networkLabel string, status corev1.ConditionStatus) *networkv1.VlanStatus {
+	return &networkv1.VlanStatus{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				utils.KeyClusterNetworkLabel: networkLabel,
+			},
+		},
+		Status: networkv1.VlStatus{
+			Conditions: []networkv1.Condition{
+				{
+					Status: status,
+				},
+			},
+		},
+	}
+}
+
+func newVlanConfig(nodeName, clusterNetwork string) *networkv1.VlanConfig {
+	return &networkv1.VlanConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				utils.KeyClusterNetworkLabel: clusterNetwork,
+			},
+			Annotations: map[string]string{
+				utils.KeyMatchedNodes: fmt.Sprintf("[\"%s\"]", nodeName),
+			},
+		},
+	}
+}
+
+func newK8SNode(name string) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+	}
+}
+
+func newStorageSetting(id, networkName, ipRange string) *v1beta1.Setting {
+	return &v1beta1.Setting{
+		ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+		Default:    "",
+		Value:      fmt.Sprintf("{\"vlan\":%s,\"clusterNetwork\":\"%s\",\"range\":\"%s\"}", id, networkName, ipRange),
 	}
 }
