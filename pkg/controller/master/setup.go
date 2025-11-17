@@ -29,6 +29,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
 	"github.com/harvester/harvester/pkg/controller/master/upgradelog"
 	"github.com/harvester/harvester/pkg/controller/master/virtualmachine"
+	"github.com/harvester/harvester/pkg/controller/master/virtualmachinecpumodel"
 	"github.com/harvester/harvester/pkg/controller/master/vmimagedownloader"
 )
 
@@ -66,6 +67,7 @@ var registerFuncs = []registerFunc{
 	upgrade.Register,
 	upgradelog.Register,
 	virtualmachine.Register,
+	virtualmachinecpumodel.Register,
 	vmimagedownloader.Register,
 }
 
