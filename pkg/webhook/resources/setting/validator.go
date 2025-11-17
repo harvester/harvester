@@ -1832,6 +1832,16 @@ func validateUpgradeConfigHelper(setting *v1beta1.Setting) (*settings.UpgradeCon
 	return config, nil
 }
 
+func checkNodesDuplicates(nodeNames []string) error {
+	duplicates := ds.SliceFindDuplicates(nodeNames)
+	if len(duplicates) > 0 {
+		errMsg := fmt.Sprintf("duplicate pause node names: %v", duplicates)
+		logrus.Errorf("%s", errMsg)
+		return fmt.Errorf("%s", errMsg)
+	}
+	return nil
+}
+
 func (v *settingValidator) checkNodesExist(nodeNames []string) error {
 	nodes, err := v.nodeCache.List(labels.Everything())
 	if err != nil {
@@ -1867,6 +1877,10 @@ func (v *settingValidator) checkNodeUpgradeOption(nodeUpgradeOption *settings.No
 	case settings.AutoType, settings.ManualType:
 	default:
 		return fmt.Errorf("invalid node upgrade strategy mode: %s", modeType)
+	}
+
+	if err := checkNodesDuplicates(nodeUpgradeOption.Strategy.PauseNodes); err != nil {
+		return err
 	}
 
 	return v.checkNodesExist(nodeUpgradeOption.Strategy.PauseNodes)

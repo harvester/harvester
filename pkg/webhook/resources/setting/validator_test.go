@@ -1024,6 +1024,15 @@ func Test_validateUpgradeConfig(t *testing.T) {
 			expectedErr: false,
 		},
 		{
+			name:  "node upgrade with duplicated pause nodes specified should be rejected",
+			nodes: util.NewNodes("node-0", "node-1", "node-2"),
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto","pauseNodes":["node-1","node-1","node-2"]}}}`,
+			},
+			expectedErr: true,
+		},
+		{
 			name:  "node upgrade with manual mode for a non-existing node should be rejected",
 			nodes: util.NewNodes("node-0", "node-1", "node-2"),
 			args: &v1beta1.Setting{
