@@ -32,6 +32,8 @@ type VMForceResetPolicy struct {
 	Enable bool `json:"enable"`
 	// Period means how many seconds to wait for a node get back.
 	Period int64 `json:"period"`
+	// VMMigrationTimeout means how many seconds to wait for a VM to migrate when a node is reported not ready.
+	VMMigrationTimeout int64 `json:"vmMigrationTimeout,omitempty"`
 }
 
 func InitBackupTargetToString() string {
@@ -66,8 +68,9 @@ func (target *BackupTarget) IsDefaultBackupTarget() bool {
 
 func InitVMForceResetPolicy() string {
 	policy := &VMForceResetPolicy{
-		Enable: true,
-		Period: 5 * 60, // 5 minutes
+		Enable:             true,
+		Period:             15,  // 15 seconds for default timeout
+		VMMigrationTimeout: 180, // 180 seconds for default VM migration timeout
 	}
 	policyStr, err := json.Marshal(policy)
 	if err != nil {
@@ -84,6 +87,13 @@ func DecodeVMForceResetPolicy(value string) (*VMForceResetPolicy, error) {
 
 	if policy.Period <= 0 {
 		return nil, fmt.Errorf("period value should be greater than 0, value: %d", policy.Period)
+	}
+
+	if policy.VMMigrationTimeout < 0 {
+		return nil, fmt.Errorf("vmMigrationTimeout value should be greater than 0, value: %d", policy.VMMigrationTimeout)
+	}
+	if policy.VMMigrationTimeout == 0 {
+		policy.VMMigrationTimeout = 180 // set default VM migration timeout to 180 seconds
 	}
 
 	return policy, nil
