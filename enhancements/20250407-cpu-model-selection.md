@@ -80,7 +80,7 @@ If the cluster consists of mainly homogeneous nodes (including new nodes), users
 
 ### API changes
 
-Backend should provide a API to let frontend geenrate a selection list.
+Backend should provide a API to let frontend generate a selection list.
 
 API: `GET /v1/harvester/node?link=getCpuMigrationCapabilities`
 
@@ -202,7 +202,7 @@ About cache, we won't add it in this version, please check [discussion here](htt
     },
     "Westmere": {  
       "readyCount": 2,  
-      "migrationSafe": false  
+      "migrationSafe": true  
     },
     "SandyBridge": {  
       "readyCount": 1,  
@@ -262,7 +262,7 @@ Action Items:
 
 #### Backend
 
-Backend should reject unreasonable requests from the frontend. When users try to migrate a VM, the `findMigratableNodes` action should return available nodes that match the selected CPU model failure.
+Backend should reject unreasonable requests from the frontend. When users try to migrate a VM, the `findMigratableNodes` action should return available nodes that match the selected CPU model feature.
 
 Action Items:
 
