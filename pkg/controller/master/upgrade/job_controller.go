@@ -39,6 +39,7 @@ const (
 
 	nodeStateImagesPreloading       = "Images preloading"
 	nodeStateImagesPreloaded        = "Images preloaded"
+	nodeStateUpgradePaused          = "Node-upgrade paused"
 	nodeStatePreDraining            = "Pre-draining"
 	nodeStatePreDrained             = "Pre-drained"
 	nodeStatePostDraining           = "Post-draining"

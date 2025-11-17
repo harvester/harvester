@@ -82,11 +82,13 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 	case nodeStateImagesPreloaded:
 		if secret.Annotations[rke2PreDrainAnnotation] != secret.Annotations[preDrainAnnotation] {
 			if shouldPauseNodeUpgrade(upgrade, nodeName) {
-				logrus.Infof("Pause creating pre-drain job on %s", nodeName)
-				setPausedCondition(upgradeCpy, v1.ConditionTrue, "NodeUpgrade", fmt.Sprintf("node upgrade for %s is administratively paused as requested", nodeName))
-				break
+				logrus.Infof("Pause pre-drain job creation for node %s", nodeName)
+				setNodeUpgradeStatus(upgradeCpy, nodeName, nodeStateUpgradePaused, "AdministrativelyPaused", "Node upgrade paused as requested by the user")
+				setDegradedCondition(upgradeCpy, v1.ConditionTrue, "NodeUpgrade", "One or more node upgrades are paused")
+				logrus.Infof("Update upgrade %s/%s", upgrade.Namespace, upgrade.Name)
+				_, err := h.upgradeClient.Update(upgradeCpy)
+				return secret, err
 			}
-			setPausedCondition(upgradeCpy, v1.ConditionFalse, "", "")
 			if err := checkEligibleToDrain(upgrade, nodeName); err != nil {
 				return nil, err
 			}
@@ -94,6 +96,22 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 			if err := h.createHookJob(upgrade, nodeName, upgradeJobTypePreDrain, nodeStatePreDraining); err != nil {
 				return nil, err
 			}
+		}
+	case nodeStateUpgradePaused:
+		if secret.Annotations[rke2PreDrainAnnotation] != secret.Annotations[preDrainAnnotation] {
+			if shouldPauseNodeUpgrade(upgrade, nodeName) {
+				logrus.Debugf("Continue pausing pre-drain job creation for node %s", nodeName)
+				return secret, nil
+			}
+			logrus.Infof("Unpause pre-drain job creation for node %s", nodeName)
+			setNodeUpgradeStatus(upgradeCpy, nodeName, nodeStateImagesPreloaded, "", "")
+			setDegradedCondition(upgradeCpy, v1.ConditionFalse, "", "")
+			if reflect.DeepEqual(upgradeCpy, upgrade) {
+				return secret, nil
+			}
+			logrus.Infof("Update upgrade %s/%s", upgrade.Namespace, upgrade.Name)
+			_, err := h.upgradeClient.Update(upgradeCpy)
+			return secret, err
 		}
 	case nodeStatePreDrained:
 		if secret.Annotations[rke2PostDrainAnnotation] != secret.Annotations[postDrainAnnotation] {
@@ -104,13 +122,6 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 			if err := h.createHookJob(upgrade, nodeName, upgradeJobTypePostDrain, nodeStatePostDraining); err != nil {
 				return nil, err
 			}
-		}
-	}
-
-	if !reflect.DeepEqual(upgradeCpy, upgrade) {
-		logrus.Infof("Update upgrade %s/%s", upgrade.Namespace, upgrade.Name)
-		if _, err := h.upgradeClient.Update(upgradeCpy); err != nil {
-			return nil, err
 		}
 	}
 
