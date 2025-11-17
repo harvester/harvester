@@ -2,8 +2,8 @@ package upgrade
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"regexp"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/relatedresource"
@@ -16,6 +16,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -34,36 +35,50 @@ type handler struct {
 }
 
 func (h *handler) NotifyUnpausedMachinePlanSecret(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
-	if upgrade, ok := obj.(*harvesterv1.Upgrade); ok {
-		for key, val := range upgrade.Annotations {
-			if val == "pause" {
-				continue
-			}
-			nodeName, ok := extractNodeName(key)
-			if !ok {
-				continue
-			}
-			node, err := h.nodeCache.Get(nodeName)
-			if err != nil {
-				if apierrors.IsNotFound(err) {
-					continue
-				}
-				return nil, err
-			}
-			machineName, ok := node.Annotations[capiv1.MachineAnnotation]
-			if !ok {
-				return nil, fmt.Errorf("machine name not found on node %s", node.Name)
-			}
-			return []relatedresource.Key{
-				{
-					Name:      fmt.Sprintf("%s-machine-plan", machineName),
-					Namespace: "fleet-local",
-				},
-			}, nil
-		}
+	upgrade, ok := obj.(*harvesterv1.Upgrade)
+	if !ok {
+		return nil, nil
 	}
 
-	return nil, nil
+	if upgrade.DeletionTimestamp != nil || upgrade.Labels[harvesterLatestUpgradeLabel] != "true" {
+		return nil, nil
+	}
+
+	value, ok := upgrade.Annotations[util.AnnotationNodeUpgradePauseMap]
+	if !ok {
+		return nil, nil
+	}
+
+	var pauseMap map[string]string
+	if err := json.Unmarshal([]byte(value), &pauseMap); err != nil {
+		return nil, err
+	}
+
+	// Ideally, there will be only one "unpause" node left in the annotation.
+	machinePlanSecretKeys := make([]relatedresource.Key, 1)
+	for nodeName, state := range pauseMap {
+		if state == util.NodePause {
+			continue
+		}
+		node, err := h.nodeCache.Get(nodeName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		machineName, ok := node.Annotations[capiv1.MachineAnnotation]
+		if !ok {
+			return nil, fmt.Errorf("machine name not found on node %s", node.Name)
+		}
+		key := relatedresource.Key{
+			Namespace: util.FleetLocalNamespaceName,
+			Name:      fmt.Sprintf("%s-machine-plan", machineName),
+		}
+		machinePlanSecretKeys = append(machinePlanSecretKeys, key)
+	}
+
+	return machinePlanSecretKeys, nil
 }
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
@@ -220,13 +235,4 @@ func Register(ctx context.Context, management *config.Management, options config
 	go versionSyncer.start()
 
 	return nil
-}
-
-func extractNodeName(s string) (string, bool) {
-	nodeNamePattern := regexp.MustCompile(`^harvesterhci\.io/(.+)$`)
-	matches := nodeNamePattern.FindStringSubmatch(s)
-	if len(matches) > 1 {
-		return matches[1], true
-	}
-	return "", false
 }
