@@ -59,10 +59,7 @@ func shouldPauseNodeUpgrade(upgrade *harvesterv1.Upgrade, nodeName string) bool 
 	if !ok {
 		return false
 	}
-	if val != "pause" {
-		return false
-	}
-	return true
+	return val == "pause"
 }
 
 func setNodeUpgradeStatus(upgrade *harvesterv1.Upgrade, nodeName string, state, reason, message string) {
