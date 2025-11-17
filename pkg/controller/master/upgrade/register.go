@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
+	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -49,7 +50,7 @@ func (h *handler) NotifyUnpausedMachinePlanSecret(_ string, _ string, obj runtim
 				}
 				return nil, err
 			}
-			machineName, ok := node.Annotations["cluster.x-k8s.io/machine"]
+			machineName, ok := node.Annotations[capiv1.MachineAnnotation]
 			if !ok {
 				return nil, fmt.Errorf("machine name not found on node %s", node.Name)
 			}
