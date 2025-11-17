@@ -40,6 +40,8 @@ type VersionExpansion interface{}
 
 type VirtualMachineBackupExpansion interface{}
 
+type VirtualMachineCPUModelExpansion interface{}
+
 type VirtualMachineImageExpansion interface{}
 
 type VirtualMachineImageDownloaderExpansion interface{}
