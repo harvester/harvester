@@ -104,6 +104,9 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 				return secret, nil
 			}
 			logrus.Infof("Unpause pre-drain job creation for node %s", nodeName)
+			if err := clearNodePause(upgradeCpy, nodeName); err != nil {
+				return secret, err
+			}
 			setNodeUpgradeStatus(upgradeCpy, nodeName, nodeStateImagesPreloaded, "", "")
 			setDegradedCondition(upgradeCpy, v1.ConditionFalse, "", "")
 			if reflect.DeepEqual(upgradeCpy, upgrade) {

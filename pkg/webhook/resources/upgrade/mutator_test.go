@@ -89,9 +89,7 @@ func TestUpgradeMutator_PatchUpgradeConfig(t *testing.T) {
 			expected: output{
 				patchOps: types.PatchOps{
 					`{"op": "add", "path": "/metadata/annotations", "value": {}}`,
-					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-0", "value": "pause"}`,
-					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-1", "value": "pause"}`,
-					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-2", "value": "pause"}`,
+					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-upgrade-pause-map", "value": "{\"node-0\":\"pause\",\"node-1\":\"pause\",\"node-2\":\"pause\"}"}`,
 				},
 			},
 		},
@@ -114,8 +112,7 @@ func TestUpgradeMutator_PatchUpgradeConfig(t *testing.T) {
 			expected: output{
 				patchOps: types.PatchOps{
 					`{"op": "add", "path": "/metadata/annotations", "value": {}}`,
-					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-0", "value": "pause"}`,
-					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-2", "value": "pause"}`,
+					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-upgrade-pause-map", "value": "{\"node-0\":\"pause\",\"node-2\":\"pause\"}"}`,
 				},
 			},
 		},
@@ -138,9 +135,7 @@ func TestUpgradeMutator_PatchUpgradeConfig(t *testing.T) {
 			expected: output{
 				patchOps: types.PatchOps{
 					`{"op": "add", "path": "/metadata/annotations", "value": {}}`,
-					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-0", "value": "pause"}`,
-					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-1", "value": "pause"}`,
-					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-2", "value": "pause"}`,
+					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-upgrade-pause-map", "value": "{\"node-0\":\"pause\",\"node-1\":\"pause\",\"node-2\":\"pause\"}"}`,
 				},
 			},
 		},
