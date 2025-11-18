@@ -400,7 +400,6 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			if shouldPauseNodeUpgrade(upgrade, singleNodeName) {
 				logrus.Infof("Pause pre-drain job creation for node %s", singleNodeName)
 				setNodeUpgradeStatus(toUpdate, singleNodeName, nodeStateUpgradePaused, "AdministrativelyPaused", "Node upgrade paused as requested by the user")
-				setDegradedCondition(toUpdate, corev1.ConditionTrue, "NodeUpgrade", "One or more node upgrades are paused")
 				return h.upgradeClient.Update(toUpdate)
 			}
 			logrus.Infof("Unpause pre-drain job creation for node %s", singleNodeName)
@@ -408,7 +407,6 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				return upgrade, err
 			}
 			setNodeUpgradeStatus(toUpdate, singleNodeName, nodeStateImagesPreloaded, "", "")
-			setDegradedCondition(toUpdate, corev1.ConditionFalse, "", "")
 			logrus.Info("Start single node upgrade job")
 			if _, err = h.jobClient.Create(applyNodeJob(upgrade, info, singleNodeName, upgradeJobTypeSingleNodeUpgrade)); err != nil && !apierrors.IsAlreadyExists(err) {
 				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")

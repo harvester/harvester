@@ -87,7 +87,6 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 			if shouldPauseNodeUpgrade(upgrade, nodeName) {
 				logrus.Infof("Pause pre-drain job creation for node %s", nodeName)
 				setNodeUpgradeStatus(upgradeCpy, nodeName, nodeStateUpgradePaused, "AdministrativelyPaused", "Node upgrade paused as requested by the user")
-				setDegradedCondition(upgradeCpy, v1.ConditionTrue, "NodeUpgrade", "One or more node upgrades are paused")
 				logrus.Infof("Update upgrade %s/%s", upgrade.Namespace, upgrade.Name)
 				_, err := h.upgradeClient.Update(upgradeCpy)
 				return secret, err
@@ -111,7 +110,6 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 				return secret, err
 			}
 			setNodeUpgradeStatus(upgradeCpy, nodeName, nodeStateImagesPreloaded, "", "")
-			setDegradedCondition(upgradeCpy, v1.ConditionFalse, "", "")
 			if reflect.DeepEqual(upgradeCpy, upgrade) {
 				return secret, nil
 			}
