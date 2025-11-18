@@ -3,6 +3,7 @@ package upgrade
 import (
 	"fmt"
 	"reflect"
+	"time"
 
 	jobV1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	"github.com/sirupsen/logrus"
@@ -13,6 +14,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 )
 
 const (
@@ -24,12 +26,13 @@ const (
 
 // secretHandler watches pre-drain and pos-drain annotations set by Rancher and create corresponding node jobs
 type secretHandler struct {
-	namespace     string
-	upgradeClient ctlharvesterv1.UpgradeClient
-	upgradeCache  ctlharvesterv1.UpgradeCache
-	jobClient     jobV1.JobClient
-	jobCache      jobV1.JobCache
-	machineCache  ctlclusterv1.MachineCache
+	namespace        string
+	upgradeClient    ctlharvesterv1.UpgradeClient
+	upgradeCache     ctlharvesterv1.UpgradeCache
+	jobClient        jobV1.JobClient
+	jobCache         jobV1.JobCache
+	machineCache     ctlclusterv1.MachineCache
+	secretController ctlcorev1.SecretController
 }
 
 func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, error) {
@@ -113,7 +116,10 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 				return secret, nil
 			}
 			logrus.Infof("Update upgrade %s/%s", upgrade.Namespace, upgrade.Name)
-			_, err := h.upgradeClient.Update(upgradeCpy)
+			if _, err := h.upgradeClient.Update(upgradeCpy); err != nil {
+				return secret, err
+			}
+			h.secretController.EnqueueAfter(secret.Namespace, secret.Name, 5*time.Second)
 			return secret, err
 		}
 	case nodeStatePreDrained:
