@@ -193,12 +193,13 @@ func Register(ctx context.Context, management *config.Management, options config
 	vmImages.OnChange(ctx, vmImageControllerName, vmImageHandler.OnChanged)
 
 	secretHandler := &secretHandler{
-		namespace:     options.Namespace,
-		upgradeClient: upgrades,
-		upgradeCache:  upgrades.Cache(),
-		jobClient:     jobs,
-		jobCache:      jobs.Cache(),
-		machineCache:  machines.Cache(),
+		namespace:        options.Namespace,
+		upgradeClient:    upgrades,
+		upgradeCache:     upgrades.Cache(),
+		jobClient:        jobs,
+		jobCache:         jobs.Cache(),
+		machineCache:     machines.Cache(),
+		secretController: secrets,
 	}
 	secrets.OnChange(ctx, secretControllerName, secretHandler.OnChanged)
 
