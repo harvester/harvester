@@ -397,16 +397,25 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		toUpdate := upgrade.DeepCopy()
 		singleNodeName := upgrade.Status.SingleNode
 		if singleNodeName != "" {
+			if upgrade.Status.NodeStatuses[singleNodeName].State == nodeStateUpgradePaused {
+				if shouldPauseNodeUpgrade(upgrade, singleNodeName) {
+					logrus.Debugf("Continue pausing node-upgrade job creation for node %s", singleNodeName)
+					return upgrade, nil
+				}
+				logrus.Infof("Unpause node-upgrade job creation for node %s", singleNodeName)
+				if err := clearNodePause(toUpdate, singleNodeName); err != nil {
+					return upgrade, err
+				}
+				setNodeUpgradeStatus(toUpdate, singleNodeName, nodeStateImagesPreloaded, "", "")
+				return h.upgradeClient.Update(toUpdate)
+			}
+
 			if shouldPauseNodeUpgrade(upgrade, singleNodeName) {
-				logrus.Infof("Pause pre-drain job creation for node %s", singleNodeName)
+				logrus.Infof("Pause node-upgrade job creation for node %s", singleNodeName)
 				setNodeUpgradeStatus(toUpdate, singleNodeName, nodeStateUpgradePaused, "AdministrativelyPaused", "Node upgrade paused as requested by the user")
 				return h.upgradeClient.Update(toUpdate)
 			}
-			logrus.Infof("Unpause pre-drain job creation for node %s", singleNodeName)
-			if err := clearNodePause(toUpdate, singleNodeName); err != nil {
-				return upgrade, err
-			}
-			setNodeUpgradeStatus(toUpdate, singleNodeName, nodeStateImagesPreloaded, "", "")
+
 			logrus.Info("Start single node upgrade job")
 			if _, err = h.jobClient.Create(applyNodeJob(upgrade, info, singleNodeName, upgradeJobTypeSingleNodeUpgrade)); err != nil && !apierrors.IsAlreadyExists(err) {
 				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
