@@ -79,6 +79,7 @@ const (
 
 	AnnotationNodeUpgradePauseMap = prefix + "/node-upgrade-pause-map"
 	NodePause                     = "pause"
+	NodeUnpause                   = "unpause"
 
 	HarvesterManagedNodeLabelKey = prefix + "/managed"
 
