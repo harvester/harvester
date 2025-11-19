@@ -16,7 +16,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func TestUpgradeMutator_PatchUpgradeConfig(t *testing.T) {
+func TestUpgradeMutator_patchPauseNodeAnnotations(t *testing.T) {
 	givenNodes := []*corev1.Node{
 		{
 			ObjectMeta: metav1.ObjectMeta{
