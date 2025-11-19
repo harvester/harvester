@@ -12,7 +12,6 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -42,17 +41,6 @@ type VMIController struct {
 	nodeCache           ctlcorev1.NodeCache
 	pvcClient           ctlcorev1.PersistentVolumeClaimClient
 	recorder            record.EventRecorder
-}
-
-// Golang standard library's "maps" module contains the "Keys" function only for
-// Golang <v1.21 and >= v1.23
-// This function returns a sequence of keys of a map
-func mapKeys(m map[apitypes.UID]string) []apitypes.UID {
-	keys := make([]apitypes.UID, 0)
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 // SyncHarvesterVMILabelsToPod ensures that all Harvester labels (i.e. those
@@ -89,9 +77,7 @@ func (h *VMIController) SyncHarvesterVMILabelsToPod(_ string, vmi *kubevirtv1.Vi
 	}
 
 	for _, pod := range pods {
-		// TODO: Replace with maps.Keys(activePodUIDs) after migrating to Golang
-		// v1.23
-		if !slices.Contains(mapKeys(activePodUIDs), pod.UID) {
+		if !slices.Contains(slices.Collect(maps.Keys(activePodUIDs)), pod.UID) {
 			continue
 		}
 
