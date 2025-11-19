@@ -81,32 +81,6 @@ func shouldPauseNodeUpgrade(upgrade *harvesterv1.Upgrade, nodeName string) bool 
 	return pauseMap[nodeName] == util.NodePause
 }
 
-// clearNodePause removes the specified node from the node upgrade pause map annotation.
-func clearNodePause(upgrade *harvesterv1.Upgrade, nodeName string) error {
-	pauseMap, err := getNodeUpgradePauseMap(upgrade)
-	if err != nil {
-		return err
-	}
-	if pauseMap == nil {
-		return nil
-	}
-
-	delete(pauseMap, nodeName)
-
-	if len(pauseMap) == 0 {
-		delete(upgrade.Annotations, util.AnnotationNodeUpgradePauseMap)
-		return nil
-	}
-
-	updatedValue, err := json.Marshal(pauseMap)
-	if err != nil {
-		return fmt.Errorf("failed to marshal node upgrade pause map: %w", err)
-	}
-
-	upgrade.Annotations[util.AnnotationNodeUpgradePauseMap] = string(updatedValue)
-	return nil
-}
-
 func setNodeUpgradeStatus(upgrade *harvesterv1.Upgrade, nodeName string, state, reason, message string) {
 	if upgrade == nil {
 		return

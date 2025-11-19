@@ -403,9 +403,6 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 					return upgrade, nil
 				}
 				logrus.Infof("Unpause node-upgrade job creation for node %s", singleNodeName)
-				if err := clearNodePause(toUpdate, singleNodeName); err != nil {
-					return upgrade, err
-				}
 				setNodeUpgradeStatus(toUpdate, singleNodeName, nodeStateImagesPreloaded, "", "")
 				return h.upgradeClient.Update(toUpdate)
 			}
