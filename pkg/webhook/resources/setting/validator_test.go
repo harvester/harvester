@@ -15,7 +15,6 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
-	"github.com/harvester/harvester/pkg/webhook/util"
 )
 
 func Test_validateOvercommitConfig(t *testing.T) {
@@ -848,9 +847,25 @@ func Test_validateNTPServers(t *testing.T) {
 }
 
 func Test_validateUpgradeConfig(t *testing.T) {
+	givenNodes := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-0",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-1",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-2",
+			},
+		},
+	}
 	tests := []struct {
 		name        string
-		nodes       []*corev1.Node
 		args        *v1beta1.Setting
 		expectedErr bool
 	}{
@@ -1015,8 +1030,7 @@ func Test_validateUpgradeConfig(t *testing.T) {
 			expectedErr: false,
 		},
 		{
-			name:  "node upgrade with manual mode for node-1 only",
-			nodes: util.NewNodes("node-0", "node-1", "node-2"),
+			name: "node upgrade with manual mode for node-1 only",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
 				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto","pauseNodes":["node-1"]}}}`,
@@ -1024,8 +1038,7 @@ func Test_validateUpgradeConfig(t *testing.T) {
 			expectedErr: false,
 		},
 		{
-			name:  "node upgrade with duplicated pause nodes specified should be rejected",
-			nodes: util.NewNodes("node-0", "node-1", "node-2"),
+			name: "node upgrade with duplicated pause nodes specified should be rejected",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
 				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto","pauseNodes":["node-1","node-1","node-2"]}}}`,
@@ -1033,8 +1046,7 @@ func Test_validateUpgradeConfig(t *testing.T) {
 			expectedErr: true,
 		},
 		{
-			name:  "node upgrade with manual mode for a non-existing node should be rejected",
-			nodes: util.NewNodes("node-0", "node-1", "node-2"),
+			name: "node upgrade with manual mode for a non-existing node should be rejected",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
 				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto","pauseNodes":["node-100"]}}}`,
@@ -1079,7 +1091,7 @@ func Test_validateUpgradeConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			clientset := fake.NewSimpleClientset()
 			var nodes []runtime.Object
-			for _, node := range tt.nodes {
+			for _, node := range givenNodes {
 				nodes = append(nodes, node)
 			}
 			k8sclientset := k8sfake.NewSimpleClientset(nodes...)
