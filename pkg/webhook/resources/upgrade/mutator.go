@@ -8,6 +8,7 @@ import (
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -95,22 +96,24 @@ func (m *upgradeMutator) getNodesToPause(config *settings.UpgradeConfig) ([]stri
 		return nil, nil
 	}
 
-	// Use explicitly configured pause nodes if provided
-	if len(config.NodeUpgradeOption.Strategy.PauseNodes) > 0 {
-		return config.NodeUpgradeOption.Strategy.PauseNodes, nil
-	}
-
-	// Otherwise, pause all nodes
 	nodes, err := m.node.List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
 
-	nodeNames := make([]string, 0, len(nodes))
+	existingNodeNames := make([]string, 0, len(nodes))
 	for _, node := range nodes {
-		nodeNames = append(nodeNames, node.Name)
+		existingNodeNames = append(existingNodeNames, node.Name)
 	}
-	return nodeNames, nil
+
+	if len(config.NodeUpgradeOption.Strategy.PauseNodes) == 0 {
+		return existingNodeNames, nil
+	}
+
+	// Filter out non-existent node names specified in the PauseNodes setting
+	return sets.NewString(existingNodeNames...).Intersection(
+		sets.NewString(config.NodeUpgradeOption.Strategy.PauseNodes...),
+	).List(), nil
 }
 
 func shouldPauseNodes(config *settings.UpgradeConfig) bool {
@@ -122,10 +125,9 @@ func shouldPauseNodes(config *settings.UpgradeConfig) bool {
 }
 
 func addPauseAnnotations(upgrade *harvesterv1.Upgrade, patchOps types.PatchOps, nodeNames []string) types.PatchOps {
-	if upgrade.Annotations == nil {
-		patchOps = append(patchOps, `{"op": "add", "path": "/metadata/annotations", "value": {}}`)
+	if len(nodeNames) == 0 {
+		return nil
 	}
-
 	nodeMap := make(map[string]string, len(nodeNames))
 	for _, nodeName := range nodeNames {
 		nodeMap[nodeName] = util.NodePause
@@ -133,8 +135,12 @@ func addPauseAnnotations(upgrade *harvesterv1.Upgrade, patchOps types.PatchOps, 
 
 	nodeMapJSON, err := json.Marshal(nodeMap)
 	if err != nil {
-		logrus.Errorf("failed to marshal node map for upgrade %s/%s: %v", upgrade.Namespace, upgrade.Name, err)
+		logrus.Errorf("failed to marshal node map for upgrade %s/%s: %v, the patch is skipped", upgrade.Namespace, upgrade.Name, err)
 		return nil
+	}
+
+	if upgrade.Annotations == nil {
+		patchOps = append(patchOps, `{"op": "add", "path": "/metadata/annotations", "value": {}}`)
 	}
 
 	patchOps = append(patchOps, fmt.Sprintf(`{"op": "add", "path": "/metadata/annotations/%s", "value": %q}`, patch.EscapeJSONPointer(util.AnnotationNodeUpgradePauseMap), string(nodeMapJSON)))
