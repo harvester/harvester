@@ -14,14 +14,29 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/webhook/types"
-	"github.com/harvester/harvester/pkg/webhook/util"
 )
 
 func TestUpgradeMutator_PatchUpgradeConfig(t *testing.T) {
+	givenNodes := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-0",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-1",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-2",
+			},
+		},
+	}
 	type input struct {
 		upgrade *harvesterv1.Upgrade
 		setting *harvesterv1.Setting
-		nodes   []*corev1.Node
 	}
 	type output struct {
 		patchOps types.PatchOps
@@ -78,7 +93,6 @@ func TestUpgradeMutator_PatchUpgradeConfig(t *testing.T) {
 						Name: "test-upgrade",
 					},
 				},
-				nodes: util.NewNodes("node-0", "node-1", "node-2"),
 				setting: &harvesterv1.Setting{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: settings.UpgradeConfigSettingName,
@@ -101,7 +115,6 @@ func TestUpgradeMutator_PatchUpgradeConfig(t *testing.T) {
 						Name: "test-upgrade",
 					},
 				},
-				nodes: util.NewNodes("node-0", "node-1", "node-2"),
 				setting: &harvesterv1.Setting{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: settings.UpgradeConfigSettingName,
@@ -124,12 +137,33 @@ func TestUpgradeMutator_PatchUpgradeConfig(t *testing.T) {
 						Name: "test-upgrade",
 					},
 				},
-				nodes: util.NewNodes("node-0", "node-1", "node-2"),
 				setting: &harvesterv1.Setting{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: settings.UpgradeConfigSettingName,
 					},
 					Value: `{"nodeUpgradeOption": {"strategy": {"mode": "manual", "pauseNodes": ["node-0", "node-1", "node-2"]}}}`,
+				},
+			},
+			expected: output{
+				patchOps: types.PatchOps{
+					`{"op": "add", "path": "/metadata/annotations", "value": {}}`,
+					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-upgrade-pause-map", "value": "{\"node-0\":\"pause\",\"node-1\":\"pause\",\"node-2\":\"pause\"}"}`,
+				},
+			},
+		},
+		{
+			name: "manual node upgrade mode with non-existing pause nodes specified",
+			given: input{
+				upgrade: &harvesterv1.Upgrade{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-upgrade",
+					},
+				},
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"nodeUpgradeOption": {"strategy": {"mode": "manual", "pauseNodes": ["node-0", "node-1", "node-2", "node-3"]}}}`,
 				},
 			},
 			expected: output{
@@ -146,7 +180,7 @@ func TestUpgradeMutator_PatchUpgradeConfig(t *testing.T) {
 			var objs = []runtime.Object{tc.given.setting}
 			clientset := fake.NewSimpleClientset(objs...)
 			var nodes []runtime.Object
-			for _, node := range tc.given.nodes {
+			for _, node := range givenNodes {
 				nodes = append(nodes, node)
 			}
 			k8sclientset := k8sfake.NewSimpleClientset(nodes...)
