@@ -54,12 +54,21 @@ func (h *handler) NotifyUnpausedMachinePlanSecret(_ string, _ string, obj runtim
 		return nil, err
 	}
 
-	// Ideally, there will be only one "unpause" node left in the annotation.
-	machinePlanSecretKeys := make([]relatedresource.Key, 1)
+	machinePlanSecretKeys := make([]relatedresource.Key, len(pauseMap))
 	for nodeName, state := range pauseMap {
-		if state == util.NodePause {
+		if state != util.NodeUnpause {
 			continue
 		}
+
+		// Skip the already-unpaused nodes
+		nodeUpgradeStatus, ok := upgrade.Status.NodeStatuses[nodeName]
+		if !ok {
+			continue
+		}
+		if nodeUpgradeStatus.State != nodeStateUpgradePaused {
+			continue
+		}
+
 		node, err := h.nodeCache.Get(nodeName)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
