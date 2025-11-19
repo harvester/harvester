@@ -290,7 +290,7 @@ func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkA
 	}
 
 	if len(nads.Items) == 0 {
-		err := h.cleanUpOldSNIPPool(setting)
+		err := h.cleanUpOldSNIPPool(setting, util.KubeSystemNamespace)
 		if err != nil {
 			return nil, err
 		}
@@ -820,7 +820,7 @@ func (h *Handler) updateLonghornStorageNetwork(storageNetwork string) error {
 	return nil
 }
 
-func (h *Handler) cleanUpOldSNIPPool(setting *harvesterv1.Setting) error {
+func (h *Handler) cleanUpOldSNIPPool(setting *harvesterv1.Setting, namespace string) error {
 	var config network.Config
 	if err := json.Unmarshal([]byte(setting.Value), &config); err != nil {
 		return fmt.Errorf("parsing value error %v", err)
@@ -828,7 +828,7 @@ func (h *Handler) cleanUpOldSNIPPool(setting *harvesterv1.Setting) error {
 	ipPoolName := h.cidrToIPPoolName(config.Range)
 
 	logrus.Warnf("Deleting old IPPool: %s", ipPoolName)
-	err := h.whereaboutsCNIIPPoolClient.Delete(util.KubeSystemNamespace, ipPoolName, &metav1.DeleteOptions{})
+	err := h.whereaboutsCNIIPPoolClient.Delete(namespace, ipPoolName, &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
