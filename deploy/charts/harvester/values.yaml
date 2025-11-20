@@ -25,29 +25,29 @@ kubevirt-operator:
   containers:
     operator:
       image:
-        repository: registry.suse.com/suse/sles/15.7/virt-operator
-        tag: &kubevirtVersion 1.6.0-150700.3.8.1
+        repository: registry.opensuse.org/isv/rancher/harvester/containers/v1.7/15.7/suse/sles/15.7/virt-operator
+        tag: &kubevirtVersion 1.6.3
     ## The following images are placeholder for images in use.
     ## They are not used by the kubevirt-operator chart.
     controller:
       image:
-        repository: registry.suse.com/suse/sles/15.7/virt-controller
+        repository: registry.opensuse.org/isv/rancher/harvester/containers/v1.7/15.7/suse/sles/15.7/virt-controller
         tag: *kubevirtVersion
     handler:
       image:
-        repository: registry.suse.com/suse/sles/15.7/virt-handler
+        repository: registry.opensuse.org/isv/rancher/harvester/containers/v1.7/15.7/suse/sles/15.7/virt-handler
         tag: *kubevirtVersion
     api:
       image:
-        repository: registry.suse.com/suse/sles/15.7/virt-api
+        repository: registry.opensuse.org/isv/rancher/harvester/containers/v1.7/15.7/suse/sles/15.7/virt-api
         tag: *kubevirtVersion
     launcher:
       image:
-        repository: registry.suse.com/suse/sles/15.7/virt-launcher
+        repository: registry.opensuse.org/isv/rancher/harvester/containers/v1.7/15.7/suse/sles/15.7/virt-launcher
         tag: *kubevirtVersion
     libguestfs: # introduced from kubevirt v0.44.0
       image:
-        repository: registry.suse.com/suse/sles/15.7/libguestfs-tools
+        repository: registry.opensuse.org/isv/rancher/harvester/containers/v1.7/15.7/suse/sles/15.7/libguestfs-tools
         tag: *kubevirtVersion
 
 ## Specify the parameters to override the sub-chart.
@@ -584,7 +584,7 @@ support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
-    tag: v0.0.73
+    tag: v0.0.74
 
 generalJob:
   image:
