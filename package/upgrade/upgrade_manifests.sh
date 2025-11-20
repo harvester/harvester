@@ -565,10 +565,22 @@ upgrade_rancher() {
   echo "Rancher values:"
   cat values.yaml
 
-  RANCHER_CURRENT_VERSION=$(yq -e e '.rancherImageTag' values.yaml)
-  if [ -z "$RANCHER_CURRENT_VERSION" ]; then
+  local RANCHER_CURRENT_VERSION=$(yq -e e '.rancherImageTag' values.yaml) # if not matched, the return result is "null"
+  local RANCHER_CURRENT_VERSION_NEW_MODE=$(yq -e e '.image.tag' values.yaml)
+  if [[ "$RANCHER_CURRENT_VERSION" == "null" ]] && [[ "$RANCHER_CURRENT_VERSION_NEW_MODE" == "null" ]]; then
     echo "[ERROR] Fail to get current Rancher version."
     exit 1
+  fi
+
+  local imageMode="legacy"
+  if [[ "$RANCHER_CURRENT_VERSION" == "null" ]]; then
+    RANCHER_CURRENT_VERSION="$RANCHER_CURRENT_VERSION_NEW_MODE"
+    imageMode="new"
+  fi
+
+  if [[ "$RANCHER_CURRENT_VERSION" == "$REPO_RANCHER_VERSION" ]]; then
+    echo "Skip update Rancher. The version is already $RANCHER_CURRENT_VERSION"
+    return
   fi
 
   # Clusters with witness node should have rancher's replicas set to -2 if the total number of nodes is 3.
@@ -578,11 +590,6 @@ upgrade_rancher() {
   if [[ "$witness_nodes_count" -gt 0 && "$total_nodes_count" -eq 3 ]]; then
       echo "3-node cluster with witness node detected, setting Rancher replicas to -2"
       RANCHER_REPLICAS=-2 yq e '.replicas = env(RANCHER_REPLICAS)' values.yaml -i
-  fi
-
-  if [ "$RANCHER_CURRENT_VERSION" = "$REPO_RANCHER_VERSION" ]; then
-    echo "Skip update Rancher. The version is already $RANCHER_CURRENT_VERSION"
-    return
   fi
 
   # Wait for Rancher to settle down before start upgrading, just in case
@@ -601,7 +608,18 @@ upgrade_rancher() {
 
   yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false"' values.yaml
 
-  REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
+  if [[ "$imageMode" == "legacy" ]]; then
+    echo "Rancher image values are in legacy mode, convert them to new mode"
+    yq -e e 'del(.rancherImage)' values.yaml -i
+    yq -e e 'del(.rancherImagePullPolicy)' values.yaml -i
+    yq -e e 'del(.rancherImageTag)' values.yaml -i
+
+    yq -e e '.image.pullPolicy = "IfNotPresent"' values.yaml -i
+    yq -e e '.image.repository = "rancher/rancher"' values.yaml -i
+  fi
+
+  REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.image.tag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
+
   echo "Rancher patch file to be run via helm upgrade"
   cat values.yaml
   ./helm upgrade rancher ./*.tgz --namespace cattle-system -f values.yaml --wait
