@@ -18,6 +18,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
+	daemonsets := management.AppsFactory.Apps().V1().DaemonSet()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
 	endpoints := management.CoreFactory.Core().V1().Endpoints()
@@ -40,6 +41,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		secretCache:          secrets.Cache(),
 		clusters:             clusters,
 		clusterCache:         clusters.Cache(),
+		daemonsets:           daemonsets,
+		daemonsetCache:       daemonsets.Cache(),
 		deployments:          deployments,
 		deploymentCache:      deployments.Cache(),
 		ingresses:            ingresses,
