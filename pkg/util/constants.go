@@ -88,6 +88,7 @@ const (
 	BackupTargetSecretName              = "harvester-backup-target-secret"
 	InternalTLSSecretName               = "tls-rancher-internal"
 	Rke2IngressNginxAppName             = "rke2-ingress-nginx"
+	Rke2IngressNginxControllerName      = "rke2-ingress-nginx-controller"
 	CattleSystemNamespaceName           = "cattle-system"
 	CattleMonitoringSystemNamespace     = "cattle-monitoring-system"
 	LonghornSystemNamespaceName         = "longhorn-system"
