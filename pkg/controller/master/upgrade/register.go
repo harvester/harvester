@@ -2,7 +2,6 @@ package upgrade
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -44,14 +43,13 @@ func (h *handler) NotifyUnpausedMachinePlanSecret(_ string, _ string, obj runtim
 		return nil, nil
 	}
 
-	value, ok := upgrade.Annotations[util.AnnotationNodeUpgradePauseMap]
-	if !ok {
-		return nil, nil
+	pauseMap, err := getNodeUpgradePauseMap(upgrade)
+	if err != nil {
+		return nil, err
 	}
 
-	var pauseMap map[string]string
-	if err := json.Unmarshal([]byte(value), &pauseMap); err != nil {
-		return nil, err
+	if pauseMap == nil {
+		return nil, nil
 	}
 
 	machinePlanSecretKeys := make([]relatedresource.Key, len(pauseMap))
