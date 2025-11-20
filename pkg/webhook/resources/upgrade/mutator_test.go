@@ -12,6 +12,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -171,6 +172,28 @@ func TestUpgradeMutator_patchPauseNodeAnnotations(t *testing.T) {
 					`{"op": "add", "path": "/metadata/annotations", "value": {}}`,
 					`{"op": "add", "path": "/metadata/annotations/harvesterhci.io~1node-upgrade-pause-map", "value": "{\"node-0\":\"pause\",\"node-1\":\"pause\",\"node-2\":\"pause\"}"}`,
 				},
+			},
+		},
+		{
+			name: "pause map is explicitly specified in upgrade object",
+			given: input{
+				upgrade: &harvesterv1.Upgrade{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							util.AnnotationNodeUpgradePauseMap: `{"node-1": "pause", "node-2": "pause"}`,
+						},
+						Name: "test-upgrade",
+					},
+				},
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: settings.UpgradeConfigSettingName,
+					},
+					Value: `{"nodeUpgradeOption": {"strategy": {"mode": "manual", "pauseNodes": ["node-0", "node-1", "node-2", "node-3"]}}}`,
+				},
+			},
+			expected: output{
+				patchOps: nil,
 			},
 		},
 	}
