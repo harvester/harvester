@@ -41,6 +41,15 @@ func IsPromoteStatusIn(node *corev1.Node, statuses ...string) bool {
 	return false
 }
 
+func IsWitnessNodeWithoutPromotionStatus(node *corev1.Node) bool {
+	val, found := node.Labels[HarvesterWitnessNodeLabelKey]
+	if found && val == "true" {
+		return true
+	}
+
+	return false
+}
+
 func IsWitnessNode(node *corev1.Node, isManagement bool) bool {
 	_, found := node.Labels[HarvesterWitnessNodeLabelKey]
 	if !found {
@@ -80,7 +89,7 @@ func CountNonWitnessNodes(nodes []*corev1.Node) int {
 	count := 0
 
 	for _, node := range nodes {
-		if !IsWitnessNode(node, IsManagementRole(node)) {
+		if !IsWitnessNodeWithoutPromotionStatus(node) {
 			count++
 		}
 	}

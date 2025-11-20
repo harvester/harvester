@@ -1499,8 +1499,7 @@ func (v *settingValidator) checkVCSpansAllNodes(config *networkutil.Config) erro
 	//check if vlanconfig contains all the nodes in the cluster
 	for _, node := range nodes {
 		//skip witness nodes which do not run LH Pods
-		isManagement := util.IsManagementRole(node)
-		if util.IsWitnessNode(node, isManagement) {
+		if util.IsWitnessNodeWithoutPromotionStatus(node) {
 			continue
 		}
 
