@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"fmt"
 	"net"
+	"reflect"
+	"slices"
 )
 
 const (
@@ -82,4 +84,16 @@ func GenerateLAAMacAddress() (net.HardwareAddr, error) {
 	buf[0] &= 0xFE
 
 	return net.HardwareAddr(buf), nil
+}
+
+func IsConfigEqual(oldConfig, config *Config) bool {
+	if oldConfig == nil && config == nil {
+		return true
+	}
+	if oldConfig == nil || config == nil {
+		return false
+	}
+	slices.Sort(oldConfig.Exclude)
+	slices.Sort(config.Exclude)
+	return reflect.DeepEqual(oldConfig, config)
 }
