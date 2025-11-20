@@ -57,15 +57,19 @@ func (m *upgradeMutator) Create(_ *types.Request, newObj runtime.Object) (types.
 
 // patchPauseNodeAnnotations adds pause node annotations to upgrade based on upgrade-config setting.
 // In manual mode, it pauses explicitly configured nodes or all nodes if none specified.
-// Returns unmodified patchOps if auto mode is configured.
+// Returns unmodified patchOps if auto mode is configured or annotation is already explicitly specified.
 func (m *upgradeMutator) patchPauseNodeAnnotations(upgrade *harvesterv1.Upgrade, patchOps types.PatchOps) (types.PatchOps, error) {
+	if _, ok := upgrade.Annotations[util.AnnotationNodeUpgradePauseMap]; ok {
+		return patchOps, nil
+	}
+
 	upgradeConfig, err := m.getUpgradeConfig()
 	if err != nil {
 		return nil, err
 	}
 
 	// Skip if auto mode or config not fully specified because by default it's auto mode
-	if !shouldPauseNodes(upgradeConfig) {
+	if !isNodeUpgradeManualMode(upgradeConfig) {
 		return patchOps, nil
 	}
 
@@ -116,12 +120,12 @@ func (m *upgradeMutator) getNodesToPause(config *settings.UpgradeConfig) ([]stri
 	).List(), nil
 }
 
-func shouldPauseNodes(config *settings.UpgradeConfig) bool {
+func isNodeUpgradeManualMode(config *settings.UpgradeConfig) bool {
 	return config != nil &&
 		config.NodeUpgradeOption != nil &&
 		config.NodeUpgradeOption.Strategy != nil &&
 		config.NodeUpgradeOption.Strategy.Mode != nil &&
-		*config.NodeUpgradeOption.Strategy.Mode != settings.AutoType
+		*config.NodeUpgradeOption.Strategy.Mode == settings.ManualType
 }
 
 func addPauseAnnotations(upgrade *harvesterv1.Upgrade, patchOps types.PatchOps, nodeNames []string) types.PatchOps {
