@@ -183,6 +183,7 @@ const (
 	MaintainModeStrategyShutdownAndRestartAfterEnable  = "ShutdownAndRestartAfterEnable"
 	MaintainModeStrategyShutdownAndRestartAfterDisable = "ShutdownAndRestartAfterDisable"
 	MaintainModeStrategyShutdown                       = "Shutdown"
+	DefaultMaintainModeStrategy                        = MaintainModeStrategyMigrate
 )
 
 var (

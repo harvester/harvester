@@ -22,11 +22,6 @@ import (
 	"github.com/harvester/harvester/pkg/util/indexeres"
 )
 
-const (
-	VirtualMachineCreatorNodeDriver = "docker-machine-driver-harvester"
-	HarvesterLabelPrefix            = "harvesterhci.io"
-)
-
 // hostLabelsReconcileMapping defines the mapping for reconciliation of node labels to virtual machine instance annotations
 var hostLabelsReconcileMapping = []string{
 	corev1.LabelTopologyZone, corev1.LabelTopologyRegion, corev1.LabelHostname,
@@ -43,21 +38,16 @@ type VMIController struct {
 	recorder            record.EventRecorder
 }
 
-// SyncHarvesterVMILabelsToPod ensures that all Harvester labels (i.e. those
-// with the harvesterhci.io/ prefix) from the VirtualMachineInstance are synced
-// to the Pod
+// SyncHarvesterVMILabelsToPod syncs some specific labels from the VMI to the
+// Pod to make sure that e.g. the maintenance mode strategy is correctly applied
 func (h *VMIController) SyncHarvesterVMILabelsToPod(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
 	if vmi == nil || vmi.DeletionTimestamp != nil {
 		return vmi, nil
 	}
 
-	logrus.Debugf("Syncing labels %v for VMI %v to Pod", vmi.Labels, vmi.Name)
-
-	harvesterVMILabels := map[string]string{}
-	for label, value := range vmi.Labels {
-		if strings.HasPrefix(label, HarvesterLabelPrefix) {
-			harvesterVMILabels[label] = value
-		}
+	vmiLabel, ok := vmi.Labels[util.LabelMaintainModeStrategy]
+	if !ok {
+		vmiLabel = util.DefaultMaintainModeStrategy
 	}
 
 	activePodUIDs := vmi.Status.ActivePods
@@ -81,21 +71,10 @@ func (h *VMIController) SyncHarvesterVMILabelsToPod(_ string, vmi *kubevirtv1.Vi
 			continue
 		}
 
-		newLabels := maps.Clone(pod.Labels)
-		// delete Harvester labels from Pod, if they are deleted from VMI
-
-		maps.DeleteFunc(newLabels, func(k, _ string) bool {
-			if _, ok := harvesterVMILabels[k]; !ok && strings.HasPrefix(k, HarvesterLabelPrefix) {
-				return true
-			}
-			return false
-		})
-
-		maps.Copy(newLabels, harvesterVMILabels)
-
-		if !maps.Equal(pod.Labels, newLabels) {
+		podLabel, ok := pod.Labels[util.LabelMaintainModeStrategy]
+		if !ok || podLabel != vmiLabel {
 			newPod := pod.DeepCopy()
-			newPod.Labels = newLabels
+			newPod.Labels[util.LabelMaintainModeStrategy] = vmiLabel
 			_, err := h.podClient.Update(newPod)
 			if err != nil {
 				return vmi, fmt.Errorf("failed to sync Harvester VMI labels to pod, %v", err)
