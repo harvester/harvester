@@ -1260,9 +1260,9 @@ func TestPatchAffinity(t *testing.T) {
 
 func TestPatchInterfaceMacAddress(t *testing.T) {
 	type patch struct {
-		Op    string       `json:"op"`
-		Path  string       `json:"path"`
-		Value string       `json:"value"`
+		Op    string `json:"op"`
+		Path  string `json:"path"`
+		Value string `json:"value"`
 	}
 
 	tests := []struct {
@@ -1276,22 +1276,22 @@ func TestPatchInterfaceMacAddress(t *testing.T) {
 			annotations: nil,
 			interfaces: []kubevirtv1.Interface{
 				{
-					Name: "default",
-					Model: "virtio",
+					Name:       "default",
+					Model:      "virtio",
 					MacAddress: "de:ad:00:00:be:af",
 					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
 						Bridge: &kubevirtv1.InterfaceBridge{},
 					},
 				},
 			},
-			patchOps:    nil,
+			patchOps: nil,
 		},
 		{
 			name:        "1 interface without MacAddress",
 			annotations: nil,
 			interfaces: []kubevirtv1.Interface{
 				{
-					Name: "default",
+					Name:  "default",
 					Model: "virtio",
 					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
 						Bridge: &kubevirtv1.InterfaceBridge{},
@@ -1303,36 +1303,36 @@ func TestPatchInterfaceMacAddress(t *testing.T) {
 			},
 		},
 		{
-			name:        "1 interface with MacAddress in the annotation",
+			name: "1 interface with MacAddress in the annotation",
 			annotations: map[string]string{
 				"harvesterhci.io/mac-address": `{"default":"c2:c7:74:4b:4a:77"}`,
 			},
 			interfaces: []kubevirtv1.Interface{
 				{
-					Name: "default",
+					Name:  "default",
 					Model: "virtio",
 					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
 						Bridge: &kubevirtv1.InterfaceBridge{},
 					},
 				},
 			},
-			patchOps:    nil,
+			patchOps: nil,
 		},
 		{
 			name:        "2 interfaces with MacAddress",
 			annotations: nil,
 			interfaces: []kubevirtv1.Interface{
 				{
-					Name: "default",
-					Model: "virtio",
+					Name:       "default",
+					Model:      "virtio",
 					MacAddress: "de:ad:00:00:be:af",
 					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
 						Bridge: &kubevirtv1.InterfaceBridge{},
 					},
 				},
 				{
-					Name: "default",
-					Model: "virtio",
+					Name:       "default",
+					Model:      "virtio",
 					MacAddress: "de:ad:00:00:be:bf",
 					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
 						Bridge: &kubevirtv1.InterfaceBridge{},
@@ -1346,22 +1346,22 @@ func TestPatchInterfaceMacAddress(t *testing.T) {
 			annotations: nil,
 			interfaces: []kubevirtv1.Interface{
 				{
-					Name: "default",
+					Name:  "default",
 					Model: "virtio",
 					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
 						Bridge: &kubevirtv1.InterfaceBridge{},
 					},
 				},
 				{
-					Name: "default",
-					Model: "virtio",
+					Name:       "default",
+					Model:      "virtio",
 					MacAddress: "de:ad:00:00:be:af",
 					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
 						Bridge: &kubevirtv1.InterfaceBridge{},
 					},
 				},
 				{
-					Name: "default",
+					Name:  "default",
 					Model: "virtio",
 					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
 						Bridge: &kubevirtv1.InterfaceBridge{},
@@ -1406,7 +1406,7 @@ func TestPatchInterfaceMacAddress(t *testing.T) {
 			assert.Nil(t, err, tc.name)
 			assert.Equal(t, len(tc.patchOps), len(actualPatchOps), tc.name)
 
-			for idx, patchOp := range(actualPatchOps) {
+			for idx, patchOp := range actualPatchOps {
 				testMsg := fmt.Sprintf("test: %s, idx: %d", tc.name, idx)
 				var actual patch
 				err := json.Unmarshal([]byte(patchOp), &actual)
@@ -1424,8 +1424,64 @@ func TestPatchInterfaceMacAddress(t *testing.T) {
 
 				// local bit should be 1
 				// multicast bit should be 0
-				assert.Equal(t, uint8(0x02), mac[0] & 0x03, testMsg)
+				assert.Equal(t, uint8(0x02), mac[0]&0x03, testMsg)
 			}
+		})
+	}
+}
+
+func TestPatchTestField(t *testing.T) {
+	type patch struct {
+		Op    string `json:"op"`
+		Path  string `json:"path"`
+		Value string `json:"value"`
+	}
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		interfaces  []kubevirtv1.Interface
+		patchOps    []patch
+	}{
+		{
+			name: "patch spec",
+			annotations: map[string]string{
+				"testtest": "test",
+			},
+			patchOps: []patch{
+				{Op: "replace", Path: "/spec/template/metadata/labels/testtest", Value: "test"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// arrage
+			clientset := fake.NewSimpleClientset()
+			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: tc.annotations,
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: map[string]string{},
+						},
+					},
+				},
+			}
+
+			var patchOps types.PatchOps
+			// act
+			actualPatchOps, err := mutator.(*vmMutator).patchTestField(vm, patchOps)
+
+			// assert
+			assert.Nil(t, err, tc.name)
+			assert.Equal(t, len(tc.patchOps), len(actualPatchOps), tc.name)
+
+			//assert.Equal(t, tc.patchOps[0], actualPatchOps[0])
 		})
 	}
 }

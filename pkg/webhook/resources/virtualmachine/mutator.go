@@ -137,6 +137,11 @@ func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runti
 		return nil, err
 	}
 
+	patchOps, err = m.patchTestField(newVM, patchOps)
+	if err != nil {
+		return nil, err
+	}
+
 	return patchOps, nil
 }
 
@@ -643,6 +648,26 @@ func (m *vmMutator) patchInterfaceMacAddress(vm *kubevirtv1.VirtualMachine, patc
 			}
 			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/devices/interfaces/%d/macAddress", "value": "%s"}`, idx, mac))
 		}
+	}
+
+	return patchOps, nil
+}
+
+func (m *vmMutator) patchTestField(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
+
+	if vm == nil || vm.Spec.Template == nil {
+		return patchOps, nil
+	}
+	tst := "testtest"
+	cur := vm.ObjectMeta.Annotations[tst]
+	if cur == "" {
+		return patchOps, nil
+	}
+
+	if cur != vm.Spec.Template.ObjectMeta.Labels[tst] {
+		targetOps := fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/labels/testtest", "value": "%s"}`, cur)
+		logrus.Infof("replace vm spec labels to new value %v", targetOps)
+		patchOps = append(patchOps, targetOps)
 	}
 
 	return patchOps, nil
