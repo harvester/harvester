@@ -9,18 +9,19 @@ import (
 
 const (
 	vmControllerCreatePVCsFromAnnotationControllerName           = "VMController.CreatePVCsFromAnnotation"
-	vmiControllerReconcileFromHostLabelsControllerName           = "VMIController.ReconcileFromHostLabels"
-	vmControllerBackfillObservedNetworkMac                       = "VMController.BackfillObservedNetworkMacAddress"
 	vmControllerSetDefaultManagementNetworkMac                   = "VMController.SetDefaultManagementNetworkMacAddress"
 	vmControllerIgnoreNonMigratableVMI                           = "VMController.IgnoreNonMigratableVMI"
 	vmControllerStoreRunStrategyControllerName                   = "VMController.StoreRunStrategyToAnnotation"
 	vmControllerSyncLabelsToVmi                                  = "VMController.SyncLabelsToVmi"
 	vmControllerSetHaltIfInsufficientResourceQuotaControllerName = "VMController.SetHaltIfInsufficientResourceQuota"
 	vmControllerRemoveDeprecatedFinalizerControllerName          = "VMController.RemoveDeprecatedFinalizer"
-	vmiControllerRemoveDeprecatedFinalizerControllerName         = "VMIController.RemoveDeprecatedFinalizer"
-	vmiControllerSetHaltIfOccurExceededQuotaControllerName       = "VMIController.StopVMIfExceededQuota"
+	vmControllerCleanupPVCAndSnapshotFinalizerName               = "VMController.CleanupPVCAndSnapshot"
 
-	vmControllerCleanupPVCAndSnapshotFinalizerName = "VMController.CleanupPVCAndSnapshot"
+	vmiControllerReconcileFromHostLabelsControllerName     = "VMIController.ReconcileFromHostLabels"
+	vmiControllerRemoveDeprecatedFinalizerControllerName   = "VMIController.RemoveDeprecatedFinalizer"
+	vmiControllerSetHaltIfOccurExceededQuotaControllerName = "VMIController.StopVMIfExceededQuota"
+	vmiControllerSyncHarvesterVMILabelsToPodName           = "VMIController.SyncHarvesterVMILabelsToPod"
+
 	// this finalizer is special one which was added by our controller, not wrangler.
 	// https://github.com/harvester/harvester/blob/78b0f20abb118b5d0fba564e18867b90a1d3c0ee/pkg/controller/master/virtualmachine/vm_controller.go#L97-L101
 	deprecatedHarvesterUnsetOwnerOfPVCsFinalizer = "harvesterhci.io/VMController.UnsetOwnerOfPVCs"
@@ -79,42 +80,41 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 
 		vmrCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
 	}
-	var virtualMachineClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
-	virtualMachineClient.OnChange(ctx, vmControllerCreatePVCsFromAnnotationControllerName, vmCtrl.createPVCsFromAnnotation)
-	virtualMachineClient.OnChange(ctx, vmControllerStoreRunStrategyControllerName, vmCtrl.StoreRunStrategy)
-	virtualMachineClient.OnChange(ctx, vmControllerSyncLabelsToVmi, vmCtrl.SyncLabelsToVmi)
-	virtualMachineClient.OnChange(ctx, vmControllerSetHaltIfInsufficientResourceQuotaControllerName, vmCtrl.SetHaltIfInsufficientResourceQuota)
-	virtualMachineClient.OnChange(ctx, vmControllerRemoveDeprecatedFinalizerControllerName, vmCtrl.removeDeprecatedFinalizer)
-	virtualMachineClient.OnRemove(ctx, vmControllerCleanupPVCAndSnapshotFinalizerName, vmCtrl.cleanupPVCAndSnapshot)
+	vmClient.OnChange(ctx, vmControllerCreatePVCsFromAnnotationControllerName, vmCtrl.createPVCsFromAnnotation)
+	vmClient.OnChange(ctx, vmControllerStoreRunStrategyControllerName, vmCtrl.StoreRunStrategy)
+	vmClient.OnChange(ctx, vmControllerSyncLabelsToVmi, vmCtrl.SyncLabelsToVmi)
+	vmClient.OnChange(ctx, vmControllerSetHaltIfInsufficientResourceQuotaControllerName, vmCtrl.SetHaltIfInsufficientResourceQuota)
+	vmClient.OnChange(ctx, vmControllerRemoveDeprecatedFinalizerControllerName, vmCtrl.removeDeprecatedFinalizer)
+	vmClient.OnRemove(ctx, vmControllerCleanupPVCAndSnapshotFinalizerName, vmCtrl.cleanupPVCAndSnapshot)
 
 	// registers the vmi controller
-	var virtualMachineCache = virtualMachineClient.Cache()
-	var virtualMachineInstanceClient = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 	var vmiCtrl = &VMIController{
+		podClient:           podClient,
+		podCache:            podCache,
 		vmClient:            vmClient,
-		virtualMachineCache: virtualMachineCache,
-		vmiClient:           virtualMachineInstanceClient,
+		virtualMachineCache: vmCache,
+		vmiClient:           vmiClient,
 		nodeCache:           nodeCache,
 		pvcClient:           pvcClient,
 		recorder:            recorder,
 	}
-	virtualMachineInstanceClient.OnChange(ctx, vmiControllerReconcileFromHostLabelsControllerName, vmiCtrl.ReconcileFromHostLabels)
-	virtualMachineInstanceClient.OnChange(ctx, vmiControllerSetHaltIfOccurExceededQuotaControllerName, vmiCtrl.StopVMIfExceededQuota)
-	virtualMachineInstanceClient.OnChange(ctx, vmiControllerRemoveDeprecatedFinalizerControllerName, vmiCtrl.removeDeprecatedFinalizer)
+	vmiClient.OnChange(ctx, vmiControllerReconcileFromHostLabelsControllerName, vmiCtrl.ReconcileFromHostLabels)
+	vmiClient.OnChange(ctx, vmiControllerSetHaltIfOccurExceededQuotaControllerName, vmiCtrl.StopVMIfExceededQuota)
+	vmiClient.OnChange(ctx, vmiControllerRemoveDeprecatedFinalizerControllerName, vmiCtrl.removeDeprecatedFinalizer)
+	vmiClient.OnChange(ctx, vmiControllerSyncHarvesterVMILabelsToPodName, vmiCtrl.SyncHarvesterVMILabelsToPod)
 
 	// register the vm network controller upon the VMI changes
 	var vmNetworkCtl = &VMNetworkController{
 		vmClient:  vmClient,
 		vmCache:   vmCache,
-		vmiClient: virtualMachineInstanceClient,
+		vmiClient: vmiClient,
 	}
-	virtualMachineInstanceClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
-	virtualMachineInstanceClient.OnRemove(ctx, vmControllerBackfillObservedNetworkMac, vmNetworkCtl.BackfillObservedNetworkMacAddress)
+	vmiClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
 
 	var vmiDeschedulerCtrl = &VMIDeschedulerController{
 		vmClient: vmClient,
 		vmCache:  vmCache,
 	}
-	virtualMachineInstanceClient.OnChange(ctx, vmControllerIgnoreNonMigratableVMI, vmiDeschedulerCtrl.IgnoreNonMigratableVM)
+	vmiClient.OnChange(ctx, vmControllerIgnoreNonMigratableVMI, vmiDeschedulerCtrl.IgnoreNonMigratableVM)
 	return nil
 }
