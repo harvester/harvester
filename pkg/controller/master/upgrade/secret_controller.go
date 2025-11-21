@@ -82,7 +82,7 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 
 	switch upgrade.Status.NodeStatuses[nodeName].State {
 	case nodeStateImagesPreloaded:
-		if isPreDrained(secret) {
+		if !isUnderPreDrain(secret) {
 			break
 		}
 		if shouldPauseNodeUpgrade(upgrade, nodeName) {
@@ -100,7 +100,7 @@ func (h *secretHandler) OnChanged(_ string, secret *v1.Secret) (*v1.Secret, erro
 			return nil, err
 		}
 	case nodeStateUpgradePaused:
-		if isPreDrained(secret) {
+		if !isUnderPreDrain(secret) {
 			break
 		}
 		if shouldPauseNodeUpgrade(upgrade, nodeName) {
@@ -186,6 +186,6 @@ func checkEligibleToDrain(upgrade *harvesterv1.Upgrade, nodeName string) error {
 	return nil
 }
 
-func isPreDrained(secret *v1.Secret) bool {
-	return secret.Annotations[rke2PreDrainAnnotation] == secret.Annotations[preDrainAnnotation]
+func isUnderPreDrain(secret *v1.Secret) bool {
+	return secret.Annotations[rke2PreDrainAnnotation] != secret.Annotations[preDrainAnnotation]
 }
