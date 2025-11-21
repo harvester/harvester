@@ -1167,24 +1167,9 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 	}
 
 	var (
-		oldConfig networkutil.Config
-		config    *networkutil.Config
-		err       error
+		config *networkutil.Config
+		err    error
 	)
-	if oldSetting.Default != "" {
-		if err = json.Unmarshal([]byte(oldSetting.Default), &oldConfig); err != nil {
-			logrus.WithError(err).
-				WithField("oldSetting.Default", oldSetting.Default).
-				Warn("Failed to unmarshal old storage-network setting")
-		}
-	}
-	if oldSetting.Value != "" {
-		if err = json.Unmarshal([]byte(oldSetting.Value), &oldConfig); err != nil {
-			logrus.WithError(err).
-				WithField("oldSetting.Value", oldSetting.Value).
-				Warn("Failed to unmarshal old storage-network setting")
-		}
-	}
 	if config, err = v.validateNetworkHelper(settings.StorageNetworkName, newSetting.Default); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
@@ -1193,10 +1178,6 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	} else if valueConfig != nil {
 		config = valueConfig
-	}
-
-	if networkutil.IsConfigEqual(&oldConfig, config) {
-		return nil
 	}
 
 	vmMigraionNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
