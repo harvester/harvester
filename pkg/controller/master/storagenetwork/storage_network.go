@@ -79,6 +79,7 @@ type Handler struct {
 	networkAttachmentDefinitions      ctlcniv1.NetworkAttachmentDefinitionClient
 	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache
 	whereaboutsCNIIPPoolCache         whereaboutscniv1.IPPoolCache
+	whereaboutsCNIIPPoolClient        whereaboutscniv1.IPPoolClient
 	settingsController                ctlharvesterv1.SettingController
 	nodeCache                         ctlcorev1.NodeCache
 }
@@ -113,6 +114,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		networkAttachmentDefinitions:      networkAttachmentDefinitions,
 		networkAttachmentDefinitionsCache: networkAttachmentDefinitions.Cache(),
 		whereaboutsCNIIPPoolCache:         whereaboutsCNI.IPPool().Cache(),
+		whereaboutsCNIIPPoolClient:        whereaboutsCNI.IPPool(),
 		settingsController:                settings,
 		nodeCache:                         node.Cache(),
 	}
@@ -277,6 +279,14 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 	return nadResult, nil
 }
 
+func (h *Handler) cleanUpAndCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachmentDefinition, error) {
+	err := h.cleanUpOldSNIPPool(setting, util.KubeSystemNamespace)
+	if err != nil {
+		return nil, err
+	}
+	return h.createNad(setting)
+}
+
 func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachmentDefinition, error) {
 	nads, err := h.networkAttachmentDefinitions.List(util.StorageNetworkNetAttachDefNamespace, metav1.ListOptions{
 		LabelSelector: labels.Set{
@@ -288,7 +298,7 @@ func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkA
 	}
 
 	if len(nads.Items) == 0 {
-		return h.createNad(setting)
+		return h.cleanUpAndCreateNad(setting)
 	}
 
 	if len(nads.Items) > 1 {
@@ -812,4 +822,29 @@ func (h *Handler) updateLonghornStorageNetwork(storageNetwork string) error {
 		return err
 	}
 	return nil
+}
+
+func (h *Handler) cleanUpOldSNIPPool(setting *harvesterv1.Setting, namespace string) error {
+	var config network.Config
+	if err := json.Unmarshal([]byte(setting.Value), &config); err != nil {
+		return fmt.Errorf("parsing value error %v", err)
+	}
+	ipPoolName := h.cidrToIPPoolName(config.Range)
+
+	logrus.Warnf("Deleting old IPPool: %s", ipPoolName)
+	err := h.whereaboutsCNIIPPoolClient.Delete(namespace, ipPoolName, &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	if err != nil && apierrors.IsNotFound(err) {
+		return nil
+	}
+	return fmt.Errorf("IPPool: %s is being deleted; requeue", ipPoolName)
+}
+
+func (h *Handler) cidrToIPPoolName(cidr string) string {
+	if cidr == "" {
+		return ""
+	}
+	return strings.Replace(cidr, "/", "-", 1)
 }
