@@ -539,7 +539,7 @@ generate_networkmanager_config() {
     if [ -n "$current_paths_line" ]; then
       if ! [[ "$current_paths_line" =~ "/var/lib/NetworkManager" ]]; then
         echo "Adding /var/lib/NetworkManager to PERSISTENT_STATE_PATHS in $CUSTOM90_FILE"
-        sed -i 's%PERSISTENT_STATE_PATHS:.*/var/lib/wicked%& /var/lib/NetworkManager%' $CUSTOM90_FILE
+        sed -i 's%PERSISTENT_STATE_PATHS:.*/var/lib/wicked%& /var/lib/NetworkManager /etc/NetworkManager%' $CUSTOM90_FILE
         local updated_paths_line=$(grep 'PERSISTENT_STATE_PATHS:.*/var/lib/wicked' $CUSTOM90_FILE)
         if ! [[ "$updated_paths_line" =~ "/var/lib/NetworkManager" ]]; then
           echo "Failed to add /var/lib/NetworkManager to PERSISTENT_STATE_PATHS in $CUSTOM90_FILE"
@@ -552,16 +552,9 @@ generate_networkmanager_config() {
     echo "File not found: $CUSTOM90_FILE"
   fi
 
-  # Just in case NetworkManager config has already been generated
-  # and/or potentially modified by the user, let's not overwrite it.
-  if [ -e ${HOST_DIR}/oem/91_networkmanager.yaml ]; then
-    echo "skipping NetworkManager config generation (${HOST_DIR}/oem/91_networkmanager.yaml already exists)"
-    return
-  fi
-
   echo "Generating NetworkManager config..."
   # Whether this succeeds or fails, it will print a message either way...
-  /usr/local/bin/harvester-installer generate-network-yaml --config ${HOST_DIR}/oem/harvester.config --cloud-init ${HOST_DIR}/oem/91_networkmanager.yaml 2>&1
+  /usr/local/bin/harvester-installer generate-network-config --config ${HOST_DIR}/oem/harvester.config --connection-path ${HOST_DIR}/usr/local/.state/etc-NetworkManager.bind/system-connections 2>&1
   # ...but because we're running with set -e, if the above fails, the script
   # will abort, and the rest of the OS upgrade will not proceed.  If that
   # happens, the upgrade job will probably be re-run indefinitely.  Is it
