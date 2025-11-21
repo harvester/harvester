@@ -1465,11 +1465,7 @@ func (v *settingValidator) checkLeftoverPodIPs(oldSetting, newSetting *v1beta1.S
 		return nil
 	}
 
-	if oldSetting.Value != "" && newSetting.Value == "" {
-		return nil
-	}
-
-	if oldSetting.Value != "" && newSetting.Value != "" {
+	if !isSettingBeingEnabled(oldSetting.Value, newSetting.Value) {
 		return nil
 	}
 
@@ -1486,13 +1482,18 @@ func (v *settingValidator) checkLeftoverPodIPs(oldSetting, newSetting *v1beta1.S
 	return nil
 }
 
+// isSettingBeingEnabled checks if a setting is transitioning from unset (empty) to set (non-empty).
+// This is useful for validating conditions that should only apply when initially enabling a feature.
+func isSettingBeingEnabled(oldValue, newValue string) bool {
+	return oldValue == "" && newValue != ""
+}
+
 func filterPodsByStorageNetwork(pods []*corev1.Pod) []string {
 	podsFromStorageNetwork := make([]string, 0)
 	for _, pod := range pods {
 		networkInterface := pod.Annotations[string(lhmtypes.CNIAnnotationNetworkStatus)]
 		if networkInterface != "" && isPartOfStorageNetwork(networkInterface) {
 			podsFromStorageNetwork = append(podsFromStorageNetwork, pod.Name)
-			continue
 		}
 	}
 	return podsFromStorageNetwork

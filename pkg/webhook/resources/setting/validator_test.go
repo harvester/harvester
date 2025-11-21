@@ -18,11 +18,9 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/webhook/types"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester-network-controller/pkg/utils"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func Test_validateOvercommitConfig(t *testing.T) {

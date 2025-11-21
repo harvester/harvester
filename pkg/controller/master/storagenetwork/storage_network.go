@@ -279,6 +279,14 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 	return nadResult, nil
 }
 
+func (h *Handler) cleanUpAndCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachmentDefinition, error) {
+	err := h.cleanUpOldSNIPPool(setting, util.KubeSystemNamespace)
+	if err != nil {
+		return nil, err
+	}
+	return h.createNad(setting)
+}
+
 func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachmentDefinition, error) {
 	nads, err := h.networkAttachmentDefinitions.List(util.StorageNetworkNetAttachDefNamespace, metav1.ListOptions{
 		LabelSelector: labels.Set{
@@ -290,11 +298,7 @@ func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkA
 	}
 
 	if len(nads.Items) == 0 {
-		err := h.cleanUpOldSNIPPool(setting, util.KubeSystemNamespace)
-		if err != nil {
-			return nil, err
-		}
-		return h.createNad(setting)
+		return h.cleanUpAndCreateNad(setting)
 	}
 
 	if len(nads.Items) > 1 {
