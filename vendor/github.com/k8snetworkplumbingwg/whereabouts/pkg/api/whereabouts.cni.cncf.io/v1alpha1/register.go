@@ -58,6 +58,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&IPPoolList{},
 		&OverlappingRangeIPReservation{},
 		&OverlappingRangeIPReservationList{},
+		&NodeSlicePool{},
+		&NodeSlicePoolList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

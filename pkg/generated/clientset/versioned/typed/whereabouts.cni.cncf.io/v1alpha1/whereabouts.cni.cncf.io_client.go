@@ -29,6 +29,7 @@ import (
 type WhereaboutsV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	IPPoolsGetter
+	NodeSlicePoolsGetter
 	OverlappingRangeIPReservationsGetter
 }
 
@@ -39,6 +40,10 @@ type WhereaboutsV1alpha1Client struct {
 
 func (c *WhereaboutsV1alpha1Client) IPPools() IPPoolInterface {
 	return newIPPools(c)
+}
+
+func (c *WhereaboutsV1alpha1Client) NodeSlicePools(namespace string) NodeSlicePoolInterface {
+	return newNodeSlicePools(c, namespace)
 }
 
 func (c *WhereaboutsV1alpha1Client) OverlappingRangeIPReservations(namespace string) OverlappingRangeIPReservationInterface {
