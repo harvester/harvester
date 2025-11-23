@@ -39,13 +39,14 @@ const (
 
 	nodeStateImagesPreloading       = "Images preloading"
 	nodeStateImagesPreloaded        = "Images preloaded"
+	nodeStateUpgradePaused          = "Node-upgrade paused"
 	nodeStatePreDraining            = "Pre-draining"
 	nodeStatePreDrained             = "Pre-drained"
 	nodeStatePostDraining           = "Post-draining"
 	nodeStateWaitingReboot          = "Waiting Reboot"
 	upgradePlanLabel                = "upgrade.cattle.io/plan"
 	upgradeNodeLabel                = "upgrade.cattle.io/node"
-	upgradeStateLabel               = "harvesterhci.io/upgradeState"
+	upgradeStateLabel               = util.LabelHarvesterUpgradeState
 	upgradeJobTypeLabel             = "harvesterhci.io/upgradeJobType"
 	upgradeCleanupLabel             = "harvesterhci.io/upgradeCleanup"
 	upgradeJobTypePreDrain          = "pre-drain"
@@ -198,6 +199,9 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 
 	if preDrained {
 		toUpdate := secret.DeepCopy()
+		if toUpdate.Annotations == nil {
+			toUpdate.Annotations = make(map[string]string)
+		}
 		toUpdate.Annotations[preDrainAnnotation] = secret.Annotations[rke2PreDrainAnnotation]
 		if _, err := h.secretClient.Update(toUpdate); err != nil {
 			return nil, err
@@ -206,6 +210,9 @@ func (h *jobHandler) syncNodeJob(job *batchv1.Job) (*batchv1.Job, error) {
 
 	if postDrained {
 		toUpdate := secret.DeepCopy()
+		if toUpdate.Annotations == nil {
+			toUpdate.Annotations = make(map[string]string)
+		}
 		toUpdate.Annotations[postDrainAnnotation] = secret.Annotations[rke2PostDrainAnnotation]
 		if _, err := h.secretClient.Update(toUpdate); err != nil {
 			return nil, err
@@ -296,6 +303,9 @@ func (h *jobHandler) syncManifestJob(job *batchv1.Job) (*batchv1.Job, error) {
 
 func (h *jobHandler) setNodeWaitRebootLabel(node *v1.Node, repoInfo *repoinfo.RepoInfo) error {
 	nodeUpdate := node.DeepCopy()
+	if nodeUpdate.Annotations == nil {
+		nodeUpdate.Annotations = make(map[string]string)
+	}
 	nodeUpdate.Annotations[harvesterNodePendingOSImage] = repoInfo.Release.OS
 	_, err := h.nodeClient.Update(nodeUpdate)
 	return err

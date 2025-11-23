@@ -15,5 +15,8 @@ if [[ -z "$(command -v golangci-lint)" ]]; then
 	exit
 fi
 
-echo "Running: golangci-lint run"
-golangci-lint run
+# lint takes time to finish, add a timeout param to increase the duration
+date
+echo "Running: golangci-lint run with --timeout=10m"
+golangci-lint run --timeout=10m
+date

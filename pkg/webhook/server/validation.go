@@ -14,6 +14,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/bundle"
 	"github.com/harvester/harvester/pkg/webhook/resources/bundledeployment"
 	"github.com/harvester/harvester/pkg/webhook/resources/datavolume"
+	"github.com/harvester/harvester/pkg/webhook/resources/deployment"
 	"github.com/harvester/harvester/pkg/webhook/resources/keypair"
 	"github.com/harvester/harvester/pkg/webhook/resources/managedchart"
 	"github.com/harvester/harvester/pkg/webhook/resources/namespace"
@@ -171,6 +172,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.LoggingFactory.Logging().V1beta1().ClusterFlow().Cache(),
 			clients.LoggingFactory.Logging().V1beta1().ClusterOutput().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().UpgradeLog().Cache(),
+			clients.Core.Node().Cache(),
 		),
 		version.NewValidator(),
 		volumesnapshot.NewValidator(
@@ -191,6 +193,10 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		datavolume.NewValidator(
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
+		),
+		deployment.NewValidator(
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
+			clients.AppsFactory.Apps().V1().Deployment().Cache(),
 		),
 	}
 

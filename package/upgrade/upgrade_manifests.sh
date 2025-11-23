@@ -571,23 +571,6 @@ upgrade_rancher() {
     exit 1
   fi
 
-  # Check whether fleet is in values.yaml. If not, add fleet image.
-  local fleet_field_exists=$(yq e '.fleet' values.yaml || echo "null")
-  if [ "$fleet_field_exists" = "null" ]; then
-    echo "Add fleet field to values.yaml"
-    cat >> values.yaml <<EOF
-fleet: |
-  image:
-    repository: rancher/fleet
-    tag: v0.14.0-rc.1
-    imagePullPolicy: IfNotPresent
-  agentImage:
-    repository: rancher/fleet-agent
-    tag: v0.14.0-rc.1
-    imagePullPolicy: IfNotPresent
-EOF
-  fi
-
   # Clusters with witness node should have rancher's replicas set to -2 if the total number of nodes is 3.
   local total_nodes_count=$(kubectl get nodes -o json 2>/dev/null | jq -r '.items | length' || echo 0)
   local witness_nodes_count=$(kubectl get nodes -l "node-role.harvesterhci.io/witness=true" -o json 2>/dev/null | jq -r '.items | length' || echo 0)
@@ -616,7 +599,7 @@ EOF
 
   save_fleet_controller_configmap
 
-  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false"' values.yaml
+  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false,turtles=false,embedded-cluster-api=true"' values.yaml
 
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
   echo "Rancher patch file to be run via helm upgrade"
@@ -1262,6 +1245,43 @@ apply_extra_nonversion_manifests()
   shopt -u nullglob
 }
 
+migrate_longhorn_v1beta1_crds() {
+
+  # reference: https://longhorn.io/docs/1.10.0/important-notes/#upgrade
+  # Harvester v1.6.x -> v1.7.x, Longhorn is upgraded from v1.9.x to v1.10.x
+  echo "Checking if migrating Longhorn v1beta1 CRDs to v1beta2 is required, it only occurs from v1.6.x to v1.7.x upgrade"
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.6\.[0-9]$ ]]; then
+    echo "Skip migrate longhorn v1beta1 CRDs with Harvester version $UPGRADE_PREVIOUS_VERSION"
+    return
+  fi
+
+  # Temporarily disable the Longhorn webhook for CR validation
+  echo "Temporarily disabling the Longhorn webhook validator..."
+  kubectl patch validatingwebhookconfiguration longhorn-webhook-validator \
+      --type=merge \
+      -p "$(kubectl get validatingwebhookconfiguration longhorn-webhook-validator -o json | jq '.webhooks[0].rules |= map(if .apiGroups == ["longhorn.io"] and .resources == ["settings"] then .operations |= map(select(. != "UPDATE")) else . end)')"
+
+  # Find and migrate CRDs with v1beta1 stored versions
+  echo "Starting migration of CRDs that store v1beta1 resources to v1beta2"
+  migration_time="$(date +%Y-%m-%dT%H:%M:%S)"
+  crds=($(kubectl get crd -l app.kubernetes.io/name=longhorn -o json | jq -r '.items[] | select(.status.storedVersions | index("v1beta1")) | .metadata.name'))
+  for crd in "${crds[@]}"; do
+    echo "Migrating ${crd} ..."
+    for name in $(kubectl -n longhorn-system get "$crd" -o jsonpath='{.items[*].metadata.name}'); do
+      echo "migrating ${name} ..."
+      kubectl patch "${crd}" "${name}" -n longhorn-system --type=merge -p='{"metadata":{"annotations":{"migration-time":"'"${migration_time}"'"}}}'
+    done
+
+    kubectl patch crd "${crd}" --type=merge -p '{"status":{"storedVersions":["v1beta2"]}}' --subresource=status
+  done
+
+  # Re-enable the Longhorn webhook
+  echo "Re-enabling the CR validation webhook..."
+  kubectl patch validatingwebhookconfiguration longhorn-webhook-validator \
+      --type=merge \
+      -p "$(kubectl get validatingwebhookconfiguration longhorn-webhook-validator -o json | jq '.webhooks[0].rules |= map(if .apiGroups == ["longhorn.io"] and .resources == ["settings"] then .operations |= (. + ["UPDATE"] | unique) else . end)')"
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -1271,6 +1291,7 @@ skip_restart_rancher_system_agent
 upgrade_rancher
 patch_local_cluster_details
 update_local_rke_state_secret
+migrate_longhorn_v1beta1_crds
 upgrade_harvester_cluster_repo
 ensure_ingress_class_name
 apply_extra_nonversion_manifests

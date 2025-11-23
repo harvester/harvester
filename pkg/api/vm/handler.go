@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	kubevirtmultus "kubevirt.io/kubevirt/pkg/network/multus"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
 	apiutil "github.com/harvester/harvester/pkg/api/util"
@@ -50,7 +51,9 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
+	"github.com/harvester/harvester/pkg/util/virtualmachine"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
+	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 )
 
 const (
@@ -213,6 +216,20 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `volumeName` are required")
 		}
 		return nil, h.removeVolume(r.Context(), namespace, name, input)
+	case addNic:
+		var input AddNicInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		return nil, h.addNic(r.Context(), namespace, name, input)
+	case removeNic:
+		var input RemoveNicInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		return nil, h.removeNic(r.Context(), namespace, name, input)
+	case findHotunpluggableNics:
+		return nil, h.findHotunpluggableNics(rw, namespace, name)
 	case cloneVM:
 		var input CloneInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -318,7 +335,7 @@ func (h *vmActionHandler) startPreCheck(namespace, name string) error {
 			if err != nil {
 				return err
 			}
-			if volumeapi.IsResizing(pvc) {
+			if volumeapi.IsResizing(pvc, h.storageClassCache) {
 				return fmt.Errorf("can not start the VM %s/%s which has a resizing volume %s/%s", vm.Namespace, vm.Name, pvcNamespace, pvcName)
 			}
 		}
@@ -1162,6 +1179,154 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 
 		return h.updateVMVolumeClaimTemplate(vm, removeVolumeClaimTemplate)
 	})
+}
+
+func (h *vmActionHandler) getVmNetwork(name, vmNamespaceFallback string) (*cniv1.NetworkAttachmentDefinition, error) {
+	nadNamespacedName := kubevirtmultus.NetAttachDefNamespacedName(vmNamespaceFallback, name)
+	nad, err := h.nadCache.Get(nadNamespacedName.Namespace, nadNamespacedName.Name)
+	if err != nil {
+		return nil, err
+	}
+	return nad, nil
+}
+
+func isVmNetworkHotpluggable(nad *cniv1.NetworkAttachmentDefinition) (bool, error) {
+	if nad.DeletionTimestamp != nil {
+		return false, nil
+	}
+
+	// nads created by system are not hotpluggable
+	// they were used for special cases, like migration network or storage network
+	if util.IsNadCreatedBySystem(nad) {
+		return false, nil
+	}
+
+	conf, err := util.DecodeNadConfigToNetConf(nad)
+	if err != nil {
+		return false, err
+	}
+
+	if !conf.IsBridgeCNI() {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// addNic add a hotplug NIC with given interface name and network name.
+func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, input AddNicInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	nad, err := h.getVmNetwork(input.NetworkName, namespace)
+	if err != nil {
+		return err
+	}
+
+	ok, err := isVmNetworkHotpluggable(nad)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("network %s is not hot-pluggable", input.NetworkName)
+	}
+
+	vmCopy := vm.DeepCopy()
+
+	newIface := kubevirtv1.Interface{
+		Name:                   input.InterfaceName,
+		MacAddress:             input.MacAddress,
+		Model:                  kubevirtv1.VirtIO,
+		InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{Bridge: &kubevirtv1.InterfaceBridge{}},
+	}
+	vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces = append(vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces, newIface)
+
+	newNetwork := kubevirtv1.Network{
+		Name:          input.InterfaceName,
+		NetworkSource: kubevirtv1.NetworkSource{Multus: &kubevirtv1.MultusNetwork{NetworkName: input.NetworkName}},
+	}
+	vmCopy.Spec.Template.Spec.Networks = append(vmCopy.Spec.Template.Spec.Networks, newNetwork)
+
+	_, err = h.vms.Update(vmCopy)
+	if err != nil {
+		return err
+	}
+
+	logrus.Infof("VM %s/%s has interface %s backed by network %s hot-plugged", namespace, name, input.InterfaceName, input.NetworkName)
+
+	// https://kubevirt.io/user-guide/network/hotplug_interfaces/#migration-based-hotplug
+	// Although it's not required to manually migrate the VM as mentioned in the document,
+	// we still immediately call the migration here for better UX instead of waiting KubeVirt to discover and reconcile.
+	return h.migrate(ctx, namespace, name, "")
+}
+
+// removeNic remove a hotplug NIC by its interface name
+func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string, input RemoveNicInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	if _, err := virtualmachine.SupportHotUnplugNic(vm); err != nil {
+		return err
+	}
+
+	vmCopy := vm.DeepCopy()
+
+	found := false
+	interfaces := vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces
+	for idx := range interfaces {
+		if interfaces[idx].Name == input.InterfaceName {
+			if ok, _ := virtualmachine.IsInterfaceHotUnpluggable(interfaces[idx]); ok {
+				interfaces[idx].State = kubevirtv1.InterfaceStateAbsent
+				found = true
+				break
+			}
+			return fmt.Errorf("interface %s is not hot-unpluggable", input.InterfaceName)
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("interface %s doesn't exist", input.InterfaceName)
+	}
+
+	_, err = h.vms.Update(vmCopy)
+	if err != nil {
+		return err
+	}
+
+	logrus.Infof("VM %s/%s has interface %s hot-unplugged", namespace, name, input.InterfaceName)
+
+	// https://kubevirt.io/user-guide/network/hotplug_interfaces/#migration-based-hotplug
+	// Although it's not required to manually migrate the VM as mentioned in the document,
+	// we still immediately call the migration here for better UX instead of waiting KubeVirt to discover and reconcile.
+	return h.migrate(ctx, namespace, name, "")
+}
+
+// findHotunpluggableNics return a list of NIC names that could be hot-unplugged
+func (h *vmActionHandler) findHotunpluggableNics(rw http.ResponseWriter, namespace, name string) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	ifaceNames := make([]string, 0)
+	if ok, _ := virtualmachine.SupportHotUnplugNic(vm); ok {
+		iterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
+		for _, iface := range iterfaces {
+			if ok, _ := virtualmachine.IsInterfaceHotUnpluggable(iface); ok {
+				ifaceNames = append(ifaceNames, iface.Name)
+			}
+		}
+	}
+	resp := FindHotunpluggableNicsOutput{
+		Interfaces: ifaceNames,
+	}
+
+	util.ResponseOKWithBody(rw, resp)
+	return nil
 }
 
 // cloneVM creates a VM which uses volume cloning from the source VM.

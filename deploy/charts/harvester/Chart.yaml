@@ -34,38 +34,35 @@ dependencies:
       - cdi
       - crd
   - name: harvester-network-controller
-    version: 1.7.0-dev.0
+    version: 1.8.0-dev.0
     repository: https://charts.harvesterhci.io
     condition: harvester-network-controller.enabled
   - name: harvester-networkfs-manager
-    version: 1.7.0-dev.0
+    version: 1.8.0-dev.0
     repository: https://charts.harvesterhci.io
     condition: harvester-networkfs-manager.enabled
   - name: harvester-node-disk-manager
-    version: 1.7.0-dev.1
+    version: 1.8.0-dev.0
     repository: https://charts.harvesterhci.io
     condition: harvester-node-disk-manager.enabled
   - name: csi-snapshotter
-    version: 0.2.0
+    version: 0.3.0
     repository: file://dependency_charts/csi-snapshotter
     condition: csi-snapshotter.enabled
   - name: longhorn
-    version: 1.10.0
+    version: 1.10.1
     repository: https://charts.longhorn.io
     condition: longhorn.enabled
   - name: kube-vip
     version: 0.8.0
     repository: https://kube-vip.github.io/helm-charts
   - name: harvester-load-balancer
-    version: 1.7.0-dev.0
+    version: 1.8.0-dev.0
     repository: https://charts.harvesterhci.io
   - name: whereabouts
     version: 0.1.1
     repository: file://dependency_charts/whereabouts
     condition: whereabouts.enabled
   - name: harvester-node-manager
-    version: 1.7.0-dev.0
+    version: 1.8.0-dev.0
     repository: https://charts.harvesterhci.io
-  - name: snapshot-validation-webhook
-    version: 0.2.0
-    repository: file://dependency_charts/snapshot-validation-webhook

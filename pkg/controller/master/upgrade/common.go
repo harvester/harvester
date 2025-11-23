@@ -1,6 +1,7 @@
 package upgrade
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -52,6 +53,33 @@ if [ "$ret" -ne 0 ]; then
 fi
 `
 )
+
+func getNodeUpgradePauseMap(upgrade *harvesterv1.Upgrade) (map[string]string, error) {
+	if upgrade.Annotations == nil {
+		return nil, nil
+	}
+
+	value, ok := upgrade.Annotations[util.AnnotationNodeUpgradePauseMap]
+	if !ok {
+		return nil, nil
+	}
+
+	var pauseMap map[string]string
+	if err := json.Unmarshal([]byte(value), &pauseMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal node upgrade pause map: %w", err)
+	}
+
+	return pauseMap, nil
+}
+
+func shouldPauseNodeUpgrade(upgrade *harvesterv1.Upgrade, nodeName string) bool {
+	pauseMap, err := getNodeUpgradePauseMap(upgrade)
+	if err != nil || pauseMap == nil {
+		return false
+	}
+
+	return pauseMap[nodeName] == util.NodePause
+}
 
 func setNodeUpgradeStatus(upgrade *harvesterv1.Upgrade, nodeName string, state, reason, message string) {
 	if upgrade == nil {

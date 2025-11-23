@@ -933,7 +933,7 @@ func getSystemCerts() *x509.CertPool {
 
 func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachineBackup) bool {
 	for _, vmBackup := range vmBackups {
-		if vmBackup.DeletionTimestamp != nil || vmBackup.Status == nil || !*vmBackup.Status.ReadyToUse {
+		if vmBackup.DeletionTimestamp != nil || vmBackup.Status.ReadyToUse == nil || !*vmBackup.Status.ReadyToUse {
 			return true
 		}
 	}
@@ -942,7 +942,7 @@ func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachine
 
 func hasVMRestoreInCreatingOrDeletingProgress(vmRestores []*v1beta1.VirtualMachineRestore) bool {
 	for _, vmRestore := range vmRestores {
-		if vmRestore.DeletionTimestamp != nil || vmRestore.Status == nil || !*vmRestore.Status.Complete {
+		if vmRestore.DeletionTimestamp != nil || vmRestore.Status.Complete == nil || !*vmRestore.Status.Complete {
 			return true
 		}
 	}
@@ -1499,8 +1499,7 @@ func (v *settingValidator) checkVCSpansAllNodes(config *networkutil.Config) erro
 	//check if vlanconfig contains all the nodes in the cluster
 	for _, node := range nodes {
 		//skip witness nodes which do not run LH Pods
-		isManagement := util.IsManagementRole(node)
-		if util.IsWitnessNode(node, isManagement) {
+		if util.IsWitnessNodeWithoutPromotionStatus(node) {
 			continue
 		}
 
@@ -1814,7 +1813,61 @@ func validateUpgradeConfigHelper(setting *v1beta1.Setting) (*settings.UpgradeCon
 	return config, nil
 }
 
-func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
+func checkNodesDuplicates(nodeNames []string) error {
+	duplicates := ds.SliceFindDuplicates(nodeNames)
+	if len(duplicates) > 0 {
+		errMsg := fmt.Sprintf("duplicate pause node names: %v", duplicates)
+		logrus.Errorf("%s", errMsg)
+		return fmt.Errorf("%s", errMsg)
+	}
+	return nil
+}
+
+func (v *settingValidator) checkNodesExist(nodeNames []string) error {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	existingNodes := make(map[string]struct{}, len(nodes))
+	for _, node := range nodes {
+		existingNodes[node.Name] = struct{}{}
+	}
+
+	var missing []string
+	for _, name := range nodeNames {
+		if _, exists := existingNodes[name]; !exists {
+			missing = append(missing, name)
+		}
+	}
+
+	if len(missing) > 0 {
+		return werror.NewBadRequest(fmt.Sprintf("nodes not found: %v", missing))
+	}
+
+	return nil
+}
+
+func (v *settingValidator) checkNodeUpgradeOption(nodeUpgradeOption *settings.NodeUpgradeOption) error {
+	if nodeUpgradeOption == nil || nodeUpgradeOption.Strategy == nil || nodeUpgradeOption.Strategy.Mode == nil {
+		return nil
+	}
+
+	modeType := *nodeUpgradeOption.Strategy.Mode
+	switch modeType {
+	case settings.AutoType, settings.ManualType:
+	default:
+		return fmt.Errorf("invalid node upgrade strategy mode: %s", modeType)
+	}
+
+	if err := checkNodesDuplicates(nodeUpgradeOption.Strategy.PauseNodes); err != nil {
+		return err
+	}
+
+	return v.checkNodesExist(nodeUpgradeOption.Strategy.PauseNodes)
+}
+
+func (v *settingValidator) validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 	upgradeConfig, err := validateUpgradeConfigHelper(setting)
 	if err != nil {
 		return err
@@ -1839,6 +1892,10 @@ func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 		return fmt.Errorf("invalid image preload concurrency: %d", concurrency)
 	}
 
+	if err := v.checkNodeUpgradeOption(upgradeConfig.NodeUpgradeOption); err != nil {
+		return err
+	}
+
 	// If LogReadyTimeout is not set by the user, JSON unmarshalling will set it to 0 by default.
 	// We return nil in that case from the perspective of unit tests
 	timeoutStr := upgradeConfig.LogReadyTimeout
@@ -1859,7 +1916,7 @@ func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 }
 
 func (v *settingValidator) validateUpgradeConfig(setting *v1beta1.Setting) error {
-	return validateUpgradeConfigFields(setting)
+	return v.validateUpgradeConfigFields(setting)
 }
 
 func (v *settingValidator) validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {

@@ -60,3 +60,70 @@ func SupportCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
 
 	return strings.ToLower(vm.Annotations[util.AnnotationEnableCPUAndMemoryHotplug]) == "true"
 }
+
+func supportNicHotActionCommon(vm *kubevirtv1.VirtualMachine) (bool, error) {
+	if vm == nil {
+		return false, fmt.Errorf("vm shouldn't be nil")
+	}
+
+	// for stability, guest cluster VMs aren't allowed until integration with Rancher Manger is done
+	if vm.Labels != nil && vm.Labels[util.LabelVMCreator] == util.VirtualMachineCreatorNodeDriver {
+		return false, fmt.Errorf("%s/%s doesn't support both HotPlugNic and HotUnplugNic as it is a guest cluster node", vm.Namespace, vm.Name)
+	}
+
+	// to prevent unexpected RestartRequired condition due to missing macAddress in VM spec,
+	// caused by our existing implmentation for preserving MAC addresses, VMs without macAddress defined in VM spec are not allowed
+	// until backfilling MAC addresses to VM spec while stopping VM by the new reconciliation logic
+	for _, iface := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
+		if iface.MacAddress == "" {
+			return false, fmt.Errorf("%s/%s doesn't support both HotPlugNic and HotUnplugNic as macAddress is missing for some interfaces in the VM spec", vm.Namespace, vm.Name)
+		}
+	}
+
+	return true, nil
+}
+
+func SupportHotplugNic(vm *kubevirtv1.VirtualMachine) (bool, error) {
+	return supportNicHotActionCommon(vm)
+}
+
+func IsInterfaceHotUnpluggable(iface kubevirtv1.Interface) (bool, error) {
+	if iface.State == kubevirtv1.InterfaceStateAbsent {
+		return false, fmt.Errorf("%s was already registered for hot-unplugging", iface.Name)
+	}
+
+	if iface.Bridge == nil {
+		return false, fmt.Errorf("%s is not in bridge mode", iface.Name)
+	}
+
+	if iface.Model != "" && iface.Model != kubevirtv1.VirtIO {
+		return false, fmt.Errorf("%s is not using virtio model", iface.Name)
+	}
+
+	return true, nil
+}
+
+func SupportHotUnplugNic(vm *kubevirtv1.VirtualMachine) (bool, error) {
+	if _, err := supportNicHotActionCommon(vm); err != nil {
+		return false, err
+	}
+
+	ifaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
+	if len(ifaces) <= 1 {
+		return false, fmt.Errorf("%s/%s doesn't support HotUnplugNic as it has only one nic", vm.Namespace, vm.Name)
+	}
+
+	errMsgs := make([]string, 0)
+	for _, iface := range ifaces {
+		ok, err := IsInterfaceHotUnpluggable(iface);
+		if ok {
+			// as long as there is at least one hot-unpluggable interface
+			return true, nil
+		}
+		if err != nil {
+			errMsgs = append(errMsgs, err.Error())
+		}
+	}
+
+	return false, fmt.Errorf("%s/%s doesn't support HotUnplugNic as none of its interfaces is hot-unpluggable: %s", vm.Namespace, vm.Name, strings.Join(errMsgs, ", "))
+}

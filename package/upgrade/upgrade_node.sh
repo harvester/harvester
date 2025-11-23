@@ -532,6 +532,26 @@ generate_networkmanager_config() {
     return
   fi
 
+  local CUSTOM90_FILE="${HOST_DIR}/oem/90_custom.yaml"
+  if [[ -f "$CUSTOM90_FILE" ]]; then
+    # We need to ensure /var/lib/NetworkManager is in the list of persistent paths
+    local current_paths_line=$(grep 'PERSISTENT_STATE_PATHS:.*/var/lib/wicked' $CUSTOM90_FILE)
+    if [ -n "$current_paths_line" ]; then
+      if ! [[ "$current_paths_line" =~ "/var/lib/NetworkManager" ]]; then
+        echo "Adding /var/lib/NetworkManager to PERSISTENT_STATE_PATHS in $CUSTOM90_FILE"
+        sed -i 's%PERSISTENT_STATE_PATHS:.*/var/lib/wicked%& /var/lib/NetworkManager%' $CUSTOM90_FILE
+        local updated_paths_line=$(grep 'PERSISTENT_STATE_PATHS:.*/var/lib/wicked' $CUSTOM90_FILE)
+        if ! [[ "$updated_paths_line" =~ "/var/lib/NetworkManager" ]]; then
+          echo "Failed to add /var/lib/NetworkManager to PERSISTENT_STATE_PATHS in $CUSTOM90_FILE"
+        fi
+      fi
+    else
+      echo "Unable to find expected PERSISTENT_STATE_PATHS line in $CUSTOM90_FILE"
+    fi
+  else
+    echo "File not found: $CUSTOM90_FILE"
+  fi
+
   # Just in case NetworkManager config has already been generated
   # and/or potentially modified by the user, let's not overwrite it.
   if [ -e ${HOST_DIR}/oem/91_networkmanager.yaml ]; then
@@ -648,8 +668,10 @@ EOF
       thirdPartyArgs=$(echo ${thirdPartyArgs} | xargs)
       chroot $HOST_DIR grub2-editenv /oem/grubenv set third_party_kernel_args="${thirdPartyArgs}"
     fi
-    # add cloud-init directive to disable multipathing for longhorn
-    cat > ${HOST_DIR}/oem/99_disable_lh_multipathd.yaml << EOF
+  fi
+
+    # add cloud-init directive to disable multipathing for longhorn as default behaviour
+  cat > ${HOST_DIR}/oem/99_disable_lh_multipathd.yaml << EOF
 name: "disable longhorn multipathing"
 stages:
    initramfs:
@@ -669,12 +691,10 @@ stages:
          permissions: 420
          owner: 0
          group: 0
-         content: W1VuaXRdCkRlc2NyaXB0aW9uPURldmljZS1NYXBwZXIgTXVsdGlwYXRoIERldmljZSBDb250cm9sbGVyCkJlZm9yZT1sdm0yLWFjdGl2YXRpb24tZWFybHkuc2VydmljZQpCZWZvcmU9bG9jYWwtZnMtcHJlLnRhcmdldCBibGstYXZhaWxhYmlsaXR5LnNlcnZpY2Ugc2h1dGRvd24udGFyZ2V0CldhbnRzPXN5c3RlbWQtdWRldmQta2VybmVsLnNvY2tldApBZnRlcj1zeXN0ZW1kLXVkZXZkLWtlcm5lbC5zb2NrZXQKQWZ0ZXI9bXVsdGlwYXRoZC5zb2NrZXQgc3lzdGVtZC1yZW1vdW50LWZzLnNlcnZpY2UKQmVmb3JlPWluaXRyZC1jbGVhbnVwLnNlcnZpY2UKRGVmYXVsdERlcGVuZGVuY2llcz1ubwpDb25mbGljdHM9c2h1dGRvd24udGFyZ2V0CkNvbmZsaWN0cz1pbml0cmQtY2xlYW51cC5zZXJ2aWNlCkNvbmRpdGlvbktlcm5lbENvbW1hbmRMaW5lPSFub21wYXRoCkNvbmRpdGlvblZpcnR1YWxpemF0aW9uPSFjb250YWluZXIKCltTZXJ2aWNlXQpUeXBlPW5vdGlmeQpOb3RpZnlBY2Nlc3M9bWFpbgpFeGVjU3RhcnQ9L3NiaW4vbXVsdGlwYXRoZCAtZCAtcwpFeGVjUmVsb2FkPS9zYmluL211bHRpcGF0aGQgcmVjb25maWd1cmUKVGFza3NNYXg9aW5maW5pdHkKCltJbnN0YWxsXQpXYW50ZWRCeT1zeXNpbml0LnRhcmdldA==
+         content: W1VuaXRdCkRlc2NyaXB0aW9uPURldmljZS1NYXBwZXIgTXVsdGlwYXRoIERldmljZSBDb250cm9sbGVyCkJlZm9yZT1sdm0yLWFjdGl2YXRpb24tZWFybHkuc2VydmljZQpCZWZvcmU9bG9jYWwtZnMtcHJlLnRhcmdldCBibGstYXZhaWxhYmlsaXR5LnNlcnZpY2Ugc2h1dGRvd24udGFyZ2V0CldhbnRzPXN5c3RlbWQtdWRldmQta2VybmVsLnNvY2tldCBtb2Rwcm9iZUBkbV9tdWx0aXBhdGguc2VydmljZQpBZnRlcj1zeXN0ZW1kLXVkZXZkLWtlcm5lbC5zb2NrZXQgbW9kcHJvYmVAZG1fbXVsdGlwYXRoLnNlcnZpY2UKQWZ0ZXI9bXVsdGlwYXRoZC5zb2NrZXQgc3lzdGVtZC1yZW1vdW50LWZzLnNlcnZpY2UKQmVmb3JlPWluaXRyZC1jbGVhbnVwLnNlcnZpY2UKRGVmYXVsdERlcGVuZGVuY2llcz1ubwpDb25mbGljdHM9c2h1dGRvd24udGFyZ2V0CkNvbmZsaWN0cz1pbml0cmQtY2xlYW51cC5zZXJ2aWNlCkNvbmRpdGlvbktlcm5lbENvbW1hbmRMaW5lPSFub21wYXRoCkNvbmRpdGlvblZpcnR1YWxpemF0aW9uPSFjb250YWluZXIKCltTZXJ2aWNlXQpUeXBlPW5vdGlmeQpOb3RpZnlBY2Nlc3M9bWFpbgpFeGVjU3RhcnQ9L3Vzci9zYmluL211bHRpcGF0aGQgLWQgLXMKRXhlY1JlbG9hZD0vdXNyL3NiaW4vbXVsdGlwYXRoZCByZWNvbmZpZ3VyZQpUYXNrc01heD1pbmZpbml0eQpMaW1pdFJUUFJJTz0xMApDUFVXZWlnaHQ9MTAwMAoKW0luc3RhbGxdCldhbnRlZEJ5PXN5c2luaXQudGFyZ2V0Cg==
          encoding: base64
          ownerstring: ""
 EOF
-  fi
-
   # SLE Micro 5.5 uses /usr/lib/ssh/sftp-server
   # SL Micro 6.1 uses /usr/libexec/ssh/sftp-server
   if [ -e ${HOST_DIR}/etc/ssh/sshd_config.d/sftp.conf ]; then
