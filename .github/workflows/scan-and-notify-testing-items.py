@@ -257,7 +257,7 @@ def flatten_issues(title, blocks, issues, user_mapping, issue_template_url):
         # Combine issues into chunks of 5
         issue_texts = []
         for i, issue in enumerate(issues):
-            if issue["content"] == {}:
+            if not issue or not issue.get("content"):
                 # example
                 # {'content': {}, 'status': {'name': 'Ready For Testing'}, 'sprint': {'title': 'Sprint 18', 'startDate': '2025-07-07'}}
                 continue
