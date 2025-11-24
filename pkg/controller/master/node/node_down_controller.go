@@ -11,10 +11,15 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
 
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/controller/master/upgrade"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -44,14 +49,18 @@ var (
 type nodeDownHandler struct {
 	nodes     ctlcorev1.NodeController
 	nodeCache ctlcorev1.NodeCache
+
+	upgrades ctlharvesterv1.UpgradeClient
 }
 
 // DownRegister registers a controller to delete VMI when node is down
 func DownRegister(ctx context.Context, management *config.Management, _ config.Options) error {
 	nodes := management.CoreFactory.Core().V1().Node()
+	upgrades := management.HarvesterFactory.Harvesterhci().V1beta1().Upgrade()
 	nodeDownHandler := &nodeDownHandler{
 		nodes:     nodes,
 		nodeCache: nodes.Cache(),
+		upgrades:  upgrades,
 	}
 
 	nodes.OnChange(ctx, nodeDownControllerName, nodeDownHandler.OnNodeChanged)
@@ -95,6 +104,12 @@ func (h *nodeDownHandler) checkNodeReady(node *corev1.Node) error {
 	cond := getNodeCondition(node.Status.Conditions, corev1.NodeReady)
 	if cond == nil {
 		return fmt.Errorf("can't find %s condition in node %s", corev1.NodeReady, node.Name)
+	}
+
+	if isOnUpgrade(h.upgrades) {
+		logrus.Debugf("Node %s is on upgrade, skipping checking node readiness", node.Name)
+		// skip processing during upgrade
+		return nil
 	}
 
 	switch cond.Status {
@@ -152,6 +167,7 @@ func (h *nodeDownHandler) checkNodeReady(node *corev1.Node) error {
 		cond := getNodeCondition(node.Status.Conditions, HarvesterNodeCondDrained)
 		if cond != nil {
 			// remove the condition if exists
+			logrus.Infof("Removing HarvesterNodeDrained condition from node %s", node.Name)
 			if err := h.removeHarvesterNodeDrainedCond(node); err != nil {
 				return fmt.Errorf("failed to reset HarvesterNodeFailure condition for node %s: %w", node.Name, err)
 			}
@@ -327,6 +343,7 @@ func (h *nodeDownHandler) removeTaints(node *corev1.Node, taintKeys ...string) e
 	nodeCpy.Spec.Taints = newTaints
 	var err error
 	if !reflect.DeepEqual(node.Spec.Taints, nodeCpy.Spec.Taints) {
+		logrus.Infof("Removing taints %v from node %s", taintKeys, node.Name)
 		_, err = h.nodes.Update(nodeCpy)
 	}
 	return err
@@ -342,4 +359,25 @@ func getNodeTaint(taints []corev1.Taint, taintKey string) *corev1.Taint {
 		}
 	}
 	return taint
+}
+
+func isOnUpgrade(upgrades ctlharvesterv1.UpgradeClient) bool {
+	req, err := labels.NewRequirement(util.LabelHarvesterUpgradeState, selection.NotIn, []string{upgrade.StateSucceeded, upgrade.StateFailed})
+	if err != nil {
+		logrus.Warnf("Failed to create label requirement for %s: %v", util.LabelHarvesterUpgradeState, err)
+		return false
+	}
+
+	upgradesItems, err := upgrades.List(util.HarvesterSystemNamespaceName, metav1.ListOptions{
+		LabelSelector: labels.NewSelector().Add(*req).String(),
+	})
+	if err != nil {
+		logrus.Warnf("Failed to list upgrades with label %s: %v", util.LabelHarvesterUpgradeState, err)
+		return false
+	}
+	if len(upgradesItems.Items) > 0 {
+		logrus.Debugf("There are ongoing upgrades: %v.", upgradesItems.Items[0].Name)
+		return true
+	}
+	return false
 }
