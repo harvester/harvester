@@ -57,6 +57,8 @@ body:
         - [ ] VM DHCP Controller @starbops
       - Extra Images
         - [ ] VMDP (Virtual Machine Driver Pack for Microsoft Windows) @Vicente-Cheng
+      - Misc
+        - [ ] [Storage Certification Validator](https://github.com/harvester/storage-validator) @ibrokethecloud
         
       > [!Note]
       > `*` means the component version (including the chart versions and/or the image tags) will align with Harvester releases.
