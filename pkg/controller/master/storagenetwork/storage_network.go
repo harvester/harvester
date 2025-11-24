@@ -833,11 +833,11 @@ func (h *Handler) cleanUpOldSNIPPool(setting *harvesterv1.Setting, namespace str
 
 	logrus.Warnf("Deleting old IPPool: %s", ipPoolName)
 	err := h.whereaboutsCNIIPPoolClient.Delete(namespace, ipPoolName, &metav1.DeleteOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-	if err != nil && apierrors.IsNotFound(err) {
+	if apierrors.IsNotFound(err) {
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 	return fmt.Errorf("IPPool: %s is being deleted; requeue", ipPoolName)
 }
