@@ -1258,7 +1258,7 @@ func (h *RestoreHandler) updateStatus(
 	if !vm.Status.Ready {
 		h.recifyProgressBeforeVMStart(restoreCpy)
 		message := "Waiting for target vm to be ready"
-		setCondition(restoreCpy, harvesterv1.BackupConditionProgressing, false, "", message)
+		setCondition(restoreCpy, harvesterv1.BackupConditionProgressing, true, "", message)
 		setCondition(restoreCpy, harvesterv1.BackupConditionReady, false, "", message)
 		if !reflect.DeepEqual(vmRestore, restoreCpy) {
 			if _, err := h.restores.Update(restoreCpy); err != nil {
