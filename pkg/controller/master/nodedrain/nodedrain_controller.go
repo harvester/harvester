@@ -542,11 +542,7 @@ func getUniqueVMSfromConditionMap(vms map[string][]string) []string {
 // - ShutdownAndRestartAfterDisable
 // - Shutdown
 func (ndc *ControllerHandler) listVMILabelMaintainModeStrategy(node *corev1.Node) ([]*kubevirtv1.VirtualMachineInstance, error) {
-	req, err := labels.NewRequirement(util.LabelMaintainModeStrategy, selection.In, []string{
-		util.MaintainModeStrategyShutdownAndRestartAfterEnable,
-		util.MaintainModeStrategyShutdownAndRestartAfterDisable,
-		util.MaintainModeStrategyShutdown,
-	})
+	req, err := labels.NewRequirement(util.LabelMaintainModeStrategy, selection.In, util.MaintainModeStrategyShutdownValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create selector to list VMIs that are to be administratively stopped before migration: %w", err)
 	}
