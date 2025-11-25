@@ -126,12 +126,13 @@ func Test_meetsWorkerRequirement(t *testing.T) {
 	assert.NoError(err, "expected no error while place worker node in drain")
 }
 
-func Test_maintainModeStrategyFilter_Skip(t *testing.T) {
+func Test_maintainModeStrategyFilter_Skip_on_shutdown(t *testing.T) {
 	assert := require.New(t)
 	status := maintainModeStrategyFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Name:      "foo",
 		Namespace: "xyz",
 		Labels: map[string]string{
+			util.LabelVMName:               "foobar",
 			util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdown,
 		},
 	}})
@@ -139,6 +140,36 @@ func Test_maintainModeStrategyFilter_Skip(t *testing.T) {
 	assert.Equal(status.Reason, drain.PodDeleteStatusTypeSkip)
 }
 
+func Test_maintainModeStrategyFilter_Skip_on_shutdown_and_restart_after_enable(t *testing.T) {
+	assert := require.New(t)
+	status := maintainModeStrategyFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      "foo",
+		Namespace: "xyz",
+		Labels: map[string]string{
+			util.LabelVMName:               "foobar",
+			util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdownAndRestartAfterEnable,
+		},
+	}})
+	assert.False(status.Delete)
+	assert.Equal(status.Reason, drain.PodDeleteStatusTypeSkip)
+}
+
+func Test_maintainModeStrategyFilter_Skip_on_shutdown_and_restart_after_disable(t *testing.T) {
+	assert := require.New(t)
+	status := maintainModeStrategyFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      "foo",
+		Namespace: "xyz",
+		Labels: map[string]string{
+			util.LabelVMName:               "foobar",
+			util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdownAndRestartAfterDisable,
+		},
+	}})
+	assert.False(status.Delete)
+	assert.Equal(status.Reason, drain.PodDeleteStatusTypeSkip)
+}
+
+// Ensure default maintenance mode strategy behavior is applied, if the
+// maintenance mode strategy label is not set
 func Test_maintainModeStrategyFilter_Okay_1(t *testing.T) {
 	assert := require.New(t)
 	status := maintainModeStrategyFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
@@ -155,7 +186,24 @@ func Test_maintainModeStrategyFilter_Okay_2(t *testing.T) {
 		Name:      "foo",
 		Namespace: "xyz",
 		Labels: map[string]string{
+			util.LabelVMName:               "foobar",
 			util.LabelMaintainModeStrategy: util.MaintainModeStrategyMigrate,
+		},
+	}})
+	assert.True(status.Delete)
+	assert.Equal(status.Reason, drain.PodDeleteStatusTypeOkay)
+}
+
+// Ensure default maintenance mode strategy behavior is applied, if the
+// maintenance mode strategy label contains an invalid value
+func Test_maintainModeStrategyFilter_Okay_3(t *testing.T) {
+	assert := require.New(t)
+	status := maintainModeStrategyFilter(corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      "foo",
+		Namespace: "xyz",
+		Labels: map[string]string{
+			util.LabelVMName:               "foobar",
+			util.LabelMaintainModeStrategy: "invalid",
 		},
 	}})
 	assert.True(status.Delete)

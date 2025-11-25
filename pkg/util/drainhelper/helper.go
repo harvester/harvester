@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/selection"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -151,15 +152,22 @@ func DrainPossible(nodeCache ctlcorev1.NodeCache, node *corev1.Node) error {
 }
 
 func maintainModeStrategyFilter(pod corev1.Pod) drain.PodDeleteStatus {
-	// Ignore VMs that should not be migrated in maintenance mode. These
+	// If this label is set, the Pod belongs to a VM. Otherwise we don't need to
+	// skip the Pod.
+	vmName, vmOk := pod.Labels[util.LabelVMName]
+
+	// Ignore Pods of VMs that should not be migrated in maintenance mode. These
 	// VMs are forcibly shut down when maintenance mode is activated.
 	value, ok := pod.Labels[util.LabelMaintainModeStrategy]
-	if ok && value != util.MaintainModeStrategyMigrate {
+	if vmOk && ok && slices.Contains(util.MaintainModeStrategyShutdownValues, value) {
 		logrus.WithFields(logrus.Fields{
-			"namespace": pod.Namespace,
-			"pod_name":  pod.Name,
-		}).Infof("migration of pod owned by VM %s is skipped because of the label %s",
-			pod.Labels[util.LabelVMName], util.LabelMaintainModeStrategy)
+			"kind":                         "pod",
+			"namespace":                    pod.Namespace,
+			"pod_name":                     pod.Name,
+			util.LabelMaintainModeStrategy: value,
+			util.LabelVMName:               vmName,
+		}).Infof("migration of pod owned by VM %s is skipped because of the label %s with value %s",
+			vmName, util.LabelMaintainModeStrategy, value)
 		return drain.MakePodDeleteStatusSkip()
 	}
 	return drain.MakePodDeleteStatusOkay()
