@@ -208,7 +208,7 @@ func (v *virtualMachineBackupValidator) Delete(_ *types.Request, obj runtime.Obj
 			continue
 		}
 		if v1beta1.BackupConditionProgressing.IsTrue(vmRestore) {
-			return fmt.Errorf("vmrestore %s/%s is in progress", vmRestore.Namespace, vmRestore.Name)
+			return werror.NewBadRequest(fmt.Sprintf("vmrestore %s/%s is in progress", vmRestore.Namespace, vmRestore.Name))
 		}
 	}
 	return nil
