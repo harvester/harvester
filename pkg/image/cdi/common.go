@@ -140,8 +140,14 @@ func fetchImageSize(url string) (int64, error) {
 	}
 	defer rsp.Body.Close()
 
-	contentLengthStr := rsp.Header.Get("Content-Length")
-	if contentLengthStr == "" {
+	var contentLengthStr string
+	if cl := rsp.Header.Get("Content-Length"); cl != "" {
+		contentLengthStr = cl
+	} else if xgcl := rsp.Header.Get("x-goog-stored-content-length"); xgcl != "" {
+		// Fallback to x-goog-stored-content-length if Content-Length is not available
+		contentLengthStr = xgcl
+	} else {
+		// if both headers are missing, return an error
 		return 0, ErrHeaderContentLengthNotFound
 	}
 
