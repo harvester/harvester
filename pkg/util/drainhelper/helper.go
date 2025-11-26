@@ -155,20 +155,21 @@ func maintainModeStrategyFilter(pod corev1.Pod) drain.PodDeleteStatus {
 	// If this label is set, the Pod belongs to a VM. Otherwise we don't need to
 	// skip the Pod.
 	vmName, vmOk := pod.Labels[util.LabelVMName]
-
-	// Ignore Pods of VMs that should not be migrated in maintenance mode. These
-	// VMs are forcibly shut down when maintenance mode is activated.
-	value, ok := pod.Labels[util.LabelMaintainModeStrategy]
-	if vmOk && ok && slices.Contains(util.MaintainModeStrategyShutdownValues, value) {
-		logrus.WithFields(logrus.Fields{
-			"kind":                         "pod",
-			"namespace":                    pod.Namespace,
-			"pod_name":                     pod.Name,
-			util.LabelMaintainModeStrategy: value,
-			util.LabelVMName:               vmName,
-		}).Infof("migration of pod owned by VM %s is skipped because of the label %s with value %s",
-			vmName, util.LabelMaintainModeStrategy, value)
-		return drain.MakePodDeleteStatusSkip()
+	if vmOk {
+		// Ignore Pods of VMs that should not be migrated in maintenance mode. These
+		// VMs are forcibly shut down when maintenance mode is activated.
+		value, ok := pod.Labels[util.LabelMaintainModeStrategy]
+		if ok && slices.Contains(util.MaintainModeStrategyShutdownValues, value) {
+			logrus.WithFields(logrus.Fields{
+				"kind":                         "pod",
+				"namespace":                    pod.Namespace,
+				"pod_name":                     pod.Name,
+				util.LabelMaintainModeStrategy: value,
+				util.LabelVMName:               vmName,
+			}).Infof("migration of pod owned by VM %s is skipped because of the label %s with value %s",
+				vmName, util.LabelMaintainModeStrategy, value)
+			return drain.MakePodDeleteStatusSkip()
+		}
 	}
 	return drain.MakePodDeleteStatusOkay()
 }
