@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"github.com/rancher/norman/condition"
+	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -225,10 +228,12 @@ func (vmio *vmiOperator) UpdateSize(old *harvesterv1.VirtualMachineImage, size i
 }
 
 func (vmio *vmiOperator) UpdateVirtualSizeAndSize(old *harvesterv1.VirtualMachineImage, virtualSize, size int64) (*harvesterv1.VirtualMachineImage, error) {
-	newVMI := old.DeepCopy()
-	newVMI.Status.VirtualSize = virtualSize
-	newVMI.Status.Size = size
-	return vmio.UpdateVMI(old, newVMI)
+	return vmio.updateWithRetry(old, func(vmi *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
+		logrus.Debugf("Updating VMImage %s/%s: virtualSize=%d, size=%d (resourceVersion: %s)", vmi.Namespace, vmi.Name, virtualSize, size, vmi.ResourceVersion)
+		vmi.Status.VirtualSize = virtualSize
+		vmi.Status.Size = size
+		return vmi, nil
+	})
 }
 
 func (vmio *vmiOperator) UpdateLastFailedTime(old *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
@@ -366,4 +371,46 @@ func (vmio *vmiOperator) Imported(old *harvesterv1.VirtualMachineImage, msg stri
 
 func (vmio *vmiOperator) BackingImageMissing(old *harvesterv1.VirtualMachineImage, err error) (*harvesterv1.VirtualMachineImage, error) {
 	return vmio.stateTransit(old, VMImageStateBackingImageMissing, fmt.Sprintf("Failed to get backing image: %s", err.Error()), 0, 0, 0)
+}
+
+func (vmio *vmiOperator) updateWithRetry(old *harvesterv1.VirtualMachineImage, updateFunc func(*harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error)) (*harvesterv1.VirtualMachineImage, error) {
+	namespace := old.Namespace
+	name := old.Name
+	var updatedVMI *harvesterv1.VirtualMachineImage
+
+	backoff := wait.Backoff{
+		Steps:    5,
+		Duration: 1 * time.Second,
+		Factor:   2.0,
+		Jitter:   0.1,
+	}
+
+	err := retry.OnError(backoff, func(err error) bool {
+		// Retry on conflict errors or transient API errors
+		return apierrors.IsConflict(err) || apierrors.IsServerTimeout(err) || apierrors.IsTimeout(err) || apierrors.IsServiceUnavailable(err)
+	}, func() error {
+		// Fetch the latest VMImage before each retry attempt to get the current resource version
+		latestVMI, err := vmio.cache.Get(namespace, name)
+		if err != nil {
+			logrus.Warnf("Failed to get latest VMImage %s/%s: %v", namespace, name, err)
+			return err
+		}
+
+		newVMI, err := updateFunc(latestVMI.DeepCopy())
+		if err != nil {
+			return err
+		}
+
+		updatedVMI, err = vmio.UpdateVMI(latestVMI, newVMI)
+		if err != nil {
+			logrus.Warnf("Failed to update VM Image: %v, will retry if retriable.", err)
+		}
+		return err
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update VM Image after retries: %v", err)
+	}
+
+	return updatedVMI, nil
 }
