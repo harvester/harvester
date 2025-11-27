@@ -2,14 +2,24 @@ package virtualmachine
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
+	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
+	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
+)
+
+var (
+	ErrVolumeIsUsedByOtherVM = fmt.Errorf("the volume is non-shareable and already used by other VMs")
 )
 
 // IsVMStopped checks VM is stopped or not. It will check two cases
@@ -115,7 +125,7 @@ func SupportHotUnplugNic(vm *kubevirtv1.VirtualMachine) (bool, error) {
 
 	errMsgs := make([]string, 0)
 	for _, iface := range ifaces {
-		ok, err := IsInterfaceHotUnpluggable(iface);
+		ok, err := IsInterfaceHotUnpluggable(iface)
 		if ok {
 			// as long as there is at least one hot-unpluggable interface
 			return true, nil
@@ -126,4 +136,41 @@ func SupportHotUnplugNic(vm *kubevirtv1.VirtualMachine) (bool, error) {
 	}
 
 	return false, fmt.Errorf("%s/%s doesn't support HotUnplugNic as none of its interfaces is hot-unpluggable: %s", vm.Namespace, vm.Name, strings.Join(errMsgs, ", "))
+}
+
+// CheckBlockRWXVolumeForVM checks whether the given PVC is a RWX volume (exclude Longhorn) and whether it is already used by other VMs.
+func CheckBlockRWXVolumeForVM(pvcCache v1.PersistentVolumeClaimCache, scCache ctlstoragev1.StorageClassCache, vmCache ctlkubevirtv1.VirtualMachineCache, pvcNS, pvcName, targetVMNS, targetVMName string) error {
+	pvc, err := pvcCache.Get(pvcNS, pvcName)
+	if apierrors.IsNotFound(err) {
+		// means runtime creation, no need to check
+		return nil
+	}
+	if err != nil {
+		// any error here should be raised
+		return fmt.Errorf("failed to get PVC %s/%s, err: %s", pvcNS, pvcName, err)
+	}
+	targetAccessMode := pvc.Spec.AccessModes
+	targetProvisioner := util.GetProvisionedPVCProvisioner(pvc, scCache)
+	if volumeSupportRWXForVM(targetAccessMode, targetProvisioner) {
+		return nil
+	}
+	vms, err := vmCache.GetByIndex(indexeresutil.VMByNonShareablePVCIndex, ref.Construct(pvcNS, pvcName))
+	if err != nil {
+		return fmt.Errorf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByNonShareablePVCIndex, pvcNS, pvcName, err)
+	}
+	for _, otherVM := range vms {
+		if otherVM.Namespace != targetVMNS || otherVM.Name != targetVMName {
+			return ErrVolumeIsUsedByOtherVM
+		}
+	}
+	return nil
+}
+
+func volumeSupportRWXForVM(accessModes []corev1.PersistentVolumeAccessMode, provisioner string) bool {
+	if provisioner == util.CSIProvisionerLonghorn {
+		// Longhorn provisioner does not support RWX volume for VM
+		return false
+	}
+
+	return slices.Contains(accessModes, corev1.ReadWriteMany)
 }
