@@ -32,6 +32,7 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
+	addonutil "github.com/harvester/harvester/pkg/util/addon"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
@@ -52,6 +53,7 @@ const (
 
 func NewValidator(
 	upgrades ctlharvesterv1.UpgradeCache,
+	addons ctlharvesterv1.AddonCache,
 	nodes v1.NodeCache,
 	lhVolumes ctllhv1.VolumeCache,
 	clusters ctlclusterv1.ClusterCache,
@@ -68,6 +70,7 @@ func NewValidator(
 ) types.Validator {
 	return &upgradeValidator{
 		upgrades:          upgrades,
+		addons:            addons,
 		nodes:             nodes,
 		lhVolumes:         lhVolumes,
 		clusters:          clusters,
@@ -88,6 +91,7 @@ type upgradeValidator struct {
 	types.DefaultValidator
 
 	upgrades          ctlharvesterv1.UpgradeCache
+	addons            ctlharvesterv1.AddonCache
 	nodes             v1.NodeCache
 	lhVolumes         ctllhv1.VolumeCache
 	clusters          ctlclusterv1.ClusterCache
@@ -244,6 +248,10 @@ func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 		return err
 	}
 
+	if err := v.checkAddons(); err != nil {
+		return err
+	}
+
 	if err := v.checkNodes(upgrade); err != nil {
 		return err
 	}
@@ -307,10 +315,25 @@ func (v *upgradeValidator) checkManagedCharts() error {
 		for _, condition := range managedChart.Status.Conditions {
 			if condition.Type == fleetv1alpha1.BundleConditionReady {
 				if condition.Status != corev1.ConditionTrue {
-					return werror.NewBadRequest(fmt.Sprintf("managed chart %s is not ready, please wait for it to be ready", managedChart.Name))
+					return werror.NewBadRequest(fmt.Sprintf("managed chart %s is not ready, please wait for it to be ready or fix it", managedChart.Name))
 				}
 				break
 			}
+		}
+	}
+
+	return nil
+}
+
+func (v *upgradeValidator) checkAddons() error {
+	addons, err := v.addons.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("can't list addons, err: %+v", err))
+	}
+
+	for _, addon := range addons {
+		if msg, ok := addonutil.IsAddonOnProcessing(addon); ok {
+			return werror.NewBadRequest(fmt.Sprintf("%s, please wait for it to be ready or fix it", msg))
 		}
 	}
 
