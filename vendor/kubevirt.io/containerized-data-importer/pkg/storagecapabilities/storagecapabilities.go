@@ -80,8 +80,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"kubernetes.io/azure-file": {{rwx, file}},
 	"file.csi.azure.com":       {{rwx, file}},
 	// GCE Persistent Disk
-	"kubernetes.io/gce-pd":  {{rwo, block}},
-	"pd.csi.storage.gke.io": {{rwo, block}},
+	"kubernetes.io/gce-pd":            {{rwo, block}},
+	"pd.csi.storage.gke.io":           {{rwo, block}},
+	"pd.csi.storage.gke.io/hyperdisk": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// Hitachi
 	"hspc.csi.hitachi.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// HPE
@@ -89,15 +90,15 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// IBM HCI/GPFS2 (Spectrum Scale / Spectrum Fusion)
 	"spectrumscale.csi.ibm.com": {{rwx, file}, {rwo, file}},
 	// IBM block arrays (FlashSystem)
-	"block.csi.ibm.com": {{rwo, block}, {rwo, file}},
+	"block.csi.ibm.com": {{rwx, block}, {rwo, block}, {rwo, file}, {rwx, file}},
 	// Portworx in-tree CSI
 	"kubernetes.io/portworx-volume/shared": {{rwx, file}},
 	"kubernetes.io/portworx-volume":        {{rwo, file}},
 	// Portworx CSI
 	"pxd.openstorage.org/shared": createOpenStorageSharedVolumeCapabilities(),
 	"pxd.openstorage.org":        createOpenStorageSharedVolumeCapabilities(),
-	"pxd.portworx.com/shared":    createOpenStorageSharedVolumeCapabilities(),
-	"pxd.portworx.com":           createOpenStorageSharedVolumeCapabilities(),
+	"pxd.portworx.com/shared":    {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
+	"pxd.portworx.com":           {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{rwx, file}, {rwo, file}},
 	"csi.trident.netapp.io/ontap-san": {{rwx, block}},
@@ -112,6 +113,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"csi.ovirt.org": createRWOBlockAndFilesystemCapabilities(),
 	// Infinidat
 	"infinibox-csi-driver/iscsiorfibrechannel": {{rwx, block}, {rwo, block}, {rwo, file}},
+	"infinibox-csi-driver/nvme":                {{rwx, block}, {rwo, block}, {rwo, file}},
 	"infinibox-csi-driver/nfs":                 {{rwx, file}, {rwo, file}},
 	// vSphere
 	"csi.vsphere.vmware.com":     {{rwo, block}, {rwo, file}},
@@ -124,6 +126,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// Longhorn
 	"driver.longhorn.io":            {{rwo, block}},
 	"driver.longhorn.io/migratable": {{rwx, block}, {rwo, block}},
+	// Oracle cloud
+	"blockvolume.csi.oraclecloud.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -133,6 +137,8 @@ var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"openshift-storage.rbd.csi.ceph.com": cdiv1.DataImportCronSourceFormatSnapshot,
 	"csi.trident.netapp.io/ontap-nas":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"csi.trident.netapp.io/ontap-san":    cdiv1.DataImportCronSourceFormatSnapshot,
+	"pd.csi.storage.gke.io":              cdiv1.DataImportCronSourceFormatSnapshot,
+	"pd.csi.storage.gke.io/hyperdisk":    cdiv1.DataImportCronSourceFormatSnapshot,
 }
 
 // CloneStrategyByProvisionerKey defines the advised clone strategy for a provisioner
@@ -140,7 +146,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"csi-vxflexos.dellemc.com":                 cdiv1.CloneStrategyCsiClone,
 	"csi-isilon.dellemc.com":                   cdiv1.CloneStrategyCsiClone,
 	"csi-powermax.dellemc.com":                 cdiv1.CloneStrategyCsiClone,
-	"csi-powerstore.dellemc.com":               cdiv1.CloneStrategyCsiClone,
+	"csi-powerstore.dellemc.com":               cdiv1.CloneStrategyHostAssisted,
 	"hspc.csi.hitachi.com":                     cdiv1.CloneStrategyCsiClone,
 	"csi.hpe.com":                              cdiv1.CloneStrategyCsiClone,
 	"spectrumscale.csi.ibm.com":                cdiv1.CloneStrategyCsiClone,
@@ -155,10 +161,13 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"topolvm.cybozu.com":                       cdiv1.CloneStrategyHostAssisted,
 	"topolvm.io":                               cdiv1.CloneStrategyHostAssisted,
 	"infinibox-csi-driver/iscsiorfibrechannel": cdiv1.CloneStrategyCsiClone,
+	"infinibox-csi-driver/nvme":                cdiv1.CloneStrategyCsiClone,
 	"infinibox-csi-driver/nfs":                 cdiv1.CloneStrategyCsiClone,
 	"csi.trident.netapp.io/ontap-nas":          cdiv1.CloneStrategySnapshot,
 	"csi.trident.netapp.io/ontap-san":          cdiv1.CloneStrategySnapshot,
 	"kubesan.gitlab.io":                        cdiv1.CloneStrategyCsiClone,
+	"pd.csi.storage.gke.io":                    cdiv1.CloneStrategySnapshot,
+	"pd.csi.storage.gke.io/hyperdisk":          cdiv1.CloneStrategySnapshot,
 }
 
 const (
@@ -288,6 +297,8 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		switch sc.Parameters["storage_protocol"] {
 		case "iscsi", "fc":
 			return "infinibox-csi-driver/iscsiorfibrechannel"
+		case "nvme":
+			return "infinibox-csi-driver/nvme"
 		case "nfs", "nfs_treeq":
 			return "infinibox-csi-driver/nfs"
 		default:
@@ -361,6 +372,14 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 			return "ebs.csi.aws.com/io2"
 		}
 		return "ebs.csi.aws.com"
+	},
+	"pd.csi.storage.gke.io": func(sc *storagev1.StorageClass) string {
+		switch sc.Parameters["type"] {
+		case "hyperdisk-balanced", "hyperdisk-balanced-high-availability":
+			return "pd.csi.storage.gke.io/hyperdisk"
+		default:
+			return "pd.csi.storage.gke.io"
+		}
 	},
 }
 
