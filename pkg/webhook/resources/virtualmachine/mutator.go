@@ -17,6 +17,7 @@ import (
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/network"
 	"github.com/harvester/harvester/pkg/util/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -70,12 +71,19 @@ func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patch
 		return patchOps, err
 	}
 
+	patchOps = patchDefaultCPU(vm, patchOps)
+
 	patchOps, err = m.patchAffinity(vm, patchOps)
 	if err != nil {
 		return nil, err
 	}
 
 	patchOps, err = m.patchTerminationGracePeriodSeconds(vm, patchOps)
+	if err != nil {
+		return nil, err
+	}
+
+	patchOps, err = m.patchInterfaceMacAddress(vm, patchOps)
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +111,8 @@ func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runti
 		return patchOps, err
 	}
 
+	patchOps = patchDefaultCPU(newVM, patchOps)
+
 	needUpdateRunStrategy, err := needUpdateRunStrategy(oldVM, newVM)
 	if err != nil {
 		return patchOps, err
@@ -118,6 +128,11 @@ func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runti
 	}
 
 	patchOps, err = m.patchTerminationGracePeriodSeconds(newVM, patchOps)
+	if err != nil {
+		return nil, err
+	}
+
+	patchOps, err = m.patchInterfaceMacAddress(newVM, patchOps)
 	if err != nil {
 		return nil, err
 	}
@@ -579,4 +594,56 @@ func hostDevicesOvercommitNeeded(oldVM, newVM *kubevirtv1.VirtualMachine) bool {
 
 func isDedicatedCPU(vm *kubevirtv1.VirtualMachine) bool {
 	return vm.Spec.Template.Spec.Domain.CPU != nil && vm.Spec.Template.Spec.Domain.CPU.DedicatedCPUPlacement
+}
+
+func patchDefaultCPU(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) []string {
+	cpu := vm.Spec.Template.Spec.Domain.CPU
+	if cpu == nil {
+		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu", "value": {"cores": 1, "sockets": 1, "threads": 1}}`)
+		return patchOps
+	}
+
+	if cpu.Cores == 0 {
+		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/cores", "value": 1}`)
+	}
+
+	if cpu.Sockets == 0 {
+		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/sockets", "value": 1}`)
+	}
+
+	if cpu.Threads == 0 {
+		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/threads", "value": 1}`)
+	}
+
+	return patchOps
+}
+
+func (m *vmMutator) patchInterfaceMacAddress(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
+	if vm == nil || vm.Spec.Template == nil {
+		return patchOps, nil
+	}
+
+	MacAddressInAnnotation := make(map[string]string)
+	if raw, exists := vm.ObjectMeta.Annotations[util.AnnotationMacAddressName]; exists {
+		err := json.Unmarshal([]byte(raw), &MacAddressInAnnotation)
+		if err != nil {
+			logrus.Warnf("unable to unmarshal %s: %s", util.AnnotationMacAddressName, raw)
+		}
+	}
+
+	for idx, iface := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
+		if iface.MacAddress == "" {
+			if mac, exists := MacAddressInAnnotation[iface.Name]; exists {
+				logrus.Debugf("MAC address (%s) has already been observed in the annotation for %s", mac, iface.Name)
+				continue
+			}
+			mac, err := network.GenerateLAAMacAddress()
+			if err != nil {
+				return patchOps, fmt.Errorf("failed to generated proper MAC address for %s with error: %v", iface.Name, err)
+			}
+			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/devices/interfaces/%d/macAddress", "value": "%s"}`, idx, mac))
+		}
+	}
+
+	return patchOps, nil
 }

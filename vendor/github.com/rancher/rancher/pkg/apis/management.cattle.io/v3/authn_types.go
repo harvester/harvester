@@ -27,24 +27,24 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type Token struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Token           string            `json:"token" norman:"writeOnly,noupdate"`
-	UserPrincipal   Principal         `json:"userPrincipal" norman:"type=reference[principal]"`
-	GroupPrincipals []Principal       `json:"groupPrincipals,omitempty" norman:"type=array[reference[principal]]"`
-	ProviderInfo    map[string]string `json:"providerInfo,omitempty"`
-	UserID          string            `json:"userId" norman:"type=reference[user]"`
-	AuthProvider    string            `json:"authProvider"`
-	TTLMillis       int64             `json:"ttl"`
-	LastUpdateTime  string            `json:"lastUpdateTime"`
-	IsDerived       bool              `json:"isDerived"`
-	Description     string            `json:"description"`
-	Expired         bool              `json:"expired"`
-	ExpiresAt       string            `json:"expiresAt"`
-	Current         bool              `json:"current"`
-	ClusterName     string            `json:"clusterName,omitempty" norman:"noupdate,type=reference[cluster]"`
-	Enabled         *bool             `json:"enabled,omitempty" norman:"default=true"`
+	metav1.TypeMeta    `json:",inline"`
+	metav1.ObjectMeta  `json:"metadata,omitempty"`
+	Token              string            `json:"token" norman:"writeOnly,noupdate"`
+	UserPrincipal      Principal         `json:"userPrincipal" norman:"type=reference[principal]"`
+	GroupPrincipals    []Principal       `json:"groupPrincipals,omitempty" norman:"type=array[reference[principal]]"`
+	ProviderInfo       map[string]string `json:"providerInfo,omitempty"`
+	UserID             string            `json:"userId" norman:"type=reference[user]"`
+	AuthProvider       string            `json:"authProvider"`
+	TTLMillis          int64             `json:"ttl"`
+	LastUsedAt         *metav1.Time      `json:"lastUsedAt,omitempty"`
+	ActivityLastSeenAt *metav1.Time      `json:"activityLastSeenAt,omitempty"`
+	IsDerived          bool              `json:"isDerived"`
+	Description        string            `json:"description"`
+	Expired            bool              `json:"expired"`
+	ExpiresAt          string            `json:"expiresAt"`
+	Current            bool              `json:"current"`
+	ClusterName        string            `json:"clusterName,omitempty" norman:"noupdate,type=reference[cluster]"`
+	Enabled            *bool             `json:"enabled,omitempty" norman:"default=true"`
 }
 
 func (t *Token) ObjClusterName() string {
@@ -201,11 +201,16 @@ type AuthConfig struct {
 	metav1.TypeMeta   `json:",inline" mapstructure:",squash"`
 	metav1.ObjectMeta `json:"metadata,omitempty" mapstructure:"metadata"`
 
-	Type                string           `json:"type" norman:"noupdate"`
-	Enabled             bool             `json:"enabled,omitempty"`
-	AccessMode          string           `json:"accessMode,omitempty" norman:"required,notnullable,type=enum,options=required|restricted|unrestricted"`
-	AllowedPrincipalIDs []string         `json:"allowedPrincipalIds,omitempty" norman:"type=array[reference[principal]]"`
-	Status              AuthConfigStatus `json:"status"`
+	Type                string   `json:"type" norman:"noupdate"`
+	Enabled             bool     `json:"enabled,omitempty"`
+	AccessMode          string   `json:"accessMode,omitempty" norman:"required,notnullable,type=enum,options=required|restricted|unrestricted"`
+	AllowedPrincipalIDs []string `json:"allowedPrincipalIds,omitempty" norman:"type=array[reference[principal]]"`
+
+	// Flag. True when the auth provider supports a `Logout All` operation.
+	// Currently only the SAML providers do, with their `Single Log Out` flow.
+	LogoutAllSupported bool `json:"logoutAllSupported,omitempty"`
+
+	Status AuthConfigStatus `json:"status"`
 }
 
 type AuthConfigStatus struct {
@@ -350,6 +355,7 @@ type ActiveDirectoryConfig struct {
 	UserObjectClass              string   `json:"userObjectClass,omitempty"             norman:"default=person,required"`
 	UserNameAttribute            string   `json:"userNameAttribute,omitempty"           norman:"default=name,required"`
 	UserEnabledAttribute         string   `json:"userEnabledAttribute,omitempty"        norman:"default=userAccountControl,required"`
+	UserLoginFilter              string   `json:"userLoginFilter,omitempty"`
 	GroupSearchBase              string   `json:"groupSearchBase,omitempty"`
 	GroupSearchAttribute         string   `json:"groupSearchAttribute,omitempty"        norman:"default=sAMAccountName,required"`
 	GroupSearchFilter            string   `json:"groupSearchFilter,omitempty"`
@@ -406,6 +412,7 @@ type LdapFields struct {
 	UserNameAttribute               string   `json:"userNameAttribute,omitempty"               norman:"default=cn,notnullable,required"`
 	UserMemberAttribute             string   `json:"userMemberAttribute,omitempty"             norman:"default=memberOf,notnullable,required"`
 	UserEnabledAttribute            string   `json:"userEnabledAttribute,omitempty"`
+	UserLoginFilter                 string   `json:"userLoginFilter,omitempty"`
 	GroupSearchBase                 string   `json:"groupSearchBase,omitempty"`
 	GroupSearchAttribute            string   `json:"groupSearchAttribute,omitempty"            norman:"default=cn,notnullable,required"`
 	GroupSearchFilter               string   `json:"groupSearchFilter,omitempty"`
@@ -416,6 +423,7 @@ type LdapFields struct {
 	GroupMemberMappingAttribute     string   `json:"groupMemberMappingAttribute,omitempty"     norman:"default=member,notnullable,required"`
 	ConnectionTimeout               int64    `json:"connectionTimeout,omitempty"               norman:"default=5000,notnullable,required"`
 	NestedGroupMembershipEnabled    bool     `json:"nestedGroupMembershipEnabled"              norman:"default=false"`
+	SearchUsingServiceAccount       bool     `json:"searchUsingServiceAccount"       norman:"default=false"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -475,6 +483,16 @@ type FreeIpaTestAndApplyInput struct {
 type SamlConfig struct {
 	AuthConfig `json:",inline" mapstructure:",squash"`
 
+	// Flag. True when the auth provider is configured to accept a `Logout All`
+	// operation. Can be set if and only if the provider supports `Logout All`
+	// (see AuthConfig.LogoutAllSupported).
+	LogoutAllEnabled bool `json:"logoutAllEnabled,omitempty"`
+
+	// Flag. Can be set if and only if `LogoutAllEnabled` (above) is set.
+	// When set `Logout All` is the only kind of logout accepted. A regular
+	// logout request will be rejected.
+	LogoutAllForced bool `json:"logoutAllForced,omitempty"`
+
 	IDPMetadataContent string `json:"idpMetadataContent" norman:"required"`
 	SpCert             string `json:"spCert"             norman:"required"`
 	SpKey              string `json:"spKey"              norman:"required,type=password"`
@@ -491,6 +509,14 @@ type SamlConfigTestInput struct {
 }
 
 type SamlConfigTestOutput struct {
+	IdpRedirectURL string `json:"idpRedirectUrl"`
+}
+
+type SamlConfigLogoutInput struct {
+	FinalRedirectURL string `json:"finalRedirectUrl"`
+}
+
+type SamlConfigLogoutOutput struct {
 	IdpRedirectURL string `json:"idpRedirectUrl"`
 }
 

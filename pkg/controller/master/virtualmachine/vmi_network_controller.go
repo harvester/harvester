@@ -33,7 +33,7 @@ func (h *VMNetworkController) SetDefaultNetworkMacAddress(id string, vmi *kubevi
 		return vmi, nil
 	}
 
-	err := h.updateVMDefaultNetworkMacAddress(vmi)
+	err := h.updateVMMacAddressAnnotation(vmi)
 	if err != nil {
 		return vmi, err
 	}
@@ -41,7 +41,20 @@ func (h *VMNetworkController) SetDefaultNetworkMacAddress(id string, vmi *kubevi
 	return vmi, nil
 }
 
-func (h *VMNetworkController) updateVMDefaultNetworkMacAddress(vmi *kubevirtv1.VirtualMachineInstance) error {
+func (h *VMNetworkController) BackfillObservedNetworkMacAddress(id string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
+	if vmi == nil {
+		return vmi, nil
+	}
+
+	err := h.updateVMMacAddressFromAnnotation(vmi)
+	if err != nil {
+		return vmi, err
+	}
+
+	return vmi, nil
+}
+
+func (h *VMNetworkController) updateVMMacAddressAnnotation(vmi *kubevirtv1.VirtualMachineInstance) error {
 	vm, err := h.vmCache.Get(vmi.Namespace, vmi.Name)
 	if err != nil {
 		return err
@@ -81,6 +94,60 @@ func (h *VMNetworkController) updateVMDefaultNetworkMacAddress(vmi *kubevirtv1.V
 		if _, err := h.vmClient.Update(vmCopy); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (h *VMNetworkController) updateVMMacAddressFromAnnotation(vmi *kubevirtv1.VirtualMachineInstance) error {
+	vm, err := h.vmCache.Get(vmi.Namespace, vmi.Name)
+	if err != nil {
+		return err
+	}
+
+	// no need to patch VM spec when both VM and VMI are registered for deletion
+	if vm.DeletionTimestamp != nil {
+		return nil
+	}
+
+	macAddressFromAnnotation, exists := vm.Annotations[util.AnnotationMacAddressName]
+	if !exists {
+		return nil
+	}
+
+	vmiInterfaces := make(map[string]string)
+	if err := json.Unmarshal([]byte(macAddressFromAnnotation), &vmiInterfaces); err != nil {
+		return err
+	}
+
+	vmCopy := vm.DeepCopy()
+	vmInterfaces := vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces
+	for i := range(vmInterfaces) {
+		iface := vmInterfaces[i]
+		macAddress, observed := vmiInterfaces[iface.Name]
+		if iface.MacAddress != "" {
+			if iface.MacAddress != macAddress {
+				logrus.WithFields(logrus.Fields{
+					"name":      vmCopy.Name,
+					"namespace": vmCopy.Namespace,
+				}).Warnf("Detected unmatched MAC address of interface '%s' between annotation '%s' and spec '%s'", iface.Name, macAddress, iface.MacAddress)
+			}
+			continue
+		}
+
+		if !observed {
+			logrus.WithFields(logrus.Fields{
+				"name":      vmCopy.Name,
+				"namespace": vmCopy.Namespace,
+			}).Warnf("MAC address of interface '%s' hasn't been observed yet", iface.Name)
+			continue
+		}
+
+		vmInterfaces[i].MacAddress = macAddress
+	}
+
+	if _, err := h.vmClient.Update(vmCopy); err != nil {
+		return err
 	}
 
 	return nil

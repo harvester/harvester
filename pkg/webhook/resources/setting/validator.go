@@ -39,12 +39,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester-network-controller/pkg/utils"
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/containerd"
-	nodectl "github.com/harvester/harvester/pkg/controller/master/node"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -192,6 +192,9 @@ func NewValidator(
 
 	validateSettingFuncs[settings.RancherClusterSettingName] = validator.validateRancherCluster
 	validateSettingUpdateFuncs[settings.RancherClusterSettingName] = validator.validateUpdateRancherCluster
+
+	validateSettingFuncs[settings.KubeVirtMigrationSettingName] = validator.validateKubeVirtMigration
+	validateSettingUpdateFuncs[settings.KubeVirtMigrationSettingName] = validator.validateUpdateKubeVirtMigration
 
 	return validator
 }
@@ -930,7 +933,7 @@ func getSystemCerts() *x509.CertPool {
 
 func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachineBackup) bool {
 	for _, vmBackup := range vmBackups {
-		if vmBackup.DeletionTimestamp != nil || vmBackup.Status == nil || !*vmBackup.Status.ReadyToUse {
+		if vmBackup.DeletionTimestamp != nil || vmBackup.Status.ReadyToUse == nil || !*vmBackup.Status.ReadyToUse {
 			return true
 		}
 	}
@@ -939,7 +942,7 @@ func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachine
 
 func hasVMRestoreInCreatingOrDeletingProgress(vmRestores []*v1beta1.VirtualMachineRestore) bool {
 	for _, vmRestore := range vmRestores {
-		if vmRestore.DeletionTimestamp != nil || vmRestore.Status == nil || !*vmRestore.Status.Complete {
+		if vmRestore.DeletionTimestamp != nil || vmRestore.Status.Complete == nil || !*vmRestore.Status.Complete {
 			return true
 		}
 	}
@@ -1496,8 +1499,7 @@ func (v *settingValidator) checkVCSpansAllNodes(config *networkutil.Config) erro
 	//check if vlanconfig contains all the nodes in the cluster
 	for _, node := range nodes {
 		//skip witness nodes which do not run LH Pods
-		isManagement := nodectl.IsManagementRole(node)
-		if nodectl.IsWitnessNode(node, isManagement) {
+		if util.IsWitnessNodeWithoutPromotionStatus(node) {
 			continue
 		}
 
@@ -1811,7 +1813,61 @@ func validateUpgradeConfigHelper(setting *v1beta1.Setting) (*settings.UpgradeCon
 	return config, nil
 }
 
-func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
+func checkNodesDuplicates(nodeNames []string) error {
+	duplicates := ds.SliceFindDuplicates(nodeNames)
+	if len(duplicates) > 0 {
+		errMsg := fmt.Sprintf("duplicate pause node names: %v", duplicates)
+		logrus.Errorf("%s", errMsg)
+		return fmt.Errorf("%s", errMsg)
+	}
+	return nil
+}
+
+func (v *settingValidator) checkNodesExist(nodeNames []string) error {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	existingNodes := make(map[string]struct{}, len(nodes))
+	for _, node := range nodes {
+		existingNodes[node.Name] = struct{}{}
+	}
+
+	var missing []string
+	for _, name := range nodeNames {
+		if _, exists := existingNodes[name]; !exists {
+			missing = append(missing, name)
+		}
+	}
+
+	if len(missing) > 0 {
+		return werror.NewBadRequest(fmt.Sprintf("nodes not found: %v", missing))
+	}
+
+	return nil
+}
+
+func (v *settingValidator) checkNodeUpgradeOption(nodeUpgradeOption *settings.NodeUpgradeOption) error {
+	if nodeUpgradeOption == nil || nodeUpgradeOption.Strategy == nil || nodeUpgradeOption.Strategy.Mode == nil {
+		return nil
+	}
+
+	modeType := *nodeUpgradeOption.Strategy.Mode
+	switch modeType {
+	case settings.AutoType, settings.ManualType:
+	default:
+		return fmt.Errorf("invalid node upgrade strategy mode: %s", modeType)
+	}
+
+	if err := checkNodesDuplicates(nodeUpgradeOption.Strategy.PauseNodes); err != nil {
+		return err
+	}
+
+	return v.checkNodesExist(nodeUpgradeOption.Strategy.PauseNodes)
+}
+
+func (v *settingValidator) validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 	upgradeConfig, err := validateUpgradeConfigHelper(setting)
 	if err != nil {
 		return err
@@ -1836,6 +1892,10 @@ func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 		return fmt.Errorf("invalid image preload concurrency: %d", concurrency)
 	}
 
+	if err := v.checkNodeUpgradeOption(upgradeConfig.NodeUpgradeOption); err != nil {
+		return err
+	}
+
 	// If LogReadyTimeout is not set by the user, JSON unmarshalling will set it to 0 by default.
 	// We return nil in that case from the perspective of unit tests
 	timeoutStr := upgradeConfig.LogReadyTimeout
@@ -1856,7 +1916,7 @@ func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 }
 
 func (v *settingValidator) validateUpgradeConfig(setting *v1beta1.Setting) error {
-	return validateUpgradeConfigFields(setting)
+	return v.validateUpgradeConfigFields(setting)
 }
 
 func (v *settingValidator) validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
@@ -1949,4 +2009,50 @@ func (v *settingValidator) validateRancherCluster(newSetting *v1beta1.Setting) e
 
 func (v *settingValidator) validateUpdateRancherCluster(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateRancherCluster(newSetting)
+}
+
+func (v *settingValidator) validateKubeVirtMigration(newSetting *v1beta1.Setting) error {
+	if newSetting.Name != settings.KubeVirtMigrationSettingName {
+		return nil
+	}
+
+	vmims, err := v.vmimCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("Failed to list VM Migrations, err: %v", err.Error()))
+	}
+	for _, vmim := range vmims {
+		if vmim.DeletionTimestamp != nil || vmim.Status.MigrationState.Completed {
+			continue
+		}
+		return werror.NewBadRequest("There is a VM Migration in progress, please wait until it is completed before updating the kubevirt-migration setting")
+	}
+
+	var kubevirtMigration *kubevirtv1.MigrationConfiguration
+	if newSetting.Default != "" && newSetting.Default != "{}" {
+		kubevirtMigration, err = settings.DecodeConfig[kubevirtv1.MigrationConfiguration](newSetting.Default)
+		if err != nil {
+			return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+		}
+	}
+
+	if newSetting.Value != "" && newSetting.Value != "{}" {
+		kubevirtMigration, err = settings.DecodeConfig[kubevirtv1.MigrationConfiguration](newSetting.Value)
+		if err != nil {
+			return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+		}
+	}
+	if kubevirtMigration == nil {
+		return nil
+	}
+	if kubevirtMigration.NodeDrainTaintKey != nil && *kubevirtMigration.NodeDrainTaintKey != "" {
+		return werror.NewInvalidError("nodeDrainTaintKey field cannot be configured", "nodeDrainTaintKey")
+	}
+	if kubevirtMigration.Network != nil && *kubevirtMigration.Network != "" {
+		return werror.NewInvalidError("network field is configured by vm-migration-network setting", "network")
+	}
+	return nil
+}
+
+func (v *settingValidator) validateUpdateKubeVirtMigration(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return v.validateKubeVirtMigration(newSetting)
 }

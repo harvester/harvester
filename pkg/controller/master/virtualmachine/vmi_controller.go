@@ -16,10 +16,6 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 )
 
-const (
-	VirtualMachineCreatorNodeDriver = "docker-machine-driver-harvester"
-)
-
 // hostLabelsReconcileMapping defines the mapping for reconciliation of node labels to virtual machine instance annotations
 var hostLabelsReconcileMapping = []string{
 	corev1.LabelTopologyZone, corev1.LabelTopologyRegion, corev1.LabelHostname,
@@ -40,7 +36,7 @@ func (h *VMIController) ReconcileFromHostLabels(_ string, vmi *kubevirtv1.Virtua
 		return vmi, nil
 	}
 
-	if creator := vmi.Labels[builder.LabelKeyVirtualMachineCreator]; creator != VirtualMachineCreatorNodeDriver {
+	if creator := vmi.Labels[builder.LabelKeyVirtualMachineCreator]; creator != util.VirtualMachineCreatorNodeDriver {
 		return vmi, nil
 	}
 

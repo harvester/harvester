@@ -3,25 +3,25 @@ package upgrade
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/utils/pointer"
-	kubevirtv1 "kubevirt.io/api/core/v1"
+	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
@@ -29,13 +29,7 @@ import (
 )
 
 const (
-	repoVMNamePrefix = "upgrade-repo-"
-	repoVMUserData   = `name: "enable repo mode"
-stages:
-  rootfs:
-  - commands:
-    - echo > /sysroot/harvester-serve-iso
-`
+	repoVMNamePrefix      = "upgrade-repo-"
 	repoServiceNamePrefix = "upgrade-repo-"
 	currentVersion        = "current"
 )
@@ -81,9 +75,9 @@ func (r *Repo) Bootstrap() error {
 		return err
 	}
 
-	logrus.Infof("Create upgrade repo vm with image %v and service", image)
+	logrus.Infof("Create upgrade repo with image %v and service", image)
 
-	_, err = r.createVM(upgradeImage)
+	_, err = r.CreateDeployment(upgradeImage)
 	if err != nil {
 		return err
 	}
@@ -94,12 +88,20 @@ func (r *Repo) Bootstrap() error {
 
 // Clean repo related resources
 func (r *Repo) Cleanup() error {
-	logrus.Infof("Delete upgrade repo vm, image and service")
+	logrus.Infof("Delete upgrade related resources")
 	if err := r.deleteVM(); err != nil {
 		logrus.Warnf("%s", err.Error())
 		return err
 	}
+	if err := r.deleteDeployment(); err != nil {
+		logrus.Warnf("%s", err.Error())
+		return err
+	}
 	if err := r.deleteService(); err != nil {
+		logrus.Warnf("%s", err.Error())
+		return err
+	}
+	if err := r.deleteStorageClass(); err != nil {
 		logrus.Warnf("%s", err.Error())
 		return err
 	}
@@ -110,6 +112,43 @@ func getISODisplayNameImageName(upgradeName string, version string) string {
 	return fmt.Sprintf("%s-%s", upgradeName, version)
 }
 
+func (r *Repo) getStorageClassName() string {
+	return r.upgrade.Name
+}
+
+// CreateStorageClass create the storage class for repo deployment to store the ISO image
+// we cannot use "harvester-longhorn" storage class because it includes "migratable: true",
+// which is not supported for RWX volume.
+func (r *Repo) CreateStorageClass() error {
+	reclaimPolicy := corev1.PersistentVolumeReclaimDelete
+	volumeBindingMode := storagev1.VolumeBindingImmediate
+	allowVolumeExpansion := true
+	sc := &storagev1.StorageClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: r.upgrade.Name,
+			Labels: map[string]string{
+				harvesterUpgradeLabel: r.upgrade.Name,
+			},
+		},
+		Provisioner:          util.CSIProvisionerLonghorn,
+		ReclaimPolicy:        &reclaimPolicy,
+		VolumeBindingMode:    &volumeBindingMode,
+		AllowVolumeExpansion: &allowVolumeExpansion,
+	}
+
+	_, err := r.h.scClient.Create(sc)
+	return err
+}
+
+func (r *Repo) deleteStorageClass() error {
+	scName := r.getStorageClassName()
+	err := r.h.scClient.Delete(scName, &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete storage class %s error %w", scName, err)
+	}
+	return nil
+}
+
 func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.VirtualMachineImage, error) {
 	imageSpec := &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
@@ -118,16 +157,21 @@ func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.
 			Labels: map[string]string{
 				harvesterUpgradeLabel: r.upgrade.Name,
 			},
+			Annotations: map[string]string{
+				util.AnnotationUpgradeImage: "True",
+			},
 			OwnerReferences: []metav1.OwnerReference{
 				upgradeReference(r.upgrade),
 			},
 		},
 		Spec: harvesterv1.VirtualMachineImageSpec{
-			DisplayName: getISODisplayNameImageName(r.upgrade.Name, r.upgrade.Spec.Version),
-			SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
-			URL:         isoURL,
-			Checksum:    checksum,
-			Retry:       3,
+			DisplayName:            getISODisplayNameImageName(r.upgrade.Name, r.upgrade.Spec.Version),
+			SourceType:             harvesterv1.VirtualMachineImageSourceTypeDownload,
+			URL:                    isoURL,
+			Checksum:               checksum,
+			Retry:                  3,
+			TargetStorageClassName: r.getStorageClassName(),
+			Backend:                harvesterv1.VMIBackendCDI,
 		},
 	}
 
@@ -135,16 +179,7 @@ func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.
 }
 
 func (r *Repo) GetImage(imageName string) (*harvesterv1.VirtualMachineImage, error) {
-	tokens := strings.Split(imageName, "/")
-	if len(tokens) != 2 {
-		return nil, fmt.Errorf("invalid image format %s", imageName)
-	}
-
-	image, err := r.h.vmImageCache.Get(tokens[0], tokens[1])
-	if err != nil {
-		return nil, err
-	}
-	return image, nil
+	return util.GetUpgradeImage(imageName, r.h.vmImageCache)
 }
 
 func (r *Repo) getVMName() string {
@@ -158,180 +193,6 @@ func (r *Repo) GetVMName() string {
 func (r *Repo) GetVMNamespace() string {
 	return upgradeNamespace
 }
-
-func (r *Repo) createVM(image *harvesterv1.VirtualMachineImage) (*kubevirtv1.VirtualMachine, error) {
-	vmName := r.getVMName()
-	runStrategy := kubevirtv1.RunStrategyRerunOnFailure // the default strategy used by Harvester to create new VMs
-	var bootOrder uint = 1
-	evictionStrategy := kubevirtv1.EvictionStrategyLiveMigrateIfPossible
-
-	disk0Claim := fmt.Sprintf("%s-disk-0", vmName)
-	volumeMode := corev1.PersistentVolumeBlock
-	storageClassName := image.Status.StorageClassName
-	pvcSpec := corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: disk0Claim,
-			Annotations: map[string]string{
-				util.AnnotationImageID: fmt.Sprintf("%s/%s", image.Namespace, image.Name),
-			},
-		},
-		Spec: corev1.PersistentVolumeClaimSpec{
-			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
-			Resources: corev1.VolumeResourceRequirements{
-				Requests: corev1.ResourceList{
-					"storage": resource.MustParse("10Gi"),
-				},
-			},
-			VolumeMode:       &volumeMode,
-			StorageClassName: &storageClassName,
-		},
-	}
-	pvc, err := json.Marshal([]corev1.PersistentVolumeClaim{pvcSpec})
-	if err != nil {
-		return nil, err
-	}
-
-	vm := kubevirtv1.VirtualMachine{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      vmName,
-			Namespace: upgradeNamespace,
-			Labels: map[string]string{
-				util.LabelVMCreator:            "harvester",
-				harvesterUpgradeLabel:          r.upgrade.Name,
-				harvesterUpgradeComponentLabel: upgradeComponentRepo,
-			},
-			Annotations: map[string]string{
-				util.AnnotationVolumeClaimTemplates: string(pvc),
-				"network.harvesterhci.io/ips":       "[]",
-				util.RemovedPVCsAnnotationKey:       disk0Claim,
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				upgradeReference(r.upgrade),
-			},
-		},
-		Spec: kubevirtv1.VirtualMachineSpec{
-			RunStrategy: &runStrategy,
-			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						util.LabelVMCreator:            "harvester",
-						util.LabelVMName:               vmName,
-						harvesterUpgradeLabel:          r.upgrade.Name,
-						harvesterUpgradeComponentLabel: upgradeComponentRepo,
-					},
-				},
-				Spec: kubevirtv1.VirtualMachineInstanceSpec{
-					Domain: kubevirtv1.DomainSpec{
-						CPU: &kubevirtv1.CPU{
-							Cores:   1,
-							Sockets: 1,
-							Threads: 1,
-							Model:   kubevirtv1.CPUModeHostPassthrough,
-						},
-						Firmware: &kubevirtv1.Firmware{
-							Bootloader: &kubevirtv1.Bootloader{
-								EFI: &kubevirtv1.EFI{
-									SecureBoot: pointer.Bool(false),
-								},
-							},
-						},
-						Devices: kubevirtv1.Devices{
-							Disks: []kubevirtv1.Disk{
-								{
-									BootOrder: &bootOrder,
-									DiskDevice: kubevirtv1.DiskDevice{
-										CDRom: &kubevirtv1.CDRomTarget{
-											Bus: "scsi",
-										},
-									},
-									Name: "disk-0",
-								},
-								{
-									DiskDevice: kubevirtv1.DiskDevice{
-										CDRom: &kubevirtv1.CDRomTarget{
-											Bus: "scsi",
-										},
-									},
-									Name: "cloudinitdisk",
-								},
-							},
-							Inputs: []kubevirtv1.Input{
-								{
-									Bus:  "usb",
-									Name: "tablet",
-									Type: "tablet",
-								},
-							},
-							Interfaces: []kubevirtv1.Interface{
-								{
-									InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
-										Masquerade: &kubevirtv1.InterfaceMasquerade{},
-									},
-									Model: "virtio",
-									Name:  "default",
-								},
-							},
-						},
-						Resources: kubevirtv1.ResourceRequirements{
-							Limits: corev1.ResourceList{
-								"cpu":    resource.MustParse("1"),
-								"memory": resource.MustParse("1G"),
-							},
-							Requests: corev1.ResourceList{
-								"cpu":    resource.MustParse("1"),
-								"memory": resource.MustParse("1G"),
-							},
-						},
-					},
-					EvictionStrategy: &evictionStrategy,
-					Hostname:         vmName,
-					Networks: []kubevirtv1.Network{
-						{
-							Name: "default",
-							NetworkSource: kubevirtv1.NetworkSource{
-								Pod: &kubevirtv1.PodNetwork{},
-							},
-						},
-					},
-					Volumes: []kubevirtv1.Volume{
-						{
-							Name: "disk-0",
-							VolumeSource: kubevirtv1.VolumeSource{
-								PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
-									PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
-										ClaimName: disk0Claim,
-									},
-								},
-							},
-						},
-						{
-							Name: "cloudinitdisk",
-							VolumeSource: kubevirtv1.VolumeSource{
-								CloudInitNoCloud: &kubevirtv1.CloudInitNoCloudSource{
-									UserData: repoVMUserData,
-								},
-							},
-						},
-					},
-					ReadinessProbe: &kubevirtv1.Probe{
-						Handler: kubevirtv1.Handler{
-							HTTPGet: &corev1.HTTPGetAction{
-								Path: "/harvester-iso/harvester-release.yaml",
-								Port: intstr.FromInt(80),
-							},
-						},
-						TimeoutSeconds:   30,
-						FailureThreshold: 5,
-					},
-				},
-			},
-		},
-	}
-
-	return r.h.vmClient.Create(&vm)
-}
-
-// (r *Repo) startVM() is done via func (h *upgradeHandler) startVM(ctx context.Context, vm *kubevirtv1.VirtualMachine)
 
 func (r *Repo) deleteVM() error {
 	vmName := r.getVMName()
@@ -472,7 +333,7 @@ func (r *Repo) getInfo() (*repoinfo.RepoInfo, error) {
 		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -555,4 +416,161 @@ func (r *Repo) getImagesDiffList() ([]string, error) {
 	logrus.Infof("Diff: %v", diffList)
 
 	return diffList, nil
+}
+
+func (r *Repo) CreateDeployment(vmImage *harvesterv1.VirtualMachineImage) (*appsv1.Deployment, error) {
+	replicas, err := r.getDeploymentReplicaCount()
+	if err != nil {
+		return nil, err
+	}
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      r.GetDeploymentName(),
+			Namespace: upgradeNamespace,
+			Labels: map[string]string{
+				harvesterUpgradeLabel:          r.upgrade.Name,
+				harvesterUpgradeComponentLabel: upgradeComponentRepo,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				upgradeReference(r.upgrade),
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					harvesterUpgradeLabel:          r.upgrade.Name,
+					harvesterUpgradeComponentLabel: upgradeComponentRepo,
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						harvesterUpgradeLabel:          r.upgrade.Name,
+						harvesterUpgradeComponentLabel: upgradeComponentRepo,
+					},
+				},
+				Spec: corev1.PodSpec{
+					Affinity: &corev1.Affinity{
+						PodAntiAffinity: &corev1.PodAntiAffinity{
+							PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
+								{
+									Weight: 100,
+									PodAffinityTerm: corev1.PodAffinityTerm{
+										LabelSelector: &metav1.LabelSelector{
+											MatchLabels: map[string]string{
+												harvesterUpgradeLabel:          r.upgrade.Name,
+												harvesterUpgradeComponentLabel: upgradeComponentRepo,
+											},
+										},
+										TopologyKey: corev1.LabelHostname,
+									},
+								},
+							},
+						},
+					},
+					Containers: []corev1.Container{
+						{
+							Name: "nginx-iso-server",
+							// The newer rancher/harvester-upgrade image hasn’t been imported yet, so we’re still using the old one.
+							// what we need is just the nginx server to serve the ISO, so it’s fine to use the previous version here.
+							Image:           fmt.Sprintf("%s:%s", util.HarvesterUpgradeImageRepository, r.upgrade.Status.PreviousVersion),
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Command:         []string{"sh", "-c"},
+							Args: []string{
+								`echo "Mounting ISO and starting Nginx..."
+mkdir -p /srv/www/htdocs/harvester-iso
+mount -o loop,ro /iso/disk.img /srv/www/htdocs/harvester-iso
+echo "iso mounted successfully to /srv/www/htdocs/harvester-iso"
+nginx -g "daemon off;"`,
+							},
+							Ports: []corev1.ContainerPort{
+								{
+									ContainerPort: 80,
+									Protocol:      corev1.ProtocolTCP,
+								},
+							},
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: ptr.To(true),
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "iso",
+									MountPath: "/iso",
+								},
+							},
+							LivenessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									Exec: &corev1.ExecAction{
+										Command: []string{
+											"sh", "-c",
+											"cat /srv/www/htdocs/harvester-iso/harvester-release.yaml 2>&1 /dev/null",
+										},
+									},
+								},
+							},
+							ReadinessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									HTTPGet: &corev1.HTTPGetAction{
+										Path:   "/harvester-iso/harvester-release.yaml",
+										Port:   intstr.FromInt(80),
+										Scheme: corev1.URISchemeHTTP,
+									},
+								},
+							},
+							TerminationMessagePath:   "/dev/termination-log",
+							TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+						},
+					},
+					DNSPolicy: corev1.DNSClusterFirst,
+					Volumes: []corev1.Volume{
+						{
+							Name: "iso",
+							VolumeSource: corev1.VolumeSource{
+								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+									// the pvc name is the same as the vm image name
+									ClaimName: vmImage.Name,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return r.h.deploymentClient.Create(deployment)
+}
+
+func (r *Repo) deleteDeployment() error {
+	err := r.h.deploymentClient.Delete(r.GetVMNamespace(), r.GetDeploymentName(), &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete deployment %s/%s error %w", r.GetVMNamespace(), r.GetDeploymentName(), err)
+	}
+	return nil
+}
+
+func (r *Repo) GetDeploymentName() string {
+	return fmt.Sprintf("%s%s", repoServiceNamePrefix, r.upgrade.Name)
+}
+
+func (r *Repo) getDeploymentReplicaCount() (*int32, error) {
+	nodes, err := r.h.nodeCache.List(labels.Everything())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes: %w", err)
+	}
+	nonWitnessNodes := util.ExcludeWitnessNodes(nodes)
+	if len(nonWitnessNodes) == 0 {
+		return nil, errors.New("no non-witness nodes found in the cluster")
+	}
+
+	var replicas int32
+	if len(nonWitnessNodes) == 1 {
+		replicas = 1
+	} else {
+		replicas = 2
+	}
+
+	return &replicas, nil
 }

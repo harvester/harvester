@@ -619,7 +619,7 @@ func (*certOptKey) privateCertOpt() {}
 //
 // In TLS ChallengeCert methods, the template is also used as parent,
 // resulting in a self-signed certificate.
-// The DNSNames field of t is always overwritten for tls-sni challenge certs.
+// The DNSNames or IPAddresses fields of t are always overwritten for tls-alpn challenge certs.
 func WithTemplate(t *x509.Certificate) CertOption {
 	return (*certOptTemplate)(t)
 }

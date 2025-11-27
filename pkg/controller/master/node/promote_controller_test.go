@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/harvester/harvester/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -60,13 +61,13 @@ func (n *NodeBuilder) Harvester() *NodeBuilder {
 }
 
 func (n *NodeBuilder) Witness() *corev1.Node {
-	n.node.Labels[KubeEtcdNodeLabelKey] = "true"
+	n.node.Labels[util.KubeEtcdNodeLabelKey] = "true"
 	n.node.CreationTimestamp = metav1.NewTime(time.Now())
 	return n.node
 }
 
 func (n *NodeBuilder) Management() *corev1.Node {
-	n.node.Labels[KubeMasterNodeLabelKey] = "true"
+	n.node.Labels[util.KubeMasterNodeLabelKey] = "true"
 	n.node.CreationTimestamp = metav1.NewTime(time.Now())
 	return n.node
 }
@@ -77,22 +78,22 @@ func (n *NodeBuilder) Worker() *corev1.Node {
 }
 
 func (n *NodeBuilder) Running() *NodeBuilder {
-	n.node.Annotations[HarvesterPromoteStatusAnnotationKey] = PromoteStatusRunning
+	n.node.Annotations[HarvesterPromoteStatusAnnotationKey] = util.PromoteStatusRunning
 	return n
 }
 
 func (n *NodeBuilder) Complete() *NodeBuilder {
-	n.node.Annotations[HarvesterPromoteStatusAnnotationKey] = PromoteStatusComplete
+	n.node.Annotations[HarvesterPromoteStatusAnnotationKey] = util.PromoteStatusComplete
 	return n
 }
 
 func (n *NodeBuilder) Failed() *NodeBuilder {
-	n.node.Annotations[HarvesterPromoteStatusAnnotationKey] = PromoteStatusFailed
+	n.node.Annotations[HarvesterPromoteStatusAnnotationKey] = util.PromoteStatusFailed
 	return n
 }
 
 func (n *NodeBuilder) Unknown() *NodeBuilder {
-	n.node.Annotations[HarvesterPromoteStatusAnnotationKey] = PromoteStatusUnknown
+	n.node.Annotations[HarvesterPromoteStatusAnnotationKey] = util.PromoteStatusUnknown
 	return n
 }
 

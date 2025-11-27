@@ -1,6 +1,7 @@
 package upgrade
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -12,7 +13,6 @@ import (
 	"k8s.io/utils/pointer"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -53,6 +53,33 @@ if [ "$ret" -ne 0 ]; then
 fi
 `
 )
+
+func getNodeUpgradePauseMap(upgrade *harvesterv1.Upgrade) (map[string]string, error) {
+	if upgrade.Annotations == nil {
+		return nil, nil
+	}
+
+	value, ok := upgrade.Annotations[util.AnnotationNodeUpgradePauseMap]
+	if !ok {
+		return nil, nil
+	}
+
+	var pauseMap map[string]string
+	if err := json.Unmarshal([]byte(value), &pauseMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal node upgrade pause map: %w", err)
+	}
+
+	return pauseMap, nil
+}
+
+func shouldPauseNodeUpgrade(upgrade *harvesterv1.Upgrade, nodeName string) bool {
+	pauseMap, err := getNodeUpgradePauseMap(upgrade)
+	if err != nil || pauseMap == nil {
+		return false
+	}
+
+	return pauseMap[nodeName] == util.NodePause
+}
 
 func setNodeUpgradeStatus(upgrade *harvesterv1.Upgrade, nodeName string, state, reason, message string) {
 	if upgrade == nil {
@@ -209,12 +236,12 @@ func prepareCleanupPlan(upgrade *harvesterv1.Upgrade, imageList []string) *upgra
 					Effect:   corev1.TaintEffectNoSchedule,
 				},
 				{
-					Key:      node.KubeControlPlaneNodeLabelKey,
+					Key:      util.KubeControlPlaneNodeLabelKey,
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoExecute,
 				},
 				{
-					Key:      node.KubeEtcdNodeLabelKey,
+					Key:      util.KubeEtcdNodeLabelKey,
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoExecute,
 				},
@@ -288,12 +315,12 @@ func preparePlan(upgrade *harvesterv1.Upgrade, concurrency int) *upgradev1.Plan 
 					Effect:   corev1.TaintEffectNoSchedule,
 				},
 				{
-					Key:      node.KubeControlPlaneNodeLabelKey,
+					Key:      util.KubeControlPlaneNodeLabelKey,
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoExecute,
 				},
 				{
-					Key:      node.KubeEtcdNodeLabelKey,
+					Key:      util.KubeEtcdNodeLabelKey,
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoExecute,
 				},
@@ -554,12 +581,12 @@ func getDefaultTolerations() []corev1.Toleration {
 			Effect:   corev1.TaintEffectNoSchedule,
 		},
 		{
-			Key:      node.KubeControlPlaneNodeLabelKey,
+			Key:      util.KubeControlPlaneNodeLabelKey,
 			Operator: corev1.TolerationOpExists,
 			Effect:   corev1.TaintEffectNoExecute,
 		},
 		{
-			Key:      node.KubeEtcdNodeLabelKey,
+			Key:      util.KubeEtcdNodeLabelKey,
 			Operator: corev1.TolerationOpExists,
 			Effect:   corev1.TaintEffectNoExecute,
 		},
@@ -826,7 +853,7 @@ func newNodeBuilder(name string) *nodeBuilder {
 }
 
 func (n *nodeBuilder) ControlPlane() *nodeBuilder {
-	n.WithLabel(node.KubeControlPlaneNodeLabelKey, "true")
+	n.WithLabel(util.KubeControlPlaneNodeLabelKey, "true")
 	return n
 }
 

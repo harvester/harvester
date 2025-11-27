@@ -31,6 +31,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"sigs.k8s.io/cluster-api/api/v1beta1.APIEndpoint":                              schema_sigsk8sio_cluster_api_api_v1beta1_APIEndpoint(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.Bootstrap":                                schema_sigsk8sio_cluster_api_api_v1beta1_Bootstrap(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.Cluster":                                  schema_sigsk8sio_cluster_api_api_v1beta1_Cluster(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterAvailabilityGate":                  schema_sigsk8sio_cluster_api_api_v1beta1_ClusterAvailabilityGate(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterClass":                             schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClass(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassList":                         schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassList(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassPatch":                        schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassPatch(ref),
@@ -38,12 +39,15 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassStatus":                       schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatus(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassStatusVariable":               schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatusVariable(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassStatusVariableDefinition":     schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatusVariableDefinition(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassV1Beta2Status":                schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassV1Beta2Status(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassVariable":                     schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassVariable(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassVariableMetadata":             schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassVariableMetadata(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterControlPlaneStatus":                schema_sigsk8sio_cluster_api_api_v1beta1_ClusterControlPlaneStatus(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterList":                              schema_sigsk8sio_cluster_api_api_v1beta1_ClusterList(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterNetwork":                           schema_sigsk8sio_cluster_api_api_v1beta1_ClusterNetwork(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterSpec":                              schema_sigsk8sio_cluster_api_api_v1beta1_ClusterSpec(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterStatus":                            schema_sigsk8sio_cluster_api_api_v1beta1_ClusterStatus(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterV1Beta2Status":                     schema_sigsk8sio_cluster_api_api_v1beta1_ClusterV1Beta2Status(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ClusterVariable":                          schema_sigsk8sio_cluster_api_api_v1beta1_ClusterVariable(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.Condition":                                schema_sigsk8sio_cluster_api_api_v1beta1_Condition(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ControlPlaneClass":                        schema_sigsk8sio_cluster_api_api_v1beta1_ControlPlaneClass(ref),
@@ -58,6 +62,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"sigs.k8s.io/cluster-api/api/v1beta1.LocalObjectTemplate":                      schema_sigsk8sio_cluster_api_api_v1beta1_LocalObjectTemplate(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.Machine":                                  schema_sigsk8sio_cluster_api_api_v1beta1_Machine(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineAddress":                           schema_sigsk8sio_cluster_api_api_v1beta1_MachineAddress(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDeletionStatus":                    schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeletionStatus(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDeployment":                        schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeployment(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDeploymentClass":                   schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentClass(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDeploymentClassNamingStrategy":     schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentClassNamingStrategy(ref),
@@ -67,27 +72,38 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDeploymentStatus":                  schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentStatus(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDeploymentStrategy":                schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentStrategy(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDeploymentTopology":                schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentTopology(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDeploymentV1Beta2Status":           schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentV1Beta2Status(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDeploymentVariables":               schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentVariables(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRule":                         schema_sigsk8sio_cluster_api_api_v1beta1_MachineDrainRule(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRuleDrainConfig":              schema_sigsk8sio_cluster_api_api_v1beta1_MachineDrainRuleDrainConfig(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRuleList":                     schema_sigsk8sio_cluster_api_api_v1beta1_MachineDrainRuleList(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRuleMachineSelector":          schema_sigsk8sio_cluster_api_api_v1beta1_MachineDrainRuleMachineSelector(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRulePodSelector":              schema_sigsk8sio_cluster_api_api_v1beta1_MachineDrainRulePodSelector(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRuleSpec":                     schema_sigsk8sio_cluster_api_api_v1beta1_MachineDrainRuleSpec(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheck":                       schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheck(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheckClass":                  schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckClass(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheckList":                   schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckList(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheckSpec":                   schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckSpec(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheckStatus":                 schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckStatus(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheckTopology":               schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckTopology(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheckV1Beta2Status":          schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckV1Beta2Status(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineList":                              schema_sigsk8sio_cluster_api_api_v1beta1_MachineList(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachinePoolClass":                         schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolClass(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachinePoolClassNamingStrategy":           schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolClassNamingStrategy(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachinePoolClassTemplate":                 schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolClassTemplate(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachinePoolTopology":                      schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolTopology(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachinePoolVariables":                     schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolVariables(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.MachineReadinessGate":                     schema_sigsk8sio_cluster_api_api_v1beta1_MachineReadinessGate(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineRollingUpdateDeployment":           schema_sigsk8sio_cluster_api_api_v1beta1_MachineRollingUpdateDeployment(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineSet":                               schema_sigsk8sio_cluster_api_api_v1beta1_MachineSet(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineSetList":                           schema_sigsk8sio_cluster_api_api_v1beta1_MachineSetList(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineSetSpec":                           schema_sigsk8sio_cluster_api_api_v1beta1_MachineSetSpec(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineSetStatus":                         schema_sigsk8sio_cluster_api_api_v1beta1_MachineSetStatus(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.MachineSetV1Beta2Status":                  schema_sigsk8sio_cluster_api_api_v1beta1_MachineSetV1Beta2Status(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineSpec":                              schema_sigsk8sio_cluster_api_api_v1beta1_MachineSpec(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineStatus":                            schema_sigsk8sio_cluster_api_api_v1beta1_MachineStatus(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.MachineTemplateSpec":                      schema_sigsk8sio_cluster_api_api_v1beta1_MachineTemplateSpec(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.MachineV1Beta2Status":                     schema_sigsk8sio_cluster_api_api_v1beta1_MachineV1Beta2Status(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.NetworkRanges":                            schema_sigsk8sio_cluster_api_api_v1beta1_NetworkRanges(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.ObjectMeta":                               schema_sigsk8sio_cluster_api_api_v1beta1_ObjectMeta(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.PatchDefinition":                          schema_sigsk8sio_cluster_api_api_v1beta1_PatchDefinition(ref),
@@ -95,10 +111,14 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"sigs.k8s.io/cluster-api/api/v1beta1.PatchSelectorMatch":                       schema_sigsk8sio_cluster_api_api_v1beta1_PatchSelectorMatch(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.PatchSelectorMatchMachineDeploymentClass": schema_sigsk8sio_cluster_api_api_v1beta1_PatchSelectorMatchMachineDeploymentClass(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.PatchSelectorMatchMachinePoolClass":       schema_sigsk8sio_cluster_api_api_v1beta1_PatchSelectorMatchMachinePoolClass(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.RemediationStrategy":                      schema_sigsk8sio_cluster_api_api_v1beta1_RemediationStrategy(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.Topology":                                 schema_sigsk8sio_cluster_api_api_v1beta1_Topology(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.UnhealthyCondition":                       schema_sigsk8sio_cluster_api_api_v1beta1_UnhealthyCondition(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.ValidationRule":                           schema_sigsk8sio_cluster_api_api_v1beta1_ValidationRule(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.VariableSchema":                           schema_sigsk8sio_cluster_api_api_v1beta1_VariableSchema(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.VariableSchemaMetadata":                   schema_sigsk8sio_cluster_api_api_v1beta1_VariableSchemaMetadata(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.WorkersClass":                             schema_sigsk8sio_cluster_api_api_v1beta1_WorkersClass(ref),
+		"sigs.k8s.io/cluster-api/api/v1beta1.WorkersStatus":                            schema_sigsk8sio_cluster_api_api_v1beta1_WorkersStatus(ref),
 		"sigs.k8s.io/cluster-api/api/v1beta1.WorkersTopology":                          schema_sigsk8sio_cluster_api_api_v1beta1_WorkersTopology(ref),
 	}
 }
@@ -142,13 +162,13 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_Bootstrap(ref common.ReferenceCall
 				Properties: map[string]spec.Schema{
 					"configRef": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ConfigRef is a reference to a bootstrap provider-specific resource that holds configuration details. The reference is optional to allow users/operators to specify Bootstrap.DataSecretName without the need of a controller.",
+							Description: "configRef is a reference to a bootstrap provider-specific resource that holds configuration details. The reference is optional to allow users/operators to specify Bootstrap.DataSecretName without the need of a controller.",
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
 					"dataSecretName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DataSecretName is the name of the secret that stores the bootstrap data script. If nil, the Machine should remain in the Pending state.",
+							Description: "dataSecretName is the name of the secret that stores the bootstrap data script. If nil, the Machine should remain in the Pending state.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -205,6 +225,28 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_Cluster(ref common.ReferenceCallba
 		},
 		Dependencies: []string{
 			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "sigs.k8s.io/cluster-api/api/v1beta1.ClusterSpec", "sigs.k8s.io/cluster-api/api/v1beta1.ClusterStatus"},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterAvailabilityGate(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClusterAvailabilityGate contains the type of a Cluster condition to be used as availability gate.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditionType": {
+						SchemaProps: spec.SchemaProps{
+							Description: "conditionType refers to a positive polarity condition (status true means good) with matching type in the Cluster's condition list. If the conditions doesn't exist, it will be treated as unknown. Note: Both Cluster API conditions or conditions added by 3rd party controllers can be used as availability gates.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"conditionType"},
+			},
+		},
 	}
 }
 
@@ -313,7 +355,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassPatch(ref common.Refer
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name of the patch.",
+							Description: "name of the patch.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -321,21 +363,21 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassPatch(ref common.Refer
 					},
 					"description": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Description is a human-readable description of this patch.",
+							Description: "description is a human-readable description of this patch.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"enabledIf": {
 						SchemaProps: spec.SchemaProps{
-							Description: "EnabledIf is a Go template to be used to calculate if a patch should be enabled. It can reference variables defined in .spec.variables and builtin variables. The patch will be enabled if the template evaluates to `true`, otherwise it will be disabled. If EnabledIf is not set, the patch will be enabled per default.",
+							Description: "enabledIf is a Go template to be used to calculate if a patch should be enabled. It can reference variables defined in .spec.variables and builtin variables. The patch will be enabled if the template evaluates to `true`, otherwise it will be disabled. If EnabledIf is not set, the patch will be enabled per default.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"definitions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Definitions define inline patches. Note: Patches will be applied in the order of the array. Note: Exactly one of Definitions or External must be set.",
+							Description: "definitions define inline patches. Note: Patches will be applied in the order of the array. Note: Exactly one of Definitions or External must be set.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -349,7 +391,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassPatch(ref common.Refer
 					},
 					"external": {
 						SchemaProps: spec.SchemaProps{
-							Description: "External defines an external patch. Note: Exactly one of Definitions or External must be set.",
+							Description: "external defines an external patch. Note: Exactly one of Definitions or External must be set.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ExternalPatchDefinition"),
 						},
 					},
@@ -371,28 +413,28 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassSpec(ref common.Refere
 				Properties: map[string]spec.Schema{
 					"infrastructure": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Infrastructure is a reference to a provider-specific template that holds the details for provisioning infrastructure specific cluster for the underlying provider. The underlying provider is responsible for the implementation of the template to an infrastructure cluster.",
+							Description: "infrastructure is a reference to a provider-specific template that holds the details for provisioning infrastructure specific cluster for the underlying provider. The underlying provider is responsible for the implementation of the template to an infrastructure cluster.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.LocalObjectTemplate"),
 						},
 					},
 					"controlPlane": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ControlPlane is a reference to a local struct that holds the details for provisioning the Control Plane for the Cluster.",
+							Description: "controlPlane is a reference to a local struct that holds the details for provisioning the Control Plane for the Cluster.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ControlPlaneClass"),
 						},
 					},
 					"workers": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Workers describes the worker nodes for the cluster. It is a collection of node types which can be used to create the worker nodes of the cluster.",
+							Description: "workers describes the worker nodes for the cluster. It is a collection of node types which can be used to create the worker nodes of the cluster.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.WorkersClass"),
 						},
 					},
 					"variables": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Variables defines the variables which can be configured in the Cluster topology and are then used in patches.",
+							Description: "variables defines the variables which can be configured in the Cluster topology and are then used in patches.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -406,7 +448,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassSpec(ref common.Refere
 					},
 					"patches": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Patches defines the patches which are applied to customize referenced templates of a ClusterClass. Note: Patches will be applied in the order of the array.",
+							Description: "patches defines the patches which are applied to customize referenced templates of a ClusterClass. Note: Patches will be applied in the order of the array.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -435,7 +477,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatus(ref common.Refe
 				Properties: map[string]spec.Schema{
 					"variables": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Variables is a list of ClusterClassStatusVariable that are defined for the ClusterClass.",
+							Description: "variables is a list of ClusterClassStatusVariable that are defined for the ClusterClass.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -449,7 +491,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatus(ref common.Refe
 					},
 					"conditions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Conditions defines current observed state of the ClusterClass.",
+							Description: "conditions defines current observed state of the ClusterClass.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -463,16 +505,22 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatus(ref common.Refe
 					},
 					"observedGeneration": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ObservedGeneration is the latest generation observed by the controller.",
+							Description: "observedGeneration is the latest generation observed by the controller.",
 							Type:        []string{"integer"},
 							Format:      "int64",
+						},
+					},
+					"v1beta2": {
+						SchemaProps: spec.SchemaProps{
+							Description: "v1beta2 groups all the fields that will be added or modified in ClusterClass's status with the V1Beta2 version.",
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassV1Beta2Status"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassStatusVariable", "sigs.k8s.io/cluster-api/api/v1beta1.Condition"},
+			"sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassStatusVariable", "sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassV1Beta2Status", "sigs.k8s.io/cluster-api/api/v1beta1.Condition"},
 	}
 }
 
@@ -485,7 +533,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatusVariable(ref com
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name is the name of the variable.",
+							Description: "name is the name of the variable.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -493,7 +541,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatusVariable(ref com
 					},
 					"definitionsConflict": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DefinitionsConflict specifies whether or not there are conflicting definitions for a single variable name.",
+							Description: "definitionsConflict specifies whether or not there are conflicting definitions for a single variable name.",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -501,7 +549,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatusVariable(ref com
 					},
 					"definitions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Definitions is a list of definitions for a variable.",
+							Description: "definitions is a list of definitions for a variable.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -531,7 +579,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatusVariableDefiniti
 				Properties: map[string]spec.Schema{
 					"from": {
 						SchemaProps: spec.SchemaProps{
-							Description: "From specifies the origin of the variable definition. This will be `inline` for variables defined in the ClusterClass or the name of a patch defined in the ClusterClass for variables discovered from a DiscoverVariables runtime extensions.",
+							Description: "from specifies the origin of the variable definition. This will be `inline` for variables defined in the ClusterClass or the name of a patch defined in the ClusterClass for variables discovered from a DiscoverVariables runtime extensions.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -539,7 +587,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatusVariableDefiniti
 					},
 					"required": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Required specifies if the variable is required. Note: this applies to the variable as a whole and thus the top-level object defined in the schema. If nested fields are required, this will be specified inside the schema.",
+							Description: "required specifies if the variable is required. Note: this applies to the variable as a whole and thus the top-level object defined in the schema. If nested fields are required, this will be specified inside the schema.",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -547,14 +595,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatusVariableDefiniti
 					},
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Metadata is the metadata of a variable. It can be used to add additional data for higher level tools to a ClusterClassVariable.",
+							Description: "metadata is the metadata of a variable. It can be used to add additional data for higher level tools to a ClusterClassVariable.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassVariableMetadata"),
 						},
 					},
 					"schema": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Schema defines the schema of the variable.",
+							Description: "schema defines the schema of the variable.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.VariableSchema"),
 						},
@@ -568,6 +616,43 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassStatusVariableDefiniti
 	}
 }
 
+func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassV1Beta2Status(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClusterClassV1Beta2Status groups all the fields that will be added or modified in ClusterClass with the V1Beta2 version. See https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more context.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "conditions represents the observations of a ClusterClass's current state. Known condition types are VariablesReady, RefVersionsUpToDate, Paused.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
+	}
+}
+
 func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassVariable(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -577,7 +662,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassVariable(ref common.Re
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name of the variable.",
+							Description: "name of the variable.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -585,7 +670,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassVariable(ref common.Re
 					},
 					"required": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Required specifies if the variable is required. Note: this applies to the variable as a whole and thus the top-level object defined in the schema. If nested fields are required, this will be specified inside the schema.",
+							Description: "required specifies if the variable is required. Note: this applies to the variable as a whole and thus the top-level object defined in the schema. If nested fields are required, this will be specified inside the schema.",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -593,14 +678,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassVariable(ref common.Re
 					},
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Metadata is the metadata of a variable. It can be used to add additional data for higher level tools to a ClusterClassVariable.",
+							Description: "metadata is the metadata of a variable. It can be used to add additional data for higher level tools to a ClusterClassVariable.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please use XMetadata in JSONSchemaProps instead.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ClusterClassVariableMetadata"),
 						},
 					},
 					"schema": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Schema defines the schema of the variable.",
+							Description: "schema defines the schema of the variable.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.VariableSchema"),
 						},
@@ -618,7 +703,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassVariableMetadata(ref c
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "ClusterClassVariableMetadata is the metadata of a variable. It can be used to add additional data for higher level tools to a ClusterClassVariable.",
+				Description: "ClusterClassVariableMetadata is the metadata of a variable. It can be used to add additional data for higher level tools to a ClusterClassVariable.\n\nDeprecated: This struct is deprecated and is going to be removed in the next apiVersion.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"labels": {
@@ -639,7 +724,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassVariableMetadata(ref c
 					},
 					"annotations": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Annotations is an unstructured key value map that can be used to store and retrieve arbitrary metadata. They are not queryable.",
+							Description: "annotations is an unstructured key value map that can be used to store and retrieve arbitrary metadata. They are not queryable.",
 							Type:        []string{"object"},
 							AdditionalProperties: &spec.SchemaOrBool{
 								Allows: true,
@@ -651,6 +736,54 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterClassVariableMetadata(ref c
 									},
 								},
 							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterControlPlaneStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClusterControlPlaneStatus groups all the observations about control plane current state.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"desiredReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "desiredReplicas is the total number of desired control plane machines in this cluster.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"replicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "replicas is the total number of control plane machines in this cluster. NOTE: replicas also includes machines still being provisioned or being deleted.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"upToDateReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "upToDateReplicas is the number of up-to-date control plane machines in this cluster. A machine is considered up-to-date when Machine's UpToDate condition is true.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"readyReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "readyReplicas is the total number of ready control plane machines in this cluster. A machine is considered ready when Machine's Ready condition is true.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"availableReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "availableReplicas is the total number of available control plane machines in this cluster. A machine is considered available when Machine's Available condition is true.",
+							Type:        []string{"integer"},
+							Format:      "int32",
 						},
 					},
 				},
@@ -717,7 +850,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterNetwork(ref common.Referenc
 				Properties: map[string]spec.Schema{
 					"apiServerPort": {
 						SchemaProps: spec.SchemaProps{
-							Description: "APIServerPort specifies the port the API Server should bind to. Defaults to 6443.",
+							Description: "apiServerPort specifies the port the API Server should bind to. Defaults to 6443.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -758,7 +891,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterSpec(ref common.ReferenceCa
 				Properties: map[string]spec.Schema{
 					"paused": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Paused can be used to prevent controllers from processing the Cluster and all its associated objects.",
+							Description: "paused can be used to prevent controllers from processing the Cluster and all its associated objects.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
@@ -771,20 +904,20 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterSpec(ref common.ReferenceCa
 					},
 					"controlPlaneEndpoint": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ControlPlaneEndpoint represents the endpoint used to communicate with the control plane.",
+							Description: "controlPlaneEndpoint represents the endpoint used to communicate with the control plane.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.APIEndpoint"),
 						},
 					},
 					"controlPlaneRef": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ControlPlaneRef is an optional reference to a provider-specific resource that holds the details for provisioning the Control Plane for a Cluster.",
+							Description: "controlPlaneRef is an optional reference to a provider-specific resource that holds the details for provisioning the Control Plane for a Cluster.",
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
 					"infrastructureRef": {
 						SchemaProps: spec.SchemaProps{
-							Description: "InfrastructureRef is a reference to a provider-specific resource that holds the details for provisioning infrastructure for a cluster in said provider.",
+							Description: "infrastructureRef is a reference to a provider-specific resource that holds the details for provisioning infrastructure for a cluster in said provider.",
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
@@ -794,11 +927,33 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterSpec(ref common.ReferenceCa
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.Topology"),
 						},
 					},
+					"availabilityGates": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"conditionType",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "availabilityGates specifies additional conditions to include when evaluating Cluster Available condition.\n\nNOTE: this field is considered only for computing v1beta2 conditions.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/v1beta1.ClusterAvailabilityGate"),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.ObjectReference", "sigs.k8s.io/cluster-api/api/v1beta1.APIEndpoint", "sigs.k8s.io/cluster-api/api/v1beta1.ClusterNetwork", "sigs.k8s.io/cluster-api/api/v1beta1.Topology"},
+			"k8s.io/api/core/v1.ObjectReference", "sigs.k8s.io/cluster-api/api/v1beta1.APIEndpoint", "sigs.k8s.io/cluster-api/api/v1beta1.ClusterAvailabilityGate", "sigs.k8s.io/cluster-api/api/v1beta1.ClusterNetwork", "sigs.k8s.io/cluster-api/api/v1beta1.Topology"},
 	}
 }
 
@@ -811,7 +966,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterStatus(ref common.Reference
 				Properties: map[string]spec.Schema{
 					"failureDomains": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FailureDomains is a slice of failure domain objects synced from the infrastructure provider.",
+							Description: "failureDomains is a slice of failure domain objects synced from the infrastructure provider.",
 							Type:        []string{"object"},
 							AdditionalProperties: &spec.SchemaOrBool{
 								Allows: true,
@@ -826,28 +981,28 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterStatus(ref common.Reference
 					},
 					"failureReason": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FailureReason indicates that there is a fatal problem reconciling the state, and will be set to a token value suitable for programmatic interpretation.",
+							Description: "failureReason indicates that there is a fatal problem reconciling the state, and will be set to a token value suitable for programmatic interpretation.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more details.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"failureMessage": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FailureMessage indicates that there is a fatal problem reconciling the state, and will be set to a descriptive error message.",
+							Description: "failureMessage indicates that there is a fatal problem reconciling the state, and will be set to a descriptive error message.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more details.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"phase": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Phase represents the current phase of cluster actuation. E.g. Pending, Running, Terminating, Failed etc.",
+							Description: "phase represents the current phase of cluster actuation. E.g. Pending, Running, Terminating, Failed etc.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"infrastructureReady": {
 						SchemaProps: spec.SchemaProps{
-							Description: "InfrastructureReady is the state of the infrastructure provider.",
+							Description: "infrastructureReady is the state of the infrastructure provider.",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -855,7 +1010,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterStatus(ref common.Reference
 					},
 					"controlPlaneReady": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ControlPlaneReady defines if the control plane is ready.",
+							Description: "controlPlaneReady denotes if the control plane became ready during initial provisioning to receive requests. NOTE: this field is part of the Cluster API contract and it is used to orchestrate provisioning. The value of this field is never updated after provisioning is completed. Please use conditions to check the operational state of the control plane.",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -863,7 +1018,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterStatus(ref common.Reference
 					},
 					"conditions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Conditions defines current service state of the cluster.",
+							Description: "conditions defines current service state of the cluster.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -877,16 +1032,71 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterStatus(ref common.Reference
 					},
 					"observedGeneration": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ObservedGeneration is the latest generation observed by the controller.",
+							Description: "observedGeneration is the latest generation observed by the controller.",
 							Type:        []string{"integer"},
 							Format:      "int64",
+						},
+					},
+					"v1beta2": {
+						SchemaProps: spec.SchemaProps{
+							Description: "v1beta2 groups all the fields that will be added or modified in Cluster's status with the V1Beta2 version.",
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ClusterV1Beta2Status"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/v1beta1.Condition", "sigs.k8s.io/cluster-api/api/v1beta1.FailureDomainSpec"},
+			"sigs.k8s.io/cluster-api/api/v1beta1.ClusterV1Beta2Status", "sigs.k8s.io/cluster-api/api/v1beta1.Condition", "sigs.k8s.io/cluster-api/api/v1beta1.FailureDomainSpec"},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterV1Beta2Status(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClusterV1Beta2Status groups all the fields that will be added or modified in Cluster with the V1Beta2 version. See https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more context.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "conditions represents the observations of a Cluster's current state. Known condition types are Available, InfrastructureReady, ControlPlaneInitialized, ControlPlaneAvailable, WorkersAvailable, MachinesReady MachinesUpToDate, RemoteConnectionProbe, ScalingUp, ScalingDown, Remediating, Deleting, Paused. Additionally, a TopologyReconciled condition will be added in case the Cluster is referencing a ClusterClass / defining a managed Topology.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
+									},
+								},
+							},
+						},
+					},
+					"controlPlane": {
+						SchemaProps: spec.SchemaProps{
+							Description: "controlPlane groups all the observations about Cluster's ControlPlane current state.",
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ClusterControlPlaneStatus"),
+						},
+					},
+					"workers": {
+						SchemaProps: spec.SchemaProps{
+							Description: "workers groups all the observations about Cluster's Workers current state.",
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.WorkersStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition", "sigs.k8s.io/cluster-api/api/v1beta1.ClusterControlPlaneStatus", "sigs.k8s.io/cluster-api/api/v1beta1.WorkersStatus"},
 	}
 }
 
@@ -899,7 +1109,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterVariable(ref common.Referen
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name of the variable.",
+							Description: "name of the variable.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -907,14 +1117,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ClusterVariable(ref common.Referen
 					},
 					"definitionFrom": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DefinitionFrom specifies where the definition of this Variable is from. DefinitionFrom is `inline` when the definition is from the ClusterClass `.spec.variables` or the name of a patch defined in the ClusterClass `.spec.patches` where the patch is external and provides external variables. This field is mandatory if the variable has `DefinitionsConflict: true` in ClusterClass `status.variables[]`",
+							Description: "definitionFrom specifies where the definition of this Variable is from.\n\nDeprecated: This field is deprecated, must not be set anymore and is going to be removed in the next apiVersion.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"value": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Value of the variable. Note: the value will be validated against the schema of the corresponding ClusterClassVariable from the ClusterClass. Note: We have to use apiextensionsv1.JSON instead of a custom JSON type, because controller-tools has a hard-coded schema for apiextensionsv1.JSON which cannot be produced by another type via controller-tools, i.e. it is not possible to have no type field. Ref: https://github.com/kubernetes-sigs/controller-tools/blob/d0e03a142d0ecdd5491593e941ee1d6b5d91dba6/pkg/crd/known_types.go#L106-L111",
+							Description: "value of the variable. Note: the value will be validated against the schema of the corresponding ClusterClassVariable from the ClusterClass. Note: We have to use apiextensionsv1.JSON instead of a custom JSON type, because controller-tools has a hard-coded schema for apiextensionsv1.JSON which cannot be produced by another type via controller-tools, i.e. it is not possible to have no type field. Ref: https://github.com/kubernetes-sigs/controller-tools/blob/d0e03a142d0ecdd5491593e941ee1d6b5d91dba6/pkg/crd/known_types.go#L106-L111",
 							Ref:         ref("k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1.JSON"),
 						},
 					},
@@ -936,7 +1146,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_Condition(ref common.ReferenceCall
 				Properties: map[string]spec.Schema{
 					"type": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Type of condition in CamelCase or in foo.example.com/CamelCase. Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be useful (see .node.status.conditions), the ability to deconflict is important.",
+							Description: "type of condition in CamelCase or in foo.example.com/CamelCase. Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be useful (see .node.status.conditions), the ability to deconflict is important.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -944,7 +1154,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_Condition(ref common.ReferenceCall
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Status of the condition, one of True, False, Unknown.",
+							Description: "status of the condition, one of True, False, Unknown.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -952,7 +1162,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_Condition(ref common.ReferenceCall
 					},
 					"severity": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Severity provides an explicit classification of Reason code, so the users or machines can immediately understand the current situation and act accordingly. The Severity field MUST be set only when Status=False.",
+							Description: "severity provides an explicit classification of Reason code, so the users or machines can immediately understand the current situation and act accordingly. The Severity field MUST be set only when Status=False.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -965,7 +1175,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_Condition(ref common.ReferenceCall
 					},
 					"reason": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The reason for the condition's last transition in CamelCase. The specific API may choose whether or not this field is considered a guaranteed API. This field may not be empty.",
+							Description: "The reason for the condition's last transition in CamelCase. The specific API may choose whether or not this field is considered a guaranteed API. This field may be empty.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -995,50 +1205,50 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ControlPlaneClass(ref common.Refer
 				Properties: map[string]spec.Schema{
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Metadata is the metadata applied to the ControlPlane and the Machines of the ControlPlane if the ControlPlaneTemplate referenced is machine based. If not, it is applied only to the ControlPlane. At runtime this metadata is merged with the corresponding metadata from the topology.\n\nThis field is supported if and only if the control plane provider template referenced is Machine based.",
+							Description: "metadata is the metadata applied to the ControlPlane and the Machines of the ControlPlane if the ControlPlaneTemplate referenced is machine based. If not, it is applied only to the ControlPlane. At runtime this metadata is merged with the corresponding metadata from the topology.\n\nThis field is supported if and only if the control plane provider template referenced is Machine based.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ObjectMeta"),
 						},
 					},
 					"ref": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Ref is a required reference to a custom resource offered by a provider.",
+							Description: "ref is a required reference to a custom resource offered by a provider.",
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
 					"machineInfrastructure": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MachineInfrastructure defines the metadata and infrastructure information for control plane machines.\n\nThis field is supported if and only if the control plane provider template referenced above is Machine based and supports setting replicas.",
+							Description: "machineInfrastructure defines the metadata and infrastructure information for control plane machines.\n\nThis field is supported if and only if the control plane provider template referenced above is Machine based and supports setting replicas.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.LocalObjectTemplate"),
 						},
 					},
 					"machineHealthCheck": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MachineHealthCheck defines a MachineHealthCheck for this ControlPlaneClass. This field is supported if and only if the ControlPlane provider template referenced above is Machine based and supports setting replicas.",
+							Description: "machineHealthCheck defines a MachineHealthCheck for this ControlPlaneClass. This field is supported if and only if the ControlPlane provider template referenced above is Machine based and supports setting replicas.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheckClass"),
 						},
 					},
 					"namingStrategy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NamingStrategy allows changing the naming pattern used when creating the control plane provider object.",
+							Description: "namingStrategy allows changing the naming pattern used when creating the control plane provider object.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ControlPlaneClassNamingStrategy"),
 						},
 					},
 					"nodeDrainTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout` NOTE: This value can be overridden while defining a Cluster.Topology.",
+							Description: "nodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout` NOTE: This value can be overridden while defining a Cluster.Topology.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeVolumeDetachTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations. NOTE: This value can be overridden while defining a Cluster.Topology.",
+							Description: "nodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations. NOTE: This value can be overridden while defining a Cluster.Topology.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeDeletionTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds. NOTE: This value can be overridden while defining a Cluster.Topology.",
+							Description: "nodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds. NOTE: This value can be overridden while defining a Cluster.Topology.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
@@ -1060,7 +1270,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ControlPlaneClassNamingStrategy(re
 				Properties: map[string]spec.Schema{
 					"template": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Template defines the template to use for generating the name of the ControlPlane object. If not defined, it will fallback to `{{ .cluster.name }}-{{ .random }}`. If the templated string exceeds 63 characters, it will be trimmed to 58 characters and will get concatenated with a random suffix of length 5. The templating mechanism provides the following arguments: * `.cluster.name`: The name of the cluster object. * `.random`: A random alphanumeric string, without vowels, of length 5.",
+							Description: "template defines the template to use for generating the name of the ControlPlane object. If not defined, it will fallback to `{{ .cluster.name }}-{{ .random }}`. If the templated string exceeds 63 characters, it will be trimmed to 58 characters and will get concatenated with a random suffix of length 5. The templating mechanism provides the following arguments: * `.cluster.name`: The name of the cluster object. * `.random`: A random alphanumeric string, without vowels, of length 5.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1080,45 +1290,45 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ControlPlaneTopology(ref common.Re
 				Properties: map[string]spec.Schema{
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Metadata is the metadata applied to the ControlPlane and the Machines of the ControlPlane if the ControlPlaneTemplate referenced by the ClusterClass is machine based. If not, it is applied only to the ControlPlane. At runtime this metadata is merged with the corresponding metadata from the ClusterClass.",
+							Description: "metadata is the metadata applied to the ControlPlane and the Machines of the ControlPlane if the ControlPlaneTemplate referenced by the ClusterClass is machine based. If not, it is applied only to the ControlPlane. At runtime this metadata is merged with the corresponding metadata from the ClusterClass.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ObjectMeta"),
 						},
 					},
 					"replicas": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Replicas is the number of control plane nodes. If the value is nil, the ControlPlane object is created without the number of Replicas and it's assumed that the control plane controller does not implement support for this field. When specified against a control plane provider that lacks support for this field, this value will be ignored.",
+							Description: "replicas is the number of control plane nodes. If the value is nil, the ControlPlane object is created without the number of Replicas and it's assumed that the control plane controller does not implement support for this field. When specified against a control plane provider that lacks support for this field, this value will be ignored.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
 					"machineHealthCheck": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MachineHealthCheck allows to enable, disable and override the MachineHealthCheck configuration in the ClusterClass for this control plane.",
+							Description: "machineHealthCheck allows to enable, disable and override the MachineHealthCheck configuration in the ClusterClass for this control plane.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheckTopology"),
 						},
 					},
 					"nodeDrainTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout`",
+							Description: "nodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout`",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeVolumeDetachTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
+							Description: "nodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeDeletionTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
+							Description: "nodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"variables": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Variables can be used to customize the ControlPlane through patches.",
+							Description: "variables can be used to customize the ControlPlane through patches.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ControlPlaneVariables"),
 						},
 					},
@@ -1138,8 +1348,16 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ControlPlaneVariables(ref common.R
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"overrides": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"name",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Overrides can be used to override Cluster level variables.",
+							Description: "overrides can be used to override Cluster level variables.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1168,28 +1386,28 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ExternalPatchDefinition(ref common
 				Properties: map[string]spec.Schema{
 					"generateExtension": {
 						SchemaProps: spec.SchemaProps{
-							Description: "GenerateExtension references an extension which is called to generate patches.",
+							Description: "generateExtension references an extension which is called to generate patches.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"validateExtension": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ValidateExtension references an extension which is called to validate the topology.",
+							Description: "validateExtension references an extension which is called to validate the topology.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"discoverVariablesExtension": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DiscoverVariablesExtension references an extension which is called to discover variables.",
+							Description: "discoverVariablesExtension references an extension which is called to discover variables.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"settings": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Settings defines key value pairs to be passed to the extensions. Values defined here take precedence over the values defined in the corresponding ExtensionConfig.",
+							Description: "settings defines key value pairs to be passed to the extensions. Values defined here take precedence over the values defined in the corresponding ExtensionConfig.",
 							Type:        []string{"object"},
 							AdditionalProperties: &spec.SchemaOrBool{
 								Allows: true,
@@ -1218,14 +1436,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_FailureDomainSpec(ref common.Refer
 				Properties: map[string]spec.Schema{
 					"controlPlane": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ControlPlane determines if this failure domain is suitable for use by control plane machines.",
+							Description: "controlPlane determines if this failure domain is suitable for use by control plane machines.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
 					},
 					"attributes": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Attributes is a free form map of attributes an infrastructure provider might use or require.",
+							Description: "attributes is a free form map of attributes an infrastructure provider might use or require.",
 							Type:        []string{"object"},
 							AdditionalProperties: &spec.SchemaOrBool{
 								Allows: true,
@@ -1254,7 +1472,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_JSONPatch(ref common.ReferenceCall
 				Properties: map[string]spec.Schema{
 					"op": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Op defines the operation of the patch. Note: Only `add`, `replace` and `remove` are supported.",
+							Description: "op defines the operation of the patch. Note: Only `add`, `replace` and `remove` are supported.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1262,7 +1480,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_JSONPatch(ref common.ReferenceCall
 					},
 					"path": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Path defines the path of the patch. Note: Only the spec of a template can be patched, thus the path has to start with /spec/. Note: For now the only allowed array modifications are `append` and `prepend`, i.e.: * for op: `add`: only index 0 (prepend) and - (append) are allowed * for op: `replace` or `remove`: no indexes are allowed",
+							Description: "path defines the path of the patch. Note: Only the spec of a template can be patched, thus the path has to start with /spec/. Note: For now the only allowed array modifications are `append` and `prepend`, i.e.: * for op: `add`: only index 0 (prepend) and - (append) are allowed * for op: `replace` or `remove`: no indexes are allowed",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1270,13 +1488,13 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_JSONPatch(ref common.ReferenceCall
 					},
 					"value": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Value defines the value of the patch. Note: Either Value or ValueFrom is required for add and replace operations. Only one of them is allowed to be set at the same time. Note: We have to use apiextensionsv1.JSON instead of our JSON type, because controller-tools has a hard-coded schema for apiextensionsv1.JSON which cannot be produced by another type (unset type field). Ref: https://github.com/kubernetes-sigs/controller-tools/blob/d0e03a142d0ecdd5491593e941ee1d6b5d91dba6/pkg/crd/known_types.go#L106-L111",
+							Description: "value defines the value of the patch. Note: Either Value or ValueFrom is required for add and replace operations. Only one of them is allowed to be set at the same time. Note: We have to use apiextensionsv1.JSON instead of our JSON type, because controller-tools has a hard-coded schema for apiextensionsv1.JSON which cannot be produced by another type (unset type field). Ref: https://github.com/kubernetes-sigs/controller-tools/blob/d0e03a142d0ecdd5491593e941ee1d6b5d91dba6/pkg/crd/known_types.go#L106-L111",
 							Ref:         ref("k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1.JSON"),
 						},
 					},
 					"valueFrom": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ValueFrom defines the value of the patch. Note: Either Value or ValueFrom is required for add and replace operations. Only one of them is allowed to be set at the same time.",
+							Description: "valueFrom defines the value of the patch. Note: Either Value or ValueFrom is required for add and replace operations. Only one of them is allowed to be set at the same time.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.JSONPatchValue"),
 						},
 					},
@@ -1298,14 +1516,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_JSONPatchValue(ref common.Referenc
 				Properties: map[string]spec.Schema{
 					"variable": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Variable is the variable to be used as value. Variable can be one of the variables defined in .spec.variables or a builtin variable.",
+							Description: "variable is the variable to be used as value. Variable can be one of the variables defined in .spec.variables or a builtin variable.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"template": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Template is the Go template to be used to calculate the value. A template can reference variables defined in .spec.variables and builtin variables. Note: The template must evaluate to a valid YAML or JSON value.",
+							Description: "template is the Go template to be used to calculate the value. A template can reference variables defined in .spec.variables and builtin variables. Note: The template must evaluate to a valid YAML or JSON value.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1325,28 +1543,27 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_JSONSchemaProps(ref common.Referen
 				Properties: map[string]spec.Schema{
 					"description": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Description is a human-readable description of this variable.",
+							Description: "description is a human-readable description of this variable.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"example": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Example is an example for this variable.",
+							Description: "example is an example for this variable.",
 							Ref:         ref("k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1.JSON"),
 						},
 					},
 					"type": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Type is the type of the variable. Valid values are: object, array, string, integer, number or boolean.",
-							Default:     "",
+							Description: "type is the type of the variable. Valid values are: object, array, string, integer, number or boolean.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"properties": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Properties specifies fields of an object. NOTE: Can only be set if type is object. NOTE: Properties is mutually exclusive with AdditionalProperties. NOTE: This field uses PreserveUnknownFields and Schemaless, because recursive validation is not possible.",
+							Description: "properties specifies fields of an object. NOTE: Can only be set if type is object. NOTE: Properties is mutually exclusive with AdditionalProperties. NOTE: This field uses PreserveUnknownFields and Schemaless, because recursive validation is not possible.",
 							Type:        []string{"object"},
 							AdditionalProperties: &spec.SchemaOrBool{
 								Allows: true,
@@ -1361,13 +1578,27 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_JSONSchemaProps(ref common.Referen
 					},
 					"additionalProperties": {
 						SchemaProps: spec.SchemaProps{
-							Description: "AdditionalProperties specifies the schema of values in a map (keys are always strings). NOTE: Can only be set if type is object. NOTE: AdditionalProperties is mutually exclusive with Properties. NOTE: This field uses PreserveUnknownFields and Schemaless, because recursive validation is not possible.",
+							Description: "additionalProperties specifies the schema of values in a map (keys are always strings). NOTE: Can only be set if type is object. NOTE: AdditionalProperties is mutually exclusive with Properties. NOTE: This field uses PreserveUnknownFields and Schemaless, because recursive validation is not possible.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.JSONSchemaProps"),
+						},
+					},
+					"maxProperties": {
+						SchemaProps: spec.SchemaProps{
+							Description: "maxProperties is the maximum amount of entries in a map or properties in an object. NOTE: Can only be set if type is object.",
+							Type:        []string{"integer"},
+							Format:      "int64",
+						},
+					},
+					"minProperties": {
+						SchemaProps: spec.SchemaProps{
+							Description: "minProperties is the minimum amount of entries in a map or properties in an object. NOTE: Can only be set if type is object.",
+							Type:        []string{"integer"},
+							Format:      "int64",
 						},
 					},
 					"required": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Required specifies which fields of an object are required. NOTE: Can only be set if type is object.",
+							Description: "required specifies which fields of an object are required. NOTE: Can only be set if type is object.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1382,97 +1613,97 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_JSONSchemaProps(ref common.Referen
 					},
 					"items": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Items specifies fields of an array. NOTE: Can only be set if type is array. NOTE: This field uses PreserveUnknownFields and Schemaless, because recursive validation is not possible.",
+							Description: "items specifies fields of an array. NOTE: Can only be set if type is array. NOTE: This field uses PreserveUnknownFields and Schemaless, because recursive validation is not possible.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.JSONSchemaProps"),
 						},
 					},
 					"maxItems": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MaxItems is the max length of an array variable. NOTE: Can only be set if type is array.",
+							Description: "maxItems is the max length of an array variable. NOTE: Can only be set if type is array.",
 							Type:        []string{"integer"},
 							Format:      "int64",
 						},
 					},
 					"minItems": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MinItems is the min length of an array variable. NOTE: Can only be set if type is array.",
+							Description: "minItems is the min length of an array variable. NOTE: Can only be set if type is array.",
 							Type:        []string{"integer"},
 							Format:      "int64",
 						},
 					},
 					"uniqueItems": {
 						SchemaProps: spec.SchemaProps{
-							Description: "UniqueItems specifies if items in an array must be unique. NOTE: Can only be set if type is array.",
+							Description: "uniqueItems specifies if items in an array must be unique. NOTE: Can only be set if type is array.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
 					},
 					"format": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Format is an OpenAPI v3 format string. Unknown formats are ignored. For a list of supported formats please see: (of the k8s.io/apiextensions-apiserver version we're currently using) https://github.com/kubernetes/apiextensions-apiserver/blob/master/pkg/apiserver/validation/formats.go NOTE: Can only be set if type is string.",
+							Description: "format is an OpenAPI v3 format string. Unknown formats are ignored. For a list of supported formats please see: (of the k8s.io/apiextensions-apiserver version we're currently using) https://github.com/kubernetes/apiextensions-apiserver/blob/master/pkg/apiserver/validation/formats.go NOTE: Can only be set if type is string.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"maxLength": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MaxLength is the max length of a string variable. NOTE: Can only be set if type is string.",
+							Description: "maxLength is the max length of a string variable. NOTE: Can only be set if type is string.",
 							Type:        []string{"integer"},
 							Format:      "int64",
 						},
 					},
 					"minLength": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MinLength is the min length of a string variable. NOTE: Can only be set if type is string.",
+							Description: "minLength is the min length of a string variable. NOTE: Can only be set if type is string.",
 							Type:        []string{"integer"},
 							Format:      "int64",
 						},
 					},
 					"pattern": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Pattern is the regex which a string variable must match. NOTE: Can only be set if type is string.",
+							Description: "pattern is the regex which a string variable must match. NOTE: Can only be set if type is string.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"maximum": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Maximum is the maximum of an integer or number variable. If ExclusiveMaximum is false, the variable is valid if it is lower than, or equal to, the value of Maximum. If ExclusiveMaximum is true, the variable is valid if it is strictly lower than the value of Maximum. NOTE: Can only be set if type is integer or number.",
+							Description: "maximum is the maximum of an integer or number variable. If ExclusiveMaximum is false, the variable is valid if it is lower than, or equal to, the value of Maximum. If ExclusiveMaximum is true, the variable is valid if it is strictly lower than the value of Maximum. NOTE: Can only be set if type is integer or number.",
 							Type:        []string{"integer"},
 							Format:      "int64",
 						},
 					},
 					"exclusiveMaximum": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ExclusiveMaximum specifies if the Maximum is exclusive. NOTE: Can only be set if type is integer or number.",
+							Description: "exclusiveMaximum specifies if the Maximum is exclusive. NOTE: Can only be set if type is integer or number.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
 					},
 					"minimum": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Minimum is the minimum of an integer or number variable. If ExclusiveMinimum is false, the variable is valid if it is greater than, or equal to, the value of Minimum. If ExclusiveMinimum is true, the variable is valid if it is strictly greater than the value of Minimum. NOTE: Can only be set if type is integer or number.",
+							Description: "minimum is the minimum of an integer or number variable. If ExclusiveMinimum is false, the variable is valid if it is greater than, or equal to, the value of Minimum. If ExclusiveMinimum is true, the variable is valid if it is strictly greater than the value of Minimum. NOTE: Can only be set if type is integer or number.",
 							Type:        []string{"integer"},
 							Format:      "int64",
 						},
 					},
 					"exclusiveMinimum": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ExclusiveMinimum specifies if the Minimum is exclusive. NOTE: Can only be set if type is integer or number.",
+							Description: "exclusiveMinimum specifies if the Minimum is exclusive. NOTE: Can only be set if type is integer or number.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
 					},
 					"x-kubernetes-preserve-unknown-fields": {
 						SchemaProps: spec.SchemaProps{
-							Description: "XPreserveUnknownFields allows setting fields in a variable object which are not defined in the variable schema. This affects fields recursively, except if nested properties or additionalProperties are specified in the schema.",
+							Description: "x-kubernetes-preserve-unknown-fields allows setting fields in a variable object which are not defined in the variable schema. This affects fields recursively, except if nested properties or additionalProperties are specified in the schema.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
 					},
 					"enum": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enum is the list of valid values of the variable. NOTE: Can be set for all types.",
+							Description: "enum is the list of valid values of the variable. NOTE: Can be set for all types.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1485,16 +1716,98 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_JSONSchemaProps(ref common.Referen
 					},
 					"default": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Default is the default value of the variable. NOTE: Can be set for all types.",
+							Description: "default is the default value of the variable. NOTE: Can be set for all types.",
 							Ref:         ref("k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1.JSON"),
 						},
 					},
+					"x-kubernetes-validations": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"rule",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "x-kubernetes-validations describes a list of validation rules written in the CEL expression language.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/v1beta1.ValidationRule"),
+									},
+								},
+							},
+						},
+					},
+					"x-metadata": {
+						SchemaProps: spec.SchemaProps{
+							Description: "x-metadata is the metadata of a variable or a nested field within a variable. It can be used to add additional data for higher level tools.",
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.VariableSchemaMetadata"),
+						},
+					},
+					"x-kubernetes-int-or-string": {
+						SchemaProps: spec.SchemaProps{
+							Description: "x-kubernetes-int-or-string specifies that this value is either an integer or a string. If this is true, an empty type is allowed and type as child of anyOf is permitted if following one of the following patterns:\n\n1) anyOf:\n   - type: integer\n   - type: string\n2) allOf:\n   - anyOf:\n     - type: integer\n     - type: string\n   - ... zero or more",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"allOf": {
+						SchemaProps: spec.SchemaProps{
+							Description: "allOf specifies that the variable must validate against all of the subschemas in the array. NOTE: This field uses PreserveUnknownFields and Schemaless, because recursive validation is not possible.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/v1beta1.JSONSchemaProps"),
+									},
+								},
+							},
+						},
+					},
+					"oneOf": {
+						SchemaProps: spec.SchemaProps{
+							Description: "oneOf specifies that the variable must validate against exactly one of the subschemas in the array. NOTE: This field uses PreserveUnknownFields and Schemaless, because recursive validation is not possible.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/v1beta1.JSONSchemaProps"),
+									},
+								},
+							},
+						},
+					},
+					"anyOf": {
+						SchemaProps: spec.SchemaProps{
+							Description: "anyOf specifies that the variable must validate against one or more of the subschemas in the array. NOTE: This field uses PreserveUnknownFields and Schemaless, because recursive validation is not possible.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/v1beta1.JSONSchemaProps"),
+									},
+								},
+							},
+						},
+					},
+					"not": {
+						SchemaProps: spec.SchemaProps{
+							Description: "not specifies that the variable must not validate against the subschema. NOTE: This field uses PreserveUnknownFields and Schemaless, because recursive validation is not possible.",
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.JSONSchemaProps"),
+						},
+					},
 				},
-				Required: []string{"type"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1.JSON", "sigs.k8s.io/cluster-api/api/v1beta1.JSONSchemaProps"},
+			"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1.JSON", "sigs.k8s.io/cluster-api/api/v1beta1.JSONSchemaProps", "sigs.k8s.io/cluster-api/api/v1beta1.ValidationRule", "sigs.k8s.io/cluster-api/api/v1beta1.VariableSchemaMetadata"},
 	}
 }
 
@@ -1507,7 +1820,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_LocalObjectTemplate(ref common.Ref
 				Properties: map[string]spec.Schema{
 					"ref": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Ref is a required reference to a custom resource offered by a provider.",
+							Description: "ref is a required reference to a custom resource offered by a provider.",
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
@@ -1597,6 +1910,33 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineAddress(ref common.Referenc
 	}
 }
 
+func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeletionStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeletionStatus is the deletion state of the Machine.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeDrainStartTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDrainStartTime is the time when the drain of the node started and is used to determine if the NodeDrainTimeout is exceeded. Only present when the Machine has a deletionTimestamp and draining the node had been started.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"waitForNodeVolumeDetachStartTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "waitForNodeVolumeDetachStartTime is the time when waiting for volume detachment started and is used to determine if the NodeVolumeDetachTimeout is exceeded. Detaching volumes from nodes is usually done by CSI implementations and the current state is observed from the node's `.Status.VolumesAttached` field. Only present when the Machine has a deletionTimestamp and waiting for volume detachments had been started.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
 func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeployment(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1653,7 +1993,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentClass(ref common.
 				Properties: map[string]spec.Schema{
 					"class": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Class denotes a type of worker node present in the cluster, this name MUST be unique within a ClusterClass and can be referenced in the Cluster to create a managed MachineDeployment.",
+							Description: "class denotes a type of worker node present in the cluster, this name MUST be unique within a ClusterClass and can be referenced in the Cluster to create a managed MachineDeployment.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1661,45 +2001,45 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentClass(ref common.
 					},
 					"template": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Template is a local struct containing a collection of templates for creation of MachineDeployment objects representing a set of worker nodes.",
+							Description: "template is a local struct containing a collection of templates for creation of MachineDeployment objects representing a set of worker nodes.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineDeploymentClassTemplate"),
 						},
 					},
 					"machineHealthCheck": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MachineHealthCheck defines a MachineHealthCheck for this MachineDeploymentClass.",
+							Description: "machineHealthCheck defines a MachineHealthCheck for this MachineDeploymentClass.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheckClass"),
 						},
 					},
 					"failureDomain": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FailureDomain is the failure domain the machines will be created in. Must match a key in the FailureDomains map stored on the cluster object. NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
+							Description: "failureDomain is the failure domain the machines will be created in. Must match a key in the FailureDomains map stored on the cluster object. NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"namingStrategy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NamingStrategy allows changing the naming pattern used when creating the MachineDeployment.",
+							Description: "namingStrategy allows changing the naming pattern used when creating the MachineDeployment.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineDeploymentClassNamingStrategy"),
 						},
 					},
 					"nodeDrainTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout` NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
+							Description: "nodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout` NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeVolumeDetachTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations. NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
+							Description: "nodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations. NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeDeletionTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds. NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
+							Description: "nodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds. NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
@@ -1734,7 +2074,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentClassNamingStrate
 				Properties: map[string]spec.Schema{
 					"template": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Template defines the template to use for generating the name of the MachineDeployment object. If not defined, it will fallback to `{{ .cluster.name }}-{{ .machineDeployment.topologyName }}-{{ .random }}`. If the templated string exceeds 63 characters, it will be trimmed to 58 characters and will get concatenated with a random suffix of length 5. The templating mechanism provides the following arguments: * `.cluster.name`: The name of the cluster object. * `.random`: A random alphanumeric string, without vowels, of length 5. * `.machineDeployment.topologyName`: The name of the MachineDeployment topology (Cluster.spec.topology.workers.machineDeployments[].name).",
+							Description: "template defines the template to use for generating the name of the MachineDeployment object. If not defined, it will fallback to `{{ .cluster.name }}-{{ .machineDeployment.topologyName }}-{{ .random }}`. If the templated string exceeds 63 characters, it will be trimmed to 58 characters and will get concatenated with a random suffix of length 5. The templating mechanism provides the following arguments: * `.cluster.name`: The name of the cluster object. * `.random`: A random alphanumeric string, without vowels, of length 5. * `.machineDeployment.topologyName`: The name of the MachineDeployment topology (Cluster.spec.topology.workers.machineDeployments[].name).",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1754,21 +2094,21 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentClassTemplate(ref
 				Properties: map[string]spec.Schema{
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Metadata is the metadata applied to the MachineDeployment and the machines of the MachineDeployment. At runtime this metadata is merged with the corresponding metadata from the topology.",
+							Description: "metadata is the metadata applied to the MachineDeployment and the machines of the MachineDeployment. At runtime this metadata is merged with the corresponding metadata from the topology.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ObjectMeta"),
 						},
 					},
 					"bootstrap": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Bootstrap contains the bootstrap template reference to be used for the creation of worker Machines.",
+							Description: "bootstrap contains the bootstrap template reference to be used for the creation of worker Machines.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.LocalObjectTemplate"),
 						},
 					},
 					"infrastructure": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Infrastructure contains the infrastructure template reference to be used for the creation of worker Machines.",
+							Description: "infrastructure contains the infrastructure template reference to be used for the creation of worker Machines.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.LocalObjectTemplate"),
 						},
@@ -1840,7 +2180,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentSpec(ref common.R
 				Properties: map[string]spec.Schema{
 					"clusterName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ClusterName is the name of the Cluster this object belongs to.",
+							Description: "clusterName is the name of the Cluster this object belongs to.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1855,7 +2195,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentSpec(ref common.R
 					},
 					"rolloutAfter": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RolloutAfter is a field to indicate a rollout should be performed after the specified time even if no changes have been made to the MachineDeployment. Example: In the YAML the time can be specified in the RFC3339 format. To specify the rolloutAfter target as March 9, 2023, at 9 am UTC use \"2023-03-09T09:00:00Z\".",
+							Description: "rolloutAfter is a field to indicate a rollout should be performed after the specified time even if no changes have been made to the MachineDeployment. Example: In the YAML the time can be specified in the RFC3339 format. To specify the rolloutAfter target as March 9, 2023, at 9 am UTC use \"2023-03-09T09:00:00Z\".",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
@@ -1868,7 +2208,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentSpec(ref common.R
 					},
 					"template": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Template describes the machines that will be created.",
+							Description: "template describes the machines that will be created.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineTemplateSpec"),
 						},
@@ -1881,14 +2221,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentSpec(ref common.R
 					},
 					"minReadySeconds": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MinReadySeconds is the minimum number of seconds for which a Node for a newly created machine should be ready before considering the replica available. Defaults to 0 (machine will be considered available as soon as the Node is ready)",
+							Description: "minReadySeconds is the minimum number of seconds for which a Node for a newly created machine should be ready before considering the replica available. Defaults to 0 (machine will be considered available as soon as the Node is ready)",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
 					"revisionHistoryLimit": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The number of old MachineSets to retain to allow rollback. This is a pointer to distinguish between explicit zero and not specified. Defaults to 1.",
+							Description: "The number of old MachineSets to retain to allow rollback. This is a pointer to distinguish between explicit zero and not specified. Defaults to 1.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/issues/10479 for more details.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -1902,7 +2242,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentSpec(ref common.R
 					},
 					"progressDeadlineSeconds": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The maximum time in seconds for a deployment to make progress before it is considered to be failed. The deployment controller will continue to process failed deployments and a condition with a ProgressDeadlineExceeded reason will be surfaced in the deployment status. Note that progress will not be estimated during the time a deployment is paused. Defaults to 600s.",
+							Description: "The maximum time in seconds for a deployment to make progress before it is considered to be failed. The deployment controller will continue to process failed deployments and a condition with a ProgressDeadlineExceeded reason will be surfaced in the deployment status. Note that progress will not be estimated during the time a deployment is paused. Defaults to 600s.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/issues/11470 for more details.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -1932,7 +2272,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentStatus(ref common
 					},
 					"selector": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Selector is the same as the label selector but in the string format to avoid introspection by clients. The string will be in the same format as the query-param syntax. More info about label selectors: http://kubernetes.io/docs/user-guide/labels#label-selectors",
+							Description: "selector is the same as the label selector but in the string format to avoid introspection by clients. The string will be in the same format as the query-param syntax. More info about label selectors: http://kubernetes.io/docs/user-guide/labels#label-selectors",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1971,7 +2311,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentStatus(ref common
 					},
 					"unavailableReplicas": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Total number of unavailable machines targeted by this deployment. This is the total number of machines that are still required for the deployment to have 100% available capacity. They may either be machines that are running but not yet available or machines that still have not been created.",
+							Description: "Total number of unavailable machines targeted by this deployment. This is the total number of machines that are still required for the deployment to have 100% available capacity. They may either be machines that are running but not yet available or machines that still have not been created.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more details.",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -1979,14 +2319,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentStatus(ref common
 					},
 					"phase": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Phase represents the current phase of a MachineDeployment (ScalingUp, ScalingDown, Running, Failed, or Unknown).",
+							Description: "phase represents the current phase of a MachineDeployment (ScalingUp, ScalingDown, Running, Failed, or Unknown).",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"conditions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Conditions defines current service state of the MachineDeployment.",
+							Description: "conditions defines current service state of the MachineDeployment.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1998,11 +2338,17 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentStatus(ref common
 							},
 						},
 					},
+					"v1beta2": {
+						SchemaProps: spec.SchemaProps{
+							Description: "v1beta2 groups all the fields that will be added or modified in MachineDeployment's status with the V1Beta2 version.",
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineDeploymentV1Beta2Status"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/v1beta1.Condition"},
+			"sigs.k8s.io/cluster-api/api/v1beta1.Condition", "sigs.k8s.io/cluster-api/api/v1beta1.MachineDeploymentV1Beta2Status"},
 	}
 }
 
@@ -2015,7 +2361,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentStrategy(ref comm
 				Properties: map[string]spec.Schema{
 					"type": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Type of deployment. Allowed values are RollingUpdate and OnDelete. The default is RollingUpdate.",
+							Description: "type of deployment. Allowed values are RollingUpdate and OnDelete. The default is RollingUpdate.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2026,11 +2372,17 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentStrategy(ref comm
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineRollingUpdateDeployment"),
 						},
 					},
+					"remediation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "remediation controls the strategy of remediating unhealthy machines and how remediating operations should occur during the lifecycle of the dependant MachineSets.",
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.RemediationStrategy"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/v1beta1.MachineRollingUpdateDeployment"},
+			"sigs.k8s.io/cluster-api/api/v1beta1.MachineRollingUpdateDeployment", "sigs.k8s.io/cluster-api/api/v1beta1.RemediationStrategy"},
 	}
 }
 
@@ -2043,14 +2395,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentTopology(ref comm
 				Properties: map[string]spec.Schema{
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Metadata is the metadata applied to the MachineDeployment and the machines of the MachineDeployment. At runtime this metadata is merged with the corresponding metadata from the ClusterClass.",
+							Description: "metadata is the metadata applied to the MachineDeployment and the machines of the MachineDeployment. At runtime this metadata is merged with the corresponding metadata from the ClusterClass.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ObjectMeta"),
 						},
 					},
 					"class": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Class is the name of the MachineDeploymentClass used to create the set of worker nodes. This should match one of the deployment classes defined in the ClusterClass object mentioned in the `Cluster.Spec.Class` field.",
+							Description: "class is the name of the MachineDeploymentClass used to create the set of worker nodes. This should match one of the deployment classes defined in the ClusterClass object mentioned in the `Cluster.Spec.Class` field.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2058,7 +2410,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentTopology(ref comm
 					},
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name is the unique identifier for this MachineDeploymentTopology. The value is used with other unique identifiers to create a MachineDeployment's Name (e.g. cluster's name, etc). In case the name is greater than the allowed maximum length, the values are hashed together.",
+							Description: "name is the unique identifier for this MachineDeploymentTopology. The value is used with other unique identifiers to create a MachineDeployment's Name (e.g. cluster's name, etc). In case the name is greater than the allowed maximum length, the values are hashed together.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2066,39 +2418,39 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentTopology(ref comm
 					},
 					"failureDomain": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FailureDomain is the failure domain the machines will be created in. Must match a key in the FailureDomains map stored on the cluster object.",
+							Description: "failureDomain is the failure domain the machines will be created in. Must match a key in the FailureDomains map stored on the cluster object.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"replicas": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Replicas is the number of worker nodes belonging to this set. If the value is nil, the MachineDeployment is created without the number of Replicas (defaulting to 1) and it's assumed that an external entity (like cluster autoscaler) is responsible for the management of this value.",
+							Description: "replicas is the number of worker nodes belonging to this set. If the value is nil, the MachineDeployment is created without the number of Replicas (defaulting to 1) and it's assumed that an external entity (like cluster autoscaler) is responsible for the management of this value.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
 					"machineHealthCheck": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MachineHealthCheck allows to enable, disable and override the MachineHealthCheck configuration in the ClusterClass for this MachineDeployment.",
+							Description: "machineHealthCheck allows to enable, disable and override the MachineHealthCheck configuration in the ClusterClass for this MachineDeployment.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheckTopology"),
 						},
 					},
 					"nodeDrainTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout`",
+							Description: "nodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout`",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeVolumeDetachTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
+							Description: "nodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeDeletionTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
+							Description: "nodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
@@ -2117,7 +2469,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentTopology(ref comm
 					},
 					"variables": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Variables can be used to customize the MachineDeployment through patches.",
+							Description: "variables can be used to customize the MachineDeployment through patches.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineDeploymentVariables"),
 						},
 					},
@@ -2130,6 +2482,64 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentTopology(ref comm
 	}
 }
 
+func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentV1Beta2Status(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentV1Beta2Status groups all the fields that will be added or modified in MachineDeployment with the V1Beta2 version. See https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more context.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "conditions represents the observations of a MachineDeployment's current state. Known condition types are Available, MachinesReady, MachinesUpToDate, ScalingUp, ScalingDown, Remediating, Deleting, Paused.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
+									},
+								},
+							},
+						},
+					},
+					"readyReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "readyReplicas is the number of ready replicas for this MachineDeployment. A machine is considered ready when Machine's Ready condition is true.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"availableReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "availableReplicas is the number of available replicas for this MachineDeployment. A machine is considered available when Machine's Available condition is true.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"upToDateReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "upToDateReplicas is the number of up-to-date replicas targeted by this deployment. A machine is considered up-to-date when Machine's UpToDate condition is true.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
+	}
+}
+
 func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentVariables(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2138,8 +2548,16 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentVariables(ref com
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"overrides": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"name",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Overrides can be used to override Cluster level variables.",
+							Description: "overrides can be used to override Cluster level variables.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2156,6 +2574,243 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDeploymentVariables(ref com
 		},
 		Dependencies: []string{
 			"sigs.k8s.io/cluster-api/api/v1beta1.ClusterVariable"},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDrainRule(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDrainRule is the Schema for the MachineDrainRule API.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Description: "spec defines the spec of a MachineDrainRule.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRuleSpec"),
+						},
+					},
+				},
+				Required: []string{"metadata", "spec"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRuleSpec"},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDrainRuleDrainConfig(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDrainRuleDrainConfig configures if and how Pods are drained.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"behavior": {
+						SchemaProps: spec.SchemaProps{
+							Description: "behavior defines the drain behavior. Can be either \"Drain\", \"Skip\", or \"WaitCompleted\". \"Drain\" means that the Pods to which this MachineDrainRule applies will be drained. If behavior is set to \"Drain\" the order in which Pods are drained can be configured with the order field. When draining Pods of a Node the Pods will be grouped by order and one group after another will be drained (by increasing order). Cluster API will wait until all Pods of a group are terminated / removed from the Node before starting with the next group. \"Skip\" means that the Pods to which this MachineDrainRule applies will be skipped during drain. \"WaitCompleted\" means that the pods to which this MachineDrainRule applies will never be evicted and we wait for them to be completed, it is enforced that pods marked with this behavior always have Order=0.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"order": {
+						SchemaProps: spec.SchemaProps{
+							Description: "order defines the order in which Pods are drained. Pods with higher order are drained after Pods with lower order. order can only be set if behavior is set to \"Drain\". If order is not set, 0 will be used. Valid values for order are from -2147483648 to 2147483647 (inclusive).",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+				Required: []string{"behavior"},
+			},
+		},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDrainRuleList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDrainRuleList contains a list of MachineDrainRules.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Description: "items contains the items of the MachineDrainRuleList.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRule"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta", "sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRule"},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDrainRuleMachineSelector(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDrainRuleMachineSelector defines to which Machines this MachineDrainRule should be applied.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"selector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "selector is a label selector which selects Machines by their labels. This field follows standard label selector semantics; if not present or empty, it selects all Machines.\n\nIf clusterSelector is also set, then the selector as a whole selects Machines matching selector belonging to Clusters selected by clusterSelector. If clusterSelector is not set, it selects all Machines matching selector in all Clusters.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+						},
+					},
+					"clusterSelector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "clusterSelector is a label selector which selects Machines by the labels of their Clusters. This field follows standard label selector semantics; if not present or empty, it selects Machines of all Clusters.\n\nIf selector is also set, then the selector as a whole selects Machines matching selector belonging to Clusters selected by clusterSelector. If selector is not set, it selects all Machines belonging to Clusters selected by clusterSelector.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDrainRulePodSelector(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDrainRulePodSelector defines to which Pods this MachineDrainRule should be applied.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"selector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "selector is a label selector which selects Pods by their labels. This field follows standard label selector semantics; if not present or empty, it selects all Pods.\n\nIf namespaceSelector is also set, then the selector as a whole selects Pods matching selector in Namespaces selected by namespaceSelector. If namespaceSelector is not set, it selects all Pods matching selector in all Namespaces.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+						},
+					},
+					"namespaceSelector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "namespaceSelector is a label selector which selects Pods by the labels of their Namespaces. This field follows standard label selector semantics; if not present or empty, it selects Pods of all Namespaces.\n\nIf selector is also set, then the selector as a whole selects Pods matching selector in Namespaces selected by namespaceSelector. If selector is not set, it selects all Pods in Namespaces selected by namespaceSelector.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_MachineDrainRuleSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDrainRuleSpec defines the spec of a MachineDrainRule.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"drain": {
+						SchemaProps: spec.SchemaProps{
+							Description: "drain configures if and how Pods are drained.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRuleDrainConfig"),
+						},
+					},
+					"machines": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "machines defines to which Machines this MachineDrainRule should be applied.\n\nIf machines is not set, the MachineDrainRule applies to all Machines in the Namespace. If machines contains multiple selectors, the results are ORed. Within a single Machine selector the results of selector and clusterSelector are ANDed. Machines will be selected from all Clusters in the Namespace unless otherwise restricted with the clusterSelector.\n\nExample: Selects control plane Machines in all Clusters or\n         Machines with label \"os\" == \"linux\" in Clusters with label\n         \"stage\" == \"production\".\n\n - selector:\n     matchExpressions:\n     - key: cluster.x-k8s.io/control-plane\n       operator: Exists\n - selector:\n     matchLabels:\n       os: linux\n   clusterSelector:\n     matchExpressions:\n     - key: stage\n       operator: In\n       values:\n       - production",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRuleMachineSelector"),
+									},
+								},
+							},
+						},
+					},
+					"pods": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "pods defines to which Pods this MachineDrainRule should be applied.\n\nIf pods is not set, the MachineDrainRule applies to all Pods in all Namespaces. If pods contains multiple selectors, the results are ORed. Within a single Pod selector the results of selector and namespaceSelector are ANDed. Pods will be selected from all Namespaces unless otherwise restricted with the namespaceSelector.\n\nExample: Selects Pods with label \"app\" == \"logging\" in all Namespaces or\n         Pods with label \"app\" == \"prometheus\" in the \"monitoring\"\n         Namespace.\n\n - selector:\n     matchExpressions:\n     - key: app\n       operator: In\n       values:\n       - logging\n - selector:\n     matchLabels:\n       app: prometheus\n   namespaceSelector:\n     matchLabels:\n       kubernetes.io/metadata.name: monitoring",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRulePodSelector"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"drain"},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRuleDrainConfig", "sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRuleMachineSelector", "sigs.k8s.io/cluster-api/api/v1beta1.MachineDrainRulePodSelector"},
 	}
 }
 
@@ -2217,7 +2872,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckClass(ref common
 				Properties: map[string]spec.Schema{
 					"unhealthyConditions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "UnhealthyConditions contains a list of the conditions that determine whether a node is considered unhealthy. The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
+							Description: "unhealthyConditions contains a list of the conditions that determine whether a node is considered unhealthy. The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2244,13 +2899,13 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckClass(ref common
 					},
 					"nodeStartupTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Machines older than this duration without a node will be considered to have failed and will be remediated. If you wish to disable this feature, set the value explicitly to 0.",
+							Description: "nodeStartupTimeout allows to set the maximum time for MachineHealthCheck to consider a Machine unhealthy if a corresponding Node isn't associated through a `Spec.ProviderID` field.\n\nThe duration set in this field is compared to the greatest of: - Cluster's infrastructure ready condition timestamp (if and when available) - Control Plane's initialized condition timestamp (if and when available) - Machine's infrastructure ready condition timestamp (if and when available) - Machine's metadata creation timestamp\n\nDefaults to 10 minutes. If you wish to disable this feature, set the value explicitly to 0.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"remediationTemplate": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RemediationTemplate is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
+							Description: "remediationTemplate is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
@@ -2320,7 +2975,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckSpec(ref common.
 				Properties: map[string]spec.Schema{
 					"clusterName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ClusterName is the name of the Cluster this object belongs to.",
+							Description: "clusterName is the name of the Cluster this object belongs to.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2335,7 +2990,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckSpec(ref common.
 					},
 					"unhealthyConditions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "UnhealthyConditions contains a list of the conditions that determine whether a node is considered unhealthy.  The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
+							Description: "unhealthyConditions contains a list of the conditions that determine whether a node is considered unhealthy.  The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2349,31 +3004,31 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckSpec(ref common.
 					},
 					"maxUnhealthy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Any further remediation is only allowed if at most \"MaxUnhealthy\" machines selected by \"selector\" are not healthy.",
+							Description: "Any further remediation is only allowed if at most \"MaxUnhealthy\" machines selected by \"selector\" are not healthy.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/issues/10722 for more details.",
 							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
 						},
 					},
 					"unhealthyRange": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Any further remediation is only allowed if the number of machines selected by \"selector\" as not healthy is within the range of \"UnhealthyRange\". Takes precedence over MaxUnhealthy. Eg. \"[3-5]\" - This means that remediation will be allowed only when: (a) there are at least 3 unhealthy machines (and) (b) there are at most 5 unhealthy machines",
+							Description: "Any further remediation is only allowed if the number of machines selected by \"selector\" as not healthy is within the range of \"UnhealthyRange\". Takes precedence over MaxUnhealthy. Eg. \"[3-5]\" - This means that remediation will be allowed only when: (a) there are at least 3 unhealthy machines (and) (b) there are at most 5 unhealthy machines\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/issues/10722 for more details.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"nodeStartupTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Machines older than this duration without a node will be considered to have failed and will be remediated. If not set, this value is defaulted to 10 minutes. If you wish to disable this feature, set the value explicitly to 0.",
+							Description: "nodeStartupTimeout allows to set the maximum time for MachineHealthCheck to consider a Machine unhealthy if a corresponding Node isn't associated through a `Spec.ProviderID` field.\n\nThe duration set in this field is compared to the greatest of: - Cluster's infrastructure ready condition timestamp (if and when available) - Control Plane's initialized condition timestamp (if and when available) - Machine's infrastructure ready condition timestamp (if and when available) - Machine's metadata creation timestamp\n\nDefaults to 10 minutes. If you wish to disable this feature, set the value explicitly to 0.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"remediationTemplate": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RemediationTemplate is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
+							Description: "remediationTemplate is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
 				},
-				Required: []string{"clusterName", "selector", "unhealthyConditions"},
+				Required: []string{"clusterName", "selector"},
 			},
 		},
 		Dependencies: []string{
@@ -2406,7 +3061,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckStatus(ref commo
 					},
 					"remediationsAllowed": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RemediationsAllowed is the number of further remediations allowed by this machine health check before maxUnhealthy short circuiting will be applied",
+							Description: "remediationsAllowed is the number of further remediations allowed by this machine health check before maxUnhealthy short circuiting will be applied",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -2414,14 +3069,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckStatus(ref commo
 					},
 					"observedGeneration": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ObservedGeneration is the latest generation observed by the controller.",
+							Description: "observedGeneration is the latest generation observed by the controller.",
 							Type:        []string{"integer"},
 							Format:      "int64",
 						},
 					},
 					"targets": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Targets shows the current list of machines the machine health check is watching",
+							Description: "targets shows the current list of machines the machine health check is watching",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2436,7 +3091,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckStatus(ref commo
 					},
 					"conditions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Conditions defines current service state of the MachineHealthCheck.",
+							Description: "conditions defines current service state of the MachineHealthCheck.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2448,11 +3103,17 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckStatus(ref commo
 							},
 						},
 					},
+					"v1beta2": {
+						SchemaProps: spec.SchemaProps{
+							Description: "v1beta2 groups all the fields that will be added or modified in MachineHealthCheck's status with the V1Beta2 version.",
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheckV1Beta2Status"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/v1beta1.Condition"},
+			"sigs.k8s.io/cluster-api/api/v1beta1.Condition", "sigs.k8s.io/cluster-api/api/v1beta1.MachineHealthCheckV1Beta2Status"},
 	}
 }
 
@@ -2465,14 +3126,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckTopology(ref com
 				Properties: map[string]spec.Schema{
 					"enable": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enable controls if a MachineHealthCheck should be created for the target machines.\n\nIf false: No MachineHealthCheck will be created.\n\nIf not set(default): A MachineHealthCheck will be created if it is defined here or\n in the associated ClusterClass. If no MachineHealthCheck is defined then none will be created.\n\nIf true: A MachineHealthCheck is guaranteed to be created. Cluster validation will block if `enable` is true and no MachineHealthCheck definition is available.",
+							Description: "enable controls if a MachineHealthCheck should be created for the target machines.\n\nIf false: No MachineHealthCheck will be created.\n\nIf not set(default): A MachineHealthCheck will be created if it is defined here or\n in the associated ClusterClass. If no MachineHealthCheck is defined then none will be created.\n\nIf true: A MachineHealthCheck is guaranteed to be created. Cluster validation will block if `enable` is true and no MachineHealthCheck definition is available.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
 					},
 					"unhealthyConditions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "UnhealthyConditions contains a list of the conditions that determine whether a node is considered unhealthy. The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
+							Description: "unhealthyConditions contains a list of the conditions that determine whether a node is considered unhealthy. The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2499,13 +3160,13 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckTopology(ref com
 					},
 					"nodeStartupTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Machines older than this duration without a node will be considered to have failed and will be remediated. If you wish to disable this feature, set the value explicitly to 0.",
+							Description: "nodeStartupTimeout allows to set the maximum time for MachineHealthCheck to consider a Machine unhealthy if a corresponding Node isn't associated through a `Spec.ProviderID` field.\n\nThe duration set in this field is compared to the greatest of: - Cluster's infrastructure ready condition timestamp (if and when available) - Control Plane's initialized condition timestamp (if and when available) - Machine's infrastructure ready condition timestamp (if and when available) - Machine's metadata creation timestamp\n\nDefaults to 10 minutes. If you wish to disable this feature, set the value explicitly to 0.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"remediationTemplate": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RemediationTemplate is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
+							Description: "remediationTemplate is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
@@ -2514,6 +3175,43 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckTopology(ref com
 		},
 		Dependencies: []string{
 			"k8s.io/api/core/v1.ObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration", "k8s.io/apimachinery/pkg/util/intstr.IntOrString", "sigs.k8s.io/cluster-api/api/v1beta1.UnhealthyCondition"},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_MachineHealthCheckV1Beta2Status(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineHealthCheckV1Beta2Status groups all the fields that will be added or modified in MachineHealthCheck with the V1Beta2 version. See https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more context.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "conditions represents the observations of a MachineHealthCheck's current state. Known condition types are RemediationAllowed, Paused.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
 	}
 }
 
@@ -2575,7 +3273,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolClass(ref common.Refere
 				Properties: map[string]spec.Schema{
 					"class": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Class denotes a type of machine pool present in the cluster, this name MUST be unique within a ClusterClass and can be referenced in the Cluster to create a managed MachinePool.",
+							Description: "class denotes a type of machine pool present in the cluster, this name MUST be unique within a ClusterClass and can be referenced in the Cluster to create a managed MachinePool.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2583,14 +3281,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolClass(ref common.Refere
 					},
 					"template": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Template is a local struct containing a collection of templates for creation of MachinePools objects representing a pool of worker nodes.",
+							Description: "template is a local struct containing a collection of templates for creation of MachinePools objects representing a pool of worker nodes.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachinePoolClassTemplate"),
 						},
 					},
 					"failureDomains": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FailureDomains is the list of failure domains the MachinePool should be attached to. Must match a key in the FailureDomains map stored on the cluster object. NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
+							Description: "failureDomains is the list of failure domains the MachinePool should be attached to. Must match a key in the FailureDomains map stored on the cluster object. NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2605,25 +3303,25 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolClass(ref common.Refere
 					},
 					"namingStrategy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NamingStrategy allows changing the naming pattern used when creating the MachinePool.",
+							Description: "namingStrategy allows changing the naming pattern used when creating the MachinePool.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachinePoolClassNamingStrategy"),
 						},
 					},
 					"nodeDrainTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout` NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
+							Description: "nodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout` NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeVolumeDetachTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations. NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
+							Description: "nodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations. NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeDeletionTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine Pool is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds. NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
+							Description: "nodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine Pool is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds. NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
@@ -2652,7 +3350,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolClassNamingStrategy(ref
 				Properties: map[string]spec.Schema{
 					"template": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Template defines the template to use for generating the name of the MachinePool object. If not defined, it will fallback to `{{ .cluster.name }}-{{ .machinePool.topologyName }}-{{ .random }}`. If the templated string exceeds 63 characters, it will be trimmed to 58 characters and will get concatenated with a random suffix of length 5. The templating mechanism provides the following arguments: * `.cluster.name`: The name of the cluster object. * `.random`: A random alphanumeric string, without vowels, of length 5. * `.machinePool.topologyName`: The name of the MachinePool topology (Cluster.spec.topology.workers.machinePools[].name).",
+							Description: "template defines the template to use for generating the name of the MachinePool object. If not defined, it will fallback to `{{ .cluster.name }}-{{ .machinePool.topologyName }}-{{ .random }}`. If the templated string exceeds 63 characters, it will be trimmed to 58 characters and will get concatenated with a random suffix of length 5. The templating mechanism provides the following arguments: * `.cluster.name`: The name of the cluster object. * `.random`: A random alphanumeric string, without vowels, of length 5. * `.machinePool.topologyName`: The name of the MachinePool topology (Cluster.spec.topology.workers.machinePools[].name).",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2672,21 +3370,21 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolClassTemplate(ref commo
 				Properties: map[string]spec.Schema{
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Metadata is the metadata applied to the MachinePool. At runtime this metadata is merged with the corresponding metadata from the topology.",
+							Description: "metadata is the metadata applied to the MachinePool. At runtime this metadata is merged with the corresponding metadata from the topology.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ObjectMeta"),
 						},
 					},
 					"bootstrap": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Bootstrap contains the bootstrap template reference to be used for the creation of the Machines in the MachinePool.",
+							Description: "bootstrap contains the bootstrap template reference to be used for the creation of the Machines in the MachinePool.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.LocalObjectTemplate"),
 						},
 					},
 					"infrastructure": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Infrastructure contains the infrastructure template reference to be used for the creation of the MachinePool.",
+							Description: "infrastructure contains the infrastructure template reference to be used for the creation of the MachinePool.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.LocalObjectTemplate"),
 						},
@@ -2709,14 +3407,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolTopology(ref common.Ref
 				Properties: map[string]spec.Schema{
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Metadata is the metadata applied to the MachinePool. At runtime this metadata is merged with the corresponding metadata from the ClusterClass.",
+							Description: "metadata is the metadata applied to the MachinePool. At runtime this metadata is merged with the corresponding metadata from the ClusterClass.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ObjectMeta"),
 						},
 					},
 					"class": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Class is the name of the MachinePoolClass used to create the pool of worker nodes. This should match one of the deployment classes defined in the ClusterClass object mentioned in the `Cluster.Spec.Class` field.",
+							Description: "class is the name of the MachinePoolClass used to create the pool of worker nodes. This should match one of the deployment classes defined in the ClusterClass object mentioned in the `Cluster.Spec.Class` field.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2724,7 +3422,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolTopology(ref common.Ref
 					},
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name is the unique identifier for this MachinePoolTopology. The value is used with other unique identifiers to create a MachinePool's Name (e.g. cluster's name, etc). In case the name is greater than the allowed maximum length, the values are hashed together.",
+							Description: "name is the unique identifier for this MachinePoolTopology. The value is used with other unique identifiers to create a MachinePool's Name (e.g. cluster's name, etc). In case the name is greater than the allowed maximum length, the values are hashed together.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2732,7 +3430,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolTopology(ref common.Ref
 					},
 					"failureDomains": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FailureDomains is the list of failure domains the machine pool will be created in. Must match a key in the FailureDomains map stored on the cluster object.",
+							Description: "failureDomains is the list of failure domains the machine pool will be created in. Must match a key in the FailureDomains map stored on the cluster object.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2747,19 +3445,19 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolTopology(ref common.Ref
 					},
 					"nodeDrainTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout`",
+							Description: "nodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout`",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeVolumeDetachTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
+							Description: "nodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeDeletionTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDeletionTimeout defines how long the controller will attempt to delete the Node that the MachinePool hosts after the MachinePool is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
+							Description: "nodeDeletionTimeout defines how long the controller will attempt to delete the Node that the MachinePool hosts after the MachinePool is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
@@ -2772,14 +3470,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolTopology(ref common.Ref
 					},
 					"replicas": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Replicas is the number of nodes belonging to this pool. If the value is nil, the MachinePool is created without the number of Replicas (defaulting to 1) and it's assumed that an external entity (like cluster autoscaler) is responsible for the management of this value.",
+							Description: "replicas is the number of nodes belonging to this pool. If the value is nil, the MachinePool is created without the number of Replicas (defaulting to 1) and it's assumed that an external entity (like cluster autoscaler) is responsible for the management of this value.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
 					"variables": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Variables can be used to customize the MachinePool through patches.",
+							Description: "variables can be used to customize the MachinePool through patches.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachinePoolVariables"),
 						},
 					},
@@ -2800,8 +3498,16 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolVariables(ref common.Re
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"overrides": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"name",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Overrides can be used to override Cluster level variables.",
+							Description: "overrides can be used to override Cluster level variables.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2818,6 +3524,28 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachinePoolVariables(ref common.Re
 		},
 		Dependencies: []string{
 			"sigs.k8s.io/cluster-api/api/v1beta1.ClusterVariable"},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_MachineReadinessGate(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineReadinessGate contains the type of a Machine condition to be used as a readiness gate.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditionType": {
+						SchemaProps: spec.SchemaProps{
+							Description: "conditionType refers to a positive polarity condition (status true means good) with matching type in the Machine's condition list. If the conditions doesn't exist, it will be treated as unknown. Note: Both Cluster API conditions or conditions added by 3rd party controllers can be used as readiness gates.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"conditionType"},
+			},
+		},
 	}
 }
 
@@ -2842,7 +3570,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineRollingUpdateDeployment(ref
 					},
 					"deletePolicy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DeletePolicy defines the policy used by the MachineDeployment to identify nodes to delete when downscaling. Valid values are \"Random, \"Newest\", \"Oldest\" When no value is supplied, the default DeletePolicy of MachineSet is used",
+							Description: "deletePolicy defines the policy used by the MachineDeployment to identify nodes to delete when downscaling. Valid values are \"Random, \"Newest\", \"Oldest\" When no value is supplied, the default DeletePolicy of MachineSet is used",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2960,7 +3688,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineSetSpec(ref common.Referenc
 				Properties: map[string]spec.Schema{
 					"clusterName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ClusterName is the name of the Cluster this object belongs to.",
+							Description: "clusterName is the name of the Cluster this object belongs to.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2968,35 +3696,35 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineSetSpec(ref common.Referenc
 					},
 					"replicas": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Replicas is the number of desired replicas. This is a pointer to distinguish between explicit zero and unspecified.\n\nDefaults to: * if the Kubernetes autoscaler min size and max size annotations are set:\n  - if it's a new MachineSet, use min size\n  - if the replicas field of the old MachineSet is < min size, use min size\n  - if the replicas field of the old MachineSet is > max size, use max size\n  - if the replicas field of the old MachineSet is in the (min size, max size) range, keep the value from the oldMS\n* otherwise use 1 Note: Defaulting will be run whenever the replicas field is not set: * A new MachineSet is created with replicas not set. * On an existing MachineSet the replicas field was first set and is now unset. Those cases are especially relevant for the following Kubernetes autoscaler use cases: * A new MachineSet is created and replicas should be managed by the autoscaler * An existing MachineSet which initially wasn't controlled by the autoscaler\n  should be later controlled by the autoscaler",
+							Description: "replicas is the number of desired replicas. This is a pointer to distinguish between explicit zero and unspecified.\n\nDefaults to: * if the Kubernetes autoscaler min size and max size annotations are set:\n  - if it's a new MachineSet, use min size\n  - if the replicas field of the old MachineSet is < min size, use min size\n  - if the replicas field of the old MachineSet is > max size, use max size\n  - if the replicas field of the old MachineSet is in the (min size, max size) range, keep the value from the oldMS\n* otherwise use 1 Note: Defaulting will be run whenever the replicas field is not set: * A new MachineSet is created with replicas not set. * On an existing MachineSet the replicas field was first set and is now unset. Those cases are especially relevant for the following Kubernetes autoscaler use cases: * A new MachineSet is created and replicas should be managed by the autoscaler * An existing MachineSet which initially wasn't controlled by the autoscaler\n  should be later controlled by the autoscaler",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
 					"minReadySeconds": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MinReadySeconds is the minimum number of seconds for which a Node for a newly created machine should be ready before considering the replica available. Defaults to 0 (machine will be considered available as soon as the Node is ready)",
+							Description: "minReadySeconds is the minimum number of seconds for which a Node for a newly created machine should be ready before considering the replica available. Defaults to 0 (machine will be considered available as soon as the Node is ready)",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
 					"deletePolicy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DeletePolicy defines the policy used to identify nodes to delete when downscaling. Defaults to \"Random\".  Valid values are \"Random, \"Newest\", \"Oldest\"",
+							Description: "deletePolicy defines the policy used to identify nodes to delete when downscaling. Defaults to \"Random\".  Valid values are \"Random, \"Newest\", \"Oldest\"",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"selector": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Selector is a label query over machines that should match the replica count. Label keys and values that must match in order to be controlled by this MachineSet. It must match the machine template's labels. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors",
+							Description: "selector is a label query over machines that should match the replica count. Label keys and values that must match in order to be controlled by this MachineSet. It must match the machine template's labels. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors",
 							Default:     map[string]interface{}{},
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
 						},
 					},
 					"template": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Template is the object that describes the machine that will be created if insufficient replicas are detected. Object references to custom resources are treated as templates.",
+							Description: "template is the object that describes the machine that will be created if insufficient replicas are detected. Object references to custom resources are treated as templates.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineTemplateSpec"),
 						},
@@ -3019,14 +3747,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineSetStatus(ref common.Refere
 				Properties: map[string]spec.Schema{
 					"selector": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Selector is the same as the label selector but in the string format to avoid introspection by clients. The string will be in the same format as the query-param syntax. More info about label selectors: http://kubernetes.io/docs/user-guide/labels#label-selectors",
+							Description: "selector is the same as the label selector but in the string format to avoid introspection by clients. The string will be in the same format as the query-param syntax. More info about label selectors: http://kubernetes.io/docs/user-guide/labels#label-selectors",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"replicas": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Replicas is the most recently observed number of replicas.",
+							Description: "replicas is the most recently observed number of replicas.",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -3034,7 +3762,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineSetStatus(ref common.Refere
 					},
 					"fullyLabeledReplicas": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The number of replicas that have labels matching the labels of the machine template of the MachineSet.",
+							Description: "The number of replicas that have labels matching the labels of the machine template of the MachineSet.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more details.",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -3058,27 +3786,28 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineSetStatus(ref common.Refere
 					},
 					"observedGeneration": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ObservedGeneration reflects the generation of the most recently observed MachineSet.",
+							Description: "observedGeneration reflects the generation of the most recently observed MachineSet.",
 							Type:        []string{"integer"},
 							Format:      "int64",
 						},
 					},
 					"failureReason": {
 						SchemaProps: spec.SchemaProps{
-							Description: "In the event that there is a terminal problem reconciling the replicas, both FailureReason and FailureMessage will be set. FailureReason will be populated with a succinct value suitable for machine interpretation, while FailureMessage will contain a more verbose string suitable for logging and human consumption.\n\nThese fields should not be set for transitive errors that a controller faces that are expected to be fixed automatically over time (like service outages), but instead indicate that something is fundamentally wrong with the MachineTemplate's spec or the configuration of the machine controller, and that manual intervention is required. Examples of terminal errors would be invalid combinations of settings in the spec, values that are unsupported by the machine controller, or the responsible machine controller itself being critically misconfigured.\n\nAny transient errors that occur during the reconciliation of Machines can be added as events to the MachineSet object and/or logged in the controller's output.",
+							Description: "In the event that there is a terminal problem reconciling the replicas, both FailureReason and FailureMessage will be set. FailureReason will be populated with a succinct value suitable for machine interpretation, while FailureMessage will contain a more verbose string suitable for logging and human consumption.\n\nThese fields should not be set for transitive errors that a controller faces that are expected to be fixed automatically over time (like service outages), but instead indicate that something is fundamentally wrong with the MachineTemplate's spec or the configuration of the machine controller, and that manual intervention is required. Examples of terminal errors would be invalid combinations of settings in the spec, values that are unsupported by the machine controller, or the responsible machine controller itself being critically misconfigured.\n\nAny transient errors that occur during the reconciliation of Machines can be added as events to the MachineSet object and/or logged in the controller's output.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more details.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"failureMessage": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Description: "Deprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more details.",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"conditions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Conditions defines current service state of the MachineSet.",
+							Description: "conditions defines current service state of the MachineSet.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -3090,11 +3819,75 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineSetStatus(ref common.Refere
 							},
 						},
 					},
+					"v1beta2": {
+						SchemaProps: spec.SchemaProps{
+							Description: "v1beta2 groups all the fields that will be added or modified in MachineSet's status with the V1Beta2 version.",
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineSetV1Beta2Status"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/v1beta1.Condition"},
+			"sigs.k8s.io/cluster-api/api/v1beta1.Condition", "sigs.k8s.io/cluster-api/api/v1beta1.MachineSetV1Beta2Status"},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_MachineSetV1Beta2Status(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineSetV1Beta2Status groups all the fields that will be added or modified in MachineSetStatus with the V1Beta2 version. See https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more context.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "conditions represents the observations of a MachineSet's current state. Known condition types are MachinesReady, MachinesUpToDate, ScalingUp, ScalingDown, Remediating, Deleting, Paused.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
+									},
+								},
+							},
+						},
+					},
+					"readyReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "readyReplicas is the number of ready replicas for this MachineSet. A machine is considered ready when Machine's Ready condition is true.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"availableReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "availableReplicas is the number of available replicas for this MachineSet. A machine is considered available when Machine's Available condition is true.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"upToDateReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "upToDateReplicas is the number of up-to-date replicas for this MachineSet. A machine is considered up-to-date when Machine's UpToDate condition is true.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
 	}
 }
 
@@ -3107,7 +3900,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineSpec(ref common.ReferenceCa
 				Properties: map[string]spec.Schema{
 					"clusterName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ClusterName is the name of the Cluster this object belongs to.",
+							Description: "clusterName is the name of the Cluster this object belongs to.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3115,54 +3908,76 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineSpec(ref common.ReferenceCa
 					},
 					"bootstrap": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Bootstrap is a reference to a local struct which encapsulates fields to configure the Machine’s bootstrapping mechanism.",
+							Description: "bootstrap is a reference to a local struct which encapsulates fields to configure the Machine’s bootstrapping mechanism.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.Bootstrap"),
 						},
 					},
 					"infrastructureRef": {
 						SchemaProps: spec.SchemaProps{
-							Description: "InfrastructureRef is a required reference to a custom resource offered by an infrastructure provider.",
+							Description: "infrastructureRef is a required reference to a custom resource offered by an infrastructure provider.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
 					"version": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Version defines the desired Kubernetes version. This field is meant to be optionally used by bootstrap providers.",
+							Description: "version defines the desired Kubernetes version. This field is meant to be optionally used by bootstrap providers.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"providerID": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ProviderID is the identification ID of the machine provided by the provider. This field must match the provider ID as seen on the node object corresponding to this machine. This field is required by higher level consumers of cluster-api. Example use case is cluster autoscaler with cluster-api as provider. Clean-up logic in the autoscaler compares machines to nodes to find out machines at provider which could not get registered as Kubernetes nodes. With cluster-api as a generic out-of-tree provider for autoscaler, this field is required by autoscaler to be able to have a provider view of the list of machines. Another list of nodes is queried from the k8s apiserver and then a comparison is done to find out unregistered machines and are marked for delete. This field will be set by the actuators and consumed by higher level entities like autoscaler that will be interfacing with cluster-api as generic provider.",
+							Description: "providerID is the identification ID of the machine provided by the provider. This field must match the provider ID as seen on the node object corresponding to this machine. This field is required by higher level consumers of cluster-api. Example use case is cluster autoscaler with cluster-api as provider. Clean-up logic in the autoscaler compares machines to nodes to find out machines at provider which could not get registered as Kubernetes nodes. With cluster-api as a generic out-of-tree provider for autoscaler, this field is required by autoscaler to be able to have a provider view of the list of machines. Another list of nodes is queried from the k8s apiserver and then a comparison is done to find out unregistered machines and are marked for delete. This field will be set by the actuators and consumed by higher level entities like autoscaler that will be interfacing with cluster-api as generic provider.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"failureDomain": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FailureDomain is the failure domain the machine will be created in. Must match a key in the FailureDomains map stored on the cluster object.",
+							Description: "failureDomain is the failure domain the machine will be created in. Must match a key in the FailureDomains map stored on the cluster object.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
+					"readinessGates": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"conditionType",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "readinessGates specifies additional conditions to include when evaluating Machine Ready condition.\n\nThis field can be used e.g. by Cluster API control plane providers to extend the semantic of the Ready condition for the Machine they control, like the kubeadm control provider adding ReadinessGates for the APIServerPodHealthy, SchedulerPodHealthy conditions, etc.\n\nAnother example are external controllers, e.g. responsible to install special software/hardware on the Machines; they can include the status of those components with a new condition and add this condition to ReadinessGates.\n\nNOTE: This field is considered only for computing v1beta2 conditions. NOTE: In case readinessGates conditions start with the APIServer, ControllerManager, Scheduler prefix, and all those readiness gates condition are reporting the same message, when computing the Machine's Ready condition those readinessGates will be replaced by a single entry reporting \"Control plane components: \" + message. This helps to improve readability of conditions bubbling up to the Machine's owner resource / to the Cluster).",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineReadinessGate"),
+									},
+								},
+							},
+						},
+					},
 					"nodeDrainTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout`",
+							Description: "nodeDrainTimeout is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: NodeDrainTimeout is different from `kubectl drain --timeout`",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeVolumeDetachTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
+							Description: "nodeVolumeDetachTimeout is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
 					"nodeDeletionTimeout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
+							Description: "nodeDeletionTimeout defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
@@ -3171,7 +3986,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineSpec(ref common.ReferenceCa
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.ObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration", "sigs.k8s.io/cluster-api/api/v1beta1.Bootstrap"},
+			"k8s.io/api/core/v1.ObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration", "sigs.k8s.io/cluster-api/api/v1beta1.Bootstrap", "sigs.k8s.io/cluster-api/api/v1beta1.MachineReadinessGate"},
 	}
 }
 
@@ -3184,39 +3999,39 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineStatus(ref common.Reference
 				Properties: map[string]spec.Schema{
 					"nodeRef": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeRef will point to the corresponding Node if it exists.",
+							Description: "nodeRef will point to the corresponding Node if it exists.",
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
 					"nodeInfo": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeInfo is a set of ids/uuids to uniquely identify the node. More info: https://kubernetes.io/docs/concepts/nodes/node/#info",
+							Description: "nodeInfo is a set of ids/uuids to uniquely identify the node. More info: https://kubernetes.io/docs/concepts/nodes/node/#info",
 							Ref:         ref("k8s.io/api/core/v1.NodeSystemInfo"),
 						},
 					},
 					"lastUpdated": {
 						SchemaProps: spec.SchemaProps{
-							Description: "LastUpdated identifies when the phase of the Machine last transitioned.",
+							Description: "lastUpdated identifies when the phase of the Machine last transitioned.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
 					"failureReason": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FailureReason will be set in the event that there is a terminal problem reconciling the Machine and will contain a succinct value suitable for machine interpretation.\n\nThis field should not be set for transitive errors that a controller faces that are expected to be fixed automatically over time (like service outages), but instead indicate that something is fundamentally wrong with the Machine's spec or the configuration of the controller, and that manual intervention is required. Examples of terminal errors would be invalid combinations of settings in the spec, values that are unsupported by the controller, or the responsible controller itself being critically misconfigured.\n\nAny transient errors that occur during the reconciliation of Machines can be added as events to the Machine object and/or logged in the controller's output.",
+							Description: "failureReason will be set in the event that there is a terminal problem reconciling the Machine and will contain a succinct value suitable for machine interpretation.\n\nThis field should not be set for transitive errors that a controller faces that are expected to be fixed automatically over time (like service outages), but instead indicate that something is fundamentally wrong with the Machine's spec or the configuration of the controller, and that manual intervention is required. Examples of terminal errors would be invalid combinations of settings in the spec, values that are unsupported by the controller, or the responsible controller itself being critically misconfigured.\n\nAny transient errors that occur during the reconciliation of Machines can be added as events to the Machine object and/or logged in the controller's output.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more details.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"failureMessage": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FailureMessage will be set in the event that there is a terminal problem reconciling the Machine and will contain a more verbose string suitable for logging and human consumption.\n\nThis field should not be set for transitive errors that a controller faces that are expected to be fixed automatically over time (like service outages), but instead indicate that something is fundamentally wrong with the Machine's spec or the configuration of the controller, and that manual intervention is required. Examples of terminal errors would be invalid combinations of settings in the spec, values that are unsupported by the controller, or the responsible controller itself being critically misconfigured.\n\nAny transient errors that occur during the reconciliation of Machines can be added as events to the Machine object and/or logged in the controller's output.",
+							Description: "failureMessage will be set in the event that there is a terminal problem reconciling the Machine and will contain a more verbose string suitable for logging and human consumption.\n\nThis field should not be set for transitive errors that a controller faces that are expected to be fixed automatically over time (like service outages), but instead indicate that something is fundamentally wrong with the Machine's spec or the configuration of the controller, and that manual intervention is required. Examples of terminal errors would be invalid combinations of settings in the spec, values that are unsupported by the controller, or the responsible controller itself being critically misconfigured.\n\nAny transient errors that occur during the reconciliation of Machines can be added as events to the Machine object and/or logged in the controller's output.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more details.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"addresses": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Addresses is a list of addresses assigned to the machine. This field is copied from the infrastructure provider reference.",
+							Description: "addresses is a list of addresses assigned to the machine. This field is copied from the infrastructure provider reference.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -3230,20 +4045,20 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineStatus(ref common.Reference
 					},
 					"phase": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Phase represents the current phase of machine actuation. E.g. Pending, Running, Terminating, Failed etc.",
+							Description: "phase represents the current phase of machine actuation. E.g. Pending, Running, Terminating, Failed etc.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"certificatesExpiryDate": {
 						SchemaProps: spec.SchemaProps{
-							Description: "CertificatesExpiryDate is the expiry date of the machine certificates. This value is only set for control plane machines.",
+							Description: "certificatesExpiryDate is the expiry date of the machine certificates. This value is only set for control plane machines.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
 					"bootstrapReady": {
 						SchemaProps: spec.SchemaProps{
-							Description: "BootstrapReady is the state of the bootstrap provider.",
+							Description: "bootstrapReady is the state of the bootstrap provider.",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -3251,7 +4066,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineStatus(ref common.Reference
 					},
 					"infrastructureReady": {
 						SchemaProps: spec.SchemaProps{
-							Description: "InfrastructureReady is the state of the infrastructure provider.",
+							Description: "infrastructureReady is the state of the infrastructure provider.",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -3259,14 +4074,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineStatus(ref common.Reference
 					},
 					"observedGeneration": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ObservedGeneration is the latest generation observed by the controller.",
+							Description: "observedGeneration is the latest generation observed by the controller.",
 							Type:        []string{"integer"},
 							Format:      "int64",
 						},
 					},
 					"conditions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Conditions defines current service state of the Machine.",
+							Description: "conditions defines current service state of the Machine.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -3278,11 +4093,23 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineStatus(ref common.Reference
 							},
 						},
 					},
+					"deletion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "deletion contains information relating to removal of the Machine. Only present when the Machine has a deletionTimestamp and drain or wait for volume detach started.",
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineDeletionStatus"),
+						},
+					},
+					"v1beta2": {
+						SchemaProps: spec.SchemaProps{
+							Description: "v1beta2 groups all the fields that will be added or modified in Machine's status with the V1Beta2 version.",
+							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.MachineV1Beta2Status"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.NodeSystemInfo", "k8s.io/api/core/v1.ObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.Time", "sigs.k8s.io/cluster-api/api/v1beta1.Condition", "sigs.k8s.io/cluster-api/api/v1beta1.MachineAddress"},
+			"k8s.io/api/core/v1.NodeSystemInfo", "k8s.io/api/core/v1.ObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.Time", "sigs.k8s.io/cluster-api/api/v1beta1.Condition", "sigs.k8s.io/cluster-api/api/v1beta1.MachineAddress", "sigs.k8s.io/cluster-api/api/v1beta1.MachineDeletionStatus", "sigs.k8s.io/cluster-api/api/v1beta1.MachineV1Beta2Status"},
 	}
 }
 
@@ -3312,6 +4139,43 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_MachineTemplateSpec(ref common.Ref
 		},
 		Dependencies: []string{
 			"sigs.k8s.io/cluster-api/api/v1beta1.MachineSpec", "sigs.k8s.io/cluster-api/api/v1beta1.ObjectMeta"},
+	}
+}
+
+func schema_sigsk8sio_cluster_api_api_v1beta1_MachineV1Beta2Status(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineV1Beta2Status groups all the fields that will be added or modified in MachineStatus with the V1Beta2 version. See https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more context.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "conditions represents the observations of a Machine's current state. Known condition types are Available, Ready, UpToDate, BootstrapConfigReady, InfrastructureReady, NodeReady, NodeHealthy, Deleting, Paused. If a MachineHealthCheck is targeting this machine, also HealthCheckSucceeded, OwnerRemediated conditions are added. Additionally control plane Machines controlled by KubeadmControlPlane will have following additional conditions: APIServerPodHealthy, ControllerManagerPodHealthy, SchedulerPodHealthy, EtcdPodHealthy, EtcdMemberHealthy.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
 	}
 }
 
@@ -3368,7 +4232,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_ObjectMeta(ref common.ReferenceCal
 					},
 					"annotations": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata. They are not queryable and should be preserved when modifying objects. More info: http://kubernetes.io/docs/user-guide/annotations",
+							Description: "annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata. They are not queryable and should be preserved when modifying objects. More info: http://kubernetes.io/docs/user-guide/annotations",
 							Type:        []string{"object"},
 							AdditionalProperties: &spec.SchemaOrBool{
 								Allows: true,
@@ -3397,14 +4261,14 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_PatchDefinition(ref common.Referen
 				Properties: map[string]spec.Schema{
 					"selector": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Selector defines on which templates the patch should be applied.",
+							Description: "selector defines on which templates the patch should be applied.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.PatchSelector"),
 						},
 					},
 					"jsonPatches": {
 						SchemaProps: spec.SchemaProps{
-							Description: "JSONPatches defines the patches which should be applied on the templates matching the selector. Note: Patches will be applied in the order of the array.",
+							Description: "jsonPatches defines the patches which should be applied on the templates matching the selector. Note: Patches will be applied in the order of the array.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -3434,7 +4298,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_PatchSelector(ref common.Reference
 				Properties: map[string]spec.Schema{
 					"apiVersion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion filters templates by apiVersion.",
+							Description: "apiVersion filters templates by apiVersion.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3442,7 +4306,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_PatchSelector(ref common.Reference
 					},
 					"kind": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Kind filters templates by kind.",
+							Description: "kind filters templates by kind.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3450,7 +4314,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_PatchSelector(ref common.Reference
 					},
 					"matchResources": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MatchResources selects templates based on where they are referenced.",
+							Description: "matchResources selects templates based on where they are referenced.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.PatchSelectorMatch"),
 						},
@@ -3473,27 +4337,27 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_PatchSelectorMatch(ref common.Refe
 				Properties: map[string]spec.Schema{
 					"controlPlane": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ControlPlane selects templates referenced in .spec.ControlPlane. Note: this will match the controlPlane and also the controlPlane machineInfrastructure (depending on the kind and apiVersion).",
+							Description: "controlPlane selects templates referenced in .spec.ControlPlane. Note: this will match the controlPlane and also the controlPlane machineInfrastructure (depending on the kind and apiVersion).",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
 					},
 					"infrastructureCluster": {
 						SchemaProps: spec.SchemaProps{
-							Description: "InfrastructureCluster selects templates referenced in .spec.infrastructure.",
+							Description: "infrastructureCluster selects templates referenced in .spec.infrastructure.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
 					},
 					"machineDeploymentClass": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MachineDeploymentClass selects templates referenced in specific MachineDeploymentClasses in .spec.workers.machineDeployments.",
+							Description: "machineDeploymentClass selects templates referenced in specific MachineDeploymentClasses in .spec.workers.machineDeployments.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.PatchSelectorMatchMachineDeploymentClass"),
 						},
 					},
 					"machinePoolClass": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MachinePoolClass selects templates referenced in specific MachinePoolClasses in .spec.workers.machinePools.",
+							Description: "machinePoolClass selects templates referenced in specific MachinePoolClasses in .spec.workers.machinePools.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.PatchSelectorMatchMachinePoolClass"),
 						},
 					},
@@ -3514,7 +4378,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_PatchSelectorMatchMachineDeploymen
 				Properties: map[string]spec.Schema{
 					"names": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Names selects templates by class names.",
+							Description: "names selects templates by class names.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -3542,7 +4406,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_PatchSelectorMatchMachinePoolClass
 				Properties: map[string]spec.Schema{
 					"names": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Names selects templates by class names.",
+							Description: "names selects templates by class names.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -3561,6 +4425,27 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_PatchSelectorMatchMachinePoolClass
 	}
 }
 
+func schema_sigsk8sio_cluster_api_api_v1beta1_RemediationStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "RemediationStrategy allows to define how the MachineSet can control scaling operations.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"maxInFlight": {
+						SchemaProps: spec.SchemaProps{
+							Description: "maxInFlight determines how many in flight remediations should happen at the same time.\n\nRemediation only happens on the MachineSet with the most current revision, while older MachineSets (usually present during rollout operations) aren't allowed to remediate.\n\nNote: In general (independent of remediations), unhealthy machines are always prioritized during scale down operations over healthy ones.\n\nMaxInFlight can be set to a fixed number or a percentage. Example: when this is set to 20%, the MachineSet controller deletes at most 20% of the desired replicas.\n\nIf not set, remediation is limited to all machines (bounded by replicas) under the active MachineSet's management.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
+	}
+}
+
 func schema_sigsk8sio_cluster_api_api_v1beta1_Topology(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -3576,6 +4461,13 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_Topology(ref common.ReferenceCallb
 							Format:      "",
 						},
 					},
+					"classNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Description: "classNamespace is the namespace of the ClusterClass object to create the topology. If the namespace is empty or not set, it is defaulted to the namespace of the cluster object. Value must follow the DNS1123Subdomain syntax.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"version": {
 						SchemaProps: spec.SchemaProps{
 							Description: "The Kubernetes version of the cluster.",
@@ -3586,26 +4478,34 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_Topology(ref common.ReferenceCallb
 					},
 					"rolloutAfter": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RolloutAfter performs a rollout of the entire cluster one component at a time, control plane first and then machine deployments.\n\nDeprecated: This field has no function and is going to be removed in the next apiVersion.",
+							Description: "rolloutAfter performs a rollout of the entire cluster one component at a time, control plane first and then machine deployments.\n\nDeprecated: This field has no function and is going to be removed in the next apiVersion.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
 					"controlPlane": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ControlPlane describes the cluster control plane.",
+							Description: "controlPlane describes the cluster control plane.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.ControlPlaneTopology"),
 						},
 					},
 					"workers": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Workers encapsulates the different constructs that form the worker nodes for the cluster.",
+							Description: "workers encapsulates the different constructs that form the worker nodes for the cluster.",
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.WorkersTopology"),
 						},
 					},
 					"variables": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"name",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Variables can be used to customize the Cluster through patches. They must comply to the corresponding VariableClasses defined in the ClusterClass.",
+							Description: "variables can be used to customize the Cluster through patches. They must comply to the corresponding VariableClasses defined in the ClusterClass.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -3661,6 +4561,57 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_UnhealthyCondition(ref common.Refe
 	}
 }
 
+func schema_sigsk8sio_cluster_api_api_v1beta1_ValidationRule(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ValidationRule describes a validation rule written in the CEL expression language.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"rule": {
+						SchemaProps: spec.SchemaProps{
+							Description: "rule represents the expression which will be evaluated by CEL. ref: https://github.com/google/cel-spec The Rule is scoped to the location of the x-kubernetes-validations extension in the schema. The `self` variable in the CEL expression is bound to the scoped value. If the Rule is scoped to an object with properties, the accessible properties of the object are field selectable via `self.field` and field presence can be checked via `has(self.field)`. If the Rule is scoped to an object with additionalProperties (i.e. a map) the value of the map are accessible via `self[mapKey]`, map containment can be checked via `mapKey in self` and all entries of the map are accessible via CEL macros and functions such as `self.all(...)`. If the Rule is scoped to an array, the elements of the array are accessible via `self[i]` and also by macros and functions. If the Rule is scoped to a scalar, `self` is bound to the scalar value. Examples: - Rule scoped to a map of objects: {\"rule\": \"self.components['Widget'].priority < 10\"} - Rule scoped to a list of integers: {\"rule\": \"self.values.all(value, value >= 0 && value < 100)\"} - Rule scoped to a string value: {\"rule\": \"self.startsWith('kube')\"}\n\nUnknown data preserved in custom resources via x-kubernetes-preserve-unknown-fields is not accessible in CEL expressions. This includes: - Unknown field values that are preserved by object schemas with x-kubernetes-preserve-unknown-fields. - Object properties where the property schema is of an \"unknown type\". An \"unknown type\" is recursively defined as:\n  - A schema with no type and x-kubernetes-preserve-unknown-fields set to true\n  - An array where the items schema is of an \"unknown type\"\n  - An object where the additionalProperties schema is of an \"unknown type\"\n\nOnly property names of the form `[a-zA-Z_.-/][a-zA-Z0-9_.-/]*` are accessible. Accessible property names are escaped according to the following rules when accessed in the expression: - '__' escapes to '__underscores__' - '.' escapes to '__dot__' - '-' escapes to '__dash__' - '/' escapes to '__slash__' - Property names that exactly match a CEL RESERVED keyword escape to '__{keyword}__'. The keywords are:\n\t  \"true\", \"false\", \"null\", \"in\", \"as\", \"break\", \"const\", \"continue\", \"else\", \"for\", \"function\", \"if\",\n\t  \"import\", \"let\", \"loop\", \"package\", \"namespace\", \"return\".\nExamples:\n  - Rule accessing a property named \"namespace\": {\"rule\": \"self.__namespace__ > 0\"}\n  - Rule accessing a property named \"x-prop\": {\"rule\": \"self.x__dash__prop > 0\"}\n  - Rule accessing a property named \"redact__d\": {\"rule\": \"self.redact__underscores__d > 0\"}\n\nIf `rule` makes use of the `oldSelf` variable it is implicitly a `transition rule`.\n\nBy default, the `oldSelf` variable is the same type as `self`.\n\nTransition rules by default are applied only on UPDATE requests and are skipped if an old value could not be found.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Description: "message represents the message displayed when validation fails. The message is required if the Rule contains line breaks. The message must not contain line breaks. If unset, the message is \"failed rule: {Rule}\". e.g. \"must be a URL with the host matching spec.host\"",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"messageExpression": {
+						SchemaProps: spec.SchemaProps{
+							Description: "messageExpression declares a CEL expression that evaluates to the validation failure message that is returned when this rule fails. Since messageExpression is used as a failure message, it must evaluate to a string. If both message and messageExpression are present on a rule, then messageExpression will be used if validation fails. If messageExpression results in a runtime error, the validation failure message is produced as if the messageExpression field were unset. If messageExpression evaluates to an empty string, a string with only spaces, or a string that contains line breaks, then the validation failure message will also be produced as if the messageExpression field were unset. messageExpression has access to all the same variables as the rule; the only difference is the return type. Example: \"x must be less than max (\"+string(self.max)+\")\"",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Description: "reason provides a machine-readable validation failure reason that is returned to the caller when a request fails this validation rule. The currently supported reasons are: \"FieldValueInvalid\", \"FieldValueForbidden\", \"FieldValueRequired\", \"FieldValueDuplicate\". If not set, default to use \"FieldValueInvalid\". All future added reasons must be accepted by clients when reading this value and unknown reasons should be treated as FieldValueInvalid.",
+							Default:     FieldValueInvalid,
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"fieldPath": {
+						SchemaProps: spec.SchemaProps{
+							Description: "fieldPath represents the field path returned when the validation fails. It must be a relative JSON path (i.e. with array notation) scoped to the location of this x-kubernetes-validations extension in the schema and refer to an existing field. e.g. when validation checks if a specific attribute `foo` under a map `testMap`, the fieldPath could be set to `.testMap.foo` If the validation checks two lists must have unique attributes, the fieldPath could be set to either of the list: e.g. `.testList` It does not support list numeric index. It supports child operation to refer to an existing field currently. Refer to [JSONPath support in Kubernetes](https://kubernetes.io/docs/reference/kubectl/jsonpath/) for more info. Numeric index of array is not supported. For field name which contains special characters, use `['specialName']` to refer the field name. e.g. for attribute `foo.34$` appears in a list `testList`, the fieldPath could be set to `.testList['foo.34$']`",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"rule"},
+			},
+		},
+	}
+}
+
 func schema_sigsk8sio_cluster_api_api_v1beta1_VariableSchema(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -3670,7 +4621,7 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_VariableSchema(ref common.Referenc
 				Properties: map[string]spec.Schema{
 					"openAPIV3Schema": {
 						SchemaProps: spec.SchemaProps{
-							Description: "OpenAPIV3Schema defines the schema of a variable via OpenAPI v3 schema. The schema is a subset of the schema used in Kubernetes CRDs.",
+							Description: "openAPIV3Schema defines the schema of a variable via OpenAPI v3 schema. The schema is a subset of the schema used in Kubernetes CRDs.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/v1beta1.JSONSchemaProps"),
 						},
@@ -3684,6 +4635,51 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_VariableSchema(ref common.Referenc
 	}
 }
 
+func schema_sigsk8sio_cluster_api_api_v1beta1_VariableSchemaMetadata(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "VariableSchemaMetadata is the metadata of a variable or a nested field within a variable. It can be used to add additional data for higher level tools.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"labels": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Map of string keys and values that can be used to organize and categorize (scope and select) variables.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"annotations": {
+						SchemaProps: spec.SchemaProps{
+							Description: "annotations is an unstructured key value map that can be used to store and retrieve arbitrary metadata. They are not queryable.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_sigsk8sio_cluster_api_api_v1beta1_WorkersClass(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -3692,8 +4688,16 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_WorkersClass(ref common.ReferenceC
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"machineDeployments": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"class",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
-							Description: "MachineDeployments is a list of machine deployment classes that can be used to create a set of worker nodes.",
+							Description: "machineDeployments is a list of machine deployment classes that can be used to create a set of worker nodes.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -3706,8 +4710,16 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_WorkersClass(ref common.ReferenceC
 						},
 					},
 					"machinePools": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"class",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
-							Description: "MachinePools is a list of machine pool classes that can be used to create a set of worker nodes.",
+							Description: "machinePools is a list of machine pool classes that can be used to create a set of worker nodes.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -3727,6 +4739,54 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_WorkersClass(ref common.ReferenceC
 	}
 }
 
+func schema_sigsk8sio_cluster_api_api_v1beta1_WorkersStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "WorkersStatus groups all the observations about workers current state.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"desiredReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "desiredReplicas is the total number of desired worker machines in this cluster.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"replicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "replicas is the total number of worker machines in this cluster. NOTE: replicas also includes machines still being provisioned or being deleted.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"upToDateReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "upToDateReplicas is the number of up-to-date worker machines in this cluster. A machine is considered up-to-date when Machine's UpToDate condition is true.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"readyReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "readyReplicas is the total number of ready worker machines in this cluster. A machine is considered ready when Machine's Ready condition is true.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"availableReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "availableReplicas is the total number of available worker machines in this cluster. A machine is considered available when Machine's Available condition is true.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_sigsk8sio_cluster_api_api_v1beta1_WorkersTopology(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -3735,8 +4795,16 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_WorkersTopology(ref common.Referen
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"machineDeployments": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"name",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
-							Description: "MachineDeployments is a list of machine deployments in the cluster.",
+							Description: "machineDeployments is a list of machine deployments in the cluster.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -3749,8 +4817,16 @@ func schema_sigsk8sio_cluster_api_api_v1beta1_WorkersTopology(ref common.Referen
 						},
 					},
 					"machinePools": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"name",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
-							Description: "MachinePools is a list of machine pools in the cluster.",
+							Description: "machinePools is a list of machine pools in the cluster.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{

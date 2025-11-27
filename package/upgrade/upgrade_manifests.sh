@@ -599,7 +599,7 @@ upgrade_rancher() {
 
   save_fleet_controller_configmap
 
-  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false"' values.yaml
+  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false,turtles=false,embedded-cluster-api=true"' values.yaml
 
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
   echo "Rancher patch file to be run via helm upgrade"
@@ -645,6 +645,7 @@ upgrade_rancher() {
   wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
   pre_patch_timestamp=$(fleet_agent_timestamp)
   patch_fleet_cluster
+  wait_for_fleet_agent $pre_patch_timestamp
   wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
 
   # After fleet-controller POD is restarted, it will check until the local cluster is imported, after that, redeploy the fleet-agent
@@ -1014,7 +1015,7 @@ spec:
   tolerations:
   - operator: "Exists"
   upgrade:
-    image: registry.suse.com/bci/bci-base:15.6
+    image: registry.suse.com/bci/bci-base:15.7
     command:
     - chroot
     - /host
@@ -1244,6 +1245,43 @@ apply_extra_nonversion_manifests()
   shopt -u nullglob
 }
 
+migrate_longhorn_v1beta1_crds() {
+
+  # reference: https://longhorn.io/docs/1.10.0/important-notes/#upgrade
+  # Harvester v1.6.x -> v1.7.x, Longhorn is upgraded from v1.9.x to v1.10.x
+  echo "Checking if migrating Longhorn v1beta1 CRDs to v1beta2 is required, it only occurs from v1.6.x to v1.7.x upgrade"
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.6\.[0-9]$ ]]; then
+    echo "Skip migrate longhorn v1beta1 CRDs with Harvester version $UPGRADE_PREVIOUS_VERSION"
+    return
+  fi
+
+  # Temporarily disable the Longhorn webhook for CR validation
+  echo "Temporarily disabling the Longhorn webhook validator..."
+  kubectl patch validatingwebhookconfiguration longhorn-webhook-validator \
+      --type=merge \
+      -p "$(kubectl get validatingwebhookconfiguration longhorn-webhook-validator -o json | jq '.webhooks[0].rules |= map(if .apiGroups == ["longhorn.io"] and .resources == ["settings"] then .operations |= map(select(. != "UPDATE")) else . end)')"
+
+  # Find and migrate CRDs with v1beta1 stored versions
+  echo "Starting migration of CRDs that store v1beta1 resources to v1beta2"
+  migration_time="$(date +%Y-%m-%dT%H:%M:%S)"
+  crds=($(kubectl get crd -l app.kubernetes.io/name=longhorn -o json | jq -r '.items[] | select(.status.storedVersions | index("v1beta1")) | .metadata.name'))
+  for crd in "${crds[@]}"; do
+    echo "Migrating ${crd} ..."
+    for name in $(kubectl -n longhorn-system get "$crd" -o jsonpath='{.items[*].metadata.name}'); do
+      echo "migrating ${name} ..."
+      kubectl patch "${crd}" "${name}" -n longhorn-system --type=merge -p='{"metadata":{"annotations":{"migration-time":"'"${migration_time}"'"}}}'
+    done
+
+    kubectl patch crd "${crd}" --type=merge -p '{"status":{"storedVersions":["v1beta2"]}}' --subresource=status
+  done
+
+  # Re-enable the Longhorn webhook
+  echo "Re-enabling the CR validation webhook..."
+  kubectl patch validatingwebhookconfiguration longhorn-webhook-validator \
+      --type=merge \
+      -p "$(kubectl get validatingwebhookconfiguration longhorn-webhook-validator -o json | jq '.webhooks[0].rules |= map(if .apiGroups == ["longhorn.io"] and .resources == ["settings"] then .operations |= (. + ["UPDATE"] | unique) else . end)')"
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -1253,6 +1291,7 @@ skip_restart_rancher_system_agent
 upgrade_rancher
 patch_local_cluster_details
 update_local_rke_state_secret
+migrate_longhorn_v1beta1_crds
 upgrade_harvester_cluster_repo
 ensure_ingress_class_name
 apply_extra_nonversion_manifests

@@ -54,7 +54,7 @@ var (
 
 // Cluster corresponds to a Kubernetes cluster. Fleet deploys bundles to targeted clusters.
 // Clusters to which Fleet deploys manifests are referred to as downstream
-// clusters. In the single cluster use case, the Fleet manager Kubernetes
+// clusters. In the single cluster use case, the Fleet Kubernetes
 // cluster is both the manager and downstream cluster at the same time.
 type Cluster struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -125,6 +125,12 @@ type ClusterSpec struct {
 	// +nullable
 	// AgentResources sets the resources for the cluster's agent deployment.
 	AgentResources *corev1.ResourceRequirements `json:"agentResources,omitempty"`
+
+	// +nullable
+	// +optional
+	// HostNetwork sets the agent Deployment to use hostNetwork: true setting.
+	// Allows for provisioning of network related bundles (CNI configuration).
+	HostNetwork *bool `json:"hostNetwork,omitempty"`
 }
 
 type ClusterStatus struct {
@@ -135,11 +141,10 @@ type ClusterStatus struct {
 	// "cluster-fleet-local-cluster-294db1acfa77-d9ccf852678f"
 	Namespace string `json:"namespace,omitempty"`
 
-	// Summary is a summary of the bundledeployments. The resource counts
-	// are copied from the gitrepo resource.
+	// Summary is a summary of the bundledeployments.
 	Summary BundleSummary `json:"summary,omitempty"`
-	// ResourceCounts is an aggregate over the GitRepoResourceCounts.
-	ResourceCounts GitRepoResourceCounts `json:"resourceCounts,omitempty"`
+	// ResourceCounts is an aggregate over the ResourceCounts.
+	ResourceCounts ResourceCounts `json:"resourceCounts,omitempty"`
 	// ReadyGitRepos is the number of gitrepos for this cluster that are ready.
 	// +optional
 	ReadyGitRepos int `json:"readyGitRepos"`
@@ -154,6 +159,9 @@ type ClusterStatus struct {
 	// AgentPrivateRepoURL is the private repo URL for the agent that is currently used.
 	// +nullable
 	AgentPrivateRepoURL string `json:"agentPrivateRepoURL,omitempty"`
+	// AgentHostNetwork defines observed state of spec.hostNetwork setting that is currently used.
+	// +nullable
+	AgentHostNetwork bool `json:"agentHostNetwork,omitempty"`
 	// AgentDeployedGeneration is the generation of the agent that is currently deployed.
 	// +nullable
 	AgentDeployedGeneration *int64 `json:"agentDeployedGeneration,omitempty"`
@@ -205,6 +213,9 @@ type ClusterStatus struct {
 	Display ClusterDisplay `json:"display,omitempty"`
 	// AgentStatus contains information about the agent.
 	Agent AgentStatus `json:"agent,omitempty"`
+
+	// GarbageCollectionInterval determines how often agents clean up obsolete Helm releases.
+	GarbageCollectionInterval *metav1.Duration `json:"garbageCollectionInterval,omitempty"`
 }
 
 type ClusterDisplay struct {

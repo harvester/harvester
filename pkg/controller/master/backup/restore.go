@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -180,7 +181,7 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, restore *harvesterv1.Virtual
 		return nil, nil
 	}
 
-	if restore.Status == nil {
+	if !isVMRestoreInit(restore) {
 		return nil, h.initStatus(restore)
 	}
 
@@ -211,7 +212,7 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, restore *harvesterv1.Virtual
 // we use Retain policy in VolumeSnapshotContent.
 // We need to delete VolumeSnapshotContent by restore controller, or there will have remaining VolumeSnapshotContent in the system.
 func (h *RestoreHandler) RestoreOnRemove(_ string, restore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
-	if restore == nil || restore.Status == nil {
+	if restore == nil || !isVMRestoreInit(restore) {
 		return nil, nil
 	}
 
@@ -406,14 +407,9 @@ func (h *RestoreHandler) VMOnChange(_ string, vm *kubevirtv1.VirtualMachine) (*k
 
 func (h *RestoreHandler) initStatus(restore *harvesterv1.VirtualMachineRestore) error {
 	restoreCpy := restore.DeepCopy()
-
-	restoreCpy.Status = &harvesterv1.VirtualMachineRestoreStatus{
-		Complete: pointer.BoolPtr(false),
-		Conditions: []harvesterv1.Condition{
-			newProgressingCondition(corev1.ConditionTrue, "", "Initializing VirtualMachineRestore"),
-			newReadyCondition(corev1.ConditionFalse, "", "Initializing VirtualMachineRestore"),
-		},
-	}
+	restoreCpy.Status.Complete = ptr.To(false)
+	setCondition(restoreCpy, harvesterv1.BackupConditionProgressing, true, "", "Initializing VirtualMachineRestore")
+	setCondition(restoreCpy, harvesterv1.BackupConditionReady, false, "", "Initializing VirtualMachineRestore")
 
 	if _, err := h.restores.Update(restoreCpy); err != nil {
 		return err
@@ -421,26 +417,51 @@ func (h *RestoreHandler) initStatus(restore *harvesterv1.VirtualMachineRestore) 
 	return nil
 }
 
-func (h *RestoreHandler) initVolumesStatus(vmRestore *harvesterv1.VirtualMachineRestore, backup *harvesterv1.VirtualMachineBackup) error {
-	restoreCpy := vmRestore.DeepCopy()
+// getDeletedVolumesFromCurrentVM extracts PVC volume names from the current VM referenced in backup's spec.source
+func (h *RestoreHandler) getDeletedVolumesFromCurrentVM(backup *harvesterv1.VirtualMachineBackup) ([]string, error) {
+	if backup.Spec.Source.Kind != kubevirtv1.VirtualMachineGroupVersionKind.Kind {
+		return nil, fmt.Errorf("unsupported backup source kind: %s, expected %s", backup.Spec.Source.Kind, kubevirtv1.VirtualMachineGroupVersionKind.Kind)
+	}
 
-	if restoreCpy.Status.VolumeRestores == nil {
-		volumeRestores, err := getVolumeRestores(restoreCpy, backup)
+	currentVM, err := h.vmCache.Get(backup.Namespace, backup.Spec.Source.Name)
+	if apierrors.IsNotFound(err) {
+		// VM not found, return empty list
+		return []string{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var deletedVolumes []string
+	for _, volume := range currentVM.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			deletedVolumes = append(deletedVolumes, volume.PersistentVolumeClaim.ClaimName)
+		}
+	}
+
+	return deletedVolumes, nil
+}
+
+func (h *RestoreHandler) initVolumesStatus(vmr *harvesterv1.VirtualMachineRestore, vmb *harvesterv1.VirtualMachineBackup) error {
+	vmrCpy := vmr.DeepCopy()
+
+	if vmrCpy.Status.VolumeRestores == nil {
+		volumeRestores, err := getVolumeRestores(vmrCpy, vmb)
 		if err != nil {
 			return err
 		}
-		restoreCpy.Status.VolumeRestores = volumeRestores
+		vmrCpy.Status.VolumeRestores = volumeRestores
 	}
 
-	if !IsNewVMOrHasRetainPolicy(vmRestore) && vmRestore.Status.DeletedVolumes == nil {
-		var deletedVolumes []string
-		for _, vol := range backup.Status.VolumeBackups {
-			deletedVolumes = append(deletedVolumes, vol.PersistentVolumeClaim.ObjectMeta.Name)
+	if !IsNewVMOrHasRetainPolicy(vmr) && vmr.Status.DeletedVolumes == nil {
+		deletedVolumes, err := h.getDeletedVolumesFromCurrentVM(vmb)
+		if err != nil {
+			return err
 		}
-		restoreCpy.Status.DeletedVolumes = deletedVolumes
+		vmrCpy.Status.DeletedVolumes = deletedVolumes
 	}
 
-	if _, err := h.restores.Update(restoreCpy); err != nil {
+	if _, err := h.restores.Update(vmrCpy); err != nil {
 		return err
 	}
 	return nil
@@ -1219,8 +1240,8 @@ func (h *RestoreHandler) updateStatus(
 
 	if !isVolumesReady {
 		h.recifyProgressBeforeVMStart(restoreCpy)
-		updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionTrue, "", "Creating new PVCs"))
-		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "", "Waiting for new PVCs"))
+		setCondition(restoreCpy, harvesterv1.BackupConditionProgressing, true, "", "Creating new PVCs")
+		setCondition(restoreCpy, harvesterv1.BackupConditionReady, false, "", "Waiting for new PVCs")
 		if !reflect.DeepEqual(vmRestore, restoreCpy) {
 			if _, err := h.restores.Update(restoreCpy); err != nil {
 				return err
@@ -1237,8 +1258,8 @@ func (h *RestoreHandler) updateStatus(
 	if !vm.Status.Ready {
 		h.recifyProgressBeforeVMStart(restoreCpy)
 		message := "Waiting for target vm to be ready"
-		updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, "", message))
-		updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "", message))
+		setCondition(restoreCpy, harvesterv1.BackupConditionProgressing, true, "", message)
+		setCondition(restoreCpy, harvesterv1.BackupConditionReady, false, "", message)
 		if !reflect.DeepEqual(vmRestore, restoreCpy) {
 			if _, err := h.restores.Update(restoreCpy); err != nil {
 				return err
@@ -1260,9 +1281,9 @@ func (h *RestoreHandler) updateStatus(
 	)
 
 	restoreCpy.Status.RestoreTime = currentTime()
-	restoreCpy.Status.Complete = pointer.BoolPtr(true)
-	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, "", "Operation complete"))
-	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionTrue, "", "Operation complete"))
+	restoreCpy.Status.Complete = ptr.To(true)
+	setCondition(restoreCpy, harvesterv1.BackupConditionProgressing, false, "", "Operation complete")
+	setCondition(restoreCpy, harvesterv1.BackupConditionReady, true, "", "Operation complete")
 	if _, err := h.restores.Update(restoreCpy); err != nil {
 		return err
 	}
@@ -1271,8 +1292,8 @@ func (h *RestoreHandler) updateStatus(
 
 func (h *RestoreHandler) updateStatusError(restore *harvesterv1.VirtualMachineRestore, err error, createEvent bool) error {
 	restoreCpy := restore.DeepCopy()
-	updateRestoreCondition(restoreCpy, newProgressingCondition(corev1.ConditionFalse, "Error", err.Error()))
-	updateRestoreCondition(restoreCpy, newReadyCondition(corev1.ConditionFalse, "Error", err.Error()))
+	setCondition(restoreCpy, harvesterv1.BackupConditionProgressing, false, "Error", err.Error())
+	setCondition(restoreCpy, harvesterv1.BackupConditionReady, false, "Error", err.Error())
 
 	if !reflect.DeepEqual(restore, restoreCpy) {
 		if createEvent {

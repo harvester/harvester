@@ -301,6 +301,9 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 	if err := v.checkTerminationGracePeriodSeconds(vm); err != nil {
 		return err
 	}
+	if err := v.checkEmptyMemory(vm); err != nil {
+		return err
+	}
 	if err := v.checkReservedMemoryAnnotation(vm); err != nil {
 		return err
 	}
@@ -513,7 +516,30 @@ func (v *vmValidator) checkGoldenImage(vm *kubevirtv1.VirtualMachine) error {
 }
 
 func (v *vmValidator) checkOccupiedPVCs(vm *kubevirtv1.VirtualMachine) error {
+	// only block two scenarios:
+	// - RWO volume
+	// - Longhorn volume
+	// other scenarios like RWX volume, user should know what they are doing
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		// only check PVC volumes
+		if volume.PersistentVolumeClaim == nil {
+			continue
+		}
+		name := volume.PersistentVolumeClaim.ClaimName
+		pvc, err := v.pvcCache.Get(vm.Namespace, name)
+		if apierrors.IsNotFound(err) {
+			// means runtime creation, no need to check
+			continue
+		}
+		if err != nil {
+			// any error here should be raised
+			return werror.NewInternalError(fmt.Sprintf("failed to get PVC %s/%s, err: %s", vm.Namespace, name, err))
+		}
+		targetAccessMode := pvc.Spec.AccessModes
+		targetProvisioner := util.GetProvisionedPVCProvisioner(pvc, v.scCache)
+		if volumeSupportRWXForVM(targetAccessMode, targetProvisioner) {
+			continue
+		}
 		if volume.PersistentVolumeClaim != nil {
 			vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(vm.Namespace, volume.PersistentVolumeClaim.ClaimName))
 			if err != nil {
@@ -593,4 +619,30 @@ func (v *vmValidator) checkReservedMemoryAnnotation(vm *kubevirtv1.VirtualMachin
 
 func (v *vmValidator) checkStorageResourceQuota(vm *kubevirtv1.VirtualMachine, oldVM *kubevirtv1.VirtualMachine) error {
 	return v.rqCalculator.CheckStorageResourceQuota(vm, oldVM)
+}
+
+func volumeSupportRWXForVM(accessModes []corev1.PersistentVolumeAccessMode, provisioner string) bool {
+	if provisioner == util.CSIProvisionerLonghorn {
+		// Longhorn provisioner does not support RWX volume for VM
+		return false
+	}
+
+	for _, mode := range accessModes {
+		if mode == corev1.ReadWriteMany {
+			return true
+		}
+	}
+	return false
+}
+
+func (v *vmValidator) checkEmptyMemory(vm *kubevirtv1.VirtualMachine) error {
+	guestMem := resource.NewQuantity(0, resource.BinarySI)
+	if vm.Spec.Template.Spec.Domain.Memory != nil {
+		guestMem = vm.Spec.Template.Spec.Domain.Memory.Guest
+	}
+	limitMem := vm.Spec.Template.Spec.Domain.Resources.Limits.Memory()
+	if guestMem.IsZero() && limitMem.IsZero() {
+		return werror.NewInvalidError("either memory.guest or resources.limits.memory must be set", "spec.template.spec.domain")
+	}
+	return nil
 }
