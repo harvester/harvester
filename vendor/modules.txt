@@ -2376,7 +2376,6 @@ k8s.io/utils/net
 k8s.io/utils/path
 k8s.io/utils/pointer
 k8s.io/utils/ptr
-k8s.io/utils/set
 k8s.io/utils/trace
 # kubevirt.io/api v1.6.0
 ## explicit; go 1.23.0
@@ -2434,8 +2433,8 @@ kubevirt.io/client-go/prometheusoperator/typed/monitoring/v1
 kubevirt.io/client-go/subresources
 kubevirt.io/client-go/util
 kubevirt.io/client-go/version
-# kubevirt.io/containerized-data-importer v1.61.0
-## explicit; go 1.22.0
+# kubevirt.io/containerized-data-importer v1.62.0
+## explicit; go 1.23.0
 kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme
 kubevirt.io/containerized-data-importer/pkg/common
 kubevirt.io/containerized-data-importer/pkg/controller/common
@@ -2443,8 +2442,8 @@ kubevirt.io/containerized-data-importer/pkg/feature-gates
 kubevirt.io/containerized-data-importer/pkg/storagecapabilities
 kubevirt.io/containerized-data-importer/pkg/token
 kubevirt.io/containerized-data-importer/pkg/util
-# kubevirt.io/containerized-data-importer-api v1.61.0
-## explicit; go 1.22.0
+# kubevirt.io/containerized-data-importer-api v1.62.0
+## explicit; go 1.23.0
 kubevirt.io/containerized-data-importer-api/pkg/apis/core
 kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1
 kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1

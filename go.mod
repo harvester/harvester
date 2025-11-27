@@ -69,6 +69,7 @@ replace (
 
 require (
 	github.com/cisco-open/operator-tools v0.37.0
+	github.com/containernetworking/cni v1.3.0
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful/v3 v3.12.2
@@ -134,8 +135,8 @@ require (
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 	kubevirt.io/api v1.6.0
 	kubevirt.io/client-go v1.6.0
-	kubevirt.io/containerized-data-importer v1.61.0
-	kubevirt.io/containerized-data-importer-api v1.61.0
+	kubevirt.io/containerized-data-importer v1.62.0
+	kubevirt.io/containerized-data-importer-api v1.62.0
 	kubevirt.io/kubevirt v1.6.0
 	sigs.k8s.io/cluster-api v1.9.5
 	sigs.k8s.io/controller-runtime v0.20.4
@@ -173,7 +174,6 @@ require (
 	github.com/containerd/errdefs v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
-	github.com/containernetworking/cni v1.3.0 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
