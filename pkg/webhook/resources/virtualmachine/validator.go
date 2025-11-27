@@ -20,10 +20,9 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
-	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
+	vmutil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	indexerwebhook "github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -525,32 +524,14 @@ func (v *vmValidator) checkOccupiedPVCs(vm *kubevirtv1.VirtualMachine) error {
 		if volume.PersistentVolumeClaim == nil {
 			continue
 		}
-		name := volume.PersistentVolumeClaim.ClaimName
-		pvc, err := v.pvcCache.Get(vm.Namespace, name)
-		if apierrors.IsNotFound(err) {
-			// means runtime creation, no need to check
-			continue
-		}
-		if err != nil {
-			// any error here should be raised
-			return werror.NewInternalError(fmt.Sprintf("failed to get PVC %s/%s, err: %s", vm.Namespace, name, err))
-		}
-		targetAccessMode := pvc.Spec.AccessModes
-		targetProvisioner := util.GetProvisionedPVCProvisioner(pvc, v.scCache)
-		if volumeSupportRWXForVM(targetAccessMode, targetProvisioner) {
-			continue
-		}
-		if volume.PersistentVolumeClaim != nil {
-			vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(vm.Namespace, volume.PersistentVolumeClaim.ClaimName))
-			if err != nil {
-				return werror.NewInternalError(fmt.Sprintf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByPVCIndex, vm.Namespace, volume.PersistentVolumeClaim.ClaimName, err))
+		if err := vmutil.CheckBlockRWXVolumeForVM(v.pvcCache, v.scCache, v.vmCache, vm.Namespace, volume.PersistentVolumeClaim.ClaimName, vm.Namespace, vm.Name); err != nil {
+			if err == vmutil.ErrVolumeIsUsedByOtherVM {
+				return werror.NewInvalidError(
+					fmt.Sprintf("PVC %s/%s is already used by other VM, please use a shareable RWX volume.", vm.Namespace, volume.PersistentVolumeClaim.ClaimName),
+					"spec.templates.spec.volumes",
+				)
 			}
-			for _, otherVM := range vms {
-				if otherVM.Namespace != vm.Namespace || otherVM.Name != vm.Name {
-					message := fmt.Sprintf("the volume %s is already used by VM %s/%s", volume.PersistentVolumeClaim.ClaimName, otherVM.Namespace, otherVM.Name)
-					return werror.NewInvalidError(message, "spec.templates.spec.volumes")
-				}
-			}
+			return werror.NewInternalError(err.Error())
 		}
 	}
 
@@ -619,20 +600,6 @@ func (v *vmValidator) checkReservedMemoryAnnotation(vm *kubevirtv1.VirtualMachin
 
 func (v *vmValidator) checkStorageResourceQuota(vm *kubevirtv1.VirtualMachine, oldVM *kubevirtv1.VirtualMachine) error {
 	return v.rqCalculator.CheckStorageResourceQuota(vm, oldVM)
-}
-
-func volumeSupportRWXForVM(accessModes []corev1.PersistentVolumeAccessMode, provisioner string) bool {
-	if provisioner == util.CSIProvisionerLonghorn {
-		// Longhorn provisioner does not support RWX volume for VM
-		return false
-	}
-
-	for _, mode := range accessModes {
-		if mode == corev1.ReadWriteMany {
-			return true
-		}
-	}
-	return false
 }
 
 func (v *vmValidator) checkEmptyMemory(vm *kubevirtv1.VirtualMachine) error {
