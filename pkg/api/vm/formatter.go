@@ -54,6 +54,7 @@ const (
 
 type vmformatter struct {
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
+	vmCache       ctlkubevirtv1.VirtualMachineCache
 	pvcCache      ctlcorev1.PersistentVolumeClaimCache
 	nodeCache     ctlcorev1.NodeCache
 	scCache       ctlstoragev1.StorageClassCache
