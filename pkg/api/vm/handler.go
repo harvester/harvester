@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/pkg/errors"
@@ -53,7 +54,6 @@ import (
 	"github.com/harvester/harvester/pkg/util/drainhelper"
 	"github.com/harvester/harvester/pkg/util/virtualmachine"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
-	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 )
 
 const (
@@ -1032,6 +1032,7 @@ func (h *vmActionHandler) checkAttachable(pvc *corev1.PersistentVolumeClaim) err
 }
 
 // addVolume add a hotplug volume with given volume source and disk name.
+// name -> VM name, namespace -> VM namespace, input.VolumeSourceName -> PVC name
 func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string, input AddVolumeInput) error {
 	// We only permit volume source from existing PersistentVolumeClaim at this moment.
 	// KubeVirt won't check PVC existence so we validate it on our own.
@@ -1041,6 +1042,10 @@ func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string,
 	}
 
 	if err := h.checkAttachable(pvc); err != nil {
+		return err
+	}
+
+	if err := virtualmachine.CheckBlockRWXVolumeForVM(h.pvcCache, h.storageClassCache, h.vmCache, namespace, input.VolumeSourceName, namespace, name); err != nil {
 		return err
 	}
 

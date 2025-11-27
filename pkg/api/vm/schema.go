@@ -106,6 +106,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	vmformatter := vmformatter{
 		pvcCache:      pvcs.Cache(),
 		vmiCache:      vmis.Cache(),
+		vmCache:       vms.Cache(),
 		nodeCache:     nodes.Cache(),
 		scCache:       storageClasses.Cache(),
 		vmBackupCache: backups.Cache(),
