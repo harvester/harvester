@@ -55,6 +55,7 @@ func Setup(ctx context.Context, _ *server.Server, _ *server.Controllers, _ confi
 
 	vmInformer := management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	vmInformer.AddIndexer(indexeresutil.VMByPVCIndex, indexeresutil.VMByPVC)
+	vmInformer.AddIndexer(indexeresutil.VMByNonShareablePVCIndex, indexeresutil.VMByNonShareablePVC)
 
 	scInformer := management.StorageFactory.Storage().V1().StorageClass().Cache()
 	scInformer.AddIndexer(indexeresutil.StorageClassBySecretIndex, indexeresutil.StorageClassBySecret)
