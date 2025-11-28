@@ -259,9 +259,8 @@ const (
 	VirtualMachineCreatorNodeDriver = "docker-machine-driver-harvester"
 
 	// Addons
-	AddonPrefix                        = "addon." + prefix
-	AddonExperimentalLabel             = AddonPrefix + "/experimental"
-	AnnotationReenableDeschedulerAddon = prefix + "/reenableDeschedulerAddon"
+	AddonPrefix            = "addon." + prefix
+	AddonExperimentalLabel = AddonPrefix + "/experimental"
 
 	HarvesterUpgradeComponentRepo = "repo"
 )
