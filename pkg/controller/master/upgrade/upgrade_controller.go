@@ -560,7 +560,9 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 				toUpdate.Annotations = make(map[string]string)
 			}
 			toUpdate.Annotations[longhornSettingsRestoredAnnotation] = strconv.FormatBool(true)
-			return h.upgradeClient.Update(toUpdate)
+			if upgrade, err = h.upgradeClient.Update(toUpdate); err != nil {
+				return upgrade, err
+			}
 		}
 	}
 
@@ -585,8 +587,8 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 		}
 	}
 
-	if err := h.reenableAddons(upgrade); err != nil {
-		return nil, err
+	if upgrade, err = h.reenableAddons(upgrade); err != nil {
+		return upgrade, err
 	}
 	return upgrade, h.resumeManagedCharts()
 }
@@ -947,19 +949,19 @@ func (h *upgradeHandler) addUpgradeLabelToDeschedulerAddons(upgrade *harvesterv1
 	return nil
 }
 
-func (h *upgradeHandler) reenableAddons(upgrade *harvesterv1.Upgrade) error {
+func (h *upgradeHandler) reenableAddons(upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
 	reenableStr, ok := upgrade.Annotations[reenableDeschedulerAddonAnnotation]
 	if !ok {
-		return nil
+		return upgrade, nil
 	}
 
 	if reenableStr != "true" {
-		return nil
+		return upgrade, nil
 	}
 
 	addon, err := h.addonCache.Get(util.KubeSystemNamespace, util.DeschedulerName)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return upgrade, err
 	}
 
 	if addon != nil && !addon.Spec.Enabled {
@@ -970,14 +972,14 @@ func (h *upgradeHandler) reenableAddons(upgrade *harvesterv1.Upgrade) error {
 		}
 		toUpdate.Spec.Enabled = true
 		if _, err := h.addonClient.Update(toUpdate); err != nil {
-			return err
+			return upgrade, err
 		}
 	}
 
 	toUpdate := upgrade.DeepCopy()
-	delete(toUpdate.Annotations, util.AnnotationReenableDeschedulerAddon)
-	if _, err := h.upgradeClient.Update(toUpdate); err != nil {
-		return err
+	delete(toUpdate.Annotations, reenableDeschedulerAddonAnnotation)
+	if upgrade, err = h.upgradeClient.Update(toUpdate); err != nil {
+		return upgrade, err
 	}
-	return nil
+	return upgrade, nil
 }
