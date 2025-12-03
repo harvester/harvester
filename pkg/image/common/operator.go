@@ -95,8 +95,14 @@ type vmiOperator struct {
 	httpClient http.Client
 }
 
-func GetVMIOperator(client ctlharvesterv1.VirtualMachineImageClient, cache ctlharvesterv1.VirtualMachineImageCache, httpClient http.Client) VMIOperator {
-	return &vmiOperator{client, cache, httpClient}
+func GetVMIOperator(client ctlharvesterv1.VirtualMachineImageClient, cache ctlharvesterv1.VirtualMachineImageCache, httpClient http.Client) (VMIOperator, error) {
+	if client == nil {
+		return nil, fmt.Errorf("failed to get VMI operator: client is nil")
+	}
+	if cache == nil {
+		return nil, fmt.Errorf("failed to get VMI operator: cache is nil")
+	}
+	return &vmiOperator{client, cache, httpClient}, nil
 }
 
 func (vmio *vmiOperator) UpdateVMI(oldVMI, newVMI *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
