@@ -25,7 +25,10 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	secrets := management.CoreFactory.Core().V1().Secret()
 	ctlcdi := management.CdiFactory.Cdi().V1beta1().DataVolume()
 
-	vmio := common.GetVMIOperator(vmi, nil, http.Client{Timeout: 15 * time.Second})
+	vmio, err := common.GetVMIOperator(vmi, vmi.Cache(), http.Client{Timeout: 15 * time.Second})
+	if err != nil {
+		return err
+	}
 	backends := map[harvesterv1.VMIBackend]backend.Backend{
 		harvesterv1.VMIBackendBackingImage: backingimage.GetBackend(
 			ctx, sc, sc.Cache(),
