@@ -7,6 +7,7 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
+	"github.com/rancher/steve/pkg/stores/proxy"
 	"github.com/rancher/wrangler/v3/pkg/schemas"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -66,6 +67,11 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 	t := schema.Template{
 		ID: "node",
 		Customize: func(s *types.APISchema) {
+			s.Store = &Store{
+				Store:         proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup, nil),
+				nodeCache:     scaled.Management.CoreFactory.Core().V1().Node().Cache(),
+				kubeVirtCache: scaled.Management.VirtFactory.Kubevirt().V1().KubeVirt().Cache(),
+			}
 			s.Formatter = Formatter
 			s.ResourceActions = map[string]schemas.Action{
 				enableMaintenanceModeAction: {
