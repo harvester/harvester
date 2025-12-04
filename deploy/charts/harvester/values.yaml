@@ -504,6 +504,7 @@ longhorn:
     # patch the hotfix image for longhorn manager
     longhorn:
       manager:
+        repository: longhornio/longhorn-manager
         tag: v1.10.1-hotfix-1
 
   # after upgrade to longhorn 1.6.0, we need to set the priorityClass for longhorn-manager, longhorn-driver and longhorn-ui
