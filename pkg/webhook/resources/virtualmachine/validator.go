@@ -9,6 +9,8 @@ import (
 
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -235,6 +237,10 @@ func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 		return err
 	}
 
+	if err := v.checkMaintenanceModeStrategyIsValid(vm, nil); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -280,6 +286,10 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 	}
 
 	if err := v.checkForDuplicateMacAddrs(newVM); err != nil {
+		return err
+	}
+
+	if err := v.checkMaintenanceModeStrategyIsValid(newVM, oldVM); err != nil {
 		return err
 	}
 
@@ -611,5 +621,51 @@ func (v *vmValidator) checkEmptyMemory(vm *kubevirtv1.VirtualMachine) error {
 	if guestMem.IsZero() && limitMem.IsZero() {
 		return werror.NewInvalidError("either memory.guest or resources.limits.memory must be set", "spec.template.spec.domain")
 	}
+	return nil
+}
+
+func (v *vmValidator) checkMaintenanceModeStrategyIsValid(newVM, oldVM *kubevirtv1.VirtualMachine) error {
+	newLabels := newVM.ObjectMeta.Labels
+	newStrategy, newOk := newLabels[util.LabelMaintainModeStrategy]
+	// Creating a new VM without maintenance mode strategy is ok, since
+	// integrators (e.g. Rancher) may omit it. Similarly removing the label is ok.
+	// Therefore just log that the label is missing
+	if !newOk {
+		logrus.WithFields(logrus.Fields{
+			"name":      newVM.Name,
+			"namespace": newVM.Namespace,
+		}).Warnf(
+			"no maintenance-mode strategy for VM, behavior will be equivalent to default `%v`",
+			util.MaintainModeStrategyMigrate,
+		)
+	}
+
+	if oldVM != nil {
+		oldLabels := oldVM.ObjectMeta.Labels
+		oldStrategy, oldOk := oldLabels[util.LabelMaintainModeStrategy]
+		if oldOk && newOk && oldStrategy == newStrategy && !slices.Contains(util.MaintenanceModeStrategyValidValues, oldStrategy) {
+			// Maintenance mode strategy was invalid and was not updted. Emit log
+			// message, but return ok
+			logrus.WithFields(logrus.Fields{
+				"name":      oldVM.Name,
+				"namespace": oldVM.Namespace,
+			}).Warnf(
+				"invalid maintenance-mode strategy for VM, behavior will be equivalent to default `%v`",
+				util.MaintainModeStrategyMigrate,
+			)
+			return nil
+		}
+	}
+
+	// New maintenance mode strategy is invalid, not ok
+	if newOk && !slices.Contains(util.MaintenanceModeStrategyValidValues, newStrategy) {
+		return werror.NewInvalidError(
+			fmt.Sprintf("invalid maintenance mode strategy: %v", newStrategy),
+			fmt.Sprintf("metadata.labels[%v]", util.LabelMaintainModeStrategy),
+		)
+	}
+
+	// VM was created with a valid maintenance mode strategy, or it was updated
+	// and the new maintenance mode strategy is valid. Both are ok
 	return nil
 }
