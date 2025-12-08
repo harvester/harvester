@@ -240,7 +240,7 @@ func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 
 func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	newVM := newObj.(*kubevirtv1.VirtualMachine)
-	if newVM == nil {
+	if newVM == nil || newVM.DeletionTimestamp != nil {
 		return nil
 	}
 
