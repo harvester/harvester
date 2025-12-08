@@ -147,9 +147,8 @@ func (h *vmActionHandler) getStorageClassNameFromImageID(imageId string) (scName
 
 		if scName, ok := vmImage.Annotations[util.AnnotationStorageClassName]; ok {
 			return scName, nil
-		} else {
-			return "", fmt.Errorf("VMImage %s/%s does not have an annotation %s", vmImage.Namespace, vmImage.Name, util.AnnotationStorageClassName)
 		}
+		return "", fmt.Errorf("VMImage %s/%s does not have an annotation %s", vmImage.Namespace, vmImage.Name, util.AnnotationStorageClassName)
 	}
 	return "", fmt.Errorf("malformed image ID: %s", imageId)
 }
@@ -285,79 +284,92 @@ func (h *vmActionHandler) copySecret(sourceName, targetName string, templateVers
 }
 
 func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMachineTemplateVersion, vm *kubevirtv1.VirtualMachine, pvcStorageClassMap map[string]string) (map[string]harvesterv1.VirtualMachineImage, error) {
-	var err error
 	vmImageMap := map[string]harvesterv1.VirtualMachineImage{}
 	for index, volume := range vm.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim == nil {
 			continue
 		}
-		targetSCName := pvcStorageClassMap[volume.PersistentVolumeClaim.ClaimName]
-		// 3 cases here:
-		// Root volume with backingImage, check SC name starts with "longhorn-templateversion-", use backingImage backend
-		// volume with non longhorn provisioner, use CDI backend
-		// volume with longhorn provisioner, use backingImage backend
-		// we use CDI as default, so we need to check other two cases
-		vmImageBackend := harvesterv1.VMIBackendCDI
-		if strings.HasPrefix(targetSCName, "longhorn-templateversion-") {
-			vmImageBackend = harvesterv1.VMIBackendBackingImage
-		} else {
-			// checking SC
-			targetSC, err := h.storageClassCache.Get(targetSCName)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get storage class %s, error: %v", targetSCName, err)
-			}
-			if targetSC.Provisioner == util.CSIProvisionerLonghorn {
-				if dataEngineVers, find := targetSC.Parameters["dataEngine"]; find {
-					if dataEngineVers == string(longhorn.DataEngineTypeV1) {
-						vmImageBackend = harvesterv1.VMIBackendBackingImage
-					}
-				} else {
-					vmImageBackend = harvesterv1.VMIBackendBackingImage
-				}
-			}
-		}
-		if vmImageBackend == "" {
+
+		claimName := volume.PersistentVolumeClaim.ClaimName
+		targetSCName := pvcStorageClassMap[claimName]
+		vmImageBackend, err := h.getVMImageBackend(targetSCName)
+		if err != nil {
 			return nil, fmt.Errorf("failed to configure vm image backend for volume %s", volume.Name)
 		}
 		vmImageName := getTemplateVersionVMImageName(templateVersion.Name, index)
-		vmImage := &harvesterv1.VirtualMachineImage{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      vmImageName,
-				Namespace: vm.Namespace,
-				Annotations: map[string]string{
-					util.AnnotationStorageClassName: targetSCName,
-				},
-				OwnerReferences: []metav1.OwnerReference{
-					{
-						APIVersion: templateVersion.APIVersion,
-						Kind:       templateVersion.Kind,
-						Name:       templateVersion.Name,
-						UID:        templateVersion.UID,
-					},
-				},
-			},
-			Spec: harvesterv1.VirtualMachineImageSpec{
-				Backend:                vmImageBackend,
-				DisplayName:            vmImageName,
-				SourceType:             harvesterv1.VirtualMachineImageSourceTypeExportVolume,
-				PVCName:                volume.PersistentVolumeClaim.ClaimName,
-				PVCNamespace:           vm.Namespace,
-				TargetStorageClassName: targetSCName,
-			},
-		}
+		ownerRef := getOwnerReferenceFromTemplateVersion(templateVersion)
 
-		vmImage, err = h.vmImages.Create(vmImage)
+		vmImage, err := h.createVMImage(vm.Namespace, vmImageName, vmImageBackend, targetSCName, claimName, ownerRef)
 		if err != nil {
 			logrus.WithError(err).WithFields(logrus.Fields{
 				"namespace":       templateVersion.Namespace,
 				"templateVersion": templateVersion.Name,
-				"pvc":             volume.PersistentVolumeClaim.ClaimName,
+				"pvc":             claimName,
 			}).Error("Failed to create VM image")
 			return nil, err
 		}
 		vmImageMap[vmImage.Name] = *vmImage
 	}
 	return vmImageMap, nil
+}
+
+func (h *vmActionHandler) createVMImage(namespace, name string, backend harvesterv1.VMIBackend, targetSCName, claimName string, owner metav1.OwnerReference) (*harvesterv1.VirtualMachineImage, error) {
+	vmImage, err := h.vmImages.Create(&harvesterv1.VirtualMachineImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Annotations: map[string]string{
+				util.AnnotationStorageClassName: targetSCName,
+			},
+			OwnerReferences: []metav1.OwnerReference{owner},
+		},
+		Spec: harvesterv1.VirtualMachineImageSpec{
+			Backend:                backend,
+			DisplayName:            name,
+			SourceType:             harvesterv1.VirtualMachineImageSourceTypeExportVolume,
+			PVCName:                claimName,
+			PVCNamespace:           namespace,
+			TargetStorageClassName: targetSCName,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return vmImage, nil
+}
+
+func getOwnerReferenceFromTemplateVersion(tv *harvesterv1.VirtualMachineTemplateVersion) metav1.OwnerReference {
+	return metav1.OwnerReference{
+		APIVersion: tv.APIVersion,
+		Kind:       tv.Kind,
+		Name:       tv.Name,
+		UID:        tv.UID,
+	}
+}
+
+// If target StorageClass name starts with `longhorn-templateversion-` use
+// backingImage
+// If target StorageClass uses Longhorn V1 provisioner, use backingImage
+// Otherwise use CDI backend
+func (h *vmActionHandler) getVMImageBackend(targetSCName string) (harvesterv1.VMIBackend, error) {
+	if strings.HasPrefix(targetSCName, "longhorn-templateversion-") {
+		return harvesterv1.VMIBackendBackingImage, nil
+	}
+
+	targetSC, err := h.storageClassCache.Get(targetSCName)
+	if err != nil {
+		return "", err
+	}
+
+	if targetSC.Provisioner == util.CSIProvisionerLonghorn {
+		if dataEngineVers, ok := targetSC.Parameters["dataEngine"]; ok {
+			if dataEngineVers == string(longhorn.DataEngineTypeV1) {
+				return harvesterv1.VMIBackendBackingImage, nil
+			}
+		}
+	}
+
+	return harvesterv1.VMIBackendCDI, nil
 }
 
 func (h *vmActionHandler) createVMTemplate(namespace string, input CreateTemplateInput) (vmt *harvesterv1.VirtualMachineTemplate, err error) {
