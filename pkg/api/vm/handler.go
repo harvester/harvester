@@ -637,21 +637,48 @@ func isDrained(node *corev1.Node) bool {
 }
 
 func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.VirtualMachineInstance) (labels.Selector, error) {
-	if vmi == nil || vmi.Spec.Affinity == nil || vmi.Spec.Affinity.NodeAffinity == nil || vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
-		return labels.Everything(), nil
-	}
-
 	nodeSelector := labels.NewSelector()
-	terms := vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
-	for _, term := range terms {
-		for _, e := range term.MatchExpressions {
-			r, err := convertNodeSelectorRequirementToSelector(e)
-			if err != nil {
-				return nil, err
+
+	if vmi != nil && vmi.Spec.Affinity != nil && vmi.Spec.Affinity.NodeAffinity != nil && vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+		terms := vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+		for _, term := range terms {
+			for _, e := range term.MatchExpressions {
+				req, err := convertNodeSelectorRequirementToSelector(e)
+				if err != nil {
+					return nil, err
+				}
+				nodeSelector = nodeSelector.Add(*req)
 			}
-			nodeSelector = nodeSelector.Add(*r)
 		}
 	}
+
+	if vmi != nil && vmi.Spec.Domain.CPU != nil && vmi.Spec.Domain.CPU.Model != "" {
+		key := fmt.Sprintf("%s%s", kubevirtv1.CPUModelLabel, vmi.Spec.Domain.CPU.Model)
+		req, err := labels.NewRequirement(key, selection.Equals, []string{"true"})
+		if err != nil {
+			return nil, err
+		}
+		nodeSelector = nodeSelector.Add(*req)
+	}
+
+	if vmi != nil && vmi.Spec.Domain.CPU != nil {
+		for _, feature := range vmi.Spec.Domain.CPU.Features {
+			if feature.Policy == "" || feature.Policy == "require" {
+				key := fmt.Sprintf("%s%s", kubevirtv1.CPUFeatureLabel, feature.Name)
+				req, err := labels.NewRequirement(key, selection.Equals, []string{"true"})
+				if err != nil {
+					return nil, err
+				}
+				nodeSelector = nodeSelector.Add(*req)
+			}
+		}
+	}
+
+	req, err := labels.NewRequirement(kubevirtv1.NodeSchedulable, selection.Equals, []string{"true"})
+	if err != nil {
+		return nil, err
+	}
+	nodeSelector = nodeSelector.Add(*req)
 
 	return nodeSelector, nil
 }

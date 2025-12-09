@@ -804,6 +804,33 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 				"node1", "node3",
 			},
 		},
+		{
+			name: "Get migratable nodes by CPU model and features",
+			args: args{
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-cpu",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							CPU: &kubevirtv1.CPU{
+								Model: "EPYC-Rome",
+								Features: []kubevirtv1.CPUFeature{
+									{
+										Name:   "xsaves",
+										Policy: "require",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []string{
+				"node4",
+			},
+		},
 	}
 
 	fakeNodeList := []*corev1.Node{
@@ -811,9 +838,10 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "node1",
 				Labels: map[string]string{
-					"user.custom/label": "a",
-					"network":           "a",
-					"zone":              "zone1",
+					"user.custom/label":        "a",
+					"network":                  "a",
+					"zone":                     "zone1",
+					kubevirtv1.NodeSchedulable: "true",
 				},
 			},
 		},
@@ -821,8 +849,9 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "node2",
 				Labels: map[string]string{
-					"network": "a",
-					"zone":    "zone2",
+					"network":                  "a",
+					"zone":                     "zone2",
+					kubevirtv1.NodeSchedulable: "true",
 				},
 			},
 		},
@@ -830,9 +859,29 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "node3",
 				Labels: map[string]string{
-					"user.custom/label": "a",
-					"network":           "b",
-					"zone":              "zone3",
+					"user.custom/label":        "a",
+					"network":                  "b",
+					"zone":                     "zone3",
+					kubevirtv1.NodeSchedulable: "true",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node4",
+				Labels: map[string]string{
+					kubevirtv1.NodeSchedulable:             "true",
+					kubevirtv1.CPUModelLabel + "EPYC-Rome": "true",
+					kubevirtv1.CPUFeatureLabel + "xsaves":  "true",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node4-unschedulable",
+				Labels: map[string]string{
+					kubevirtv1.CPUModelLabel + "EPYC-Rome": "true",
+					kubevirtv1.CPUFeatureLabel + "xsaves":  "true",
 				},
 			},
 		},
