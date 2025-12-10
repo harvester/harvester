@@ -563,6 +563,49 @@ generate_networkmanager_config() {
   # when the node comes back up after reboot, networking may be broken?
 }
 
+generate_hostname_persistance() {
+   if [ -z "$UPGRADE_PREVIOUS_VERSION" ]; then
+    detect_upgrade
+  fi
+
+  # NetworkManager is new in Harvester v1.7.0
+  # nodes installed via v1.5.x or lower which may have used fqdn hostnames
+  # only render short hostname in the k8s node name however the
+  # harvester.config and /oem/90_custom.yaml set hostname to fqdn 
+  # the /oem/90_custom.yaml sets hostname to fqdn as part which was ignored
+  # we need to ensure the hostname does not change after bump to NetworkManager
+  # as this will cause the node to be re-registered with apiserver using 
+  # the fqdn hostname which will cause upgrade to break as the node never 
+  # completes the upgrade
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.6\.[0-9]$ ]]; then
+    echo "version: $UPGRADE_PREVIOUS_VERSION does not require generating Hostname override"
+    return
+  fi
+
+  # Just in case Hostname override has already been generated
+  # and/or potentially modified by the user, let's not overwrite it.
+  if [ -e ${HOST_DIR}/oem/92_hostname_override.yaml ]; then
+    echo "skipping hostname override config generation (${HOST_DIR}/oem/92_hostname_override.yaml already exists)"
+    return
+  fi
+
+  HARVESTER_CONFIG_HOSTNAME=$(cat ${HOST_DIR}/oem/harvester.config | yq -r .os.hostname)
+  CURRENT_HOSTNAME=$(${HOST_DIR}/usr/bin/hostname)
+
+  if [ "$CURRENT_HOSTNAME" = "$HARVESTER_CONFIG_HOSTNAME" ]; then
+    echo "skipping hostname override config generation as current hostname matches harvester config"
+    return
+  fi
+
+  echo "Generating Hostname override"
+  cat > ${HOST_DIR}/oem/92_hostname_override.yaml << EOF
+name: "ensure hostname persists across upgrade to NetworkManager"
+stages:
+   network:
+     - hostname: $CURRENT_HOSTNAME
+EOF
+}
+
 upgrade_os() {
   # The trap will be only effective from this point to the end of the execution
   trap clean_up_tmp_files EXIT
@@ -728,6 +771,8 @@ command_post_drain() {
 
   generate_networkmanager_config
 
+  generate_hostname_persistance
+
   upgrade_os
 }
 
@@ -767,6 +812,7 @@ command_single_node_upgrade() {
 
   generate_networkmanager_config
 
+  generate_hostname_persistance
   # Upgrade OS
   upgrade_os
 }
