@@ -1,5 +1,7 @@
 package util
 
+import corev1 "k8s.io/api/core/v1"
+
 const (
 	prefix                              = "harvesterhci.io"
 	RemovedPVCsAnnotationKey            = prefix + "/removedPersistentVolumeClaims"
@@ -263,4 +265,11 @@ const (
 	AddonExperimentalLabel = AddonPrefix + "/experimental"
 
 	HarvesterUpgradeComponentRepo = "repo"
+)
+
+const (
+	NodeConditionTypeMaintenanceMode corev1.NodeConditionType = "MaintenanceMode"
+	NodeConditionReasonRunning       string                   = "Running"
+	NodeConditionReasonCompleted     string                   = "Completed"
+	NodeConditionReasonError         string                   = "Error"
 )
