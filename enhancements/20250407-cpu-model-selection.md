@@ -80,24 +80,70 @@ If the cluster consists of mainly homogeneous nodes (including new nodes), users
 
 ### API changes
 
-Backend should provide a API to let frontend generate a selection list.
+Backend provides a new CRD `VirtualMachineCPUModel` to track CPU model capabilities across the cluster. The CRD uses a singleton resource named "harvester" to store the cluster-wide CPU model information.
 
-API: `GET /v1/harvester/node?link=getCpuMigrationCapabilities`
+#### CRD Definition
+
+**Resource:** `harvesterhci.io/v1beta1/VirtualMachineCPUModel`
+
+**API Endpoint:** `GET /v1/harvesterhci.io.virtualmachinecpumodels/harvester`
+
+```yaml
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineCPUModel
+metadata:
+  name: harvester
+spec: {}
+status:
+  totalNodes: <total number of ready nodes in the cluster>
+  globalModels:
+    - host-model
+    - host-passthrough
+    - <cpu model from kubevirt spec.configuration.cpuModel if configured>
+  models:
+    <cpu-model-name>:
+      readyCount: <number of ready nodes that support this CPU model>
+      migrationSafe: <boolean indicating if VMs with this CPU model can be safely migrated>
+```
+
+**Example JSON Response:**
 
 ```json
 {
-  "totalNodes": "<total number of ready nodes in the cluster>",
-  "globalModels": ["host-model", "host-passthrough", "one from kubevirt spec.configuration.cpuModel"],
-  "models": {
-    "<cpu-model-name>": {
-      "readyCount": "<number of ready nodes that support this CPU model>",
-      "migrationSafe": "<boolean: true if readyCount equals totalNodes, false otherwise>"
+  "apiVersion": "harvesterhci.io/v1beta1",
+  "kind": "VirtualMachineCPUModel",
+  "metadata": {
+    "name": "harvester"
+  },
+  "spec": {},
+  "status": {
+    "totalNodes": 4,
+    "globalModels": ["host-model", "host-passthrough"],
+    "models": {
+      "IvyBridge": {
+        "readyCount": 4,
+        "migrationSafe": true
+      },
+      "Penryn": {
+        "readyCount": 1,
+        "migrationSafe": false
+      },
+      "Westmere": {
+        "readyCount": 2,
+        "migrationSafe": true
+      },
+      "SandyBridge": {
+        "readyCount": 1,
+        "migrationSafe": false
+      }
     }
   }
 }
 ```
 
 **Field Descriptions:**
+
+Status Fields:
 - `totalNodes`: Total number of ready nodes in the cluster
 - `globalModels`: Array of special CPU models that are always available
   - `host-model`: Uses the host's CPU model (default behavior)
