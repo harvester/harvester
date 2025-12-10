@@ -695,13 +695,15 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 		vmi *kubevirtv1.VirtualMachineInstance
 	}
 	tests := []struct {
-		name string
-		args args
-		want []string
-		err  error
+		name       string
+		args       args
+		defaultCPU bool
+		want       []string
+		err        error
 	}{
 		{
-			name: "Get migratable nodes by network affinity",
+			name:       "Get migratable nodes by network affinity",
+			defaultCPU: true,
 			args: args{
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: metav1.ObjectMeta{
@@ -734,7 +736,8 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 			},
 		},
 		{
-			name: "Get migratable nodes by network affinity and zone",
+			name:       "Get migratable nodes by network affinity and zone",
+			defaultCPU: true,
 			args: args{
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: metav1.ObjectMeta{
@@ -772,7 +775,8 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 			},
 		},
 		{
-			name: "User defined custom affinity",
+			name:       "User defined custom affinity",
+			defaultCPU: true,
 			args: args{
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: metav1.ObjectMeta{
@@ -842,6 +846,7 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					"network":                  "a",
 					"zone":                     "zone1",
 					kubevirtv1.NodeSchedulable: "true",
+					kubevirtv1.CPUModelLabel + "EPYC-Rome-default": "true",
 				},
 			},
 		},
@@ -852,6 +857,7 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					"network":                  "a",
 					"zone":                     "zone2",
 					kubevirtv1.NodeSchedulable: "true",
+					kubevirtv1.CPUModelLabel + "EPYC-Rome-default": "true",
 				},
 			},
 		},
@@ -863,6 +869,7 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					"network":                  "b",
 					"zone":                     "zone3",
 					kubevirtv1.NodeSchedulable: "true",
+					kubevirtv1.CPUModelLabel + "EPYC-Rome-default": "true",
 				},
 			},
 		},
@@ -928,6 +935,18 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 			},
 		},
 	}
+	kubeVirtWithDefaultCPU := &kubevirtv1.KubeVirt{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: util.HarvesterSystemNamespaceName,
+			Name:      util.KubeVirtObjectName,
+		},
+		Spec: kubevirtv1.KubeVirtSpec{
+			Configuration: kubevirtv1.KubeVirtConfiguration{
+				CPUModel: "EPYC-Rome-default",
+			},
+		},
+	}
+
 	var coreclientset = corefake.NewSimpleClientset()
 	for _, node := range fakeNodeList {
 		err := coreclientset.Tracker().Add(node)
@@ -937,8 +956,15 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			clientSet := fake.NewSimpleClientset()
+			if tt.defaultCPU {
+				err := clientSet.Tracker().Add(kubeVirtWithDefaultCPU)
+				assert.Nil(t, err, "Mock resource should add into fake controller tracker")
+			}
+			var kubevirtCache = fakeclients.KubeVirtCache(clientSet.KubevirtV1().KubeVirts)
 			h := &vmActionHandler{
-				nodeCache: nodeCache,
+				nodeCache:     nodeCache,
+				kubevirtCache: kubevirtCache,
 			}
 			got, err := h.findMigratableNodesByVMI(tt.args.vmi)
 			if tt.err != nil && err != nil {

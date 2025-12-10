@@ -652,9 +652,14 @@ func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.Virt
 		}
 	}
 
-	if vmi != nil && vmi.Spec.Domain.CPU != nil && vmi.Spec.Domain.CPU.Model != "" {
-		key := fmt.Sprintf("%s%s", kubevirtv1.CPUModelLabel, vmi.Spec.Domain.CPU.Model)
-		req, err := labels.NewRequirement(key, selection.Equals, []string{"true"})
+	cpuModel, err := h.getCPUModel(vmi)
+	if err != nil {
+		return nil, err
+	}
+
+	if cpuModel != "" {
+		cpuModelKey := fmt.Sprintf("%s%s", kubevirtv1.CPUModelLabel, cpuModel)
+		req, err := labels.NewRequirement(cpuModelKey, selection.Equals, []string{"true"})
 		if err != nil {
 			return nil, err
 		}
@@ -681,6 +686,24 @@ func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.Virt
 	nodeSelector = nodeSelector.Add(*req)
 
 	return nodeSelector, nil
+}
+
+func (h *vmActionHandler) getCPUModel(vmi *kubevirtv1.VirtualMachineInstance) (string, error) {
+	if vmi != nil && vmi.Spec.Domain.CPU != nil && vmi.Spec.Domain.CPU.Model != "" {
+		return vmi.Spec.Domain.CPU.Model, nil
+	}
+	return h.getClusterDefaultCPUModel()
+}
+
+func (h *vmActionHandler) getClusterDefaultCPUModel() (string, error) {
+	kubevirt, err := h.kubevirtCache.Get(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
+	if err != nil {
+		return "", err
+	}
+	if kubevirt == nil || kubevirt.Spec.Configuration.CPUModel == "" {
+		return "", nil
+	}
+	return kubevirt.Spec.Configuration.CPUModel, nil
 }
 
 func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input BackupInput) error {
