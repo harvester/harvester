@@ -1081,6 +1081,8 @@ upgrade_addons()
     upgrade_addon $addon "harvester-system"
   done
 
+  upgrade_addon descheduler "kube-system"
+
   # the rancher-monitoring and rancher-logging addon have flexible user-configurable fields
   # from v1.2.0, they are upgraded per following
   upgrade_addon_rancher_monitoring
