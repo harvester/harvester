@@ -94,7 +94,7 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	vueUI := ui.Vue
 	m.Handle("/dashboard/", vueUI.IndexFile())
 	m.PathPrefix("/dashboard/").Handler(vueUI.IndexFileOnNotFound())
-	m.PathPrefix("/api-ui").Handler(vueUI.ServeAsset())
+	m.PathPrefix("/api-ui").Handler(vueUI.ServeAsset("api-ui"))
 
 	if r.options.RancherURL != "" {
 		host, scheme, err := parseRancherServerURL(r.options.RancherURL)
