@@ -3,7 +3,6 @@ package ui
 import (
 	"crypto/tls"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -67,7 +66,7 @@ type handler struct {
 
 func (u *handler) canDownload(url string) bool {
 	u.downloadOnce.Do(func() {
-		if err := serveIndex(ioutil.Discard, url); err == nil {
+		if err := serveIndex(io.Discard, url); err == nil {
 			u.downloadSuccess = true
 		} else {
 			logrus.Errorf("Failed to download %s, falling back to packaged UI", url)
@@ -93,9 +92,9 @@ func (u *handler) path() (path string, isURL bool) {
 	}
 }
 
-func (u *handler) ServeAsset() http.Handler {
+func (u *handler) ServeAsset(subFolder string) http.Handler {
 	return u.middleware(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		http.FileServer(http.Dir(u.pathSetting())).ServeHTTP(rw, req)
+		http.FileServer(http.Dir(filepath.Join(u.pathSetting(), subFolder))).ServeHTTP(rw, req)
 	}))
 }
 
@@ -103,7 +102,7 @@ func (u *handler) IndexFileOnNotFound() http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		req.URL.Path = strings.TrimPrefix(req.URL.Path, "/dashboard")
 		if _, err := os.Stat(filepath.Join(u.pathSetting(), req.URL.Path)); err == nil {
-			u.ServeAsset().ServeHTTP(rw, req)
+			u.ServeAsset("").ServeHTTP(rw, req)
 		} else {
 			u.IndexFile().ServeHTTP(rw, req)
 		}
