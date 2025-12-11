@@ -101,7 +101,10 @@ func ValidateVMMigratable(vmi *kubevirtv1.VirtualMachineInstance) error {
 
 	// Lastly, check the condition reported by KubeVirt
 	for _, cond := range vmi.Status.Conditions {
-		if cond.Type == kubevirtv1.VirtualMachineInstanceIsMigratable && cond.Status == corev1.ConditionFalse {
+		if cond.Type == kubevirtv1.VirtualMachineInstanceIsMigratable {
+			if cond.Status != corev1.ConditionFalse {
+				break
+			}
 			return fmt.Errorf("VM %s is not live migratable as the condition reported with reason: %s", vmiNamespacedName, cond.Reason)
 		}
 	}
