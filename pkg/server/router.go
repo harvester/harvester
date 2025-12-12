@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/harvester/harvester/pkg/api/backuptarget"
+	"github.com/harvester/harvester/pkg/api/certificate"
 	"github.com/harvester/harvester/pkg/api/kubeconfig"
 	"github.com/harvester/harvester/pkg/api/proxy"
 	"github.com/harvester/harvester/pkg/api/supportbundle"
@@ -61,6 +62,9 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 
 	btHealthyHandler := harvesterServer.NewHandler(backuptarget.NewHealthyHandler(r.scaled))
 	m.Path("/v1/harvester/backuptarget/healthz").Methods("GET").Handler(btHealthyHandler)
+
+	earliestExpiringCertHandler := harvesterServer.NewHandler(certificate.NewEarliestExpiringCertHandler(r.scaled))
+	m.Path("/v1/harvester/certificate/earliest-expiring").Methods("GET").Handler(earliestExpiringCertHandler)
 	// --- END of preposition routes ---
 
 	// This is for manually testing the recovery handler below
