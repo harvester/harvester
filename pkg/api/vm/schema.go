@@ -52,6 +52,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	nodes := scaled.CoreFactory.Core().V1().Node()
 	pvcs := scaled.CoreFactory.Core().V1().PersistentVolumeClaim()
 	pvs := scaled.CoreFactory.Core().V1().PersistentVolume()
+	pods := scaled.CoreFactory.Core().V1().Pod()
 	secrets := scaled.CoreFactory.Core().V1().Secret()
 	vmt := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
 	vmtv := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
@@ -101,6 +102,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		storageClassCache:         storageClasses.Cache(),
 		resourceQuotaClient:       resourceQuotas,
 		clientSet:                 *scaled.Management.ClientSet,
+		podCache:                  pods.Cache(),
 	})
 
 	vmformatter := vmformatter{

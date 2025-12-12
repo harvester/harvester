@@ -48,6 +48,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/indexeres"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -98,6 +99,7 @@ type vmActionHandler struct {
 	storageClassCache         ctlstoragev1.StorageClassCache
 	resourceQuotaClient       ctlharvesterv1.ResourceQuotaClient
 	clientSet                 kubernetes.Clientset
+	podCache                  ctlcorev1.PodCache
 }
 
 func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
@@ -589,12 +591,12 @@ func (h *vmActionHandler) findMigratableNodes(rw http.ResponseWriter, namespace,
 }
 
 func (h *vmActionHandler) findMigratableNodesByVMI(vmi *kubevirtv1.VirtualMachineInstance) ([]string, error) {
-	nodeSelector, err := h.getNodeSelectorRequirementFromVMI(vmi)
+	nodeFilter, err := h.getNodeSelectorRequirementFromVMI(vmi)
 	if err != nil {
 		return nil, err
 	}
 
-	nodes, err := h.nodeCache.List(nodeSelector)
+	nodes, err := h.nodeCache.List(nodeFilter)
 	if err != nil || len(nodes) == 0 {
 		return nil, err
 	}
@@ -637,73 +639,46 @@ func isDrained(node *corev1.Node) bool {
 }
 
 func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.VirtualMachineInstance) (labels.Selector, error) {
-	nodeSelector := labels.NewSelector()
-
-	if vmi != nil && vmi.Spec.Affinity != nil && vmi.Spec.Affinity.NodeAffinity != nil && vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
-		terms := vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
-		for _, term := range terms {
-			for _, e := range term.MatchExpressions {
-				req, err := convertNodeSelectorRequirementToSelector(e)
-				if err != nil {
-					return nil, err
-				}
-				nodeSelector = nodeSelector.Add(*req)
-			}
-		}
+	if vmi == nil {
+		return labels.Everything(), nil
 	}
 
-	cpuModel, err := h.getCPUModel(vmi)
+	latestPod, err := h.getLatestVMIPodOnCurrentNode(vmi)
 	if err != nil {
-		return nil, err
+		return labels.Everything(), err
+	}
+	if latestPod == nil {
+		return labels.Everything(), nil
 	}
 
-	if cpuModel != "" {
-		cpuModelKey := fmt.Sprintf("%s%s", kubevirtv1.CPUModelLabel, cpuModel)
-		req, err := labels.NewRequirement(cpuModelKey, selection.Equals, []string{"true"})
+	nodeFilter := labels.NewSelector()
+	for key, value := range latestPod.Spec.NodeSelector {
+		requirement, err := labels.NewRequirement(key, selection.Equals, []string{value})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create requirement for %s=%s: %w", key, value, err)
 		}
-		nodeSelector = nodeSelector.Add(*req)
+		nodeFilter = nodeFilter.Add(*requirement)
 	}
-
-	if vmi != nil && vmi.Spec.Domain.CPU != nil {
-		for _, feature := range vmi.Spec.Domain.CPU.Features {
-			if feature.Policy == "" || feature.Policy == "require" {
-				key := fmt.Sprintf("%s%s", kubevirtv1.CPUFeatureLabel, feature.Name)
-				req, err := labels.NewRequirement(key, selection.Equals, []string{"true"})
-				if err != nil {
-					return nil, err
-				}
-				nodeSelector = nodeSelector.Add(*req)
-			}
-		}
-	}
-
-	req, err := labels.NewRequirement(kubevirtv1.NodeSchedulable, selection.Equals, []string{"true"})
-	if err != nil {
-		return nil, err
-	}
-	nodeSelector = nodeSelector.Add(*req)
-
-	return nodeSelector, nil
+	return nodeFilter, nil
 }
 
-func (h *vmActionHandler) getCPUModel(vmi *kubevirtv1.VirtualMachineInstance) (string, error) {
-	if vmi != nil && vmi.Spec.Domain.CPU != nil && vmi.Spec.Domain.CPU.Model != "" {
-		return vmi.Spec.Domain.CPU.Model, nil
-	}
-	return h.getClusterDefaultCPUModel()
-}
-
-func (h *vmActionHandler) getClusterDefaultCPUModel() (string, error) {
-	kubevirt, err := h.kubevirtCache.Get(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
+func (h *vmActionHandler) getLatestVMIPodOnCurrentNode(vmi *kubevirtv1.VirtualMachineInstance) (*corev1.Pod, error) {
+	vmiPods, err := h.podCache.GetByIndex(indexeres.PodByVMIUIDIndex, string(vmi.UID))
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("failed to get pods for VMI %s/%s: %w", vmi.Namespace, vmi.Name, err)
 	}
-	if kubevirt == nil || kubevirt.Spec.Configuration.CPUModel == "" {
-		return "", nil
+
+	var latestPod *corev1.Pod
+	for _, pod := range vmiPods {
+		if vmi.Status.NodeName != "" && pod.Spec.NodeName != vmi.Status.NodeName {
+			continue
+		}
+
+		if latestPod == nil || pod.CreationTimestamp.After(latestPod.CreationTimestamp.Time) {
+			latestPod = pod
+		}
 	}
-	return kubevirt.Spec.Configuration.CPUModel, nil
+	return latestPod, nil
 }
 
 func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input BackupInput) error {
@@ -1710,25 +1685,6 @@ func getClonedVMYamlFromSourceVM(input CloneInput, sourceVM *kubevirtv1.VirtualM
 		newVM.Spec.Template.Spec.Domain.Devices.Interfaces[i].MacAddress = ""
 	}
 	return newVM
-}
-
-func convertNodeSelectorRequirementToSelector(req corev1.NodeSelectorRequirement) (*labels.Requirement, error) {
-	switch req.Operator {
-	case corev1.NodeSelectorOpIn:
-		return labels.NewRequirement(req.Key, selection.In, req.Values)
-	case corev1.NodeSelectorOpNotIn:
-		return labels.NewRequirement(req.Key, selection.NotIn, req.Values)
-	case corev1.NodeSelectorOpExists:
-		return labels.NewRequirement(req.Key, selection.Exists, nil)
-	case corev1.NodeSelectorOpDoesNotExist:
-		return labels.NewRequirement(req.Key, selection.DoesNotExist, nil)
-	case corev1.NodeSelectorOpGt:
-		return labels.NewRequirement(req.Key, selection.GreaterThan, req.Values)
-	case corev1.NodeSelectorOpLt:
-		return labels.NewRequirement(req.Key, selection.LessThan, req.Values)
-	default:
-		return &labels.Requirement{}, fmt.Errorf("unsupported operator: %v", req.Operator)
-	}
 }
 
 func (h *vmActionHandler) updateResourceQuota(namespace, name string, input UpdateResourceQuotaInput) error {
