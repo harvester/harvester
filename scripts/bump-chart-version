@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# Script to bump chart dependency versions in Chart.yaml
+# Usage: ./bump-chart-version <chart-name> <new-version>
+#
+# Example: ./bump-chart-version harvester-network-controller 1.8.0-dev.1
+
+set -e
+
+# Find the git root directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GIT_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel 2>/dev/null)"
+
+if [ -z "$GIT_ROOT" ]; then
+    echo "Error: Not in a git repository"
+    exit 1
+fi
+
+# Set paths relative to git root
+CHART_FILE="$GIT_ROOT/deploy/charts/harvester/Chart.yaml"
+CHART_DIR="$GIT_ROOT/deploy/charts/harvester"
+
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <chart-name> <new-version>"
+    echo ""
+    echo "Example: $0 harvester-network-controller 1.8.0-dev.1"
+    echo ""
+    echo "Available charts in Chart.yaml:"
+    grep -E "^\s+- name:" "$CHART_FILE" | sed 's/.*name: /  - /'
+    exit 1
+fi
+
+CHART_NAME="$1"
+NEW_VERSION="$2"
+
+# Validate version format - must start with a digit
+if ! [[ "$NEW_VERSION" =~ ^[0-9] ]]; then
+    echo "Error: Version must start with a digit"
+    echo "Invalid version: $NEW_VERSION"
+    echo ""
+    echo "Valid examples: 1.8.0-dev.1, 0.2.0, 2.0.0-beta"
+    exit 1
+fi
+
+# Check if chart exists in Chart.yaml
+if ! grep -q "name: $CHART_NAME" "$CHART_FILE"; then
+    echo "Error: Chart '$CHART_NAME' not found in $CHART_FILE"
+    echo ""
+    echo "Available charts:"
+    grep -E "^\s+- name:" "$CHART_FILE" | sed 's/.*name: /  - /'
+    exit 1
+fi
+
+# Get current version
+CURRENT_VERSION=$(awk "/name: $CHART_NAME/{getline; print}" "$CHART_FILE" | grep version | awk '{print $2}')
+
+if [ -z "$CURRENT_VERSION" ]; then
+    echo "Error: Could not find version for chart '$CHART_NAME'"
+    exit 1
+fi
+
+echo "Chart: $CHART_NAME"
+echo "Current version: $CURRENT_VERSION"
+echo "New version: $NEW_VERSION"
+echo ""
+
+# Use sed to replace the version (works on both Linux and macOS)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    sed -i '' "/name: $CHART_NAME/{n;s/version: .*/version: $NEW_VERSION/;}" "$CHART_FILE"
+else
+    # Linux
+    sed -i "/name: $CHART_NAME/{n;s/version: .*/version: $NEW_VERSION/;}" "$CHART_FILE"
+fi
+
+echo "✓ Updated $CHART_NAME from $CURRENT_VERSION to $NEW_VERSION"
+echo ""
+echo "Changes made:"
+git --no-pager diff "$CHART_FILE"
+echo ""
+
+# Update helm dependencies
+echo "Updating helm dependencies..."
+pushd "$CHART_DIR" > /dev/null
+helm dep update
+popd > /dev/null
+
+echo ""
+echo "✓ Helm dependencies updated successfully"
+echo ""
+echo "All changes (including updated chart archives):"
+git status --short
