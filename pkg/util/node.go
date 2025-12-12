@@ -96,3 +96,40 @@ func CountNonWitnessNodes(nodes []*corev1.Node) int {
 
 	return count
 }
+
+func GetNodeIps(nodes []*corev1.Node) ([]string, []string, []string) {
+	controlPlaneIps := []string{}
+	witnessIps := []string{}
+	workerIps := []string{}
+
+	for _, node := range nodes {
+		if node.Labels == nil {
+			continue
+		}
+
+		var isControlPlane, isEtcd bool
+		if val, ok := node.Labels[KubeMasterNodeLabelKey]; ok && val == "true" {
+			isControlPlane = true
+		}
+		if val, ok := node.Labels[KubeControlPlaneNodeLabelKey]; ok && val == "true" {
+			isControlPlane = true
+		}
+		if val, ok := node.Labels[KubeEtcdNodeLabelKey]; ok && val == "true" {
+			isEtcd = true
+		}
+
+		for _, addr := range node.Status.Addresses {
+			if addr.Type == corev1.NodeInternalIP {
+				if isControlPlane && isEtcd {
+					controlPlaneIps = append(controlPlaneIps, addr.Address)
+				} else if isEtcd {
+					witnessIps = append(witnessIps, addr.Address)
+				} else {
+					workerIps = append(workerIps, addr.Address)
+				}
+			}
+		}
+	}
+
+	return controlPlaneIps, witnessIps, workerIps
+}

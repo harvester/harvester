@@ -278,7 +278,7 @@ func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 		}
 	}
 
-	return v.checkCerts(upgrade)
+	return nil
 }
 
 func (v *upgradeValidator) hasDegradedVolume() (bool, error) {
@@ -409,7 +409,7 @@ func (v *upgradeValidator) checkNodes(upgrade *v1beta1.Upgrade) error {
 		}
 	}
 
-	return nil
+	return v.checkCerts(upgrade, nodes)
 }
 
 func (v *upgradeValidator) checkDiskSpace(node *corev1.Node) error {
@@ -717,21 +717,9 @@ func (v *upgradeValidator) getKubeletStatsSummary(nodeName, kubeletURL string) (
 	return summary, nil
 }
 
-func (v *upgradeValidator) checkCerts(upgrade *v1beta1.Upgrade) error {
-	kubernetesIPs, err := util.GetKubernetesIps(v.endpointCache)
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("can't get list of kubernetes ip, err: %+v", err))
-	}
-	if len(kubernetesIPs) == 0 {
-		err = fmt.Errorf("cluster ip is empty")
-		logrus.WithFields(logrus.Fields{
-			"namespace": metav1.NamespaceDefault,
-			"name":      "kubernetes",
-		}).WithError(err).Error("cluster ip is empty in the endpoints")
-		return werror.NewInternalError(fmt.Sprintf("can't get kubernetes ip, err: %+v", err))
-	}
-
-	earliestExpiringCert, err := util.GetAddrsEarliestExpiringCert(kubernetesIPs)
+func (v *upgradeValidator) checkCerts(upgrade *v1beta1.Upgrade, nodes []*corev1.Node) error {
+	controlPlaneIps, witnessIps, workerIps := util.GetNodeIps(nodes)
+	earliestExpiringCert, err := util.GetAddrsEarliestExpiringCert(controlPlaneIps, witnessIps, workerIps)
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("can't get earliest expiring cert, err: %+v", err))
 	}
