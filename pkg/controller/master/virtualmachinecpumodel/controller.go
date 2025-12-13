@@ -32,6 +32,7 @@ var cpuModelLabelPrefixes = []string{
 type Handler struct {
 	nodeCache            ctlcorev1.NodeCache
 	kubevirtCache        ctlkubevirtv1.KubeVirtCache
+	vmCpuModelClient     ctlharvesterv1.VirtualMachineCPUModelClient
 	vmCpuModelController ctlharvesterv1.VirtualMachineCPUModelController
 	vmCpuModelCache      ctlharvesterv1.VirtualMachineCPUModelCache
 }
@@ -44,6 +45,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	h := &Handler{
 		nodeCache:            nodes.Cache(),
 		kubevirtCache:        kubevirt.Cache(),
+		vmCpuModelClient:     vmCpuModel,
 		vmCpuModelController: vmCpuModel,
 		vmCpuModelCache:      vmCpuModel.Cache(),
 	}
@@ -69,7 +71,7 @@ func (h *Handler) OnChanged(key string, obj *harvesterv1.VirtualMachineCPUModel)
 }
 
 func (h *Handler) createSingleton() error {
-	_, err := h.vmCpuModelController.Get(singletonName, metav1.GetOptions{})
+	_, err := h.vmCpuModelClient.Get(singletonName, metav1.GetOptions{})
 	if err == nil {
 		return nil
 	}
@@ -77,7 +79,7 @@ func (h *Handler) createSingleton() error {
 		return err
 	}
 
-	_, err = h.vmCpuModelController.Create(&harvesterv1.VirtualMachineCPUModel{
+	_, err = h.vmCpuModelClient.Create(&harvesterv1.VirtualMachineCPUModel{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: singletonName,
 		},
@@ -152,7 +154,7 @@ func (h *Handler) reconcile(obj *harvesterv1.VirtualMachineCPUModel) (*harvester
 
 	toUpdate := obj.DeepCopy()
 	toUpdate.Status = status
-	return h.vmCpuModelController.Update(toUpdate)
+	return h.vmCpuModelClient.Update(toUpdate)
 }
 
 func collectNodeModels(node *corev1.Node) map[string]struct{} {
