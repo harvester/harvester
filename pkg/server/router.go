@@ -65,6 +65,8 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 
 	earliestExpiringCertHandler := harvesterServer.NewHandler(certificate.NewEarliestExpiringCertHandler(r.scaled))
 	m.Path("/v1/harvester/certificate/earliest-expiring").Methods("GET").Handler(earliestExpiringCertHandler)
+	rotateCertHandler := harvesterServer.NewHandler(certificate.NewRotateCertHandler(r.scaled))
+	m.Path("/v1/harvester/certificate/rotate").Methods("POST").Handler(rotateCertHandler)
 	// --- END of preposition routes ---
 
 	// This is for manually testing the recovery handler below
