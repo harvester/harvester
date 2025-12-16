@@ -15,6 +15,7 @@ import (
 	"github.com/harvester/harvester/pkg/api/backuptarget"
 	"github.com/harvester/harvester/pkg/api/kubeconfig"
 	"github.com/harvester/harvester/pkg/api/proxy"
+	"github.com/harvester/harvester/pkg/api/readyz"
 	"github.com/harvester/harvester/pkg/api/supportbundle"
 	"github.com/harvester/harvester/pkg/api/uiinfo"
 	"github.com/harvester/harvester/pkg/config"
@@ -61,6 +62,10 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 
 	btHealthyHandler := harvesterServer.NewHandler(backuptarget.NewHealthyHandler(r.scaled))
 	m.Path("/v1/harvester/backuptarget/healthz").Methods("GET").Handler(btHealthyHandler)
+
+	readyzHandlerv1 := harvesterServer.NewHandler(readyz.NewReadyzHandler(r.scaled))
+	m.Path("/v1/harvester/readyz").Methods("GET").Handler(readyzHandlerv1)
+
 	// --- END of preposition routes ---
 
 	// This is for manually testing the recovery handler below
