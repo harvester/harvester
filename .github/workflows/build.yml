@@ -49,8 +49,14 @@ jobs:
     - name: Declare branch and sha_short
       id: set_vars
       run: |
-        echo "sha_short=$(git rev-parse --short=8 "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
-        echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_OUTPUT"
+        echo "sha_short=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_OUTPUT"
+
+        # For workflow_dispatch, use target_branch; for PR, use GITHUB_HEAD_REF; otherwise use current branch
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          echo "branch=$(git rev-parse --abbrev-ref HEAD)" >> "$GITHUB_OUTPUT"
+        else
+          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_OUTPUT"
+        fi
 
   calling-build-factory:
     needs: configure_input_vars
