@@ -8,6 +8,7 @@ on:
   pull_request:
   schedule:
     - cron: "10 0,12 * * *"
+  workflow_dispatch:
 
 jobs:
   configure_input_vars:
