@@ -538,7 +538,7 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 	migrationUID := getMigrationUID(vmi)
 	for _, vmim := range vmims {
 		if migrationUID == string(vmim.UID) {
-			if !vmim.IsRunning() {
+			if !vmim.IsRunning() && vmim.Status.Phase != kubevirtv1.MigrationPending {
 				return fmt.Errorf("cannot abort the migration as it is in %q phase", vmim.Status.Phase)
 			}
 			// Migration is aborted by deleting the VMIM object
