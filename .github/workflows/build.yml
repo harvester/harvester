@@ -9,54 +9,22 @@ on:
   schedule:
     - cron: "10 0,12 * * *"
   workflow_dispatch:
-    inputs:
-      target_branch:
-        description: 'Target branch (must be v1.x format or master)'
-        required: true
-        type: string
 
 jobs:
-  validate_input:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Validate target_branch
-      run: |
-        if [[ "${{ github.event_name }}" != "workflow_dispatch" ]]; then
-          echo "Not a workflow_dispatch event, skipping validation"
-          exit 0
-        fi
-
-        branch="${{ github.event.inputs.target_branch }}"
-        if [[ "$branch" == "master" ]] || [[ "$branch" =~ ^v1\.[0-9]+$ ]]; then
-          echo "Valid branch: $branch"
-        else
-          echo "Error: target_branch must be 'master' or match pattern 'v1.x' (e.g., v1.0, v1.1, v1.2)"
-          exit 1
-        fi
-
   configure_input_vars:
     runs-on: ubuntu-latest
-    needs: [validate_input]
     outputs:
       sha_short: ${{ steps.set_vars.outputs.sha_short }}
       branch: ${{ steps.set_vars.outputs.branch }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_branch || github.ref }}
 
     - name: Declare branch and sha_short
       id: set_vars
       run: |
-        echo "sha_short=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_OUTPUT"
-
-        # For workflow_dispatch, use target_branch; for PR, use GITHUB_HEAD_REF; otherwise use current branch
-        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-          echo "branch=$(git rev-parse --abbrev-ref HEAD)" >> "$GITHUB_OUTPUT"
-        else
-          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_OUTPUT"
-        fi
+        echo "sha_short=$(git rev-parse --short=8 "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+        echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_OUTPUT"
 
   calling-build-factory:
     needs: configure_input_vars
