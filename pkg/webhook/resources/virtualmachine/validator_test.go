@@ -226,6 +226,55 @@ func Test_virtualMachineValidator_duplicateMacAddress(t *testing.T) {
 			expectError: true,
 		},
 		{
+			name: "Update case - add a new interface to an existing vm with conflicting mac address, but vm is on deleting, returns success",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "vm1",
+					Namespace:         "default",
+					DeletionTimestamp: &metav1.Time{},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Networks: []kubevirtv1.Network{
+								{
+									Name: "nic-1",
+									NetworkSource: kubevirtv1.NetworkSource{
+										Multus: &kubevirtv1.MultusNetwork{
+											NetworkName: "default/vlan-1",
+										},
+									},
+								},
+								{
+									Name: "nic-2",
+									NetworkSource: kubevirtv1.NetworkSource{
+										Multus: &kubevirtv1.MultusNetwork{
+											NetworkName: "default/vlan-1",
+										},
+									},
+								},
+							},
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									Interfaces: []kubevirtv1.Interface{
+										{
+											Name:       "nic-1",
+											MacAddress: "00:00:00:00:00:01",
+										},
+										{
+											Name:       "nic-2",
+											MacAddress: "00:00:00:00:00:01",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
 			name: "Update case - modify the mac address in an existing vm,returns success",
 			vm: &kubevirtv1.VirtualMachine{
 				ObjectMeta: metav1.ObjectMeta{
@@ -734,6 +783,24 @@ func TestVmValidator_Update(t *testing.T) {
 			},
 			newSpec:       nil,
 			expectedError: true,
+		},
+		{
+			name:  "storage class name is changed but vm is on deleting, which results in success",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			newObjMeta: &metav1.ObjectMeta{
+				Name:              templateVM.Name,
+				Namespace:         templateVM.Namespace,
+				DeletionTimestamp: &metav1.Time{},
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"metadata":{"name":"test-disk-0",` +
+						`"annotations":{"harvesterhci.io/imageId":"default/image"}},` +
+						`"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}` +
+						`,"volumeMode":"Block","storageClassName":"longhorn"}}]`,
+				},
+			},
+			newSpec:       nil,
+			expectedError: false,
 		},
 		{
 			name:  "annotation removed resulting in success",
