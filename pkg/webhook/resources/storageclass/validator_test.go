@@ -408,6 +408,123 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 	}
 }
 
+func Test_storageClassValidator_validateVMImageUsage(t *testing.T) {
+	now := metav1.Now()
+
+	tests := []struct {
+		name                 string
+		storageClass         *storagev1.StorageClass
+		vmImages             []*v1beta1.VirtualMachineImage
+		expectError          bool
+		expectedErrorMessage string
+	}{
+		{
+			name: "no VM images using the storage class",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "unused-storage-class",
+				},
+			},
+			vmImages:    []*v1beta1.VirtualMachineImage{},
+			expectError: false,
+		},
+		{
+			name: "storage class in use by active VM image",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-storage-class",
+				},
+			},
+			vmImages: []*v1beta1.VirtualMachineImage{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-vmimage",
+						Namespace: "default",
+						Annotations: map[string]string{
+							util.AnnotationStorageClassName: "test-storage-class",
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "storage class with VM image being deleted should not block deletion",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-storage-class",
+				},
+			},
+			vmImages: []*v1beta1.VirtualMachineImage{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "deleting-vmimage",
+						Namespace:         "default",
+						DeletionTimestamp: &now,
+						Annotations: map[string]string{
+							util.AnnotationStorageClassName: "test-storage-class",
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "storage class with mix of active and deleting VM images",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-storage-class",
+				},
+			},
+			vmImages: []*v1beta1.VirtualMachineImage{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "active-vmimage",
+						Namespace: "default",
+						Annotations: map[string]string{
+							util.AnnotationStorageClassName: "test-storage-class",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "deleting-vmimage",
+						Namespace:         "default",
+						DeletionTimestamp: &now,
+						Annotations: map[string]string{
+							util.AnnotationStorageClassName: "test-storage-class",
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var vmImageObjects []runtime.Object
+			for _, img := range tc.vmImages {
+				vmImageObjects = append(vmImageObjects, img)
+			}
+
+			harvesterClientSet := harvesterFake.NewSimpleClientset(vmImageObjects...)
+			fakeVMImageCache := fakeclients.VirtualMachineImageCache(harvesterClientSet.HarvesterhciV1beta1().VirtualMachineImages)
+			fakeSecretCache := fakeclients.SecretCache(corefake.NewSimpleClientset().CoreV1().Secrets)
+			fakeStorageClassCache := fakeclients.StorageClassCache(corefake.NewSimpleClientset().StorageV1().StorageClasses)
+			fakeVolumeSnapshotClassCache := fakeclients.VolumeSnapshotClassCache(harvesterFake.NewSimpleClientset().SnapshotV1().VolumeSnapshotClasses)
+			validator := NewValidator(fakeStorageClassCache, fakeSecretCache, fakeVMImageCache, fakeVolumeSnapshotClassCache, newFakeClient()).(*storageClassValidator)
+
+			err := validator.validateVMImageUsage(tc.storageClass)
+			if tc.expectError {
+				assert.NotNil(t, err, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
 func Test_storageClassValidator_Delete(t *testing.T) {
 	tests := []struct {
 		name         string

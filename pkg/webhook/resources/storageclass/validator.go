@@ -322,7 +322,9 @@ func (v *storageClassValidator) validateVMImageUsage(sc *storagev1.StorageClass)
 
 	usedVMImages := make([]string, 0, len(vmimages))
 	for _, vmimage := range vmimages {
-		usedVMImages = append(usedVMImages, vmimage.Name)
+		if vmimage.DeletionTimestamp == nil {
+			usedVMImages = append(usedVMImages, vmimage.Name)
+		}
 	}
 
 	if len(usedVMImages) > 0 {
