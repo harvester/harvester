@@ -561,6 +561,31 @@ generate_networkmanager_config() {
   # better to get stuck here in that way?  Or would it be better to barrel
   # on regardless and continue the OS upgrade with the knowledge that
   # when the node comes back up after reboot, networking may be broken?
+
+  # In case the system is configured for DHCP, we need to try to keep the
+  # previous DHCP client ID to ensure that IP addresses don't change on
+  # upgrade.  If we're using DHCP, there will be exactly one NM connection
+  # profile which includes the string "method=auto" (it will be either
+  # bridge-mgmt or vlan-mgmt), and there will also be a wicked DHCP lease
+  # file.  To be careful, we assign to arrays here to be sure that there's
+  # only one matching NM connection profile, and one wicked lease file.
+  # If either of these things are not true, we do nothing.
+  local dhcp_connection_profiles=($(grep -l '^method=auto$' ${HOST_DIR}/usr/local/.state/etc-NetworkManager.bind/system-connections/*nmconnection 2>/dev/null))
+  local wicked_leases=($(ls ${HOST_DIR}/var/lib/wicked/lease*xml 2>/dev/null))
+  if [ ${#dhcp_connection_profiles[@]} -eq 1 ] && [ ${#wicked_leases[@]} -eq 1 ]; then
+    echo "Found wicked lease and DHCP connection profile, attempting to update DHCP client ID"
+    local dhcp_client_id=$(yq '.lease."ipv4:dhcp".client-id // ""' ${wicked_leases[0]})
+    if [ -n "$dhcp_client_id" ]; then
+      if ! grep -q ^dhcp-client-id ${dhcp_connection_profiles[0]}; then
+        echo "Adding DHCP client ID to ${dhcp_connection_profiles[0]}"
+        sed -i /^method=auto$/adhcp-client-id=$dhcp_client_id ${dhcp_connection_profiles[0]}
+      else
+        echo "DHCP client ID already set in ${dhcp_connection_profiles[0]} - will not update"
+      fi
+    else
+      echo "Unable to find DHCP client ID in ${wicked_leases[0]}"
+    fi
+  fi
 }
 
 generate_hostname_persistance() {
