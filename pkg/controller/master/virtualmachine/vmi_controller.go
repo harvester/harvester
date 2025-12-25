@@ -2,8 +2,12 @@ package virtualmachine
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
+	"slices"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -13,7 +17,9 @@ import (
 
 	"github.com/harvester/harvester/pkg/builder"
 	kubevirtctrl "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/indexeres"
 )
 
 // hostLabelsReconcileMapping defines the mapping for reconciliation of node labels to virtual machine instance annotations
@@ -22,12 +28,61 @@ var hostLabelsReconcileMapping = []string{
 }
 
 type VMIController struct {
+	podClient           ctlcorev1.PodClient
+	podCache            ctlcorev1.PodCache
 	vmClient            kubevirtctrl.VirtualMachineClient
 	virtualMachineCache kubevirtctrl.VirtualMachineCache
 	vmiClient           kubevirtctrl.VirtualMachineInstanceClient
 	nodeCache           ctlcorev1.NodeCache
 	pvcClient           ctlcorev1.PersistentVolumeClaimClient
 	recorder            record.EventRecorder
+}
+
+// SyncHarvesterVMILabelsToPod syncs some specific labels from the VMI to the
+// Pod to make sure that e.g. the maintenance mode strategy is correctly applied
+func (h *VMIController) SyncHarvesterVMILabelsToPod(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
+	if vmi == nil || vmi.DeletionTimestamp != nil {
+		return vmi, nil
+	}
+
+	vmiLabel, ok := vmi.Labels[util.LabelMaintainModeStrategy]
+	if !ok {
+		vmiLabel = util.DefaultMaintainModeStrategy
+	}
+
+	activePodUIDs := vmi.Status.ActivePods
+	if len(activePodUIDs) < 1 {
+		logrus.Debugf("VMI %v does not have active Pods", vmi.Name)
+		return vmi, nil
+	}
+
+	vmName, ok := vmi.Labels["harvesterhci.io/vmName"]
+	if !ok {
+		return vmi, fmt.Errorf("failed to determind VM name of VMI %v", vmi.Name)
+	}
+
+	pods, err := h.podCache.GetByIndex(indexeres.PodByVMNameIndex, ref.Construct(vmi.Namespace, vmName))
+	if err != nil || len(pods) < 1 {
+		return vmi, fmt.Errorf("failed to find pods for VMI %v, %v", vmi.Name, err)
+	}
+
+	for _, pod := range pods {
+		if !slices.Contains(slices.Collect(maps.Keys(activePodUIDs)), pod.UID) {
+			continue
+		}
+
+		podLabel, ok := pod.Labels[util.LabelMaintainModeStrategy]
+		if !ok || podLabel != vmiLabel {
+			newPod := pod.DeepCopy()
+			newPod.Labels[util.LabelMaintainModeStrategy] = vmiLabel
+			_, err := h.podClient.Update(newPod)
+			if err != nil {
+				return vmi, fmt.Errorf("failed to sync Harvester VMI labels to pod, %v", err)
+			}
+		}
+	}
+
+	return vmi, nil
 }
 
 // ReconcileFromHostLabels handles the propagation of metadata from node labels to VirtualMachineInstance annotations.
