@@ -31,8 +31,9 @@ import (
 )
 
 const (
-	CDIUploadURLRaw = "cdi-uploadproxy.harvester-system"
-	UploadProxyURI  = "/v1alpha1/upload"
+	CDIUploadURLRaw  = "cdi-uploadproxy.harvester-system"
+	UploadProxyURI   = "/v1alpha1/upload"
+	uploadSizeBuffer = 1 * 1024 * 1024 // 1 MiB
 )
 
 type Uploader struct {
@@ -117,6 +118,7 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	logrus.Debugf("first 1024 bytes: %v", string(rawContent))
 	if qcowHeaderIndex == -1 {
 		logrus.Infof("Magic number is not correct: %v, this image is not qcow format", rawContent)
+		virtualSize = virtualSize + uploadSizeBuffer // virtualSize + buffer to prevent upload failure
 	} else {
 		// The virtual size is at 24-31 bytes (from the qcow image header)
 		virtualSizeRaw := rawContent[qcowHeaderIndex+24 : qcowHeaderIndex+32]
