@@ -54,6 +54,14 @@ During the installation, you can either choose to **create a new Harvester clust
 
 1. Mount the Harvester ISO file and boot the server by selecting the `Harvester Installer` option.
 ![iso-install.png](./docs/assets/iso-install.png)
+1. The Harvester installer checks if the hardware meets the minimum requirements for production use. If any of the checks fail, installation is stopped and warnings are printed to the system console. Choose whether to proceed with the installation or exit the installer.
+
+  ![hardware-check.png](./docs/assets/hardware-check.png)
+
+  > **NOTE**:
+  > You can disable the hardware check during iPXE installation (for testing purposes) by adding the kernel parameter `harvester.install.skipchecks=true` when you boot the system.
+1. Change the password for the default user `rancher`. This password will be used to access the node via SSH.
+![password-change.png](./docs/assets/password-change.png)
 1. Use the arrow keys to choose an installation mode. By default, the first node will be the management node of the cluster.
    ![iso-install-mode.png](./docs/assets/iso-installation-mode.png)
    - `Create a new Harvester cluster`: Select this option to create an entirely new Harvester cluster.
@@ -95,9 +103,10 @@ https://github.com/harvester/harvester/releases
 
 | Release   | Version | Type           | Release Note (Changelog)                                         | Upgrade Note                                                |
 |-----------|---------|----------------|------------------------------------------------------------------|-------------------------------------------------------------|
+| **1.7***  | 1.7.0   | Latest         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.7.0) | [🔗](https://docs.harvesterhci.io/v1.7/upgrade/v1-6-x-to-v1-7-x) |
 | **1.6***  | 1.6.1   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.6.1) | [🔗](https://docs.harvesterhci.io/v1.6/upgrade/v1-5-x-to-v1-6-x) |
 | **1.5***  | 1.5.2   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.5.2) | [🔗](https://docs.harvesterhci.io/v1.5/upgrade/v1-4-2-to-v1-5-2) |
-| **1.4***  | 1.4.3   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.4.3) | [🔗](https://docs.harvesterhci.io/v1.4/upgrade/v1-4-1-to-v1-4-3) |
+| **1.4***  | 1.4.3   | EOL            | [🔗](https://github.com/harvester/harvester/releases/tag/v1.4.3) | [🔗](https://docs.harvesterhci.io/v1.4/upgrade/v1-4-1-to-v1-4-3) |
 | **1.3***  | 1.3.2   | EOL            | [🔗](https://github.com/harvester/harvester/releases/tag/v1.3.2) | [🔗](https://docs.harvesterhci.io/v1.3/upgrade/v1-3-1-to-v1-3-2) |
 | **1.2***  | 1.2.2   | EOL            | [🔗](https://github.com/harvester/harvester/releases/tag/v1.2.2) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-2-1-to-v1-2-2) |
 | **1.1***  | 1.1.3   | EOL            | [🔗](https://github.com/harvester/harvester/releases/tag/v1.1.3) | [🔗](https://docs.harvesterhci.io/v1.2/upgrade/v1-1-to-v1-1-2)   |
