@@ -15,6 +15,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlloggingv1 "github.com/harvester/harvester/pkg/generated/controllers/logging.banzaicloud.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/logging"
@@ -30,7 +31,7 @@ const (
 	vCluster0300           = "v0.30.0"
 )
 
-func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache, nodeCache ctlcorev1.NodeCache) types.Validator {
+func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache, nodeCache ctlcorev1.NodeCache, vmCache ctlkubevirtv1.VirtualMachineCache) types.Validator {
 	return &addonValidator{
 		addons:             addons,
 		flowCache:          flowCache,
@@ -39,6 +40,7 @@ func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowC
 		clusterOutputCache: clusterOutputCache,
 		upgradeLogCache:    upgradeLogCache,
 		nodeCache:          nodeCache,
+		vmCache:            vmCache,
 	}
 }
 
@@ -52,6 +54,7 @@ type addonValidator struct {
 	clusterOutputCache ctlloggingv1.ClusterOutputCache
 	upgradeLogCache    ctlharvesterv1.UpgradeLogCache
 	nodeCache          ctlcorev1.NodeCache
+	vmCache            ctlkubevirtv1.VirtualMachineCache
 }
 
 func (v *addonValidator) Resource() types.Resource {
@@ -143,6 +146,20 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 		}
 
 		return v.validateDeschedulerAddon(newAddon)
+	}
+
+	// check when pcidevices-controller addon is being disabled
+	if newAddon.Name == util.PCIDevicesControllerName {
+		if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
+			return v.validatePCIDevicesControllerAddon(newAddon)
+		}
+	}
+
+	// check when nvidia-driver-toolkit addon is being disabled
+	if newAddon.Name == util.NvidiaDriverToolkitName {
+		if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
+			return v.validateNvidiaDriverToolkitAddon(newAddon)
+		}
 	}
 
 	return nil
@@ -260,5 +277,58 @@ func (v *addonValidator) validateDeschedulerAddon(newAddon *v1beta1.Addon) error
 	if len(nodes) <= 1 {
 		return werror.NewBadRequest("descheduler addon cannot be enabled as not enough nodes exist in the cluster")
 	}
+	return nil
+}
+
+func (v *addonValidator) validatePCIDevicesControllerAddon(newAddon *v1beta1.Addon) error {
+	// Check if any VMs are using HostDevices (PCI devices, USB devices) or GPUs (vGPU devices)
+	vms, err := v.vmCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("error listing virtual machines: %v", err.Error()))
+	}
+
+	var vmsWithDevices []string
+	for _, vm := range vms {
+		if vm.Spec.Template != nil {
+			// Check for HostDevices (PCI devices and USB devices)
+			if len(vm.Spec.Template.Spec.Domain.Devices.HostDevices) > 0 {
+				vmsWithDevices = append(vmsWithDevices, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
+				continue
+			}
+			// Check for GPUs (vGPU devices)
+			if len(vm.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
+				vmsWithDevices = append(vmsWithDevices, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
+			}
+		}
+	}
+
+	if len(vmsWithDevices) > 0 {
+		return werror.NewBadRequest(fmt.Sprintf("pcidevices-controller addon cannot be disabled as the following VMs are using passthrough devices: %v", vmsWithDevices))
+	}
+
+	return nil
+}
+
+func (v *addonValidator) validateNvidiaDriverToolkitAddon(newAddon *v1beta1.Addon) error {
+	// Check if any VMs are using GPUs (vGPU devices and SR-IOV GPU devices)
+	vms, err := v.vmCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("error listing virtual machines: %v", err.Error()))
+	}
+
+	var vmsWithGPUs []string
+	for _, vm := range vms {
+		if vm.Spec.Template != nil {
+			// Check for GPUs (vGPU devices and SR-IOV GPU devices)
+			if len(vm.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
+				vmsWithGPUs = append(vmsWithGPUs, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
+			}
+		}
+	}
+
+	if len(vmsWithGPUs) > 0 {
+		return werror.NewBadRequest(fmt.Sprintf("nvidia-driver-toolkit addon cannot be disabled as the following VMs are using GPU devices: %v", vmsWithGPUs))
+	}
+
 	return nil
 }
