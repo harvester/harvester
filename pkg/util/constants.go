@@ -103,6 +103,8 @@ const (
 	HarvesterSystemNamespaceName        = "harvester-system"
 	RancherLoggingName                  = "rancher-logging"
 	DeschedulerName                     = "descheduler"
+	PCIDevicesControllerName            = "pcidevices-controller"
+	NvidiaDriverToolkitName             = "nvidia-driver-toolkit"
 	RancherMonitoringPrometheus         = "rancher-monitoring-prometheus"
 	RancherMonitoringAlertmanager       = "rancher-monitoring-alertmanager"
 	RancherMonitoring                   = "rancher-monitoring"
