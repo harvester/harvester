@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	harvesterFake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -418,6 +419,46 @@ func Test_validateUpdatedAddon(t *testing.T) {
 			},
 			expectedError: true,
 		},
+		{
+			name: "disable pcidevices-controller with no VMs",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.PCIDevicesControllerName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: true,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.PCIDevicesControllerName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: false,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "disable nvidia-driver-toolkit with no VMs",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.NvidiaDriverToolkitName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: true,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.NvidiaDriverToolkitName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: false,
+				},
+			},
+			expectedError: false,
+		},
 	}
 
 	harvesterClientSet := harvesterFake.NewSimpleClientset()
@@ -430,7 +471,8 @@ func Test_validateUpdatedAddon(t *testing.T) {
 	fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
 	upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
 	fakeNodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
-	validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache).(*addonValidator)
+	fakeVMCache := fakeclients.VirtualMachineCache(harvesterClientSet.KubevirtV1().VirtualMachines)
+	validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, fakeVMCache).(*addonValidator)
 
 	for _, tc := range testCases {
 		err := validator.validateUpdatedAddon(tc.newAddon, tc.oldAddon)
@@ -509,7 +551,7 @@ func Test_validateNewAddon(t *testing.T) {
 		fakeNodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
 		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
 
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
 		for _, addon := range tc.addonList {
 			err := harvesterClientSet.Tracker().Add(addon)
 			assert.Nil(t, err)
@@ -872,7 +914,7 @@ func Test_validateRancherLoggingAddonWithClusterFlow(t *testing.T) {
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
 		fakeNodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
 		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
 		for _, cf := range tc.clusterFlows {
 			err := harvesterClientSet.Tracker().Add(cf)
 			assert.Nil(t, err)
@@ -1155,7 +1197,7 @@ func Test_validateRancherLoggingAddonWithFlow(t *testing.T) {
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
 		fakeNodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
 		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
 		for _, cf := range tc.flows {
 			err := harvesterClientSet.Tracker().Add(cf)
 			assert.Nil(t, err)
@@ -1388,7 +1430,7 @@ func Test_validateRancherLoggingWithUpgradeLog(t *testing.T) {
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
 		fakeNodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
 		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
 		for _, upgradeLog := range tc.upgradeLogs {
 			err := harvesterClientSet.Tracker().Add(upgradeLog)
 			assert.Nil(t, err)
@@ -1500,7 +1542,7 @@ func Test_validateRancherLoggingWithUpgradeLogThenUpgradeAddon(t *testing.T) {
 		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
 		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil).(*addonValidator)
 		for _, upgradeLog := range tc.upgradeLogs {
 			err := harvesterClientSet.Tracker().Add(upgradeLog)
 			assert.Nil(t, err)
@@ -1605,7 +1647,7 @@ func Test_validateDeleteAddon(t *testing.T) {
 		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
 		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil).(*addonValidator)
 
 		err := validator.Delete(nil, tc.oldAddon)
 		if tc.expectedError {
@@ -1688,5 +1730,403 @@ func Test_validateVersionedVClusterAddon(t *testing.T) {
 		} else {
 			assert.NoError(err, tc.name)
 		}
+	}
+}
+
+func Test_validatePCIDevicesControllerAddon(t *testing.T) {
+	type testCase struct {
+		name          string
+		vms           []*kubevirtv1.VirtualMachine
+		expectedError bool
+	}
+
+	testCases := []testCase{
+		{
+			name:          "no VMs, should allow disable",
+			vms:           []*kubevirtv1.VirtualMachine{},
+			expectedError: false,
+		},
+		{
+			name: "VM with no passthrough devices, should allow disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-no-passthrough",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "VM with host devices, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-hostdev",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										HostDevices: []kubevirtv1.HostDevice{
+											{
+												Name:       "pci-device-1",
+												DeviceName: "pci.example.com/device",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "VM with GPUs, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-gpu",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										GPUs: []kubevirtv1.GPU{
+											{
+												Name:       "gpu-1",
+												DeviceName: "nvidia.com/GPU",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "VM with both host devices and GPUs, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-both",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										HostDevices: []kubevirtv1.HostDevice{
+											{
+												Name:       "pci-device-1",
+												DeviceName: "pci.example.com/device",
+											},
+										},
+										GPUs: []kubevirtv1.GPU{
+											{
+												Name:       "gpu-1",
+												DeviceName: "nvidia.com/GPU",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "multiple VMs, one with host device, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-no-passthrough",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-hostdev",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										HostDevices: []kubevirtv1.HostDevice{
+											{
+												Name:       "pci-device-1",
+												DeviceName: "pci.example.com/device",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create fake kubevirt clientset
+			clientset := harvesterFake.NewSimpleClientset()
+
+			// Add VMs to the tracker
+			for _, vm := range tc.vms {
+				err := clientset.Tracker().Add(vm)
+				require.NoError(t, err, "failed to add VM to fake tracker")
+			}
+
+			// Create VM cache
+			vmCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
+
+			// Create validator
+			validator := &addonValidator{
+				vmCache: vmCache,
+			}
+
+			// Test the validation
+			err := validator.validatePCIDevicesControllerAddon(nil)
+			if tc.expectedError {
+				assert.NotNil(t, err, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func Test_validateNvidiaDriverToolkitAddon(t *testing.T) {
+	type testCase struct {
+		name          string
+		vms           []*kubevirtv1.VirtualMachine
+		expectedError bool
+	}
+
+	testCases := []testCase{
+		{
+			name:          "no VMs, should allow disable",
+			vms:           []*kubevirtv1.VirtualMachine{},
+			expectedError: false,
+		},
+		{
+			name: "VM with no GPUs, should allow disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-no-gpu",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "VM with host devices but no GPUs, should allow disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-hostdev-only",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										HostDevices: []kubevirtv1.HostDevice{
+											{
+												Name:       "pci-device-1",
+												DeviceName: "pci.example.com/device",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "VM with GPUs, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-gpu",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										GPUs: []kubevirtv1.GPU{
+											{
+												Name:       "gpu-1",
+												DeviceName: "nvidia.com/GPU",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "VM with both host devices and GPUs, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-both",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										HostDevices: []kubevirtv1.HostDevice{
+											{
+												Name:       "pci-device-1",
+												DeviceName: "pci.example.com/device",
+											},
+										},
+										GPUs: []kubevirtv1.GPU{
+											{
+												Name:       "gpu-1",
+												DeviceName: "nvidia.com/GPU",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "multiple VMs, one with GPU, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-no-gpu",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-gpu",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										GPUs: []kubevirtv1.GPU{
+											{
+												Name:       "gpu-1",
+												DeviceName: "nvidia.com/GPU",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create fake kubevirt clientset
+			clientset := harvesterFake.NewSimpleClientset()
+
+			// Add VMs to the tracker
+			for _, vm := range tc.vms {
+				err := clientset.Tracker().Add(vm)
+				require.NoError(t, err, "failed to add VM to fake tracker")
+			}
+
+			// Create VM cache
+			vmCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
+
+			// Create validator
+			validator := &addonValidator{
+				vmCache: vmCache,
+			}
+
+			// Test the validation
+			err := validator.validateNvidiaDriverToolkitAddon(nil)
+			if tc.expectedError {
+				assert.NotNil(t, err, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
 	}
 }
