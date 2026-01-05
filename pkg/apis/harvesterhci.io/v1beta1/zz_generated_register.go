@@ -30,6 +30,8 @@ import (
 var (
 	AddonResourceName                         = "addons"
 	KeyPairResourceName                       = "keypairs"
+	PVCBackupResourceName                     = "pvcbackups"
+	PVCRestoreResourceName                    = "pvcrestores"
 	PreferenceResourceName                    = "preferences"
 	ResourceQuotaResourceName                 = "resourcequotas"
 	ScheduleVMBackupResourceName              = "schedulevmbackups"
@@ -71,6 +73,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&AddonList{},
 		&KeyPair{},
 		&KeyPairList{},
+		&PVCBackup{},
+		&PVCBackupList{},
+		&PVCRestore{},
+		&PVCRestoreList{},
 		&Preference{},
 		&PreferenceList{},
 		&ResourceQuota{},

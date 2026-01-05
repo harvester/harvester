@@ -30,6 +30,8 @@ type HarvesterhciV1beta1Interface interface {
 	RESTClient() rest.Interface
 	AddonsGetter
 	KeyPairsGetter
+	PVCBackupsGetter
+	PVCRestoresGetter
 	PreferencesGetter
 	ResourceQuotasGetter
 	ScheduleVMBackupsGetter
@@ -57,6 +59,14 @@ func (c *HarvesterhciV1beta1Client) Addons(namespace string) AddonInterface {
 
 func (c *HarvesterhciV1beta1Client) KeyPairs(namespace string) KeyPairInterface {
 	return newKeyPairs(c, namespace)
+}
+
+func (c *HarvesterhciV1beta1Client) PVCBackups(namespace string) PVCBackupInterface {
+	return newPVCBackups(c, namespace)
+}
+
+func (c *HarvesterhciV1beta1Client) PVCRestores(namespace string) PVCRestoreInterface {
+	return newPVCRestores(c, namespace)
 }
 
 func (c *HarvesterhciV1beta1Client) Preferences(namespace string) PreferenceInterface {

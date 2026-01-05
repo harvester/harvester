@@ -36,6 +36,14 @@ func (c *FakeHarvesterhciV1beta1) KeyPairs(namespace string) v1beta1.KeyPairInte
 	return &FakeKeyPairs{c, namespace}
 }
 
+func (c *FakeHarvesterhciV1beta1) PVCBackups(namespace string) v1beta1.PVCBackupInterface {
+	return &FakePVCBackups{c, namespace}
+}
+
+func (c *FakeHarvesterhciV1beta1) PVCRestores(namespace string) v1beta1.PVCRestoreInterface {
+	return &FakePVCRestores{c, namespace}
+}
+
 func (c *FakeHarvesterhciV1beta1) Preferences(namespace string) v1beta1.PreferenceInterface {
 	return &FakePreferences{c, namespace}
 }

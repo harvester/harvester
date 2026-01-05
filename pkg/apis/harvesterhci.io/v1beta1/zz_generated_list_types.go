@@ -281,6 +281,40 @@ func NewScheduleVMBackup(namespace, name string, obj ScheduleVMBackup) *Schedule
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// PVCBackupList is a list of PVCBackup resources
+type PVCBackupList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []PVCBackup `json:"items"`
+}
+
+func NewPVCBackup(namespace, name string, obj PVCBackup) *PVCBackup {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("PVCBackup").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// PVCRestoreList is a list of PVCRestore resources
+type PVCRestoreList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []PVCRestore `json:"items"`
+}
+
+func NewPVCRestore(namespace, name string, obj PVCRestore) *PVCRestore {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("PVCRestore").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // VirtualMachineImageDownloaderList is a list of VirtualMachineImageDownloader resources
 type VirtualMachineImageDownloaderList struct {
 	metav1.TypeMeta `json:",inline"`
