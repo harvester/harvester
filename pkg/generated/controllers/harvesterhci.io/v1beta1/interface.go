@@ -47,6 +47,8 @@ type Interface interface {
 	VirtualMachineRestore() VirtualMachineRestoreController
 	VirtualMachineTemplate() VirtualMachineTemplateController
 	VirtualMachineTemplateVersion() VirtualMachineTemplateVersionController
+	VolumeRemoteBackup() VolumeRemoteBackupController
+	VolumeRemoteRestore() VolumeRemoteRestoreController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -121,4 +123,12 @@ func (v *version) VirtualMachineTemplate() VirtualMachineTemplateController {
 
 func (v *version) VirtualMachineTemplateVersion() VirtualMachineTemplateVersionController {
 	return generic.NewController[*v1beta1.VirtualMachineTemplateVersion, *v1beta1.VirtualMachineTemplateVersionList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineTemplateVersion"}, "virtualmachinetemplateversions", true, v.controllerFactory)
+}
+
+func (v *version) VolumeRemoteBackup() VolumeRemoteBackupController {
+	return generic.NewController[*v1beta1.VolumeRemoteBackup, *v1beta1.VolumeRemoteBackupList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VolumeRemoteBackup"}, "volumeremotebackups", true, v.controllerFactory)
+}
+
+func (v *version) VolumeRemoteRestore() VolumeRemoteRestoreController {
+	return generic.NewController[*v1beta1.VolumeRemoteRestore, *v1beta1.VolumeRemoteRestoreList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VolumeRemoteRestore"}, "volumeremoterestores", true, v.controllerFactory)
 }

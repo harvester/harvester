@@ -25,6 +25,8 @@ API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/ha
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineRestoreStatus,VolumeRestores
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineTemplateVersionSpec,KeyPairIDs
 API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VirtualMachineTemplateVersionStatus,Conditions
+API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VolumeRemoteBackupStatus,Conditions
+API rule violation: list_type_missing,github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1,VolumeRemoteRestoreStatus,Conditions
 API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,DNS,Nameservers
 API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,DNS,Options
 API rule violation: list_type_missing,github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1,DNS,Search
