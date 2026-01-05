@@ -33,6 +33,8 @@ func init() {
 type Interface interface {
 	Addon() AddonController
 	KeyPair() KeyPairController
+	PVCBackup() PVCBackupController
+	PVCRestore() PVCRestoreController
 	Preference() PreferenceController
 	ResourceQuota() ResourceQuotaController
 	ScheduleVMBackup() ScheduleVMBackupController
@@ -65,6 +67,14 @@ func (v *version) Addon() AddonController {
 
 func (v *version) KeyPair() KeyPairController {
 	return generic.NewController[*v1beta1.KeyPair, *v1beta1.KeyPairList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "KeyPair"}, "keypairs", true, v.controllerFactory)
+}
+
+func (v *version) PVCBackup() PVCBackupController {
+	return generic.NewController[*v1beta1.PVCBackup, *v1beta1.PVCBackupList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "PVCBackup"}, "pvcbackups", true, v.controllerFactory)
+}
+
+func (v *version) PVCRestore() PVCRestoreController {
+	return generic.NewController[*v1beta1.PVCRestore, *v1beta1.PVCRestoreList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "PVCRestore"}, "pvcrestores", true, v.controllerFactory)
 }
 
 func (v *version) Preference() PreferenceController {
