@@ -281,6 +281,40 @@ func NewScheduleVMBackup(namespace, name string, obj ScheduleVMBackup) *Schedule
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// VolumeRemoteBackupList is a list of VolumeRemoteBackup resources
+type VolumeRemoteBackupList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []VolumeRemoteBackup `json:"items"`
+}
+
+func NewVolumeRemoteBackup(namespace, name string, obj VolumeRemoteBackup) *VolumeRemoteBackup {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("VolumeRemoteBackup").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// VolumeRemoteRestoreList is a list of VolumeRemoteRestore resources
+type VolumeRemoteRestoreList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []VolumeRemoteRestore `json:"items"`
+}
+
+func NewVolumeRemoteRestore(namespace, name string, obj VolumeRemoteRestore) *VolumeRemoteRestore {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("VolumeRemoteRestore").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // VirtualMachineImageDownloaderList is a list of VirtualMachineImageDownloader resources
 type VirtualMachineImageDownloaderList struct {
 	metav1.TypeMeta `json:",inline"`

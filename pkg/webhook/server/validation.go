@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ctlkubeovnv1 "github.com/harvester/harvester/pkg/generated/controllers/kubeovn.io/v1"
+	"github.com/harvester/harvester/pkg/volumeremotebackup/common"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
 	"github.com/harvester/harvester/pkg/webhook/resources/addon"
@@ -35,6 +36,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinebackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineimage"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinerestore"
+	"github.com/harvester/harvester/pkg/webhook/resources/volumeremotebackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/volumesnapshot"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	"github.com/harvester/harvester/pkg/webhook/util"
@@ -73,6 +75,23 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
+		volumeremotebackup.NewBackupValidator(
+			clients.Core.PersistentVolumeClaim().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VolumeRemoteBackup(),
+			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
+		volumeremotebackup.NewRestoreValidator(
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VolumeRemoteRestore(),
+			clients.Core.PersistentVolumeClaim().Cache(),
+			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VolumeRemoteBackup().Cache(),
+			common.NewBackupOperator(
+				clients.HarvesterFactory.Harvesterhci().V1beta1().VolumeRemoteBackup(),
+				clients.Core.PersistentVolumeClaim().Cache(),
+				clients.StorageFactory.Storage().V1().StorageClass().Cache(),
+				clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
+		),
 		keypair.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache()),
 		virtualmachine.NewValidator(
 			clients.Core.Namespace().Cache(),
