@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -135,4 +136,13 @@ func GetCSIOnlineExpandValidation(
 	}
 
 	return coev[provisioner], nil
+}
+
+// IsVolumeSnapshotReady checks if a VolumeSnapshot is ready to use.
+// Returns true if the VolumeSnapshot status is set and ReadyToUse is true.
+func IsVolumeSnapshotReady(vs *snapshotv1.VolumeSnapshot) bool {
+	if vs == nil {
+		return false
+	}
+	return vs.Status != nil && vs.Status.ReadyToUse != nil && *vs.Status.ReadyToUse
 }
