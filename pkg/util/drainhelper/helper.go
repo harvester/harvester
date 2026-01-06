@@ -59,7 +59,7 @@ func defaultDrainHelper(ctx context.Context, cfg *rest.Config) (*drain.Helper, e
 		Out:                 logger.Writer(),
 		ErrOut:              logger.Writer(),
 		Timeout:             defaultTimeOut,
-		AdditionalFilters:   []drain.PodFilter{maintainModeStrategyFilter},
+		AdditionalFilters:   []drain.PodFilter{maintainModeStrategyFilter, injectErrorFilter},
 	}, nil
 }
 
@@ -80,11 +80,6 @@ func DrainNode(ctx context.Context, cfg *rest.Config, node *corev1.Node) error {
 // DrainPossible is a helper method to check a node object and query remaining
 // nodes in the cluster to identify if it is possible to place the current mode
 // in maintenance mode.
-// Returns true if it is possible to drain the node, false if not possible. If
-// true and an error are returned, then the drain operation can be reconciled
-// again since the error does not rule out the possibility of a drain. If false
-// and an error are returned, then the conditions for a drain are not met and
-// reconciling does not make sense.
 func DrainPossible(nodeCache ctlcorev1.NodeCache, node *corev1.Node) error {
 	_, cpLabelOK := node.Labels["node-role.kubernetes.io/control-plane"]
 	_, etcdLabelOK := node.Labels["node-role.kubernetes.io/etcd"]
@@ -152,7 +147,7 @@ func DrainPossible(nodeCache ctlcorev1.NodeCache, node *corev1.Node) error {
 
 func maintainModeStrategyFilter(pod corev1.Pod) drain.PodDeleteStatus {
 	// Ignore VMs that should not be migrated in maintenance mode. These
-	// VMs are forcibly shut down when maintenance mode is activated.
+	// VMs are forcibly shut down when the maintenance mode is activated.
 	value, ok := pod.Labels[util.LabelMaintainModeStrategy]
 	if ok && value != util.MaintainModeStrategyMigrate {
 		logrus.WithFields(logrus.Fields{
@@ -161,6 +156,13 @@ func maintainModeStrategyFilter(pod corev1.Pod) drain.PodDeleteStatus {
 		}).Infof("migration of pod owned by VM %s is skipped because of the label %s",
 			pod.Labels[util.LabelVMName], util.LabelMaintainModeStrategy)
 		return drain.MakePodDeleteStatusSkip()
+	}
+	return drain.MakePodDeleteStatusOkay()
+}
+
+func injectErrorFilter(pod corev1.Pod) drain.PodDeleteStatus {
+	if _, ok := pod.Labels[util.LabelInjectError]; ok {
+		return drain.MakePodDeleteStatusWithError(fmt.Sprintf("Pods with label %q (Note, this is for testing purposes only)", util.LabelInjectError))
 	}
 	return drain.MakePodDeleteStatusOkay()
 }
