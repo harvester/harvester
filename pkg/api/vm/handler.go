@@ -653,6 +653,9 @@ func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.Virt
 
 	nodeFilter := labels.NewSelector()
 	for key, value := range latestPod.Spec.NodeSelector {
+		if key == corev1.LabelHostname {
+			continue
+		}
 		requirement, err := labels.NewRequirement(key, selection.Equals, []string{value})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create requirement for %s=%s: %w", key, value, err)

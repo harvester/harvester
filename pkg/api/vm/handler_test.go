@@ -856,6 +856,42 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 				"node2", "node3", "node4",
 			},
 		},
+
+		{
+			name: "Hostname label should be skipped from pod node selector",
+			args: args{
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-hostname-skip",
+						Namespace: "default",
+						UID:       "vmi-hostname-skip-uid",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						NodeName: "node1",
+					},
+				},
+				pod: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "virt-launcher-test-hostname-skip",
+						Namespace: "default",
+						Labels: map[string]string{
+							kubevirtv1.CreatedByLabel: "vmi-hostname-skip-uid",
+						},
+					},
+					Spec: corev1.PodSpec{
+						NodeName: "node1",
+						NodeSelector: map[string]string{
+							corev1.LabelHostname:       "node1",
+							"network":                  "a",
+							kubevirtv1.NodeSchedulable: "true",
+						},
+					},
+				},
+			},
+			want: []string{
+				"node2",
+			},
+		},
 	}
 
 	fakeNodeList := []*corev1.Node{
