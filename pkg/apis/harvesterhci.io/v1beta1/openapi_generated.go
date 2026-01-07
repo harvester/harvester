@@ -4631,6 +4631,25 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineRestoreSpec(ref common
 							Format:      "",
 						},
 					},
+					"standBy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "StandBy only works when NewVM is true. When set to true, the ScheduleVirtualMachineName and ScheduleVirtualMachineNamespace should be set. For standby mode, only volumes are restored and VM will not be started automatically after restore. The VM is expected to be started after standby is changed to false.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"scheduleVirtualMachineName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"scheduleVirtualMachineNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 				},
 				Required: []string{"target", "virtualMachineBackupName", "virtualMachineBackupNamespace"},
 			},
@@ -4708,6 +4727,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineRestoreStatus(ref comm
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"integer"},
 							Format: "int32",
+						},
+					},
+					"lastReadyStandByTimestamp": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 				},
@@ -5219,6 +5244,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VolumeRestore(ref common.ReferenceCa
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"integer"},
 							Format: "int64",
+						},
+					},
+					"timestamp": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 				},

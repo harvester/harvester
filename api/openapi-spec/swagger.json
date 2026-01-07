@@ -9237,6 +9237,15 @@
           "newVM": {
             "type": "boolean"
           },
+          "scheduleVirtualMachineName": {
+            "type": "string"
+          },
+          "scheduleVirtualMachineNamespace": {
+            "type": "string"
+          },
+          "standBy": {
+            "type": "boolean"
+          },
           "target": {
             "default": {},
             "allOf": [
@@ -9278,6 +9287,9 @@
               "type": "string",
               "default": ""
             }
+          },
+          "lastReadyStandByTimestamp": {
+            "type": "string"
           },
           "progress": {
             "type": "integer",
@@ -9618,6 +9630,9 @@
           "progress": {
             "type": "integer",
             "format": "int32"
+          },
+          "timestamp": {
+            "type": "string"
           },
           "volumeBackupName": {
             "type": "string"
