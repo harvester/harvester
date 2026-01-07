@@ -54,7 +54,63 @@ The following steps outline the user workflow for managing CD-ROM volumes on a r
 
 #### Via Terraform
 
-TODO: check hotpluggable volumes
+In the nested block `disk` of `harvester_virtualmachine` resource, user can already specified whether the disk is hotpluggable by `hot_plug`. `hot_plug` would automatically set to `true` if unspecified when the `type` is `cd-rom` and `bus` is `sata`.
+
+to define a VM with empty CD-ROM devices, they can define a nested `disk` block without `image` field like
+```
+  disk {
+    name       = "cdrom-disk"
+    type       = "cd-rom"
+    size       = "10Gi"
+    bus        = "sata"
+    boot_order = 2
+
+    auto_delete = true
+  }
+```
+
+to inject the image, they can simply add the `image` back
+```diff
+  disk {
+    name       = "cdrom-disk"
+    type       = "cd-rom"
+    size       = "10Gi"
+    bus        = "sata"
+    boot_order = 2
+
++   image       = harvester_image.k3os.id
+    auto_delete = true
+  }
+```
+
+to eject the image they can remove the `image` field
+```diff
+  disk {
+    name       = "cdrom-disk"
+    type       = "cd-rom"
+    size       = "10Gi"
+    bus        = "sata"
+    boot_order = 2
+
+-   image       = harvester_image.k3os.id
+    auto_delete = true
+  }
+```
+
+TBD: what about changing the value of `image`?
+```diff
+  disk {
+    name       = "cdrom-disk"
+    type       = "cd-rom"
+    size       = "10Gi"
+    bus        = "sata"
+    boot_order = 2
+
+-   image       = harvester_image.k3os.id
++   image       = harvester_image.opensuse.id
+    auto_delete = true
+  }
+```
 
 ### API changes
 
@@ -268,6 +324,7 @@ N/A
   2. removing the image of occupied cdrom device
   3. changing the image of occupied cdrom device
 
+- Should we support User Story 3 in terraform-provider-harvester?
 
 [^1]: https://kubevirt.io/user-guide/storage/hotplug_volumes/
 [^2]: https://groups.google.com/g/kubevirt-dev/c/-tRpvU6CvVY
