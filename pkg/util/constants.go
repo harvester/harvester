@@ -26,6 +26,8 @@ const (
 	LabelVMName                         = prefix + "/vmName"
 	LabelSVMBackupUID                   = prefix + "/svmbackupUID"
 	LabelSVMBackupTimestamp             = prefix + "/svmbackupTimestamp"
+	LabelSVMBackupName                  = prefix + "/svmbackupName"
+	LabelSVMBackupNamespace             = prefix + "/svmbackupNamespace"
 	LabelVMCreator                      = prefix + "/creator"
 	LabelVMimported                     = "migration.harvesterhci.io/imported"
 	LabelNodeNameKey                    = "kubevirt.io/nodeName"
@@ -263,4 +265,6 @@ const (
 	AddonExperimentalLabel = AddonPrefix + "/experimental"
 
 	HarvesterUpgradeComponentRepo = "repo"
+
+	ScheduleVMBackupTimeFormat = "20060102.1504"
 )

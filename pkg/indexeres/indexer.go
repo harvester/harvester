@@ -13,6 +13,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 )
@@ -26,6 +27,7 @@ const (
 	VMBackupBySourceVMNameIndex        = "harvesterhci.io/vmbackup-by-source-vm-name"
 	VMTemplateVersionByImageIDIndex    = "harvesterhci.io/vmtemplateversion-by-image-id"
 	VolumeSnapshotBySourcePVCIndex     = "harvesterhci.io/volumesnapshot-by-source-pvc"
+	VMRestoreByScheduleVMBackupIndex   = "harvesterhci.io/vmrestore-by-schedule-vmbackup"
 )
 
 func Setup(ctx context.Context, _ *server.Server, _ *server.Controllers, _ config.Options) error {
@@ -59,6 +61,9 @@ func Setup(ctx context.Context, _ *server.Server, _ *server.Controllers, _ confi
 
 	scInformer := management.StorageFactory.Storage().V1().StorageClass().Cache()
 	scInformer.AddIndexer(indexeresutil.StorageClassBySecretIndex, indexeresutil.StorageClassBySecret)
+
+	vmRestoreInformer := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache()
+	vmRestoreInformer.AddIndexer(VMRestoreByScheduleVMBackupIndex, VMRestoreByScheduleVMBackup)
 	return nil
 }
 
@@ -133,4 +138,11 @@ func volumeSnapshotBySourcePVC(obj *snapshotv1.VolumeSnapshot) ([]string, error)
 
 func VolumeByNodeName(obj *lhv1beta2.Volume) ([]string, error) {
 	return []string{obj.Spec.NodeID}, nil
+}
+
+func VMRestoreByScheduleVMBackup(obj *harvesterv1.VirtualMachineRestore) ([]string, error) {
+	if obj.Spec.ScheduleVirtualMachineName == "" {
+		return []string{}, nil
+	}
+	return []string{ref.Construct(obj.Spec.ScheduleVirtualMachineNamespace, obj.Spec.ScheduleVirtualMachineName)}, nil
 }

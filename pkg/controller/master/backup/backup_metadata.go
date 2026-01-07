@@ -31,6 +31,8 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
+	"github.com/harvester/harvester/pkg/indexeres"
+	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
@@ -60,6 +62,7 @@ type VirtualMachineBackupMetadata struct {
 	VMSourceSpec  *harvesterv1.VirtualMachineSourceSpec `json:"vmSourceSpec,omitempty"`
 	VolumeBackups []harvesterv1.VolumeBackup            `json:"volumeBackups,omitempty"`
 	SecretBackups []harvesterv1.SecretBackup            `json:"secretBackups,omitempty"`
+	Labels        map[string]string                     `json:"labels,omitempty"`
 }
 
 type MetadataHandler struct {
@@ -74,6 +77,8 @@ type MetadataHandler struct {
 	settings                        ctlharvesterv1.SettingController
 	vmBackups                       ctlharvesterv1.VirtualMachineBackupClient
 	vmBackupCache                   ctlharvesterv1.VirtualMachineBackupCache
+	vmRestores                      ctlharvesterv1.VirtualMachineRestoreController
+	vmRestoreCache                  ctlharvesterv1.VirtualMachineRestoreCache
 	vmImages                        ctlharvesterv1.VirtualMachineImageClient
 	vmImageCache                    ctlharvesterv1.VirtualMachineImageCache
 	storageClassCache               ctlstoragev1.StorageClassCache
@@ -91,6 +96,7 @@ func RegisterBackupMetadata(ctx context.Context, management *config.Management, 
 	longhornBackupBackingImages := management.LonghornFactory.Longhorn().V1beta2().BackupBackingImage()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	storageClass := management.StorageFactory.Storage().V1().StorageClass()
+	vmRestores := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore()
 
 	backupMetadataController := &MetadataHandler{
 		ctx:                             ctx,
@@ -104,6 +110,8 @@ func RegisterBackupMetadata(ctx context.Context, management *config.Management, 
 		settings:                        settings,
 		vmBackups:                       vmBackups,
 		vmBackupCache:                   vmBackups.Cache(),
+		vmRestores:                      vmRestores,
+		vmRestoreCache:                  vmRestores.Cache(),
 		vmImages:                        vmImages,
 		vmImageCache:                    vmImages.Cache(),
 		storageClassCache:               storageClass.Cache(),
@@ -436,6 +444,7 @@ func (h *MetadataHandler) createVMBackupIfNotExist(backupMetadata VirtualMachine
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      backupMetadata.Name,
 			Namespace: backupMetadata.Namespace,
+			Labels:    backupMetadata.Labels,
 		},
 		Spec: backupMetadata.BackupSpec,
 		Status: harvesterv1.VirtualMachineBackupStatus{
@@ -456,6 +465,29 @@ func (h *MetadataHandler) createVMBackupIfNotExist(backupMetadata VirtualMachine
 		"namespace": backupMetadata.Namespace,
 		"name":      backupMetadata.Name,
 	}).Info("create vm backup from backup target")
+
+	svmbackupNamespace := backupMetadata.Labels[util.LabelSVMBackupNamespace]
+	svmbackupName := backupMetadata.Labels[util.LabelSVMBackupName]
+	if svmbackupName != "" {
+		restores, err := h.vmRestoreCache.GetByIndex(indexeres.VMRestoreByScheduleVMBackupIndex, ref.Construct(svmbackupNamespace, svmbackupName))
+		if err != nil {
+			if !apierrors.IsNotFound(err) {
+				logrus.WithFields(logrus.Fields{
+					"namespace":           backupMetadata.Namespace,
+					"name":                backupMetadata.Name,
+					"svmbackup.namespace": svmbackupNamespace,
+					"svmbackup.name":      svmbackupName,
+				}).WithError(err).Error("failed to enqueue vm restore after creating vm backup")
+			}
+			return nil
+		}
+		for _, restore := range restores {
+			if !isVMRestoreProgressing(restore) {
+				continue
+			}
+			h.vmRestores.Enqueue(restore.Namespace, restore.Name)
+		}
+	}
 	return nil
 }
 

@@ -3,13 +3,17 @@ package virtualmachinerestore
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
+	"time"
 
 	ctlv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	validationutil "k8s.io/apimachinery/pkg/util/validation"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -101,6 +105,10 @@ func (v *restoreValidator) Create(_ *types.Request, newObj runtime.Object) error
 		return werror.NewInvalidError(fmt.Sprintf("Target VM name is invalid, err: %v", errs), fieldTargetName)
 	}
 
+	if err := checkFields(newRestore); err != nil {
+		return werror.NewInvalidError(err.Error(), fieldSpec)
+	}
+
 	vmBackup, err := v.getVMBackup(newRestore)
 	if err != nil {
 		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
@@ -129,8 +137,9 @@ func (v *restoreValidator) Create(_ *types.Request, newObj runtime.Object) error
 func (v *restoreValidator) Update(_ *types.Request, oldObj, newObj runtime.Object) error {
 	oldRestore := oldObj.(*v1beta1.VirtualMachineRestore)
 	newRestore := newObj.(*v1beta1.VirtualMachineRestore)
+	newRestore.Spec.StandBy = oldRestore.Spec.StandBy
 	if !reflect.DeepEqual(oldRestore.Spec, newRestore.Spec) {
-		return werror.NewInvalidError("VirtualMachineRestore spec is immutable", fieldSpec)
+		return werror.NewInvalidError("Only standBy field is immutable", fieldSpec)
 	}
 	return nil
 }
@@ -225,9 +234,52 @@ func (v *restoreValidator) handleNewVM(vmRestore *v1beta1.VirtualMachineRestore,
 }
 
 func (v *restoreValidator) getVMBackup(vmRestore *v1beta1.VirtualMachineRestore) (*v1beta1.VirtualMachineBackup, error) {
-	vmBackup, err := v.vmBackup.Get(vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName)
-	if err != nil {
-		return nil, fmt.Errorf("can't get vmbackup %s/%s, err: %w", vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName, err)
+	var vmBackup *v1beta1.VirtualMachineBackup
+	var err error
+	if vmRestore.Spec.VirtualMachineBackupName != "" {
+		vmBackup, err = v.vmBackup.Get(vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName)
+		if err != nil {
+			return nil, fmt.Errorf("can't get vmbackup %s/%s, err: %w", vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName, err)
+		}
+	}
+
+	if vmRestore.Spec.ScheduleVirtualMachineName != "" {
+		svmBakcupNameReq, err := labels.NewRequirement(util.LabelSVMBackupName, selection.Equals, []string{vmRestore.Spec.ScheduleVirtualMachineName})
+		if err != nil {
+			return nil, fmt.Errorf("failed to construct label requirement: %v", err)
+		}
+		selector := labels.NewSelector().Add(*svmBakcupNameReq)
+
+		if vmRestore.Spec.ScheduleVirtualMachineNamespace != "" {
+			svmBakcupNamespaceReq, err := labels.NewRequirement(util.LabelSVMBackupNamespace, selection.Equals, []string{vmRestore.Spec.ScheduleVirtualMachineNamespace})
+			if err != nil {
+				return nil, fmt.Errorf("failed to construct label requirement: %v", err)
+			}
+			selector = selector.Add(*svmBakcupNamespaceReq)
+		}
+
+		backups, err := v.vmBackup.List(vmRestore.Spec.ScheduleVirtualMachineNamespace, selector)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list vm backups for scheduled vm %s/%s: %v", vmRestore.Spec.ScheduleVirtualMachineNamespace, vmRestore.Spec.ScheduleVirtualMachineName, err)
+		}
+
+		if len(backups) == 0 {
+			return nil, fmt.Errorf("no vm backups found for scheduled vm %s/%s", vmRestore.Spec.ScheduleVirtualMachineNamespace, vmRestore.Spec.ScheduleVirtualMachineName)
+		}
+
+		// sort backups by "harvesterhci.io/svmbackupTimestamp" in descending order
+		sort.Slice(backups, func(i, j int) bool {
+			time1, _ := time.Parse(util.ScheduleVMBackupTimeFormat, backups[i].Labels[util.LabelSVMBackupTimestamp])
+			time2, _ := time.Parse(util.ScheduleVMBackupTimeFormat, backups[j].Labels[util.LabelSVMBackupTimestamp])
+			return time1.After(time2)
+		})
+
+		for _, b := range backups {
+			if ctlbackup.IsBackupReady(b) && b.Status.SourceSpec != nil {
+				vmBackup = b
+				break
+			}
+		}
 	}
 
 	if vmBackup.DeletionTimestamp != nil {
@@ -358,6 +410,29 @@ func (v *restoreValidator) Delete(_ *types.Request, newObj runtime.Object) error
 
 	if vm.DeletionTimestamp == nil {
 		return werror.NewInvalidError(fmt.Sprintf("The restore can't be removed because the restored VM %s exists", vm.Name), fieldTargetName)
+	}
+
+	return nil
+}
+
+func checkFields(vmRestore *v1beta1.VirtualMachineRestore) error {
+	if vmRestore.Spec.VirtualMachineBackupName == "" && vmRestore.Spec.ScheduleVirtualMachineName == "" {
+		return fmt.Errorf("one of VirtualMachineBackupName and ScheduleVirtualMachineName must be set")
+	}
+
+	if vmRestore.Spec.VirtualMachineBackupName != "" && vmRestore.Spec.ScheduleVirtualMachineName != "" {
+		return fmt.Errorf("only one of VirtualMachineBackupName and ScheduleVirtualMachineName can be set")
+	}
+
+	if vmRestore.Spec.VirtualMachineBackupName == "" && vmRestore.Spec.VirtualMachineBackupNamespace != "" {
+		return fmt.Errorf("VirtualMachineBackupNamespace can be set only when VirtualMachineBackupName is set")
+	}
+
+	if vmRestore.Spec.ScheduleVirtualMachineName == "" && vmRestore.Spec.ScheduleVirtualMachineNamespace != "" {
+		return fmt.Errorf("ScheduleVirtualMachineNamespace can be set only when ScheduleVirtualMachineName is set")
+	}
+	if vmRestore.Spec.ScheduleVirtualMachineName != "" && !vmRestore.Spec.NewVM {
+		return fmt.Errorf("restoring from ScheduleVirtualMachineName only supports creating new VM")
 	}
 
 	return nil

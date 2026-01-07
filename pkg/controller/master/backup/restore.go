@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
@@ -177,6 +179,13 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, restore *harvesterv1.Virtual
 		return nil, nil
 	}
 
+	if restore.Spec.StandBy {
+		return h.processStandByVMRestore(restore)
+	}
+	return h.processNonStandByVMRestore(restore)
+}
+
+func (h *RestoreHandler) processNonStandByVMRestore(restore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
 	if !isVMRestoreProgressing(restore) {
 		return nil, nil
 	}
@@ -207,6 +216,163 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, restore *harvesterv1.Virtual
 	return nil, h.updateStatus(restore, backup, vm, isVolumesReady)
 }
 
+func (h *RestoreHandler) processStandByVMRestore(restore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
+	backup, err := h.getVMBackup(restore)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"namespace": restore.Namespace,
+			"name":      restore.Name,
+		}).WithError(err).Error("failed to get VM backup for standby restore")
+		return nil, err
+	}
+
+	_, err = time.Parse(util.ScheduleVMBackupTimeFormat, backup.Labels[util.LabelSVMBackupTimestamp])
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"namespace": restore.Namespace,
+			"name":      restore.Name,
+			"backup":    fmt.Sprintf("%s/%s", backup.Namespace, backup.Name),
+		}).WithError(err).Error("failed to parse timestamp from VM backup for standby restore")
+		return nil, err
+	}
+
+	restore, err = h.addNewVolumeRestoresToStandByVMRestore(restore, backup)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"namespace": restore.Namespace,
+			"name":      restore.Name,
+			"backup":    fmt.Sprintf("%s/%s", backup.Namespace, backup.Name),
+		}).WithError(err).Error("failed to add new VolumeRestores for standby restore")
+		return nil, err
+	}
+
+	restore, err = h.removeOldVolumeRestoresFromStandByVMRestore(restore)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"namespace": restore.Namespace,
+			"name":      restore.Name,
+		}).WithError(err).Error("failed to remove old VolumeRestores for standby restore")
+		return nil, err
+	}
+
+	return restore, err
+}
+
+func (h *RestoreHandler) addNewVolumeRestoresToStandByVMRestore(restore *harvesterv1.VirtualMachineRestore, backup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineRestore, error) {
+	newVolumeRestores, err := getVolumeRestores(restore, backup)
+	if err != nil {
+		return nil, err
+	}
+
+	restoreCopy := restore.DeepCopy()
+	for _, newVolumeRestore := range newVolumeRestores {
+		isVolumeRestoreExisting := false
+		for _, volumeRestore := range restore.Status.VolumeRestores {
+			if volumeRestore.VolumeBackupName == newVolumeRestore.VolumeBackupName {
+				isVolumeRestoreExisting = true
+				break
+			}
+		}
+
+		if !isVolumeRestoreExisting {
+			restoreCopy.Status.VolumeRestores = append(restoreCopy.Status.VolumeRestores, newVolumeRestore)
+		}
+	}
+
+	if !reflect.DeepEqual(restore.Status.VolumeRestores, restoreCopy.Status.VolumeRestores) {
+		setCondition(restoreCopy, harvesterv1.RestoreConditionStandByProcessing, true, "", fmt.Sprintf("Initializing new VolumeRestores with timestamp %s", backup.Labels[util.LabelSVMBackupTimestamp]))
+		if restore, err = h.restores.Update(restoreCopy); err != nil {
+			return nil, err
+		}
+	}
+
+	return restore, nil
+}
+
+func (h *RestoreHandler) removeOldVolumeRestoresFromStandByVMRestore(restore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
+	timestampToVolumeRestores := map[string][]harvesterv1.VolumeRestore{}
+	timestamps := []string{}
+	for _, volumeRestore := range restore.Status.VolumeRestores {
+		timestamp := volumeRestore.Timestamp
+		if timestampToVolumeRestores[timestamp] == nil {
+			timestampToVolumeRestores[timestamp] = []harvesterv1.VolumeRestore{}
+			timestamps = append(timestamps, timestamp)
+		}
+		timestampToVolumeRestores[timestamp] = append(timestampToVolumeRestores[timestamp], volumeRestore)
+	}
+
+	sort.Slice(timestamps, func(i, j int) bool {
+		time1, _ := time.Parse(util.ScheduleVMBackupTimeFormat, timestamps[i])
+		time2, _ := time.Parse(util.ScheduleVMBackupTimeFormat, timestamps[j])
+		return time1.After(time2)
+	})
+
+	lastReadyTimestamp := ""
+	keepVolumeRestores := []harvesterv1.VolumeRestore{}
+	restoringTimestamps := []string{}
+	for _, timestamp := range timestamps {
+		if lastReadyTimestamp != "" {
+			// remove old volumeRestores
+			for _, volumeRestore := range timestampToVolumeRestores[timestamp] {
+				err := h.pvcClient.Delete(restore.Namespace, volumeRestore.PersistentVolumeClaim.ObjectMeta.Name, &metav1.DeleteOptions{})
+				if err != nil && !apierrors.IsNotFound(err) {
+					logrus.WithFields(logrus.Fields{
+						"namespace": restore.Namespace,
+						"name":      restore.Name,
+						"pvc":       volumeRestore.PersistentVolumeClaim.ObjectMeta.Name,
+					}).WithError(err).Error("failed to delete PVC for old VolumeRestore")
+				}
+			}
+			delete(timestampToVolumeRestores, timestamp)
+		}
+
+		backup, err := h.getVMBackupByTimestamp(restore, timestamp)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"namespace": restore.Namespace,
+				"name":      restore.Name,
+				"timestamp": timestamp,
+			}).WithError(err).Error("failed to get VM backup by timestamp for standby restore")
+			continue
+		}
+
+		isVolumesReady, err := h.reconcileVolumeRestores(restore, backup, timestamp)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"namespace": restore.Namespace,
+				"name":      restore.Name,
+			}).WithError(err).Error("failed to reconcile VolumeRestores for standby restore")
+			continue
+		}
+
+		if isVolumesReady {
+			lastReadyTimestamp = timestamp
+		} else {
+			restoringTimestamps = append(restoringTimestamps, timestamp)
+		}
+		keepVolumeRestores = append(keepVolumeRestores, timestampToVolumeRestores[timestamp]...)
+	}
+
+	restoreCopy := restore.DeepCopy()
+	restoreCopy.Status.VolumeRestores = keepVolumeRestores
+	if lastReadyTimestamp != "" {
+		setCondition(restoreCopy, harvesterv1.RestoreConditionStandByReady, true, "", fmt.Sprintf("Latest Ready Standby VolumeRestores Timestamp is %s", lastReadyTimestamp))
+		restoreCopy.Status.LastReadyStandByTimestamp = lastReadyTimestamp
+	}
+	if len(restoringTimestamps) > 0 {
+		setCondition(restoreCopy, harvesterv1.RestoreConditionStandByProcessing, true, "", fmt.Sprintf("Restoring VolumeRestores with timestamps %s", strings.Join(restoringTimestamps, ", ")))
+	} else if len(timestampToVolumeRestores) == 1 && lastReadyTimestamp != "" {
+		setCondition(restoreCopy, harvesterv1.RestoreConditionStandByProcessing, false, "", "All VolumeRestores are ready")
+	}
+	if !reflect.DeepEqual(restore.Status, restoreCopy.Status) {
+		var err error
+		if restore, err = h.restores.Update(restoreCopy); err != nil {
+			return nil, err
+		}
+	}
+	return restore, nil
+}
+
 // RestoreOnRemove delete VolumeSnapshotContent which is created by restore controller
 // Since we would like to prevent LH Backups from being removed when users delete the VM,
 // we use Retain policy in VolumeSnapshotContent.
@@ -221,6 +387,10 @@ func (h *RestoreHandler) RestoreOnRemove(_ string, restore *harvesterv1.VirtualM
 		if !apierrors.IsNotFound(err) {
 			return nil, err
 		}
+		return nil, nil
+	}
+
+	if backup == nil {
 		return nil, nil
 	}
 
@@ -491,7 +661,7 @@ func getVolumeRestores(vmRestore *harvesterv1.VirtualMachineRestore, backup *har
 	for _, vb := range backup.Status.VolumeBackups {
 		found := false
 		for _, vr := range vmRestore.Status.VolumeRestores {
-			if vb.VolumeName == vr.VolumeName {
+			if vb.Name == &vr.VolumeBackupName {
 				restores = append(restores, vr)
 				found = true
 				break
@@ -507,12 +677,13 @@ func getVolumeRestores(vmRestore *harvesterv1.VirtualMachineRestore, backup *har
 				VolumeName: vb.VolumeName,
 				PersistentVolumeClaim: harvesterv1.PersistentVolumeClaimSourceSpec{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      getRestorePVCName(vmRestore, vb.VolumeName),
+						Name:      getRestorePVCName(vmRestore, backup, vb.VolumeName),
 						Namespace: vmRestore.Namespace,
 					},
 					Spec: vb.PersistentVolumeClaim.Spec,
 				},
 				VolumeBackupName: *vb.Name,
+				Timestamp:        backup.Labels[util.LabelSVMBackupTimestamp],
 			}
 			restores = append(restores, vr)
 		}
@@ -525,7 +696,7 @@ func (h *RestoreHandler) reconcileResources(
 	backup *harvesterv1.VirtualMachineBackup,
 ) (*kubevirtv1.VirtualMachine, bool, error) {
 	// reconcile restoring volumes and create new PVC from CSI volumeSnapshot if not exist
-	isVolumesReady, err := h.reconcileVolumeRestores(vmRestore, backup)
+	isVolumesReady, err := h.reconcileVolumeRestores(vmRestore, backup, "")
 	if err != nil {
 		return nil, false, err
 	}
@@ -547,9 +718,16 @@ func (h *RestoreHandler) reconcileResources(
 func (h *RestoreHandler) reconcileVolumeRestores(
 	vmRestore *harvesterv1.VirtualMachineRestore,
 	backup *harvesterv1.VirtualMachineBackup,
+	backupTimestamp string,
 ) (bool, error) {
 	isVolumesReady := true
-	for i, volumeRestore := range vmRestore.Status.VolumeRestores {
+	volumeRestores := make([]harvesterv1.VolumeRestore, 0, len(backup.Status.VolumeBackups))
+	for _, volumeRestore := range vmRestore.Status.VolumeRestores {
+		if backupTimestamp == "" || volumeRestore.Timestamp == backupTimestamp {
+			volumeRestores = append(volumeRestores, volumeRestore)
+		}
+	}
+	for i, volumeRestore := range volumeRestores {
 		pvc, err := h.pvcCache.Get(vmRestore.Namespace, volumeRestore.PersistentVolumeClaim.ObjectMeta.Name)
 		if apierrors.IsNotFound(err) {
 			volumeBackup := backup.Status.VolumeBackups[i]
@@ -579,8 +757,12 @@ func (h *RestoreHandler) reconcileVolumeRestores(
 				return false, err
 			}
 			for _, condition := range volume.Status.Conditions {
-				if condition.Type == lhv1beta2.VolumeConditionTypeRestore && condition.Reason == lhv1beta2.VolumeConditionReasonRestoreFailure {
-					return false, fmt.Errorf("volume %s/%s restore failed: %s", volume.Namespace, volume.Name, condition.Message)
+				if condition.Type == lhv1beta2.VolumeConditionTypeRestore {
+					if condition.Reason == lhv1beta2.VolumeConditionReasonRestoreInProgress {
+						isVolumesReady = false
+					} else if condition.Reason == lhv1beta2.VolumeConditionReasonRestoreFailure {
+						return false, fmt.Errorf("volume %s/%s restore failed: %s", volume.Namespace, volume.Name, condition.Message)
+					}
 				}
 			}
 		}
@@ -703,20 +885,109 @@ func (h *RestoreHandler) createOrUpdateSecret(namespace, name string, data map[s
 }
 
 func (h *RestoreHandler) getVMBackup(vmRestore *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineBackup, error) {
-	backup, err := h.backupCache.Get(vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName)
-	if err != nil {
-		return nil, err
+	var backup *harvesterv1.VirtualMachineBackup
+	var err error
+	if vmRestore.Spec.VirtualMachineBackupName != "" {
+		backup, err = h.backupCache.Get(vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName)
+		if err != nil {
+			return nil, err
+		}
+
+		if !IsBackupReady(backup) {
+			return nil, fmt.Errorf("VMBackup %s is not ready", backup.Name)
+		}
+
+		if backup.Status.SourceSpec == nil {
+			return nil, fmt.Errorf("empty vm backup source spec of %s", backup.Name)
+		}
+
 	}
 
-	if !IsBackupReady(backup) {
-		return nil, fmt.Errorf("VMBackup %s is not ready", backup.Name)
-	}
+	if vmRestore.Spec.ScheduleVirtualMachineName != "" {
+		// When stand-by changes to normal restore, we need to restore from the latest ready backup
+		if !vmRestore.Spec.StandBy {
+			return h.getVMBackupByTimestamp(vmRestore, vmRestore.Status.LastReadyStandByTimestamp)
+		}
 
-	if backup.Status.SourceSpec == nil {
-		return nil, fmt.Errorf("empty vm backup source spec of %s", backup.Name)
-	}
+		svmBakcupNameReq, err := labels.NewRequirement(util.LabelSVMBackupName, selection.Equals, []string{vmRestore.Spec.ScheduleVirtualMachineName})
+		if err != nil {
+			return nil, fmt.Errorf("failed to construct label requirement: %v", err)
+		}
+		selector := labels.NewSelector().Add(*svmBakcupNameReq)
 
+		if vmRestore.Spec.ScheduleVirtualMachineNamespace != "" {
+			svmBakcupNamespaceReq, err := labels.NewRequirement(util.LabelSVMBackupNamespace, selection.Equals, []string{vmRestore.Spec.ScheduleVirtualMachineNamespace})
+			if err != nil {
+				return nil, fmt.Errorf("failed to construct label requirement: %v", err)
+			}
+			selector = selector.Add(*svmBakcupNamespaceReq)
+		}
+
+		backups, err := h.backupCache.List(vmRestore.Spec.ScheduleVirtualMachineNamespace, selector)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list vm backups for scheduled vm %s/%s: %v", vmRestore.Spec.ScheduleVirtualMachineNamespace, vmRestore.Spec.ScheduleVirtualMachineName, err)
+		}
+
+		if len(backups) == 0 {
+			return nil, fmt.Errorf("no vm backups found for scheduled vm %s/%s", vmRestore.Spec.ScheduleVirtualMachineNamespace, vmRestore.Spec.ScheduleVirtualMachineName)
+		}
+
+		// sort backups by "harvesterhci.io/svmbackupTimestamp" in descending order
+		sort.Slice(backups, func(i, j int) bool {
+			time1, _ := time.Parse(util.ScheduleVMBackupTimeFormat, backups[i].Labels[util.LabelSVMBackupTimestamp])
+			time2, _ := time.Parse(util.ScheduleVMBackupTimeFormat, backups[j].Labels[util.LabelSVMBackupTimestamp])
+			return time1.After(time2)
+		})
+
+		for _, b := range backups {
+			if IsBackupReady(b) && b.Status.SourceSpec != nil {
+				backup = b
+				break
+			}
+		}
+	}
 	return backup, nil
+}
+
+func (h *RestoreHandler) getVMBackupByTimestamp(vmRestore *harvesterv1.VirtualMachineRestore, timestamp string) (*harvesterv1.VirtualMachineBackup, error) {
+	svmBakcupNameReq, err := labels.NewRequirement(util.LabelSVMBackupName, selection.Equals, []string{vmRestore.Spec.ScheduleVirtualMachineName})
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct label requirement: %v", err)
+	}
+	selector := labels.NewSelector().Add(*svmBakcupNameReq)
+
+	if vmRestore.Spec.ScheduleVirtualMachineNamespace != "" {
+		svmBakcupNamespaceReq, err := labels.NewRequirement(util.LabelSVMBackupNamespace, selection.Equals, []string{vmRestore.Spec.ScheduleVirtualMachineNamespace})
+		if err != nil {
+			return nil, fmt.Errorf("failed to construct label requirement: %v", err)
+		}
+		selector = selector.Add(*svmBakcupNamespaceReq)
+	}
+
+	svmBackupTimestampReq, err := labels.NewRequirement(util.LabelSVMBackupTimestamp, selection.Equals, []string{timestamp})
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct label requirement: %v", err)
+	}
+	selector = selector.Add(*svmBackupTimestampReq)
+
+	backups, err := h.backupCache.List(vmRestore.Spec.ScheduleVirtualMachineNamespace, selector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list vm backups for scheduled vm %s/%s: %v", vmRestore.Spec.ScheduleVirtualMachineNamespace, vmRestore.Spec.ScheduleVirtualMachineName, err)
+	}
+
+	if len(backups) == 0 {
+		if vmRestore.DeletionTimestamp != nil {
+			// when vmRestore is being deleted, we just return nil to avoid blocking the deletion
+			return nil, nil
+		}
+		return nil, fmt.Errorf("no vm backups found for scheduled vm %s/%s", vmRestore.Spec.ScheduleVirtualMachineNamespace, vmRestore.Spec.ScheduleVirtualMachineName)
+	}
+
+	if len(backups) > 1 {
+		return nil, fmt.Errorf("multiple vm backups found for scheduled vm %s/%s with timestamp %s", vmRestore.Spec.ScheduleVirtualMachineNamespace, vmRestore.Spec.ScheduleVirtualMachineName, timestamp)
+	}
+
+	return backups[0], nil
 }
 
 // createNewVM helps to create new target VM and set the associated owner reference

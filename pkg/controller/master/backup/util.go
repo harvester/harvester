@@ -131,8 +131,8 @@ func getNewVolumes(vm *kubevirtv1.VirtualMachineSpec, vmRestore *harvesterv1.Vir
 	return newVolumes, nil
 }
 
-func getRestorePVCName(vmRestore *harvesterv1.VirtualMachineRestore, name string) string {
-	s := fmt.Sprintf("restore-%s-%s-%s", vmRestore.Spec.VirtualMachineBackupName, vmRestore.UID, name)
+func getRestorePVCName(vmRestore *harvesterv1.VirtualMachineRestore, backup *harvesterv1.VirtualMachineBackup, name string) string {
+	s := fmt.Sprintf("restore-%s-%s-%s", backup.Name, vmRestore.UID, name)
 	return s
 }
 
