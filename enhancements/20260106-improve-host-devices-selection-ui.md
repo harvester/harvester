@@ -2,7 +2,7 @@
 
 ## Summary
 
-When detaching the PCI/USB/vGPU devices from the VM, it only removes the CR on the frontend, not on the backend. So, it will throw an error after you detach and disable the PCI/USB/vGPU devices. You can refer to this demo:
+When detaching the PCI/USB/vGPU devices from the VM, it only removes `spec.template.spec.domain.devices.hostDevices` from the `virtualmachine` CR on the frontend, not on the backend. So, it will throw an error after you detach and disable the PCI/USB/vGPU devices. You can refer to this demo:
 
 https://github.com/user-attachments/assets/f7307de9-1f16-4b89-8314-67cd0696c3da
 
