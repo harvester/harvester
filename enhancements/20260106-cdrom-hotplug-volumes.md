@@ -14,7 +14,6 @@ https://github.com/harvester/harvester/issues/9261
 
 ### Goals
 
-- Support adding CD-ROM device without the corresponding volume
 - Support injecting a CD-ROM volume to a running VM with an empty CD-ROM device without restarting
 - Support ejecting a CD-ROM volume from a CD-ROM device of a running VM without restarting
 
@@ -42,8 +41,6 @@ Users shall be able to replace an existing ISO image in an occupied CD-ROM devic
 ### User Experience In Detail
 
 #### Via UI
-
-When creating a VM, the user can specify empty CD-ROM devices in the **Volumes** tab. These empty drives can later be used to inject removable media while the VM is running.
 
 The following steps outline the user workflow for managing CD-ROM volumes on a running VM:
 
@@ -288,12 +285,14 @@ This enhancement will relax the feasibility check. Instead of blocking migration
 #### UI-Related Changes
 
 The following changes will be made to the Harvester UI:
-- When creating a VM, users will be able to add an empty SATA CD-ROM device by selecting a special `"-- Empty --"` image option. Note that selecting this option implies no corresponding entry should be added to `spec.template.spec.volumes` or the `harvesterhci.io/volumeClaimTemplates` annotation in the VM's configuration.
 - The VM details page will be fixed to correctly display VMs that have empty CD-ROM devices.
 - In the **Volumes** tab of a running VM's detail page:
   - An "Inject" button will be displayed for empty SATA CD-ROM devices.
   - An "Eject" button will be displayed for occupied SATA CD-ROM devices.
 - The old "Eject CD-ROM" action, which requires a restart, will be removed.
+- On the VM's "Edit Config" page, modifying an attached CD-ROM volume will be forbidden; only its removal will be permitted.
+  - To change the media of a running VM, users should use the "Inject" and "Eject" actions on the **Volumes** tab in the detail page.
+  - To change the media of a stopped VM, users can remove the existing CD-ROM volume and add a new one in the "Edit Config" page.
 
 
 ### Test plan
@@ -318,11 +317,6 @@ Therefore, for an existing VM to gain the ability to inject/eject CD-ROM volumes
 N/A
 
 ## To be discussed
-
-- Decide the expected behavior in VM's "Edit Config" page when
-  1. adding an image to an empty cdrom device
-  2. removing the image of occupied cdrom device
-  3. changing the image of occupied cdrom device
 
 - Should we support User Story 3 in terraform-provider-harvester?
 
