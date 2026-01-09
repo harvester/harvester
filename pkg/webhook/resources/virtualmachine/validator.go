@@ -638,6 +638,7 @@ func (v *vmValidator) checkMaintenanceModeStrategyIsValid(newVM, oldVM *kubevirt
 			"no maintenance-mode strategy for VM, behavior will be equivalent to default `%v`",
 			util.MaintainModeStrategyMigrate,
 		)
+		return nil
 	}
 
 	if oldVM != nil {
