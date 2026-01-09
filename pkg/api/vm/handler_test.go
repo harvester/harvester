@@ -463,6 +463,61 @@ func TestAbortMigrateAction(t *testing.T) {
 				err:                  nil,
 			},
 		},
+		{
+			name: "Cannot abort VMI migration in failed state",
+			given: input{
+				namespace: "default",
+				name:      "test",
+				vmInstance: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+						Annotations: map[string]string{
+							util.AnnotationMigrationTarget: "test-uid",
+							util.AnnotationMigrationState:  migration.StateMigrating,
+						},
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						Phase: kubevirtv1.Running,
+						MigrationState: &kubevirtv1.VirtualMachineInstanceMigrationState{
+							Completed:    false,
+							MigrationUID: "test-uid",
+						},
+					},
+				},
+				vmInstanceMigration: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test-migration",
+						UID:       "test-uid",
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
+						VMIName: "test",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationFailed,
+					},
+				},
+			},
+			expected: output{
+				vmInstanceMigrations: []*kubevirtv1.VirtualMachineInstanceMigration{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      "test-migration",
+							UID:       "test-uid",
+						},
+						Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
+							VMIName: "test",
+						},
+						Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+							Phase: kubevirtv1.MigrationFailed,
+						},
+					},
+				},
+				err: errors.New("cannot abort the migration as it is in \"Failed\" phase"),
+			},
+		},
 	}
 
 	for _, tc := range testCases {
