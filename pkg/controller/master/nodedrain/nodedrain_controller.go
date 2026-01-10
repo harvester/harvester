@@ -527,10 +527,12 @@ func isNodeReady(node *corev1.Node) bool {
 }
 
 func getUniqueVMSfromConditionMap(vms map[string][]string) []string {
+	//nolint:prealloc // if we want to preallocate we need to calculate the length first, so skip this linter
 	var vmList []string
 	for _, v := range vms {
 		vmList = append(vmList, v...)
 	}
+	slices.Sort(vmList) // ensure Compact works correctly
 	return slices.Compact(vmList)
 }
 

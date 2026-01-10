@@ -162,6 +162,7 @@ func (v *VMBuilder) PVCVolume(diskName, diskSize, pvcName string, hotpluggable b
 		pvcName = fmt.Sprintf("%s-%s-%s", v.VirtualMachine.Name, diskName, rand.String(5))
 	}
 
+	//nolint:prealloc // we cannot determine the length of pvcs beforehand (due to possible unmarshal error)
 	var pvcs []*corev1.PersistentVolumeClaim
 	volumeClaimTemplates, ok := v.VirtualMachine.Annotations[util.AnnotationVolumeClaimTemplates]
 	if ok && volumeClaimTemplates != "" {

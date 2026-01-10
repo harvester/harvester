@@ -22,7 +22,6 @@ import (
 )
 
 func Mutation(clients *clients.Clients, options *config.Options) (http.Handler, []types.Resource, error) {
-	resources := []types.Resource{}
 	settingCache := clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
 	storageClassCache := clients.StorageFactory.Storage().V1().StorageClass().Cache()
 	nadCache := clients.CNIFactory.K8s().V1().NetworkAttachmentDefinition().Cache()
@@ -42,6 +41,8 @@ func Mutation(clients *clients.Clients, options *config.Options) (http.Handler, 
 		virtualmachinebackup.NewMutator(vmBackupCache),
 		storageclass.NewMutator(),
 	}
+
+	resources := make([]types.Resource, 0, len(mutators))
 
 	router := webhook.NewRouter()
 	for _, m := range mutators {

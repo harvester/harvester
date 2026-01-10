@@ -623,8 +623,7 @@ func Test_virtualMachineContainsHostName(t *testing.T) {
 		context:    context.TODO(),
 	}
 
-	var vmiList []*kubevirtv1.VirtualMachineInstance
-	vmiList = append(vmiList, vmi)
+	vmiList := []*kubevirtv1.VirtualMachineInstance{vmi}
 	nonMigratableVMIs, err := ndc.CheckVMISchedulingRequirements(node1, vmiList)
 	assert.NoError(err)
 	assert.Len(nonMigratableVMIs, 1, "expected to find 1 VMI")

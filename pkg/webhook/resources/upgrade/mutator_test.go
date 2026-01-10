@@ -202,7 +202,7 @@ func TestUpgradeMutator_patchPauseNodeAnnotations(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var objs = []runtime.Object{tc.given.setting}
 			clientset := fake.NewSimpleClientset(objs...)
-			var nodes []runtime.Object
+			nodes := make([]runtime.Object, 0, len(givenNodes))
 			for _, node := range givenNodes {
 				nodes = append(nodes, node)
 			}

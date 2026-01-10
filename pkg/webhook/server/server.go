@@ -170,7 +170,7 @@ func (s *AdmissionWebhookServer) listenAndServe(clients *clients.Clients, handle
 }
 
 func (s *AdmissionWebhookServer) buildRules(resources []types.Resource) []v1.RuleWithOperations {
-	rules := []v1.RuleWithOperations{}
+	rules := make([]v1.RuleWithOperations, 0, len(resources))
 	for _, rsc := range resources {
 		logrus.Debugf("Add rule for %+v", rsc)
 		scope := rsc.Scope
