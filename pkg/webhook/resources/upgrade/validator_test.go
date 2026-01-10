@@ -526,7 +526,7 @@ func TestUpgradeValidator_validatePauseMapAnnotation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var nodes []runtime.Object
+			nodes := make([]runtime.Object, 0, len(givenNodes))
 			for _, node := range givenNodes {
 				nodes = append(nodes, node)
 			}
