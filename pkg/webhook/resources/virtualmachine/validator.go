@@ -155,6 +155,7 @@ func (v *vmValidator) getVMInterfaceInfo(vms []*kubevirtv1.VirtualMachine) (MacA
 
 func (v *vmValidator) checkForDuplicateMacAddrs(vm *kubevirtv1.VirtualMachine) (err error) {
 	var newVMs []*kubevirtv1.VirtualMachine
+	newVMs = make([]*kubevirtv1.VirtualMachine, 0, 1)
 	var oldVMsInfo map[string]map[string]string
 	var oldVMsList []*kubevirtv1.VirtualMachine
 

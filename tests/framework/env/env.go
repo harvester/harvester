@@ -106,8 +106,9 @@ func IsE2ETestsEnabled() bool {
 
 // GetPreloadingImages returns preloading image names
 func GetPreloadingImages() []string {
-	images := []string{}
-	for _, image := range strings.Split(os.Getenv(envPreloadingImages), ",") {
+	preloadingImages := strings.Split(os.Getenv(envPreloadingImages), ",")
+	images := make([]string, 0, len(preloadingImages))
+	for _, image := range preloadingImages {
 		images = append(images, strings.TrimSpace(image))
 	}
 	return images
