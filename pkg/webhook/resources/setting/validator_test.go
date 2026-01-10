@@ -1091,6 +1091,7 @@ func Test_validateUpgradeConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			clientset := fake.NewSimpleClientset()
 			var nodes []runtime.Object
+			nodes = make([]runtime.Object, 0, len(givenNodes))
 			for _, node := range givenNodes {
 				nodes = append(nodes, node)
 			}

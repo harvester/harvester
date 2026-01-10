@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	upgradeapiv1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,6 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
-	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -250,12 +250,14 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		var objs = []runtime.Object{tc.given.upgrade, tc.given.version, tc.given.vmi, tc.given.cluster}
+		var defaultObjs = []runtime.Object{tc.given.upgrade, tc.given.version, tc.given.vmi, tc.given.cluster}
+		objs := make([]runtime.Object, 0, len(defaultObjs)+len(tc.given.lhsettings))
+		objs = append(objs, defaultObjs...)
 		for _, setting := range tc.given.lhsettings {
 			objs = append(objs, setting)
 		}
 		var clientset = fake.NewSimpleClientset(objs...)
-		var nodes []runtime.Object
+		nodes := make([]runtime.Object, 0, len(tc.given.nodes))
 		for _, node := range tc.given.nodes {
 			nodes = append(nodes, node)
 		}
@@ -581,7 +583,7 @@ func TestUpgradeHandler_prepareNodesForUpgrade(t *testing.T) {
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset(tc.given.upgrade)
 
-		var nodes []runtime.Object
+		nodes := make([]runtime.Object, 0, len(tc.given.nodes))
 		for _, node := range tc.given.nodes {
 			nodes = append(nodes, node)
 		}

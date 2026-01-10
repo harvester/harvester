@@ -89,7 +89,7 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset(tc.given.plan, tc.given.upgrade)
-		var nodes []runtime.Object
+		nodes := make([]runtime.Object, 0, len(tc.given.nodes))
 		for _, node := range tc.given.nodes {
 			nodes = append(nodes, node)
 		}
