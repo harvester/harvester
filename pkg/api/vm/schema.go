@@ -30,6 +30,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	// and because wrangler converts the struct typeName to lower title, so the action input should start with lower case.
 	// https://github.com/rancher/wrangler/blob/master/pkg/schemas/reflection.go#L26
 	server.BaseSchemas.MustImportAndCustomize(EjectCdRomActionInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(InjectCdRomVolumeActionInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(EjectCdRomVolumeActionInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(BackupInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(RestoreInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(MigrateInput{}, nil)
@@ -133,6 +135,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				restartVM:                        actionHandler,
 				softReboot:                       actionHandler,
 				ejectCdRom:                       actionHandler,
+				injectCdRomVolume:                actionHandler,
+				ejectCdRomVolume:                 actionHandler,
 				pauseVM:                          actionHandler,
 				unpauseVM:                        actionHandler,
 				migrate:                          actionHandler,
@@ -169,6 +173,12 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				findMigratableNodes: {},
 				ejectCdRom: {
 					Input: "ejectCdRomActionInput",
+				},
+				injectCdRomVolume: {
+					Input: "injectCdRomVolumeActionInput",
+				},
+				ejectCdRomVolume: {
+					Input: "ejectCdRomVolumeActionInput",
 				},
 				backupVM: {
 					Input: "backupInput",
