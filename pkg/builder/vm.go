@@ -32,6 +32,7 @@ const (
 
 type VMBuilder struct {
 	VirtualMachine             *kubevirtv1.VirtualMachine
+	Error                      error
 	SSHNames                   []string
 	WaitForLeaseInterfaceNames []string
 }
@@ -84,6 +85,7 @@ func NewVMBuilder(creator string) *VMBuilder {
 	}
 	return &VMBuilder{
 		VirtualMachine:             vm,
+		Error:                      nil,
 		SSHNames:                   []string{},
 		WaitForLeaseInterfaceNames: []string{},
 	}
@@ -251,6 +253,10 @@ func (v *VMBuilder) IsolateEmulatorThread(isolated bool) *VMBuilder {
 }
 
 func (v *VMBuilder) VM() (*kubevirtv1.VirtualMachine, error) {
+	if v.Error != nil {
+		return nil, v.Error
+	}
+
 	if v.VirtualMachine.Spec.Template.ObjectMeta.Annotations == nil {
 		v.VirtualMachine.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
 	}
