@@ -552,16 +552,18 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 }
 
 func isVmimAbortable(vmim *kubevirtv1.VirtualMachineInstanceMigration) bool {
-	if vmim.Status.Phase == kubevirtv1.MigrationPhaseUnset ||
-		vmim.Status.Phase == kubevirtv1.MigrationPending ||
-		vmim.Status.Phase == kubevirtv1.MigrationScheduling ||
-		vmim.Status.Phase == kubevirtv1.MigrationScheduled ||
-		vmim.Status.Phase == kubevirtv1.MigrationPreparingTarget ||
-		vmim.Status.Phase == kubevirtv1.MigrationTargetReady ||
-		vmim.Status.Phase == kubevirtv1.MigrationRunning {
+	switch vmim.Status.Phase {
+	case kubevirtv1.MigrationPhaseUnset,
+		kubevirtv1.MigrationPending,
+		kubevirtv1.MigrationScheduling,
+		kubevirtv1.MigrationScheduled,
+		kubevirtv1.MigrationPreparingTarget,
+		kubevirtv1.MigrationTargetReady,
+		kubevirtv1.MigrationRunning:
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
 func (h *vmActionHandler) findMigratableNodes(rw http.ResponseWriter, namespace, name string) error {
