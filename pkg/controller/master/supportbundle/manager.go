@@ -202,7 +202,8 @@ func (m *Manager) getCollectNamespaces(sb *harvesterv1.SupportBundle) string {
 }
 
 func (m *Manager) getExcludeResources() string {
-	resources := []string{}
+	// total 6 elemental on following list, prealloc size 6
+	resources := make([]string, 0, 6)
 
 	// Sensitive data not go into support bundle
 	resources = append(resources, harvesterv1.Resource(harvesterv1.SettingResourceName).String()) // TLS certificate and private key

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	lhcrypto "github.com/longhorn/longhorn-manager/csi/crypto"
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhtypes "github.com/longhorn/longhorn-manager/types"
@@ -21,7 +22,6 @@ import (
 	harvesterFake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 )
 
 func Test_storageClassValidator_validateEncryption(t *testing.T) {
@@ -675,8 +675,7 @@ func Test_validate_default_cdi_volume_mode_access_modes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			typedObjects := []runtime.Object{}
-			typedObjects = append(typedObjects, tc.sc)
+			typedObjects := []runtime.Object{tc.sc}
 			clientset := harvesterFake.NewSimpleClientset(typedObjects...)
 
 			storageClassValidator := NewValidator(
