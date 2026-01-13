@@ -25,7 +25,7 @@ func (h *svmbackupHandler) OnCronjobChanged(_ string, cronJob *batchv1.CronJob) 
 		return nil, nil
 	}
 
-	timestamp := cronJob.Status.LastScheduleTime.Format(timeFormat)
+	timestamp := cronJob.Status.LastScheduleTime.Format(util.ScheduleVMBackupTimeFormat)
 	_, err := getVMBackup(h, svmbackup, timestamp)
 	if err == nil {
 		return cronJob, nil

@@ -20,6 +20,12 @@ const (
 
 	// BackupConditionMetadataReady is the "metadataReady" condition type
 	BackupConditionMetadataReady condition.Cond = "MetadataReady"
+
+	// RestoreConditionStandByProcessing indicates the standby volumes are restoring
+	RestoreConditionStandByProcessing condition.Cond = "StandByProcessing"
+
+	// RestoreConditionStandByComplete indicates the standby volumes are restored completely
+	RestoreConditionStandByReady condition.Cond = "StandByReady"
 )
 
 // DeletionPolicy defines that to do with resources when VirtualMachineRestore is deleted
@@ -195,10 +201,10 @@ type VirtualMachineRestoreSpec struct {
 	// initially only VirtualMachine type supported
 	Target corev1.TypedLocalObjectReference `json:"target"`
 
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	VirtualMachineBackupName string `json:"virtualMachineBackupName"`
 
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	VirtualMachineBackupNamespace string `json:"virtualMachineBackupNamespace"`
 
 	// +optional
@@ -211,6 +217,19 @@ type VirtualMachineRestoreSpec struct {
 	// KeepMacAddress only works when NewVM is true.
 	// For replacing original VM, the macaddress will be the same.
 	KeepMacAddress bool `json:"keepMacAddress,omitempty"`
+
+	// +optional
+	// StandBy only works when NewVM is true.
+	// When set to true, the ScheduleVirtualMachineName and ScheduleVirtualMachineNamespace should be set.
+	// For standby mode, only volumes are restored and VM will not be started automatically after restore.
+	// The VM is expected to be started after standby is changed to false.
+	StandBy bool `json:"standBy,omitempty"`
+
+	// +optional
+	ScheduleVirtualMachineName string `json:"scheduleVirtualMachineName,omitempty"`
+
+	// +optional
+	ScheduleVirtualMachineNamespace string `json:"scheduleVirtualMachineNamespace,omitempty"`
 }
 
 // VirtualMachineRestoreStatus is the spec for a VirtualMachineRestore resource
@@ -234,6 +253,9 @@ type VirtualMachineRestoreStatus struct {
 
 	// +optional
 	Progress int `json:"progress,omitempty"`
+
+	// +optional
+	LastReadyStandByTimestamp string `json:"lastReadyStandByTimestamp,omitempty"`
 }
 
 // VolumeRestore contains the volume data need to restore a PVC
@@ -252,4 +274,7 @@ type VolumeRestore struct {
 
 	// +optional
 	VolumeSize int64 `json:"volumeSize,omitempty"`
+
+	// +optional
+	Timestamp string `json:"timestamp,omitempty"`
 }

@@ -19,9 +19,6 @@ import (
 )
 
 const (
-	scheduleVMBackupKindName = "ScheduleVMBackup"
-	timeFormat               = "20060102.1504"
-
 	reachMaxFailure  = "Reach Max Failure"
 	proactiveSuspend = "Proactive Schedule Suspend"
 	lhbackupNotSync  = "Longhorn Backup Not Synced"
@@ -77,8 +74,8 @@ func currentVMBackups(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBack
 	}
 
 	sort.Slice(vmbackups, func(i, j int) bool {
-		time1, _ := time.Parse(timeFormat, vmbackups[i].Labels[util.LabelSVMBackupTimestamp])
-		time2, _ := time.Parse(timeFormat, vmbackups[j].Labels[util.LabelSVMBackupTimestamp])
+		time1, _ := time.Parse(util.ScheduleVMBackupTimeFormat, vmbackups[i].Labels[util.LabelSVMBackupTimestamp])
+		time2, _ := time.Parse(util.ScheduleVMBackupTimeFormat, vmbackups[j].Labels[util.LabelSVMBackupTimestamp])
 		return time1.Before(time2)
 	})
 
