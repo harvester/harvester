@@ -22,27 +22,10 @@ jobs:
 
         if [ -n "$E2E_ISSUE" ]; then
           echo "Found e2e issue #$E2E_ISSUE"
-          
-          # Get the milestone from the Harvester issue
-          MILESTONE_TITLE=$(gh issue view ${{ github.event.issue.number }} --repo $HARVESTER_REPO --json milestone --jq '.milestone.title // empty')
-          
-          if [ -n "$MILESTONE_TITLE" ] && [ "$MILESTONE_TITLE" != "null" ] && [ "$(echo "$MILESTONE_TITLE" | tr '[:upper:]' '[:lower:]')" != "planning" ]; then
-            echo "Harvester issue has milestone: $MILESTONE_TITLE"
-            
-            # Check if milestone exists in test repo
-            TEST_MILESTONE=$(gh api "repos/$TEST_REPO/milestones?state=all" --jq ".[] | select(.title == \"$MILESTONE_TITLE\") | .title" || echo "")
-            
-            if [ -n "$TEST_MILESTONE" ]; then
-              echo "Milestone exists in test repo, syncing to e2e issue #$E2E_ISSUE"
-              gh issue edit $E2E_ISSUE --repo $TEST_REPO --milestone "$MILESTONE_TITLE"
-              echo "Successfully synced milestone to e2e issue"
-            else
-              echo "Warning: Milestone '$MILESTONE_TITLE' does not exist in test repo, skipping sync"
-              echo "Note: Milestone should have been created when e2e issue was created"
-            fi
-          else
-            echo "No milestone set on Harvester issue or milestone is 'planning', skipping sync"
-          fi
+
+          MILESTONE_TITLE="${{ github.event.issue.milestone.title }}"
+          gh issue edit $E2E_ISSUE --repo $TEST_REPO --milestone "$MILESTONE_TITLE"
+          echo "Successfully synced milestone to e2e issue"
         else
           echo "No matching e2e issue found"
         fi
