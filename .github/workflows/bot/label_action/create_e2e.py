@@ -127,9 +127,6 @@ class CreateE2EIssue(LabelAction):
             if harvester_milestone.due_on:
                 milestone_data['due_on'] = harvester_milestone.due_on
 
-            if harvester_milestone.state:
-                milestone_data['state'] = harvester_milestone.state
-
             new_milestone = repo_test.create_milestone(**milestone_data)
             logging.info(f'Created new milestone "{milestone_title}" in test repo')
             return new_milestone
