@@ -283,6 +283,10 @@ Currently, Harvester blocks the live migration of any VM with a CD-ROM attached,
 
 This enhancement will relax the feasibility check. Instead of blocking migration based on the disk type (`cd-rom`), the validation logic will inspect the status of `LiveMigratable` condition from the VM. This will allow live migration for VMs with CD-ROMs.
 
+#### Blocking DataVolume Usage
+
+In Harvester, we have a different way to automate importing virtual machine disks onto PVCs instead of using [DataVolume](https://kubevirt.io/user-guide/storage/disks_and_volumes/#datavolume). To avoid uncontrolled scenarios, we'll block the usage of DataVolume under `spec.template.spec.volumes` for `VirtualMachine`.
+
 #### UI-Related Changes
 
 The following changes will be made to the Harvester UI:
