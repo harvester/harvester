@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -258,7 +257,7 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	}
 	defer uploadResp.Body.Close()
 
-	body, err := ioutil.ReadAll(uploadResp.Body)
+	body, err := io.ReadAll(uploadResp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
