@@ -92,19 +92,14 @@ func (v *VMBuilder) Disk(diskName, diskBus string, isCDRom bool, bootOrder uint)
 }
 
 func (v *VMBuilder) DiskCacheMode(name string, mode kubevirtv1.DriverCache) *VMBuilder {
-	diskFound := false
-
 	for i, disk := range v.VirtualMachine.Spec.Template.Spec.Domain.Devices.Disks {
 		if disk.Name == name {
 			v.VirtualMachine.Spec.Template.Spec.Domain.Devices.Disks[i].Cache = mode
-			diskFound = true
+			return v
 		}
 	}
 
-	if !diskFound {
-		v.Error = fmt.Errorf("disk %s does not exist in VM %s", name, v.VirtualMachine.Name)
-	}
-
+	v.Error = fmt.Errorf("disk %s does not exist in VM %s", name, v.VirtualMachine.Name)
 	return v
 }
 
