@@ -396,15 +396,25 @@ func (h *vmActionHandler) ejectCdRomVolume(name, namespace string, input EjectCd
 
 	vmCopy := vm.DeepCopy()
 
-	err = removeVolumeClaimTemplatesFromVMAnnotation(vmCopy, []string{input.VolumeName})
-	if err != nil {
+	volumes := make([]kubevirtv1.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
+	toRemoveClaimNames := make([]string, 0, len(vm.Spec.Template.Spec.Volumes))
+	for _, vol := range vm.Spec.Template.Spec.Volumes {
+		if input.VolumeName != vol.Name {
+			volumes = append(volumes, vol)
+			continue
+		}
+		if vol.VolumeSource.PersistentVolumeClaim != nil {
+			toRemoveClaimNames = append(toRemoveClaimNames, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
+		}
+	}
+
+	if err := removeVolumeClaimTemplatesFromVMAnnotation(vm, toRemoveClaimNames); err != nil {
 		return err
 	}
-	volumes := slices.DeleteFunc(vmCopy.Spec.Template.Spec.Volumes, func(vol kubevirtv1.Volume) bool {
-		return vol.Name == input.VolumeName
-	})
+
 	vmCopy.Spec.Template.Spec.Volumes = volumes
 	_, err = h.vms.Update(vmCopy)
+
 	return err
 }
 
