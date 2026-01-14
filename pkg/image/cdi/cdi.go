@@ -65,7 +65,7 @@ func (b *Backend) Check(vmImg *harvesterv1.VirtualMachineImage) error {
 	targetDVName := b.vmio.GetName(vmImg)
 	targetDV, err := b.dataVolumeClient.Get(targetDVNs, targetDVName, metav1.GetOptions{})
 	if err != nil {
-		return b.handleDataVolumeError(err, vmImg, targetDVNs, targetDVName)
+		return b.handleDataVolumeError(err, targetDVNs, targetDVName)
 	}
 
 	// upload source type will update the progress on the upload handler
@@ -98,12 +98,10 @@ func (b *Backend) Check(vmImg *harvesterv1.VirtualMachineImage) error {
 	return nil
 }
 
-func (b *Backend) handleDataVolumeError(err error, vmImg *harvesterv1.VirtualMachineImage, targetDVNs, targetDVName string) error {
+func (b *Backend) handleDataVolumeError(err error, targetDVNs, targetDVName string) error {
 	if apierrors.IsNotFound(err) {
-		if vmImg.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeUpload {
-			return common.ErrRetryLater
-		}
 		logrus.Infof("DataVolume %s/%s not found, waiting for initialization", targetDVNs, targetDVName)
+		// return is not found error here, it is a retryable error which trigger vm image enter initialized state
 		return err
 	}
 	return fmt.Errorf("failed to get DataVolume %s/%s: %v", targetDVNs, targetDVName, err)
