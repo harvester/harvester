@@ -343,6 +343,16 @@ func (h *vmActionHandler) injectCdRomVolume(name, namespace string, input Inject
 
 	vmCopy := vm.DeepCopy()
 
+	parts := strings.SplitN(input.ImageName, "/", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid image name: %s, should be namespace/name", input.ImageName)
+	}
+
+	vmImage, err := h.vmImageCache.Get(parts[0], parts[1])
+	if err != nil {
+		return err
+	}
+
 	volumeMode := corev1.PersistentVolumeBlock
 	newPvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -354,6 +364,12 @@ func (h *vmActionHandler) injectCdRomVolume(name, namespace string, input Inject
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 			VolumeMode: &volumeMode,
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: *resource.NewQuantity(vmImage.Status.VirtualSize, resource.BinarySI),
+				},
+			},
+			StorageClassName: &vmImage.Status.StorageClassName,
 		},
 	}
 	newVol := kubevirtv1.Volume{
@@ -415,6 +431,8 @@ func (h *vmActionHandler) ejectCdRomVolume(name, namespace string, input EjectCd
 	vmCopy.Spec.Template.Spec.Volumes = volumes
 	_, err = h.vms.Update(vmCopy)
 
+	// TODO: how to properly remove
+	//h.clientSet.CoreV1().PersistentVolumeClaims().Delete()
 	return err
 }
 
