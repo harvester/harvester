@@ -2,7 +2,7 @@
 
 ## Summary
 
-This enhancement proposal addresses the current limitation in Harvester where changing CD-ROM media for a Virtual Machine (VM) necessitates a VM restart. By leveraging KubeVirt's support for CD-ROM volume injection and ejection (available since version 1.6), this HEP aims to introduce the capability to dynamically manage CD-ROM *volumes* on running VMs without interruption. This significantly improves user experience by allowing seamless swapping of ISO images or other CD-ROM content.
+This enhancement proposal addresses the current limitation in Harvester where changing CD-ROM media for a Virtual Machine (VM) necessitates a VM restart. By leveraging KubeVirt's support for CD-ROM volume insertion and ejection (available since version 1.6), this HEP aims to introduce the capability to dynamically manage CD-ROM *volumes* on running VMs without interruption. This significantly improves user experience by allowing seamless swapping of ISO images or other CD-ROM content.
 
 It is important to distinguish this feature from attaching or detaching the CD-ROM *device* itself, which still typically requires a VM restart. This proposal focuses solely on the live management of the content (volume) within an already attached CD-ROM device.
 
@@ -14,7 +14,7 @@ https://github.com/harvester/harvester/issues/9261
 
 ### Goals
 
-- Support injecting a CD-ROM volume to a running VM with an empty CD-ROM device without restarting
+- Support inserting a CD-ROM volume to a running VM with an empty CD-ROM device without restarting
 - Support ejecting a CD-ROM volume from a CD-ROM device of a running VM without restarting
 
 ### Non-goals
@@ -26,9 +26,9 @@ https://github.com/harvester/harvester/issues/9261
 
 ### User Stories
 
-#### Story 1: Inject an image into an empty CD-ROM drive
+#### Story 1: Insert an image into an empty CD-ROM drive
 
-Users shall be able to inject an ISO image into an empty CD-ROM device of a running Virtual Machine. This enables dynamic loading of installation media or utilities without requiring a VM restart.
+Users shall be able to insert an ISO image into an empty CD-ROM device of a running Virtual Machine. This enables dynamic loading of installation media or utilities without requiring a VM restart.
 
 #### Story 2: Eject an image from an occupied CD-ROM drive
 
@@ -36,7 +36,7 @@ Users shall be able to eject an ISO image from an occupied CD-ROM device of a ru
 
 #### Story 3: Replace an image in an occupied CD-ROM drive
 
-Users shall be able to replace an existing ISO image in an occupied CD-ROM device of a running Virtual Machine by first ejecting the current volume and then injecting a new one. This provides flexibility for multi-stage software installations or troubleshooting.
+Users shall be able to replace an existing ISO image in an occupied CD-ROM device of a running Virtual Machine by first ejecting the current volume and then inserting a new one. This provides flexibility for multi-stage software installations or troubleshooting.
 
 ### User Experience In Detail
 
@@ -46,7 +46,7 @@ The following steps outline the user workflow for managing CD-ROM volumes on a r
 
 1. Navigate to the details page of a running VM.
 2. On the **Volumes** tab, the user can find the list of attached CD-ROM devices.
-3. Empty CD-ROM devices connected via the SATA bus will display an "Inject" action button. Clicking this button will open a dialog for the user to select an image to inject.
+3. Empty CD-ROM devices connected via the SATA bus will display an "Insert" action button. Clicking this button will open a dialog for the user to select an image to insert.
 4. Occupied CD-ROM devices connected via the SATA bus will display an "Eject" action button. Clicking this button will eject and delete the corresponding volume.
 
 #### Via Terraform
@@ -65,7 +65,7 @@ to define a VM with empty CD-ROM devices, they can define a nested `disk` block 
   }
 ```
 
-to inject the image, they can simply add the `image` and `size` fields
+to insert the image, they can simply add the `image` and `size` fields
 ```diff
   disk {
     name       = "cdrom-disk"
@@ -114,12 +114,12 @@ to replace the image, they can change the `image` and `size` fields.
 
 Two new actions will be added to the `VirtualMachine` resource to handle CD-ROM volume operations.
 
-**Inject a CD-ROM volume**
+**Insert a CD-ROM volume**
 
-This action injects an image into a specified empty CD-ROM device.
+This action inserts an image into a specified empty CD-ROM device.
 
 ```
-POST /v1/harvester/vm/<vm>?action=injectCdRomVolume
+POST /v1/harvester/vm/<vm>?action=insertCdRomVolume
 Content-Type: application/json
 
 {
@@ -163,7 +163,7 @@ As noted in the KubeVirt documentation[^1], this feature relies on the `Declarat
 
 The Harvester API server will expose two new actions on `VirtualMachine` resources. These actions will modify the `VirtualMachine` resource by adding or removing the volume definition from `spec.template.spec.volumes` and updating the corresponding PVC information in the `harvesterhci.io/volumeClaimTemplates` annotation.
 
-- **`injectCdRomVolume`**: This action will patch the target `VirtualMachine` by adding a new `persistentVolumeClaim` to the `spec.template.spec.volumes` list and a corresponding entry to the `harvesterhci.io/volumeClaimTemplates` annotation. The PVC will be marked with `hotpluggable: true`.
+- **`insertCdRomVolume`**: This action will patch the target `VirtualMachine` by adding a new `persistentVolumeClaim` to the `spec.template.spec.volumes` list and a corresponding entry to the `harvesterhci.io/volumeClaimTemplates` annotation. The PVC will be marked with `hotpluggable: true`.
 
 ```diff
  apiVersion: kubevirt.io/v1
@@ -288,11 +288,11 @@ This enhancement will relax the feasibility check. Instead of blocking migration
 The following changes will be made to the Harvester UI:
 - The VM details page will be fixed to correctly display VMs that have empty CD-ROM devices.
 - In the **Volumes** tab of a running VM's detail page:
-  - An "Inject" button will be displayed for empty SATA CD-ROM devices.
+  - An "Insert" button will be displayed for empty SATA CD-ROM devices.
   - An "Eject" button will be displayed for occupied SATA CD-ROM devices.
 - The old "Eject CD-ROM" action, which requires a restart, will be removed.
 - On the VM's "Edit Config" page, modifying an attached CD-ROM volume will be forbidden; only its removal will be permitted.
-  - To change the media of a running VM, users should use the "Inject" and "Eject" actions on the **Volumes** tab in the detail page.
+  - To change the media of a running VM, users should use the "Insert" and "Eject" actions on the **Volumes** tab in the detail page.
   - To change the media of a stopped VM, users can remove the existing CD-ROM volume and add a new one in the "Edit Config" page.
 
 
@@ -302,16 +302,16 @@ This section outlines the testing strategy to ensure the feature is working corr
 
 1. **Feature Gate Verification**: After enabling the `DeclarativeHotplugVolumes` feature gate, perform basic checks to ensure existing volume hot-plug functionalities are not regressed.
 2. **Empty CD-ROM Creation**: Verify that a VM can be created with one or more empty CD-ROM devices and that the VM's detail page in the UI displays them correctly.
-3. **Volume Injection**: For a running VM with an empty CD-ROM device, verify that a new image can be successfully injected and that the content is accessible from within the guest OS.
+3. **Volume Insertion**: For a running VM with an empty CD-ROM device, verify that a new image can be successfully inserted and that the content is accessible from within the guest OS.
 4. **Volume Ejection**: For a running VM with an occupied CD-ROM device, verify that the volume can be successfully ejected and is no longer accessible from within the guest OS.
 5. **Live Migration with CD-ROM**: Verify that a running VM with a CD-ROM can be successfully live-migrated.
 6. **Existing VM Compatibility**: For a VM created before this enhancement, verify that after a restart, the CD-ROM volume becomes ejectable.
 
 ### Upgrade strategy
 
-Upon upgrading Harvester to a version containing this enhancement, existing VMs with attached CD-ROMs will not immediately have the new hot-plug capabilities. The `hotpluggable: true` flag, which is required for injection and ejection, will be automatically added to the VM specification during the next shutdown cycle of each VM.
+Upon upgrading Harvester to a version containing this enhancement, existing VMs with attached CD-ROMs will not immediately have the new hot-plug capabilities. The `hotpluggable: true` flag, which is required for insertion and ejection, will be automatically added to the VM specification during the next shutdown cycle of each VM.
 
-Therefore, for an existing VM to gain the ability to inject/eject CD-ROM volumes, it must be restarted at least once after the Harvester upgrade. Newly created VMs will have this capability by default if configured with a SATA CD-ROM device.
+Therefore, for an existing VM to gain the ability to insert/eject CD-ROM volumes, it must be restarted at least once after the Harvester upgrade. Newly created VMs will have this capability by default if configured with a SATA CD-ROM device.
 
 ## Note
 
