@@ -58,7 +58,6 @@ to define a VM with empty CD-ROM devices, they can define a nested `disk` block 
   disk {
     name       = "cdrom-disk"
     type       = "cd-rom"
-    size       = "10Gi"
     bus        = "sata"
     boot_order = 2
 
@@ -66,12 +65,12 @@ to define a VM with empty CD-ROM devices, they can define a nested `disk` block 
   }
 ```
 
-to inject the image, they can simply add the `image` back
+to inject the image, they can simply add the `image` and `size` fields
 ```diff
   disk {
     name       = "cdrom-disk"
     type       = "cd-rom"
-    size       = "10Gi"
++   size       = "10Gi"
     bus        = "sata"
     boot_order = 2
 
@@ -80,12 +79,12 @@ to inject the image, they can simply add the `image` back
   }
 ```
 
-to eject the image they can remove the `image` field
+to eject the image, they can remove the `image` and `size` fields
 ```diff
   disk {
     name       = "cdrom-disk"
     type       = "cd-rom"
-    size       = "10Gi"
+-   size       = "10Gi"
     bus        = "sata"
     boot_order = 2
 
@@ -94,12 +93,14 @@ to eject the image they can remove the `image` field
   }
 ```
 
-TBD: what about changing the value of `image`?
+to replace the image, they can change the `image` and `size` fields.
+
 ```diff
   disk {
     name       = "cdrom-disk"
     type       = "cd-rom"
-    size       = "10Gi"
+-   size       = "10Gi"
++   size       = "15Gi"
     bus        = "sata"
     boot_order = 2
 
