@@ -1,6 +1,7 @@
 package setting
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -43,6 +44,7 @@ import (
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester-network-controller/pkg/utils"
+
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/containerd"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
@@ -575,9 +577,18 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	// S3: https://github.com/longhorn/backupstore/blob/56ddc538b85950b02c37432e4854e74f2647ca61/s3/s3.go#L38-L87
 	// NFS: https://github.com/longhorn/backupstore/blob/56ddc538b85950b02c37432e4854e74f2647ca61/nfs/nfs.go#L46-L81
 	endpoint := backuputil.ConstructEndpoint(target)
-	if _, err := backupstore.GetBackupStoreDriver(endpoint); err != nil {
-		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+
+	// Add 5 second timeout for backup store driver initialization.
+	// There might be a goroutine leak if the driver doesn't end properly,
+	// Although we can pass ctx, but the underlying driver implementation doesn't support it.
+	// So we should be careful when using GetBackupStoreDriver function.
+	_, err = util.RunWithTimeoutAndResult(5*time.Second, func(_ context.Context) (backupstore.BackupStoreDriver, error) {
+		return backupstore.GetBackupStoreDriver(endpoint)
+	})
+	if err != nil {
+		return werror.NewInvalidError("failed to connect to backup target, reason: "+err.Error(), settings.KeywordValue)
 	}
+
 	return nil
 }
 
