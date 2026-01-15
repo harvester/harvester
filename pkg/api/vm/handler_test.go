@@ -422,6 +422,102 @@ func TestAbortMigrateAction(t *testing.T) {
 				err:                  nil,
 			},
 		},
+		{
+			name: "Abort VMI migration successfully in pending state",
+			given: input{
+				namespace: "default",
+				name:      "test",
+				vmInstance: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+						Annotations: map[string]string{
+							util.AnnotationMigrationTarget: "test-uid",
+							util.AnnotationMigrationState:  migration.StatePending,
+						},
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						Phase: kubevirtv1.Running,
+						MigrationState: &kubevirtv1.VirtualMachineInstanceMigrationState{
+							Completed:    false,
+							MigrationUID: "test-uid",
+						},
+					},
+				},
+				vmInstanceMigration: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test-migration",
+						UID:       "test-uid",
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
+						VMIName: "test",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationPending,
+					},
+				},
+			},
+			expected: output{
+				vmInstanceMigrations: []*kubevirtv1.VirtualMachineInstanceMigration{},
+				err:                  nil,
+			},
+		},
+		{
+			name: "Cannot abort VMI migration in failed state",
+			given: input{
+				namespace: "default",
+				name:      "test",
+				vmInstance: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test",
+						Annotations: map[string]string{
+							util.AnnotationMigrationTarget: "test-uid",
+							util.AnnotationMigrationState:  migration.StateMigrating,
+						},
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						Phase: kubevirtv1.Running,
+						MigrationState: &kubevirtv1.VirtualMachineInstanceMigrationState{
+							Completed:    false,
+							MigrationUID: "test-uid",
+						},
+					},
+				},
+				vmInstanceMigration: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "test-migration",
+						UID:       "test-uid",
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
+						VMIName: "test",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationFailed,
+					},
+				},
+			},
+			expected: output{
+				vmInstanceMigrations: []*kubevirtv1.VirtualMachineInstanceMigration{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      "test-migration",
+							UID:       "test-uid",
+						},
+						Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
+							VMIName: "test",
+						},
+						Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+							Phase: kubevirtv1.MigrationFailed,
+						},
+					},
+				},
+				err: errors.New("cannot abort the migration as it is in \"Failed\" phase"),
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -873,16 +969,16 @@ func Test_isVmNetworkHotpluggable(t *testing.T) {
 			given: input{
 				nad: &cniv1.NetworkAttachmentDefinition{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "vm-migration-network-rqmmg",
+						Name:      "vm-migration-network-rqmmg",
 						Namespace: "harvester-system",
 						Annotations: map[string]string{
 							"vm-migration-network.settings.harvesterhci.io": "true",
 						},
 						Labels: map[string]string{
-							"network.harvesterhci.io/clusternetwork": "migration",
-							"network.harvesterhci.io/ready": "true",
-							"network.harvesterhci.io/type": "L2VlanNetwork",
-							"network.harvesterhci.io/vlan-id": "1",
+							"network.harvesterhci.io/clusternetwork":             "migration",
+							"network.harvesterhci.io/ready":                      "true",
+							"network.harvesterhci.io/type":                       "L2VlanNetwork",
+							"network.harvesterhci.io/vlan-id":                    "1",
 							"vm-migration-network.settings.harvesterhci.io/hash": "194c07126764f0ebcd996eee3c7c4c0735fa3145",
 						},
 					},
@@ -900,16 +996,16 @@ func Test_isVmNetworkHotpluggable(t *testing.T) {
 			given: input{
 				nad: &cniv1.NetworkAttachmentDefinition{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "storagenetwork-bz9vj",
+						Name:      "storagenetwork-bz9vj",
 						Namespace: "harvester-system",
 						Annotations: map[string]string{
 							"storage-network.settings.harvesterhci.io": "true",
 						},
 						Labels: map[string]string{
-							"network.harvesterhci.io/clusternetwork": "storage",
-							"network.harvesterhci.io/ready": "true",
-							"network.harvesterhci.io/type": "L2VlanNetwork",
-							"network.harvesterhci.io/vlan-id": "99",
+							"network.harvesterhci.io/clusternetwork":        "storage",
+							"network.harvesterhci.io/ready":                 "true",
+							"network.harvesterhci.io/type":                  "L2VlanNetwork",
+							"network.harvesterhci.io/vlan-id":               "99",
 							"storage-network.settings.harvesterhci.io/hash": "c8c41cfbdc1a85e7cbd0d3204b441fd13cc109e3",
 						},
 					},

@@ -538,7 +538,7 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 	migrationUID := getMigrationUID(vmi)
 	for _, vmim := range vmims {
 		if migrationUID == string(vmim.UID) {
-			if !vmim.IsRunning() {
+			if !isVmimAbortable(vmim) {
 				return fmt.Errorf("cannot abort the migration as it is in %q phase", vmim.Status.Phase)
 			}
 			// Migration is aborted by deleting the VMIM object
@@ -549,6 +549,21 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 		}
 	}
 	return nil
+}
+
+func isVmimAbortable(vmim *kubevirtv1.VirtualMachineInstanceMigration) bool {
+	switch vmim.Status.Phase {
+	case kubevirtv1.MigrationPhaseUnset,
+		kubevirtv1.MigrationPending,
+		kubevirtv1.MigrationScheduling,
+		kubevirtv1.MigrationScheduled,
+		kubevirtv1.MigrationPreparingTarget,
+		kubevirtv1.MigrationTargetReady,
+		kubevirtv1.MigrationRunning:
+		return true
+	default:
+		return false
+	}
 }
 
 func (h *vmActionHandler) findMigratableNodes(rw http.ResponseWriter, namespace, name string) error {
