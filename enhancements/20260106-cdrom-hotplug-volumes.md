@@ -305,17 +305,23 @@ The following changes will be made to the Harvester UI:
 This section outlines the testing strategy to ensure the feature is working correctly.
 
 1. **Feature Gate Verification**: After enabling the `DeclarativeHotplugVolumes` feature gate, perform basic checks to ensure existing volume hot-plug functionalities are not regressed.
-2. **Empty CD-ROM Creation**: Verify that a VM can be created with one or more empty CD-ROM devices and that the VM's detail page in the UI displays them correctly.
-3. **Volume Insertion**: For a running VM with an empty CD-ROM device, verify that a new image can be successfully inserted and that the content is accessible from within the guest OS.
-4. **Volume Ejection**: For a running VM with an occupied CD-ROM device, verify that the volume can be successfully ejected and is no longer accessible from within the guest OS.
-5. **Live Migration with CD-ROM**: Verify that a running VM with a CD-ROM can be successfully live-migrated.
-6. **Existing VM Compatibility**: For a VM created before this enhancement, verify that after a restart, the CD-ROM volume becomes ejectable.
+2. **Volume Insertion**: For a running VM with an empty CD-ROM device, verify that a new image can be successfully inserted and that the content is accessible from within the guest OS.
+3. **Volume Ejection**: For a running VM with an occupied CD-ROM device, verify that the volume can be successfully ejected and is no longer accessible from within the guest OS.
+4. **Live Migration with CD-ROM**: Verify that a running VM with a CD-ROM can be successfully live-migrated.
+5. **Existing VM Compatibility**: For a VM created before this enhancement, verify that after a restart, the CD-ROM volume becomes ejectable.
 
 ### Upgrade strategy
 
 Upon upgrading Harvester to a version containing this enhancement, existing VMs with attached CD-ROMs will not immediately have the new hot-plug capabilities. The `hotpluggable: true` flag, which is required for insertion and ejection, will be automatically added to the VM specification during the next shutdown cycle of each VM.
 
 Therefore, for an existing VM to gain the ability to insert/eject CD-ROM volumes, it must be restarted at least once after the Harvester upgrade. Newly created VMs will have this capability by default if configured with a SATA CD-ROM device.
+
+**Existing VMs**
+- Stopped VMs: CD-ROM devices gain hot-plug capabilities when starting it
+- Running VMs: CD-ROM devices gain hot-plug capabilities when restarting it
+
+**New VMs**
+- CD-ROM devices would automatically have hot-plug capabilities
 
 ## Note
 
