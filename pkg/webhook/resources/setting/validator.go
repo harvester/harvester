@@ -578,11 +578,10 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	// NFS: https://github.com/longhorn/backupstore/blob/56ddc538b85950b02c37432e4854e74f2647ca61/nfs/nfs.go#L46-L81
 	endpoint := backuputil.ConstructEndpoint(target)
 
-	// Add 5 second timeout for backup store driver initialization.
 	// There might be a goroutine leak if the driver doesn't end properly,
 	// Although we can pass ctx, but the underlying driver implementation doesn't support it.
 	// So we should be careful when using GetBackupStoreDriver function.
-	_, err = util.RunWithTimeoutAndResult(5*time.Second, func(_ context.Context) (backupstore.BackupStoreDriver, error) {
+	_, err = util.RunWithTimeoutAndResult(backuputil.ConnectBackupStoreTimeout, func(_ context.Context) (backupstore.BackupStoreDriver, error) {
 		return backupstore.GetBackupStoreDriver(endpoint)
 	})
 	if err != nil {
