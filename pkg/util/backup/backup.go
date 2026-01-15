@@ -18,6 +18,8 @@ import (
 
 const (
 	VMImageMetadataFolderPath = "harvester/vmimages/"
+	// The webhook timeout is 10 seconds, so we can't set too long timeout here.
+	ConnectBackupStoreTimeout = 8 * time.Second
 )
 
 func ConstructEndpoint(target *settings.BackupTarget) string {
@@ -46,11 +48,10 @@ func GetBackupStoreDriver(secretCache ctlcorev1.SecretCache, target *settings.Ba
 
 	endpoint := ConstructEndpoint(target)
 
-	// Add 5 second timeout for backup store driver initialization.
 	// There might be a goroutine leak if the driver doesn't end properly,
 	// Although we can pass ctx, but the underlying driver implementation doesn't support it.
 	// So we should be careful when using GetBackupStoreDriver function.
-	bsDriver, err := util.RunWithTimeoutAndResult(5*time.Second, func(_ context.Context) (backupstore.BackupStoreDriver, error) {
+	bsDriver, err := util.RunWithTimeoutAndResult(ConnectBackupStoreTimeout, func(_ context.Context) (backupstore.BackupStoreDriver, error) {
 		return backupstore.GetBackupStoreDriver(endpoint)
 	})
 	if err != nil {
