@@ -31,7 +31,8 @@ import (
 
 const (
 	CDIUploadURLRaw = "cdi-uploadproxy.harvester-system"
-	UploadProxyURI  = "/v1alpha1/upload"
+	UploadURI       = "/v1beta1/upload"
+	UploadFormURI   = "/v1beta1/upload-form"
 )
 
 type Uploader struct {
@@ -86,9 +87,9 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 
 	// check multipart
 	contentType := req.Header.Get("Content-Type")
-	multipartFormat := false
+	isMultipartFormat := false
 	if strings.HasPrefix(contentType, "multipart/form-data") {
-		multipartFormat = true
+		isMultipartFormat = true
 	}
 
 	// no matter multipart or not, the first 4k would be enough
@@ -101,13 +102,6 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	logrus.Debugf("Read %d bytes from the request body", readLen)
 
 	rawContent := tmpBuff[:readLen]
-	// find the boundary of the header with multipart
-	headerEndIndex := 0
-	if multipartFormat {
-		headerEnd := []byte("\r\n\r\n")
-		headerEndIndex = bytes.Index(rawContent, headerEnd)
-		logrus.Debugf("headerEndIndex (boundary): %v", headerEndIndex)
-	}
 	// try to find the magic number of first 4096 bytes
 	// the multipart body will contain the boundary string and the headers.
 	// We should still find the magic number in the first 4096 bytes
@@ -214,7 +208,7 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 		return fmt.Errorf("failed to create UploadTokenRequest %s/%s: %v", dvNamespace, dvName, err)
 	}
 
-	newBody := io.MultiReader(bytes.NewReader(dataContent), req.Body)
+	newBody := io.MultiReader(bytes.NewReader(rawContent), req.Body)
 
 	progress := &ProgressUpdater{
 		targetBytes:       fileSize,
@@ -227,8 +221,7 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	hookedReader := io.TeeReader(newBody, progress)
 
 	token := retUploadTokenRequest.Status.Token
-	cdiUploadURL := fmt.Sprintf("https://%s%s", CDIUploadURLRaw, UploadProxyURI)
-	uploadReq, err := http.NewRequestWithContext(req.Context(), http.MethodPost, cdiUploadURL, io.NopCloser(hookedReader))
+	uploadReq, err := http.NewRequestWithContext(req.Context(), http.MethodPost, getUploadFormURL(isMultipartFormat), io.NopCloser(hookedReader))
 	if err != nil {
 		return fmt.Errorf("failed to wrap the upload request: %w", err)
 	}
@@ -368,3 +361,11 @@ func (cu *Uploader) updateVMImageProgress(vmImg *harvesterv1.VirtualMachineImage
 		}
 	}
 }
+
+func getUploadFormURL(isMultipartFormat bool) string {
+	if isMultipartFormat {
+		return fmt.Sprintf("https://%s%s", CDIUploadURLRaw, UploadFormURI)
+	}
+	return fmt.Sprintf("https://%s%s", CDIUploadURLRaw, UploadURI)
+}
+
