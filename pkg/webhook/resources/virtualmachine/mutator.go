@@ -15,6 +15,7 @@ import (
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/network"
@@ -34,10 +35,12 @@ const (
 func NewMutator(
 	setting ctlharvesterv1.SettingCache,
 	nad ctlcniv1.NetworkAttachmentDefinitionCache,
+	kubvirt ctlkubevirtv1.KubeVirtCache,
 ) types.Mutator {
 	return &vmMutator{
 		setting: setting,
 		nad:     nad,
+		kubvirt: kubvirt,
 	}
 }
 
@@ -45,6 +48,7 @@ type vmMutator struct {
 	types.DefaultMutator
 	setting ctlharvesterv1.SettingCache
 	nad     ctlcniv1.NetworkAttachmentDefinitionCache
+	kubvirt ctlkubevirtv1.KubeVirtCache
 }
 
 func (m *vmMutator) Resource() types.Resource {
@@ -242,7 +246,12 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 		}
 	}
 	if !mem.IsZero() {
-		memPatch, err := generateMemoryPatch(vm, mem, overcommit, agmorc, requestsMissing, requestsToMutate)
+		isARM, err := m.isARMArchitecture(vm)
+		if err != nil {
+			return patchOps, err
+		}
+
+		memPatch, err := generateMemoryPatch(vm, mem, overcommit, agmorc, requestsMissing, requestsToMutate, isARM)
 		if err != nil {
 			return patchOps, err
 		}
@@ -258,7 +267,16 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 	return patchOps, nil
 }
 
-func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, overcommit *settings.Overcommit, agmorc *settings.AdditionalGuestMemoryOverheadRatioConfig, requestsMissing bool, requestsToMutate v1.ResourceList) (types.PatchOps, error) {
+func generateMemoryPatch(
+	vm *kubevirtv1.VirtualMachine,
+	mem *resource.Quantity,
+	overcommit *settings.Overcommit,
+	agmorc *settings.AdditionalGuestMemoryOverheadRatioConfig,
+	requestsMissing bool,
+	requestsToMutate v1.ResourceList,
+	isARM bool,
+) (types.PatchOps, error) {
+
 	// Truncate to MiB
 	var patchOps types.PatchOps
 	var err error
@@ -339,12 +357,30 @@ func generateMemoryPatch(vm *kubevirtv1.VirtualMachine, mem *resource.Quantity, 
 		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "%s"}`, &guestMemory))
 	}
 
-	// patch maxSockets
-	if !enableCPUAndMemoryHotplug {
+	// patch maxSockets, only when CPU and Memory hotplug is disabled and architecture is not ARM
+	// note that maxSockets is not supported on ARM architecture
+	if !enableCPUAndMemoryHotplug && !isARM {
 		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`)
 	}
 
 	return patchOps, nil
+}
+
+func (m *vmMutator) isARMArchitecture(vm *kubevirtv1.VirtualMachine) (bool, error) {
+	if vm == nil {
+		return false, fmt.Errorf("VM is nil")
+	}
+	if vm.Spec.Template == nil {
+		return false, fmt.Errorf("VM template is nil")
+	}
+
+	kv, err := m.kubvirt.Get(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
+	if err != nil {
+		return false, err
+	}
+
+	return vm.Spec.Template.Spec.Architecture == "arm64" ||
+		kv.Status.DefaultArchitecture == "arm64", nil
 }
 
 func (m *vmMutator) getOvercommit() (*settings.Overcommit, error) {
