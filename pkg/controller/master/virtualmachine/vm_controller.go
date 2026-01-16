@@ -41,6 +41,7 @@ type VMController struct {
 	pvcClient        v1.PersistentVolumeClaimClient
 	pvcCache         v1.PersistentVolumeClaimCache
 	vmClient         ctlkubevirtv1.VirtualMachineClient
+	vmCache          ctlkubevirtv1.VirtualMachineCache
 	vmController     ctlkubevirtv1.VirtualMachineController
 	vmiCache         ctlkubevirtv1.VirtualMachineInstanceCache
 	vmiClient        ctlkubevirtv1.VirtualMachineInstanceClient
@@ -523,4 +524,56 @@ func (h *VMController) getPVCStorageClass(pvc *corev1.PersistentVolumeClaim) (*s
 		return nil, fmt.Errorf("failed to get StorageClass %s: %w", *pvc.Spec.StorageClassName, err)
 	}
 	return sc, nil
+}
+
+func (h *VMController) setSataCdRomHotpluggable(vmi *kubevirtv1.VirtualMachineInstance) error {
+	vm, err := h.vmCache.Get(vmi.Namespace, vmi.Name)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	// no need to patch VM spec when both VM and VMI are registered for deletion
+	if vm.DeletionTimestamp != nil {
+		return nil
+	}
+
+	cdRomDiskNames := make(map[string]struct{})
+	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
+		if disk.CDRom != nil && disk.CDRom.Bus == kubevirtv1.DiskBusSATA {
+			cdRomDiskNames[disk.Name] = struct{}{}
+		}
+	}
+
+	vmCopy := vm.DeepCopy()
+	vmVolumes := vmCopy.Spec.Template.Spec.Volumes
+	for i := range(vmVolumes) {
+		volume := vmVolumes[i]
+		if _, exists := cdRomDiskNames[volume.Name]; exists {
+			if volume.PersistentVolumeClaim != nil && !volume.PersistentVolumeClaim.Hotpluggable {
+				volume.PersistentVolumeClaim.Hotpluggable = true
+			}
+		}
+	}
+
+	if _, err := h.vmClient.Update(vmCopy); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *VMController) SetSataCdRomHotpluggable(id string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
+	if vmi == nil {
+		return vmi, nil
+	}
+
+	err := h.setSataCdRomHotpluggable(vmi)
+	if err != nil {
+		return vmi, err
+	}
+
+	return vmi, nil
 }

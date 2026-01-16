@@ -5,6 +5,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/validation"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	vmv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"

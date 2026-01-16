@@ -10,6 +10,7 @@ import (
 const (
 	vmControllerCreatePVCsFromAnnotationControllerName           = "VMController.CreatePVCsFromAnnotation"
 	vmiControllerReconcileFromHostLabelsControllerName           = "VMIController.ReconcileFromHostLabels"
+	vmControllerSetSataCdRomHotpluggable                         = "VMController.SetSataCdRomHotpluggable"
 	vmControllerBackfillObservedNetworkMac                       = "VMController.BackfillObservedNetworkMacAddress"
 	vmControllerSetDefaultManagementNetworkMac                   = "VMController.SetDefaultManagementNetworkMacAddress"
 	vmControllerIgnoreNonMigratableVMI                           = "VMController.IgnoreNonMigratableVMI"
@@ -63,6 +64,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		pvcClient:        pvcClient,
 		pvcCache:         pvcCache,
 		vmClient:         vmClient,
+		vmCache:          vmCache,
 		vmController:     vmClient,
 		vmiClient:        vmiClient,
 		vmiCache:         vmiCache,
@@ -101,6 +103,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerReconcileFromHostLabelsControllerName, vmiCtrl.ReconcileFromHostLabels)
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerSetHaltIfOccurExceededQuotaControllerName, vmiCtrl.StopVMIfExceededQuota)
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerRemoveDeprecatedFinalizerControllerName, vmiCtrl.removeDeprecatedFinalizer)
+	virtualMachineInstanceClient.OnRemove(ctx, vmControllerSetSataCdRomHotpluggable, vmCtrl.SetSataCdRomHotpluggable)
 
 	// register the vm network controller upon the VMI changes
 	var vmNetworkCtl = &VMNetworkController{

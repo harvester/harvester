@@ -146,12 +146,6 @@ func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runti
 		return nil, err
 	}
 
-	// TODO: check scenario when updating a running vm, maybe move this to need update run strategy
-	patchOps, err = m.patchSataCdRomHotpluggable(newVM, patchOps)
-	if err != nil {
-		return nil, err
-	}
-
 	return patchOps, nil
 }
 
