@@ -138,7 +138,7 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
-		return nil, h.ejectCdRomVolume(name, namespace, input)
+		return nil, h.ejectCdRomVolume(r.Context(), name, namespace, input)
 	case migrate:
 		var input MigrateInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -404,7 +404,7 @@ func (h *vmActionHandler) injectCdRomVolume(name, namespace string, input Inject
 	return err
 }
 
-func (h *vmActionHandler) ejectCdRomVolume(name, namespace string, input EjectCdRomVolumeActionInput) error {
+func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace string, input EjectCdRomVolumeActionInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
 		return err
@@ -424,15 +424,18 @@ func (h *vmActionHandler) ejectCdRomVolume(name, namespace string, input EjectCd
 		}
 	}
 
-	if err := removeVolumeClaimTemplatesFromVMAnnotation(vm, toRemoveClaimNames); err != nil {
+	if err := removeVolumeClaimTemplatesFromVMAnnotation(vmCopy, toRemoveClaimNames); err != nil {
 		return err
 	}
 
 	vmCopy.Spec.Template.Spec.Volumes = volumes
 	_, err = h.vms.Update(vmCopy)
 
-	// TODO: how to properly remove
-	//h.clientSet.CoreV1().PersistentVolumeClaims().Delete()
+	// TODO: check
+	for _, name := range toRemoveClaimNames {
+		h.clientSet.CoreV1().PersistentVolumeClaims(vm.Namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	}
+
 	return err
 }
 
