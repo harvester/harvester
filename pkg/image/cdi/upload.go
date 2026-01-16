@@ -17,8 +17,10 @@ import (
 
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	uploadcdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 
@@ -118,12 +120,8 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	}
 	logrus.Debugf("Qcow header index: %v, virtual size: %v", qcowHeaderIndex, virtualSize)
 
-	dataContent := rawContent
-	if multipartFormat {
-		dataContent = rawContent[headerEndIndex+4:]
-	}
-	if _, err := cu.vmio.UpdateVirtualSizeAndSize(vmImg, virtualSize, fileSize); err != nil {
-		return fmt.Errorf("failed to update VM Image size and virtual size: %v", err)
+	if err = cu.updateVirtualSizeAndSize(vmImg, virtualSize, fileSize); err != nil {
+		return err
 	}
 
 	// check VMImage status again (for size/virtual size)
@@ -369,3 +367,50 @@ func getUploadFormURL(isMultipartFormat bool) string {
 	return fmt.Sprintf("https://%s%s", CDIUploadURLRaw, UploadURI)
 }
 
+func (cu *Uploader) updateVirtualSizeAndSize(vmImg *harvesterv1.VirtualMachineImage, virtualSize, fileSize int64) error {
+	// retry is needed here as the vm image controller could update the VMImage at the same time
+	if _, err := cu.updateVMIWithRetryOnConflict(vmImg, func(img *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
+		return cu.vmio.UpdateVirtualSizeAndSize(img, virtualSize, fileSize)
+	}); err != nil {
+		return fmt.Errorf("failed to update VM Image size and virtual size: %v", err)
+	}
+	return nil
+}
+
+func (cu *Uploader) updateVMIWithRetryOnConflict(
+	vmImg *harvesterv1.VirtualMachineImage,
+	updateFunc func(*harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error),
+) (*harvesterv1.VirtualMachineImage, error) {
+	namespace := vmImg.Namespace
+	name := vmImg.Name
+	var updatedVMI *harvesterv1.VirtualMachineImage
+
+	err := retry.OnError(retry.DefaultRetry, func(err error) bool {
+		// Retry on conflict errors or transient API errors
+		return apierrors.IsConflict(err) || apierrors.IsServerTimeout(err) || apierrors.IsTimeout(err) || apierrors.IsServiceUnavailable(err)
+	}, func() error {
+		// Fetch the latest VMImage before each retry attempt to get the current resource version
+		latestVMI, err := cu.vmio.GetVMImageObj(namespace, name)
+		if err != nil {
+			logrus.Warnf("Failed to get latest VMImage %s/%s: %v", namespace, name, err)
+			return err
+		}
+
+		newVMI, err := updateFunc(latestVMI.DeepCopy())
+		if err != nil {
+			return err
+		}
+
+		updatedVMI, err = cu.vmio.UpdateVMI(latestVMI, newVMI)
+		if err != nil {
+			logrus.Warnf("Failed to update VM Image: %v, will retry if retriable.", err)
+		}
+		return err
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update VM Image %s/%s after retries: %v", namespace, name, err)
+	}
+
+	return updatedVMI, nil
+}
