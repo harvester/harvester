@@ -1,0 +1,118 @@
+# To enhance the review process, we have designated specific teams as code owners for different parts of the repository.
+
+# We setup the codeowners with the following rules:
+# Common folders across repositories are assigned to the dev team.
+# Top 3 contributors of each directory are assigned as code owners, if don't have enough contributors, dev team will be assigned.
+# If the number of commits of a contributor is less than 2, that contributor will be ignored.
+
+# The corresponding git commit is used to determine the code owners.
+# git log --since="24 months ago" --pretty=format:'%an' -- <path> | sort | uniq -c | sort -nr | head -n 3
+
+** @harvester/maintainer
+
+/.github/ @harvester/dev
+/api/ @harvester/dev
+/cmd/ @harvester/dev
+/deploy/ @harvester/dev
+/docs/ @harvester/dev
+/enhancements/ @harvester/dev
+/hack/ @harvester/dev
+/misc/ @harvester/dev
+/package/ @harvester/dev
+/pkg/** @harvester/dev  # first level assignment, will be overridden by sub-folder assignments
+/pkg/api/backuptarget @Yu-Jack @harvester/dev
+/pkg/api/cluster @ibrokethecloud @brandboat @Yu-Jack
+/pkg/api/image @Vicente-Cheng @Yu-Jack @WebberHuang1118
+/pkg/api/keypair @Yu-Jack @harvester/dev
+/pkg/api/kubeconfig @Vicente-Cheng @Yu-Jack @harvester/dev
+/pkg/api/namespace @Yu-Jack @harvester/dev
+/pkg/api/node @Yu-Jack @ibrokethecloud @harvester/dev
+/pkg/api/proxy @harvester/dev
+/pkg/api/supportbundle @Yu-Jack @harvester/dev
+/pkg/api/uiinfo @harvester/dev
+/pkg/api/upgradelog @Yu-Jack @starbops @harvester/dev
+/pkg/api/util @harvester/dev
+/pkg/api/vm @Yu-Jack @Vicente-Cheng @harvester/dev
+/pkg/api/vmtemplate @harvester/dev
+/pkg/api/volume @Vicente-Cheng @Yu-Jack @harvester/dev
+/pkg/api/volumesnapshot @Yu-Jack @harvester/dev
+/pkg/config/ @Yu-Jack @harvester/dev
+/pkg/containerd/ @harvester/dev
+/pkg/controller/admission/ @harvester/dev
+/pkg/controller/global/ @w13915984028 @harvester/dev
+/pkg/controller/master/addon/ @harvester/dev
+/pkg/controller/master/backup/ @WebberHuang1118 @Vicente-Cheng @harvester/dev
+/pkg/controller/master/image/ @WebberHuang1118 @Vicente-Cheng @brandboat
+/pkg/controller/master/keypair/ @harvester/dev
+/pkg/controller/master/kubevirt/ @harvester/dev
+/pkg/controller/master/machine/ @harvester/dev
+/pkg/controller/master/mcmsettings/ @harvester/dev
+/pkg/controller/master/migration/ @w13915984028 @Yu-Jack @harvester/dev
+/pkg/controller/master/node/ @Vicente-Cheng @rrajendran17 @harvester/dev
+/pkg/controller/master/nodedrain/ @ibrokethecloud @votdev @harvester/dev
+/pkg/controller/master/pvc/ @Vicente-Cheng @harvester/dev
+/pkg/controller/master/rancher/ @Yu-Jack @harvester/dev
+/pkg/controller/master/resourcequota/ @w13915984028 @harvester/dev
+/pkg/controller/master/schedulevmbackup/ @WebberHuang1118 @harvester/dev
+/pkg/controller/master/setting/ @w13915984028 @Vicente-Cheng @harvester/dev
+/pkg/controller/master/storageclass/ @brandboat @harvester/dev
+/pkg/controller/master/storagenetwork/ @rrajendran17 @WebberHuang1118 @harvester/dev
+/pkg/controller/master/supportbundle/ @Yu-Jack @harvester/dev @Vicente-Cheng
+/pkg/controller/master/template/ @harvester/dev
+/pkg/controller/master/upgrade/ @starbops @w13915984028 @harvester/dev
+/pkg/controller/master/upgradelog/ @w13915984028 @starbops @Vicente-Cheng
+/pkg/controller/master/virtualmachine/ @Vicente-Cheng @w13915984028 @harvester/dev
+/pkg/controller/master/vmimagedownloader/ @Vicente-Cheng @harvester/dev
+/pkg/data/ @WebberHuang1118 @Yu-Jack @harvester/dev
+/pkg/image/ @Vicente-Cheng @brandboat @WebberHuang1118
+/pkg/server/ @Yu-Jack @harvester/dev
+/pkg/settings/ @w13915984028 @starbops @harvester/dev
+/pkg/upgradehelper/ @starbops @Yu-Jack @harvester/dev
+/pkg/util/ @harvester/dev
+/pkg/version/ @harvester/dev
+/pkg/webhook/clients/ @harvester/dev
+/pkg/webhook/config/ @harvester/dev
+/pkg/webhook/error/ @harvester/dev
+/pkg/webhook/indexeres/ @WebberHuang1118 @harvester/dev
+/pkg/webhook/resources/addon/ @w13915984028 @ibrokethecloud @harvester/dev
+/pkg/webhook/resources/bundle/ @harvester/dev
+/pkg/webhook/resources/bundledeployment/ @harvester/dev
+/pkg/webhook/resources/datavolume/ @harvester/dev
+/pkg/webhook/resources/deployment/ @harvester/dev
+/pkg/webhook/resources/keypair/ @harvester/dev
+/pkg/webhook/resources/managedchart/ @harvester/dev
+/pkg/webhook/resources/namespace/ @harvester/dev
+/pkg/webhook/resources/node/ @Yu-Jack @brandboat @harvester/dev
+/pkg/webhook/resources/persistentvolumeclaim/ @Vicente-Cheng @WebberHuang1118 @votdev
+/pkg/webhook/resources/pod/ @wheatdog @harvester/dev
+/pkg/webhook/resources/resourcequota/ @harvester/dev
+/pkg/webhook/resources/schedulevmbackup/ @WebberHuang1118 @harvester/dev
+/pkg/webhook/resources/secret/ @harvester/dev
+/pkg/webhook/resources/setting/ @FrankYang0529 @Yu-Jack @starbops
+/pkg/webhook/resources/storageclass/ @Yu-Jack @brandboat @w13915984028
+/pkg/webhook/resources/supportbundle/ @Yu-Jack @harvester/dev
+/pkg/webhook/resources/templateversion/ @m-ildefons @harvester/dev
+/pkg/webhook/resources/upgrade/ @starbops @w13915984028 @harvester/dev
+/pkg/webhook/resources/version/ @brandboat @harvester/dev
+/pkg/webhook/resources/virtualmachine/ @votdev @Vicente-Cheng @harvester/dev
+/pkg/webhook/resources/virtualmachinebackup/ @WebberHuang1118 @harvester/dev
+/pkg/webhook/resources/virtualmachineimage/ @Yu-Jack @WebberHuang1118 @harvester/dev
+/pkg/webhook/resources/virtualmachineinstance/ @harvester/dev
+/pkg/webhook/resources/virtualmachinerestore/ @WebberHuang1118 @harvester/dev
+/pkg/webhook/resources/volumesnapshot/ @Vicente-Cheng @harvester/dev
+/pkg/webhook/server/ @WebberHuang1118 @Vicente-Cheng @harvester/dev
+/pkg/webhook/types/ @harvester/dev
+/pkg/webhook/util/ @FrankYang0529 @WebberHuang1118 @starbops
+/scripts/ @harvester/dev
+/tests/ @harvester/dev
+/vendor/ @harvester/dev
+
+CONTRIBUTING.md @harvester/dev
+DEVELOPER_GUIDE.md @harvester/dev
+Dockerfile.dapper @harvester/dev
+go.mod @harvester/dev
+go.sum @harvester/dev
+main.go @harvester/dev
+README.md @harvester/dev
+Makefile @harvester/dev
+renovate.json @harvester/dev
