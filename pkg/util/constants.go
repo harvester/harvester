@@ -282,4 +282,10 @@ const (
 	AddonExperimentalLabel = AddonPrefix + "/experimental"
 
 	HarvesterUpgradeComponentRepo = "repo"
+	// KubeOVN annotations
+	AnnotationKubeOVNPrefix     = "ovn.kubernetes.io"
+	AnnotationKubeOvnMAC        = AnnotationKubeOVNPrefix + "/mac_address"
+	AnnotationKubeOvnIP         = AnnotationKubeOVNPrefix + "/ip_address"
+	AnnotationPatternKubeOvnIP  = "%s.%s.kubernetes.io/ip_address.%s"
+	AnnotationPatternKubeOvnMAC = "%s.%s.kubernetes.io/mac_address.%s"
 )
