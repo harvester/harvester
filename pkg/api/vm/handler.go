@@ -652,6 +652,7 @@ func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.Virt
 	}
 
 	nodeFilter := labels.NewSelector()
+
 	for key, value := range latestPod.Spec.NodeSelector {
 		if key == corev1.LabelHostname {
 			continue
@@ -662,7 +663,69 @@ func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.Virt
 		}
 		nodeFilter = nodeFilter.Add(*requirement)
 	}
+
+	if isRequiredAffinityFilterPresent(latestPod) {
+		required := latestPod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+		var err error
+		nodeFilter, err = addNodeAffinityFilters(nodeFilter, required.NodeSelectorTerms)
+		if err != nil {
+			return nil, err
+		}
+
+	}
+
 	return nodeFilter, nil
+}
+
+func isRequiredAffinityFilterPresent(pod *corev1.Pod) bool {
+	return pod.Spec.Affinity != nil &&
+		pod.Spec.Affinity.NodeAffinity != nil &&
+		pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil
+}
+
+func addNodeAffinityFilters(nodeFilter labels.Selector, terms []corev1.NodeSelectorTerm) (labels.Selector, error) {
+	for _, term := range terms {
+		for _, expr := range term.MatchExpressions {
+			if expr.Key == corev1.LabelHostname {
+				continue
+			}
+
+			requirement, err := convertNodeSelectorRequirementToSelector(expr)
+			if err != nil {
+				return nil, err
+			}
+			if requirement != nil {
+				nodeFilter = nodeFilter.Add(*requirement)
+			}
+		}
+	}
+	return nodeFilter, nil
+}
+
+func convertNodeSelectorRequirementToSelector(req corev1.NodeSelectorRequirement) (*labels.Requirement, error) {
+	var op selection.Operator
+	switch req.Operator {
+	case corev1.NodeSelectorOpIn:
+		op = selection.In
+	case corev1.NodeSelectorOpNotIn:
+		op = selection.NotIn
+	case corev1.NodeSelectorOpExists:
+		op = selection.Exists
+	case corev1.NodeSelectorOpDoesNotExist:
+		op = selection.DoesNotExist
+	case corev1.NodeSelectorOpGt, corev1.NodeSelectorOpLt:
+		logrus.Debugf("Skipping unsupported node selector operator %s for key %s", req.Operator, req.Key)
+		return nil, nil
+	default:
+		logrus.Warnf("Unknown node selector operator %s for key %s", req.Operator, req.Key)
+		return nil, nil
+	}
+
+	requirement, err := labels.NewRequirement(req.Key, op, req.Values)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create requirement for %s %v %v: %w", req.Key, op, req.Values, err)
+	}
+	return requirement, nil
 }
 
 func (h *vmActionHandler) getLatestVMIPodOnCurrentNode(vmi *kubevirtv1.VirtualMachineInstance) (*corev1.Pod, error) {

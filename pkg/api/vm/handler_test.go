@@ -853,10 +853,9 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 				pod: nil,
 			},
 			want: []string{
-				"node2", "node3", "node4",
+				"node2", "node3", "node4", "node5",
 			},
 		},
-
 		{
 			name: "Hostname label should be skipped from pod node selector",
 			args: args{
@@ -890,6 +889,190 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 			},
 			want: []string{
 				"node2",
+			},
+		},
+		{
+			name: "Get migratable nodes by NodeAffinity with zone requirement",
+			args: args{
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-affinity-zone",
+						Namespace: "default",
+						UID:       "vmi-affinity-zone-uid",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						NodeName: "node1",
+					},
+				},
+				pod: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "virt-launcher-test-affinity-zone",
+						Namespace: "default",
+						Labels: map[string]string{
+							kubevirtv1.CreatedByLabel: "vmi-affinity-zone-uid",
+						},
+					},
+					Spec: corev1.PodSpec{
+						NodeName: "node1",
+						NodeSelector: map[string]string{
+							kubevirtv1.NodeSchedulable: "true",
+						},
+						Affinity: &corev1.Affinity{
+							NodeAffinity: &corev1.NodeAffinity{
+								RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+									NodeSelectorTerms: []corev1.NodeSelectorTerm{
+										{
+											MatchExpressions: []corev1.NodeSelectorRequirement{
+												{
+													Key:      "zone",
+													Operator: corev1.NodeSelectorOpIn,
+													Values:   []string{"zone2"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []string{
+				"node2",
+			},
+		},
+		{
+			name: "Get migratable nodes by NodeAffinity with NotIn operator",
+			args: args{
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-affinity-notin",
+						Namespace: "default",
+						UID:       "vmi-affinity-notin-uid",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						NodeName: "node1",
+					},
+				},
+				pod: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "virt-launcher-test-affinity-notin",
+						Namespace: "default",
+						Labels: map[string]string{
+							kubevirtv1.CreatedByLabel: "vmi-affinity-notin-uid",
+						},
+					},
+					Spec: corev1.PodSpec{
+						NodeName: "node1",
+						NodeSelector: map[string]string{
+							kubevirtv1.NodeSchedulable: "true",
+						},
+						Affinity: &corev1.Affinity{
+							NodeAffinity: &corev1.NodeAffinity{
+								RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+									NodeSelectorTerms: []corev1.NodeSelectorTerm{
+										{
+											MatchExpressions: []corev1.NodeSelectorRequirement{
+												{
+													Key:      "zone",
+													Operator: corev1.NodeSelectorOpNotIn,
+													Values:   []string{"zone1"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []string{
+				"node2", "node3", "node4", "node5",
+			},
+		},
+		{
+			name: "Get migratable nodes combining NodeSelector and NodeAffinity",
+			args: args{
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-combined",
+						Namespace: "default",
+						UID:       "vmi-combined-uid",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						NodeName: "node1",
+					},
+				},
+				pod: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "virt-launcher-test-combined",
+						Namespace: "default",
+						Labels: map[string]string{
+							kubevirtv1.CreatedByLabel: "vmi-combined-uid",
+						},
+					},
+					Spec: corev1.PodSpec{
+						NodeName: "node1",
+						NodeSelector: map[string]string{
+							"network":                  "a",
+							kubevirtv1.NodeSchedulable: "true",
+						},
+						Affinity: &corev1.Affinity{
+							NodeAffinity: &corev1.NodeAffinity{
+								RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+									NodeSelectorTerms: []corev1.NodeSelectorTerm{
+										{
+											MatchExpressions: []corev1.NodeSelectorRequirement{
+												{
+													Key:      "user.custom/label",
+													Operator: corev1.NodeSelectorOpExists,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []string{},
+		},
+		{
+			name: "Get migratable nodes with host-model CPU features from pod",
+			args: args{
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-host-model",
+						Namespace: "default",
+						UID:       "vmi-host-model-uid",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						NodeName: "node4",
+					},
+				},
+				pod: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "virt-launcher-test-host-model",
+						Namespace: "default",
+						Labels: map[string]string{
+							kubevirtv1.CreatedByLabel: "vmi-host-model-uid",
+						},
+					},
+					Spec: corev1.PodSpec{
+						NodeName: "node4",
+						NodeSelector: map[string]string{
+							kubevirtv1.CPUFeatureLabel + "spec-ctrl": "true",
+							kubevirtv1.CPUFeatureLabel + "ssbd":      "true",
+							kubevirtv1.CPUModelLabel + "EPYC-Rome":   "true",
+							kubevirtv1.NodeSchedulable:               "true",
+						},
+					},
+				},
+			},
+			want: []string{
+				"node5",
 			},
 		},
 	}
@@ -937,6 +1120,17 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					kubevirtv1.NodeSchedulable:             "true",
 					kubevirtv1.CPUModelLabel + "EPYC-Rome": "true",
 					kubevirtv1.CPUFeatureLabel + "xsaves":  "true",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node5",
+				Labels: map[string]string{
+					kubevirtv1.NodeSchedulable:               "true",
+					kubevirtv1.CPUModelLabel + "EPYC-Rome":   "true",
+					kubevirtv1.CPUFeatureLabel + "spec-ctrl": "true",
+					kubevirtv1.CPUFeatureLabel + "ssbd":      "true",
 				},
 			},
 		},
