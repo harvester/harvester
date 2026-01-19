@@ -11,6 +11,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	corefake "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
@@ -712,12 +713,16 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
 						NodeName: "node1",
+						ActivePods: map[types.UID]string{
+							"pod-network-uid": "node1",
+						},
 					},
 				},
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "virt-launcher-test-network",
 						Namespace: "default",
+						UID:       "pod-network-uid",
 						Labels: map[string]string{
 							kubevirtv1.CreatedByLabel: "vmi-network-uid",
 						},
@@ -746,12 +751,16 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
 						NodeName: "node1",
+						ActivePods: map[types.UID]string{
+							"pod-zone-uid": "node1",
+						},
 					},
 				},
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "virt-launcher-test-zone",
 						Namespace: "default",
+						UID:       "pod-zone-uid",
 						Labels: map[string]string{
 							kubevirtv1.CreatedByLabel: "vmi-zone-uid",
 						},
@@ -781,12 +790,16 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
 						NodeName: "node1",
+						ActivePods: map[types.UID]string{
+							"pod-custom-uid": "node1",
+						},
 					},
 				},
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "virt-launcher-test-custom",
 						Namespace: "default",
+						UID:       "pod-custom-uid",
 						Labels: map[string]string{
 							kubevirtv1.CreatedByLabel: "vmi-custom-uid",
 						},
@@ -815,12 +828,16 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
 						NodeName: "node4",
+						ActivePods: map[types.UID]string{
+							"pod-cpu-uid": "node4",
+						},
 					},
 				},
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "virt-launcher-test-cpu",
 						Namespace: "default",
+						UID:       "pod-cpu-uid",
 						Labels: map[string]string{
 							kubevirtv1.CreatedByLabel: "vmi-cpu-uid",
 						},
@@ -838,7 +855,7 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 			want: []string{},
 		},
 		{
-			name: "No pod found returns all schedulable nodes except the current node",
+			name: "No pod found returns error when ActivePods is empty",
 			args: args{
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: metav1.ObjectMeta{
@@ -847,14 +864,14 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 						UID:       "vmi-no-pod-uid",
 					},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
-						NodeName: "node1",
+						NodeName:   "node1",
+						ActivePods: map[types.UID]string{},
 					},
 				},
 				pod: nil,
 			},
-			want: []string{
-				"node2", "node3", "node4", "node5",
-			},
+			want: nil,
+			err:  errors.New("there are no active pods for VMI: default/test-no-pod, migration target cannot be picked unless only 1 pod is active"),
 		},
 		{
 			name: "Hostname label should be skipped from pod node selector",
@@ -867,12 +884,16 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
 						NodeName: "node1",
+						ActivePods: map[types.UID]string{
+							"pod-hostname-skip-uid": "node1",
+						},
 					},
 				},
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "virt-launcher-test-hostname-skip",
 						Namespace: "default",
+						UID:       "pod-hostname-skip-uid",
 						Labels: map[string]string{
 							kubevirtv1.CreatedByLabel: "vmi-hostname-skip-uid",
 						},
@@ -902,12 +923,16 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
 						NodeName: "node1",
+						ActivePods: map[types.UID]string{
+							"pod-affinity-zone-uid": "node1",
+						},
 					},
 				},
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "virt-launcher-test-affinity-zone",
 						Namespace: "default",
+						UID:       "pod-affinity-zone-uid",
 						Labels: map[string]string{
 							kubevirtv1.CreatedByLabel: "vmi-affinity-zone-uid",
 						},
@@ -952,12 +977,16 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
 						NodeName: "node1",
+						ActivePods: map[types.UID]string{
+							"pod-affinity-notin-uid": "node1",
+						},
 					},
 				},
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "virt-launcher-test-affinity-notin",
 						Namespace: "default",
+						UID:       "pod-affinity-notin-uid",
 						Labels: map[string]string{
 							kubevirtv1.CreatedByLabel: "vmi-affinity-notin-uid",
 						},
@@ -1002,12 +1031,16 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
 						NodeName: "node1",
+						ActivePods: map[types.UID]string{
+							"pod-combined-uid": "node1",
+						},
 					},
 				},
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "virt-launcher-test-combined",
 						Namespace: "default",
+						UID:       "pod-combined-uid",
 						Labels: map[string]string{
 							kubevirtv1.CreatedByLabel: "vmi-combined-uid",
 						},
@@ -1050,12 +1083,16 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 					},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
 						NodeName: "node4",
+						ActivePods: map[types.UID]string{
+							"pod-host-model-uid": "node4",
+						},
 					},
 				},
 				pod: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "virt-launcher-test-host-model",
 						Namespace: "default",
+						UID:       "pod-host-model-uid",
 						Labels: map[string]string{
 							kubevirtv1.CreatedByLabel: "vmi-host-model-uid",
 						},

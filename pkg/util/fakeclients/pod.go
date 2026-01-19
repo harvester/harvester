@@ -2,9 +2,7 @@ package fakeclients
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
-	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
 type PodClient func(string) v1.PodInterface
@@ -79,19 +76,5 @@ func (c PodCache) AddIndexer(_ string, _ generic.Indexer[*corev1.Pod]) {
 }
 
 func (c PodCache) GetByIndex(indexName, key string) ([]*corev1.Pod, error) {
-	// Simple implementation that returns pods matching the VMI UID label
-	if indexName == indexeres.PodByVMIUIDIndex {
-		list, err := c("").List(context.TODO(), metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("%s=%s", kubevirtv1.CreatedByLabel, key),
-		})
-		if err != nil {
-			return nil, err
-		}
-		result := make([]*corev1.Pod, 0, len(list.Items))
-		for i := range list.Items {
-			result = append(result, &list.Items[i])
-		}
-		return result, nil
-	}
 	panic("implement me for index: " + indexName)
 }

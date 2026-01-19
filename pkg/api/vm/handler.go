@@ -48,7 +48,6 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/harvester/harvester/pkg/indexeres"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -643,7 +642,7 @@ func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.Virt
 		return labels.Everything(), nil
 	}
 
-	latestPod, err := h.getLatestVMIPodOnCurrentNode(vmi)
+	latestPod, err := h.getVMIPod(vmi)
 	if err != nil {
 		return labels.Everything(), err
 	}
@@ -728,23 +727,30 @@ func convertNodeSelectorRequirementToSelector(req corev1.NodeSelectorRequirement
 	return requirement, nil
 }
 
-func (h *vmActionHandler) getLatestVMIPodOnCurrentNode(vmi *kubevirtv1.VirtualMachineInstance) (*corev1.Pod, error) {
-	vmiPods, err := h.podCache.GetByIndex(indexeres.PodByVMIUIDIndex, string(vmi.UID))
+func (h *vmActionHandler) getVMIPod(vmi *kubevirtv1.VirtualMachineInstance) (*corev1.Pod, error) {
+	if len(vmi.Status.ActivePods) == 0 {
+		return nil, fmt.Errorf("there are no active pods for VMI: %s/%s, migration target cannot be picked unless only 1 pod is active", vmi.Namespace, vmi.Name)
+	}
+	if len(vmi.Status.ActivePods) > 1 {
+		return nil, fmt.Errorf("there are multiple active pods for VMI: %s/%s, migration target can be picked only when at most 1 pod is active", vmi.Namespace, vmi.Name)
+	}
+
+	selector := labels.SelectorFromSet(labels.Set{
+		kubevirtv1.CreatedByLabel: string(vmi.UID),
+	})
+
+	vmiPods, err := h.podCache.List(vmi.Namespace, selector)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pods for VMI %s/%s: %w", vmi.Namespace, vmi.Name, err)
 	}
 
-	var latestPod *corev1.Pod
 	for _, pod := range vmiPods {
-		if vmi.Status.NodeName != "" && pod.Spec.NodeName != vmi.Status.NodeName {
-			continue
-		}
-
-		if latestPod == nil || pod.CreationTimestamp.After(latestPod.CreationTimestamp.Time) {
-			latestPod = pod
+		if pod.Status.Phase != corev1.PodSucceeded && pod.Status.Phase != corev1.PodFailed {
+			return pod, nil
 		}
 	}
-	return latestPod, nil
+
+	return nil, fmt.Errorf("no active pod found for VMI %s/%s", vmi.Namespace, vmi.Name)
 }
 
 func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input BackupInput) error {

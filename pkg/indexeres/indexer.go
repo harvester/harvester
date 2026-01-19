@@ -15,14 +15,12 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
-	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
 const (
 	PVCByDataSourceVolumeSnapshotIndex = "harvesterhci.io/pvc-by-data-source-volume-snapshot"
 	PodByNodeNameIndex                 = "harvesterhci.io/pod-by-nodename"
 	PodByPVCIndex                      = "harvesterhci.io/pod-by-pvc"
-	PodByVMIUIDIndex                   = "harvesterhci.io/pod-by-vmi-uid"
 	VolumeByNodeIndex                  = "harvesterhci.io/volume-by-node"
 	VMBackupBySourceVMUIDIndex         = "harvesterhci.io/vmbackup-by-source-vm-uid"
 	VMBackupBySourceVMNameIndex        = "harvesterhci.io/vmbackup-by-source-vm-name"
@@ -41,7 +39,6 @@ func Setup(ctx context.Context, _ *server.Server, _ *server.Controllers, _ confi
 	podInformer.AddIndexer(PodByNodeNameIndex, PodByNodeName)
 	podInformer.AddIndexer(PodByPVCIndex, PodByPVC)
 	podInformer.AddIndexer(indexeresutil.PodByVMNameIndex, indexeresutil.PodByVMName)
-	podInformer.AddIndexer(PodByVMIUIDIndex, PodByVMIUID)
 
 	volumeInformer := management.LonghornFactory.Longhorn().V1beta2().Volume().Cache()
 	volumeInformer.AddIndexer(VolumeByNodeIndex, VolumeByNodeName)
@@ -77,14 +74,6 @@ func PodByPVC(obj *corev1.Pod) ([]string, error) {
 		}
 	}
 	return pvcNames, nil
-}
-
-func PodByVMIUID(obj *corev1.Pod) ([]string, error) {
-	vmiUID, exists := obj.Labels[kubevirtv1.CreatedByLabel]
-	if !exists || vmiUID == "" {
-		return []string{}, nil
-	}
-	return []string{vmiUID}, nil
 }
 
 func pvcByDataSourceVolumeSnapshot(obj *corev1.PersistentVolumeClaim) ([]string, error) {
