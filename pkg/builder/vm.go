@@ -2,6 +2,7 @@ package builder
 
 import (
 	"encoding/json"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -13,8 +14,10 @@ const (
 	defaultVMGenerateName = "harv-"
 	defaultVMNamespace    = "default"
 
-	defaultVMCPUCores = 1
-	defaultVMMemory   = "256Mi"
+	defaultVMCPUCores   = 1
+	defaultVMCPUThreads = 1
+	defaultVMCPUSockets = 1
+	defaultVMMemory     = "256Mi"
 
 	HarvesterAPIGroup                                     = "harvesterhci.io"
 	LabelAnnotationPrefixHarvester                        = HarvesterAPIGroup + "/"
@@ -49,7 +52,9 @@ func NewVMBuilder(creator string) *VMBuilder {
 	}
 	runStrategy := kubevirtv1.RunStrategyHalted
 	cpu := &kubevirtv1.CPU{
-		Cores: defaultVMCPUCores,
+		Cores:   defaultVMCPUCores,
+		Sockets: defaultVMCPUSockets,
+		Threads: defaultVMCPUThreads,
 	}
 	resources := kubevirtv1.ResourceRequirements{
 		Limits: corev1.ResourceList{
@@ -168,7 +173,9 @@ func (v *VMBuilder) GuestMemory(amount string) *VMBuilder {
 		return v
 	}
 
-	v.VirtualMachine.Spec.Template.Spec.Domain.Memory.Guest = &quantity
+	v.VirtualMachine.Spec.Template.Spec.Domain.Memory = &kubevirtv1.Memory{
+		Guest: &quantity,
+	}
 	return v
 }
 
@@ -181,6 +188,11 @@ func (v *VMBuilder) Memory(memory string) *VMBuilder {
 }
 
 func (v *VMBuilder) CPUCores(cores int) *VMBuilder {
+	if cores < 1 {
+		v.Error = fmt.Errorf("invalid number of CPU cores: %d", cores)
+		return v
+	}
+
 	v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Cores = uint32(cores)   // nolint:gosec
 	sockets := int(v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Sockets) // nolint:gosec
 	threads := int(v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Threads) // nolint:gosec
@@ -192,6 +204,10 @@ func (v *VMBuilder) CPUCores(cores int) *VMBuilder {
 }
 
 func (v *VMBuilder) CPUSockets(sockets int) *VMBuilder {
+	if sockets < 1 {
+		v.Error = fmt.Errorf("invalid number of CPU sockets: %d", sockets)
+		return v
+	}
 	cores := int(v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Cores)       // nolint:gosec
 	v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Sockets = uint32(sockets) // nolint:gosec
 	threads := int(v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Threads)   // nolint:gosec
@@ -203,6 +219,10 @@ func (v *VMBuilder) CPUSockets(sockets int) *VMBuilder {
 }
 
 func (v *VMBuilder) CPUThreads(threads int) *VMBuilder {
+	if threads < 1 {
+		v.Error = fmt.Errorf("invalid number of CPU threads: %d", threads)
+		return v
+	}
 	cores := int(v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Cores)       // nolint:gosec
 	sockets := int(v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Sockets)   // nolint:gosec
 	v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Threads = uint32(threads) // nolint:gosec
@@ -213,13 +233,9 @@ func (v *VMBuilder) CPUThreads(threads int) *VMBuilder {
 	return v
 }
 
+// This is just an alias for CPUCores to preserve backwards compatibility.
 func (v *VMBuilder) CPU(cores int) *VMBuilder {
-	v.VirtualMachine.Spec.Template.Spec.Domain.CPU.Cores = uint32(cores) // nolint:gosec
-	if len(v.VirtualMachine.Spec.Template.Spec.Domain.Resources.Limits) == 0 {
-		v.VirtualMachine.Spec.Template.Spec.Domain.Resources.Limits = corev1.ResourceList{}
-	}
-	v.VirtualMachine.Spec.Template.Spec.Domain.Resources.Limits[corev1.ResourceCPU] = *resource.NewQuantity(int64(cores), resource.DecimalSI)
-	return v
+	return v.CPUCores(cores)
 }
 
 func (v *VMBuilder) EvictionStrategy(liveMigrate bool) *VMBuilder {
