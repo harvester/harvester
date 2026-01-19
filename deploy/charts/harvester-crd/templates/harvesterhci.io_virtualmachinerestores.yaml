@@ -69,6 +69,17 @@ spec:
                 type: boolean
               newVM:
                 type: boolean
+              scheduleVirtualMachineName:
+                type: string
+              scheduleVirtualMachineNamespace:
+                type: string
+              standBy:
+                description: |-
+                  StandBy only works when NewVM is true.
+                  When set to true, the ScheduleVirtualMachineName and ScheduleVirtualMachineNamespace should be set.
+                  For standby mode, only volumes are restored and VM will not be started automatically after restore.
+                  The VM is expected to be started after standby is changed to false.
+                type: boolean
               target:
                 description: initially only VirtualMachine type supported
                 properties:
@@ -95,8 +106,6 @@ spec:
                 type: string
             required:
             - target
-            - virtualMachineBackupName
-            - virtualMachineBackupNamespace
             type: object
           status:
             description: VirtualMachineRestoreStatus is the spec for a VirtualMachineRestore
@@ -136,6 +145,8 @@ spec:
                 items:
                   type: string
                 type: array
+              lastReadyStandByTimestamp:
+                type: string
               progress:
                 type: integer
               restoreTime:
@@ -359,6 +370,8 @@ spec:
                       type: object
                     progress:
                       type: integer
+                    timestamp:
+                      type: string
                     volumeBackupName:
                       type: string
                     volumeName:

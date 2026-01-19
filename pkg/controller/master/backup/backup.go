@@ -40,6 +40,7 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
+	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
@@ -861,17 +862,7 @@ func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 		return err
 	}
 
-	vmBackupMetadata := &VirtualMachineBackupMetadata{
-		Name:          vmBackup.Name,
-		Namespace:     vmBackup.Namespace,
-		BackupSpec:    vmBackup.Spec,
-		VMSourceSpec:  vmBackup.Status.SourceSpec,
-		VolumeBackups: sanitizeVolumeBackups(vmBackup.Status.VolumeBackups),
-		SecretBackups: vmBackup.Status.SecretBackups,
-	}
-	if vmBackup.Namespace == "" {
-		vmBackupMetadata.Namespace = metav1.NamespaceDefault
-	}
+	vmBackupMetadata := constructVMBackupMetadata(vmBackup)
 
 	j, err := json.Marshal(vmBackupMetadata)
 	if err != nil {
@@ -1108,4 +1099,27 @@ func (h *Handler) shouldSkipVolumeSnapshotUpdate(vmBackup *harvesterv1.VirtualMa
 		return true, nil
 	}
 	return false, nil
+}
+
+func constructVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBackup) *VirtualMachineBackupMetadata {
+	vmBackupMetadata := &VirtualMachineBackupMetadata{
+		Name:          vmBackup.Name,
+		Namespace:     vmBackup.Namespace,
+		BackupSpec:    vmBackup.Spec,
+		VMSourceSpec:  vmBackup.Status.SourceSpec,
+		VolumeBackups: sanitizeVolumeBackups(vmBackup.Status.VolumeBackups),
+		SecretBackups: vmBackup.Status.SecretBackups,
+		Labels:        map[string]string{},
+	}
+	if vmBackup.Namespace == "" {
+		vmBackupMetadata.Namespace = metav1.NamespaceDefault
+	}
+
+	if vmBackup.Labels != nil && vmBackup.Annotations != nil && vmBackup.Annotations[util.AnnotationSVMBackupID] != "" && vmBackup.Labels[util.LabelSVMBackupTimestamp] != "" {
+		svmbackupNamespace, svmbackupName := ref.Parse(vmBackup.Annotations[util.AnnotationSVMBackupID])
+		vmBackupMetadata.Labels[util.LabelSVMBackupNamespace] = svmbackupNamespace
+		vmBackupMetadata.Labels[util.LabelSVMBackupName] = svmbackupName
+		vmBackupMetadata.Labels[util.LabelSVMBackupTimestamp] = vmBackup.Labels[util.LabelSVMBackupTimestamp]
+	}
+	return vmBackupMetadata
 }
