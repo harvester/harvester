@@ -118,6 +118,8 @@ const (
 	// this object stores all kubevirt related configuration
 	KubeVirtObjectName = "kubevirt"
 	CDIObjectName      = "cdi"
+	DVObjectName       = "DataVolume"
+	PVCObjectName      = "PersistentVolumeClaim"
 
 	HTTPProxyEnv  = "HTTP_PROXY"
 	HTTPSProxyEnv = "HTTPS_PROXY"

@@ -155,17 +155,7 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 
 func (v *pvcValidator) Create(request *types.Request, newObj runtime.Object) error {
 	newPVC := newObj.(*corev1.PersistentVolumeClaim)
-
-	if newPVC.Spec.StorageClassName == nil {
-		return nil
-	}
-
-	if *newPVC.Spec.StorageClassName == util.StorageClassLonghornStatic || *newPVC.Spec.StorageClassName == util.StorageClassVmstatePersistence {
-		message := fmt.Sprintf("can not create volume with the reserved storage class %s", *newPVC.Spec.StorageClassName)
-		return werror.NewInvalidError(message, "spec.storageClassName")
-	}
-
-	return nil
+	return v.validateInternalUsage(newPVC)
 }
 
 func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) error {
@@ -197,4 +187,60 @@ func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) e
 		}
 	}
 	return nil
+}
+
+func (v *pvcValidator) validateInternalUsage(pvc *corev1.PersistentVolumeClaim) error {
+	if !isUsingReservedSC(pvc) {
+		return nil
+	}
+
+	isBelongToUpgradeImage, err := v.isBelongToUpgradeImage(pvc)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to check if pvc %s/%s is for internal usage: %v", pvc.Namespace, pvc.Name, err))
+	}
+	if !isBelongToUpgradeImage {
+		message := fmt.Sprintf("can not create volume with the reserved storage class %s", *pvc.Spec.StorageClassName)
+		return werror.NewInvalidError(message, "spec.storageClassName")
+	}
+
+	return nil
+}
+
+func (v *pvcValidator) isBelongToUpgradeImage(pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	// only longhorn-static storage class pvc could be for upgrade image
+	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName != util.StorageClassLonghornStatic {
+		return false, nil
+	}
+
+	for _, owner := range pvc.OwnerReferences {
+		// upgrade vm image will create 3 pvcs
+		// 1. image-xxxxx pvc (owner kind: DataVolume) with longhorn-static storage class, the owner here is the underlying data volume of upgrade vm image
+		// 2. prime-{uuid} pvc (owner kind: PersistentVolumeClaim) with longhorn-static storage class, the owner here is the image-xxxxx pvc
+		// 3. prime-{uuid}-scratch pvc (owner kind: Pod) with default storage class, generally harvester-longhorn, the owner here is the cdi importer/upload pod
+		// note that vm image and data volume and image-xxxxx pvc share the same name
+		if owner.Kind != util.DVObjectName && owner.Kind != util.PVCObjectName {
+			continue
+		}
+
+		upgradeImage, err := v.imageCache.Get(pvc.Namespace, owner.Name)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return false, err
+		}
+
+		if val, ok := upgradeImage.Annotations[util.AnnotationUpgradeImage]; ok && val == "True" {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func isUsingReservedSC(pvc *corev1.PersistentVolumeClaim) bool {
+	if pvc.Spec.StorageClassName == nil {
+		return false
+	}
+	return *pvc.Spec.StorageClassName == util.StorageClassLonghornStatic || *pvc.Spec.StorageClassName == util.StorageClassVmstatePersistence
 }

@@ -14,7 +14,6 @@ import (
 	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -101,6 +100,10 @@ func (r *Repo) Cleanup() error {
 		logrus.Warnf("%s", err.Error())
 		return err
 	}
+	// Cleanup legacy storage class from v1.7.0.
+	// In v1.7.0, a temporary storage class was created for upgrade VM image.
+	// From v1.7.1 onwards, we use the `longhorn-static` storage class directly.
+	// This can be removed in future releases once most users have migrated past v1.7.x.
 	if err := r.deleteStorageClass(); err != nil {
 		logrus.Warnf("%s", err.Error())
 		return err
@@ -112,36 +115,9 @@ func getISODisplayNameImageName(upgradeName string, version string) string {
 	return fmt.Sprintf("%s-%s", upgradeName, version)
 }
 
-func (r *Repo) getStorageClassName() string {
-	return r.upgrade.Name
-}
-
-// CreateStorageClass create the storage class for repo deployment to store the ISO image
-// we cannot use "harvester-longhorn" storage class because it includes "migratable: true",
-// which is not supported for RWX volume.
-func (r *Repo) CreateStorageClass() error {
-	reclaimPolicy := corev1.PersistentVolumeReclaimDelete
-	volumeBindingMode := storagev1.VolumeBindingImmediate
-	allowVolumeExpansion := true
-	sc := &storagev1.StorageClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: r.upgrade.Name,
-			Labels: map[string]string{
-				harvesterUpgradeLabel: r.upgrade.Name,
-			},
-		},
-		Provisioner:          util.CSIProvisionerLonghorn,
-		ReclaimPolicy:        &reclaimPolicy,
-		VolumeBindingMode:    &volumeBindingMode,
-		AllowVolumeExpansion: &allowVolumeExpansion,
-	}
-
-	_, err := r.h.scClient.Create(sc)
-	return err
-}
-
+// Deprecated: deleteStorageClass deletes the temporary storage class created in v1.7.0 for upgrade VM image.
 func (r *Repo) deleteStorageClass() error {
-	scName := r.getStorageClassName()
+	scName := r.upgrade.Name
 	err := r.h.scClient.Delete(scName, &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete storage class %s error %w", scName, err)
@@ -165,12 +141,14 @@ func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.
 			},
 		},
 		Spec: harvesterv1.VirtualMachineImageSpec{
-			DisplayName:            getISODisplayNameImageName(r.upgrade.Name, r.upgrade.Spec.Version),
-			SourceType:             harvesterv1.VirtualMachineImageSourceTypeDownload,
-			URL:                    isoURL,
-			Checksum:               checksum,
-			Retry:                  3,
-			TargetStorageClassName: r.getStorageClassName(),
+			DisplayName: getISODisplayNameImageName(r.upgrade.Name, r.upgrade.Spec.Version),
+			SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
+			URL:         isoURL,
+			Checksum:    checksum,
+			Retry:       3,
+			// we use longhorn-static storage class for upgrade VM image because harvester-longhorn
+			// has "migratable: true" which blocks us from creating RWX filesystem type PVC.
+			TargetStorageClassName: util.StorageClassLonghornStatic,
 			Backend:                harvesterv1.VMIBackendCDI,
 		},
 	}
