@@ -307,6 +307,38 @@ func TestAbortMigrateAction(t *testing.T) {
 		vmInstanceMigrations []*kubevirtv1.VirtualMachineInstanceMigration
 		err                  error
 	}
+	createVMIMigration := func(phase kubevirtv1.VirtualMachineInstanceMigrationPhase) *kubevirtv1.VirtualMachineInstanceMigration {
+		return &kubevirtv1.VirtualMachineInstanceMigration{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "test-migration",
+				UID:       "test-uid",
+			},
+			Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
+				VMIName: "test",
+			},
+			Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+				Phase: phase,
+			},
+		}
+	}
+	createVMI := func(annotations map[string]string) *kubevirtv1.VirtualMachineInstance {
+		return &kubevirtv1.VirtualMachineInstance{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:   "default",
+				Name:        "test",
+				Annotations: annotations,
+			},
+			Status: kubevirtv1.VirtualMachineInstanceStatus{
+				Phase: kubevirtv1.Running,
+				MigrationState: &kubevirtv1.VirtualMachineInstanceMigrationState{
+					Completed:    false,
+					MigrationUID: "test-uid",
+				},
+			},
+		}
+	}
+
 	var testCases = []struct {
 		name     string
 		given    input
@@ -387,36 +419,11 @@ func TestAbortMigrateAction(t *testing.T) {
 			given: input{
 				namespace: "default",
 				name:      "test",
-				vmInstance: &kubevirtv1.VirtualMachineInstance{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						Annotations: map[string]string{
-							util.AnnotationMigrationTarget: "test-uid",
-							util.AnnotationMigrationState:  migration.StateMigrating,
-						},
-					},
-					Status: kubevirtv1.VirtualMachineInstanceStatus{
-						Phase: kubevirtv1.Running,
-						MigrationState: &kubevirtv1.VirtualMachineInstanceMigrationState{
-							Completed:    false,
-							MigrationUID: "test-uid",
-						},
-					},
-				},
-				vmInstanceMigration: &kubevirtv1.VirtualMachineInstanceMigration{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test-migration",
-						UID:       "test-uid",
-					},
-					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
-						VMIName: "test",
-					},
-					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{ //nolint:dupl
-						Phase: kubevirtv1.MigrationRunning,
-					},
-				},
+				vmInstance: createVMI(map[string]string{
+					util.AnnotationMigrationTarget: "test-uid",
+					util.AnnotationMigrationState:  migration.StateMigrating,
+				}),
+				vmInstanceMigration: createVMIMigration(kubevirtv1.MigrationRunning),
 			},
 			expected: output{
 				vmInstanceMigrations: []*kubevirtv1.VirtualMachineInstanceMigration{},
@@ -469,52 +476,15 @@ func TestAbortMigrateAction(t *testing.T) {
 			given: input{
 				namespace: "default",
 				name:      "test",
-				vmInstance: &kubevirtv1.VirtualMachineInstance{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test",
-						Annotations: map[string]string{
-							util.AnnotationMigrationTarget: "test-uid",
-							util.AnnotationMigrationState:  migration.StateMigrating,
-						},
-					},
-					Status: kubevirtv1.VirtualMachineInstanceStatus{
-						Phase: kubevirtv1.Running,
-						MigrationState: &kubevirtv1.VirtualMachineInstanceMigrationState{
-							Completed:    false,
-							MigrationUID: "test-uid",
-						},
-					},
-				},
-				vmInstanceMigration: &kubevirtv1.VirtualMachineInstanceMigration{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "test-migration",
-						UID:       "test-uid",
-					},
-					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
-						VMIName: "test",
-					},
-					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{ //nolint:dupl
-						Phase: kubevirtv1.MigrationFailed,
-					},
-				},
+				vmInstance: createVMI(map[string]string{
+					util.AnnotationMigrationTarget: "test-uid",
+					util.AnnotationMigrationState:  migration.StateMigrating,
+				}),
+				vmInstanceMigration: createVMIMigration(kubevirtv1.MigrationFailed),
 			},
 			expected: output{
 				vmInstanceMigrations: []*kubevirtv1.VirtualMachineInstanceMigration{
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "default",
-							Name:      "test-migration",
-							UID:       "test-uid",
-						},
-						Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
-							VMIName: "test",
-						},
-						Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
-							Phase: kubevirtv1.MigrationFailed,
-						},
-					},
+					createVMIMigration(kubevirtv1.MigrationFailed),
 				},
 				err: errors.New("cannot abort the migration as it is in \"Failed\" phase"),
 			},
