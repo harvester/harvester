@@ -178,19 +178,6 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				return h.upgradeClient.Update(toUpdate)
 			}
 
-			err = repo.CreateStorageClass()
-			if err != nil && apierrors.IsAlreadyExists(err) {
-				sc, err := h.scCache.Get(repo.getStorageClassName())
-				if err != nil {
-					setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
-					return h.upgradeClient.Update(toUpdate)
-				}
-				logrus.Infof("Reuse the existing storage class: %s", sc.Name)
-			} else if err != nil && !apierrors.IsAlreadyExists(err) {
-				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
-				return h.upgradeClient.Update(toUpdate)
-			}
-
 			image, err := repo.CreateImageFromISO(version.Spec.ISOURL, version.Spec.ISOChecksum)
 			if err != nil && apierrors.IsAlreadyExists(err) {
 				image, err = h.vmImageClient.Get(harvesterSystemNamespace, upgrade.Name, metav1.GetOptions{})
