@@ -728,13 +728,6 @@ func convertNodeSelectorRequirementToSelector(req corev1.NodeSelectorRequirement
 }
 
 func (h *vmActionHandler) getVMIPod(vmi *kubevirtv1.VirtualMachineInstance) (*corev1.Pod, error) {
-	if len(vmi.Status.ActivePods) == 0 {
-		return nil, fmt.Errorf("there are no active pods for VMI: %s/%s, migration target cannot be picked unless only 1 pod is active", vmi.Namespace, vmi.Name)
-	}
-	if len(vmi.Status.ActivePods) > 1 {
-		return nil, fmt.Errorf("there are multiple active pods for VMI: %s/%s, migration target can be picked only when at most 1 pod is active", vmi.Namespace, vmi.Name)
-	}
-
 	selector := labels.SelectorFromSet(labels.Set{
 		kubevirtv1.CreatedByLabel: string(vmi.UID),
 	})
@@ -744,13 +737,21 @@ func (h *vmActionHandler) getVMIPod(vmi *kubevirtv1.VirtualMachineInstance) (*co
 		return nil, fmt.Errorf("failed to get pods for VMI %s/%s: %w", vmi.Namespace, vmi.Name, err)
 	}
 
+	var activePods []*corev1.Pod
 	for _, pod := range vmiPods {
 		if pod.Status.Phase != corev1.PodSucceeded && pod.Status.Phase != corev1.PodFailed {
-			return pod, nil
+			activePods = append(activePods, pod)
 		}
 	}
 
-	return nil, fmt.Errorf("no active pod found for VMI %s/%s", vmi.Namespace, vmi.Name)
+	if len(activePods) == 0 {
+		return nil, fmt.Errorf("there are no active pods for VMI: %s/%s, migration target cannot be picked unless only 1 pod is active", vmi.Namespace, vmi.Name)
+	}
+	if len(activePods) > 1 {
+		return nil, fmt.Errorf("there are multiple active pods for VMI: %s/%s, migration target can be picked only when at most 1 pod is active", vmi.Namespace, vmi.Name)
+	}
+
+	return activePods[0], nil
 }
 
 func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input BackupInput) error {

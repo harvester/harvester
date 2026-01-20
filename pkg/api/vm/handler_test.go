@@ -413,7 +413,7 @@ func TestAbortMigrateAction(t *testing.T) {
 					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
 						VMIName: "test",
 					},
-					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{ //nolint:dupl
 						Phase: kubevirtv1.MigrationRunning,
 					},
 				},
@@ -495,7 +495,7 @@ func TestAbortMigrateAction(t *testing.T) {
 					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{
 						VMIName: "test",
 					},
-					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{ //nolint:dupl
 						Phase: kubevirtv1.MigrationFailed,
 					},
 				},
@@ -693,8 +693,8 @@ func TestRemoveVolume(t *testing.T) {
 
 func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 	type args struct {
-		vmi *kubevirtv1.VirtualMachineInstance
-		pod *corev1.Pod
+		vmi  *kubevirtv1.VirtualMachineInstance
+		pods []*corev1.Pod
 	}
 	tests := []struct {
 		name string
@@ -718,7 +718,7 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 						},
 					},
 				},
-				pod: &corev1.Pod{
+				pods: []*corev1.Pod{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "virt-launcher-test-network",
 						Namespace: "default",
@@ -734,7 +734,7 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 							kubevirtv1.NodeSchedulable: "true",
 						},
 					},
-				},
+				}},
 			},
 			want: []string{
 				"node2",
@@ -756,21 +756,23 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 						},
 					},
 				},
-				pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "virt-launcher-test-zone",
-						Namespace: "default",
-						UID:       "pod-zone-uid",
-						Labels: map[string]string{
-							kubevirtv1.CreatedByLabel: "vmi-zone-uid",
+				pods: []*corev1.Pod{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "virt-launcher-test-zone",
+							Namespace: "default",
+							UID:       "pod-zone-uid",
+							Labels: map[string]string{
+								kubevirtv1.CreatedByLabel: "vmi-zone-uid",
+							},
 						},
-					},
-					Spec: corev1.PodSpec{
-						NodeName: "node1",
-						NodeSelector: map[string]string{
-							"network":                  "a",
-							"zone":                     "zone2",
-							kubevirtv1.NodeSchedulable: "true",
+						Spec: corev1.PodSpec{
+							NodeName: "node1",
+							NodeSelector: map[string]string{
+								"network":                  "a",
+								"zone":                     "zone2",
+								kubevirtv1.NodeSchedulable: "true",
+							},
 						},
 					},
 				},
@@ -795,7 +797,7 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 						},
 					},
 				},
-				pod: &corev1.Pod{
+				pods: []*corev1.Pod{{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "virt-launcher-test-custom",
 						Namespace: "default",
@@ -811,7 +813,7 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 							kubevirtv1.NodeSchedulable: "true",
 						},
 					},
-				},
+				}},
 			},
 			want: []string{
 				"node3",
@@ -833,21 +835,23 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 						},
 					},
 				},
-				pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "virt-launcher-test-cpu",
-						Namespace: "default",
-						UID:       "pod-cpu-uid",
-						Labels: map[string]string{
-							kubevirtv1.CreatedByLabel: "vmi-cpu-uid",
+				pods: []*corev1.Pod{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "virt-launcher-test-cpu",
+							Namespace: "default",
+							UID:       "pod-cpu-uid",
+							Labels: map[string]string{
+								kubevirtv1.CreatedByLabel: "vmi-cpu-uid",
+							},
 						},
-					},
-					Spec: corev1.PodSpec{
-						NodeName: "node4",
-						NodeSelector: map[string]string{
-							kubevirtv1.CPUModelLabel + "EPYC-Rome": "true",
-							kubevirtv1.CPUFeatureLabel + "xsaves":  "true",
-							kubevirtv1.NodeSchedulable:             "true",
+						Spec: corev1.PodSpec{
+							NodeName: "node4",
+							NodeSelector: map[string]string{
+								kubevirtv1.CPUModelLabel + "EPYC-Rome": "true",
+								kubevirtv1.CPUFeatureLabel + "xsaves":  "true",
+								kubevirtv1.NodeSchedulable:             "true",
+							},
 						},
 					},
 				},
@@ -855,7 +859,7 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 			want: []string{},
 		},
 		{
-			name: "No pod found returns error when ActivePods is empty",
+			name: "No pod found returns error when no active pods",
 			args: args{
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: metav1.ObjectMeta{
@@ -864,14 +868,64 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 						UID:       "vmi-no-pod-uid",
 					},
 					Status: kubevirtv1.VirtualMachineInstanceStatus{
-						NodeName:   "node1",
-						ActivePods: map[types.UID]string{},
+						NodeName: "node1",
 					},
 				},
-				pod: nil,
+				pods: nil,
 			},
 			want: nil,
 			err:  errors.New("there are no active pods for VMI: default/test-no-pod, migration target cannot be picked unless only 1 pod is active"),
+		},
+		{
+			name: "Multiple active pods returns error during migration",
+			args: args{
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-multi-pod",
+						Namespace: "default",
+						UID:       "vmi-multi-pod-uid",
+					},
+					Status: kubevirtv1.VirtualMachineInstanceStatus{
+						NodeName: "node1",
+					},
+				},
+				pods: []*corev1.Pod{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "virt-launcher-test-multi-pod-1",
+							Namespace: "default",
+							UID:       "pod-multi-1-uid",
+							Labels: map[string]string{
+								kubevirtv1.CreatedByLabel: "vmi-multi-pod-uid",
+							},
+						},
+						Spec: corev1.PodSpec{
+							NodeName: "node1",
+						},
+						Status: corev1.PodStatus{
+							Phase: corev1.PodRunning,
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "virt-launcher-test-multi-pod-2",
+							Namespace: "default",
+							UID:       "pod-multi-2-uid",
+							Labels: map[string]string{
+								kubevirtv1.CreatedByLabel: "vmi-multi-pod-uid",
+							},
+						},
+						Spec: corev1.PodSpec{
+							NodeName: "node2",
+						},
+						Status: corev1.PodStatus{
+							Phase: corev1.PodRunning,
+						},
+					},
+				},
+			},
+			want: nil,
+			err:  errors.New("there are multiple active pods for VMI: default/test-multi-pod, migration target can be picked only when at most 1 pod is active"),
 		},
 		{
 			name: "Hostname label should be skipped from pod node selector",
@@ -889,21 +943,23 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 						},
 					},
 				},
-				pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "virt-launcher-test-hostname-skip",
-						Namespace: "default",
-						UID:       "pod-hostname-skip-uid",
-						Labels: map[string]string{
-							kubevirtv1.CreatedByLabel: "vmi-hostname-skip-uid",
+				pods: []*corev1.Pod{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "virt-launcher-test-hostname-skip",
+							Namespace: "default",
+							UID:       "pod-hostname-skip-uid",
+							Labels: map[string]string{
+								kubevirtv1.CreatedByLabel: "vmi-hostname-skip-uid",
+							},
 						},
-					},
-					Spec: corev1.PodSpec{
-						NodeName: "node1",
-						NodeSelector: map[string]string{
-							corev1.LabelHostname:       "node1",
-							"network":                  "a",
-							kubevirtv1.NodeSchedulable: "true",
+						Spec: corev1.PodSpec{
+							NodeName: "node1",
+							NodeSelector: map[string]string{
+								corev1.LabelHostname:       "node1",
+								"network":                  "a",
+								kubevirtv1.NodeSchedulable: "true",
+							},
 						},
 					},
 				},
@@ -928,30 +984,32 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 						},
 					},
 				},
-				pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "virt-launcher-test-affinity-zone",
-						Namespace: "default",
-						UID:       "pod-affinity-zone-uid",
-						Labels: map[string]string{
-							kubevirtv1.CreatedByLabel: "vmi-affinity-zone-uid",
+				pods: []*corev1.Pod{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "virt-launcher-test-affinity-zone",
+							Namespace: "default",
+							UID:       "pod-affinity-zone-uid",
+							Labels: map[string]string{
+								kubevirtv1.CreatedByLabel: "vmi-affinity-zone-uid",
+							},
 						},
-					},
-					Spec: corev1.PodSpec{
-						NodeName: "node1",
-						NodeSelector: map[string]string{
-							kubevirtv1.NodeSchedulable: "true",
-						},
-						Affinity: &corev1.Affinity{
-							NodeAffinity: &corev1.NodeAffinity{
-								RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
-									NodeSelectorTerms: []corev1.NodeSelectorTerm{
-										{
-											MatchExpressions: []corev1.NodeSelectorRequirement{
-												{
-													Key:      "zone",
-													Operator: corev1.NodeSelectorOpIn,
-													Values:   []string{"zone2"},
+						Spec: corev1.PodSpec{
+							NodeName: "node1",
+							NodeSelector: map[string]string{
+								kubevirtv1.NodeSchedulable: "true",
+							},
+							Affinity: &corev1.Affinity{
+								NodeAffinity: &corev1.NodeAffinity{
+									RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+										NodeSelectorTerms: []corev1.NodeSelectorTerm{
+											{
+												MatchExpressions: []corev1.NodeSelectorRequirement{
+													{
+														Key:      "zone",
+														Operator: corev1.NodeSelectorOpIn,
+														Values:   []string{"zone2"},
+													},
 												},
 											},
 										},
@@ -982,30 +1040,32 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 						},
 					},
 				},
-				pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "virt-launcher-test-affinity-notin",
-						Namespace: "default",
-						UID:       "pod-affinity-notin-uid",
-						Labels: map[string]string{
-							kubevirtv1.CreatedByLabel: "vmi-affinity-notin-uid",
+				pods: []*corev1.Pod{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "virt-launcher-test-affinity-notin",
+							Namespace: "default",
+							UID:       "pod-affinity-notin-uid",
+							Labels: map[string]string{
+								kubevirtv1.CreatedByLabel: "vmi-affinity-notin-uid",
+							},
 						},
-					},
-					Spec: corev1.PodSpec{
-						NodeName: "node1",
-						NodeSelector: map[string]string{
-							kubevirtv1.NodeSchedulable: "true",
-						},
-						Affinity: &corev1.Affinity{
-							NodeAffinity: &corev1.NodeAffinity{
-								RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
-									NodeSelectorTerms: []corev1.NodeSelectorTerm{
-										{
-											MatchExpressions: []corev1.NodeSelectorRequirement{
-												{
-													Key:      "zone",
-													Operator: corev1.NodeSelectorOpNotIn,
-													Values:   []string{"zone1"},
+						Spec: corev1.PodSpec{
+							NodeName: "node1",
+							NodeSelector: map[string]string{
+								kubevirtv1.NodeSchedulable: "true",
+							},
+							Affinity: &corev1.Affinity{
+								NodeAffinity: &corev1.NodeAffinity{
+									RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+										NodeSelectorTerms: []corev1.NodeSelectorTerm{
+											{
+												MatchExpressions: []corev1.NodeSelectorRequirement{
+													{
+														Key:      "zone",
+														Operator: corev1.NodeSelectorOpNotIn,
+														Values:   []string{"zone1"},
+													},
 												},
 											},
 										},
@@ -1036,30 +1096,32 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 						},
 					},
 				},
-				pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "virt-launcher-test-combined",
-						Namespace: "default",
-						UID:       "pod-combined-uid",
-						Labels: map[string]string{
-							kubevirtv1.CreatedByLabel: "vmi-combined-uid",
+				pods: []*corev1.Pod{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "virt-launcher-test-combined",
+							Namespace: "default",
+							UID:       "pod-combined-uid",
+							Labels: map[string]string{
+								kubevirtv1.CreatedByLabel: "vmi-combined-uid",
+							},
 						},
-					},
-					Spec: corev1.PodSpec{
-						NodeName: "node1",
-						NodeSelector: map[string]string{
-							"network":                  "a",
-							kubevirtv1.NodeSchedulable: "true",
-						},
-						Affinity: &corev1.Affinity{
-							NodeAffinity: &corev1.NodeAffinity{
-								RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
-									NodeSelectorTerms: []corev1.NodeSelectorTerm{
-										{
-											MatchExpressions: []corev1.NodeSelectorRequirement{
-												{
-													Key:      "user.custom/label",
-													Operator: corev1.NodeSelectorOpExists,
+						Spec: corev1.PodSpec{
+							NodeName: "node1",
+							NodeSelector: map[string]string{
+								"network":                  "a",
+								kubevirtv1.NodeSchedulable: "true",
+							},
+							Affinity: &corev1.Affinity{
+								NodeAffinity: &corev1.NodeAffinity{
+									RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+										NodeSelectorTerms: []corev1.NodeSelectorTerm{
+											{
+												MatchExpressions: []corev1.NodeSelectorRequirement{
+													{
+														Key:      "user.custom/label",
+														Operator: corev1.NodeSelectorOpExists,
+													},
 												},
 											},
 										},
@@ -1088,22 +1150,24 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 						},
 					},
 				},
-				pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "virt-launcher-test-host-model",
-						Namespace: "default",
-						UID:       "pod-host-model-uid",
-						Labels: map[string]string{
-							kubevirtv1.CreatedByLabel: "vmi-host-model-uid",
+				pods: []*corev1.Pod{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "virt-launcher-test-host-model",
+							Namespace: "default",
+							UID:       "pod-host-model-uid",
+							Labels: map[string]string{
+								kubevirtv1.CreatedByLabel: "vmi-host-model-uid",
+							},
 						},
-					},
-					Spec: corev1.PodSpec{
-						NodeName: "node4",
-						NodeSelector: map[string]string{
-							kubevirtv1.CPUFeatureLabel + "spec-ctrl": "true",
-							kubevirtv1.CPUFeatureLabel + "ssbd":      "true",
-							kubevirtv1.CPUModelLabel + "EPYC-Rome":   "true",
-							kubevirtv1.NodeSchedulable:               "true",
+						Spec: corev1.PodSpec{
+							NodeName: "node4",
+							NodeSelector: map[string]string{
+								kubevirtv1.CPUFeatureLabel + "spec-ctrl": "true",
+								kubevirtv1.CPUFeatureLabel + "ssbd":      "true",
+								kubevirtv1.CPUModelLabel + "EPYC-Rome":   "true",
+								kubevirtv1.NodeSchedulable:               "true",
+							},
 						},
 					},
 				},
@@ -1224,12 +1288,14 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.args.pod != nil {
-				err := coreclientset.Tracker().Add(tt.args.pod)
+			// Create fresh clientset for each test to avoid pod interference
+			testClientset := corefake.NewSimpleClientset()
+			for _, pod := range tt.args.pods {
+				err := testClientset.Tracker().Add(pod)
 				assert.Nil(t, err, "Mock pod should add into fake controller tracker")
 			}
 
-			var podCache = fakeclients.PodCache(coreclientset.CoreV1().Pods)
+			var podCache = fakeclients.PodCache(testClientset.CoreV1().Pods)
 
 			h := &vmActionHandler{
 				nodeCache: nodeCache,
