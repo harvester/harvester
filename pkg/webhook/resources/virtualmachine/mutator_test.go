@@ -29,6 +29,39 @@ const (
 	nodeAffinityPath = "/spec/template/spec/affinity"
 )
 
+func setupTestMutator(clientset *fake.Clientset) types.Mutator {
+	return NewMutator(
+		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
+		fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
+}
+
+func createTestVM(
+	resourceReq kubevirtv1.ResourceRequirements,
+	memory *kubevirtv1.Memory,
+	annotations map[string]string,
+	namespace, name string,
+) *kubevirtv1.VirtualMachine {
+	return &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: annotations,
+			Namespace:   namespace,
+			Name:        name,
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Resources: resourceReq,
+						Memory:    memory,
+					},
+				},
+			},
+		},
+	}
+}
+
 func createDefaultKubeVirt(clientset *fake.Clientset) {
 	kv := &kubevirtv1.KubeVirt{
 		ObjectMeta: metav1.ObjectMeta{
@@ -281,9 +314,14 @@ func TestPatchResourceOvercommit(t *testing.T) {
 		Default: `{"cpu":200,"memory":400,"storage":800}`,
 	}
 
-	for _, tc := range tests {
+	runTestCase := func(tc struct {
+		name        string
+		resourceReq kubevirtv1.ResourceRequirements
+		memory      *kubevirtv1.Memory
+		patchOps    []string
+		setting     string
+	}, annotations map[string]string, expectError bool, errorMsg string) {
 		t.Run(tc.name, func(t *testing.T) {
-			// arrage
 			clientset := fake.NewSimpleClientset()
 			settingCpy := setting.DeepCopy()
 			if tc.setting != "" {
@@ -292,152 +330,36 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			err := clientset.Tracker().Add(settingCpy)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 			createDefaultKubeVirt(clientset)
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
-			vm := &kubevirtv1.VirtualMachine{
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
+			mutator := setupTestMutator(clientset)
 
-			// act
+			vm := createTestVM(tc.resourceReq, tc.memory, annotations, "", "")
+
 			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
 
-			// assert
-			assert.Nil(t, err, tc.name)
-			assert.Equal(t, tc.patchOps, actual)
+			if expectError {
+				assert.NotNil(t, err)
+				assert.Contains(t, err.Error(), errorMsg)
+			} else {
+				assert.Nil(t, err, tc.name)
+				assert.Equal(t, tc.patchOps, actual)
+			}
 		})
+	}
+
+	for _, tc := range tests {
+		runTestCase(tc, nil, false, "")
 	}
 
 	for _, tc := range tests2 {
-		t.Run(tc.name, func(t *testing.T) {
-			// arrage
-			clientset := fake.NewSimpleClientset()
-			settingCpy := setting.DeepCopy()
-			if tc.setting != "" {
-				settingCpy.Value = tc.setting
-			}
-			err := clientset.Tracker().Add(settingCpy)
-			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-			createDefaultKubeVirt(clientset)
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"harvesterhci.io/reservedMemory": "384Mi",
-					},
-				},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			// act
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
-
-			// assert
-			assert.Nil(t, err, tc.name)
-			assert.Equal(t, tc.patchOps, actual)
-		})
+		runTestCase(tc, map[string]string{"harvesterhci.io/reservedMemory": "384Mi"}, false, "")
 	}
 
 	for _, tc := range tests3 {
-		t.Run(tc.name, func(t *testing.T) {
-			// arrage
-			clientset := fake.NewSimpleClientset()
-			settingCpy := setting.DeepCopy()
-			if tc.setting != "" {
-				settingCpy.Value = tc.setting
-			}
-			err := clientset.Tracker().Add(settingCpy)
-			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-			createDefaultKubeVirt(clientset)
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"harvesterhci.io/reservedMemory": "384Mi",
-					},
-				},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			_, err = mutator.(*vmMutator).patchResourceOvercommit(vm)
-			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), "reservedMemory can't be equal or greater than limits.memory")
-		})
+		runTestCase(tc, map[string]string{"harvesterhci.io/reservedMemory": "384Mi"}, true, "reservedMemory can't be equal or greater than limits.memory")
 	}
 
 	for _, tc := range tests4 {
-		t.Run(tc.name, func(t *testing.T) {
-			// arrage
-			clientset := fake.NewSimpleClientset()
-			settingCpy := setting.DeepCopy()
-			if tc.setting != "" {
-				settingCpy.Value = tc.setting
-			}
-			err := clientset.Tracker().Add(settingCpy)
-			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-			createDefaultKubeVirt(clientset)
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"harvesterhci.io/reservedMemory": "384Mi",
-					},
-					Namespace: "test",
-					Name:      "NotEnoughMemory",
-				},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			_, err = mutator.(*vmMutator).patchResourceOvercommit(vm)
-			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), "guest memory is under the minimum requirement")
-		})
+		runTestCase(tc, map[string]string{"harvesterhci.io/reservedMemory": "384Mi"}, true, "guest memory is under the minimum requirement")
 	}
 }
 
@@ -598,169 +520,43 @@ func TestPatchResourceOvercommitWithAdditionalGuestMemoryOverheadRatio(t *testin
 		}
 	}
 
-	// has invalid OvercommitWithAdditionalGuestMemoryOverheadRatio then use default reserved memory
-	for _, tc := range tests1 {
+	runOverheadRatioTestCase := func(tc *testStruct, annotations map[string]string) {
 		t.Run(tc.name, func(t *testing.T) {
-			// arrage
 			clientset := fake.NewSimpleClientset()
-			setConfig(clientset, &tc) // #nosec G601
+			setConfig(clientset, tc)
 			createDefaultKubeVirt(clientset)
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
-			vm := &kubevirtv1.VirtualMachine{
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
+			mutator := setupTestMutator(clientset)
+			vm := createTestVM(tc.resourceReq, tc.memory, annotations, "", "")
 
-			// act
 			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
-
-			// assert
 			assert.Nil(t, err, tc.name)
 			assert.Equal(t, tc.patchOps, actual)
 		})
+	}
+
+	// has invalid OvercommitWithAdditionalGuestMemoryOverheadRatio then use default reserved memory
+	for i := range tests1 {
+		runOverheadRatioTestCase(&tests1[i], nil)
 	}
 
 	// has invalid OvercommitWithAdditionalGuestMemoryOverheadRatioand and reserved memory annotation then use reserved memory annotation
-	for _, tc := range tests2 {
-		t.Run(tc.name, func(t *testing.T) {
-			// arrage
-			clientset := fake.NewSimpleClientset()
-			setConfig(clientset, &tc) // #nosec G601
-			createDefaultKubeVirt(clientset)
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"harvesterhci.io/reservedMemory": "1Gi",
-					},
-				},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			// act
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
-
-			// assert
-			assert.Nil(t, err, tc.name)
-			assert.Equal(t, tc.patchOps, actual)
-		})
+	for i := range tests2 {
+		runOverheadRatioTestCase(&tests2[i], map[string]string{"harvesterhci.io/reservedMemory": "1Gi"})
 	}
 
 	// has valid OvercommitWithAdditionalGuestMemoryOverheadRatio and no reserved memory annotation
-	for _, tc := range tests3 {
-		t.Run(tc.name, func(t *testing.T) {
-			clientset := fake.NewSimpleClientset()
-			setConfig(clientset, &tc) // #nosec G601
-			createDefaultKubeVirt(clientset)
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
-			assert.Nil(t, err, tc.name)
-			assert.Equal(t, tc.patchOps, actual)
-		})
+	for i := range tests3 {
+		runOverheadRatioTestCase(&tests3[i], nil)
 	}
 
 	// has valid OvercommitWithAdditionalGuestMemoryOverheadRatio and reserved memory annotation then use reserved memory
-	for _, tc := range tests4 {
-		t.Run(tc.name, func(t *testing.T) {
-			clientset := fake.NewSimpleClientset()
-			setConfig(clientset, &tc) // #nosec G601
-			createDefaultKubeVirt(clientset)
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"harvesterhci.io/reservedMemory": "1Gi",
-					},
-				},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
-			assert.Nil(t, err, tc.name)
-			assert.Equal(t, tc.patchOps, actual)
-		})
+	for i := range tests4 {
+		runOverheadRatioTestCase(&tests4[i], map[string]string{"harvesterhci.io/reservedMemory": "1Gi"})
 	}
 
 	// has valid but zero OvercommitWithAdditionalGuestMemoryOverheadRatio then use default reserved memory
-	for _, tc := range tests5 {
-		t.Run(tc.name, func(t *testing.T) {
-			clientset := fake.NewSimpleClientset()
-			setConfig(clientset, &tc) // #nosec G601
-			createDefaultKubeVirt(clientset)
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
-			assert.Nil(t, err, tc.name)
-			assert.Equal(t, tc.patchOps, actual)
-		})
+	for i := range tests5 {
+		runOverheadRatioTestCase(&tests5[i], nil)
 	}
 }
 
@@ -798,10 +594,7 @@ func TestPatchResourceOvercommitWithDedicatedCPUPlacement(t *testing.T) {
 	err := clientset.Tracker().Add(setting)
 	assert.Nil(t, err)
 	createDefaultKubeVirt(clientset)
-	mutator := NewMutator(
-		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-		fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-		fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
+	mutator := setupTestMutator(clientset)
 	actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
 	assert.Nil(t, err)
 	assert.Equal(t,
@@ -1381,9 +1174,7 @@ func TestPatchAffinity(t *testing.T) {
 
 	for _, tc := range tests {
 		createDefaultKubeVirt(clientSet)
-		mutator := NewMutator(fakeclients.HarvesterSettingCache(clientSet.HarvesterhciV1beta1().Settings),
-			fakeclients.NetworkAttachmentDefinitionCache(clientSet.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-			fakeclients.KubeVirtCache(clientSet.KubevirtV1().KubeVirts))
+		mutator := setupTestMutator(clientSet)
 		patchOps, err := mutator.(*vmMutator).patchAffinity(tc.vm, nil)
 		assert.Nil(t, err, tc.name)
 
@@ -1523,9 +1314,7 @@ func TestPatchInterfaceMacAddress(t *testing.T) {
 			// arrage
 			clientset := fake.NewSimpleClientset()
 			createDefaultKubeVirt(clientset)
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
+			mutator := setupTestMutator(clientset)
 			vm := &kubevirtv1.VirtualMachine{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: tc.annotations,
