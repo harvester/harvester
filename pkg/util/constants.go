@@ -191,6 +191,8 @@ const (
 	MaintainModeStrategyShutdownAndRestartAfterDisable = "ShutdownAndRestartAfterDisable"
 	MaintainModeStrategyShutdown                       = "Shutdown"
 	MaintainModeStrategyDefault                        = MaintainModeStrategyMigrate
+	HarvesterReportedConditionKey                      = prefix + "/condition"
+	HarvesterReportedConditionMessageKey               = prefix + "/condition-message"
 )
 
 var (
