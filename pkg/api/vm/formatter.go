@@ -32,7 +32,7 @@ const (
 	pauseVM                          = "pause"
 	unpauseVM                        = "unpause"
 	ejectCdRom                       = "ejectCdRom"
-	injectCdRomVolume                = "injectCdRomVolume"
+	insertCdRomVolume                = "insertCdRomVolume"
 	ejectCdRomVolume                 = "ejectCdRomVolume"
 	migrate                          = "migrate"
 	abortMigration                   = "abortMigration"
@@ -92,7 +92,7 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	resource.AddAction(request, addVolume)
 	resource.AddAction(request, removeVolume)
 	resource.AddAction(request, cloneVM)
-	resource.AddAction(request, injectCdRomVolume)
+	resource.AddAction(request, insertCdRomVolume)
 	resource.AddAction(request, ejectCdRomVolume)
 
 	if canEjectCdRom(vm) {

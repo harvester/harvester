@@ -127,12 +127,12 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 		}
 
 		return nil, h.ejectCdRom(r.Context(), name, namespace, input.DiskNames)
-	case injectCdRomVolume:
-		var input InjectCdRomVolumeActionInput
+	case insertCdRomVolume:
+		var input InsertCdRomVolumeActionInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
-		return nil, h.injectCdRomVolume(name, namespace, input)
+		return nil, h.insertCdRomVolume(name, namespace, input)
 	case ejectCdRomVolume:
 		var input EjectCdRomVolumeActionInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -335,7 +335,7 @@ func (h *vmActionHandler) ejectCdRom(ctx context.Context, name, namespace string
 	return nil
 }
 
-func (h *vmActionHandler) injectCdRomVolume(name, namespace string, input InjectCdRomVolumeActionInput) error {
+func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input InsertCdRomVolumeActionInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
 		return err
@@ -431,7 +431,6 @@ func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace 
 	vmCopy.Spec.Template.Spec.Volumes = volumes
 	_, err = h.vms.Update(vmCopy)
 
-	// TODO: check
 	for _, name := range toRemoveClaimNames {
 		h.clientSet.CoreV1().PersistentVolumeClaims(vm.Namespace).Delete(ctx, name, metav1.DeleteOptions{})
 	}

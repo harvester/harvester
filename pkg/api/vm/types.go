@@ -11,7 +11,7 @@ type EjectCdRomActionInput struct {
 	DiskNames []string `json:"diskNames,omitempty"`
 }
 
-type InjectCdRomVolumeActionInput struct {
+type InsertCdRomVolumeActionInput struct {
 	VolumeName string `json:"volumeName"`
 	ImageName string `json:"imageName"`
 }
