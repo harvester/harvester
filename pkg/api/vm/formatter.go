@@ -95,10 +95,6 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	resource.AddAction(request, insertCdRomVolume)
 	resource.AddAction(request, ejectCdRomVolume)
 
-	if canEjectCdRom(vm) {
-		resource.AddAction(request, ejectCdRom)
-	}
-
 	vmi := vf.getVMI(vm)
 	if vf.canStart(vm, vmi) {
 		resource.AddAction(request, startVM)
@@ -169,19 +165,6 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	if canDismissInsufficientResourceQuota(vm) {
 		resource.AddAction(request, dismissInsufficientResourceQuota)
 	}
-}
-
-func canEjectCdRom(vm *kubevirtv1.VirtualMachine) bool {
-	if !vmReady.IsTrue(vm) {
-		return false
-	}
-
-	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if disk.CDRom != nil {
-			return true
-		}
-	}
-	return false
 }
 
 func (vf *vmformatter) canPause(vmi *kubevirtv1.VirtualMachineInstance) bool {

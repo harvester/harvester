@@ -104,11 +104,11 @@ var _ = Describe("verify vm APIs", func() {
 			vm, err = vmController.Get(vmNamespace, vmName, metav1.GetOptions{})
 			MustNotError(err)
 
-			// ejectCdRom
-			By("ejectCdRom should fail if there are no CdRoms in the virtual machine")
+			// ejectCdRomVolume
+			By("ejectCdRomVolume should fail if there are no CdRoms in the virtual machine")
 			vmURL := helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
-			respCode, respBody, err = helper.PostObjectAction(vmURL, apivm.EjectCdRomActionInput{}, "ejectCdRom")
-			MustRespCodeIs(http.StatusUnprocessableEntity, "ejectCdRom", err, respCode, respBody)
+			respCode, respBody, err = helper.PostObjectAction(vmURL, apivm.EjectCdRomVolumeActionInput{}, "ejectCdRomVolume")
+			MustRespCodeIs(http.StatusUnprocessableEntity, "ejectCdRomVolume", err, respCode, respBody)
 
 			// edit
 			By("when edit virtual machine")
@@ -161,31 +161,42 @@ var _ = Describe("verify vm APIs", func() {
 					return true
 				})
 
-			// ejectCdRom
-			By("ejectCdRom should fail if request without any CdRoms")
+			// ejectCdRomVolume
+			By("ejectCdRomVolume should fail if request without any CdRoms")
 			vmURL = helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
-			respCode, respBody, err = helper.PostObjectAction(vmURL, apivm.EjectCdRomActionInput{}, "ejectCdRom")
-			MustRespCodeIs(http.StatusUnprocessableEntity, "ejectCdRom", err, respCode, respBody)
+			respCode, respBody, err = helper.PostObjectAction(vmURL, apivm.EjectCdRomVolumeActionInput{}, "ejectCdRomVolume")
+			MustRespCodeIs(http.StatusUnprocessableEntity, "ejectCdRomVolume", err, respCode, respBody)
 
-			By("ejectCdRom should fail if the ejected target is not CdRom")
+			By("ejectCdRomVolume should fail if the ejected target is not CdRom")
 			vmURL = helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
-			respCode, respBody, err = helper.PostObjectAction(vmURL, apivm.EjectCdRomActionInput{
-				DiskNames: []string{testVMContainerDiskName},
-			}, "ejectCdRom")
-			MustRespCodeIs(http.StatusInternalServerError, "ejectCdRom", err, respCode, respBody)
+			respCode, respBody, err = helper.PostObjectAction(vmURL, apivm.EjectCdRomVolumeActionInput{
+				VolumeName: testVMContainerDiskName,
+			}, "ejectCdRomVolume")
+			MustRespCodeIs(http.StatusInternalServerError, "ejectCdRomVolume", err, respCode, respBody)
 
-			By("when call ejectCdRom action with correct cdrom")
+			By("when call ejectCdRomVolume action with correct cdrom")
 			vmURL = helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
-			respCode, respBody, err = helper.PostObjectAction(vmURL, apivm.EjectCdRomActionInput{
-				DiskNames: []string{testVMCDRomDiskName},
-			}, "ejectCdRom")
-			MustRespCodeIs(http.StatusNoContent, "post ejectCdRom action", err, respCode, respBody)
+			respCode, respBody, err = helper.PostObjectAction(vmURL, apivm.EjectCdRomVolumeActionInput{
+				VolumeName: testVMCDRomDiskName,
+			}, "ejectCdRomVolume")
+			MustRespCodeIs(http.StatusNoContent, "post ejectCdRomVolume action", err, respCode, respBody)
 
-			By("then the CdRom is ejected")
+			By("then the CdRomVolume is ejected")
 			AfterVMIRunning(vmController, vmNamespace, vmName, vmiController,
 				func(vmi *kubevirtv1.VirtualMachineInstance) bool {
+					foundDisk := false
 					for _, disk := range vmi.Spec.Domain.Devices.Disks {
 						if disk.CDRom != nil && disk.Name == testVMCDRomDiskName {
+							foundDisk = true
+							break
+						}
+					}
+					if !foundDisk {
+						return false
+					}
+
+					for _, vol := range vmi.Spec.Volumes {
+						if vol.Name == testVMCDRomDiskName {
 							return false
 						}
 					}
