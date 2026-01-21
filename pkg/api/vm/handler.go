@@ -642,17 +642,14 @@ func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.Virt
 		return labels.Everything(), nil
 	}
 
-	latestPod, err := h.getVMIPod(vmi)
+	vmiPod, err := h.getVMIPod(vmi)
 	if err != nil {
 		return labels.Everything(), err
-	}
-	if latestPod == nil {
-		return labels.Everything(), nil
 	}
 
 	nodeFilter := labels.NewSelector()
 
-	for key, value := range latestPod.Spec.NodeSelector {
+	for key, value := range vmiPod.Spec.NodeSelector {
 		if key == corev1.LabelHostname {
 			continue
 		}
@@ -663,8 +660,8 @@ func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.Virt
 		nodeFilter = nodeFilter.Add(*requirement)
 	}
 
-	if isRequiredAffinityFilterPresent(latestPod) {
-		required := latestPod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+	if isRequiredAffinityFilterPresent(vmiPod) {
+		required := vmiPod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
 		var err error
 		nodeFilter, err = addNodeAffinityFilters(nodeFilter, required.NodeSelectorTerms)
 		if err != nil {
