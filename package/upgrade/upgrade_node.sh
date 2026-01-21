@@ -633,26 +633,20 @@ EOF
 
 set_nic_names_by_mac_address() {
   # get current third_party_kernel_args
-  local current_args=$(chroot $HOST_DIR grub2-editenv /oem/grubenv list |grep third_party_kernel_args | awk -F"third_party_kernel_args=" '{print $2}')
-
-  # strip any existing ifname= args (in case we're upgrading again, we don't want to end up with duplicates)
-  local new_args=""
-  for a in $current_args ; do
-    echo $a
-    [[ "$a" =~ ^ifname=.* ]] && continue
-    new_args="$new_args $a"
-  done
+  local args=$(chroot $HOST_DIR grub2-editenv /oem/grubenv list |grep third_party_kernel_args | awk -F"third_party_kernel_args=" '{print $2}')
 
   # append ifname=name:mac for all existing en* interfaces
   for i in $HOST_DIR/sys/class/net/en* ; do
     [ -e "$i" ] || continue
     local name=$(basename $i)
     local mac=$(cat "$i/address")
-    new_args="$new_args ifname=$name:$mac"
+    # don't add duplicates if there's already an ifname= for this mac address
+    [[ "$args" =~ ifname=[^[:space:]]+:$mac ]] && continue
+    args="$args ifname=$name:$mac"
   done
 
   # save updated third_party_kernel_args
-  chroot $HOST_DIR grub2-editenv /oem/grubenv set third_party_kernel_args="${new_args}"
+  chroot $HOST_DIR grub2-editenv /oem/grubenv set third_party_kernel_args="${args}"
 }
 
 upgrade_os() {
