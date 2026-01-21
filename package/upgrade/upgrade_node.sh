@@ -638,6 +638,7 @@ set_nic_names_by_mac_address() {
   # append ifname=name:mac for all existing en* interfaces
   for i in $HOST_DIR/sys/class/net/en* ; do
     [ -e "$i" ] || continue
+    [ -e "$i/address" ] || continue
     local name=$(basename $i)
     local mac=$(cat "$i/address")
     # don't add duplicates if there's already an ifname= for this mac address
