@@ -126,34 +126,31 @@ func (h *nodeDownHandler) checkNodeReady(node *corev1.Node) error {
 			return nil
 		}
 
-		if getNodeTaint(node.Spec.Taints, virtconfig.NodeDrainTaintDefaultKey) != nil && getNodeTaint(node.Spec.Taints, corev1.TaintNodeOutOfService) != nil {
-			// already added both taints, no need to process again
-			return nil
+		// try and check if condition exists
+		drainCondition := getNodeCondition(node.Status.Conditions, HarvesterNodeCondDrained)
+		// both taints exist so lets mark condition as true
+		// check if both taints exist
+		hasKubevirtDrainTaint := getNodeTaint(node.Spec.Taints, virtconfig.NodeDrainTaintDefaultKey) != nil
+		hasOutOfServiceTaint := getNodeTaint(node.Spec.Taints, corev1.TaintNodeOutOfService) != nil
+		if hasKubevirtDrainTaint && hasOutOfServiceTaint {
+			if drainCondition.Status == corev1.ConditionFalse {
+				_, err := h.createOrUpdateNodeCondition(node, HarvesterNodeCondDrained, corev1.ConditionTrue, HarvesterNodeDrainedCondReasonDrained, HarvesterNodeDrainedCondMsg)
+				return err
+			}
 		}
 
-		// try to add Kubevirt drain taint after waiting extra timeout
-		if waitEnough, err := h.addKubevirtTaintAfterExtraTimeout(node, cond, vmForceResetPolicy.Period); err != nil {
-			return err
-		} else if !waitEnough {
-			return nil
+		// if kubevirt node drain taint does not alraeady exist
+		// then we wait and add taint if needed and creates initial node drain condition
+		// with status False, which is subsequently used to calculate the eventual node out of
+		// service timeout
+		if getNodeTaint(node.Spec.Taints, virtconfig.NodeDrainTaintDefaultKey) == nil {
+			return h.addKubevirtTaintAfterExtraTimeout(node, cond, vmForceResetPolicy.Period)
 		}
 
-		node, err = h.createOrUpdateNodeCondition(node, HarvesterNodeCondDrained, corev1.ConditionFalse, HarvesterNodeDrainedCondReasonDraining, HarvesterNodeDrainedCondMsg)
-		if err != nil {
-			return fmt.Errorf("failed to create or update HarvesterNodeDrained condition (draining) for node %s: %w", node.Name, err)
-		}
-		cond = getNodeCondition(node.Status.Conditions, HarvesterNodeCondDrained)
-		// before adding out-of-service taint, wait for VM migration timeout
-		if waitEnough, err := h.addOutOfServiceTaintAfterMigrationTimeout(node, cond, vmForceResetPolicy.VMMigrationTimeout); err != nil {
-			return err
-		} else if !waitEnough {
-			return nil
-		}
-
-		// set HarvesterNodeDrained condition to True -> which means the node is drained
-		node, err = h.createOrUpdateNodeCondition(node, HarvesterNodeCondDrained, corev1.ConditionTrue, HarvesterNodeDrainedCondReasonDrained, HarvesterNodeDrainedCondMsg)
-		if err != nil {
-			return fmt.Errorf("failed to create or update HarvesterNodeDrained condition (drained) for node %s: %w", node.Name, err)
+		// if node does not already have out of service taint then we need to wait
+		// and apply new taint for node out of service
+		if getNodeTaint(node.Spec.Taints, corev1.TaintNodeOutOfService) == nil {
+			return h.waitAndAddOutOfServiceTaint(node, drainCondition, vmForceResetPolicy.VMMigrationTimeout)
 		}
 
 		return nil
@@ -180,48 +177,40 @@ func (h *nodeDownHandler) checkNodeReady(node *corev1.Node) error {
 	return nil
 }
 
-func (h *nodeDownHandler) addKubevirtTaintAfterExtraTimeout(node *corev1.Node, cond *corev1.NodeCondition, extraTime int64) (bool, error) {
+func (h *nodeDownHandler) addKubevirtTaintAfterExtraTimeout(node *corev1.Node, cond *corev1.NodeCondition, extraTime int64) error {
 	if getNodeTaint(node.Spec.Taints, virtconfig.NodeDrainTaintDefaultKey) != nil {
 		// already added taint
-		return true, nil
+		return nil
 	}
-	waitEnough, err := h.tryWaitForCondTimeout(cond, extraTime)
-	if err != nil {
-		// error case, dont' care about waitEnough
-		return false, err
-	}
-	if !waitEnough {
-		return false, nil
+
+	requeueInterval := h.calculateRequeueInterval(cond, extraTime)
+	if requeueInterval > 0 {
+		logrus.Debugf("trigger node requeue for condition %s after %d", cond.Type, requeueInterval)
+		h.nodes.EnqueueAfter(node.Name, requeueInterval)
+		return nil
 	}
 
 	// we wait enough or node is unreachable, add taints to trigger migration
-	if err := h.triggerMigration(node); err != nil {
-		return true, fmt.Errorf("failed to trigger migration for node %s: %w", node.Name, err)
-	}
-	logrus.Infof("triggered migration for node %s", node.Name)
-	return true, nil
+	return h.triggerMigration(node)
 }
 
-func (h *nodeDownHandler) addOutOfServiceTaintAfterMigrationTimeout(node *corev1.Node, cond *corev1.NodeCondition, vmMigrationTimeout int64) (bool, error) {
-	if getNodeTaint(node.Spec.Taints, corev1.TaintNodeOutOfService) != nil {
-		// already added taint
-		return true, nil
-	}
-	waitEnough, err := h.tryWaitForCondTimeout(cond, vmMigrationTimeout)
-	if err != nil {
-		// error case, dont' care about waitEnough
-		return false, err
-	}
-	if !waitEnough {
-		return false, nil
+func (h *nodeDownHandler) waitAndAddOutOfServiceTaint(node *corev1.Node, cond *corev1.NodeCondition, vmMigrationTimeout int64) error {
+	requeueInterval := h.calculateRequeueInterval(cond, vmMigrationTimeout)
+
+	if requeueInterval > 0 {
+		logrus.Debugf("trigger node requeue for condition %s after %d", cond.Type, requeueInterval)
+		h.nodes.EnqueueAfter(node.Name, requeueInterval)
+		return nil
 	}
 
 	// we wait enough, add out-of-service taint to force delete orphan resources
-	if err := h.cleanupResources(node); err != nil {
-		return true, fmt.Errorf("failed to cleanup stuck resources for node %s: %w", node.Name, err)
+	if err := h.forceNodeCleanup(node); err != nil {
+		return fmt.Errorf("failed to cleanup stuck resources for node %s: %w", node.Name, err)
 	}
 	logrus.Infof("cleaned up stuck resources for node %s", node.Name)
-	return true, nil
+
+	_, err := h.createOrUpdateNodeCondition(node, HarvesterNodeCondDrained, corev1.ConditionTrue, HarvesterNodeDrainedCondReasonDrained, HarvesterNodeDrainedCondMsg)
+	return err
 }
 
 func (h *nodeDownHandler) removeHarvesterNodeDrainedCond(node *corev1.Node) error {
@@ -287,46 +276,41 @@ func (h *nodeDownHandler) fetchVMForceResetPolicy() (*settings.VMForceResetPolic
 	return vmForceResetPolicy, nil
 }
 
-// tryWaitForTimeout assume the condition is not nil, if the condition is nil, return error
-func (h *nodeDownHandler) tryWaitForCondTimeout(cond *corev1.NodeCondition, timeout int64) (bool, error) {
+// tryWaitForTimeout assume the condition is not nil
+// and will return requeueNeeded to true if object needs to be requeued after a certain amount of time
+func (h *nodeDownHandler) calculateRequeueInterval(cond *corev1.NodeCondition, timeout int64) time.Duration {
 	targetInterval := time.Duration(timeout) * time.Second
-	if cond == nil {
-		return false, fmt.Errorf("node condition is nil, cannot wait for timeout")
-	}
-
-	if time.Since(cond.LastTransitionTime.Time) < targetInterval {
-		deadline := cond.LastTransitionTime.Add(targetInterval)
-		logrus.Debugf("Enqueue because the corresponding cond (%v) was not timeout at %v", cond.Type, deadline)
-		h.nodes.EnqueueAfter(cond.Reason, time.Until(deadline))
-		return false, nil
-	}
-
-	return true, nil
+	deadline := cond.LastTransitionTime.Add(targetInterval)
+	return time.Until(deadline)
 }
 
 // we will add kubevirtDrainTaint first to trigger migration then add nonGracefulTaint to force delete orphan resources
 func (h *nodeDownHandler) triggerMigration(node *corev1.Node) error {
-	if err := h.addTaints(node, kubevirtDrainTaint); err != nil {
+	nodeObj, err := h.addTaints(node, kubevirtDrainTaint)
+	if err != nil {
 		return fmt.Errorf("failed to add kubevirt drain taint to node %s: %w", node.Name, err)
+	}
+	_, err = h.createOrUpdateNodeCondition(nodeObj, HarvesterNodeCondDrained, corev1.ConditionFalse, HarvesterNodeDrainedCondReasonDraining, HarvesterNodeDrainedCondMsg)
+	if err != nil {
+		return fmt.Errorf("failed to create or update HarvesterNodeDrained condition (draining) for node %s: %w", node.Name, err)
 	}
 	return nil
 }
 
-func (h *nodeDownHandler) cleanupResources(node *corev1.Node) error {
-	if err := h.addTaints(node, nonGracefulTaint); err != nil {
+func (h *nodeDownHandler) forceNodeCleanup(node *corev1.Node) error {
+	if _, err := h.addTaints(node, nonGracefulTaint); err != nil {
 		return fmt.Errorf("failed to add non-graceful taint to node %s: %w", node.Name, err)
 	}
 	return nil
 }
 
-func (h *nodeDownHandler) addTaints(node *corev1.Node, taints ...corev1.Taint) error {
+func (h *nodeDownHandler) addTaints(node *corev1.Node, taints ...corev1.Taint) (*corev1.Node, error) {
 	nodeCpy := node.DeepCopy()
 	nodeCpy.Spec.Taints = append(nodeCpy.Spec.Taints, taints...)
-	var err error
 	if !reflect.DeepEqual(node.Spec.Taints, nodeCpy.Spec.Taints) {
-		_, err = h.nodes.Update(nodeCpy)
+		return h.nodes.Update(nodeCpy)
 	}
-	return err
+	return node, nil
 }
 
 func (h *nodeDownHandler) removeTaints(node *corev1.Node, taintKeys ...string) error {
