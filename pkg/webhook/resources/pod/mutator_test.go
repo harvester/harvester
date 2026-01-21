@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -115,7 +115,7 @@ func Test_volumePatch(t *testing.T) {
 					Name: "additional-ca-volume",
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
-							DefaultMode: pointer.Int32(400),
+							DefaultMode: ptr.To(int32(400)),
 							SecretName:  util.AdditionalCASecretName,
 						},
 					},
@@ -131,7 +131,7 @@ func Test_volumePatch(t *testing.T) {
 					Name: "additional-ca-volume",
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
-							DefaultMode: pointer.Int32(400),
+							DefaultMode: ptr.To(int32(400)),
 							SecretName:  util.AdditionalCASecretName,
 						},
 					},
@@ -202,7 +202,7 @@ func Test_volumeMountPatch(t *testing.T) {
 
 func Test_shouldPatch(t *testing.T) {
 	type input struct {
-		pod	corev1.Pod
+		pod corev1.Pod
 	}
 	var testCases = []struct {
 		name   string
