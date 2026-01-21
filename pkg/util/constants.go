@@ -189,7 +189,8 @@ const (
 	MaintainModeStrategyShutdownAndRestartAfterEnable  = "ShutdownAndRestartAfterEnable"
 	MaintainModeStrategyShutdownAndRestartAfterDisable = "ShutdownAndRestartAfterDisable"
 	MaintainModeStrategyShutdown                       = "Shutdown"
-
+	HarvesterReportedConditionKey                      = prefix + "/condition"
+	HarvesterReportedConditionMessageKey               = prefix + "/condition-message"
 	// s3 backup target constants
 	AWSAccessKey       = "AWS_ACCESS_KEY_ID"
 	AWSSecretKey       = "AWS_SECRET_ACCESS_KEY"

@@ -67,6 +67,7 @@ var registerFuncs = []registerFunc{
 	upgradelog.Register,
 	virtualmachine.Register,
 	vmimagedownloader.Register,
+	node.ConditionAnnotationRegister,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {
