@@ -116,17 +116,6 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	}
 
 	switch action {
-	case ejectCdRom:
-		var input EjectCdRomActionInput
-		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
-		}
-
-		if len(input.DiskNames) == 0 {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter diskNames is empty")
-		}
-
-		return nil, h.ejectCdRom(r.Context(), name, namespace, input.DiskNames)
 	case insertCdRomVolume:
 		var input InsertCdRomVolumeActionInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -314,27 +303,6 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	return nil, nil
 }
 
-func (h *vmActionHandler) ejectCdRom(ctx context.Context, name, namespace string, diskNames []string) error {
-	vm, err := h.vmCache.Get(namespace, name)
-	if err != nil {
-		return err
-	}
-
-	vmCopy := vm.DeepCopy()
-	if err := ejectCdRomFromVM(vmCopy, diskNames); err != nil {
-		return err
-	}
-
-	if !reflect.DeepEqual(vm, vmCopy) {
-		if _, err := h.vms.Update(vmCopy); err != nil {
-			return err
-		}
-		return h.subresourceOperate(ctx, vmResource, namespace, name, restartVM)
-	}
-
-	return nil
-}
-
 func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input InsertCdRomVolumeActionInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
@@ -485,38 +453,6 @@ func (h *vmActionHandler) stopVM(namespace, name string) error {
 		_, err = h.vms.Update(vmCopy)
 		return err
 	}
-	return nil
-}
-
-func ejectCdRomFromVM(vm *kubevirtv1.VirtualMachine, diskNames []string) error {
-	disks := make([]kubevirtv1.Disk, 0, len(vm.Spec.Template.Spec.Domain.Devices.Disks))
-	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if slice.ContainsString(diskNames, disk.Name) {
-			if disk.CDRom == nil {
-				return errors.New("disk " + disk.Name + " isn't a CD-ROM disk")
-			}
-			continue
-		}
-		disks = append(disks, disk)
-	}
-
-	volumes := make([]kubevirtv1.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
-	toRemoveClaimNames := make([]string, 0, len(vm.Spec.Template.Spec.Volumes))
-	for _, vol := range vm.Spec.Template.Spec.Volumes {
-		if !slice.ContainsString(diskNames, vol.Name) {
-			volumes = append(volumes, vol)
-			continue
-		}
-		if vol.VolumeSource.PersistentVolumeClaim != nil {
-			toRemoveClaimNames = append(toRemoveClaimNames, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
-		}
-	}
-
-	if err := removeVolumeClaimTemplatesFromVMAnnotation(vm, toRemoveClaimNames); err != nil {
-		return err
-	}
-	vm.Spec.Template.Spec.Volumes = volumes
-	vm.Spec.Template.Spec.Domain.Devices.Disks = disks
 	return nil
 }
 
