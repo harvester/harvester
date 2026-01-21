@@ -48,19 +48,22 @@ func TestCPUCores(t *testing.T) {
 			continue
 		}
 
-		if !tc.expectError {
-			if testVM == nil || testVM.Spec.Template.Spec.Domain.CPU == nil {
-				t.Errorf("test %s: unexpected nil value for domain cpu", tc.description)
-				continue
-			}
-			if testVM.Spec.Template.Spec.Domain.CPU.Cores < 1 {
-				t.Errorf("test %s: unexpected value for cpu cores", tc.description)
-				continue
-			}
-			if tc.expectation != testVM.Spec.Template.Spec.Domain.CPU.Cores {
-				t.Errorf("test %s: unexpected cpu cores value", tc.description)
-				continue
-			}
+		if tc.expectError {
+			continue
+		}
+
+		if testVM == nil || testVM.Spec.Template.Spec.Domain.CPU == nil {
+			t.Errorf("test %s: unexpected nil value for domain cpu", tc.description)
+			continue
+		}
+
+		if tc.expectation != testVM.Spec.Template.Spec.Domain.CPU.Cores {
+			t.Errorf("test %s: unexpected cpu coresvalue: %d, expected: %d",
+				tc.description,
+				testVM.Spec.Template.Spec.Domain.CPU.Cores,
+				tc.expectation,
+			)
+			continue
 		}
 	}
 }
@@ -107,19 +110,22 @@ func TestCPUSockets(t *testing.T) {
 			continue
 		}
 
-		if !tc.expectError {
-			if testVM == nil || testVM.Spec.Template.Spec.Domain.CPU == nil {
-				t.Errorf("test %s: unexpected nil value for domain cpu", tc.description)
-				continue
-			}
-			if testVM.Spec.Template.Spec.Domain.CPU.Sockets < 1 {
-				t.Errorf("test %s: unexpected value for cpu sockets", tc.description)
-				continue
-			}
-			if tc.expectation != testVM.Spec.Template.Spec.Domain.CPU.Sockets {
-				t.Errorf("test %s: unexpected cpu cores value", tc.description)
-				continue
-			}
+		if tc.expectError {
+			continue
+		}
+
+		if testVM == nil || testVM.Spec.Template.Spec.Domain.CPU == nil {
+			t.Errorf("test %s: unexpected nil value for domain cpu", tc.description)
+			continue
+		}
+
+		if tc.expectation != testVM.Spec.Template.Spec.Domain.CPU.Sockets {
+			t.Errorf("test %s: unexpected cpu sockets value: %d, expected: %d",
+				tc.description,
+				testVM.Spec.Template.Spec.Domain.CPU.Sockets,
+				tc.expectation,
+			)
+			continue
 		}
 	}
 }
@@ -166,19 +172,22 @@ func TestCPUThreads(t *testing.T) {
 			continue
 		}
 
-		if !tc.expectError {
-			if testVM == nil || testVM.Spec.Template.Spec.Domain.CPU == nil {
-				t.Errorf("test %s: unexpected nil value for domain cpu", tc.description)
-				continue
-			}
-			if testVM.Spec.Template.Spec.Domain.CPU.Threads < 1 {
-				t.Errorf("test %s: unexpected value for cpu cores", tc.description)
-				continue
-			}
-			if tc.expectation != testVM.Spec.Template.Spec.Domain.CPU.Threads {
-				t.Errorf("test %s: unexpected cpu cores value", tc.description)
-				continue
-			}
+		if tc.expectError {
+			continue
+		}
+
+		if testVM == nil || testVM.Spec.Template.Spec.Domain.CPU == nil {
+			t.Errorf("test %s: unexpected nil value for domain cpu", tc.description)
+			continue
+		}
+
+		if tc.expectation != testVM.Spec.Template.Spec.Domain.CPU.Threads {
+			t.Errorf("test %s: unexpected cpu threads value: %d, expected: %d",
+				tc.description,
+				testVM.Spec.Template.Spec.Domain.CPU.Threads,
+				tc.expectation,
+			)
+			continue
 		}
 	}
 }
