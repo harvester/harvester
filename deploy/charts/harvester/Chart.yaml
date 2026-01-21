@@ -46,7 +46,7 @@ dependencies:
     repository: https://charts.harvesterhci.io
     condition: harvester-node-disk-manager.enabled
   - name: csi-snapshotter
-    version: 0.3.0
+    version: 0.3.1
     repository: file://dependency_charts/csi-snapshotter
     condition: csi-snapshotter.enabled
   - name: longhorn

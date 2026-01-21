@@ -19,7 +19,7 @@ dependencies:
   version: 1.7.0
 - name: csi-snapshotter
   repository: file://dependency_charts/csi-snapshotter
-  version: 0.3.0
+  version: 0.3.1
 - name: longhorn
   repository: https://charts.longhorn.io
   version: 1.10.1
@@ -35,5 +35,5 @@ dependencies:
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
   version: 1.7.0
-digest: sha256:7fc2d6da7bd2b852ab0e7ee69266ce6687f7e2a0500128b09bf7242127dece12
-generated: "2025-12-22T08:45:32.440545977Z"
+digest: sha256:e666f1f6253228dc777ac5e496095fe638a5cbe4359b5e5f453a5fe79fa5ec9e
+generated: "2026-01-21T14:54:01.112164136+08:00"
