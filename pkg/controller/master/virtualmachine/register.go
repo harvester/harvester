@@ -103,7 +103,9 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerReconcileFromHostLabelsControllerName, vmiCtrl.ReconcileFromHostLabels)
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerSetHaltIfOccurExceededQuotaControllerName, vmiCtrl.StopVMIfExceededQuota)
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerRemoveDeprecatedFinalizerControllerName, vmiCtrl.removeDeprecatedFinalizer)
-	virtualMachineInstanceClient.OnRemove(ctx, vmControllerSetSataCdRomHotpluggable, vmCtrl.SetSataCdRomHotpluggable)
+
+	// registers the vm controller upon the VMI changes
+	virtualMachineInstanceClient.OnRemove(ctx, vmControllerSetSataCdRomHotpluggable, vmCtrl.setSataCdRomHotpluggable)
 
 	// register the vm network controller upon the VMI changes
 	var vmNetworkCtl = &VMNetworkController{
