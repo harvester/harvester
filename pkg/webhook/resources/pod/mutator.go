@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	harvSettings "github.com/harvester/harvester/pkg/settings"
@@ -17,7 +17,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-var matchingLabelsForNamespace = map[string][]labels.Set {
+var matchingLabelsForNamespace = map[string][]labels.Set{
 	util.LonghornSystemNamespaceName: {
 		{
 			"longhorn.io/component": "backing-image-data-source",
@@ -168,7 +168,7 @@ func (m *podMutator) additionalCAPatches(pod *corev1.Pod) (types.PatchOps, error
 			Name: "additional-ca-volume",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					DefaultMode: pointer.Int32(400),
+					DefaultMode: ptr.To(int32(400)),
 					SecretName:  util.AdditionalCASecretName,
 				},
 			},

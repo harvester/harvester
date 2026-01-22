@@ -16,7 +16,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -192,7 +192,7 @@ func (bib *Backend) createStorageClass(vmi *harvesterv1.VirtualMachineImage) err
 		},
 		Provisioner:          longhorntypes.LonghornDriverName,
 		ReclaimPolicy:        &reclaimPolicy,
-		AllowVolumeExpansion: pointer.BoolPtr(true),
+		AllowVolumeExpansion: ptr.To(true),
 		VolumeBindingMode:    &volumeBindingMode,
 		Parameters:           params,
 	}

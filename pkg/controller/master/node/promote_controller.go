@@ -19,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/util"
@@ -538,7 +538,7 @@ func buildPromoteJob(namespace string, node *corev1.Node, promoteImage string) *
 			},
 			ImagePullPolicy: corev1.PullIfNotPresent,
 			SecurityContext: &corev1.SecurityContext{
-				Privileged: pointer.Bool(true),
+				Privileged: ptr.To(true),
 			},
 			Env: []corev1.EnvVar{
 				{
