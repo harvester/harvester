@@ -103,6 +103,7 @@ func (v *addonValidator) validateNewAddon(newAddon *v1beta1.Addon) error {
 }
 
 func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
+	// Validate common fields
 	if newAddon.Spec.Chart != oldAddon.Spec.Chart {
 		return werror.NewBadRequest("chart field cannot be changed.")
 	}
@@ -111,57 +112,81 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 		return werror.NewBadRequest(fmt.Sprintf("cannot perform operation, as an existing operation is in progress on addon %s", oldAddon.Name))
 	}
 
-	if newAddon.Name == vClusterAddonName && newAddon.Namespace == vClusterAddonNamespace && newAddon.Spec.Enabled {
-		return validateVClusterAddon(newAddon)
+	switch newAddon.Name {
+	case vClusterAddonName:
+		return v.validateVClusterAddonUpdate(newAddon, oldAddon)
+	case util.RancherLoggingName:
+		return v.validateRancherLoggingAddonUpdate(newAddon, oldAddon)
+	case util.DeschedulerName:
+		return v.validateDeschedulerAddonUpdate(newAddon, oldAddon)
+	case util.PCIDevicesControllerName:
+		return v.validatePCIDevicesControllerAddonUpdate(newAddon, oldAddon)
+	case util.NvidiaDriverToolkitName:
+		return v.validateNvidiaDriverToolkitAddonUpdate(newAddon, oldAddon)
 	}
 
-	if newAddon.Name == util.RancherLoggingName {
-		if oldAddon.Spec.Enabled == newAddon.Spec.Enabled {
-			// spec `enabled` is not changed
-			return nil
-		}
-		skip := newAddon.Annotations[util.AnnotationSkipRancherLoggingAddonWebhookCheck] == "true"
-		// check when addon is `enabled`
-		//   block if upgradeLog has deployed a managedchart as logging-operator
-		if newAddon.Spec.Enabled {
-			if skip {
-				logrus.Warnf("%v addon is enabled but webhook check is skipped", util.RancherLoggingName)
-				return nil
-			}
-			return v.validateEnableRancherLoggingAddon(newAddon)
-		}
+	return nil
+}
 
-		// check when addon is `disabled`
-		//   block if upgradeLog sits on top of rancher-logging addon
+func (v *addonValidator) validateVClusterAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
+	if newAddon.Namespace != vClusterAddonNamespace || !newAddon.Spec.Enabled {
+		return nil
+	}
+	return validateVClusterAddon(newAddon)
+}
+
+func (v *addonValidator) validateRancherLoggingAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
+	if oldAddon.Spec.Enabled == newAddon.Spec.Enabled {
+		// spec `enabled` is not changed
+		return nil
+	}
+
+	skip := newAddon.Annotations[util.AnnotationSkipRancherLoggingAddonWebhookCheck] == "true"
+
+	// check when addon is `enabled`
+	//   block if upgradeLog has deployed a managedchart as logging-operator
+	if newAddon.Spec.Enabled {
 		if skip {
-			logrus.Warnf("%v addon is disabled but webhook check is skipped", util.RancherLoggingName)
+			logrus.Warnf("%v addon is enabled but webhook check is skipped", util.RancherLoggingName)
 			return nil
 		}
-		return v.validateDisableRancherLoggingAddon(newAddon)
+		return v.validateEnableRancherLoggingAddon(newAddon)
 	}
 
-	if newAddon.Name == util.DeschedulerName && newAddon.Spec.Enabled {
-		if newAddon.Annotations != nil && newAddon.Annotations[util.AnnotationSkipDeschedulerAddonWebhookCheck] == "true" {
-			return nil
-		}
+	// check when addon is `disabled`
+	//   block if upgradeLog sits on top of rancher-logging addon
+	if skip {
+		logrus.Warnf("%v addon is disabled but webhook check is skipped", util.RancherLoggingName)
+		return nil
+	}
+	return v.validateDisableRancherLoggingAddon(newAddon)
+}
 
-		return v.validateDeschedulerAddon(newAddon)
+func (v *addonValidator) validateDeschedulerAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
+	if !newAddon.Spec.Enabled {
+		return nil
 	}
 
+	if newAddon.Annotations != nil && newAddon.Annotations[util.AnnotationSkipDeschedulerAddonWebhookCheck] == "true" {
+		return nil
+	}
+
+	return v.validateDeschedulerAddon(newAddon)
+}
+
+func (v *addonValidator) validatePCIDevicesControllerAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
 	// check when pcidevices-controller addon is being disabled
-	if newAddon.Name == util.PCIDevicesControllerName {
-		if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
-			return v.validatePCIDevicesControllerAddon(newAddon)
-		}
+	if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
+		return v.validatePCIDevicesControllerAddon(newAddon)
 	}
+	return nil
+}
 
+func (v *addonValidator) validateNvidiaDriverToolkitAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
 	// check when nvidia-driver-toolkit addon is being disabled
-	if newAddon.Name == util.NvidiaDriverToolkitName {
-		if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
-			return v.validateNvidiaDriverToolkitAddon(newAddon)
-		}
+	if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
+		return v.validateNvidiaDriverToolkitAddon(newAddon)
 	}
-
 	return nil
 }
 
