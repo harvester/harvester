@@ -314,16 +314,17 @@ func (v *addonValidator) validatePCIDevicesControllerAddon() error {
 
 	var vmsWithDevices []string
 	for _, vm := range vms {
-		if vm.Spec.Template != nil {
-			// Check for HostDevices (PCI devices and USB devices)
-			if len(vm.Spec.Template.Spec.Domain.Devices.HostDevices) > 0 {
-				vmsWithDevices = append(vmsWithDevices, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
-				continue
-			}
-			// Check for GPUs (vGPU devices)
-			if len(vm.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
-				vmsWithDevices = append(vmsWithDevices, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
-			}
+		if vm.Spec.Template == nil {
+			continue
+		}
+		// Check for HostDevices (PCI devices and USB devices)
+		if len(vm.Spec.Template.Spec.Domain.Devices.HostDevices) > 0 {
+			vmsWithDevices = append(vmsWithDevices, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
+			continue
+		}
+		// Check for GPUs (vGPU devices)
+		if len(vm.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
+			vmsWithDevices = append(vmsWithDevices, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
 		}
 	}
 
@@ -343,11 +344,12 @@ func (v *addonValidator) validateNvidiaDriverToolkitAddon() error {
 
 	var vmsWithGPUs []string
 	for _, vm := range vms {
-		if vm.Spec.Template != nil {
-			// Check for GPUs (vGPU devices and SR-IOV GPU devices)
-			if len(vm.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
-				vmsWithGPUs = append(vmsWithGPUs, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
-			}
+		if vm.Spec.Template == nil {
+			continue
+		}
+		// Check for GPUs (vGPU devices and SR-IOV GPU devices)
+		if len(vm.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
+			vmsWithGPUs = append(vmsWithGPUs, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
 		}
 	}
 
