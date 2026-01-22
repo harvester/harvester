@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type OIDCProvidersGetter interface {
 
 // OIDCProviderInterface has methods to work with OIDCProvider resources.
 type OIDCProviderInterface interface {
-	Create(ctx context.Context, oIDCProvider *v3.OIDCProvider, opts v1.CreateOptions) (*v3.OIDCProvider, error)
-	Update(ctx context.Context, oIDCProvider *v3.OIDCProvider, opts v1.UpdateOptions) (*v3.OIDCProvider, error)
+	Create(ctx context.Context, oIDCProvider *managementcattleiov3.OIDCProvider, opts v1.CreateOptions) (*managementcattleiov3.OIDCProvider, error)
+	Update(ctx context.Context, oIDCProvider *managementcattleiov3.OIDCProvider, opts v1.UpdateOptions) (*managementcattleiov3.OIDCProvider, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.OIDCProvider, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.OIDCProviderList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.OIDCProvider, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.OIDCProviderList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.OIDCProvider, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.OIDCProvider, err error)
 	OIDCProviderExpansion
 }
 
 // oIDCProviders implements OIDCProviderInterface
 type oIDCProviders struct {
-	*gentype.ClientWithList[*v3.OIDCProvider, *v3.OIDCProviderList]
+	*gentype.ClientWithList[*managementcattleiov3.OIDCProvider, *managementcattleiov3.OIDCProviderList]
 }
 
 // newOIDCProviders returns a OIDCProviders
 func newOIDCProviders(c *ManagementV3Client) *oIDCProviders {
 	return &oIDCProviders{
-		gentype.NewClientWithList[*v3.OIDCProvider, *v3.OIDCProviderList](
+		gentype.NewClientWithList[*managementcattleiov3.OIDCProvider, *managementcattleiov3.OIDCProviderList](
 			"oidcproviders",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.OIDCProvider { return &v3.OIDCProvider{} },
-			func() *v3.OIDCProviderList { return &v3.OIDCProviderList{} }),
+			func() *managementcattleiov3.OIDCProvider { return &managementcattleiov3.OIDCProvider{} },
+			func() *managementcattleiov3.OIDCProviderList { return &managementcattleiov3.OIDCProviderList{} },
+		),
 	}
 }

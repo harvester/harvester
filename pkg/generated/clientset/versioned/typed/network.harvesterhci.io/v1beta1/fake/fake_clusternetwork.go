@@ -19,120 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	v1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	networkharvesterhciiov1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/network.harvesterhci.io/v1beta1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeClusterNetworks implements ClusterNetworkInterface
-type FakeClusterNetworks struct {
+// fakeClusterNetworks implements ClusterNetworkInterface
+type fakeClusterNetworks struct {
+	*gentype.FakeClientWithList[*v1beta1.ClusterNetwork, *v1beta1.ClusterNetworkList]
 	Fake *FakeNetworkV1beta1
 }
 
-var clusternetworksResource = v1beta1.SchemeGroupVersion.WithResource("clusternetworks")
-
-var clusternetworksKind = v1beta1.SchemeGroupVersion.WithKind("ClusterNetwork")
-
-// Get takes name of the clusterNetwork, and returns the corresponding clusterNetwork object, and an error if there is any.
-func (c *FakeClusterNetworks) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.ClusterNetwork, err error) {
-	emptyResult := &v1beta1.ClusterNetwork{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(clusternetworksResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeClusterNetworks(fake *FakeNetworkV1beta1) networkharvesterhciiov1beta1.ClusterNetworkInterface {
+	return &fakeClusterNetworks{
+		gentype.NewFakeClientWithList[*v1beta1.ClusterNetwork, *v1beta1.ClusterNetworkList](
+			fake.Fake,
+			"",
+			v1beta1.SchemeGroupVersion.WithResource("clusternetworks"),
+			v1beta1.SchemeGroupVersion.WithKind("ClusterNetwork"),
+			func() *v1beta1.ClusterNetwork { return &v1beta1.ClusterNetwork{} },
+			func() *v1beta1.ClusterNetworkList { return &v1beta1.ClusterNetworkList{} },
+			func(dst, src *v1beta1.ClusterNetworkList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta1.ClusterNetworkList) []*v1beta1.ClusterNetwork {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1beta1.ClusterNetworkList, items []*v1beta1.ClusterNetwork) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta1.ClusterNetwork), err
-}
-
-// List takes label and field selectors, and returns the list of ClusterNetworks that match those selectors.
-func (c *FakeClusterNetworks) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.ClusterNetworkList, err error) {
-	emptyResult := &v1beta1.ClusterNetworkList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(clusternetworksResource, clusternetworksKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta1.ClusterNetworkList{ListMeta: obj.(*v1beta1.ClusterNetworkList).ListMeta}
-	for _, item := range obj.(*v1beta1.ClusterNetworkList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested clusterNetworks.
-func (c *FakeClusterNetworks) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(clusternetworksResource, opts))
-}
-
-// Create takes the representation of a clusterNetwork and creates it.  Returns the server's representation of the clusterNetwork, and an error, if there is any.
-func (c *FakeClusterNetworks) Create(ctx context.Context, clusterNetwork *v1beta1.ClusterNetwork, opts v1.CreateOptions) (result *v1beta1.ClusterNetwork, err error) {
-	emptyResult := &v1beta1.ClusterNetwork{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(clusternetworksResource, clusterNetwork, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ClusterNetwork), err
-}
-
-// Update takes the representation of a clusterNetwork and updates it. Returns the server's representation of the clusterNetwork, and an error, if there is any.
-func (c *FakeClusterNetworks) Update(ctx context.Context, clusterNetwork *v1beta1.ClusterNetwork, opts v1.UpdateOptions) (result *v1beta1.ClusterNetwork, err error) {
-	emptyResult := &v1beta1.ClusterNetwork{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(clusternetworksResource, clusterNetwork, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ClusterNetwork), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeClusterNetworks) UpdateStatus(ctx context.Context, clusterNetwork *v1beta1.ClusterNetwork, opts v1.UpdateOptions) (result *v1beta1.ClusterNetwork, err error) {
-	emptyResult := &v1beta1.ClusterNetwork{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(clusternetworksResource, "status", clusterNetwork, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ClusterNetwork), err
-}
-
-// Delete takes name of the clusterNetwork and deletes it. Returns an error if one occurs.
-func (c *FakeClusterNetworks) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(clusternetworksResource, name, opts), &v1beta1.ClusterNetwork{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeClusterNetworks) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(clusternetworksResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta1.ClusterNetworkList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched clusterNetwork.
-func (c *FakeClusterNetworks) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.ClusterNetwork, err error) {
-	emptyResult := &v1beta1.ClusterNetwork{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(clusternetworksResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ClusterNetwork), err
 }

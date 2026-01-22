@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,38 @@ type ClusterRegistrationTokensGetter interface {
 
 // ClusterRegistrationTokenInterface has methods to work with ClusterRegistrationToken resources.
 type ClusterRegistrationTokenInterface interface {
-	Create(ctx context.Context, clusterRegistrationToken *v3.ClusterRegistrationToken, opts v1.CreateOptions) (*v3.ClusterRegistrationToken, error)
-	Update(ctx context.Context, clusterRegistrationToken *v3.ClusterRegistrationToken, opts v1.UpdateOptions) (*v3.ClusterRegistrationToken, error)
+	Create(ctx context.Context, clusterRegistrationToken *managementcattleiov3.ClusterRegistrationToken, opts v1.CreateOptions) (*managementcattleiov3.ClusterRegistrationToken, error)
+	Update(ctx context.Context, clusterRegistrationToken *managementcattleiov3.ClusterRegistrationToken, opts v1.UpdateOptions) (*managementcattleiov3.ClusterRegistrationToken, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, clusterRegistrationToken *v3.ClusterRegistrationToken, opts v1.UpdateOptions) (*v3.ClusterRegistrationToken, error)
+	UpdateStatus(ctx context.Context, clusterRegistrationToken *managementcattleiov3.ClusterRegistrationToken, opts v1.UpdateOptions) (*managementcattleiov3.ClusterRegistrationToken, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ClusterRegistrationToken, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ClusterRegistrationTokenList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ClusterRegistrationToken, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ClusterRegistrationTokenList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterRegistrationToken, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ClusterRegistrationToken, err error)
 	ClusterRegistrationTokenExpansion
 }
 
 // clusterRegistrationTokens implements ClusterRegistrationTokenInterface
 type clusterRegistrationTokens struct {
-	*gentype.ClientWithList[*v3.ClusterRegistrationToken, *v3.ClusterRegistrationTokenList]
+	*gentype.ClientWithList[*managementcattleiov3.ClusterRegistrationToken, *managementcattleiov3.ClusterRegistrationTokenList]
 }
 
 // newClusterRegistrationTokens returns a ClusterRegistrationTokens
 func newClusterRegistrationTokens(c *ManagementV3Client, namespace string) *clusterRegistrationTokens {
 	return &clusterRegistrationTokens{
-		gentype.NewClientWithList[*v3.ClusterRegistrationToken, *v3.ClusterRegistrationTokenList](
+		gentype.NewClientWithList[*managementcattleiov3.ClusterRegistrationToken, *managementcattleiov3.ClusterRegistrationTokenList](
 			"clusterregistrationtokens",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.ClusterRegistrationToken { return &v3.ClusterRegistrationToken{} },
-			func() *v3.ClusterRegistrationTokenList { return &v3.ClusterRegistrationTokenList{} }),
+			func() *managementcattleiov3.ClusterRegistrationToken {
+				return &managementcattleiov3.ClusterRegistrationToken{}
+			},
+			func() *managementcattleiov3.ClusterRegistrationTokenList {
+				return &managementcattleiov3.ClusterRegistrationTokenList{}
+			},
+		),
 	}
 }

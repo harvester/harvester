@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,31 +37,32 @@ type PreferencesGetter interface {
 
 // PreferenceInterface has methods to work with Preference resources.
 type PreferenceInterface interface {
-	Create(ctx context.Context, preference *v1beta1.Preference, opts v1.CreateOptions) (*v1beta1.Preference, error)
-	Update(ctx context.Context, preference *v1beta1.Preference, opts v1.UpdateOptions) (*v1beta1.Preference, error)
+	Create(ctx context.Context, preference *harvesterhciiov1beta1.Preference, opts v1.CreateOptions) (*harvesterhciiov1beta1.Preference, error)
+	Update(ctx context.Context, preference *harvesterhciiov1beta1.Preference, opts v1.UpdateOptions) (*harvesterhciiov1beta1.Preference, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.Preference, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.PreferenceList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*harvesterhciiov1beta1.Preference, error)
+	List(ctx context.Context, opts v1.ListOptions) (*harvesterhciiov1beta1.PreferenceList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Preference, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *harvesterhciiov1beta1.Preference, err error)
 	PreferenceExpansion
 }
 
 // preferences implements PreferenceInterface
 type preferences struct {
-	*gentype.ClientWithList[*v1beta1.Preference, *v1beta1.PreferenceList]
+	*gentype.ClientWithList[*harvesterhciiov1beta1.Preference, *harvesterhciiov1beta1.PreferenceList]
 }
 
 // newPreferences returns a Preferences
 func newPreferences(c *HarvesterhciV1beta1Client, namespace string) *preferences {
 	return &preferences{
-		gentype.NewClientWithList[*v1beta1.Preference, *v1beta1.PreferenceList](
+		gentype.NewClientWithList[*harvesterhciiov1beta1.Preference, *harvesterhciiov1beta1.PreferenceList](
 			"preferences",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.Preference { return &v1beta1.Preference{} },
-			func() *v1beta1.PreferenceList { return &v1beta1.PreferenceList{} }),
+			func() *harvesterhciiov1beta1.Preference { return &harvesterhciiov1beta1.Preference{} },
+			func() *harvesterhciiov1beta1.PreferenceList { return &harvesterhciiov1beta1.PreferenceList{} },
+		),
 	}
 }

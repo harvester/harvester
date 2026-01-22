@@ -19,129 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeVirtualMachineBackups implements VirtualMachineBackupInterface
-type FakeVirtualMachineBackups struct {
+// fakeVirtualMachineBackups implements VirtualMachineBackupInterface
+type fakeVirtualMachineBackups struct {
+	*gentype.FakeClientWithList[*v1beta1.VirtualMachineBackup, *v1beta1.VirtualMachineBackupList]
 	Fake *FakeHarvesterhciV1beta1
-	ns   string
 }
 
-var virtualmachinebackupsResource = v1beta1.SchemeGroupVersion.WithResource("virtualmachinebackups")
-
-var virtualmachinebackupsKind = v1beta1.SchemeGroupVersion.WithKind("VirtualMachineBackup")
-
-// Get takes name of the virtualMachineBackup, and returns the corresponding virtualMachineBackup object, and an error if there is any.
-func (c *FakeVirtualMachineBackups) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.VirtualMachineBackup, err error) {
-	emptyResult := &v1beta1.VirtualMachineBackup{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(virtualmachinebackupsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeVirtualMachineBackups(fake *FakeHarvesterhciV1beta1, namespace string) harvesterhciiov1beta1.VirtualMachineBackupInterface {
+	return &fakeVirtualMachineBackups{
+		gentype.NewFakeClientWithList[*v1beta1.VirtualMachineBackup, *v1beta1.VirtualMachineBackupList](
+			fake.Fake,
+			namespace,
+			v1beta1.SchemeGroupVersion.WithResource("virtualmachinebackups"),
+			v1beta1.SchemeGroupVersion.WithKind("VirtualMachineBackup"),
+			func() *v1beta1.VirtualMachineBackup { return &v1beta1.VirtualMachineBackup{} },
+			func() *v1beta1.VirtualMachineBackupList { return &v1beta1.VirtualMachineBackupList{} },
+			func(dst, src *v1beta1.VirtualMachineBackupList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta1.VirtualMachineBackupList) []*v1beta1.VirtualMachineBackup {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1beta1.VirtualMachineBackupList, items []*v1beta1.VirtualMachineBackup) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta1.VirtualMachineBackup), err
-}
-
-// List takes label and field selectors, and returns the list of VirtualMachineBackups that match those selectors.
-func (c *FakeVirtualMachineBackups) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.VirtualMachineBackupList, err error) {
-	emptyResult := &v1beta1.VirtualMachineBackupList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(virtualmachinebackupsResource, virtualmachinebackupsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta1.VirtualMachineBackupList{ListMeta: obj.(*v1beta1.VirtualMachineBackupList).ListMeta}
-	for _, item := range obj.(*v1beta1.VirtualMachineBackupList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested virtualMachineBackups.
-func (c *FakeVirtualMachineBackups) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(virtualmachinebackupsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a virtualMachineBackup and creates it.  Returns the server's representation of the virtualMachineBackup, and an error, if there is any.
-func (c *FakeVirtualMachineBackups) Create(ctx context.Context, virtualMachineBackup *v1beta1.VirtualMachineBackup, opts v1.CreateOptions) (result *v1beta1.VirtualMachineBackup, err error) {
-	emptyResult := &v1beta1.VirtualMachineBackup{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(virtualmachinebackupsResource, c.ns, virtualMachineBackup, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.VirtualMachineBackup), err
-}
-
-// Update takes the representation of a virtualMachineBackup and updates it. Returns the server's representation of the virtualMachineBackup, and an error, if there is any.
-func (c *FakeVirtualMachineBackups) Update(ctx context.Context, virtualMachineBackup *v1beta1.VirtualMachineBackup, opts v1.UpdateOptions) (result *v1beta1.VirtualMachineBackup, err error) {
-	emptyResult := &v1beta1.VirtualMachineBackup{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(virtualmachinebackupsResource, c.ns, virtualMachineBackup, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.VirtualMachineBackup), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeVirtualMachineBackups) UpdateStatus(ctx context.Context, virtualMachineBackup *v1beta1.VirtualMachineBackup, opts v1.UpdateOptions) (result *v1beta1.VirtualMachineBackup, err error) {
-	emptyResult := &v1beta1.VirtualMachineBackup{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(virtualmachinebackupsResource, "status", c.ns, virtualMachineBackup, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.VirtualMachineBackup), err
-}
-
-// Delete takes name of the virtualMachineBackup and deletes it. Returns an error if one occurs.
-func (c *FakeVirtualMachineBackups) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(virtualmachinebackupsResource, c.ns, name, opts), &v1beta1.VirtualMachineBackup{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeVirtualMachineBackups) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(virtualmachinebackupsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta1.VirtualMachineBackupList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched virtualMachineBackup.
-func (c *FakeVirtualMachineBackups) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VirtualMachineBackup, err error) {
-	emptyResult := &v1beta1.VirtualMachineBackup{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(virtualmachinebackupsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.VirtualMachineBackup), err
 }

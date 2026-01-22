@@ -19,129 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	whereaboutscnicncfiov1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1"
 	v1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeNodeSlicePools implements NodeSlicePoolInterface
-type FakeNodeSlicePools struct {
+// fakeNodeSlicePools implements NodeSlicePoolInterface
+type fakeNodeSlicePools struct {
+	*gentype.FakeClientWithList[*v1alpha1.NodeSlicePool, *v1alpha1.NodeSlicePoolList]
 	Fake *FakeWhereaboutsV1alpha1
-	ns   string
 }
 
-var nodeslicepoolsResource = v1alpha1.SchemeGroupVersion.WithResource("nodeslicepools")
-
-var nodeslicepoolsKind = v1alpha1.SchemeGroupVersion.WithKind("NodeSlicePool")
-
-// Get takes name of the nodeSlicePool, and returns the corresponding nodeSlicePool object, and an error if there is any.
-func (c *FakeNodeSlicePools) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.NodeSlicePool, err error) {
-	emptyResult := &v1alpha1.NodeSlicePool{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(nodeslicepoolsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeNodeSlicePools(fake *FakeWhereaboutsV1alpha1, namespace string) whereaboutscnicncfiov1alpha1.NodeSlicePoolInterface {
+	return &fakeNodeSlicePools{
+		gentype.NewFakeClientWithList[*v1alpha1.NodeSlicePool, *v1alpha1.NodeSlicePoolList](
+			fake.Fake,
+			namespace,
+			v1alpha1.SchemeGroupVersion.WithResource("nodeslicepools"),
+			v1alpha1.SchemeGroupVersion.WithKind("NodeSlicePool"),
+			func() *v1alpha1.NodeSlicePool { return &v1alpha1.NodeSlicePool{} },
+			func() *v1alpha1.NodeSlicePoolList { return &v1alpha1.NodeSlicePoolList{} },
+			func(dst, src *v1alpha1.NodeSlicePoolList) { dst.ListMeta = src.ListMeta },
+			func(list *v1alpha1.NodeSlicePoolList) []*v1alpha1.NodeSlicePool {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1alpha1.NodeSlicePoolList, items []*v1alpha1.NodeSlicePool) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1alpha1.NodeSlicePool), err
-}
-
-// List takes label and field selectors, and returns the list of NodeSlicePools that match those selectors.
-func (c *FakeNodeSlicePools) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.NodeSlicePoolList, err error) {
-	emptyResult := &v1alpha1.NodeSlicePoolList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(nodeslicepoolsResource, nodeslicepoolsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1alpha1.NodeSlicePoolList{ListMeta: obj.(*v1alpha1.NodeSlicePoolList).ListMeta}
-	for _, item := range obj.(*v1alpha1.NodeSlicePoolList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested nodeSlicePools.
-func (c *FakeNodeSlicePools) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(nodeslicepoolsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a nodeSlicePool and creates it.  Returns the server's representation of the nodeSlicePool, and an error, if there is any.
-func (c *FakeNodeSlicePools) Create(ctx context.Context, nodeSlicePool *v1alpha1.NodeSlicePool, opts v1.CreateOptions) (result *v1alpha1.NodeSlicePool, err error) {
-	emptyResult := &v1alpha1.NodeSlicePool{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(nodeslicepoolsResource, c.ns, nodeSlicePool, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.NodeSlicePool), err
-}
-
-// Update takes the representation of a nodeSlicePool and updates it. Returns the server's representation of the nodeSlicePool, and an error, if there is any.
-func (c *FakeNodeSlicePools) Update(ctx context.Context, nodeSlicePool *v1alpha1.NodeSlicePool, opts v1.UpdateOptions) (result *v1alpha1.NodeSlicePool, err error) {
-	emptyResult := &v1alpha1.NodeSlicePool{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(nodeslicepoolsResource, c.ns, nodeSlicePool, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.NodeSlicePool), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeNodeSlicePools) UpdateStatus(ctx context.Context, nodeSlicePool *v1alpha1.NodeSlicePool, opts v1.UpdateOptions) (result *v1alpha1.NodeSlicePool, err error) {
-	emptyResult := &v1alpha1.NodeSlicePool{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(nodeslicepoolsResource, "status", c.ns, nodeSlicePool, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.NodeSlicePool), err
-}
-
-// Delete takes name of the nodeSlicePool and deletes it. Returns an error if one occurs.
-func (c *FakeNodeSlicePools) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(nodeslicepoolsResource, c.ns, name, opts), &v1alpha1.NodeSlicePool{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeNodeSlicePools) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(nodeslicepoolsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1alpha1.NodeSlicePoolList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched nodeSlicePool.
-func (c *FakeNodeSlicePools) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.NodeSlicePool, err error) {
-	emptyResult := &v1alpha1.NodeSlicePool{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(nodeslicepoolsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.NodeSlicePool), err
 }

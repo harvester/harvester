@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type SupportBundlesGetter interface {
 
 // SupportBundleInterface has methods to work with SupportBundle resources.
 type SupportBundleInterface interface {
-	Create(ctx context.Context, supportBundle *v1beta2.SupportBundle, opts v1.CreateOptions) (*v1beta2.SupportBundle, error)
-	Update(ctx context.Context, supportBundle *v1beta2.SupportBundle, opts v1.UpdateOptions) (*v1beta2.SupportBundle, error)
+	Create(ctx context.Context, supportBundle *longhornv1beta2.SupportBundle, opts v1.CreateOptions) (*longhornv1beta2.SupportBundle, error)
+	Update(ctx context.Context, supportBundle *longhornv1beta2.SupportBundle, opts v1.UpdateOptions) (*longhornv1beta2.SupportBundle, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, supportBundle *v1beta2.SupportBundle, opts v1.UpdateOptions) (*v1beta2.SupportBundle, error)
+	UpdateStatus(ctx context.Context, supportBundle *longhornv1beta2.SupportBundle, opts v1.UpdateOptions) (*longhornv1beta2.SupportBundle, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.SupportBundle, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.SupportBundleList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.SupportBundle, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.SupportBundleList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.SupportBundle, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.SupportBundle, err error)
 	SupportBundleExpansion
 }
 
 // supportBundles implements SupportBundleInterface
 type supportBundles struct {
-	*gentype.ClientWithList[*v1beta2.SupportBundle, *v1beta2.SupportBundleList]
+	*gentype.ClientWithList[*longhornv1beta2.SupportBundle, *longhornv1beta2.SupportBundleList]
 }
 
 // newSupportBundles returns a SupportBundles
 func newSupportBundles(c *LonghornV1beta2Client, namespace string) *supportBundles {
 	return &supportBundles{
-		gentype.NewClientWithList[*v1beta2.SupportBundle, *v1beta2.SupportBundleList](
+		gentype.NewClientWithList[*longhornv1beta2.SupportBundle, *longhornv1beta2.SupportBundleList](
 			"supportbundles",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.SupportBundle { return &v1beta2.SupportBundle{} },
-			func() *v1beta2.SupportBundleList { return &v1beta2.SupportBundleList{} }),
+			func() *longhornv1beta2.SupportBundle { return &longhornv1beta2.SupportBundle{} },
+			func() *longhornv1beta2.SupportBundleList { return &longhornv1beta2.SupportBundleList{} },
+		),
 	}
 }

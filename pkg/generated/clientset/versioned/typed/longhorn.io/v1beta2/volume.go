@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type VolumesGetter interface {
 
 // VolumeInterface has methods to work with Volume resources.
 type VolumeInterface interface {
-	Create(ctx context.Context, volume *v1beta2.Volume, opts v1.CreateOptions) (*v1beta2.Volume, error)
-	Update(ctx context.Context, volume *v1beta2.Volume, opts v1.UpdateOptions) (*v1beta2.Volume, error)
+	Create(ctx context.Context, volume *longhornv1beta2.Volume, opts v1.CreateOptions) (*longhornv1beta2.Volume, error)
+	Update(ctx context.Context, volume *longhornv1beta2.Volume, opts v1.UpdateOptions) (*longhornv1beta2.Volume, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, volume *v1beta2.Volume, opts v1.UpdateOptions) (*v1beta2.Volume, error)
+	UpdateStatus(ctx context.Context, volume *longhornv1beta2.Volume, opts v1.UpdateOptions) (*longhornv1beta2.Volume, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.Volume, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.VolumeList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.Volume, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.VolumeList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.Volume, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.Volume, err error)
 	VolumeExpansion
 }
 
 // volumes implements VolumeInterface
 type volumes struct {
-	*gentype.ClientWithList[*v1beta2.Volume, *v1beta2.VolumeList]
+	*gentype.ClientWithList[*longhornv1beta2.Volume, *longhornv1beta2.VolumeList]
 }
 
 // newVolumes returns a Volumes
 func newVolumes(c *LonghornV1beta2Client, namespace string) *volumes {
 	return &volumes{
-		gentype.NewClientWithList[*v1beta2.Volume, *v1beta2.VolumeList](
+		gentype.NewClientWithList[*longhornv1beta2.Volume, *longhornv1beta2.VolumeList](
 			"volumes",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.Volume { return &v1beta2.Volume{} },
-			func() *v1beta2.VolumeList { return &v1beta2.VolumeList{} }),
+			func() *longhornv1beta2.Volume { return &longhornv1beta2.Volume{} },
+			func() *longhornv1beta2.VolumeList { return &longhornv1beta2.VolumeList{} },
+		),
 	}
 }

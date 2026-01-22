@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type SamlProvidersGetter interface {
 
 // SamlProviderInterface has methods to work with SamlProvider resources.
 type SamlProviderInterface interface {
-	Create(ctx context.Context, samlProvider *v3.SamlProvider, opts v1.CreateOptions) (*v3.SamlProvider, error)
-	Update(ctx context.Context, samlProvider *v3.SamlProvider, opts v1.UpdateOptions) (*v3.SamlProvider, error)
+	Create(ctx context.Context, samlProvider *managementcattleiov3.SamlProvider, opts v1.CreateOptions) (*managementcattleiov3.SamlProvider, error)
+	Update(ctx context.Context, samlProvider *managementcattleiov3.SamlProvider, opts v1.UpdateOptions) (*managementcattleiov3.SamlProvider, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.SamlProvider, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.SamlProviderList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.SamlProvider, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.SamlProviderList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.SamlProvider, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.SamlProvider, err error)
 	SamlProviderExpansion
 }
 
 // samlProviders implements SamlProviderInterface
 type samlProviders struct {
-	*gentype.ClientWithList[*v3.SamlProvider, *v3.SamlProviderList]
+	*gentype.ClientWithList[*managementcattleiov3.SamlProvider, *managementcattleiov3.SamlProviderList]
 }
 
 // newSamlProviders returns a SamlProviders
 func newSamlProviders(c *ManagementV3Client) *samlProviders {
 	return &samlProviders{
-		gentype.NewClientWithList[*v3.SamlProvider, *v3.SamlProviderList](
+		gentype.NewClientWithList[*managementcattleiov3.SamlProvider, *managementcattleiov3.SamlProviderList](
 			"samlproviders",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.SamlProvider { return &v3.SamlProvider{} },
-			func() *v3.SamlProviderList { return &v3.SamlProviderList{} }),
+			func() *managementcattleiov3.SamlProvider { return &managementcattleiov3.SamlProvider{} },
+			func() *managementcattleiov3.SamlProviderList { return &managementcattleiov3.SamlProviderList{} },
+		),
 	}
 }

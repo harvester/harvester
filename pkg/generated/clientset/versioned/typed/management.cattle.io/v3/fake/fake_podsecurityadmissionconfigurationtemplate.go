@@ -19,108 +19,38 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakePodSecurityAdmissionConfigurationTemplates implements PodSecurityAdmissionConfigurationTemplateInterface
-type FakePodSecurityAdmissionConfigurationTemplates struct {
+// fakePodSecurityAdmissionConfigurationTemplates implements PodSecurityAdmissionConfigurationTemplateInterface
+type fakePodSecurityAdmissionConfigurationTemplates struct {
+	*gentype.FakeClientWithList[*v3.PodSecurityAdmissionConfigurationTemplate, *v3.PodSecurityAdmissionConfigurationTemplateList]
 	Fake *FakeManagementV3
 }
 
-var podsecurityadmissionconfigurationtemplatesResource = v3.SchemeGroupVersion.WithResource("podsecurityadmissionconfigurationtemplates")
-
-var podsecurityadmissionconfigurationtemplatesKind = v3.SchemeGroupVersion.WithKind("PodSecurityAdmissionConfigurationTemplate")
-
-// Get takes name of the podSecurityAdmissionConfigurationTemplate, and returns the corresponding podSecurityAdmissionConfigurationTemplate object, and an error if there is any.
-func (c *FakePodSecurityAdmissionConfigurationTemplates) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.PodSecurityAdmissionConfigurationTemplate, err error) {
-	emptyResult := &v3.PodSecurityAdmissionConfigurationTemplate{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(podsecurityadmissionconfigurationtemplatesResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakePodSecurityAdmissionConfigurationTemplates(fake *FakeManagementV3) managementcattleiov3.PodSecurityAdmissionConfigurationTemplateInterface {
+	return &fakePodSecurityAdmissionConfigurationTemplates{
+		gentype.NewFakeClientWithList[*v3.PodSecurityAdmissionConfigurationTemplate, *v3.PodSecurityAdmissionConfigurationTemplateList](
+			fake.Fake,
+			"",
+			v3.SchemeGroupVersion.WithResource("podsecurityadmissionconfigurationtemplates"),
+			v3.SchemeGroupVersion.WithKind("PodSecurityAdmissionConfigurationTemplate"),
+			func() *v3.PodSecurityAdmissionConfigurationTemplate {
+				return &v3.PodSecurityAdmissionConfigurationTemplate{}
+			},
+			func() *v3.PodSecurityAdmissionConfigurationTemplateList {
+				return &v3.PodSecurityAdmissionConfigurationTemplateList{}
+			},
+			func(dst, src *v3.PodSecurityAdmissionConfigurationTemplateList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.PodSecurityAdmissionConfigurationTemplateList) []*v3.PodSecurityAdmissionConfigurationTemplate {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v3.PodSecurityAdmissionConfigurationTemplateList, items []*v3.PodSecurityAdmissionConfigurationTemplate) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.PodSecurityAdmissionConfigurationTemplate), err
-}
-
-// List takes label and field selectors, and returns the list of PodSecurityAdmissionConfigurationTemplates that match those selectors.
-func (c *FakePodSecurityAdmissionConfigurationTemplates) List(ctx context.Context, opts v1.ListOptions) (result *v3.PodSecurityAdmissionConfigurationTemplateList, err error) {
-	emptyResult := &v3.PodSecurityAdmissionConfigurationTemplateList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(podsecurityadmissionconfigurationtemplatesResource, podsecurityadmissionconfigurationtemplatesKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.PodSecurityAdmissionConfigurationTemplateList{ListMeta: obj.(*v3.PodSecurityAdmissionConfigurationTemplateList).ListMeta}
-	for _, item := range obj.(*v3.PodSecurityAdmissionConfigurationTemplateList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested podSecurityAdmissionConfigurationTemplates.
-func (c *FakePodSecurityAdmissionConfigurationTemplates) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(podsecurityadmissionconfigurationtemplatesResource, opts))
-}
-
-// Create takes the representation of a podSecurityAdmissionConfigurationTemplate and creates it.  Returns the server's representation of the podSecurityAdmissionConfigurationTemplate, and an error, if there is any.
-func (c *FakePodSecurityAdmissionConfigurationTemplates) Create(ctx context.Context, podSecurityAdmissionConfigurationTemplate *v3.PodSecurityAdmissionConfigurationTemplate, opts v1.CreateOptions) (result *v3.PodSecurityAdmissionConfigurationTemplate, err error) {
-	emptyResult := &v3.PodSecurityAdmissionConfigurationTemplate{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(podsecurityadmissionconfigurationtemplatesResource, podSecurityAdmissionConfigurationTemplate, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.PodSecurityAdmissionConfigurationTemplate), err
-}
-
-// Update takes the representation of a podSecurityAdmissionConfigurationTemplate and updates it. Returns the server's representation of the podSecurityAdmissionConfigurationTemplate, and an error, if there is any.
-func (c *FakePodSecurityAdmissionConfigurationTemplates) Update(ctx context.Context, podSecurityAdmissionConfigurationTemplate *v3.PodSecurityAdmissionConfigurationTemplate, opts v1.UpdateOptions) (result *v3.PodSecurityAdmissionConfigurationTemplate, err error) {
-	emptyResult := &v3.PodSecurityAdmissionConfigurationTemplate{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(podsecurityadmissionconfigurationtemplatesResource, podSecurityAdmissionConfigurationTemplate, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.PodSecurityAdmissionConfigurationTemplate), err
-}
-
-// Delete takes name of the podSecurityAdmissionConfigurationTemplate and deletes it. Returns an error if one occurs.
-func (c *FakePodSecurityAdmissionConfigurationTemplates) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(podsecurityadmissionconfigurationtemplatesResource, name, opts), &v3.PodSecurityAdmissionConfigurationTemplate{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakePodSecurityAdmissionConfigurationTemplates) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(podsecurityadmissionconfigurationtemplatesResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.PodSecurityAdmissionConfigurationTemplateList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched podSecurityAdmissionConfigurationTemplate.
-func (c *FakePodSecurityAdmissionConfigurationTemplates) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.PodSecurityAdmissionConfigurationTemplate, err error) {
-	emptyResult := &v3.PodSecurityAdmissionConfigurationTemplate{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(podsecurityadmissionconfigurationtemplatesResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.PodSecurityAdmissionConfigurationTemplate), err
 }

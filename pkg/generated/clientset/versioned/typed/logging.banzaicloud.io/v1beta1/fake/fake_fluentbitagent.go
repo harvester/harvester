@@ -19,120 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	loggingbanzaicloudiov1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1"
 	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeFluentbitAgents implements FluentbitAgentInterface
-type FakeFluentbitAgents struct {
+// fakeFluentbitAgents implements FluentbitAgentInterface
+type fakeFluentbitAgents struct {
+	*gentype.FakeClientWithList[*v1beta1.FluentbitAgent, *v1beta1.FluentbitAgentList]
 	Fake *FakeLoggingV1beta1
 }
 
-var fluentbitagentsResource = v1beta1.GroupVersion.WithResource("fluentbitagents")
-
-var fluentbitagentsKind = v1beta1.GroupVersion.WithKind("FluentbitAgent")
-
-// Get takes name of the fluentbitAgent, and returns the corresponding fluentbitAgent object, and an error if there is any.
-func (c *FakeFluentbitAgents) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.FluentbitAgent, err error) {
-	emptyResult := &v1beta1.FluentbitAgent{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(fluentbitagentsResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeFluentbitAgents(fake *FakeLoggingV1beta1) loggingbanzaicloudiov1beta1.FluentbitAgentInterface {
+	return &fakeFluentbitAgents{
+		gentype.NewFakeClientWithList[*v1beta1.FluentbitAgent, *v1beta1.FluentbitAgentList](
+			fake.Fake,
+			"",
+			v1beta1.GroupVersion.WithResource("fluentbitagents"),
+			v1beta1.GroupVersion.WithKind("FluentbitAgent"),
+			func() *v1beta1.FluentbitAgent { return &v1beta1.FluentbitAgent{} },
+			func() *v1beta1.FluentbitAgentList { return &v1beta1.FluentbitAgentList{} },
+			func(dst, src *v1beta1.FluentbitAgentList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta1.FluentbitAgentList) []*v1beta1.FluentbitAgent {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1beta1.FluentbitAgentList, items []*v1beta1.FluentbitAgent) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta1.FluentbitAgent), err
-}
-
-// List takes label and field selectors, and returns the list of FluentbitAgents that match those selectors.
-func (c *FakeFluentbitAgents) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.FluentbitAgentList, err error) {
-	emptyResult := &v1beta1.FluentbitAgentList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(fluentbitagentsResource, fluentbitagentsKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta1.FluentbitAgentList{ListMeta: obj.(*v1beta1.FluentbitAgentList).ListMeta}
-	for _, item := range obj.(*v1beta1.FluentbitAgentList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested fluentbitAgents.
-func (c *FakeFluentbitAgents) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(fluentbitagentsResource, opts))
-}
-
-// Create takes the representation of a fluentbitAgent and creates it.  Returns the server's representation of the fluentbitAgent, and an error, if there is any.
-func (c *FakeFluentbitAgents) Create(ctx context.Context, fluentbitAgent *v1beta1.FluentbitAgent, opts v1.CreateOptions) (result *v1beta1.FluentbitAgent, err error) {
-	emptyResult := &v1beta1.FluentbitAgent{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(fluentbitagentsResource, fluentbitAgent, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.FluentbitAgent), err
-}
-
-// Update takes the representation of a fluentbitAgent and updates it. Returns the server's representation of the fluentbitAgent, and an error, if there is any.
-func (c *FakeFluentbitAgents) Update(ctx context.Context, fluentbitAgent *v1beta1.FluentbitAgent, opts v1.UpdateOptions) (result *v1beta1.FluentbitAgent, err error) {
-	emptyResult := &v1beta1.FluentbitAgent{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(fluentbitagentsResource, fluentbitAgent, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.FluentbitAgent), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeFluentbitAgents) UpdateStatus(ctx context.Context, fluentbitAgent *v1beta1.FluentbitAgent, opts v1.UpdateOptions) (result *v1beta1.FluentbitAgent, err error) {
-	emptyResult := &v1beta1.FluentbitAgent{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(fluentbitagentsResource, "status", fluentbitAgent, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.FluentbitAgent), err
-}
-
-// Delete takes name of the fluentbitAgent and deletes it. Returns an error if one occurs.
-func (c *FakeFluentbitAgents) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(fluentbitagentsResource, name, opts), &v1beta1.FluentbitAgent{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeFluentbitAgents) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(fluentbitagentsResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta1.FluentbitAgentList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched fluentbitAgent.
-func (c *FakeFluentbitAgents) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.FluentbitAgent, err error) {
-	emptyResult := &v1beta1.FluentbitAgent{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(fluentbitagentsResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.FluentbitAgent), err
 }

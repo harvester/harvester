@@ -19,129 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	longhorniov1beta2 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2"
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeBackupBackingImages implements BackupBackingImageInterface
-type FakeBackupBackingImages struct {
+// fakeBackupBackingImages implements BackupBackingImageInterface
+type fakeBackupBackingImages struct {
+	*gentype.FakeClientWithList[*v1beta2.BackupBackingImage, *v1beta2.BackupBackingImageList]
 	Fake *FakeLonghornV1beta2
-	ns   string
 }
 
-var backupbackingimagesResource = v1beta2.SchemeGroupVersion.WithResource("backupbackingimages")
-
-var backupbackingimagesKind = v1beta2.SchemeGroupVersion.WithKind("BackupBackingImage")
-
-// Get takes name of the backupBackingImage, and returns the corresponding backupBackingImage object, and an error if there is any.
-func (c *FakeBackupBackingImages) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.BackupBackingImage, err error) {
-	emptyResult := &v1beta2.BackupBackingImage{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(backupbackingimagesResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeBackupBackingImages(fake *FakeLonghornV1beta2, namespace string) longhorniov1beta2.BackupBackingImageInterface {
+	return &fakeBackupBackingImages{
+		gentype.NewFakeClientWithList[*v1beta2.BackupBackingImage, *v1beta2.BackupBackingImageList](
+			fake.Fake,
+			namespace,
+			v1beta2.SchemeGroupVersion.WithResource("backupbackingimages"),
+			v1beta2.SchemeGroupVersion.WithKind("BackupBackingImage"),
+			func() *v1beta2.BackupBackingImage { return &v1beta2.BackupBackingImage{} },
+			func() *v1beta2.BackupBackingImageList { return &v1beta2.BackupBackingImageList{} },
+			func(dst, src *v1beta2.BackupBackingImageList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta2.BackupBackingImageList) []*v1beta2.BackupBackingImage {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1beta2.BackupBackingImageList, items []*v1beta2.BackupBackingImage) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta2.BackupBackingImage), err
-}
-
-// List takes label and field selectors, and returns the list of BackupBackingImages that match those selectors.
-func (c *FakeBackupBackingImages) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.BackupBackingImageList, err error) {
-	emptyResult := &v1beta2.BackupBackingImageList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(backupbackingimagesResource, backupbackingimagesKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta2.BackupBackingImageList{ListMeta: obj.(*v1beta2.BackupBackingImageList).ListMeta}
-	for _, item := range obj.(*v1beta2.BackupBackingImageList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested backupBackingImages.
-func (c *FakeBackupBackingImages) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(backupbackingimagesResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a backupBackingImage and creates it.  Returns the server's representation of the backupBackingImage, and an error, if there is any.
-func (c *FakeBackupBackingImages) Create(ctx context.Context, backupBackingImage *v1beta2.BackupBackingImage, opts v1.CreateOptions) (result *v1beta2.BackupBackingImage, err error) {
-	emptyResult := &v1beta2.BackupBackingImage{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(backupbackingimagesResource, c.ns, backupBackingImage, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.BackupBackingImage), err
-}
-
-// Update takes the representation of a backupBackingImage and updates it. Returns the server's representation of the backupBackingImage, and an error, if there is any.
-func (c *FakeBackupBackingImages) Update(ctx context.Context, backupBackingImage *v1beta2.BackupBackingImage, opts v1.UpdateOptions) (result *v1beta2.BackupBackingImage, err error) {
-	emptyResult := &v1beta2.BackupBackingImage{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(backupbackingimagesResource, c.ns, backupBackingImage, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.BackupBackingImage), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeBackupBackingImages) UpdateStatus(ctx context.Context, backupBackingImage *v1beta2.BackupBackingImage, opts v1.UpdateOptions) (result *v1beta2.BackupBackingImage, err error) {
-	emptyResult := &v1beta2.BackupBackingImage{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(backupbackingimagesResource, "status", c.ns, backupBackingImage, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.BackupBackingImage), err
-}
-
-// Delete takes name of the backupBackingImage and deletes it. Returns an error if one occurs.
-func (c *FakeBackupBackingImages) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(backupbackingimagesResource, c.ns, name, opts), &v1beta2.BackupBackingImage{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeBackupBackingImages) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(backupbackingimagesResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta2.BackupBackingImageList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched backupBackingImage.
-func (c *FakeBackupBackingImages) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.BackupBackingImage, err error) {
-	emptyResult := &v1beta2.BackupBackingImage{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(backupbackingimagesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.BackupBackingImage), err
 }

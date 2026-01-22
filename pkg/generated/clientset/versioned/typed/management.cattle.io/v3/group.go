@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type GroupsGetter interface {
 
 // GroupInterface has methods to work with Group resources.
 type GroupInterface interface {
-	Create(ctx context.Context, group *v3.Group, opts v1.CreateOptions) (*v3.Group, error)
-	Update(ctx context.Context, group *v3.Group, opts v1.UpdateOptions) (*v3.Group, error)
+	Create(ctx context.Context, group *managementcattleiov3.Group, opts v1.CreateOptions) (*managementcattleiov3.Group, error)
+	Update(ctx context.Context, group *managementcattleiov3.Group, opts v1.UpdateOptions) (*managementcattleiov3.Group, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.Group, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.GroupList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.Group, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.GroupList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Group, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.Group, err error)
 	GroupExpansion
 }
 
 // groups implements GroupInterface
 type groups struct {
-	*gentype.ClientWithList[*v3.Group, *v3.GroupList]
+	*gentype.ClientWithList[*managementcattleiov3.Group, *managementcattleiov3.GroupList]
 }
 
 // newGroups returns a Groups
 func newGroups(c *ManagementV3Client) *groups {
 	return &groups{
-		gentype.NewClientWithList[*v3.Group, *v3.GroupList](
+		gentype.NewClientWithList[*managementcattleiov3.Group, *managementcattleiov3.GroupList](
 			"groups",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.Group { return &v3.Group{} },
-			func() *v3.GroupList { return &v3.GroupList{} }),
+			func() *managementcattleiov3.Group { return &managementcattleiov3.Group{} },
+			func() *managementcattleiov3.GroupList { return &managementcattleiov3.GroupList{} },
+		),
 	}
 }

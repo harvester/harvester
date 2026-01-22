@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type OpenLdapProvidersGetter interface {
 
 // OpenLdapProviderInterface has methods to work with OpenLdapProvider resources.
 type OpenLdapProviderInterface interface {
-	Create(ctx context.Context, openLdapProvider *v3.OpenLdapProvider, opts v1.CreateOptions) (*v3.OpenLdapProvider, error)
-	Update(ctx context.Context, openLdapProvider *v3.OpenLdapProvider, opts v1.UpdateOptions) (*v3.OpenLdapProvider, error)
+	Create(ctx context.Context, openLdapProvider *managementcattleiov3.OpenLdapProvider, opts v1.CreateOptions) (*managementcattleiov3.OpenLdapProvider, error)
+	Update(ctx context.Context, openLdapProvider *managementcattleiov3.OpenLdapProvider, opts v1.UpdateOptions) (*managementcattleiov3.OpenLdapProvider, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.OpenLdapProvider, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.OpenLdapProviderList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.OpenLdapProvider, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.OpenLdapProviderList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.OpenLdapProvider, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.OpenLdapProvider, err error)
 	OpenLdapProviderExpansion
 }
 
 // openLdapProviders implements OpenLdapProviderInterface
 type openLdapProviders struct {
-	*gentype.ClientWithList[*v3.OpenLdapProvider, *v3.OpenLdapProviderList]
+	*gentype.ClientWithList[*managementcattleiov3.OpenLdapProvider, *managementcattleiov3.OpenLdapProviderList]
 }
 
 // newOpenLdapProviders returns a OpenLdapProviders
 func newOpenLdapProviders(c *ManagementV3Client) *openLdapProviders {
 	return &openLdapProviders{
-		gentype.NewClientWithList[*v3.OpenLdapProvider, *v3.OpenLdapProviderList](
+		gentype.NewClientWithList[*managementcattleiov3.OpenLdapProvider, *managementcattleiov3.OpenLdapProviderList](
 			"openldapproviders",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.OpenLdapProvider { return &v3.OpenLdapProvider{} },
-			func() *v3.OpenLdapProviderList { return &v3.OpenLdapProviderList{} }),
+			func() *managementcattleiov3.OpenLdapProvider { return &managementcattleiov3.OpenLdapProvider{} },
+			func() *managementcattleiov3.OpenLdapProviderList { return &managementcattleiov3.OpenLdapProviderList{} },
+		),
 	}
 }
