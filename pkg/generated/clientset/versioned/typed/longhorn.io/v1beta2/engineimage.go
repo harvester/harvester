@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type EngineImagesGetter interface {
 
 // EngineImageInterface has methods to work with EngineImage resources.
 type EngineImageInterface interface {
-	Create(ctx context.Context, engineImage *v1beta2.EngineImage, opts v1.CreateOptions) (*v1beta2.EngineImage, error)
-	Update(ctx context.Context, engineImage *v1beta2.EngineImage, opts v1.UpdateOptions) (*v1beta2.EngineImage, error)
+	Create(ctx context.Context, engineImage *longhornv1beta2.EngineImage, opts v1.CreateOptions) (*longhornv1beta2.EngineImage, error)
+	Update(ctx context.Context, engineImage *longhornv1beta2.EngineImage, opts v1.UpdateOptions) (*longhornv1beta2.EngineImage, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, engineImage *v1beta2.EngineImage, opts v1.UpdateOptions) (*v1beta2.EngineImage, error)
+	UpdateStatus(ctx context.Context, engineImage *longhornv1beta2.EngineImage, opts v1.UpdateOptions) (*longhornv1beta2.EngineImage, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.EngineImage, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.EngineImageList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.EngineImage, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.EngineImageList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.EngineImage, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.EngineImage, err error)
 	EngineImageExpansion
 }
 
 // engineImages implements EngineImageInterface
 type engineImages struct {
-	*gentype.ClientWithList[*v1beta2.EngineImage, *v1beta2.EngineImageList]
+	*gentype.ClientWithList[*longhornv1beta2.EngineImage, *longhornv1beta2.EngineImageList]
 }
 
 // newEngineImages returns a EngineImages
 func newEngineImages(c *LonghornV1beta2Client, namespace string) *engineImages {
 	return &engineImages{
-		gentype.NewClientWithList[*v1beta2.EngineImage, *v1beta2.EngineImageList](
+		gentype.NewClientWithList[*longhornv1beta2.EngineImage, *longhornv1beta2.EngineImageList](
 			"engineimages",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.EngineImage { return &v1beta2.EngineImage{} },
-			func() *v1beta2.EngineImageList { return &v1beta2.EngineImageList{} }),
+			func() *longhornv1beta2.EngineImage { return &longhornv1beta2.EngineImage{} },
+			func() *longhornv1beta2.EngineImageList { return &longhornv1beta2.EngineImageList{} },
+		),
 	}
 }

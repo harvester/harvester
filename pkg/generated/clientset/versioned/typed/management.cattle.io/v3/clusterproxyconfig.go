@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,34 @@ type ClusterProxyConfigsGetter interface {
 
 // ClusterProxyConfigInterface has methods to work with ClusterProxyConfig resources.
 type ClusterProxyConfigInterface interface {
-	Create(ctx context.Context, clusterProxyConfig *v3.ClusterProxyConfig, opts v1.CreateOptions) (*v3.ClusterProxyConfig, error)
-	Update(ctx context.Context, clusterProxyConfig *v3.ClusterProxyConfig, opts v1.UpdateOptions) (*v3.ClusterProxyConfig, error)
+	Create(ctx context.Context, clusterProxyConfig *managementcattleiov3.ClusterProxyConfig, opts v1.CreateOptions) (*managementcattleiov3.ClusterProxyConfig, error)
+	Update(ctx context.Context, clusterProxyConfig *managementcattleiov3.ClusterProxyConfig, opts v1.UpdateOptions) (*managementcattleiov3.ClusterProxyConfig, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ClusterProxyConfig, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ClusterProxyConfigList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ClusterProxyConfig, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ClusterProxyConfigList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterProxyConfig, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ClusterProxyConfig, err error)
 	ClusterProxyConfigExpansion
 }
 
 // clusterProxyConfigs implements ClusterProxyConfigInterface
 type clusterProxyConfigs struct {
-	*gentype.ClientWithList[*v3.ClusterProxyConfig, *v3.ClusterProxyConfigList]
+	*gentype.ClientWithList[*managementcattleiov3.ClusterProxyConfig, *managementcattleiov3.ClusterProxyConfigList]
 }
 
 // newClusterProxyConfigs returns a ClusterProxyConfigs
 func newClusterProxyConfigs(c *ManagementV3Client, namespace string) *clusterProxyConfigs {
 	return &clusterProxyConfigs{
-		gentype.NewClientWithList[*v3.ClusterProxyConfig, *v3.ClusterProxyConfigList](
+		gentype.NewClientWithList[*managementcattleiov3.ClusterProxyConfig, *managementcattleiov3.ClusterProxyConfigList](
 			"clusterproxyconfigs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.ClusterProxyConfig { return &v3.ClusterProxyConfig{} },
-			func() *v3.ClusterProxyConfigList { return &v3.ClusterProxyConfigList{} }),
+			func() *managementcattleiov3.ClusterProxyConfig { return &managementcattleiov3.ClusterProxyConfig{} },
+			func() *managementcattleiov3.ClusterProxyConfigList {
+				return &managementcattleiov3.ClusterProxyConfigList{}
+			},
+		),
 	}
 }

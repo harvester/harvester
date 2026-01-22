@@ -19,129 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeProjectNetworkPolicies implements ProjectNetworkPolicyInterface
-type FakeProjectNetworkPolicies struct {
+// fakeProjectNetworkPolicies implements ProjectNetworkPolicyInterface
+type fakeProjectNetworkPolicies struct {
+	*gentype.FakeClientWithList[*v3.ProjectNetworkPolicy, *v3.ProjectNetworkPolicyList]
 	Fake *FakeManagementV3
-	ns   string
 }
 
-var projectnetworkpoliciesResource = v3.SchemeGroupVersion.WithResource("projectnetworkpolicies")
-
-var projectnetworkpoliciesKind = v3.SchemeGroupVersion.WithKind("ProjectNetworkPolicy")
-
-// Get takes name of the projectNetworkPolicy, and returns the corresponding projectNetworkPolicy object, and an error if there is any.
-func (c *FakeProjectNetworkPolicies) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ProjectNetworkPolicy, err error) {
-	emptyResult := &v3.ProjectNetworkPolicy{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(projectnetworkpoliciesResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeProjectNetworkPolicies(fake *FakeManagementV3, namespace string) managementcattleiov3.ProjectNetworkPolicyInterface {
+	return &fakeProjectNetworkPolicies{
+		gentype.NewFakeClientWithList[*v3.ProjectNetworkPolicy, *v3.ProjectNetworkPolicyList](
+			fake.Fake,
+			namespace,
+			v3.SchemeGroupVersion.WithResource("projectnetworkpolicies"),
+			v3.SchemeGroupVersion.WithKind("ProjectNetworkPolicy"),
+			func() *v3.ProjectNetworkPolicy { return &v3.ProjectNetworkPolicy{} },
+			func() *v3.ProjectNetworkPolicyList { return &v3.ProjectNetworkPolicyList{} },
+			func(dst, src *v3.ProjectNetworkPolicyList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.ProjectNetworkPolicyList) []*v3.ProjectNetworkPolicy {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v3.ProjectNetworkPolicyList, items []*v3.ProjectNetworkPolicy) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.ProjectNetworkPolicy), err
-}
-
-// List takes label and field selectors, and returns the list of ProjectNetworkPolicies that match those selectors.
-func (c *FakeProjectNetworkPolicies) List(ctx context.Context, opts v1.ListOptions) (result *v3.ProjectNetworkPolicyList, err error) {
-	emptyResult := &v3.ProjectNetworkPolicyList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(projectnetworkpoliciesResource, projectnetworkpoliciesKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.ProjectNetworkPolicyList{ListMeta: obj.(*v3.ProjectNetworkPolicyList).ListMeta}
-	for _, item := range obj.(*v3.ProjectNetworkPolicyList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested projectNetworkPolicies.
-func (c *FakeProjectNetworkPolicies) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(projectnetworkpoliciesResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a projectNetworkPolicy and creates it.  Returns the server's representation of the projectNetworkPolicy, and an error, if there is any.
-func (c *FakeProjectNetworkPolicies) Create(ctx context.Context, projectNetworkPolicy *v3.ProjectNetworkPolicy, opts v1.CreateOptions) (result *v3.ProjectNetworkPolicy, err error) {
-	emptyResult := &v3.ProjectNetworkPolicy{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(projectnetworkpoliciesResource, c.ns, projectNetworkPolicy, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ProjectNetworkPolicy), err
-}
-
-// Update takes the representation of a projectNetworkPolicy and updates it. Returns the server's representation of the projectNetworkPolicy, and an error, if there is any.
-func (c *FakeProjectNetworkPolicies) Update(ctx context.Context, projectNetworkPolicy *v3.ProjectNetworkPolicy, opts v1.UpdateOptions) (result *v3.ProjectNetworkPolicy, err error) {
-	emptyResult := &v3.ProjectNetworkPolicy{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(projectnetworkpoliciesResource, c.ns, projectNetworkPolicy, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ProjectNetworkPolicy), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeProjectNetworkPolicies) UpdateStatus(ctx context.Context, projectNetworkPolicy *v3.ProjectNetworkPolicy, opts v1.UpdateOptions) (result *v3.ProjectNetworkPolicy, err error) {
-	emptyResult := &v3.ProjectNetworkPolicy{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(projectnetworkpoliciesResource, "status", c.ns, projectNetworkPolicy, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ProjectNetworkPolicy), err
-}
-
-// Delete takes name of the projectNetworkPolicy and deletes it. Returns an error if one occurs.
-func (c *FakeProjectNetworkPolicies) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(projectnetworkpoliciesResource, c.ns, name, opts), &v3.ProjectNetworkPolicy{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeProjectNetworkPolicies) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(projectnetworkpoliciesResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.ProjectNetworkPolicyList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched projectNetworkPolicy.
-func (c *FakeProjectNetworkPolicies) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ProjectNetworkPolicy, err error) {
-	emptyResult := &v3.ProjectNetworkPolicy{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(projectnetworkpoliciesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ProjectNetworkPolicy), err
 }

@@ -525,6 +525,10 @@ spec:
                                           description: DiskID provides id of a disk
                                             to be imported
                                           type: string
+                                        insecureSkipVerify:
+                                          description: InsecureSkipVerify is a flag
+                                            to skip certificate verification
+                                          type: boolean
                                         secretRef:
                                           description: SecretRef provides the secret
                                             reference needed to access the ovirt-engine
@@ -565,6 +569,15 @@ spec:
                                           description: ImageStream is the name of
                                             image stream for import
                                           type: string
+                                        platform:
+                                          description: Platform describes the minimum
+                                            runtime requirements of the image
+                                          properties:
+                                            architecture:
+                                              description: Architecture specifies
+                                                the image target CPU architecture
+                                              type: string
+                                          type: object
                                         pullMethod:
                                           description: PullMethod can be either "pod"
                                             (default import), or "node" (node docker
@@ -631,6 +644,11 @@ spec:
                                           description: BackingFile is the path to
                                             the virtual hard disk to migrate from
                                             vCenter/ESXi
+                                          type: string
+                                        extraArgs:
+                                          description: ExtraArgs is a reference to
+                                            a ConfigMap containing extra arguments
+                                            to pass directly to the VDDK library
                                           type: string
                                         initImageURL:
                                           description: InitImageURL is an optional
@@ -1344,7 +1362,6 @@ spec:
                                                     pod labels will be ignored. The default value is empty.
                                                     The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                                     Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                                   items:
                                                     type: string
                                                   type: array
@@ -1359,7 +1376,6 @@ spec:
                                                     pod labels will be ignored. The default value is empty.
                                                     The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                                     Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                                   items:
                                                     type: string
                                                   type: array
@@ -1529,7 +1545,6 @@ spec:
                                                 pod labels will be ignored. The default value is empty.
                                                 The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                                 Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                                This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                               items:
                                                 type: string
                                               type: array
@@ -1544,7 +1559,6 @@ spec:
                                                 pod labels will be ignored. The default value is empty.
                                                 The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                                 Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                                This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                               items:
                                                 type: string
                                               type: array
@@ -1713,7 +1727,6 @@ spec:
                                                     pod labels will be ignored. The default value is empty.
                                                     The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                                     Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                                   items:
                                                     type: string
                                                   type: array
@@ -1728,7 +1741,6 @@ spec:
                                                     pod labels will be ignored. The default value is empty.
                                                     The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                                     Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                                   items:
                                                     type: string
                                                   type: array
@@ -1898,7 +1910,6 @@ spec:
                                                 pod labels will be ignored. The default value is empty.
                                                 The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                                 Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                                This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                               items:
                                                 type: string
                                               type: array
@@ -1913,7 +1924,6 @@ spec:
                                                 pod labels will be ignored. The default value is empty.
                                                 The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                                 Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                                This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                               items:
                                                 type: string
                                               type: array
@@ -2330,13 +2340,12 @@ spec:
                                                     the desired logical and physical
                                                     block size for a VM disk.
                                                   properties:
+                                                    discardGranularity:
+                                                      type: integer
                                                     logical:
                                                       type: integer
                                                     physical:
                                                       type: integer
-                                                  required:
-                                                  - logical
-                                                  - physical
                                                   type: object
                                                 matchVolume:
                                                   description: Represents if a feature
@@ -2386,6 +2395,11 @@ spec:
                                                     Defaults to closed.
                                                   type: string
                                               type: object
+                                            changedBlockTracking:
+                                              description: |-
+                                                ChangedBlockTracking indicates this disk should have CBT option
+                                                Defaults to false.
+                                              type: boolean
                                             dedicatedIOThread:
                                               description: |-
                                                 dedicatedIOThread indicates this disk should have an exclusive IO Thread.
@@ -3291,6 +3305,14 @@ spec:
                                             description: Base64 encoded session blob.
                                             type: string
                                         type: object
+                                      snp:
+                                        description: AMD SEV-SNP flags defined by
+                                          the SEV-SNP specifications.
+                                        type: object
+                                      tdx:
+                                        description: Intel Trust Domain Extensions
+                                          (TDX).
+                                        type: object
                                     type: object
                                   machine:
                                     description: Machine type.
@@ -3967,7 +3989,6 @@ spec:
                                         - Ignore: nodeAffinity/nodeSelector are ignored. All nodes are included in the calculations.
 
                                         If this value is nil, the behavior is equivalent to the Honor policy.
-                                        This is a beta-level feature default enabled by the NodeInclusionPolicyInPodTopologySpread feature flag.
                                       type: string
                                     nodeTaintsPolicy:
                                       description: |-
@@ -3978,7 +3999,6 @@ spec:
                                         - Ignore: node taints are ignored. All nodes are included.
 
                                         If this value is nil, the behavior is equivalent to the Ignore policy.
-                                        This is a beta-level feature default enabled by the NodeInclusionPolicyInPodTopologySpread feature flag.
                                       type: string
                                     topologyKey:
                                       description: |-

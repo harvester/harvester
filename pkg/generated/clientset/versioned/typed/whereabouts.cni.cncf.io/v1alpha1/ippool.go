@@ -19,10 +19,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	whereaboutscnicncfiov1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type IPPoolsGetter interface {
 
 // IPPoolInterface has methods to work with IPPool resources.
 type IPPoolInterface interface {
-	Create(ctx context.Context, iPPool *v1alpha1.IPPool, opts v1.CreateOptions) (*v1alpha1.IPPool, error)
-	Update(ctx context.Context, iPPool *v1alpha1.IPPool, opts v1.UpdateOptions) (*v1alpha1.IPPool, error)
+	Create(ctx context.Context, iPPool *whereaboutscnicncfiov1alpha1.IPPool, opts v1.CreateOptions) (*whereaboutscnicncfiov1alpha1.IPPool, error)
+	Update(ctx context.Context, iPPool *whereaboutscnicncfiov1alpha1.IPPool, opts v1.UpdateOptions) (*whereaboutscnicncfiov1alpha1.IPPool, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.IPPool, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.IPPoolList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*whereaboutscnicncfiov1alpha1.IPPool, error)
+	List(ctx context.Context, opts v1.ListOptions) (*whereaboutscnicncfiov1alpha1.IPPoolList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.IPPool, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *whereaboutscnicncfiov1alpha1.IPPool, err error)
 	IPPoolExpansion
 }
 
 // iPPools implements IPPoolInterface
 type iPPools struct {
-	*gentype.ClientWithList[*v1alpha1.IPPool, *v1alpha1.IPPoolList]
+	*gentype.ClientWithList[*whereaboutscnicncfiov1alpha1.IPPool, *whereaboutscnicncfiov1alpha1.IPPoolList]
 }
 
 // newIPPools returns a IPPools
 func newIPPools(c *WhereaboutsV1alpha1Client) *iPPools {
 	return &iPPools{
-		gentype.NewClientWithList[*v1alpha1.IPPool, *v1alpha1.IPPoolList](
+		gentype.NewClientWithList[*whereaboutscnicncfiov1alpha1.IPPool, *whereaboutscnicncfiov1alpha1.IPPoolList](
 			"ippools",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1alpha1.IPPool { return &v1alpha1.IPPool{} },
-			func() *v1alpha1.IPPoolList { return &v1alpha1.IPPoolList{} }),
+			func() *whereaboutscnicncfiov1alpha1.IPPool { return &whereaboutscnicncfiov1alpha1.IPPool{} },
+			func() *whereaboutscnicncfiov1alpha1.IPPoolList { return &whereaboutscnicncfiov1alpha1.IPPoolList{} },
+		),
 	}
 }

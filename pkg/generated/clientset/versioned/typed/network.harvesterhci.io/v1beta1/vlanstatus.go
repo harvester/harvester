@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
+	networkharvesterhciiov1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,36 @@ type VlanStatusesGetter interface {
 
 // VlanStatusInterface has methods to work with VlanStatus resources.
 type VlanStatusInterface interface {
-	Create(ctx context.Context, vlanStatus *v1beta1.VlanStatus, opts v1.CreateOptions) (*v1beta1.VlanStatus, error)
-	Update(ctx context.Context, vlanStatus *v1beta1.VlanStatus, opts v1.UpdateOptions) (*v1beta1.VlanStatus, error)
+	Create(ctx context.Context, vlanStatus *networkharvesterhciiov1beta1.VlanStatus, opts v1.CreateOptions) (*networkharvesterhciiov1beta1.VlanStatus, error)
+	Update(ctx context.Context, vlanStatus *networkharvesterhciiov1beta1.VlanStatus, opts v1.UpdateOptions) (*networkharvesterhciiov1beta1.VlanStatus, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, vlanStatus *v1beta1.VlanStatus, opts v1.UpdateOptions) (*v1beta1.VlanStatus, error)
+	UpdateStatus(ctx context.Context, vlanStatus *networkharvesterhciiov1beta1.VlanStatus, opts v1.UpdateOptions) (*networkharvesterhciiov1beta1.VlanStatus, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.VlanStatus, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.VlanStatusList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*networkharvesterhciiov1beta1.VlanStatus, error)
+	List(ctx context.Context, opts v1.ListOptions) (*networkharvesterhciiov1beta1.VlanStatusList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VlanStatus, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *networkharvesterhciiov1beta1.VlanStatus, err error)
 	VlanStatusExpansion
 }
 
 // vlanStatuses implements VlanStatusInterface
 type vlanStatuses struct {
-	*gentype.ClientWithList[*v1beta1.VlanStatus, *v1beta1.VlanStatusList]
+	*gentype.ClientWithList[*networkharvesterhciiov1beta1.VlanStatus, *networkharvesterhciiov1beta1.VlanStatusList]
 }
 
 // newVlanStatuses returns a VlanStatuses
 func newVlanStatuses(c *NetworkV1beta1Client) *vlanStatuses {
 	return &vlanStatuses{
-		gentype.NewClientWithList[*v1beta1.VlanStatus, *v1beta1.VlanStatusList](
+		gentype.NewClientWithList[*networkharvesterhciiov1beta1.VlanStatus, *networkharvesterhciiov1beta1.VlanStatusList](
 			"vlanstatuses",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1beta1.VlanStatus { return &v1beta1.VlanStatus{} },
-			func() *v1beta1.VlanStatusList { return &v1beta1.VlanStatusList{} }),
+			func() *networkharvesterhciiov1beta1.VlanStatus { return &networkharvesterhciiov1beta1.VlanStatus{} },
+			func() *networkharvesterhciiov1beta1.VlanStatusList {
+				return &networkharvesterhciiov1beta1.VlanStatusList{}
+			},
+		),
 	}
 }

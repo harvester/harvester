@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type UpgradeLogsGetter interface {
 
 // UpgradeLogInterface has methods to work with UpgradeLog resources.
 type UpgradeLogInterface interface {
-	Create(ctx context.Context, upgradeLog *v1beta1.UpgradeLog, opts v1.CreateOptions) (*v1beta1.UpgradeLog, error)
-	Update(ctx context.Context, upgradeLog *v1beta1.UpgradeLog, opts v1.UpdateOptions) (*v1beta1.UpgradeLog, error)
+	Create(ctx context.Context, upgradeLog *harvesterhciiov1beta1.UpgradeLog, opts v1.CreateOptions) (*harvesterhciiov1beta1.UpgradeLog, error)
+	Update(ctx context.Context, upgradeLog *harvesterhciiov1beta1.UpgradeLog, opts v1.UpdateOptions) (*harvesterhciiov1beta1.UpgradeLog, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, upgradeLog *v1beta1.UpgradeLog, opts v1.UpdateOptions) (*v1beta1.UpgradeLog, error)
+	UpdateStatus(ctx context.Context, upgradeLog *harvesterhciiov1beta1.UpgradeLog, opts v1.UpdateOptions) (*harvesterhciiov1beta1.UpgradeLog, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.UpgradeLog, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.UpgradeLogList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*harvesterhciiov1beta1.UpgradeLog, error)
+	List(ctx context.Context, opts v1.ListOptions) (*harvesterhciiov1beta1.UpgradeLogList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.UpgradeLog, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *harvesterhciiov1beta1.UpgradeLog, err error)
 	UpgradeLogExpansion
 }
 
 // upgradeLogs implements UpgradeLogInterface
 type upgradeLogs struct {
-	*gentype.ClientWithList[*v1beta1.UpgradeLog, *v1beta1.UpgradeLogList]
+	*gentype.ClientWithList[*harvesterhciiov1beta1.UpgradeLog, *harvesterhciiov1beta1.UpgradeLogList]
 }
 
 // newUpgradeLogs returns a UpgradeLogs
 func newUpgradeLogs(c *HarvesterhciV1beta1Client, namespace string) *upgradeLogs {
 	return &upgradeLogs{
-		gentype.NewClientWithList[*v1beta1.UpgradeLog, *v1beta1.UpgradeLogList](
+		gentype.NewClientWithList[*harvesterhciiov1beta1.UpgradeLog, *harvesterhciiov1beta1.UpgradeLogList](
 			"upgradelogs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.UpgradeLog { return &v1beta1.UpgradeLog{} },
-			func() *v1beta1.UpgradeLogList { return &v1beta1.UpgradeLogList{} }),
+			func() *harvesterhciiov1beta1.UpgradeLog { return &harvesterhciiov1beta1.UpgradeLog{} },
+			func() *harvesterhciiov1beta1.UpgradeLogList { return &harvesterhciiov1beta1.UpgradeLogList{} },
+		),
 	}
 }

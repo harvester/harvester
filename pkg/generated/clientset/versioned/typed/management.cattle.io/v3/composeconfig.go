@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type ComposeConfigsGetter interface {
 
 // ComposeConfigInterface has methods to work with ComposeConfig resources.
 type ComposeConfigInterface interface {
-	Create(ctx context.Context, composeConfig *v3.ComposeConfig, opts v1.CreateOptions) (*v3.ComposeConfig, error)
-	Update(ctx context.Context, composeConfig *v3.ComposeConfig, opts v1.UpdateOptions) (*v3.ComposeConfig, error)
+	Create(ctx context.Context, composeConfig *managementcattleiov3.ComposeConfig, opts v1.CreateOptions) (*managementcattleiov3.ComposeConfig, error)
+	Update(ctx context.Context, composeConfig *managementcattleiov3.ComposeConfig, opts v1.UpdateOptions) (*managementcattleiov3.ComposeConfig, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, composeConfig *v3.ComposeConfig, opts v1.UpdateOptions) (*v3.ComposeConfig, error)
+	UpdateStatus(ctx context.Context, composeConfig *managementcattleiov3.ComposeConfig, opts v1.UpdateOptions) (*managementcattleiov3.ComposeConfig, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ComposeConfig, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ComposeConfigList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ComposeConfig, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ComposeConfigList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ComposeConfig, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ComposeConfig, err error)
 	ComposeConfigExpansion
 }
 
 // composeConfigs implements ComposeConfigInterface
 type composeConfigs struct {
-	*gentype.ClientWithList[*v3.ComposeConfig, *v3.ComposeConfigList]
+	*gentype.ClientWithList[*managementcattleiov3.ComposeConfig, *managementcattleiov3.ComposeConfigList]
 }
 
 // newComposeConfigs returns a ComposeConfigs
 func newComposeConfigs(c *ManagementV3Client) *composeConfigs {
 	return &composeConfigs{
-		gentype.NewClientWithList[*v3.ComposeConfig, *v3.ComposeConfigList](
+		gentype.NewClientWithList[*managementcattleiov3.ComposeConfig, *managementcattleiov3.ComposeConfigList](
 			"composeconfigs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.ComposeConfig { return &v3.ComposeConfig{} },
-			func() *v3.ComposeConfigList { return &v3.ComposeConfigList{} }),
+			func() *managementcattleiov3.ComposeConfig { return &managementcattleiov3.ComposeConfig{} },
+			func() *managementcattleiov3.ComposeConfigList { return &managementcattleiov3.ComposeConfigList{} },
+		),
 	}
 }

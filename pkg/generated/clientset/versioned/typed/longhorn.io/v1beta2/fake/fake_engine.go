@@ -19,129 +19,30 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	longhorniov1beta2 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2"
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeEngines implements EngineInterface
-type FakeEngines struct {
+// fakeEngines implements EngineInterface
+type fakeEngines struct {
+	*gentype.FakeClientWithList[*v1beta2.Engine, *v1beta2.EngineList]
 	Fake *FakeLonghornV1beta2
-	ns   string
 }
 
-var enginesResource = v1beta2.SchemeGroupVersion.WithResource("engines")
-
-var enginesKind = v1beta2.SchemeGroupVersion.WithKind("Engine")
-
-// Get takes name of the engine, and returns the corresponding engine object, and an error if there is any.
-func (c *FakeEngines) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.Engine, err error) {
-	emptyResult := &v1beta2.Engine{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(enginesResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeEngines(fake *FakeLonghornV1beta2, namespace string) longhorniov1beta2.EngineInterface {
+	return &fakeEngines{
+		gentype.NewFakeClientWithList[*v1beta2.Engine, *v1beta2.EngineList](
+			fake.Fake,
+			namespace,
+			v1beta2.SchemeGroupVersion.WithResource("engines"),
+			v1beta2.SchemeGroupVersion.WithKind("Engine"),
+			func() *v1beta2.Engine { return &v1beta2.Engine{} },
+			func() *v1beta2.EngineList { return &v1beta2.EngineList{} },
+			func(dst, src *v1beta2.EngineList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta2.EngineList) []*v1beta2.Engine { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1beta2.EngineList, items []*v1beta2.Engine) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*v1beta2.Engine), err
-}
-
-// List takes label and field selectors, and returns the list of Engines that match those selectors.
-func (c *FakeEngines) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.EngineList, err error) {
-	emptyResult := &v1beta2.EngineList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(enginesResource, enginesKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta2.EngineList{ListMeta: obj.(*v1beta2.EngineList).ListMeta}
-	for _, item := range obj.(*v1beta2.EngineList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested engines.
-func (c *FakeEngines) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(enginesResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a engine and creates it.  Returns the server's representation of the engine, and an error, if there is any.
-func (c *FakeEngines) Create(ctx context.Context, engine *v1beta2.Engine, opts v1.CreateOptions) (result *v1beta2.Engine, err error) {
-	emptyResult := &v1beta2.Engine{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(enginesResource, c.ns, engine, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.Engine), err
-}
-
-// Update takes the representation of a engine and updates it. Returns the server's representation of the engine, and an error, if there is any.
-func (c *FakeEngines) Update(ctx context.Context, engine *v1beta2.Engine, opts v1.UpdateOptions) (result *v1beta2.Engine, err error) {
-	emptyResult := &v1beta2.Engine{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(enginesResource, c.ns, engine, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.Engine), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeEngines) UpdateStatus(ctx context.Context, engine *v1beta2.Engine, opts v1.UpdateOptions) (result *v1beta2.Engine, err error) {
-	emptyResult := &v1beta2.Engine{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(enginesResource, "status", c.ns, engine, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.Engine), err
-}
-
-// Delete takes name of the engine and deletes it. Returns an error if one occurs.
-func (c *FakeEngines) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(enginesResource, c.ns, name, opts), &v1beta2.Engine{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeEngines) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(enginesResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta2.EngineList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched engine.
-func (c *FakeEngines) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.Engine, err error) {
-	emptyResult := &v1beta2.Engine{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(enginesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.Engine), err
 }

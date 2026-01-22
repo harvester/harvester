@@ -19,108 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeAuthProviders implements AuthProviderInterface
-type FakeAuthProviders struct {
+// fakeAuthProviders implements AuthProviderInterface
+type fakeAuthProviders struct {
+	*gentype.FakeClientWithList[*v3.AuthProvider, *v3.AuthProviderList]
 	Fake *FakeManagementV3
 }
 
-var authprovidersResource = v3.SchemeGroupVersion.WithResource("authproviders")
-
-var authprovidersKind = v3.SchemeGroupVersion.WithKind("AuthProvider")
-
-// Get takes name of the authProvider, and returns the corresponding authProvider object, and an error if there is any.
-func (c *FakeAuthProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.AuthProvider, err error) {
-	emptyResult := &v3.AuthProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(authprovidersResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeAuthProviders(fake *FakeManagementV3) managementcattleiov3.AuthProviderInterface {
+	return &fakeAuthProviders{
+		gentype.NewFakeClientWithList[*v3.AuthProvider, *v3.AuthProviderList](
+			fake.Fake,
+			"",
+			v3.SchemeGroupVersion.WithResource("authproviders"),
+			v3.SchemeGroupVersion.WithKind("AuthProvider"),
+			func() *v3.AuthProvider { return &v3.AuthProvider{} },
+			func() *v3.AuthProviderList { return &v3.AuthProviderList{} },
+			func(dst, src *v3.AuthProviderList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.AuthProviderList) []*v3.AuthProvider { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.AuthProviderList, items []*v3.AuthProvider) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.AuthProvider), err
-}
-
-// List takes label and field selectors, and returns the list of AuthProviders that match those selectors.
-func (c *FakeAuthProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.AuthProviderList, err error) {
-	emptyResult := &v3.AuthProviderList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(authprovidersResource, authprovidersKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.AuthProviderList{ListMeta: obj.(*v3.AuthProviderList).ListMeta}
-	for _, item := range obj.(*v3.AuthProviderList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested authProviders.
-func (c *FakeAuthProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(authprovidersResource, opts))
-}
-
-// Create takes the representation of a authProvider and creates it.  Returns the server's representation of the authProvider, and an error, if there is any.
-func (c *FakeAuthProviders) Create(ctx context.Context, authProvider *v3.AuthProvider, opts v1.CreateOptions) (result *v3.AuthProvider, err error) {
-	emptyResult := &v3.AuthProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(authprovidersResource, authProvider, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.AuthProvider), err
-}
-
-// Update takes the representation of a authProvider and updates it. Returns the server's representation of the authProvider, and an error, if there is any.
-func (c *FakeAuthProviders) Update(ctx context.Context, authProvider *v3.AuthProvider, opts v1.UpdateOptions) (result *v3.AuthProvider, err error) {
-	emptyResult := &v3.AuthProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(authprovidersResource, authProvider, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.AuthProvider), err
-}
-
-// Delete takes name of the authProvider and deletes it. Returns an error if one occurs.
-func (c *FakeAuthProviders) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(authprovidersResource, name, opts), &v3.AuthProvider{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeAuthProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(authprovidersResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.AuthProviderList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched authProvider.
-func (c *FakeAuthProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.AuthProvider, err error) {
-	emptyResult := &v3.AuthProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(authprovidersResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.AuthProvider), err
 }

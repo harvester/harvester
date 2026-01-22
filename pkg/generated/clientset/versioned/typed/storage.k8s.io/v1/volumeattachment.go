@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "k8s.io/api/storage/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type VolumeAttachmentsGetter interface {
 
 // VolumeAttachmentInterface has methods to work with VolumeAttachment resources.
 type VolumeAttachmentInterface interface {
-	Create(ctx context.Context, volumeAttachment *v1.VolumeAttachment, opts metav1.CreateOptions) (*v1.VolumeAttachment, error)
-	Update(ctx context.Context, volumeAttachment *v1.VolumeAttachment, opts metav1.UpdateOptions) (*v1.VolumeAttachment, error)
+	Create(ctx context.Context, volumeAttachment *storagev1.VolumeAttachment, opts metav1.CreateOptions) (*storagev1.VolumeAttachment, error)
+	Update(ctx context.Context, volumeAttachment *storagev1.VolumeAttachment, opts metav1.UpdateOptions) (*storagev1.VolumeAttachment, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, volumeAttachment *v1.VolumeAttachment, opts metav1.UpdateOptions) (*v1.VolumeAttachment, error)
+	UpdateStatus(ctx context.Context, volumeAttachment *storagev1.VolumeAttachment, opts metav1.UpdateOptions) (*storagev1.VolumeAttachment, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.VolumeAttachment, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.VolumeAttachmentList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*storagev1.VolumeAttachment, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*storagev1.VolumeAttachmentList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.VolumeAttachment, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *storagev1.VolumeAttachment, err error)
 	VolumeAttachmentExpansion
 }
 
 // volumeAttachments implements VolumeAttachmentInterface
 type volumeAttachments struct {
-	*gentype.ClientWithList[*v1.VolumeAttachment, *v1.VolumeAttachmentList]
+	*gentype.ClientWithList[*storagev1.VolumeAttachment, *storagev1.VolumeAttachmentList]
 }
 
 // newVolumeAttachments returns a VolumeAttachments
 func newVolumeAttachments(c *StorageV1Client) *volumeAttachments {
 	return &volumeAttachments{
-		gentype.NewClientWithList[*v1.VolumeAttachment, *v1.VolumeAttachmentList](
+		gentype.NewClientWithList[*storagev1.VolumeAttachment, *storagev1.VolumeAttachmentList](
 			"volumeattachments",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.VolumeAttachment { return &v1.VolumeAttachment{} },
-			func() *v1.VolumeAttachmentList { return &v1.VolumeAttachmentList{} }),
+			func() *storagev1.VolumeAttachment { return &storagev1.VolumeAttachment{} },
+			func() *storagev1.VolumeAttachmentList { return &storagev1.VolumeAttachmentList{} },
+		),
 	}
 }

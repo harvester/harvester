@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
+	apiv1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type OutputsGetter interface {
 
 // OutputInterface has methods to work with Output resources.
 type OutputInterface interface {
-	Create(ctx context.Context, output *v1beta1.Output, opts v1.CreateOptions) (*v1beta1.Output, error)
-	Update(ctx context.Context, output *v1beta1.Output, opts v1.UpdateOptions) (*v1beta1.Output, error)
+	Create(ctx context.Context, output *apiv1beta1.Output, opts v1.CreateOptions) (*apiv1beta1.Output, error)
+	Update(ctx context.Context, output *apiv1beta1.Output, opts v1.UpdateOptions) (*apiv1beta1.Output, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, output *v1beta1.Output, opts v1.UpdateOptions) (*v1beta1.Output, error)
+	UpdateStatus(ctx context.Context, output *apiv1beta1.Output, opts v1.UpdateOptions) (*apiv1beta1.Output, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.Output, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.OutputList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*apiv1beta1.Output, error)
+	List(ctx context.Context, opts v1.ListOptions) (*apiv1beta1.OutputList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Output, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *apiv1beta1.Output, err error)
 	OutputExpansion
 }
 
 // outputs implements OutputInterface
 type outputs struct {
-	*gentype.ClientWithList[*v1beta1.Output, *v1beta1.OutputList]
+	*gentype.ClientWithList[*apiv1beta1.Output, *apiv1beta1.OutputList]
 }
 
 // newOutputs returns a Outputs
 func newOutputs(c *LoggingV1beta1Client) *outputs {
 	return &outputs{
-		gentype.NewClientWithList[*v1beta1.Output, *v1beta1.OutputList](
+		gentype.NewClientWithList[*apiv1beta1.Output, *apiv1beta1.OutputList](
 			"outputs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1beta1.Output { return &v1beta1.Output{} },
-			func() *v1beta1.OutputList { return &v1beta1.OutputList{} }),
+			func() *apiv1beta1.Output { return &apiv1beta1.Output{} },
+			func() *apiv1beta1.OutputList { return &apiv1beta1.OutputList{} },
+		),
 	}
 }

@@ -19,116 +19,30 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakePreferences implements PreferenceInterface
-type FakePreferences struct {
+// fakePreferences implements PreferenceInterface
+type fakePreferences struct {
+	*gentype.FakeClientWithList[*v3.Preference, *v3.PreferenceList]
 	Fake *FakeManagementV3
-	ns   string
 }
 
-var preferencesResource = v3.SchemeGroupVersion.WithResource("preferences")
-
-var preferencesKind = v3.SchemeGroupVersion.WithKind("Preference")
-
-// Get takes name of the preference, and returns the corresponding preference object, and an error if there is any.
-func (c *FakePreferences) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Preference, err error) {
-	emptyResult := &v3.Preference{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(preferencesResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakePreferences(fake *FakeManagementV3, namespace string) managementcattleiov3.PreferenceInterface {
+	return &fakePreferences{
+		gentype.NewFakeClientWithList[*v3.Preference, *v3.PreferenceList](
+			fake.Fake,
+			namespace,
+			v3.SchemeGroupVersion.WithResource("preferences"),
+			v3.SchemeGroupVersion.WithKind("Preference"),
+			func() *v3.Preference { return &v3.Preference{} },
+			func() *v3.PreferenceList { return &v3.PreferenceList{} },
+			func(dst, src *v3.PreferenceList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.PreferenceList) []*v3.Preference { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.PreferenceList, items []*v3.Preference) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*v3.Preference), err
-}
-
-// List takes label and field selectors, and returns the list of Preferences that match those selectors.
-func (c *FakePreferences) List(ctx context.Context, opts v1.ListOptions) (result *v3.PreferenceList, err error) {
-	emptyResult := &v3.PreferenceList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(preferencesResource, preferencesKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.PreferenceList{ListMeta: obj.(*v3.PreferenceList).ListMeta}
-	for _, item := range obj.(*v3.PreferenceList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested preferences.
-func (c *FakePreferences) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(preferencesResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a preference and creates it.  Returns the server's representation of the preference, and an error, if there is any.
-func (c *FakePreferences) Create(ctx context.Context, preference *v3.Preference, opts v1.CreateOptions) (result *v3.Preference, err error) {
-	emptyResult := &v3.Preference{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(preferencesResource, c.ns, preference, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.Preference), err
-}
-
-// Update takes the representation of a preference and updates it. Returns the server's representation of the preference, and an error, if there is any.
-func (c *FakePreferences) Update(ctx context.Context, preference *v3.Preference, opts v1.UpdateOptions) (result *v3.Preference, err error) {
-	emptyResult := &v3.Preference{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(preferencesResource, c.ns, preference, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.Preference), err
-}
-
-// Delete takes name of the preference and deletes it. Returns an error if one occurs.
-func (c *FakePreferences) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(preferencesResource, c.ns, name, opts), &v3.Preference{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakePreferences) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(preferencesResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.PreferenceList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched preference.
-func (c *FakePreferences) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Preference, err error) {
-	emptyResult := &v3.Preference{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(preferencesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.Preference), err
 }

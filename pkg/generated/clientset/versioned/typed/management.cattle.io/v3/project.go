@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type ProjectsGetter interface {
 
 // ProjectInterface has methods to work with Project resources.
 type ProjectInterface interface {
-	Create(ctx context.Context, project *v3.Project, opts v1.CreateOptions) (*v3.Project, error)
-	Update(ctx context.Context, project *v3.Project, opts v1.UpdateOptions) (*v3.Project, error)
+	Create(ctx context.Context, project *managementcattleiov3.Project, opts v1.CreateOptions) (*managementcattleiov3.Project, error)
+	Update(ctx context.Context, project *managementcattleiov3.Project, opts v1.UpdateOptions) (*managementcattleiov3.Project, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, project *v3.Project, opts v1.UpdateOptions) (*v3.Project, error)
+	UpdateStatus(ctx context.Context, project *managementcattleiov3.Project, opts v1.UpdateOptions) (*managementcattleiov3.Project, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.Project, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ProjectList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.Project, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ProjectList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Project, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.Project, err error)
 	ProjectExpansion
 }
 
 // projects implements ProjectInterface
 type projects struct {
-	*gentype.ClientWithList[*v3.Project, *v3.ProjectList]
+	*gentype.ClientWithList[*managementcattleiov3.Project, *managementcattleiov3.ProjectList]
 }
 
 // newProjects returns a Projects
 func newProjects(c *ManagementV3Client, namespace string) *projects {
 	return &projects{
-		gentype.NewClientWithList[*v3.Project, *v3.ProjectList](
+		gentype.NewClientWithList[*managementcattleiov3.Project, *managementcattleiov3.ProjectList](
 			"projects",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.Project { return &v3.Project{} },
-			func() *v3.ProjectList { return &v3.ProjectList{} }),
+			func() *managementcattleiov3.Project { return &managementcattleiov3.Project{} },
+			func() *managementcattleiov3.ProjectList { return &managementcattleiov3.ProjectList{} },
+		),
 	}
 }
