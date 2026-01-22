@@ -1922,7 +1922,7 @@ func Test_validatePCIDevicesControllerAddon(t *testing.T) {
 			}
 
 			// Test the validation
-			err := validator.validatePCIDevicesControllerAddon(nil)
+			err := validator.validatePCIDevicesControllerAddon()
 			if tc.expectedError {
 				assert.NotNil(t, err, tc.name)
 			} else {
@@ -2121,7 +2121,7 @@ func Test_validateNvidiaDriverToolkitAddon(t *testing.T) {
 			}
 
 			// Test the validation
-			err := validator.validateNvidiaDriverToolkitAddon(nil)
+			err := validator.validateNvidiaDriverToolkitAddon()
 			if tc.expectedError {
 				assert.NotNil(t, err, tc.name)
 			} else {
