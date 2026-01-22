@@ -123,7 +123,7 @@ POST /v1/harvester/vm/<vm>?action=insertCdRomVolume
 Content-Type: application/json
 
 {
-  "volumeName": "cdrom-vol-abc",
+  "deviceName": "cdrom-vol-abc",
   "imageName": "default/image-pvvwf"
 }
 
@@ -140,7 +140,7 @@ POST /v1/harvester/vm/<vm>?action=ejectCdRomVolume
 Content-Type: application/json
 
 {
-  "volumeName": "cdrom-vol-abc"
+  "deviceName": "cdrom-vol-abc"
 }
 
 # Response
