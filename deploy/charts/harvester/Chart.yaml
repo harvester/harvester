@@ -50,8 +50,8 @@ dependencies:
     repository: file://dependency_charts/csi-snapshotter
     condition: csi-snapshotter.enabled
   - name: longhorn
-    version: 1.10.1
-    repository: https://charts.longhorn.io
+    version: 1.10.2-rc1
+    repository: file://dependency_charts/longhorn-rc
     condition: longhorn.enabled
   - name: kube-vip
     version: 0.8.0
