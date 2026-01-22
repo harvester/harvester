@@ -7,6 +7,7 @@ cd $(dirname $0)/..
 echo "Running dirty check"
 
 go generate
+go mod tidy
 
 source ./scripts/version
 
