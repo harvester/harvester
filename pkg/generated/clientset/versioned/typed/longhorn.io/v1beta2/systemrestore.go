@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type SystemRestoresGetter interface {
 
 // SystemRestoreInterface has methods to work with SystemRestore resources.
 type SystemRestoreInterface interface {
-	Create(ctx context.Context, systemRestore *v1beta2.SystemRestore, opts v1.CreateOptions) (*v1beta2.SystemRestore, error)
-	Update(ctx context.Context, systemRestore *v1beta2.SystemRestore, opts v1.UpdateOptions) (*v1beta2.SystemRestore, error)
+	Create(ctx context.Context, systemRestore *longhornv1beta2.SystemRestore, opts v1.CreateOptions) (*longhornv1beta2.SystemRestore, error)
+	Update(ctx context.Context, systemRestore *longhornv1beta2.SystemRestore, opts v1.UpdateOptions) (*longhornv1beta2.SystemRestore, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, systemRestore *v1beta2.SystemRestore, opts v1.UpdateOptions) (*v1beta2.SystemRestore, error)
+	UpdateStatus(ctx context.Context, systemRestore *longhornv1beta2.SystemRestore, opts v1.UpdateOptions) (*longhornv1beta2.SystemRestore, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.SystemRestore, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.SystemRestoreList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.SystemRestore, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.SystemRestoreList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.SystemRestore, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.SystemRestore, err error)
 	SystemRestoreExpansion
 }
 
 // systemRestores implements SystemRestoreInterface
 type systemRestores struct {
-	*gentype.ClientWithList[*v1beta2.SystemRestore, *v1beta2.SystemRestoreList]
+	*gentype.ClientWithList[*longhornv1beta2.SystemRestore, *longhornv1beta2.SystemRestoreList]
 }
 
 // newSystemRestores returns a SystemRestores
 func newSystemRestores(c *LonghornV1beta2Client, namespace string) *systemRestores {
 	return &systemRestores{
-		gentype.NewClientWithList[*v1beta2.SystemRestore, *v1beta2.SystemRestoreList](
+		gentype.NewClientWithList[*longhornv1beta2.SystemRestore, *longhornv1beta2.SystemRestoreList](
 			"systemrestores",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.SystemRestore { return &v1beta2.SystemRestore{} },
-			func() *v1beta2.SystemRestoreList { return &v1beta2.SystemRestoreList{} }),
+			func() *longhornv1beta2.SystemRestore { return &longhornv1beta2.SystemRestore{} },
+			func() *longhornv1beta2.SystemRestoreList { return &longhornv1beta2.SystemRestoreList{} },
+		),
 	}
 }

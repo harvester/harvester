@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type TokensGetter interface {
 
 // TokenInterface has methods to work with Token resources.
 type TokenInterface interface {
-	Create(ctx context.Context, token *v3.Token, opts v1.CreateOptions) (*v3.Token, error)
-	Update(ctx context.Context, token *v3.Token, opts v1.UpdateOptions) (*v3.Token, error)
+	Create(ctx context.Context, token *managementcattleiov3.Token, opts v1.CreateOptions) (*managementcattleiov3.Token, error)
+	Update(ctx context.Context, token *managementcattleiov3.Token, opts v1.UpdateOptions) (*managementcattleiov3.Token, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.Token, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.TokenList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.Token, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.TokenList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Token, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.Token, err error)
 	TokenExpansion
 }
 
 // tokens implements TokenInterface
 type tokens struct {
-	*gentype.ClientWithList[*v3.Token, *v3.TokenList]
+	*gentype.ClientWithList[*managementcattleiov3.Token, *managementcattleiov3.TokenList]
 }
 
 // newTokens returns a Tokens
 func newTokens(c *ManagementV3Client) *tokens {
 	return &tokens{
-		gentype.NewClientWithList[*v3.Token, *v3.TokenList](
+		gentype.NewClientWithList[*managementcattleiov3.Token, *managementcattleiov3.TokenList](
 			"tokens",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.Token { return &v3.Token{} },
-			func() *v3.TokenList { return &v3.TokenList{} }),
+			func() *managementcattleiov3.Token { return &managementcattleiov3.Token{} },
+			func() *managementcattleiov3.TokenList { return &managementcattleiov3.TokenList{} },
+		),
 	}
 }

@@ -19,129 +19,30 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	longhorniov1beta2 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2"
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeVolumes implements VolumeInterface
-type FakeVolumes struct {
+// fakeVolumes implements VolumeInterface
+type fakeVolumes struct {
+	*gentype.FakeClientWithList[*v1beta2.Volume, *v1beta2.VolumeList]
 	Fake *FakeLonghornV1beta2
-	ns   string
 }
 
-var volumesResource = v1beta2.SchemeGroupVersion.WithResource("volumes")
-
-var volumesKind = v1beta2.SchemeGroupVersion.WithKind("Volume")
-
-// Get takes name of the volume, and returns the corresponding volume object, and an error if there is any.
-func (c *FakeVolumes) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.Volume, err error) {
-	emptyResult := &v1beta2.Volume{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(volumesResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeVolumes(fake *FakeLonghornV1beta2, namespace string) longhorniov1beta2.VolumeInterface {
+	return &fakeVolumes{
+		gentype.NewFakeClientWithList[*v1beta2.Volume, *v1beta2.VolumeList](
+			fake.Fake,
+			namespace,
+			v1beta2.SchemeGroupVersion.WithResource("volumes"),
+			v1beta2.SchemeGroupVersion.WithKind("Volume"),
+			func() *v1beta2.Volume { return &v1beta2.Volume{} },
+			func() *v1beta2.VolumeList { return &v1beta2.VolumeList{} },
+			func(dst, src *v1beta2.VolumeList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta2.VolumeList) []*v1beta2.Volume { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1beta2.VolumeList, items []*v1beta2.Volume) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*v1beta2.Volume), err
-}
-
-// List takes label and field selectors, and returns the list of Volumes that match those selectors.
-func (c *FakeVolumes) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.VolumeList, err error) {
-	emptyResult := &v1beta2.VolumeList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(volumesResource, volumesKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta2.VolumeList{ListMeta: obj.(*v1beta2.VolumeList).ListMeta}
-	for _, item := range obj.(*v1beta2.VolumeList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested volumes.
-func (c *FakeVolumes) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(volumesResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a volume and creates it.  Returns the server's representation of the volume, and an error, if there is any.
-func (c *FakeVolumes) Create(ctx context.Context, volume *v1beta2.Volume, opts v1.CreateOptions) (result *v1beta2.Volume, err error) {
-	emptyResult := &v1beta2.Volume{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(volumesResource, c.ns, volume, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.Volume), err
-}
-
-// Update takes the representation of a volume and updates it. Returns the server's representation of the volume, and an error, if there is any.
-func (c *FakeVolumes) Update(ctx context.Context, volume *v1beta2.Volume, opts v1.UpdateOptions) (result *v1beta2.Volume, err error) {
-	emptyResult := &v1beta2.Volume{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(volumesResource, c.ns, volume, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.Volume), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeVolumes) UpdateStatus(ctx context.Context, volume *v1beta2.Volume, opts v1.UpdateOptions) (result *v1beta2.Volume, err error) {
-	emptyResult := &v1beta2.Volume{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(volumesResource, "status", c.ns, volume, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.Volume), err
-}
-
-// Delete takes name of the volume and deletes it. Returns an error if one occurs.
-func (c *FakeVolumes) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(volumesResource, c.ns, name, opts), &v1beta2.Volume{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeVolumes) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(volumesResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta2.VolumeList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched volume.
-func (c *FakeVolumes) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.Volume, err error) {
-	emptyResult := &v1beta2.Volume{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(volumesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.Volume), err
 }

@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,38 @@ type VirtualMachineImageDownloadersGetter interface {
 
 // VirtualMachineImageDownloaderInterface has methods to work with VirtualMachineImageDownloader resources.
 type VirtualMachineImageDownloaderInterface interface {
-	Create(ctx context.Context, virtualMachineImageDownloader *v1beta1.VirtualMachineImageDownloader, opts v1.CreateOptions) (*v1beta1.VirtualMachineImageDownloader, error)
-	Update(ctx context.Context, virtualMachineImageDownloader *v1beta1.VirtualMachineImageDownloader, opts v1.UpdateOptions) (*v1beta1.VirtualMachineImageDownloader, error)
+	Create(ctx context.Context, virtualMachineImageDownloader *harvesterhciiov1beta1.VirtualMachineImageDownloader, opts v1.CreateOptions) (*harvesterhciiov1beta1.VirtualMachineImageDownloader, error)
+	Update(ctx context.Context, virtualMachineImageDownloader *harvesterhciiov1beta1.VirtualMachineImageDownloader, opts v1.UpdateOptions) (*harvesterhciiov1beta1.VirtualMachineImageDownloader, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, virtualMachineImageDownloader *v1beta1.VirtualMachineImageDownloader, opts v1.UpdateOptions) (*v1beta1.VirtualMachineImageDownloader, error)
+	UpdateStatus(ctx context.Context, virtualMachineImageDownloader *harvesterhciiov1beta1.VirtualMachineImageDownloader, opts v1.UpdateOptions) (*harvesterhciiov1beta1.VirtualMachineImageDownloader, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.VirtualMachineImageDownloader, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.VirtualMachineImageDownloaderList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*harvesterhciiov1beta1.VirtualMachineImageDownloader, error)
+	List(ctx context.Context, opts v1.ListOptions) (*harvesterhciiov1beta1.VirtualMachineImageDownloaderList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VirtualMachineImageDownloader, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *harvesterhciiov1beta1.VirtualMachineImageDownloader, err error)
 	VirtualMachineImageDownloaderExpansion
 }
 
 // virtualMachineImageDownloaders implements VirtualMachineImageDownloaderInterface
 type virtualMachineImageDownloaders struct {
-	*gentype.ClientWithList[*v1beta1.VirtualMachineImageDownloader, *v1beta1.VirtualMachineImageDownloaderList]
+	*gentype.ClientWithList[*harvesterhciiov1beta1.VirtualMachineImageDownloader, *harvesterhciiov1beta1.VirtualMachineImageDownloaderList]
 }
 
 // newVirtualMachineImageDownloaders returns a VirtualMachineImageDownloaders
 func newVirtualMachineImageDownloaders(c *HarvesterhciV1beta1Client, namespace string) *virtualMachineImageDownloaders {
 	return &virtualMachineImageDownloaders{
-		gentype.NewClientWithList[*v1beta1.VirtualMachineImageDownloader, *v1beta1.VirtualMachineImageDownloaderList](
+		gentype.NewClientWithList[*harvesterhciiov1beta1.VirtualMachineImageDownloader, *harvesterhciiov1beta1.VirtualMachineImageDownloaderList](
 			"virtualmachineimagedownloaders",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.VirtualMachineImageDownloader { return &v1beta1.VirtualMachineImageDownloader{} },
-			func() *v1beta1.VirtualMachineImageDownloaderList { return &v1beta1.VirtualMachineImageDownloaderList{} }),
+			func() *harvesterhciiov1beta1.VirtualMachineImageDownloader {
+				return &harvesterhciiov1beta1.VirtualMachineImageDownloader{}
+			},
+			func() *harvesterhciiov1beta1.VirtualMachineImageDownloaderList {
+				return &harvesterhciiov1beta1.VirtualMachineImageDownloaderList{}
+			},
+		),
 	}
 }

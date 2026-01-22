@@ -19,120 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeDynamicSchemas implements DynamicSchemaInterface
-type FakeDynamicSchemas struct {
+// fakeDynamicSchemas implements DynamicSchemaInterface
+type fakeDynamicSchemas struct {
+	*gentype.FakeClientWithList[*v3.DynamicSchema, *v3.DynamicSchemaList]
 	Fake *FakeManagementV3
 }
 
-var dynamicschemasResource = v3.SchemeGroupVersion.WithResource("dynamicschemas")
-
-var dynamicschemasKind = v3.SchemeGroupVersion.WithKind("DynamicSchema")
-
-// Get takes name of the dynamicSchema, and returns the corresponding dynamicSchema object, and an error if there is any.
-func (c *FakeDynamicSchemas) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.DynamicSchema, err error) {
-	emptyResult := &v3.DynamicSchema{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(dynamicschemasResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeDynamicSchemas(fake *FakeManagementV3) managementcattleiov3.DynamicSchemaInterface {
+	return &fakeDynamicSchemas{
+		gentype.NewFakeClientWithList[*v3.DynamicSchema, *v3.DynamicSchemaList](
+			fake.Fake,
+			"",
+			v3.SchemeGroupVersion.WithResource("dynamicschemas"),
+			v3.SchemeGroupVersion.WithKind("DynamicSchema"),
+			func() *v3.DynamicSchema { return &v3.DynamicSchema{} },
+			func() *v3.DynamicSchemaList { return &v3.DynamicSchemaList{} },
+			func(dst, src *v3.DynamicSchemaList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.DynamicSchemaList) []*v3.DynamicSchema { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.DynamicSchemaList, items []*v3.DynamicSchema) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.DynamicSchema), err
-}
-
-// List takes label and field selectors, and returns the list of DynamicSchemas that match those selectors.
-func (c *FakeDynamicSchemas) List(ctx context.Context, opts v1.ListOptions) (result *v3.DynamicSchemaList, err error) {
-	emptyResult := &v3.DynamicSchemaList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(dynamicschemasResource, dynamicschemasKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.DynamicSchemaList{ListMeta: obj.(*v3.DynamicSchemaList).ListMeta}
-	for _, item := range obj.(*v3.DynamicSchemaList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested dynamicSchemas.
-func (c *FakeDynamicSchemas) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(dynamicschemasResource, opts))
-}
-
-// Create takes the representation of a dynamicSchema and creates it.  Returns the server's representation of the dynamicSchema, and an error, if there is any.
-func (c *FakeDynamicSchemas) Create(ctx context.Context, dynamicSchema *v3.DynamicSchema, opts v1.CreateOptions) (result *v3.DynamicSchema, err error) {
-	emptyResult := &v3.DynamicSchema{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(dynamicschemasResource, dynamicSchema, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.DynamicSchema), err
-}
-
-// Update takes the representation of a dynamicSchema and updates it. Returns the server's representation of the dynamicSchema, and an error, if there is any.
-func (c *FakeDynamicSchemas) Update(ctx context.Context, dynamicSchema *v3.DynamicSchema, opts v1.UpdateOptions) (result *v3.DynamicSchema, err error) {
-	emptyResult := &v3.DynamicSchema{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(dynamicschemasResource, dynamicSchema, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.DynamicSchema), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeDynamicSchemas) UpdateStatus(ctx context.Context, dynamicSchema *v3.DynamicSchema, opts v1.UpdateOptions) (result *v3.DynamicSchema, err error) {
-	emptyResult := &v3.DynamicSchema{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(dynamicschemasResource, "status", dynamicSchema, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.DynamicSchema), err
-}
-
-// Delete takes name of the dynamicSchema and deletes it. Returns an error if one occurs.
-func (c *FakeDynamicSchemas) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(dynamicschemasResource, name, opts), &v3.DynamicSchema{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeDynamicSchemas) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(dynamicschemasResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.DynamicSchemaList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched dynamicSchema.
-func (c *FakeDynamicSchemas) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.DynamicSchema, err error) {
-	emptyResult := &v3.DynamicSchema{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(dynamicschemasResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.DynamicSchema), err
 }

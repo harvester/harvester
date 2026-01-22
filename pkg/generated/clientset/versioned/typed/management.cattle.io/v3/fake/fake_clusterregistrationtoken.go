@@ -19,129 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeClusterRegistrationTokens implements ClusterRegistrationTokenInterface
-type FakeClusterRegistrationTokens struct {
+// fakeClusterRegistrationTokens implements ClusterRegistrationTokenInterface
+type fakeClusterRegistrationTokens struct {
+	*gentype.FakeClientWithList[*v3.ClusterRegistrationToken, *v3.ClusterRegistrationTokenList]
 	Fake *FakeManagementV3
-	ns   string
 }
 
-var clusterregistrationtokensResource = v3.SchemeGroupVersion.WithResource("clusterregistrationtokens")
-
-var clusterregistrationtokensKind = v3.SchemeGroupVersion.WithKind("ClusterRegistrationToken")
-
-// Get takes name of the clusterRegistrationToken, and returns the corresponding clusterRegistrationToken object, and an error if there is any.
-func (c *FakeClusterRegistrationTokens) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ClusterRegistrationToken, err error) {
-	emptyResult := &v3.ClusterRegistrationToken{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(clusterregistrationtokensResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeClusterRegistrationTokens(fake *FakeManagementV3, namespace string) managementcattleiov3.ClusterRegistrationTokenInterface {
+	return &fakeClusterRegistrationTokens{
+		gentype.NewFakeClientWithList[*v3.ClusterRegistrationToken, *v3.ClusterRegistrationTokenList](
+			fake.Fake,
+			namespace,
+			v3.SchemeGroupVersion.WithResource("clusterregistrationtokens"),
+			v3.SchemeGroupVersion.WithKind("ClusterRegistrationToken"),
+			func() *v3.ClusterRegistrationToken { return &v3.ClusterRegistrationToken{} },
+			func() *v3.ClusterRegistrationTokenList { return &v3.ClusterRegistrationTokenList{} },
+			func(dst, src *v3.ClusterRegistrationTokenList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.ClusterRegistrationTokenList) []*v3.ClusterRegistrationToken {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v3.ClusterRegistrationTokenList, items []*v3.ClusterRegistrationToken) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.ClusterRegistrationToken), err
-}
-
-// List takes label and field selectors, and returns the list of ClusterRegistrationTokens that match those selectors.
-func (c *FakeClusterRegistrationTokens) List(ctx context.Context, opts v1.ListOptions) (result *v3.ClusterRegistrationTokenList, err error) {
-	emptyResult := &v3.ClusterRegistrationTokenList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(clusterregistrationtokensResource, clusterregistrationtokensKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.ClusterRegistrationTokenList{ListMeta: obj.(*v3.ClusterRegistrationTokenList).ListMeta}
-	for _, item := range obj.(*v3.ClusterRegistrationTokenList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested clusterRegistrationTokens.
-func (c *FakeClusterRegistrationTokens) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(clusterregistrationtokensResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a clusterRegistrationToken and creates it.  Returns the server's representation of the clusterRegistrationToken, and an error, if there is any.
-func (c *FakeClusterRegistrationTokens) Create(ctx context.Context, clusterRegistrationToken *v3.ClusterRegistrationToken, opts v1.CreateOptions) (result *v3.ClusterRegistrationToken, err error) {
-	emptyResult := &v3.ClusterRegistrationToken{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(clusterregistrationtokensResource, c.ns, clusterRegistrationToken, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ClusterRegistrationToken), err
-}
-
-// Update takes the representation of a clusterRegistrationToken and updates it. Returns the server's representation of the clusterRegistrationToken, and an error, if there is any.
-func (c *FakeClusterRegistrationTokens) Update(ctx context.Context, clusterRegistrationToken *v3.ClusterRegistrationToken, opts v1.UpdateOptions) (result *v3.ClusterRegistrationToken, err error) {
-	emptyResult := &v3.ClusterRegistrationToken{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(clusterregistrationtokensResource, c.ns, clusterRegistrationToken, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ClusterRegistrationToken), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeClusterRegistrationTokens) UpdateStatus(ctx context.Context, clusterRegistrationToken *v3.ClusterRegistrationToken, opts v1.UpdateOptions) (result *v3.ClusterRegistrationToken, err error) {
-	emptyResult := &v3.ClusterRegistrationToken{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(clusterregistrationtokensResource, "status", c.ns, clusterRegistrationToken, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ClusterRegistrationToken), err
-}
-
-// Delete takes name of the clusterRegistrationToken and deletes it. Returns an error if one occurs.
-func (c *FakeClusterRegistrationTokens) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(clusterregistrationtokensResource, c.ns, name, opts), &v3.ClusterRegistrationToken{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeClusterRegistrationTokens) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(clusterregistrationtokensResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.ClusterRegistrationTokenList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched clusterRegistrationToken.
-func (c *FakeClusterRegistrationTokens) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterRegistrationToken, err error) {
-	emptyResult := &v3.ClusterRegistrationToken{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(clusterregistrationtokensResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ClusterRegistrationToken), err
 }

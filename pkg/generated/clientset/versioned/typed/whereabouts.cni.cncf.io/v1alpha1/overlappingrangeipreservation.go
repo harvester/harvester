@@ -19,10 +19,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	whereaboutscnicncfiov1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,36 @@ type OverlappingRangeIPReservationsGetter interface {
 
 // OverlappingRangeIPReservationInterface has methods to work with OverlappingRangeIPReservation resources.
 type OverlappingRangeIPReservationInterface interface {
-	Create(ctx context.Context, overlappingRangeIPReservation *v1alpha1.OverlappingRangeIPReservation, opts v1.CreateOptions) (*v1alpha1.OverlappingRangeIPReservation, error)
-	Update(ctx context.Context, overlappingRangeIPReservation *v1alpha1.OverlappingRangeIPReservation, opts v1.UpdateOptions) (*v1alpha1.OverlappingRangeIPReservation, error)
+	Create(ctx context.Context, overlappingRangeIPReservation *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, opts v1.CreateOptions) (*whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, error)
+	Update(ctx context.Context, overlappingRangeIPReservation *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, opts v1.UpdateOptions) (*whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.OverlappingRangeIPReservation, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.OverlappingRangeIPReservationList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, error)
+	List(ctx context.Context, opts v1.ListOptions) (*whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.OverlappingRangeIPReservation, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, err error)
 	OverlappingRangeIPReservationExpansion
 }
 
 // overlappingRangeIPReservations implements OverlappingRangeIPReservationInterface
 type overlappingRangeIPReservations struct {
-	*gentype.ClientWithList[*v1alpha1.OverlappingRangeIPReservation, *v1alpha1.OverlappingRangeIPReservationList]
+	*gentype.ClientWithList[*whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationList]
 }
 
 // newOverlappingRangeIPReservations returns a OverlappingRangeIPReservations
 func newOverlappingRangeIPReservations(c *WhereaboutsV1alpha1Client, namespace string) *overlappingRangeIPReservations {
 	return &overlappingRangeIPReservations{
-		gentype.NewClientWithList[*v1alpha1.OverlappingRangeIPReservation, *v1alpha1.OverlappingRangeIPReservationList](
+		gentype.NewClientWithList[*whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationList](
 			"overlappingrangeipreservations",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1alpha1.OverlappingRangeIPReservation { return &v1alpha1.OverlappingRangeIPReservation{} },
-			func() *v1alpha1.OverlappingRangeIPReservationList {
-				return &v1alpha1.OverlappingRangeIPReservationList{}
-			}),
+			func() *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation {
+				return &whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation{}
+			},
+			func() *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationList {
+				return &whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationList{}
+			},
+		),
 	}
 }

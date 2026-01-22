@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
+	apiv1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type FlowsGetter interface {
 
 // FlowInterface has methods to work with Flow resources.
 type FlowInterface interface {
-	Create(ctx context.Context, flow *v1beta1.Flow, opts v1.CreateOptions) (*v1beta1.Flow, error)
-	Update(ctx context.Context, flow *v1beta1.Flow, opts v1.UpdateOptions) (*v1beta1.Flow, error)
+	Create(ctx context.Context, flow *apiv1beta1.Flow, opts v1.CreateOptions) (*apiv1beta1.Flow, error)
+	Update(ctx context.Context, flow *apiv1beta1.Flow, opts v1.UpdateOptions) (*apiv1beta1.Flow, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, flow *v1beta1.Flow, opts v1.UpdateOptions) (*v1beta1.Flow, error)
+	UpdateStatus(ctx context.Context, flow *apiv1beta1.Flow, opts v1.UpdateOptions) (*apiv1beta1.Flow, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.Flow, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.FlowList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*apiv1beta1.Flow, error)
+	List(ctx context.Context, opts v1.ListOptions) (*apiv1beta1.FlowList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Flow, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *apiv1beta1.Flow, err error)
 	FlowExpansion
 }
 
 // flows implements FlowInterface
 type flows struct {
-	*gentype.ClientWithList[*v1beta1.Flow, *v1beta1.FlowList]
+	*gentype.ClientWithList[*apiv1beta1.Flow, *apiv1beta1.FlowList]
 }
 
 // newFlows returns a Flows
 func newFlows(c *LoggingV1beta1Client) *flows {
 	return &flows{
-		gentype.NewClientWithList[*v1beta1.Flow, *v1beta1.FlowList](
+		gentype.NewClientWithList[*apiv1beta1.Flow, *apiv1beta1.FlowList](
 			"flows",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1beta1.Flow { return &v1beta1.Flow{} },
-			func() *v1beta1.FlowList { return &v1beta1.FlowList{} }),
+			func() *apiv1beta1.Flow { return &apiv1beta1.Flow{} },
+			func() *apiv1beta1.FlowList { return &apiv1beta1.FlowList{} },
+		),
 	}
 }

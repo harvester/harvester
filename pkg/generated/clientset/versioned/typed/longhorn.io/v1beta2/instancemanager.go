@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type InstanceManagersGetter interface {
 
 // InstanceManagerInterface has methods to work with InstanceManager resources.
 type InstanceManagerInterface interface {
-	Create(ctx context.Context, instanceManager *v1beta2.InstanceManager, opts v1.CreateOptions) (*v1beta2.InstanceManager, error)
-	Update(ctx context.Context, instanceManager *v1beta2.InstanceManager, opts v1.UpdateOptions) (*v1beta2.InstanceManager, error)
+	Create(ctx context.Context, instanceManager *longhornv1beta2.InstanceManager, opts v1.CreateOptions) (*longhornv1beta2.InstanceManager, error)
+	Update(ctx context.Context, instanceManager *longhornv1beta2.InstanceManager, opts v1.UpdateOptions) (*longhornv1beta2.InstanceManager, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, instanceManager *v1beta2.InstanceManager, opts v1.UpdateOptions) (*v1beta2.InstanceManager, error)
+	UpdateStatus(ctx context.Context, instanceManager *longhornv1beta2.InstanceManager, opts v1.UpdateOptions) (*longhornv1beta2.InstanceManager, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.InstanceManager, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.InstanceManagerList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.InstanceManager, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.InstanceManagerList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.InstanceManager, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.InstanceManager, err error)
 	InstanceManagerExpansion
 }
 
 // instanceManagers implements InstanceManagerInterface
 type instanceManagers struct {
-	*gentype.ClientWithList[*v1beta2.InstanceManager, *v1beta2.InstanceManagerList]
+	*gentype.ClientWithList[*longhornv1beta2.InstanceManager, *longhornv1beta2.InstanceManagerList]
 }
 
 // newInstanceManagers returns a InstanceManagers
 func newInstanceManagers(c *LonghornV1beta2Client, namespace string) *instanceManagers {
 	return &instanceManagers{
-		gentype.NewClientWithList[*v1beta2.InstanceManager, *v1beta2.InstanceManagerList](
+		gentype.NewClientWithList[*longhornv1beta2.InstanceManager, *longhornv1beta2.InstanceManagerList](
 			"instancemanagers",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.InstanceManager { return &v1beta2.InstanceManager{} },
-			func() *v1beta2.InstanceManagerList { return &v1beta2.InstanceManagerList{} }),
+			func() *longhornv1beta2.InstanceManager { return &longhornv1beta2.InstanceManager{} },
+			func() *longhornv1beta2.InstanceManagerList { return &longhornv1beta2.InstanceManagerList{} },
+		),
 	}
 }

@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,36 @@ type VirtualMachineImagesGetter interface {
 
 // VirtualMachineImageInterface has methods to work with VirtualMachineImage resources.
 type VirtualMachineImageInterface interface {
-	Create(ctx context.Context, virtualMachineImage *v1beta1.VirtualMachineImage, opts v1.CreateOptions) (*v1beta1.VirtualMachineImage, error)
-	Update(ctx context.Context, virtualMachineImage *v1beta1.VirtualMachineImage, opts v1.UpdateOptions) (*v1beta1.VirtualMachineImage, error)
+	Create(ctx context.Context, virtualMachineImage *harvesterhciiov1beta1.VirtualMachineImage, opts v1.CreateOptions) (*harvesterhciiov1beta1.VirtualMachineImage, error)
+	Update(ctx context.Context, virtualMachineImage *harvesterhciiov1beta1.VirtualMachineImage, opts v1.UpdateOptions) (*harvesterhciiov1beta1.VirtualMachineImage, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, virtualMachineImage *v1beta1.VirtualMachineImage, opts v1.UpdateOptions) (*v1beta1.VirtualMachineImage, error)
+	UpdateStatus(ctx context.Context, virtualMachineImage *harvesterhciiov1beta1.VirtualMachineImage, opts v1.UpdateOptions) (*harvesterhciiov1beta1.VirtualMachineImage, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.VirtualMachineImage, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.VirtualMachineImageList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*harvesterhciiov1beta1.VirtualMachineImage, error)
+	List(ctx context.Context, opts v1.ListOptions) (*harvesterhciiov1beta1.VirtualMachineImageList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VirtualMachineImage, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *harvesterhciiov1beta1.VirtualMachineImage, err error)
 	VirtualMachineImageExpansion
 }
 
 // virtualMachineImages implements VirtualMachineImageInterface
 type virtualMachineImages struct {
-	*gentype.ClientWithList[*v1beta1.VirtualMachineImage, *v1beta1.VirtualMachineImageList]
+	*gentype.ClientWithList[*harvesterhciiov1beta1.VirtualMachineImage, *harvesterhciiov1beta1.VirtualMachineImageList]
 }
 
 // newVirtualMachineImages returns a VirtualMachineImages
 func newVirtualMachineImages(c *HarvesterhciV1beta1Client, namespace string) *virtualMachineImages {
 	return &virtualMachineImages{
-		gentype.NewClientWithList[*v1beta1.VirtualMachineImage, *v1beta1.VirtualMachineImageList](
+		gentype.NewClientWithList[*harvesterhciiov1beta1.VirtualMachineImage, *harvesterhciiov1beta1.VirtualMachineImageList](
 			"virtualmachineimages",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.VirtualMachineImage { return &v1beta1.VirtualMachineImage{} },
-			func() *v1beta1.VirtualMachineImageList { return &v1beta1.VirtualMachineImageList{} }),
+			func() *harvesterhciiov1beta1.VirtualMachineImage { return &harvesterhciiov1beta1.VirtualMachineImage{} },
+			func() *harvesterhciiov1beta1.VirtualMachineImageList {
+				return &harvesterhciiov1beta1.VirtualMachineImageList{}
+			},
+		),
 	}
 }

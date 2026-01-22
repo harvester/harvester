@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,38 @@ type VirtualMachineTemplatesGetter interface {
 
 // VirtualMachineTemplateInterface has methods to work with VirtualMachineTemplate resources.
 type VirtualMachineTemplateInterface interface {
-	Create(ctx context.Context, virtualMachineTemplate *v1beta1.VirtualMachineTemplate, opts v1.CreateOptions) (*v1beta1.VirtualMachineTemplate, error)
-	Update(ctx context.Context, virtualMachineTemplate *v1beta1.VirtualMachineTemplate, opts v1.UpdateOptions) (*v1beta1.VirtualMachineTemplate, error)
+	Create(ctx context.Context, virtualMachineTemplate *harvesterhciiov1beta1.VirtualMachineTemplate, opts v1.CreateOptions) (*harvesterhciiov1beta1.VirtualMachineTemplate, error)
+	Update(ctx context.Context, virtualMachineTemplate *harvesterhciiov1beta1.VirtualMachineTemplate, opts v1.UpdateOptions) (*harvesterhciiov1beta1.VirtualMachineTemplate, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, virtualMachineTemplate *v1beta1.VirtualMachineTemplate, opts v1.UpdateOptions) (*v1beta1.VirtualMachineTemplate, error)
+	UpdateStatus(ctx context.Context, virtualMachineTemplate *harvesterhciiov1beta1.VirtualMachineTemplate, opts v1.UpdateOptions) (*harvesterhciiov1beta1.VirtualMachineTemplate, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.VirtualMachineTemplate, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.VirtualMachineTemplateList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*harvesterhciiov1beta1.VirtualMachineTemplate, error)
+	List(ctx context.Context, opts v1.ListOptions) (*harvesterhciiov1beta1.VirtualMachineTemplateList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VirtualMachineTemplate, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *harvesterhciiov1beta1.VirtualMachineTemplate, err error)
 	VirtualMachineTemplateExpansion
 }
 
 // virtualMachineTemplates implements VirtualMachineTemplateInterface
 type virtualMachineTemplates struct {
-	*gentype.ClientWithList[*v1beta1.VirtualMachineTemplate, *v1beta1.VirtualMachineTemplateList]
+	*gentype.ClientWithList[*harvesterhciiov1beta1.VirtualMachineTemplate, *harvesterhciiov1beta1.VirtualMachineTemplateList]
 }
 
 // newVirtualMachineTemplates returns a VirtualMachineTemplates
 func newVirtualMachineTemplates(c *HarvesterhciV1beta1Client, namespace string) *virtualMachineTemplates {
 	return &virtualMachineTemplates{
-		gentype.NewClientWithList[*v1beta1.VirtualMachineTemplate, *v1beta1.VirtualMachineTemplateList](
+		gentype.NewClientWithList[*harvesterhciiov1beta1.VirtualMachineTemplate, *harvesterhciiov1beta1.VirtualMachineTemplateList](
 			"virtualmachinetemplates",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.VirtualMachineTemplate { return &v1beta1.VirtualMachineTemplate{} },
-			func() *v1beta1.VirtualMachineTemplateList { return &v1beta1.VirtualMachineTemplateList{} }),
+			func() *harvesterhciiov1beta1.VirtualMachineTemplate {
+				return &harvesterhciiov1beta1.VirtualMachineTemplate{}
+			},
+			func() *harvesterhciiov1beta1.VirtualMachineTemplateList {
+				return &harvesterhciiov1beta1.VirtualMachineTemplateList{}
+			},
+		),
 	}
 }

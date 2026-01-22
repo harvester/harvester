@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type FleetWorkspacesGetter interface {
 
 // FleetWorkspaceInterface has methods to work with FleetWorkspace resources.
 type FleetWorkspaceInterface interface {
-	Create(ctx context.Context, fleetWorkspace *v3.FleetWorkspace, opts v1.CreateOptions) (*v3.FleetWorkspace, error)
-	Update(ctx context.Context, fleetWorkspace *v3.FleetWorkspace, opts v1.UpdateOptions) (*v3.FleetWorkspace, error)
+	Create(ctx context.Context, fleetWorkspace *managementcattleiov3.FleetWorkspace, opts v1.CreateOptions) (*managementcattleiov3.FleetWorkspace, error)
+	Update(ctx context.Context, fleetWorkspace *managementcattleiov3.FleetWorkspace, opts v1.UpdateOptions) (*managementcattleiov3.FleetWorkspace, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, fleetWorkspace *v3.FleetWorkspace, opts v1.UpdateOptions) (*v3.FleetWorkspace, error)
+	UpdateStatus(ctx context.Context, fleetWorkspace *managementcattleiov3.FleetWorkspace, opts v1.UpdateOptions) (*managementcattleiov3.FleetWorkspace, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.FleetWorkspace, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.FleetWorkspaceList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.FleetWorkspace, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.FleetWorkspaceList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.FleetWorkspace, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.FleetWorkspace, err error)
 	FleetWorkspaceExpansion
 }
 
 // fleetWorkspaces implements FleetWorkspaceInterface
 type fleetWorkspaces struct {
-	*gentype.ClientWithList[*v3.FleetWorkspace, *v3.FleetWorkspaceList]
+	*gentype.ClientWithList[*managementcattleiov3.FleetWorkspace, *managementcattleiov3.FleetWorkspaceList]
 }
 
 // newFleetWorkspaces returns a FleetWorkspaces
 func newFleetWorkspaces(c *ManagementV3Client) *fleetWorkspaces {
 	return &fleetWorkspaces{
-		gentype.NewClientWithList[*v3.FleetWorkspace, *v3.FleetWorkspaceList](
+		gentype.NewClientWithList[*managementcattleiov3.FleetWorkspace, *managementcattleiov3.FleetWorkspaceList](
 			"fleetworkspaces",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.FleetWorkspace { return &v3.FleetWorkspace{} },
-			func() *v3.FleetWorkspaceList { return &v3.FleetWorkspaceList{} }),
+			func() *managementcattleiov3.FleetWorkspace { return &managementcattleiov3.FleetWorkspace{} },
+			func() *managementcattleiov3.FleetWorkspaceList { return &managementcattleiov3.FleetWorkspaceList{} },
+		),
 	}
 }
