@@ -1,0 +1,268 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: longhorn-default-setting
+  namespace: {{ include "release_namespace" . }}
+  labels: {{- include "longhorn.labels" . | nindent 4 }}
+data:
+  default-setting.yaml: |-
+    {{- if not (kindIs "invalid" .Values.defaultSettings.allowRecurringJobWhileVolumeDetached) }}
+    allow-recurring-job-while-volume-detached: {{ .Values.defaultSettings.allowRecurringJobWhileVolumeDetached }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.createDefaultDiskLabeledNodes) }}
+    create-default-disk-labeled-nodes: {{ .Values.defaultSettings.createDefaultDiskLabeledNodes }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.defaultDataPath) }}
+    default-data-path: {{ .Values.defaultSettings.defaultDataPath | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.replicaSoftAntiAffinity) }}
+    replica-soft-anti-affinity: {{ .Values.defaultSettings.replicaSoftAntiAffinity }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.replicaAutoBalance) }}
+    replica-auto-balance: {{ .Values.defaultSettings.replicaAutoBalance | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.storageOverProvisioningPercentage) }}
+    storage-over-provisioning-percentage: {{ .Values.defaultSettings.storageOverProvisioningPercentage | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.storageMinimalAvailablePercentage) }}
+    storage-minimal-available-percentage: {{ .Values.defaultSettings.storageMinimalAvailablePercentage | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.storageReservedPercentageForDefaultDisk) }}
+    storage-reserved-percentage-for-default-disk: {{ .Values.defaultSettings.storageReservedPercentageForDefaultDisk | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.upgradeChecker) }}
+    upgrade-checker: {{ .Values.defaultSettings.upgradeChecker }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.upgradeResponderURL) }}
+    upgrade-responder-url: {{ .Values.defaultSettings.upgradeResponderURL | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.defaultReplicaCount) }}
+    default-replica-count: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.defaultReplicaCount }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.defaultDataLocality) }}
+    default-data-locality: {{ .Values.defaultSettings.defaultDataLocality | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.defaultLonghornStaticStorageClass) }}
+    default-longhorn-static-storage-class: {{ .Values.defaultSettings.defaultLonghornStaticStorageClass | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.failedBackupTTL) }}
+    failed-backup-ttl: {{ .Values.defaultSettings.failedBackupTTL | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.backupExecutionTimeout) }}
+    backup-execution-timeout: {{ .Values.defaultSettings.backupExecutionTimeout | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.restoreVolumeRecurringJobs) }}
+    restore-volume-recurring-jobs: {{ .Values.defaultSettings.restoreVolumeRecurringJobs }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.recurringSuccessfulJobsHistoryLimit) }}
+    recurring-successful-jobs-history-limit: {{ .Values.defaultSettings.recurringSuccessfulJobsHistoryLimit | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.recurringJobMaxRetention) }}
+    recurring-job-max-retention: {{ .Values.defaultSettings.recurringJobMaxRetention | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.recurringFailedJobsHistoryLimit) }}
+    recurring-failed-jobs-history-limit: {{ .Values.defaultSettings.recurringFailedJobsHistoryLimit | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.supportBundleFailedHistoryLimit) }}
+    support-bundle-failed-history-limit: {{ .Values.defaultSettings.supportBundleFailedHistoryLimit | quote }}
+    {{- end }}
+    {{- if or (not (kindIs "invalid" .Values.defaultSettings.taintToleration)) (.Values.global.cattle.windowsCluster.enabled) }}
+    taint-toleration: {{ $windowsDefaultSettingTaintToleration := list }}{{ $defaultSettingTaintToleration := list -}}
+      {{- if and .Values.global.cattle.windowsCluster.enabled .Values.global.cattle.windowsCluster.defaultSetting.taintToleration -}}
+        {{- $windowsDefaultSettingTaintToleration = .Values.global.cattle.windowsCluster.defaultSetting.taintToleration -}}
+      {{- end -}}
+      {{- if not (kindIs "invalid" .Values.defaultSettings.taintToleration) -}}
+        {{- $defaultSettingTaintToleration = .Values.defaultSettings.taintToleration -}}
+      {{- end -}}
+      {{- $taintToleration := list $windowsDefaultSettingTaintToleration $defaultSettingTaintToleration }}{{ join ";" (compact $taintToleration) -}}
+    {{- end }}
+    {{- if or (not (kindIs "invalid" .Values.defaultSettings.systemManagedComponentsNodeSelector)) (.Values.global.cattle.windowsCluster.enabled) }}
+    system-managed-components-node-selector: {{ $windowsDefaultSettingNodeSelector := list }}{{ $defaultSettingNodeSelector := list -}}
+      {{- if and .Values.global.cattle.windowsCluster.enabled .Values.global.cattle.windowsCluster.defaultSetting.systemManagedComponentsNodeSelector -}}
+        {{ $windowsDefaultSettingNodeSelector = .Values.global.cattle.windowsCluster.defaultSetting.systemManagedComponentsNodeSelector -}}
+      {{- end -}}
+      {{- if not (kindIs "invalid" .Values.defaultSettings.systemManagedComponentsNodeSelector) -}}
+        {{- $defaultSettingNodeSelector = .Values.defaultSettings.systemManagedComponentsNodeSelector -}}
+      {{- end -}}
+      {{- $nodeSelector := list $windowsDefaultSettingNodeSelector $defaultSettingNodeSelector }}{{ join ";" (compact $nodeSelector) -}}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.priorityClass) }}
+    priority-class: {{ .Values.defaultSettings.priorityClass | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.autoSalvage) }}
+    auto-salvage: {{ .Values.defaultSettings.autoSalvage }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.autoDeletePodWhenVolumeDetachedUnexpectedly) }}
+    auto-delete-pod-when-volume-detached-unexpectedly: {{ .Values.defaultSettings.autoDeletePodWhenVolumeDetachedUnexpectedly }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.blacklistForAutoDeletePodWhenVolumeDetachedUnexpectedly) }}
+    blacklist-for-auto-delete-pod-when-volume-detached-unexpectedly: {{ .Values.defaultSettings.blacklistForAutoDeletePodWhenVolumeDetachedUnexpectedly }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.disableSchedulingOnCordonedNode) }}
+    disable-scheduling-on-cordoned-node: {{ .Values.defaultSettings.disableSchedulingOnCordonedNode }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.replicaZoneSoftAntiAffinity) }}
+    replica-zone-soft-anti-affinity: {{ .Values.defaultSettings.replicaZoneSoftAntiAffinity }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.replicaDiskSoftAntiAffinity) }}
+    replica-disk-soft-anti-affinity: {{ .Values.defaultSettings.replicaDiskSoftAntiAffinity }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.nodeDownPodDeletionPolicy) }}
+    node-down-pod-deletion-policy: {{ .Values.defaultSettings.nodeDownPodDeletionPolicy | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.nodeDrainPolicy) }}
+    node-drain-policy: {{ .Values.defaultSettings.nodeDrainPolicy | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.detachManuallyAttachedVolumesWhenCordoned) }}
+    detach-manually-attached-volumes-when-cordoned: {{ .Values.defaultSettings.detachManuallyAttachedVolumesWhenCordoned }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.replicaReplenishmentWaitInterval) }}
+    replica-replenishment-wait-interval: {{ .Values.defaultSettings.replicaReplenishmentWaitInterval | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.concurrentReplicaRebuildPerNodeLimit) }}
+    concurrent-replica-rebuild-per-node-limit: {{ .Values.defaultSettings.concurrentReplicaRebuildPerNodeLimit | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.concurrentVolumeBackupRestorePerNodeLimit) }}
+    concurrent-volume-backup-restore-per-node-limit: {{ .Values.defaultSettings.concurrentVolumeBackupRestorePerNodeLimit | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.disableRevisionCounter) }}
+    disable-revision-counter: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.disableRevisionCounter }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.systemManagedPodsImagePullPolicy) }}
+    system-managed-pods-image-pull-policy: {{ .Values.defaultSettings.systemManagedPodsImagePullPolicy | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.allowVolumeCreationWithDegradedAvailability) }}
+    allow-volume-creation-with-degraded-availability: {{ .Values.defaultSettings.allowVolumeCreationWithDegradedAvailability }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.autoCleanupSystemGeneratedSnapshot) }}
+    auto-cleanup-system-generated-snapshot: {{ .Values.defaultSettings.autoCleanupSystemGeneratedSnapshot }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.autoCleanupRecurringJobBackupSnapshot) }}
+    auto-cleanup-recurring-job-backup-snapshot: {{ .Values.defaultSettings.autoCleanupRecurringJobBackupSnapshot }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.concurrentAutomaticEngineUpgradePerNodeLimit) }}
+    concurrent-automatic-engine-upgrade-per-node-limit: {{ .Values.defaultSettings.concurrentAutomaticEngineUpgradePerNodeLimit | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.backingImageCleanupWaitInterval) }}
+    backing-image-cleanup-wait-interval: {{ .Values.defaultSettings.backingImageCleanupWaitInterval | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.backingImageRecoveryWaitInterval) }}
+    backing-image-recovery-wait-interval: {{ .Values.defaultSettings.backingImageRecoveryWaitInterval | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.guaranteedInstanceManagerCPU) }}
+    guaranteed-instance-manager-cpu: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.guaranteedInstanceManagerCPU }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.kubernetesClusterAutoscalerEnabled) }}
+    kubernetes-cluster-autoscaler-enabled: {{ .Values.defaultSettings.kubernetesClusterAutoscalerEnabled }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.orphanResourceAutoDeletion) }}
+    orphan-resource-auto-deletion: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.orphanResourceAutoDeletion }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.orphanResourceAutoDeletionGracePeriod) }}
+    orphan-resource-auto-deletion-grace-period: {{ .Values.defaultSettings.orphanResourceAutoDeletionGracePeriod | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.storageNetwork) }}
+    storage-network: {{ .Values.defaultSettings.storageNetwork | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.deletingConfirmationFlag) }}
+    deleting-confirmation-flag: {{ .Values.defaultSettings.deletingConfirmationFlag }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.engineReplicaTimeout) }}
+    engine-replica-timeout: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.engineReplicaTimeout }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.snapshotDataIntegrity) }}
+    snapshot-data-integrity: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.snapshotDataIntegrity }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.snapshotDataIntegrityImmediateCheckAfterSnapshotCreation) }}
+    snapshot-data-integrity-immediate-check-after-snapshot-creation: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.snapshotDataIntegrityImmediateCheckAfterSnapshotCreation }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.snapshotDataIntegrityCronjob) }}
+    snapshot-data-integrity-cronjob: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.snapshotDataIntegrityCronjob }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.removeSnapshotsDuringFilesystemTrim) }}
+    remove-snapshots-during-filesystem-trim: {{ .Values.defaultSettings.removeSnapshotsDuringFilesystemTrim }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.fastReplicaRebuildEnabled) }}
+    fast-replica-rebuild-enabled: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.fastReplicaRebuildEnabled }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.replicaFileSyncHttpClientTimeout) }}
+    replica-file-sync-http-client-timeout: {{ .Values.defaultSettings.replicaFileSyncHttpClientTimeout | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.longGRPCTimeOut) }}
+    long-grpc-timeout: {{ .Values.defaultSettings.longGRPCTimeOut | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.logLevel) }}
+    log-level: {{ .Values.defaultSettings.logLevel | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.logPath) }}
+    log-path: {{ .Values.defaultSettings.logPath | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.backupCompressionMethod) }}
+    backup-compression-method: {{ .Values.defaultSettings.backupCompressionMethod | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.backupConcurrentLimit) }}
+    backup-concurrent-limit: {{ .Values.defaultSettings.backupConcurrentLimit | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.restoreConcurrentLimit) }}
+    restore-concurrent-limit: {{ .Values.defaultSettings.restoreConcurrentLimit | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.defaultBackupBlockSize) }}
+    default-backup-block-size: {{ .Values.defaultSettings.defaultBackupBlockSize | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.v1DataEngine) }}
+    v1-data-engine: {{ .Values.defaultSettings.v1DataEngine }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.v2DataEngine) }}
+    v2-data-engine: {{ .Values.defaultSettings.v2DataEngine }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.dataEngineHugepageEnabled) }}
+    data-engine-hugepage-enabled: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.dataEngineHugepageEnabled }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.dataEngineMemorySize) }}
+    data-engine-memory-size: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.dataEngineMemorySize }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.allowEmptyNodeSelectorVolume) }}
+    allow-empty-node-selector-volume: {{ .Values.defaultSettings.allowEmptyNodeSelectorVolume }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.allowEmptyDiskSelectorVolume) }}
+    allow-empty-disk-selector-volume: {{ .Values.defaultSettings.allowEmptyDiskSelectorVolume }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.allowCollectingLonghornUsageMetrics) }}
+    allow-collecting-longhorn-usage-metrics: {{ .Values.defaultSettings.allowCollectingLonghornUsageMetrics }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.disableSnapshotPurge) }}
+    disable-snapshot-purge: {{ .Values.defaultSettings.disableSnapshotPurge }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.snapshotMaxCount) }}
+    snapshot-max-count: {{ .Values.defaultSettings.snapshotMaxCount | quote }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.dataEngineLogLevel) }}
+    data-engine-log-level: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.dataEngineLogLevel }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.dataEngineLogFlags) }}
+    data-engine-log-flags: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.dataEngineLogFlags }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.freezeFilesystemForSnapshot) }}
+    freeze-filesystem-for-snapshot: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.freezeFilesystemForSnapshot }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.autoCleanupSnapshotWhenDeleteBackup) }}
+    auto-cleanup-when-delete-backup: {{ .Values.defaultSettings.autoCleanupSnapshotWhenDeleteBackup }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.autoCleanupSnapshotAfterOnDemandBackupCompleted) }}
+    auto-cleanup-snapshot-after-on-demand-backup-completed: {{ .Values.defaultSettings.autoCleanupSnapshotAfterOnDemandBackupCompleted }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.rwxVolumeFastFailover) }}
+    rwx-volume-fast-failover: {{ .Values.defaultSettings.rwxVolumeFastFailover}}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.offlineReplicaRebuilding) }}
+    offline-replica-rebuilding: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.offlineReplicaRebuilding }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.dataEngineCPUMask) }}
+    data-engine-cpu-mask: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.dataEngineCPUMask }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.replicaRebuildingBandwidthLimit) }}
+    replica-rebuilding-bandwidth-limit: {{ include "longhorn.multiTypeSetting" .Values.defaultSettings.replicaRebuildingBandwidthLimit }}
+    {{- end }}
+    {{- if not (kindIs "invalid" .Values.defaultSettings.instanceManagerPodLivenessProbeTimeout) }}
+    instance-manager-pod-liveness-probe-timeout: {{ .Values.defaultSettings.instanceManagerPodLivenessProbeTimeout | quote }}
+    {{- end }}
