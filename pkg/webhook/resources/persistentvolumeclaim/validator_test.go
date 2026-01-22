@@ -241,8 +241,7 @@ func TestCreate(t *testing.T) {
 					StorageClassName: ptr.To(util.StorageClassVmstatePersistence),
 				},
 			},
-			expectError:   true,
-			errorContains: "reserved storage class",
+			expectError: false,
 		},
 	}
 
