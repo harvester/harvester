@@ -29,7 +29,7 @@ func Register(ctx context.Context, apiSchemas *types.APISchemas, cg proxy.Client
 		schema.ResourceMethods = []string{http.MethodGet}
 		schema.Attributes["access"] = accesscontrol.AccessListByVerb{
 			"watch": accesscontrol.AccessList{
-				{
+				accesscontrol.Access{
 					Namespace:    "*",
 					ResourceName: "*",
 				},

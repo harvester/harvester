@@ -4,7 +4,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-var DateFieldsByGVKBuiltins = map[schema.GroupVersionKind][]string{
+var DateFieldsByGVK = map[schema.GroupVersionKind][]string{
 	{Group: "", Version: "v1", Kind: "ConfigMap"}:             {"Age"},
 	{Group: "", Version: "v1", Kind: "Endpoints"}:             {"Age"},
 	{Group: "", Version: "v1", Kind: "Event"}:                 {"Last Seen", "First Seen"},
@@ -36,6 +36,9 @@ var DateFieldsByGVKBuiltins = map[schema.GroupVersionKind][]string{
 
 	{Group: "autoscaling", Version: "v1", Kind: "Scale"}:                        {"Age"},
 	{Group: "autoscaling", Version: "v2beta1", Kind: "HorizontalPodAutoscaler"}: {"Age"},
+
+	{Group: "ext.cattle.io", Version: "v1", Kind: "Token"}:      {"Age"},
+	{Group: "ext.cattle.io", Version: "v1", Kind: "Kubeconfig"}: {"Age"},
 
 	{Group: "batch", Version: "v1", Kind: "Job"}:          {"Duration", "Age"},
 	{Group: "batch", Version: "v1beta1", Kind: "CronJob"}: {"Last Schedule", "Age"},

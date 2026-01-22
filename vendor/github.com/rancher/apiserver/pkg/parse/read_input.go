@@ -13,8 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
-const reqMaxSize = (2 * 1 << 20) + 1
-
 var bodyMethods = map[string]bool{
 	http.MethodPut:  true,
 	http.MethodPost: true,

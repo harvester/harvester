@@ -85,6 +85,7 @@ func (VirtualMachineInstanceStatus) SwaggerDoc() map[string]string {
 		"memory":                        "Memory shows various informations about the VirtualMachine memory.\n+optional",
 		"migratedVolumes":               "MigratedVolumes lists the source and destination volumes during the volume migration\n+listType=atomic\n+optional",
 		"deviceStatus":                  "DeviceStatus reflects the state of devices requested in spec.domain.devices. This is an optional field available\nonly when DRA feature gate is enabled\nThis field will only be populated if one of the feature-gates GPUsWithDRA or HostDevicesWithDRA is enabled.\nThis feature is in alpha.\n+optional",
+		"changedBlockTracking":          "ChangedBlockTracking represents the status of the changedBlockTracking\n+nullable\n+optional",
 	}
 }
 
@@ -392,6 +393,7 @@ func (VirtualMachineInstanceMigrationSpec) SwaggerDoc() map[string]string {
 		"addedNodeSelector": "AddedNodeSelector is an additional selector that can be used to\ncomplement a NodeSelector or NodeAffinity as set on the VM\nto restrict the set of allowed target nodes for a migration.\nIn case of key collisions, values set on the VM objects\nare going to be preserved to ensure that addedNodeSelector\ncan only restrict but not bypass constraints already set on the VM object.\n+optional",
 		"sendTo":            "If sendTo is specified, this VirtualMachineInstanceMigration will be considered the source",
 		"receive":           "If receieve is specified, this VirtualMachineInstanceMigration will be considered the target",
+		"priority":          "Priority of the migration. This can be one of `system-critical`, `user-triggered`, `system-maintenance`.\n+optional",
 	}
 }
 
@@ -496,6 +498,7 @@ func (VirtualMachineStatus) SwaggerDoc() map[string]string {
 		"desiredGeneration":      "DesiredGeneration is the generation which is desired for the VMI.\nThis will be used in comparisons with ObservedGeneration to understand when\nthe VMI is out of sync. This will be changed at the same time as\nObservedGeneration to remove errors which could occur if Generation is\nupdated through an Update() before ObservedGeneration in Status.\n+optional",
 		"runStrategy":            "RunStrategy tracks the last recorded RunStrategy used by the VM.\nThis is needed to correctly process the next strategy (for now only the RerunOnFailure)",
 		"volumeUpdateState":      "VolumeUpdateState contains the information about the volumes set\nupdates related to the volumeUpdateStrategy",
+		"changedBlockTracking":   "ChangedBlockTracking represents the status of the changedBlockTracking\n+nullable\n+optional",
 		"instancetypeRef":        "InstancetypeRef captures the state of any referenced instance type from the VirtualMachine\n+nullable\n+optional",
 		"preferenceRef":          "PreferenceRef captures the state of any referenced preference from the VirtualMachine\n+nullable\n+optional",
 	}
@@ -514,6 +517,13 @@ func (InstancetypeStatusRef) SwaggerDoc() map[string]string {
 		"controllerRevisionRef":        "ControllerRef specifies the ControllerRevision storing a copy of the object captured\nwhen it is first seen by the VirtualMachine controller",
 		"inferFromVolume":              "InferFromVolume lists the name of a volume that should be used to infer or discover the resource\n\n+optional",
 		"inferFromVolumeFailurePolicy": "InferFromVolumeFailurePolicy controls what should happen on failure when inferring the resource\n\n+optional",
+	}
+}
+
+func (ChangedBlockTrackingStatus) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":      "ChangedBlockTrackingStatus represents the status of ChangedBlockTracking for a VM\n+k8s:openapi-gen=true",
+		"state": "State represents the current CBT state",
 	}
 }
 
@@ -739,6 +749,13 @@ func (MigrateOptions) SwaggerDoc() map[string]string {
 	}
 }
 
+func (EvacuateCancelOptions) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":       "EvacuateCancelOptions may be provided on evacuate cancel request.",
+		"dryRun": "When present, indicates that modifications should not be\npersisted. An invalid or unrecognized dryRun directive will\nresult in an error response and no further processing of the\nrequest. Valid values are:\n- All: all dry run stages will be processed\n+optional\n+listType=atomic",
+	}
+}
+
 func (VirtualMachineInstanceGuestAgentInfo) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                  "VirtualMachineInstanceGuestAgentInfo represents information from the installed guest agent\n\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
@@ -767,7 +784,8 @@ func (VirtualMachineInstanceGuestOSUserList) SwaggerDoc() map[string]string {
 
 func (VirtualMachineInstanceGuestOSUser) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "VirtualMachineGuestOSUser is the single user of the guest os",
+		"":          "VirtualMachineGuestOSUser is the single user of the guest os",
+		"loginTime": "Time of login of this user on the computer. If multiple instances of the user are logged in, the earliest login time is reported. The value is in fractional seconds since epoch time.",
 	}
 }
 
@@ -882,6 +900,14 @@ func (KubeVirtConfiguration) SwaggerDoc() map[string]string {
 		"vmRolloutStrategy":                  "VMRolloutStrategy defines how live-updatable fields, like CPU sockets, memory,\ntolerations, and affinity, are propagated from a VM to its VMI.\n+nullable\n+kubebuilder:validation:Enum=Stage;LiveUpdate",
 		"commonInstancetypesDeployment":      "CommonInstancetypesDeployment controls the deployment of common-instancetypes resources\n+nullable",
 		"instancetype":                       "Instancetype configuration\n+nullable",
+		"changedBlockTrackingLabelSelectors": "ChangedBlockTrackingLabelSelectors defines label selectors. VMs matching these selectors will have changed block tracking enabled.\nEnabling changedBlockTracking is mandatory for performing storage-agnostic backups and incremental backups.\n+nullable",
+	}
+}
+
+func (ChangedBlockTrackingSelectors) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"namespaceLabelSelector":      "NamespaceSelector will enable changedBlockTracking on all VMs running inside namespaces that match the label selector.\n+optional",
+		"virtualMachineLabelSelector": "VirtualMachineSelector will enable changedBlockTracking on all VMs that match the label selector.\n+optional",
 	}
 }
 
@@ -898,7 +924,9 @@ func (CommonInstancetypesDeployment) SwaggerDoc() map[string]string {
 }
 
 func (ArchConfiguration) SwaggerDoc() map[string]string {
-	return map[string]string{}
+	return map[string]string{
+		"ppc64le": "Deprecated: ppc64le architecture is no longer supported.",
+	}
 }
 
 func (ArchSpecificConfiguration) SwaggerDoc() map[string]string {
@@ -989,7 +1017,7 @@ func (DeveloperConfiguration) SwaggerDoc() map[string]string {
 		"featureGates":                    "FeatureGates is the list of experimental features to enable. Defaults to none",
 		"pvcTolerateLessSpaceUpToPercent": "LessPVCSpaceToleration determines how much smaller, in percentage, disk PVCs are\nallowed to be compared to the requested size (to account for various overheads).\nDefaults to 10",
 		"minimumReservePVCBytes":          "MinimumReservePVCBytes is the amount of space, in bytes, to leave unused on disks.\nDefaults to 131072 (128KiB)",
-		"memoryOvercommit":                "MemoryOvercommit is the percentage of memory we want to give VMIs compared to the amount\ngiven to its parent pod (virt-launcher). For example, a value of 102 means the VMI will\n\"see\" 2% more memory than its parent pod. Values under 100 are effectively \"undercommits\".\nOvercommits can lead to memory exhaustion, which in turn can lead to crashes. Use carefully.\nDefaults to 100",
+		"memoryOvercommit":                "MemoryOvercommit is the percentage of memory we want to give VMIs compared to the amount\ngiven to its parent pod (virt-launcher). For example, a value of 102 means the VMI will\n\"see\" 2% more memory than its parent pod. Values under 100 are effectively \"undercommits\".\nOvercommits can lead to memory exhaustion, which in turn can lead to crashes. Use carefully.\nDefaults to 100\n+kubebuilder:validation:Minimum:=10",
 		"nodeSelectors":                   "NodeSelectors allows restricting VMI creation to nodes that match a set of labels.\nDefaults to none",
 		"useEmulation":                    "UseEmulation can be set to true to allow fallback to software emulation\nin case hardware-assisted emulation is not available. Defaults to false",
 		"cpuAllocationRatio":              "For each requested virtual CPU, CPUAllocationRatio defines how much physical CPU to request per VMI\nfrom the hosting node. The value is in fraction of a CPU thread (or core on non-hyperthreaded nodes).\nFor example, a value of 1 means 1 physical CPU thread per VMI CPU thread.\nA value of 100 would be 1% of a physical thread allocated for each requested VMI thread.\nThis option has no effect on VMIs that request dedicated CPUs. More information at:\nhttps://kubevirt.io/user-guide/operations/node_overcommit/#node-cpu-allocation-ratio\nDefaults to 10",
