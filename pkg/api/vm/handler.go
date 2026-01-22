@@ -323,7 +323,7 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 	volumeMode := corev1.PersistentVolumeBlock
 	newPvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("%s-%s-%s", name, input.VolumeName, rand.String(5)),
+			Name: fmt.Sprintf("%s-%s-%s", name, input.DeviceName, rand.String(5)),
 			Annotations: map[string]string{
 				util.AnnotationImageID: input.ImageName,
 			},
@@ -340,7 +340,7 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 		},
 	}
 	newVol := kubevirtv1.Volume{
-		Name: input.VolumeName,
+		Name: input.DeviceName,
 		VolumeSource: kubevirtv1.VolumeSource{
 			PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
 				PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
@@ -353,13 +353,13 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 
 	pos := -1
 	for idx, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if disk.Name == input.VolumeName {
+		if disk.Name == input.DeviceName {
 			pos = idx
 			break
 		}
 	}
 	if pos == -1 {
-		return fmt.Errorf("can not find disk %s from the VM %s/%s", input.VolumeName, vm.Namespace, vm.Name)
+		return fmt.Errorf("can not find the device %s from the VM %s/%s", input.DeviceName, vm.Namespace, vm.Name)
 	}
 
 	err = insertVolumeClaimTemplatesFromVMAnnotation(vmCopy, newPvc, pos)
@@ -382,7 +382,7 @@ func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace 
 	volumes := make([]kubevirtv1.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
 	toRemoveClaimNames := make([]string, 0, len(vm.Spec.Template.Spec.Volumes))
 	for _, vol := range vm.Spec.Template.Spec.Volumes {
-		if input.VolumeName != vol.Name {
+		if input.DeviceName != vol.Name {
 			volumes = append(volumes, vol)
 			continue
 		}
