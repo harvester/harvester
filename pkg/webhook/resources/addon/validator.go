@@ -177,7 +177,7 @@ func (v *addonValidator) validateDeschedulerAddonUpdate(newAddon *v1beta1.Addon,
 func (v *addonValidator) validatePCIDevicesControllerAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
 	// check when pcidevices-controller addon is being disabled
 	if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
-		return v.validatePCIDevicesControllerAddon(newAddon)
+		return v.validatePCIDevicesControllerAddon()
 	}
 	return nil
 }
@@ -185,7 +185,7 @@ func (v *addonValidator) validatePCIDevicesControllerAddonUpdate(newAddon *v1bet
 func (v *addonValidator) validateNvidiaDriverToolkitAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
 	// check when nvidia-driver-toolkit addon is being disabled
 	if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
-		return v.validateNvidiaDriverToolkitAddon(newAddon)
+		return v.validateNvidiaDriverToolkitAddon()
 	}
 	return nil
 }
@@ -305,7 +305,7 @@ func (v *addonValidator) validateDeschedulerAddon(newAddon *v1beta1.Addon) error
 	return nil
 }
 
-func (v *addonValidator) validatePCIDevicesControllerAddon(newAddon *v1beta1.Addon) error {
+func (v *addonValidator) validatePCIDevicesControllerAddon() error {
 	// Check if any VMs are using HostDevices (PCI devices, USB devices) or GPUs (vGPU devices)
 	vms, err := v.vmCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
@@ -334,7 +334,7 @@ func (v *addonValidator) validatePCIDevicesControllerAddon(newAddon *v1beta1.Add
 	return nil
 }
 
-func (v *addonValidator) validateNvidiaDriverToolkitAddon(newAddon *v1beta1.Addon) error {
+func (v *addonValidator) validateNvidiaDriverToolkitAddon() error {
 	// Check if any VMs are using GPUs (vGPU devices and SR-IOV GPU devices)
 	vms, err := v.vmCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
