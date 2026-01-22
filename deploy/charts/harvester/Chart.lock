@@ -10,13 +10,13 @@ dependencies:
   version: 0.2.0
 - name: harvester-network-controller
   repository: https://charts.harvesterhci.io
-  version: 1.7.0
+  version: 1.7.1-rc1
 - name: harvester-networkfs-manager
   repository: https://charts.harvesterhci.io
-  version: 1.7.0
+  version: 1.7.1-rc1
 - name: harvester-node-disk-manager
   repository: https://charts.harvesterhci.io
-  version: 1.7.0
+  version: 1.7.1-rc1
 - name: csi-snapshotter
   repository: file://dependency_charts/csi-snapshotter
   version: 0.3.1
@@ -28,12 +28,12 @@ dependencies:
   version: 0.8.0
 - name: harvester-load-balancer
   repository: https://charts.harvesterhci.io
-  version: 1.7.0
+  version: 1.7.1-rc1
 - name: whereabouts
   repository: file://dependency_charts/whereabouts
   version: 0.1.1
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
-  version: 1.7.0
-digest: sha256:4a0debc9928c42dabc386f7b0e4055adbf0a2b3b5e95c8d16e6ae1f8429eee17
-generated: "2026-01-22T14:36:45.497463604+08:00"
+  version: 1.7.1-rc1
+digest: sha256:050c3dba39eea42f8e847fbc361bb00f2ad573201ae334a572e8b44bc7eacb9f
+generated: "2026-01-22T11:48:26.439350434Z"
