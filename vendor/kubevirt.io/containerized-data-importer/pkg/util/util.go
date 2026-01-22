@@ -6,11 +6,13 @@ import (
 	"crypto/md5" //nolint:gosec // This is not a security-sensitive use case
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"math"
 	"math/rand"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,7 +28,6 @@ import (
 )
 
 const (
-	blockdevFileName = "/usr/sbin/blockdev"
 	// DefaultAlignBlockSize is the alignment size we use to align disk images, its a multiple of all known hardware block sizes 512/4k/8k/32k/64k.
 	DefaultAlignBlockSize = 1024 * 1024
 )
@@ -92,15 +93,6 @@ func (r *CountingReader) Close() error {
 	return r.Reader.Close()
 }
 
-// GetAvailableSpaceByVolumeMode calls another method based on the volumeMode parameter to get the amount of
-// available space at the path specified.
-func GetAvailableSpaceByVolumeMode(volumeMode v1.PersistentVolumeMode) (int64, error) {
-	if volumeMode == v1.PersistentVolumeBlock {
-		return GetAvailableSpaceBlock(common.WriteBlockPath)
-	}
-	return GetAvailableSpace(common.ImporterVolumePath)
-}
-
 // MinQuantity calculates the minimum of two quantities.
 func MinQuantity(availableSpace, imageSize *resource.Quantity) resource.Quantity {
 	if imageSize.Cmp(*availableSpace) == 1 {
@@ -164,7 +156,7 @@ func RoundUp(number, multiple int64) int64 {
 	return int64(partitions) * multiple
 }
 
-// MergeLabels adds source labels to destination (does not change existing ones)
+// MergeLabels copies source labels to destination (overwrites existing labels)
 func MergeLabels(src, dest map[string]string) map[string]string {
 	if dest == nil {
 		dest = map[string]string{}
@@ -175,19 +167,6 @@ func MergeLabels(src, dest map[string]string) map[string]string {
 	}
 
 	return dest
-}
-
-// AppendLabels append dest labels to source (update if key has existed)
-func AppendLabels(src, dest map[string]string) map[string]string {
-	if src == nil {
-		src = map[string]string{}
-	}
-
-	for k, v := range dest {
-		src[k] = v
-	}
-
-	return src
 }
 
 // GetRecommendedInstallerLabelsFromCr returns the recommended labels to set on CDI resources
@@ -242,16 +221,23 @@ func Md5sum(filePath string) (string, error) {
 
 // GetUsableSpace calculates usable space to use taking file system overhead into account
 func GetUsableSpace(filesystemOverhead float64, availableSpace int64) int64 {
-	// +1 always rounds up.
-	spaceWithOverhead := int64(math.Ceil((1 - filesystemOverhead) * float64(availableSpace)))
+	// Reverse the overhead calculation
+	spaceWithoutOverhead := int64(math.Ceil(float64(availableSpace) / (1 + filesystemOverhead)))
 	// qemu-img will round up, making us use more than the usable space.
 	// This later conflicts with image size validation.
-	return RoundDown(spaceWithOverhead, DefaultAlignBlockSize)
+	return RoundDown(spaceWithoutOverhead, DefaultAlignBlockSize)
 }
 
-func CalculateOverheadSpace(filesystemOverhead float64, availableSpace int64) int64 {
-	spaceWithOverhead := int64(math.Ceil(float64(availableSpace) / (1 - filesystemOverhead)))
-	return RoundUp(spaceWithOverhead, DefaultAlignBlockSize)
+// GetRequiredSpace calculates space required taking file system overhead into account
+func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
+	// the `image` has to be aligned correctly, so the space requested has to be aligned to
+	// next value that is a multiple of a block size
+	alignedSize := RoundUp(requestedSpace, DefaultAlignBlockSize)
+
+	// count overhead as a percentage of the whole/new size, including aligned image
+	// and the space required by filesystem metadata
+	spaceWithOverhead := int64(math.Ceil(float64(alignedSize) * (1 + filesystemOverhead)))
+	return spaceWithOverhead
 }
 
 // ResolveVolumeMode returns the volume mode if set, otherwise defaults to file system mode
@@ -261,4 +247,63 @@ func ResolveVolumeMode(volumeMode *v1.PersistentVolumeMode) v1.PersistentVolumeM
 		retVolumeMode = v1.PersistentVolumeBlock
 	}
 	return retVolumeMode
+}
+
+// CopyFile copies a file from one location to another.
+func CopyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return out.Close()
+}
+
+// CopyDir copies a dir from one location to another.
+func CopyDir(source string, dest string) error {
+	// get properties of source dir
+	sourceinfo, err := os.Stat(source)
+	if err != nil {
+		return err
+	}
+
+	// create dest dir
+	err = os.MkdirAll(dest, sourceinfo.Mode())
+	if err != nil {
+		return err
+	}
+
+	directory, _ := os.Open(source)
+	objects, err := directory.Readdir(-1)
+
+	for _, obj := range objects {
+		src := filepath.Join(source, obj.Name())
+		dst := filepath.Join(dest, obj.Name())
+
+		if obj.IsDir() {
+			// create sub-directories - recursively
+			err = CopyDir(src, dst)
+			if err != nil {
+				fmt.Println(err)
+			}
+		} else {
+			// perform copy
+			err = CopyFile(src, dst)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	}
+	return err
 }

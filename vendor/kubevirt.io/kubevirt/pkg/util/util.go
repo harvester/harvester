@@ -24,6 +24,7 @@ const (
 	KubeletRoot                               = "/var/lib/kubelet"
 	KubeletPodsDir                            = KubeletRoot + "/pods"
 	HostRootMount                             = "/proc/1/root/"
+	ContainerBinary                           = "/container-disk-binary"
 
 	NonRootUID        = 107
 	NonRootUserString = "qemu"
@@ -84,30 +85,7 @@ func IsVFIOVMI(vmi *v1.VirtualMachineInstance) bool {
 }
 
 func UseLaunchSecurity(vmi *v1.VirtualMachineInstance) bool {
-	return IsSEVVMI(vmi) || IsSecureExecutionVMI(vmi)
-}
-
-// NeedVirtioNetDevice checks whether a VMI requires the presence of the "virtio" net device.
-// This happens when the VMI wants to use a "virtio" network interface, and software emulation is disallowed.
-func NeedVirtioNetDevice(vmi *v1.VirtualMachineInstance, allowEmulation bool) bool {
-	return wantVirtioNetDevice(vmi) && !allowEmulation
-}
-
-// wantVirtioNetDevice checks whether a VMI references at least one "virtio" network interface.
-// Note that the reference can be explicit or implicit (unspecified nic models defaults to "virtio").
-func wantVirtioNetDevice(vmi *v1.VirtualMachineInstance) bool {
-	for _, iface := range vmi.Spec.Domain.Devices.Interfaces {
-		if iface.Model == "" || iface.Model == v1.VirtIO {
-			return true
-		}
-	}
-	return false
-}
-
-func NeedTunDevice(vmi *v1.VirtualMachineInstance) bool {
-	return (len(vmi.Spec.Domain.Devices.Interfaces) > 0) ||
-		(vmi.Spec.Domain.Devices.AutoattachPodInterface == nil) ||
-		(*vmi.Spec.Domain.Devices.AutoattachPodInterface)
+	return IsSEVVMI(vmi) || IsSecureExecutionVMI(vmi) || IsTDXVMI(vmi)
 }
 
 func IsAutoAttachVSOCK(vmi *v1.VirtualMachineInstance) bool {

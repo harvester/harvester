@@ -2,6 +2,7 @@ package memory
 
 import (
 	"github.com/rancher/dynamiclistener"
+	"github.com/rancher/dynamiclistener/factory"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 )
@@ -32,7 +33,7 @@ func (m *memory) Get() (*v1.Secret, error) {
 }
 
 func (m *memory) Update(secret *v1.Secret) error {
-	if m.secret == nil || m.secret.ResourceVersion == "" || m.secret.ResourceVersion != secret.ResourceVersion {
+	if isChanged(m.secret, secret) {
 		if m.storage != nil {
 			if err := m.storage.Update(secret); err != nil {
 				return err
@@ -43,4 +44,20 @@ func (m *memory) Update(secret *v1.Secret) error {
 		m.secret = secret
 	}
 	return nil
+}
+
+func isChanged(old, new *v1.Secret) bool {
+	if old == nil {
+		return true
+	}
+	if old.ResourceVersion == "" {
+		return true
+	}
+	if old.ResourceVersion != new.ResourceVersion {
+		return true
+	}
+	if old.Annotations[factory.Fingerprint] != new.Annotations[factory.Fingerprint] {
+		return true
+	}
+	return false
 }

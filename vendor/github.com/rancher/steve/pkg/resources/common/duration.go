@@ -27,6 +27,8 @@ func ParseTimestampOrHumanReadableDuration(s string) (time.Duration, error) {
 		}
 
 		switch unit {
+		case 'y':
+			total += time.Duration(val) * 365 * 24 * time.Hour
 		case 'd':
 			total += time.Duration(val) * 24 * time.Hour
 		case 'h':
