@@ -239,8 +239,5 @@ func (v *pvcValidator) isBelongToUpgradeImage(pvc *corev1.PersistentVolumeClaim)
 }
 
 func isUsingReservedSC(pvc *corev1.PersistentVolumeClaim) bool {
-	if pvc.Spec.StorageClassName == nil {
-		return false
-	}
-	return *pvc.Spec.StorageClassName == util.StorageClassLonghornStatic || *pvc.Spec.StorageClassName == util.StorageClassVmstatePersistence
+	return pvc.Spec.StorageClassName != nil && *pvc.Spec.StorageClassName == util.StorageClassLonghornStatic
 }
