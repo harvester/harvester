@@ -526,18 +526,22 @@ func (h *VMController) getPVCStorageClass(pvc *corev1.PersistentVolumeClaim) (*s
 	return sc, nil
 }
 
-func (h *VMController) setSataCdRomHotpluggable(vmi *kubevirtv1.VirtualMachineInstance) error {
+func (h *VMController) setSataCdRomHotpluggable(id string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
+	if vmi == nil {
+		return nil, nil
+	}
+
 	vm, err := h.vmCache.Get(vmi.Namespace, vmi.Name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil
+			return vmi, nil
 		}
-		return err
+		return vmi, err
 	}
 
 	// no need to patch VM spec when both VM and VMI are registered for deletion
 	if vm.DeletionTimestamp != nil {
-		return nil
+		return nil, nil
 	}
 
 	cdRomDiskNames := make(map[string]struct{})
@@ -559,19 +563,6 @@ func (h *VMController) setSataCdRomHotpluggable(vmi *kubevirtv1.VirtualMachineIn
 	}
 
 	if _, err := h.vmClient.Update(vmCopy); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (h *VMController) SetSataCdRomHotpluggable(id string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
-	if vmi == nil {
-		return vmi, nil
-	}
-
-	err := h.setSataCdRomHotpluggable(vmi)
-	if err != nil {
 		return vmi, err
 	}
 
