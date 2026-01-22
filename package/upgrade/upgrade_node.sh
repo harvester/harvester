@@ -631,6 +631,29 @@ stages:
 EOF
 }
 
+set_nic_names_by_mac_address() {
+  # get current third_party_kernel_args
+  local args=$(chroot $HOST_DIR grub2-editenv /oem/grubenv list |grep third_party_kernel_args | awk -F"third_party_kernel_args=" '{print $2}')
+
+  local update_args=0
+  # append ifname=name:mac for all existing en* interfaces
+  for i in $HOST_DIR/sys/class/net/en* ; do
+    [ -e "$i" ] || continue
+    [ -e "$i/address" ] || continue
+    local name=$(basename $i)
+    local mac=$(cat "$i/address")
+    # don't add duplicates if there's already an ifname= for this mac address
+    [[ "$args" =~ ifname=[^[:space:]]+:$mac ]] && continue
+    args="$args ifname=$name:$mac"
+    update_args=1
+  done
+
+  if [ $update_args -eq 1 ]; then
+    # save updated third_party_kernel_args
+    chroot $HOST_DIR grub2-editenv /oem/grubenv set third_party_kernel_args="${args}"
+  fi
+}
+
 upgrade_os() {
   # The trap will be only effective from this point to the end of the execution
   trap clean_up_tmp_files EXIT
@@ -761,6 +784,11 @@ EOF
   if [ -e ${HOST_DIR}/etc/ssh/sshd_config.d/sftp.conf ]; then
     sed -i 's%/usr/lib/ssh/sftp-server%/usr/libexec/ssh/sftp-server%' ${HOST_DIR}/etc/ssh/sshd_config.d/sftp.conf
   fi
+
+  # Work around for
+  #   https://github.com/harvester/harvester/issues/9802
+  #   https://github.com/harvester/harvester/issues/9815
+  set_nic_names_by_mac_address
 
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
