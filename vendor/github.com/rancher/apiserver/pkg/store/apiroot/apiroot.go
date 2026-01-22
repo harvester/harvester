@@ -44,8 +44,6 @@ func Formatter(apiOp *types.APIRequest, resource *types.RawResource) {
 		resource.Links["self"] = apiOp.URLBuilder.RelativeToRoot(apiVersion)
 		resource.Links["schemas"] = apiOp.URLBuilder.RelativeToRoot(path)
 	}
-
-	return
 }
 
 func addCollectionLink(apiOp *types.APIRequest, schema *types.APISchema, apiVersion string, links map[string]string) {

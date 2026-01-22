@@ -162,7 +162,7 @@ func newServerMessage(reader io.Reader) (*message, error) {
 	}
 
 	if m.messageType == Connect {
-		bytes, err := ioutil.ReadAll(io.LimitReader(buf, 100))
+		bytes, err := ioutil.ReadAll(io.LimitReader(buf, 266))
 		if err != nil {
 			return nil, err
 		}

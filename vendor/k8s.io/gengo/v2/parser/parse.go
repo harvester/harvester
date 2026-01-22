@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"golang.org/x/tools/go/packages"
+
 	"k8s.io/gengo/v2/types"
 	"k8s.io/klog/v2"
 )
@@ -572,6 +573,9 @@ func goVarNameToName(in string) types.Name {
 	return goNameToName(nameParts[1])
 }
 
+// goNameToName converts a go name string to a gengo types.Name.
+// It operates solely on the string on a best effort basis. The name may be updated
+// in walkType for generics.
 func goNameToName(in string) types.Name {
 	// Detect anonymous type names. (These may have '.' characters because
 	// embedded types may have packages, so we detect them specially.)
@@ -587,14 +591,25 @@ func goNameToName(in string) types.Name {
 		return types.Name{Name: in}
 	}
 
+	// There may be '.' characters within a generic. Temporarily remove
+	// the generic.
+	genericIndex := strings.IndexRune(in, '[')
+	if genericIndex == -1 {
+		genericIndex = len(in)
+	}
+
 	// Otherwise, if there are '.' characters present, the name has a
 	// package path in front.
-	nameParts := strings.Split(in, ".")
+	nameParts := strings.Split(in[:genericIndex], ".")
 	name := types.Name{Name: in}
 	if n := len(nameParts); n >= 2 {
 		// The final "." is the name of the type--previous ones must
 		// have been in the package path.
 		name.Package, name.Name = strings.Join(nameParts[:n-1], "."), nameParts[n-1]
+		// Add back the generic component now that the package and type name have been separated.
+		if genericIndex != len(in) {
+			name.Name = name.Name + in[genericIndex:]
+		}
 	}
 	return name
 }
@@ -602,12 +617,16 @@ func goNameToName(in string) types.Name {
 func (p *Parser) convertSignature(u types.Universe, t *gotypes.Signature) *types.Signature {
 	signature := &types.Signature{}
 	for i := 0; i < t.Params().Len(); i++ {
-		signature.Parameters = append(signature.Parameters, p.walkType(u, nil, t.Params().At(i).Type()))
-		signature.ParameterNames = append(signature.ParameterNames, t.Params().At(i).Name())
+		signature.Parameters = append(signature.Parameters, &types.ParamResult{
+			Name: t.Params().At(i).Name(),
+			Type: p.walkType(u, nil, t.Params().At(i).Type()),
+		})
 	}
 	for i := 0; i < t.Results().Len(); i++ {
-		signature.Results = append(signature.Results, p.walkType(u, nil, t.Results().At(i).Type()))
-		signature.ResultNames = append(signature.ResultNames, t.Results().At(i).Name())
+		signature.Results = append(signature.Results, &types.ParamResult{
+			Name: t.Results().At(i).Name(),
+			Type: p.walkType(u, nil, t.Results().At(i).Type()),
+		})
 	}
 	if r := t.Recv(); r != nil {
 		signature.Receiver = p.walkType(u, nil, r.Type())
@@ -624,9 +643,16 @@ func (p *Parser) walkType(u types.Universe, useName *types.Name, in gotypes.Type
 		name = *useName
 	}
 
+	// Handle alias types conditionally on go1.22+.
+	// Inline this once the minimum supported version is go1.22
+	if out := p.walkAliasType(u, in); out != nil {
+		return out
+	}
+
 	switch t := in.(type) {
 	case *gotypes.Struct:
 		out := u.Type(name)
+		out.GoType = in
 		if out.Kind != types.Unknown {
 			return out
 		}
@@ -645,6 +671,7 @@ func (p *Parser) walkType(u types.Universe, useName *types.Name, in gotypes.Type
 		return out
 	case *gotypes.Map:
 		out := u.Type(name)
+		out.GoType = in
 		if out.Kind != types.Unknown {
 			return out
 		}
@@ -654,6 +681,7 @@ func (p *Parser) walkType(u types.Universe, useName *types.Name, in gotypes.Type
 		return out
 	case *gotypes.Pointer:
 		out := u.Type(name)
+		out.GoType = in
 		if out.Kind != types.Unknown {
 			return out
 		}
@@ -662,6 +690,7 @@ func (p *Parser) walkType(u types.Universe, useName *types.Name, in gotypes.Type
 		return out
 	case *gotypes.Slice:
 		out := u.Type(name)
+		out.GoType = in
 		if out.Kind != types.Unknown {
 			return out
 		}
@@ -670,6 +699,7 @@ func (p *Parser) walkType(u types.Universe, useName *types.Name, in gotypes.Type
 		return out
 	case *gotypes.Array:
 		out := u.Type(name)
+		out.GoType = in
 		if out.Kind != types.Unknown {
 			return out
 		}
@@ -679,6 +709,7 @@ func (p *Parser) walkType(u types.Universe, useName *types.Name, in gotypes.Type
 		return out
 	case *gotypes.Chan:
 		out := u.Type(name)
+		out.GoType = in
 		if out.Kind != types.Unknown {
 			return out
 		}
@@ -692,6 +723,7 @@ func (p *Parser) walkType(u types.Universe, useName *types.Name, in gotypes.Type
 			Package: "", // This is a magic package name in the Universe.
 			Name:    t.Name(),
 		})
+		out.GoType = in
 		if out.Kind != types.Unknown {
 			return out
 		}
@@ -699,6 +731,7 @@ func (p *Parser) walkType(u types.Universe, useName *types.Name, in gotypes.Type
 		return out
 	case *gotypes.Signature:
 		out := u.Type(name)
+		out.GoType = in
 		if out.Kind != types.Unknown {
 			return out
 		}
@@ -707,6 +740,7 @@ func (p *Parser) walkType(u types.Universe, useName *types.Name, in gotypes.Type
 		return out
 	case *gotypes.Interface:
 		out := u.Type(name)
+		out.GoType = in
 		if out.Kind != types.Unknown {
 			return out
 		}
@@ -729,11 +763,34 @@ func (p *Parser) walkType(u types.Universe, useName *types.Name, in gotypes.Type
 		case *gotypes.Named, *gotypes.Basic, *gotypes.Map, *gotypes.Slice:
 			name := goNameToName(t.String())
 			out = u.Type(name)
+			out.GoType = in
 			if out.Kind != types.Unknown {
 				return out
 			}
 			out.Kind = types.Alias
 			out.Underlying = p.walkType(u, nil, t.Underlying())
+		case *gotypes.Struct, *gotypes.Interface:
+			name := goNameToName(t.String())
+			tpMap := map[string]*types.Type{}
+			if t.TypeParams().Len() != 0 {
+				// Remove generics, then readd them without the encoded
+				// type, e.g. Foo[T any] => Foo[T]
+				var tpNames []string
+				for i := 0; i < t.TypeParams().Len(); i++ {
+					tp := t.TypeParams().At(i)
+					tpName := tp.Obj().Name()
+					tpNames = append(tpNames, tpName)
+					tpMap[tpName] = p.walkType(u, nil, tp.Constraint())
+				}
+				name.Name = fmt.Sprintf("%s[%s]", strings.SplitN(name.Name, "[", 2)[0], strings.Join(tpNames, ","))
+			}
+
+			if out := u.Type(name); out.Kind != types.Unknown {
+				out.GoType = in
+				return out // short circuit if we've already made this.
+			}
+			out = p.walkType(u, &name, t.Underlying())
+			out.TypeParams = tpMap
 		default:
 			// gotypes package makes everything "named" with an
 			// underlying anonymous type--we remove that annoying
@@ -760,8 +817,18 @@ func (p *Parser) walkType(u types.Universe, useName *types.Name, in gotypes.Type
 			}
 		}
 		return out
+	case *gotypes.TypeParam:
+		// DO NOT retrieve the type from the universe. The default type-param name is only the
+		// generic variable name. Ideally, it would be namespaced by package and struct but it is
+		// not. Thus, if we try to use the universe, we would start polluting it.
+		// e.g. if Foo[T] and Bar[T] exists, we'd mistakenly use the same type T for both.
+		return &types.Type{
+			Name: name,
+			Kind: types.TypeParam,
+		}
 	default:
 		out := u.Type(name)
+		out.GoType = in
 		if out.Kind != types.Unknown {
 			return out
 		}

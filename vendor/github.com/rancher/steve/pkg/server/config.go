@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/rancher/wrangler/v3/pkg/generated/controllers/apiextensions.k8s.io"
+	apiextensions "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiextensions.k8s.io"
 	apiextensionsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiextensions.k8s.io/v1"
-	"github.com/rancher/wrangler/v3/pkg/generated/controllers/apiregistration.k8s.io"
+	apiregistration "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiregistration.k8s.io"
 	apiregistrationv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiregistration.k8s.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
 	corev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"

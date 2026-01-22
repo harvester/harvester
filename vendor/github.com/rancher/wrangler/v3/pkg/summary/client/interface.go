@@ -13,6 +13,11 @@ type Interface interface {
 	Resource(resource schema.GroupVersionResource) NamespaceableResourceInterface
 }
 
+type ExtendedInterface interface {
+	Interface
+	ResourceWithOptions(resource schema.GroupVersionResource, opts *Options) NamespaceableResourceInterface
+}
+
 type ResourceInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*summary.SummarizedObjectList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)

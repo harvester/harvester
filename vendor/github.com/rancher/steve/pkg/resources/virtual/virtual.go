@@ -11,13 +11,14 @@ import (
 	"github.com/rancher/steve/pkg/resources/virtual/clusters"
 	"github.com/rancher/steve/pkg/resources/virtual/common"
 	"github.com/rancher/steve/pkg/resources/virtual/events"
+
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/cache"
 )
 
-var now = time.Now()
+var now = time.Now
 
 // TransformBuilder builds transform functions for specified GVKs through GetTransformFunc
 type TransformBuilder struct {
@@ -34,7 +35,7 @@ func NewTransformBuilder(cache common.SummaryCache) *TransformBuilder {
 }
 
 // GetTransformFunc returns the func to transform a raw object into a fixed object, if needed
-func (t *TransformBuilder) GetTransformFunc(gvk schema.GroupVersionKind, columns []rescommon.ColumnDefinition) cache.TransformFunc {
+func (t *TransformBuilder) GetTransformFunc(gvk schema.GroupVersionKind, columns []rescommon.ColumnDefinition, isCRD bool) cache.TransformFunc {
 	converters := make([]func(*unstructured.Unstructured) (*unstructured.Unstructured, error), 0)
 	if gvk.Kind == "Event" && gvk.Group == "" && gvk.Version == "v1" {
 		converters = append(converters, events.TransformEventObject)
@@ -44,8 +45,10 @@ func (t *TransformBuilder) GetTransformFunc(gvk schema.GroupVersionKind, columns
 
 	// Detecting if we need to convert date fields
 	for _, col := range columns {
-		gvkDateFields, gvkFound := rescommon.DateFieldsByGVKBuiltins[gvk]
-		if col.Type == "date" || (gvkFound && slices.Contains(gvkDateFields, col.Name)) {
+		gvkDateFields, gvkFound := rescommon.DateFieldsByGVK[gvk]
+		hasCRDDate := isCRD && col.Type == "date"
+		hasBuiltInDate := gvkFound && slices.Contains(gvkDateFields, col.Name)
+		if hasCRDDate || hasBuiltInDate {
 			converters = append(converters, func(obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
 				index := rescommon.GetIndexValueFromString(col.Field)
 				if index == -1 {
@@ -72,7 +75,7 @@ func (t *TransformBuilder) GetTransformFunc(gvk schema.GroupVersionKind, columns
 					return obj, nil
 				}
 
-				curValue[index] = fmt.Sprintf("%d", now.Add(-duration).UnixMilli())
+				curValue[index] = fmt.Sprintf("%d", now().Add(-duration).UnixMilli())
 				if err := unstructured.SetNestedSlice(obj.Object, curValue, "metadata", "fields"); err != nil {
 					return nil, err
 				}

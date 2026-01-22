@@ -52,7 +52,7 @@ type clusterCache struct {
 	sync.RWMutex
 
 	ctx           context.Context
-	summaryClient client.Interface
+	summaryClient client.ExtendedInterface
 	watchers      map[schema2.GroupVersionKind]*watcher
 	workqueue     workqueue.DelayingInterface
 
@@ -64,7 +64,7 @@ type clusterCache struct {
 func NewClusterCache(ctx context.Context, dynamicClient dynamic.Interface) ClusterCache {
 	c := &clusterCache{
 		ctx:           ctx,
-		summaryClient: client.NewForDynamicClient(dynamicClient),
+		summaryClient: client.NewForExtendedDynamicClient(dynamicClient),
 		watchers:      map[schema2.GroupVersionKind]*watcher{},
 		workqueue:     workqueue.NewNamedDelayingQueue("cluster-cache"),
 	}
@@ -147,7 +147,10 @@ func (h *clusterCache) OnSchemas(schemas *schema.Collection) error {
 			continue
 		}
 
-		summaryInformer := informer.NewFilteredSummaryInformer(h.summaryClient, gvr, metav1.NamespaceAll, 2*time.Hour,
+		opts := &client.Options{
+			Schema: schema.Schema,
+		}
+		summaryInformer := informer.NewFilteredSummaryInformerWithOptions(h.summaryClient, gvr, opts, metav1.NamespaceAll, 2*time.Hour,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, nil)
 		ctx, cancel := context.WithCancel(h.ctx)
 		w := &watcher{

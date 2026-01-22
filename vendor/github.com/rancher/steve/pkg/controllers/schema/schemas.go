@@ -40,14 +40,14 @@ func (s SchemasHandlerFunc) OnSchemas(schemas *schema2.Collection) error {
 type handler struct {
 	sync.Mutex
 
-	ctx     context.Context
-	toSync  int32
-	schemas *schema2.Collection
-	client  discovery.DiscoveryInterface
-	cols    *common.DynamicColumns
-	crd     apiextcontrollerv1.CustomResourceDefinitionClient
-	ssar    authorizationv1client.SelfSubjectAccessReviewInterface
-	handler SchemasHandlerFunc
+	ctx       context.Context
+	toSync    int32
+	schemas   *schema2.Collection
+	client    discovery.DiscoveryInterface
+	cols      *common.DynamicColumns
+	crdClient apiextcontrollerv1.CustomResourceDefinitionClient
+	ssar      authorizationv1client.SelfSubjectAccessReviewInterface
+	handler   SchemasHandlerFunc
 }
 
 func Register(ctx context.Context,
@@ -60,13 +60,13 @@ func Register(ctx context.Context,
 	schemas *schema2.Collection) {
 
 	h := &handler{
-		ctx:     ctx,
-		cols:    cols,
-		client:  discovery,
-		schemas: schemas,
-		handler: schemasHandler,
-		crd:     crd,
-		ssar:    ssar,
+		ctx:       ctx,
+		cols:      cols,
+		client:    discovery,
+		schemas:   schemas,
+		handler:   schemasHandler,
+		crdClient: crd,
+		ssar:      ssar,
 	}
 
 	apiService.OnChange(ctx, "schema", h.OnChangeAPIService)
@@ -156,7 +156,7 @@ func (h *handler) refreshAll(ctx context.Context) error {
 		return nil
 	}
 
-	schemas, err := converter.ToSchemas(h.crd, h.client)
+	schemas, err := converter.ToSchemas(h.crdClient, h.client)
 	if err != nil {
 		return err
 	}
