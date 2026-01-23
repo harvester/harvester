@@ -16,7 +16,8 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/util"
+	lhdatastore "github.com/longhorn/longhorn-manager/datastore"
+	lhutil "github.com/longhorn/longhorn-manager/util"
 )
 
 const (
@@ -66,6 +67,7 @@ type VMIOperator interface {
 	GetSecuritySrcImgName(vmi *harvesterv1.VirtualMachineImage) string
 	GetBackupTarget(vmi *harvesterv1.VirtualMachineImage) *harvesterv1.BackupTarget
 	GetDisplayName(vmi *harvesterv1.VirtualMachineImage) string
+	GetStorageClassName(vmi *harvesterv1.VirtualMachineImage) string
 
 	IsInitialized(vmi *harvesterv1.VirtualMachineImage) bool
 	IsImported(vmi *harvesterv1.VirtualMachineImage) bool
@@ -173,6 +175,23 @@ func (vmio *vmiOperator) GetSecuritySrcImgName(vmi *harvesterv1.VirtualMachineIm
 
 func (vmio *vmiOperator) GetDisplayName(vmi *harvesterv1.VirtualMachineImage) string {
 	return vmi.Spec.DisplayName
+}
+
+func (vmio *vmiOperator) GetStorageClassName(vmi *harvesterv1.VirtualMachineImage) string {
+	if vmi.Spec.Backend == harvesterv1.VMIBackendCDI {
+		return vmi.Spec.TargetStorageClassName
+	}
+
+	legacySCName := fmt.Sprintf("longhorn-%s", vmi.Name)
+	_, err := vmio.scCache.Get(legacySCName)
+	if err == nil {
+		return legacySCName
+	}
+
+	return lhutil.AutoCorrectName(
+		fmt.Sprintf("longhorn-%s", vmio.GetUID(vmi)),
+		lhdatastore.NameMaximumLength,
+	)
 }
 
 func (vmio *vmiOperator) GetBackupTarget(vmi *harvesterv1.VirtualMachineImage) *harvesterv1.BackupTarget {
@@ -312,13 +331,7 @@ func (vmio *vmiOperator) stateTransit(old *harvesterv1.VirtualMachineImage, stat
 	case VMImageStateInitialized:
 		newVMI := old.DeepCopy()
 		newVMI.Status.AppliedURL = newVMI.Spec.URL
-
-		storageClassName, err := util.GetImageStorageClassName(vmio.scCache, newVMI)
-		if err != nil {
-			return old, err
-		}
-
-		newVMI.Status.StorageClassName = storageClassName
+		newVMI.Status.StorageClassName = vmio.GetStorageClassName(newVMI)
 		newVMI.Status.Progress = 0
 
 		harvesterv1.ImageImported.Unknown(newVMI)
