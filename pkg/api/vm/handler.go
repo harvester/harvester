@@ -644,7 +644,7 @@ func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.Virt
 
 	vmiPod, err := h.getVMIPod(vmi)
 	if err != nil {
-		return labels.Everything(), err
+		return labels.Nothing(), err
 	}
 
 	nodeFilter := labels.NewSelector()
