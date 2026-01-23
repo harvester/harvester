@@ -101,7 +101,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		vmImageCache:              vmImages.Cache(),
 		storageClassCache:         storageClasses.Cache(),
 		resourceQuotaClient:       resourceQuotas,
-		clientSet:                 *scaled.Management.ClientSet,
+		clientSet:                 scaled.Management.ClientSet,
 	})
 
 	vmformatter := vmformatter{
@@ -112,7 +112,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		scCache:       storageClasses.Cache(),
 		vmBackupCache: backups.Cache(),
 		settingCache:  settings.Cache(),
-		clientSet:     *scaled.Management.ClientSet,
+		clientSet:     scaled.Management.ClientSet,
 	}
 
 	vmStore := &vmStore{
