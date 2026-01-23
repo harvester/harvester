@@ -14,7 +14,7 @@ import (
 	utilHelm "github.com/harvester/harvester/pkg/util/helm"
 )
 
-func UpdateSupportBundleImage(clientSet *kubernetes.Clientset, settingClient v1beta1.SettingClient) error {
+func UpdateSupportBundleImage(clientSet kubernetes.Interface, settingClient v1beta1.SettingClient) error {
 	supportBundleImage, err := utilHelm.FetchImageFromHelmValues(
 		clientSet,
 		util.FleetLocalNamespaceName,

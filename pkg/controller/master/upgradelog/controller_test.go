@@ -1116,7 +1116,7 @@ func emptyConditionsTime(conditions []harvesterv1.Condition) {
 
 type testImageGetter struct{}
 
-func (i *testImageGetter) GetConsolidatedLoggingImageListFromHelmValues(_ *kubernetes.Clientset, _, _ string) (map[string]settings.Image, error) {
+func (i *testImageGetter) GetConsolidatedLoggingImageListFromHelmValues(_ kubernetes.Interface, _, _ string) (map[string]settings.Image, error) {
 	return testImages, nil
 }
 

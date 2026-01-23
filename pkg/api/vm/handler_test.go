@@ -2,6 +2,8 @@ package vm
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/migration"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
@@ -1422,4 +1425,173 @@ func Test_isVmNetworkHotpluggable(t *testing.T) {
 		assert.Equal(t, tc.expected.isHotpluggable, result, tc.name)
 	}
 
+}
+
+func TestInsertCdRomVolumeAction(t *testing.T) {
+	vmName := "vm1"
+	vmNamespace := "default"
+	vm := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: vmName,
+			Namespace: vmNamespace,
+			Annotations: map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[]`,
+			},
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Devices: kubevirtv1.Devices{
+							Disks: []kubevirtv1.Disk{
+								{
+									Name: "cdrom1",
+									DiskDevice: kubevirtv1.DiskDevice{
+										CDRom: &kubevirtv1.CDRomTarget{
+											Bus: kubevirtv1.DiskBusVirtio,
+										},
+									},
+								},
+							},
+						},
+					},
+					Volumes: nil,
+				},
+			},
+		},
+	}
+
+	vmImageName := "image-8jpqp"
+	vmImageNamespace := "default"
+	vmImage := &harvesterv1.VirtualMachineImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: vmImageName,
+			Namespace: vmNamespace,
+		},
+		Status: harvesterv1.VirtualMachineImageStatus{
+			VirtualSize: 25165824,
+			StorageClassName: "longhorn-image-cn2w6",
+		},
+	}
+
+	clientset := fake.NewSimpleClientset(vm, vmImage)
+
+	handler := &vmActionHandler{
+		vms:            fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+		vmCache:        fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+		vmImageCache:   fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+	}
+
+	input := InsertCdRomVolumeActionInput{
+		DeviceName: "cdrom1",
+		ImageName: vmImageNamespace + "/" + vmImageName,
+	}
+
+	err := handler.insertCdRomVolume(vmName, vmNamespace, input)
+	assert.Nil(t, err, "insertCdRomVolume shouldn't return error")
+
+	vmUpdated, err := handler.vmCache.Get(vmNamespace, vmName)
+	assert.Nil(t, err, "Should get the updated VM")
+
+	assert.Len(t, vmUpdated.Spec.Template.Spec.Volumes, 1, "Should have hot-plug new volume")
+
+	var pvcs []corev1.PersistentVolumeClaim
+	volumeClaimTemplates := vmUpdated.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
+	err = json.Unmarshal([]byte(volumeClaimTemplates), &pvcs)
+	assert.Nil(t, err, "Should unmarshal volumeClaimTemplates annotation correctly")
+	assert.Len(t, pvcs, 1, "Should add to volumeClaimTemplates annotation")
+}
+
+func TestEjectCdRomVolumeAction(t *testing.T) {
+	vmName := "vm1"
+	vmNamespace := "default"
+
+	pvcName := "vm1-cdrom1-52h6j"
+	pvcNamespace := "default"
+	vm := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: vmName,
+			Namespace: vmNamespace,
+			Annotations: map[string]string{
+				util.AnnotationVolumeClaimTemplates: fmt.Sprintf(`[{"metadata":{"name":"%s","creationTimestamp":null,"annotations":{"harvesterhci.io/imageId":"default/image-8jpqp"}},"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"24Mi"}},"storageClassName":"longhorn-image-cn2w6","volumeMode":"Block"},"status":{}}]`, pvcName),
+			},
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Devices: kubevirtv1.Devices{
+							Disks: []kubevirtv1.Disk{
+								{
+									Name: "cdrom1",
+									DiskDevice: kubevirtv1.DiskDevice{
+										CDRom: &kubevirtv1.CDRomTarget{
+											Bus: kubevirtv1.DiskBusVirtio,
+										},
+									},
+								},
+							},
+						},
+					},
+					Volumes: []kubevirtv1.Volume{
+						kubevirtv1.Volume{
+							Name: "cdrom1",
+							VolumeSource: kubevirtv1.VolumeSource{
+								PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+									PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+										ClaimName: pvcName,
+									},
+									Hotpluggable: true,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: pvcName,
+			Namespace: pvcNamespace,
+		},
+	}
+
+	clientset := fake.NewSimpleClientset(vm)
+	coreclientset := corefake.NewSimpleClientset(pvc)
+
+	handler := &vmActionHandler{
+		vms:        fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+		vmCache:    fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+		pvcCache:   fakeclients.PersistentVolumeClaimCache(coreclientset.CoreV1().PersistentVolumeClaims),
+		clientSet:  coreclientset,
+	}
+
+	input := EjectCdRomVolumeActionInput{
+		DeviceName: "cdrom1",
+	}
+
+	pvcCache := fakeclients.PersistentVolumeClaimCache(handler.clientSet.CoreV1().PersistentVolumeClaims)
+	_, err1 := pvcCache.Get(pvcNamespace, pvcName)
+	assert.Nil(t, err1, "Should find pvc initially")
+
+	err := handler.ejectCdRomVolume(context.Background(), vmName, vmNamespace, input)
+	assert.Nil(t, err, "ejectCdRomVolume shouldn't return error")
+
+	vmUpdated, err := handler.vmCache.Get(vmNamespace, vmName)
+	assert.Nil(t, err, "Should get the updated VM")
+
+	assert.Len(t, vmUpdated.Spec.Template.Spec.Volumes, 0, "Should have hot-unplug volume")
+
+	var pvcs []corev1.PersistentVolumeClaim
+	volumeClaimTemplates := vmUpdated.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
+	err = json.Unmarshal([]byte(volumeClaimTemplates), &pvcs)
+	assert.Nil(t, err, "Should unmarshal volumeClaimTemplates annotation correctly")
+	assert.Len(t, pvcs, 0, "Should remove from volumeClaimTemplates annotation")
+
+	_, err = pvcCache.Get(pvcNamespace, pvcName)
+	assert.True(t, apierrors.IsNotFound(err), "Should delete pvc")
 }

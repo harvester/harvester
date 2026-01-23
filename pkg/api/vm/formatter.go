@@ -62,7 +62,7 @@ type vmformatter struct {
 	scCache       ctlstoragev1.StorageClassCache
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
 	settingCache  ctlharvesterv1.SettingCache
-	clientSet     kubernetes.Clientset
+	clientSet     kubernetes.Interface
 }
 
 func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawResource) {

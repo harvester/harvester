@@ -43,7 +43,7 @@ type svmbackupHandler struct {
 	lhbackupCache        ctllonghornv2.BackupCache
 	lhbackupClient       ctllonghornv2.BackupClient
 	snapshotContentCache ctlsnapshotv1.VolumeSnapshotContentCache
-	clientset            *kubernetes.Clientset
+	clientset            kubernetes.Interface
 }
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {

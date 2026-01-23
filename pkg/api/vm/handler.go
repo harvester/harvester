@@ -98,7 +98,7 @@ type vmActionHandler struct {
 	vmImageCache              ctlharvesterv1.VirtualMachineImageCache
 	storageClassCache         ctlstoragev1.StorageClassCache
 	resourceQuotaClient       ctlharvesterv1.ResourceQuotaClient
-	clientSet                 kubernetes.Clientset
+	clientSet                 kubernetes.Interface
 	podCache                  ctlcorev1.PodCache
 }
 
@@ -397,13 +397,17 @@ func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace 
 	}
 
 	vmCopy.Spec.Template.Spec.Volumes = volumes
-	_, err = h.vms.Update(vmCopy)
-
-	for _, name := range toRemoveClaimNames {
-		h.clientSet.CoreV1().PersistentVolumeClaims(vm.Namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	if _, err = h.vms.Update(vmCopy); err != nil {
+		return err
 	}
 
-	return err
+	for _, name := range toRemoveClaimNames {
+		if err := h.clientSet.CoreV1().PersistentVolumeClaims(vm.Namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (h *vmActionHandler) startPreCheck(namespace, name string) error {

@@ -30,7 +30,7 @@ type Handler struct {
 	services                ctlcorev1.ServiceClient
 	settings                v1beta1.SettingClient
 	settingCache            v1beta1.SettingCache
-	clientset               *kubernetes.Clientset
+	clientset               kubernetes.Interface
 
 	manager *Manager
 }

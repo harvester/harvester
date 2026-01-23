@@ -65,7 +65,7 @@ type cpuManagerNodeHandler struct {
 	nodeClient ctlcorev1.NodeClient
 	jobCache   ctlbatchv1.JobCache
 	jobClient  ctlbatchv1.JobClient
-	clientset  *kubernetes.Clientset
+	clientset  kubernetes.Interface
 	namespace  string
 }
 

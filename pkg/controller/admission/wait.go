@@ -19,7 +19,7 @@ const (
 )
 
 // Wait waits for the admission webhook server to register ValidatingWebhookConfiguration and MutatingWebhookConfiguration resources.
-func Wait(ctx context.Context, clientSet *kubernetes.Clientset) error {
+func Wait(ctx context.Context, clientSet kubernetes.Interface) error {
 	return wait.PollImmediate(PollingInterval, PollingTimeout, func() (bool, error) {
 		logrus.Infof("Waiting for ValidatingWebhookConfiguration %s...", webhook.ValidatingWebhookName)
 		_, err := clientSet.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, webhook.ValidatingWebhookName, metav1.GetOptions{})

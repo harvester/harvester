@@ -68,7 +68,7 @@ type PromoteHandler struct {
 	jobCache  ctlbatchv1.JobCache
 	recorder  record.EventRecorder
 	namespace string
-	clientset *kubernetes.Clientset
+	clientset kubernetes.Interface
 }
 
 // PromoteRegister registers the node controller

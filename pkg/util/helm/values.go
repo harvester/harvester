@@ -18,7 +18,7 @@ import (
 )
 
 // FetchImageFromHelmValues fetches image information from helm chart values, the name points to a chart e.g. harvester
-func FetchImageFromHelmValues(clientSet *kubernetes.Clientset, namespace, name string, keyNames []string) (settings.Image, error) {
+func FetchImageFromHelmValues(clientSet kubernetes.Interface, namespace, name string, keyNames []string) (settings.Image, error) {
 	var image settings.Image
 	kubeInterface := clientSet
 	restClientGetter := cli.New().RESTClientGetter()
