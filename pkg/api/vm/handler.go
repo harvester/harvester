@@ -48,6 +48,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	vmicommon "github.com/harvester/harvester/pkg/image/common"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -99,6 +100,7 @@ type vmActionHandler struct {
 	resourceQuotaClient       ctlharvesterv1.ResourceQuotaClient
 	clientSet                 kubernetes.Interface
 	podCache                  ctlcorev1.PodCache
+	vmio                      vmicommon.VMIOperator
 }
 
 func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
