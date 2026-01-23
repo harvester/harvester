@@ -92,11 +92,6 @@ func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patch
 		return nil, err
 	}
 
-	patchOps, err = m.patchSataCdRomHotpluggable(vm, patchOps)
-	if err != nil {
-		return nil, err
-	}
-
 	return patchOps, nil
 }
 
@@ -683,29 +678,6 @@ func (m *vmMutator) patchInterfaceMacAddress(vm *kubevirtv1.VirtualMachine, patc
 				return patchOps, fmt.Errorf("failed to generated proper MAC address for %s with error: %v", iface.Name, err)
 			}
 			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/devices/interfaces/%d/macAddress", "value": "%s"}`, idx, mac))
-		}
-	}
-
-	return patchOps, nil
-}
-
-func (m *vmMutator) patchSataCdRomHotpluggable(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
-	if vm == nil || vm.Spec.Template == nil {
-		return patchOps, nil
-	}
-
-	cdRomDiskNames := make(map[string]struct{})
-	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if disk.CDRom != nil && disk.CDRom.Bus == kubevirtv1.DiskBusSATA {
-			cdRomDiskNames[disk.Name] = struct{}{}
-		}
-	}
-
-	for idx, volume := range vm.Spec.Template.Spec.Volumes {
-		if _, exists := cdRomDiskNames[volume.Name]; exists {
-			if volume.PersistentVolumeClaim != nil && !volume.PersistentVolumeClaim.Hotpluggable {
-				patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/volumes/%d/persistentVolumeClaim/hotpluggable", "value": true}`, idx))
-			}
 		}
 	}
 
