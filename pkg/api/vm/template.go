@@ -162,7 +162,7 @@ func (h *vmActionHandler) sanitizeVolumes(templateVersion *harvesterv1.VirtualMa
 			continue
 		}
 
-		volumeClaimTemplate := generateVolumeClaimTemplate(index, templateVersion.Name, templateVersion.Namespace, volume.PersistentVolumeClaim.ClaimName, pvcMap, vmImageMap)
+		volumeClaimTemplate := h.generateVolumeClaimTemplate(index, templateVersion.Name, templateVersion.Namespace, volume.PersistentVolumeClaim.ClaimName, pvcMap, vmImageMap)
 		volumeClaimTemplates = append(volumeClaimTemplates, volumeClaimTemplate)
 		vmSource.Spec.Template.Spec.Volumes[index].PersistentVolumeClaim.ClaimName = volumeClaimTemplate.Name
 	}
@@ -187,7 +187,7 @@ func (h *vmActionHandler) sanitizeVolumes(templateVersion *harvesterv1.VirtualMa
 	return nil
 }
 
-func generateVolumeClaimTemplate(index int, tvName, tvNamespace, claimName string, pvcMap map[string]corev1.PersistentVolumeClaim, vmImageMap map[string]harvesterv1.VirtualMachineImage) (pvc corev1.PersistentVolumeClaim) {
+func (h *vmActionHandler) generateVolumeClaimTemplate(index int, tvName, tvNamespace, claimName string, pvcMap map[string]corev1.PersistentVolumeClaim, vmImageMap map[string]harvesterv1.VirtualMachineImage) (pvc corev1.PersistentVolumeClaim) {
 	// generate new volume template
 	// - longhorn v1, we need to use the new storageclass Name (for backingImage)
 	// - others, use the pvc StorageClassName
@@ -195,7 +195,7 @@ func generateVolumeClaimTemplate(index int, tvName, tvNamespace, claimName strin
 	vmImage := vmImageMap[vmImageName]
 
 	claim := pvcMap[claimName]
-	targetStorageClassName := util.GenerateStorageClassName(string(vmImage.UID))
+	targetStorageClassName := h.vmio.GetStorageClassName(&vmImage)
 	if _, ok := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; ok {
 		targetStorageClassName = *claim.Spec.StorageClassName
 	}

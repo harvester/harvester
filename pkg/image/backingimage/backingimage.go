@@ -83,11 +83,7 @@ func (bib *Backend) deleteBackingImage(vmi *harvesterv1.VirtualMachineImage) err
 }
 
 func (bib *Backend) deleteStorageClass(vmi *harvesterv1.VirtualMachineImage) error {
-	storageClassName, err := util.GetImageStorageClassName(bib.scCache, vmi)
-	if err != nil {
-		return err
-	}
-
+	storageClassName := bib.vmio.GetStorageClassName(vmi)
 	return bib.scClient.Delete(storageClassName, &metav1.DeleteOptions{})
 }
 
@@ -179,11 +175,7 @@ func (bib *Backend) createBackingImage(vmi *harvesterv1.VirtualMachineImage) err
 }
 
 func (bib *Backend) createStorageClass(vmi *harvesterv1.VirtualMachineImage) error {
-	storageClassName, err := util.GetImageStorageClassName(bib.scCache, vmi)
-	if err != nil {
-		return err
-	}
-
+	storageClassName := bib.vmio.GetStorageClassName(vmi)
 	if cachedSC, _ := bib.scCache.Get(storageClassName); cachedSC != nil && cachedSC.DeletionTimestamp != nil {
 		return fmt.Errorf("storage class %s is being deleted", cachedSC.Name)
 	}
@@ -258,11 +250,7 @@ func (bib *Backend) Check(vmi *harvesterv1.VirtualMachineImage) error {
 		}
 	}
 
-	storageClassName, err := util.GetImageStorageClassName(bib.scCache, vmi)
-	if err != nil {
-		return err
-	}
-
+	storageClassName := bib.vmio.GetStorageClassName(vmi)
 	sc, err := bib.scCache.Get(storageClassName)
 	if errors.IsNotFound(err) {
 		return err

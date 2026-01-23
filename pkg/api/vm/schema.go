@@ -14,6 +14,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	virtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/image/common"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 )
 
@@ -60,6 +61,11 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	nads := scaled.CniFactory.K8s().V1().NetworkAttachmentDefinition()
 	resourceQuotas := scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota()
 
+	vmiOperator, err := common.GetVMIOperator(vmImages, vmImages.Cache(), storageClasses.Cache(), http.Client{})
+	if err != nil {
+		return err
+	}
+
 	copyConfig := rest.CopyConfig(server.RESTConfig)
 	copyConfig.GroupVersion = &kubevirtSubResouceGroupVersion
 	copyConfig.APIPath = "/apis"
@@ -101,6 +107,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		storageClassCache:         storageClasses.Cache(),
 		resourceQuotaClient:       resourceQuotas,
 		clientSet:                 *scaled.Management.ClientSet,
+		vmio:                      vmiOperator,
 	})
 
 	vmformatter := vmformatter{
