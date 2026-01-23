@@ -3,7 +3,6 @@ package vm
 import "github.com/rancher/wrangler/v3/pkg/condition"
 
 var (
-	vmReady   condition.Cond = "Ready"
 	vmiPaused condition.Cond = "Paused"
 )
 
