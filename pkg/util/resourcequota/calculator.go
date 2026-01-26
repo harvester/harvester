@@ -63,6 +63,27 @@ func (c *Calculator) VMPodsExist(namespace, vmName string) (bool, error) {
 	return true, nil
 }
 
+func (c *Calculator) getNamespaceResourceQuotaAndRQ(namespace string) (*v3.NamespaceResourceQuota, *corev1.ResourceQuota, error) {
+	nrq, err := c.getNamespaceResourceQuota(namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+	if nrq == nil {
+		return nil, nil, nil
+	}
+
+	// get resource quota limits from ResourceQuota
+	rq, err := c.getNamespaceDefaultResourceQuota(namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+	if rq == nil {
+		return nil, nil, nil
+	}
+
+	return nrq, rq, nil
+}
+
 // CheckIfVMCanStartByResourceQuota checks if the VM can be started based on the resource quota limits
 func (c *Calculator) CheckIfVMCanStartByResourceQuota(vm *kubevirtv1.VirtualMachine) error {
 	// return if the VM status is empty.
@@ -88,30 +109,25 @@ func (c *Calculator) CheckIfVMCanStartByResourceQuota(vm *kubevirtv1.VirtualMach
 		return nil
 	}
 
-	nrq, err := c.getNamespaceResourceQuota(vm)
+	nrq, rq, err := c.getNamespaceResourceQuotaAndRQ(vm.Namespace)
 	if err != nil {
 		return err
 	}
 	if nrq == nil {
-		logrus.Debugf("CheckIfVMCanStartByResourceQuota: resource quota is not found in the namespace %s, skip check", vm.Namespace)
+		logrus.Debugf("CheckIfVMCanStartByResourceQuota: rancher resource quota is not set in the namespace %s, skip check", vm.Namespace)
 		return nil
 	}
-
-	// get resource quota limits from ResourceQuota
-	rqs, err := c.getResourceQuota(vm)
-	if err != nil {
-		return err
-	} else if len(rqs) == 0 {
+	if rq == nil {
 		logrus.Debugf("CheckIfVMCanStartByResourceQuota: default resource quota is not found in the namespace %s, skip check", vm.Namespace)
 		return nil
 	}
 
-	return c.containsEnoughResourceQuotaToStartVM(vm, nrq, rqs[0])
+	return c.containsEnoughResourceQuotaToStartVM(vm, nrq, rq)
 }
 
-func (c *Calculator) getNamespaceResourceQuota(vm *kubevirtv1.VirtualMachine) (*v3.NamespaceResourceQuota, error) {
+func (c *Calculator) getNamespaceResourceQuota(namespace string) (*v3.NamespaceResourceQuota, error) {
 	// check namespace ResourceQuota
-	ns, err := c.nsCache.Get(vm.Namespace)
+	ns, err := c.nsCache.Get(namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -131,13 +147,17 @@ func (c *Calculator) getNamespaceResourceQuota(vm *kubevirtv1.VirtualMachine) (*
 	return resourceQuota, nil
 }
 
-func (c *Calculator) getResourceQuota(vm *kubevirtv1.VirtualMachine) ([]*corev1.ResourceQuota, error) {
+// get the first default resourcequota from a given namespace
+func (c *Calculator) getNamespaceDefaultResourceQuota(namespace string) (*corev1.ResourceQuota, error) {
 	selector := labels.Set{util.LabelManagementDefaultResourceQuota: "true"}.AsSelector()
-	rqs, err := c.rqCache.List(vm.Namespace, selector)
+	rqs, err := c.rqCache.List(namespace, selector)
 	if err != nil {
 		return nil, err
 	}
-	return rqs, nil
+	if len(rqs) == 0 {
+		return nil, nil
+	}
+	return rqs[0], nil
 }
 
 // containsEnoughResourceQuotaToStartVM checks if the VM can be started based on the namespace resource quota limits
@@ -146,7 +166,8 @@ func (c *Calculator) containsEnoughResourceQuotaToStartVM(
 	namespaceResourceQuota *v3.NamespaceResourceQuota,
 	rq *corev1.ResourceQuota) error {
 	// get running migrations' used resource
-	vmimsCPU, vmimsMem, _, err := c.getRunningVMIMResources(rq)
+	// vmimsCPU, vmimsMem, _, err := c.getVMIMResourcesFromRQAnnotation(rq)
+	vmimsCPU, vmimsMem, _, err := GetVMIMResourcesAndCompensationFromRQAnnotation(rq)
 	if err != nil {
 		return err
 	}
@@ -209,12 +230,37 @@ func (c *Calculator) calculateVMActualOverhead(vm *kubevirtv1.VirtualMachine) *r
 	return &memoryOverhead
 }
 
-func (c *Calculator) getRunningVMIMResources(rq *corev1.ResourceQuota) (cpu, mem, storage resource.Quantity, err error) {
-	return getVMIMResourcesFromRQAnnotation(rq)
+// get the auto-scaled VMIM and compensation resources from RQ
+func GetVMIMResourcesAndCompensationFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, storage resource.Quantity, err error) {
+	vms, err := getResourceListOfMigratingVMsFromRQ(rq)
+	if err != nil {
+		return cpu, mem, storage, err
+	}
+
+	compRl, err := getResourceListOfMigratingCompensationFromRQ(rq)
+	if err != nil {
+		return cpu, mem, storage, err
+	}
+
+	// from each migrating vm
+	for _, rl := range vms {
+		cpu.Add(*rl.Name(corev1.ResourceLimitsCPU, resource.DecimalSI))
+		mem.Add(*rl.Name(corev1.ResourceLimitsMemory, resource.BinarySI))
+		storage.Add(*rl.Name(corev1.ResourceRequestsStorage, resource.BinarySI))
+	}
+
+	// from the compensation
+	cpu.Add(*compRl.Name(corev1.ResourceLimitsCPU, resource.DecimalSI))
+	mem.Add(*compRl.Name(corev1.ResourceLimitsMemory, resource.BinarySI))
+	storage.Add(*compRl.Name(corev1.ResourceRequestsStorage, resource.BinarySI))
+
+	return
 }
 
-func getVMIMResourcesFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, storage resource.Quantity, err error) {
-	vms, err := getResourceListFromMigratingVMs(rq)
+// Get ResourceQuota annotations about vmim and convert them to quantity
+// each running vmim has a correspoding auto-sacling annotation to record the scaled resources
+func GetVMIMResourcesFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, storage resource.Quantity, err error) {
+	vms, err := getResourceListOfMigratingVMsFromRQ(rq)
 	if err != nil {
 		return cpu, mem, storage, err
 	}
@@ -228,9 +274,17 @@ func getVMIMResourcesFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, stora
 	return
 }
 
-// Get ResourceQuota annotations about vmim and convert them to
-func GetVMIMResourcesFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, storage resource.Quantity, err error) {
-	return getVMIMResourcesFromRQAnnotation(rq)
+// Get ResourceQuota annotations about compensation
+func GetCompensationFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, storage resource.Quantity, err error) {
+	rl, err := getResourceListOfMigratingCompensationFromRQ(rq)
+	if err != nil {
+		return cpu, mem, storage, err
+	}
+
+	cpu.Add(*rl.Name(corev1.ResourceLimitsCPU, resource.DecimalSI))
+	mem.Add(*rl.Name(corev1.ResourceLimitsMemory, resource.BinarySI))
+	storage.Add(*rl.Name(corev1.ResourceRequestsStorage, resource.BinarySI))
+	return
 }
 
 // Get Rancher NamespaceResourceQuota LimitsCPU and LimitsMemory
@@ -258,25 +312,21 @@ func (c *Calculator) getVMPods(namespace, vmName string) ([]*corev1.Pod, error) 
 }
 
 func (c *Calculator) CheckStorageResourceQuota(vm *kubevirtv1.VirtualMachine, oldVM *kubevirtv1.VirtualMachine) error {
-	nrq, err := c.getNamespaceResourceQuota(vm)
+	nrq, rq, err := c.getNamespaceResourceQuotaAndRQ(vm.Namespace)
 	if err != nil {
 		return err
-	} else if nrq == nil {
-		logrus.Debugf("CheckStorageResourceQuota: skipping check, resource quota not found in the namespace %s", vm.Namespace)
+	}
+	if nrq == nil {
+		logrus.Debugf("CheckStorageResourceQuota: resource quota not found in the namespace %s, skip check", vm.Namespace)
+		return nil
+	}
+	if rq == nil {
+		logrus.Debugf("CheckStorageResourceQuota: not found any default resource quota in the namespace %s, skip check", vm.Namespace)
 		return nil
 	}
 
-	rqs, err := c.getResourceQuota(vm)
-	if err != nil {
-		return err
-	} else if len(rqs) == 0 {
-		logrus.Debugf("CheckStorageResourceQuota: not found any default resource quota in the namespace %s", vm.Namespace)
-		return nil
-	}
-
-	rq := rqs[0]
-
-	_, _, vmimsStorage, err := c.getRunningVMIMResources(rq)
+	// _, _, vmimsStorage, err := c.getVMIMResourcesFromRQAnnotation(rq)
+	_, _, vmimsStorage, err := GetVMIMResourcesAndCompensationFromRQAnnotation(rq)
 	if err != nil {
 		return err
 	}
@@ -413,10 +463,11 @@ func CalculateRestoreResourceQuotaWithVMI(
 }
 
 // If base is zero, delta is not added
-func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, memBase, cpuDelta, memDelta resource.Quantity) (*corev1.ResourceQuota, bool) {
+func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, memBase, cpuDelta, memDelta, cpuCompensation, memCompensation resource.Quantity) (*corev1.ResourceQuota, bool) {
 	needUpdate := false
 	if !cpuBase.IsZero() {
 		cpuBase.Add(cpuDelta)
+		cpuBase.Add(cpuCompensation)
 		if !rq.Spec.Hard[corev1.ResourceLimitsCPU].Equal(cpuBase) {
 			needUpdate = true
 			rq.Spec.Hard[corev1.ResourceLimitsCPU] = cpuBase
@@ -424,6 +475,7 @@ func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, m
 	}
 	if !memBase.IsZero() {
 		memBase.Add(memDelta)
+		memBase.Add(memCompensation)
 		if !rq.Spec.Hard[corev1.ResourceLimitsMemory].Equal(memBase) {
 			needUpdate = true
 			rq.Spec.Hard[corev1.ResourceLimitsMemory] = memBase
@@ -456,6 +508,17 @@ func isEmpty(rq *corev1.ResourceQuota) bool {
 	return false
 }
 
+func isMemoryLimitEmpty(rq *corev1.ResourceQuota) bool {
+	if rq == nil {
+		return true
+	}
+	hard := rq.Spec.Hard
+	if hard == nil || hard.Name(corev1.ResourceLimitsMemory, resource.DecimalSI).IsZero() {
+		return true
+	}
+	return false
+}
+
 func IsEmptyResourceQuota(rq *corev1.ResourceQuota) bool {
 	return isEmpty(rq)
 }
@@ -479,4 +542,35 @@ func calculateVMStorageQuantity(vm *kubevirtv1.VirtualMachine) (resource.Quantit
 	}
 
 	return storage, nil
+}
+
+func CalculateCompensationResourceQuotaWithVMI(
+	rq *corev1.ResourceQuota,
+	vmi *kubevirtv1.VirtualMachineInstance,
+	ratio *string,
+) (needUpdate bool, toUpdate *corev1.ResourceQuota, rl corev1.ResourceList) {
+	vmiLimits := vmi.Spec.Domain.Resources.Limits
+	if isMemoryLimitEmpty(rq) || vmiLimits.Memory().IsZero() {
+		return false, nil, nil
+	}
+
+	rl = corev1.ResourceList{}
+	mem := vmiLimits[corev1.ResourceMemory]
+	mem.Add(kubevirtservices.GetMemoryOverhead(vmi, runtime.GOARCH, ratio)) // add overhead
+
+	// hard limit:
+	limitMem := rq.Spec.Hard.Name(corev1.ResourceLimitsMemory, resource.BinarySI)
+	// used
+	usedMem := rq.Status.Used.Name(corev1.ResourceLimitsMemory, resource.BinarySI)
+
+	usedMem.Add(mem)
+	// used + migration target pod exceeds limit, compensate the delta
+	if usedMem.Cmp(*limitMem) == 1 {
+		usedMem.Sub(*limitMem)
+		usedMem.Add(*resource.NewQuantity(additionalCompensationMemeory, resource.BinarySI))
+		rl[corev1.ResourceLimitsMemory] = *usedMem
+		return true, rq, rl
+	}
+
+	return false, rq, rl
 }
