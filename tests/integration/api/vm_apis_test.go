@@ -186,7 +186,7 @@ var _ = Describe("verify vm APIs", func() {
 				func(vmi *kubevirtv1.VirtualMachineInstance) bool {
 					foundDisk := false
 					for _, disk := range vmi.Spec.Domain.Devices.Disks {
-						if disk.CDRom != nil && disk.Name == testVMCDRomDiskName {
+						if disk.Name == testVMCDRomDiskName {
 							foundDisk = true
 							break
 						}
