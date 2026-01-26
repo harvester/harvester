@@ -228,3 +228,25 @@ func TestPatchMacAddress(t *testing.T) {
 		assert.Equal(t, tc.patches, patchOps, tc.name)
 	}
 }
+
+func TestCreateWithoutVM(t *testing.T) {
+	vmi := &kubevirtv1.VirtualMachineInstance{
+		Spec: kubevirtv1.VirtualMachineInstanceSpec{
+			Domain: kubevirtv1.DomainSpec{
+				Devices: kubevirtv1.Devices{
+					Interfaces: []kubevirtv1.Interface{
+						{
+							Name: "default",
+						},
+					},
+				},
+			},
+		},
+	}
+	req := &types.Request{}
+	clientSet := fake.NewSimpleClientset()
+	mutator := NewMutator(fakeclients.VirtualMachineCache(clientSet.KubevirtV1().VirtualMachines))
+	patchOps, err := mutator.Create(req, vmi)
+	assert.Nil(t, err)
+	assert.Nil(t, patchOps)
+}
