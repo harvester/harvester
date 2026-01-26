@@ -98,6 +98,7 @@ type vmActionHandler struct {
 	storageClassCache         ctlstoragev1.StorageClassCache
 	resourceQuotaClient       ctlharvesterv1.ResourceQuotaClient
 	clientSet                 kubernetes.Clientset
+	podCache                  ctlcorev1.PodCache
 }
 
 func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
@@ -589,12 +590,12 @@ func (h *vmActionHandler) findMigratableNodes(rw http.ResponseWriter, namespace,
 }
 
 func (h *vmActionHandler) findMigratableNodesByVMI(vmi *kubevirtv1.VirtualMachineInstance) ([]string, error) {
-	nodeSelector, err := h.getNodeSelectorRequirementFromVMI(vmi)
+	nodeFilter, err := h.getNodeSelectorRequirementFromVMI(vmi)
 	if err != nil {
 		return nil, err
 	}
 
-	nodes, err := h.nodeCache.List(nodeSelector)
+	nodes, err := h.nodeCache.List(nodeFilter)
 	if err != nil || len(nodes) == 0 {
 		return nil, err
 	}
@@ -637,23 +638,117 @@ func isDrained(node *corev1.Node) bool {
 }
 
 func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.VirtualMachineInstance) (labels.Selector, error) {
-	if vmi == nil || vmi.Spec.Affinity == nil || vmi.Spec.Affinity.NodeAffinity == nil || vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+	if vmi == nil {
 		return labels.Everything(), nil
 	}
 
-	nodeSelector := labels.NewSelector()
-	terms := vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+	vmiPod, err := h.getVMIPod(vmi)
+	if err != nil {
+		return labels.Nothing(), err
+	}
+
+	nodeFilter := labels.NewSelector()
+
+	for key, value := range vmiPod.Spec.NodeSelector {
+		if key == corev1.LabelHostname {
+			continue
+		}
+		requirement, err := labels.NewRequirement(key, selection.Equals, []string{value})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create requirement for %s=%s: %w", key, value, err)
+		}
+		nodeFilter = nodeFilter.Add(*requirement)
+	}
+
+	if isRequiredAffinityFilterPresent(vmiPod) {
+		required := vmiPod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+		var err error
+		nodeFilter, err = addNodeAffinityFilters(nodeFilter, required.NodeSelectorTerms)
+		if err != nil {
+			return nil, err
+		}
+
+	}
+
+	return nodeFilter, nil
+}
+
+func isRequiredAffinityFilterPresent(pod *corev1.Pod) bool {
+	return pod.Spec.Affinity != nil &&
+		pod.Spec.Affinity.NodeAffinity != nil &&
+		pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil
+}
+
+func addNodeAffinityFilters(nodeFilter labels.Selector, terms []corev1.NodeSelectorTerm) (labels.Selector, error) {
 	for _, term := range terms {
-		for _, e := range term.MatchExpressions {
-			r, err := convertNodeSelectorRequirementToSelector(e)
+		for _, expr := range term.MatchExpressions {
+			if expr.Key == corev1.LabelHostname {
+				continue
+			}
+
+			requirement, err := convertNodeSelectorRequirementToSelector(expr)
 			if err != nil {
 				return nil, err
 			}
-			nodeSelector = nodeSelector.Add(*r)
+			if requirement != nil {
+				nodeFilter = nodeFilter.Add(*requirement)
+			}
+		}
+	}
+	return nodeFilter, nil
+}
+
+func convertNodeSelectorRequirementToSelector(req corev1.NodeSelectorRequirement) (*labels.Requirement, error) {
+	var op selection.Operator
+	switch req.Operator {
+	case corev1.NodeSelectorOpIn:
+		op = selection.In
+	case corev1.NodeSelectorOpNotIn:
+		op = selection.NotIn
+	case corev1.NodeSelectorOpExists:
+		op = selection.Exists
+	case corev1.NodeSelectorOpDoesNotExist:
+		op = selection.DoesNotExist
+	case corev1.NodeSelectorOpGt, corev1.NodeSelectorOpLt:
+		logrus.Debugf("Skipping unsupported node selector operator %s for key %s", req.Operator, req.Key)
+		return nil, nil
+	default:
+		logrus.Warnf("Unknown node selector operator %s for key %s", req.Operator, req.Key)
+		return nil, nil
+	}
+
+	requirement, err := labels.NewRequirement(req.Key, op, req.Values)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create requirement for %s %v %v: %w", req.Key, op, req.Values, err)
+	}
+	return requirement, nil
+}
+
+func (h *vmActionHandler) getVMIPod(vmi *kubevirtv1.VirtualMachineInstance) (*corev1.Pod, error) {
+	selector := labels.SelectorFromSet(labels.Set{
+		kubevirtv1.CreatedByLabel: string(vmi.UID),
+	})
+
+	vmiPods, err := h.podCache.List(vmi.Namespace, selector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pods for VMI %s/%s: %w", vmi.Namespace, vmi.Name, err)
+	}
+
+	var activePods []*corev1.Pod
+	for _, pod := range vmiPods {
+		if pod.Status.Phase != corev1.PodSucceeded && pod.Status.Phase != corev1.PodFailed {
+			activePods = append(activePods, pod)
 		}
 	}
 
-	return nodeSelector, nil
+	if len(activePods) == 0 {
+		return nil, fmt.Errorf("there are no active pods for VMI: %s/%s, migration target cannot be picked unless only 1 pod is active", vmi.Namespace, vmi.Name)
+	}
+	if len(activePods) > 1 {
+		return nil, fmt.Errorf("there are multiple active pods for VMI: %s/%s, migration target can be picked only when at most 1 pod is active", vmi.Namespace, vmi.Name)
+	}
+
+	return activePods[0], nil
 }
 
 func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input BackupInput) error {
@@ -1660,25 +1755,6 @@ func getClonedVMYamlFromSourceVM(input CloneInput, sourceVM *kubevirtv1.VirtualM
 		newVM.Spec.Template.Spec.Domain.Devices.Interfaces[i].MacAddress = ""
 	}
 	return newVM
-}
-
-func convertNodeSelectorRequirementToSelector(req corev1.NodeSelectorRequirement) (*labels.Requirement, error) {
-	switch req.Operator {
-	case corev1.NodeSelectorOpIn:
-		return labels.NewRequirement(req.Key, selection.In, req.Values)
-	case corev1.NodeSelectorOpNotIn:
-		return labels.NewRequirement(req.Key, selection.NotIn, req.Values)
-	case corev1.NodeSelectorOpExists:
-		return labels.NewRequirement(req.Key, selection.Exists, nil)
-	case corev1.NodeSelectorOpDoesNotExist:
-		return labels.NewRequirement(req.Key, selection.DoesNotExist, nil)
-	case corev1.NodeSelectorOpGt:
-		return labels.NewRequirement(req.Key, selection.GreaterThan, req.Values)
-	case corev1.NodeSelectorOpLt:
-		return labels.NewRequirement(req.Key, selection.LessThan, req.Values)
-	default:
-		return &labels.Requirement{}, fmt.Errorf("unsupported operator: %v", req.Operator)
-	}
 }
 
 func (h *vmActionHandler) updateResourceQuota(namespace, name string, input UpdateResourceQuotaInput) error {
