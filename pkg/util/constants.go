@@ -47,16 +47,13 @@ const (
 	// AnnotationSkipResourceQuotaAutoScaling is used to disable to resourcequota auto scaling
 	AnnotationSkipResourceQuotaAutoScaling = prefix + "/skipResourceQuotaAutoScaling"
 
-	// AnnotationMigratingNamePrefix is used to store the migrating vm in the annotation of ResourceQuota
-	// eg: harvesterhci.io/migrating-vm1: jsonOfResourceList, harvesterhci.io/migrating-vm2: jsonOfResourceList
-	// will be removed after v1.5.0
-	AnnotationMigratingNamePrefix = prefix + "/migrating-"
-
-	// replace AnnotationMigratingNamePrefix from v1.5.0
+	// AnnotationMigratingUIDPrefix is used to store the migrating vm in the annotation of ResourceQuota
+	// eg: harvesterhci.io/migratingUID-id1: jsonOfResourceList, harvesterhci.io/migratingUID-id2: jsonOfResourceList
+	// replace` AnnotationMigratingNamePrefix = prefix + "/migrating-"` from v1.5.0
 	AnnotationMigratingUIDPrefix = prefix + "/migratingUID-"
 
-	// AnnotationMigratingPrefix is replaced by AnnotationMigratingNamePrefix, and is kept for compatibility
-	AnnotationMigratingPrefix = AnnotationMigratingNamePrefix
+	// AnnotationMigratingCompensation is used to add more to resourcequota base
+	AnnotationMigratingCompensation = prefix + "/migratingCompensation"
 
 	// AnnotationInsufficientResourceQuota is indicated the resource is insufficient of Namespace
 	AnnotationInsufficientResourceQuota = prefix + "/insufficient-resource-quota"
