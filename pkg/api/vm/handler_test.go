@@ -1449,7 +1449,7 @@ func TestInsertCdRomVolumeAction(t *testing.T) {
 									Name: "cdrom1",
 									DiskDevice: kubevirtv1.DiskDevice{
 										CDRom: &kubevirtv1.CDRomTarget{
-											Bus: kubevirtv1.DiskBusVirtio,
+											Bus: kubevirtv1.DiskBusSATA,
 										},
 									},
 								},
@@ -1528,7 +1528,7 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 									Name: "cdrom1",
 									DiskDevice: kubevirtv1.DiskDevice{
 										CDRom: &kubevirtv1.CDRomTarget{
-											Bus: kubevirtv1.DiskBusVirtio,
+											Bus: kubevirtv1.DiskBusSATA,
 										},
 									},
 								},

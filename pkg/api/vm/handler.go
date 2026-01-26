@@ -303,6 +303,20 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	return nil, nil
 }
 
+func getSataCdRomDiskPos(vm *kubevirtv1.VirtualMachine, deviceName string) (int, error) {
+	pos := -1
+	for idx, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
+		if disk.Name == deviceName && disk.CDRom != nil && disk.CDRom.Bus == kubevirtv1.DiskBusSATA {
+			pos = idx
+			break
+		}
+	}
+	if pos == -1 {
+		return -1, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Errorf("can not find the SATA CD-ROM device %s from the VM %s/%s", deviceName, vm.Namespace, vm.Name).Error())
+	}
+	return pos, nil
+}
+
 func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input InsertCdRomVolumeActionInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
@@ -352,17 +366,10 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 		},
 	}
 
-	pos := -1
-	for idx, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if disk.Name == input.DeviceName {
-			pos = idx
-			break
-		}
+	pos, err := getSataCdRomDiskPos(vm, input.DeviceName)
+	if err != nil {
+		return err
 	}
-	if pos == -1 {
-		return fmt.Errorf("can not find the device %s from the VM %s/%s", input.DeviceName, vm.Namespace, vm.Name)
-	}
-
 	err = insertVolumeClaimTemplatesFromVMAnnotation(vmCopy, newPvc, pos)
 	if err != nil {
 		return err
@@ -374,6 +381,11 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 
 func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace string, input EjectCdRomVolumeActionInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	_, err = getSataCdRomDiskPos(vm, input.DeviceName)
 	if err != nil {
 		return err
 	}
