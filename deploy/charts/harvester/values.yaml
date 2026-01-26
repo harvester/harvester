@@ -58,7 +58,7 @@ kubevirt:
   spec:
     ## Specify default placement of infra components
     ## based on logic https://github.com/kubevirt/kubevirt/blob/main/pkg/virt-operator/resource/apply/reconcile.go#L127
-    ## an empty nodePlacement struct is enough to continue existing behaviour of allowing kubevirt controlplane 
+    ## an empty nodePlacement struct is enough to continue existing behaviour of allowing kubevirt controlplane
     ## components to be scheduled to any node in the cluster
     infra:
       nodePlacement: {}
@@ -68,7 +68,7 @@ kubevirt:
       ## Specify kubevirt feature gates
       vmStateStorageClass: "vmstate-persistence"
       developerConfiguration:
-        featureGates: ["LiveMigration", "HotplugVolumes", "HostDevices", "GPU", "CPUManager", "VMPersistentState", "VMLiveUpdateFeatures", "ExpandDisks"]
+        featureGates: ["LiveMigration", "HostDevices", "GPU", "CPUManager", "VMPersistentState", "VMLiveUpdateFeatures", "ExpandDisks", "DeclarativeHotplugVolumes"]
 
       vmRolloutStrategy: "LiveUpdate"
 
@@ -160,7 +160,7 @@ cdi:
       image:
         repository: rancher/kubectl
         tag: v1.34.0
-  
+
   spec:
     cloneStrategyOverride: copy
     config:

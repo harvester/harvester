@@ -26,10 +26,11 @@ var (
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
-	// import the struct EjectCdRomActionInput to the schema, then the action could use it as input,
+	// import the struct of action input to the schema, then the action could use it as input,
 	// and because wrangler converts the struct typeName to lower title, so the action input should start with lower case.
 	// https://github.com/rancher/wrangler/blob/master/pkg/schemas/reflection.go#L26
-	server.BaseSchemas.MustImportAndCustomize(EjectCdRomActionInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(InsertCdRomVolumeActionInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(EjectCdRomVolumeActionInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(BackupInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(RestoreInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(MigrateInput{}, nil)
@@ -100,7 +101,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		vmImageCache:              vmImages.Cache(),
 		storageClassCache:         storageClasses.Cache(),
 		resourceQuotaClient:       resourceQuotas,
-		clientSet:                 *scaled.Management.ClientSet,
+		clientSet:                 scaled.Management.ClientSet,
 	})
 
 	vmformatter := vmformatter{
@@ -111,7 +112,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		scCache:       storageClasses.Cache(),
 		vmBackupCache: backups.Cache(),
 		settingCache:  settings.Cache(),
-		clientSet:     *scaled.Management.ClientSet,
+		clientSet:     scaled.Management.ClientSet,
 	}
 
 	vmStore := &vmStore{
@@ -131,6 +132,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				restartVM:                        actionHandler,
 				softReboot:                       actionHandler,
 				ejectCdRom:                       actionHandler,
+				insertCdRomVolume:                actionHandler,
+				ejectCdRomVolume:                 actionHandler,
 				pauseVM:                          actionHandler,
 				unpauseVM:                        actionHandler,
 				migrate:                          actionHandler,
@@ -165,8 +168,11 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				},
 				abortMigration:      {},
 				findMigratableNodes: {},
-				ejectCdRom: {
-					Input: "ejectCdRomActionInput",
+				insertCdRomVolume: {
+					Input: "insertCdRomVolumeActionInput",
+				},
+				ejectCdRomVolume: {
+					Input: "ejectCdRomVolumeActionInput",
 				},
 				backupVM: {
 					Input: "backupInput",

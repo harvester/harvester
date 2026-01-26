@@ -46,7 +46,7 @@ type HarvesterServer struct {
 
 	RESTConfig    *rest.Config
 	DynamicClient dynamic.Interface
-	ClientSet     *kubernetes.Clientset
+	ClientSet     kubernetes.Interface
 	ASL           accesscontrol.AccessSetLookup
 
 	steve          *steveserver.Server
