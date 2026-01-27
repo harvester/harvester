@@ -1,8 +1,8 @@
-# Improve host devices selection UX
+# Improve Host Devices Selection UI/UX
 
 ## Summary
 
-When detaching the PCI/USB/vGPU devices from the VM, it only removes `spec.template.spec.domain.devices.hostDevices` from the `virtualmachine` CR on the frontend, not on the backend. So, it will throw an error after you detach and disable the PCI/USB/vGPU devices. You can refer to this demo:
+When detaching PCI/USB/vGPU devices from a VM, the system only removes `spec.template.spec.domain.devices.hostDevices` from the `virtualmachine` CR on the frontend, not on the backend. As a result, an error is thrown when you detach and disable PCI/USB/vGPU devices in a single operation. Refer to this demo for more details:
 
 https://github.com/user-attachments/assets/f7307de9-1f16-4b89-8314-67cd0696c3da
 
@@ -15,7 +15,7 @@ https://github.com/user-attachments/assets/f7307de9-1f16-4b89-8314-67cd0696c3da
 
 ### Goals
 
-Make the UX better to understand and use.
+Improve the UI/UX to make it easier to understand and use.
 
 ### Non-goals [optional]
 
@@ -23,16 +23,18 @@ None
 
 ## Proposal
 
-In general, removing a PCI device from a VM and disabling the PCI device should be split into two steps instead of one step. The most straightforward way is to prevent users from disabling host devices during VM editing. Disabling host devices is only allowed on the appropriate page like the PCI Device, USB Device, and vGPU Device tabs.
+In general, removing a PCI device from a VM and disabling the PCI device should be split into two separate steps instead of being performed as a single operation. The most straightforward approach is to prevent users from disabling host devices during VM editing.
+
+However, we can make it easier by changing the error message to a warning message such as: "Please detach the PCI device and save the changes before disabling the PCI device."
+
+This doesn't break the current user experience.
 
 ### User Stories
 
-If users want to detach the host device from the VM, they can just detach it like before.
-
-If users want to detach and disable a host device from the VM together, they should follow these steps:
+If users want to detach a host device from the VM, they can simply detach it as before. If users want to both detach and disable a host device from the VM, they should follow these steps:
 
 1. Detach the host device from the VM.
-2. Disable it on the appropriate tab. If you want to disable a USB device, you need to do that on the USB Device tab.
+2. Disable it on the appropriate tab. For example, to disable a USB device, navigate to the USB Device tab.
 
 ### API changes
 
@@ -42,7 +44,7 @@ None.
 
 ### Implementation Overview
 
-Forbid the disabling host device button on the VM creation page.
+Add a new warning message to inform users of the required steps for disabling a PCI device on the VM edit page.
 
 ### Test plan
 
@@ -50,6 +52,6 @@ None.
 
 ### Upgrade strategy
 
-It's only a UX change.
+This is a UI/UX-only change and does not require any upgrade considerations.
 
 ## Note [optional]
