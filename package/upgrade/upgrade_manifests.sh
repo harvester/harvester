@@ -55,6 +55,8 @@ wait_helm_release() {
   chart=$3
   app_version=$4
   status=$5
+  rollback_attempts=0
+  rollback_attempts_limit=1
   echo "wait helm release $namespace $release_name $chart $app_version $status"
   while [ true ]; do
     last_history=$(helm history $release_name -n $namespace -o yaml | yq e '.[-1]' -)
@@ -75,14 +77,17 @@ wait_helm_release() {
         minutes_passed=$((($(date +%s) - $(date -d"$last_updated_time" +%s)) / 60))
         echo "$current_chart:$current_app_version in $current_status state for $minutes_passed minutes"
 
-        if [ "$minutes_passed" -gt "$deadline_minutes" ]; then
+        if [ "$minutes_passed" -gt "$deadline_minutes" ] && [ "$rollback_attempts" -lt "$rollback_attempts_limit" ]; then
+          rollback_attempts=$((rollback_attempts + 1))
           last_deployed_revision=$(helm -n $namespace history $release_name -oyaml | yq '[.[] | select(.status == "deployed")] | sort_by(.revision) | reverse | .[0].revision')
-          echo "deadline exceeded. rolling back $current_chart:$current_app_version from revision $current_revision to revision $last_deployed_revision"
+          echo "deadline exceeded. rolling back $current_chart:$current_app_version from revision $current_revision to revision $last_deployed_revision (rollback attempt #$rollback_attempts)"
 
           helm -n "$namespace" rollback "$release_name" "$last_deployed_revision" --wait
           rollback_status=$?
           if [ $rollback_status -ne 0 ]; then
             echo "failed to rollback $current_chart:$current_app_version to revision $last_deployed_revision, resume wait..."
+          else
+            echo "rollback succeeded, resume wait..."
           fi
         fi
       fi
