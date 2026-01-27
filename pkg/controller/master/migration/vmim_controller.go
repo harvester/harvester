@@ -55,6 +55,10 @@ func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanc
 		if err != nil {
 			return nil, err
 		}
+		err = h.checkPendingMigration(vmim, vmi)
+		if err != nil {
+			return nil, err
+		}
 		return vmim, h.scaleResourceQuota(vmi)
 	} else if phase != kubevirtv1.MigrationFailed && abortRequested {
 		return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateAbortingMigration)
@@ -242,5 +246,36 @@ func (h *Handler) resetHarvesterMigrationStateInVmiAndSyncVM(vmi *kubevirtv1.Vir
 	if err := h.syncVM(vmi); err != nil {
 		return fmt.Errorf("fail to reset vmi migration to vm %w", err)
 	}
+	return nil
+}
+
+// checkPendingMigration checks the ResourceQuota when the migration is blocked by quota
+func (h *Handler) checkPendingMigration(vmim *kubevirtv1.VirtualMachineInstanceMigration, vmi *kubevirtv1.VirtualMachineInstance) error {
+	if vmim.Status.Conditions == nil {
+		return nil
+	}
+	for _, cond := range vmim.Status.Conditions {
+		if cond.Type == kubevirtv1.VirtualMachineInstanceMigrationRejectedByResourceQuota {
+			// vmim is blocked due to quota, compensate in special cases
+			return h.compensateResourceQuotaBase(vmim, vmi)
+		}
+	}
+
+	return nil
+}
+
+func (h *Handler) compensateResourceQuotaBase(vmim *kubevirtv1.VirtualMachineInstanceMigration, vmi *kubevirtv1.VirtualMachineInstance) error {
+	// If the namespace is not managed by the ResourceQuota
+	if exist, err := h.isNamespaceManagedByResourceQuota(vmi.Namespace); !exist && err == nil {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("failed to check if the namespace is managed by the resource quota: %v", err)
+	}
+
+	// compute the real usage of VM's POD, if it exceeds the hard limit, then compensate the delta
+	// wher user changes the global setting additional-guest-memory-overhead-ratio after the VM is up and then migrated
+	// the real usage can exceed to limit after VMs are up and migrated
+	// this change will ensure the already running VMs can still migrate, but they will be blocked if from a cold start
+
 	return nil
 }
