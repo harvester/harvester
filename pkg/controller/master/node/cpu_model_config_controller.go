@@ -13,10 +13,11 @@ import (
 	kubevirtcorev1 "kubevirt.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+
 	"github.com/harvester/harvester/pkg/config"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
-	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 )
 
 const (
@@ -68,6 +69,11 @@ func CPUModelConfigRegister(ctx context.Context, management *config.Management, 
 	nodes.OnChange(ctx, CPUModelConfigControllerName, h.OnNodeChanged)
 	nodes.OnRemove(ctx, CPUModelConfigControllerName, h.OnNodeChanged)
 	kubevirt.OnChange(ctx, CPUModelConfigControllerName, h.OnKubeVirtChanged)
+
+	// For ConfigMap cache
+	if err := management.CoreFactory.Sync(ctx); err != nil {
+		return fmt.Errorf("failed to sync core factory: %w", err)
+	}
 
 	if err := h.reconcile(); err != nil {
 		return fmt.Errorf("failed to reconcile CPU model config at startup: %w", err)
@@ -171,7 +177,7 @@ func (h *cpuModelConfigHandler) updateConfigMap(data CPUModelData) error {
 }
 
 func collectNodeModels(node *corev1.Node, modelCounts map[string]int) {
-	for labelKey, _ := range node.Labels {
+	for labelKey := range node.Labels {
 		for _, prefix := range cpuModelLabelPrefixes {
 			if !strings.HasPrefix(labelKey, prefix) {
 				continue
