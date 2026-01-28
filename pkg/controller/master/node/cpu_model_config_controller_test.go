@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -413,8 +414,9 @@ func Test_configmap_reconcile(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 
+				ctx := context.TODO()
 				// Get the updated configmap
-				updatedConfigMap, err := coreClientset.CoreV1().ConfigMaps(util.HarvesterSystemNamespaceName).Get(nil, configMapName, metav1.GetOptions{})
+				updatedConfigMap, err := coreClientset.CoreV1().ConfigMaps(util.HarvesterSystemNamespaceName).Get(ctx, configMapName, metav1.GetOptions{})
 				assert.NoError(t, err)
 				assert.NotNil(t, updatedConfigMap)
 
