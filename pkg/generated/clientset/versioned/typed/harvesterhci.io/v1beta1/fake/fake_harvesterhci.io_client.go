@@ -72,10 +72,6 @@ func (c *FakeHarvesterhciV1beta1) VirtualMachineBackups(namespace string) v1beta
 	return &FakeVirtualMachineBackups{c, namespace}
 }
 
-func (c *FakeHarvesterhciV1beta1) VirtualMachineCPUModels() v1beta1.VirtualMachineCPUModelInterface {
-	return &FakeVirtualMachineCPUModels{c}
-}
-
 func (c *FakeHarvesterhciV1beta1) VirtualMachineImages(namespace string) v1beta1.VirtualMachineImageInterface {
 	return &FakeVirtualMachineImages{c, namespace}
 }

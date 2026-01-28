@@ -29,7 +29,6 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/upgrade"
 	"github.com/harvester/harvester/pkg/controller/master/upgradelog"
 	"github.com/harvester/harvester/pkg/controller/master/virtualmachine"
-	"github.com/harvester/harvester/pkg/controller/master/virtualmachinecpumodel"
 	"github.com/harvester/harvester/pkg/controller/master/vmimagedownloader"
 )
 
@@ -49,6 +48,7 @@ var registerFuncs = []registerFunc{
 	mcmsettings.Register,
 	migration.Register,
 	node.CPUManagerRegister,
+	node.CPUModelConfigRegister,
 	node.DownRegister,
 	node.MaintainRegister,
 	node.PromoteRegister,
@@ -67,7 +67,6 @@ var registerFuncs = []registerFunc{
 	upgrade.Register,
 	upgradelog.Register,
 	virtualmachine.Register,
-	virtualmachinecpumodel.Register,
 	vmimagedownloader.Register,
 	node.ConditionAnnotationRegister,
 }

@@ -60,7 +60,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.AddonStatus":                                                      schema_pkg_apis_harvesterhciio_v1beta1_AddonStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Archive":                                                          schema_pkg_apis_harvesterhciio_v1beta1_Archive(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.BackupTarget":                                                     schema_pkg_apis_harvesterhciio_v1beta1_BackupTarget(ref),
-		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.CPUModelCapabilities":                                             schema_pkg_apis_harvesterhciio_v1beta1_CPUModelCapabilities(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition":                                                        schema_pkg_apis_harvesterhciio_v1beta1_Condition(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error":                                                            schema_pkg_apis_harvesterhciio_v1beta1_Error(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.ErrorResponse":                                                    schema_pkg_apis_harvesterhciio_v1beta1_ErrorResponse(ref),
@@ -107,10 +106,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineBackupList":                                         schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupList(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineBackupSpec":                                         schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupSpec(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineBackupStatus":                                       schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupStatus(ref),
-		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineCPUModel":                                           schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineCPUModel(ref),
-		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineCPUModelList":                                       schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineCPUModelList(ref),
-		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineCPUModelSpec":                                       schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineCPUModelSpec(ref),
-		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineCPUModelStatus":                                     schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineCPUModelStatus(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImage":                                              schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImage(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloader":                                    schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageDownloader(ref),
 		"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineImageDownloaderCondition":                           schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageDownloaderCondition(ref),
@@ -1963,35 +1958,6 @@ func schema_pkg_apis_harvesterhciio_v1beta1_BackupTarget(ref common.ReferenceCal
 						},
 					},
 				},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_harvesterhciio_v1beta1_CPUModelCapabilities(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"readyCount": {
-						SchemaProps: spec.SchemaProps{
-							Description: "ReadyCount indicates the number of nodes that are ready with this CPU model. If ReadyCount > 1, it means there are at least two ready nodes with this CPU model. If ReadyCount <= 1, migration is not possible as there is at most one ready node with this CPU model.",
-							Default:     0,
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"migrationSafe": {
-						SchemaProps: spec.SchemaProps{
-							Description: "MigrationSafe indicates whether VMs with this CPU model can be safely migrated. MigrationSafe is true if there are more than one ready nodes with this CPU model.",
-							Default:     false,
-							Type:        []string{"boolean"},
-							Format:      "",
-						},
-					},
-				},
-				Required: []string{"readyCount", "migrationSafe"},
 			},
 		},
 	}
@@ -3987,162 +3953,6 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupStatus(ref commo
 		},
 		Dependencies: []string{
 			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.BackupTarget", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.Error", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.SecretBackup", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineSourceSpec", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VolumeBackup", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
-	}
-}
-
-func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineCPUModel(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineCPUModelSpec"),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineCPUModelStatus"),
-						},
-					},
-				},
-				Required: []string{"spec"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineCPUModelSpec", "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineCPUModelStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineCPUModelList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "VirtualMachineCPUModelList is a list of VirtualMachineCPUModel resources",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineCPUModel"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"metadata", "items"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.VirtualMachineCPUModel", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineCPUModelSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineCPUModelStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"totalNodes": {
-						SchemaProps: spec.SchemaProps{
-							Default: 0,
-							Type:    []string{"integer"},
-							Format:  "int32",
-						},
-					},
-					"globalModels": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-					"models": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"object"},
-							AdditionalProperties: &spec.SchemaOrBool{
-								Allows: true,
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.CPUModelCapabilities"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"totalNodes", "globalModels", "models"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1.CPUModelCapabilities"},
 	}
 }
 

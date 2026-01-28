@@ -295,20 +295,3 @@ func NewVirtualMachineImageDownloader(namespace, name string, obj VirtualMachine
 	obj.Namespace = namespace
 	return &obj
 }
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// VirtualMachineCPUModelList is a list of VirtualMachineCPUModel resources
-type VirtualMachineCPUModelList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
-
-	Items []VirtualMachineCPUModel `json:"items"`
-}
-
-func NewVirtualMachineCPUModel(namespace, name string, obj VirtualMachineCPUModel) *VirtualMachineCPUModel {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("VirtualMachineCPUModel").ToAPIVersionAndKind()
-	obj.Name = name
-	obj.Namespace = namespace
-	return &obj
-}

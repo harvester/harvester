@@ -39,7 +39,6 @@ var (
 	UpgradeLogResourceName                    = "upgradelogs"
 	VersionResourceName                       = "versions"
 	VirtualMachineBackupResourceName          = "virtualmachinebackups"
-	VirtualMachineCPUModelResourceName        = "virtualmachinecpumodels"
 	VirtualMachineImageResourceName           = "virtualmachineimages"
 	VirtualMachineImageDownloaderResourceName = "virtualmachineimagedownloaders"
 	VirtualMachineRestoreResourceName         = "virtualmachinerestores"
@@ -90,8 +89,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&VersionList{},
 		&VirtualMachineBackup{},
 		&VirtualMachineBackupList{},
-		&VirtualMachineCPUModel{},
-		&VirtualMachineCPUModelList{},
 		&VirtualMachineImage{},
 		&VirtualMachineImageList{},
 		&VirtualMachineImageDownloader{},

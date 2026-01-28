@@ -246,3 +246,13 @@ data:
     fi
 
     wait_for_label "$NODE_NAME" "$EXPECT_LABEL_VALUE"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-cpu-model-configuration
+data:
+  cpuModels: |
+    totalNodes: 0
+    globalModels: []
+    models: {}

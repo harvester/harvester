@@ -42,7 +42,6 @@ type Interface interface {
 	UpgradeLog() UpgradeLogController
 	Version() VersionController
 	VirtualMachineBackup() VirtualMachineBackupController
-	VirtualMachineCPUModel() VirtualMachineCPUModelController
 	VirtualMachineImage() VirtualMachineImageController
 	VirtualMachineImageDownloader() VirtualMachineImageDownloaderController
 	VirtualMachineRestore() VirtualMachineRestoreController
@@ -102,10 +101,6 @@ func (v *version) Version() VersionController {
 
 func (v *version) VirtualMachineBackup() VirtualMachineBackupController {
 	return generic.NewController[*v1beta1.VirtualMachineBackup, *v1beta1.VirtualMachineBackupList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineBackup"}, "virtualmachinebackups", true, v.controllerFactory)
-}
-
-func (v *version) VirtualMachineCPUModel() VirtualMachineCPUModelController {
-	return generic.NewNonNamespacedController[*v1beta1.VirtualMachineCPUModel, *v1beta1.VirtualMachineCPUModelList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineCPUModel"}, "virtualmachinecpumodels", v.controllerFactory)
 }
 
 func (v *version) VirtualMachineImage() VirtualMachineImageController {
