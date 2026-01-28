@@ -1,6 +1,17 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: node-cpu-model-configuration
+data:
+  cpuModels: |
+    totalNodes: 0
+    globalModels: []
+    models: {}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: vip
 data:
   enabled: {{ .Values.service.vip.enabled | quote }}
@@ -246,16 +257,3 @@ data:
     fi
 
     wait_for_label "$NODE_NAME" "$EXPECT_LABEL_VALUE"
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: node-cpu-model-configuration
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-delete-policy: before-hook-creation
-data:
-  cpuModels: |
-    totalNodes: 0
-    globalModels: []
-    models: {}

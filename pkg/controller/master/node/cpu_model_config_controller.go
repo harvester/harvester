@@ -171,7 +171,7 @@ func (h *cpuModelConfigHandler) updateConfigMap(data CPUModelData) error {
 }
 
 func collectNodeModels(node *corev1.Node, modelCounts map[string]int) {
-	for labelKey, _ := range node.Labels {
+	for labelKey := range node.Labels {
 		for _, prefix := range cpuModelLabelPrefixes {
 			if !strings.HasPrefix(labelKey, prefix) {
 				continue
