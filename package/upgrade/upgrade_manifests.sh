@@ -450,9 +450,7 @@ wait_longhorn_manager() {
 
   lm_repo=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.repository)
   lm_tag=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.tag)
-  # Prepend the "docker.io" prefix as it is explicitly specified in the upstream Longhorn chart.
-  # Ref: https://github.com/longhorn/longhorn/pull/12269
-  lm_image="docker.io/${lm_repo}:${lm_tag}"
+  lm_image="${lm_repo}:${lm_tag}"
   local node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
 
   while [ true ]; do
