@@ -78,10 +78,14 @@ wait_helm_release() {
         echo "$current_chart:$current_app_version in $current_status state for $minutes_passed minutes"
 
         if [ "$minutes_passed" -gt "$deadline_minutes" ] && [ "$rollback_attempts" -lt "$rollback_attempts_limit" ]; then
-          rollback_attempts=$((rollback_attempts + 1))
           last_deployed_revision=$(helm -n $namespace history $release_name -oyaml | yq '[.[] | select(.status == "deployed")] | sort_by(.revision) | reverse | .[0].revision')
-          echo "deadline exceeded. rolling back $current_chart:$current_app_version from revision $current_revision to revision $last_deployed_revision (rollback attempt #$rollback_attempts)"
+          if [ -z "$last_deployed_revision" ]; then
+            echo "no deployed revision found, cannot rollback, resume wait..."
+            continue
+          fi
 
+          rollback_attempts=$((rollback_attempts + 1))
+          echo "deadline exceeded. rolling back $current_chart:$current_app_version from revision $current_revision to revision $last_deployed_revision (rollback attempt #$rollback_attempts)"
           helm -n "$namespace" rollback "$release_name" "$last_deployed_revision" --wait
           rollback_status=$?
           if [ $rollback_status -ne 0 ]; then
