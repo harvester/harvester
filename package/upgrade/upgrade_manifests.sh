@@ -450,9 +450,18 @@ wait_longhorn_manager() {
 
   lm_repo=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.repository)
   lm_tag=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.tag)
-  # Prepend the "docker.io" prefix as it is explicitly specified in the upstream Longhorn chart.
-  # Ref: https://github.com/longhorn/longhorn/pull/12269
-  lm_image="docker.io/${lm_repo}:${lm_tag}"
+  # Ref: https://github.com/longhorn/longhorn/pull/12269, now we need to check global.imageRegistry first
+  # Check global.imageRegistry first; if not set, fall back to the longhorn-manager registry value.
+  lm_registry=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.global.imageRegistry)
+  if [ -z "$lm_registry" ] || [ "$lm_registry" = "null" ]; then
+    lm_registry=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.registry)
+  fi
+  # registry should be the mandatory field in later version, but still need to check here
+  if [ -z "$lm_registry" ] || [ "$lm_registry" = "null" ]; then
+    lm_image="${lm_repo}:${lm_tag}"
+  else
+    lm_image="${lm_registry}/${lm_repo}:${lm_tag}"
+  fi
   local node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
 
   while [ true ]; do
@@ -480,18 +489,28 @@ wait_longhorn_instance_manager_aio() {
 
   im_repo=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.instanceManager.repository)
   im_tag=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.instanceManager.tag)
-  im_image="${im_repo}:${im_tag}"
+  # Prefer global.imageRegistry; if empty, fall back to instance-manager-specific registry
+  im_registry=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.global.imageRegistry)
+  if [ -z "$im_registry" ] || [ "$im_registry" = "null" ]; then
+    im_registry=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.instanceManager.registry)
+  fi
+  # registry should be the mandatory field in later version, but still need to check here
+  if [ -z "$im_registry" ] || [ "$im_registry" = "null" ]; then
+    im_image="${im_repo}:${im_tag}"
+  else
+    im_image="${im_registry}/${im_repo}:${im_tag}"
+  fi
 
-  # Get instance-manager-image chechsum
+  # Get instance-manager-image checksum
   # reference: https://github.com/longhorn/longhorn-manager/blob/2ec649c35486d782731982c9dff1db41c9031c99/types/types.go#L429
-  im_image_checksum="${im_image/\//-}" # replace / with -
+  im_image_checksum="${im_image//\//-}" # replace all / with -
   im_image_checksum="${im_image_checksum/:/-}" # replace : with -
   im_image_checksum=$(echo -n "$im_image_checksum" | openssl dgst -sha512 | awk '{print $2}')
   im_image_checksum="imi-${im_image_checksum:0:8}"
 
   # Wait for instance-manager (aio) pods upgraded to new version first.
   kubectl get nodes.longhorn.io -n longhorn-system -o json | jq -r '.items[].metadata.name' | while read -r node; do
-    echo "Checking instance-manager (aio) pod on node $node..."
+    echo "Checking instance-manager (aio) pod on node $node with image checksum $im_image_checksum ..."
     check_instance_manager $node $im_image $im_image_checksum "v1"
 
     v2EngineEnabled=$(kubectl get settings.harvesterhci.io longhorn-v2-data-engine-enabled -o yaml | yq e '.value' -)
