@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type AuthProvidersGetter interface {
 
 // AuthProviderInterface has methods to work with AuthProvider resources.
 type AuthProviderInterface interface {
-	Create(ctx context.Context, authProvider *v3.AuthProvider, opts v1.CreateOptions) (*v3.AuthProvider, error)
-	Update(ctx context.Context, authProvider *v3.AuthProvider, opts v1.UpdateOptions) (*v3.AuthProvider, error)
+	Create(ctx context.Context, authProvider *managementcattleiov3.AuthProvider, opts v1.CreateOptions) (*managementcattleiov3.AuthProvider, error)
+	Update(ctx context.Context, authProvider *managementcattleiov3.AuthProvider, opts v1.UpdateOptions) (*managementcattleiov3.AuthProvider, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.AuthProvider, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.AuthProviderList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.AuthProvider, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.AuthProviderList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.AuthProvider, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.AuthProvider, err error)
 	AuthProviderExpansion
 }
 
 // authProviders implements AuthProviderInterface
 type authProviders struct {
-	*gentype.ClientWithList[*v3.AuthProvider, *v3.AuthProviderList]
+	*gentype.ClientWithList[*managementcattleiov3.AuthProvider, *managementcattleiov3.AuthProviderList]
 }
 
 // newAuthProviders returns a AuthProviders
 func newAuthProviders(c *ManagementV3Client) *authProviders {
 	return &authProviders{
-		gentype.NewClientWithList[*v3.AuthProvider, *v3.AuthProviderList](
+		gentype.NewClientWithList[*managementcattleiov3.AuthProvider, *managementcattleiov3.AuthProviderList](
 			"authproviders",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.AuthProvider { return &v3.AuthProvider{} },
-			func() *v3.AuthProviderList { return &v3.AuthProviderList{} }),
+			func() *managementcattleiov3.AuthProvider { return &managementcattleiov3.AuthProvider{} },
+			func() *managementcattleiov3.AuthProviderList { return &managementcattleiov3.AuthProviderList{} },
+		),
 	}
 }

@@ -19,129 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeResourceQuotas implements ResourceQuotaInterface
-type FakeResourceQuotas struct {
+// fakeResourceQuotas implements ResourceQuotaInterface
+type fakeResourceQuotas struct {
+	*gentype.FakeClientWithList[*v1beta1.ResourceQuota, *v1beta1.ResourceQuotaList]
 	Fake *FakeHarvesterhciV1beta1
-	ns   string
 }
 
-var resourcequotasResource = v1beta1.SchemeGroupVersion.WithResource("resourcequotas")
-
-var resourcequotasKind = v1beta1.SchemeGroupVersion.WithKind("ResourceQuota")
-
-// Get takes name of the resourceQuota, and returns the corresponding resourceQuota object, and an error if there is any.
-func (c *FakeResourceQuotas) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.ResourceQuota, err error) {
-	emptyResult := &v1beta1.ResourceQuota{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(resourcequotasResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeResourceQuotas(fake *FakeHarvesterhciV1beta1, namespace string) harvesterhciiov1beta1.ResourceQuotaInterface {
+	return &fakeResourceQuotas{
+		gentype.NewFakeClientWithList[*v1beta1.ResourceQuota, *v1beta1.ResourceQuotaList](
+			fake.Fake,
+			namespace,
+			v1beta1.SchemeGroupVersion.WithResource("resourcequotas"),
+			v1beta1.SchemeGroupVersion.WithKind("ResourceQuota"),
+			func() *v1beta1.ResourceQuota { return &v1beta1.ResourceQuota{} },
+			func() *v1beta1.ResourceQuotaList { return &v1beta1.ResourceQuotaList{} },
+			func(dst, src *v1beta1.ResourceQuotaList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta1.ResourceQuotaList) []*v1beta1.ResourceQuota {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1beta1.ResourceQuotaList, items []*v1beta1.ResourceQuota) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta1.ResourceQuota), err
-}
-
-// List takes label and field selectors, and returns the list of ResourceQuotas that match those selectors.
-func (c *FakeResourceQuotas) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.ResourceQuotaList, err error) {
-	emptyResult := &v1beta1.ResourceQuotaList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(resourcequotasResource, resourcequotasKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta1.ResourceQuotaList{ListMeta: obj.(*v1beta1.ResourceQuotaList).ListMeta}
-	for _, item := range obj.(*v1beta1.ResourceQuotaList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested resourceQuotas.
-func (c *FakeResourceQuotas) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(resourcequotasResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a resourceQuota and creates it.  Returns the server's representation of the resourceQuota, and an error, if there is any.
-func (c *FakeResourceQuotas) Create(ctx context.Context, resourceQuota *v1beta1.ResourceQuota, opts v1.CreateOptions) (result *v1beta1.ResourceQuota, err error) {
-	emptyResult := &v1beta1.ResourceQuota{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(resourcequotasResource, c.ns, resourceQuota, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ResourceQuota), err
-}
-
-// Update takes the representation of a resourceQuota and updates it. Returns the server's representation of the resourceQuota, and an error, if there is any.
-func (c *FakeResourceQuotas) Update(ctx context.Context, resourceQuota *v1beta1.ResourceQuota, opts v1.UpdateOptions) (result *v1beta1.ResourceQuota, err error) {
-	emptyResult := &v1beta1.ResourceQuota{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(resourcequotasResource, c.ns, resourceQuota, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ResourceQuota), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeResourceQuotas) UpdateStatus(ctx context.Context, resourceQuota *v1beta1.ResourceQuota, opts v1.UpdateOptions) (result *v1beta1.ResourceQuota, err error) {
-	emptyResult := &v1beta1.ResourceQuota{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(resourcequotasResource, "status", c.ns, resourceQuota, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ResourceQuota), err
-}
-
-// Delete takes name of the resourceQuota and deletes it. Returns an error if one occurs.
-func (c *FakeResourceQuotas) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(resourcequotasResource, c.ns, name, opts), &v1beta1.ResourceQuota{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeResourceQuotas) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(resourcequotasResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta1.ResourceQuotaList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched resourceQuota.
-func (c *FakeResourceQuotas) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.ResourceQuota, err error) {
-	emptyResult := &v1beta1.ResourceQuota{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(resourcequotasResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ResourceQuota), err
 }

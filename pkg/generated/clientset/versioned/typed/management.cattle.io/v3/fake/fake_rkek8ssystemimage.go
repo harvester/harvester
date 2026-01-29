@@ -19,116 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeRkeK8sSystemImages implements RkeK8sSystemImageInterface
-type FakeRkeK8sSystemImages struct {
+// fakeRkeK8sSystemImages implements RkeK8sSystemImageInterface
+type fakeRkeK8sSystemImages struct {
+	*gentype.FakeClientWithList[*v3.RkeK8sSystemImage, *v3.RkeK8sSystemImageList]
 	Fake *FakeManagementV3
-	ns   string
 }
 
-var rkek8ssystemimagesResource = v3.SchemeGroupVersion.WithResource("rkek8ssystemimages")
-
-var rkek8ssystemimagesKind = v3.SchemeGroupVersion.WithKind("RkeK8sSystemImage")
-
-// Get takes name of the rkeK8sSystemImage, and returns the corresponding rkeK8sSystemImage object, and an error if there is any.
-func (c *FakeRkeK8sSystemImages) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.RkeK8sSystemImage, err error) {
-	emptyResult := &v3.RkeK8sSystemImage{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(rkek8ssystemimagesResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeRkeK8sSystemImages(fake *FakeManagementV3, namespace string) managementcattleiov3.RkeK8sSystemImageInterface {
+	return &fakeRkeK8sSystemImages{
+		gentype.NewFakeClientWithList[*v3.RkeK8sSystemImage, *v3.RkeK8sSystemImageList](
+			fake.Fake,
+			namespace,
+			v3.SchemeGroupVersion.WithResource("rkek8ssystemimages"),
+			v3.SchemeGroupVersion.WithKind("RkeK8sSystemImage"),
+			func() *v3.RkeK8sSystemImage { return &v3.RkeK8sSystemImage{} },
+			func() *v3.RkeK8sSystemImageList { return &v3.RkeK8sSystemImageList{} },
+			func(dst, src *v3.RkeK8sSystemImageList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.RkeK8sSystemImageList) []*v3.RkeK8sSystemImage {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v3.RkeK8sSystemImageList, items []*v3.RkeK8sSystemImage) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.RkeK8sSystemImage), err
-}
-
-// List takes label and field selectors, and returns the list of RkeK8sSystemImages that match those selectors.
-func (c *FakeRkeK8sSystemImages) List(ctx context.Context, opts v1.ListOptions) (result *v3.RkeK8sSystemImageList, err error) {
-	emptyResult := &v3.RkeK8sSystemImageList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(rkek8ssystemimagesResource, rkek8ssystemimagesKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.RkeK8sSystemImageList{ListMeta: obj.(*v3.RkeK8sSystemImageList).ListMeta}
-	for _, item := range obj.(*v3.RkeK8sSystemImageList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested rkeK8sSystemImages.
-func (c *FakeRkeK8sSystemImages) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(rkek8ssystemimagesResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a rkeK8sSystemImage and creates it.  Returns the server's representation of the rkeK8sSystemImage, and an error, if there is any.
-func (c *FakeRkeK8sSystemImages) Create(ctx context.Context, rkeK8sSystemImage *v3.RkeK8sSystemImage, opts v1.CreateOptions) (result *v3.RkeK8sSystemImage, err error) {
-	emptyResult := &v3.RkeK8sSystemImage{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(rkek8ssystemimagesResource, c.ns, rkeK8sSystemImage, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.RkeK8sSystemImage), err
-}
-
-// Update takes the representation of a rkeK8sSystemImage and updates it. Returns the server's representation of the rkeK8sSystemImage, and an error, if there is any.
-func (c *FakeRkeK8sSystemImages) Update(ctx context.Context, rkeK8sSystemImage *v3.RkeK8sSystemImage, opts v1.UpdateOptions) (result *v3.RkeK8sSystemImage, err error) {
-	emptyResult := &v3.RkeK8sSystemImage{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(rkek8ssystemimagesResource, c.ns, rkeK8sSystemImage, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.RkeK8sSystemImage), err
-}
-
-// Delete takes name of the rkeK8sSystemImage and deletes it. Returns an error if one occurs.
-func (c *FakeRkeK8sSystemImages) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(rkek8ssystemimagesResource, c.ns, name, opts), &v3.RkeK8sSystemImage{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeRkeK8sSystemImages) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(rkek8ssystemimagesResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.RkeK8sSystemImageList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched rkeK8sSystemImage.
-func (c *FakeRkeK8sSystemImages) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.RkeK8sSystemImage, err error) {
-	emptyResult := &v3.RkeK8sSystemImage{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(rkek8ssystemimagesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.RkeK8sSystemImage), err
 }

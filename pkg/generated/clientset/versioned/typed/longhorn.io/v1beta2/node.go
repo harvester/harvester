@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type NodesGetter interface {
 
 // NodeInterface has methods to work with Node resources.
 type NodeInterface interface {
-	Create(ctx context.Context, node *v1beta2.Node, opts v1.CreateOptions) (*v1beta2.Node, error)
-	Update(ctx context.Context, node *v1beta2.Node, opts v1.UpdateOptions) (*v1beta2.Node, error)
+	Create(ctx context.Context, node *longhornv1beta2.Node, opts v1.CreateOptions) (*longhornv1beta2.Node, error)
+	Update(ctx context.Context, node *longhornv1beta2.Node, opts v1.UpdateOptions) (*longhornv1beta2.Node, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, node *v1beta2.Node, opts v1.UpdateOptions) (*v1beta2.Node, error)
+	UpdateStatus(ctx context.Context, node *longhornv1beta2.Node, opts v1.UpdateOptions) (*longhornv1beta2.Node, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.Node, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.NodeList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.Node, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.NodeList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.Node, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.Node, err error)
 	NodeExpansion
 }
 
 // nodes implements NodeInterface
 type nodes struct {
-	*gentype.ClientWithList[*v1beta2.Node, *v1beta2.NodeList]
+	*gentype.ClientWithList[*longhornv1beta2.Node, *longhornv1beta2.NodeList]
 }
 
 // newNodes returns a Nodes
 func newNodes(c *LonghornV1beta2Client, namespace string) *nodes {
 	return &nodes{
-		gentype.NewClientWithList[*v1beta2.Node, *v1beta2.NodeList](
+		gentype.NewClientWithList[*longhornv1beta2.Node, *longhornv1beta2.NodeList](
 			"nodes",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.Node { return &v1beta2.Node{} },
-			func() *v1beta2.NodeList { return &v1beta2.NodeList{} }),
+			func() *longhornv1beta2.Node { return &longhornv1beta2.Node{} },
+			func() *longhornv1beta2.NodeList { return &longhornv1beta2.NodeList{} },
+		),
 	}
 }

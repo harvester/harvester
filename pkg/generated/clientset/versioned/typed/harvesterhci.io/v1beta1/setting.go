@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type SettingsGetter interface {
 
 // SettingInterface has methods to work with Setting resources.
 type SettingInterface interface {
-	Create(ctx context.Context, setting *v1beta1.Setting, opts v1.CreateOptions) (*v1beta1.Setting, error)
-	Update(ctx context.Context, setting *v1beta1.Setting, opts v1.UpdateOptions) (*v1beta1.Setting, error)
+	Create(ctx context.Context, setting *harvesterhciiov1beta1.Setting, opts v1.CreateOptions) (*harvesterhciiov1beta1.Setting, error)
+	Update(ctx context.Context, setting *harvesterhciiov1beta1.Setting, opts v1.UpdateOptions) (*harvesterhciiov1beta1.Setting, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, setting *v1beta1.Setting, opts v1.UpdateOptions) (*v1beta1.Setting, error)
+	UpdateStatus(ctx context.Context, setting *harvesterhciiov1beta1.Setting, opts v1.UpdateOptions) (*harvesterhciiov1beta1.Setting, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.Setting, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.SettingList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*harvesterhciiov1beta1.Setting, error)
+	List(ctx context.Context, opts v1.ListOptions) (*harvesterhciiov1beta1.SettingList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Setting, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *harvesterhciiov1beta1.Setting, err error)
 	SettingExpansion
 }
 
 // settings implements SettingInterface
 type settings struct {
-	*gentype.ClientWithList[*v1beta1.Setting, *v1beta1.SettingList]
+	*gentype.ClientWithList[*harvesterhciiov1beta1.Setting, *harvesterhciiov1beta1.SettingList]
 }
 
 // newSettings returns a Settings
 func newSettings(c *HarvesterhciV1beta1Client) *settings {
 	return &settings{
-		gentype.NewClientWithList[*v1beta1.Setting, *v1beta1.SettingList](
+		gentype.NewClientWithList[*harvesterhciiov1beta1.Setting, *harvesterhciiov1beta1.SettingList](
 			"settings",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1beta1.Setting { return &v1beta1.Setting{} },
-			func() *v1beta1.SettingList { return &v1beta1.SettingList{} }),
+			func() *harvesterhciiov1beta1.Setting { return &harvesterhciiov1beta1.Setting{} },
+			func() *harvesterhciiov1beta1.SettingList { return &harvesterhciiov1beta1.SettingList{} },
+		),
 	}
 }

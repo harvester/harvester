@@ -165,12 +165,13 @@ func parseMethod(req *http.Request) string {
 }
 
 func Body(req *http.Request) (types.APIObject, error) {
-	req.ParseMultipartForm(maxFormSize)
+	_ = req.ParseMultipartForm(maxFormSize)
+
 	if req.MultipartForm != nil {
 		return valuesToBody(req.MultipartForm.Value), nil
 	}
 
-	if req.PostForm != nil && len(req.PostForm) > 0 {
+	if len(req.PostForm) > 0 {
 		return valuesToBody(map[string][]string(req.Form)), nil
 	}
 

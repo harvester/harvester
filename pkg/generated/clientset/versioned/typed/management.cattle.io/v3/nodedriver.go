@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type NodeDriversGetter interface {
 
 // NodeDriverInterface has methods to work with NodeDriver resources.
 type NodeDriverInterface interface {
-	Create(ctx context.Context, nodeDriver *v3.NodeDriver, opts v1.CreateOptions) (*v3.NodeDriver, error)
-	Update(ctx context.Context, nodeDriver *v3.NodeDriver, opts v1.UpdateOptions) (*v3.NodeDriver, error)
+	Create(ctx context.Context, nodeDriver *managementcattleiov3.NodeDriver, opts v1.CreateOptions) (*managementcattleiov3.NodeDriver, error)
+	Update(ctx context.Context, nodeDriver *managementcattleiov3.NodeDriver, opts v1.UpdateOptions) (*managementcattleiov3.NodeDriver, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, nodeDriver *v3.NodeDriver, opts v1.UpdateOptions) (*v3.NodeDriver, error)
+	UpdateStatus(ctx context.Context, nodeDriver *managementcattleiov3.NodeDriver, opts v1.UpdateOptions) (*managementcattleiov3.NodeDriver, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.NodeDriver, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.NodeDriverList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.NodeDriver, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.NodeDriverList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.NodeDriver, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.NodeDriver, err error)
 	NodeDriverExpansion
 }
 
 // nodeDrivers implements NodeDriverInterface
 type nodeDrivers struct {
-	*gentype.ClientWithList[*v3.NodeDriver, *v3.NodeDriverList]
+	*gentype.ClientWithList[*managementcattleiov3.NodeDriver, *managementcattleiov3.NodeDriverList]
 }
 
 // newNodeDrivers returns a NodeDrivers
 func newNodeDrivers(c *ManagementV3Client) *nodeDrivers {
 	return &nodeDrivers{
-		gentype.NewClientWithList[*v3.NodeDriver, *v3.NodeDriverList](
+		gentype.NewClientWithList[*managementcattleiov3.NodeDriver, *managementcattleiov3.NodeDriverList](
 			"nodedrivers",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.NodeDriver { return &v3.NodeDriver{} },
-			func() *v3.NodeDriverList { return &v3.NodeDriverList{} }),
+			func() *managementcattleiov3.NodeDriver { return &managementcattleiov3.NodeDriver{} },
+			func() *managementcattleiov3.NodeDriverList { return &managementcattleiov3.NodeDriverList{} },
+		),
 	}
 }

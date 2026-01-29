@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type ClustersGetter interface {
 
 // ClusterInterface has methods to work with Cluster resources.
 type ClusterInterface interface {
-	Create(ctx context.Context, cluster *v3.Cluster, opts v1.CreateOptions) (*v3.Cluster, error)
-	Update(ctx context.Context, cluster *v3.Cluster, opts v1.UpdateOptions) (*v3.Cluster, error)
+	Create(ctx context.Context, cluster *managementcattleiov3.Cluster, opts v1.CreateOptions) (*managementcattleiov3.Cluster, error)
+	Update(ctx context.Context, cluster *managementcattleiov3.Cluster, opts v1.UpdateOptions) (*managementcattleiov3.Cluster, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, cluster *v3.Cluster, opts v1.UpdateOptions) (*v3.Cluster, error)
+	UpdateStatus(ctx context.Context, cluster *managementcattleiov3.Cluster, opts v1.UpdateOptions) (*managementcattleiov3.Cluster, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.Cluster, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ClusterList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.Cluster, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ClusterList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Cluster, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.Cluster, err error)
 	ClusterExpansion
 }
 
 // clusters implements ClusterInterface
 type clusters struct {
-	*gentype.ClientWithList[*v3.Cluster, *v3.ClusterList]
+	*gentype.ClientWithList[*managementcattleiov3.Cluster, *managementcattleiov3.ClusterList]
 }
 
 // newClusters returns a Clusters
 func newClusters(c *ManagementV3Client) *clusters {
 	return &clusters{
-		gentype.NewClientWithList[*v3.Cluster, *v3.ClusterList](
+		gentype.NewClientWithList[*managementcattleiov3.Cluster, *managementcattleiov3.ClusterList](
 			"clusters",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.Cluster { return &v3.Cluster{} },
-			func() *v3.ClusterList { return &v3.ClusterList{} }),
+			func() *managementcattleiov3.Cluster { return &managementcattleiov3.Cluster{} },
+			func() *managementcattleiov3.ClusterList { return &managementcattleiov3.ClusterList{} },
+		),
 	}
 }

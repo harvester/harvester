@@ -13,6 +13,7 @@ go_library(
         "//pkg/util:go_default_library",
         "//staging/src/kubevirt.io/api/core/v1:go_default_library",
         "//staging/src/kubevirt.io/client-go/log:go_default_library",
+        "//vendor/golang.org/x/sys/unix:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/client-go/tools/record:go_default_library",
     ],
@@ -25,6 +26,7 @@ go_test(
         "host_disk_suite_test.go",
     ],
     embed = [":go_default_library"],
+    race = "on",
     deps = [
         "//pkg/ephemeral-disk-utils:go_default_library",
         "//pkg/libvmi:go_default_library",

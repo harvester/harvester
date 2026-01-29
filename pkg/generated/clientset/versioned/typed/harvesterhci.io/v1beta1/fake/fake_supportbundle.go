@@ -19,129 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeSupportBundles implements SupportBundleInterface
-type FakeSupportBundles struct {
+// fakeSupportBundles implements SupportBundleInterface
+type fakeSupportBundles struct {
+	*gentype.FakeClientWithList[*v1beta1.SupportBundle, *v1beta1.SupportBundleList]
 	Fake *FakeHarvesterhciV1beta1
-	ns   string
 }
 
-var supportbundlesResource = v1beta1.SchemeGroupVersion.WithResource("supportbundles")
-
-var supportbundlesKind = v1beta1.SchemeGroupVersion.WithKind("SupportBundle")
-
-// Get takes name of the supportBundle, and returns the corresponding supportBundle object, and an error if there is any.
-func (c *FakeSupportBundles) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.SupportBundle, err error) {
-	emptyResult := &v1beta1.SupportBundle{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(supportbundlesResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeSupportBundles(fake *FakeHarvesterhciV1beta1, namespace string) harvesterhciiov1beta1.SupportBundleInterface {
+	return &fakeSupportBundles{
+		gentype.NewFakeClientWithList[*v1beta1.SupportBundle, *v1beta1.SupportBundleList](
+			fake.Fake,
+			namespace,
+			v1beta1.SchemeGroupVersion.WithResource("supportbundles"),
+			v1beta1.SchemeGroupVersion.WithKind("SupportBundle"),
+			func() *v1beta1.SupportBundle { return &v1beta1.SupportBundle{} },
+			func() *v1beta1.SupportBundleList { return &v1beta1.SupportBundleList{} },
+			func(dst, src *v1beta1.SupportBundleList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta1.SupportBundleList) []*v1beta1.SupportBundle {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1beta1.SupportBundleList, items []*v1beta1.SupportBundle) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta1.SupportBundle), err
-}
-
-// List takes label and field selectors, and returns the list of SupportBundles that match those selectors.
-func (c *FakeSupportBundles) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.SupportBundleList, err error) {
-	emptyResult := &v1beta1.SupportBundleList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(supportbundlesResource, supportbundlesKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta1.SupportBundleList{ListMeta: obj.(*v1beta1.SupportBundleList).ListMeta}
-	for _, item := range obj.(*v1beta1.SupportBundleList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested supportBundles.
-func (c *FakeSupportBundles) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(supportbundlesResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a supportBundle and creates it.  Returns the server's representation of the supportBundle, and an error, if there is any.
-func (c *FakeSupportBundles) Create(ctx context.Context, supportBundle *v1beta1.SupportBundle, opts v1.CreateOptions) (result *v1beta1.SupportBundle, err error) {
-	emptyResult := &v1beta1.SupportBundle{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(supportbundlesResource, c.ns, supportBundle, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.SupportBundle), err
-}
-
-// Update takes the representation of a supportBundle and updates it. Returns the server's representation of the supportBundle, and an error, if there is any.
-func (c *FakeSupportBundles) Update(ctx context.Context, supportBundle *v1beta1.SupportBundle, opts v1.UpdateOptions) (result *v1beta1.SupportBundle, err error) {
-	emptyResult := &v1beta1.SupportBundle{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(supportbundlesResource, c.ns, supportBundle, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.SupportBundle), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeSupportBundles) UpdateStatus(ctx context.Context, supportBundle *v1beta1.SupportBundle, opts v1.UpdateOptions) (result *v1beta1.SupportBundle, err error) {
-	emptyResult := &v1beta1.SupportBundle{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(supportbundlesResource, "status", c.ns, supportBundle, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.SupportBundle), err
-}
-
-// Delete takes name of the supportBundle and deletes it. Returns an error if one occurs.
-func (c *FakeSupportBundles) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(supportbundlesResource, c.ns, name, opts), &v1beta1.SupportBundle{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeSupportBundles) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(supportbundlesResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta1.SupportBundleList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched supportBundle.
-func (c *FakeSupportBundles) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.SupportBundle, err error) {
-	emptyResult := &v1beta1.SupportBundle{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(supportbundlesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.SupportBundle), err
 }

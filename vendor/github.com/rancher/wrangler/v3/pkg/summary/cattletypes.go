@@ -34,6 +34,7 @@ func checkRelease(obj data.Object, _ []Condition, summary Summary) Summary {
 	for _, resources := range obj.Slice("spec", "resources") {
 		summary.Relationships = append(summary.Relationships, Relationship{
 			Name:       resources.String("name"),
+			Namespace:  resources.String("namespace"),
 			Kind:       resources.String("kind"),
 			APIVersion: resources.String("apiVersion"),
 			Type:       "helmresource",

@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type NodeTemplatesGetter interface {
 
 // NodeTemplateInterface has methods to work with NodeTemplate resources.
 type NodeTemplateInterface interface {
-	Create(ctx context.Context, nodeTemplate *v3.NodeTemplate, opts v1.CreateOptions) (*v3.NodeTemplate, error)
-	Update(ctx context.Context, nodeTemplate *v3.NodeTemplate, opts v1.UpdateOptions) (*v3.NodeTemplate, error)
+	Create(ctx context.Context, nodeTemplate *managementcattleiov3.NodeTemplate, opts v1.CreateOptions) (*managementcattleiov3.NodeTemplate, error)
+	Update(ctx context.Context, nodeTemplate *managementcattleiov3.NodeTemplate, opts v1.UpdateOptions) (*managementcattleiov3.NodeTemplate, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, nodeTemplate *v3.NodeTemplate, opts v1.UpdateOptions) (*v3.NodeTemplate, error)
+	UpdateStatus(ctx context.Context, nodeTemplate *managementcattleiov3.NodeTemplate, opts v1.UpdateOptions) (*managementcattleiov3.NodeTemplate, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.NodeTemplate, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.NodeTemplateList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.NodeTemplate, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.NodeTemplateList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.NodeTemplate, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.NodeTemplate, err error)
 	NodeTemplateExpansion
 }
 
 // nodeTemplates implements NodeTemplateInterface
 type nodeTemplates struct {
-	*gentype.ClientWithList[*v3.NodeTemplate, *v3.NodeTemplateList]
+	*gentype.ClientWithList[*managementcattleiov3.NodeTemplate, *managementcattleiov3.NodeTemplateList]
 }
 
 // newNodeTemplates returns a NodeTemplates
 func newNodeTemplates(c *ManagementV3Client, namespace string) *nodeTemplates {
 	return &nodeTemplates{
-		gentype.NewClientWithList[*v3.NodeTemplate, *v3.NodeTemplateList](
+		gentype.NewClientWithList[*managementcattleiov3.NodeTemplate, *managementcattleiov3.NodeTemplateList](
 			"nodetemplates",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.NodeTemplate { return &v3.NodeTemplate{} },
-			func() *v3.NodeTemplateList { return &v3.NodeTemplateList{} }),
+			func() *managementcattleiov3.NodeTemplate { return &managementcattleiov3.NodeTemplate{} },
+			func() *managementcattleiov3.NodeTemplateList { return &managementcattleiov3.NodeTemplateList{} },
+		),
 	}
 }

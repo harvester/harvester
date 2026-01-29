@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
+	networkharvesterhciiov1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,38 @@ type ClusterNetworksGetter interface {
 
 // ClusterNetworkInterface has methods to work with ClusterNetwork resources.
 type ClusterNetworkInterface interface {
-	Create(ctx context.Context, clusterNetwork *v1beta1.ClusterNetwork, opts v1.CreateOptions) (*v1beta1.ClusterNetwork, error)
-	Update(ctx context.Context, clusterNetwork *v1beta1.ClusterNetwork, opts v1.UpdateOptions) (*v1beta1.ClusterNetwork, error)
+	Create(ctx context.Context, clusterNetwork *networkharvesterhciiov1beta1.ClusterNetwork, opts v1.CreateOptions) (*networkharvesterhciiov1beta1.ClusterNetwork, error)
+	Update(ctx context.Context, clusterNetwork *networkharvesterhciiov1beta1.ClusterNetwork, opts v1.UpdateOptions) (*networkharvesterhciiov1beta1.ClusterNetwork, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, clusterNetwork *v1beta1.ClusterNetwork, opts v1.UpdateOptions) (*v1beta1.ClusterNetwork, error)
+	UpdateStatus(ctx context.Context, clusterNetwork *networkharvesterhciiov1beta1.ClusterNetwork, opts v1.UpdateOptions) (*networkharvesterhciiov1beta1.ClusterNetwork, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.ClusterNetwork, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.ClusterNetworkList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*networkharvesterhciiov1beta1.ClusterNetwork, error)
+	List(ctx context.Context, opts v1.ListOptions) (*networkharvesterhciiov1beta1.ClusterNetworkList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.ClusterNetwork, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *networkharvesterhciiov1beta1.ClusterNetwork, err error)
 	ClusterNetworkExpansion
 }
 
 // clusterNetworks implements ClusterNetworkInterface
 type clusterNetworks struct {
-	*gentype.ClientWithList[*v1beta1.ClusterNetwork, *v1beta1.ClusterNetworkList]
+	*gentype.ClientWithList[*networkharvesterhciiov1beta1.ClusterNetwork, *networkharvesterhciiov1beta1.ClusterNetworkList]
 }
 
 // newClusterNetworks returns a ClusterNetworks
 func newClusterNetworks(c *NetworkV1beta1Client) *clusterNetworks {
 	return &clusterNetworks{
-		gentype.NewClientWithList[*v1beta1.ClusterNetwork, *v1beta1.ClusterNetworkList](
+		gentype.NewClientWithList[*networkharvesterhciiov1beta1.ClusterNetwork, *networkharvesterhciiov1beta1.ClusterNetworkList](
 			"clusternetworks",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1beta1.ClusterNetwork { return &v1beta1.ClusterNetwork{} },
-			func() *v1beta1.ClusterNetworkList { return &v1beta1.ClusterNetworkList{} }),
+			func() *networkharvesterhciiov1beta1.ClusterNetwork {
+				return &networkharvesterhciiov1beta1.ClusterNetwork{}
+			},
+			func() *networkharvesterhciiov1beta1.ClusterNetworkList {
+				return &networkharvesterhciiov1beta1.ClusterNetworkList{}
+			},
+		),
 	}
 }

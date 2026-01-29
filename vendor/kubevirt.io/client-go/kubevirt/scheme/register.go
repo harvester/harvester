@@ -31,11 +31,10 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	exportv1alpha1 "kubevirt.io/api/export/v1alpha1"
 	exportv1beta1 "kubevirt.io/api/export/v1beta1"
-	instancetypev1alpha1 "kubevirt.io/api/instancetype/v1alpha1"
-	instancetypev1alpha2 "kubevirt.io/api/instancetype/v1alpha2"
 	instancetypev1beta1 "kubevirt.io/api/instancetype/v1beta1"
 	migrationsv1alpha1 "kubevirt.io/api/migrations/v1alpha1"
 	poolv1alpha1 "kubevirt.io/api/pool/v1alpha1"
+	poolv1beta1 "kubevirt.io/api/pool/v1beta1"
 	snapshotv1alpha1 "kubevirt.io/api/snapshot/v1alpha1"
 	snapshotv1beta1 "kubevirt.io/api/snapshot/v1beta1"
 )
@@ -49,11 +48,10 @@ var localSchemeBuilder = runtime.SchemeBuilder{
 	kubevirtv1.AddToScheme,
 	exportv1alpha1.AddToScheme,
 	exportv1beta1.AddToScheme,
-	instancetypev1alpha1.AddToScheme,
-	instancetypev1alpha2.AddToScheme,
 	instancetypev1beta1.AddToScheme,
 	migrationsv1alpha1.AddToScheme,
 	poolv1alpha1.AddToScheme,
+	poolv1beta1.AddToScheme,
 	snapshotv1alpha1.AddToScheme,
 	snapshotv1beta1.AddToScheme,
 }

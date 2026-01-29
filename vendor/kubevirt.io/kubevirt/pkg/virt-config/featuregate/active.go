@@ -42,6 +42,7 @@ const (
 	DownwardMetricsFeatureGate = "DownwardMetrics"
 	Root                       = "Root"
 	WorkloadEncryptionSEV      = "WorkloadEncryptionSEV"
+	WorkloadEncryptionTDX      = "WorkloadEncryptionTDX"
 	VSOCKGate                  = "VSOCK"
 	// KubevirtSeccompProfile indicate that Kubevirt will install its custom profile and
 	// user can tell Kubevirt to use it
@@ -51,7 +52,11 @@ const (
 	DisableMediatedDevicesHandling = "DisableMDEVConfiguration"
 	// PersistentReservation enables the use of the SCSI persistent reservation with the pr-helper daemon
 	PersistentReservation = "PersistentReservation"
-	// VMPersistentState enables persisting backend state files of VMs, such as the contents of the vTPM
+
+	// Owner: sig-compute / @lyarwood
+	// Alpha: v1.0.0
+	//
+	// MultiArchitecture allows VM/VMIs to request and schedule to an architecture other than that of control plane
 	MultiArchitecture = "MultiArchitecture"
 
 	// AlignCPUsGate allows emulator thread to assign two extra CPUs if needed to complete even parity.
@@ -68,11 +73,20 @@ const (
 
 	// Owner: @Barakmor1
 	// Alpha: v1.6.0
+	// Beta: v1.7.0
 	//
 	// ImageVolume The ImageVolume FG in KubeVirt uses Kubernetes ImageVolume FG to eliminate
 	// the need for an extra container for containerDisk, improving security by avoiding
 	// bind mounts in virt-handler.
 	ImageVolume = "ImageVolume"
+
+	// Owner: @shellyka13
+	// Alpha: v1.6.0
+	//
+	// IncrementalBackup feature gate enables creating full and incremental backups for virtual machines.
+	// These backups leverage libvirt's native backup capabilities, providing a storage-agnostic solution.
+	// To support incremental backups, a QCOW2 overlay must be created on top of the VM's raw disk image.
+	IncrementalBackupGate = "IncrementalBackup"
 
 	VirtIOFSConfigVolumesGate = "EnableVirtioFsConfigVolumes"
 	VirtIOFSStorageVolumeGate = "EnableVirtioFsStorageVolumes"
@@ -105,6 +119,7 @@ const (
 
 	// Owner: sig-conpute / @jschintag
 	// Alpha: v1.6.0
+	// Beta: v1.7.0
 	//
 	// SecureExecution introduces secure execution of VMs on IBM Z architecture
 	SecureExecution = "SecureExecution"
@@ -113,10 +128,14 @@ const (
 	// Requires `autoattachGraphicsDevice` to be true or unset. Alpha feature, defaults unchanged.
 	// Owner: @dasionov
 	// Alpha: v1.6.0
+	// Beta: v1.7.0
+	//
 	VideoConfig = "VideoConfig"
 
 	// Owner: @varunrsekar
 	// Alpha: v1.6.0
+	// Beta: v1.7.0
+	//
 	// PanicDevices allows defining panic devices for signaling crashes in the guest for a VirtualMachineInstance.
 	PanicDevicesGate = "PanicDevices"
 
@@ -124,10 +143,18 @@ const (
 	//
 	// PasstIPStackMigration enables seamless migration with passt network binding.
 	PasstIPStackMigration = "PasstIPStackMigration"
+
+	// MigrationPriorityQueue enables controllers to assign priorities to migrations,
+	// ensuring system-initiated migrations (e.g., node drains, upgrades) take precedence
+	// over user-initiated ones (e.g., hot plug operations).
+	// Owner: sig-compute / @fossedihelm
+	// Alpha: v1.7.0
+	//
+	MigrationPriorityQueue = "MigrationPriorityQueue"
 )
 
 func init() {
-	RegisterFeatureGate(FeatureGate{Name: ImageVolume, State: Alpha})
+	RegisterFeatureGate(FeatureGate{Name: ImageVolume, State: Beta})
 	RegisterFeatureGate(FeatureGate{Name: ExpandDisksGate, State: Alpha})
 	RegisterFeatureGate(FeatureGate{Name: CPUManager, State: Alpha})
 	RegisterFeatureGate(FeatureGate{Name: IgnitionGate, State: Alpha})
@@ -141,8 +168,9 @@ func init() {
 	RegisterFeatureGate(FeatureGate{Name: DownwardMetricsFeatureGate, State: Alpha})
 	RegisterFeatureGate(FeatureGate{Name: Root, State: Alpha})
 	RegisterFeatureGate(FeatureGate{Name: WorkloadEncryptionSEV, State: Alpha})
+	RegisterFeatureGate(FeatureGate{Name: WorkloadEncryptionTDX, State: Alpha})
 	RegisterFeatureGate(FeatureGate{Name: VSOCKGate, State: Alpha})
-	RegisterFeatureGate(FeatureGate{Name: KubevirtSeccompProfile, State: Alpha})
+	RegisterFeatureGate(FeatureGate{Name: KubevirtSeccompProfile, State: Beta})
 	RegisterFeatureGate(FeatureGate{Name: DisableMediatedDevicesHandling, State: Alpha})
 	RegisterFeatureGate(FeatureGate{Name: PersistentReservation, State: Alpha})
 	RegisterFeatureGate(FeatureGate{Name: MultiArchitecture, State: Alpha})
@@ -154,7 +182,10 @@ func init() {
 	RegisterFeatureGate(FeatureGate{Name: HostDevicesWithDRAGate, State: Alpha})
 	RegisterFeatureGate(FeatureGate{Name: DecentralizedLiveMigration, State: Alpha})
 	RegisterFeatureGate(FeatureGate{Name: DeclarativeHotplugVolumesGate, State: Alpha})
-	RegisterFeatureGate(FeatureGate{Name: VideoConfig, State: Alpha})
-	RegisterFeatureGate(FeatureGate{Name: PanicDevicesGate, State: Alpha})
+	RegisterFeatureGate(FeatureGate{Name: SecureExecution, State: Beta})
+	RegisterFeatureGate(FeatureGate{Name: VideoConfig, State: Beta})
+	RegisterFeatureGate(FeatureGate{Name: PanicDevicesGate, State: Beta})
 	RegisterFeatureGate(FeatureGate{Name: PasstIPStackMigration, State: Alpha})
+	RegisterFeatureGate(FeatureGate{Name: IncrementalBackupGate, State: Alpha})
+	RegisterFeatureGate(FeatureGate{Name: MigrationPriorityQueue, State: Alpha})
 }

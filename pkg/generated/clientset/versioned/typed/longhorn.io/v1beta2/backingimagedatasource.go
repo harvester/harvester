@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,36 @@ type BackingImageDataSourcesGetter interface {
 
 // BackingImageDataSourceInterface has methods to work with BackingImageDataSource resources.
 type BackingImageDataSourceInterface interface {
-	Create(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.CreateOptions) (*v1beta2.BackingImageDataSource, error)
-	Update(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.UpdateOptions) (*v1beta2.BackingImageDataSource, error)
+	Create(ctx context.Context, backingImageDataSource *longhornv1beta2.BackingImageDataSource, opts v1.CreateOptions) (*longhornv1beta2.BackingImageDataSource, error)
+	Update(ctx context.Context, backingImageDataSource *longhornv1beta2.BackingImageDataSource, opts v1.UpdateOptions) (*longhornv1beta2.BackingImageDataSource, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, backingImageDataSource *v1beta2.BackingImageDataSource, opts v1.UpdateOptions) (*v1beta2.BackingImageDataSource, error)
+	UpdateStatus(ctx context.Context, backingImageDataSource *longhornv1beta2.BackingImageDataSource, opts v1.UpdateOptions) (*longhornv1beta2.BackingImageDataSource, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.BackingImageDataSource, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.BackingImageDataSourceList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.BackingImageDataSource, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.BackingImageDataSourceList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.BackingImageDataSource, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.BackingImageDataSource, err error)
 	BackingImageDataSourceExpansion
 }
 
 // backingImageDataSources implements BackingImageDataSourceInterface
 type backingImageDataSources struct {
-	*gentype.ClientWithList[*v1beta2.BackingImageDataSource, *v1beta2.BackingImageDataSourceList]
+	*gentype.ClientWithList[*longhornv1beta2.BackingImageDataSource, *longhornv1beta2.BackingImageDataSourceList]
 }
 
 // newBackingImageDataSources returns a BackingImageDataSources
 func newBackingImageDataSources(c *LonghornV1beta2Client, namespace string) *backingImageDataSources {
 	return &backingImageDataSources{
-		gentype.NewClientWithList[*v1beta2.BackingImageDataSource, *v1beta2.BackingImageDataSourceList](
+		gentype.NewClientWithList[*longhornv1beta2.BackingImageDataSource, *longhornv1beta2.BackingImageDataSourceList](
 			"backingimagedatasources",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.BackingImageDataSource { return &v1beta2.BackingImageDataSource{} },
-			func() *v1beta2.BackingImageDataSourceList { return &v1beta2.BackingImageDataSourceList{} }),
+			func() *longhornv1beta2.BackingImageDataSource { return &longhornv1beta2.BackingImageDataSource{} },
+			func() *longhornv1beta2.BackingImageDataSourceList {
+				return &longhornv1beta2.BackingImageDataSourceList{}
+			},
+		),
 	}
 }

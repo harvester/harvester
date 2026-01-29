@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type NodePoolsGetter interface {
 
 // NodePoolInterface has methods to work with NodePool resources.
 type NodePoolInterface interface {
-	Create(ctx context.Context, nodePool *v3.NodePool, opts v1.CreateOptions) (*v3.NodePool, error)
-	Update(ctx context.Context, nodePool *v3.NodePool, opts v1.UpdateOptions) (*v3.NodePool, error)
+	Create(ctx context.Context, nodePool *managementcattleiov3.NodePool, opts v1.CreateOptions) (*managementcattleiov3.NodePool, error)
+	Update(ctx context.Context, nodePool *managementcattleiov3.NodePool, opts v1.UpdateOptions) (*managementcattleiov3.NodePool, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, nodePool *v3.NodePool, opts v1.UpdateOptions) (*v3.NodePool, error)
+	UpdateStatus(ctx context.Context, nodePool *managementcattleiov3.NodePool, opts v1.UpdateOptions) (*managementcattleiov3.NodePool, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.NodePool, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.NodePoolList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.NodePool, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.NodePoolList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.NodePool, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.NodePool, err error)
 	NodePoolExpansion
 }
 
 // nodePools implements NodePoolInterface
 type nodePools struct {
-	*gentype.ClientWithList[*v3.NodePool, *v3.NodePoolList]
+	*gentype.ClientWithList[*managementcattleiov3.NodePool, *managementcattleiov3.NodePoolList]
 }
 
 // newNodePools returns a NodePools
 func newNodePools(c *ManagementV3Client, namespace string) *nodePools {
 	return &nodePools{
-		gentype.NewClientWithList[*v3.NodePool, *v3.NodePoolList](
+		gentype.NewClientWithList[*managementcattleiov3.NodePool, *managementcattleiov3.NodePoolList](
 			"nodepools",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.NodePool { return &v3.NodePool{} },
-			func() *v3.NodePoolList { return &v3.NodePoolList{} }),
+			func() *managementcattleiov3.NodePool { return &managementcattleiov3.NodePool{} },
+			func() *managementcattleiov3.NodePoolList { return &managementcattleiov3.NodePoolList{} },
+		),
 	}
 }

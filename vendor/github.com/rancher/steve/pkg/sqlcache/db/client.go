@@ -21,6 +21,7 @@ import (
 	"errors"
 
 	"github.com/rancher/steve/pkg/sqlcache/db/transaction"
+	"github.com/sirupsen/logrus"
 
 	// needed for drivers
 	_ "modernc.org/sqlite"
@@ -44,10 +45,13 @@ type Client interface {
 	QueryForRows(ctx context.Context, stmt transaction.Stmt, params ...any) (*sql.Rows, error)
 	ReadObjects(rows Rows, typ reflect.Type, shouldDecrypt bool) ([]any, error)
 	ReadStrings(rows Rows) ([]string, error)
+	ReadStrings2(rows Rows) ([][]string, error)
 	ReadInt(rows Rows) (int, error)
 	Upsert(tx transaction.Client, stmt *sql.Stmt, key string, obj any, shouldEncrypt bool) error
 	CloseStmt(closable Closable) error
 	NewConnection(isTemp bool) (string, error)
+	Encryptor() Encryptor
+	Decryptor() Decryptor
 }
 
 // WithTransaction runs f within a transaction.
@@ -62,6 +66,13 @@ type Client interface {
 //
 // The transaction is committed if f returns nil, otherwise it is rolled back.
 func (c *client) WithTransaction(ctx context.Context, forWriting bool, f WithTransactionFunction) error {
+	if err := c.withTransaction(ctx, forWriting, f); err != nil {
+		return fmt.Errorf("transaction: %w", err)
+	}
+	return nil
+}
+
+func (c *client) withTransaction(ctx context.Context, forWriting bool, f WithTransactionFunction) error {
 	c.connLock.RLock()
 	// note: this assumes _txlock=immediate in the connection string, see NewConnection
 	tx, err := c.conn.BeginTx(ctx, &sql.TxOptions{
@@ -69,7 +80,7 @@ func (c *client) WithTransaction(ctx context.Context, forWriting bool, f WithTra
 	})
 	c.connLock.RUnlock()
 	if err != nil {
-		return err
+		return fmt.Errorf("begin tx: %w", err)
 	}
 
 	if err = f(transaction.NewClient(tx)); err != nil {
@@ -265,6 +276,34 @@ func (c *client) ReadStrings(rows Rows) ([]string, error) {
 	return result, nil
 }
 
+// ReadStrings2 scans the given rows into pairs of strings, and then returns the strings as a slice.
+func (c *client) ReadStrings2(rows Rows) ([][]string, error) {
+	c.connLock.RLock()
+	defer c.connLock.RUnlock()
+
+	var result [][]string
+	for rows.Next() {
+		var key1, key2 string
+		err := rows.Scan(&key1, &key2)
+		if err != nil {
+			return nil, closeRowsOnError(rows, err)
+		}
+
+		result = append(result, []string{key1, key2})
+	}
+	err := rows.Err()
+	if err != nil {
+		return nil, closeRowsOnError(rows, err)
+	}
+
+	err = rows.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 // ReadInt scans the first of the given rows into a single int (eg. for COUNT() queries)
 func (c *client) ReadInt(rows Rows) (int, error) {
 	c.connLock.RLock()
@@ -328,6 +367,14 @@ func (c *client) Upsert(tx transaction.Client, stmt *sql.Stmt, key string, obj a
 	return err
 }
 
+func (c *client) Encryptor() Encryptor {
+	return c.encryptor
+}
+
+func (c *client) Decryptor() Decryptor {
+	return c.decryptor
+}
+
 // toBytes encodes an object to a byte slice
 func toBytes(obj any) []byte {
 	var buf bytes.Buffer
@@ -370,9 +417,12 @@ func (c *client) NewConnection(useTempDir bool) (string, error) {
 		}
 	}
 	if !useTempDir {
-		err := os.RemoveAll(InformerObjectCacheDBPath)
-		if err != nil {
-			return "", err
+		for _, suffix := range []string{"", "-shm", "-wal"} {
+			f := InformerObjectCacheDBPath + suffix
+			err := os.RemoveAll(f)
+			if err != nil {
+				logrus.Errorf("error removing existing db file %s: %v", f, err)
+			}
 		}
 	}
 
@@ -408,6 +458,9 @@ func (c *client) NewConnection(useTempDir bool) (string, error) {
 		// if two transactions want to write at the same time, allow 2 minutes for the first to complete
 		// before baling out
 		"_pragma=busy_timeout=120000&"+
+		// store temporary tables to memory, to speed up queries making use
+		// of temporary tables (eg: when using DISTINCT)
+		"_pragma=temp_store=2&"+
 		// default to IMMEDIATE mode for transactions. Setting this parameter is the only current way
 		// to be able to switch between DEFERRED and IMMEDIATE modes in modernc.org/sqlite's implementation
 		// of BeginTx

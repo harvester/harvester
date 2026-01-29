@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,31 +37,32 @@ type VersionsGetter interface {
 
 // VersionInterface has methods to work with Version resources.
 type VersionInterface interface {
-	Create(ctx context.Context, version *v1beta1.Version, opts v1.CreateOptions) (*v1beta1.Version, error)
-	Update(ctx context.Context, version *v1beta1.Version, opts v1.UpdateOptions) (*v1beta1.Version, error)
+	Create(ctx context.Context, version *harvesterhciiov1beta1.Version, opts v1.CreateOptions) (*harvesterhciiov1beta1.Version, error)
+	Update(ctx context.Context, version *harvesterhciiov1beta1.Version, opts v1.UpdateOptions) (*harvesterhciiov1beta1.Version, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.Version, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.VersionList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*harvesterhciiov1beta1.Version, error)
+	List(ctx context.Context, opts v1.ListOptions) (*harvesterhciiov1beta1.VersionList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Version, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *harvesterhciiov1beta1.Version, err error)
 	VersionExpansion
 }
 
 // versions implements VersionInterface
 type versions struct {
-	*gentype.ClientWithList[*v1beta1.Version, *v1beta1.VersionList]
+	*gentype.ClientWithList[*harvesterhciiov1beta1.Version, *harvesterhciiov1beta1.VersionList]
 }
 
 // newVersions returns a Versions
 func newVersions(c *HarvesterhciV1beta1Client, namespace string) *versions {
 	return &versions{
-		gentype.NewClientWithList[*v1beta1.Version, *v1beta1.VersionList](
+		gentype.NewClientWithList[*harvesterhciiov1beta1.Version, *harvesterhciiov1beta1.VersionList](
 			"versions",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.Version { return &v1beta1.Version{} },
-			func() *v1beta1.VersionList { return &v1beta1.VersionList{} }),
+			func() *harvesterhciiov1beta1.Version { return &harvesterhciiov1beta1.Version{} },
+			func() *harvesterhciiov1beta1.VersionList { return &harvesterhciiov1beta1.VersionList{} },
+		),
 	}
 }

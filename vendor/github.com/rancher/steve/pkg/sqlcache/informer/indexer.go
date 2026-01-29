@@ -31,6 +31,7 @@ const (
 	createIndexFmt = `CREATE INDEX IF NOT EXISTS "%[1]s_indices_index" ON "%[1]s_indices"(name, value)`
 
 	deleteIndicesFmt = `DELETE FROM "%s_indices" WHERE key = ?`
+	dropIndicesFmt   = `DROP TABLE IF EXISTS "%s_indices"`
 	addIndexFmt      = `INSERT INTO "%s_indices" (name, value, key) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`
 	listByIndexFmt   = `SELECT object, objectnonce, dekid FROM "%[1]s"
 			WHERE key IN (
@@ -50,12 +51,14 @@ type Indexer struct {
 	indexersLock sync.RWMutex
 
 	deleteIndicesQuery   string
+	dropIndicesQuery     string
 	addIndexQuery        string
 	listByIndexQuery     string
 	listKeysByIndexQuery string
 	listIndexValuesQuery string
 
 	deleteIndicesStmt   *sql.Stmt
+	dropIndicesStmt     *sql.Stmt
 	addIndexStmt        *sql.Stmt
 	listByIndexStmt     *sql.Stmt
 	listKeysByIndexStmt *sql.Stmt
@@ -74,8 +77,10 @@ type Store interface {
 	RegisterAfterUpdate(f func(key string, obj any, tx transaction.Client) error)
 	RegisterAfterDelete(f func(key string, obj any, tx transaction.Client) error)
 	RegisterAfterDeleteAll(f func(tx transaction.Client) error)
+	RegisterBeforeDropAll(f func(tx transaction.Client) error)
 	GetShouldEncrypt() bool
 	GetType() reflect.Type
+	DropAll(ctx context.Context) error
 }
 
 // NewIndexer returns a cache.Indexer backed by SQLite for objects of the given example type
@@ -106,14 +111,17 @@ func NewIndexer(ctx context.Context, indexers cache.Indexers, s Store) (*Indexer
 	}
 	i.RegisterAfterAdd(i.AfterUpsert)
 	i.RegisterAfterUpdate(i.AfterUpsert)
+	i.RegisterBeforeDropAll(i.dropIndices)
 
 	i.deleteIndicesQuery = fmt.Sprintf(deleteIndicesFmt, db.Sanitize(s.GetName()))
+	i.dropIndicesQuery = fmt.Sprintf(dropIndicesFmt, db.Sanitize(s.GetName()))
 	i.addIndexQuery = fmt.Sprintf(addIndexFmt, db.Sanitize(s.GetName()))
 	i.listByIndexQuery = fmt.Sprintf(listByIndexFmt, db.Sanitize(s.GetName()))
 	i.listKeysByIndexQuery = fmt.Sprintf(listKeyByIndexFmt, db.Sanitize(s.GetName()))
 	i.listIndexValuesQuery = fmt.Sprintf(listIndexValuesFmt, db.Sanitize(s.GetName()))
 
 	i.deleteIndicesStmt = s.Prepare(i.deleteIndicesQuery)
+	i.dropIndicesStmt = s.Prepare(i.dropIndicesQuery)
 	i.addIndexStmt = s.Prepare(i.addIndexQuery)
 	i.listByIndexStmt = s.Prepare(i.listByIndexQuery)
 	i.listKeysByIndexStmt = s.Prepare(i.listKeysByIndexQuery)
@@ -198,6 +206,14 @@ func (i *Indexer) Index(indexName string, obj any) (result []any, err error) {
 		return nil, &db.QueryError{QueryString: query, Err: err}
 	}
 	return i.ReadObjects(rows, i.GetType(), i.GetShouldEncrypt())
+}
+
+func (i *Indexer) dropIndices(tx transaction.Client) error {
+	_, err := tx.Stmt(i.dropIndicesStmt).Exec()
+	if err != nil {
+		return &db.QueryError{QueryString: i.dropIndicesQuery, Err: err}
+	}
+	return nil
 }
 
 // ByIndex returns the stored objects whose set of indexed values

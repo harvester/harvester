@@ -19,10 +19,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	whereaboutscnicncfiov1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,38 @@ type NodeSlicePoolsGetter interface {
 
 // NodeSlicePoolInterface has methods to work with NodeSlicePool resources.
 type NodeSlicePoolInterface interface {
-	Create(ctx context.Context, nodeSlicePool *v1alpha1.NodeSlicePool, opts v1.CreateOptions) (*v1alpha1.NodeSlicePool, error)
-	Update(ctx context.Context, nodeSlicePool *v1alpha1.NodeSlicePool, opts v1.UpdateOptions) (*v1alpha1.NodeSlicePool, error)
+	Create(ctx context.Context, nodeSlicePool *whereaboutscnicncfiov1alpha1.NodeSlicePool, opts v1.CreateOptions) (*whereaboutscnicncfiov1alpha1.NodeSlicePool, error)
+	Update(ctx context.Context, nodeSlicePool *whereaboutscnicncfiov1alpha1.NodeSlicePool, opts v1.UpdateOptions) (*whereaboutscnicncfiov1alpha1.NodeSlicePool, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, nodeSlicePool *v1alpha1.NodeSlicePool, opts v1.UpdateOptions) (*v1alpha1.NodeSlicePool, error)
+	UpdateStatus(ctx context.Context, nodeSlicePool *whereaboutscnicncfiov1alpha1.NodeSlicePool, opts v1.UpdateOptions) (*whereaboutscnicncfiov1alpha1.NodeSlicePool, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.NodeSlicePool, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.NodeSlicePoolList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*whereaboutscnicncfiov1alpha1.NodeSlicePool, error)
+	List(ctx context.Context, opts v1.ListOptions) (*whereaboutscnicncfiov1alpha1.NodeSlicePoolList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.NodeSlicePool, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *whereaboutscnicncfiov1alpha1.NodeSlicePool, err error)
 	NodeSlicePoolExpansion
 }
 
 // nodeSlicePools implements NodeSlicePoolInterface
 type nodeSlicePools struct {
-	*gentype.ClientWithList[*v1alpha1.NodeSlicePool, *v1alpha1.NodeSlicePoolList]
+	*gentype.ClientWithList[*whereaboutscnicncfiov1alpha1.NodeSlicePool, *whereaboutscnicncfiov1alpha1.NodeSlicePoolList]
 }
 
 // newNodeSlicePools returns a NodeSlicePools
 func newNodeSlicePools(c *WhereaboutsV1alpha1Client, namespace string) *nodeSlicePools {
 	return &nodeSlicePools{
-		gentype.NewClientWithList[*v1alpha1.NodeSlicePool, *v1alpha1.NodeSlicePoolList](
+		gentype.NewClientWithList[*whereaboutscnicncfiov1alpha1.NodeSlicePool, *whereaboutscnicncfiov1alpha1.NodeSlicePoolList](
 			"nodeslicepools",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1alpha1.NodeSlicePool { return &v1alpha1.NodeSlicePool{} },
-			func() *v1alpha1.NodeSlicePoolList { return &v1alpha1.NodeSlicePoolList{} }),
+			func() *whereaboutscnicncfiov1alpha1.NodeSlicePool {
+				return &whereaboutscnicncfiov1alpha1.NodeSlicePool{}
+			},
+			func() *whereaboutscnicncfiov1alpha1.NodeSlicePoolList {
+				return &whereaboutscnicncfiov1alpha1.NodeSlicePoolList{}
+			},
+		),
 	}
 }

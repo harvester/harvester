@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type RoleTemplatesGetter interface {
 
 // RoleTemplateInterface has methods to work with RoleTemplate resources.
 type RoleTemplateInterface interface {
-	Create(ctx context.Context, roleTemplate *v3.RoleTemplate, opts v1.CreateOptions) (*v3.RoleTemplate, error)
-	Update(ctx context.Context, roleTemplate *v3.RoleTemplate, opts v1.UpdateOptions) (*v3.RoleTemplate, error)
+	Create(ctx context.Context, roleTemplate *managementcattleiov3.RoleTemplate, opts v1.CreateOptions) (*managementcattleiov3.RoleTemplate, error)
+	Update(ctx context.Context, roleTemplate *managementcattleiov3.RoleTemplate, opts v1.UpdateOptions) (*managementcattleiov3.RoleTemplate, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.RoleTemplate, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.RoleTemplateList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.RoleTemplate, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.RoleTemplateList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.RoleTemplate, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.RoleTemplate, err error)
 	RoleTemplateExpansion
 }
 
 // roleTemplates implements RoleTemplateInterface
 type roleTemplates struct {
-	*gentype.ClientWithList[*v3.RoleTemplate, *v3.RoleTemplateList]
+	*gentype.ClientWithList[*managementcattleiov3.RoleTemplate, *managementcattleiov3.RoleTemplateList]
 }
 
 // newRoleTemplates returns a RoleTemplates
 func newRoleTemplates(c *ManagementV3Client) *roleTemplates {
 	return &roleTemplates{
-		gentype.NewClientWithList[*v3.RoleTemplate, *v3.RoleTemplateList](
+		gentype.NewClientWithList[*managementcattleiov3.RoleTemplate, *managementcattleiov3.RoleTemplateList](
 			"roletemplates",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.RoleTemplate { return &v3.RoleTemplate{} },
-			func() *v3.RoleTemplateList { return &v3.RoleTemplateList{} }),
+			func() *managementcattleiov3.RoleTemplate { return &managementcattleiov3.RoleTemplate{} },
+			func() *managementcattleiov3.RoleTemplateList { return &managementcattleiov3.RoleTemplateList{} },
+		),
 	}
 }

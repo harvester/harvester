@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type UpgradesGetter interface {
 
 // UpgradeInterface has methods to work with Upgrade resources.
 type UpgradeInterface interface {
-	Create(ctx context.Context, upgrade *v1beta1.Upgrade, opts v1.CreateOptions) (*v1beta1.Upgrade, error)
-	Update(ctx context.Context, upgrade *v1beta1.Upgrade, opts v1.UpdateOptions) (*v1beta1.Upgrade, error)
+	Create(ctx context.Context, upgrade *harvesterhciiov1beta1.Upgrade, opts v1.CreateOptions) (*harvesterhciiov1beta1.Upgrade, error)
+	Update(ctx context.Context, upgrade *harvesterhciiov1beta1.Upgrade, opts v1.UpdateOptions) (*harvesterhciiov1beta1.Upgrade, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, upgrade *v1beta1.Upgrade, opts v1.UpdateOptions) (*v1beta1.Upgrade, error)
+	UpdateStatus(ctx context.Context, upgrade *harvesterhciiov1beta1.Upgrade, opts v1.UpdateOptions) (*harvesterhciiov1beta1.Upgrade, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.Upgrade, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.UpgradeList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*harvesterhciiov1beta1.Upgrade, error)
+	List(ctx context.Context, opts v1.ListOptions) (*harvesterhciiov1beta1.UpgradeList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Upgrade, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *harvesterhciiov1beta1.Upgrade, err error)
 	UpgradeExpansion
 }
 
 // upgrades implements UpgradeInterface
 type upgrades struct {
-	*gentype.ClientWithList[*v1beta1.Upgrade, *v1beta1.UpgradeList]
+	*gentype.ClientWithList[*harvesterhciiov1beta1.Upgrade, *harvesterhciiov1beta1.UpgradeList]
 }
 
 // newUpgrades returns a Upgrades
 func newUpgrades(c *HarvesterhciV1beta1Client, namespace string) *upgrades {
 	return &upgrades{
-		gentype.NewClientWithList[*v1beta1.Upgrade, *v1beta1.UpgradeList](
+		gentype.NewClientWithList[*harvesterhciiov1beta1.Upgrade, *harvesterhciiov1beta1.UpgradeList](
 			"upgrades",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.Upgrade { return &v1beta1.Upgrade{} },
-			func() *v1beta1.UpgradeList { return &v1beta1.UpgradeList{} }),
+			func() *harvesterhciiov1beta1.Upgrade { return &harvesterhciiov1beta1.Upgrade{} },
+			func() *harvesterhciiov1beta1.UpgradeList { return &harvesterhciiov1beta1.UpgradeList{} },
+		),
 	}
 }

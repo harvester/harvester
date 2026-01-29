@@ -120,6 +120,7 @@ func ConstructBasicURL(parts ...string) string {
 	}
 }
 
+//nolint:unused
 func (u *DefaultURLBuilder) getPluralName(schema *types.APISchema) string {
 	if schema.PluralName == "" {
 		return strings.ToLower(name.GuessPluralName(schema.ID))

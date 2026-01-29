@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,38 @@ type ClusterRoleTemplateBindingsGetter interface {
 
 // ClusterRoleTemplateBindingInterface has methods to work with ClusterRoleTemplateBinding resources.
 type ClusterRoleTemplateBindingInterface interface {
-	Create(ctx context.Context, clusterRoleTemplateBinding *v3.ClusterRoleTemplateBinding, opts v1.CreateOptions) (*v3.ClusterRoleTemplateBinding, error)
-	Update(ctx context.Context, clusterRoleTemplateBinding *v3.ClusterRoleTemplateBinding, opts v1.UpdateOptions) (*v3.ClusterRoleTemplateBinding, error)
+	Create(ctx context.Context, clusterRoleTemplateBinding *managementcattleiov3.ClusterRoleTemplateBinding, opts v1.CreateOptions) (*managementcattleiov3.ClusterRoleTemplateBinding, error)
+	Update(ctx context.Context, clusterRoleTemplateBinding *managementcattleiov3.ClusterRoleTemplateBinding, opts v1.UpdateOptions) (*managementcattleiov3.ClusterRoleTemplateBinding, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, clusterRoleTemplateBinding *v3.ClusterRoleTemplateBinding, opts v1.UpdateOptions) (*v3.ClusterRoleTemplateBinding, error)
+	UpdateStatus(ctx context.Context, clusterRoleTemplateBinding *managementcattleiov3.ClusterRoleTemplateBinding, opts v1.UpdateOptions) (*managementcattleiov3.ClusterRoleTemplateBinding, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ClusterRoleTemplateBinding, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ClusterRoleTemplateBindingList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ClusterRoleTemplateBinding, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ClusterRoleTemplateBindingList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterRoleTemplateBinding, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ClusterRoleTemplateBinding, err error)
 	ClusterRoleTemplateBindingExpansion
 }
 
 // clusterRoleTemplateBindings implements ClusterRoleTemplateBindingInterface
 type clusterRoleTemplateBindings struct {
-	*gentype.ClientWithList[*v3.ClusterRoleTemplateBinding, *v3.ClusterRoleTemplateBindingList]
+	*gentype.ClientWithList[*managementcattleiov3.ClusterRoleTemplateBinding, *managementcattleiov3.ClusterRoleTemplateBindingList]
 }
 
 // newClusterRoleTemplateBindings returns a ClusterRoleTemplateBindings
 func newClusterRoleTemplateBindings(c *ManagementV3Client, namespace string) *clusterRoleTemplateBindings {
 	return &clusterRoleTemplateBindings{
-		gentype.NewClientWithList[*v3.ClusterRoleTemplateBinding, *v3.ClusterRoleTemplateBindingList](
+		gentype.NewClientWithList[*managementcattleiov3.ClusterRoleTemplateBinding, *managementcattleiov3.ClusterRoleTemplateBindingList](
 			"clusterroletemplatebindings",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.ClusterRoleTemplateBinding { return &v3.ClusterRoleTemplateBinding{} },
-			func() *v3.ClusterRoleTemplateBindingList { return &v3.ClusterRoleTemplateBindingList{} }),
+			func() *managementcattleiov3.ClusterRoleTemplateBinding {
+				return &managementcattleiov3.ClusterRoleTemplateBinding{}
+			},
+			func() *managementcattleiov3.ClusterRoleTemplateBindingList {
+				return &managementcattleiov3.ClusterRoleTemplateBindingList{}
+			},
+		),
 	}
 }

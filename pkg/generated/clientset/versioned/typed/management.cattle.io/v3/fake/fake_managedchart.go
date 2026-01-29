@@ -19,129 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeManagedCharts implements ManagedChartInterface
-type FakeManagedCharts struct {
+// fakeManagedCharts implements ManagedChartInterface
+type fakeManagedCharts struct {
+	*gentype.FakeClientWithList[*v3.ManagedChart, *v3.ManagedChartList]
 	Fake *FakeManagementV3
-	ns   string
 }
 
-var managedchartsResource = v3.SchemeGroupVersion.WithResource("managedcharts")
-
-var managedchartsKind = v3.SchemeGroupVersion.WithKind("ManagedChart")
-
-// Get takes name of the managedChart, and returns the corresponding managedChart object, and an error if there is any.
-func (c *FakeManagedCharts) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ManagedChart, err error) {
-	emptyResult := &v3.ManagedChart{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(managedchartsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeManagedCharts(fake *FakeManagementV3, namespace string) managementcattleiov3.ManagedChartInterface {
+	return &fakeManagedCharts{
+		gentype.NewFakeClientWithList[*v3.ManagedChart, *v3.ManagedChartList](
+			fake.Fake,
+			namespace,
+			v3.SchemeGroupVersion.WithResource("managedcharts"),
+			v3.SchemeGroupVersion.WithKind("ManagedChart"),
+			func() *v3.ManagedChart { return &v3.ManagedChart{} },
+			func() *v3.ManagedChartList { return &v3.ManagedChartList{} },
+			func(dst, src *v3.ManagedChartList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.ManagedChartList) []*v3.ManagedChart { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.ManagedChartList, items []*v3.ManagedChart) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.ManagedChart), err
-}
-
-// List takes label and field selectors, and returns the list of ManagedCharts that match those selectors.
-func (c *FakeManagedCharts) List(ctx context.Context, opts v1.ListOptions) (result *v3.ManagedChartList, err error) {
-	emptyResult := &v3.ManagedChartList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(managedchartsResource, managedchartsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.ManagedChartList{ListMeta: obj.(*v3.ManagedChartList).ListMeta}
-	for _, item := range obj.(*v3.ManagedChartList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested managedCharts.
-func (c *FakeManagedCharts) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(managedchartsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a managedChart and creates it.  Returns the server's representation of the managedChart, and an error, if there is any.
-func (c *FakeManagedCharts) Create(ctx context.Context, managedChart *v3.ManagedChart, opts v1.CreateOptions) (result *v3.ManagedChart, err error) {
-	emptyResult := &v3.ManagedChart{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(managedchartsResource, c.ns, managedChart, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ManagedChart), err
-}
-
-// Update takes the representation of a managedChart and updates it. Returns the server's representation of the managedChart, and an error, if there is any.
-func (c *FakeManagedCharts) Update(ctx context.Context, managedChart *v3.ManagedChart, opts v1.UpdateOptions) (result *v3.ManagedChart, err error) {
-	emptyResult := &v3.ManagedChart{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(managedchartsResource, c.ns, managedChart, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ManagedChart), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeManagedCharts) UpdateStatus(ctx context.Context, managedChart *v3.ManagedChart, opts v1.UpdateOptions) (result *v3.ManagedChart, err error) {
-	emptyResult := &v3.ManagedChart{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(managedchartsResource, "status", c.ns, managedChart, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ManagedChart), err
-}
-
-// Delete takes name of the managedChart and deletes it. Returns an error if one occurs.
-func (c *FakeManagedCharts) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(managedchartsResource, c.ns, name, opts), &v3.ManagedChart{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeManagedCharts) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(managedchartsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.ManagedChartList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched managedChart.
-func (c *FakeManagedCharts) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ManagedChart, err error) {
-	emptyResult := &v3.ManagedChart{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(managedchartsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ManagedChart), err
 }

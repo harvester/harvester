@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type ShareManagersGetter interface {
 
 // ShareManagerInterface has methods to work with ShareManager resources.
 type ShareManagerInterface interface {
-	Create(ctx context.Context, shareManager *v1beta2.ShareManager, opts v1.CreateOptions) (*v1beta2.ShareManager, error)
-	Update(ctx context.Context, shareManager *v1beta2.ShareManager, opts v1.UpdateOptions) (*v1beta2.ShareManager, error)
+	Create(ctx context.Context, shareManager *longhornv1beta2.ShareManager, opts v1.CreateOptions) (*longhornv1beta2.ShareManager, error)
+	Update(ctx context.Context, shareManager *longhornv1beta2.ShareManager, opts v1.UpdateOptions) (*longhornv1beta2.ShareManager, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, shareManager *v1beta2.ShareManager, opts v1.UpdateOptions) (*v1beta2.ShareManager, error)
+	UpdateStatus(ctx context.Context, shareManager *longhornv1beta2.ShareManager, opts v1.UpdateOptions) (*longhornv1beta2.ShareManager, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.ShareManager, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.ShareManagerList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.ShareManager, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.ShareManagerList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.ShareManager, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.ShareManager, err error)
 	ShareManagerExpansion
 }
 
 // shareManagers implements ShareManagerInterface
 type shareManagers struct {
-	*gentype.ClientWithList[*v1beta2.ShareManager, *v1beta2.ShareManagerList]
+	*gentype.ClientWithList[*longhornv1beta2.ShareManager, *longhornv1beta2.ShareManagerList]
 }
 
 // newShareManagers returns a ShareManagers
 func newShareManagers(c *LonghornV1beta2Client, namespace string) *shareManagers {
 	return &shareManagers{
-		gentype.NewClientWithList[*v1beta2.ShareManager, *v1beta2.ShareManagerList](
+		gentype.NewClientWithList[*longhornv1beta2.ShareManager, *longhornv1beta2.ShareManagerList](
 			"sharemanagers",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.ShareManager { return &v1beta2.ShareManager{} },
-			func() *v1beta2.ShareManagerList { return &v1beta2.ShareManagerList{} }),
+			func() *longhornv1beta2.ShareManager { return &longhornv1beta2.ShareManager{} },
+			func() *longhornv1beta2.ShareManagerList { return &longhornv1beta2.ShareManagerList{} },
+		),
 	}
 }

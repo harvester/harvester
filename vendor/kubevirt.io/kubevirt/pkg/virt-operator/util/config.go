@@ -58,27 +58,7 @@ const (
 	SidecarShimImageEnvName                   = "SIDECAR_SHIM_IMAGE"
 	RunbookURLTemplate                        = "RUNBOOK_URL_TEMPLATE"
 
-	// The below Shasum variables would be ignored if Image env vars are being used.
-	// Deprecated, use VirtApiImageEnvName instead
-	VirtApiShasumEnvName = "VIRT_API_SHASUM"
-	// Deprecated, use VirtControllerImageEnvName instead
-	VirtControllerShasumEnvName = "VIRT_CONTROLLER_SHASUM"
-	// Deprecated, use VirtHandlerImageEnvName instead
-	VirtHandlerShasumEnvName = "VIRT_HANDLER_SHASUM"
-	// Deprecated, use VirtLauncherImageEnvName instead
-	VirtLauncherShasumEnvName = "VIRT_LAUNCHER_SHASUM"
-	// Deprecated, use VirtExportProxyImageEnvName instead
-	VirtExportProxyShasumEnvName = "VIRT_EXPORTPROXY_SHASUM"
-	// Deprecated, use VirtExportServerImageEnvName instead
-	VirtExportServerShasumEnvName = "VIRT_EXPORTSERVER_SHASUM"
-	// Deprecated, use VirtExportServerImageEnvName instead
-	VirtSynchronizationControllerShasumEnvName = "VIRT_SYNCHRONIZATIONCONTROLLER_SHASUM"
-	// Deprecated, use GsImageEnvName instead
-	GsEnvShasumName = "GS_SHASUM"
-	// Deprecated, use PrHelperImageEnvName instead
-	PrHelperShasumEnvName    = "PR_HELPER_SHASUM"
-	SidecarShimShasumEnvName = "SIDECAR_SHIM_SHASUM"
-	KubeVirtVersionEnvName   = "KUBEVIRT_VERSION"
+	KubeVirtVersionEnvName = "KUBEVIRT_VERSION"
 	// Deprecated, use TargetDeploymentConfig instead
 	TargetInstallNamespace = "TARGET_INSTALL_NAMESPACE"
 	// Deprecated, use TargetDeploymentConfig instead
@@ -141,7 +121,7 @@ type KubeVirtDeploymentConfig struct {
 
 	// the KubeVirt version
 	// matches the image tag, if tags are used, either by the manifest, or by the KubeVirt CR
-	// used on the KubeVirt CR status and on annotations, and for determining up-/downgrade path, even when using shasums for the images
+	// used on the KubeVirt CR status and on annotations, and for determining up-/downgrade paths
 	KubeVirtVersion string `json:"kubeVirtVersion,omitempty" optional:"true"`
 
 	// the images names of every image we use
@@ -156,19 +136,6 @@ type KubeVirtDeploymentConfig struct {
 	GsImage                            string `json:"GsImage,omitempty" optional:"true"`
 	PrHelperImage                      string `json:"PrHelperImage,omitempty" optional:"true"`
 	SidecarShimImage                   string `json:"SidecarShimImage,omitempty" optional:"true"`
-
-	// the shasums of every image we use
-	VirtOperatorSha                  string `json:"virtOperatorSha,omitempty" optional:"true"`
-	VirtApiSha                       string `json:"virtApiSha,omitempty" optional:"true"`
-	VirtControllerSha                string `json:"virtControllerSha,omitempty" optional:"true"`
-	VirtHandlerSha                   string `json:"virtHandlerSha,omitempty" optional:"true"`
-	VirtLauncherSha                  string `json:"virtLauncherSha,omitempty" optional:"true"`
-	VirtExportProxySha               string `json:"virtExportProxySha,omitempty" optional:"true"`
-	VirtExportServerSha              string `json:"virtExportServerSha,omitempty" optional:"true"`
-	VirtSynchronizationControllerSha string `json:"virtSynchronizationControllerSha,omitempty" optional:"true"`
-	GsSha                            string `json:"gsSha,omitempty" optional:"true"`
-	PrHelperSha                      string `json:"prHelperSha,omitempty" optional:"true"`
-	SidecarShimSha                   string `json:"sidecarShimSha,omitempty" optional:"true"`
 
 	// everything else, which can e.g. come from KubeVirt CR spec
 	AdditionalProperties map[string]string `json:"additionalProperties,omitempty" optional:"true"`
@@ -276,10 +243,6 @@ func getKVMapFromSpec(spec v1.KubeVirtSpec) map[string]string {
 	return kvMap
 }
 
-func GetOperatorImage() string {
-	return GetOperatorImageWithEnvVarManager(DefaultEnvVarManager)
-}
-
 func GetOperatorImageWithEnvVarManager(envVarManager EnvVarManager) string {
 	image := envVarManager.Getenv(VirtOperatorImageEnvName)
 	if image != "" {
@@ -289,62 +252,74 @@ func GetOperatorImageWithEnvVarManager(envVarManager EnvVarManager) string {
 	return envVarManager.Getenv(OldOperatorImageEnvName)
 }
 
-func getConfig(registry, tag, namespace string, additionalProperties map[string]string, envVarManager EnvVarManager) *KubeVirtDeploymentConfig {
+func getImagePrefix(parsedImage [][]string) string {
+	if len(parsedImage) == 1 {
+		return parsedImage[0][2]
+	}
+	return ""
+}
+
+func getImageRegistry(parsedImage [][]string) string {
+	if len(parsedImage) == 1 {
+		return parsedImage[0][1]
+
+	}
+	return ""
+}
+
+func getTag(parsedImage [][]string, kubeVirtVersion string) string {
+	if len(parsedImage) != 1 {
+		return kubeVirtVersion
+
+	}
+	version := parsedImage[0][3]
+	if version == "" {
+		return "latest"
+	} else if strings.HasPrefix(version, ":") {
+		return strings.TrimPrefix(version, ":")
+	} else {
+		// we have a shasum... chances are high that we get the shasums for the other images as well from env vars,
+		// but as a fallback use latest tag
+		return kubeVirtVersion
+	}
+}
+
+func getConfig(providedRegistry, providedTag, namespace string, additionalProperties map[string]string, envVarManager EnvVarManager) *KubeVirtDeploymentConfig {
 
 	// get registry and tag/shasum from operator image
 	imageString := GetOperatorImageWithEnvVarManager(envVarManager)
 	imageRegEx := regexp.MustCompile(operatorImageRegex)
-	matches := imageRegEx.FindAllStringSubmatch(imageString, 1)
+	parsedImage := imageRegEx.FindAllStringSubmatch(imageString, 1)
 	kubeVirtVersion := envVarManager.Getenv(KubeVirtVersionEnvName)
 	if kubeVirtVersion == "" {
 		kubeVirtVersion = "latest"
 	}
 
-	tagFromOperator := ""
-	operatorSha := ""
-	skipShasums := false
 	imagePrefix, useStoredImagePrefix := additionalProperties[ImagePrefixKey]
-
-	if len(matches) == 1 {
-		// only use registry from operator image if it was not given yet
-		if registry == "" {
-			registry = matches[0][1]
-		}
-		if !useStoredImagePrefix {
-			imagePrefix = matches[0][2]
-		}
-
-		version := matches[0][3]
-		if version == "" {
-			tagFromOperator = "latest"
-		} else if strings.HasPrefix(version, ":") {
-			tagFromOperator = strings.TrimPrefix(version, ":")
-		} else {
-			// we have a shasum... chances are high that we get the shasums for the other images as well from env vars,
-			// but as a fallback use latest tag
-			tagFromOperator = kubeVirtVersion
-			operatorSha = strings.TrimPrefix(version, "@")
-		}
-
-		// only use tag from operator image if it was not given yet
-		// and if it was given, don't look for shasums
-		if tag == "" {
-			tag = tagFromOperator
-		} else {
-			skipShasums = true
-		}
+	if !useStoredImagePrefix {
+		imagePrefix = getImagePrefix(parsedImage)
+	}
+	operatorImage := ""
+	registry, tag := getImageRegistry(parsedImage), getTag(parsedImage, kubeVirtVersion)
+	if providedRegistry == "" && providedTag == "" {
+		operatorImage = imageString
 	} else {
-		// operator image name has unexpected syntax.
-		if tag == "" {
-			tag = kubeVirtVersion
-		} else {
-			skipShasums = true
+		if providedRegistry != "" {
+			registry = providedRegistry
 		}
+		if providedTag != "" {
+			tag = providedTag
+		}
+		operatorImagePrefix := imagePrefix
+		if !useStoredImagePrefix {
+			operatorImagePrefix = ""
+		}
+		version := fmt.Sprintf(":%s", tag)
+		operatorImage = fmt.Sprintf("%s/%s%s", registry, fmt.Sprintf("%s%s", operatorImagePrefix, "virt-operator"), version)
 	}
 
 	passthroughEnv := GetPassthroughEnv()
 
-	operatorImage := GetOperatorImageWithEnvVarManager(envVarManager)
 	apiImage := envVarManager.Getenv(VirtApiImageEnvName)
 	controllerImage := envVarManager.Getenv(VirtControllerImageEnvName)
 	handlerImage := envVarManager.Getenv(VirtHandlerImageEnvName)
@@ -356,27 +331,7 @@ func getConfig(registry, tag, namespace string, additionalProperties map[string]
 	PrHelperImage := envVarManager.Getenv(PrHelperImageEnvName)
 	SidecarShimImage := envVarManager.Getenv(SidecarShimImageEnvName)
 
-	config := newDeploymentConfigWithTag(registry, imagePrefix, tag, namespace, operatorImage, apiImage, controllerImage, handlerImage, launcherImage, exportProxyImage, exportServerImage, synchronizationControllerImage, GsImage, PrHelperImage, SidecarShimImage, additionalProperties, passthroughEnv)
-	if skipShasums {
-		return config
-	}
-
-	// get shasums
-	apiSha := envVarManager.Getenv(VirtApiShasumEnvName)
-	controllerSha := envVarManager.Getenv(VirtControllerShasumEnvName)
-	handlerSha := envVarManager.Getenv(VirtHandlerShasumEnvName)
-	launcherSha := envVarManager.Getenv(VirtLauncherShasumEnvName)
-	exportProxySha := envVarManager.Getenv(VirtExportProxyShasumEnvName)
-	exportServerSha := envVarManager.Getenv(VirtExportServerShasumEnvName)
-	synchronizationControllerSha := envVarManager.Getenv(VirtSynchronizationControllerShasumEnvName)
-	gsSha := envVarManager.Getenv(GsEnvShasumName)
-	prHelperSha := envVarManager.Getenv(PrHelperShasumEnvName)
-	sidecarShimSha := envVarManager.Getenv(SidecarShimShasumEnvName)
-	if operatorSha != "" && apiSha != "" && controllerSha != "" && handlerSha != "" && launcherSha != "" && kubeVirtVersion != "" {
-		config = newDeploymentConfigWithShasums(registry, imagePrefix, kubeVirtVersion, operatorSha, apiSha, controllerSha, handlerSha, launcherSha, exportProxySha, exportServerSha, synchronizationControllerSha, gsSha, prHelperSha, sidecarShimSha, namespace, additionalProperties, passthroughEnv)
-	}
-
-	return config
+	return newDeploymentConfigWithTag(registry, imagePrefix, tag, namespace, operatorImage, apiImage, controllerImage, handlerImage, launcherImage, exportProxyImage, exportServerImage, synchronizationControllerImage, GsImage, PrHelperImage, SidecarShimImage, additionalProperties, passthroughEnv)
 }
 
 func VerifyEnv() error {
@@ -434,35 +389,7 @@ func newDeploymentConfigWithTag(registry, imagePrefix, tag, namespace, operatorI
 	return c
 }
 
-func newDeploymentConfigWithShasums(registry, imagePrefix, kubeVirtVersion, operatorSha, apiSha, controllerSha, handlerSha, launcherSha, exportProxySha, exportServerSha, synchronizationControllerSha, gsSha, prHelperSha, sidecarShimSha, namespace string, additionalProperties, passthroughEnv map[string]string) *KubeVirtDeploymentConfig {
-	c := &KubeVirtDeploymentConfig{
-		Registry:                         registry,
-		ImagePrefix:                      imagePrefix,
-		KubeVirtVersion:                  kubeVirtVersion,
-		VirtOperatorSha:                  operatorSha,
-		VirtApiSha:                       apiSha,
-		VirtControllerSha:                controllerSha,
-		VirtHandlerSha:                   handlerSha,
-		VirtLauncherSha:                  launcherSha,
-		VirtExportProxySha:               exportProxySha,
-		VirtExportServerSha:              exportServerSha,
-		VirtSynchronizationControllerSha: synchronizationControllerSha,
-		GsSha:                            gsSha,
-		PrHelperSha:                      prHelperSha,
-		SidecarShimSha:                   sidecarShimSha,
-		Namespace:                        namespace,
-		AdditionalProperties:             additionalProperties,
-		PassthroughEnvVars:               passthroughEnv,
-	}
-	c.generateInstallStrategyID()
-	return c
-}
-
 func (c *KubeVirtDeploymentConfig) GetOperatorVersion() string {
-	if c.UseShasums() {
-		return c.VirtOperatorSha
-	}
-
 	if digest := DigestFromImageName(c.VirtOperatorImage); digest != "" {
 		return digest
 	}
@@ -471,10 +398,6 @@ func (c *KubeVirtDeploymentConfig) GetOperatorVersion() string {
 }
 
 func (c *KubeVirtDeploymentConfig) GetApiVersion() string {
-	if c.UseShasums() {
-		return c.VirtApiSha
-	}
-
 	if digest := DigestFromImageName(c.VirtApiImage); digest != "" {
 		return digest
 	}
@@ -483,10 +406,6 @@ func (c *KubeVirtDeploymentConfig) GetApiVersion() string {
 }
 
 func (c *KubeVirtDeploymentConfig) GetControllerVersion() string {
-	if c.UseShasums() {
-		return c.VirtControllerSha
-	}
-
 	if digest := DigestFromImageName(c.VirtControllerImage); digest != "" {
 		return digest
 	}
@@ -495,10 +414,6 @@ func (c *KubeVirtDeploymentConfig) GetControllerVersion() string {
 }
 
 func (c *KubeVirtDeploymentConfig) GetHandlerVersion() string {
-	if c.UseShasums() {
-		return c.VirtHandlerSha
-	}
-
 	if digest := DigestFromImageName(c.VirtHandlerImage); digest != "" {
 		return digest
 	}
@@ -507,10 +422,6 @@ func (c *KubeVirtDeploymentConfig) GetHandlerVersion() string {
 }
 
 func (c *KubeVirtDeploymentConfig) GetLauncherVersion() string {
-	if c.UseShasums() {
-		return c.VirtLauncherSha
-	}
-
 	if digest := DigestFromImageName(c.VirtLauncherImage); digest != "" {
 		return digest
 	}
@@ -519,10 +430,6 @@ func (c *KubeVirtDeploymentConfig) GetLauncherVersion() string {
 }
 
 func (c *KubeVirtDeploymentConfig) GetExportProxyVersion() string {
-	if c.UseShasums() {
-		return c.VirtExportProxySha
-	}
-
 	if digest := DigestFromImageName(c.VirtExportProxyImage); digest != "" {
 		return digest
 	}
@@ -531,10 +438,6 @@ func (c *KubeVirtDeploymentConfig) GetExportProxyVersion() string {
 }
 
 func (c *KubeVirtDeploymentConfig) GetSynchronizationControllerVersion() string {
-	if c.UseShasums() {
-		return c.VirtSynchronizationControllerSha
-	}
-
 	if digest := DigestFromImageName(c.VirtSynchronizationControllerImage); digest != "" {
 		return digest
 	}
@@ -543,10 +446,6 @@ func (c *KubeVirtDeploymentConfig) GetSynchronizationControllerVersion() string 
 }
 
 func (c *KubeVirtDeploymentConfig) GetExportServerVersion() string {
-	if c.UseShasums() {
-		return c.VirtExportServerSha
-	}
-
 	if digest := DigestFromImageName(c.VirtExportServerImage); digest != "" {
 		return digest
 	}
@@ -555,16 +454,10 @@ func (c *KubeVirtDeploymentConfig) GetExportServerVersion() string {
 }
 
 func (c *KubeVirtDeploymentConfig) GetPrHelperVersion() string {
-	if c.UseShasums() {
-		return c.PrHelperSha
-	}
 	return c.KubeVirtVersion
 }
 
 func (c *KubeVirtDeploymentConfig) GetSidecarShimVersion() string {
-	if c.UseShasums() {
-		return c.SidecarShimSha
-	}
 	return c.KubeVirtVersion
 }
 
@@ -582,10 +475,6 @@ func (c *KubeVirtDeploymentConfig) GetImagePrefix() string {
 
 func (c *KubeVirtDeploymentConfig) GetExtraEnv() map[string]string {
 	return c.PassthroughEnvVars
-}
-
-func (c *KubeVirtDeploymentConfig) UseShasums() bool {
-	return c.VirtOperatorSha != "" && c.VirtApiSha != "" && c.VirtControllerSha != "" && c.VirtHandlerSha != "" && c.VirtLauncherSha != ""
 }
 
 func (c *KubeVirtDeploymentConfig) SetTargetDeploymentConfig(kv *v1.KubeVirt) error {
@@ -722,7 +611,7 @@ func (c *KubeVirtDeploymentConfig) GetProductVersion() string {
 }
 
 func (c *KubeVirtDeploymentConfig) generateInstallStrategyID() {
-	// We need an id, which identifies a KubeVirt deployment based on version, shasums, registry, namespace, and other
+	// We need an id, which identifies a KubeVirt deployment based on version, registry, namespace, and other
 	// changeable properties from the KubeVirt CR. This will be used for identifying the correct install strategy job
 	// and configmap
 	// Calculate a sha over all those properties

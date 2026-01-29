@@ -19,129 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	longhorniov1beta2 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2"
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeSettings implements SettingInterface
-type FakeSettings struct {
+// fakeSettings implements SettingInterface
+type fakeSettings struct {
+	*gentype.FakeClientWithList[*v1beta2.Setting, *v1beta2.SettingList]
 	Fake *FakeLonghornV1beta2
-	ns   string
 }
 
-var settingsResource = v1beta2.SchemeGroupVersion.WithResource("settings")
-
-var settingsKind = v1beta2.SchemeGroupVersion.WithKind("Setting")
-
-// Get takes name of the setting, and returns the corresponding setting object, and an error if there is any.
-func (c *FakeSettings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.Setting, err error) {
-	emptyResult := &v1beta2.Setting{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(settingsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeSettings(fake *FakeLonghornV1beta2, namespace string) longhorniov1beta2.SettingInterface {
+	return &fakeSettings{
+		gentype.NewFakeClientWithList[*v1beta2.Setting, *v1beta2.SettingList](
+			fake.Fake,
+			namespace,
+			v1beta2.SchemeGroupVersion.WithResource("settings"),
+			v1beta2.SchemeGroupVersion.WithKind("Setting"),
+			func() *v1beta2.Setting { return &v1beta2.Setting{} },
+			func() *v1beta2.SettingList { return &v1beta2.SettingList{} },
+			func(dst, src *v1beta2.SettingList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta2.SettingList) []*v1beta2.Setting { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1beta2.SettingList, items []*v1beta2.Setting) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta2.Setting), err
-}
-
-// List takes label and field selectors, and returns the list of Settings that match those selectors.
-func (c *FakeSettings) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.SettingList, err error) {
-	emptyResult := &v1beta2.SettingList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(settingsResource, settingsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta2.SettingList{ListMeta: obj.(*v1beta2.SettingList).ListMeta}
-	for _, item := range obj.(*v1beta2.SettingList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested settings.
-func (c *FakeSettings) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(settingsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a setting and creates it.  Returns the server's representation of the setting, and an error, if there is any.
-func (c *FakeSettings) Create(ctx context.Context, setting *v1beta2.Setting, opts v1.CreateOptions) (result *v1beta2.Setting, err error) {
-	emptyResult := &v1beta2.Setting{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(settingsResource, c.ns, setting, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.Setting), err
-}
-
-// Update takes the representation of a setting and updates it. Returns the server's representation of the setting, and an error, if there is any.
-func (c *FakeSettings) Update(ctx context.Context, setting *v1beta2.Setting, opts v1.UpdateOptions) (result *v1beta2.Setting, err error) {
-	emptyResult := &v1beta2.Setting{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(settingsResource, c.ns, setting, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.Setting), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeSettings) UpdateStatus(ctx context.Context, setting *v1beta2.Setting, opts v1.UpdateOptions) (result *v1beta2.Setting, err error) {
-	emptyResult := &v1beta2.Setting{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(settingsResource, "status", c.ns, setting, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.Setting), err
-}
-
-// Delete takes name of the setting and deletes it. Returns an error if one occurs.
-func (c *FakeSettings) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(settingsResource, c.ns, name, opts), &v1beta2.Setting{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeSettings) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(settingsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta2.SettingList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched setting.
-func (c *FakeSettings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.Setting, err error) {
-	emptyResult := &v1beta2.Setting{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(settingsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.Setting), err
 }
