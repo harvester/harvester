@@ -53,7 +53,7 @@ func (h *backingImageHandler) OnChanged(_ string, bi *lhv1beta2.BackingImage) (*
 		return nil, err
 	}
 
-	if harvesterv1.ImageRetryLimitExceeded.IsTrue(vmi) {
+	if h.vmio.IsRetryLimitExceeded(vmi) {
 		return bi, nil
 	}
 
