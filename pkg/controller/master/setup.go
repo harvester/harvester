@@ -48,6 +48,7 @@ var registerFuncs = []registerFunc{
 	mcmsettings.Register,
 	migration.Register,
 	node.CPUManagerRegister,
+	node.CPUModelConfigRegister,
 	node.DownRegister,
 	node.MaintainRegister,
 	node.PromoteRegister,
