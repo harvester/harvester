@@ -2,7 +2,6 @@ package setting
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
@@ -10,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
@@ -38,21 +38,16 @@ func (h *Handler) syncAutoRotateRKE2Certs(setting *harvesterv1.Setting) error {
 		return nil
 	}
 
-	kubernetesIPs, err := util.GetKubernetesIps(h.endpointCache)
+	nodes, err := h.nodeCache.List(labels.Everything())
 	if err != nil {
-		return err
-	}
-	if len(kubernetesIPs) == 0 {
-		err = fmt.Errorf("cluster ip is empty")
 		logrus.WithFields(logrus.Fields{
-			"name":              setting.Name,
-			"service.namespace": metav1.NamespaceDefault,
-			"service.name":      "kubernetes",
-		}).WithError(err).Error("cluster ip is empty in the endpoints")
+			"name": setting.Name,
+		}).WithError(err).Error("nodeCache.List")
 		return err
 	}
 
-	earliestExpiringCert, err := util.GetAddrsEarliestExpiringCert(kubernetesIPs)
+	controlPlaneIps, witnessIps, workerIps := util.GetNodeIps(nodes)
+	earliestExpiringCert, err := util.GetAddrsEarliestExpiringCert(controlPlaneIps, witnessIps, workerIps)
 	if err != nil {
 		return err
 	}
