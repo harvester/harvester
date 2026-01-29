@@ -80,39 +80,85 @@ If the cluster consists of mainly homogeneous nodes (including new nodes), users
 
 ### API changes
 
-Backend should provide a API to let frontend generate a selection list.
+Backend provides a ConfigMap named `node-cpu-model-configuration` to track CPU model capabilities across the cluster. The ConfigMap is deployed as part of the Harvester Helm chart templates and is automatically created during installation.
 
-API: `GET /v1/harvester/node?link=getCpuMigrationCapabilities`
+#### ConfigMap Definition
 
-```json
-{
-  "totalNodes": "<total number of ready nodes in the cluster>",
-  "globalModels": ["host-model", "host-passthrough", "one from kubevirt spec.configuration.cpuModel"],
-  "models": {
-    "<cpu-model-name>": {
-      "readyCount": "<number of ready nodes that support this CPU model>",
-      "migrationSafe": "<boolean: true if readyCount equals totalNodes, false otherwise>"
-    }
-  }
-}
+This ConfigMap is pre-created by the Harvester deployment templates in `deploy/charts/harvester/templates/node-cpu-model-configmap.yaml` and is automatically updated by the node CPU model configuration controller.
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-cpu-model-configuration
+  namespace: harvester-system
+data:
+  cpuModels: |
+    totalNodes: <total number of nodes in the cluster>
+    globalModels:
+      - host-model
+      - host-passthrough
+      - <cpu model from kubevirt spec.configuration.cpuModel if configured>
+    models:
+      <cpu-model-name>:
+        readyCount: <number of ready nodes that support this CPU model>
+        migrationSafe: <boolean indicating if VMs with this CPU model can be safely migrated>
+    checksum: <sha256 checksum of the data>
+    updatedAt: <RFC3339 timestamp of last update>
+```
+
+**Example YAML Data:**
+
+```yaml
+totalNodes: 4
+globalModels:
+  - host-model
+  - host-passthrough
+models:
+  IvyBridge:
+    readyCount: 4
+    migrationSafe: true
+  Penryn:
+    readyCount: 1
+    migrationSafe: false
+  Westmere:
+    readyCount: 2
+    migrationSafe: true
+  SandyBridge:
+    readyCount: 1
+    migrationSafe: false
+checksum: abc123...
+updatedAt: "2026-01-28T10:30:45Z"
 ```
 
 **Field Descriptions:**
-- `totalNodes`: Total number of ready nodes in the cluster
+
+Data Fields:
+- `totalNodes`: Total number of nodes in the cluster (includes both ready and not-ready nodes)
 - `globalModels`: Array of special CPU models that are always available
   - `host-model`: Uses the host's CPU model (default behavior)
   - `host-passthrough`: Passes through the host's CPU features directly
   - KubeVirt configuration CPU model: The CPU model set in `kubevirt.spec.configuration.cpuModel` (if configured)
-- `models`: Object containing all available CPU models in the cluster
+- `models`: Object containing all available CPU models in the cluster (only counts ready nodes)
   - `<cpu-model-name>`: The name of the CPU model (e.g., "IvyBridge", "Penryn")
     - `readyCount`: Number of ready nodes that support this CPU model
       - if `readyCount` is greater than one, that cpu model can be migrated to some nodes in the cluster.
       - if `readyCount` is equal to one, that cpu model can't be migrated.
     - `migrationSafe`: Boolean flag indicating if VM with this CPU model can migrate to any node
-      - `true`: CPU model is available for migration on some nodes
-      - `false`: CPU model is not available for migration on all nodes
+      - `true`: CPU model is available for migration on some nodes (readyCount > 1)
+      - `false`: CPU model is not available for migration on all nodes (readyCount <= 1)
+- `checksum`: SHA256 checksum of the CPU model data (excluding checksum and updatedAt fields)
+- `updatedAt`: RFC3339 timestamp indicating when the ConfigMap was last updated
 
-About cache, we won't add it in this version, please check [discussion here](https://github.com/harvester/harvester/pull/7937#discussion_r2479700572).
+**Update Mechanism:**
+
+The ConfigMap is automatically updated by the `node-cpu-model-config-controller` whenever:
+- A node joins or leaves the cluster
+- A node's ready status changes
+- Node CPU model labels are updated
+- KubeVirt CPU configuration changes
+
+The controller uses a checksum-based approach to avoid unnecessary updates. Updates only occur when the calculated checksum differs from the existing one.
 
 ### Case 1
 
@@ -266,7 +312,9 @@ Backend should reject unreasonable requests from the frontend. When users try to
 
 Action Items:
 
-- [ ] Provide a CPU migration capabilities API for frontend.
+- [ ] Create ConfigMap template in `deploy/charts/harvester/templates/node-cpu-model-configmap.yaml`.
+- [ ] Implement node CPU model configuration controller in `pkg/controller/master/node/cpu_model_config_controller.go`.
+- [ ] Provide CPU model data from ConfigMap for frontend API.
 - [ ] Filter the nodes based on the selected CPU model when calling `findMigratableNodesByVMI`.
 - [ ] Write documentation on different usage of the policy field in the VM spec.
 - [ ] Write documentation on how to configure cluster-wide CPU model in KubeVirt.
