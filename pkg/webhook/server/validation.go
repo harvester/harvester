@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/harvester/harvester/pkg/pvcbackup/common"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
 	"github.com/harvester/harvester/pkg/webhook/resources/addon"
@@ -20,6 +21,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/namespace"
 	"github.com/harvester/harvester/pkg/webhook/resources/node"
 	"github.com/harvester/harvester/pkg/webhook/resources/persistentvolumeclaim"
+	"github.com/harvester/harvester/pkg/webhook/resources/pvcbackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/resourcequota"
 	"github.com/harvester/harvester/pkg/webhook/resources/schedulevmbackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/secret"
@@ -66,6 +68,23 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
+		pvcbackup.NewBackupValidator(
+			clients.Core.PersistentVolumeClaim().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().PVCBackup(),
+			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
+		pvcbackup.NewRestoreValidator(
+			clients.HarvesterFactory.Harvesterhci().V1beta1().PVCRestore(),
+			clients.Core.PersistentVolumeClaim().Cache(),
+			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().PVCBackup().Cache(),
+			common.GetPVCBackupOperator(
+				clients.HarvesterFactory.Harvesterhci().V1beta1().PVCBackup(),
+				clients.Core.PersistentVolumeClaim().Cache(),
+				clients.StorageFactory.Storage().V1().StorageClass().Cache(),
+				clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
+		),
 		keypair.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache()),
 		virtualmachine.NewValidator(
 			clients.Core.Namespace().Cache(),

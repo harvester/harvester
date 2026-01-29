@@ -18,6 +18,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/nodedrain"
 	"github.com/harvester/harvester/pkg/controller/master/pvc"
+	"github.com/harvester/harvester/pkg/controller/master/pvcbackup"
 	"github.com/harvester/harvester/pkg/controller/master/rancher"
 	"github.com/harvester/harvester/pkg/controller/master/resourcequota"
 	"github.com/harvester/harvester/pkg/controller/master/schedulevmbackup"
@@ -68,6 +69,7 @@ var registerFuncs = []registerFunc{
 	virtualmachine.Register,
 	vmimagedownloader.Register,
 	node.ConditionAnnotationRegister,
+	pvcbackup.Register,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {

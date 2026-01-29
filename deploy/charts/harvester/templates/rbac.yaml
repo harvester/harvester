@@ -183,6 +183,8 @@ rules:
   resources:
   - networkfilesystems
   - networkfilesystems/status
+  - pvcbackups
+  - pvcrestores
   verbs:
   - '*'
 - apiGroups:
