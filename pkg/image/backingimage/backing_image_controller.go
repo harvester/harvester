@@ -52,6 +52,11 @@ func (h *backingImageHandler) OnChanged(_ string, bi *lhv1beta2.BackingImage) (*
 	} else if err != nil {
 		return nil, err
 	}
+
+	if h.vmio.IsRetryLimitExceeded(vmi) {
+		return bi, nil
+	}
+
 	// There are two states that we care about here:
 	// - ImageInitialized
 	// - ImageImported

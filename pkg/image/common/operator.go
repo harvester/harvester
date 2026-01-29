@@ -69,6 +69,7 @@ type VMIOperator interface {
 	IsImported(vmi *harvesterv1.VirtualMachineImage) bool
 	IsDecryptOperation(vmi *harvesterv1.VirtualMachineImage) bool
 	IsEncryptOperation(vmi *harvesterv1.VirtualMachineImage) bool
+	IsRetryLimitExceeded(vmi *harvesterv1.VirtualMachineImage) bool
 
 	CheckURLAndUpdate(old *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error)
 	UpdateVirtualSize(old *harvesterv1.VirtualMachineImage, virtualSize int64) (*harvesterv1.VirtualMachineImage, error)
@@ -185,6 +186,10 @@ func (vmio *vmiOperator) IsImported(vmi *harvesterv1.VirtualMachineImage) bool {
 
 func (vmio *vmiOperator) IsDecryptOperation(vmi *harvesterv1.VirtualMachineImage) bool {
 	return vmi.Spec.SecurityParameters.CryptoOperation == harvesterv1.VirtualMachineImageCryptoOperationTypeDecrypt
+}
+
+func (vmio *vmiOperator) IsRetryLimitExceeded(vmi *harvesterv1.VirtualMachineImage) bool {
+	return harvesterv1.ImageRetryLimitExceeded.IsTrue(vmi)
 }
 
 func (vmio *vmiOperator) IsEncryptOperation(vmi *harvesterv1.VirtualMachineImage) bool {
