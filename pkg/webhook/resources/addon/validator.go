@@ -15,6 +15,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlloggingv1 "github.com/harvester/harvester/pkg/generated/controllers/logging.banzaicloud.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/logging"
@@ -30,7 +31,7 @@ const (
 	vCluster0300           = "v0.30.0"
 )
 
-func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache, nodeCache ctlcorev1.NodeCache) types.Validator {
+func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache, nodeCache ctlcorev1.NodeCache, vmCache ctlkubevirtv1.VirtualMachineCache) types.Validator {
 	return &addonValidator{
 		addons:             addons,
 		flowCache:          flowCache,
@@ -39,6 +40,7 @@ func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowC
 		clusterOutputCache: clusterOutputCache,
 		upgradeLogCache:    upgradeLogCache,
 		nodeCache:          nodeCache,
+		vmCache:            vmCache,
 	}
 }
 
@@ -52,6 +54,7 @@ type addonValidator struct {
 	clusterOutputCache ctlloggingv1.ClusterOutputCache
 	upgradeLogCache    ctlharvesterv1.UpgradeLogCache
 	nodeCache          ctlcorev1.NodeCache
+	vmCache            ctlkubevirtv1.VirtualMachineCache
 }
 
 func (v *addonValidator) Resource() types.Resource {
@@ -100,6 +103,7 @@ func (v *addonValidator) validateNewAddon(newAddon *v1beta1.Addon) error {
 }
 
 func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
+	// Validate common fields
 	if newAddon.Spec.Chart != oldAddon.Spec.Chart {
 		return werror.NewBadRequest("chart field cannot be changed.")
 	}
@@ -108,43 +112,81 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 		return werror.NewBadRequest(fmt.Sprintf("cannot perform operation, as an existing operation is in progress on addon %s", oldAddon.Name))
 	}
 
-	if newAddon.Name == vClusterAddonName && newAddon.Namespace == vClusterAddonNamespace && newAddon.Spec.Enabled {
-		return validateVClusterAddon(newAddon)
+	switch newAddon.Name {
+	case vClusterAddonName:
+		return v.validateVClusterAddonUpdate(newAddon, oldAddon)
+	case util.RancherLoggingName:
+		return v.validateRancherLoggingAddonUpdate(newAddon, oldAddon)
+	case util.DeschedulerName:
+		return v.validateDeschedulerAddonUpdate(newAddon, oldAddon)
+	case util.PCIDevicesControllerName:
+		return v.validatePCIDevicesControllerAddonUpdate(newAddon, oldAddon)
+	case util.NvidiaDriverToolkitName:
+		return v.validateNvidiaDriverToolkitAddonUpdate(newAddon, oldAddon)
 	}
 
-	if newAddon.Name == util.RancherLoggingName {
-		if oldAddon.Spec.Enabled == newAddon.Spec.Enabled {
-			// spec `enabled` is not changed
-			return nil
-		}
-		skip := newAddon.Annotations[util.AnnotationSkipRancherLoggingAddonWebhookCheck] == "true"
-		// check when addon is `enabled`
-		//   block if upgradeLog has deployed a managedchart as logging-operator
-		if newAddon.Spec.Enabled {
-			if skip {
-				logrus.Warnf("%v addon is enabled but webhook check is skipped", util.RancherLoggingName)
-				return nil
-			}
-			return v.validateEnableRancherLoggingAddon(newAddon)
-		}
+	return nil
+}
 
-		// check when addon is `disabled`
-		//   block if upgradeLog sits on top of rancher-logging addon
+func (v *addonValidator) validateVClusterAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
+	if newAddon.Namespace != vClusterAddonNamespace || !newAddon.Spec.Enabled {
+		return nil
+	}
+	return validateVClusterAddon(newAddon)
+}
+
+func (v *addonValidator) validateRancherLoggingAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
+	if oldAddon.Spec.Enabled == newAddon.Spec.Enabled {
+		// spec `enabled` is not changed
+		return nil
+	}
+
+	skip := newAddon.Annotations[util.AnnotationSkipRancherLoggingAddonWebhookCheck] == "true"
+
+	// check when addon is `enabled`
+	//   block if upgradeLog has deployed a managedchart as logging-operator
+	if newAddon.Spec.Enabled {
 		if skip {
-			logrus.Warnf("%v addon is disabled but webhook check is skipped", util.RancherLoggingName)
+			logrus.Warnf("%v addon is enabled but webhook check is skipped", util.RancherLoggingName)
 			return nil
 		}
-		return v.validateDisableRancherLoggingAddon(newAddon)
+		return v.validateEnableRancherLoggingAddon(newAddon)
 	}
 
-	if newAddon.Name == util.DeschedulerName && newAddon.Spec.Enabled {
-		if newAddon.Annotations != nil && newAddon.Annotations[util.AnnotationSkipDeschedulerAddonWebhookCheck] == "true" {
-			return nil
-		}
+	// check when addon is `disabled`
+	//   block if upgradeLog sits on top of rancher-logging addon
+	if skip {
+		logrus.Warnf("%v addon is disabled but webhook check is skipped", util.RancherLoggingName)
+		return nil
+	}
+	return v.validateDisableRancherLoggingAddon(newAddon)
+}
 
-		return v.validateDeschedulerAddon(newAddon)
+func (v *addonValidator) validateDeschedulerAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
+	if !newAddon.Spec.Enabled {
+		return nil
 	}
 
+	if newAddon.Annotations != nil && newAddon.Annotations[util.AnnotationSkipDeschedulerAddonWebhookCheck] == "true" {
+		return nil
+	}
+
+	return v.validateDeschedulerAddon(newAddon)
+}
+
+func (v *addonValidator) validatePCIDevicesControllerAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
+	// check when pcidevices-controller addon is being disabled
+	if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
+		return v.validatePCIDevicesControllerAddon()
+	}
+	return nil
+}
+
+func (v *addonValidator) validateNvidiaDriverToolkitAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
+	// check when nvidia-driver-toolkit addon is being disabled
+	if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
+		return v.validateNvidiaDriverToolkitAddon()
+	}
 	return nil
 }
 
@@ -260,5 +302,60 @@ func (v *addonValidator) validateDeschedulerAddon(newAddon *v1beta1.Addon) error
 	if len(nodes) <= 1 {
 		return werror.NewBadRequest("descheduler addon cannot be enabled as not enough nodes exist in the cluster")
 	}
+	return nil
+}
+
+func (v *addonValidator) validatePCIDevicesControllerAddon() error {
+	// Check if any VMs are using HostDevices (PCI devices, USB devices) or GPUs (vGPU devices)
+	vms, err := v.vmCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("error listing virtual machines: %v", err.Error()))
+	}
+
+	var vmsWithDevices []string
+	for _, vm := range vms {
+		if vm.Spec.Template == nil {
+			continue
+		}
+		// Check for HostDevices (PCI devices and USB devices)
+		if len(vm.Spec.Template.Spec.Domain.Devices.HostDevices) > 0 {
+			vmsWithDevices = append(vmsWithDevices, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
+			continue
+		}
+		// Check for GPUs (vGPU devices)
+		if len(vm.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
+			vmsWithDevices = append(vmsWithDevices, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
+		}
+	}
+
+	if len(vmsWithDevices) > 0 {
+		return werror.NewBadRequest(fmt.Sprintf("pcidevices-controller addon cannot be disabled as the following VMs are using passthrough devices: %v", vmsWithDevices))
+	}
+
+	return nil
+}
+
+func (v *addonValidator) validateNvidiaDriverToolkitAddon() error {
+	// Check if any VMs are using GPUs (vGPU devices and SR-IOV GPU devices)
+	vms, err := v.vmCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("error listing virtual machines: %v", err.Error()))
+	}
+
+	var vmsWithGPUs []string
+	for _, vm := range vms {
+		if vm.Spec.Template == nil {
+			continue
+		}
+		// Check for GPUs (vGPU devices and SR-IOV GPU devices)
+		if len(vm.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
+			vmsWithGPUs = append(vmsWithGPUs, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
+		}
+	}
+
+	if len(vmsWithGPUs) > 0 {
+		return werror.NewBadRequest(fmt.Sprintf("nvidia-driver-toolkit addon cannot be disabled as the following VMs are using GPU devices: %v", vmsWithGPUs))
+	}
+
 	return nil
 }
