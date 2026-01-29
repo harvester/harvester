@@ -36,6 +36,11 @@ var matchingLabelsForNamespace = map[string][]labels.Set{
 	},
 }
 
+const (
+	forkliftAppKey = "forklift.app"
+	forkliftAppVal = "virt-v2v"
+)
+
 func NewMutator(settingCache v1beta1.SettingCache) types.Mutator {
 	return &podMutator{
 		setttingCache: settingCache,
@@ -68,6 +73,11 @@ func (m *podMutator) Resource() types.Resource {
 
 func (m *podMutator) Create(_ *types.Request, newObj runtime.Object) (types.PatchOps, error) {
 	pod := newObj.(*corev1.Pod)
+
+	if isForkliftV2VPod(pod) {
+		return generateForkliftV2VPatch(pod)
+	}
+
 	if !shouldPatch(pod) {
 		return nil, nil
 	}
@@ -247,4 +257,49 @@ func shouldPatch(pod *corev1.Pod) bool {
 		}
 	}
 	return false
+}
+
+// identifies if pod is a forklift virt-v2v conversion pod
+func isForkliftV2VPod(pod *corev1.Pod) bool {
+	if pod.Labels == nil {
+		return false
+	}
+
+	if val, ok := pod.Labels[forkliftAppKey]; ok && val == forkliftAppVal {
+		return true
+	}
+	return false
+}
+
+// generateForkliftV2VPatch sets amends the SecurityContext on the virt-v2v pod to allow it to run on harvester
+func generateForkliftV2VPatch(pod *corev1.Pod) (types.PatchOps, error) {
+	var patchOps types.PatchOps
+	podSecurityContext := corev1.PodSecurityContext{
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: corev1.SeccompProfileTypeUnconfined,
+		},
+	}
+	podSecurityContextString, err := json.Marshal(podSecurityContext)
+	if err != nil {
+		return nil, fmt.Errorf("error generating pod seccomp patch for virt-v2v pods: %w", err)
+	}
+	path := "/spec/securityContext"
+	patch := fmt.Sprintf(`{"op": "replace", "path": "%s", "value": %s}`, path, podSecurityContextString)
+	securityContext := corev1.SecurityContext{
+		Privileged: ptr.To(true),
+	}
+	patchOps = append(patchOps, patch)
+
+	securityContextString, err := json.Marshal(securityContext)
+	if err != nil {
+		return nil, fmt.Errorf("error generating container security context: %w", err)
+	}
+	for i := range pod.Spec.Containers {
+		path = fmt.Sprintf("/spec/containers/%d/securityContext", i)
+		patch := fmt.Sprintf(`{"op": "replace", "path": "%s", "value": %s}`, path, securityContextString)
+		patchOps = append(patchOps, patch)
+	}
+
+	// TODO: also need to patch image pull policy
+	return patchOps, nil
 }
