@@ -148,6 +148,7 @@ const (
 
 	LabelUpgradeReadMessage          = prefix + "/read-message"
 	LabelUpgradeState                = prefix + "/upgradeState"
+	LabelUpgradeLatest		 = prefix + "/latestUpgrade"
 	UpgradeStateLoggingInfraPrepared = "LoggingInfraPrepared"
 
 	AnnotationArchiveName                 = prefix + "/archiveName"
