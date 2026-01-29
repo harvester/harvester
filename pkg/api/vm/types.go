@@ -12,7 +12,7 @@ type InsertCdRomVolumeActionInput struct {
 }
 
 type EjectCdRomVolumeActionInput struct {
-	DeviceName string `json:"volumeName"`
+	DeviceName string `json:"deviceName"`
 }
 
 type BackupInput struct {
