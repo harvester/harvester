@@ -30,7 +30,7 @@ import (
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -376,7 +376,7 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 				},
 				Spec: pvc.Spec,
 			},
-			ReadyToUse: pointer.BoolPtr(false),
+			ReadyToUse: ptr.To(false),
 			VolumeSize: volumeSize,
 		}
 
@@ -502,7 +502,7 @@ func (h *Handler) initBackup(backup *harvesterv1.VirtualMachineBackup, vm *kubev
 	var err error
 	backupCpy := backup.DeepCopy()
 	backupCpy.Status = harvesterv1.VirtualMachineBackupStatus{
-		ReadyToUse: pointer.BoolPtr(false),
+		ReadyToUse: ptr.To(false),
 		SourceUID:  &vm.UID,
 		SourceSpec: &harvesterv1.VirtualMachineSourceSpec{
 			ObjectMeta: metav1.ObjectMeta{
@@ -687,14 +687,14 @@ func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBacku
 					Kind:       vmBackupKind.Kind,
 					Name:       vmBackup.Name,
 					UID:        vmBackup.UID,
-					Controller: pointer.BoolPtr(true),
+					Controller: ptr.To(true),
 				},
 			},
 			Annotations: map[string]string{},
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
 			Source:                  volumeSnapshotSource,
-			VolumeSnapshotClassName: pointer.StringPtr(volumeSnapshotClass.Name),
+			VolumeSnapshotClassName: ptr.To(volumeSnapshotClass.Name),
 		},
 	}
 
@@ -768,7 +768,7 @@ func (h *Handler) createVolumeSnapshotContent(
 					Kind:       vmBackupKind.Kind,
 					Name:       vmBackup.Name,
 					UID:        vmBackup.UID,
-					Controller: pointer.BoolPtr(true),
+					Controller: ptr.To(true),
 				},
 			},
 		},
@@ -776,9 +776,9 @@ func (h *Handler) createVolumeSnapshotContent(
 			Driver:         "driver.longhorn.io",
 			DeletionPolicy: snapshotv1.VolumeSnapshotContentDelete,
 			Source: snapshotv1.VolumeSnapshotContentSource{
-				SnapshotHandle: pointer.StringPtr(snapshotHandle),
+				SnapshotHandle: ptr.To(snapshotHandle),
 			},
-			VolumeSnapshotClassName: pointer.StringPtr(snapshotClass.Name),
+			VolumeSnapshotClassName: ptr.To(snapshotClass.Name),
 			VolumeSnapshotRef: corev1.ObjectReference{
 				Name:      *volumeBackup.Name,
 				Namespace: vmBackup.Namespace,
@@ -794,7 +794,7 @@ func (h *Handler) setStatusError(vmBackup *harvesterv1.VirtualMachineBackup, err
 
 	vmBackupCpy.Status.Error = &harvesterv1.Error{
 		Time:    currentTime(),
-		Message: pointer.StringPtr(err.Error()),
+		Message: ptr.To(err.Error()),
 	}
 
 	if _, updateErr := h.vmBackups.Update(vmBackupCpy); updateErr != nil {

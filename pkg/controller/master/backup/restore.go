@@ -29,7 +29,6 @@ import (
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -373,7 +372,7 @@ func (h *RestoreHandler) LHEngineOnChange(_ string, lhEngine *lhv1beta2.Engine) 
 			continue
 		}
 
-		vmRestoreCpy.Status.VolumeRestores[i].LonghornEngineName = pointer.String(lhEngine.Name)
+		vmRestoreCpy.Status.VolumeRestores[i].LonghornEngineName = ptr.To(lhEngine.Name)
 		vmRestoreCpy.Status.VolumeRestores[i].VolumeSize = volume.Spec.Size
 		break
 	}
@@ -966,15 +965,15 @@ func (h *RestoreHandler) createRestoredPVC(
 					Kind:               vmRestoreKindName,
 					Name:               vmRestore.Name,
 					UID:                vmRestore.UID,
-					Controller:         pointer.BoolPtr(true),
-					BlockOwnerDeletion: pointer.BoolPtr(true),
+					Controller:         ptr.To(true),
+					BlockOwnerDeletion: ptr.To(true),
 				},
 			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: volumeBackup.PersistentVolumeClaim.Spec.AccessModes,
 			DataSource: &corev1.TypedLocalObjectReference{
-				APIGroup: pointer.StringPtr(snapshotv1.SchemeGroupVersion.Group),
+				APIGroup: ptr.To(snapshotv1.SchemeGroupVersion.Group),
 				Kind:     volumeSnapshotKindName,
 				Name:     dataSourceName,
 			},
@@ -1033,9 +1032,9 @@ func (h *RestoreHandler) getOrCreateVolumeSnapshotContent(
 			// Use Retain policy to prevent LH Backup from being removed when users delete a VM.
 			DeletionPolicy: snapshotv1.VolumeSnapshotContentRetain,
 			Source: snapshotv1.VolumeSnapshotContentSource{
-				SnapshotHandle: pointer.StringPtr(snapshotHandle),
+				SnapshotHandle: ptr.To(snapshotHandle),
 			},
-			VolumeSnapshotClassName: pointer.StringPtr(settings.VolumeSnapshotClass.Get()),
+			VolumeSnapshotClassName: ptr.To(settings.VolumeSnapshotClass.Get()),
 			VolumeSnapshotRef: corev1.ObjectReference{
 				Name:      h.constructVolumeSnapshotName(vmRestore.Name, *volumeBackup.Name),
 				Namespace: vmRestore.Namespace,
@@ -1073,15 +1072,15 @@ func (h *RestoreHandler) getOrCreateVolumeSnapshot(
 					Kind:               vmRestoreKindName,
 					Name:               vmRestore.Name,
 					UID:                vmRestore.UID,
-					BlockOwnerDeletion: pointer.BoolPtr(true),
+					BlockOwnerDeletion: ptr.To(true),
 				},
 			},
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
 			Source: snapshotv1.VolumeSnapshotSource{
-				VolumeSnapshotContentName: pointer.StringPtr(volumeSnapshotContent.Name),
+				VolumeSnapshotContentName: ptr.To(volumeSnapshotContent.Name),
 			},
-			VolumeSnapshotClassName: pointer.StringPtr(settings.VolumeSnapshotClass.Get()),
+			VolumeSnapshotClassName: ptr.To(settings.VolumeSnapshotClass.Get()),
 		},
 	})
 }

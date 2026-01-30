@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
@@ -87,7 +86,7 @@ func (h *DownloadHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 
 	if resp.StatusCode != http.StatusOK {
 		msg := fmt.Sprintf("Unexpected status code %d from manager.", resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err == nil {
 			var errResp harvesterv1.ErrorResponse
 			if e := json.Unmarshal(body, &errResp); e == nil {

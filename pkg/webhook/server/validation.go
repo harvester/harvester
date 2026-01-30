@@ -1,8 +1,8 @@
 package server
 
 import (
-	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/webhook"
@@ -39,7 +39,7 @@ import (
 )
 
 func Validation(clients *clients.Clients, options *config.Options) (http.Handler, []types.Resource, error) {
-	bearToken, err := ioutil.ReadFile(clients.RESTConfig.BearerTokenFile)
+	bearToken, err := os.ReadFile(clients.RESTConfig.BearerTokenFile)
 	if err != nil {
 		return nil, nil, err
 	}
