@@ -47,9 +47,6 @@ linters:
         text: "QF1008:" # could remove embedded field from selector (staticcheck)
       - linters:
           - staticcheck
-        text: "SA1019:" # function is deprecated (staticcheck)
-      - linters:
-          - staticcheck
         text: "QF1012:" # Use fmt.Fprint(...) instead of Write([]byte(fmt.Sprint(...)))
 run:
   timeout: 5m
