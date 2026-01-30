@@ -881,6 +881,7 @@ github.com/rancher/norman/types/values
 # github.com/rancher/rancher v0.0.0-20240618122559-b9ec494d4f6f => github.com/rancher/rancher v0.0.0-20250828140533-07a90f09a491
 ## explicit; go 1.24.0
 github.com/rancher/rancher/pkg/auth/settings
+github.com/rancher/rancher/pkg/auth/tokens/hashers
 github.com/rancher/rancher/pkg/buildconfig
 github.com/rancher/rancher/pkg/fleet
 github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io
@@ -1272,6 +1273,7 @@ golang.org/x/crypto/openpgp/s2k
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/salsa20/salsa
 golang.org/x/crypto/scrypt
+golang.org/x/crypto/sha3
 golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 # golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
