@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -273,7 +274,10 @@ func (h *Handler) checkPendingMigration(vmim *kubevirtv1.VirtualMachineInstanceM
 	for _, cond := range vmim.Status.Conditions {
 		if cond.Type == kubevirtv1.VirtualMachineInstanceMigrationRejectedByResourceQuota {
 			// vmim is blocked due to quota, compensate in special cases
-			return h.compensateResourceQuotaBase(vmim, vmi)
+			if cond.Status == corev1.ConditionTrue {
+				return h.compensateResourceQuotaBase(vmim, vmi)
+			}
+			return nil
 		}
 	}
 
@@ -286,5 +290,26 @@ func (h *Handler) compensateResourceQuotaBase(vmim *kubevirtv1.VirtualMachineIns
 	// the real usage can exceed to limit after VMs are up and migrated
 	// this change will ensure the already running VMs can still migrate, but they will be blocked if from a cold start
 
-	return nil
+	selector := labels.Set{util.LabelManagementDefaultResourceQuota: "true"}.AsSelector()
+	rqs, err := h.rqCache.List(vmi.Namespace, selector)
+	if err != nil {
+		return err
+	} else if len(rqs) == 0 {
+		logrus.Debugf("scaleResourceQuotaWithVMI: can't find any default resource quota, skip updating namespace %s", vmi.Namespace)
+		return nil
+	}
+
+	rqToUpdate := rqs[0].DeepCopy()
+
+	// TODO: hard-coded for test
+	rl := map[corev1.ResourceName]resource.Quantity{
+		corev1.ResourceMemory: *resource.NewQuantity(1024*1024*1024*2, resource.BinarySI),
+	}
+
+	// add compensation information to ResourceQuota
+	if err := rqutils.AddMigratingCompensation(rqToUpdate, rl); err != nil {
+		return err
+	}
+	_, err = h.rqs.Update(rqToUpdate)
+	return err
 }
