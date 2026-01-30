@@ -12,6 +12,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/util"
+	longhornTypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/rancher/pkg/auth/tokens/hashers"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
@@ -19,6 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
 const (
@@ -152,42 +154,57 @@ func findFileContent(config OEMConfig, targetPath string) string {
 }
 
 func (h *ReadyzHandler) clusterReady() (bool, string) {
-	namespaces := []string{
-		util.CattleSystemNamespaceName,
-		util.KubeSystemNamespace,
-		common.HarvesterSystemNamespaceName,
-		common.LonghornSystemNamespaceName,
+	rkeControlPlane, err := h.scaled.Management.RKEFactory.Rke().V1().RKEControlPlane().Cache().Get(
+		util.FleetLocalNamespaceName,
+		util.LocalClusterName)
+	if err != nil {
+		return false, "rkeControlPlane not found"
 	}
+
+	ready := false
+	for _, cond := range rkeControlPlane.Status.Conditions {
+		if cond.Type == "Ready" && cond.Status == corev1.ConditionTrue {
+			ready = true
+			break
+		}
+	}
+	if !ready {
+		return false, "rkeControlPlane is not ready"
+	}
+
 	podCache := h.scaled.CoreFactory.Core().V1().Pod().Cache()
 
-	for _, ns := range namespaces {
-		pods, err := podCache.List(ns, labels.Everything())
-		if err != nil {
-			logrus.Errorf("Failed to list pods in namespace %s: %v", ns, err)
-			return false, "failed to check cluster status"
-		}
+	longhornManagerSelector := labels.SelectorFromSet(labels.Set(longhornTypes.GetManagerLabels()))
+	longhornPods, err := podCache.List(common.LonghornSystemNamespaceName, longhornManagerSelector)
+	if err != nil {
+		return false, "failed to check longhorn-manager pods"
+	}
 
-		ready, msg := h.arePodsReady(pods)
-		if !ready {
-			return false, msg
-		}
+	if !hasAtLeastOneReadyPod(longhornPods) {
+		return false, "longhorn-manager pods not ready"
+	}
+
+	virtControllerSelector := labels.SelectorFromSet(labels.Set{kubevirtv1.AppLabel: "virt-controller"})
+	virtPods, err := podCache.List(common.HarvesterSystemNamespaceName, virtControllerSelector)
+	if err != nil {
+		return false, "failed to check virt-controller pods"
+	}
+
+	if !hasAtLeastOneReadyPod(virtPods) {
+		return false, "virt-controller pods not ready"
 	}
 
 	return true, ""
 }
 
-func (h *ReadyzHandler) arePodsReady(pods []*corev1.Pod) (bool, string) {
+// hasAtLeastOneReadyPod checks if at least one pod in the list is running and ready
+func hasAtLeastOneReadyPod(pods []*corev1.Pod) bool {
 	for _, pod := range pods {
-		if pod.Status.Phase == corev1.PodSucceeded {
-			continue
-		}
-
-		if !isPodReadyConditionTrue(pod) {
-			logrus.Debugf("Pod %s/%s is not ready", pod.Namespace, pod.Name)
-			return false, "some pods are not ready"
+		if pod.Status.Phase == corev1.PodRunning && isPodReadyConditionTrue(pod) {
+			return true
 		}
 	}
-	return true, ""
+	return false
 }
 
 func isPodReadyConditionTrue(pod *corev1.Pod) bool {
