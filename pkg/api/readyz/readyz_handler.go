@@ -6,11 +6,14 @@ import (
 	"strings"
 	"time"
 
+	"sync"
+
 	"github.com/harvester/go-common/common"
 	"github.com/harvester/harvester/pkg/config"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/rancher/apiserver/pkg/apierror"
+	"github.com/rancher/rancher/pkg/auth/tokens/hashers"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -20,6 +23,12 @@ import (
 
 const (
 	oemConfigPath = "/oem/90_custom.yaml"
+)
+
+var (
+	tokenOnce    sync.Once
+	tokenHash    string
+	tokenInitErr error
 )
 
 type ReadyzHandler struct {
@@ -81,18 +90,26 @@ func (h *ReadyzHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 }
 
 func (h *ReadyzHandler) validateToken(providedToken string) bool {
-	expectedToken, err := h.getTokenFromOEM()
+	tokenOnce.Do(func() {
+		expectedToken, err := h.getTokenFromOEM()
+		if err != nil {
+			tokenInitErr = err
+			logrus.Errorf("Failed to read token from OEM config: %v", err)
+			return
+		}
+		hasher := hashers.GetHasher()
+		tokenHash, tokenInitErr = hasher.CreateHash(expectedToken)
+	})
+
+	if tokenInitErr != nil {
+		return false
+	}
+	hasher, err := hashers.GetHasherForHash(tokenHash)
 	if err != nil {
-		logrus.Errorf("Failed to read token from OEM config: %v", err)
+		logrus.Errorf("Failed to get hasher: %v", err)
 		return false
 	}
-
-	if expectedToken == "" {
-		logrus.Warn("No token found in OEM config")
-		return false
-	}
-
-	return providedToken == expectedToken
+	return hasher.VerifyHash(tokenHash, providedToken) == nil
 }
 
 func (h *ReadyzHandler) getTokenFromOEM() (string, error) {
