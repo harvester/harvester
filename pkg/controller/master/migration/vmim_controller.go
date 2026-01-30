@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -37,8 +38,13 @@ func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanc
 		return vmim, err
 	}
 
+	rqManaged, err := h.isNamespaceManagedByResourceQuota(vmi.Namespace)
+	if err != nil {
+		return vmim, fmt.Errorf("failed to check if the namespace %s is managed by the resource quota: %w", vmi.Namespace, err)
+	}
+
 	// restore the resource quota when the migration is completed
-	if err := h.restoreResourceQuota(vmim, vmi); err != nil {
+	if err := h.restoreResourceQuota(vmim, vmi, rqManaged); err != nil {
 		return vmim, err
 	}
 
@@ -55,7 +61,11 @@ func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanc
 		if err != nil {
 			return nil, err
 		}
-		return vmim, h.scaleResourceQuota(vmi)
+		err = h.checkPendingMigration(vmim, vmi, rqManaged)
+		if err != nil {
+			return nil, err
+		}
+		return vmim, h.scaleResourceQuota(vmi, rqManaged)
 	} else if phase != kubevirtv1.MigrationFailed && abortRequested {
 		return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateAbortingMigration)
 	} else if phase == kubevirtv1.MigrationScheduling || phase == kubevirtv1.MigrationScheduled || phase == kubevirtv1.MigrationPreparingTarget || phase == kubevirtv1.MigrationTargetReady || phase == kubevirtv1.MigrationRunning {
@@ -111,12 +121,10 @@ func (h *Handler) syncVM(vmi *kubevirtv1.VirtualMachineInstance) error {
 }
 
 // scaleResourceQuota scales the ResourceQuota of the namespace to allow the migration to succeed
-func (h *Handler) scaleResourceQuota(vmi *kubevirtv1.VirtualMachineInstance) error {
+func (h *Handler) scaleResourceQuota(vmi *kubevirtv1.VirtualMachineInstance, rqManaged bool) error {
 	// If the namespace is not managed by the resource quota, skip scaling
-	if exist, err := h.isNamespaceManagedByResourceQuota(vmi.Namespace); !exist && err == nil {
+	if !rqManaged {
 		return nil
-	} else if err != nil {
-		return fmt.Errorf("failed to check if the namespace is managed by the resource quota: %v", err)
 	}
 
 	// Scale ResourceQuota through VMI resource specifications
@@ -134,14 +142,26 @@ func (h *Handler) isNamespaceManagedByResourceQuota(namespace string) (bool, err
 		return false, err
 	}
 
-	// If there is any resource quota in the namespace,
-	// return true check it if finding cpu or memory limit.
+	// Return true if there is any resource quota with cpu or memory limit in the namespace
+	cpuLimit := 0
+	memLimit := 0
 	for _, v := range rqs {
-		if v.Spec.Hard.Cpu() != nil || v.Spec.Hard.Memory() != nil {
-			return true, nil
+		if v.Spec.Hard.Cpu() != nil  {
+			cpuLimit += 1
+		}
+		if v.Spec.Hard.Memory() != nil {
+			memLimit += 1
 		}
 	}
 
+	// K8s allows more than 1 ResourceQuota to be created on a namespace to reduce lock scope, but it should not overlap
+	// Refer https://github.com/kubernetes/kubernetes/issues/23698, https://github.com/kubernetes/kubernetes/issues/55430
+	if cpuLimit > 1 || memLimit > 1 {
+		logrus.Warnf("namespace %s has %v cpu quota, %v memory quota, both should not exceed 1", namespace, cpuLimit, memLimit)
+	}
+	if cpuLimit > 0 || memLimit > 0 {
+		return true, nil
+	}
 	return false, nil
 }
 
@@ -178,16 +198,14 @@ func (h *Handler) scaleResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInstan
 }
 
 // restoreResourceQuota restores the ResourceQuota when the migration is completed
-func (h *Handler) restoreResourceQuota(vmim *kubevirtv1.VirtualMachineInstanceMigration, vmi *kubevirtv1.VirtualMachineInstance) error {
+func (h *Handler) restoreResourceQuota(vmim *kubevirtv1.VirtualMachineInstanceMigration, vmi *kubevirtv1.VirtualMachineInstance, rqManaged bool) error {
 	if vmim.Status.Phase != kubevirtv1.MigrationFailed && vmim.Status.Phase != kubevirtv1.MigrationSucceeded {
 		return nil
 	}
 
 	// If the namespace is not managed by the ResourceQuota, skip scaling
-	if exist, err := h.isNamespaceManagedByResourceQuota(vmi.Namespace); !exist && err == nil {
+	if !rqManaged {
 		return nil
-	} else if err != nil {
-		return fmt.Errorf("failed to check if the namespace is managed by the resource quota: %v", err)
 	}
 
 	// restore ResourceQuota through vmi resource specifications
@@ -243,4 +261,55 @@ func (h *Handler) resetHarvesterMigrationStateInVmiAndSyncVM(vmi *kubevirtv1.Vir
 		return fmt.Errorf("fail to reset vmi migration to vm %w", err)
 	}
 	return nil
+}
+
+// checkPendingMigration checks the ResourceQuota when the migration is blocked by quota
+func (h *Handler) checkPendingMigration(vmim *kubevirtv1.VirtualMachineInstanceMigration, vmi *kubevirtv1.VirtualMachineInstance, rqManaged bool) error {
+	if !rqManaged {
+		return nil
+	}
+	if vmim.Status.Conditions == nil {
+		return nil
+	}
+	for _, cond := range vmim.Status.Conditions {
+		if cond.Type == kubevirtv1.VirtualMachineInstanceMigrationRejectedByResourceQuota {
+			// vmim is blocked due to quota, compensate in special cases
+			if cond.Status == corev1.ConditionTrue {
+				return h.compensateResourceQuotaBase(vmim, vmi)
+			}
+			return nil
+		}
+	}
+
+	return nil
+}
+
+func (h *Handler) compensateResourceQuotaBase(vmim *kubevirtv1.VirtualMachineInstanceMigration, vmi *kubevirtv1.VirtualMachineInstance) error {
+	// compute the real usage of VM's POD, if it exceeds the hard limit, then compensate the delta
+	// wher user changes the global setting additional-guest-memory-overhead-ratio after the VM is up and then migrated
+	// the real usage can exceed to limit after VMs are up and migrated
+	// this change will ensure the already running VMs can still migrate, but they will be blocked if from a cold start
+
+	selector := labels.Set{util.LabelManagementDefaultResourceQuota: "true"}.AsSelector()
+	rqs, err := h.rqCache.List(vmi.Namespace, selector)
+	if err != nil {
+		return err
+	} else if len(rqs) == 0 {
+		logrus.Debugf("scaleResourceQuotaWithVMI: can't find any default resource quota, skip updating namespace %s", vmi.Namespace)
+		return nil
+	}
+
+	rqToUpdate := rqs[0].DeepCopy()
+
+	// TODO: hard-coded for test
+	rl := map[corev1.ResourceName]resource.Quantity{
+		corev1.ResourceMemory: *resource.NewQuantity(1024*1024*1024*2, resource.BinarySI),
+	}
+
+	// add compensation information to ResourceQuota
+	if err := rqutils.AddMigratingCompensation(rqToUpdate, rl); err != nil {
+		return err
+	}
+	_, err = h.rqs.Update(rqToUpdate)
+	return err
 }

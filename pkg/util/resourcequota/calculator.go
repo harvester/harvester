@@ -228,9 +228,26 @@ func getVMIMResourcesFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, stora
 	return
 }
 
+func getCompensationFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, storage resource.Quantity, err error) {
+	rl, err := getResourceListFromMigratingCompensation(rq)
+	if err != nil {
+		return cpu, mem, storage, err
+	}
+
+	cpu.Add(*rl.Name(corev1.ResourceLimitsCPU, resource.DecimalSI))
+	mem.Add(*rl.Name(corev1.ResourceLimitsMemory, resource.BinarySI))
+	storage.Add(*rl.Name(corev1.ResourceRequestsStorage, resource.BinarySI))
+	return
+}
+
 // Get ResourceQuota annotations about vmim and convert them to
 func GetVMIMResourcesFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, storage resource.Quantity, err error) {
 	return getVMIMResourcesFromRQAnnotation(rq)
+}
+
+// Get ResourceQuota annotations about vmim and convert them to
+func GetCompensationFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, storage resource.Quantity, err error) {
+	return getCompensationFromRQAnnotation(rq)
 }
 
 // Get Rancher NamespaceResourceQuota LimitsCPU and LimitsMemory
@@ -413,10 +430,11 @@ func CalculateRestoreResourceQuotaWithVMI(
 }
 
 // If base is zero, delta is not added
-func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, memBase, cpuDelta, memDelta resource.Quantity) (*corev1.ResourceQuota, bool) {
+func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, memBase, cpuDelta, memDelta, cpuCompensation, memCompensation resource.Quantity) (*corev1.ResourceQuota, bool) {
 	needUpdate := false
 	if !cpuBase.IsZero() {
 		cpuBase.Add(cpuDelta)
+		cpuBase.Add(cpuCompensation)
 		if !rq.Spec.Hard[corev1.ResourceLimitsCPU].Equal(cpuBase) {
 			needUpdate = true
 			rq.Spec.Hard[corev1.ResourceLimitsCPU] = cpuBase
@@ -424,6 +442,7 @@ func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, m
 	}
 	if !memBase.IsZero() {
 		memBase.Add(memDelta)
+		memBase.Add(memCompensation)
 		if !rq.Spec.Hard[corev1.ResourceLimitsMemory].Equal(memBase) {
 			needUpdate = true
 			rq.Spec.Hard[corev1.ResourceLimitsMemory] = memBase

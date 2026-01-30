@@ -56,6 +56,9 @@ const (
 	// AnnotationMigratingPrefix is replaced by AnnotationMigratingNamePrefix, and is kept for compatibility
 	AnnotationMigratingPrefix = AnnotationMigratingNamePrefix
 
+	// AnnotationMigratingCompensation is used to add more to resourcequota base
+	AnnotationMigratingCompensation = prefix + "/migratingCompensation"
+
 	// AnnotationInsufficientResourceQuota is indicated the resource is insufficient of Namespace
 	AnnotationInsufficientResourceQuota = prefix + "/insufficient-resource-quota"
 

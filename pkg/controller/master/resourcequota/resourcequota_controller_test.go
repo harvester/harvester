@@ -98,7 +98,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "ResourceQuota has invalid invalid Harvester VM migration annotation, skip scalling",
+			name: "ResourceQuota has invalid Harvester VM migration annotation, skip scalling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
