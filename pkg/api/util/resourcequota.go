@@ -11,7 +11,7 @@ import (
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
-func CanUpdateResourceQuota(clientSet kubernetes.Clientset, namespace string, user string) (bool, error) {
+func CanUpdateResourceQuota(clientSet kubernetes.Interface, namespace string, user string) (bool, error) {
 	review, err := clientSet.AuthorizationV1().SubjectAccessReviews().Create(
 		context.TODO(),
 		&authorizationv1.SubjectAccessReview{

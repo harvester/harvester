@@ -240,7 +240,6 @@ const (
 	HelmReleaseNamespaceAnnotation = "meta.helm.sh/release-namespace"
 
 	// moved from nodedrain_controller for public usage
-	ContainerDiskOrCDRomKey             = "CDRomOrContainerDiskPresent"
 	NodeSchedulingRequirementsNotMetKey = "NodeSchedulingRequirementsNotMet"
 	MaintainModeStrategyKey             = "MaintainModeStrategy"
 	LastHealthyReplicaKey               = "LastHealthyReplica"

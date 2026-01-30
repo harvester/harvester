@@ -32,6 +32,8 @@ const (
 	pauseVM                          = "pause"
 	unpauseVM                        = "unpause"
 	ejectCdRom                       = "ejectCdRom"
+	insertCdRomVolume                = "insertCdRomVolume"
+	ejectCdRomVolume                 = "ejectCdRomVolume"
 	migrate                          = "migrate"
 	abortMigration                   = "abortMigration"
 	findMigratableNodes              = "findMigratableNodes"
@@ -60,7 +62,7 @@ type vmformatter struct {
 	scCache       ctlstoragev1.StorageClassCache
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
 	settingCache  ctlharvesterv1.SettingCache
-	clientSet     kubernetes.Clientset
+	clientSet     kubernetes.Interface
 }
 
 func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -90,10 +92,8 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	resource.AddAction(request, addVolume)
 	resource.AddAction(request, removeVolume)
 	resource.AddAction(request, cloneVM)
-
-	if canEjectCdRom(vm) {
-		resource.AddAction(request, ejectCdRom)
-	}
+	resource.AddAction(request, insertCdRomVolume)
+	resource.AddAction(request, ejectCdRomVolume)
 
 	vmi := vf.getVMI(vm)
 	if vf.canStart(vm, vmi) {
@@ -165,19 +165,6 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	if canDismissInsufficientResourceQuota(vm) {
 		resource.AddAction(request, dismissInsufficientResourceQuota)
 	}
-}
-
-func canEjectCdRom(vm *kubevirtv1.VirtualMachine) bool {
-	if !vmReady.IsTrue(vm) {
-		return false
-	}
-
-	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if disk.CDRom != nil {
-			return true
-		}
-	}
-	return false
 }
 
 func (vf *vmformatter) canPause(vmi *kubevirtv1.VirtualMachineInstance) bool {

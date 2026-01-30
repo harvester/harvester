@@ -129,6 +129,7 @@ require (
 	k8s.io/apimachinery v0.34.0
 	k8s.io/apiserver v0.34.0
 	k8s.io/client-go v12.0.0+incompatible
+	k8s.io/cloud-provider v0.35.0
 	k8s.io/component-helpers v0.32.5
 	k8s.io/kube-openapi v0.31.9
 	k8s.io/kubectl v0.32.2

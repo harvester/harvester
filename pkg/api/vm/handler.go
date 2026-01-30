@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
+	k8svolumehelpers "k8s.io/cloud-provider/volume/helpers"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	kubevirtmultus "kubevirt.io/kubevirt/pkg/network/multus"
@@ -97,7 +99,7 @@ type vmActionHandler struct {
 	vmImageCache              ctlharvesterv1.VirtualMachineImageCache
 	storageClassCache         ctlstoragev1.StorageClassCache
 	resourceQuotaClient       ctlharvesterv1.ResourceQuotaClient
-	clientSet                 kubernetes.Clientset
+	clientSet                 kubernetes.Interface
 	podCache                  ctlcorev1.PodCache
 }
 
@@ -115,17 +117,18 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	}
 
 	switch action {
-	case ejectCdRom:
-		var input EjectCdRomActionInput
+	case insertCdRomVolume:
+		var input InsertCdRomVolumeActionInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
-
-		if len(input.DiskNames) == 0 {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter diskNames is empty")
+		return nil, h.insertCdRomVolume(name, namespace, input)
+	case ejectCdRomVolume:
+		var input EjectCdRomVolumeActionInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
-
-		return nil, h.ejectCdRom(r.Context(), name, namespace, input.DiskNames)
+		return nil, h.ejectCdRomVolume(r.Context(), name, namespace, input)
 	case migrate:
 		var input MigrateInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -301,22 +304,128 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	return nil, nil
 }
 
-func (h *vmActionHandler) ejectCdRom(ctx context.Context, name, namespace string, diskNames []string) error {
+func getSataCdRomDiskPos(vm *kubevirtv1.VirtualMachine, deviceName string) (int, error) {
+	pos := -1
+	for idx, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
+		if disk.Name == deviceName && disk.CDRom != nil && disk.CDRom.Bus == kubevirtv1.DiskBusSATA {
+			pos = idx
+			break
+		}
+	}
+	if pos == -1 {
+		return -1, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Errorf("can not find the SATA CD-ROM device %s from the VM %s/%s", deviceName, vm.Namespace, vm.Name).Error())
+	}
+	return pos, nil
+}
+
+func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input InsertCdRomVolumeActionInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
 		return err
 	}
 
 	vmCopy := vm.DeepCopy()
-	if err := ejectCdRomFromVM(vmCopy, diskNames); err != nil {
+
+	parts := strings.SplitN(input.ImageName, "/", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid image name: %s, should be namespace/name", input.ImageName)
+	}
+
+	vmImage, err := h.vmImageCache.Get(parts[0], parts[1])
+	if err != nil {
 		return err
 	}
 
-	if !reflect.DeepEqual(vm, vmCopy) {
-		if _, err := h.vms.Update(vmCopy); err != nil {
+	imgSize := max(vmImage.Status.VirtualSize, vmImage.Status.Size)
+	// round up to GiB for UI
+	imgSizeRoundUp, err := k8svolumehelpers.RoundUpToGiB(*resource.NewQuantity(imgSize, resource.BinarySI))
+	if err != nil {
+		return err
+	}
+	storageSize := resource.NewQuantity(imgSizeRoundUp * k8svolumehelpers.GiB, resource.BinarySI)
+
+	volumeMode := corev1.PersistentVolumeBlock
+	newPvc := corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("%s-%s-%s", name, input.DeviceName, rand.String(5)),
+			Annotations: map[string]string{
+				util.AnnotationImageID: input.ImageName,
+			},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
+			VolumeMode: &volumeMode,
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: *storageSize,
+				},
+			},
+			StorageClassName: &vmImage.Status.StorageClassName,
+		},
+	}
+	newVol := kubevirtv1.Volume{
+		Name: input.DeviceName,
+		VolumeSource: kubevirtv1.VolumeSource{
+			PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+				PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: newPvc.Name,
+				},
+				Hotpluggable: true,
+			},
+		},
+	}
+
+	pos, err := getSataCdRomDiskPos(vm, input.DeviceName)
+	if err != nil {
+		return err
+	}
+	err = insertVolumeClaimTemplatesFromVMAnnotation(vmCopy, newPvc, pos)
+	if err != nil {
+		return err
+	}
+	vmCopy.Spec.Template.Spec.Volumes = slices.Insert(vmCopy.Spec.Template.Spec.Volumes, pos, newVol)
+	_, err = h.vms.Update(vmCopy)
+	return err
+}
+
+func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace string, input EjectCdRomVolumeActionInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	_, err = getSataCdRomDiskPos(vm, input.DeviceName)
+	if err != nil {
+		return err
+	}
+
+	vmCopy := vm.DeepCopy()
+
+	volumes := make([]kubevirtv1.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
+	toRemoveClaimNames := make([]string, 0, len(vm.Spec.Template.Spec.Volumes))
+	for _, vol := range vm.Spec.Template.Spec.Volumes {
+		if input.DeviceName != vol.Name {
+			volumes = append(volumes, vol)
+			continue
+		}
+		if vol.VolumeSource.PersistentVolumeClaim != nil {
+			toRemoveClaimNames = append(toRemoveClaimNames, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
+		}
+	}
+
+	if err := removeVolumeClaimTemplatesFromVMAnnotation(vmCopy, toRemoveClaimNames); err != nil {
+		return err
+	}
+
+	vmCopy.Spec.Template.Spec.Volumes = volumes
+	if _, err = h.vms.Update(vmCopy); err != nil {
+		return err
+	}
+
+	for _, name := range toRemoveClaimNames {
+		if err := h.clientSet.CoreV1().PersistentVolumeClaims(vm.Namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
 			return err
 		}
-		return h.subresourceOperate(ctx, vmResource, namespace, name, restartVM)
 	}
 
 	return nil
@@ -372,35 +481,22 @@ func (h *vmActionHandler) stopVM(namespace, name string) error {
 	return nil
 }
 
-func ejectCdRomFromVM(vm *kubevirtv1.VirtualMachine, diskNames []string) error {
-	disks := make([]kubevirtv1.Disk, 0, len(vm.Spec.Template.Spec.Domain.Devices.Disks))
-	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if slice.ContainsString(diskNames, disk.Name) {
-			if disk.CDRom == nil {
-				return errors.New("disk " + disk.Name + " isn't a CD-ROM disk")
-			}
-			continue
-		}
-		disks = append(disks, disk)
+func insertVolumeClaimTemplatesFromVMAnnotation(vm *kubevirtv1.VirtualMachine, pvc corev1.PersistentVolumeClaim, pos int) error {
+	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok {
+		return nil
 	}
-
-	volumes := make([]kubevirtv1.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
-	toRemoveClaimNames := make([]string, 0, len(vm.Spec.Template.Spec.Volumes))
-	for _, vol := range vm.Spec.Template.Spec.Volumes {
-		if !slice.ContainsString(diskNames, vol.Name) {
-			volumes = append(volumes, vol)
-			continue
-		}
-		if vol.VolumeSource.PersistentVolumeClaim != nil {
-			toRemoveClaimNames = append(toRemoveClaimNames, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
-		}
-	}
-
-	if err := removeVolumeClaimTemplatesFromVMAnnotation(vm, toRemoveClaimNames); err != nil {
+	var volumeClaimTemplates []corev1.PersistentVolumeClaim
+	if err := json.Unmarshal([]byte(volumeClaimTemplatesStr), &volumeClaimTemplates); err != nil {
 		return err
 	}
-	vm.Spec.Template.Spec.Volumes = volumes
-	vm.Spec.Template.Spec.Domain.Devices.Disks = disks
+
+	volumeClaimTemplates = slices.Insert(volumeClaimTemplates, pos, pvc)
+	updateVolumeClaimTemplateBytes, err := json.Marshal(volumeClaimTemplates)
+	if err != nil {
+		return err
+	}
+	vm.Annotations[util.AnnotationVolumeClaimTemplates] = string(updateVolumeClaimTemplateBytes)
 	return nil
 }
 
