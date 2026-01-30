@@ -3,8 +3,10 @@ package node
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
@@ -58,6 +60,8 @@ var (
 
 	ConditionJobComplete = condition.Cond(batchv1.JobComplete)
 	ConditionJobFailed   = condition.Cond(batchv1.JobFailed)
+
+	promoteEventTitle = cases.Title(language.English)
 )
 
 // PromoteHandler
@@ -222,7 +226,7 @@ func (h *PromoteHandler) logPromoteEvent(node *corev1.Node, status string) {
 		Kind: "Node",
 	}
 	h.recorder.Event(nodeReference, eventType,
-		fmt.Sprintf("NodePromote%s", strings.Title(status)),
+		fmt.Sprintf("NodePromote%s", promoteEventTitle.String(status)),
 		fmt.Sprintf("Node %s promote status change: %s => %s", node.Name, preStatus, status))
 }
 
