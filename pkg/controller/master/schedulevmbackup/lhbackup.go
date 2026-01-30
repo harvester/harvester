@@ -7,7 +7,7 @@ import (
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
@@ -63,7 +63,7 @@ func (h *svmbackupHandler) OnLHBackupChanged(_ string, lhBackup *lhv1beta2.Backu
 	vmBackupCpy := vmBackup.DeepCopy()
 	for i, volumeBackup := range vmBackupCpy.Status.VolumeBackups {
 		if *volumeBackup.Name == snapshot.Name {
-			vmBackupCpy.Status.VolumeBackups[i].LonghornBackupName = pointer.StringPtr(lhBackup.Name)
+			vmBackupCpy.Status.VolumeBackups[i].LonghornBackupName = ptr.To(lhBackup.Name)
 		}
 	}
 

@@ -16,7 +16,6 @@ import (
 	wranglername "github.com/rancher/wrangler/v3/pkg/name"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -143,8 +142,8 @@ func configVMOwner(vm *kubevirtv1.VirtualMachine) []metav1.OwnerReference {
 			Kind:               kubevirtv1.VirtualMachineGroupVersionKind.Kind,
 			Name:               vm.Name,
 			UID:                vm.UID,
-			Controller:         pointer.BoolPtr(true),
-			BlockOwnerDeletion: pointer.BoolPtr(true),
+			Controller:         ptr.To(true),
+			BlockOwnerDeletion: ptr.To(true),
 		},
 	}
 }
