@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
+	k8svolumehelpers "k8s.io/cloud-provider/volume/helpers"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	kubevirtmultus "kubevirt.io/kubevirt/pkg/network/multus"
@@ -335,6 +336,14 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 		return err
 	}
 
+	imgSize := max(vmImage.Status.VirtualSize, vmImage.Status.Size)
+	// round up to GiB for UI
+	imgSizeRoundUp, err := k8svolumehelpers.RoundUpToGiB(*resource.NewQuantity(imgSize, resource.BinarySI))
+	if err != nil {
+		return err
+	}
+	storageSize := resource.NewQuantity(imgSizeRoundUp * k8svolumehelpers.GiB, resource.BinarySI)
+
 	volumeMode := corev1.PersistentVolumeBlock
 	newPvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -348,7 +357,7 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 			VolumeMode: &volumeMode,
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: *resource.NewQuantity(vmImage.Status.VirtualSize, resource.BinarySI),
+					corev1.ResourceStorage: *storageSize,
 				},
 			},
 			StorageClassName: &vmImage.Status.StorageClassName,
