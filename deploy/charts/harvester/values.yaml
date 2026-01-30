@@ -68,7 +68,7 @@ kubevirt:
       ## Specify kubevirt feature gates
       vmStateStorageClass: "vmstate-persistence"
       developerConfiguration:
-        featureGates: ["LiveMigration", "HotplugVolumes", "HostDevices", "GPU", "CPUManager", "VMPersistentState", "VMLiveUpdateFeatures", "ExpandDisks"]
+        featureGates: ["LiveMigration", "HotplugVolumes", "HostDevices", "GPU", "CPUManager", "VMPersistentState", "VMLiveUpdateFeatures", "ExpandDisks", EnableVirtioFsConfigVolumes]
 
       vmRolloutStrategy: "LiveUpdate"
 
