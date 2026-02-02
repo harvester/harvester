@@ -60,6 +60,10 @@ TBD.
 
 The primary objective is to utilize the Rancher `RoleTemplate` API to define a set of cluster-scoped and namespace-scoped RBAC roles to attribute Harvester permission groups.
 
+The proposed roles do not include Rancher-level administrative permissions, which include permissions that grant privileges to manage guest clusters or configure node drivers. These permissions can be granted to users from the existing "Built-In" global permissions page:
+
+![screenshot to show built-in global permissions](./20260130-rancher-integration-rbac/builtin-global-permissions.png)
+
 The manifests for these roles will be delivered as a Helm chart.
 
 In the initial delivery phase, Rancher administrator can manually download and install this chart in Rancher from the Harvester `charts` repository. Automatic registration of these roles during the Harvester/Rancher integration setup process can be considered in future phases.
@@ -224,6 +228,10 @@ In order for the Harvester UI to render certain views correctly, extra permissio
 Hence, to avoid bloating the scope of UI changes and QA effort in this release, roles with more granular permissions to access specific resource types, to perform specific operation types, to manage networking stack or storage configuration are postponed to future phases, after gathering more user feedback and requirements.
 
 We should also re-evaluate the [current logic that auto-registers the `harvester-authenticated` group][4] to expose certain resources to all authenticated users. This group impersonates role bindings without evaluating the user's assigned roles, which could potentially lead to unauthorized access.
+
+#### Limitations
+
+Project-scoped user should not be assigned any cluster-scoped roles. Due to the additive nature of the built-in RBAC permissions, the user ends up with more permissions than intended.
 
 #### Cluster Roles Specification
 
