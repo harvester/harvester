@@ -110,11 +110,20 @@ spec:
           resources:
 {{ toYaml .Values.containers.apiserver.resources | indent 12 }}
 {{- end }}
-{{- if .Values.enableGoCoverDir }}
           volumeMounts:
+          - name: oem-config
+            mountPath: /oem/90_custom.yaml
+            readOnly: true
+{{- if .Values.enableGoCoverDir }}
           - name: go-cover-dir
             mountPath: /go-cover-dir
+{{- end }}
       volumes:
+      - name: oem-config
+        hostPath:
+          path: /oem/90_custom.yaml
+          type: File
+{{- if .Values.enableGoCoverDir }}
       - name: go-cover-dir
         hostPath:
           path: /usr/local/go-cover-dir/
