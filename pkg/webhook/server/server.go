@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -13,6 +14,8 @@ import (
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
@@ -24,9 +27,10 @@ import (
 )
 
 var (
-	certName = "harvester-webhook-tls"
-	caName   = "harvester-webhook-ca"
-	port     = int32(443)
+	certName       = "harvester-webhook-tls"
+	caName         = "harvester-webhook-ca"
+	port           = int32(443)
+	subnetsCRDName = "subnets.kubeovn.io"
 
 	validationPath      = "/v1/webhook/validation"
 	mutationPath        = "/v1/webhook/mutation"
@@ -56,8 +60,60 @@ func New(ctx context.Context, restConfig *rest.Config, options *config.Options) 
 	}
 }
 
+// isSubnetsCRDPresent checks if the subnets crd is installed
+func isSubnetsCRDPresent(ctx context.Context, cfg *rest.Config) (bool, error) {
+	client, err := apiextensionsClient.NewForConfig(cfg)
+	if err != nil {
+		return false, fmt.Errorf("error initialising api extensions client")
+	}
+	obj, err := client.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, subnetsCRDName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("error looking up crd %s: %w", subnetsCRDName, err)
+	}
+
+	if !obj.DeletionTimestamp.IsZero() {
+		logrus.Infof("%s crd has a deletion time stamp set, failing check", subnetsCRDName)
+		return false, nil
+	}
+	return true, nil
+}
+
+func watchAndTriggerReload(ctx context.Context, initialBootStatus bool, cfg *rest.Config) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case <-ticker.C:
+			checkStatus, err := isSubnetsCRDPresent(ctx, cfg)
+			if err != nil {
+				continue
+			}
+
+			if initialBootStatus == checkStatus {
+				continue
+			}
+
+			logrus.Info("change in CRD state detected, triggering shutdown")
+			_ = syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+			return
+		}
+	}
+}
+
 func (s *AdmissionWebhookServer) ListenAndServe() error {
-	clients, err := clients.New(s.context, s.restConfig, s.options.Threadiness)
+	crdExists, err := isSubnetsCRDPresent(s.context, s.restConfig)
+	if err != nil {
+		return err
+	}
+
+	clients, err := clients.New(s.context, s.restConfig, s.options.Threadiness, crdExists)
 	if err != nil {
 		return err
 	}
@@ -68,7 +124,7 @@ func (s *AdmissionWebhookServer) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
-	mutationHandler, mutationResources, err := Mutation(clients, s.options)
+	mutationHandler, mutationResources, err := Mutation(clients, s.options, crdExists)
 	if err != nil {
 		return err
 	}
@@ -79,6 +135,8 @@ func (s *AdmissionWebhookServer) ListenAndServe() error {
 	if err := s.listenAndServe(clients, router, validationResources, mutationResources); err != nil {
 		return err
 	}
+
+	go watchAndTriggerReload(s.context, crdExists, s.restConfig)
 
 	return clients.Start(s.context)
 }
