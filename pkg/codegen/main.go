@@ -31,6 +31,7 @@ import (
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 )
 
 func main() {
@@ -227,6 +228,13 @@ func main() {
 			cdiuploadv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
 					cdiuploadv1.UploadTokenRequest{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			kubeovnv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					kubeovnv1.Subnet{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,

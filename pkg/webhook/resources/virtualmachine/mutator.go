@@ -15,17 +15,21 @@ import (
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
+	ctlkubeovnv1 "github.com/harvester/harvester/pkg/generated/controllers/kubeovn.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/network"
 	"github.com/harvester/harvester/pkg/util/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 )
 
 const (
 	networkGroup      = "network.harvesterhci.io"
 	keyClusterNetwork = networkGroup + "/clusternetwork"
+	overlayNetwork    = "overlayNetwork"
+	keyNetworkType    = networkGroup + "/type"
 
 	memory10M  = 10485760
 	memory100M = 104857600
@@ -36,19 +40,22 @@ func NewMutator(
 	setting ctlharvesterv1.SettingCache,
 	nad ctlcniv1.NetworkAttachmentDefinitionCache,
 	kubvirt ctlkubevirtv1.KubeVirtCache,
+	kubeovnSubnet ctlkubeovnv1.SubnetCache,
 ) types.Mutator {
 	return &vmMutator{
-		setting: setting,
-		nad:     nad,
-		kubvirt: kubvirt,
+		setting:       setting,
+		nad:           nad,
+		kubvirt:       kubvirt,
+		kubeovnSubnet: kubeovnSubnet,
 	}
 }
 
 type vmMutator struct {
 	types.DefaultMutator
-	setting ctlharvesterv1.SettingCache
-	nad     ctlcniv1.NetworkAttachmentDefinitionCache
-	kubvirt ctlkubevirtv1.KubeVirtCache
+	setting       ctlharvesterv1.SettingCache
+	nad           ctlcniv1.NetworkAttachmentDefinitionCache
+	kubvirt       ctlkubevirtv1.KubeVirtCache
+	kubeovnSubnet ctlkubeovnv1.SubnetCache
 }
 
 func (m *vmMutator) Resource() types.Resource {
@@ -88,6 +95,11 @@ func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patch
 	}
 
 	patchOps, err = m.patchInterfaceMacAddress(vm, patchOps)
+	if err != nil {
+		return nil, err
+	}
+
+	patchOps, err = m.patchManagedTapBinding(vm, patchOps)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +149,11 @@ func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runti
 	}
 
 	patchOps, err = m.patchInterfaceMacAddress(newVM, patchOps)
+	if err != nil {
+		return nil, err
+	}
+
+	patchOps, err = m.patchManagedTapBinding(newVM, patchOps)
 	if err != nil {
 		return nil, err
 	}
@@ -678,6 +695,143 @@ func (m *vmMutator) patchInterfaceMacAddress(vm *kubevirtv1.VirtualMachine, patc
 				return patchOps, fmt.Errorf("failed to generated proper MAC address for %s with error: %v", iface.Name, err)
 			}
 			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/devices/interfaces/%d/macAddress", "value": "%s"}`, idx, mac))
+		}
+	}
+
+	return patchOps, nil
+}
+
+func (m *vmMutator) checkDHCPEnabledOnSubnet(namespace, name string) (bool, error) {
+	provider := fmt.Sprintf("%s.%s.ovn", name, namespace)
+
+	if m.kubeovnSubnet == nil {
+		return false, fmt.Errorf("kubeovn subnet cache is not initialized")
+	}
+
+	subnets, err := m.kubeovnSubnet.List("", k8slabels.Everything())
+	if err != nil {
+		return false, err
+	}
+
+	//Patch managedtap binding only when dhcp is enabled on the subnet using the nad
+	for _, subnet := range subnets {
+		if subnet.Spec.Provider == provider {
+			if subnet.Spec.EnableDHCP {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
+
+func getInterfaceList(vm *kubevirtv1.VirtualMachine) map[string]string {
+	interfaceList := make(map[string]string)
+	for _, network := range vm.Spec.Template.Spec.Networks {
+		if network.Multus == nil || network.Multus.NetworkName == "" {
+			continue
+		}
+		interfaceList[network.Name] = network.Multus.NetworkName
+	}
+	return interfaceList
+}
+
+func (m *vmMutator) getNadAndDHCPOption(networkName string, vm *kubevirtv1.VirtualMachine) (bool, error) {
+	words := strings.Split(networkName, "/")
+	var namespace, name string
+
+	switch len(words) {
+	case 1:
+		namespace, name = vm.Namespace, words[0]
+	case 2:
+		namespace, name = words[0], words[1]
+	default:
+		return false, fmt.Errorf("invalid network name %s", networkName)
+	}
+
+	nad, err := m.nad.Get(namespace, name)
+	if err != nil {
+		return false, err
+	}
+
+	if nad.Labels[keyNetworkType] != string(overlayNetwork) {
+		return false, nil
+	}
+
+	//Overlay network and subnets are not present
+	enabled, subnetErr := m.checkDHCPEnabledOnSubnet(namespace, name)
+	if subnetErr != nil {
+		return enabled, subnetErr
+	}
+
+	return enabled, nil
+}
+
+func (m *vmMutator) patchManagedTapBinding(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
+	if vm == nil || vm.Spec.Template == nil {
+		return patchOps, nil
+	}
+
+	//kubeovn subnet crd does not exist,skip patching managedtap binding
+	if m.kubeovnSubnet == nil {
+		return patchOps, nil
+	}
+
+	interfaceList := getInterfaceList(vm)
+
+	for idx, iface := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
+		networkName, exists := interfaceList[iface.Name]
+		if !exists {
+			continue
+		}
+
+		enabled, getNadAndDHCPOptionErr := m.getNadAndDHCPOption(networkName, vm)
+		if getNadAndDHCPOptionErr != nil {
+			return patchOps, getNadAndDHCPOptionErr
+		}
+
+		//case 1: Overlay network with dhcp to overlay without dhcp enabled
+		//case 2: Overlay network with dhcp to non-overlay network (no associated subnets for non-overlay network)
+		if !enabled {
+			if iface.Binding != nil && iface.Binding.Name == "managedtap" {
+				patchOps = append(patchOps,
+					fmt.Sprintf(
+						`{"op":"remove","path":"/spec/template/spec/domain/devices/interfaces/%d/binding"}`,
+						idx,
+					),
+				)
+			}
+			continue
+		}
+
+		//case 1: Non-overlay network to overlay network with dhcp enabled
+		//case 2: Overlay network without dhcp to overlay network with dhcp enabled
+		if iface.Bridge != nil {
+			patchOps = append(patchOps,
+				fmt.Sprintf(
+					`{"op":"remove","path":"/spec/template/spec/domain/devices/interfaces/%d/bridge"}`,
+					idx,
+				),
+			)
+		}
+
+		if iface.Binding == nil {
+			patchOps = append(
+				patchOps,
+				fmt.Sprintf(
+					`{"op":"add","path":"/spec/template/spec/domain/devices/interfaces/%d/binding","value":{"name":"managedtap"}}`,
+					idx,
+				),
+			)
+		}
+
+		if iface.Masquerade != nil {
+			patchOps = append(patchOps,
+				fmt.Sprintf(
+					`{"op":"remove","path":"/spec/template/spec/domain/devices/interfaces/%d/masquerade"}`,
+					idx,
+				),
+			)
 		}
 	}
 

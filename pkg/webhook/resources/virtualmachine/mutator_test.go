@@ -22,6 +22,7 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	kubeovnapiv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 )
 
 const (
@@ -33,7 +34,18 @@ func setupTestMutator(clientset *fake.Clientset) types.Mutator {
 	return NewMutator(
 		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
 		fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-		fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
+		fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
+		fakeclients.KubeovnSubnetCache(clientset.KubeovnV1().Subnets),
+	)
+}
+
+func setupTestMutatorWithoutSubnetCache(clientset *fake.Clientset) types.Mutator {
+	return NewMutator(
+		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
+		fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
+		nil,
+	)
 }
 
 func createTestVM(
@@ -695,7 +707,8 @@ func TestPatchResourceOvercommitWithARMArchitecture(t *testing.T) {
 			mutator := NewMutator(
 				fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
 				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
-				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts))
+				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
+				fakeclients.KubeovnSubnetCache(clientset.KubeovnV1().Subnets))
 
 			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
 			assert.Nil(t, err, tc.name)
@@ -1359,6 +1372,473 @@ func TestPatchInterfaceMacAddress(t *testing.T) {
 				// local bit should be 1
 				// multicast bit should be 0
 				assert.Equal(t, uint8(0x02), mac[0]&0x03, testMsg)
+			}
+		})
+	}
+}
+
+func TestPatchManagedTapBinding(t *testing.T) {
+	type patch struct {
+		Op    string                 `json:"op"`
+		Path  string                 `json:"path"`
+		Value map[string]interface{} `json:"value"`
+	}
+
+	tests := []struct {
+		name       string
+		interfaces []kubevirtv1.Interface
+		networks   []kubevirtv1.Network
+		expected   []patch
+		nad1       *cniv1.NetworkAttachmentDefinition
+		nad2       *cniv1.NetworkAttachmentDefinition
+		ovnsubnet  *kubeovnapiv1.Subnet
+	}{
+		{
+			name: "overlay network removes bridge and adds managedtap binding",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name:                   "nic-1",
+					InterfaceBindingMethod: kubevirtv1.DefaultBridgeNetworkInterface().InterfaceBindingMethod,
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-1",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad1",
+						},
+					},
+				},
+			},
+			nad1: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "overlayNetwork",
+					},
+				},
+			},
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider:   "test-nad1.default.ovn",
+					EnableDHCP: true,
+				},
+			},
+			expected: []patch{
+				{
+					Op:   "remove",
+					Path: "/spec/template/spec/domain/devices/interfaces/0/bridge",
+				},
+				{
+					Op:   "add",
+					Path: "/spec/template/spec/domain/devices/interfaces/0/binding",
+					Value: map[string]interface{}{
+						"name": "managedtap",
+					},
+				},
+			},
+		},
+		{
+			name: "non-overlay removes managedtap binding",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "nic-2",
+					Binding: &kubevirtv1.PluginBinding{
+						Name: "managedtap",
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-2",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad2",
+						},
+					},
+				},
+			},
+			nad2: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad2",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "L2VlanNetwork",
+					},
+				},
+			},
+			expected: []patch{
+				{
+					Op:   "remove",
+					Path: "/spec/template/spec/domain/devices/interfaces/0/binding",
+				},
+			},
+		},
+		{
+			name: "no multus network results in no patches",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "default",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-3",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Pod: &kubevirtv1.PodNetwork{},
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "no ovn subnet results in no patches",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "default",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-1",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad1",
+						},
+					},
+				},
+			},
+			nad1: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "overlayNetwork",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "subnet without dhcp results in removing managedtap binding",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "nic-1",
+					Binding: &kubevirtv1.PluginBinding{
+						Name: "managedtap",
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-1",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad1",
+						},
+					},
+				},
+			},
+			nad1: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "overlayNetwork",
+					},
+				},
+			},
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider: "test-nad1.default.ovn",
+				},
+			},
+			expected: []patch{
+				{
+					Op:   "remove",
+					Path: "/spec/template/spec/domain/devices/interfaces/0/binding",
+				},
+			},
+		},
+		{
+			name: "no change when managedtap binding is already present for overlay network",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "nic-1",
+					Binding: &kubevirtv1.PluginBinding{
+						Name: "managedtap",
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-1",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad1",
+						},
+					},
+				},
+			},
+			nad1: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "overlayNetwork",
+					},
+				},
+			},
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider:   "test-nad1.default.ovn",
+					EnableDHCP: true,
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "remove bridge binding when both bridge and managedtap binding is already present for overlay network",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name:                   "nic-1",
+					InterfaceBindingMethod: kubevirtv1.DefaultBridgeNetworkInterface().InterfaceBindingMethod,
+					Binding: &kubevirtv1.PluginBinding{
+						Name: "managedtap",
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-1",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad1",
+						},
+					},
+				},
+			},
+			nad1: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "overlayNetwork",
+					},
+				},
+			},
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider:   "test-nad1.default.ovn",
+					EnableDHCP: true,
+				},
+			},
+			expected: []patch{
+				{
+					Op:   "remove",
+					Path: "/spec/template/spec/domain/devices/interfaces/0/bridge",
+				},
+			},
+		},
+		{
+			name: "remove masquerade binding when both masquerade and managedtap binding is already present for overlay network",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name:                   "nic-1",
+					InterfaceBindingMethod: kubevirtv1.DefaultMasqueradeNetworkInterface().InterfaceBindingMethod,
+					Binding: &kubevirtv1.PluginBinding{
+						Name: "managedtap",
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-1",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad1",
+						},
+					},
+				},
+			},
+			nad1: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "overlayNetwork",
+					},
+				},
+			},
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider:   "test-nad1.default.ovn",
+					EnableDHCP: true,
+				},
+			},
+			expected: []patch{
+				{
+					Op:   "remove",
+					Path: "/spec/template/spec/domain/devices/interfaces/0/masquerade",
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			createDefaultKubeVirt(clientset)
+			mutator := setupTestMutator(clientset)
+
+			nadGvr := schema.GroupVersionResource{
+				Group:    "k8s.cni.cncf.io",
+				Version:  "v1",
+				Resource: "network-attachment-definitions",
+			}
+
+			if tc.nad1 != nil {
+				if err := clientset.Tracker().Create(nadGvr, tc.nad1.DeepCopy(), tc.nad1.Namespace); err != nil {
+					t.Fatalf("failed to add net1 %+v", tc)
+				}
+			}
+			if tc.nad2 != nil {
+				if err := clientset.Tracker().Create(nadGvr, tc.nad2.DeepCopy(), tc.nad2.Namespace); err != nil {
+					t.Fatalf("failed to add net2 %+v", tc)
+				}
+			}
+
+			if tc.ovnsubnet != nil {
+				ovnSubnetGvr := schema.GroupVersionResource{
+					Group:    "kubeovn.io",
+					Version:  "v1",
+					Resource: "subnets",
+				}
+				if err := clientset.Tracker().Create(ovnSubnetGvr, tc.ovnsubnet.DeepCopy(), ""); err != nil {
+					t.Fatalf("failed to add ovn subnet %+v", tc)
+				}
+			}
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Networks: tc.networks,
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									Interfaces: tc.interfaces,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			// act
+			patchOps, err := mutator.(*vmMutator).patchManagedTapBinding(vm, nil)
+
+			// assert
+			assert.NoError(t, err)
+			assert.Equal(t, len(tc.expected), len(patchOps))
+
+			for i, patchOp := range patchOps {
+				var actual patch
+				err := json.Unmarshal([]byte(patchOp), &actual)
+				assert.NoError(t, err)
+
+				expected := tc.expected[i]
+				assert.Equal(t, expected.Op, actual.Op)
+				assert.Equal(t, expected.Path, actual.Path)
+				assert.Equal(t, expected.Value, actual.Value)
+			}
+		})
+	}
+}
+
+func TestPatchManagedTapBindingWithoutSubnetCRD(t *testing.T) {
+	type patch struct {
+		Op    string                 `json:"op"`
+		Path  string                 `json:"path"`
+		Value map[string]interface{} `json:"value"`
+	}
+
+	tests := []struct {
+		name       string
+		expected   []patch
+		interfaces []kubevirtv1.Interface
+		networks   []kubevirtv1.Network
+	}{
+		{
+			name:     "no patches when Subnet CRD is not present",
+			expected: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			createDefaultKubeVirt(clientset)
+			mutator := setupTestMutatorWithoutSubnetCache(clientset)
+
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Networks: tc.networks,
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									Interfaces: tc.interfaces,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			// act
+			patchOps, err := mutator.(*vmMutator).patchManagedTapBinding(vm, nil)
+
+			// assert
+			assert.NoError(t, err)
+			assert.Equal(t, len(tc.expected), len(patchOps))
+
+			for i, patchOp := range patchOps {
+				var actual patch
+				err := json.Unmarshal([]byte(patchOp), &actual)
+				assert.NoError(t, err)
+
+				expected := tc.expected[i]
+				assert.Equal(t, expected.Op, actual.Op)
+				assert.Equal(t, expected.Path, actual.Path)
+				assert.Equal(t, expected.Value, actual.Value)
 			}
 		})
 	}
