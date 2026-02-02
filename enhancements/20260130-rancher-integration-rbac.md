@@ -98,6 +98,7 @@ This role **does not** grant permissions to:
 * modify cluster memberships
 * modify SSH keys, templates and secrets
 * modify advanced cluster settings
+* view or modify guest clusters configuration
 
 The `Manage Virtualization Resources` role provides a cluster "power user" with management access to all virtualization resources.
 
@@ -118,6 +119,7 @@ This role **does not** grant permissions to:
 
 * upgrade the cluster
 * modify cluster memberships
+* view or modify guest clusters configuration
 
 The `Manage Virtualization Infrastructure` role provides specialized permissions to infrastructure experts to manage infrastructure resources and respond to infrastructure-related incidents.
 
@@ -135,6 +137,7 @@ This role **does not** grant permissions to:
 
 * upgrade the cluster
 * modify cluster memberships
+* view or modify guest clusters configuration
 
 ### Project Roles Definition
 
@@ -158,6 +161,7 @@ This role **does not** grant permissions to:
 * modify project memberships
 * modify infrastructure resources
 * modify host devices like PCI devices, SR-IOV devices, vGPU devices
+* view or modify guest clusters configuration
 
 The `Manage Virtualization Resources` role inherits the permissions of the built-in `Project User`, allowing project users to deploy and manage their virtualization workloads and services within the designated projects.
 
@@ -173,6 +177,7 @@ This role **does not** grant permissions to:
 * modify project memberships
 * modify infrastructure resources
 * modify host devices like PCI devices, SR-IOV devices, vGPU devices
+* view or modify guest clusters configuration
 
 ### User Stories
 
