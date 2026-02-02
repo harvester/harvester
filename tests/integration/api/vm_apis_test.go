@@ -172,7 +172,7 @@ var _ = Describe("verify vm APIs", func() {
 			respCode, respBody, err = helper.PostObjectAction(vmURL, apivm.EjectCdRomVolumeActionInput{
 				DeviceName: testVMContainerDiskName,
 			}, "ejectCdRomVolume")
-			MustRespCodeIs(http.StatusInternalServerError, "ejectCdRomVolume", err, respCode, respBody)
+			MustRespCodeIs(http.StatusUnprocessableEntity, "ejectCdRomVolume", err, respCode, respBody)
 
 			By("when call ejectCdRomVolume action with correct cdrom")
 			vmURL = helper.BuildResourceURL(vmsAPI, vmNamespace, vmName)
