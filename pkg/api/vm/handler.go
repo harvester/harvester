@@ -307,7 +307,7 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 func getSataCdRomDiskPos(vm *kubevirtv1.VirtualMachine, deviceName string) (int, error) {
 	pos := -1
 	for idx, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if disk.Name == deviceName && disk.CDRom != nil && disk.CDRom.Bus == kubevirtv1.DiskBusSATA {
+		if disk.Name == deviceName && virtualmachine.IsDiskSataCdRom(&disk) {
 			pos = idx
 			break
 		}

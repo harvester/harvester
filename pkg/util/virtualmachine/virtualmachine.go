@@ -174,3 +174,41 @@ func volumeSupportRWXForVM(accessModes []corev1.PersistentVolumeAccessMode, prov
 
 	return slices.Contains(accessModes, corev1.ReadWriteMany)
 }
+
+func IsDiskSataCdRom(disk *kubevirtv1.Disk) bool {
+	return disk.CDRom != nil && disk.CDRom.Bus == kubevirtv1.DiskBusSATA
+}
+
+func SupportInjectCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
+	volumeNames := map[string]struct{}{}
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		volumeNames[volume.Name] = struct{}{}
+	}
+	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
+		if IsDiskSataCdRom(&disk) {
+			_, hasVolume := volumeNames[disk.Name]
+			if !hasVolume {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func SupportEjectCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
+	volumeNames := map[string]struct{}{}
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.Hotpluggable {
+			volumeNames[volume.Name] = struct{}{}
+		}
+	}
+	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
+		if IsDiskSataCdRom(&disk) {
+			_, hotpluggable := volumeNames[disk.Name]
+			if hotpluggable {
+				return true
+			}
+		}
+	}
+	return false
+}
