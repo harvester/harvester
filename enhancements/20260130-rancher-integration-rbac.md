@@ -1,8 +1,8 @@
-# Rancher Integration RAC
+# Rancher Integration RBAC
 
 ## Summary
 
-The goal of this proposal is to define a set of [role-based acccess control (RBAC)][1] roles to regulate Rancher users' access and operational privileges to Harvester resources. Cluster administrators can utilize these roles to enforce cluster-scoped and project-scoped permissions in multi-tenant environment. Team members are assigned roles with appropriate level of permissions to execute their functions, based on their responsibilities.
+The goal of this proposal is to define a set of [role-based access control (RBAC)][1] roles to regulate Rancher users' access and operational privileges to Harvester resources. Cluster administrators can utilize these roles to enforce cluster-scoped and project-scoped permissions in multi-tenant environment. Team members are assigned roles with appropriate level of permissions to execute their functions, based on their responsibilities.
 
 These new roles complement the existing Harvester/Rancher integration authentication and authorization models. They are derived from Rancher's built-in roles. By mapping these roles to specific Harvester resource permissions, we create a seamless integration that enhances security and operational efficiency.
 
@@ -28,7 +28,7 @@ The proposed enhancement aims to address these gaps.
 
 This approach offers Rancher users with a consistent and familiar user membership and RBAC management experience.
 
-During the initial implementation phase, RBAC roles are defined to seggregate cluster-scoped from namespace-scoped access, and read-only from read-write operations.
+During the initial implementation phase, RBAC roles are defined to segregate cluster-scoped from namespace-scoped access, and read-only from read-write operations.
 
 More granular roles with specific permissions to manage, for example, the network stack or storage configuration can be introduced in future phases based on user feedback and requirements.
 
@@ -161,7 +161,7 @@ This role **does not** grant permissions to:
 
 The `Manage Virtualization Resources` role inherits the permissions of the built-in `Project User`, allowing project users to deploy and manage their virtualization workloads and services within the designated projects.
 
-Specifically, then can:
+Specifically, they can:
 
 * modify all resources within the designated project
 * modify SSH keys, templates and secrets
