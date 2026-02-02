@@ -175,11 +175,23 @@ func (v *addonValidator) validateDeschedulerAddonUpdate(newAddon *v1beta1.Addon,
 }
 
 func (v *addonValidator) validatePCIDevicesControllerAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
-	// check when pcidevices-controller addon is being disabled
-	if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
-		return v.validatePCIDevicesControllerAddon()
+	// not being disabled, no validation needed
+	if !oldAddon.Spec.Enabled || newAddon.Spec.Enabled {
+		return nil
 	}
-	return nil
+
+	// check for skip annotation
+	// 1. some users may accidentally disable the addon and start VMs without detaching devices
+	// 2. some users may want to forcibly disable the addon to initialize their devices state when vm is in stopped state
+	// in general, we hope users can detach devices from VMs before disabling the addon for safety and understanding what they are doing
+	// We check VM for case 1 and provide skip annotation for case 2
+	if newAddon.Annotations != nil && newAddon.Annotations[util.AnnotationSkipPCIDevicesControllerAddonWebhookCheck] == "true" {
+		logrus.Warnf("%v addon is being disabled but webhook check is skipped", util.PCIDevicesControllerName)
+		return nil
+	}
+
+	// perform validation when pcidevices-controller addon is being disabled
+	return v.validatePCIDevicesControllerAddon()
 }
 
 func (v *addonValidator) validateNvidiaDriverToolkitAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
