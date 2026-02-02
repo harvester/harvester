@@ -17,6 +17,7 @@ import (
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
+	ctlkubeovnv1 "github.com/harvester/harvester/pkg/generated/controllers/kubeovn.io"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
 	ctlloggingv1 "github.com/harvester/harvester/pkg/generated/controllers/logging.banzaicloud.io"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io"
@@ -41,9 +42,10 @@ type Clients struct {
 	HarvesterNetworkFactory  *ctlnetwork.Factory
 	LoggingFactory           *ctlloggingv1.Factory
 	AppsFactory              *ctlappsv1.Factory
+	KubeovnFactory           *ctlkubeovnv1.Factory
 }
 
-func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, error) {
+func New(ctx context.Context, rest *rest.Config, threadiness int, crdExists bool) (*Clients, error) {
 	clients, err := clients.NewFromConfig(rest, nil)
 	if err != nil {
 		return nil, err
@@ -161,6 +163,17 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		return nil, err
 	}
 
+	var kubeovnFactory *ctlkubeovnv1.Factory
+	if crdExists {
+		kubeovnFactory, err = ctlkubeovnv1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
+		if err != nil {
+			return nil, err
+		}
+		if err = kubeovnFactory.Start(ctx, threadiness); err != nil {
+			return nil, err
+		}
+	}
+
 	return &Clients{
 		Clients:                  *clients,
 		HarvesterFactory:         harvesterFactory,
@@ -177,5 +190,6 @@ func New(ctx context.Context, rest *rest.Config, threadiness int) (*Clients, err
 		HarvesterNetworkFactory:  harvesterNetworkFactory,
 		LoggingFactory:           loggingFactory,
 		AppsFactory:              appsFactory,
+		KubeovnFactory:           kubeovnFactory,
 	}, nil
 }

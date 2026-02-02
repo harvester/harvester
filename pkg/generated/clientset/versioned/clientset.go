@@ -29,6 +29,7 @@ import (
 	clusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1"
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	k8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
+	kubeovnv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubeovn.io/v1"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 	loggingv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1"
 	longhornv1beta2 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2"
@@ -58,6 +59,7 @@ type Interface interface {
 	ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface
 	HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta1Interface
 	K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface
+	KubeovnV1() kubeovnv1.KubeovnV1Interface
 	KubevirtV1() kubevirtv1.KubevirtV1Interface
 	LoggingV1beta1() loggingv1beta1.LoggingV1beta1Interface
 	LonghornV1beta2() longhornv1beta2.LonghornV1beta2Interface
@@ -84,6 +86,7 @@ type Clientset struct {
 	clusterV1beta1      *clusterv1beta1.ClusterV1beta1Client
 	harvesterhciV1beta1 *harvesterhciv1beta1.HarvesterhciV1beta1Client
 	k8sCniCncfIoV1      *k8scnicncfiov1.K8sCniCncfIoV1Client
+	kubeovnV1           *kubeovnv1.KubeovnV1Client
 	kubevirtV1          *kubevirtv1.KubevirtV1Client
 	loggingV1beta1      *loggingv1beta1.LoggingV1beta1Client
 	longhornV1beta2     *longhornv1beta2.LonghornV1beta2Client
@@ -137,6 +140,11 @@ func (c *Clientset) HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta
 // K8sCniCncfIoV1 retrieves the K8sCniCncfIoV1Client
 func (c *Clientset) K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface {
 	return c.k8sCniCncfIoV1
+}
+
+// KubeovnV1 retrieves the KubeovnV1Client
+func (c *Clientset) KubeovnV1() kubeovnv1.KubeovnV1Interface {
+	return c.kubeovnV1
 }
 
 // KubevirtV1 retrieves the KubevirtV1Client
@@ -280,6 +288,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
+	cs.kubeovnV1, err = kubeovnv1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.kubevirtV1, err = kubevirtv1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -361,6 +373,7 @@ func New(c rest.Interface) *Clientset {
 	cs.clusterV1beta1 = clusterv1beta1.New(c)
 	cs.harvesterhciV1beta1 = harvesterhciv1beta1.New(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.New(c)
+	cs.kubeovnV1 = kubeovnv1.New(c)
 	cs.kubevirtV1 = kubevirtv1.New(c)
 	cs.loggingV1beta1 = loggingv1beta1.New(c)
 	cs.longhornV1beta2 = longhornv1beta2.New(c)
