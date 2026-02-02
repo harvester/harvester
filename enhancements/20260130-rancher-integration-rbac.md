@@ -64,9 +64,7 @@ The proposed roles do not include Rancher-level administrative permissions, whic
 
 ![screenshot to show built-in global permissions](./20260130-rancher-integration-rbac/builtin-global-permissions.png)
 
-The manifests for these roles will be delivered as a Helm chart.
-
-In the initial delivery phase, Rancher administrator can manually download and install this chart in Rancher from the Harvester `charts` repository. Automatic registration of these roles during the Harvester/Rancher integration setup process can be considered in future phases.
+The manifests for these roles will be delivered as a Helm chart. Rancher administrator can add and manage this chart via the Rancher "Apps -> Chart" UI on the `local` cluster.
 
 The following section outlines the proposed RBAC roles and their functions.
 
@@ -219,9 +217,7 @@ No changes to existing APIs.
 
 The RBAC roles are implemented using the Rancher [`RoleTemplate` API][2].
 
-The roles are defined as YAML manifests and delivered via a Helm chart.
-
-During the initial phase, the Helm chart can be installed manually in Rancher by a Rancher administrator after the Harvester/Rancher integration is set up. The automatic installation of the Helm chart during the integration setup process can be considered in future phases.
+The roles are defined as YAML manifests and delivered via a Helm chart. Rancher administrator can add and manage this chart via the Rancher "Apps -> Chart" UI on the `local` cluster.
 
 In order for the Harvester UI to render certain views correctly, extra permissions have be added to the minimum set of permissions needed to authorized the API requests. For example, in order to view the virtual machine listing page, the user also needs `get`, `list`, and `watch` permissions on the `namespaces`, `persistentvolumes`, `persistentvolumeclaims`, `storageclasses`, `backups`, `restores` and `virtualmachineimages` resources.
 
