@@ -42,6 +42,7 @@ func newHandler(
 		middleware: responsewriter.Chain{
 			responsewriter.Gzip,
 			responsewriter.FrameOptions,
+			responsewriter.ContentType,
 			responsewriter.CacheMiddleware("json", "js", "css"),
 		}.Handler,
 		indexMiddleware: responsewriter.Chain{
@@ -92,9 +93,9 @@ func (u *handler) path() (path string, isURL bool) {
 	}
 }
 
-func (u *handler) ServeAsset(subFolder string) http.Handler {
+func (u *handler) ServeAsset() http.Handler {
 	return u.middleware(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		http.FileServer(http.Dir(filepath.Join(u.pathSetting(), subFolder))).ServeHTTP(rw, req)
+		http.FileServer(http.Dir(u.pathSetting())).ServeHTTP(rw, req)
 	}))
 }
 
@@ -102,7 +103,7 @@ func (u *handler) IndexFileOnNotFound() http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		req.URL.Path = strings.TrimPrefix(req.URL.Path, "/dashboard")
 		if _, err := os.Stat(filepath.Join(u.pathSetting(), req.URL.Path)); err == nil {
-			u.ServeAsset("").ServeHTTP(rw, req)
+			u.ServeAsset().ServeHTTP(rw, req)
 		} else {
 			u.IndexFile().ServeHTTP(rw, req)
 		}
