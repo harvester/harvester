@@ -352,7 +352,7 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 	volumeMode := corev1.PersistentVolumeBlock
 	newPvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("%s-%s-%s", name, input.DeviceName, rand.String(5)),
+			Name: names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-%s-", name, input.DeviceName)),
 			Annotations: map[string]string{
 				util.AnnotationImageID: input.ImageName,
 			},
