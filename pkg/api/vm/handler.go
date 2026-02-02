@@ -324,6 +324,11 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 		return err
 	}
 
+	pos, err := getSataCdRomDiskPos(vm, input.DeviceName)
+	if err != nil {
+		return err
+	}
+
 	vmCopy := vm.DeepCopy()
 
 	parts := strings.SplitN(input.ImageName, "/", 2)
@@ -375,10 +380,6 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 		},
 	}
 
-	pos, err := getSataCdRomDiskPos(vm, input.DeviceName)
-	if err != nil {
-		return err
-	}
 	err = insertVolumeClaimTemplatesFromVMAnnotation(vmCopy, newPvc, pos)
 	if err != nil {
 		return err
