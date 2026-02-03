@@ -182,16 +182,26 @@ func (vmio *vmiOperator) GetStorageClassName(vmi *harvesterv1.VirtualMachineImag
 		return vmi.Spec.TargetStorageClassName
 	}
 
+	scName := lhutil.AutoCorrectName(
+		fmt.Sprintf("lh-%s", vmio.GetUID(vmi)),
+		lhdatastore.NameMaximumLength,
+	)
+	_, err := vmio.scCache.Get(scName)
+	if err == nil {
+		return scName
+	}
+
 	legacySCName := fmt.Sprintf("longhorn-%s", vmi.Name)
-	_, err := vmio.scCache.Get(legacySCName)
+	_, err = vmio.scCache.Get(legacySCName)
 	if err == nil {
 		return legacySCName
 	}
 
-	return lhutil.AutoCorrectName(
-		fmt.Sprintf("lh-%s", vmio.GetUID(vmi)),
-		lhdatastore.NameMaximumLength,
-	)
+	// If neither a storage class with the new naming nor with the old naming
+	// exists, then return the new name. This allows the GetStorageClassName
+	// method to be used to generate the name of the storage class to be used
+	// during creation.
+	return scName
 }
 
 func (vmio *vmiOperator) GetBackupTarget(vmi *harvesterv1.VirtualMachineImage) *harvesterv1.BackupTarget {
