@@ -386,31 +386,23 @@ kind: RoleTemplate
 locked: false
 metadata:
   labels:
-    app.kubernetes.io/name: harvesterhci
     app.kubernetes.io/component: harvesterhci-rancher-integration
+    app.kubernetes.io/name: harvesterhci
     app.kubernetes.io/part-of: harvesterhci-rbac
   name: virt-project-view
 projectCreatorDefault: false
 roleTemplateNames:
   - read-only
+  - monitoring-ui-view
 rules:
-  - apiGroups:
-      - harvesterhci.io
-    resourceNames: []
-    resources:
-      - keypairs
-    verbs:
-      - list
-      - get
-      - watch
   - apiGroups:
       - loadbalancer.harvesterhci.io
     resourceNames: []
     resources:
-      - "*"
+      - '*'
     verbs:
-      - list
       - get
+      - list
       - watch
 ```
 
@@ -430,29 +422,21 @@ kind: RoleTemplate
 locked: false
 metadata:
   labels:
-    app.kubernetes.io/name: harvesterhci
     app.kubernetes.io/component: harvesterhci-rancher-integration
+    app.kubernetes.io/name: harvesterhci
     app.kubernetes.io/part-of: harvesterhci-rbac
   name: virt-project-manage
 projectCreatorDefault: false
 roleTemplateNames:
   - project-member
-  - workloads-manage
+  - monitoring-ui-view
 rules:
   - apiGroups:
-      - harvesterhci.io
-    resourceNames: []
-    resources:
-      - keypairs
-    verbs:
-      - "*"
-  - apiGroups:
       - loadbalancer.harvesterhci.io
-    resourceNames: []
     resources:
-      - "*"
+      - '*'
     verbs:
-      - "*"
+      - '*'
 ```
 
 ### Test plan
