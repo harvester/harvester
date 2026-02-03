@@ -189,7 +189,7 @@ func (vmio *vmiOperator) GetStorageClassName(vmi *harvesterv1.VirtualMachineImag
 	}
 
 	return lhutil.AutoCorrectName(
-		fmt.Sprintf("longhorn-%s", vmio.GetUID(vmi)),
+		fmt.Sprintf("lh-%s", vmio.GetUID(vmi)),
 		lhdatastore.NameMaximumLength,
 	)
 }
