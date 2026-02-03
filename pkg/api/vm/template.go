@@ -28,19 +28,21 @@ func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTem
 	)
 	defer func() {
 		var cleanupErr error
-		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"namespace": namespace,
-				"name":      name,
-			}).Errorf("failed to create VM Template and associated resources: %v", err)
+		if err == nil {
+			return
+		}
 
-			if cleanupErr = h.cleanupVMTemplateVersion(vmtv); cleanupErr != nil {
-				err = fmt.Errorf("failed to clean up VM template version while dealing with error %w: %s", err, cleanupErr.Error())
-			}
+		logrus.WithFields(logrus.Fields{
+			"namespace": namespace,
+			"name":      name,
+		}).Errorf("failed to create VM Template and associated resources: %v", err)
 
-			if cleanupErr = h.cleanupVMTemplate(vmt); cleanupErr != nil {
-				err = fmt.Errorf("failed to clean up VM template while dealing with error %w: %s", err, cleanupErr.Error())
-			}
+		if cleanupErr = h.cleanupVMTemplateVersion(vmtv); cleanupErr != nil {
+			err = fmt.Errorf("failed to clean up VM template version while dealing with error %w: %s", err, cleanupErr.Error())
+		}
+
+		if cleanupErr = h.cleanupVMTemplate(vmt); cleanupErr != nil {
+			err = fmt.Errorf("failed to clean up VM template while dealing with error %w: %s", err, cleanupErr.Error())
 		}
 	}()
 
@@ -74,11 +76,13 @@ func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTem
 	return h.createSecrets(vmtv, vm)
 }
 
-func (h *vmActionHandler) createTemplateWithData(vm *kubevirtv1.VirtualMachine, vmtvIn *harvesterv1.VirtualMachineTemplateVersion) (vmtv *harvesterv1.VirtualMachineTemplateVersion, err error) {
+func (h *vmActionHandler) createTemplateWithData(vm *kubevirtv1.VirtualMachine, vmtv *harvesterv1.VirtualMachineTemplateVersion) (*harvesterv1.VirtualMachineTemplateVersion, error) {
 	var (
 		pvcMap             map[string]corev1.PersistentVolumeClaim
 		pvcStorageClassMap map[string]string
 		vmImageMap         map[string]harvesterv1.VirtualMachineImage
+		out                *harvesterv1.VirtualMachineTemplateVersion
+		err                error
 	)
 
 	pvcMap, pvcStorageClassMap, err = h.getPVCStorageClassMap(vm)
@@ -90,16 +94,16 @@ func (h *vmActionHandler) createTemplateWithData(vm *kubevirtv1.VirtualMachine, 
 		return vmtv, err
 	}
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		vmtv, err = h.vmTemplateVersionClient.Get(vmtv.Namespace, vmtv.Name, metav1.GetOptions{})
+		out, err = h.vmTemplateVersionClient.Get(vmtv.Namespace, vmtv.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
-		return h.sanitizeVolumes(vmtv, pvcMap, vmImageMap)
+		return h.sanitizeVolumes(out, pvcMap, vmImageMap)
 	})
 	if err != nil {
 		return vmtv, err
 	}
-	return vmtv, nil
+	return out, nil
 }
 
 func (h *vmActionHandler) getPVCStorageClassMap(vm *kubevirtv1.VirtualMachine) (map[string]corev1.PersistentVolumeClaim, map[string]string, error) {
@@ -116,7 +120,7 @@ func (h *vmActionHandler) getPVCStorageClassMap(vm *kubevirtv1.VirtualMachine) (
 		}
 		pvcMap[pvc.Name] = *pvc
 
-		scName, err := h.getStorageClassNameFromPVCOrBackingImage(pvc)
+		scName, err := h.getSCNameFromPVC(pvc)
 		if err != nil {
 			return pvcMap, pvcStorageClassMap, err
 		}
@@ -125,32 +129,35 @@ func (h *vmActionHandler) getPVCStorageClassMap(vm *kubevirtv1.VirtualMachine) (
 	return pvcMap, pvcStorageClassMap, nil
 }
 
+// Get Storage Class name from PVC or Backing Image
 // If the PVC has an annoation, which associates it with a BackingImage, then
 // this function will return the StorageClass name of the BackingImage. Otherwise it
 // will return the StorageClass name of the PVC itself.
-func (h *vmActionHandler) getStorageClassNameFromPVCOrBackingImage(pvc *corev1.PersistentVolumeClaim) (scName string, err error) {
+func (h *vmActionHandler) getSCNameFromPVC(pvc *corev1.PersistentVolumeClaim) (scName string, err error) {
 	if imageId, ok := pvc.Annotations[util.AnnotationImageID]; ok {
-		return h.getStorageClassNameFromImageID(imageId)
+		return h.getSCNameFromImgID(imageId)
 	}
 	return *pvc.Spec.StorageClassName, nil
 }
 
+// Get Storage Class Name from ImageID
 // Given an ImageID, find the corresponding VMImage and figure out it's
 // StorageClass name
-func (h *vmActionHandler) getStorageClassNameFromImageID(imageId string) (scName string, err error) {
+func (h *vmActionHandler) getSCNameFromImgID(imageId string) (scName string, err error) {
 	imageIdSplit := strings.Split(imageId, "/")
-	if len(imageIdSplit) == 2 {
-		vmImage, err := h.vmImageCache.Get(imageIdSplit[0], imageIdSplit[1])
-		if err != nil {
-			return "", err
-		}
-
-		if scName, ok := vmImage.Annotations[util.AnnotationStorageClassName]; ok {
-			return scName, nil
-		}
-		return "", fmt.Errorf("VMImage %s/%s does not have an annotation %s", vmImage.Namespace, vmImage.Name, util.AnnotationStorageClassName)
+	if len(imageIdSplit) != 2 {
+		return "", fmt.Errorf("malformed image ID: %s", imageId)
 	}
-	return "", fmt.Errorf("malformed image ID: %s", imageId)
+
+	vmImage, err := h.vmImageCache.Get(imageIdSplit[0], imageIdSplit[1])
+	if err != nil {
+		return "", err
+	}
+
+	if scName, ok := vmImage.Annotations[util.AnnotationStorageClassName]; ok {
+		return scName, nil
+	}
+	return "", fmt.Errorf("VMImage %s/%s does not have an annotation %s", vmImage.Namespace, vmImage.Name, util.AnnotationStorageClassName)
 }
 
 func (h *vmActionHandler) sanitizeVolumes(templateVersion *harvesterv1.VirtualMachineTemplateVersion, pvcMap map[string]corev1.PersistentVolumeClaim, vmImageMap map[string]harvesterv1.VirtualMachineImage) error {
@@ -195,9 +202,10 @@ func (h *vmActionHandler) generateVolumeClaimTemplate(index int, tvName, tvNames
 	vmImage := vmImageMap[vmImageName]
 
 	claim := pvcMap[claimName]
-	targetStorageClassName := h.vmio.GetStorageClassName(&vmImage)
+	// target storage class name
+	targetSCName := h.vmio.GetStorageClassName(&vmImage)
 	if _, ok := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; ok {
-		targetStorageClassName = *claim.Spec.StorageClassName
+		targetSCName = *claim.Spec.StorageClassName
 	}
 	pvcName := getTemplateVersionPvcName(tvName, index)
 
@@ -212,25 +220,34 @@ func (h *vmActionHandler) generateVolumeClaimTemplate(index int, tvName, tvNames
 			AccessModes:      claim.Spec.AccessModes,
 			Resources:        claim.Spec.Resources,
 			VolumeMode:       claim.Spec.VolumeMode,
-			StorageClassName: &targetStorageClassName,
+			StorageClassName: &targetSCName,
 		},
 	}
 	return pvc
 }
 
+// Copy Credentials Secret
+func (h *vmActionHandler) copyCredentialsSecret(templateVersion *harvesterv1.VirtualMachineTemplateVersion, index int, credential *kubevirtv1.AccessCredential) (err error) {
+	sshPublicKey := credential.SSHPublicKey
+	userPassword := credential.UserPassword
+	if sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
+		name := getTemplateVersionSSHPublicKeySecretName(templateVersion.Name, index)
+		err = h.copySecret(sshPublicKey.Source.Secret.SecretName, name, templateVersion)
+		return err
+	}
+	if userPassword != nil && userPassword.Source.Secret != nil {
+		name := getTemplateVersionUserPasswordSecretName(templateVersion.Name, index)
+		err = h.copySecret(userPassword.Source.Secret.SecretName, name, templateVersion)
+		return err
+	}
+	return nil
+}
+
 func (h *vmActionHandler) createSecrets(templateVersion *harvesterv1.VirtualMachineTemplateVersion, vm *kubevirtv1.VirtualMachine) error {
 	for index, credential := range vm.Spec.Template.Spec.AccessCredentials {
-		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
-			toCreateSecretName := getTemplateVersionSSHPublicKeySecretName(templateVersion.Name, index)
-			if err := h.copySecret(sshPublicKey.Source.Secret.SecretName, toCreateSecretName, templateVersion); err != nil {
-				return err
-			}
-		}
-		if userPassword := credential.UserPassword; userPassword != nil && userPassword.Source.Secret != nil {
-			toCreateSecretName := getTemplateVersionUserPasswordSecretName(templateVersion.Name, index)
-			if err := h.copySecret(userPassword.Source.Secret.SecretName, toCreateSecretName, templateVersion); err != nil {
-				return err
-			}
+		err := h.copyCredentialsSecret(templateVersion, index, &credential)
+		if err != nil {
+			return err
 		}
 	}
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
@@ -292,7 +309,11 @@ func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMac
 
 		claimName := volume.PersistentVolumeClaim.ClaimName
 		targetSCName := pvcStorageClassMap[claimName]
-		vmImageBackend, err := h.getVMImageBackend(targetSCName)
+		pvc, err := h.pvcCache.Get(vm.Namespace, claimName)
+		if err != nil {
+			return nil, err
+		}
+		vmImageBackend, err := h.getVMImageBackend(targetSCName, pvc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure vm image backend for volume %s", volume.Name)
 		}
@@ -351,7 +372,7 @@ func getOwnerReferenceFromTemplateVersion(tv *harvesterv1.VirtualMachineTemplate
 // backingImage
 // If target StorageClass uses Longhorn V1 provisioner, use backingImage
 // Otherwise use CDI backend
-func (h *vmActionHandler) getVMImageBackend(targetSCName string) (harvesterv1.VMIBackend, error) {
+func (h *vmActionHandler) getVMImageBackend(targetSCName string, pvc *corev1.PersistentVolumeClaim) (harvesterv1.VMIBackend, error) {
 	if strings.HasPrefix(targetSCName, "longhorn-templateversion-") {
 		return harvesterv1.VMIBackendBackingImage, nil
 	}
@@ -360,15 +381,15 @@ func (h *vmActionHandler) getVMImageBackend(targetSCName string) (harvesterv1.VM
 	if err != nil {
 		return "", err
 	}
-
-	if targetSC.Provisioner == util.CSIProvisionerLonghorn {
-		if dataEngineVers, ok := targetSC.Parameters["dataEngine"]; ok {
-			if dataEngineVers == string(longhorn.DataEngineTypeV1) {
-				return harvesterv1.VMIBackendBackingImage, nil
-			}
-		}
+	provisioner := util.GetProvisionedPVCProvisioner(pvc, h.storageClassCache)
+	if provisioner != util.CSIProvisionerLonghorn {
+		return harvesterv1.VMIBackendCDI, nil
 	}
 
+	v := util.GetLonghornDataEngineType(targetSC)
+	if v == longhorn.DataEngineTypeV1 {
+		return harvesterv1.VMIBackendBackingImage, nil
+	}
 	return harvesterv1.VMIBackendCDI, nil
 }
 
@@ -422,28 +443,32 @@ func (h *vmActionHandler) createVMTemplateVersion(namespace string, vm *kubevirt
 
 // cleanup the VirtualMachineTemplate in case we hold a non-nil reference
 func (h *vmActionHandler) cleanupVMTemplate(vmt *harvesterv1.VirtualMachineTemplate) (err error) {
-	if vmt != nil {
-		if err = h.vmTemplateClient.Delete(vmt.Namespace, vmt.Name, &metav1.DeleteOptions{}); err != nil {
-			logrus.WithFields(logrus.Fields{
-				"namespace": vmt.Namespace,
-				"name":      vmt.Name,
-			}).Errorf("failed to clean up template version: %v", err)
-			return err
-		}
+	if vmt == nil {
+		return nil
+	}
+
+	if err = h.vmTemplateClient.Delete(vmt.Namespace, vmt.Name, &metav1.DeleteOptions{}); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"namespace": vmt.Namespace,
+			"name":      vmt.Name,
+		}).Errorf("failed to clean up template version: %v", err)
+		return err
 	}
 	return nil
 }
 
 // cleanup the VirtualMachineTemplateVersion in case we hold a non-nil reference
 func (h *vmActionHandler) cleanupVMTemplateVersion(vmtv *harvesterv1.VirtualMachineTemplateVersion) (err error) {
-	if vmtv != nil {
-		if err = h.vmTemplateVersionClient.Delete(vmtv.Namespace, vmtv.Name, &metav1.DeleteOptions{}); err != nil {
-			logrus.WithFields(logrus.Fields{
-				"namespace": vmtv.Namespace,
-				"name":      vmtv.Name,
-			}).Errorf("failed to clean up template version: %v", err)
-			return err
-		}
+	if vmtv == nil {
+		return nil
+	}
+
+	if err = h.vmTemplateVersionClient.Delete(vmtv.Namespace, vmtv.Name, &metav1.DeleteOptions{}); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"namespace": vmtv.Namespace,
+			"name":      vmtv.Name,
+		}).Errorf("failed to clean up template version: %v", err)
+		return err
 	}
 	return nil
 }
