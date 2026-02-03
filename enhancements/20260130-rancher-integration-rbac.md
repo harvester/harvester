@@ -74,7 +74,6 @@ The following is the list of the proposed cluster-scoped roles:
 
 * `View Virtualization Resources`
 * `Manage Virtualization Resources`
-* `Manage Virtualization Infrastructure`
 
 The `View Virtualization Resources` role provides a read-only "single pane of glass" experience to cluster user.
 
@@ -116,24 +115,6 @@ With this role, a cluster user can:
 * view cluster memberships
 * view cluster and workload metrics
 * generate support bundles
-
-This role **does not** grant permissions to:
-
-* upgrade the cluster
-* modify cluster memberships
-* view or modify guest clusters configuration
-
-The `Manage Virtualization Infrastructure` role provides specialized permissions to infrastructure experts to manage infrastructure resources and respond to infrastructure-related incidents.
-
-This role allows a cluster user to:
-
-* view all workload resources as defined in the `View Virtualization Resources` role
-* modify virtual machine images and storage classes
-* modify all infrastructure resources such as hosts, disks and networks
-* modify all host devices like PCI devices, SR-IOV devices, vGPU devices
-* modify advanced cluster settings
-* restore virtual machines and volumes from backups and snapshots
-* view cluster and workload metrics
 
 This role **does not** grant permissions to:
 
@@ -247,8 +228,8 @@ kind: RoleTemplate
 locked: false
 metadata:
   labels:
-    app.kubernetes.io/name: harvesterhci
     app.kubernetes.io/component: harvesterhci-rancher-integration
+    app.kubernetes.io/name: harvesterhci
     app.kubernetes.io/part-of: harvesterhci-rbac
   name: virt-view-cluster
 projectCreatorDefault: false
@@ -262,23 +243,15 @@ roleTemplateNames:
   - services-view
 rules:
   - apiGroups:
-      - kubevirt.io
-    resources:
-      - "*"
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
       - harvesterhci.io
     resources:
       - supportbundles
     verbs:
-      - "*"
+      - '*'
   - apiGroups:
       - network.harvesterhci.io
     resources:
-      - "*"
+      - '*'
     verbs:
       - get
       - list
@@ -286,7 +259,7 @@ rules:
   - apiGroups:
       - loadbalancer.harvesterhci.io
     resources:
-      - "*"
+      - '*'
     verbs:
       - get
       - list
@@ -294,7 +267,7 @@ rules:
   - apiGroups:
       - devices.harvesterhci.io
     resources:
-      - "*"
+      - '*'
     verbs:
       - get
       - list
@@ -302,15 +275,16 @@ rules:
   - apiGroups:
       - node.harvesterhci.io
     resources:
-      - "*"
+      - '*'
     verbs:
       - get
       - list
       - watch
   - apiGroups:
       - harvesterhci.io
+    resourceNames: []
     resources:
-      - "*"
+      - '*'
     verbs:
       - get
       - list
@@ -324,6 +298,7 @@ rules:
       - get
       - list
       - watch
+      - create
 ```
 
 The sample manifest of the `Manage Virtualization Resources` cluster role:
@@ -342,8 +317,8 @@ kind: RoleTemplate
 locked: false
 metadata:
   labels:
-    app.kubernetes.io/name: harvesterhci
     app.kubernetes.io/component: harvesterhci-rancher-integration
+    app.kubernetes.io/name: harvesterhci
     app.kubernetes.io/part-of: harvesterhci-rbac
   name: virt-cluster-manage
 projectCreatorDefault: false
@@ -353,170 +328,45 @@ roleTemplateNames:
   - storage-manage
   - nodes-manage
   - projects-view
-  - workloads-manage
-  - secrets-manage
+  - edit
 rules:
   - apiGroups:
-      - kubevirt.io
-    resources:
-      - "*"
-    verbs:
-      - "*"
-  - apiGroups:
-      - harvesterhci.io
-    resources:
-      - "*"
-    verbs:
-      - "*"
-  - apiGroups:
-      - ""
+      - ''
     resources:
       - namespaces
     verbs:
-      - "*"
+      - '*'
   - apiGroups:
       - loadbalancer.harvesterhci.io
     resources:
-      - "*"
+      - '*'
     verbs:
-      - "*"
+      - '*'
   - apiGroups:
       - network.harvesterhci.io
     resources:
-      - "*"
+      - '*'
     verbs:
-      - "*"
+      - '*'
   - apiGroups:
       - node.harvesterhci.io
     resources:
-      - "*"
+      - '*'
     verbs:
-      - "*"
+      - '*'
   - apiGroups:
       - devices.harvesterhci.io
     resources:
-      - "*"
+      - '*'
     verbs:
-      - "*"
-  - apiGroups:
-      - longhorn.io
-    resourceNames: []
-    resources:
-      - "*"
-    verbs:
-      - "*"
-  - apiGroups:
-      - snapshot.storage.k8s.io
-    resourceNames: []
-    resources:
-      - volumesnapshots
-    verbs:
-      - "*"
-```
-
-The sample manifest of the `Manage Virtualization Infrastructure` cluster role:
-
-```yaml
-administrative: false
-apiVersion: management.cattle.io/v3
-builtin: false
-clusterCreatorDefault: false
-context: cluster
-description: Provides management access to infrastructure resources in Harvester
-displayName: Manage Virtualization Infrastructure
-external: false
-hidden: false
-kind: RoleTemplate
-locked: false
-metadata:
-  labels:
-    app.kubernetes.io/name: harvesterhci
-    app.kubernetes.io/component: harvesterhci-rancher-integration
-    app.kubernetes.io/part-of: harvesterhci-rbac
-  name: virt-cluster-infra
-projectCreatorDefault: false
-roleTemplateNames:
-  - nodes-manage
-  - cluster-member
-  - virt-view-cluster
-rules:
-  - apiGroups:
-      - devices.harvesterhci.io
-    resources:
-      - "*"
-    verbs:
-      - "*"
-  - apiGroups:
-      - node.harvesterhci.io
-    resources:
-      - "*"
-    verbs:
-      - "*"
-  - apiGroups:
-      - network.harvesterhci.io
-    resources:
-      - "*"
-    verbs:
-      - "*"
-  - apiGroups:
-      - harvesterhci.io
-    resources:
-      - virtualmachinebackups
-    verbs:
-      - "*"
-  - apiGroups:
-      - harvesterhci.io
-    resources:
-      - supportbundles
-    verbs:
-      - "*"
-  - apiGroups:
-      - harvesterhci.io
-    resources:
-      - virtualmachineimages
-    verbs:
-      - "*"
-  - apiGroups:
-      - harvesterhci.io
-    resources:
-      - schedulevmbackups
-    verbs:
-      - "*"
+      - '*'
   - apiGroups:
       - harvesterhci.io
     resourceNames: []
     resources:
-      - virtualmachinerestores
+      - '*'
     verbs:
-      - "*"
-  - apiGroups:
-      - longhorn.io
-    resourceNames: []
-    resources:
-      - "*"
-    verbs:
-      - "*"
-  - apiGroups:
-      - storage.k8s.io
-    resourceNames: []
-    resources:
-      - storageclasses
-    verbs:
-      - "*"
-  - apiGroups:
-      - harvesterhci.io
-    resourceNames: []
-    resources:
-      - settings
-    verbs:
-      - "*"
-  - apiGroups:
-      - snapshot.storage.k8s.io
-    resourceNames: []
-    resources:
-      - "*"
-    verbs:
-      - "*"
+      - '*'
 ```
 
 #### Project Roles Specification
