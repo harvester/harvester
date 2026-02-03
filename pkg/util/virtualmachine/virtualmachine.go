@@ -179,36 +179,52 @@ func IsDiskSataCdRom(disk *kubevirtv1.Disk) bool {
 	return disk.CDRom != nil && disk.CDRom.Bus == kubevirtv1.DiskBusSATA
 }
 
-func SupportInjectCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
-	volumeNames := map[string]struct{}{}
+func SupportInjectCdRomVolume(vm *kubevirtv1.VirtualMachine) (bool, error) {
+	volumeMaps := map[string]struct{}{}
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
-		volumeNames[volume.Name] = struct{}{}
+		volumeMaps[volume.Name] = struct{}{}
 	}
+
+	hasEmptyCdRom := false
 	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if IsDiskSataCdRom(&disk) {
-			_, hasVolume := volumeNames[disk.Name]
-			if !hasVolume {
-				return true
-			}
+		if disk.CDRom == nil {
+			continue
 		}
+		_, hasVolume := volumeMaps[disk.Name]
+		if hasVolume {
+			continue
+		}
+		useSata := IsDiskSataCdRom(&disk)
+		if !useSata {
+			return false, fmt.Errorf("empty cd-rom device should connect via SATA bus")
+		}
+		hasEmptyCdRom = true
 	}
-	return false
+	return hasEmptyCdRom, nil
 }
 
-func SupportEjectCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
-	volumeNames := map[string]struct{}{}
+func SupportEjectCdRomVolume(vm *kubevirtv1.VirtualMachine) (bool, error) {
+	volumeMaps := map[string]struct{}{}
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.Hotpluggable {
-			volumeNames[volume.Name] = struct{}{}
+			volumeMaps[volume.Name] = struct{}{}
 		}
 	}
+
+	hasEjectableCdRom := false
 	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if IsDiskSataCdRom(&disk) {
-			_, hotpluggable := volumeNames[disk.Name]
-			if hotpluggable {
-				return true
-			}
+		if disk.CDRom == nil {
+			continue
 		}
+		_, hotpluggable := volumeMaps[disk.Name]
+		if !hotpluggable {
+			continue
+		}
+		useSata := IsDiskSataCdRom(&disk)
+		if !useSata {
+			return false, fmt.Errorf("hotpluggable cd-rom volume should connect via SATA bus")
+		}
+		hasEjectableCdRom = true
 	}
-	return false
+	return hasEjectableCdRom, nil
 }

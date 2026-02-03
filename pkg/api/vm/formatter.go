@@ -480,9 +480,11 @@ func canHotUnplugNic(vm *kubevirtv1.VirtualMachine) bool {
 }
 
 func canInjectCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
-	return virtualmachine.SupportInjectCdRomVolume(vm)
+	ok, _ := virtualmachine.SupportInjectCdRomVolume(vm)
+	return ok
 }
 
 func canEjectCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
-	return virtualmachine.SupportEjectCdRomVolume(vm)
+	ok, _ := virtualmachine.SupportEjectCdRomVolume(vm)
+	return ok
 }

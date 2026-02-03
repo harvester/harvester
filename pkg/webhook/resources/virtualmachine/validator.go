@@ -242,6 +242,10 @@ func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 		return err
 	}
 
+	if err := v.checkCdRomVolumeIsValid(vm); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -291,6 +295,10 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 	}
 
 	if err := v.checkMaintenanceModeStrategyIsValid(newVM, oldVM); err != nil {
+		return err
+	}
+
+	if err := v.checkCdRomVolumeIsValid(newVM); err != nil {
 		return err
 	}
 
@@ -669,5 +677,17 @@ func (v *vmValidator) checkMaintenanceModeStrategyIsValid(newVM, oldVM *kubevirt
 
 	// VM was created with a valid maintenance mode strategy, or it was updated
 	// and the new maintenance mode strategy is valid. Both are ok
+	return nil
+}
+
+func (v *vmValidator) checkCdRomVolumeIsValid(vm *kubevirtv1.VirtualMachine) error {
+	if _, err := vmutil.SupportInjectCdRomVolume(vm); err != nil {
+		return err
+	}
+
+	if _, err := vmutil.SupportEjectCdRomVolume(vm); err != nil {
+		return err
+	}
+
 	return nil
 }
