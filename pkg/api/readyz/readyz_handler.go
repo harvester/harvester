@@ -9,12 +9,14 @@ import (
 	"sync"
 
 	"github.com/harvester/go-common/common"
-	"github.com/harvester/harvester/pkg/config"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/util"
 	longhornTypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/rancher/apiserver/pkg/apierror"
+	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
 	"github.com/rancher/rancher/pkg/auth/tokens/hashers"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -34,7 +36,8 @@ var (
 )
 
 type ReadyzHandler struct {
-	scaled *config.Scaled
+	podCache ctlcorev1.PodCache
+	rkeCache generic.CacheInterface[*rkev1.RKEControlPlane]
 }
 
 type OEMConfig struct {
@@ -52,9 +55,10 @@ type RancherdConfig struct {
 	Token string `yaml:"token"`
 }
 
-func NewReadyzHandler(scaled *config.Scaled) *ReadyzHandler {
+func NewReadyzHandler(podCache ctlcorev1.PodCache, rkeCache generic.CacheInterface[*rkev1.RKEControlPlane]) *ReadyzHandler {
 	return &ReadyzHandler{
-		scaled: scaled,
+		podCache: podCache,
+		rkeCache: rkeCache,
 	}
 }
 
@@ -154,7 +158,7 @@ func findFileContent(config OEMConfig, targetPath string) string {
 }
 
 func (h *ReadyzHandler) clusterReady() (bool, string) {
-	rkeControlPlane, err := h.scaled.Management.RKEFactory.Rke().V1().RKEControlPlane().Cache().Get(
+	rkeControlPlane, err := h.rkeCache.Get(
 		util.FleetLocalNamespaceName,
 		util.LocalClusterName)
 	if err != nil {
@@ -172,10 +176,8 @@ func (h *ReadyzHandler) clusterReady() (bool, string) {
 		return false, "rkeControlPlane is not ready"
 	}
 
-	podCache := h.scaled.CoreFactory.Core().V1().Pod().Cache()
-
 	longhornManagerSelector := labels.SelectorFromSet(labels.Set(longhornTypes.GetManagerLabels()))
-	longhornPods, err := podCache.List(common.LonghornSystemNamespaceName, longhornManagerSelector)
+	longhornPods, err := h.podCache.List(common.LonghornSystemNamespaceName, longhornManagerSelector)
 	if err != nil {
 		return false, "failed to check longhorn-manager pods"
 	}
@@ -185,7 +187,7 @@ func (h *ReadyzHandler) clusterReady() (bool, string) {
 	}
 
 	virtControllerSelector := labels.SelectorFromSet(labels.Set{kubevirtv1.AppLabel: "virt-controller"})
-	virtPods, err := podCache.List(common.HarvesterSystemNamespaceName, virtControllerSelector)
+	virtPods, err := h.podCache.List(common.HarvesterSystemNamespaceName, virtControllerSelector)
 	if err != nil {
 		return false, "failed to check virt-controller pods"
 	}

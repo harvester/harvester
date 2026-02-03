@@ -63,7 +63,8 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	btHealthyHandler := harvesterServer.NewHandler(backuptarget.NewHealthyHandler(r.scaled))
 	m.Path("/v1/harvester/backuptarget/healthz").Methods("GET").Handler(btHealthyHandler)
 
-	readyzHandlerv1 := harvesterServer.NewHandler(readyz.NewReadyzHandler(r.scaled))
+	readyzHandlerv1 := harvesterServer.NewHandler(readyz.NewReadyzHandler(r.scaled.CoreFactory.Core().V1().Pod().Cache(),
+		r.scaled.Management.RKEFactory.Rke().V1().RKEControlPlane().Cache()))
 	m.Path("/v1/harvester/readyz").Methods("GET").Handler(readyzHandlerv1)
 
 	// --- END of preposition routes ---
