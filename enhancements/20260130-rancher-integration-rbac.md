@@ -206,9 +206,7 @@ Hence, to avoid bloating the scope of UI changes and QA effort in this release, 
 
 We should also re-evaluate the [current logic that auto-registers the `harvester-authenticated` group][4] to expose certain resources to all authenticated users. This group impersonates role bindings without evaluating the user's assigned roles, which could potentially lead to unauthorized access.
 
-#### Limitations
-
-Project-scoped user should not be assigned any cluster-scoped roles. Due to the additive nature of the built-in RBAC permissions, the user ends up with more permissions than intended.
+Due to the additive nature of the RBAC permissions, a project-scoped user should never be assigned cluster-scoped roles to prevent granting them excessive access to other projects they are not authorized for.
 
 #### Cluster Roles Specification
 
