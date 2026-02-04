@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"slices"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -36,6 +35,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	k8svolumehelpers "k8s.io/cloud-provider/volume/helpers"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	kubevirtmultus "kubevirt.io/kubevirt/pkg/network/multus"
@@ -304,29 +304,14 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	return nil, nil
 }
 
-func getSataCdRomDiskPos(vm *kubevirtv1.VirtualMachine, deviceName string) (int, error) {
-	pos := -1
-	for idx, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if disk.Name == deviceName && virtualmachine.IsDiskSataCdRom(&disk) {
-			pos = idx
-			break
-		}
-	}
-	if pos == -1 {
-		return -1, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Errorf("can not find the SATA CD-ROM device %s from the VM %s/%s", deviceName, vm.Namespace, vm.Name).Error())
-	}
-	return pos, nil
-}
-
 func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input InsertCdRomVolumeActionInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
 		return err
 	}
 
-	pos, err := getSataCdRomDiskPos(vm, input.DeviceName)
-	if err != nil {
-		return err
+	if !virtualmachine.HasDiskSataCdRomWithName(vm, input.DeviceName) {
+		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Errorf("can not find the SATA CD-ROM device %s from the VM %s/%s", input.DeviceName, vm.Namespace, vm.Name).Error())
 	}
 
 	vmCopy := vm.DeepCopy()
@@ -349,7 +334,6 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 	}
 	storageSize := resource.NewQuantity(imgSizeRoundUp * k8svolumehelpers.GiB, resource.BinarySI)
 
-	volumeMode := corev1.PersistentVolumeBlock
 	newPvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-%s-", name, input.DeviceName)),
@@ -359,7 +343,7 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
-			VolumeMode: &volumeMode,
+			VolumeMode: ptr.To(corev1.PersistentVolumeBlock),
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: *storageSize,
@@ -380,11 +364,11 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 		},
 	}
 
-	err = insertVolumeClaimTemplatesFromVMAnnotation(vmCopy, newPvc, pos)
+	err = appendVolumeClaimTemplatesFromVMAnnotation(vmCopy, newPvc)
 	if err != nil {
 		return err
 	}
-	vmCopy.Spec.Template.Spec.Volumes = slices.Insert(vmCopy.Spec.Template.Spec.Volumes, pos, newVol)
+	vmCopy.Spec.Template.Spec.Volumes = append(vmCopy.Spec.Template.Spec.Volumes, newVol)
 	_, err = h.vms.Update(vmCopy)
 	return err
 }
@@ -395,9 +379,8 @@ func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace 
 		return err
 	}
 
-	_, err = getSataCdRomDiskPos(vm, input.DeviceName)
-	if err != nil {
-		return err
+	if !virtualmachine.HasDiskSataCdRomWithName(vm, input.DeviceName) {
+		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Errorf("can not find the SATA CD-ROM device %s from the VM %s/%s", input.DeviceName, vm.Namespace, vm.Name).Error())
 	}
 
 	vmCopy := vm.DeepCopy()
@@ -484,17 +467,17 @@ func (h *vmActionHandler) stopVM(namespace, name string) error {
 	return nil
 }
 
-func insertVolumeClaimTemplatesFromVMAnnotation(vm *kubevirtv1.VirtualMachine, pvc corev1.PersistentVolumeClaim, pos int) error {
+func appendVolumeClaimTemplatesFromVMAnnotation(vm *kubevirtv1.VirtualMachine, pvc corev1.PersistentVolumeClaim) error {
 	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
 	if !ok {
 		return nil
 	}
-	var volumeClaimTemplates []corev1.PersistentVolumeClaim
+	volumeClaimTemplates := make([]corev1.PersistentVolumeClaim, 0, 1)
 	if err := json.Unmarshal([]byte(volumeClaimTemplatesStr), &volumeClaimTemplates); err != nil {
 		return err
 	}
 
-	volumeClaimTemplates = slices.Insert(volumeClaimTemplates, pos, pvc)
+	volumeClaimTemplates = append(volumeClaimTemplates, pvc)
 	updateVolumeClaimTemplateBytes, err := json.Marshal(volumeClaimTemplates)
 	if err != nil {
 		return err
