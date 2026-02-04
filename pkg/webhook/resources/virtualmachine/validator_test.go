@@ -1088,3 +1088,157 @@ func TestVmValidator_Update(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckCdRomVolumeIsValid(t *testing.T) {
+	var testCases = []struct {
+		name        string
+		expectError bool
+		vm       *kubevirtv1.VirtualMachine
+	}{
+			{
+				name:        "accept VM with empty cdrom connected via SATA",
+				expectError: false,
+				vm: &kubevirtv1.VirtualMachine{
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										Disks: []kubevirtv1.Disk{
+											{
+												Name: "cd1",
+												DiskDevice: kubevirtv1.DiskDevice{
+													CDRom: &kubevirtv1.CDRomTarget{
+														Bus: kubevirtv1.DiskBusSATA,
+													},
+												},
+											},
+										},
+									},
+								},
+								Volumes: []kubevirtv1.Volume{},
+							},
+						},
+					},
+				},
+			},
+			{
+				name:        "reject VM with empty cdrom connected via SCSI",
+				expectError: true,
+				vm: &kubevirtv1.VirtualMachine{
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										Disks: []kubevirtv1.Disk{
+											{
+												Name: "cd1",
+												DiskDevice: kubevirtv1.DiskDevice{
+													CDRom: &kubevirtv1.CDRomTarget{
+														Bus: kubevirtv1.DiskBusSCSI,
+													},
+												},
+											},
+										},
+									},
+								},
+								Volumes: []kubevirtv1.Volume{},
+							},
+						},
+					},
+				},
+			},
+			{
+				name:        "accept VM with hotpluggable cdrom volume connected via SATA",
+				expectError: false,
+				vm: &kubevirtv1.VirtualMachine{
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										Disks: []kubevirtv1.Disk{
+											{
+												Name: "cd1",
+												DiskDevice: kubevirtv1.DiskDevice{
+													CDRom: &kubevirtv1.CDRomTarget{
+														Bus: kubevirtv1.DiskBusSATA,
+													},
+												},
+											},
+										},
+									},
+								},
+								Volumes: []kubevirtv1.Volume{
+									kubevirtv1.Volume{
+										Name: "cd1",
+										VolumeSource: kubevirtv1.VolumeSource{
+											PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+												PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+													ClaimName: "cd1-pvc",
+												},
+												Hotpluggable: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				name:        "reject VM with hotpluggable cdrom volume connected via SCSI",
+				expectError: true,
+				vm: &kubevirtv1.VirtualMachine{
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										Disks: []kubevirtv1.Disk{
+											{
+												Name: "cd1",
+												DiskDevice: kubevirtv1.DiskDevice{
+													CDRom: &kubevirtv1.CDRomTarget{
+														Bus: kubevirtv1.DiskBusSCSI,
+													},
+												},
+											},
+										},
+									},
+								},
+								Volumes: []kubevirtv1.Volume{
+									kubevirtv1.Volume{
+										Name: "cd1",
+										VolumeSource: kubevirtv1.VolumeSource{
+											PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+												PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+													ClaimName: "cd1-pvc",
+												},
+												Hotpluggable: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+	validator := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validator.checkCdRomVolumeIsValid(tc.vm)
+			if tc.expectError {
+				assert.NotNil(t, err, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
