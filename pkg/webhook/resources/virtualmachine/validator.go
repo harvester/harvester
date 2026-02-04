@@ -681,7 +681,7 @@ func (v *vmValidator) checkMaintenanceModeStrategyIsValid(newVM, oldVM *kubevirt
 }
 
 func (v *vmValidator) checkCdRomVolumeIsValid(vm *kubevirtv1.VirtualMachine) error {
-	if _, err := vmutil.SupportInjectCdRomVolume(vm); err != nil {
+	if _, err := vmutil.SupportInsertCdRomVolume(vm); err != nil {
 		return err
 	}
 

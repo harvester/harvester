@@ -253,7 +253,7 @@ func Test_SupportInjectCdRomVolume(t *testing.T) {
 		vm, err := tc.input()
 		assert.Nil(t, err, tc.desc)
 
-		result, err := SupportInjectCdRomVolume(vm)
+		result, err := SupportInsertCdRomVolume(vm)
 		assert.Equal(t, tc.output.result, result, tc.desc)
 
 		if tc.output.expectError {

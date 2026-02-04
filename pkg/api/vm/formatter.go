@@ -93,7 +93,7 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	resource.AddAction(request, removeVolume)
 	resource.AddAction(request, cloneVM)
 
-	if canInjectCdRomVolume(vm) {
+	if canInsertCdRomVolume(vm) {
 		resource.AddAction(request, insertCdRomVolume)
 	}
 
@@ -479,8 +479,8 @@ func canHotUnplugNic(vm *kubevirtv1.VirtualMachine) bool {
 	return ok
 }
 
-func canInjectCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
-	ok, _ := virtualmachine.SupportInjectCdRomVolume(vm)
+func canInsertCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
+	ok, _ := virtualmachine.SupportInsertCdRomVolume(vm)
 	return ok
 }
 

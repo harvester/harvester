@@ -179,7 +179,7 @@ func IsDiskSataCdRom(disk *kubevirtv1.Disk) bool {
 	return disk.CDRom != nil && disk.CDRom.Bus == kubevirtv1.DiskBusSATA
 }
 
-func SupportInjectCdRomVolume(vm *kubevirtv1.VirtualMachine) (bool, error) {
+func SupportInsertCdRomVolume(vm *kubevirtv1.VirtualMachine) (bool, error) {
 	volumeMaps := map[string]struct{}{}
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
 		volumeMaps[volume.Name] = struct{}{}
