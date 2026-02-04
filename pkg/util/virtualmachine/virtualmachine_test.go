@@ -10,6 +10,7 @@ import (
 	corefake "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	"github.com/harvester/harvester/pkg/builder"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -136,4 +137,267 @@ func Test_IsVMStopped(t *testing.T) {
 func runStrategyTransformerHelper(input kubevirtv1.VirtualMachineRunStrategy) *kubevirtv1.VirtualMachineRunStrategy {
 	temp := input
 	return &temp
+}
+
+func Test_SupportInjectCdRomVolume(t *testing.T) {
+	type input struct {
+		vm  *kubevirtv1.VirtualMachine
+	}
+
+	type output struct {
+		result       bool
+		expectError  bool
+	}
+
+	isCdRom := true
+	isHotpluggable := true
+	diskSize := "10Gi"
+
+	testCases := []struct {
+		desc     string
+		input    func() (*kubevirtv1.VirtualMachine, error)
+		output   output
+	}{
+		{
+			desc: "disk only",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					PVCDisk("disk1", builder.DiskBusSata, !isCdRom, !isHotpluggable, 1, diskSize, "disk1-pvc", nil).
+					VM()
+			},
+			output: output{
+				result: false,
+				expectError: false,
+			},
+		},
+		{
+			desc: "occupied cdroms",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					PVCDisk("cd1", builder.DiskBusSata, isCdRom, isHotpluggable, 1, diskSize, "cd1-pvc", nil).
+					PVCDisk("cd2", builder.DiskBusSata, isCdRom, isHotpluggable, 2, diskSize, "cd2-pvc", nil).
+					VM()
+			},
+			output: output{
+				result: false,
+				expectError: false,
+			},
+		},
+		{
+			desc: "1 empty cdrom",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					Disk("cd1", builder.DiskBusSata, isCdRom, 1).
+					VM()
+			},
+			output: output{
+				result: true,
+				expectError: false,
+			},
+		},
+		{
+			desc: "first empty cdrom then occupied cdrom",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					Disk("cd1", builder.DiskBusSata, isCdRom, 1).
+					PVCDisk("cd2", builder.DiskBusSata, isCdRom, isHotpluggable, 2, diskSize, "cd1-pvc", nil).
+					VM()
+			},
+			output: output{
+				result: true,
+				expectError: false,
+			},
+		},
+		{
+			desc: "first occupied cdrom then empty cdrom",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					PVCDisk("cd1", builder.DiskBusSata, isCdRom, isHotpluggable, 1, diskSize, "cd1-pvc", nil).
+					Disk("cd2", builder.DiskBusSata, isCdRom, 2).
+					VM()
+			},
+			output: output{
+				result: true,
+				expectError: false,
+			},
+		},
+		{
+			desc: "empty cdrom: first SATA cdrom then SCSI cdrom",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					Disk("cd1", builder.DiskBusSata, isCdRom, 1).
+					Disk("cd2", builder.DiskBusScsi, isCdRom, 2).
+					VM()
+			},
+			output: output{
+				result: false,
+				expectError: true,
+			},
+		},
+		{
+			desc: "empty cdrom: first SCSI cdrom then SATA cdrom",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					Disk("cd1", builder.DiskBusScsi, isCdRom, 1).
+					Disk("cd2", builder.DiskBusSata, isCdRom, 2).
+					VM()
+			},
+			output: output{
+				result: false,
+				expectError: true,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		vm, err := tc.input()
+		assert.Nil(t, err, tc.desc)
+
+		result, err := SupportInjectCdRomVolume(vm)
+		assert.Equal(t, tc.output.result, result, tc.desc)
+
+		if tc.output.expectError {
+			assert.NotNil(t, err, tc.desc)
+		} else {
+			assert.Nil(t, err, tc.desc)
+		}
+	}
+}
+
+func Test_SupportEjectCdRomVolume(t *testing.T) {
+	type input struct {
+		vm  *kubevirtv1.VirtualMachine
+	}
+
+	type output struct {
+		result       bool
+		expectError  bool
+	}
+
+	isCdRom := true
+	isHotpluggable := true
+	diskSize := "10Gi"
+
+	testCases := []struct {
+		desc     string
+		input    func() (*kubevirtv1.VirtualMachine, error)
+		output   output
+	}{
+		{
+			desc: "disk only",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					PVCDisk("disk1", builder.DiskBusSata, !isCdRom, !isHotpluggable, 1, diskSize, "disk1-pvc", nil).
+					VM()
+			},
+			output: output{
+				result: false,
+				expectError: false,
+			},
+		},
+		{
+			desc: "1 hotpluggable cdrom",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					PVCDisk("cd1", builder.DiskBusSata, isCdRom, isHotpluggable, 1, diskSize, "cd1-pvc", nil).
+					VM()
+			},
+			output: output{
+				result: true,
+				expectError: false,
+			},
+		},
+		{
+			desc: "empty cdroms",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					Disk("cd1", builder.DiskBusSata, isCdRom, 1).
+					Disk("cd2", builder.DiskBusSata, isCdRom, 2).
+					VM()
+			},
+			output: output{
+				result: false,
+				expectError: false,
+			},
+		},
+		{
+			desc: "un-hotpluggable cdroms",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					PVCDisk("cd1", builder.DiskBusSata, isCdRom, !isHotpluggable, 1, diskSize, "cd1-pvc", nil).
+					PVCDisk("cd2", builder.DiskBusSata, isCdRom, !isHotpluggable, 2, diskSize, "cd2-pvc", nil).
+					VM()
+			},
+			output: output{
+				result: false,
+				expectError: false,
+			},
+		},
+		{
+			desc: "first hotpluggable cdrom then un-hotpluggable cdrom",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					PVCDisk("cd1", builder.DiskBusSata, isCdRom, isHotpluggable, 1, diskSize, "cd1-pvc", nil).
+					PVCDisk("cd2", builder.DiskBusSata, isCdRom, !isHotpluggable, 2, diskSize, "cd2-pvc", nil).
+					VM()
+			},
+			output: output{
+				result: true,
+				expectError: false,
+			},
+		},
+		{
+			desc: "first un-hotpluggable cdrom then hotpluggable cdrom",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					PVCDisk("cd1", builder.DiskBusSata, isCdRom, !isHotpluggable, 1, diskSize, "cd1-pvc", nil).
+					PVCDisk("cd2", builder.DiskBusSata, isCdRom, isHotpluggable, 2, diskSize, "cd2-pvc", nil).
+					VM()
+			},
+			output: output{
+				result: true,
+				expectError: false,
+			},
+		},
+		{
+			desc: "hotpluggable: first SATA cdrom then SCSI cdrom",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					PVCDisk("cd1", builder.DiskBusSata, isCdRom, isHotpluggable, 1, diskSize, "cd1-pvc", nil).
+					PVCDisk("cd2", builder.DiskBusScsi, isCdRom, isHotpluggable, 2, diskSize, "cd2-pvc", nil).
+					VM()
+			},
+			output: output{
+				result: false,
+				expectError: true,
+			},
+		},
+		{
+			desc: "hotpluggable: first SCSI cdrom then SATA cdrom",
+			input: func() (*kubevirtv1.VirtualMachine, error) {
+				return builder.NewVMBuilder("test").
+					PVCDisk("cd1", builder.DiskBusScsi, isCdRom, isHotpluggable, 1, diskSize, "cd1-pvc", nil).
+					PVCDisk("cd2", builder.DiskBusSata, isCdRom, isHotpluggable, 2, diskSize, "cd2-pvc", nil).
+					VM()
+			},
+			output: output{
+				result: false,
+				expectError: true,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		vm, err := tc.input()
+		assert.Nil(t, err, tc.desc)
+
+		result, err := SupportEjectCdRomVolume(vm)
+		assert.Equal(t, tc.output.result, result, tc.desc)
+
+		if tc.output.expectError {
+			assert.NotNil(t, err, tc.desc)
+		} else {
+			assert.Nil(t, err, tc.desc)
+		}
+	}
 }
