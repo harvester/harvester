@@ -1,0 +1,28 @@
+FROM registry.suse.com/bci/golang:1.23
+
+ARG DAPPER_HOST_ARCH=amd64
+ARG http_proxy
+ARG https_proxy
+ENV HOST_ARCH=${DAPPER_HOST_ARCH} ARCH=${DAPPER_HOST_ARCH}
+ENV GOLANGCI_LINT_VERSION="v1.60.3"
+
+RUN zypper -n install gcc ca-certificates git wget curl vim less file nfs-client awk docker && \
+    rm -rf /var/cache/zypp/*
+
+ENV GOLANG_ARCH_amd64=amd64 GOLANG_ARCH_arm64=arm64 GOLANG_ARCH=GOLANG_ARCH_${ARCH} \
+    GOPATH=/go PATH=/go/bin:/usr/local/go/bin:${PATH} SHELL=/bin/bash
+
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin ${GOLANGCI_LINT_VERSION}
+
+ENV DAPPER_SOURCE /go/src/github.com/longhorn/backupstore
+ENV DAPPER_OUTPUT ./bin coverage.out
+ENV DAPPER_DOCKER_SOCKET true
+ENV DAPPER_ENV IMAGE REPO VERSION TAG DRONE_REPO DRONE_PULL_REQUEST DRONE_COMMIT_REF
+ENV DAPPER_RUN_ARGS --privileged --tmpfs /go/src/github.com/longhorn/longhorn/integration/.venv:exec --tmpfs /go/src/github.com/longhorn/longhorn/integration/.tox:exec -v /dev:/host/dev
+ENV HOME ${DAPPER_SOURCE}
+WORKDIR ${DAPPER_SOURCE}
+
+VOLUME /tmp
+ENV TMPDIR /tmp
+ENTRYPOINT ["./scripts/entry"]
+CMD ["ci"]
