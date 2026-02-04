@@ -140,10 +140,6 @@ func runStrategyTransformerHelper(input kubevirtv1.VirtualMachineRunStrategy) *k
 }
 
 func Test_SupportInjectCdRomVolume(t *testing.T) {
-	type input struct {
-		vm  *kubevirtv1.VirtualMachine
-	}
-
 	type output struct {
 		result       bool
 		expectError  bool
@@ -265,10 +261,6 @@ func Test_SupportInjectCdRomVolume(t *testing.T) {
 }
 
 func Test_SupportEjectCdRomVolume(t *testing.T) {
-	type input struct {
-		vm  *kubevirtv1.VirtualMachine
-	}
-
 	type output struct {
 		result       bool
 		expectError  bool
