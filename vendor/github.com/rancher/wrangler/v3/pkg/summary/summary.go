@@ -11,12 +11,17 @@ import (
 )
 
 type Summary struct {
-	State         string                 `json:"state,omitempty"`
-	Error         bool                   `json:"error,omitempty"`
-	Transitioning bool                   `json:"transitioning,omitempty"`
-	Message       []string               `json:"message,omitempty"`
-	Attributes    map[string]interface{} `json:"-"`
-	Relationships []Relationship         `json:"-"`
+	State                 string                 `json:"state,omitempty"`
+	Error                 bool                   `json:"error,omitempty"`
+	Transitioning         bool                   `json:"transitioning,omitempty"`
+	Message               []string               `json:"message,omitempty"`
+	Attributes            map[string]interface{} `json:"-"`
+	Relationships         []Relationship         `json:"-"`
+	HasObservedGeneration bool                   `json:"-"`
+}
+
+type SummarizeOptions struct {
+	HasObservedGeneration bool
 }
 
 type Relationship struct {
@@ -86,6 +91,10 @@ func dedupMessage(messages []string) []string {
 }
 
 func Summarize(runtimeObj runtime.Object) Summary {
+	return SummarizeWithOptions(runtimeObj, nil)
+}
+
+func SummarizeWithOptions(runtimeObj runtime.Object, opts *SummarizeOptions) Summary {
 	var (
 		obj     data.Object
 		err     error
@@ -109,6 +118,9 @@ func Summarize(runtimeObj runtime.Object) Summary {
 	}
 
 	conditions := getConditions(obj)
+	if opts != nil {
+		summary.HasObservedGeneration = opts.HasObservedGeneration
+	}
 
 	for _, summarizer := range Summarizers {
 		summary = summarizer(obj, conditions, summary)

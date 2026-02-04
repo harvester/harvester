@@ -1,5 +1,7 @@
 package sqltypes
 
+import "k8s.io/apimachinery/pkg/runtime/schema"
+
 type Op string
 
 const (
@@ -25,9 +27,12 @@ const (
 
 // ListOptions represents the query parameters that may be included in a list request.
 type ListOptions struct {
-	Filters    []OrFilter
-	SortList   SortList
-	Pagination Pagination
+	Filters              []OrFilter
+	ProjectsOrNamespaces OrFilter
+	SortList             SortList
+	SummaryFieldList     SummaryFieldList
+	Pagination           Pagination
+	Revision             string
 }
 
 // Filter represents a field to filter by.
@@ -55,18 +60,51 @@ type OrFilter struct {
 // The order is represented by prefixing the sort key by '-', e.g. sort=-metadata.name.
 // e.g. To sort internal clusters first followed by clusters in alpha order: sort=-spec.internal,spec.displayName
 type Sort struct {
-	Fields []string
-	Order  SortOrder
+	Fields   []string
+	Order    SortOrder
+	SortAsIP bool
 }
 
 type SortList struct {
 	SortDirectives []Sort
 }
 
+type SummaryFieldList [][]string
+
 // Pagination represents how to return paginated results.
 type Pagination struct {
 	PageSize int
 	Page     int
+}
+
+type ExternalDependency struct {
+	SourceGVK            string
+	SourceFieldName      string
+	TargetGVK            string
+	TargetKeyFieldName   string
+	TargetFinalFieldName string
+}
+
+type ExternalLabelDependency struct {
+	SourceGVK            string
+	SourceLabelName      string
+	TargetGVK            string
+	TargetKeyFieldName   string
+	TargetFinalFieldName string
+}
+
+type ExternalGVKUpdates struct {
+	AffectedGVK               schema.GroupVersionKind
+	ExternalDependencies      []ExternalDependency
+	ExternalLabelDependencies []ExternalLabelDependency
+}
+
+type ExternalGVKDependency map[schema.GroupVersionKind]*ExternalGVKUpdates
+
+type ExternalInfoPacket struct {
+	ExternalDependencies      []ExternalDependency
+	ExternalLabelDependencies []ExternalLabelDependency
+	ExternalGVKDependencies   ExternalGVKDependency
 }
 
 func NewSortList() *SortList {

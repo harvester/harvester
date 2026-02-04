@@ -22,7 +22,7 @@ func RedirectRewrite(next http.Handler) http.Handler {
 			r.Hijacker = h
 		}
 		next.ServeHTTP(r, req)
-		r.Close()
+		_ = r.Close()
 	})
 }
 
@@ -46,7 +46,7 @@ func (r *redirector) Close() error {
 		return nil
 	}
 
-	content := bytes.Replace(r.tempBuffer.Bytes(), []byte(r.from), []byte(r.to), -1)
+	content := bytes.ReplaceAll(r.tempBuffer.Bytes(), []byte(r.from), []byte(r.to))
 	_, err := r.ResponseWriter.Write(content)
 	r.tempBuffer = nil
 	return err

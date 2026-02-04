@@ -2,15 +2,15 @@ package informer
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/rancher/steve/pkg/sqlcache/db"
-	"github.com/rancher/steve/pkg/sqlcache/db/transaction"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -28,11 +28,14 @@ const (
 			key TEXT NOT NULL REFERENCES "%[1]s"(key) ON DELETE CASCADE,
 			PRIMARY KEY (name, value, key)
         )`
-	createIndexFmt = `CREATE INDEX IF NOT EXISTS "%[1]s_indices_index" ON "%[1]s_indices"(name, value)`
+	createIndexFmt = `CREATE INDEX IF NOT EXISTS "%[1]s_indices_key_fk_index" ON "%[1]s_indices"(key)`
 
 	deleteIndicesFmt = `DELETE FROM "%s_indices" WHERE key = ?`
-	addIndexFmt      = `INSERT INTO "%s_indices" (name, value, key) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`
-	listByIndexFmt   = `SELECT object, objectnonce, dekid FROM "%[1]s"
+	dropIndicesFmt   = `DROP TABLE IF EXISTS "%s_indices"`
+	// addIndexFmt expects to use a big insert, so the columns must be kept in sync with addIndexValuesPlaceholderFmt
+	addIndexFmt                  = `INSERT INTO "%s_indices" (name, value, key) VALUES %s`
+	addIndexValuesPlaceholderFmt = `(?, ?, ?)`
+	listByIndexFmt               = `SELECT object, objectnonce, dekid FROM "%[1]s"
 			WHERE key IN (
 			    SELECT key FROM "%[1]s_indices"
 			    	WHERE name = ? AND value = ?
@@ -49,17 +52,11 @@ type Indexer struct {
 	indexers     cache.Indexers
 	indexersLock sync.RWMutex
 
-	deleteIndicesQuery   string
-	addIndexQuery        string
-	listByIndexQuery     string
-	listKeysByIndexQuery string
-	listIndexValuesQuery string
-
-	deleteIndicesStmt   *sql.Stmt
-	addIndexStmt        *sql.Stmt
-	listByIndexStmt     *sql.Stmt
-	listKeysByIndexStmt *sql.Stmt
-	listIndexValuesStmt *sql.Stmt
+	deleteIndicesStmt   db.Stmt
+	dropIndicesStmt     db.Stmt
+	listByIndexStmt     db.Stmt
+	listKeysByIndexStmt db.Stmt
+	listIndexValuesStmt db.Stmt
 }
 
 var _ cache.Indexer = (*Indexer)(nil)
@@ -70,30 +67,32 @@ type Store interface {
 
 	GetByKey(key string) (item any, exists bool, err error)
 	GetName() string
-	RegisterAfterAdd(f func(key string, obj any, tx transaction.Client) error)
-	RegisterAfterUpdate(f func(key string, obj any, tx transaction.Client) error)
-	RegisterAfterDelete(f func(key string, obj any, tx transaction.Client) error)
-	RegisterAfterDeleteAll(f func(tx transaction.Client) error)
+	RegisterAfterAdd(f func(key string, obj any, tx db.TxClient) error)
+	RegisterAfterUpdate(f func(key string, obj any, tx db.TxClient) error)
+	RegisterAfterDelete(f func(key string, obj any, tx db.TxClient) error)
+	RegisterAfterDeleteAll(f func(tx db.TxClient) error)
+	RegisterBeforeDropAll(f func(tx db.TxClient) error)
 	GetShouldEncrypt() bool
 	GetType() reflect.Type
+	DropAll(ctx context.Context) error
 }
 
 // NewIndexer returns a cache.Indexer backed by SQLite for objects of the given example type
 func NewIndexer(ctx context.Context, indexers cache.Indexers, s Store) (*Indexer, error) {
 	dbName := db.Sanitize(s.GetName())
 
-	err := s.WithTransaction(ctx, true, func(tx transaction.Client) error {
+	err := s.WithTransaction(ctx, true, func(tx db.TxClient) error {
+		dropTableQuery := fmt.Sprintf(dropIndicesFmt, dbName)
+		if _, err := tx.Exec(dropTableQuery); err != nil {
+			return err
+		}
 		createTableQuery := fmt.Sprintf(createTableFmt, dbName)
-		_, err := tx.Exec(createTableQuery)
-		if err != nil {
-			return &db.QueryError{QueryString: createTableQuery, Err: err}
+		if _, err := tx.Exec(createTableQuery); err != nil {
+			return err
 		}
 		createIndexQuery := fmt.Sprintf(createIndexFmt, dbName)
-		_, err = tx.Exec(createIndexQuery)
-		if err != nil {
-			return &db.QueryError{QueryString: createIndexQuery, Err: err}
-		}
-		return nil
+		_, err := tx.Exec(createIndexQuery)
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -106,18 +105,13 @@ func NewIndexer(ctx context.Context, indexers cache.Indexers, s Store) (*Indexer
 	}
 	i.RegisterAfterAdd(i.AfterUpsert)
 	i.RegisterAfterUpdate(i.AfterUpsert)
+	i.RegisterBeforeDropAll(i.dropIndices)
 
-	i.deleteIndicesQuery = fmt.Sprintf(deleteIndicesFmt, db.Sanitize(s.GetName()))
-	i.addIndexQuery = fmt.Sprintf(addIndexFmt, db.Sanitize(s.GetName()))
-	i.listByIndexQuery = fmt.Sprintf(listByIndexFmt, db.Sanitize(s.GetName()))
-	i.listKeysByIndexQuery = fmt.Sprintf(listKeyByIndexFmt, db.Sanitize(s.GetName()))
-	i.listIndexValuesQuery = fmt.Sprintf(listIndexValuesFmt, db.Sanitize(s.GetName()))
-
-	i.deleteIndicesStmt = s.Prepare(i.deleteIndicesQuery)
-	i.addIndexStmt = s.Prepare(i.addIndexQuery)
-	i.listByIndexStmt = s.Prepare(i.listByIndexQuery)
-	i.listKeysByIndexStmt = s.Prepare(i.listKeysByIndexQuery)
-	i.listIndexValuesStmt = s.Prepare(i.listIndexValuesQuery)
+	i.deleteIndicesStmt = s.Prepare(fmt.Sprintf(deleteIndicesFmt, dbName))
+	i.dropIndicesStmt = s.Prepare(fmt.Sprintf(dropIndicesFmt, dbName))
+	i.listByIndexStmt = s.Prepare(fmt.Sprintf(listByIndexFmt, dbName))
+	i.listKeysByIndexStmt = s.Prepare(fmt.Sprintf(listKeyByIndexFmt, dbName))
+	i.listIndexValuesStmt = s.Prepare(fmt.Sprintf(listIndexValuesFmt, dbName))
 
 	return i, nil
 }
@@ -125,29 +119,41 @@ func NewIndexer(ctx context.Context, indexers cache.Indexers, s Store) (*Indexer
 /* Core methods */
 
 // AfterUpsert updates indices of an object
-func (i *Indexer) AfterUpsert(key string, obj any, tx transaction.Client) error {
+func (i *Indexer) AfterUpsert(key string, obj any, tx db.TxClient) error {
 	// delete all
-	_, err := tx.Stmt(i.deleteIndicesStmt).Exec(key)
-	if err != nil {
-		return &db.QueryError{QueryString: i.deleteIndicesQuery, Err: err}
+	if _, err := tx.Stmt(i.deleteIndicesStmt).Exec(key); err != nil {
+		return err
 	}
 
-	// re-insert all values
+	// re-insert all values, using a single big insert
+	var rowsToInsert int
+	var valuesToInsert []any
 	i.indexersLock.RLock()
-	defer i.indexersLock.RUnlock()
-	for indexName, indexFunc := range i.indexers {
-		values, err := indexFunc(obj)
+	for _, indexName := range slices.Sorted(maps.Keys(i.indexers)) {
+		values, err := i.indexers[indexName](obj)
 		if err != nil {
+			i.indexersLock.RUnlock()
 			return err
 		}
 
 		for _, value := range values {
-			_, err = tx.Stmt(i.addIndexStmt).Exec(indexName, value, key)
-			if err != nil {
-				return &db.QueryError{QueryString: i.addIndexQuery, Err: err}
-			}
+			valuesToInsert = append(valuesToInsert, indexName, value, key)
+			rowsToInsert++
 		}
 	}
+	i.indexersLock.RUnlock()
+
+	if rowsToInsert == 0 {
+		return nil
+	}
+
+	multiInsertQuery := fmt.Sprintf(addIndexFmt,
+		db.Sanitize(i.Store.GetName()),
+		strings.Join(slices.Repeat([]string{addIndexValuesPlaceholderFmt}, rowsToInsert), ", "))
+	if _, err := tx.Stmt(i.Prepare(multiInsertQuery)).Exec(valuesToInsert...); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -182,9 +188,8 @@ func (i *Indexer) Index(indexName string, obj any) (result []any, err error) {
 	stmt := i.Prepare(query)
 
 	defer func() {
-		cerr := i.CloseStmt(stmt)
-		if cerr != nil {
-			err = errors.Join(err, &db.QueryError{QueryString: query, Err: cerr})
+		if cerr := stmt.Close(); cerr != nil {
+			err = errors.Join(err, cerr)
 		}
 	}()
 	// HACK: Query will accept []any but not []string
@@ -195,9 +200,14 @@ func (i *Indexer) Index(indexName string, obj any) (result []any, err error) {
 
 	rows, err := i.QueryForRows(i.ctx, stmt, params...)
 	if err != nil {
-		return nil, &db.QueryError{QueryString: query, Err: err}
+		return nil, err
 	}
-	return i.ReadObjects(rows, i.GetType(), i.GetShouldEncrypt())
+	return i.ReadObjects(rows, i.GetType())
+}
+
+func (i *Indexer) dropIndices(tx db.TxClient) error {
+	_, err := tx.Stmt(i.dropIndicesStmt).Exec()
+	return err
 }
 
 // ByIndex returns the stored objects whose set of indexed values
@@ -205,9 +215,9 @@ func (i *Indexer) Index(indexName string, obj any) (result []any, err error) {
 func (i *Indexer) ByIndex(indexName, indexedValue string) ([]any, error) {
 	rows, err := i.QueryForRows(i.ctx, i.listByIndexStmt, indexName, indexedValue)
 	if err != nil {
-		return nil, &db.QueryError{QueryString: i.listByIndexQuery, Err: err}
+		return nil, err
 	}
-	return i.ReadObjects(rows, i.GetType(), i.GetShouldEncrypt())
+	return i.ReadObjects(rows, i.GetType())
 }
 
 // IndexKeys returns a list of the Store keys of the objects whose indexed values in the given index include the given indexed value
@@ -221,7 +231,7 @@ func (i *Indexer) IndexKeys(indexName, indexedValue string) ([]string, error) {
 
 	rows, err := i.QueryForRows(i.ctx, i.listKeysByIndexStmt, indexName, indexedValue)
 	if err != nil {
-		return nil, &db.QueryError{QueryString: i.listKeysByIndexQuery, Err: err}
+		return nil, err
 	}
 	return i.ReadStrings(rows)
 }
@@ -239,7 +249,7 @@ func (i *Indexer) ListIndexFuncValues(name string) []string {
 func (i *Indexer) safeListIndexFuncValues(indexName string) ([]string, error) {
 	rows, err := i.QueryForRows(i.ctx, i.listIndexValuesStmt, indexName)
 	if err != nil {
-		return nil, &db.QueryError{QueryString: i.listIndexValuesQuery, Err: err}
+		return nil, err
 	}
 	return i.ReadStrings(rows)
 }

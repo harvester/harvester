@@ -49,6 +49,8 @@ type Group struct {
 	GenerateInformers bool
 	// Generate openapi
 	GenerateOpenAPI bool
+	// Open API model package name
+	OpenAPIModelPackageName string
 	// OpenAPI extra dependencies
 	OpenAPIDependencies []string
 	// The package name of the API types

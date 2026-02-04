@@ -25,7 +25,7 @@ import (
 const (
 	cnPrefix    = "listener.cattle.io/cn-"
 	Static      = "listener.cattle.io/static"
-	fingerprint = "listener.cattle.io/fingerprint"
+	Fingerprint = "listener.cattle.io/fingerprint"
 )
 
 var (
@@ -189,12 +189,16 @@ func (t *TLS) generateCert(secret *v1.Secret, cn ...string) (*v1.Secret, bool, e
 	secret.Type = v1.SecretTypeTLS
 	secret.Data[v1.TLSCertKey] = certBytes
 	secret.Data[v1.TLSPrivateKeyKey] = keyBytes
-	secret.Annotations[fingerprint] = fmt.Sprintf("SHA1=%X", sha1.Sum(newCert.Raw))
+	secret.Annotations[Fingerprint] = fmt.Sprintf("SHA1=%X", sha1.Sum(newCert.Raw))
 
 	return secret, true, nil
 }
 
 func (t *TLS) IsExpired(secret *v1.Secret) bool {
+	if secret == nil {
+		return false
+	}
+
 	certsPem := secret.Data[v1.TLSCertKey]
 	if len(certsPem) == 0 {
 		return false

@@ -21,7 +21,8 @@ type Collection struct {
 
 type GenericCollection struct {
 	Collection
-	Data []*RawResource `json:"data"`
+	Data    []*RawResource `json:"data"`
+	Summary []SummaryEntry `json:"summary,omitempty"`
 }
 
 var (

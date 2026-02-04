@@ -14,19 +14,19 @@ type EncodingResponseWriter struct {
 }
 
 func (j *EncodingResponseWriter) start(apiOp *types.APIRequest, code int) {
-	AddCommonResponseHeader(apiOp)
+	_ = AddCommonResponseHeader(apiOp)
 	apiOp.Response.Header().Set("content-type", j.ContentType)
 	apiOp.Response.WriteHeader(code)
 }
 
 func (j *EncodingResponseWriter) Write(apiOp *types.APIRequest, code int, obj types.APIObject) {
 	j.start(apiOp, code)
-	j.Body(apiOp, apiOp.Response, obj)
+	_ = j.Body(apiOp, apiOp.Response, obj)
 }
 
 func (j *EncodingResponseWriter) WriteList(apiOp *types.APIRequest, code int, list types.APIObjectList) {
 	j.start(apiOp, code)
-	j.BodyList(apiOp, apiOp.Response, list)
+	_ = j.BodyList(apiOp, apiOp.Response, list)
 }
 
 func (j *EncodingResponseWriter) Body(apiOp *types.APIRequest, writer io.Writer, obj types.APIObject) error {
@@ -46,6 +46,13 @@ func (j *EncodingResponseWriter) convertList(apiOp *types.APIRequest, input type
 
 	if apiOp.Schema.CollectionFormatter != nil {
 		apiOp.Schema.CollectionFormatter(apiOp, collection)
+	}
+	collection.Summary = make([]types.SummaryEntry, len(input.Summary.SummaryItems))
+	for i, val := range input.Summary.SummaryItems {
+		collection.Summary[i] = types.SummaryEntry{
+			Property: val.Property,
+			Counts:   val.Counts,
+		}
 	}
 
 	if collection.Data == nil {

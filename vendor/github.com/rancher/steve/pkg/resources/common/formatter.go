@@ -121,15 +121,22 @@ func formatter(summarycache common.SummaryCache, asl accesscontrol.AccessSetLook
 				return
 			}
 		}
+		hasGet := accessSet.Grants("get", gvr.GroupResource(), resource.APIObject.Namespace(), resource.APIObject.Name())
 		hasUpdate := accessSet.Grants("update", gvr.GroupResource(), resource.APIObject.Namespace(), resource.APIObject.Name())
 		hasDelete := accessSet.Grants("delete", gvr.GroupResource(), resource.APIObject.Namespace(), resource.APIObject.Name())
 		hasPatch := accessSet.Grants("patch", gvr.GroupResource(), resource.APIObject.Namespace(), resource.APIObject.Name())
 
 		selfLink := selfLink(gvr, meta)
-
 		u := request.URLBuilder.RelativeToRoot(selfLink)
 		resource.Links["view"] = u
 
+		if hasGet {
+			if attributes.DisallowMethods(resource.Schema)[http.MethodGet] {
+				resource.Links["view"] = "blocked"
+			}
+		} else {
+			delete(resource.Links, "view")
+		}
 		if hasUpdate {
 			if attributes.DisallowMethods(resource.Schema)[http.MethodPut] {
 				resource.Links["update"] = "blocked"
@@ -172,7 +179,8 @@ func formatter(summarycache common.SummaryCache, asl accesscontrol.AccessSetLook
 			excludeValues(request, unstr)
 
 			if options.InSQLMode {
-				convertMetadataTimestampFields(request, gvk, unstr)
+				isCRD := attributes.IsCRD(resource.Schema)
+				convertMetadataTimestampFields(request, gvk, unstr, isCRD)
 			}
 		}
 
@@ -233,12 +241,15 @@ func excludeFields(request *types.APIRequest, unstr *unstructured.Unstructured) 
 // to the client. Internally, fields are stored as Unix timestamps; on each request, we calculate the elapsed time since
 // those timestamps by subtracting them from time.Now(), then format the resulting duration into a human-friendly string.
 // This prevents cached durations (e.g. “2d” - 2 days) from becoming stale over time.
-func convertMetadataTimestampFields(request *types.APIRequest, gvk schema2.GroupVersionKind, unstr *unstructured.Unstructured) {
+func convertMetadataTimestampFields(request *types.APIRequest, gvk schema2.GroupVersionKind, unstr *unstructured.Unstructured, isCRD bool) {
 	if request.Schema != nil {
 		cols := GetColumnDefinitions(request.Schema)
 		for _, col := range cols {
-			gvkDateFields, gvkFound := DateFieldsByGVKBuiltins[gvk]
-			if col.Type == "date" || (gvkFound && slices.Contains(gvkDateFields, col.Name)) {
+			gvkDateFields, gvkFound := DateFieldsByGVK[gvk]
+
+			hasCRDDateField := isCRD && col.Type == "date"
+			hasGVKDateFieldMapping := gvkFound && slices.Contains(gvkDateFields, col.Name)
+			if hasCRDDateField || hasGVKDateFieldMapping {
 				index := GetIndexValueFromString(col.Field)
 				if index == -1 {
 					logrus.Errorf("field index not found at column.Field struct variable: %s", col.Field)
@@ -262,14 +273,22 @@ func convertMetadataTimestampFields(request *types.APIRequest, gvk schema2.Group
 					return
 				}
 
-				millis, err := strconv.ParseInt(timeValue, 10, 64)
-				if err != nil {
-					logrus.Warnf("convert timestamp value: %s failed with error: %s", timeValue, err.Error())
+				if _, err := time.Parse(time.RFC3339, timeValue); err == nil {
+					// it's already a timestamp, so we don't need to do anything
 					return
 				}
 
-				timestamp := time.Unix(0, millis*int64(time.Millisecond))
-				dur := time.Since(timestamp)
+				dur, ok := isDuration(timeValue)
+				if !ok {
+					millis, err := strconv.ParseInt(timeValue, 10, 64)
+					if err != nil {
+						logrus.Warnf("convert timestamp value: %s failed with error: %s", timeValue, err.Error())
+						return
+					}
+
+					timestamp := time.Unix(0, millis*int64(time.Millisecond))
+					dur = time.Since(timestamp)
+				}
 
 				humanDuration := duration.HumanDuration(dur)
 				if humanDuration == "<invalid>" {
@@ -285,6 +304,11 @@ func convertMetadataTimestampFields(request *types.APIRequest, gvk schema2.Group
 			}
 		}
 	}
+}
+
+func isDuration(value string) (time.Duration, bool) {
+	d, err := ParseTimestampOrHumanReadableDuration(value)
+	return d, err == nil
 }
 
 func excludeValues(request *types.APIRequest, unstr *unstructured.Unstructured) {

@@ -141,9 +141,8 @@ func (o desiredSet) PurgeOrphan(obj runtime.Object) error {
 		}
 		if meta.GetNamespace() == "" {
 			return client.Delete(o.ctx, meta.GetName(), metav1.DeleteOptions{})
-		} else {
-			return client.Namespace(meta.GetNamespace()).Delete(o.ctx, meta.GetName(), metav1.DeleteOptions{})
 		}
+		return client.Namespace(meta.GetNamespace()).Delete(o.ctx, meta.GetName(), metav1.DeleteOptions{})
 	} else if err == ErrOwnerNotFound {
 		return nil
 	} else if err != nil {

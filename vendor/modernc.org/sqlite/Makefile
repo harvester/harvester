@@ -15,10 +15,10 @@ build_all_targets:
 	GOOS=darwin GOARCH=arm64 go build -v ./...
 	GOOS=freebsd GOARCH=amd64 go test -c -o /dev/null
 	GOOS=freebsd GOARCH=amd64 go build -v ./...
-	GOOS=freebsd GOARCH=386 go test -c -o /dev/null
-	GOOS=freebsd GOARCH=386 go build -v ./...
-	GOOS=freebsd GOARCH=arm go test -c -o /dev/null
-	GOOS=freebsd GOARCH=arm go build -v ./...
+	# GOOS=freebsd GOARCH=386 go test -c -o /dev/null
+	# GOOS=freebsd GOARCH=386 go build -v ./...
+	# GOOS=freebsd GOARCH=arm go test -c -o /dev/null
+	# GOOS=freebsd GOARCH=arm go build -v ./...
 	GOOS=freebsd GOARCH=arm64 go test -c -o /dev/null
 	GOOS=freebsd GOARCH=arm64 go build -v ./...
 	GOOS=linux GOARCH=386 go test -c -o /dev/null
@@ -56,13 +56,12 @@ clean:
 	go clean
 
 edit:
-	@if [ -f "Session.vim" ]; then gvim -S & else gvim -p Makefile go.mod builder.json all_test.go vendor_libsqlite3.go & fi
+	@if [ -f "Session.vim" ]; then gvim -S & else gvim -p Makefile go.mod builder.json all_test.go & fi
 
 editor:
-	gofmt -l -s -w .
 	go test -c -o /dev/null
 	go build -v  -o /dev/null ./...
-	go build -o /dev/null vendor_libsqlite3.go
+	cd vendor_libsqlite3 && go build -o /dev/null main.go
 
 test:
 	go test -v -timeout 24h

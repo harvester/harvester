@@ -12,7 +12,7 @@ import (
 	"k8s.io/apiserver/pkg/authentication/user"
 )
 
-//go:generate mockgen --build_flags=--mod=mod -package fake -destination fake/AccessSetLookup.go "github.com/rancher/steve/pkg/accesscontrol" AccessSetLookup
+//go:generate go tool -modfile ../../gotools/mockgen/go.mod mockgen --build_flags=--mod=mod -package fake -destination fake/AccessSetLookup.go "github.com/rancher/steve/pkg/accesscontrol" AccessSetLookup
 
 type AccessSetLookup interface {
 	AccessFor(user user.Info) *AccessSet

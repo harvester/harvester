@@ -311,11 +311,10 @@ func (s *Session) writeMessage(deadline time.Time, message *message) (int, error
 }
 
 func (s *Session) Close() {
-	s.Lock()
-	defer s.Unlock()
-
 	s.stopPings()
 
+	s.Lock()
+	defer s.Unlock()
 	for _, connection := range s.conns {
 		connection.tunnelClose(errors.New("tunnel disconnect"))
 	}

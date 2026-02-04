@@ -24,6 +24,7 @@ import (
 	"github.com/rancher/steve/pkg/server/handler"
 	"github.com/rancher/steve/pkg/server/router"
 	"github.com/rancher/steve/pkg/sqlcache/informer/factory"
+	"github.com/rancher/steve/pkg/sqlcache/schematracker"
 	metricsStore "github.com/rancher/steve/pkg/stores/metrics"
 	"github.com/rancher/steve/pkg/stores/proxy"
 	"github.com/rancher/steve/pkg/stores/sqlpartition"
@@ -63,7 +64,8 @@ type Server struct {
 
 	cacheFactory *factory.CacheFactory
 
-	extensionAPIServer ExtensionAPIServer
+	extensionAPIServer            ExtensionAPIServer
+	SkipWaitForExtensionAPIServer bool
 
 	authMiddleware      auth.Middleware
 	controllers         *Controllers
@@ -100,6 +102,9 @@ type Options struct {
 	// In most cases, you'll want to use [github.com/rancher/steve/pkg/ext.NewExtensionAPIServer]
 	// to create an ExtensionAPIServer.
 	ExtensionAPIServer ExtensionAPIServer
+
+	// SkipWaitForExtensionAPIServer allows serving requests despite the ExtensionAPIServer may not have been registered yet.
+	SkipWaitForExtensionAPIServer bool
 }
 
 func New(ctx context.Context, restConfig *rest.Config, opts *Options) (*Server, error) {
@@ -129,9 +134,10 @@ func New(ctx context.Context, restConfig *rest.Config, opts *Options) (*Server, 
 		ClusterRegistry:            opts.ClusterRegistry,
 		Version:                    opts.ServerVersion,
 		// SQLCache enables the SQLite-based lasso caching mechanism
-		SQLCache:           opts.SQLCache,
-		cacheFactory:       cacheFactory,
-		extensionAPIServer: opts.ExtensionAPIServer,
+		SQLCache:                      opts.SQLCache,
+		cacheFactory:                  cacheFactory,
+		extensionAPIServer:            opts.ExtensionAPIServer,
+		SkipWaitForExtensionAPIServer: opts.SkipWaitForExtensionAPIServer,
 	}
 
 	if err := setup(ctx, server); err != nil {
@@ -205,16 +211,16 @@ func setup(ctx context.Context, server *Server) error {
 
 	var onSchemasHandler schemacontroller.SchemasHandlerFunc
 	if server.SQLCache {
-		s, err := sqlproxy.NewProxyStore(ctx, cols, cf, summaryCache, summaryCache, server.cacheFactory)
+		sqlStore, err := sqlproxy.NewProxyStore(ctx, cols, cf, summaryCache, summaryCache, sf, server.cacheFactory, false)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		errStore := proxy.NewErrorStore(
 			proxy.NewUnformatterStore(
 				proxy.NewWatchRefresh(
 					sqlpartition.NewStore(
-						s,
+						sqlStore,
 						asl,
 					),
 					asl,
@@ -228,14 +234,18 @@ func setup(ctx context.Context, server *Server) error {
 			sf.AddTemplate(template)
 		}
 
+		sqlSchemaTracker := schematracker.NewSchemaTracker(sqlStore)
+
 		onSchemasHandler = func(schemas *schema.Collection) error {
-			if err := ccache.OnSchemas(schemas); err != nil {
-				return err
-			}
-			if err := s.Reset(); err != nil {
-				return err
-			}
-			return nil
+			var retErr error
+
+			err := ccache.OnSchemas(schemas)
+			retErr = errors.Join(retErr, err)
+
+			err = sqlSchemaTracker.OnSchemas(schemas)
+			retErr = errors.Join(retErr, err)
+
+			return retErr
 		}
 	} else {
 		for _, template := range resources.DefaultSchemaTemplates(cf, server.BaseSchemas, summaryCache, asl, server.controllers.K8s.Discovery(), server.controllers.Core.Namespace().Cache(), common.TemplateOptions{InSQLMode: false}) {
@@ -256,11 +266,16 @@ func setup(ctx context.Context, server *Server) error {
 		sf)
 
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if server.extensionAPIServer == nil || server.SkipWaitForExtensionAPIServer {
+			server.next.ServeHTTP(rw, req)
+			return
+		}
+
 		select {
 		case <-server.extensionAPIServer.Registered():
 			server.next.ServeHTTP(rw, req)
 		default:
-			http.NotFoundHandler().ServeHTTP(rw, req)
+			http.Error(rw, "API Aggregation not ready", http.StatusServiceUnavailable)
 		}
 	})
 

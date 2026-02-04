@@ -1,6 +1,6 @@
 package schema
 
-//go:generate mockgen --build_flags=--mod=mod -package fake -destination fake/factory.go "github.com/rancher/steve/pkg/schema" Factory
+//go:generate go tool -modfile ../../gotools/mockgen/go.mod mockgen --build_flags=--mod=mod -package fake -destination fake/factory.go "github.com/rancher/steve/pkg/schema" Factory
 import (
 	"context"
 	"fmt"
@@ -103,19 +103,20 @@ func (c *Collection) schemasForSubject(access *accesscontrol.AccessSet) (*types.
 			a := access.AccessListFor(verb, gr)
 			if !attributes.Namespaced(s) {
 				// trim out bad data where we are granted namespaced access to cluster scoped object
-				result := accesscontrol.AccessList{}
-				for _, access := range a {
-					if access.Namespace == accesscontrol.All {
-						result = append(result, access)
+				filtered := accesscontrol.AccessList{}
+				for _, ac := range a {
+					if ac.Namespace == accesscontrol.All {
+						filtered = append(filtered, ac)
 					}
 				}
-				a = result
+				a = filtered
 			}
 			if len(a) > 0 {
 				verbAccess[verb] = a
 			}
 		}
 
+		mustAllowList := false
 		if len(verbAccess) == 0 {
 			if gr.Group == "" && gr.Resource == "namespaces" {
 				var accessList accesscontrol.AccessList
@@ -128,11 +129,15 @@ func (c *Collection) schemasForSubject(access *accesscontrol.AccessSet) (*types.
 				verbAccess["get"] = accessList
 				verbAccess["watch"] = accessList
 				if len(accessList) == 0 {
-					// always allow list
-					s.CollectionMethods = append(s.CollectionMethods, http.MethodGet)
+					// make sure we add GET to collection later
+					mustAllowList = true
 				}
 			}
 		}
+
+		s = s.DeepCopy()
+		attributes.SetAccess(s, verbAccess)
+		sm := newSchemaMethodsFromSchema(s)
 
 		allowed := func(method string) string {
 			if attributes.DisallowMethods(s)[method] {
@@ -141,26 +146,29 @@ func (c *Collection) schemasForSubject(access *accesscontrol.AccessSet) (*types.
 			return method
 		}
 
-		s = s.DeepCopy()
-		attributes.SetAccess(s, verbAccess)
+		if mustAllowList {
+			sm.addCollection(http.MethodGet)
+		}
 
 		if verbAccess.AnyVerb("list", "get") {
-			s.ResourceMethods = append(s.ResourceMethods, allowed(http.MethodGet))
-			s.CollectionMethods = append(s.CollectionMethods, allowed(http.MethodGet))
+			sm.addResource(allowed(http.MethodGet))
+			sm.addCollection(allowed(http.MethodGet))
 		}
 		if verbAccess.AnyVerb("delete") {
-			s.ResourceMethods = append(s.ResourceMethods, allowed(http.MethodDelete))
+			sm.addResource(allowed(http.MethodDelete))
 		}
 		if verbAccess.AnyVerb("update") {
-			s.ResourceMethods = append(s.ResourceMethods, allowed(http.MethodPut))
-			s.ResourceMethods = append(s.ResourceMethods, allowed(http.MethodPatch))
+			sm.addResource(allowed(http.MethodPut))
+			sm.addResource(allowed(http.MethodPatch))
 		}
 		if verbAccess.AnyVerb("create") {
-			s.CollectionMethods = append(s.CollectionMethods, allowed(http.MethodPost))
+			sm.addCollection(allowed(http.MethodPost))
 		}
 		if verbAccess.AnyVerb("patch") {
-			s.ResourceMethods = append(s.ResourceMethods, allowed(http.MethodPatch))
+			sm.addResource(allowed(http.MethodPatch))
 		}
+
+		sm.applyToSchema(s)
 
 		if len(s.CollectionMethods) == 0 && len(s.ResourceMethods) == 0 {
 			continue
@@ -214,5 +222,50 @@ func (c *Collection) applyTemplates(schema *types.APISchema) {
 				t.Customize(schema)
 			}
 		}
+	}
+}
+
+// helper to manage collection/resource methods uniformly
+type schemaMethods struct {
+	collection map[string]struct{}
+	resource   map[string]struct{}
+}
+
+func newSchemaMethodsFromSchema(s *types.APISchema) schemaMethods {
+	sm := schemaMethods{
+		collection: make(map[string]struct{}, len(s.CollectionMethods)),
+		resource:   make(map[string]struct{}, len(s.ResourceMethods)),
+	}
+	for _, m := range s.CollectionMethods {
+		sm.collection[m] = struct{}{}
+	}
+	for _, m := range s.ResourceMethods {
+		sm.resource[m] = struct{}{}
+	}
+	return sm
+}
+
+func (sm *schemaMethods) addCollection(method string) {
+	if method == "" {
+		return
+	}
+	sm.collection[method] = struct{}{}
+}
+
+func (sm *schemaMethods) addResource(method string) {
+	if method == "" {
+		return
+	}
+	sm.resource[method] = struct{}{}
+}
+
+func (sm *schemaMethods) applyToSchema(s *types.APISchema) {
+	s.CollectionMethods = make([]string, 0, len(sm.collection))
+	for m := range sm.collection {
+		s.CollectionMethods = append(s.CollectionMethods, m)
+	}
+	s.ResourceMethods = make([]string, 0, len(sm.resource))
+	for m := range sm.resource {
+		s.ResourceMethods = append(s.ResourceMethods, m)
 	}
 }

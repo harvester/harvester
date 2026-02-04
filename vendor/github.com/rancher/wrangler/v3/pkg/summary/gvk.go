@@ -68,7 +68,7 @@ func (m ConditionTypeStatusErrorMapping) UnmarshalJSON(data []byte) error {
 		// checking if mapping.GVK is in the right format: <group>/[version], Kind=[kind]
 		mx := gvkRegExp.FindStringSubmatch(mapping.GVK)
 		if len(mx) == 0 {
-			return fmt.Errorf("gvk parsing failed: wrong GVK format: <%s>\n", mapping.GVK)
+			return fmt.Errorf("gvk parsing failed: wrong GVK format: <%s>", mapping.GVK)
 		}
 
 		conditionMappings := map[string]sets.Set[metav1.ConditionStatus]{}

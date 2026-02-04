@@ -258,7 +258,17 @@ type APIObjectList struct {
 	Pages    int
 	Count    int
 	Objects  []APIObject
+	Summary  APISummary
 	Warnings []Warning
+}
+
+type SummaryEntry struct {
+	Property string         `json:"property,omitempty" yaml:"property,omitempty"`
+	Counts   map[string]int `json:"counts,omitempty" yaml:"counts,omitempty"`
+}
+
+type APISummary struct {
+	SummaryItems []SummaryEntry
 }
 
 func (a *APIObject) Data() data.Object {

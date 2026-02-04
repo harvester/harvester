@@ -41,6 +41,13 @@ func JSONLinesEncoder(writer io.Writer, v interface{}) error {
 				return err
 			}
 		}
+		//write summary objects 1 at a time
+		for _, obj := range collection.Summary {
+			err = encoder.Encode(obj)
+			if err != nil {
+				return err
+			}
+		}
 	} else {
 		// if we receive a type that is not a collection fall back to standard json encoding
 		if err := json.NewEncoder(writer).Encode(v); err != nil {

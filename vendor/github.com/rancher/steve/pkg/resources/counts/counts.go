@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/attributes"
 	"github.com/rancher/steve/pkg/clustercache"
+	"github.com/rancher/wrangler/v3/pkg/schemas"
 	"github.com/rancher/wrangler/v3/pkg/summary"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,7 +32,7 @@ func Register(schemas *types.APISchemas, ccache clustercache.ClusterCache) {
 		schema.ResourceMethods = []string{http.MethodGet}
 		schema.Attributes["access"] = accesscontrol.AccessListByVerb{
 			"watch": accesscontrol.AccessList{
-				{
+				accesscontrol.Access{
 					Namespace:    "*",
 					ResourceName: "*",
 				},
@@ -151,7 +152,7 @@ func (s *Store) Watch(apiOp *types.APIRequest, schema *types.APISchema, w types.
 			return nil
 		}
 
-		_, namespace, revision, summary, ok := getInfo(obj)
+		_, namespace, revision, summary, ok := getInfo(obj, schema)
 		if !ok {
 			return nil
 		}
@@ -162,7 +163,7 @@ func (s *Store) Watch(apiOp *types.APIRequest, schema *types.APISchema, w types.
 		}
 
 		if oldObj != nil {
-			if _, _, _, oldSummary, ok := getInfo(oldObj); ok {
+			if _, _, _, oldSummary, ok := getInfo(oldObj, schema); ok {
 				if oldSummary.Transitioning == summary.Transitioning &&
 					oldSummary.Error == summary.Error &&
 					simpleState(oldSummary) == simpleState(summary) {
@@ -230,7 +231,7 @@ func (s *Store) schemasToWatch(apiOp *types.APIRequest) (result []*types.APISche
 	return
 }
 
-func getInfo(obj interface{}) (name string, namespace string, revision int, summaryResult summary.Summary, ok bool) {
+func getInfo(obj interface{}, schema *types.APISchema) (name string, namespace string, revision int, summaryResult summary.Summary, ok bool) {
 	r, ok := obj.(runtime.Object)
 	if !ok {
 		return "", "", 0, summaryResult, false
@@ -246,7 +247,12 @@ func getInfo(obj interface{}) (name string, namespace string, revision int, summ
 		return "", "", 0, summaryResult, false
 	}
 
-	summaryResult = summary.Summarize(r)
+	opts := &summary.SummarizeOptions{HasObservedGeneration: false}
+	if schema != nil && schema.Attributes != nil {
+		opts.HasObservedGeneration = schemas.HasObservedGeneration(schema.Schema)
+	}
+
+	summaryResult = summary.SummarizeWithOptions(r, opts)
 	return meta.GetName(), meta.GetNamespace(), revision, summaryResult, true
 }
 
@@ -324,7 +330,7 @@ func (s *Store) getCount(apiOp *types.APIRequest) Count {
 		all := access.Grants("list", "*", "*")
 
 		for _, obj := range s.ccache.List(gvk) {
-			name, ns, revision, summary, ok := getInfo(obj)
+			name, ns, revision, summary, ok := getInfo(obj, schema)
 			if !ok {
 				continue
 			}
