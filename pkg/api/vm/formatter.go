@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"runtime"
+
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/v3/pkg/data/convert"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -480,11 +482,19 @@ func canHotUnplugNic(vm *kubevirtv1.VirtualMachine) bool {
 }
 
 func canInsertCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
+	if runtime.GOARCH == "arm64" {
+		return false
+	}
+
 	ok, _ := virtualmachine.SupportInsertCdRomVolume(vm)
 	return ok
 }
 
 func canEjectCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
+	if runtime.GOARCH == "arm64" {
+		return false
+	}
+
 	ok, _ := virtualmachine.SupportEjectCdRomVolume(vm)
 	return ok
 }
