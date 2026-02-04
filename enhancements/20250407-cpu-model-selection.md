@@ -80,11 +80,11 @@ If the cluster consists of mainly homogeneous nodes (including new nodes), users
 
 ### API changes
 
-Backend provides a ConfigMap named `node-cpu-model-configuration` to track CPU model capabilities across the cluster. The ConfigMap is deployed as part of the Harvester Helm chart templates and is automatically created during installation.
+Backend provides a ConfigMap named `node-cpu-model-configuration` to track CPU model capabilities across the cluster. The ConfigMap is automatically created during Harvester initialization and updated by the node CPU model configuration controller.
 
 #### ConfigMap Definition
 
-This ConfigMap is pre-created by the Harvester deployment templates in `deploy/charts/harvester/templates/node-cpu-model-configmap.yaml` and is automatically updated by the node CPU model configuration controller.
+This ConfigMap is pre-created by the Harvester data initialization in `pkg/data/configmap.go` during system startup and is automatically updated by the node CPU model configuration controller.
 
 ```yaml
 apiVersion: v1
@@ -312,7 +312,7 @@ Backend should reject unreasonable requests from the frontend. When users try to
 
 Action Items:
 
-- [ ] Create ConfigMap template in `deploy/charts/harvester/templates/node-cpu-model-configmap.yaml`.
+- [ ] Create ConfigMap initialization in `pkg/data/configmap.go` to ensure ConfigMap exists at system startup.
 - [ ] Implement node CPU model configuration controller in `pkg/controller/master/node/cpu_model_config_controller.go`.
 - [ ] Provide CPU model data from ConfigMap for frontend API.
 - [ ] Filter the nodes based on the selected CPU model when calling `findMigratableNodesByVMI`.
