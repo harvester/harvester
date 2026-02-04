@@ -36,7 +36,7 @@ If needed, user can use the provided role templates to create new or complement 
 
 * Define a set of RBAC roles to support cluster-scoped operations on Harvester resources.
 
-The cluster-scoped roles consist of permissions for cluster users to manage virtualization workloads, infrastructure, settings and system upgrade resources at the cluster level.
+The cluster-scoped roles consist of permissions for cluster users to manage virtualization workloads, infrastructure, advanced cluster settings and system upgrade resources at the cluster level.
 
 Generally, the privileges granted by the roles span across all projects within the cluster.
 
@@ -77,6 +77,8 @@ The following is the list of the proposed cluster-scoped roles:
 
 The `View Virtualization Resources` role provides a read-only "single pane of glass" experience to cluster user.
 
+This role inherits its permissions from the built-in `Cluster Member` and `View` roles.
+
 When assigned this role, a cluster user can:
 
 * view all workload resources including virtual machines, volumes, virtual machine images, storage classes
@@ -102,6 +104,8 @@ This role **does not** grant permissions to:
 * view or modify guest clusters configuration
 
 The `Manage Virtualization Resources` role provides a cluster "power user" with management access to all virtualization resources.
+
+This role inherits its permissions from the built-in `Edit` role.
 
 With this role, a cluster user can:
 
@@ -236,9 +240,6 @@ roleTemplateNames:
   - monitoring-ui-view
   - nodes-view
   - clusterroletemplatebindings-view
-  - workloads-view
-  - secrets-view
-  - services-view
 rules:
   - apiGroups:
       - harvesterhci.io
