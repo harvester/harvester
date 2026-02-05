@@ -10,10 +10,11 @@ import (
 	kubevirtcorev1 "kubevirt.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 
+	corefake "k8s.io/client-go/kubernetes/fake"
+
 	kubevirtfake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
-	corefake "k8s.io/client-go/kubernetes/fake"
 )
 
 func Test_configmap_reconcile(t *testing.T) {
@@ -419,9 +420,6 @@ func Test_configmap_reconcile(t *testing.T) {
 				updatedConfigMap, err := coreClientset.CoreV1().ConfigMaps(util.HarvesterSystemNamespaceName).Get(ctx, configMapName, metav1.GetOptions{})
 				assert.NoError(t, err)
 				assert.NotNil(t, updatedConfigMap)
-
-				// Print the ConfigMap data in YAML format
-				t.Logf("ConfigMap data:\n%s", updatedConfigMap.Data[configMapDataKey])
 
 				// Parse the YAML data
 				var actualData CPUModelData

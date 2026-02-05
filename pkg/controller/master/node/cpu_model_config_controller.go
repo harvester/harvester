@@ -67,17 +67,7 @@ func CPUModelConfigRegister(ctx context.Context, management *config.Management, 
 	}
 
 	nodes.OnChange(ctx, CPUModelConfigControllerName, h.OnNodeChanged)
-	nodes.OnRemove(ctx, CPUModelConfigControllerName, h.OnNodeChanged)
 	kubevirt.OnChange(ctx, CPUModelConfigControllerName, h.OnKubeVirtChanged)
-
-	// For ConfigMap cache
-	if err := management.CoreFactory.Sync(ctx); err != nil {
-		return fmt.Errorf("failed to sync core factory: %w", err)
-	}
-
-	if err := h.reconcile(); err != nil {
-		return fmt.Errorf("failed to reconcile CPU model config at startup: %w", err)
-	}
 
 	return nil
 }
@@ -211,10 +201,15 @@ func (h *cpuModelConfigHandler) collectGlobalModels() ([]string, error) {
 }
 
 func isNodeReady(node *corev1.Node) bool {
+	if node == nil || node.DeletionTimestamp != nil {
+		return false
+	}
+
 	for _, condition := range node.Status.Conditions {
 		if condition.Type == corev1.NodeReady {
 			return condition.Status == corev1.ConditionTrue
 		}
 	}
+
 	return false
 }
