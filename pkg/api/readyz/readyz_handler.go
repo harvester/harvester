@@ -69,8 +69,16 @@ func (h *ReadyzHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 		return nil, apierror.NewAPIError(validation.Unauthorized, "Bearer token required")
 	}
 
+	err := h.loadToken()
+	if err != nil {
+		logrus.Debugf("Token initialization failed: %s", err.Error())
+		return nil, apierror.NewAPIError(validation.ServerError, "Token initialization failed")
+	}
+
 	providedToken := strings.TrimPrefix(authHeader, "Bearer ")
-	if !h.validateToken(providedToken) {
+	err = h.validateToken(providedToken)
+	if err != nil {
+		logrus.Debugf("Failed to validate token: %s", err.Error())
 		return nil, apierror.NewAPIError(validation.PermissionDenied, "Invalid token")
 	}
 
@@ -79,7 +87,7 @@ func (h *ReadyzHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 
 	if !ready {
 		// Log detailed reason for debugging
-		logrus.Infof("Cluster not ready: %s", msg)
+		logrus.Debugf("Cluster not ready: %s", msg)
 		ctx.SetStatusOK()
 		return map[string]any{
 			"ready":     false,
@@ -95,38 +103,41 @@ func (h *ReadyzHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 	}, nil
 }
 
-func (h *ReadyzHandler) validateToken(providedToken string) bool {
+func (h *ReadyzHandler) loadToken() error {
 	tokenOnce.Do(func() {
 		expectedToken, err := h.getTokenFromOEM()
 		if err != nil {
 			tokenInitErr = err
-			logrus.Errorf("Failed to read token from OEM config: %v", err)
 			return
 		}
 		hasher := hashers.GetHasher()
 		tokenHash, tokenInitErr = hasher.CreateHash(expectedToken)
 	})
 
-	if tokenInitErr != nil {
-		return false
-	}
+	return tokenInitErr
+}
+
+func (h *ReadyzHandler) validateToken(providedToken string) error {
 	hasher, err := hashers.GetHasherForHash(tokenHash)
 	if err != nil {
-		logrus.Errorf("Failed to get hasher: %v", err)
-		return false
+		return fmt.Errorf("failed to get hasher: %s", err.Error())
 	}
-	return hasher.VerifyHash(tokenHash, providedToken) == nil
+	err = hasher.VerifyHash(tokenHash, providedToken)
+	if err != nil {
+		return fmt.Errorf("failed to verify hash: %s", err.Error())
+	}
+	return nil
 }
 
 func (h *ReadyzHandler) getTokenFromOEM() (string, error) {
 	data, err := os.ReadFile(oemConfigPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read OEM config: %w", err)
+		return "", fmt.Errorf("failed to read OEM config: %s", err.Error())
 	}
 
 	var config OEMConfig
 	if err := yaml.Unmarshal(data, &config); err != nil {
-		return "", fmt.Errorf("failed to parse OEM config: %w", err)
+		return "", fmt.Errorf("failed to parse OEM config: %s", err.Error())
 	}
 
 	content := findFileContent(config, "/etc/rancher/rancherd/config.yaml")
@@ -136,7 +147,7 @@ func (h *ReadyzHandler) getTokenFromOEM() (string, error) {
 
 	var rancherdConfig RancherdConfig
 	if err := yaml.Unmarshal([]byte(content), &rancherdConfig); err != nil {
-		return "", fmt.Errorf("failed to parse rancherd config: %w", err)
+		return "", fmt.Errorf("failed to parse rancherd config: %s", err.Error())
 	}
 
 	if rancherdConfig.Token == "" {
@@ -162,6 +173,7 @@ func (h *ReadyzHandler) clusterReady() (bool, string) {
 		util.FleetLocalNamespaceName,
 		util.LocalClusterName)
 	if err != nil {
+		logrus.Debugf("rkeControlPlane not found: %s", err.Error())
 		return false, "rkeControlPlane not found"
 	}
 
@@ -179,6 +191,7 @@ func (h *ReadyzHandler) clusterReady() (bool, string) {
 	longhornManagerSelector := labels.SelectorFromSet(labels.Set(longhornTypes.GetManagerLabels()))
 	longhornPods, err := h.podCache.List(common.LonghornSystemNamespaceName, longhornManagerSelector)
 	if err != nil {
+		logrus.Debugf("failed to check longhorn-manager pods: %s", err.Error())
 		return false, "failed to check longhorn-manager pods"
 	}
 
@@ -189,6 +202,7 @@ func (h *ReadyzHandler) clusterReady() (bool, string) {
 	virtControllerSelector := labels.SelectorFromSet(labels.Set{kubevirtv1.AppLabel: "virt-controller"})
 	virtPods, err := h.podCache.List(common.HarvesterSystemNamespaceName, virtControllerSelector)
 	if err != nil {
+		logrus.Debugf("failed to check virt-controller pods: %s", err.Error())
 		return false, "failed to check virt-controller pods"
 	}
 

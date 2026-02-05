@@ -1,6 +1,7 @@
 package readyz
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/harvester/go-common/common"
@@ -8,9 +9,11 @@ import (
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	longhornTypes "github.com/longhorn/longhorn-manager/types"
 	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
+	"github.com/rancher/rancher/pkg/auth/tokens/hashers"
 	rkev1controller "github.com/rancher/rancher/pkg/generated/controllers/rke.cattle.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -263,6 +266,64 @@ func TestClusterReady(t *testing.T) {
 				assert.Contains(t, msg, tt.expectedMsgContains, "Message should contain expected substring")
 			} else {
 				assert.Empty(t, msg, "Message should be empty when cluster is ready")
+			}
+		})
+	}
+}
+
+func TestAuthentication(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupToken     string
+		providedToken  string
+		injectHash     string
+		expectedHasher hashers.Hasher
+		shouldError    bool
+	}{
+		{
+			name:           "Valid token with hasher verification",
+			setupToken:     "correct-token",
+			providedToken:  "correct-token",
+			expectedHasher: hashers.Sha3Hasher{},
+			shouldError:    false,
+		},
+		{
+			name:           "Invalid token",
+			setupToken:     "correct-token",
+			providedToken:  "wrong-token",
+			expectedHasher: hashers.Sha3Hasher{},
+			shouldError:    true,
+		},
+		{
+			name:           "Invalid hash format",
+			injectHash:     "invalid-hash",
+			providedToken:  "any-token",
+			expectedHasher: hashers.Sha3Hasher{},
+			shouldError:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var err error
+			hash := tt.injectHash
+			if hash == "" {
+				hasher := hashers.GetHasher()
+				assert.Equal(t, reflect.TypeOf(hasher), reflect.TypeOf(tt.expectedHasher), "Hasher type should match expected")
+				hash, err = hasher.CreateHash(tt.setupToken)
+				require.NoError(t, err)
+			}
+
+			originalHash := tokenHash
+			tokenHash = hash
+			defer func() { tokenHash = originalHash }()
+
+			err = (&ReadyzHandler{}).validateToken(tt.providedToken)
+
+			if tt.shouldError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
