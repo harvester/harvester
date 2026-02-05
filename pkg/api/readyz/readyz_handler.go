@@ -71,7 +71,7 @@ func (h *ReadyzHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 
 	err := h.loadToken()
 	if err != nil {
-		logrus.Debugf("Token initialization failed: %s", err.Error())
+		logrus.Debugf("Failed to initialize token: %s", err.Error())
 		return nil, apierror.NewAPIError(validation.ServerError, "Token initialization failed")
 	}
 
@@ -118,11 +118,8 @@ func (h *ReadyzHandler) loadToken() error {
 }
 
 func (h *ReadyzHandler) validateToken(providedToken string) error {
-	hasher, err := hashers.GetHasherForHash(tokenHash)
-	if err != nil {
-		return fmt.Errorf("failed to get hasher: %s", err.Error())
-	}
-	err = hasher.VerifyHash(tokenHash, providedToken)
+	hasher := hashers.Sha256Hasher{}
+	err := hasher.VerifyHash(tokenHash, providedToken)
 	if err != nil {
 		return fmt.Errorf("failed to verify hash: %s", err.Error())
 	}

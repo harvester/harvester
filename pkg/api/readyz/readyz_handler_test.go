@@ -1,7 +1,6 @@
 package readyz
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/harvester/go-common/common"
@@ -273,33 +272,29 @@ func TestClusterReady(t *testing.T) {
 
 func TestAuthentication(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupToken     string
-		providedToken  string
-		injectHash     string
-		expectedHasher hashers.Hasher
-		shouldError    bool
+		name          string
+		setupToken    string
+		providedToken string
+		injectHash    string
+		shouldError   bool
 	}{
 		{
-			name:           "Valid token with hasher verification",
-			setupToken:     "correct-token",
-			providedToken:  "correct-token",
-			expectedHasher: hashers.Sha3Hasher{},
-			shouldError:    false,
+			name:          "Valid token with hasher verification",
+			setupToken:    "correct-token",
+			providedToken: "correct-token",
+			shouldError:   false,
 		},
 		{
-			name:           "Invalid token",
-			setupToken:     "correct-token",
-			providedToken:  "wrong-token",
-			expectedHasher: hashers.Sha3Hasher{},
-			shouldError:    true,
+			name:          "Invalid token",
+			setupToken:    "correct-token",
+			providedToken: "wrong-token",
+			shouldError:   true,
 		},
 		{
-			name:           "Invalid hash format",
-			injectHash:     "invalid-hash",
-			providedToken:  "any-token",
-			expectedHasher: hashers.Sha3Hasher{},
-			shouldError:    true,
+			name:          "Invalid hash format",
+			injectHash:    "invalid-hash",
+			providedToken: "any-token",
+			shouldError:   true,
 		},
 	}
 
@@ -308,9 +303,7 @@ func TestAuthentication(t *testing.T) {
 			var err error
 			hash := tt.injectHash
 			if hash == "" {
-				hasher := hashers.GetHasher()
-				assert.Equal(t, reflect.TypeOf(hasher), reflect.TypeOf(tt.expectedHasher), "Hasher type should match expected")
-				hash, err = hasher.CreateHash(tt.setupToken)
+				hash, err = hashers.Sha256Hasher{}.CreateHash(tt.setupToken)
 				require.NoError(t, err)
 			}
 
