@@ -406,15 +406,16 @@ func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace 
 		return err
 	}
 
-	for _, name := range toRemoveClaimNames {
-		if err := h.clientSet.CoreV1().PersistentVolumeClaims(vm.Namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
-			if !apierrors.IsNotFound(err) {
-				return err
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		for _, name := range toRemoveClaimNames {
+			if err := h.clientSet.CoreV1().PersistentVolumeClaims(vm.Namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
+				if !apierrors.IsNotFound(err) {
+					return err
+				}
 			}
 		}
-	}
-
-	return nil
+		return nil
+	})
 }
 
 func (h *vmActionHandler) startPreCheck(namespace, name string) error {
