@@ -2,7 +2,6 @@ package readyz
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -19,46 +18,31 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
 const (
-	oemConfigPath = "/oem/90_custom.yaml"
-)
-
-var (
-	tokenOnce    sync.Once
-	tokenHash    string
-	tokenInitErr error
+	localRKEStateSecretName = "local-rke-state"
+	serverTokenKey          = "serverToken"
 )
 
 type ReadyzHandler struct {
-	podCache ctlcorev1.PodCache
-	rkeCache generic.CacheInterface[*rkev1.RKEControlPlane]
+	podCache    ctlcorev1.PodCache
+	secretCache ctlcorev1.SecretCache
+	rkeCache    generic.CacheInterface[*rkev1.RKEControlPlane]
+
+	tokenOnce    sync.Once
+	tokenHash    string
+	tokenInitErr error
 }
 
-type OEMConfig struct {
-	Stages struct {
-		Initramfs []struct {
-			Files []struct {
-				Path    string `yaml:"path"`
-				Content string `yaml:"content"`
-			} `yaml:"files"`
-		} `yaml:"initramfs"`
-	} `yaml:"stages"`
-}
-
-type RancherdConfig struct {
-	Token string `yaml:"token"`
-}
-
-func NewReadyzHandler(podCache ctlcorev1.PodCache, rkeCache generic.CacheInterface[*rkev1.RKEControlPlane]) *ReadyzHandler {
+func NewReadyzHandler(podCache ctlcorev1.PodCache, secretCache ctlcorev1.SecretCache, rkeCache generic.CacheInterface[*rkev1.RKEControlPlane]) *ReadyzHandler {
 	return &ReadyzHandler{
-		podCache: podCache,
-		rkeCache: rkeCache,
+		podCache:    podCache,
+		secretCache: secretCache,
+		rkeCache:    rkeCache,
 	}
 }
 
@@ -86,7 +70,6 @@ func (h *ReadyzHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
 	if !ready {
-		// Log detailed reason for debugging
 		logrus.Debugf("Cluster not ready: %s", msg)
 		ctx.SetStatusOK()
 		return map[string]any{
@@ -104,65 +87,47 @@ func (h *ReadyzHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 }
 
 func (h *ReadyzHandler) loadToken() error {
-	tokenOnce.Do(func() {
-		expectedToken, err := h.getTokenFromOEM()
+	h.tokenOnce.Do(func() {
+		expectedToken, err := h.getTokenFromSecret()
 		if err != nil {
-			tokenInitErr = err
+			h.tokenInitErr = err
 			return
 		}
 		hasher := hashers.GetHasher()
-		tokenHash, tokenInitErr = hasher.CreateHash(expectedToken)
+		h.tokenHash, h.tokenInitErr = hasher.CreateHash(expectedToken)
 	})
 
-	return tokenInitErr
+	return h.tokenInitErr
 }
 
 func (h *ReadyzHandler) validateToken(providedToken string) error {
-	hasher := hashers.Sha256Hasher{}
-	err := hasher.VerifyHash(tokenHash, providedToken)
+	hasher, err := hashers.GetHasherForHash(h.tokenHash)
+	if err != nil {
+		return fmt.Errorf("failed to get hasher: %s", err.Error())
+	}
+	err = hasher.VerifyHash(h.tokenHash, providedToken)
 	if err != nil {
 		return fmt.Errorf("failed to verify hash: %s", err.Error())
 	}
 	return nil
 }
 
-func (h *ReadyzHandler) getTokenFromOEM() (string, error) {
-	data, err := os.ReadFile(oemConfigPath)
+func (h *ReadyzHandler) getTokenFromSecret() (string, error) {
+	secret, err := h.secretCache.Get(util.FleetLocalNamespaceName, localRKEStateSecretName)
 	if err != nil {
-		return "", fmt.Errorf("failed to read OEM config: %s", err.Error())
+		return "", fmt.Errorf("failed to get secret %s/%s: %s", util.FleetLocalNamespaceName, localRKEStateSecretName, err.Error())
 	}
 
-	var config OEMConfig
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return "", fmt.Errorf("failed to parse OEM config: %s", err.Error())
+	tokenBytes, ok := secret.Data[serverTokenKey]
+	if !ok {
+		return "", fmt.Errorf("token key %s not found in secret", serverTokenKey)
 	}
 
-	content := findFileContent(config, "/etc/rancher/rancherd/config.yaml")
-	if content == "" {
-		return "", fmt.Errorf("token not found in OEM config: file path missing")
+	if len(tokenBytes) == 0 {
+		return "", fmt.Errorf("token is empty in secret")
 	}
 
-	var rancherdConfig RancherdConfig
-	if err := yaml.Unmarshal([]byte(content), &rancherdConfig); err != nil {
-		return "", fmt.Errorf("failed to parse rancherd config: %s", err.Error())
-	}
-
-	if rancherdConfig.Token == "" {
-		return "", fmt.Errorf("token is empty in rancherd config")
-	}
-
-	return rancherdConfig.Token, nil
-}
-
-func findFileContent(config OEMConfig, targetPath string) string {
-	for _, stage := range config.Stages.Initramfs {
-		for _, file := range stage.Files {
-			if file.Path == targetPath {
-				return file.Content
-			}
-		}
-	}
-	return ""
+	return string(tokenBytes), nil
 }
 
 func (h *ReadyzHandler) clusterReady() (bool, string) {
@@ -210,7 +175,6 @@ func (h *ReadyzHandler) clusterReady() (bool, string) {
 	return true, ""
 }
 
-// hasAtLeastOneReadyPod checks if at least one pod in the list is running and ready
 func hasAtLeastOneReadyPod(pods []*corev1.Pod) bool {
 	for _, pod := range pods {
 		if pod.Status.Phase == corev1.PodRunning && isPodReadyConditionTrue(pod) {
