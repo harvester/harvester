@@ -141,12 +141,13 @@ require (
 	kubevirt.io/kubevirt v1.6.0
 	sigs.k8s.io/cluster-api v1.9.5
 	sigs.k8s.io/controller-runtime v0.20.4
-	sigs.k8s.io/kind v0.24.0
+	sigs.k8s.io/kind v0.30.0
 	sigs.k8s.io/kustomize/kyaml v0.18.1
 	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
+	al.essio.dev/pkg/shellescape v1.5.1 // indirect
 	cel.dev/expr v0.24.0 // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	emperror.dev/errors v0.8.1 // indirect
@@ -161,7 +162,6 @@ require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/achanda/go-sysctl v0.0.0-20160222034550-6be7678c45d2 // indirect
 	github.com/adrg/xdg v0.5.3 // indirect
-	github.com/alessio/shellescape v1.4.2 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.55.6 // indirect
@@ -220,7 +220,6 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
-	github.com/google/safetext v0.0.0-20220905092116-b49f7bc46da2 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/handlers v1.5.2 // indirect

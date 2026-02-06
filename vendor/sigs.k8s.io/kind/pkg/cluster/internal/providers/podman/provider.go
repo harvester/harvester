@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/kind/pkg/exec"
 	"sigs.k8s.io/kind/pkg/log"
 
-	internallogs "sigs.k8s.io/kind/pkg/cluster/internal/logs"
 	"sigs.k8s.io/kind/pkg/cluster/internal/providers"
 	"sigs.k8s.io/kind/pkg/cluster/internal/providers/common"
 	"sigs.k8s.io/kind/pkg/internal/apis/config"
@@ -171,6 +170,15 @@ func (p *provider) DeleteNodes(n []nodes.Node) error {
 	return deleteVolumes(nodeVolumes)
 }
 
+// getHostIPOrDefault defaults HostIP to localhost if is not set
+// xref: https://github.com/kubernetes-sigs/kind/issues/3777
+func getHostIPOrDefault(hostIP string) string {
+	if hostIP == "" {
+		return "127.0.0.1"
+	}
+	return hostIP
+}
+
 // GetAPIServerEndpoint is part of the providers.Provider interface
 func (p *provider) GetAPIServerEndpoint(cluster string) (string, error) {
 	// locate the node that hosts this
@@ -266,7 +274,7 @@ func (p *provider) GetAPIServerEndpoint(cluster string) (string, error) {
 			}
 			for _, pm := range v {
 				if containerPort == common.APIServerInternalPort && protocol == "tcp" {
-					return net.JoinHostPort(pm.HostIP, pm.HostPort), nil
+					return net.JoinHostPort(getHostIPOrDefault(pm.HostIP), pm.HostPort), nil
 				}
 			}
 		}
@@ -278,7 +286,7 @@ func (p *provider) GetAPIServerEndpoint(cluster string) (string, error) {
 	}
 	for _, pm := range portMappings19 {
 		if pm.ContainerPort == common.APIServerInternalPort && pm.Protocol == "tcp" {
-			return net.JoinHostPort(pm.HostIP, strconv.Itoa(int(pm.HostPort))), nil
+			return net.JoinHostPort(getHostIPOrDefault(pm.HostIP), strconv.Itoa(int(pm.HostPort))), nil
 		}
 	}
 
@@ -327,33 +335,17 @@ func (p *provider) CollectLogs(dir string, nodes []nodes.Node) error {
 			filepath.Join(dir, "podman-info.txt"),
 		),
 	}
-
-	// collect /var/log for each node and plan collecting more logs
-	var errs []error
+	// inspect each node
 	for _, n := range nodes {
 		node := n // https://golang.org/doc/faq#closures_and_goroutines
 		name := node.String()
 		path := filepath.Join(dir, name)
-		if err := internallogs.DumpDir(p.logger, node, "/var/log", path); err != nil {
-			errs = append(errs, err)
-		}
-
 		fns = append(fns,
-			func() error { return common.CollectLogs(node, path) },
 			execToPathFn(exec.Command("podman", "inspect", name), filepath.Join(path, "inspect.json")),
-			func() error {
-				f, err := common.FileOnHost(filepath.Join(path, "serial.log"))
-				if err != nil {
-					return err
-				}
-				return node.SerialLogs(f)
-			},
 		)
 	}
-
 	// run and collect up all errors
-	errs = append(errs, errors.AggregateConcurrent(fns))
-	return errors.NewAggregate(errs)
+	return errors.AggregateConcurrent(fns)
 }
 
 // Info returns the provider info.

@@ -1,3 +1,6 @@
+# al.essio.dev/pkg/shellescape v1.5.1
+## explicit; go 1.18
+al.essio.dev/pkg/shellescape
 # cel.dev/expr v0.24.0
 ## explicit; go 1.22.0
 cel.dev/expr
@@ -44,9 +47,6 @@ github.com/achanda/go-sysctl
 github.com/adrg/xdg
 github.com/adrg/xdg/internal/pathutil
 github.com/adrg/xdg/internal/userdirs
-# github.com/alessio/shellescape v1.4.2
-## explicit; go 1.14
-github.com/alessio/shellescape
 # github.com/antlr4-go/antlr/v4 v4.13.0
 ## explicit; go 1.20
 github.com/antlr4-go/antlr/v4
@@ -384,10 +384,6 @@ github.com/google/gofuzz/bytesource
 # github.com/google/pprof v0.0.0-20250403155104-27863c87afa6
 ## explicit; go 1.23
 github.com/google/pprof/profile
-# github.com/google/safetext v0.0.0-20220905092116-b49f7bc46da2
-## explicit; go 1.19
-github.com/google/safetext/common
-github.com/google/safetext/yamltemplate
 # github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 ## explicit; go 1.13
 github.com/google/shlex
@@ -2634,7 +2630,7 @@ sigs.k8s.io/controller-runtime/pkg/webhook/internal/metrics
 ## explicit; go 1.23
 sigs.k8s.io/json
 sigs.k8s.io/json/internal/golang/encoding/json
-# sigs.k8s.io/kind v0.24.0
+# sigs.k8s.io/kind v0.30.0
 ## explicit; go 1.17
 sigs.k8s.io/kind/pkg/apis/config/defaults
 sigs.k8s.io/kind/pkg/apis/config/v1alpha4
