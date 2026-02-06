@@ -42,6 +42,7 @@ const (
 	AnnotationSkipRancherLoggingAddonWebhookCheck       = prefix + "/skipRancherLoggingAddonWebhookCheck"
 	AnnotationSkipDeschedulerAddonWebhookCheck          = prefix + "/skipDeschedulerAddonWebhookCheck"
 	AnnotationSkipPCIDevicesControllerAddonWebhookCheck = prefix + "/skipPCIDevicesControllerAddonWebhookCheck"
+	AnnotationSkipNvidiaDriverToolkitAddonWebhookCheck  = prefix + "/skipNvidiaDriverToolkitAddonWebhookCheck"
 
 	// AnnotationSkipResourceQuotaAutoScaling is used to disable to resourcequota auto scaling
 	AnnotationSkipResourceQuotaAutoScaling = prefix + "/skipResourceQuotaAutoScaling"

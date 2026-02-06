@@ -3,6 +3,8 @@ package addon
 import (
 	"fmt"
 
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,8 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	validationutil "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -21,7 +21,6 @@ import (
 	"github.com/harvester/harvester/pkg/util/logging"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
-	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 )
 
 const (
@@ -195,11 +194,19 @@ func (v *addonValidator) validatePCIDevicesControllerAddonUpdate(newAddon *v1bet
 }
 
 func (v *addonValidator) validateNvidiaDriverToolkitAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
-	// check when nvidia-driver-toolkit addon is being disabled
-	if oldAddon.Spec.Enabled && !newAddon.Spec.Enabled {
-		return v.validateNvidiaDriverToolkitAddon()
+	// not being disabled, no validation needed
+	if !oldAddon.Spec.Enabled || newAddon.Spec.Enabled {
+		return nil
 	}
-	return nil
+
+	// check for skip annotation
+	if newAddon.Annotations != nil && newAddon.Annotations[util.AnnotationSkipNvidiaDriverToolkitAddonWebhookCheck] == "true" {
+		logrus.Warnf("%v addon is being disabled but webhook check is skipped", util.NvidiaDriverToolkitName)
+		return nil
+	}
+
+	// perform validation when nvidia-driver-toolkit addon is being disabled
+	return v.validateNvidiaDriverToolkitAddon()
 }
 
 func validateVClusterAddon(newAddon *v1beta1.Addon) error {
