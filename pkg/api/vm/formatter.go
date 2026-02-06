@@ -33,7 +33,6 @@ const (
 	softReboot                       = "softreboot"
 	pauseVM                          = "pause"
 	unpauseVM                        = "unpause"
-	ejectCdRom                       = "ejectCdRom"
 	insertCdRomVolume                = "insertCdRomVolume"
 	ejectCdRomVolume                 = "ejectCdRomVolume"
 	migrate                          = "migrate"

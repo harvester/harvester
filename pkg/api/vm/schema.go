@@ -133,7 +133,6 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				stopVM:                           actionHandler,
 				restartVM:                        actionHandler,
 				softReboot:                       actionHandler,
-				ejectCdRom:                       actionHandler,
 				insertCdRomVolume:                actionHandler,
 				ejectCdRomVolume:                 actionHandler,
 				pauseVM:                          actionHandler,
