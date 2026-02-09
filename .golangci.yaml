@@ -47,8 +47,7 @@ linters:
         text: "QF1012:" # Use fmt.Fprint(...) instead of Write([]byte(fmt.Sprint(...)))
 formatters:
   enable:
-    - goimports # checks if the code and import statements are formatted according to the 'goimports' command
-    - golines # checks if code is formatted, and fixes long lines
+    - gofmt
 run:
   timeout: 5m
   tests: true
