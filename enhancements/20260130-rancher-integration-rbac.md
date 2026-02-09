@@ -24,7 +24,7 @@ The proposed enhancement aims to address these gaps.
 
 ### Goals
 
-* Utilize Rancher RBAC framework to define the new RBAC roles to manage Harvester resources.
+* ***Utilize Rancher RBAC framework*** to define the new RBAC roles to manage Harvester resources.
 
 This approach offers Rancher users with a consistent and familiar user membership and RBAC management experience.
 
@@ -32,21 +32,23 @@ During the initial implementation phase, RBAC roles are defined to segregate clu
 
 More granular roles with specific permissions to manage, for example, the network stack or storage configuration can be introduced in future phases based on user feedback and requirements.
 
-If needed, user can use the provided role templates to create new or complement existing custom roles.
+If needed, user can use the provided role templates to create new or complement existing custom roles via Rancher's role "Inherit From" feature.
 
-* Define a set of RBAC roles to support cluster-scoped operations on Harvester resources.
+* Define a set of RBAC roles to ***support cluster-scoped operations*** on Harvester resources.
 
 The cluster-scoped roles consist of permissions for cluster users to manage virtualization workloads, infrastructure, advanced cluster settings and system upgrade resources at the cluster level.
 
-Generally, the privileges granted by the roles span across all projects within the cluster.
+The privileges granted by the roles span across all projects within the cluster.
 
-* Define a set of RBAC roles to support namespace-scoped operations on Harvester resources.
+Generally, these roles do not have permissions to modify Rancher resources like guest clusters configuration, cluster membership.
+
+* Define a set of RBAC roles to ***support namespace-scoped operations*** on Harvester resources.
 
 The namespace-scoped roles consist of permissions for project users to manage virtualization workload resources within specific projects.
 
 Generally, these roles do not have permissions to access infrastructure and system resources, nor project resources outside of the RBAC binding context.
 
-* Enforce access control at the UI and API levels.
+* Enforce access control ***at the UI and API levels***.
 
 Identify UI changes needed to ensure that users can only see and interact with resources they have permissions for. This may include hiding or disabling UI elements that correspond to actions or resources outside of the user's permissions.
 
@@ -60,7 +62,7 @@ TBD.
 
 The primary objective is to utilize the Rancher `RoleTemplate` API to define a set of cluster-scoped and namespace-scoped RBAC roles to attribute Harvester permission groups.
 
-The proposed roles do not include Rancher-level administrative permissions, which include permissions that grant privileges to manage guest clusters or configure node drivers. These permissions can be granted to users from the existing "Built-In" global permissions page:
+The proposed roles do not include Rancher-level administrative permissions, which grant privileges to manage Rancher resources like guest clusters or node drivers configuration. These permissions can be granted to users from the existing "Built-In" global permissions page:
 
 ![screenshot to show built-in global permissions](./20260130-rancher-integration-rbac/builtin-global-permissions.png)
 
@@ -87,6 +89,7 @@ When assigned this role, a cluster user can:
 * view all host devices like PCI devices, SR-IOV devices, vGPU devices
 * view all projects and namespaces
 * view cluster memberships
+* view project memberships
 * view SSH keys, templates and secrets
 * view advanced cluster settings
 * view cluster and workload metrics
@@ -99,6 +102,7 @@ This role **does not** grant permissions to:
 * modify host devices like PCI devices, SR-IOV devices, vGPU devices
 * modify projects and namespaces
 * modify cluster memberships
+* modify project memberships
 * modify SSH keys, templates and secrets
 * modify advanced cluster settings
 * view or modify guest clusters configuration
@@ -116,6 +120,7 @@ With this role, a cluster user can:
 * modify all projects, namespaces
 * modify SSH keys, templates and secrets
 * modify advanced cluster settings
+* modify project memberships
 * view cluster memberships
 * view cluster and workload metrics
 * generate support bundles
@@ -238,19 +243,19 @@ projectCreatorDefault: false
 roleTemplateNames:
   - projects-view
   - monitoring-ui-view
-  - nodes-view
   - clusterroletemplatebindings-view
+  - nodes-view
 rules:
   - apiGroups:
       - harvesterhci.io
     resources:
       - supportbundles
     verbs:
-      - '*'
+      - "*"
   - apiGroups:
       - network.harvesterhci.io
     resources:
-      - '*'
+      - "*"
     verbs:
       - get
       - list
@@ -258,7 +263,7 @@ rules:
   - apiGroups:
       - loadbalancer.harvesterhci.io
     resources:
-      - '*'
+      - "*"
     verbs:
       - get
       - list
@@ -266,7 +271,7 @@ rules:
   - apiGroups:
       - devices.harvesterhci.io
     resources:
-      - '*'
+      - "*"
     verbs:
       - get
       - list
@@ -274,23 +279,21 @@ rules:
   - apiGroups:
       - node.harvesterhci.io
     resources:
-      - '*'
+      - "*"
     verbs:
       - get
       - list
       - watch
   - apiGroups:
       - harvesterhci.io
-    resourceNames: []
     resources:
-      - '*'
+      - "*"
     verbs:
       - get
       - list
       - watch
   - apiGroups:
       - harvesterhci.io
-    resourceNames: []
     resources:
       - settings
     verbs:
@@ -328,44 +331,46 @@ roleTemplateNames:
   - nodes-manage
   - projects-view
   - edit
+  - projectroletemplatebindings-manage
+  - project-member
 rules:
   - apiGroups:
-      - ''
+      - ""
     resources:
       - namespaces
     verbs:
-      - '*'
+      - "*"
   - apiGroups:
       - loadbalancer.harvesterhci.io
     resources:
-      - '*'
+      - "*"
     verbs:
-      - '*'
+      - "*"
   - apiGroups:
       - network.harvesterhci.io
     resources:
-      - '*'
+      - "*"
     verbs:
-      - '*'
+      - "*"
   - apiGroups:
       - node.harvesterhci.io
     resources:
-      - '*'
+      - "*"
     verbs:
-      - '*'
+      - "*"
   - apiGroups:
       - devices.harvesterhci.io
     resources:
-      - '*'
+      - "*"
     verbs:
-      - '*'
+      - "*"
   - apiGroups:
       - harvesterhci.io
     resourceNames: []
     resources:
-      - '*'
+      - "*"
     verbs:
-      - '*'
+      - "*"
 ```
 
 #### Project Roles Specification
@@ -457,6 +462,26 @@ No upgrade strategy needed. New roles are added without modifying existing roles
 User who already owns their own custom roles can add the proposed Helm chart to their chart specification as [subchart][3].
 
 ## Note [optional]
+
+### List of UI Issues
+
+#### Cluster Role - View Virtualization Resources
+
+* User should not see the "Create Schedule" option on the "Virtual Machines" listing page
+* User should not see the "Encrypt Image" option on the "Images" listing page
+* User should not see the "Edit Config" option on the "Projects/Namespaces" listing page
+* User should not see the "Create" button in the "Virtual Machine Networks" page
+* User should not see the "Suspend" option in the "Backup and Snapshots Virtual Machine Schedules" listing page
+* User should not see the "Add" button in the "RBAC Cluster Members" listing page
+* User should not see the "Set as default" option in the "Advanced Storage Classes" page
+* User should not be allowed to download SSH keys from the "SSH Keys" listing page
+* User should not be allowed to download secrets from the "Secrets" listing page
+* User should not see the "Disable" option in the "Add-Ons" listing page
+* User should not see the "Enable Passthrough" option in the devices listing page
+
+#### Namespace Role - View Virtualization Resources
+
+* Same as "Cluster Role - View Virtualization Resources"
 
 Additional notes.
 
