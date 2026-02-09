@@ -194,7 +194,7 @@ func (f *Factory) waitCRD(ctx context.Context, crdName string, gvk schema.GroupV
 	defer logrus.Infof("Done waiting for CRD %s to become available", crdName)
 
 	first := true
-	return wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 60*time.Second, false, func(ctx context.Context) (bool, error) {
 		if !first {
 			logrus.Infof("Waiting for CRD %s to become available", crdName)
 		}
