@@ -463,6 +463,16 @@ User who already owns their own custom roles can add the proposed Helm chart to 
 
 ## Note [optional]
 
+### How Rancher Impersonation System Works
+
+The Rancher user's scope of permissions in Harvester is determined by the Rancher [centralized authentication and impersonation system][5].
+
+On Rancher, users are managed via the `user.management.cattle.io` API. The system assigns users cluster-scoped and project-scoped permissions by binding the `User` resource to the `RoleTemplate` resource via `ClusterRoleTemplateBinding` and `ProjectRoleTemplateBinding` resources respectively. The `ClusterRoleTemplateBinding` objects are normally found in the namespace named after the `<cluster-id>`. The `ProjectRoleTemplateBinding` objects are found in the namespace named after the `<cluster-id>-<project-id>`.
+
+The Rancher authentication proxy authenticates and forwards Rancher user requests to Harvester. Every request is authenticated using standard bearer token and includes the Kubernetes impersonation headers. This impersonation mechanism maps Rancher users to Kubernetes service accounts and groups in Harvester.
+
+On Harvester, the Rancher cluster agent acts as the recipient of the requset. A service account `cattle-impersonation-system/cattle-impersonation-<userid>` is created on behalf of the Rancher user. The `ClusterRole` and `ClusterRoleBinding` resources named after `cattle-impersonation-<userid>` to allow the service account to impersonate the Rancher user, its principal ID, the `userextras.authentication.k8s.io` resource, and the `system:authenticated` and `system:cattle:authenticated` groups.
+
 ### List of UI Issues
 
 #### Cluster Role - View Virtualization Resources
@@ -489,3 +499,4 @@ Additional notes.
 [2]: https://ranchermanager.docs.rancher.com/api/api-reference#tag/managementCattleIo_v3/operation/readManagementCattleIoV3RoleTemplate
 [3]: https://helm.sh/docs/chart_template_guide/subcharts_and_globals/
 [4]: https://github.com/harvester/harvester/blob/0bdc55c4e5402aedff971efb684cc7a69191ba15/pkg/data/rbac.go
+[5]: https://support.scc.suse.com/s/kb/rancher-cattle-impersonation-system?language=en_US
