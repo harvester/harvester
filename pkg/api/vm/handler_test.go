@@ -1432,7 +1432,7 @@ func TestInsertCdRomVolumeAction(t *testing.T) {
 	vmNamespace := "default"
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: vmName,
+			Name:      vmName,
 			Namespace: vmNamespace,
 			Annotations: map[string]string{
 				util.AnnotationVolumeClaimTemplates: `[]`,
@@ -1466,11 +1466,11 @@ func TestInsertCdRomVolumeAction(t *testing.T) {
 	vmImageNamespace := "default"
 	vmImage := &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: vmImageName,
+			Name:      vmImageName,
 			Namespace: vmNamespace,
 		},
 		Status: harvesterv1.VirtualMachineImageStatus{
-			VirtualSize: 25165824,
+			VirtualSize:      25165824,
 			StorageClassName: "longhorn-image-cn2w6",
 		},
 	}
@@ -1478,14 +1478,14 @@ func TestInsertCdRomVolumeAction(t *testing.T) {
 	clientset := fake.NewSimpleClientset(vm, vmImage)
 
 	handler := &vmActionHandler{
-		vms:            fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
-		vmCache:        fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
-		vmImageCache:   fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+		vms:          fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+		vmCache:      fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+		vmImageCache: fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 	}
 
 	input := InsertCdRomVolumeActionInput{
 		DeviceName: "cdrom1",
-		ImageName: vmImageNamespace + "/" + vmImageName,
+		ImageName:  vmImageNamespace + "/" + vmImageName,
 	}
 
 	err := handler.insertCdRomVolume(vmName, vmNamespace, input)
@@ -1511,7 +1511,7 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 	pvcNamespace := "default"
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: vmName,
+			Name:      vmName,
 			Namespace: vmNamespace,
 			Annotations: map[string]string{
 				util.AnnotationVolumeClaimTemplates: fmt.Sprintf(`[{"metadata":{"name":"%s","creationTimestamp":null,"annotations":{"harvesterhci.io/imageId":"default/image-8jpqp"}},"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"24Mi"}},"storageClassName":"longhorn-image-cn2w6","volumeMode":"Block"},"status":{}}]`, pvcName),
@@ -1536,7 +1536,7 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 						},
 					},
 					Volumes: []kubevirtv1.Volume{
-						kubevirtv1.Volume{
+						{
 							Name: "cdrom1",
 							VolumeSource: kubevirtv1.VolumeSource{
 								PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
@@ -1555,7 +1555,7 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: pvcName,
+			Name:      pvcName,
 			Namespace: pvcNamespace,
 		},
 	}
@@ -1564,10 +1564,10 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 	coreclientset := corefake.NewSimpleClientset(pvc)
 
 	handler := &vmActionHandler{
-		vms:        fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
-		vmCache:    fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
-		pvcCache:   fakeclients.PersistentVolumeClaimCache(coreclientset.CoreV1().PersistentVolumeClaims),
-		clientSet:  coreclientset,
+		vms:       fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+		vmCache:   fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+		pvcCache:  fakeclients.PersistentVolumeClaimCache(coreclientset.CoreV1().PersistentVolumeClaims),
+		clientSet: coreclientset,
 	}
 
 	input := EjectCdRomVolumeActionInput{

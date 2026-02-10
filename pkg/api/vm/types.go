@@ -8,7 +8,7 @@ var (
 
 type InsertCdRomVolumeActionInput struct {
 	DeviceName string `json:"DeviceName"`
-	ImageName string `json:"imageName"`
+	ImageName  string `json:"imageName"`
 }
 
 type EjectCdRomVolumeActionInput struct {

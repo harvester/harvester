@@ -332,7 +332,7 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 	if err != nil {
 		return err
 	}
-	storageSize := resource.NewQuantity(imgSizeRoundUp * k8svolumehelpers.GiB, resource.BinarySI)
+	storageSize := resource.NewQuantity(imgSizeRoundUp*k8svolumehelpers.GiB, resource.BinarySI)
 
 	newPvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -343,7 +343,7 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
-			VolumeMode: ptr.To(corev1.PersistentVolumeBlock),
+			VolumeMode:  ptr.To(corev1.PersistentVolumeBlock),
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: *storageSize,

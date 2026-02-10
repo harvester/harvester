@@ -141,8 +141,8 @@ func runStrategyTransformerHelper(input kubevirtv1.VirtualMachineRunStrategy) *k
 
 func Test_SupportInjectCdRomVolume(t *testing.T) {
 	type output struct {
-		result       bool
-		expectError  bool
+		result      bool
+		expectError bool
 	}
 
 	isCdRom := true
@@ -150,9 +150,9 @@ func Test_SupportInjectCdRomVolume(t *testing.T) {
 	diskSize := "10Gi"
 
 	testCases := []struct {
-		desc     string
-		input    func() (*kubevirtv1.VirtualMachine, error)
-		output   output
+		desc   string
+		input  func() (*kubevirtv1.VirtualMachine, error)
+		output output
 	}{
 		{
 			desc: "disk only",
@@ -162,7 +162,7 @@ func Test_SupportInjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: false,
+				result:      false,
 				expectError: false,
 			},
 		},
@@ -175,7 +175,7 @@ func Test_SupportInjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: false,
+				result:      false,
 				expectError: false,
 			},
 		},
@@ -187,7 +187,7 @@ func Test_SupportInjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: true,
+				result:      true,
 				expectError: false,
 			},
 		},
@@ -200,7 +200,7 @@ func Test_SupportInjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: true,
+				result:      true,
 				expectError: false,
 			},
 		},
@@ -213,7 +213,7 @@ func Test_SupportInjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: true,
+				result:      true,
 				expectError: false,
 			},
 		},
@@ -226,7 +226,7 @@ func Test_SupportInjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: false,
+				result:      false,
 				expectError: true,
 			},
 		},
@@ -239,7 +239,7 @@ func Test_SupportInjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: false,
+				result:      false,
 				expectError: true,
 			},
 		},
@@ -262,8 +262,8 @@ func Test_SupportInjectCdRomVolume(t *testing.T) {
 
 func Test_SupportEjectCdRomVolume(t *testing.T) {
 	type output struct {
-		result       bool
-		expectError  bool
+		result      bool
+		expectError bool
 	}
 
 	isCdRom := true
@@ -271,9 +271,9 @@ func Test_SupportEjectCdRomVolume(t *testing.T) {
 	diskSize := "10Gi"
 
 	testCases := []struct {
-		desc     string
-		input    func() (*kubevirtv1.VirtualMachine, error)
-		output   output
+		desc   string
+		input  func() (*kubevirtv1.VirtualMachine, error)
+		output output
 	}{
 		{
 			desc: "disk only",
@@ -283,7 +283,7 @@ func Test_SupportEjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: false,
+				result:      false,
 				expectError: false,
 			},
 		},
@@ -295,7 +295,7 @@ func Test_SupportEjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: true,
+				result:      true,
 				expectError: false,
 			},
 		},
@@ -308,7 +308,7 @@ func Test_SupportEjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: false,
+				result:      false,
 				expectError: false,
 			},
 		},
@@ -321,7 +321,7 @@ func Test_SupportEjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: false,
+				result:      false,
 				expectError: false,
 			},
 		},
@@ -334,7 +334,7 @@ func Test_SupportEjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: true,
+				result:      true,
 				expectError: false,
 			},
 		},
@@ -347,7 +347,7 @@ func Test_SupportEjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: true,
+				result:      true,
 				expectError: false,
 			},
 		},
@@ -360,7 +360,7 @@ func Test_SupportEjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: false,
+				result:      false,
 				expectError: true,
 			},
 		},
@@ -373,7 +373,7 @@ func Test_SupportEjectCdRomVolume(t *testing.T) {
 					VM()
 			},
 			output: output{
-				result: false,
+				result:      false,
 				expectError: true,
 			},
 		},
