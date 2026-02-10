@@ -3,8 +3,8 @@ package util
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -13,7 +13,7 @@ import (
 
 func GetHTTPTransportWithCertificates(config *rest.Config) (*http.Transport, error) {
 	logrus.Debugf("config: %+v", config)
-	caCert, err := ioutil.ReadFile(config.TLSClientConfig.CAFile)
+	caCert, err := os.ReadFile(config.TLSClientConfig.CAFile)
 	if err != nil {
 		return nil, err
 	}

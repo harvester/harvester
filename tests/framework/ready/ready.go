@@ -28,7 +28,7 @@ type Condition struct {
 }
 
 func (c *Condition) Wait(ctx context.Context) error {
-	return wait.PollImmediate(c.interval, c.timeout, func() (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, c.interval, c.timeout, true, func(ctx context.Context) (bool, error) {
 		select {
 		case <-ctx.Done():
 			return true, nil

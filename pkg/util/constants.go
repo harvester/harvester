@@ -39,8 +39,10 @@ const (
 	AnnotationMacAddressName            = prefix + "/mac-address"
 	AnnotationEnableCPUAndMemoryHotplug = prefix + "/enableCPUAndMemoryHotplug"
 
-	AnnotationSkipRancherLoggingAddonWebhookCheck = prefix + "/skipRancherLoggingAddonWebhookCheck"
-	AnnotationSkipDeschedulerAddonWebhookCheck    = prefix + "/skipDeschedulerAddonWebhookCheck"
+	AnnotationSkipRancherLoggingAddonWebhookCheck       = prefix + "/skipRancherLoggingAddonWebhookCheck"
+	AnnotationSkipDeschedulerAddonWebhookCheck          = prefix + "/skipDeschedulerAddonWebhookCheck"
+	AnnotationSkipPCIDevicesControllerAddonWebhookCheck = prefix + "/skipPCIDevicesControllerAddonWebhookCheck"
+	AnnotationSkipNvidiaDriverToolkitAddonWebhookCheck  = prefix + "/skipNvidiaDriverToolkitAddonWebhookCheck"
 
 	// AnnotationSkipResourceQuotaAutoScaling is used to disable to resourcequota auto scaling
 	AnnotationSkipResourceQuotaAutoScaling = prefix + "/skipResourceQuotaAutoScaling"
@@ -103,6 +105,8 @@ const (
 	HarvesterSystemNamespaceName        = "harvester-system"
 	RancherLoggingName                  = "rancher-logging"
 	DeschedulerName                     = "descheduler"
+	PCIDevicesControllerName            = "pcidevices-controller"
+	NvidiaDriverToolkitName             = "nvidia-driver-toolkit"
 	RancherMonitoringPrometheus         = "rancher-monitoring-prometheus"
 	RancherMonitoringAlertmanager       = "rancher-monitoring-alertmanager"
 	RancherMonitoring                   = "rancher-monitoring"

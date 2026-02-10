@@ -45,6 +45,9 @@ wait_managed_chart() {
   done
 }
 
+# wait for helm release to be deployed to a specified version and status
+# if the most-recent revision of the release is in a pending state and is
+# older than 5 minutes, perform a rollback to the last-known deployed
 wait_helm_release() {
   # Wait for helm release to be deployed to a specified version
   namespace=$1
@@ -52,6 +55,8 @@ wait_helm_release() {
   chart=$3
   app_version=$4
   status=$5
+  rollback_attempts=0
+  rollback_attempts_limit=1
   echo "wait helm release $namespace $release_name $chart $app_version $status"
   while [ true ]; do
     last_history=$(helm history $release_name -n $namespace -o yaml | yq e '.[-1]' -)
@@ -59,13 +64,38 @@ wait_helm_release() {
     current_chart=$(echo "$last_history" | yq e '.chart' -)
     current_app_version=$(echo "$last_history" | yq e '.app_version' -)
     current_status=$(echo "$last_history" | yq e '.status' -)
+    current_revision=$(echo "$last_history" | yq e '.revision' -)
+    last_updated_time=$(echo "$last_history" | yq e '.updated' -)
 
-    if [ "$current_chart" != "$chart" ]; then
-      sleep 5
-      continue
-    fi
+    pending_prefix="pending-"
+    deadline_minutes=5
+    if [ "$current_chart" != "$chart" ] || [ "$current_app_version" != "$app_version" ]; then
+      # if the most-recent revision of the release is in a pending state and is
+      # older than 5 minutes, perform a rollback to the last-known deployed
+      # revision to unstuck it. fleet will retry upgrading the revision.
+      if [[ "$current_status" == "$pending_prefix"* ]]; then
+        minutes_passed=$((($(date +%s) - $(date -d"$last_updated_time" +%s)) / 60))
+        echo "$current_chart:$current_app_version in $current_status state for $minutes_passed minutes"
 
-    if [ "$current_app_version" != "$app_version" ]; then
+        if [ "$minutes_passed" -gt "$deadline_minutes" ] && [ "$rollback_attempts" -lt "$rollback_attempts_limit" ]; then
+          last_deployed_revision=$(helm -n $namespace history $release_name -oyaml | yq '[.[] | select(.status == "deployed")] | sort_by(.revision) | reverse | .[0].revision')
+          if [ -z "$last_deployed_revision" ]; then
+            echo "no deployed revision found, cannot rollback, resume wait..."
+            continue
+          fi
+
+          rollback_attempts=$((rollback_attempts + 1))
+          echo "deadline exceeded. rolling back $current_chart:$current_app_version from revision $current_revision to revision $last_deployed_revision (rollback attempt #$rollback_attempts)"
+          helm -n "$namespace" rollback "$release_name" "$last_deployed_revision" --wait
+          rollback_status=$?
+          if [ $rollback_status -ne 0 ]; then
+            echo "failed to rollback $current_chart:$current_app_version to revision $last_deployed_revision, resume wait..."
+          else
+            echo "rollback succeeded, resume wait..."
+          fi
+        fi
+      fi
+
       sleep 5
       continue
     fi
@@ -77,6 +107,7 @@ wait_helm_release() {
 
     break
   done
+  echo "completed helm release $namespace $release_name $chart $app_version $status"
 }
 
 wait_rollout() {

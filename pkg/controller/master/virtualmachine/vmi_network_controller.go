@@ -122,7 +122,7 @@ func (h *VMNetworkController) updateVMMacAddressFromAnnotation(vmi *kubevirtv1.V
 
 	vmCopy := vm.DeepCopy()
 	vmInterfaces := vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces
-	for i := range(vmInterfaces) {
+	for i := range vmInterfaces {
 		iface := vmInterfaces[i]
 		macAddress, observed := vmiInterfaces[iface.Name]
 		if iface.MacAddress != "" {
