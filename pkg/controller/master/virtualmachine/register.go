@@ -21,6 +21,7 @@ const (
 	vmiControllerSetHaltIfOccurExceededQuotaControllerName       = "VMIController.StopVMIfExceededQuota"
 
 	vmControllerCleanupPVCAndSnapshotFinalizerName = "VMController.CleanupPVCAndSnapshot"
+	vmControllerSetKubeOvnStaticIPControllerName   = "VMController.SetKubeOvnStaticIP"
 	// this finalizer is special one which was added by our controller, not wrangler.
 	// https://github.com/harvester/harvester/blob/78b0f20abb118b5d0fba564e18867b90a1d3c0ee/pkg/controller/master/virtualmachine/vm_controller.go#L97-L101
 	deprecatedHarvesterUnsetOwnerOfPVCsFinalizer = "harvesterhci.io/VMController.UnsetOwnerOfPVCs"
@@ -54,6 +55,9 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		scCache          = scClient.Cache()
 		settingCache     = management.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
 		recorder         = management.NewRecorder(vmControllerSetHaltIfInsufficientResourceQuotaControllerName, "", "")
+		secretClient     = management.CoreFactory.Core().V1().Secret()
+		secretCache      = secretClient.Cache()
+		nadClient        = management.CniFactory.K8s().V1().NetworkAttachmentDefinition()
 	)
 
 	// registers the vm controller
@@ -75,6 +79,10 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		scClient:         scClient,
 		scCache:          scCache,
 		settingCache:     settingCache,
+		secretClient:     secretClient,
+		secretCache:      secretCache,
+		nadClient:        nadClient,
+		nadCache:         nadClient.Cache(),
 		recorder:         recorder,
 
 		vmrCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
@@ -86,6 +94,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	virtualMachineClient.OnChange(ctx, vmControllerSetHaltIfInsufficientResourceQuotaControllerName, vmCtrl.SetHaltIfInsufficientResourceQuota)
 	virtualMachineClient.OnChange(ctx, vmControllerRemoveDeprecatedFinalizerControllerName, vmCtrl.removeDeprecatedFinalizer)
 	virtualMachineClient.OnRemove(ctx, vmControllerCleanupPVCAndSnapshotFinalizerName, vmCtrl.cleanupPVCAndSnapshot)
+	virtualMachineClient.OnChange(ctx, vmControllerSetKubeOvnStaticIPControllerName, vmCtrl.SetKubeOvnPerNICStaticIPs)
 
 	// registers the vmi controller
 	var virtualMachineCache = virtualMachineClient.Cache()
