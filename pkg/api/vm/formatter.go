@@ -481,7 +481,7 @@ func canHotUnplugNic(vm *kubevirtv1.VirtualMachine) bool {
 }
 
 func canInsertCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
-	if runtime.GOARCH == "arm64" {
+	if runtime.GOARCH == util.GoArchArm64 {
 		return false
 	}
 
@@ -490,7 +490,7 @@ func canInsertCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
 }
 
 func canEjectCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
-	if runtime.GOARCH == "arm64" {
+	if runtime.GOARCH == util.GoArchArm64 {
 		return false
 	}
 

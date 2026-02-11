@@ -289,4 +289,6 @@ const (
 	AddonExperimentalLabel = AddonPrefix + "/experimental"
 
 	HarvesterUpgradeComponentRepo = "repo"
+
+	GoArchArm64 = "arm64"
 )
