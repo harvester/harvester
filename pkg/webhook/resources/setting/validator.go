@@ -198,6 +198,8 @@ func NewValidator(
 	validateSettingFuncs[settings.KubeVirtMigrationSettingName] = validator.validateKubeVirtMigration
 	validateSettingUpdateFuncs[settings.KubeVirtMigrationSettingName] = validator.validateUpdateKubeVirtMigration
 
+	validateSettingDeleteFuncs[settings.ClusterPodSecurityStandardSettingName] = validator.validateDeleteClusterPodSecurityStandard
+
 	return validator
 }
 
@@ -2065,4 +2067,8 @@ func (v *settingValidator) validateKubeVirtMigration(newSetting *v1beta1.Setting
 
 func (v *settingValidator) validateUpdateKubeVirtMigration(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateKubeVirtMigration(newSetting)
+}
+
+func (v *settingValidator) validateDeleteClusterPodSecurityStandard(_ *v1beta1.Setting) error {
+	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.ClusterPodSecurityStandardSettingName))
 }

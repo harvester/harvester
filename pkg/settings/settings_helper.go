@@ -7,6 +7,8 @@ import (
 	"strconv"
 
 	"github.com/sirupsen/logrus"
+
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
 type TargetType string
@@ -279,4 +281,25 @@ func ValidateAdditionalGuestMemoryOverheadRatioHelper(value string) error {
 
 type RancherClusterConfig struct {
 	RemoveUpstreamClusterWhenNamespaceIsDeleted bool `json:"removeUpstreamClusterWhenNamespaceIsDeleted"`
+}
+
+type PodSecuritySetting struct {
+	Enabled                   bool   `json:"enabled"`
+	WhitelistedNamespacesList string `json:"whitelistedNamespacesList,omitempty"`
+	PrivilegedNamespacesList  string `json:"privilegedNamespacesList,omitempty"`
+	RestrictedNamespacesList  string `json:"restrictedNamespacesList,omitempty"`
+}
+
+func GetPodSecuritySetting(setting *harvesterv1.Setting) (*PodSecuritySetting, error) {
+	pssSetting := &PodSecuritySetting{}
+	var value string
+	if setting.Value != "" {
+		value = setting.Value
+	} else {
+		value = setting.Default
+	}
+	if err := json.Unmarshal([]byte(value), pssSetting); err != nil {
+		return nil, fmt.Errorf("invalid JSON `%s`: %s", value, err.Error())
+	}
+	return pssSetting, nil
 }
