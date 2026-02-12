@@ -734,6 +734,11 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 		newVMAnnotations[util.AnnotationReservedMemory] = reservedMem
 	}
 
+	// without this, the mutating webhook will treat the VM as non-hotplug and overwrite maxSockets to 1, causing validation failure
+	if enableHotplug, ok := vmCpy.ObjectMeta.Annotations[util.AnnotationEnableCPUAndMemoryHotplug]; ok {
+		newVMAnnotations[util.AnnotationEnableCPUAndMemoryHotplug] = enableHotplug
+	}
+
 	newVMSpecAnnotations, err := sanitizeVirtualMachineAnnotationsForRestore(restore, vmCpy.Spec.Template.ObjectMeta.Annotations)
 	if err != nil {
 		return nil, err
