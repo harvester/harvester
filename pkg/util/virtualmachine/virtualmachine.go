@@ -220,6 +220,10 @@ func SupportEjectCdRomVolume(vm *kubevirtv1.VirtualMachine) (bool, error) {
 		}
 	}
 
+	if len(volumeMaps) == 0 {
+		return false, nil
+	}
+
 	hasEjectableCdRom := false
 	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
 		if disk.CDRom == nil {
