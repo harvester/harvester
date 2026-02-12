@@ -8,11 +8,9 @@ import (
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	longhornTypes "github.com/longhorn/longhorn-manager/types"
 	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
-	"github.com/rancher/rancher/pkg/auth/tokens/hashers"
 	rkev1controller "github.com/rancher/rancher/pkg/generated/controllers/rke.cattle.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -301,152 +299,6 @@ func TestClusterReady(t *testing.T) {
 	}
 }
 
-func TestTokenValidation(t *testing.T) {
-	const testToken = "test-server-token-12345"
-
-	tests := []struct {
-		name          string
-		secret        *corev1.Secret
-		providedToken string
-		expectLoadErr bool
-		expectValErr  bool
-	}{
-		{
-			name:          "Valid token matches",
-			secret:        createTokenSecret(t, testToken),
-			providedToken: testToken,
-			expectLoadErr: false,
-			expectValErr:  false,
-		},
-		{
-			name:          "Invalid token doesn't match",
-			secret:        createTokenSecret(t, testToken),
-			providedToken: "wrong-token",
-			expectLoadErr: false,
-			expectValErr:  true,
-		},
-		{
-			name:          "Secret not found",
-			secret:        nil,
-			providedToken: testToken,
-			expectLoadErr: true,
-			expectValErr:  false,
-		},
-		{
-			name: "Secret missing token key",
-			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      localRKEStateSecretName,
-					Namespace: util.FleetLocalNamespaceName,
-				},
-				Data: map[string][]byte{
-					"wrongKey": []byte("some-value"),
-				},
-			},
-			providedToken: testToken,
-			expectLoadErr: true,
-			expectValErr:  false,
-		},
-		{
-			name: "Secret with empty token",
-			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      localRKEStateSecretName,
-					Namespace: util.FleetLocalNamespaceName,
-				},
-				Data: map[string][]byte{
-					serverTokenKey: []byte(""),
-				},
-			},
-			providedToken: testToken,
-			expectLoadErr: true,
-			expectValErr:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			testClientset := corefake.NewSimpleClientset()
-
-			if tt.secret != nil {
-				err := testClientset.Tracker().Add(tt.secret)
-				require.NoError(t, err, "Failed to add secret to fake clientset")
-			}
-
-			secretCache := fakeclients.SecretCache(testClientset.CoreV1().Secrets)
-
-			handler := &ReadyzHandler{
-				secretCache: secretCache,
-			}
-
-			err := handler.loadToken()
-			if tt.expectLoadErr {
-				assert.Error(t, err, "Expected error during token load")
-				return
-			}
-			assert.NoError(t, err, "Expected no error during token load")
-
-			err = handler.validateToken(tt.providedToken)
-			if tt.expectValErr {
-				assert.Error(t, err, "Expected error during token validation")
-			} else {
-				assert.NoError(t, err, "Expected no error during token validation")
-			}
-		})
-	}
-}
-
-func TestAuthentication(t *testing.T) {
-	tests := []struct {
-		name          string
-		setupToken    string
-		providedToken string
-		injectHash    string
-		shouldError   bool
-	}{
-		{
-			name:          "Valid token with hasher verification",
-			setupToken:    "correct-token",
-			providedToken: "correct-token",
-			shouldError:   false,
-		},
-		{
-			name:          "Invalid token",
-			setupToken:    "correct-token",
-			providedToken: "wrong-token",
-			shouldError:   true,
-		},
-		{
-			name:          "Invalid hash format",
-			injectHash:    "invalid-hash",
-			providedToken: "any-token",
-			shouldError:   true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := &ReadyzHandler{}
-
-			var err error
-			if tt.injectHash != "" {
-				handler.tokenHash = tt.injectHash
-			} else {
-				handler.tokenHash, err = hashers.Sha256Hasher{}.CreateHash(tt.setupToken)
-				require.NoError(t, err)
-			}
-
-			err = handler.validateToken(tt.providedToken)
-
-			if tt.shouldError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
 func buildMockPod(name, namespace string, labels map[string]string, phase corev1.PodPhase, conditions []corev1.PodCondition) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -469,18 +321,6 @@ func buildMockRKEControlPlane(name string, namespace string, conditions []generi
 		},
 		Status: rkev1.RKEControlPlaneStatus{
 			Conditions: conditions,
-		},
-	}
-}
-
-func createTokenSecret(t *testing.T, token string) *corev1.Secret {
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      localRKEStateSecretName,
-			Namespace: util.FleetLocalNamespaceName,
-		},
-		Data: map[string][]byte{
-			serverTokenKey: []byte(token),
 		},
 	}
 }

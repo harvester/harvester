@@ -1,71 +1,34 @@
 package readyz
 
 import (
-	"fmt"
-	"strings"
 	"time"
-
-	"sync"
 
 	"github.com/harvester/go-common/common"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/util"
 	longhornTypes "github.com/longhorn/longhorn-manager/types"
-	"github.com/rancher/apiserver/pkg/apierror"
 	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
-	"github.com/rancher/rancher/pkg/auth/tokens/hashers"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/generic"
-	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
-const (
-	localRKEStateSecretName = "local-rke-state"
-	serverTokenKey          = "serverToken"
-)
-
 type ReadyzHandler struct {
-	podCache    ctlcorev1.PodCache
-	secretCache ctlcorev1.SecretCache
-	rkeCache    generic.CacheInterface[*rkev1.RKEControlPlane]
-
-	tokenOnce    sync.Once
-	tokenHash    string
-	tokenInitErr error
+	podCache ctlcorev1.PodCache
+	rkeCache generic.CacheInterface[*rkev1.RKEControlPlane]
 }
 
-func NewReadyzHandler(podCache ctlcorev1.PodCache, secretCache ctlcorev1.SecretCache, rkeCache generic.CacheInterface[*rkev1.RKEControlPlane]) *ReadyzHandler {
+func NewReadyzHandler(podCache ctlcorev1.PodCache, rkeCache generic.CacheInterface[*rkev1.RKEControlPlane]) *ReadyzHandler {
 	return &ReadyzHandler{
-		podCache:    podCache,
-		secretCache: secretCache,
-		rkeCache:    rkeCache,
+		podCache: podCache,
+		rkeCache: rkeCache,
 	}
 }
 
 func (h *ReadyzHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
-	req := ctx.Req()
-	authHeader := req.Header.Get("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		return nil, apierror.NewAPIError(validation.Unauthorized, "Bearer token required")
-	}
-
-	err := h.loadToken()
-	if err != nil {
-		logrus.Debugf("Failed to initialize token: %s", err.Error())
-		return nil, apierror.NewAPIError(validation.ServerError, "Token initialization failed")
-	}
-
-	providedToken := strings.TrimPrefix(authHeader, "Bearer ")
-	err = h.validateToken(providedToken)
-	if err != nil {
-		logrus.Debugf("Failed to validate token: %s", err.Error())
-		return nil, apierror.NewAPIError(validation.PermissionDenied, "Invalid token")
-	}
-
 	ready, msg := h.clusterReady()
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
@@ -86,51 +49,23 @@ func (h *ReadyzHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 	}, nil
 }
 
-func (h *ReadyzHandler) loadToken() error {
-	h.tokenOnce.Do(func() {
-		expectedToken, err := h.getTokenFromSecret()
-		if err != nil {
-			h.tokenInitErr = err
-			return
-		}
-		hasher := hashers.GetHasher()
-		h.tokenHash, h.tokenInitErr = hasher.CreateHash(expectedToken)
-	})
-
-	return h.tokenInitErr
-}
-
-func (h *ReadyzHandler) validateToken(providedToken string) error {
-	hasher, err := hashers.GetHasherForHash(h.tokenHash)
-	if err != nil {
-		return fmt.Errorf("failed to get hasher: %s", err.Error())
-	}
-	err = hasher.VerifyHash(h.tokenHash, providedToken)
-	if err != nil {
-		return fmt.Errorf("failed to verify hash: %s", err.Error())
-	}
-	return nil
-}
-
-func (h *ReadyzHandler) getTokenFromSecret() (string, error) {
-	secret, err := h.secretCache.Get(util.FleetLocalNamespaceName, localRKEStateSecretName)
-	if err != nil {
-		return "", fmt.Errorf("failed to get secret %s/%s: %s", util.FleetLocalNamespaceName, localRKEStateSecretName, err.Error())
-	}
-
-	tokenBytes, ok := secret.Data[serverTokenKey]
-	if !ok {
-		return "", fmt.Errorf("token key %s not found in secret", serverTokenKey)
-	}
-
-	if len(tokenBytes) == 0 {
-		return "", fmt.Errorf("token is empty in secret")
-	}
-
-	return string(tokenBytes), nil
-}
-
 func (h *ReadyzHandler) clusterReady() (bool, string) {
+	if ready, msg := h.rkeReady(); !ready {
+		return false, msg
+	}
+
+	if ready, msg := h.longhornReady(); !ready {
+		return false, msg
+	}
+
+	if ready, msg := h.kubevirtReady(); !ready {
+		return false, msg
+	}
+
+	return true, ""
+}
+
+func (h *ReadyzHandler) rkeReady() (bool, string) {
 	rkeControlPlane, err := h.rkeCache.Get(
 		util.FleetLocalNamespaceName,
 		util.LocalClusterName)
@@ -139,17 +74,15 @@ func (h *ReadyzHandler) clusterReady() (bool, string) {
 		return false, "rkeControlPlane not found"
 	}
 
-	ready := false
 	for _, cond := range rkeControlPlane.Status.Conditions {
 		if cond.Type == "Ready" && cond.Status == corev1.ConditionTrue {
-			ready = true
-			break
+			return true, ""
 		}
 	}
-	if !ready {
-		return false, "rkeControlPlane is not ready"
-	}
+	return false, "rkeControlPlane is not ready"
+}
 
+func (h *ReadyzHandler) longhornReady() (bool, string) {
 	longhornManagerSelector := labels.SelectorFromSet(labels.Set(longhornTypes.GetManagerLabels()))
 	longhornPods, err := h.podCache.List(common.LonghornSystemNamespaceName, longhornManagerSelector)
 	if err != nil {
@@ -161,6 +94,10 @@ func (h *ReadyzHandler) clusterReady() (bool, string) {
 		return false, "longhorn-manager pods not ready"
 	}
 
+	return true, ""
+}
+
+func (h *ReadyzHandler) kubevirtReady() (bool, string) {
 	virtControllerSelector := labels.SelectorFromSet(labels.Set{kubevirtv1.AppLabel: "virt-controller"})
 	virtPods, err := h.podCache.List(common.HarvesterSystemNamespaceName, virtControllerSelector)
 	if err != nil {
