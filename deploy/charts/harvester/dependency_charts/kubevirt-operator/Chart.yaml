@@ -1,7 +1,7 @@
 apiVersion: v2
 name: kubevirt-operator
-version: 0.6.1
-appVersion: 1.6.3
+version: 0.6.2
+appVersion: 1.7.0
 description: KubeVirt Operator provides deployment and management of KubeVirt bundle components.
 icon: https://kubevirt.io/assets/images/KubeVirt_logo_color.svg
 type: application
