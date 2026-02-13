@@ -14,7 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	corefake "k8s.io/client-go/kubernetes/fake"
+	k8scorefake "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
@@ -258,7 +258,6 @@ func TestMigrateAction(t *testing.T) {
 
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset()
-		var coreclientset = corefake.NewSimpleClientset()
 		if tc.given.vmInstance != nil {
 			err := clientset.Tracker().Add(tc.given.vmInstance)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
@@ -267,14 +266,13 @@ func TestMigrateAction(t *testing.T) {
 			err := clientset.Tracker().Add(tc.given.kubeVirt)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 		}
-
 		for _, node := range fakeNodeList {
-			err := coreclientset.Tracker().Add(node)
+			err := clientset.Tracker().Add(node)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 		}
 
 		var handler = &vmActionHandler{
-			nodeCache:     fakeclients.NodeCache(coreclientset.CoreV1().Nodes),
+			nodeCache:     fakeclients.NodeCache(clientset.CoreV1().Nodes),
 			kubevirtCache: fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
 			vmis:          fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
 			vmiCache:      fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
@@ -561,14 +559,14 @@ func TestAddVolume(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		var coreclientset = corefake.NewSimpleClientset()
+		var clientset = fake.NewSimpleClientset()
 		if tc.given.pvc != nil {
-			err := coreclientset.Tracker().Add(tc.given.pvc)
+			err := clientset.Tracker().Add(tc.given.pvc)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 		}
 
 		var handler = &vmActionHandler{
-			pvcCache: fakeclients.PersistentVolumeClaimCache(coreclientset.CoreV1().PersistentVolumeClaims),
+			pvcCache: fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
 		}
 
 		var actual output
@@ -641,7 +639,6 @@ func TestRemoveVolume(t *testing.T) {
 
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset()
-		var coreclientset = corefake.NewSimpleClientset()
 		if tc.given.vm != nil {
 			err := clientset.Tracker().Add(tc.given.vm)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
@@ -649,7 +646,7 @@ func TestRemoveVolume(t *testing.T) {
 
 		var handler = &vmActionHandler{
 			vmCache:  fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
-			pvcCache: fakeclients.PersistentVolumeClaimCache(coreclientset.CoreV1().PersistentVolumeClaims),
+			pvcCache: fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
 		}
 
 		var actual output
@@ -1252,23 +1249,23 @@ func Test_vmActionHandler_findMigratableNodesByVMI(t *testing.T) {
 		},
 	}
 
-	var coreclientset = corefake.NewSimpleClientset()
+	var clientset = fake.NewSimpleClientset()
 	for _, node := range fakeNodeList {
-		err := coreclientset.Tracker().Add(node)
+		err := clientset.Tracker().Add(node)
 		assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 	}
-	var nodeCache = fakeclients.NodeCache(coreclientset.CoreV1().Nodes)
+	var nodeCache = fakeclients.NodeCache(clientset.CoreV1().Nodes)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create fresh clientset for each test to avoid pod interference
-			testClientset := corefake.NewSimpleClientset()
+			clientset := fake.NewSimpleClientset()
 			for _, pod := range tt.args.pods {
-				err := testClientset.Tracker().Add(pod)
+				err := clientset.Tracker().Add(pod)
 				assert.Nil(t, err, "Mock pod should add into fake controller tracker")
 			}
 
-			var podCache = fakeclients.PodCache(testClientset.CoreV1().Pods)
+			var podCache = fakeclients.PodCache(clientset.CoreV1().Pods)
 
 			h := &vmActionHandler{
 				nodeCache: nodeCache,
@@ -1560,13 +1557,13 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 		},
 	}
 
-	clientset := fake.NewSimpleClientset(vm)
-	coreclientset := corefake.NewSimpleClientset(pvc)
+	clientset := fake.NewSimpleClientset(vm, pvc)
+	coreclientset := k8scorefake.NewSimpleClientset(vm, pvc)
 
 	handler := &vmActionHandler{
 		vms:       fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
 		vmCache:   fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
-		pvcCache:  fakeclients.PersistentVolumeClaimCache(coreclientset.CoreV1().PersistentVolumeClaims),
+		pvcCache:  fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
 		clientSet: coreclientset,
 	}
 
@@ -1574,7 +1571,7 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 		DeviceName: "cdrom1",
 	}
 
-	pvcCache := fakeclients.PersistentVolumeClaimCache(handler.clientSet.CoreV1().PersistentVolumeClaims)
+	pvcCache := handler.pvcCache
 	_, err1 := pvcCache.Get(pvcNamespace, pvcName)
 	assert.Nil(t, err1, "Should find pvc initially")
 

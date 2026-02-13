@@ -8,8 +8,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -104,8 +104,8 @@ var (
 )
 
 func Test_PatchCAPIDeployment(t *testing.T) {
-	client := k8sfake.NewSimpleClientset(capiDeployment, nonCapiDeployment)
-	deployment := fakeclients.DeploymentClient(client.AppsV1().Deployments)
+	fake := fake.NewSimpleClientset(capiDeployment, nonCapiDeployment)
+	deployment := fakeclients.DeploymentClient(fake.AppsV1().Deployments)
 	h := &Handler{
 		Deployments: deployment,
 	}

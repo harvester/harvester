@@ -3,11 +3,11 @@ package node
 import (
 	"testing"
 
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 	yaml "sigs.k8s.io/yaml"
 )
 
@@ -2151,8 +2151,8 @@ func Test_UpdateStatusAnnotations(t *testing.T) {
 		assert := require.New(t)
 		nodeObj, err := generateNodeObject(tc.NodeObject)
 		assert.NoError(err, "expected no error during generation of node object")
-		k8sclientset := k8sfake.NewSimpleClientset(nodeObj)
-		nodeClient := fakeclients.NodeClient(k8sclientset.CoreV1().Nodes)
+		clientset := fake.NewSimpleClientset(nodeObj)
+		nodeClient := fakeclients.NodeClient(clientset.CoreV1().Nodes)
 		cm := &ConditionManager{
 			nodeClient: nodeClient,
 		}

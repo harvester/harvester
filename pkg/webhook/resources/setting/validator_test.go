@@ -9,7 +9,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -1089,17 +1088,15 @@ func Test_validateUpgradeConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clientset := fake.NewSimpleClientset()
-			var nodes []runtime.Object
-			nodes = make([]runtime.Object, 0, len(givenNodes))
+			nodes := make([]runtime.Object, 0, len(givenNodes))
 			for _, node := range givenNodes {
 				nodes = append(nodes, node)
 			}
-			k8sclientset := k8sfake.NewSimpleClientset(nodes...)
 
+			clientset := fake.NewSimpleClientset(nodes...)
 			v := &settingValidator{
 				settingCache: fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				nodeCache:    fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+				nodeCache:    fakeclients.NodeCache(clientset.CoreV1().Nodes),
 			}
 
 			err := v.validateUpgradeConfig(tt.args)

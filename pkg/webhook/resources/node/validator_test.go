@@ -15,8 +15,6 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
-
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
 func TestValidateCordonAndMaintenanceMode(t *testing.T) {
@@ -226,13 +224,12 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 }
 
 func TestValidateCPUManagerOperation(t *testing.T) {
-	k8sclientset := k8sfake.NewSimpleClientset()
-	client := fake.NewSimpleClientset()
+	clientset := fake.NewSimpleClientset()
 
 	validator := &nodeValidator{
-		nodeCache: fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-		jobCache:  fakeclients.JobCache(k8sclientset.BatchV1().Jobs),
-		vmiCache:  fakeclients.VirtualMachineInstanceCache(client.KubevirtV1().VirtualMachineInstances),
+		nodeCache: fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		jobCache:  fakeclients.JobCache(clientset.BatchV1().Jobs),
+		vmiCache:  fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
 	}
 
 	assert.Equal(t, werror.NewBadRequest("Failed to retrieve cpu-manager-update-status from annotation: invalid policy"),
@@ -411,12 +408,12 @@ func TestCheckCPUManagerJobs(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		k8sclientset := k8sfake.NewSimpleClientset()
+		clientset := fake.NewSimpleClientset()
 		for _, job := range tc.jobs {
-			err := k8sclientset.Tracker().Add(job)
+			err := clientset.Tracker().Add(job)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 		}
-		jobCache := fakeclients.JobCache(k8sclientset.BatchV1().Jobs)
+		jobCache := fakeclients.JobCache(clientset.BatchV1().Jobs)
 		err := checkCurrentNodeCPUManagerJobs(tc.node, jobCache)
 		if tc.errMsg != "" {
 			assert.NotNil(t, err, tc.name)
@@ -514,17 +511,17 @@ func TestCheckMasterNodeJobs(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		k8sclientset := k8sfake.NewSimpleClientset()
+		clientset := fake.NewSimpleClientset()
 		for _, node := range tc.nodes {
-			err := k8sclientset.Tracker().Add(node)
+			err := clientset.Tracker().Add(node)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 		}
 		for _, job := range tc.jobs {
-			err := k8sclientset.Tracker().Add(job)
+			err := clientset.Tracker().Add(job)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 		}
-		nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
-		jobCache := fakeclients.JobCache(k8sclientset.BatchV1().Jobs)
+		nodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+		jobCache := fakeclients.JobCache(clientset.BatchV1().Jobs)
 		err := checkMasterNodeJobs(tc.currentNode, nodeCache, jobCache)
 		if tc.errMsg != "" {
 			assert.NotNil(t, err, tc.name)

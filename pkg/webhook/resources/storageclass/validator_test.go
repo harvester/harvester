@@ -14,12 +14,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	corefake "k8s.io/client-go/kubernetes/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	ctlruntimefake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	harvesterFake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	fake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -378,18 +377,17 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 		},
 	}
 
-	coreclientset := corefake.NewSimpleClientset()
-	harvesterClientSet := harvesterFake.NewSimpleClientset()
-	fakeVMIMageCache := fakeclients.VirtualMachineImageCache(harvesterClientSet.HarvesterhciV1beta1().VirtualMachineImages)
-	fakeSecretCache := fakeclients.SecretCache(coreclientset.CoreV1().Secrets)
-	fakeStorageClassCache := fakeclients.StorageClassCache(coreclientset.StorageV1().StorageClasses)
-	fakeVolumeSnapshotClassCache := fakeclients.VolumeSnapshotClassCache(harvesterFake.NewSimpleClientset().SnapshotV1().VolumeSnapshotClasses)
+	clientset := fake.NewSimpleClientset()
+	fakeVMIMageCache := fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages)
+	fakeSecretCache := fakeclients.SecretCache(clientset.CoreV1().Secrets)
+	fakeStorageClassCache := fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses)
+	fakeVolumeSnapshotClassCache := fakeclients.VolumeSnapshotClassCache(fake.NewSimpleClientset().SnapshotV1().VolumeSnapshotClasses)
 	validator := NewValidator(fakeStorageClassCache, fakeSecretCache, fakeVMIMageCache, fakeVolumeSnapshotClassCache, newFakeClient()).(*storageClassValidator)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.secret != nil {
-				err := coreclientset.Tracker().Add(tc.secret)
+				err := clientset.Tracker().Add(tc.secret)
 				assert.Nil(t, err)
 			}
 
@@ -401,7 +399,7 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 			}
 
 			if tc.secret != nil {
-				err := coreclientset.Tracker().Delete(schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}, tc.secret.Namespace, tc.secret.Name)
+				err := clientset.Tracker().Delete(schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}, tc.secret.Namespace, tc.secret.Name)
 				assert.Nil(t, err)
 			}
 		})
@@ -483,7 +481,7 @@ func Test_storageClassValidator_Delete(t *testing.T) {
 		},
 	}
 
-	harvesterClientSet := harvesterFake.NewSimpleClientset(&v1beta1.VirtualMachineImage{
+	clientset := fake.NewSimpleClientset(&v1beta1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-vmimage",
 			Namespace: "default",
@@ -493,10 +491,10 @@ func Test_storageClassValidator_Delete(t *testing.T) {
 		},
 	})
 
-	fakeVMIMageCache := fakeclients.VirtualMachineImageCache(harvesterClientSet.HarvesterhciV1beta1().VirtualMachineImages)
-	fakeSecretCache := fakeclients.SecretCache(corefake.NewSimpleClientset().CoreV1().Secrets)
-	fakeStorageClassCache := fakeclients.StorageClassCache(corefake.NewSimpleClientset().StorageV1().StorageClasses)
-	fakeVolumeSnapshotClassCache := fakeclients.VolumeSnapshotClassCache(harvesterFake.NewSimpleClientset().SnapshotV1().VolumeSnapshotClasses)
+	fakeVMIMageCache := fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages)
+	fakeSecretCache := fakeclients.SecretCache(clientset.CoreV1().Secrets)
+	fakeStorageClassCache := fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses)
+	fakeVolumeSnapshotClassCache := fakeclients.VolumeSnapshotClassCache(clientset.SnapshotV1().VolumeSnapshotClasses)
 	validator := NewValidator(fakeStorageClassCache, fakeSecretCache, fakeVMIMageCache, fakeVolumeSnapshotClassCache, newFakeClient()).(*storageClassValidator)
 
 	for _, tc := range tests {
@@ -610,12 +608,12 @@ func Test_validateCDIAnnotations(t *testing.T) {
 			if tc.vsc != nil {
 				typedObjects = append(typedObjects, tc.vsc)
 			}
-			clientset := harvesterFake.NewSimpleClientset(typedObjects...)
+			clientset := fake.NewSimpleClientset(typedObjects...)
 
 			storageClassValidator := NewValidator(
-				fakeclients.StorageClassCache(corefake.NewSimpleClientset().StorageV1().StorageClasses),
-				fakeclients.SecretCache(corefake.NewSimpleClientset().CoreV1().Secrets),
-				fakeclients.VirtualMachineImageCache(harvesterFake.NewSimpleClientset().HarvesterhciV1beta1().VirtualMachineImages),
+				fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+				fakeclients.SecretCache(clientset.CoreV1().Secrets),
+				fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 				fakeclients.VolumeSnapshotClassCache(clientset.SnapshotV1().VolumeSnapshotClasses),
 				newFakeClient(),
 			).(*storageClassValidator)
@@ -676,12 +674,12 @@ func Test_validate_default_cdi_volume_mode_access_modes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			typedObjects := []runtime.Object{tc.sc}
-			clientset := harvesterFake.NewSimpleClientset(typedObjects...)
+			clientset := fake.NewSimpleClientset(typedObjects...)
 
 			storageClassValidator := NewValidator(
-				fakeclients.StorageClassCache(corefake.NewSimpleClientset().StorageV1().StorageClasses),
-				fakeclients.SecretCache(corefake.NewSimpleClientset().CoreV1().Secrets),
-				fakeclients.VirtualMachineImageCache(harvesterFake.NewSimpleClientset().HarvesterhciV1beta1().VirtualMachineImages),
+				fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+				fakeclients.SecretCache(clientset.CoreV1().Secrets),
+				fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 				fakeclients.VolumeSnapshotClassCache(clientset.SnapshotV1().VolumeSnapshotClasses),
 				newFakeClient(),
 			).(*storageClassValidator)
@@ -732,11 +730,12 @@ func Test_validateCDIAnnotations_lhv1(t *testing.T) {
 					"dataEngine": string(longhornv1.DataEngineTypeV1),
 				},
 			}
+			clientset := fake.NewSimpleClientset()
 			storageClassValidator := NewValidator(
-				fakeclients.StorageClassCache(corefake.NewSimpleClientset().StorageV1().StorageClasses),
-				fakeclients.SecretCache(corefake.NewSimpleClientset().CoreV1().Secrets),
-				fakeclients.VirtualMachineImageCache(harvesterFake.NewSimpleClientset().HarvesterhciV1beta1().VirtualMachineImages),
-				fakeclients.VolumeSnapshotClassCache(harvesterFake.NewSimpleClientset().SnapshotV1().VolumeSnapshotClasses),
+				fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+				fakeclients.SecretCache(clientset.CoreV1().Secrets),
+				fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+				fakeclients.VolumeSnapshotClassCache(clientset.SnapshotV1().VolumeSnapshotClasses),
 				newFakeClient(),
 			).(*storageClassValidator)
 			err := storageClassValidator.validateCDIAnnotations(sc)
@@ -751,6 +750,6 @@ func Test_validateCDIAnnotations_lhv1(t *testing.T) {
 
 func newFakeClient() client.Client {
 	scheme := runtime.NewScheme()
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	fakeClient := ctlruntimefake.NewClientBuilder().WithScheme(scheme).Build()
 	return fakeClient
 }
