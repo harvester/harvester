@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
-	corefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -198,11 +197,10 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 		}
 
 		// validate syncVipPoolsConfig func
-		var coreclientset = corefake.NewSimpleClientset()
 		var handler = &Handler{
 			settings:       fakeSettingClient(clientset.HarvesterhciV1beta1().Settings),
-			configmaps:     fakeclients.ConfigmapClient(coreclientset.CoreV1().ConfigMaps),
-			configmapCache: fakeclients.ConfigmapCache(coreclientset.CoreV1().ConfigMaps),
+			configmaps:     fakeclients.ConfigmapClient(clientset.CoreV1().ConfigMaps),
+			configmapCache: fakeclients.ConfigmapCache(clientset.CoreV1().ConfigMaps),
 		}
 		syncers = map[string]syncerFunc{
 			"vip-pools": handler.syncVipPoolsConfig,

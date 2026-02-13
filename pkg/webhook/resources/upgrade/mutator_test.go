@@ -7,7 +7,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -200,14 +199,14 @@ func TestUpgradeMutator_patchPauseNodeAnnotations(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var objs = []runtime.Object{tc.given.setting}
-			clientset := fake.NewSimpleClientset(objs...)
-			nodes := make([]runtime.Object, 0, len(givenNodes))
+			objs := make([]runtime.Object, 0, 1+len(givenNodes))
+			objs = append(objs, tc.given.setting)
 			for _, node := range givenNodes {
-				nodes = append(nodes, node)
+				objs = append(objs, node)
 			}
-			k8sclientset := k8sfake.NewSimpleClientset(nodes...)
-			mutator := NewMutator(fakeclients.NodeCache(k8sclientset.CoreV1().Nodes), fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings))
+
+			clientset := fake.NewSimpleClientset(objs...)
+			mutator := NewMutator(fakeclients.NodeCache(clientset.CoreV1().Nodes), fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings))
 
 			patchOps, err := mutator.(*upgradeMutator).patchPauseNodeAnnotations(tc.given.upgrade, nil)
 			assert.Nil(t, tc.expected.err, err, tc.name)

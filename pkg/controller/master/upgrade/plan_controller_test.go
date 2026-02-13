@@ -9,7 +9,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -88,17 +87,18 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		var clientset = fake.NewSimpleClientset(tc.given.plan, tc.given.upgrade)
-		nodes := make([]runtime.Object, 0, len(tc.given.nodes))
+		objects := make([]runtime.Object, 0, 2+len(tc.given.nodes)) // preallocate
+		objects = append(objects, tc.given.plan)
+		objects = append(objects, tc.given.upgrade)
 		for _, node := range tc.given.nodes {
-			nodes = append(nodes, node)
+			objects = append(objects, node)
 		}
-		var k8sclientset = k8sfake.NewSimpleClientset(nodes...)
+		var clientset = fake.NewSimpleClientset(objects...)
 		var handler = &planHandler{
 			namespace:     harvesterSystemNamespace,
 			upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
 			upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
-			nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+			nodeCache:     fakeclients.NodeCache(clientset.CoreV1().Nodes),
 			planClient:    fakeclients.PlanClient(clientset.UpgradeV1().Plans),
 		}
 		var actual output

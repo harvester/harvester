@@ -9,11 +9,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/drain"
 
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -74,9 +74,9 @@ func Test_defaultDrainHelper(t *testing.T) {
 
 func Test_meetsControlPlaneRequirementsHA(t *testing.T) {
 	assert := require.New(t)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
+	clientset := fake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
 
-	nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
+	nodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 	err := DrainPossible(nodeCache, testNode)
 	assert.NoError(err, "expected no error while checking testNode")
 
@@ -86,14 +86,14 @@ func Test_meetsControlPlaneRequirementsHA(t *testing.T) {
 
 func Test_failsControlPlaneRequirementsHA(t *testing.T) {
 	assert := require.New(t)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
+	clientset := fake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
 
 	cpNode1.Annotations = map[string]string{
 		ctlnode.MaintainStatusAnnotationKey: ctlnode.MaintainStatusRunning,
 	}
 
-	nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
-	nodeClient := fakeclients.NodeClient(k8sclientset.CoreV1().Nodes)
+	nodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+	nodeClient := fakeclients.NodeClient(clientset.CoreV1().Nodes)
 
 	_, err := nodeClient.Update(cpNode1)
 	assert.NoError(err, "expected no error while updating cpNode1")
@@ -108,9 +108,9 @@ func Test_failsControlPlaneRequirementsSingleNode(t *testing.T) {
 	assert := require.New(t)
 	nodeObjects := []runtime.Object{testNode, cpNode2}
 
-	k8sclientset := k8sfake.NewSimpleClientset(nodeObjects...)
+	clientset := fake.NewSimpleClientset(nodeObjects...)
 
-	nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
+	nodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 
 	err := DrainPossible(nodeCache, cpNode1)
 	assert.Error(err, "expected error while trying to place cpNode1 in maintenance mode")
@@ -120,8 +120,8 @@ func Test_failsControlPlaneRequirementsSingleNode(t *testing.T) {
 
 func Test_meetsWorkerRequirement(t *testing.T) {
 	assert := require.New(t)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
-	nodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
+	clientset := fake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
+	nodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 	err := DrainPossible(nodeCache, testNode)
 	assert.NoError(err, "expected no error while place worker node in drain")
 }

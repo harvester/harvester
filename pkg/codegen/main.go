@@ -156,8 +156,11 @@ func main() {
 				Types: []interface{}{
 					corev1.Node{},
 					corev1.PersistentVolume{},
+					corev1.PersistentVolumeClaim{},
 					corev1.ResourceQuota{},
 				},
+				GenerateTypes:   false,
+				GenerateClients: true,
 			},
 			batchv1.GroupName: {
 				Types: []interface{}{
@@ -197,7 +200,10 @@ func main() {
 			appsv1.GroupName: {
 				Types: []interface{}{
 					appsv1.ControllerRevision{},
+					appsv1.Deployment{},
 				},
+				GenerateTypes:   false,
+				GenerateClients: true,
 			},
 			networkv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
@@ -230,6 +236,7 @@ func main() {
 	nadControllerInterfaceRefactor()
 	capiWorkaround()
 	loggingWorkaround()
+	coreWorkaround()
 }
 
 // NB(GC), nadControllerInterfaceRefactor modify the generated resource name of NetworkAttachmentDefinition controller using a dash-separator,
@@ -298,6 +305,22 @@ func loggingWorkaround() {
 
 		if err = os.WriteFile(absPath, output, 0600); err != nil {
 			logrus.Fatalf("failed to update the logging.banzaicloud.io client file: %v", err)
+		}
+	}
+}
+
+// The group name of the CoreV1 API group is usually omitted.
+// This happens unfortunately also when generating the source file name for the
+// client from the schema $GROUPNAME_client.go, resulting in _client.go. This is
+// an invalid file name, so the group name must be added back manually.
+func coreWorkaround() {
+	files := map[string]string{
+		"pkg/generated/clientset/versioned/typed/v1/_client.go": "pkg/generated/clientset/versioned/typed/v1/core_client.go",
+	}
+
+	for src, tgt := range files {
+		if err := os.Rename(src, tgt); err != nil {
+			logrus.Fatalf("failed to rename file %s: %v", src, err)
 		}
 	}
 }

@@ -10,9 +10,7 @@ import (
 	kubevirtcorev1 "kubevirt.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 
-	corefake "k8s.io/client-go/kubernetes/fake"
-
-	kubevirtfake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -379,31 +377,30 @@ func Test_configmap_reconcile(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create fake clientsets
-			coreClientset := corefake.NewSimpleClientset()
-			kubevirtClientset := kubevirtfake.NewSimpleClientset()
+			clientset := fake.NewSimpleClientset()
 
 			// Add test resources to tracker
 			if tc.given.existingConfig != nil {
-				err := coreClientset.Tracker().Add(tc.given.existingConfig)
+				err := clientset.Tracker().Add(tc.given.existingConfig)
 				assert.Nil(t, err, "mock configmap should add into fake controller tracker")
 			}
 
 			if tc.given.kubevirt != nil {
-				err := kubevirtClientset.Tracker().Add(tc.given.kubevirt)
+				err := clientset.Tracker().Add(tc.given.kubevirt)
 				assert.Nil(t, err, "mock kubevirt should add into fake controller tracker")
 			}
 
 			for _, node := range tc.given.nodes {
-				err := coreClientset.Tracker().Add(node)
+				err := clientset.Tracker().Add(node)
 				assert.Nil(t, err, "mock node should add into fake controller tracker")
 			}
 
 			// Create handler with fake clients
 			handler := &cpuModelConfigHandler{
-				nodeCache:       fakeclients.NodeCache(coreClientset.CoreV1().Nodes),
-				kubevirtCache:   fakeclients.KubeVirtCache(kubevirtClientset.KubevirtV1().KubeVirts),
-				configMapClient: fakeclients.ConfigmapClient(coreClientset.CoreV1().ConfigMaps),
-				configMapCache:  fakeclients.ConfigmapCache(coreClientset.CoreV1().ConfigMaps),
+				nodeCache:       fakeclients.NodeCache(clientset.CoreV1().Nodes),
+				kubevirtCache:   fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
+				configMapClient: fakeclients.ConfigmapClient(clientset.CoreV1().ConfigMaps),
+				configMapCache:  fakeclients.ConfigmapCache(clientset.CoreV1().ConfigMaps),
 			}
 
 			// Execute reconcile
@@ -417,7 +414,7 @@ func Test_configmap_reconcile(t *testing.T) {
 
 				ctx := context.TODO()
 				// Get the updated configmap
-				updatedConfigMap, err := coreClientset.CoreV1().ConfigMaps(util.HarvesterSystemNamespaceName).Get(ctx, configMapName, metav1.GetOptions{})
+				updatedConfigMap, err := clientset.CoreV1().ConfigMaps(util.HarvesterSystemNamespaceName).Get(ctx, configMapName, metav1.GetOptions{})
 				assert.NoError(t, err)
 				assert.NotNil(t, updatedConfigMap)
 
