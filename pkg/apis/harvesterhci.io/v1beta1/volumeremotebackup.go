@@ -6,14 +6,14 @@ import (
 )
 
 // +enum
-type PVCBackupType string
+type VolumeRemoteBackupType string
 
 const (
-	PVCBackupLH PVCBackupType = "lh"
+	VolumeRemoteBackupLH VolumeRemoteBackupType = "lh"
 )
 
 // +genclient
-// +kubebuilder:resource:shortName=pvcbackup;pvcbackups,scope=Namespaced
+// +kubebuilder:resource:shortName=volumeremotebackup;volumeremotebackups,scope=Namespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:printcolumn:name="type",type="string",JSONPath=`.spec.type`
 // +kubebuilder:printcolumn:name="source",type="string",JSONPath=`.spec.source`
@@ -21,25 +21,25 @@ const (
 // +kubebuilder:printcolumn:name="Provider",type=string,JSONPath=`.status.csiProvider`
 // +kubebuilder:printcolumn:name="Success",type=boolean,JSONPath=`.status.success`
 
-type PVCBackup struct {
+type VolumeRemoteBackup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   PVCBackupSpec   `json:"spec"`
-	Status PVCBackupStatus `json:"status,omitempty"`
+	Spec   VolumeRemoteBackupSpec   `json:"spec"`
+	Status VolumeRemoteBackupStatus `json:"status,omitempty"`
 }
 
-type PVCBackupSpec struct {
+type VolumeRemoteBackupSpec struct {
 	// +kubebuilder:default=lh
 	// +kubebuilder:validation:Enum=lh
 	// +kubebuilder:validation:Required
-	Type PVCBackupType `json:"type"`
+	Type VolumeRemoteBackupType `json:"type"`
 
 	// +kubebuilder:validation:Required
 	Source string `json:"source"`
 }
 
-type PVCBackupStatus struct {
+type VolumeRemoteBackupStatus struct {
 	// +optional
 	Handle string `json:"handle"`
 
@@ -57,38 +57,38 @@ type PVCBackupStatus struct {
 }
 
 // +enum
-type PVCRestoreType string
+type VolumeRemoteRestoreType string
 
 const (
-	PVCRestoreLH PVCRestoreType = "lh"
+	VolumeRemoteRestoreLH VolumeRemoteRestoreType = "lh"
 )
 
 // +genclient
-// +kubebuilder:resource:shortName=pvcrestore;pvcrestores,scope=Namespaced
+// +kubebuilder:resource:shortName=volumeremoterestore;volumeremoterestores,scope=Namespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:printcolumn:name="type",type="string",JSONPath=`.spec.type`
 // +kubebuilder:printcolumn:name="from",type="string",JSONPath=`.spec.from`
 // +kubebuilder:printcolumn:name="Success",type=boolean,JSONPath=`.status.success`
 
-type PVCRestore struct {
+type VolumeRemoteRestore struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   PVCRestoreSpec   `json:"spec"`
-	Status PVCRestoreStatus `json:"status,omitempty"`
+	Spec   VolumeRemoteRestoreSpec   `json:"spec"`
+	Status VolumeRemoteRestoreStatus `json:"status,omitempty"`
 }
 
-type PVCRestoreSpec struct {
+type VolumeRemoteRestoreSpec struct {
 	// +kubebuilder:default=lh
 	// +kubebuilder:validation:Enum=lh
 	// +kubebuilder:validation:Required
-	Type PVCRestoreType `json:"type"`
+	Type VolumeRemoteRestoreType `json:"type"`
 
 	// +kubebuilder:validation:Required
 	From string `json:"from"`
 }
 
-type PVCRestoreStatus struct {
+type VolumeRemoteRestoreStatus struct {
 	// +optional
 	Success bool `json:"success,omitempty"`
 

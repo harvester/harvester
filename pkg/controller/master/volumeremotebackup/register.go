@@ -11,9 +11,9 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
-	"github.com/harvester/harvester/pkg/pvcbackup/common"
-	"github.com/harvester/harvester/pkg/pvcbackup/driver"
-	"github.com/harvester/harvester/pkg/pvcbackup/longhorn"
+	"github.com/harvester/harvester/pkg/volumeremotebackup/common"
+	"github.com/harvester/harvester/pkg/volumeremotebackup/driver"
+	"github.com/harvester/harvester/pkg/volumeremotebackup/longhorn"
 )
 
 const (
@@ -23,18 +23,18 @@ const (
 	pvControllerName             = "pvc-controller"
 )
 
-type pvcbackupHandler struct {
-	pbController ctlharvesterv1.PVCBackupController
-	pbCache      ctlharvesterv1.PVCBackupCache
-	pbo          common.PVCBackupOperator
-	operations   map[harvesterv1.PVCBackupType]driver.BackupOperation
+type remoteBackupHandler struct {
+	vrbController ctlharvesterv1.VolumeRemoteBackupController
+	vrbCache      ctlharvesterv1.VolumeRemoteBackupCache
+	bo            common.BackupOperator
+	operations    map[harvesterv1.VolumeRemoteBackupType]driver.BackupOperation
 }
 
-type pvcrestoreHandler struct {
-	prController ctlharvesterv1.PVCRestoreController
-	prCache      ctlharvesterv1.PVCRestoreCache
-	pro          common.PVCRestoreOperator
-	operations   map[harvesterv1.PVCRestoreType]driver.RestoreOperation
+type remoteRestoreHandler struct {
+	vrrController ctlharvesterv1.VolumeRemoteRestoreController
+	vrrCache      ctlharvesterv1.VolumeRemoteRestoreCache
+	ro            common.RestoreOperator
+	operations    map[harvesterv1.VolumeRemoteRestoreType]driver.RestoreOperation
 }
 
 type volumeSnapshotHandler struct {
@@ -60,7 +60,12 @@ type resourceCache interface {
 }
 
 // resolveOwnerRef is a generic helper to resolve owner references
-func resolveOwnerRef(ns string, controllerRef *metav1.OwnerReference, expectedKind string, cache resourceCache) (string, string, bool) {
+func resolveOwnerRef(
+	ns string,
+	controllerRef *metav1.OwnerReference,
+	expectedKind string,
+	cache resourceCache,
+) (string, string, bool) {
 	if controllerRef.Kind != expectedKind {
 		return "", "", false
 	}
@@ -80,7 +85,12 @@ func resolveOwnerRef(ns string, controllerRef *metav1.OwnerReference, expectedKi
 // resolveAnnotationRef is a generic helper to resolve annotation-based references
 // It parses the annotation value in the format "namespace/name" or just "name" (uses ns param as namespace)
 // and verifies the resource exists in the cache
-func resolveAnnotationRef(ns string, annotations map[string]string, annotationKey string, cache resourceCache) (string, string, bool) {
+func resolveAnnotationRef(
+	ns string,
+	annotations map[string]string,
+	annotationKey string,
+	cache resourceCache,
+) (string, string, bool) {
 	ref, exists := annotations[annotationKey]
 	if !exists || ref == "" {
 		return "", "", false
@@ -105,45 +115,43 @@ func resolveAnnotationRef(ns string, annotations map[string]string, annotationKe
 	return namespace, name, true
 }
 
-// pvcBackupCacheAdapter adapts PVCBackup cache to resourceCache interface
-type pvcBackupCacheAdapter struct {
+type remoteBackupCacheAdapter struct {
 	cache interface {
-		Get(namespace, name string) (*harvesterv1.PVCBackup, error)
+		Get(namespace, name string) (*harvesterv1.VolumeRemoteBackup, error)
 	}
 }
 
-func (a *pvcBackupCacheAdapter) Get(namespace, name string) (metav1.Object, error) {
+func (a *remoteBackupCacheAdapter) Get(namespace, name string) (metav1.Object, error) {
 	return a.cache.Get(namespace, name)
 }
 
-// pvcBackupResolver implements volumeSnapshotRefResolver for PVCBackup
-type pvcBackupResolver struct {
-	handler *pvcbackupHandler
+type remoteBackupResolver struct {
+	handler *remoteBackupHandler
 }
 
-func (r *pvcBackupResolver) resolveRef(ns string, controllerRef *metav1.OwnerReference) (string, string, bool) {
+func (r *remoteBackupResolver) resolveRef(ns string, controllerRef *metav1.OwnerReference) (string, string, bool) {
 	// Wrap the typed cache in an adapter that implements resourceCache
-	cacheAdapter := &pvcBackupCacheAdapter{cache: r.handler.pbCache}
-	return resolveOwnerRef(ns, controllerRef, pvcBackupKind.Kind, cacheAdapter)
+	cacheAdapter := &remoteBackupCacheAdapter{cache: r.handler.vrbCache}
+	return resolveOwnerRef(ns, controllerRef, remoteBackupKind.Kind, cacheAdapter)
 }
 
-func (r *pvcBackupResolver) resolveAnnotation(ns string, annotations map[string]string) (string, string, bool) {
+func (r *remoteBackupResolver) resolveAnnotation(ns string, annotations map[string]string) (string, string, bool) {
 	// PVCBackup doesn't use annotation-based references
 	return "", "", false
 }
 
-func (r *pvcBackupResolver) getResourceType() string {
-	return pvcBackupKindName
+func (r *remoteBackupResolver) getResourceType() string {
+	return remoteBackupKindName
 }
 
-func (r *pvcBackupResolver) enqueue(namespace, name string) {
-	r.handler.pbController.Enqueue(namespace, name)
+func (r *remoteBackupResolver) enqueue(namespace, name string) {
+	r.handler.vrbController.Enqueue(namespace, name)
 }
 
 // pvcRestoreCacheAdapter adapts PVCRestore cache to resourceCache interface
 type pvcRestoreCacheAdapter struct {
 	cache interface {
-		Get(namespace, name string) (*harvesterv1.PVCRestore, error)
+		Get(namespace, name string) (*harvesterv1.VolumeRemoteRestore, error)
 	}
 }
 
@@ -151,42 +159,41 @@ func (a *pvcRestoreCacheAdapter) Get(namespace, name string) (metav1.Object, err
 	return a.cache.Get(namespace, name)
 }
 
-// pvcRestoreResolver implements volumeSnapshotRefResolver for PVCRestore
-type pvcRestoreResolver struct {
-	handler *pvcrestoreHandler
+type remoteRestoreResolver struct {
+	handler *remoteRestoreHandler
 }
 
-func (r *pvcRestoreResolver) resolveRef(ns string, controllerRef *metav1.OwnerReference) (string, string, bool) {
+func (r *remoteRestoreResolver) resolveRef(ns string, controllerRef *metav1.OwnerReference) (string, string, bool) {
 	// Wrap the typed cache in an adapter that implements resourceCache
-	cacheAdapter := &pvcRestoreCacheAdapter{cache: r.handler.prCache}
-	return resolveOwnerRef(ns, controllerRef, pvcRestoreKind.Kind, cacheAdapter)
+	cacheAdapter := &pvcRestoreCacheAdapter{cache: r.handler.vrrCache}
+	return resolveOwnerRef(ns, controllerRef, remoteRestoreKind.Kind, cacheAdapter)
 }
 
-func (r *pvcRestoreResolver) resolveAnnotation(ns string, annotations map[string]string) (string, string, bool) {
+func (r *remoteRestoreResolver) resolveAnnotation(ns string, annotations map[string]string) (string, string, bool) {
 	// Check for the PVCRestore reference annotation
 	annotationKey := driver.AnnotationPVCRestoreRef
-	return resolveAnnotationRef(ns, annotations, annotationKey, &pvcRestoreCacheAdapter{cache: r.handler.prCache})
+	return resolveAnnotationRef(ns, annotations, annotationKey, &pvcRestoreCacheAdapter{cache: r.handler.vrrCache})
 }
 
-func (r *pvcRestoreResolver) getResourceType() string {
-	return pvcRestoreKindName
+func (r *remoteRestoreResolver) getResourceType() string {
+	return remoteRestoreKindName
 }
 
-func (r *pvcRestoreResolver) enqueue(namespace, name string) {
-	r.handler.prController.Enqueue(namespace, name)
+func (r *remoteRestoreResolver) enqueue(namespace, name string) {
+	r.handler.vrrController.Enqueue(namespace, name)
 }
 
 func Register(ctx context.Context, management *config.Management, _ config.Options) error {
-	pbs := management.HarvesterFactory.Harvesterhci().V1beta1().PVCBackup()
+	pbs := management.HarvesterFactory.Harvesterhci().V1beta1().VolumeRemoteBackup()
 	vss := management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
 	vsClasses := management.SnapshotFactory.Snapshot().V1().VolumeSnapshotClass()
 	vscs := management.SnapshotFactory.Snapshot().V1().VolumeSnapshotContent()
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	scs := management.StorageFactory.Storage().V1().StorageClass()
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
-	prs := management.HarvesterFactory.Harvesterhci().V1beta1().PVCRestore()
+	prs := management.HarvesterFactory.Harvesterhci().V1beta1().VolumeRemoteRestore()
 
-	pbo := common.GetPVCBackupOperator(pbs, pvcs.Cache(), scs.Cache(), settings.Cache())
+	pbo := common.NewBackupOperator(pbs, pvcs.Cache(), scs.Cache(), settings.Cache())
 
 	// Create shared volumeSnapshotHandler
 	vsh := &volumeSnapshotHandler{
@@ -213,18 +220,18 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 
 func registerBackupHandlers(
 	ctx context.Context,
-	pbs ctlharvesterv1.PVCBackupController,
+	vrbs ctlharvesterv1.VolumeRemoteBackupController,
 	vss ctlsnapshotv1.VolumeSnapshotController,
 	vsClasses ctlsnapshotv1.VolumeSnapshotClassController,
 	vscs ctlsnapshotv1.VolumeSnapshotContentController,
 	pvcs ctlcorev1.PersistentVolumeClaimController,
 	scs ctlstoragev1.StorageClassController,
-	pbo common.PVCBackupOperator,
+	bo common.BackupOperator,
 	vsh *volumeSnapshotHandler,
 ) {
-	operations := map[harvesterv1.PVCBackupType]driver.BackupOperation{
-		harvesterv1.PVCBackupLH: longhorn.GetLHBackupOperation(
-			pbo,
+	operations := map[harvesterv1.VolumeRemoteBackupType]driver.BackupOperation{
+		harvesterv1.VolumeRemoteBackupLH: longhorn.GetLHBackupOperation(
+			bo,
 			vss.Cache(),
 			vss,
 			vsClasses.Cache(),
@@ -234,41 +241,41 @@ func registerBackupHandlers(
 		),
 	}
 
-	pvcbackupHandler := &pvcbackupHandler{
-		pbController: pbs,
-		pbCache:      pbs.Cache(),
-		pbo:          pbo,
-		operations:   operations,
+	pvcbackupHandler := &remoteBackupHandler{
+		vrbController: vrbs,
+		vrbCache:      vrbs.Cache(),
+		bo:            bo,
+		operations:    operations,
 	}
 
 	// Add the backup resolver to the shared handler
-	vsh.resolvers = append(vsh.resolvers, &pvcBackupResolver{handler: pvcbackupHandler})
+	vsh.resolvers = append(vsh.resolvers, &remoteBackupResolver{handler: pvcbackupHandler})
 
-	pbs.OnChange(ctx, pvcbackupControllerName, pvcbackupHandler.OnChanged)
-	pbs.OnRemove(ctx, pvcbackupControllerName, pvcbackupHandler.OnRemove)
+	vrbs.OnChange(ctx, pvcbackupControllerName, pvcbackupHandler.OnChanged)
+	vrbs.OnRemove(ctx, pvcbackupControllerName, pvcbackupHandler.OnRemove)
 }
 
 func registerRestoreHandlers(
 	ctx context.Context,
-	prs ctlharvesterv1.PVCRestoreController,
-	pbs ctlharvesterv1.PVCBackupController,
+	vrrs ctlharvesterv1.VolumeRemoteRestoreController,
+	vrbs ctlharvesterv1.VolumeRemoteBackupController,
 	vss ctlsnapshotv1.VolumeSnapshotController,
 	vsClasses ctlsnapshotv1.VolumeSnapshotClassController,
 	vscs ctlsnapshotv1.VolumeSnapshotContentController,
 	pvcs ctlcorev1.PersistentVolumeClaimController,
 	scs ctlstoragev1.StorageClassController,
 	settings ctlharvesterv1.SettingController,
-	pbo common.PVCBackupOperator,
+	bo common.BackupOperator,
 	vsh *volumeSnapshotHandler,
 	pvch *pvcHandler,
 ) {
-	pro := common.GetPVCRestoreOperator(prs, pvcs.Cache(), scs.Cache(), settings.Cache(), pbs.Cache(), pbo)
+	ro := common.NewRestoreOperator(vrrs, pvcs.Cache(), scs.Cache(), settings.Cache(), vrbs.Cache(), bo)
 
-	operations := map[harvesterv1.PVCRestoreType]driver.RestoreOperation{
-		harvesterv1.PVCRestoreLH: longhorn.GetLHRestoreOperation(
-			pro,
-			pbo,
-			pbs.Cache(),
+	operations := map[harvesterv1.VolumeRemoteRestoreType]driver.RestoreOperation{
+		harvesterv1.VolumeRemoteRestoreLH: longhorn.GetLHRestoreOperation(
+			ro,
+			bo,
+			vrbs.Cache(),
 			vss.Cache(),
 			vss,
 			vsClasses.Cache(),
@@ -280,17 +287,17 @@ func registerRestoreHandlers(
 		),
 	}
 
-	pvcrestoreHandler := &pvcrestoreHandler{
-		prController: prs,
-		prCache:      prs.Cache(),
-		pro:          pro,
-		operations:   operations,
+	remoteRestoreHandler := &remoteRestoreHandler{
+		vrrController: vrrs,
+		vrrCache:      vrrs.Cache(),
+		ro:            ro,
+		operations:    operations,
 	}
 
 	// Add the restore resolver to the shared handlers
-	vsh.resolvers = append(vsh.resolvers, &pvcRestoreResolver{handler: pvcrestoreHandler})
-	pvch.resolvers = append(pvch.resolvers, &pvcRestoreResolver{handler: pvcrestoreHandler})
+	vsh.resolvers = append(vsh.resolvers, &remoteRestoreResolver{handler: remoteRestoreHandler})
+	pvch.resolvers = append(pvch.resolvers, &remoteRestoreResolver{handler: remoteRestoreHandler})
 
-	prs.OnChange(ctx, pvcrestoreControllerName, pvcrestoreHandler.OnChanged)
-	prs.OnRemove(ctx, pvcrestoreControllerName, pvcrestoreHandler.OnRemove)
+	vrrs.OnChange(ctx, pvcrestoreControllerName, remoteRestoreHandler.OnChanged)
+	vrrs.OnRemove(ctx, pvcrestoreControllerName, remoteRestoreHandler.OnRemove)
 }

@@ -30,8 +30,6 @@ import (
 var (
 	AddonResourceName                         = "addons"
 	KeyPairResourceName                       = "keypairs"
-	PVCBackupResourceName                     = "pvcbackups"
-	PVCRestoreResourceName                    = "pvcrestores"
 	PreferenceResourceName                    = "preferences"
 	ResourceQuotaResourceName                 = "resourcequotas"
 	ScheduleVMBackupResourceName              = "schedulevmbackups"
@@ -46,6 +44,8 @@ var (
 	VirtualMachineRestoreResourceName         = "virtualmachinerestores"
 	VirtualMachineTemplateResourceName        = "virtualmachinetemplates"
 	VirtualMachineTemplateVersionResourceName = "virtualmachinetemplateversions"
+	VolumeRemoteBackupResourceName            = "volumeremotebackups"
+	VolumeRemoteRestoreResourceName           = "volumeremoterestores"
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -73,10 +73,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&AddonList{},
 		&KeyPair{},
 		&KeyPairList{},
-		&PVCBackup{},
-		&PVCBackupList{},
-		&PVCRestore{},
-		&PVCRestoreList{},
 		&Preference{},
 		&PreferenceList{},
 		&ResourceQuota{},
@@ -105,6 +101,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&VirtualMachineTemplateList{},
 		&VirtualMachineTemplateVersion{},
 		&VirtualMachineTemplateVersionList{},
+		&VolumeRemoteBackup{},
+		&VolumeRemoteBackupList{},
+		&VolumeRemoteRestore{},
+		&VolumeRemoteRestoreList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

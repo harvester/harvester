@@ -18,7 +18,6 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/controller/master/nodedrain"
 	"github.com/harvester/harvester/pkg/controller/master/pvc"
-	"github.com/harvester/harvester/pkg/controller/master/pvcbackup"
 	"github.com/harvester/harvester/pkg/controller/master/rancher"
 	"github.com/harvester/harvester/pkg/controller/master/resourcequota"
 	"github.com/harvester/harvester/pkg/controller/master/schedulevmbackup"
@@ -31,6 +30,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/upgradelog"
 	"github.com/harvester/harvester/pkg/controller/master/virtualmachine"
 	"github.com/harvester/harvester/pkg/controller/master/vmimagedownloader"
+	pvcbackup "github.com/harvester/harvester/pkg/controller/master/volumeremotebackup"
 )
 
 type registerFunc func(context.Context, *config.Management, config.Options) error

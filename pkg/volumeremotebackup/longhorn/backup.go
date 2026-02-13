@@ -12,13 +12,13 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
-	"github.com/harvester/harvester/pkg/pvcbackup/common"
-	"github.com/harvester/harvester/pkg/pvcbackup/driver"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/volumeremotebackup/common"
+	"github.com/harvester/harvester/pkg/volumeremotebackup/driver"
 )
 
 type LHBackupOperation struct {
-	pbo          common.PVCBackupOperator
+	bo           common.BackupOperator
 	vsCache      ctlsnapshotv1.VolumeSnapshotCache
 	vsClient     ctlsnapshotv1.VolumeSnapshotClient
 	vsClassCache ctlsnapshotv1.VolumeSnapshotClassCache
@@ -28,7 +28,7 @@ type LHBackupOperation struct {
 }
 
 func GetLHBackupOperation(
-	pbo common.PVCBackupOperator,
+	bo common.BackupOperator,
 	vsCache ctlsnapshotv1.VolumeSnapshotCache,
 	vsClient ctlsnapshotv1.VolumeSnapshotClient,
 	vsClassCache ctlsnapshotv1.VolumeSnapshotClassCache,
@@ -37,7 +37,7 @@ func GetLHBackupOperation(
 	scCache ctlstoragev1.StorageClassCache,
 ) driver.BackupOperation {
 	return &LHBackupOperation{
-		pbo:          pbo,
+		bo:           bo,
 		vsCache:      vsCache,
 		vsClient:     vsClient,
 		vsClassCache: vsClassCache,
@@ -47,9 +47,8 @@ func GetLHBackupOperation(
 	}
 }
 
-// getVolumeSnapshotForPVCBackup retrieves the VolumeSnapshot associated with a PVCBackup.
-func (lbo *LHBackupOperation) getVolumeSnapshotForPVCBackup(pb *harvesterv1.PVCBackup) (*snapshotv1.VolumeSnapshot, error) {
-	return lbo.vsCache.Get(lbo.pbo.GetNamespace(pb), lbo.pbo.GetName(pb))
+func (lbo *LHBackupOperation) getVolumeSnapshotForRemoteBackup(vrb *harvesterv1.VolumeRemoteBackup) (*snapshotv1.VolumeSnapshot, error) {
+	return lbo.vsCache.Get(lbo.bo.GetNamespace(vrb), lbo.bo.GetName(vrb))
 }
 
 // isVolumeSnapshotDeleting checks if a VolumeSnapshot is being deleted.
@@ -72,12 +71,12 @@ func (lbo *LHBackupOperation) checkVolumeSnapshotError(vs *snapshotv1.VolumeSnap
 
 // ensureVolumeSnapshotExists creates a new volume snapshot if it doesn't exist.
 func (lbo *LHBackupOperation) ensureVolumeSnapshotExists(
-	pb *harvesterv1.PVCBackup,
+	vrb *harvesterv1.VolumeRemoteBackup,
 	vsClass snapshotv1.VolumeSnapshotClass,
 	ownerRef metav1.OwnerReference,
 ) (*snapshotv1.VolumeSnapshot, error) {
-	pvcNamespace := lbo.pbo.GetNamespace(pb)
-	pvcName := lbo.pbo.GetSource(pb)
+	pvcNamespace := lbo.bo.GetNamespace(vrb)
+	pvcName := lbo.bo.GetSource(vrb)
 
 	pvc, err := lbo.pvcCache.Get(pvcNamespace, pvcName)
 	if err != nil {
@@ -92,8 +91,8 @@ func (lbo *LHBackupOperation) ensureVolumeSnapshotExists(
 	// Build VolumeSnapshot
 	vs := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            lbo.pbo.GetName(pb),
-			Namespace:       lbo.pbo.GetNamespace(pb),
+			Name:            lbo.bo.GetName(vrb),
+			Namespace:       lbo.bo.GetNamespace(vrb),
 			OwnerReferences: []metav1.OwnerReference{ownerRef},
 			Annotations:     make(map[string]string),
 		},
@@ -120,26 +119,26 @@ func (lbo *LHBackupOperation) ensureVolumeSnapshotExists(
 }
 
 // BuildOwnerReference creates an owner reference for a PVC backup.
-func (lbo *LHBackupOperation) BuildOwnerReference(pb *harvesterv1.PVCBackup) metav1.OwnerReference {
+func (lbo *LHBackupOperation) BuildOwnerReference(vrb *harvesterv1.VolumeRemoteBackup) metav1.OwnerReference {
 	return metav1.OwnerReference{
 		APIVersion: harvesterv1.SchemeGroupVersion.String(),
-		Kind:       lbo.pbo.GetKind(pb),
-		Name:       lbo.pbo.GetName(pb),
-		UID:        lbo.pbo.GetUID(pb),
+		Kind:       lbo.bo.GetKind(vrb),
+		Name:       lbo.bo.GetName(vrb),
+		UID:        lbo.bo.GetUID(vrb),
 		Controller: ptr.To(true),
 	}
 }
 
 // ensureHandleIsSet retrieves the snapshot handle from VolumeSnapshotContent and updates the PVCBackup.
 // Returns ErrRetryLater if the handle is not yet available.
-func (lbo *LHBackupOperation) ensureHandleIsSet(pb *harvesterv1.PVCBackup, vs *snapshotv1.VolumeSnapshot) (bool, error) {
+func (lbo *LHBackupOperation) ensureHandleIsSet(vrb *harvesterv1.VolumeRemoteBackup, vs *snapshotv1.VolumeSnapshot) (bool, error) {
 	if vs == nil {
-		return false, fmt.Errorf("VolumeSnapshot is nil when checking handle for PVCBackup %s/%s",
-			lbo.pbo.GetNamespace(pb), lbo.pbo.GetName(pb))
+		return false, fmt.Errorf("VolumeSnapshot is nil when checking handle for VolumeRemoteRestore %s/%s",
+			lbo.bo.GetNamespace(vrb), lbo.bo.GetName(vrb))
 	}
 
 	// Skip if handle is already set
-	if pb.Status.Handle != "" {
+	if vrb.Status.Handle != "" {
 		return true, nil
 	}
 
@@ -164,7 +163,7 @@ func (lbo *LHBackupOperation) ensureHandleIsSet(pb *harvesterv1.PVCBackup, vs *s
 
 	// Update handle
 	handle := *vsc.Status.SnapshotHandle
-	if _, err := lbo.pbo.SetHandle(pb, handle); err != nil {
+	if _, err := lbo.bo.SetHandle(vrb, handle); err != nil {
 		return false, err
 	}
 
@@ -173,9 +172,9 @@ func (lbo *LHBackupOperation) ensureHandleIsSet(pb *harvesterv1.PVCBackup, vs *s
 
 // readiness checks if the VolumeSnapshot is ready for the given PVCBackup.
 // Returns true if ready, false with ErrRetryLater if not yet ready, or false with error if failed.
-func (lbo *LHBackupOperation) readiness(pb *harvesterv1.PVCBackup) (bool, error) {
+func (lbo *LHBackupOperation) readiness(vrb *harvesterv1.VolumeRemoteBackup) (bool, error) {
 	// Check if VolumeSnapshot exists
-	vs, err := lbo.getVolumeSnapshotForPVCBackup(pb)
+	vs, err := lbo.getVolumeSnapshotForRemoteBackup(vrb)
 	if err != nil {
 		return false, err
 	}
@@ -196,19 +195,19 @@ func (lbo *LHBackupOperation) readiness(pb *harvesterv1.PVCBackup) (bool, error)
 	}
 
 	// Ensure snapshot handle is set in PVCBackup status
-	return lbo.ensureHandleIsSet(pb, vs)
+	return lbo.ensureHandleIsSet(vrb, vs)
 }
 
-func (lbo *LHBackupOperation) Create(pb *harvesterv1.PVCBackup) error {
-	if pb == nil {
-		return fmt.Errorf("PVCBackup cannot be nil")
+func (lbo *LHBackupOperation) Create(vrb *harvesterv1.VolumeRemoteBackup) error {
+	if vrb == nil {
+		return fmt.Errorf("RemoteBackup cannot be nil")
 	}
 
-	ready, err := lbo.readiness(pb)
+	ready, err := lbo.readiness(vrb)
 	if err == nil {
 		if !ready {
-			return fmt.Errorf("resources for PVCBackup %s/%s already exist but not ready",
-				lbo.pbo.GetNamespace(pb), lbo.pbo.GetName(pb))
+			return fmt.Errorf("resources for RemoteBackup %s/%s already exist but not ready",
+				lbo.bo.GetNamespace(vrb), lbo.bo.GetName(vrb))
 		}
 		return nil
 	}
@@ -219,7 +218,7 @@ func (lbo *LHBackupOperation) Create(pb *harvesterv1.PVCBackup) error {
 
 	// VolumeSnapshot doesn't exist, create it
 	// Get VolumeSnapshotClass information
-	vsClassInfo, err := lbo.pbo.GetVSClassInfo(pb)
+	vsClassInfo, err := lbo.bo.GetSnapshotClassInfo(vrb)
 	if err != nil {
 		return err
 	}
@@ -230,18 +229,18 @@ func (lbo *LHBackupOperation) Create(pb *harvesterv1.PVCBackup) error {
 	}
 
 	// Create new VolumeSnapshot
-	_, err = lbo.ensureVolumeSnapshotExists(pb, *vsClass, lbo.BuildOwnerReference(pb))
+	_, err = lbo.ensureVolumeSnapshotExists(vrb, *vsClass, lbo.BuildOwnerReference(vrb))
 	return err
 }
 
-func (lbo *LHBackupOperation) Readiness(pb *harvesterv1.PVCBackup) (bool, error) {
-	if pb == nil {
+func (lbo *LHBackupOperation) Readiness(vrb *harvesterv1.VolumeRemoteBackup) (bool, error) {
+	if vrb == nil {
 		return false, fmt.Errorf("PVCBackup cannot be nil")
 	}
-	return lbo.readiness(pb)
+	return lbo.readiness(vrb)
 }
 
-func (lbo *LHBackupOperation) Delete(pb *harvesterv1.PVCBackup) error {
+func (lbo *LHBackupOperation) Delete(vrb *harvesterv1.VolumeRemoteBackup) error {
 	// owner references will handle garbage collection
 	return nil
 }

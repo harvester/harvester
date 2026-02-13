@@ -10,13 +10,13 @@ const (
 )
 
 type BackupOperation interface {
-	Create(pb *harvesterv1.PVCBackup) error
-	Readiness(pb *harvesterv1.PVCBackup) (bool, error)
-	Delete(pb *harvesterv1.PVCBackup) error
+	Create(vrb *harvesterv1.VolumeRemoteBackup) error
+	Readiness(vrb *harvesterv1.VolumeRemoteBackup) (bool, error)
+	Delete(vrb *harvesterv1.VolumeRemoteBackup) error
 }
 
 type RestoreOperation interface {
-	Create(pr *harvesterv1.PVCRestore) error
-	Readiness(pr *harvesterv1.PVCRestore) (bool, error)
-	Delete(pr *harvesterv1.PVCRestore) error
+	Create(vrr *harvesterv1.VolumeRemoteRestore) error
+	Readiness(vrr *harvesterv1.VolumeRemoteRestore) (bool, error)
+	Delete(vrr *harvesterv1.VolumeRemoteRestore) error
 }

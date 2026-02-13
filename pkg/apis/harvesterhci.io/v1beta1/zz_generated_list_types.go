@@ -281,16 +281,16 @@ func NewScheduleVMBackup(namespace, name string, obj ScheduleVMBackup) *Schedule
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// PVCBackupList is a list of PVCBackup resources
-type PVCBackupList struct {
+// VolumeRemoteBackupList is a list of VolumeRemoteBackup resources
+type VolumeRemoteBackupList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []PVCBackup `json:"items"`
+	Items []VolumeRemoteBackup `json:"items"`
 }
 
-func NewPVCBackup(namespace, name string, obj PVCBackup) *PVCBackup {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("PVCBackup").ToAPIVersionAndKind()
+func NewVolumeRemoteBackup(namespace, name string, obj VolumeRemoteBackup) *VolumeRemoteBackup {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("VolumeRemoteBackup").ToAPIVersionAndKind()
 	obj.Name = name
 	obj.Namespace = namespace
 	return &obj
@@ -298,16 +298,16 @@ func NewPVCBackup(namespace, name string, obj PVCBackup) *PVCBackup {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// PVCRestoreList is a list of PVCRestore resources
-type PVCRestoreList struct {
+// VolumeRemoteRestoreList is a list of VolumeRemoteRestore resources
+type VolumeRemoteRestoreList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []PVCRestore `json:"items"`
+	Items []VolumeRemoteRestore `json:"items"`
 }
 
-func NewPVCRestore(namespace, name string, obj PVCRestore) *PVCRestore {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("PVCRestore").ToAPIVersionAndKind()
+func NewVolumeRemoteRestore(namespace, name string, obj VolumeRemoteRestore) *VolumeRemoteRestore {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("VolumeRemoteRestore").ToAPIVersionAndKind()
 	obj.Name = name
 	obj.Namespace = namespace
 	return &obj

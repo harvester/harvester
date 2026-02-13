@@ -22,10 +22,6 @@ type AddonExpansion interface{}
 
 type KeyPairExpansion interface{}
 
-type PVCBackupExpansion interface{}
-
-type PVCRestoreExpansion interface{}
-
 type PreferenceExpansion interface{}
 
 type ResourceQuotaExpansion interface{}
@@ -53,3 +49,7 @@ type VirtualMachineRestoreExpansion interface{}
 type VirtualMachineTemplateExpansion interface{}
 
 type VirtualMachineTemplateVersionExpansion interface{}
+
+type VolumeRemoteBackupExpansion interface{}
+
+type VolumeRemoteRestoreExpansion interface{}

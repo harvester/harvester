@@ -34,31 +34,31 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// PVCRestoreController interface for managing PVCRestore resources.
-type PVCRestoreController interface {
-	generic.ControllerInterface[*v1beta1.PVCRestore, *v1beta1.PVCRestoreList]
+// VolumeRemoteRestoreController interface for managing VolumeRemoteRestore resources.
+type VolumeRemoteRestoreController interface {
+	generic.ControllerInterface[*v1beta1.VolumeRemoteRestore, *v1beta1.VolumeRemoteRestoreList]
 }
 
-// PVCRestoreClient interface for managing PVCRestore resources in Kubernetes.
-type PVCRestoreClient interface {
-	generic.ClientInterface[*v1beta1.PVCRestore, *v1beta1.PVCRestoreList]
+// VolumeRemoteRestoreClient interface for managing VolumeRemoteRestore resources in Kubernetes.
+type VolumeRemoteRestoreClient interface {
+	generic.ClientInterface[*v1beta1.VolumeRemoteRestore, *v1beta1.VolumeRemoteRestoreList]
 }
 
-// PVCRestoreCache interface for retrieving PVCRestore resources in memory.
-type PVCRestoreCache interface {
-	generic.CacheInterface[*v1beta1.PVCRestore]
+// VolumeRemoteRestoreCache interface for retrieving VolumeRemoteRestore resources in memory.
+type VolumeRemoteRestoreCache interface {
+	generic.CacheInterface[*v1beta1.VolumeRemoteRestore]
 }
 
-// PVCRestoreStatusHandler is executed for every added or modified PVCRestore. Should return the new status to be updated
-type PVCRestoreStatusHandler func(obj *v1beta1.PVCRestore, status v1beta1.PVCRestoreStatus) (v1beta1.PVCRestoreStatus, error)
+// VolumeRemoteRestoreStatusHandler is executed for every added or modified VolumeRemoteRestore. Should return the new status to be updated
+type VolumeRemoteRestoreStatusHandler func(obj *v1beta1.VolumeRemoteRestore, status v1beta1.VolumeRemoteRestoreStatus) (v1beta1.VolumeRemoteRestoreStatus, error)
 
-// PVCRestoreGeneratingHandler is the top-level handler that is executed for every PVCRestore event. It extends PVCRestoreStatusHandler by a returning a slice of child objects to be passed to apply.Apply
-type PVCRestoreGeneratingHandler func(obj *v1beta1.PVCRestore, status v1beta1.PVCRestoreStatus) ([]runtime.Object, v1beta1.PVCRestoreStatus, error)
+// VolumeRemoteRestoreGeneratingHandler is the top-level handler that is executed for every VolumeRemoteRestore event. It extends VolumeRemoteRestoreStatusHandler by a returning a slice of child objects to be passed to apply.Apply
+type VolumeRemoteRestoreGeneratingHandler func(obj *v1beta1.VolumeRemoteRestore, status v1beta1.VolumeRemoteRestoreStatus) ([]runtime.Object, v1beta1.VolumeRemoteRestoreStatus, error)
 
-// RegisterPVCRestoreStatusHandler configures a PVCRestoreController to execute a PVCRestoreStatusHandler for every events observed.
+// RegisterVolumeRemoteRestoreStatusHandler configures a VolumeRemoteRestoreController to execute a VolumeRemoteRestoreStatusHandler for every events observed.
 // If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
-func RegisterPVCRestoreStatusHandler(ctx context.Context, controller PVCRestoreController, condition condition.Cond, name string, handler PVCRestoreStatusHandler) {
-	statusHandler := &pVCRestoreStatusHandler{
+func RegisterVolumeRemoteRestoreStatusHandler(ctx context.Context, controller VolumeRemoteRestoreController, condition condition.Cond, name string, handler VolumeRemoteRestoreStatusHandler) {
+	statusHandler := &volumeRemoteRestoreStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
@@ -66,31 +66,31 @@ func RegisterPVCRestoreStatusHandler(ctx context.Context, controller PVCRestoreC
 	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
-// RegisterPVCRestoreGeneratingHandler configures a PVCRestoreController to execute a PVCRestoreGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// RegisterVolumeRemoteRestoreGeneratingHandler configures a VolumeRemoteRestoreController to execute a VolumeRemoteRestoreGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
 // If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
-func RegisterPVCRestoreGeneratingHandler(ctx context.Context, controller PVCRestoreController, apply apply.Apply,
-	condition condition.Cond, name string, handler PVCRestoreGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
-	statusHandler := &pVCRestoreGeneratingHandler{
-		PVCRestoreGeneratingHandler: handler,
-		apply:                       apply,
-		name:                        name,
-		gvk:                         controller.GroupVersionKind(),
+func RegisterVolumeRemoteRestoreGeneratingHandler(ctx context.Context, controller VolumeRemoteRestoreController, apply apply.Apply,
+	condition condition.Cond, name string, handler VolumeRemoteRestoreGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &volumeRemoteRestoreGeneratingHandler{
+		VolumeRemoteRestoreGeneratingHandler: handler,
+		apply:                                apply,
+		name:                                 name,
+		gvk:                                  controller.GroupVersionKind(),
 	}
 	if opts != nil {
 		statusHandler.opts = *opts
 	}
 	controller.OnChange(ctx, name, statusHandler.Remove)
-	RegisterPVCRestoreStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+	RegisterVolumeRemoteRestoreStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
 }
 
-type pVCRestoreStatusHandler struct {
-	client    PVCRestoreClient
+type volumeRemoteRestoreStatusHandler struct {
+	client    VolumeRemoteRestoreClient
 	condition condition.Cond
-	handler   PVCRestoreStatusHandler
+	handler   VolumeRemoteRestoreStatusHandler
 }
 
 // sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
-func (a *pVCRestoreStatusHandler) sync(key string, obj *v1beta1.PVCRestore) (*v1beta1.PVCRestore, error) {
+func (a *volumeRemoteRestoreStatusHandler) sync(key string, obj *v1beta1.VolumeRemoteRestore) (*v1beta1.VolumeRemoteRestore, error) {
 	if obj == nil {
 		return obj, nil
 	}
@@ -129,8 +129,8 @@ func (a *pVCRestoreStatusHandler) sync(key string, obj *v1beta1.PVCRestore) (*v1
 	return obj, err
 }
 
-type pVCRestoreGeneratingHandler struct {
-	PVCRestoreGeneratingHandler
+type volumeRemoteRestoreGeneratingHandler struct {
+	VolumeRemoteRestoreGeneratingHandler
 	apply apply.Apply
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
@@ -139,12 +139,12 @@ type pVCRestoreGeneratingHandler struct {
 }
 
 // Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
-func (a *pVCRestoreGeneratingHandler) Remove(key string, obj *v1beta1.PVCRestore) (*v1beta1.PVCRestore, error) {
+func (a *volumeRemoteRestoreGeneratingHandler) Remove(key string, obj *v1beta1.VolumeRemoteRestore) (*v1beta1.VolumeRemoteRestore, error) {
 	if obj != nil {
 		return obj, nil
 	}
 
-	obj = &v1beta1.PVCRestore{}
+	obj = &v1beta1.VolumeRemoteRestore{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
@@ -158,13 +158,13 @@ func (a *pVCRestoreGeneratingHandler) Remove(key string, obj *v1beta1.PVCRestore
 		ApplyObjects()
 }
 
-// Handle executes the configured PVCRestoreGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
-func (a *pVCRestoreGeneratingHandler) Handle(obj *v1beta1.PVCRestore, status v1beta1.PVCRestoreStatus) (v1beta1.PVCRestoreStatus, error) {
+// Handle executes the configured VolumeRemoteRestoreGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
+func (a *volumeRemoteRestoreGeneratingHandler) Handle(obj *v1beta1.VolumeRemoteRestore, status v1beta1.VolumeRemoteRestoreStatus) (v1beta1.VolumeRemoteRestoreStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
 	}
 
-	objs, newStatus, err := a.PVCRestoreGeneratingHandler(obj, status)
+	objs, newStatus, err := a.VolumeRemoteRestoreGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
 	}
@@ -185,7 +185,7 @@ func (a *pVCRestoreGeneratingHandler) Handle(obj *v1beta1.PVCRestore, status v1b
 
 // isNewResourceVersion detects if a specific resource version was already successfully processed.
 // Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *pVCRestoreGeneratingHandler) isNewResourceVersion(obj *v1beta1.PVCRestore) bool {
+func (a *volumeRemoteRestoreGeneratingHandler) isNewResourceVersion(obj *v1beta1.VolumeRemoteRestore) bool {
 	if !a.opts.UniqueApplyForResourceVersion {
 		return true
 	}
@@ -198,7 +198,7 @@ func (a *pVCRestoreGeneratingHandler) isNewResourceVersion(obj *v1beta1.PVCResto
 
 // storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
 // Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *pVCRestoreGeneratingHandler) storeResourceVersion(obj *v1beta1.PVCRestore) {
+func (a *volumeRemoteRestoreGeneratingHandler) storeResourceVersion(obj *v1beta1.VolumeRemoteRestore) {
 	if !a.opts.UniqueApplyForResourceVersion {
 		return
 	}

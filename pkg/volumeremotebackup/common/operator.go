@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	PVCBackupRestoreCondition condition.Cond = "Ready"
+	ConditionReady condition.Cond = "Ready"
 )
 
 var (
@@ -41,7 +41,7 @@ var currentTime = func() *metav1.Time {
 // newReadyCondition creates a new Ready condition
 func newReadyCondition(status corev1.ConditionStatus, reason string, message string) harvesterv1.Condition {
 	return harvesterv1.Condition{
-		Type:               PVCBackupRestoreCondition,
+		Type:               ConditionReady,
 		Status:             status,
 		Message:            message,
 		Reason:             reason,
@@ -81,12 +81,12 @@ func applyConditionToStatus(conditions []harvesterv1.Condition, c harvesterv1.Co
 
 // StatusFields defines a constraint for types that have common status fields
 type StatusFields interface {
-	*harvesterv1.PVCBackupStatus | *harvesterv1.PVCRestoreStatus
+	*harvesterv1.VolumeRemoteBackupStatus | *harvesterv1.VolumeRemoteRestoreStatus
 }
 
 // ResourceFields defines a constraint for resource types
 type ResourceFields interface {
-	*harvesterv1.PVCBackup | *harvesterv1.PVCRestore
+	*harvesterv1.VolumeRemoteBackup | *harvesterv1.VolumeRemoteRestore
 }
 
 // ResourceClient defines common client operations
@@ -167,9 +167,9 @@ func (ro *ResourceOperator[T, S]) GetSuccess(obj T) bool {
 	status := ro.getStatus(obj)
 	// Use type switch to access the Success field directly
 	switch s := any(status).(type) {
-	case *harvesterv1.PVCBackupStatus:
+	case *harvesterv1.VolumeRemoteBackupStatus:
 		return s.Success
-	case *harvesterv1.PVCRestoreStatus:
+	case *harvesterv1.VolumeRemoteRestoreStatus:
 		return s.Success
 	}
 	return false
@@ -189,9 +189,9 @@ func (ro *ResourceOperator[T, S]) SetSuccess(obj T, success bool) (T, error) {
 	status := ro.getStatus(newObj)
 	// Both PVCBackupStatus and PVCRestoreStatus have the same Success field
 	switch s := any(status).(type) {
-	case *harvesterv1.PVCBackupStatus:
+	case *harvesterv1.VolumeRemoteBackupStatus:
 		s.Success = success
-	case *harvesterv1.PVCRestoreStatus:
+	case *harvesterv1.VolumeRemoteRestoreStatus:
 		s.Success = success
 	}
 	newObj = ro.setStatus(newObj, status)
@@ -206,9 +206,9 @@ func (ro *ResourceOperator[T, S]) setCondition(obj T, c harvesterv1.Condition) (
 	// Both PVCBackupStatus and PVCRestoreStatus have the same Conditions field
 	// Type switch is necessary due to Go generics limitations
 	switch s := any(status).(type) {
-	case *harvesterv1.PVCBackupStatus:
+	case *harvesterv1.VolumeRemoteBackupStatus:
 		s.Conditions = applyConditionToStatus(s.Conditions, c)
-	case *harvesterv1.PVCRestoreStatus:
+	case *harvesterv1.VolumeRemoteRestoreStatus:
 		s.Conditions = applyConditionToStatus(s.Conditions, c)
 	}
 
@@ -231,62 +231,62 @@ func (ro *ResourceOperator[T, S]) SetError(obj T, err error) (T, error) {
 	return ro.setCondition(obj, newReadyCondition(corev1.ConditionFalse, "", err.Error()))
 }
 
-// PVCBackupOperator defines the interface for PVCBackup operations
-type PVCBackupOperator interface {
+type BackupOperator interface {
 	// Getters
-	GetNamespace(pb *harvesterv1.PVCBackup) string
-	GetName(pb *harvesterv1.PVCBackup) string
-	GetKind(pb *harvesterv1.PVCBackup) string
-	GetUID(pb *harvesterv1.PVCBackup) types.UID
-	GetType(pb *harvesterv1.PVCBackup) harvesterv1.PVCBackupType
-	GetSource(pb *harvesterv1.PVCBackup) string
-	GetHandle(pb *harvesterv1.PVCBackup) string
-	GetSuccess(pb *harvesterv1.PVCBackup) bool
-	GetVSClassInfo(pb *harvesterv1.PVCBackup) (*settings.CSIDriverInfo, error)
-	GetCSIProvider(pb *harvesterv1.PVCBackup) string
-	GetSourceSpec(pb *harvesterv1.PVCBackup) corev1.PersistentVolumeClaimSpec
+	GetNamespace(vrb *harvesterv1.VolumeRemoteBackup) string
+	GetName(vrb *harvesterv1.VolumeRemoteBackup) string
+	GetKind(vrb *harvesterv1.VolumeRemoteBackup) string
+	GetUID(vrb *harvesterv1.VolumeRemoteBackup) types.UID
+	GetType(vrb *harvesterv1.VolumeRemoteBackup) harvesterv1.VolumeRemoteBackupType
+	GetSource(vrb *harvesterv1.VolumeRemoteBackup) string
+	GetHandle(vrb *harvesterv1.VolumeRemoteBackup) string
+	GetSuccess(vrb *harvesterv1.VolumeRemoteBackup) bool
+	GetSnapshotClassInfo(vrb *harvesterv1.VolumeRemoteBackup) (*settings.CSIDriverInfo, error)
+	GetCSIProvider(vrb *harvesterv1.VolumeRemoteBackup) string
+	GetSourceSpec(vrb *harvesterv1.VolumeRemoteBackup) corev1.PersistentVolumeClaimSpec
 
 	// Update
-	Update(oldPb, newPb *harvesterv1.PVCBackup) (*harvesterv1.PVCBackup, error)
-	UpdateCSIProvider(pb *harvesterv1.PVCBackup) (*harvesterv1.PVCBackup, error)
-	UpdateSourceSpec(pb *harvesterv1.PVCBackup) (*harvesterv1.PVCBackup, error)
+	Update(oldVrb, newVrb *harvesterv1.VolumeRemoteBackup) (*harvesterv1.VolumeRemoteBackup, error)
+	UpdateCSIProvider(vrb *harvesterv1.VolumeRemoteBackup) (*harvesterv1.VolumeRemoteBackup, error)
+	UpdateSourceSpec(vrb *harvesterv1.VolumeRemoteBackup) (*harvesterv1.VolumeRemoteBackup, error)
 
 	// Setters
-	SetSuccess(pb *harvesterv1.PVCBackup, success bool) (*harvesterv1.PVCBackup, error)
-	SetHandle(pb *harvesterv1.PVCBackup, handle string) (*harvesterv1.PVCBackup, error)
-	SetReady(pb *harvesterv1.PVCBackup) (*harvesterv1.PVCBackup, error)
-	SetProcessing(pb *harvesterv1.PVCBackup) (*harvesterv1.PVCBackup, error)
-	SetError(pb *harvesterv1.PVCBackup, err error) (*harvesterv1.PVCBackup, error)
+	SetSuccess(vrb *harvesterv1.VolumeRemoteBackup, success bool) (*harvesterv1.VolumeRemoteBackup, error)
+	SetHandle(vrb *harvesterv1.VolumeRemoteBackup, handle string) (*harvesterv1.VolumeRemoteBackup, error)
+	SetReady(vrb *harvesterv1.VolumeRemoteBackup) (*harvesterv1.VolumeRemoteBackup, error)
+	SetProcessing(vrb *harvesterv1.VolumeRemoteBackup) (*harvesterv1.VolumeRemoteBackup, error)
+	SetError(vrb *harvesterv1.VolumeRemoteBackup, err error) (*harvesterv1.VolumeRemoteBackup, error)
 }
 
-type pvcBackupOperator struct {
-	*ResourceOperator[*harvesterv1.PVCBackup, *harvesterv1.PVCBackupStatus]
-	client ctlharvesterv1.PVCBackupClient
+type backupOperator struct {
+	*ResourceOperator[*harvesterv1.VolumeRemoteBackup, *harvesterv1.VolumeRemoteBackupStatus]
+	client ctlharvesterv1.VolumeRemoteBackupClient
 }
 
-// GetPVCBackupOperator creates a new PVCBackupOperator instance
-func GetPVCBackupOperator(
-	client ctlharvesterv1.PVCBackupClient,
+func NewBackupOperator(
+	client ctlharvesterv1.VolumeRemoteBackupClient,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	scCache ctlstoragev1.StorageClassCache,
 	settingCache ctlharvesterv1.SettingCache,
-) PVCBackupOperator {
-	return &pvcBackupOperator{
+) BackupOperator {
+	return &backupOperator{
 		ResourceOperator: NewResourceOperator(
-			ResourceOperatorConfig[*harvesterv1.PVCBackup, *harvesterv1.PVCBackupStatus]{
+			ResourceOperatorConfig[*harvesterv1.VolumeRemoteBackup, *harvesterv1.VolumeRemoteBackupStatus]{
 				Client:       client,
 				PVCCache:     pvcCache,
 				SCCache:      scCache,
 				SettingCache: settingCache,
-				GetNamespace: func(pb *harvesterv1.PVCBackup) string { return pb.Namespace },
-				GetName:      func(pb *harvesterv1.PVCBackup) string { return pb.Name },
-				GetKind:      func(pb *harvesterv1.PVCBackup) string { return pb.Kind },
-				GetUID:       func(pb *harvesterv1.PVCBackup) types.UID { return pb.UID },
-				DeepCopy:     func(pb *harvesterv1.PVCBackup) *harvesterv1.PVCBackup { return pb.DeepCopy() },
-				GetStatus:    func(pb *harvesterv1.PVCBackup) *harvesterv1.PVCBackupStatus { return &pb.Status },
-				SetStatus: func(pb *harvesterv1.PVCBackup, s *harvesterv1.PVCBackupStatus) *harvesterv1.PVCBackup {
-					pb.Status = *s
-					return pb
+				GetNamespace: func(vrb *harvesterv1.VolumeRemoteBackup) string { return vrb.Namespace },
+				GetName:      func(vrb *harvesterv1.VolumeRemoteBackup) string { return vrb.Name },
+				GetKind:      func(vrb *harvesterv1.VolumeRemoteBackup) string { return vrb.Kind },
+				GetUID:       func(vrb *harvesterv1.VolumeRemoteBackup) types.UID { return vrb.UID },
+				DeepCopy:     func(vrb *harvesterv1.VolumeRemoteBackup) *harvesterv1.VolumeRemoteBackup { return vrb.DeepCopy() },
+				GetStatus: func(vrb *harvesterv1.VolumeRemoteBackup) *harvesterv1.VolumeRemoteBackupStatus {
+					return &vrb.Status
+				},
+				SetStatus: func(vrb *harvesterv1.VolumeRemoteBackup, s *harvesterv1.VolumeRemoteBackupStatus) *harvesterv1.VolumeRemoteBackup {
+					vrb.Status = *s
+					return vrb
 				},
 			},
 		),
@@ -294,33 +294,32 @@ func GetPVCBackupOperator(
 	}
 }
 
-// PVCBackup-specific methods
-func (pbo *pvcBackupOperator) GetType(pb *harvesterv1.PVCBackup) harvesterv1.PVCBackupType {
-	return pb.Spec.Type
+func (bo *backupOperator) GetType(vrb *harvesterv1.VolumeRemoteBackup) harvesterv1.VolumeRemoteBackupType {
+	return vrb.Spec.Type
 }
 
-func (pbo *pvcBackupOperator) GetSource(pb *harvesterv1.PVCBackup) string {
-	return pb.Spec.Source
+func (bo *backupOperator) GetSource(vrb *harvesterv1.VolumeRemoteBackup) string {
+	return vrb.Spec.Source
 }
 
-func (pbo *pvcBackupOperator) GetHandle(pb *harvesterv1.PVCBackup) string {
-	return pb.Status.Handle
+func (bo *backupOperator) GetHandle(vrb *harvesterv1.VolumeRemoteBackup) string {
+	return vrb.Status.Handle
 }
 
-func (pbo *pvcBackupOperator) GetVSClassInfo(pb *harvesterv1.PVCBackup) (*settings.CSIDriverInfo, error) {
-	srcPVC, err := pbo.pvcCache.Get(pbo.getNamespace(pb), pbo.GetSource(pb))
+func (bo *backupOperator) GetSnapshotClassInfo(vrb *harvesterv1.VolumeRemoteBackup) (*settings.CSIDriverInfo, error) {
+	srcPVC, err := bo.pvcCache.Get(bo.getNamespace(vrb), bo.GetSource(vrb))
 	if err != nil {
 		return nil, err
 	}
 
 	// Get CSI driver from PVC
-	provider := util.GetProvisionedPVCProvisioner(srcPVC, pbo.scCache)
+	provider := util.GetProvisionedPVCProvisioner(srcPVC, bo.scCache)
 	if provider == "" {
-		return nil, fmt.Errorf("CSI driver not found for PVC %s/%s", pbo.getNamespace(pb), pbo.GetSource(pb))
+		return nil, fmt.Errorf("CSI driver not found for PVC %s/%s", bo.getNamespace(vrb), bo.GetSource(vrb))
 	}
 
 	// Load CSI driver config
-	csiDriverConfig, err := util.LoadCSIDriverConfig(pbo.settingCache)
+	csiDriverConfig, err := util.LoadCSIDriverConfig(bo.settingCache)
 	if err != nil {
 		return nil, err
 	}
@@ -329,135 +328,140 @@ func (pbo *pvcBackupOperator) GetVSClassInfo(pb *harvesterv1.PVCBackup) (*settin
 	driverInfo, ok := csiDriverConfig[provider]
 	if !ok {
 		return nil, fmt.Errorf("CSI driver %q not found in CSIDriverInfo settings for PVC %s/%s",
-			provider, pbo.getNamespace(pb), pbo.GetSource(pb))
+			provider, bo.getNamespace(vrb), bo.GetSource(vrb))
 	}
 	return &driverInfo, nil
 }
 
-func (pbo *pvcBackupOperator) GetCSIProvider(pb *harvesterv1.PVCBackup) string {
-	return pb.Status.CSIProvider
+func (bo *backupOperator) GetCSIProvider(vrb *harvesterv1.VolumeRemoteBackup) string {
+	return vrb.Status.CSIProvider
 }
 
-func (pbo *pvcBackupOperator) GetSourceSpec(pb *harvesterv1.PVCBackup) corev1.PersistentVolumeClaimSpec {
-	return pb.Status.SourceSpec
+func (bo *backupOperator) GetSourceSpec(vrb *harvesterv1.VolumeRemoteBackup) corev1.PersistentVolumeClaimSpec {
+	return vrb.Status.SourceSpec
 }
 
-func (pbo *pvcBackupOperator) SetHandle(pb *harvesterv1.PVCBackup, handle string) (*harvesterv1.PVCBackup, error) {
-	newPb := pb.DeepCopy()
+func (bo *backupOperator) SetHandle(vrb *harvesterv1.VolumeRemoteBackup, handle string) (*harvesterv1.VolumeRemoteBackup, error) {
+	newPb := vrb.DeepCopy()
 	newPb.Status.Handle = handle
-	return pbo.Update(pb, newPb)
+	return bo.Update(vrb, newPb)
 }
 
-func (pbo *pvcBackupOperator) UpdateCSIProvider(pb *harvesterv1.PVCBackup) (*harvesterv1.PVCBackup, error) {
-	srcPVC, err := pbo.pvcCache.Get(pbo.getNamespace(pb), pbo.GetSource(pb))
+func (bo *backupOperator) UpdateCSIProvider(vrb *harvesterv1.VolumeRemoteBackup) (*harvesterv1.VolumeRemoteBackup, error) {
+	srcPVC, err := bo.pvcCache.Get(bo.getNamespace(vrb), bo.GetSource(vrb))
 	if err != nil {
 		return nil, err
 	}
 
 	// Get CSI driver from PVC
-	provider := util.GetProvisionedPVCProvisioner(srcPVC, pbo.scCache)
+	provider := util.GetProvisionedPVCProvisioner(srcPVC, bo.scCache)
 	if provider == "" {
-		return nil, fmt.Errorf("CSI driver not found for PVC %s/%s", pbo.getNamespace(pb), pbo.GetSource(pb))
+		return nil, fmt.Errorf("CSI driver not found for PVC %s/%s", bo.getNamespace(vrb), bo.GetSource(vrb))
 	}
 
-	newPb := pb.DeepCopy()
+	newPb := vrb.DeepCopy()
 	newPb.Status.CSIProvider = provider
-	return pbo.Update(pb, newPb)
+	return bo.Update(vrb, newPb)
 }
 
-func (pbo *pvcBackupOperator) UpdateSourceSpec(pb *harvesterv1.PVCBackup) (*harvesterv1.PVCBackup, error) {
-	srcPVC, err := pbo.pvcCache.Get(pbo.getNamespace(pb), pbo.GetSource(pb))
+func (bo *backupOperator) UpdateSourceSpec(vrb *harvesterv1.VolumeRemoteBackup) (*harvesterv1.VolumeRemoteBackup, error) {
+	srcPVC, err := bo.pvcCache.Get(bo.getNamespace(vrb), bo.GetSource(vrb))
 	if err != nil {
 		return nil, err
 	}
 
-	newPb := pb.DeepCopy()
-	newPb.Status.SourceSpec = srcPVC.Spec
-	return pbo.Update(pb, newPb)
+	newVrb := vrb.DeepCopy()
+	newVrb.Status.SourceSpec = srcPVC.Spec
+	return bo.Update(vrb, newVrb)
 }
 
-// PVCRestoreOperator defines the interface for PVCRestore operations
-type PVCRestoreOperator interface {
+type RestoreOperator interface {
 	// Getters
-	GetNamespace(pr *harvesterv1.PVCRestore) string
-	GetName(pr *harvesterv1.PVCRestore) string
-	GetKind(pr *harvesterv1.PVCRestore) string
-	GetUID(pr *harvesterv1.PVCRestore) types.UID
-	GetType(pr *harvesterv1.PVCRestore) harvesterv1.PVCRestoreType
-	GetFrom(pr *harvesterv1.PVCRestore) string
-	GetSuccess(pr *harvesterv1.PVCRestore) bool
-	GetVSClassInfo(pr *harvesterv1.PVCRestore) (*settings.CSIDriverInfo, error)
+	GetNamespace(vrr *harvesterv1.VolumeRemoteRestore) string
+	GetName(vrr *harvesterv1.VolumeRemoteRestore) string
+	GetKind(vrr *harvesterv1.VolumeRemoteRestore) string
+	GetUID(vrr *harvesterv1.VolumeRemoteRestore) types.UID
+	GetType(vrr *harvesterv1.VolumeRemoteRestore) harvesterv1.VolumeRemoteRestoreType
+	GetFrom(vrr *harvesterv1.VolumeRemoteRestore) string
+	GetSuccess(vrr *harvesterv1.VolumeRemoteRestore) bool
+	GetSnapshotClassInfo(vrr *harvesterv1.VolumeRemoteRestore) (*settings.CSIDriverInfo, error)
 
 	// Update
-	Update(oldPr, newPr *harvesterv1.PVCRestore) (*harvesterv1.PVCRestore, error)
+	Update(oldVrr, newVrr *harvesterv1.VolumeRemoteRestore) (*harvesterv1.VolumeRemoteRestore, error)
 
 	// Setters
-	SetSuccess(pr *harvesterv1.PVCRestore, success bool) (*harvesterv1.PVCRestore, error)
-	SetReady(pr *harvesterv1.PVCRestore) (*harvesterv1.PVCRestore, error)
-	SetProcessing(pr *harvesterv1.PVCRestore) (*harvesterv1.PVCRestore, error)
-	SetError(pr *harvesterv1.PVCRestore, err error) (*harvesterv1.PVCRestore, error)
+	SetSuccess(vrr *harvesterv1.VolumeRemoteRestore, success bool) (*harvesterv1.VolumeRemoteRestore, error)
+	SetReady(vrr *harvesterv1.VolumeRemoteRestore) (*harvesterv1.VolumeRemoteRestore, error)
+	SetProcessing(vrr *harvesterv1.VolumeRemoteRestore) (*harvesterv1.VolumeRemoteRestore, error)
+	SetError(vrr *harvesterv1.VolumeRemoteRestore, err error) (*harvesterv1.VolumeRemoteRestore, error)
 }
 
-type pvcRestoreOperator struct {
-	*ResourceOperator[*harvesterv1.PVCRestore, *harvesterv1.PVCRestoreStatus]
-	client  ctlharvesterv1.PVCRestoreClient
-	pbCache ctlharvesterv1.PVCBackupCache
-	pbo     PVCBackupOperator
+type restoreOperator struct {
+	*ResourceOperator[*harvesterv1.VolumeRemoteRestore, *harvesterv1.VolumeRemoteRestoreStatus]
+	client   ctlharvesterv1.VolumeRemoteRestoreClient
+	vrbCache ctlharvesterv1.VolumeRemoteBackupCache
+	bo       BackupOperator
 }
 
-func GetPVCRestoreOperator(
-	client ctlharvesterv1.PVCRestoreClient,
+func NewRestoreOperator(
+	client ctlharvesterv1.VolumeRemoteRestoreClient,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	scCache ctlstoragev1.StorageClassCache,
 	settingCache ctlharvesterv1.SettingCache,
-	pbCache ctlharvesterv1.PVCBackupCache,
-	pbo PVCBackupOperator,
-) PVCRestoreOperator {
-	return &pvcRestoreOperator{
+	vrbCache ctlharvesterv1.VolumeRemoteBackupCache,
+	bo BackupOperator,
+) RestoreOperator {
+	return &restoreOperator{
 		ResourceOperator: NewResourceOperator(
-			ResourceOperatorConfig[*harvesterv1.PVCRestore, *harvesterv1.PVCRestoreStatus]{
+			ResourceOperatorConfig[*harvesterv1.VolumeRemoteRestore, *harvesterv1.VolumeRemoteRestoreStatus]{
 				Client:       client,
 				PVCCache:     pvcCache,
 				SCCache:      scCache,
 				SettingCache: settingCache,
-				GetNamespace: func(pr *harvesterv1.PVCRestore) string { return pr.Namespace },
-				GetName:      func(pr *harvesterv1.PVCRestore) string { return pr.Name },
-				GetKind:      func(pr *harvesterv1.PVCRestore) string { return pr.Kind },
-				GetUID:       func(pr *harvesterv1.PVCRestore) types.UID { return pr.UID },
-				DeepCopy:     func(pr *harvesterv1.PVCRestore) *harvesterv1.PVCRestore { return pr.DeepCopy() },
-				GetStatus:    func(pr *harvesterv1.PVCRestore) *harvesterv1.PVCRestoreStatus { return &pr.Status },
-				SetStatus: func(pr *harvesterv1.PVCRestore, s *harvesterv1.PVCRestoreStatus) *harvesterv1.PVCRestore {
-					pr.Status = *s
-					return pr
+				GetNamespace: func(vrr *harvesterv1.VolumeRemoteRestore) string { return vrr.Namespace },
+				GetName:      func(vrr *harvesterv1.VolumeRemoteRestore) string { return vrr.Name },
+				GetKind:      func(vrr *harvesterv1.VolumeRemoteRestore) string { return vrr.Kind },
+				GetUID:       func(vrr *harvesterv1.VolumeRemoteRestore) types.UID { return vrr.UID },
+				DeepCopy: func(vrr *harvesterv1.VolumeRemoteRestore) *harvesterv1.VolumeRemoteRestore {
+					return vrr.DeepCopy()
+				},
+				GetStatus: func(vrr *harvesterv1.VolumeRemoteRestore) *harvesterv1.VolumeRemoteRestoreStatus {
+					return &vrr.Status
+				},
+				SetStatus: func(
+					vrr *harvesterv1.VolumeRemoteRestore,
+					s *harvesterv1.VolumeRemoteRestoreStatus,
+				) *harvesterv1.VolumeRemoteRestore {
+					vrr.Status = *s
+					return vrr
 				},
 			},
 		),
-		client:  client,
-		pbCache: pbCache,
-		pbo:     pbo,
+		client:   client,
+		vrbCache: vrbCache,
+		bo:       bo,
 	}
 }
 
-// PVCRestore-specific methods
-func (pro *pvcRestoreOperator) GetType(pr *harvesterv1.PVCRestore) harvesterv1.PVCRestoreType {
-	return pr.Spec.Type
+func (ro *restoreOperator) GetType(vrr *harvesterv1.VolumeRemoteRestore) harvesterv1.VolumeRemoteRestoreType {
+	return vrr.Spec.Type
 }
 
-func (pro *pvcRestoreOperator) GetFrom(pr *harvesterv1.PVCRestore) string {
-	return pr.Spec.From
+func (ro *restoreOperator) GetFrom(vrr *harvesterv1.VolumeRemoteRestore) string {
+	return vrr.Spec.From
 }
 
-func (pro *pvcRestoreOperator) GetVSClassInfo(pr *harvesterv1.PVCRestore) (*settings.CSIDriverInfo, error) {
-	pbNamespace, pbName := ref.Parse(pro.GetFrom(pr))
-	pb, err := pro.pbCache.Get(pbNamespace, pbName)
+func (ro *restoreOperator) GetSnapshotClassInfo(vrr *harvesterv1.VolumeRemoteRestore) (*settings.CSIDriverInfo, error) {
+	vrbNamespace, vrbName := ref.Parse(ro.GetFrom(vrr))
+	vrb, err := ro.vrbCache.Get(vrbNamespace, vrbName)
 	if err != nil {
 		return nil, err
 	}
 
-	provider := pro.pbo.GetCSIProvider(pb)
+	provider := ro.bo.GetCSIProvider(vrb)
 
 	// Load CSI driver config
-	csiDriverConfig, err := util.LoadCSIDriverConfig(pro.settingCache)
+	csiDriverConfig, err := util.LoadCSIDriverConfig(ro.settingCache)
 	if err != nil {
 		return nil, err
 	}
@@ -466,7 +470,7 @@ func (pro *pvcRestoreOperator) GetVSClassInfo(pr *harvesterv1.PVCRestore) (*sett
 	driverInfo, ok := csiDriverConfig[provider]
 	if !ok {
 		return nil, fmt.Errorf("CSI driver %q not found in CSIDriverInfo settings for resource %s/%s",
-			provider, pro.GetNamespace(pr), pro.GetFrom(pr))
+			provider, ro.GetNamespace(vrr), ro.GetFrom(vrr))
 	}
 	return &driverInfo, nil
 }

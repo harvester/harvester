@@ -36,14 +36,6 @@ func (c *FakeHarvesterhciV1beta1) KeyPairs(namespace string) v1beta1.KeyPairInte
 	return newFakeKeyPairs(c, namespace)
 }
 
-func (c *FakeHarvesterhciV1beta1) PVCBackups(namespace string) v1beta1.PVCBackupInterface {
-	return &FakePVCBackups{c, namespace}
-}
-
-func (c *FakeHarvesterhciV1beta1) PVCRestores(namespace string) v1beta1.PVCRestoreInterface {
-	return &FakePVCRestores{c, namespace}
-}
-
 func (c *FakeHarvesterhciV1beta1) Preferences(namespace string) v1beta1.PreferenceInterface {
 	return newFakePreferences(c, namespace)
 }
@@ -98,6 +90,14 @@ func (c *FakeHarvesterhciV1beta1) VirtualMachineTemplates(namespace string) v1be
 
 func (c *FakeHarvesterhciV1beta1) VirtualMachineTemplateVersions(namespace string) v1beta1.VirtualMachineTemplateVersionInterface {
 	return newFakeVirtualMachineTemplateVersions(c, namespace)
+}
+
+func (c *FakeHarvesterhciV1beta1) VolumeRemoteBackups(namespace string) v1beta1.VolumeRemoteBackupInterface {
+	return newFakeVolumeRemoteBackups(c, namespace)
+}
+
+func (c *FakeHarvesterhciV1beta1) VolumeRemoteRestores(namespace string) v1beta1.VolumeRemoteRestoreInterface {
+	return newFakeVolumeRemoteRestores(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

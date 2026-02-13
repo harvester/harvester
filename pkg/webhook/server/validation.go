@@ -8,7 +8,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/harvester/harvester/pkg/pvcbackup/common"
+	"github.com/harvester/harvester/pkg/volumeremotebackup/common"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
 	"github.com/harvester/harvester/pkg/webhook/resources/addon"
@@ -22,7 +22,6 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/networkattachmentdefinition"
 	"github.com/harvester/harvester/pkg/webhook/resources/node"
 	"github.com/harvester/harvester/pkg/webhook/resources/persistentvolumeclaim"
-	"github.com/harvester/harvester/pkg/webhook/resources/pvcbackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/resourcequota"
 	"github.com/harvester/harvester/pkg/webhook/resources/schedulevmbackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/secret"
@@ -36,6 +35,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinebackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineimage"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinerestore"
+	"github.com/harvester/harvester/pkg/webhook/resources/volumeremotebackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/volumesnapshot"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	"github.com/harvester/harvester/pkg/webhook/util"
@@ -69,19 +69,19 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
-		pvcbackup.NewBackupValidator(
+		volumeremotebackup.NewBackupValidator(
 			clients.Core.PersistentVolumeClaim().Cache(),
-			clients.HarvesterFactory.Harvesterhci().V1beta1().PVCBackup(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VolumeRemoteBackup(),
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
-		pvcbackup.NewRestoreValidator(
-			clients.HarvesterFactory.Harvesterhci().V1beta1().PVCRestore(),
+		volumeremotebackup.NewRestoreValidator(
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VolumeRemoteRestore(),
 			clients.Core.PersistentVolumeClaim().Cache(),
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
-			clients.HarvesterFactory.Harvesterhci().V1beta1().PVCBackup().Cache(),
-			common.GetPVCBackupOperator(
-				clients.HarvesterFactory.Harvesterhci().V1beta1().PVCBackup(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VolumeRemoteBackup().Cache(),
+			common.NewBackupOperator(
+				clients.HarvesterFactory.Harvesterhci().V1beta1().VolumeRemoteBackup(),
 				clients.Core.PersistentVolumeClaim().Cache(),
 				clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 				clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),

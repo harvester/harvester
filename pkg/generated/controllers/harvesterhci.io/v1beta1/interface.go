@@ -33,8 +33,6 @@ func init() {
 type Interface interface {
 	Addon() AddonController
 	KeyPair() KeyPairController
-	PVCBackup() PVCBackupController
-	PVCRestore() PVCRestoreController
 	Preference() PreferenceController
 	ResourceQuota() ResourceQuotaController
 	ScheduleVMBackup() ScheduleVMBackupController
@@ -49,6 +47,8 @@ type Interface interface {
 	VirtualMachineRestore() VirtualMachineRestoreController
 	VirtualMachineTemplate() VirtualMachineTemplateController
 	VirtualMachineTemplateVersion() VirtualMachineTemplateVersionController
+	VolumeRemoteBackup() VolumeRemoteBackupController
+	VolumeRemoteRestore() VolumeRemoteRestoreController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -67,14 +67,6 @@ func (v *version) Addon() AddonController {
 
 func (v *version) KeyPair() KeyPairController {
 	return generic.NewController[*v1beta1.KeyPair, *v1beta1.KeyPairList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "KeyPair"}, "keypairs", true, v.controllerFactory)
-}
-
-func (v *version) PVCBackup() PVCBackupController {
-	return generic.NewController[*v1beta1.PVCBackup, *v1beta1.PVCBackupList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "PVCBackup"}, "pvcbackups", true, v.controllerFactory)
-}
-
-func (v *version) PVCRestore() PVCRestoreController {
-	return generic.NewController[*v1beta1.PVCRestore, *v1beta1.PVCRestoreList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "PVCRestore"}, "pvcrestores", true, v.controllerFactory)
 }
 
 func (v *version) Preference() PreferenceController {
@@ -131,4 +123,12 @@ func (v *version) VirtualMachineTemplate() VirtualMachineTemplateController {
 
 func (v *version) VirtualMachineTemplateVersion() VirtualMachineTemplateVersionController {
 	return generic.NewController[*v1beta1.VirtualMachineTemplateVersion, *v1beta1.VirtualMachineTemplateVersionList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VirtualMachineTemplateVersion"}, "virtualmachinetemplateversions", true, v.controllerFactory)
+}
+
+func (v *version) VolumeRemoteBackup() VolumeRemoteBackupController {
+	return generic.NewController[*v1beta1.VolumeRemoteBackup, *v1beta1.VolumeRemoteBackupList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VolumeRemoteBackup"}, "volumeremotebackups", true, v.controllerFactory)
+}
+
+func (v *version) VolumeRemoteRestore() VolumeRemoteRestoreController {
+	return generic.NewController[*v1beta1.VolumeRemoteRestore, *v1beta1.VolumeRemoteRestoreList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "VolumeRemoteRestore"}, "volumeremoterestores", true, v.controllerFactory)
 }

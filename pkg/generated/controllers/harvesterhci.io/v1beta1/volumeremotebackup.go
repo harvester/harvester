@@ -34,31 +34,31 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// PVCBackupController interface for managing PVCBackup resources.
-type PVCBackupController interface {
-	generic.ControllerInterface[*v1beta1.PVCBackup, *v1beta1.PVCBackupList]
+// VolumeRemoteBackupController interface for managing VolumeRemoteBackup resources.
+type VolumeRemoteBackupController interface {
+	generic.ControllerInterface[*v1beta1.VolumeRemoteBackup, *v1beta1.VolumeRemoteBackupList]
 }
 
-// PVCBackupClient interface for managing PVCBackup resources in Kubernetes.
-type PVCBackupClient interface {
-	generic.ClientInterface[*v1beta1.PVCBackup, *v1beta1.PVCBackupList]
+// VolumeRemoteBackupClient interface for managing VolumeRemoteBackup resources in Kubernetes.
+type VolumeRemoteBackupClient interface {
+	generic.ClientInterface[*v1beta1.VolumeRemoteBackup, *v1beta1.VolumeRemoteBackupList]
 }
 
-// PVCBackupCache interface for retrieving PVCBackup resources in memory.
-type PVCBackupCache interface {
-	generic.CacheInterface[*v1beta1.PVCBackup]
+// VolumeRemoteBackupCache interface for retrieving VolumeRemoteBackup resources in memory.
+type VolumeRemoteBackupCache interface {
+	generic.CacheInterface[*v1beta1.VolumeRemoteBackup]
 }
 
-// PVCBackupStatusHandler is executed for every added or modified PVCBackup. Should return the new status to be updated
-type PVCBackupStatusHandler func(obj *v1beta1.PVCBackup, status v1beta1.PVCBackupStatus) (v1beta1.PVCBackupStatus, error)
+// VolumeRemoteBackupStatusHandler is executed for every added or modified VolumeRemoteBackup. Should return the new status to be updated
+type VolumeRemoteBackupStatusHandler func(obj *v1beta1.VolumeRemoteBackup, status v1beta1.VolumeRemoteBackupStatus) (v1beta1.VolumeRemoteBackupStatus, error)
 
-// PVCBackupGeneratingHandler is the top-level handler that is executed for every PVCBackup event. It extends PVCBackupStatusHandler by a returning a slice of child objects to be passed to apply.Apply
-type PVCBackupGeneratingHandler func(obj *v1beta1.PVCBackup, status v1beta1.PVCBackupStatus) ([]runtime.Object, v1beta1.PVCBackupStatus, error)
+// VolumeRemoteBackupGeneratingHandler is the top-level handler that is executed for every VolumeRemoteBackup event. It extends VolumeRemoteBackupStatusHandler by a returning a slice of child objects to be passed to apply.Apply
+type VolumeRemoteBackupGeneratingHandler func(obj *v1beta1.VolumeRemoteBackup, status v1beta1.VolumeRemoteBackupStatus) ([]runtime.Object, v1beta1.VolumeRemoteBackupStatus, error)
 
-// RegisterPVCBackupStatusHandler configures a PVCBackupController to execute a PVCBackupStatusHandler for every events observed.
+// RegisterVolumeRemoteBackupStatusHandler configures a VolumeRemoteBackupController to execute a VolumeRemoteBackupStatusHandler for every events observed.
 // If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
-func RegisterPVCBackupStatusHandler(ctx context.Context, controller PVCBackupController, condition condition.Cond, name string, handler PVCBackupStatusHandler) {
-	statusHandler := &pVCBackupStatusHandler{
+func RegisterVolumeRemoteBackupStatusHandler(ctx context.Context, controller VolumeRemoteBackupController, condition condition.Cond, name string, handler VolumeRemoteBackupStatusHandler) {
+	statusHandler := &volumeRemoteBackupStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
@@ -66,31 +66,31 @@ func RegisterPVCBackupStatusHandler(ctx context.Context, controller PVCBackupCon
 	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
-// RegisterPVCBackupGeneratingHandler configures a PVCBackupController to execute a PVCBackupGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// RegisterVolumeRemoteBackupGeneratingHandler configures a VolumeRemoteBackupController to execute a VolumeRemoteBackupGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
 // If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
-func RegisterPVCBackupGeneratingHandler(ctx context.Context, controller PVCBackupController, apply apply.Apply,
-	condition condition.Cond, name string, handler PVCBackupGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
-	statusHandler := &pVCBackupGeneratingHandler{
-		PVCBackupGeneratingHandler: handler,
-		apply:                      apply,
-		name:                       name,
-		gvk:                        controller.GroupVersionKind(),
+func RegisterVolumeRemoteBackupGeneratingHandler(ctx context.Context, controller VolumeRemoteBackupController, apply apply.Apply,
+	condition condition.Cond, name string, handler VolumeRemoteBackupGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &volumeRemoteBackupGeneratingHandler{
+		VolumeRemoteBackupGeneratingHandler: handler,
+		apply:                               apply,
+		name:                                name,
+		gvk:                                 controller.GroupVersionKind(),
 	}
 	if opts != nil {
 		statusHandler.opts = *opts
 	}
 	controller.OnChange(ctx, name, statusHandler.Remove)
-	RegisterPVCBackupStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+	RegisterVolumeRemoteBackupStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
 }
 
-type pVCBackupStatusHandler struct {
-	client    PVCBackupClient
+type volumeRemoteBackupStatusHandler struct {
+	client    VolumeRemoteBackupClient
 	condition condition.Cond
-	handler   PVCBackupStatusHandler
+	handler   VolumeRemoteBackupStatusHandler
 }
 
 // sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
-func (a *pVCBackupStatusHandler) sync(key string, obj *v1beta1.PVCBackup) (*v1beta1.PVCBackup, error) {
+func (a *volumeRemoteBackupStatusHandler) sync(key string, obj *v1beta1.VolumeRemoteBackup) (*v1beta1.VolumeRemoteBackup, error) {
 	if obj == nil {
 		return obj, nil
 	}
@@ -129,8 +129,8 @@ func (a *pVCBackupStatusHandler) sync(key string, obj *v1beta1.PVCBackup) (*v1be
 	return obj, err
 }
 
-type pVCBackupGeneratingHandler struct {
-	PVCBackupGeneratingHandler
+type volumeRemoteBackupGeneratingHandler struct {
+	VolumeRemoteBackupGeneratingHandler
 	apply apply.Apply
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
@@ -139,12 +139,12 @@ type pVCBackupGeneratingHandler struct {
 }
 
 // Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
-func (a *pVCBackupGeneratingHandler) Remove(key string, obj *v1beta1.PVCBackup) (*v1beta1.PVCBackup, error) {
+func (a *volumeRemoteBackupGeneratingHandler) Remove(key string, obj *v1beta1.VolumeRemoteBackup) (*v1beta1.VolumeRemoteBackup, error) {
 	if obj != nil {
 		return obj, nil
 	}
 
-	obj = &v1beta1.PVCBackup{}
+	obj = &v1beta1.VolumeRemoteBackup{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
@@ -158,13 +158,13 @@ func (a *pVCBackupGeneratingHandler) Remove(key string, obj *v1beta1.PVCBackup) 
 		ApplyObjects()
 }
 
-// Handle executes the configured PVCBackupGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
-func (a *pVCBackupGeneratingHandler) Handle(obj *v1beta1.PVCBackup, status v1beta1.PVCBackupStatus) (v1beta1.PVCBackupStatus, error) {
+// Handle executes the configured VolumeRemoteBackupGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
+func (a *volumeRemoteBackupGeneratingHandler) Handle(obj *v1beta1.VolumeRemoteBackup, status v1beta1.VolumeRemoteBackupStatus) (v1beta1.VolumeRemoteBackupStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
 	}
 
-	objs, newStatus, err := a.PVCBackupGeneratingHandler(obj, status)
+	objs, newStatus, err := a.VolumeRemoteBackupGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
 	}
@@ -185,7 +185,7 @@ func (a *pVCBackupGeneratingHandler) Handle(obj *v1beta1.PVCBackup, status v1bet
 
 // isNewResourceVersion detects if a specific resource version was already successfully processed.
 // Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *pVCBackupGeneratingHandler) isNewResourceVersion(obj *v1beta1.PVCBackup) bool {
+func (a *volumeRemoteBackupGeneratingHandler) isNewResourceVersion(obj *v1beta1.VolumeRemoteBackup) bool {
 	if !a.opts.UniqueApplyForResourceVersion {
 		return true
 	}
@@ -198,7 +198,7 @@ func (a *pVCBackupGeneratingHandler) isNewResourceVersion(obj *v1beta1.PVCBackup
 
 // storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
 // Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *pVCBackupGeneratingHandler) storeResourceVersion(obj *v1beta1.PVCBackup) {
+func (a *volumeRemoteBackupGeneratingHandler) storeResourceVersion(obj *v1beta1.VolumeRemoteBackup) {
 	if !a.opts.UniqueApplyForResourceVersion {
 		return
 	}

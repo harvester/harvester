@@ -15,16 +15,16 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
-	"github.com/harvester/harvester/pkg/pvcbackup/common"
-	"github.com/harvester/harvester/pkg/pvcbackup/driver"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/volumeremotebackup/common"
+	"github.com/harvester/harvester/pkg/volumeremotebackup/driver"
 )
 
 type LHRestoreOperation struct {
-	pro          common.PVCRestoreOperator
-	pbo          common.PVCBackupOperator
-	pbCache      ctlharvesterv1.PVCBackupCache
+	ro           common.RestoreOperator
+	bo           common.BackupOperator
+	vrbCache     ctlharvesterv1.VolumeRemoteBackupCache
 	vsCache      ctlsnapshotv1.VolumeSnapshotCache
 	vsClient     ctlsnapshotv1.VolumeSnapshotClient
 	vsClassCache ctlsnapshotv1.VolumeSnapshotClassCache
@@ -36,9 +36,9 @@ type LHRestoreOperation struct {
 }
 
 func GetLHRestoreOperation(
-	pro common.PVCRestoreOperator,
-	pbo common.PVCBackupOperator,
-	pbCache ctlharvesterv1.PVCBackupCache,
+	ro common.RestoreOperator,
+	bo common.BackupOperator,
+	vrbCache ctlharvesterv1.VolumeRemoteBackupCache,
 	vsCache ctlsnapshotv1.VolumeSnapshotCache,
 	vsClient ctlsnapshotv1.VolumeSnapshotClient,
 	vsClassCache ctlsnapshotv1.VolumeSnapshotClassCache,
@@ -49,9 +49,9 @@ func GetLHRestoreOperation(
 	scCache ctlstoragev1.StorageClassCache,
 ) driver.RestoreOperation {
 	return &LHRestoreOperation{
-		pro:          pro,
-		pbo:          pbo,
-		pbCache:      pbCache,
+		ro:           ro,
+		bo:           bo,
+		vrbCache:     vrbCache,
 		vsCache:      vsCache,
 		vsClient:     vsClient,
 		vsClassCache: vsClassCache,
@@ -64,26 +64,26 @@ func GetLHRestoreOperation(
 }
 
 // BuildOwnerReference creates an owner reference for a PVCRestore.
-func (lbr *LHRestoreOperation) BuildOwnerReference(pr *harvesterv1.PVCRestore) metav1.OwnerReference {
+func (lbr *LHRestoreOperation) BuildOwnerReference(vrr *harvesterv1.VolumeRemoteRestore) metav1.OwnerReference {
 	return metav1.OwnerReference{
 		APIVersion: harvesterv1.SchemeGroupVersion.String(),
-		Kind:       lbr.pro.GetKind(pr),
-		Name:       lbr.pro.GetName(pr),
-		UID:        lbr.pro.GetUID(pr),
+		Kind:       lbr.ro.GetKind(vrr),
+		Name:       lbr.ro.GetName(vrr),
+		UID:        lbr.ro.GetUID(vrr),
 		Controller: ptr.To(true),
 	}
 }
 
-func (lbr *LHRestoreOperation) Create(pr *harvesterv1.PVCRestore) error {
-	if pr == nil {
-		return fmt.Errorf("PVCRestore cannot be nil")
+func (lbr *LHRestoreOperation) Create(vrr *harvesterv1.VolumeRemoteRestore) error {
+	if vrr == nil {
+		return fmt.Errorf("RemoteRestore cannot be nil")
 	}
 
-	ready, err := lbr.readiness(pr)
+	ready, err := lbr.readiness(vrr)
 	if err == nil {
 		if !ready {
-			return fmt.Errorf("resources for PVCRestore %s/%s already exist but not ready",
-				lbr.pro.GetNamespace(pr), lbr.pro.GetName(pr))
+			return fmt.Errorf("resources for RemoteRestore %s/%s already exist but not ready",
+				lbr.ro.GetNamespace(vrr), lbr.ro.GetName(vrr))
 		}
 		return nil
 	}
@@ -95,13 +95,13 @@ func (lbr *LHRestoreOperation) Create(pr *harvesterv1.PVCRestore) error {
 
 	// Resources don't exist, create them
 	// Get the source PVCBackup
-	pb, err := lbr.getSourcePVCBackup(pr)
+	vrb, err := lbr.getSourceRemoteBackup(vrr)
 	if err != nil {
 		return err
 	}
 
 	// Get VolumeSnapshotClass information
-	vsClassInfo, err := lbr.pro.GetVSClassInfo(pr)
+	vsClassInfo, err := lbr.ro.GetSnapshotClassInfo(vrr)
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func (lbr *LHRestoreOperation) Create(pr *harvesterv1.PVCRestore) error {
 	}
 
 	// Create VolumeSnapshotContent, VolumeSnapshot, and PVC
-	return lbr.ensureRestoreResourcesExist(pr, pb, vsClass)
+	return lbr.ensureRestoreResourcesExist(vrr, vrb, vsClass)
 }
 
 // createOrGet is a helper function that attempts to create a resource, and if it already exists,
@@ -137,8 +137,8 @@ func createOrGet[T any](
 // buildRestoreSteps creates an array of functions that define the steps to create restore resources.
 // Each step returns an error if the operation fails.
 func (lbr *LHRestoreOperation) buildRestoreSteps(
-	pr *harvesterv1.PVCRestore,
-	pb *harvesterv1.PVCBackup,
+	vrr *harvesterv1.VolumeRemoteRestore,
+	vrb *harvesterv1.VolumeRemoteBackup,
 	vsClass *snapshotv1.VolumeSnapshotClass,
 ) []func() error {
 	var vsc *snapshotv1.VolumeSnapshotContent
@@ -150,10 +150,10 @@ func (lbr *LHRestoreOperation) buildRestoreSteps(
 			var err error
 			vsc, err = createOrGet(
 				func() (*snapshotv1.VolumeSnapshotContent, error) {
-					return lbr.createVSC(pr, pb, vsClass)
+					return lbr.createVSC(vrr, vrb, vsClass)
 				},
 				func() (*snapshotv1.VolumeSnapshotContent, error) {
-					return lbr.vscCache.Get(lbr.pro.GetName(pr))
+					return lbr.vscCache.Get(lbr.ro.GetName(vrr))
 				},
 			)
 			return err
@@ -166,10 +166,10 @@ func (lbr *LHRestoreOperation) buildRestoreSteps(
 			var err error
 			vs, err = createOrGet(
 				func() (*snapshotv1.VolumeSnapshot, error) {
-					return lbr.createVolumeSnapshot(pr, vsc, vsClass)
+					return lbr.createVolumeSnapshot(vrr, vsc, vsClass)
 				},
 				func() (*snapshotv1.VolumeSnapshot, error) {
-					return lbr.vsCache.Get(lbr.pro.GetNamespace(pr), lbr.pro.GetName(pr))
+					return lbr.vsCache.Get(lbr.ro.GetNamespace(vrr), lbr.ro.GetName(vrr))
 				},
 			)
 			return err
@@ -181,10 +181,10 @@ func (lbr *LHRestoreOperation) buildRestoreSteps(
 			}
 			_, err := createOrGet(
 				func() (*corev1.PersistentVolumeClaim, error) {
-					return lbr.createPVCFromSnapshot(pr, pb, vs)
+					return lbr.createPVCFromSnapshot(vrr, vrb, vs)
 				},
 				func() (*corev1.PersistentVolumeClaim, error) {
-					return lbr.pvcCache.Get(lbr.pro.GetNamespace(pr), lbr.pro.GetName(pr))
+					return lbr.pvcCache.Get(lbr.ro.GetNamespace(vrr), lbr.ro.GetName(vrr))
 				},
 			)
 			return err
@@ -194,12 +194,12 @@ func (lbr *LHRestoreOperation) buildRestoreSteps(
 
 // ensureRestoreResourcesExist creates all necessary resources for a restore operation
 func (lbr *LHRestoreOperation) ensureRestoreResourcesExist(
-	pr *harvesterv1.PVCRestore,
-	pb *harvesterv1.PVCBackup,
+	vrr *harvesterv1.VolumeRemoteRestore,
+	vrb *harvesterv1.VolumeRemoteBackup,
 	vsClass *snapshotv1.VolumeSnapshotClass,
 ) error {
 	// Build creation steps
-	steps := lbr.buildRestoreSteps(pr, pb, vsClass)
+	steps := lbr.buildRestoreSteps(vrr, vrb, vsClass)
 
 	// Execute all steps sequentially
 	for _, step := range steps {
@@ -211,45 +211,44 @@ func (lbr *LHRestoreOperation) ensureRestoreResourcesExist(
 	return nil
 }
 
-// getSourcePVCBackup retrieves the source PVCBackup referenced by the PVCRestore
-func (lbr *LHRestoreOperation) getSourcePVCBackup(pr *harvesterv1.PVCRestore) (*harvesterv1.PVCBackup, error) {
-	fromRef := lbr.pro.GetFrom(pr)
+func (lbr *LHRestoreOperation) getSourceRemoteBackup(vrr *harvesterv1.VolumeRemoteRestore) (*harvesterv1.VolumeRemoteBackup, error) {
+	fromRef := lbr.ro.GetFrom(vrr)
 	namespace, name := ref.Parse(fromRef)
 
 	// If namespace is empty, use the same namespace as PVCRestore
 	if namespace == "" {
-		namespace = lbr.pro.GetNamespace(pr)
+		namespace = lbr.ro.GetNamespace(vrr)
 	}
 
-	pb, err := lbr.pbCache.Get(namespace, name)
+	vrb, err := lbr.vrbCache.Get(namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
 	// Validate that the backup has a handle
-	if lbr.pbo.GetHandle(pb) == "" {
-		return nil, fmt.Errorf("source PVCBackup %s/%s has no handle", namespace, name)
+	if lbr.bo.GetHandle(vrb) == "" {
+		return nil, fmt.Errorf("source RemoteBackup %s/%s has no handle", namespace, name)
 	}
 
-	return pb, nil
+	return vrb, nil
 }
 
 // createVSC creates a VolumeSnapshotContent from the backup handle
 func (lbr *LHRestoreOperation) createVSC(
-	pr *harvesterv1.PVCRestore,
-	pb *harvesterv1.PVCBackup,
+	vrr *harvesterv1.VolumeRemoteRestore,
+	vrb *harvesterv1.VolumeRemoteBackup,
 	vsClass *snapshotv1.VolumeSnapshotClass,
 ) (*snapshotv1.VolumeSnapshotContent, error) {
-	vscName := lbr.pro.GetName(pr)
-	vsName := lbr.pro.GetName(pr)
-	vsNamespace := lbr.pro.GetNamespace(pr)
-	handle := lbr.pbo.GetHandle(pb)
+	vscName := lbr.ro.GetName(vrr)
+	vsName := lbr.ro.GetName(vrr)
+	vsNamespace := lbr.ro.GetNamespace(vrr)
+	handle := lbr.bo.GetHandle(vrb)
 
 	vsc := &snapshotv1.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: vscName,
 			Annotations: map[string]string{
-				driver.AnnotationPVCRestoreRef: fmt.Sprintf("%s/%s", vsNamespace, pr.Name),
+				driver.AnnotationPVCRestoreRef: fmt.Sprintf("%s/%s", vsNamespace, vrr.Name),
 			},
 		},
 		Spec: snapshotv1.VolumeSnapshotContentSpec{
@@ -271,12 +270,12 @@ func (lbr *LHRestoreOperation) createVSC(
 
 // createVolumeSnapshot creates a VolumeSnapshot pointing to the VolumeSnapshotContent
 func (lbr *LHRestoreOperation) createVolumeSnapshot(
-	pr *harvesterv1.PVCRestore,
+	vrr *harvesterv1.VolumeRemoteRestore,
 	vsc *snapshotv1.VolumeSnapshotContent,
 	vsClass *snapshotv1.VolumeSnapshotClass,
 ) (*snapshotv1.VolumeSnapshot, error) {
-	vsName := lbr.pro.GetName(pr)
-	vsNamespace := lbr.pro.GetNamespace(pr)
+	vsName := lbr.ro.GetName(vrr)
+	vsNamespace := lbr.ro.GetNamespace(vrr)
 	vscName := vsc.Name
 
 	vs := &snapshotv1.VolumeSnapshot{
@@ -284,7 +283,7 @@ func (lbr *LHRestoreOperation) createVolumeSnapshot(
 			Name:      vsName,
 			Namespace: vsNamespace,
 			Annotations: map[string]string{
-				driver.AnnotationPVCRestoreRef: fmt.Sprintf("%s/%s", vsNamespace, pr.Name),
+				driver.AnnotationPVCRestoreRef: fmt.Sprintf("%s/%s", vsNamespace, vrr.Name),
 			},
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
@@ -300,16 +299,16 @@ func (lbr *LHRestoreOperation) createVolumeSnapshot(
 
 // createPVCFromSnapshot creates a new PVC from the VolumeSnapshot
 func (lbr *LHRestoreOperation) createPVCFromSnapshot(
-	pr *harvesterv1.PVCRestore,
-	pb *harvesterv1.PVCBackup,
+	vrr *harvesterv1.VolumeRemoteRestore,
+	vrb *harvesterv1.VolumeRemoteBackup,
 	vs *snapshotv1.VolumeSnapshot,
 ) (*corev1.PersistentVolumeClaim, error) {
-	pvcName := lbr.pro.GetName(pr)
-	pvcNamespace := lbr.pro.GetNamespace(pr)
-	ownerRef := lbr.BuildOwnerReference(pr)
+	pvcName := lbr.ro.GetName(vrr)
+	pvcNamespace := lbr.ro.GetNamespace(vrr)
+	ownerRef := lbr.BuildOwnerReference(vrr)
 
 	// Get source spec from pb operator
-	sourceSpec := lbr.pbo.GetSourceSpec(pb)
+	sourceSpec := lbr.bo.GetSourceSpec(vrb)
 
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -335,18 +334,18 @@ func (lbr *LHRestoreOperation) createPVCFromSnapshot(
 }
 
 // getVSC retrieves the VolumeSnapshotContent associated with a PVCRestore.
-func (lbr *LHRestoreOperation) getVSCForRestore(pr *harvesterv1.PVCRestore) (*snapshotv1.VolumeSnapshotContent, error) {
-	return lbr.vscCache.Get(lbr.pro.GetName(pr))
+func (lbr *LHRestoreOperation) getVSCForRestore(vrr *harvesterv1.VolumeRemoteRestore) (*snapshotv1.VolumeSnapshotContent, error) {
+	return lbr.vscCache.Get(lbr.ro.GetName(vrr))
 }
 
 // getVolumeSnapshotForPVCRestore retrieves the VolumeSnapshot associated with a PVCRestore.
-func (lbr *LHRestoreOperation) getVolumeSnapshotForPVCRestore(pr *harvesterv1.PVCRestore) (*snapshotv1.VolumeSnapshot, error) {
-	return lbr.vsCache.Get(lbr.pro.GetNamespace(pr), lbr.pro.GetName(pr))
+func (lbr *LHRestoreOperation) getVolumeSnapshotForPVCRestore(vrr *harvesterv1.VolumeRemoteRestore) (*snapshotv1.VolumeSnapshot, error) {
+	return lbr.vsCache.Get(lbr.ro.GetNamespace(vrr), lbr.ro.GetName(vrr))
 }
 
 // getPVCForPVCRestore retrieves the PVC associated with a PVCRestore.
-func (lbr *LHRestoreOperation) getPVCForPVCRestore(pr *harvesterv1.PVCRestore) (*corev1.PersistentVolumeClaim, error) {
-	return lbr.pvcCache.Get(lbr.pro.GetNamespace(pr), lbr.pro.GetName(pr))
+func (lbr *LHRestoreOperation) getPVCForPVCRestore(vrr *harvesterv1.VolumeRemoteRestore) (*corev1.PersistentVolumeClaim, error) {
+	return lbr.pvcCache.Get(lbr.ro.GetNamespace(vrr), lbr.ro.GetName(vrr))
 }
 
 // isVSCDeleting checks if a VolumeSnapshotContent is being deleted.
@@ -393,8 +392,8 @@ func (lbr *LHRestoreOperation) checkVolumeSnapshotError(vs *snapshotv1.VolumeSna
 // checkVSCReady checks if the VolumeSnapshotContent is ready.
 // Returns an error if the VSC is in an error state or being deleted.
 // Returns nil if the VSC is ready, or nil if it's not yet ready (caller should retry).
-func (lbr *LHRestoreOperation) checkVSCReadiness(pr *harvesterv1.PVCRestore) (*snapshotv1.VolumeSnapshotContent, error) {
-	vsc, err := lbr.getVSCForRestore(pr)
+func (lbr *LHRestoreOperation) checkVSCReadiness(vrr *harvesterv1.VolumeRemoteRestore) (*snapshotv1.VolumeSnapshotContent, error) {
+	vsc, err := lbr.getVSCForRestore(vrr)
 	if err != nil {
 		return nil, err
 	}
@@ -417,8 +416,8 @@ func (lbr *LHRestoreOperation) checkVSCReadiness(pr *harvesterv1.PVCRestore) (*s
 // checkVolumeSnapshotReadiness checks if the VolumeSnapshot is ready.
 // Returns an error if the VS is in an error state or being deleted.
 // Returns nil if the VS is ready, or nil if it's not yet ready (caller should retry).
-func (lbr *LHRestoreOperation) checkVolumeSnapshotReadiness(pr *harvesterv1.PVCRestore) (*snapshotv1.VolumeSnapshot, error) {
-	vs, err := lbr.getVolumeSnapshotForPVCRestore(pr)
+func (lbr *LHRestoreOperation) checkVolumeSnapshotReadiness(vrr *harvesterv1.VolumeRemoteRestore) (*snapshotv1.VolumeSnapshot, error) {
+	vs, err := lbr.getVolumeSnapshotForPVCRestore(vrr)
 	if err != nil {
 		return nil, err
 	}
@@ -442,8 +441,8 @@ func (lbr *LHRestoreOperation) checkVolumeSnapshotReadiness(pr *harvesterv1.PVCR
 // Returns true if ready, false if not yet ready, or error if failed.
 // For WaitForFirstConsumer binding mode, considers the PVC ready once created.
 // For Immediate binding mode, waits for the PVC to be bound.
-func (lbr *LHRestoreOperation) checkPVCReadiness(pr *harvesterv1.PVCRestore) (*corev1.PersistentVolumeClaim, error) {
-	pvc, err := lbr.getPVCForPVCRestore(pr)
+func (lbr *LHRestoreOperation) checkPVCReadiness(vrr *harvesterv1.VolumeRemoteRestore) (*corev1.PersistentVolumeClaim, error) {
+	pvc, err := lbr.getPVCForPVCRestore(vrr)
 	if err != nil {
 		return nil, err
 	}
@@ -475,9 +474,9 @@ func (lbr *LHRestoreOperation) checkPVCReadiness(pr *harvesterv1.PVCRestore) (*c
 
 // readiness checks if all resources for the PVCRestore are ready.
 // Returns true if ready, false if not yet ready, or false with error if failed.
-func (lbr *LHRestoreOperation) readiness(pr *harvesterv1.PVCRestore) (bool, error) {
+func (lbr *LHRestoreOperation) readiness(vrr *harvesterv1.VolumeRemoteRestore) (bool, error) {
 	// Step 1: Check VolumeSnapshotContent
-	vsc, err := lbr.checkVSCReadiness(pr)
+	vsc, err := lbr.checkVSCReadiness(vrr)
 	if err != nil {
 		return false, err
 	}
@@ -486,7 +485,7 @@ func (lbr *LHRestoreOperation) readiness(pr *harvesterv1.PVCRestore) (bool, erro
 	}
 
 	// Step 2: Check VolumeSnapshot
-	vs, err := lbr.checkVolumeSnapshotReadiness(pr)
+	vs, err := lbr.checkVolumeSnapshotReadiness(vrr)
 	if err != nil {
 		return false, err
 	}
@@ -495,7 +494,7 @@ func (lbr *LHRestoreOperation) readiness(pr *harvesterv1.PVCRestore) (bool, erro
 	}
 
 	// Step 3: Check PVC
-	pvc, err := lbr.checkPVCReadiness(pr)
+	pvc, err := lbr.checkPVCReadiness(vrr)
 	if err != nil {
 		return false, err
 	}
@@ -506,7 +505,7 @@ func (lbr *LHRestoreOperation) readiness(pr *harvesterv1.PVCRestore) (bool, erro
 	return true, nil
 }
 
-func (lbr *LHRestoreOperation) Readiness(pr *harvesterv1.PVCRestore) (bool, error) {
+func (lbr *LHRestoreOperation) Readiness(pr *harvesterv1.VolumeRemoteRestore) (bool, error) {
 	if pr == nil {
 		return false, fmt.Errorf("PVCRestore cannot be nil")
 	}
@@ -514,8 +513,8 @@ func (lbr *LHRestoreOperation) Readiness(pr *harvesterv1.PVCRestore) (bool, erro
 }
 
 // deleteVolumeSnapshot deletes the VolumeSnapshot associated with a PVCRestore
-func (lbr *LHRestoreOperation) deleteVolumeSnapshot(pr *harvesterv1.PVCRestore) error {
-	vs, err := lbr.getVolumeSnapshotForPVCRestore(pr)
+func (lbr *LHRestoreOperation) deleteVolumeSnapshot(vrr *harvesterv1.VolumeRemoteRestore) error {
+	vs, err := lbr.getVolumeSnapshotForPVCRestore(vrr)
 	if apierrors.IsNotFound(err) {
 		// VolumeSnapshot already deleted or doesn't exist
 		return nil
@@ -536,12 +535,12 @@ func (lbr *LHRestoreOperation) hasSnapshotHandle(vsc *snapshotv1.VolumeSnapshotC
 	return vsc.Status != nil && vsc.Status.SnapshotHandle != nil && *vsc.Status.SnapshotHandle != ""
 }
 
-func (lbr *LHRestoreOperation) Delete(pr *harvesterv1.PVCRestore) error {
+func (lbr *LHRestoreOperation) Delete(vrr *harvesterv1.VolumeRemoteRestore) error {
 	// Check if the related VolumeSnapshotContent exists
-	vsc, err := lbr.getVSCForRestore(pr)
+	vsc, err := lbr.getVSCForRestore(vrr)
 	if apierrors.IsNotFound(err) {
 		// VSC doesn't exist, check and delete VolumeSnapshot
-		return lbr.deleteVolumeSnapshot(pr)
+		return lbr.deleteVolumeSnapshot(vrr)
 	}
 	if err != nil {
 		return err
@@ -549,7 +548,7 @@ func (lbr *LHRestoreOperation) Delete(pr *harvesterv1.PVCRestore) error {
 
 	// SnapshotHandle doesn't exist, delete the related VolumeSnapshot
 	if !lbr.hasSnapshotHandle(vsc) {
-		return lbr.deleteVolumeSnapshot(pr)
+		return lbr.deleteVolumeSnapshot(vrr)
 	}
 
 	// Clear the SnapshotHandle from the VSC status to preserve the source backup.

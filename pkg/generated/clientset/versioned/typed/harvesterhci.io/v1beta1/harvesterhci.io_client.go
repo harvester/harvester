@@ -30,8 +30,6 @@ type HarvesterhciV1beta1Interface interface {
 	RESTClient() rest.Interface
 	AddonsGetter
 	KeyPairsGetter
-	PVCBackupsGetter
-	PVCRestoresGetter
 	PreferencesGetter
 	ResourceQuotasGetter
 	ScheduleVMBackupsGetter
@@ -46,6 +44,8 @@ type HarvesterhciV1beta1Interface interface {
 	VirtualMachineRestoresGetter
 	VirtualMachineTemplatesGetter
 	VirtualMachineTemplateVersionsGetter
+	VolumeRemoteBackupsGetter
+	VolumeRemoteRestoresGetter
 }
 
 // HarvesterhciV1beta1Client is used to interact with features provided by the harvesterhci.io group.
@@ -59,14 +59,6 @@ func (c *HarvesterhciV1beta1Client) Addons(namespace string) AddonInterface {
 
 func (c *HarvesterhciV1beta1Client) KeyPairs(namespace string) KeyPairInterface {
 	return newKeyPairs(c, namespace)
-}
-
-func (c *HarvesterhciV1beta1Client) PVCBackups(namespace string) PVCBackupInterface {
-	return newPVCBackups(c, namespace)
-}
-
-func (c *HarvesterhciV1beta1Client) PVCRestores(namespace string) PVCRestoreInterface {
-	return newPVCRestores(c, namespace)
 }
 
 func (c *HarvesterhciV1beta1Client) Preferences(namespace string) PreferenceInterface {
@@ -123,6 +115,14 @@ func (c *HarvesterhciV1beta1Client) VirtualMachineTemplates(namespace string) Vi
 
 func (c *HarvesterhciV1beta1Client) VirtualMachineTemplateVersions(namespace string) VirtualMachineTemplateVersionInterface {
 	return newVirtualMachineTemplateVersions(c, namespace)
+}
+
+func (c *HarvesterhciV1beta1Client) VolumeRemoteBackups(namespace string) VolumeRemoteBackupInterface {
+	return newVolumeRemoteBackups(c, namespace)
+}
+
+func (c *HarvesterhciV1beta1Client) VolumeRemoteRestores(namespace string) VolumeRemoteRestoreInterface {
+	return newVolumeRemoteRestores(c, namespace)
 }
 
 // NewForConfig creates a new HarvesterhciV1beta1Client for the given config.
