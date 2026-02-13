@@ -15,6 +15,7 @@ import (
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	kubefake "k8s.io/client-go/kubernetes/fake"
 )
 
 const (
@@ -147,12 +148,14 @@ func TestBackingImageHandler_OnChanged_RetryLimitExceeded(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup fake clients
 			var harvFakeClient = fakegenerated.NewSimpleClientset()
+			var kubeFakeClient = kubefake.NewSimpleClientset()
 			require.NoError(t, harvFakeClient.Tracker().Add(tt.vmImage))
 
 			// Create VMIOperator
 			vmio, err := common.GetVMIOperator(
 				fakeclients.VirtualMachineImageClient(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
 				fakeclients.VirtualMachineImageCache(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
+				fakeclients.StorageClassCache(kubeFakeClient.StorageV1().StorageClasses),
 				http.Client{},
 			)
 			require.Nil(t, err, "should create VMIOperator")
