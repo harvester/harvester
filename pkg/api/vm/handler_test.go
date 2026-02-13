@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	k8scorefake "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
@@ -274,9 +273,9 @@ func TestMigrateAction(t *testing.T) {
 		var handler = &vmActionHandler{
 			nodeCache:     fakeclients.NodeCache(clientset.CoreV1().Nodes),
 			kubevirtCache: fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
-			vmis:          fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
+			vmiClient:     fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
 			vmiCache:      fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
-			vmims:         fakeclients.VirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+			vmimClient:    fakeclients.VirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
 			vmimCache:     fakeclients.VirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
 		}
 
@@ -504,10 +503,10 @@ func TestAbortMigrateAction(t *testing.T) {
 		}
 
 		var handler = &vmActionHandler{
-			vmis:      fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
-			vmiCache:  fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
-			vmims:     fakeclients.VirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
-			vmimCache: fakeclients.VirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+			vmiClient:  fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
+			vmiCache:   fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+			vmimClient: fakeclients.VirtualMachineInstanceMigrationClient(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
+			vmimCache:  fakeclients.VirtualMachineInstanceMigrationCache(clientset.KubevirtV1().VirtualMachineInstanceMigrations),
 		}
 
 		var actual output
@@ -1475,7 +1474,7 @@ func TestInsertCdRomVolumeAction(t *testing.T) {
 	clientset := fake.NewSimpleClientset(vm, vmImage)
 
 	handler := &vmActionHandler{
-		vms:          fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+		vmClient:     fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
 		vmCache:      fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
 		vmImageCache: fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 	}
@@ -1558,13 +1557,12 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 	}
 
 	clientset := fake.NewSimpleClientset(vm, pvc)
-	coreclientset := k8scorefake.NewSimpleClientset(vm, pvc)
 
 	handler := &vmActionHandler{
-		vms:       fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+		vmClient:  fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
 		vmCache:   fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+		pvcClient: fakeclients.PersistentVolumeClaimClient(clientset.CoreV1().PersistentVolumeClaims),
 		pvcCache:  fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
-		clientSet: coreclientset,
 	}
 
 	input := EjectCdRomVolumeActionInput{
