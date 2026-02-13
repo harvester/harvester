@@ -130,7 +130,7 @@ func (v *HarvesterVersion) IsOlder(version *HarvesterVersion) (bool, error) {
 		return false, err
 	}
 
-	return !(isNewer || isEqual), nil
+	return !isNewer && !isEqual, nil
 }
 
 func (v *HarvesterVersion) String() string {

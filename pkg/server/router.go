@@ -1,10 +1,12 @@
 package server
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"net/http"
 	"net/url"
 	"runtime/debug"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/urlbuilder"
@@ -15,11 +17,19 @@ import (
 	"github.com/harvester/harvester/pkg/api/backuptarget"
 	"github.com/harvester/harvester/pkg/api/kubeconfig"
 	"github.com/harvester/harvester/pkg/api/proxy"
+	"github.com/harvester/harvester/pkg/api/readyz"
 	"github.com/harvester/harvester/pkg/api/supportbundle"
 	"github.com/harvester/harvester/pkg/api/uiinfo"
 	"github.com/harvester/harvester/pkg/config"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/server/ui"
+	"github.com/harvester/harvester/pkg/util"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+)
+
+const (
+	localRKEStateSecretName = "local-rke-state"
+	serverTokenKey          = "serverToken"
 )
 
 type Router struct {
@@ -61,6 +71,12 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 
 	btHealthyHandler := harvesterServer.NewHandler(backuptarget.NewHealthyHandler(r.scaled))
 	m.Path("/v1/harvester/backuptarget/healthz").Methods("GET").Handler(btHealthyHandler)
+
+	readyzHandlerv1 := harvesterServer.NewHandler(readyz.NewReadyzHandler(
+		r.scaled.CoreFactory.Core().V1().Pod().Cache(),
+		r.scaled.Management.RKEFactory.Rke().V1().RKEControlPlane().Cache()))
+	m.Path("/v1/harvester/readyz").Methods("GET").Handler(authMiddleware(r.scaled.CoreFactory.Core().V1().Secret().Cache(), readyzHandlerv1))
+
 	// --- END of preposition routes ---
 
 	// This is for manually testing the recovery handler below
@@ -113,6 +129,63 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	m.NotFoundHandler = router.Routes(h)
 
 	return m
+}
+
+func authMiddleware(secretCache ctlcorev1.SecretCache, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("Bearer token required")) // nolint: errcheck
+			return
+		}
+
+		providedToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+		actualToken, err := getTokenFromSecret(secretCache)
+		if err != nil {
+			logrus.WithError(err).Error("Failed to get token from secret")
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Internal server error")) // nolint: errcheck
+			return
+		}
+
+		if err := validateToken(actualToken, providedToken); err != nil {
+			logrus.WithError(err).Warn("Token validation failed")
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("Unauthorized")) // nolint: errcheck
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func validateToken(actualToken, providedToken string) error {
+	actualBytes := []byte(actualToken)
+	providedBytes := []byte(providedToken)
+	if subtle.ConstantTimeCompare(actualBytes, providedBytes) != 1 {
+		return fmt.Errorf("tokens do not match")
+	}
+	return nil
+}
+
+func getTokenFromSecret(secretCache ctlcorev1.SecretCache) (string, error) {
+	secret, err := secretCache.Get(util.FleetLocalNamespaceName, localRKEStateSecretName)
+	if err != nil {
+		return "", fmt.Errorf("failed to get secret %s/%s: %s", util.FleetLocalNamespaceName, localRKEStateSecretName, err.Error())
+	}
+
+	tokenBytes, ok := secret.Data[serverTokenKey]
+	if !ok {
+		return "", fmt.Errorf("token key %s not found in secret", serverTokenKey)
+	}
+
+	if len(tokenBytes) == 0 {
+		return "", fmt.Errorf("token is empty in secret")
+	}
+
+	return string(tokenBytes), nil
 }
 
 func recoveryMiddleware(next http.Handler) http.Handler {
