@@ -2232,6 +2232,10 @@ k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/retry
 k8s.io/client-go/util/watchlist
 k8s.io/client-go/util/workqueue
+# k8s.io/cloud-provider v0.0.0 => k8s.io/cloud-provider v0.33.7
+## explicit; go 1.24.0
+k8s.io/cloud-provider/volume
+k8s.io/cloud-provider/volume/helpers
 # k8s.io/code-generator v0.33.7 => k8s.io/code-generator v0.33.7
 ## explicit; go 1.24.0
 k8s.io/code-generator/cmd/client-gen/args

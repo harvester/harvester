@@ -246,7 +246,6 @@ const (
 	HelmReleaseNamespaceAnnotation = "meta.helm.sh/release-namespace"
 
 	// moved from nodedrain_controller for public usage
-	ContainerDiskOrCDRomKey             = "CDRomOrContainerDiskPresent"
 	NodeSchedulingRequirementsNotMetKey = "NodeSchedulingRequirementsNotMet"
 	MaintainModeStrategyKey             = "MaintainModeStrategy"
 	LastHealthyReplicaKey               = "LastHealthyReplica"
@@ -296,4 +295,6 @@ const (
 	// PSS controller labels
 	HarvesterManagedPSSKey   = "pss.harvesterhci.io/managed"
 	HarvesterManagedPSSValue = "true"
+
+	GoArchArm64 = "arm64"
 )

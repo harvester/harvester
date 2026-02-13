@@ -21,12 +21,12 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 
 	handler := harvesterServer.NewHandler(&Handler{
 		resourceQuotaClient: scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota(),
-		clientSet:           *scaled.Management.ClientSet,
+		clientSet:           scaled.Management.ClientSet,
 		ctx:                 scaled.Ctx,
 	})
 
 	nsformatter := nsformatter{
-		clientSet: *scaled.Management.ClientSet,
+		clientSet: scaled.Management.ClientSet,
 	}
 
 	t := schema.Template{

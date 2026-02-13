@@ -993,5 +993,5 @@ func SetUpgradeLogArchive(upgradeLog *harvesterv1.UpgradeLog, archiveName string
 }
 
 type ImageGetterInterface interface {
-	GetConsolidatedLoggingImageListFromHelmValues(*kubernetes.Clientset, string, string) (map[string]settings.Image, error)
+	GetConsolidatedLoggingImageListFromHelmValues(kubernetes.Interface, string, string) (map[string]settings.Image, error)
 }
