@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,34 @@ type RkeK8sSystemImagesGetter interface {
 
 // RkeK8sSystemImageInterface has methods to work with RkeK8sSystemImage resources.
 type RkeK8sSystemImageInterface interface {
-	Create(ctx context.Context, rkeK8sSystemImage *v3.RkeK8sSystemImage, opts v1.CreateOptions) (*v3.RkeK8sSystemImage, error)
-	Update(ctx context.Context, rkeK8sSystemImage *v3.RkeK8sSystemImage, opts v1.UpdateOptions) (*v3.RkeK8sSystemImage, error)
+	Create(ctx context.Context, rkeK8sSystemImage *managementcattleiov3.RkeK8sSystemImage, opts v1.CreateOptions) (*managementcattleiov3.RkeK8sSystemImage, error)
+	Update(ctx context.Context, rkeK8sSystemImage *managementcattleiov3.RkeK8sSystemImage, opts v1.UpdateOptions) (*managementcattleiov3.RkeK8sSystemImage, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.RkeK8sSystemImage, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.RkeK8sSystemImageList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.RkeK8sSystemImage, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.RkeK8sSystemImageList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.RkeK8sSystemImage, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.RkeK8sSystemImage, err error)
 	RkeK8sSystemImageExpansion
 }
 
 // rkeK8sSystemImages implements RkeK8sSystemImageInterface
 type rkeK8sSystemImages struct {
-	*gentype.ClientWithList[*v3.RkeK8sSystemImage, *v3.RkeK8sSystemImageList]
+	*gentype.ClientWithList[*managementcattleiov3.RkeK8sSystemImage, *managementcattleiov3.RkeK8sSystemImageList]
 }
 
 // newRkeK8sSystemImages returns a RkeK8sSystemImages
 func newRkeK8sSystemImages(c *ManagementV3Client, namespace string) *rkeK8sSystemImages {
 	return &rkeK8sSystemImages{
-		gentype.NewClientWithList[*v3.RkeK8sSystemImage, *v3.RkeK8sSystemImageList](
+		gentype.NewClientWithList[*managementcattleiov3.RkeK8sSystemImage, *managementcattleiov3.RkeK8sSystemImageList](
 			"rkek8ssystemimages",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.RkeK8sSystemImage { return &v3.RkeK8sSystemImage{} },
-			func() *v3.RkeK8sSystemImageList { return &v3.RkeK8sSystemImageList{} }),
+			func() *managementcattleiov3.RkeK8sSystemImage { return &managementcattleiov3.RkeK8sSystemImage{} },
+			func() *managementcattleiov3.RkeK8sSystemImageList {
+				return &managementcattleiov3.RkeK8sSystemImageList{}
+			},
+		),
 	}
 }

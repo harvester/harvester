@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type LocalProvidersGetter interface {
 
 // LocalProviderInterface has methods to work with LocalProvider resources.
 type LocalProviderInterface interface {
-	Create(ctx context.Context, localProvider *v3.LocalProvider, opts v1.CreateOptions) (*v3.LocalProvider, error)
-	Update(ctx context.Context, localProvider *v3.LocalProvider, opts v1.UpdateOptions) (*v3.LocalProvider, error)
+	Create(ctx context.Context, localProvider *managementcattleiov3.LocalProvider, opts v1.CreateOptions) (*managementcattleiov3.LocalProvider, error)
+	Update(ctx context.Context, localProvider *managementcattleiov3.LocalProvider, opts v1.UpdateOptions) (*managementcattleiov3.LocalProvider, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.LocalProvider, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.LocalProviderList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.LocalProvider, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.LocalProviderList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.LocalProvider, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.LocalProvider, err error)
 	LocalProviderExpansion
 }
 
 // localProviders implements LocalProviderInterface
 type localProviders struct {
-	*gentype.ClientWithList[*v3.LocalProvider, *v3.LocalProviderList]
+	*gentype.ClientWithList[*managementcattleiov3.LocalProvider, *managementcattleiov3.LocalProviderList]
 }
 
 // newLocalProviders returns a LocalProviders
 func newLocalProviders(c *ManagementV3Client) *localProviders {
 	return &localProviders{
-		gentype.NewClientWithList[*v3.LocalProvider, *v3.LocalProviderList](
+		gentype.NewClientWithList[*managementcattleiov3.LocalProvider, *managementcattleiov3.LocalProviderList](
 			"localproviders",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.LocalProvider { return &v3.LocalProvider{} },
-			func() *v3.LocalProviderList { return &v3.LocalProviderList{} }),
+			func() *managementcattleiov3.LocalProvider { return &managementcattleiov3.LocalProvider{} },
+			func() *managementcattleiov3.LocalProviderList { return &managementcattleiov3.LocalProviderList{} },
+		),
 	}
 }

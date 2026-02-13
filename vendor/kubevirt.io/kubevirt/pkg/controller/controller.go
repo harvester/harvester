@@ -31,13 +31,17 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
 	v1 "kubevirt.io/api/core/v1"
+	"kubevirt.io/client-go/kubecli"
 	"kubevirt.io/client-go/log"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+
+	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
 )
 
 const (
@@ -113,18 +117,6 @@ const (
 	// and virt-controller is backing off before retrying.
 	MigrationBackoffReason = "MigrationBackoff"
 )
-
-type PodCacheStore struct {
-	indexer cache.Indexer
-}
-
-func NewPodCacheStore(indexer cache.Indexer) *PodCacheStore {
-	return &PodCacheStore{indexer: indexer}
-}
-
-func (p *PodCacheStore) CurrentPod(vmi *v1.VirtualMachineInstance) (*k8sv1.Pod, error) {
-	return CurrentVMIPod(vmi, p.indexer)
-}
 
 // NewListWatchFromClient creates a new ListWatch from the specified client, resource, kubevirtNamespace and field selector.
 func NewListWatchFromClient(c cache.Getter, resource string, namespace string, fieldSelector fields.Selector, labelSelector labels.Selector) *cache.ListWatch {
@@ -344,7 +336,7 @@ func CurrentVMIPod(vmi *v1.VirtualMachineInstance, podIndexer cache.Indexer) (*k
 
 	var curPod *k8sv1.Pod = nil
 	for _, pod := range pods {
-		if !IsControlledBy(pod, vmi) {
+		if !metav1.IsControlledBy(pod, vmi) {
 			continue
 		}
 
@@ -378,7 +370,7 @@ func VMIActivePodsCount(vmi *v1.VirtualMachineInstance, vmiPodIndexer cache.Inde
 		if pod.Status.Phase == k8sv1.PodSucceeded || pod.Status.Phase == k8sv1.PodFailed {
 			// not interested in terminated pods
 			continue
-		} else if !IsControlledBy(pod, vmi) {
+		} else if !metav1.IsControlledBy(pod, vmi) {
 			// not interested pods not associated with the vmi
 			continue
 		}
@@ -481,8 +473,7 @@ func AttachmentPods(ownerPod *k8sv1.Pod, podIndexer cache.Indexer) ([]*k8sv1.Pod
 	attachmentPods := []*k8sv1.Pod{}
 	for _, obj := range objs {
 		pod := obj.(*k8sv1.Pod)
-		ownerRef := GetControllerOf(pod)
-		if ownerRef == nil || ownerRef.UID != ownerPod.UID {
+		if !metav1.IsControlledBy(pod, ownerPod) {
 			continue
 		}
 		attachmentPods = append(attachmentPods, pod)
@@ -574,4 +565,28 @@ func GetHotplugVolumes(vmi *v1.VirtualMachineInstance, virtlauncherPod *k8sv1.Po
 		}
 	}
 	return hotplugVolumes
+}
+
+func SyncPodAnnotations(clientset kubecli.KubevirtClient, pod *k8sv1.Pod, newAnnotations map[string]string) (*k8sv1.Pod, error) {
+	patchSet := patch.New()
+	for key, newValue := range newAnnotations {
+		if podAnnotationValue, keyExist := pod.Annotations[key]; !keyExist || podAnnotationValue != newValue {
+			patchSet.AddOption(
+				patch.WithAdd(fmt.Sprintf("/metadata/annotations/%s", patch.EscapeJSONPointer(key)), newValue),
+			)
+		}
+	}
+	if patchSet.IsEmpty() {
+		return pod, nil
+	}
+	patchBytes, err := patchSet.GeneratePayload()
+	if err != nil {
+		return pod, fmt.Errorf("failed to generate patch payload: %w", err)
+	}
+	patchedPod, err := clientset.CoreV1().Pods(pod.Namespace).Patch(context.Background(), pod.Name, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
+	if err != nil {
+		log.Log.Object(pod).Errorf("failed to sync pod annotations: %v", err)
+		return nil, err
+	}
+	return patchedPod, nil
 }

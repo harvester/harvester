@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type UsersGetter interface {
 
 // UserInterface has methods to work with User resources.
 type UserInterface interface {
-	Create(ctx context.Context, user *v3.User, opts v1.CreateOptions) (*v3.User, error)
-	Update(ctx context.Context, user *v3.User, opts v1.UpdateOptions) (*v3.User, error)
+	Create(ctx context.Context, user *managementcattleiov3.User, opts v1.CreateOptions) (*managementcattleiov3.User, error)
+	Update(ctx context.Context, user *managementcattleiov3.User, opts v1.UpdateOptions) (*managementcattleiov3.User, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, user *v3.User, opts v1.UpdateOptions) (*v3.User, error)
+	UpdateStatus(ctx context.Context, user *managementcattleiov3.User, opts v1.UpdateOptions) (*managementcattleiov3.User, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.User, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.UserList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.User, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.UserList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.User, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.User, err error)
 	UserExpansion
 }
 
 // users implements UserInterface
 type users struct {
-	*gentype.ClientWithList[*v3.User, *v3.UserList]
+	*gentype.ClientWithList[*managementcattleiov3.User, *managementcattleiov3.UserList]
 }
 
 // newUsers returns a Users
 func newUsers(c *ManagementV3Client) *users {
 	return &users{
-		gentype.NewClientWithList[*v3.User, *v3.UserList](
+		gentype.NewClientWithList[*managementcattleiov3.User, *managementcattleiov3.UserList](
 			"users",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.User { return &v3.User{} },
-			func() *v3.UserList { return &v3.UserList{} }),
+			func() *managementcattleiov3.User { return &managementcattleiov3.User{} },
+			func() *managementcattleiov3.UserList { return &managementcattleiov3.UserList{} },
+		),
 	}
 }

@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type SettingsGetter interface {
 
 // SettingInterface has methods to work with Setting resources.
 type SettingInterface interface {
-	Create(ctx context.Context, setting *v3.Setting, opts v1.CreateOptions) (*v3.Setting, error)
-	Update(ctx context.Context, setting *v3.Setting, opts v1.UpdateOptions) (*v3.Setting, error)
+	Create(ctx context.Context, setting *managementcattleiov3.Setting, opts v1.CreateOptions) (*managementcattleiov3.Setting, error)
+	Update(ctx context.Context, setting *managementcattleiov3.Setting, opts v1.UpdateOptions) (*managementcattleiov3.Setting, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.Setting, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.SettingList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.Setting, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.SettingList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Setting, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.Setting, err error)
 	SettingExpansion
 }
 
 // settings implements SettingInterface
 type settings struct {
-	*gentype.ClientWithList[*v3.Setting, *v3.SettingList]
+	*gentype.ClientWithList[*managementcattleiov3.Setting, *managementcattleiov3.SettingList]
 }
 
 // newSettings returns a Settings
 func newSettings(c *ManagementV3Client) *settings {
 	return &settings{
-		gentype.NewClientWithList[*v3.Setting, *v3.SettingList](
+		gentype.NewClientWithList[*managementcattleiov3.Setting, *managementcattleiov3.SettingList](
 			"settings",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.Setting { return &v3.Setting{} },
-			func() *v3.SettingList { return &v3.SettingList{} }),
+			func() *managementcattleiov3.Setting { return &managementcattleiov3.Setting{} },
+			func() *managementcattleiov3.SettingList { return &managementcattleiov3.SettingList{} },
+		),
 	}
 }

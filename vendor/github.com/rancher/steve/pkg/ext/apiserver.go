@@ -23,7 +23,8 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
-	"k8s.io/component-base/version"
+	"k8s.io/apiserver/pkg/util/compatibility"
+	basecompatibility "k8s.io/component-base/compatibility"
 	openapicommon "k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 )
@@ -74,7 +75,7 @@ type ExtensionAPIServerOptions struct {
 	//
 	// If nil, the default version is the version of the Kubernetes Go library
 	// compiled in the final binary.
-	EffectiveVersion version.EffectiveVersion
+	EffectiveVersion basecompatibility.EffectiveVersion
 
 	SNICerts []dynamiccertificates.SNICertKeyContentProvider
 }
@@ -166,7 +167,7 @@ func NewExtensionAPIServer(scheme *runtime.Scheme, codecs serializer.CodecFactor
 	// The default kube effective version ends up being the version of the
 	// library. (The value is hardcoded but it is kept up-to-date via some
 	// automation)
-	config.EffectiveVersion = version.DefaultKubeEffectiveVersion()
+	config.EffectiveVersion = compatibility.DefaultBuildEffectiveVersion()
 	if opts.EffectiveVersion != nil {
 		config.EffectiveVersion = opts.EffectiveVersion
 	}
@@ -300,6 +301,7 @@ func (s *ExtensionAPIServer) Install(resourceName string, gvk schema.GroupVersio
 	apiGroup, ok := s.apiGroups[gvk.Group]
 	if !ok {
 		apiGroup = genericapiserver.NewDefaultAPIGroupInfo(gvk.Group, s.scheme, metav1.ParameterCodec, s.codecs)
+		apiGroup.NegotiatedSerializer = &withoutProtobufNegotiatedSerializer{s.codecs}
 	}
 
 	_, ok = apiGroup.VersionedResourcesStorageMap[gvk.Version]
@@ -330,4 +332,27 @@ func getDefinitionName(scheme *runtime.Scheme, replacements map[string]string) f
 
 func (s *ExtensionAPIServer) Registered() <-chan struct{} {
 	return s.registeredChan
+}
+
+type withoutProtobufNegotiatedSerializer struct {
+	codec serializer.CodecFactory
+}
+
+func (w *withoutProtobufNegotiatedSerializer) SupportedMediaTypes() []runtime.SerializerInfo {
+	var serializers []runtime.SerializerInfo
+	for _, serializer := range w.codec.SupportedMediaTypes() {
+		if serializer.MediaType != "application/yaml" && serializer.MediaType != "application/json" {
+			continue
+		}
+		serializers = append(serializers, serializer)
+	}
+	return serializers
+}
+
+func (w *withoutProtobufNegotiatedSerializer) EncoderForVersion(serializer runtime.Encoder, gv runtime.GroupVersioner) runtime.Encoder {
+	return w.codec.EncoderForVersion(serializer, gv)
+}
+
+func (w *withoutProtobufNegotiatedSerializer) DecoderToVersion(serializer runtime.Decoder, gv runtime.GroupVersioner) runtime.Decoder {
+	return w.codec.DecoderToVersion(serializer, gv)
 }

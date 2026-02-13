@@ -19,120 +19,30 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeAuthConfigs implements AuthConfigInterface
-type FakeAuthConfigs struct {
+// fakeAuthConfigs implements AuthConfigInterface
+type fakeAuthConfigs struct {
+	*gentype.FakeClientWithList[*v3.AuthConfig, *v3.AuthConfigList]
 	Fake *FakeManagementV3
 }
 
-var authconfigsResource = v3.SchemeGroupVersion.WithResource("authconfigs")
-
-var authconfigsKind = v3.SchemeGroupVersion.WithKind("AuthConfig")
-
-// Get takes name of the authConfig, and returns the corresponding authConfig object, and an error if there is any.
-func (c *FakeAuthConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.AuthConfig, err error) {
-	emptyResult := &v3.AuthConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(authconfigsResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeAuthConfigs(fake *FakeManagementV3) managementcattleiov3.AuthConfigInterface {
+	return &fakeAuthConfigs{
+		gentype.NewFakeClientWithList[*v3.AuthConfig, *v3.AuthConfigList](
+			fake.Fake,
+			"",
+			v3.SchemeGroupVersion.WithResource("authconfigs"),
+			v3.SchemeGroupVersion.WithKind("AuthConfig"),
+			func() *v3.AuthConfig { return &v3.AuthConfig{} },
+			func() *v3.AuthConfigList { return &v3.AuthConfigList{} },
+			func(dst, src *v3.AuthConfigList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.AuthConfigList) []*v3.AuthConfig { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.AuthConfigList, items []*v3.AuthConfig) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*v3.AuthConfig), err
-}
-
-// List takes label and field selectors, and returns the list of AuthConfigs that match those selectors.
-func (c *FakeAuthConfigs) List(ctx context.Context, opts v1.ListOptions) (result *v3.AuthConfigList, err error) {
-	emptyResult := &v3.AuthConfigList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(authconfigsResource, authconfigsKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.AuthConfigList{ListMeta: obj.(*v3.AuthConfigList).ListMeta}
-	for _, item := range obj.(*v3.AuthConfigList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested authConfigs.
-func (c *FakeAuthConfigs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(authconfigsResource, opts))
-}
-
-// Create takes the representation of a authConfig and creates it.  Returns the server's representation of the authConfig, and an error, if there is any.
-func (c *FakeAuthConfigs) Create(ctx context.Context, authConfig *v3.AuthConfig, opts v1.CreateOptions) (result *v3.AuthConfig, err error) {
-	emptyResult := &v3.AuthConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(authconfigsResource, authConfig, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.AuthConfig), err
-}
-
-// Update takes the representation of a authConfig and updates it. Returns the server's representation of the authConfig, and an error, if there is any.
-func (c *FakeAuthConfigs) Update(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (result *v3.AuthConfig, err error) {
-	emptyResult := &v3.AuthConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(authconfigsResource, authConfig, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.AuthConfig), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeAuthConfigs) UpdateStatus(ctx context.Context, authConfig *v3.AuthConfig, opts v1.UpdateOptions) (result *v3.AuthConfig, err error) {
-	emptyResult := &v3.AuthConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(authconfigsResource, "status", authConfig, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.AuthConfig), err
-}
-
-// Delete takes name of the authConfig and deletes it. Returns an error if one occurs.
-func (c *FakeAuthConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(authconfigsResource, name, opts), &v3.AuthConfig{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeAuthConfigs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(authconfigsResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.AuthConfigList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched authConfig.
-func (c *FakeAuthConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.AuthConfig, err error) {
-	emptyResult := &v3.AuthConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(authconfigsResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.AuthConfig), err
 }

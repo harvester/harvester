@@ -29,215 +29,215 @@ type FakeManagementV3 struct {
 }
 
 func (c *FakeManagementV3) APIServices() v3.APIServiceInterface {
-	return &FakeAPIServices{c}
+	return newFakeAPIServices(c)
 }
 
 func (c *FakeManagementV3) ActiveDirectoryProviders() v3.ActiveDirectoryProviderInterface {
-	return &FakeActiveDirectoryProviders{c}
+	return newFakeActiveDirectoryProviders(c)
 }
 
 func (c *FakeManagementV3) AuthConfigs() v3.AuthConfigInterface {
-	return &FakeAuthConfigs{c}
+	return newFakeAuthConfigs(c)
 }
 
 func (c *FakeManagementV3) AuthProviders() v3.AuthProviderInterface {
-	return &FakeAuthProviders{c}
+	return newFakeAuthProviders(c)
 }
 
 func (c *FakeManagementV3) AuthTokens() v3.AuthTokenInterface {
-	return &FakeAuthTokens{c}
+	return newFakeAuthTokens(c)
 }
 
 func (c *FakeManagementV3) AzureADProviders() v3.AzureADProviderInterface {
-	return &FakeAzureADProviders{c}
+	return newFakeAzureADProviders(c)
 }
 
 func (c *FakeManagementV3) CloudCredentials(namespace string) v3.CloudCredentialInterface {
-	return &FakeCloudCredentials{c, namespace}
+	return newFakeCloudCredentials(c, namespace)
 }
 
 func (c *FakeManagementV3) Clusters() v3.ClusterInterface {
-	return &FakeClusters{c}
+	return newFakeClusters(c)
 }
 
 func (c *FakeManagementV3) ClusterProxyConfigs(namespace string) v3.ClusterProxyConfigInterface {
-	return &FakeClusterProxyConfigs{c, namespace}
+	return newFakeClusterProxyConfigs(c, namespace)
 }
 
 func (c *FakeManagementV3) ClusterRegistrationTokens(namespace string) v3.ClusterRegistrationTokenInterface {
-	return &FakeClusterRegistrationTokens{c, namespace}
+	return newFakeClusterRegistrationTokens(c, namespace)
 }
 
 func (c *FakeManagementV3) ClusterRoleTemplateBindings(namespace string) v3.ClusterRoleTemplateBindingInterface {
-	return &FakeClusterRoleTemplateBindings{c, namespace}
+	return newFakeClusterRoleTemplateBindings(c, namespace)
 }
 
 func (c *FakeManagementV3) ClusterTemplates(namespace string) v3.ClusterTemplateInterface {
-	return &FakeClusterTemplates{c, namespace}
+	return newFakeClusterTemplates(c, namespace)
 }
 
 func (c *FakeManagementV3) ClusterTemplateRevisions(namespace string) v3.ClusterTemplateRevisionInterface {
-	return &FakeClusterTemplateRevisions{c, namespace}
+	return newFakeClusterTemplateRevisions(c, namespace)
 }
 
 func (c *FakeManagementV3) ComposeConfigs() v3.ComposeConfigInterface {
-	return &FakeComposeConfigs{c}
+	return newFakeComposeConfigs(c)
 }
 
 func (c *FakeManagementV3) DynamicSchemas() v3.DynamicSchemaInterface {
-	return &FakeDynamicSchemas{c}
+	return newFakeDynamicSchemas(c)
 }
 
 func (c *FakeManagementV3) EtcdBackups(namespace string) v3.EtcdBackupInterface {
-	return &FakeEtcdBackups{c, namespace}
+	return newFakeEtcdBackups(c, namespace)
 }
 
 func (c *FakeManagementV3) Features() v3.FeatureInterface {
-	return &FakeFeatures{c}
+	return newFakeFeatures(c)
 }
 
 func (c *FakeManagementV3) FleetWorkspaces() v3.FleetWorkspaceInterface {
-	return &FakeFleetWorkspaces{c}
+	return newFakeFleetWorkspaces(c)
 }
 
 func (c *FakeManagementV3) FreeIpaProviders() v3.FreeIpaProviderInterface {
-	return &FakeFreeIpaProviders{c}
+	return newFakeFreeIpaProviders(c)
 }
 
 func (c *FakeManagementV3) GenericOIDCProviders() v3.GenericOIDCProviderInterface {
-	return &FakeGenericOIDCProviders{c}
+	return newFakeGenericOIDCProviders(c)
 }
 
 func (c *FakeManagementV3) GithubConfigs() v3.GithubConfigInterface {
-	return &FakeGithubConfigs{c}
+	return newFakeGithubConfigs(c)
 }
 
 func (c *FakeManagementV3) GithubProviders() v3.GithubProviderInterface {
-	return &FakeGithubProviders{c}
+	return newFakeGithubProviders(c)
 }
 
 func (c *FakeManagementV3) GlobalRoles() v3.GlobalRoleInterface {
-	return &FakeGlobalRoles{c}
+	return newFakeGlobalRoles(c)
 }
 
 func (c *FakeManagementV3) GlobalRoleBindings() v3.GlobalRoleBindingInterface {
-	return &FakeGlobalRoleBindings{c}
+	return newFakeGlobalRoleBindings(c)
 }
 
 func (c *FakeManagementV3) GoogleOAuthProviders() v3.GoogleOAuthProviderInterface {
-	return &FakeGoogleOAuthProviders{c}
+	return newFakeGoogleOAuthProviders(c)
 }
 
 func (c *FakeManagementV3) Groups() v3.GroupInterface {
-	return &FakeGroups{c}
+	return newFakeGroups(c)
 }
 
 func (c *FakeManagementV3) GroupMembers() v3.GroupMemberInterface {
-	return &FakeGroupMembers{c}
+	return newFakeGroupMembers(c)
 }
 
 func (c *FakeManagementV3) KontainerDrivers() v3.KontainerDriverInterface {
-	return &FakeKontainerDrivers{c}
+	return newFakeKontainerDrivers(c)
 }
 
 func (c *FakeManagementV3) LocalProviders() v3.LocalProviderInterface {
-	return &FakeLocalProviders{c}
+	return newFakeLocalProviders(c)
 }
 
 func (c *FakeManagementV3) ManagedCharts(namespace string) v3.ManagedChartInterface {
-	return &FakeManagedCharts{c, namespace}
+	return newFakeManagedCharts(c, namespace)
 }
 
 func (c *FakeManagementV3) Nodes(namespace string) v3.NodeInterface {
-	return &FakeNodes{c, namespace}
+	return newFakeNodes(c, namespace)
 }
 
 func (c *FakeManagementV3) NodeDrivers() v3.NodeDriverInterface {
-	return &FakeNodeDrivers{c}
+	return newFakeNodeDrivers(c)
 }
 
 func (c *FakeManagementV3) NodePools(namespace string) v3.NodePoolInterface {
-	return &FakeNodePools{c, namespace}
+	return newFakeNodePools(c, namespace)
 }
 
 func (c *FakeManagementV3) NodeTemplates(namespace string) v3.NodeTemplateInterface {
-	return &FakeNodeTemplates{c, namespace}
+	return newFakeNodeTemplates(c, namespace)
 }
 
 func (c *FakeManagementV3) OIDCProviders() v3.OIDCProviderInterface {
-	return &FakeOIDCProviders{c}
+	return newFakeOIDCProviders(c)
 }
 
 func (c *FakeManagementV3) OpenLdapProviders() v3.OpenLdapProviderInterface {
-	return &FakeOpenLdapProviders{c}
+	return newFakeOpenLdapProviders(c)
 }
 
 func (c *FakeManagementV3) PodSecurityAdmissionConfigurationTemplates() v3.PodSecurityAdmissionConfigurationTemplateInterface {
-	return &FakePodSecurityAdmissionConfigurationTemplates{c}
+	return newFakePodSecurityAdmissionConfigurationTemplates(c)
 }
 
 func (c *FakeManagementV3) Preferences(namespace string) v3.PreferenceInterface {
-	return &FakePreferences{c, namespace}
+	return newFakePreferences(c, namespace)
 }
 
 func (c *FakeManagementV3) Principals() v3.PrincipalInterface {
-	return &FakePrincipals{c}
+	return newFakePrincipals(c)
 }
 
 func (c *FakeManagementV3) Projects(namespace string) v3.ProjectInterface {
-	return &FakeProjects{c, namespace}
+	return newFakeProjects(c, namespace)
 }
 
 func (c *FakeManagementV3) ProjectNetworkPolicies(namespace string) v3.ProjectNetworkPolicyInterface {
-	return &FakeProjectNetworkPolicies{c, namespace}
+	return newFakeProjectNetworkPolicies(c, namespace)
 }
 
 func (c *FakeManagementV3) ProjectRoleTemplateBindings(namespace string) v3.ProjectRoleTemplateBindingInterface {
-	return &FakeProjectRoleTemplateBindings{c, namespace}
+	return newFakeProjectRoleTemplateBindings(c, namespace)
 }
 
 func (c *FakeManagementV3) RancherUserNotifications() v3.RancherUserNotificationInterface {
-	return &FakeRancherUserNotifications{c}
+	return newFakeRancherUserNotifications(c)
 }
 
 func (c *FakeManagementV3) RkeAddons(namespace string) v3.RkeAddonInterface {
-	return &FakeRkeAddons{c, namespace}
+	return newFakeRkeAddons(c, namespace)
 }
 
 func (c *FakeManagementV3) RkeK8sServiceOptions(namespace string) v3.RkeK8sServiceOptionInterface {
-	return &FakeRkeK8sServiceOptions{c, namespace}
+	return newFakeRkeK8sServiceOptions(c, namespace)
 }
 
 func (c *FakeManagementV3) RkeK8sSystemImages(namespace string) v3.RkeK8sSystemImageInterface {
-	return &FakeRkeK8sSystemImages{c, namespace}
+	return newFakeRkeK8sSystemImages(c, namespace)
 }
 
 func (c *FakeManagementV3) RoleTemplates() v3.RoleTemplateInterface {
-	return &FakeRoleTemplates{c}
+	return newFakeRoleTemplates(c)
 }
 
 func (c *FakeManagementV3) SamlProviders() v3.SamlProviderInterface {
-	return &FakeSamlProviders{c}
+	return newFakeSamlProviders(c)
 }
 
 func (c *FakeManagementV3) SamlTokens() v3.SamlTokenInterface {
-	return &FakeSamlTokens{c}
+	return newFakeSamlTokens(c)
 }
 
 func (c *FakeManagementV3) Settings() v3.SettingInterface {
-	return &FakeSettings{c}
+	return newFakeSettings(c)
 }
 
 func (c *FakeManagementV3) Tokens() v3.TokenInterface {
-	return &FakeTokens{c}
+	return newFakeTokens(c)
 }
 
 func (c *FakeManagementV3) Users() v3.UserInterface {
-	return &FakeUsers{c}
+	return newFakeUsers(c)
 }
 
 func (c *FakeManagementV3) UserAttributes() v3.UserAttributeInterface {
-	return &FakeUserAttributes{c}
+	return newFakeUserAttributes(c)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

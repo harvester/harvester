@@ -19,108 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeFreeIpaProviders implements FreeIpaProviderInterface
-type FakeFreeIpaProviders struct {
+// fakeFreeIpaProviders implements FreeIpaProviderInterface
+type fakeFreeIpaProviders struct {
+	*gentype.FakeClientWithList[*v3.FreeIpaProvider, *v3.FreeIpaProviderList]
 	Fake *FakeManagementV3
 }
 
-var freeipaprovidersResource = v3.SchemeGroupVersion.WithResource("freeipaproviders")
-
-var freeipaprovidersKind = v3.SchemeGroupVersion.WithKind("FreeIpaProvider")
-
-// Get takes name of the freeIpaProvider, and returns the corresponding freeIpaProvider object, and an error if there is any.
-func (c *FakeFreeIpaProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.FreeIpaProvider, err error) {
-	emptyResult := &v3.FreeIpaProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(freeipaprovidersResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeFreeIpaProviders(fake *FakeManagementV3) managementcattleiov3.FreeIpaProviderInterface {
+	return &fakeFreeIpaProviders{
+		gentype.NewFakeClientWithList[*v3.FreeIpaProvider, *v3.FreeIpaProviderList](
+			fake.Fake,
+			"",
+			v3.SchemeGroupVersion.WithResource("freeipaproviders"),
+			v3.SchemeGroupVersion.WithKind("FreeIpaProvider"),
+			func() *v3.FreeIpaProvider { return &v3.FreeIpaProvider{} },
+			func() *v3.FreeIpaProviderList { return &v3.FreeIpaProviderList{} },
+			func(dst, src *v3.FreeIpaProviderList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.FreeIpaProviderList) []*v3.FreeIpaProvider { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.FreeIpaProviderList, items []*v3.FreeIpaProvider) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.FreeIpaProvider), err
-}
-
-// List takes label and field selectors, and returns the list of FreeIpaProviders that match those selectors.
-func (c *FakeFreeIpaProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.FreeIpaProviderList, err error) {
-	emptyResult := &v3.FreeIpaProviderList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(freeipaprovidersResource, freeipaprovidersKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.FreeIpaProviderList{ListMeta: obj.(*v3.FreeIpaProviderList).ListMeta}
-	for _, item := range obj.(*v3.FreeIpaProviderList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested freeIpaProviders.
-func (c *FakeFreeIpaProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(freeipaprovidersResource, opts))
-}
-
-// Create takes the representation of a freeIpaProvider and creates it.  Returns the server's representation of the freeIpaProvider, and an error, if there is any.
-func (c *FakeFreeIpaProviders) Create(ctx context.Context, freeIpaProvider *v3.FreeIpaProvider, opts v1.CreateOptions) (result *v3.FreeIpaProvider, err error) {
-	emptyResult := &v3.FreeIpaProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(freeipaprovidersResource, freeIpaProvider, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.FreeIpaProvider), err
-}
-
-// Update takes the representation of a freeIpaProvider and updates it. Returns the server's representation of the freeIpaProvider, and an error, if there is any.
-func (c *FakeFreeIpaProviders) Update(ctx context.Context, freeIpaProvider *v3.FreeIpaProvider, opts v1.UpdateOptions) (result *v3.FreeIpaProvider, err error) {
-	emptyResult := &v3.FreeIpaProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(freeipaprovidersResource, freeIpaProvider, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.FreeIpaProvider), err
-}
-
-// Delete takes name of the freeIpaProvider and deletes it. Returns an error if one occurs.
-func (c *FakeFreeIpaProviders) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(freeipaprovidersResource, name, opts), &v3.FreeIpaProvider{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeFreeIpaProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(freeipaprovidersResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.FreeIpaProviderList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched freeIpaProvider.
-func (c *FakeFreeIpaProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.FreeIpaProvider, err error) {
-	emptyResult := &v3.FreeIpaProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(freeipaprovidersResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.FreeIpaProvider), err
 }

@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type FreeIpaProvidersGetter interface {
 
 // FreeIpaProviderInterface has methods to work with FreeIpaProvider resources.
 type FreeIpaProviderInterface interface {
-	Create(ctx context.Context, freeIpaProvider *v3.FreeIpaProvider, opts v1.CreateOptions) (*v3.FreeIpaProvider, error)
-	Update(ctx context.Context, freeIpaProvider *v3.FreeIpaProvider, opts v1.UpdateOptions) (*v3.FreeIpaProvider, error)
+	Create(ctx context.Context, freeIpaProvider *managementcattleiov3.FreeIpaProvider, opts v1.CreateOptions) (*managementcattleiov3.FreeIpaProvider, error)
+	Update(ctx context.Context, freeIpaProvider *managementcattleiov3.FreeIpaProvider, opts v1.UpdateOptions) (*managementcattleiov3.FreeIpaProvider, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.FreeIpaProvider, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.FreeIpaProviderList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.FreeIpaProvider, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.FreeIpaProviderList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.FreeIpaProvider, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.FreeIpaProvider, err error)
 	FreeIpaProviderExpansion
 }
 
 // freeIpaProviders implements FreeIpaProviderInterface
 type freeIpaProviders struct {
-	*gentype.ClientWithList[*v3.FreeIpaProvider, *v3.FreeIpaProviderList]
+	*gentype.ClientWithList[*managementcattleiov3.FreeIpaProvider, *managementcattleiov3.FreeIpaProviderList]
 }
 
 // newFreeIpaProviders returns a FreeIpaProviders
 func newFreeIpaProviders(c *ManagementV3Client) *freeIpaProviders {
 	return &freeIpaProviders{
-		gentype.NewClientWithList[*v3.FreeIpaProvider, *v3.FreeIpaProviderList](
+		gentype.NewClientWithList[*managementcattleiov3.FreeIpaProvider, *managementcattleiov3.FreeIpaProviderList](
 			"freeipaproviders",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.FreeIpaProvider { return &v3.FreeIpaProvider{} },
-			func() *v3.FreeIpaProviderList { return &v3.FreeIpaProviderList{} }),
+			func() *managementcattleiov3.FreeIpaProvider { return &managementcattleiov3.FreeIpaProvider{} },
+			func() *managementcattleiov3.FreeIpaProviderList { return &managementcattleiov3.FreeIpaProviderList{} },
+		),
 	}
 }

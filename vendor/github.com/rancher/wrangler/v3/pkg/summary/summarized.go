@@ -18,12 +18,16 @@ type SummarizedObjectList struct {
 }
 
 func Summarized(u runtime.Object) *SummarizedObject {
+	return SummarizedWithOptions(u, nil)
+}
+
+func SummarizedWithOptions(u runtime.Object, opts *SummarizeOptions) *SummarizedObject {
 	if s, ok := u.(*SummarizedObject); ok {
 		return s
 	}
 
 	s := &SummarizedObject{
-		Summary: Summarize(u),
+		Summary: SummarizeWithOptions(u, opts),
 	}
 	s.APIVersion, s.Kind = u.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
 

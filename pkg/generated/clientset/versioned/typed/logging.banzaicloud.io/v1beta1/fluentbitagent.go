@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
+	apiv1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type FluentbitAgentsGetter interface {
 
 // FluentbitAgentInterface has methods to work with FluentbitAgent resources.
 type FluentbitAgentInterface interface {
-	Create(ctx context.Context, fluentbitAgent *v1beta1.FluentbitAgent, opts v1.CreateOptions) (*v1beta1.FluentbitAgent, error)
-	Update(ctx context.Context, fluentbitAgent *v1beta1.FluentbitAgent, opts v1.UpdateOptions) (*v1beta1.FluentbitAgent, error)
+	Create(ctx context.Context, fluentbitAgent *apiv1beta1.FluentbitAgent, opts v1.CreateOptions) (*apiv1beta1.FluentbitAgent, error)
+	Update(ctx context.Context, fluentbitAgent *apiv1beta1.FluentbitAgent, opts v1.UpdateOptions) (*apiv1beta1.FluentbitAgent, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, fluentbitAgent *v1beta1.FluentbitAgent, opts v1.UpdateOptions) (*v1beta1.FluentbitAgent, error)
+	UpdateStatus(ctx context.Context, fluentbitAgent *apiv1beta1.FluentbitAgent, opts v1.UpdateOptions) (*apiv1beta1.FluentbitAgent, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.FluentbitAgent, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.FluentbitAgentList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*apiv1beta1.FluentbitAgent, error)
+	List(ctx context.Context, opts v1.ListOptions) (*apiv1beta1.FluentbitAgentList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.FluentbitAgent, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *apiv1beta1.FluentbitAgent, err error)
 	FluentbitAgentExpansion
 }
 
 // fluentbitAgents implements FluentbitAgentInterface
 type fluentbitAgents struct {
-	*gentype.ClientWithList[*v1beta1.FluentbitAgent, *v1beta1.FluentbitAgentList]
+	*gentype.ClientWithList[*apiv1beta1.FluentbitAgent, *apiv1beta1.FluentbitAgentList]
 }
 
 // newFluentbitAgents returns a FluentbitAgents
 func newFluentbitAgents(c *LoggingV1beta1Client) *fluentbitAgents {
 	return &fluentbitAgents{
-		gentype.NewClientWithList[*v1beta1.FluentbitAgent, *v1beta1.FluentbitAgentList](
+		gentype.NewClientWithList[*apiv1beta1.FluentbitAgent, *apiv1beta1.FluentbitAgentList](
 			"fluentbitagents",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1beta1.FluentbitAgent { return &v1beta1.FluentbitAgent{} },
-			func() *v1beta1.FluentbitAgentList { return &v1beta1.FluentbitAgentList{} }),
+			func() *apiv1beta1.FluentbitAgent { return &apiv1beta1.FluentbitAgent{} },
+			func() *apiv1beta1.FluentbitAgentList { return &apiv1beta1.FluentbitAgentList{} },
+		),
 	}
 }

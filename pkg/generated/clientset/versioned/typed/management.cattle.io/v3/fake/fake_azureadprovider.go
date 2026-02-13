@@ -19,108 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeAzureADProviders implements AzureADProviderInterface
-type FakeAzureADProviders struct {
+// fakeAzureADProviders implements AzureADProviderInterface
+type fakeAzureADProviders struct {
+	*gentype.FakeClientWithList[*v3.AzureADProvider, *v3.AzureADProviderList]
 	Fake *FakeManagementV3
 }
 
-var azureadprovidersResource = v3.SchemeGroupVersion.WithResource("azureadproviders")
-
-var azureadprovidersKind = v3.SchemeGroupVersion.WithKind("AzureADProvider")
-
-// Get takes name of the azureADProvider, and returns the corresponding azureADProvider object, and an error if there is any.
-func (c *FakeAzureADProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.AzureADProvider, err error) {
-	emptyResult := &v3.AzureADProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(azureadprovidersResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeAzureADProviders(fake *FakeManagementV3) managementcattleiov3.AzureADProviderInterface {
+	return &fakeAzureADProviders{
+		gentype.NewFakeClientWithList[*v3.AzureADProvider, *v3.AzureADProviderList](
+			fake.Fake,
+			"",
+			v3.SchemeGroupVersion.WithResource("azureadproviders"),
+			v3.SchemeGroupVersion.WithKind("AzureADProvider"),
+			func() *v3.AzureADProvider { return &v3.AzureADProvider{} },
+			func() *v3.AzureADProviderList { return &v3.AzureADProviderList{} },
+			func(dst, src *v3.AzureADProviderList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.AzureADProviderList) []*v3.AzureADProvider { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.AzureADProviderList, items []*v3.AzureADProvider) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.AzureADProvider), err
-}
-
-// List takes label and field selectors, and returns the list of AzureADProviders that match those selectors.
-func (c *FakeAzureADProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.AzureADProviderList, err error) {
-	emptyResult := &v3.AzureADProviderList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(azureadprovidersResource, azureadprovidersKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.AzureADProviderList{ListMeta: obj.(*v3.AzureADProviderList).ListMeta}
-	for _, item := range obj.(*v3.AzureADProviderList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested azureADProviders.
-func (c *FakeAzureADProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(azureadprovidersResource, opts))
-}
-
-// Create takes the representation of a azureADProvider and creates it.  Returns the server's representation of the azureADProvider, and an error, if there is any.
-func (c *FakeAzureADProviders) Create(ctx context.Context, azureADProvider *v3.AzureADProvider, opts v1.CreateOptions) (result *v3.AzureADProvider, err error) {
-	emptyResult := &v3.AzureADProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(azureadprovidersResource, azureADProvider, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.AzureADProvider), err
-}
-
-// Update takes the representation of a azureADProvider and updates it. Returns the server's representation of the azureADProvider, and an error, if there is any.
-func (c *FakeAzureADProviders) Update(ctx context.Context, azureADProvider *v3.AzureADProvider, opts v1.UpdateOptions) (result *v3.AzureADProvider, err error) {
-	emptyResult := &v3.AzureADProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(azureadprovidersResource, azureADProvider, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.AzureADProvider), err
-}
-
-// Delete takes name of the azureADProvider and deletes it. Returns an error if one occurs.
-func (c *FakeAzureADProviders) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(azureadprovidersResource, name, opts), &v3.AzureADProvider{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeAzureADProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(azureadprovidersResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.AzureADProviderList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched azureADProvider.
-func (c *FakeAzureADProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.AzureADProvider, err error) {
-	emptyResult := &v3.AzureADProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(azureadprovidersResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.AzureADProvider), err
 }

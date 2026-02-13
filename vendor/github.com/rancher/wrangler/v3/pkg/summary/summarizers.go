@@ -150,6 +150,7 @@ func init() {
 		checkOwner,
 		checkApplyOwned,
 		checkCattleTypes,
+		checkGeneration,
 	}
 
 	initializeCheckErrors()
@@ -202,6 +203,34 @@ func initializeCheckErrors() {
 		return
 	}
 	logrus.Debugf("GVK Error Mapping not provided, using predefined values")
+}
+
+func checkGeneration(obj data.Object, _ []Condition, summary Summary) Summary {
+	if summary.State != "" {
+		return summary
+	}
+
+	if summary.HasObservedGeneration {
+		metadataGeneration, metadataFound, errMetadata := unstructured.NestedInt64(obj, "metadata", "generation")
+		if errMetadata != nil {
+			return summary
+		}
+		if !metadataFound {
+			return summary
+		}
+
+		observedGeneration, _, errObserved := unstructured.NestedInt64(obj, "status", "observedGeneration")
+		if errObserved != nil {
+			return summary
+		}
+
+		if observedGeneration != metadataGeneration {
+			summary.State = "in-progress"
+			summary.Transitioning = true
+		}
+	}
+
+	return summary
 }
 
 func checkOwner(obj data.Object, conditions []Condition, summary Summary) Summary {

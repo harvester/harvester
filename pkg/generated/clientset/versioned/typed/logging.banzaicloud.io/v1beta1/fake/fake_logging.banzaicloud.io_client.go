@@ -29,27 +29,27 @@ type FakeLoggingV1beta1 struct {
 }
 
 func (c *FakeLoggingV1beta1) ClusterFlows() v1beta1.ClusterFlowInterface {
-	return &FakeClusterFlows{c}
+	return newFakeClusterFlows(c)
 }
 
 func (c *FakeLoggingV1beta1) ClusterOutputs() v1beta1.ClusterOutputInterface {
-	return &FakeClusterOutputs{c}
+	return newFakeClusterOutputs(c)
 }
 
 func (c *FakeLoggingV1beta1) Flows() v1beta1.FlowInterface {
-	return &FakeFlows{c}
+	return newFakeFlows(c)
 }
 
 func (c *FakeLoggingV1beta1) FluentbitAgents() v1beta1.FluentbitAgentInterface {
-	return &FakeFluentbitAgents{c}
+	return newFakeFluentbitAgents(c)
 }
 
 func (c *FakeLoggingV1beta1) Loggings() v1beta1.LoggingInterface {
-	return &FakeLoggings{c}
+	return newFakeLoggings(c)
 }
 
 func (c *FakeLoggingV1beta1) Outputs() v1beta1.OutputInterface {
-	return &FakeOutputs{c}
+	return newFakeOutputs(c)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type PrincipalsGetter interface {
 
 // PrincipalInterface has methods to work with Principal resources.
 type PrincipalInterface interface {
-	Create(ctx context.Context, principal *v3.Principal, opts v1.CreateOptions) (*v3.Principal, error)
-	Update(ctx context.Context, principal *v3.Principal, opts v1.UpdateOptions) (*v3.Principal, error)
+	Create(ctx context.Context, principal *managementcattleiov3.Principal, opts v1.CreateOptions) (*managementcattleiov3.Principal, error)
+	Update(ctx context.Context, principal *managementcattleiov3.Principal, opts v1.UpdateOptions) (*managementcattleiov3.Principal, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.Principal, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.PrincipalList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.Principal, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.PrincipalList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Principal, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.Principal, err error)
 	PrincipalExpansion
 }
 
 // principals implements PrincipalInterface
 type principals struct {
-	*gentype.ClientWithList[*v3.Principal, *v3.PrincipalList]
+	*gentype.ClientWithList[*managementcattleiov3.Principal, *managementcattleiov3.PrincipalList]
 }
 
 // newPrincipals returns a Principals
 func newPrincipals(c *ManagementV3Client) *principals {
 	return &principals{
-		gentype.NewClientWithList[*v3.Principal, *v3.PrincipalList](
+		gentype.NewClientWithList[*managementcattleiov3.Principal, *managementcattleiov3.PrincipalList](
 			"principals",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.Principal { return &v3.Principal{} },
-			func() *v3.PrincipalList { return &v3.PrincipalList{} }),
+			func() *managementcattleiov3.Principal { return &managementcattleiov3.Principal{} },
+			func() *managementcattleiov3.PrincipalList { return &managementcattleiov3.PrincipalList{} },
+		),
 	}
 }

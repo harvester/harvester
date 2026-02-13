@@ -725,12 +725,17 @@ type Disk struct {
 	// If specified, it can change the default error policy (stop) for the disk
 	// +optional
 	ErrorPolicy *DiskErrorPolicy `json:"errorPolicy,omitempty"`
+	// ChangedBlockTracking indicates this disk should have CBT option
+	// Defaults to false.
+	// +optional
+	ChangedBlockTracking *bool `json:"changedBlockTracking,omitempty"`
 }
 
 // CustomBlockSize represents the desired logical and physical block size for a VM disk.
 type CustomBlockSize struct {
-	Logical  uint `json:"logical"`
-	Physical uint `json:"physical"`
+	Logical            uint  `json:"logical,omitempty"`
+	Physical           uint  `json:"physical,omitempty"`
+	DiscardGranularity *uint `json:"discardGranularity,omitempty"`
 }
 
 // BlockSize provides the option to change the block size presented to the VM for a disk.
@@ -775,6 +780,11 @@ type DiskTarget struct {
 type LaunchSecurity struct {
 	// AMD Secure Encrypted Virtualization (SEV).
 	SEV *SEV `json:"sev,omitempty"`
+	// AMD SEV-SNP flags defined by the SEV-SNP specifications.
+	// +optional
+	SNP *SEVSNP `json:"snp,omitempty"`
+	// Intel Trust Domain Extensions (TDX).
+	TDX *TDX `json:"tdx,omitempty"`
 }
 
 type SEV struct {
@@ -797,7 +807,13 @@ type SEVPolicy struct {
 	EncryptedState *bool `json:"encryptedState,omitempty"`
 }
 
+type SEVSNP struct {
+}
+
 type SEVAttestation struct {
+}
+
+type TDX struct {
 }
 
 type LunTarget struct {
