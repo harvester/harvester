@@ -1,8 +1,8 @@
 name: build for tag
 on:
-  push:
-    tags:
-    - v*
+  release:
+    types:
+    - published
 
 jobs:
   calling-build-factory:
