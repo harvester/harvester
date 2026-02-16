@@ -28,12 +28,12 @@ dependencies:
   version: 0.8.0
 - name: harvester-load-balancer
   repository: https://charts.harvesterhci.io
-  version: 1.8.0-dev.0
+  version: 1.8.0-dev.1
 - name: whereabouts
   repository: file://dependency_charts/whereabouts
   version: 0.1.1
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
   version: 1.8.0-dev.0
-digest: sha256:4eab95b00d4bcb4cfbeead858004cff372b35bddfd7c1eb09e661a3438000a0d
-generated: "2026-02-13T10:20:40.768011+08:00"
+digest: sha256:eef00f10915871d732ef0b46fa30f81c3a373e1a4895429a3d6bd418eaf759bc
+generated: "2026-02-16T11:01:19.757477267+01:00"
