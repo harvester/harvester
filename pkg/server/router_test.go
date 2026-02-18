@@ -3,13 +3,13 @@ package server
 import (
 	"testing"
 
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corefake "k8s.io/client-go/kubernetes/fake"
 )
 
 func TestTokenValidation(t *testing.T) {
@@ -77,14 +77,14 @@ func TestTokenValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testClientset := corefake.NewSimpleClientset()
+			clientset := fake.NewSimpleClientset()
 
 			if tt.secret != nil {
-				err := testClientset.Tracker().Add(tt.secret)
+				err := clientset.Tracker().Add(tt.secret)
 				require.NoError(t, err, "Failed to add secret to fake clientset")
 			}
 
-			secretCache := fakeclients.SecretCache(testClientset.CoreV1().Secrets)
+			secretCache := fakeclients.SecretCache(clientset.CoreV1().Secrets)
 
 			actualToken, err := getTokenFromSecret(secretCache)
 			if tt.expectLoadErr {

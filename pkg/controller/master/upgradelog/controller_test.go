@@ -13,7 +13,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -564,15 +563,14 @@ func TestHandler_OnPvcChange(t *testing.T) {
 	for _, tc := range testCases {
 		var clientset = fake.NewSimpleClientset(tc.given.upgradeLog)
 
-		var k8sclientset = k8sfake.NewSimpleClientset()
 		if tc.given.pvc != nil {
-			var err = k8sclientset.Tracker().Add(tc.given.pvc)
+			var err = clientset.Tracker().Add(tc.given.pvc)
 			assert.Nil(t, err, "mock resource should add into k8s fake controller tracker")
 		}
 
 		var handler = &handler{
 			namespace:        util.HarvesterSystemNamespaceName,
-			pvcClient:        fakeclients.PersistentVolumeClaimClient(k8sclientset.CoreV1().PersistentVolumeClaims),
+			pvcClient:        fakeclients.PersistentVolumeClaimClient(clientset.CoreV1().PersistentVolumeClaims),
 			upgradeLogCache:  fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs),
 			upgradeLogClient: fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
 		}
@@ -983,10 +981,8 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			var err = clientset.Tracker().Add(tc.given.upgrade)
 			assert.Nil(t, err, "mock resource upgrade should add into fake controller tracker")
 		}
-
-		var k8sclientset = k8sfake.NewSimpleClientset()
 		if tc.given.pvc != nil {
-			var err = k8sclientset.Tracker().Add(tc.given.pvc)
+			var err = clientset.Tracker().Add(tc.given.pvc)
 			assert.Nil(t, err, "mock resource should add into k8s fake controller tracker")
 		}
 
@@ -995,13 +991,13 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			addonCache:          fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons),
 			clusterFlowClient:   fakeclients.ClusterFlowClient(clientset.LoggingV1beta1().ClusterFlows),
 			clusterOutputClient: fakeclients.ClusterOutputClient(clientset.LoggingV1beta1().ClusterOutputs),
-			deploymentClient:    fakeclients.DeploymentClient(k8sclientset.AppsV1().Deployments),
+			deploymentClient:    fakeclients.DeploymentClient(clientset.AppsV1().Deployments),
 			loggingClient:       fakeclients.LoggingClient(clientset.LoggingV1beta1().Loggings),
 			fbagentClient:       fakeclients.FluentbitAgentClient(clientset.LoggingV1beta1().FluentbitAgents),
 			managedChartClient:  fakeclients.ManagedChartClient(clientset.ManagementV3().ManagedCharts),
 			managedChartCache:   fakeclients.ManagedChartCache(clientset.ManagementV3().ManagedCharts),
-			pvcClient:           fakeclients.PersistentVolumeClaimClient(k8sclientset.CoreV1().PersistentVolumeClaims),
-			serviceClient:       fakeclients.ServiceClient(k8sclientset.CoreV1().Services),
+			pvcClient:           fakeclients.PersistentVolumeClaimClient(clientset.CoreV1().PersistentVolumeClaims),
+			serviceClient:       fakeclients.ServiceClient(clientset.CoreV1().Services),
 			upgradeClient:       fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
 			upgradeCache:        fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 			upgradeLogClient:    fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),

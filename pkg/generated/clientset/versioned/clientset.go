@@ -22,6 +22,7 @@ import (
 	fmt "fmt"
 	http "net/http"
 
+	appsv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/apps/v1"
 	batchv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1"
 	catalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1"
 	cdiv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
@@ -40,6 +41,7 @@ import (
 	storagev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1"
 	upgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
 	uploadv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upload.cdi.kubevirt.io/v1beta1"
+	corev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/v1"
 	whereaboutsv1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
@@ -48,6 +50,8 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
+	CoreV1() corev1.CoreV1Interface
+	AppsV1() appsv1.AppsV1Interface
 	BatchV1() batchv1.BatchV1Interface
 	CatalogV1() catalogv1.CatalogV1Interface
 	CdiV1beta1() cdiv1beta1.CdiV1beta1Interface
@@ -72,6 +76,8 @@ type Interface interface {
 // Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
+	coreV1              *corev1.CoreV1Client
+	appsV1              *appsv1.AppsV1Client
 	batchV1             *batchv1.BatchV1Client
 	catalogV1           *catalogv1.CatalogV1Client
 	cdiV1beta1          *cdiv1beta1.CdiV1beta1Client
@@ -91,6 +97,16 @@ type Clientset struct {
 	upgradeV1           *upgradev1.UpgradeV1Client
 	uploadV1beta1       *uploadv1beta1.UploadV1beta1Client
 	whereaboutsV1alpha1 *whereaboutsv1alpha1.WhereaboutsV1alpha1Client
+}
+
+// CoreV1 retrieves the CoreV1Client
+func (c *Clientset) CoreV1() corev1.CoreV1Interface {
+	return c.coreV1
+}
+
+// AppsV1 retrieves the AppsV1Client
+func (c *Clientset) AppsV1() appsv1.AppsV1Interface {
+	return c.appsV1
 }
 
 // BatchV1 retrieves the BatchV1Client
@@ -232,6 +248,14 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
+	cs.coreV1, err = corev1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
+	cs.appsV1, err = appsv1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.batchV1, err = batchv1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -329,6 +353,8 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
+	cs.coreV1 = corev1.New(c)
+	cs.appsV1 = appsv1.New(c)
 	cs.batchV1 = batchv1.New(c)
 	cs.catalogV1 = catalogv1.New(c)
 	cs.cdiV1beta1 = cdiv1beta1.New(c)

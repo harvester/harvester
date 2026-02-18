@@ -3,17 +3,17 @@ package fakeclients
 import (
 	"context"
 
+	corev1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/v1"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
-	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 )
 
-type ServiceClient func(string) v1.ServiceInterface
+type ServiceClient func(string) corev1type.ServiceInterface
 
 func (c ServiceClient) Create(service *corev1.Service) (*corev1.Service, error) {
 	return c(service.Namespace).Create(context.TODO(), service, metav1.CreateOptions{})
@@ -50,7 +50,7 @@ func (c ServiceClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.Cl
 	panic("implement me")
 }
 
-type ServiceCache func(string) v1.ServiceInterface
+type ServiceCache func(string) corev1type.ServiceInterface
 
 func (c ServiceCache) Get(namespace, name string) (*corev1.Service, error) {
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})

@@ -9,7 +9,6 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	fakecore "k8s.io/client-go/kubernetes/fake"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -118,31 +117,30 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup fake clients
-			var coreClientset = fakecore.NewSimpleClientset()
-			var harvFakeClient = fakegenerated.NewSimpleClientset()
+			var clientset = fakegenerated.NewSimpleClientset()
 
 			// Add StorageClass
 			if tt.args.storageClass != nil {
-				err := coreClientset.Tracker().Add(tt.args.storageClass)
+				err := clientset.Tracker().Add(tt.args.storageClass)
 				assert.Nil(t, err, "should add StorageClass to tracker")
 			}
 
 			// Add VMImage
 			if tt.args.vmImage != nil {
-				err := harvFakeClient.Tracker().Add(tt.args.vmImage)
+				err := clientset.Tracker().Add(tt.args.vmImage)
 				assert.Nil(t, err, "should add VMImage to tracker")
 			}
 
 			// Add DataVolume if exists
 			if tt.args.dataVolume != nil {
-				err := harvFakeClient.Tracker().Add(tt.args.dataVolume)
+				err := clientset.Tracker().Add(tt.args.dataVolume)
 				assert.Nil(t, err, "should add DataVolume to tracker")
 			}
 
 			// Create VMIOperator
 			vmio, err := common.GetVMIOperator(
-				fakeclients.VirtualMachineImageClient(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
-				fakeclients.VirtualMachineImageCache(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
+				fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+				fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 				http.Client{},
 			)
 			assert.Nil(t, err, "should create VMIOperator")
@@ -150,9 +148,9 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 			// Create CDI backend
 			cdiBackend := cdi.GetBackend(
 				context.Background(),
-				fakeclients.DataVolumeClient(harvFakeClient.CdiV1beta1().DataVolumes),
-				fakeclients.StorageClassClient(coreClientset.StorageV1().StorageClasses),
-				fakeclients.PersistentVolumeClaimCache(coreClientset.CoreV1().PersistentVolumeClaims),
+				fakeclients.DataVolumeClient(clientset.CdiV1beta1().DataVolumes),
+				fakeclients.StorageClassClient(clientset.StorageV1().StorageClasses),
+				fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
 				vmio,
 			)
 
@@ -163,8 +161,8 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 
 			// Create handler
 			h := &vmImageHandler{
-				vmiClient:     fakeclients.VirtualMachineImageClient(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
-				vmiController: fakeclients.VirtualMachineImageClient(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
+				vmiClient:     fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+				vmiController: fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 				vmio:          vmio,
 				backends:      backends,
 			}
@@ -192,7 +190,7 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 					Version:  "v1beta1",
 					Resource: "virtualmachineimages",
 				}
-				obj, err := harvFakeClient.Tracker().Get(gvr, tt.args.vmImage.Namespace, tt.args.vmImage.Name)
+				obj, err := clientset.Tracker().Get(gvr, tt.args.vmImage.Namespace, tt.args.vmImage.Name)
 				assert.Nil(t, err, "should get VMImage from tracker")
 
 				updatedVMI, ok := obj.(*harvesterv1.VirtualMachineImage)

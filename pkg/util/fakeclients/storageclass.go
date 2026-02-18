@@ -3,13 +3,13 @@ package fakeclients
 import (
 	"context"
 
+	storagev1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
-	storagev1type "k8s.io/client-go/kubernetes/typed/storage/v1"
 	"k8s.io/client-go/rest"
 
 	"github.com/harvester/harvester/pkg/ref"

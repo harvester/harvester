@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/harvester/go-common/common"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	longhornTypes "github.com/longhorn/longhorn-manager/types"
@@ -14,7 +15,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	corefake "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
@@ -266,14 +266,14 @@ func TestClusterReady(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testClientset := corefake.NewSimpleClientset()
+			clientset := fake.NewSimpleClientset()
 
 			for _, pod := range tt.pods {
-				err := testClientset.Tracker().Add(pod)
+				err := clientset.Tracker().Add(pod)
 				assert.Nil(t, err, "Mock pod should add into fake controller tracker")
 			}
 
-			podCache := fakeclients.PodCache(testClientset.CoreV1().Pods)
+			podCache := fakeclients.PodCache(clientset.CoreV1().Pods)
 			rkeCache := fakeclients.RKEControlPlaneCache(func(namespace string) rkev1controller.RKEControlPlaneClient {
 				rkeMap := make(map[string]*rkev1.RKEControlPlane)
 				if tt.rkeControlPlane != nil {

@@ -33,6 +33,7 @@ func init() {
 type Interface interface {
 	Node() NodeController
 	PersistentVolume() PersistentVolumeController
+	PersistentVolumeClaim() PersistentVolumeClaimController
 	ResourceQuota() ResourceQuotaController
 }
 
@@ -52,6 +53,10 @@ func (v *version) Node() NodeController {
 
 func (v *version) PersistentVolume() PersistentVolumeController {
 	return generic.NewNonNamespacedController[*v1.PersistentVolume, *v1.PersistentVolumeList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolume"}, "persistentvolumes", v.controllerFactory)
+}
+
+func (v *version) PersistentVolumeClaim() PersistentVolumeClaimController {
+	return generic.NewController[*v1.PersistentVolumeClaim, *v1.PersistentVolumeClaimList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolumeClaim"}, "persistentvolumeclaims", true, v.controllerFactory)
 }
 
 func (v *version) ResourceQuota() ResourceQuotaController {
