@@ -723,16 +723,9 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 	vmName := restore.Spec.Target.Name
 	logrus.Infof("restore target does not exist, creating a new vm %s", vmName)
 
-	restoreID := getRestoreID(restore)
 	vmCpy := backup.Status.SourceSpec.DeepCopy()
 
-	newVMAnnotations := map[string]string{
-		lastRestoreAnnotation: restoreID,
-		restoreNameAnnotation: restore.Name,
-	}
-	if reservedMem, ok := vmCpy.ObjectMeta.Annotations[util.AnnotationReservedMemory]; ok {
-		newVMAnnotations[util.AnnotationReservedMemory] = reservedMem
-	}
+	newVMAnnotations := getNewVMAnnotations(restore, vmCpy.ObjectMeta.Annotations)
 
 	newVMSpecAnnotations, err := sanitizeVirtualMachineAnnotationsForRestore(restore, vmCpy.Spec.Template.ObjectMeta.Annotations)
 	if err != nil {
@@ -784,6 +777,29 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 	}
 
 	return newVM, nil
+}
+
+// getNewVMAnnotations creates annotations map for a new VM with restore metadata and preserved annotations
+func getNewVMAnnotations(restore *harvesterv1.VirtualMachineRestore, sourceAnnotations map[string]string) map[string]string {
+	restoreID := getRestoreID(restore)
+	newVMAnnotations := map[string]string{
+		lastRestoreAnnotation: restoreID,
+		restoreNameAnnotation: restore.Name,
+	}
+
+	// Preserve specific annotations from source VM
+	preservedAnnotations := []string{
+		util.AnnotationReservedMemory,
+		util.AnnotationEnableCPUAndMemoryHotplug,
+	}
+
+	for _, annotation := range preservedAnnotations {
+		if value, ok := sourceAnnotations[annotation]; ok {
+			newVMAnnotations[annotation] = value
+		}
+	}
+
+	return newVMAnnotations
 }
 
 func (h *RestoreHandler) updateOwnerRefAndTargetUID(vmRestore *harvesterv1.VirtualMachineRestore, vm *kubevirtv1.VirtualMachine) error {
