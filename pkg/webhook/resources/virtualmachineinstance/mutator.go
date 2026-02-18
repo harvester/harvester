@@ -1,8 +1,10 @@
 package virtualmachineinstance
 
 import (
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
+	"regexp"
 
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -54,7 +56,20 @@ func (m *vmiMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 		return nil, err
 	}
 
-	return m.patchMacAddress(vm, vmi)
+	patchOps, err := m.patchMacAddress(vm, vmi)
+	if err != nil {
+		return nil, fmt.Errorf("error patching mac address for vmi %s/%s: %w", vmi.Namespace, vmi.Name, err)
+	}
+
+	if len(vmi.Spec.Domain.Devices.HostDevices) > 0 || len(vmi.Spec.Domain.Devices.GPUs) > 0 {
+		devicesPatch, err := patchDeviceName(vmi)
+		if err != nil {
+			return nil, fmt.Errorf("error patching device name for vmi %s/%s: %w", vmi.Namespace, vmi.Name, err)
+		}
+		patchOps = append(patchOps, devicesPatch...)
+	}
+
+	return patchOps, nil
 }
 
 func (m *vmiMutator) patchMacAddress(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) (types.PatchOps, error) {
@@ -82,6 +97,34 @@ func (m *vmiMutator) patchMacAddress(vm *kubevirtv1.VirtualMachine, vmi *kubevir
 			continue
 		}
 		patchOps = append(patchOps, fmt.Sprintf(`{"op": "add", "path": "/spec/domain/devices/interfaces/%d/macAddress", "value": "%s"}`, i, ifaceMac))
+	}
+	return patchOps, nil
+}
+
+func generateEncodedAlias(aliasName string) string {
+	matched := regexp.MustCompile("^[a-zA-Z0-9_-]+$").MatchString(aliasName)
+	if matched {
+		return aliasName
+	}
+	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(aliasName))
+}
+
+func patchDeviceName(vmi *kubevirtv1.VirtualMachineInstance) (types.PatchOps, error) {
+	patchOps := types.PatchOps{}
+
+	hostDevicePath := "/spec/domain/devices/hostDevices/%d/name"
+	gpuDevicePath := "/spec/domain/devices/gpus/%d/name"
+	for i, hostDevice := range vmi.Spec.Domain.Devices.HostDevices {
+		encodedAlias := generateEncodedAlias(hostDevice.Name)
+		if encodedAlias != hostDevice.Name {
+			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "%s", "value": "%s"}`, fmt.Sprintf(hostDevicePath, i), encodedAlias))
+		}
+	}
+	for i, gpu := range vmi.Spec.Domain.Devices.GPUs {
+		encodedAlias := generateEncodedAlias(gpu.Name)
+		if encodedAlias != gpu.Name {
+			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "%s", "value": "%s"}`, fmt.Sprintf(gpuDevicePath, i), encodedAlias))
+		}
 	}
 	return patchOps, nil
 }
