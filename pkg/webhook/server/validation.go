@@ -18,6 +18,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/keypair"
 	"github.com/harvester/harvester/pkg/webhook/resources/managedchart"
 	"github.com/harvester/harvester/pkg/webhook/resources/namespace"
+	"github.com/harvester/harvester/pkg/webhook/resources/networkattachmentdefinition"
 	"github.com/harvester/harvester/pkg/webhook/resources/node"
 	"github.com/harvester/harvester/pkg/webhook/resources/persistentvolumeclaim"
 	"github.com/harvester/harvester/pkg/webhook/resources/resourcequota"
@@ -202,6 +203,9 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		deployment.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
 			clients.AppsFactory.Apps().V1().Deployment().Cache(),
+		),
+		networkattachmentdefinition.NewValidator(
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 		),
 	}
 
