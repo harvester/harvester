@@ -79,7 +79,7 @@ func (v *namespaceValidator) resourceQuotaValidation(oldNamespace, newNamespace 
 	if err != nil {
 		return err
 	} else if len(rss) == 0 {
-		logrus.Debugf("can't find any default ResourceQuota, skip updating namespace %s", newNamespace.Name)
+		logrus.Debugf("can't find any default ResourceQuota, skip validating namespace %s", newNamespace.Name)
 		return nil
 	}
 
