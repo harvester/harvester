@@ -88,7 +88,7 @@
 /pkg/webhook/resources/resourcequota/ @harvester/dev
 /pkg/webhook/resources/schedulevmbackup/ @WebberHuang1118 @harvester/dev
 /pkg/webhook/resources/secret/ @harvester/dev
-/pkg/webhook/resources/setting/ @Yu-Jack @starbops
+/pkg/webhook/resources/setting/ @Yu-Jack @starbops @harvester/dev
 /pkg/webhook/resources/storageclass/ @Yu-Jack @brandboat @w13915984028
 /pkg/webhook/resources/supportbundle/ @Yu-Jack @harvester/dev
 /pkg/webhook/resources/templateversion/ @m-ildefons @harvester/dev
@@ -102,7 +102,7 @@
 /pkg/webhook/resources/volumesnapshot/ @Vicente-Cheng @harvester/dev
 /pkg/webhook/server/ @WebberHuang1118 @Vicente-Cheng @harvester/dev
 /pkg/webhook/types/ @harvester/dev
-/pkg/webhook/util/ @WebberHuang1118 @starbops
+/pkg/webhook/util/ @WebberHuang1118 @starbops @harvester/dev
 /scripts/ @harvester/dev
 /tests/ @harvester/dev
 /vendor/ @harvester/dev
