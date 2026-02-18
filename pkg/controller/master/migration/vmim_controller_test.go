@@ -28,13 +28,15 @@ const (
 
 	longVMIName = "a-very-long-name-exceeds-the-63-length-and-it-reports-error-in-old-version"
 
-	memory1Gi = 1 * 1024 * 1024 * 1024
+	memory1Gi = 1 << 30
 
 	// the vm limits.memory is dynamically computed, avoid to use hard coded number
 	vmResourceLimitStr = "{\"limits.cpu\":\"1\",\"limits.memory\":\"%v\"}"
 
 	errMockTrackerAdd = "mock resource should add into fake controller tracker"
 	errMockTrackerGet = "mock resource should get into fake controller tracker"
+
+	placeholder = "placeholder"
 )
 
 func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
@@ -661,7 +663,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota_WithCompensation(t *testing.T) 
 			},
 		},
 		{
-			name: "Migration is finished, RQ is restored",
+			name: "Migration is finished(succeeded), RQ is restored",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -669,7 +671,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota_WithCompensation(t *testing.T) 
 						Name:      resourceQuotaName,
 						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 						Annotations: map[string]string{
-							"placeholder": "placeholder",
+							placeholder: placeholder,
 							util.GenerateAnnotationKeyMigratingVMUID(uid): fmt.Sprintf(vmResourceLimitStr, getMemWithOverhead(memory1Gi*2)),
 							util.AnnotationMigratingCompensation:          "{\"limits.memory\":\"555745096\"}",
 						},
@@ -721,7 +723,79 @@ func TestHandler_OnVmimChanged_WithResourceQuota_WithCompensation(t *testing.T) 
 					Name:      resourceQuotaName,
 					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 					Annotations: map[string]string{
-						"placeholder": "placeholder", // vmim scaling and compensation annotations are removed
+						placeholder: placeholder, // vmim scaling and compensation annotations are removed
+					},
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(2, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*4, resource.BinarySI),
+					},
+				},
+			},
+		},
+		{
+			name: "Migration is failed (aborted), RQ is restored",
+			args: args{
+				rq: &corev1.ResourceQuota{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: resourceQuotaNamespace,
+						Name:      resourceQuotaName,
+						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+						Annotations: map[string]string{
+							placeholder: placeholder,
+							util.GenerateAnnotationKeyMigratingVMUID(uid): fmt.Sprintf(vmResourceLimitStr, getMemWithOverhead(memory1Gi*2)),
+							util.AnnotationMigratingCompensation:          "{\"limits.memory\":\"555745096\"}",
+						},
+					},
+					Spec: corev1.ResourceQuotaSpec{
+						Hard: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceLimitsCPU:    *resource.NewQuantity(2, resource.DecimalSI),          // scaled
+							corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*4, resource.BinarySI), // scaled
+						},
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: v1.ObjectMeta{
+						Name:        "vm1",
+						Namespace:   resourceQuotaNamespace,
+						UID:         uid,
+						Annotations: map[string]string{
+							// util.AnnotationMigrationUID:   vmimUID,
+							// util.AnnotationMigrationState: StatePending,
+						},
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							Resources: kubevirtv1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+								},
+							},
+						},
+					},
+				},
+				vmim: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vmim1",
+						Namespace: resourceQuotaNamespace,
+						UID:       vmimUID,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationFailed,
+					},
+				},
+			},
+			wantErr: false,
+			want: &corev1.ResourceQuota{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: resourceQuotaNamespace,
+					Name:      resourceQuotaName,
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					Annotations: map[string]string{
+						placeholder: placeholder, // vmim scaling and compensation annotations are removed
 					},
 				},
 				Spec: corev1.ResourceQuotaSpec{
