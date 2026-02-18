@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type GithubConfigsGetter interface {
 
 // GithubConfigInterface has methods to work with GithubConfig resources.
 type GithubConfigInterface interface {
-	Create(ctx context.Context, githubConfig *v3.GithubConfig, opts v1.CreateOptions) (*v3.GithubConfig, error)
-	Update(ctx context.Context, githubConfig *v3.GithubConfig, opts v1.UpdateOptions) (*v3.GithubConfig, error)
+	Create(ctx context.Context, githubConfig *managementcattleiov3.GithubConfig, opts v1.CreateOptions) (*managementcattleiov3.GithubConfig, error)
+	Update(ctx context.Context, githubConfig *managementcattleiov3.GithubConfig, opts v1.UpdateOptions) (*managementcattleiov3.GithubConfig, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.GithubConfig, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.GithubConfigList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.GithubConfig, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.GithubConfigList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.GithubConfig, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.GithubConfig, err error)
 	GithubConfigExpansion
 }
 
 // githubConfigs implements GithubConfigInterface
 type githubConfigs struct {
-	*gentype.ClientWithList[*v3.GithubConfig, *v3.GithubConfigList]
+	*gentype.ClientWithList[*managementcattleiov3.GithubConfig, *managementcattleiov3.GithubConfigList]
 }
 
 // newGithubConfigs returns a GithubConfigs
 func newGithubConfigs(c *ManagementV3Client) *githubConfigs {
 	return &githubConfigs{
-		gentype.NewClientWithList[*v3.GithubConfig, *v3.GithubConfigList](
+		gentype.NewClientWithList[*managementcattleiov3.GithubConfig, *managementcattleiov3.GithubConfigList](
 			"githubconfigs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.GithubConfig { return &v3.GithubConfig{} },
-			func() *v3.GithubConfigList { return &v3.GithubConfigList{} }),
+			func() *managementcattleiov3.GithubConfig { return &managementcattleiov3.GithubConfig{} },
+			func() *managementcattleiov3.GithubConfigList { return &managementcattleiov3.GithubConfigList{} },
+		),
 	}
 }

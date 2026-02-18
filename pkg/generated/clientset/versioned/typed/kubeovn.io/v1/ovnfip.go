@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type OvnFipsGetter interface {
 
 // OvnFipInterface has methods to work with OvnFip resources.
 type OvnFipInterface interface {
-	Create(ctx context.Context, ovnFip *v1.OvnFip, opts metav1.CreateOptions) (*v1.OvnFip, error)
-	Update(ctx context.Context, ovnFip *v1.OvnFip, opts metav1.UpdateOptions) (*v1.OvnFip, error)
+	Create(ctx context.Context, ovnFip *kubeovnv1.OvnFip, opts metav1.CreateOptions) (*kubeovnv1.OvnFip, error)
+	Update(ctx context.Context, ovnFip *kubeovnv1.OvnFip, opts metav1.UpdateOptions) (*kubeovnv1.OvnFip, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, ovnFip *v1.OvnFip, opts metav1.UpdateOptions) (*v1.OvnFip, error)
+	UpdateStatus(ctx context.Context, ovnFip *kubeovnv1.OvnFip, opts metav1.UpdateOptions) (*kubeovnv1.OvnFip, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.OvnFip, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.OvnFipList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.OvnFip, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.OvnFipList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.OvnFip, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.OvnFip, err error)
 	OvnFipExpansion
 }
 
 // ovnFips implements OvnFipInterface
 type ovnFips struct {
-	*gentype.ClientWithList[*v1.OvnFip, *v1.OvnFipList]
+	*gentype.ClientWithList[*kubeovnv1.OvnFip, *kubeovnv1.OvnFipList]
 }
 
 // newOvnFips returns a OvnFips
 func newOvnFips(c *KubeovnV1Client) *ovnFips {
 	return &ovnFips{
-		gentype.NewClientWithList[*v1.OvnFip, *v1.OvnFipList](
+		gentype.NewClientWithList[*kubeovnv1.OvnFip, *kubeovnv1.OvnFipList](
 			"ovn-fips",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.OvnFip { return &v1.OvnFip{} },
-			func() *v1.OvnFipList { return &v1.OvnFipList{} }),
+			func() *kubeovnv1.OvnFip { return &kubeovnv1.OvnFip{} },
+			func() *kubeovnv1.OvnFipList { return &kubeovnv1.OvnFipList{} },
+		),
 	}
 }

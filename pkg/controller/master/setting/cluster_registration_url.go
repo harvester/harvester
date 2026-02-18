@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/rancher/wrangler/v3/pkg/objectset"
@@ -19,6 +18,8 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
+const defaultResponseMaxSize = 1 * 1024 * 1024 // 1MB
+
 // registerCluster imports Harvester to Rancher by applying manifests from the registration URL.
 func (h *Handler) registerCluster(setting *harvesterv1.Setting) error {
 	url := setting.Value
@@ -31,7 +32,8 @@ func (h *Handler) registerCluster(setting *harvesterv1.Setting) error {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	limitReader := io.LimitReader(resp.Body, defaultResponseMaxSize)
+	body, err := io.ReadAll(limitReader)
 	if err != nil {
 		return err
 	}

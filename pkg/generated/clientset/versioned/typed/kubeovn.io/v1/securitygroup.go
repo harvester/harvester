@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type SecurityGroupsGetter interface {
 
 // SecurityGroupInterface has methods to work with SecurityGroup resources.
 type SecurityGroupInterface interface {
-	Create(ctx context.Context, securityGroup *v1.SecurityGroup, opts metav1.CreateOptions) (*v1.SecurityGroup, error)
-	Update(ctx context.Context, securityGroup *v1.SecurityGroup, opts metav1.UpdateOptions) (*v1.SecurityGroup, error)
+	Create(ctx context.Context, securityGroup *kubeovnv1.SecurityGroup, opts metav1.CreateOptions) (*kubeovnv1.SecurityGroup, error)
+	Update(ctx context.Context, securityGroup *kubeovnv1.SecurityGroup, opts metav1.UpdateOptions) (*kubeovnv1.SecurityGroup, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, securityGroup *v1.SecurityGroup, opts metav1.UpdateOptions) (*v1.SecurityGroup, error)
+	UpdateStatus(ctx context.Context, securityGroup *kubeovnv1.SecurityGroup, opts metav1.UpdateOptions) (*kubeovnv1.SecurityGroup, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.SecurityGroup, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.SecurityGroupList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.SecurityGroup, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.SecurityGroupList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.SecurityGroup, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.SecurityGroup, err error)
 	SecurityGroupExpansion
 }
 
 // securityGroups implements SecurityGroupInterface
 type securityGroups struct {
-	*gentype.ClientWithList[*v1.SecurityGroup, *v1.SecurityGroupList]
+	*gentype.ClientWithList[*kubeovnv1.SecurityGroup, *kubeovnv1.SecurityGroupList]
 }
 
 // newSecurityGroups returns a SecurityGroups
 func newSecurityGroups(c *KubeovnV1Client) *securityGroups {
 	return &securityGroups{
-		gentype.NewClientWithList[*v1.SecurityGroup, *v1.SecurityGroupList](
+		gentype.NewClientWithList[*kubeovnv1.SecurityGroup, *kubeovnv1.SecurityGroupList](
 			"security-groups",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.SecurityGroup { return &v1.SecurityGroup{} },
-			func() *v1.SecurityGroupList { return &v1.SecurityGroupList{} }),
+			func() *kubeovnv1.SecurityGroup { return &kubeovnv1.SecurityGroup{} },
+			func() *kubeovnv1.SecurityGroupList { return &kubeovnv1.SecurityGroupList{} },
+		),
 	}
 }

@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type SystemBackupsGetter interface {
 
 // SystemBackupInterface has methods to work with SystemBackup resources.
 type SystemBackupInterface interface {
-	Create(ctx context.Context, systemBackup *v1beta2.SystemBackup, opts v1.CreateOptions) (*v1beta2.SystemBackup, error)
-	Update(ctx context.Context, systemBackup *v1beta2.SystemBackup, opts v1.UpdateOptions) (*v1beta2.SystemBackup, error)
+	Create(ctx context.Context, systemBackup *longhornv1beta2.SystemBackup, opts v1.CreateOptions) (*longhornv1beta2.SystemBackup, error)
+	Update(ctx context.Context, systemBackup *longhornv1beta2.SystemBackup, opts v1.UpdateOptions) (*longhornv1beta2.SystemBackup, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, systemBackup *v1beta2.SystemBackup, opts v1.UpdateOptions) (*v1beta2.SystemBackup, error)
+	UpdateStatus(ctx context.Context, systemBackup *longhornv1beta2.SystemBackup, opts v1.UpdateOptions) (*longhornv1beta2.SystemBackup, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.SystemBackup, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.SystemBackupList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.SystemBackup, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.SystemBackupList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.SystemBackup, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.SystemBackup, err error)
 	SystemBackupExpansion
 }
 
 // systemBackups implements SystemBackupInterface
 type systemBackups struct {
-	*gentype.ClientWithList[*v1beta2.SystemBackup, *v1beta2.SystemBackupList]
+	*gentype.ClientWithList[*longhornv1beta2.SystemBackup, *longhornv1beta2.SystemBackupList]
 }
 
 // newSystemBackups returns a SystemBackups
 func newSystemBackups(c *LonghornV1beta2Client, namespace string) *systemBackups {
 	return &systemBackups{
-		gentype.NewClientWithList[*v1beta2.SystemBackup, *v1beta2.SystemBackupList](
+		gentype.NewClientWithList[*longhornv1beta2.SystemBackup, *longhornv1beta2.SystemBackupList](
 			"systembackups",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.SystemBackup { return &v1beta2.SystemBackup{} },
-			func() *v1beta2.SystemBackupList { return &v1beta2.SystemBackupList{} }),
+			func() *longhornv1beta2.SystemBackup { return &longhornv1beta2.SystemBackup{} },
+			func() *longhornv1beta2.SystemBackupList { return &longhornv1beta2.SystemBackupList{} },
+		),
 	}
 }

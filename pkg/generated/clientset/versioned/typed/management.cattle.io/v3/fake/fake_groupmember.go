@@ -19,108 +19,30 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeGroupMembers implements GroupMemberInterface
-type FakeGroupMembers struct {
+// fakeGroupMembers implements GroupMemberInterface
+type fakeGroupMembers struct {
+	*gentype.FakeClientWithList[*v3.GroupMember, *v3.GroupMemberList]
 	Fake *FakeManagementV3
 }
 
-var groupmembersResource = v3.SchemeGroupVersion.WithResource("groupmembers")
-
-var groupmembersKind = v3.SchemeGroupVersion.WithKind("GroupMember")
-
-// Get takes name of the groupMember, and returns the corresponding groupMember object, and an error if there is any.
-func (c *FakeGroupMembers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.GroupMember, err error) {
-	emptyResult := &v3.GroupMember{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(groupmembersResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeGroupMembers(fake *FakeManagementV3) managementcattleiov3.GroupMemberInterface {
+	return &fakeGroupMembers{
+		gentype.NewFakeClientWithList[*v3.GroupMember, *v3.GroupMemberList](
+			fake.Fake,
+			"",
+			v3.SchemeGroupVersion.WithResource("groupmembers"),
+			v3.SchemeGroupVersion.WithKind("GroupMember"),
+			func() *v3.GroupMember { return &v3.GroupMember{} },
+			func() *v3.GroupMemberList { return &v3.GroupMemberList{} },
+			func(dst, src *v3.GroupMemberList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.GroupMemberList) []*v3.GroupMember { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.GroupMemberList, items []*v3.GroupMember) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*v3.GroupMember), err
-}
-
-// List takes label and field selectors, and returns the list of GroupMembers that match those selectors.
-func (c *FakeGroupMembers) List(ctx context.Context, opts v1.ListOptions) (result *v3.GroupMemberList, err error) {
-	emptyResult := &v3.GroupMemberList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(groupmembersResource, groupmembersKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.GroupMemberList{ListMeta: obj.(*v3.GroupMemberList).ListMeta}
-	for _, item := range obj.(*v3.GroupMemberList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested groupMembers.
-func (c *FakeGroupMembers) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(groupmembersResource, opts))
-}
-
-// Create takes the representation of a groupMember and creates it.  Returns the server's representation of the groupMember, and an error, if there is any.
-func (c *FakeGroupMembers) Create(ctx context.Context, groupMember *v3.GroupMember, opts v1.CreateOptions) (result *v3.GroupMember, err error) {
-	emptyResult := &v3.GroupMember{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(groupmembersResource, groupMember, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.GroupMember), err
-}
-
-// Update takes the representation of a groupMember and updates it. Returns the server's representation of the groupMember, and an error, if there is any.
-func (c *FakeGroupMembers) Update(ctx context.Context, groupMember *v3.GroupMember, opts v1.UpdateOptions) (result *v3.GroupMember, err error) {
-	emptyResult := &v3.GroupMember{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(groupmembersResource, groupMember, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.GroupMember), err
-}
-
-// Delete takes name of the groupMember and deletes it. Returns an error if one occurs.
-func (c *FakeGroupMembers) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(groupmembersResource, name, opts), &v3.GroupMember{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeGroupMembers) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(groupmembersResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.GroupMemberList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched groupMember.
-func (c *FakeGroupMembers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.GroupMember, err error) {
-	emptyResult := &v3.GroupMember{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(groupmembersResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.GroupMember), err
 }

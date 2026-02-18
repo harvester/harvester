@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type SwitchLBRulesGetter interface {
 
 // SwitchLBRuleInterface has methods to work with SwitchLBRule resources.
 type SwitchLBRuleInterface interface {
-	Create(ctx context.Context, switchLBRule *v1.SwitchLBRule, opts metav1.CreateOptions) (*v1.SwitchLBRule, error)
-	Update(ctx context.Context, switchLBRule *v1.SwitchLBRule, opts metav1.UpdateOptions) (*v1.SwitchLBRule, error)
+	Create(ctx context.Context, switchLBRule *kubeovnv1.SwitchLBRule, opts metav1.CreateOptions) (*kubeovnv1.SwitchLBRule, error)
+	Update(ctx context.Context, switchLBRule *kubeovnv1.SwitchLBRule, opts metav1.UpdateOptions) (*kubeovnv1.SwitchLBRule, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, switchLBRule *v1.SwitchLBRule, opts metav1.UpdateOptions) (*v1.SwitchLBRule, error)
+	UpdateStatus(ctx context.Context, switchLBRule *kubeovnv1.SwitchLBRule, opts metav1.UpdateOptions) (*kubeovnv1.SwitchLBRule, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.SwitchLBRule, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.SwitchLBRuleList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.SwitchLBRule, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.SwitchLBRuleList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.SwitchLBRule, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.SwitchLBRule, err error)
 	SwitchLBRuleExpansion
 }
 
 // switchLBRules implements SwitchLBRuleInterface
 type switchLBRules struct {
-	*gentype.ClientWithList[*v1.SwitchLBRule, *v1.SwitchLBRuleList]
+	*gentype.ClientWithList[*kubeovnv1.SwitchLBRule, *kubeovnv1.SwitchLBRuleList]
 }
 
 // newSwitchLBRules returns a SwitchLBRules
 func newSwitchLBRules(c *KubeovnV1Client) *switchLBRules {
 	return &switchLBRules{
-		gentype.NewClientWithList[*v1.SwitchLBRule, *v1.SwitchLBRuleList](
+		gentype.NewClientWithList[*kubeovnv1.SwitchLBRule, *kubeovnv1.SwitchLBRuleList](
 			"switch-lb-rules",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.SwitchLBRule { return &v1.SwitchLBRule{} },
-			func() *v1.SwitchLBRuleList { return &v1.SwitchLBRuleList{} }),
+			func() *kubeovnv1.SwitchLBRule { return &kubeovnv1.SwitchLBRule{} },
+			func() *kubeovnv1.SwitchLBRuleList { return &kubeovnv1.SwitchLBRuleList{} },
+		),
 	}
 }

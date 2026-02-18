@@ -29,87 +29,87 @@ type FakeKubeovnV1 struct {
 }
 
 func (c *FakeKubeovnV1) IPs() v1.IPInterface {
-	return &FakeIPs{c}
+	return newFakeIPs(c)
 }
 
 func (c *FakeKubeovnV1) IPPools() v1.IPPoolInterface {
-	return &FakeIPPools{c}
+	return newFakeIPPools(c)
 }
 
 func (c *FakeKubeovnV1) IptablesDnatRules() v1.IptablesDnatRuleInterface {
-	return &FakeIptablesDnatRules{c}
+	return newFakeIptablesDnatRules(c)
 }
 
 func (c *FakeKubeovnV1) IptablesEIPs() v1.IptablesEIPInterface {
-	return &FakeIptablesEIPs{c}
+	return newFakeIptablesEIPs(c)
 }
 
 func (c *FakeKubeovnV1) IptablesFIPRules() v1.IptablesFIPRuleInterface {
-	return &FakeIptablesFIPRules{c}
+	return newFakeIptablesFIPRules(c)
 }
 
 func (c *FakeKubeovnV1) IptablesSnatRules() v1.IptablesSnatRuleInterface {
-	return &FakeIptablesSnatRules{c}
+	return newFakeIptablesSnatRules(c)
 }
 
 func (c *FakeKubeovnV1) OvnDnatRules() v1.OvnDnatRuleInterface {
-	return &FakeOvnDnatRules{c}
+	return newFakeOvnDnatRules(c)
 }
 
 func (c *FakeKubeovnV1) OvnEips() v1.OvnEipInterface {
-	return &FakeOvnEips{c}
+	return newFakeOvnEips(c)
 }
 
 func (c *FakeKubeovnV1) OvnFips() v1.OvnFipInterface {
-	return &FakeOvnFips{c}
+	return newFakeOvnFips(c)
 }
 
 func (c *FakeKubeovnV1) OvnSnatRules() v1.OvnSnatRuleInterface {
-	return &FakeOvnSnatRules{c}
+	return newFakeOvnSnatRules(c)
 }
 
 func (c *FakeKubeovnV1) ProviderNetworks() v1.ProviderNetworkInterface {
-	return &FakeProviderNetworks{c}
+	return newFakeProviderNetworks(c)
 }
 
 func (c *FakeKubeovnV1) QoSPolicies() v1.QoSPolicyInterface {
-	return &FakeQoSPolicies{c}
+	return newFakeQoSPolicies(c)
 }
 
 func (c *FakeKubeovnV1) SecurityGroups() v1.SecurityGroupInterface {
-	return &FakeSecurityGroups{c}
+	return newFakeSecurityGroups(c)
 }
 
 func (c *FakeKubeovnV1) Subnets() v1.SubnetInterface {
-	return &FakeSubnets{c}
+	return newFakeSubnets(c)
 }
 
 func (c *FakeKubeovnV1) SwitchLBRules() v1.SwitchLBRuleInterface {
-	return &FakeSwitchLBRules{c}
+	return newFakeSwitchLBRules(c)
 }
 
 func (c *FakeKubeovnV1) Vips() v1.VipInterface {
-	return &FakeVips{c}
+	return newFakeVips(c)
 }
 
 func (c *FakeKubeovnV1) Vlans() v1.VlanInterface {
-	return &FakeVlans{c}
+	return newFakeVlans(c)
 }
 
 func (c *FakeKubeovnV1) Vpcs() v1.VpcInterface {
-	return &FakeVpcs{c}
+	return newFakeVpcs(c)
 }
 
 func (c *FakeKubeovnV1) VpcDnses() v1.VpcDnsInterface {
-	return &FakeVpcDnses{c}
+	return newFakeVpcDnses(c)
 }
 
 func (c *FakeKubeovnV1) VpcEgressGateways(namespace string) v1.VpcEgressGatewayInterface {
-	return &FakeVpcEgressGateways{c, namespace}
+	return newFakeVpcEgressGateways(c, namespace)
 }
 
 func (c *FakeKubeovnV1) VpcNatGateways() v1.VpcNatGatewayInterface {
-	return &FakeVpcNatGateways{c}
+	return newFakeVpcNatGateways(c)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

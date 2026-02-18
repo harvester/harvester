@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type PreferencesGetter interface {
 
 // PreferenceInterface has methods to work with Preference resources.
 type PreferenceInterface interface {
-	Create(ctx context.Context, preference *v3.Preference, opts v1.CreateOptions) (*v3.Preference, error)
-	Update(ctx context.Context, preference *v3.Preference, opts v1.UpdateOptions) (*v3.Preference, error)
+	Create(ctx context.Context, preference *managementcattleiov3.Preference, opts v1.CreateOptions) (*managementcattleiov3.Preference, error)
+	Update(ctx context.Context, preference *managementcattleiov3.Preference, opts v1.UpdateOptions) (*managementcattleiov3.Preference, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.Preference, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.PreferenceList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.Preference, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.PreferenceList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Preference, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.Preference, err error)
 	PreferenceExpansion
 }
 
 // preferences implements PreferenceInterface
 type preferences struct {
-	*gentype.ClientWithList[*v3.Preference, *v3.PreferenceList]
+	*gentype.ClientWithList[*managementcattleiov3.Preference, *managementcattleiov3.PreferenceList]
 }
 
 // newPreferences returns a Preferences
 func newPreferences(c *ManagementV3Client, namespace string) *preferences {
 	return &preferences{
-		gentype.NewClientWithList[*v3.Preference, *v3.PreferenceList](
+		gentype.NewClientWithList[*managementcattleiov3.Preference, *managementcattleiov3.PreferenceList](
 			"preferences",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.Preference { return &v3.Preference{} },
-			func() *v3.PreferenceList { return &v3.PreferenceList{} }),
+			func() *managementcattleiov3.Preference { return &managementcattleiov3.Preference{} },
+			func() *managementcattleiov3.PreferenceList { return &managementcattleiov3.PreferenceList{} },
+		),
 	}
 }

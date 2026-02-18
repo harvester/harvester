@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type RkeAddonsGetter interface {
 
 // RkeAddonInterface has methods to work with RkeAddon resources.
 type RkeAddonInterface interface {
-	Create(ctx context.Context, rkeAddon *v3.RkeAddon, opts v1.CreateOptions) (*v3.RkeAddon, error)
-	Update(ctx context.Context, rkeAddon *v3.RkeAddon, opts v1.UpdateOptions) (*v3.RkeAddon, error)
+	Create(ctx context.Context, rkeAddon *managementcattleiov3.RkeAddon, opts v1.CreateOptions) (*managementcattleiov3.RkeAddon, error)
+	Update(ctx context.Context, rkeAddon *managementcattleiov3.RkeAddon, opts v1.UpdateOptions) (*managementcattleiov3.RkeAddon, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.RkeAddon, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.RkeAddonList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.RkeAddon, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.RkeAddonList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.RkeAddon, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.RkeAddon, err error)
 	RkeAddonExpansion
 }
 
 // rkeAddons implements RkeAddonInterface
 type rkeAddons struct {
-	*gentype.ClientWithList[*v3.RkeAddon, *v3.RkeAddonList]
+	*gentype.ClientWithList[*managementcattleiov3.RkeAddon, *managementcattleiov3.RkeAddonList]
 }
 
 // newRkeAddons returns a RkeAddons
 func newRkeAddons(c *ManagementV3Client, namespace string) *rkeAddons {
 	return &rkeAddons{
-		gentype.NewClientWithList[*v3.RkeAddon, *v3.RkeAddonList](
+		gentype.NewClientWithList[*managementcattleiov3.RkeAddon, *managementcattleiov3.RkeAddonList](
 			"rkeaddons",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.RkeAddon { return &v3.RkeAddon{} },
-			func() *v3.RkeAddonList { return &v3.RkeAddonList{} }),
+			func() *managementcattleiov3.RkeAddon { return &managementcattleiov3.RkeAddon{} },
+			func() *managementcattleiov3.RkeAddonList { return &managementcattleiov3.RkeAddonList{} },
+		),
 	}
 }

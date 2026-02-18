@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -47,6 +48,9 @@ func (m *vmiMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 
 	vm, err := m.vm.Get(vmi.Namespace, vmi.Name)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 

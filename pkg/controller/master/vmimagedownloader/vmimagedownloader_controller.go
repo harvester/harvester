@@ -34,7 +34,7 @@ var (
 
 // storageProfileHandler dynamically manages storage profiles
 type vmImageDownloaderHandler struct {
-	clientSet                   *kubernetes.Clientset
+	clientSet                   kubernetes.Interface
 	pvcCache                    ctlcorev1.PersistentVolumeClaimCache
 	scCache                     ctlstoragev1.StorageClassCache
 	vmImageClient               v1beta1.VirtualMachineImageClient

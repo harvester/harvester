@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type VipsGetter interface {
 
 // VipInterface has methods to work with Vip resources.
 type VipInterface interface {
-	Create(ctx context.Context, vip *v1.Vip, opts metav1.CreateOptions) (*v1.Vip, error)
-	Update(ctx context.Context, vip *v1.Vip, opts metav1.UpdateOptions) (*v1.Vip, error)
+	Create(ctx context.Context, vip *kubeovnv1.Vip, opts metav1.CreateOptions) (*kubeovnv1.Vip, error)
+	Update(ctx context.Context, vip *kubeovnv1.Vip, opts metav1.UpdateOptions) (*kubeovnv1.Vip, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, vip *v1.Vip, opts metav1.UpdateOptions) (*v1.Vip, error)
+	UpdateStatus(ctx context.Context, vip *kubeovnv1.Vip, opts metav1.UpdateOptions) (*kubeovnv1.Vip, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.Vip, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.VipList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.Vip, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.VipList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Vip, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.Vip, err error)
 	VipExpansion
 }
 
 // vips implements VipInterface
 type vips struct {
-	*gentype.ClientWithList[*v1.Vip, *v1.VipList]
+	*gentype.ClientWithList[*kubeovnv1.Vip, *kubeovnv1.VipList]
 }
 
 // newVips returns a Vips
 func newVips(c *KubeovnV1Client) *vips {
 	return &vips{
-		gentype.NewClientWithList[*v1.Vip, *v1.VipList](
+		gentype.NewClientWithList[*kubeovnv1.Vip, *kubeovnv1.VipList](
 			"vips",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.Vip { return &v1.Vip{} },
-			func() *v1.VipList { return &v1.VipList{} }),
+			func() *kubeovnv1.Vip { return &kubeovnv1.Vip{} },
+			func() *kubeovnv1.VipList { return &kubeovnv1.VipList{} },
+		),
 	}
 }

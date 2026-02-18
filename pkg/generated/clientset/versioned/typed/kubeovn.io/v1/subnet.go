@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type SubnetsGetter interface {
 
 // SubnetInterface has methods to work with Subnet resources.
 type SubnetInterface interface {
-	Create(ctx context.Context, subnet *v1.Subnet, opts metav1.CreateOptions) (*v1.Subnet, error)
-	Update(ctx context.Context, subnet *v1.Subnet, opts metav1.UpdateOptions) (*v1.Subnet, error)
+	Create(ctx context.Context, subnet *kubeovnv1.Subnet, opts metav1.CreateOptions) (*kubeovnv1.Subnet, error)
+	Update(ctx context.Context, subnet *kubeovnv1.Subnet, opts metav1.UpdateOptions) (*kubeovnv1.Subnet, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, subnet *v1.Subnet, opts metav1.UpdateOptions) (*v1.Subnet, error)
+	UpdateStatus(ctx context.Context, subnet *kubeovnv1.Subnet, opts metav1.UpdateOptions) (*kubeovnv1.Subnet, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.Subnet, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.SubnetList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.Subnet, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.SubnetList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Subnet, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.Subnet, err error)
 	SubnetExpansion
 }
 
 // subnets implements SubnetInterface
 type subnets struct {
-	*gentype.ClientWithList[*v1.Subnet, *v1.SubnetList]
+	*gentype.ClientWithList[*kubeovnv1.Subnet, *kubeovnv1.SubnetList]
 }
 
 // newSubnets returns a Subnets
 func newSubnets(c *KubeovnV1Client) *subnets {
 	return &subnets{
-		gentype.NewClientWithList[*v1.Subnet, *v1.SubnetList](
+		gentype.NewClientWithList[*kubeovnv1.Subnet, *kubeovnv1.SubnetList](
 			"subnets",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.Subnet { return &v1.Subnet{} },
-			func() *v1.SubnetList { return &v1.SubnetList{} }),
+			func() *kubeovnv1.Subnet { return &kubeovnv1.Subnet{} },
+			func() *kubeovnv1.SubnetList { return &kubeovnv1.SubnetList{} },
+		),
 	}
 }

@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type BackupsGetter interface {
 
 // BackupInterface has methods to work with Backup resources.
 type BackupInterface interface {
-	Create(ctx context.Context, backup *v1beta2.Backup, opts v1.CreateOptions) (*v1beta2.Backup, error)
-	Update(ctx context.Context, backup *v1beta2.Backup, opts v1.UpdateOptions) (*v1beta2.Backup, error)
+	Create(ctx context.Context, backup *longhornv1beta2.Backup, opts v1.CreateOptions) (*longhornv1beta2.Backup, error)
+	Update(ctx context.Context, backup *longhornv1beta2.Backup, opts v1.UpdateOptions) (*longhornv1beta2.Backup, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, backup *v1beta2.Backup, opts v1.UpdateOptions) (*v1beta2.Backup, error)
+	UpdateStatus(ctx context.Context, backup *longhornv1beta2.Backup, opts v1.UpdateOptions) (*longhornv1beta2.Backup, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.Backup, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.BackupList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.Backup, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.BackupList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.Backup, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.Backup, err error)
 	BackupExpansion
 }
 
 // backups implements BackupInterface
 type backups struct {
-	*gentype.ClientWithList[*v1beta2.Backup, *v1beta2.BackupList]
+	*gentype.ClientWithList[*longhornv1beta2.Backup, *longhornv1beta2.BackupList]
 }
 
 // newBackups returns a Backups
 func newBackups(c *LonghornV1beta2Client, namespace string) *backups {
 	return &backups{
-		gentype.NewClientWithList[*v1beta2.Backup, *v1beta2.BackupList](
+		gentype.NewClientWithList[*longhornv1beta2.Backup, *longhornv1beta2.BackupList](
 			"backups",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.Backup { return &v1beta2.Backup{} },
-			func() *v1beta2.BackupList { return &v1beta2.BackupList{} }),
+			func() *longhornv1beta2.Backup { return &longhornv1beta2.Backup{} },
+			func() *longhornv1beta2.BackupList { return &longhornv1beta2.BackupList{} },
+		),
 	}
 }

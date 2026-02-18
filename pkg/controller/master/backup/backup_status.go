@@ -9,7 +9,7 @@ import (
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
@@ -84,13 +84,13 @@ func (h *Handler) updateConditions(vmBackup *harvesterv1.VirtualMachineBackup) e
 	if errorMessage != "" && (vmBackupCpy.Status.Error == nil || vmBackupCpy.Status.Error.Message == nil || *vmBackupCpy.Status.Error.Message != errorMessage) {
 		vmBackupCpy.Status.Error = &harvesterv1.Error{
 			Time:    currentTime(),
-			Message: pointer.StringPtr(errorMessage),
+			Message: ptr.To(errorMessage),
 		}
 		setCondition(vmBackupCpy, harvesterv1.BackupConditionProgressing, false, "Error", errorMessage)
 		setCondition(vmBackupCpy, harvesterv1.BackupConditionReady, false, "", "Not Ready")
 	}
 
-	vmBackupCpy.Status.ReadyToUse = pointer.BoolPtr(ready)
+	vmBackupCpy.Status.ReadyToUse = ptr.To(ready)
 
 	if !reflect.DeepEqual(vmBackup.Status, vmBackupCpy.Status) {
 		if _, err := h.vmBackups.Update(vmBackupCpy); err != nil {
@@ -168,7 +168,7 @@ func (h *Handler) OnLHBackupChanged(_ string, lhBackup *lhv1beta2.Backup) (*lhv1
 		vmBackupCpy := vmBackup.DeepCopy()
 		for i, volumeBackup := range vmBackupCpy.Status.VolumeBackups {
 			if *volumeBackup.Name == snapshot.Name {
-				vmBackupCpy.Status.VolumeBackups[i].LonghornBackupName = pointer.StringPtr(lhBackup.Name)
+				vmBackupCpy.Status.VolumeBackups[i].LonghornBackupName = ptr.To(lhBackup.Name)
 			}
 		}
 

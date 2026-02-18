@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type GroupMembersGetter interface {
 
 // GroupMemberInterface has methods to work with GroupMember resources.
 type GroupMemberInterface interface {
-	Create(ctx context.Context, groupMember *v3.GroupMember, opts v1.CreateOptions) (*v3.GroupMember, error)
-	Update(ctx context.Context, groupMember *v3.GroupMember, opts v1.UpdateOptions) (*v3.GroupMember, error)
+	Create(ctx context.Context, groupMember *managementcattleiov3.GroupMember, opts v1.CreateOptions) (*managementcattleiov3.GroupMember, error)
+	Update(ctx context.Context, groupMember *managementcattleiov3.GroupMember, opts v1.UpdateOptions) (*managementcattleiov3.GroupMember, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.GroupMember, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.GroupMemberList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.GroupMember, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.GroupMemberList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.GroupMember, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.GroupMember, err error)
 	GroupMemberExpansion
 }
 
 // groupMembers implements GroupMemberInterface
 type groupMembers struct {
-	*gentype.ClientWithList[*v3.GroupMember, *v3.GroupMemberList]
+	*gentype.ClientWithList[*managementcattleiov3.GroupMember, *managementcattleiov3.GroupMemberList]
 }
 
 // newGroupMembers returns a GroupMembers
 func newGroupMembers(c *ManagementV3Client) *groupMembers {
 	return &groupMembers{
-		gentype.NewClientWithList[*v3.GroupMember, *v3.GroupMemberList](
+		gentype.NewClientWithList[*managementcattleiov3.GroupMember, *managementcattleiov3.GroupMemberList](
 			"groupmembers",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.GroupMember { return &v3.GroupMember{} },
-			func() *v3.GroupMemberList { return &v3.GroupMemberList{} }),
+			func() *managementcattleiov3.GroupMember { return &managementcattleiov3.GroupMember{} },
+			func() *managementcattleiov3.GroupMemberList { return &managementcattleiov3.GroupMemberList{} },
+		),
 	}
 }

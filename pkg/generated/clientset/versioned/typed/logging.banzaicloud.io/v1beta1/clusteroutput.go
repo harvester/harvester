@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
+	apiv1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type ClusterOutputsGetter interface {
 
 // ClusterOutputInterface has methods to work with ClusterOutput resources.
 type ClusterOutputInterface interface {
-	Create(ctx context.Context, clusterOutput *v1beta1.ClusterOutput, opts v1.CreateOptions) (*v1beta1.ClusterOutput, error)
-	Update(ctx context.Context, clusterOutput *v1beta1.ClusterOutput, opts v1.UpdateOptions) (*v1beta1.ClusterOutput, error)
+	Create(ctx context.Context, clusterOutput *apiv1beta1.ClusterOutput, opts v1.CreateOptions) (*apiv1beta1.ClusterOutput, error)
+	Update(ctx context.Context, clusterOutput *apiv1beta1.ClusterOutput, opts v1.UpdateOptions) (*apiv1beta1.ClusterOutput, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, clusterOutput *v1beta1.ClusterOutput, opts v1.UpdateOptions) (*v1beta1.ClusterOutput, error)
+	UpdateStatus(ctx context.Context, clusterOutput *apiv1beta1.ClusterOutput, opts v1.UpdateOptions) (*apiv1beta1.ClusterOutput, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.ClusterOutput, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.ClusterOutputList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*apiv1beta1.ClusterOutput, error)
+	List(ctx context.Context, opts v1.ListOptions) (*apiv1beta1.ClusterOutputList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.ClusterOutput, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *apiv1beta1.ClusterOutput, err error)
 	ClusterOutputExpansion
 }
 
 // clusterOutputs implements ClusterOutputInterface
 type clusterOutputs struct {
-	*gentype.ClientWithList[*v1beta1.ClusterOutput, *v1beta1.ClusterOutputList]
+	*gentype.ClientWithList[*apiv1beta1.ClusterOutput, *apiv1beta1.ClusterOutputList]
 }
 
 // newClusterOutputs returns a ClusterOutputs
 func newClusterOutputs(c *LoggingV1beta1Client) *clusterOutputs {
 	return &clusterOutputs{
-		gentype.NewClientWithList[*v1beta1.ClusterOutput, *v1beta1.ClusterOutputList](
+		gentype.NewClientWithList[*apiv1beta1.ClusterOutput, *apiv1beta1.ClusterOutputList](
 			"clusteroutputs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1beta1.ClusterOutput { return &v1beta1.ClusterOutput{} },
-			func() *v1beta1.ClusterOutputList { return &v1beta1.ClusterOutputList{} }),
+			func() *apiv1beta1.ClusterOutput { return &apiv1beta1.ClusterOutput{} },
+			func() *apiv1beta1.ClusterOutputList { return &apiv1beta1.ClusterOutputList{} },
+		),
 	}
 }

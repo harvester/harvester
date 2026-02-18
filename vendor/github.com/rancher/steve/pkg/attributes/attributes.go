@@ -152,6 +152,20 @@ func SetAPIResource(s *types.APISchema, resource v1.APIResource) {
 	SetNamespaced(s, resource.Namespaced)
 }
 
+func MarkCRD(s *types.APISchema) {
+	if s.Attributes == nil {
+		s.Attributes = map[string]interface{}{}
+	}
+	s.Attributes["crd"] = true
+}
+
+func IsCRD(s *types.APISchema) bool {
+	if crd, ok := s.Attributes["crd"]; ok {
+		return crd.(bool)
+	}
+	return false
+}
+
 func SetColumns(s *types.APISchema, columns interface{}) {
 	if s.Attributes == nil {
 		s.Attributes = map[string]interface{}{}

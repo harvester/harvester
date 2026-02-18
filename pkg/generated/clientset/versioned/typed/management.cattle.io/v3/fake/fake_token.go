@@ -19,108 +19,30 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeTokens implements TokenInterface
-type FakeTokens struct {
+// fakeTokens implements TokenInterface
+type fakeTokens struct {
+	*gentype.FakeClientWithList[*v3.Token, *v3.TokenList]
 	Fake *FakeManagementV3
 }
 
-var tokensResource = v3.SchemeGroupVersion.WithResource("tokens")
-
-var tokensKind = v3.SchemeGroupVersion.WithKind("Token")
-
-// Get takes name of the token, and returns the corresponding token object, and an error if there is any.
-func (c *FakeTokens) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Token, err error) {
-	emptyResult := &v3.Token{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(tokensResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeTokens(fake *FakeManagementV3) managementcattleiov3.TokenInterface {
+	return &fakeTokens{
+		gentype.NewFakeClientWithList[*v3.Token, *v3.TokenList](
+			fake.Fake,
+			"",
+			v3.SchemeGroupVersion.WithResource("tokens"),
+			v3.SchemeGroupVersion.WithKind("Token"),
+			func() *v3.Token { return &v3.Token{} },
+			func() *v3.TokenList { return &v3.TokenList{} },
+			func(dst, src *v3.TokenList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.TokenList) []*v3.Token { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.TokenList, items []*v3.Token) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*v3.Token), err
-}
-
-// List takes label and field selectors, and returns the list of Tokens that match those selectors.
-func (c *FakeTokens) List(ctx context.Context, opts v1.ListOptions) (result *v3.TokenList, err error) {
-	emptyResult := &v3.TokenList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(tokensResource, tokensKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.TokenList{ListMeta: obj.(*v3.TokenList).ListMeta}
-	for _, item := range obj.(*v3.TokenList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested tokens.
-func (c *FakeTokens) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(tokensResource, opts))
-}
-
-// Create takes the representation of a token and creates it.  Returns the server's representation of the token, and an error, if there is any.
-func (c *FakeTokens) Create(ctx context.Context, token *v3.Token, opts v1.CreateOptions) (result *v3.Token, err error) {
-	emptyResult := &v3.Token{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(tokensResource, token, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.Token), err
-}
-
-// Update takes the representation of a token and updates it. Returns the server's representation of the token, and an error, if there is any.
-func (c *FakeTokens) Update(ctx context.Context, token *v3.Token, opts v1.UpdateOptions) (result *v3.Token, err error) {
-	emptyResult := &v3.Token{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(tokensResource, token, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.Token), err
-}
-
-// Delete takes name of the token and deletes it. Returns an error if one occurs.
-func (c *FakeTokens) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(tokensResource, name, opts), &v3.Token{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeTokens) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(tokensResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.TokenList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched token.
-func (c *FakeTokens) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Token, err error) {
-	emptyResult := &v3.Token{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(tokensResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.Token), err
 }

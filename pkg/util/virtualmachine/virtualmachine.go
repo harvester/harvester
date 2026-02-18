@@ -174,3 +174,70 @@ func volumeSupportRWXForVM(accessModes []corev1.PersistentVolumeAccessMode, prov
 
 	return slices.Contains(accessModes, corev1.ReadWriteMany)
 }
+
+func isDiskSataCdRom(disk *kubevirtv1.Disk) bool {
+	return disk.CDRom != nil && disk.CDRom.Bus == kubevirtv1.DiskBusSATA
+}
+
+func HasDiskSataCdRomWithName(vm *kubevirtv1.VirtualMachine, deviceName string) bool {
+	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
+		if disk.Name == deviceName && isDiskSataCdRom(&disk) {
+			return true
+		}
+	}
+	return false
+}
+
+func SupportInsertCdRomVolume(vm *kubevirtv1.VirtualMachine) (bool, error) {
+	volumeMaps := map[string]struct{}{}
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		volumeMaps[volume.Name] = struct{}{}
+	}
+
+	hasEmptyCdRom := false
+	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
+		if disk.CDRom == nil {
+			continue
+		}
+		_, hasVolume := volumeMaps[disk.Name]
+		if hasVolume {
+			continue
+		}
+		useSata := isDiskSataCdRom(&disk)
+		if !useSata {
+			return false, fmt.Errorf("empty cd-rom device should connect via SATA bus")
+		}
+		hasEmptyCdRom = true
+	}
+	return hasEmptyCdRom, nil
+}
+
+func SupportEjectCdRomVolume(vm *kubevirtv1.VirtualMachine) (bool, error) {
+	volumeMaps := map[string]struct{}{}
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.Hotpluggable {
+			volumeMaps[volume.Name] = struct{}{}
+		}
+	}
+
+	if len(volumeMaps) == 0 {
+		return false, nil
+	}
+
+	hasEjectableCdRom := false
+	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
+		if disk.CDRom == nil {
+			continue
+		}
+		_, hotpluggable := volumeMaps[disk.Name]
+		if !hotpluggable {
+			continue
+		}
+		useSata := isDiskSataCdRom(&disk)
+		if !useSata {
+			return false, fmt.Errorf("hotpluggable cd-rom volume should connect via SATA bus")
+		}
+		hasEjectableCdRom = true
+	}
+	return hasEjectableCdRom, nil
+}

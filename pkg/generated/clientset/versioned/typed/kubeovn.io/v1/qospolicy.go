@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type QoSPoliciesGetter interface {
 
 // QoSPolicyInterface has methods to work with QoSPolicy resources.
 type QoSPolicyInterface interface {
-	Create(ctx context.Context, qoSPolicy *v1.QoSPolicy, opts metav1.CreateOptions) (*v1.QoSPolicy, error)
-	Update(ctx context.Context, qoSPolicy *v1.QoSPolicy, opts metav1.UpdateOptions) (*v1.QoSPolicy, error)
+	Create(ctx context.Context, qoSPolicy *kubeovnv1.QoSPolicy, opts metav1.CreateOptions) (*kubeovnv1.QoSPolicy, error)
+	Update(ctx context.Context, qoSPolicy *kubeovnv1.QoSPolicy, opts metav1.UpdateOptions) (*kubeovnv1.QoSPolicy, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, qoSPolicy *v1.QoSPolicy, opts metav1.UpdateOptions) (*v1.QoSPolicy, error)
+	UpdateStatus(ctx context.Context, qoSPolicy *kubeovnv1.QoSPolicy, opts metav1.UpdateOptions) (*kubeovnv1.QoSPolicy, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.QoSPolicy, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.QoSPolicyList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.QoSPolicy, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.QoSPolicyList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.QoSPolicy, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.QoSPolicy, err error)
 	QoSPolicyExpansion
 }
 
 // qoSPolicies implements QoSPolicyInterface
 type qoSPolicies struct {
-	*gentype.ClientWithList[*v1.QoSPolicy, *v1.QoSPolicyList]
+	*gentype.ClientWithList[*kubeovnv1.QoSPolicy, *kubeovnv1.QoSPolicyList]
 }
 
 // newQoSPolicies returns a QoSPolicies
 func newQoSPolicies(c *KubeovnV1Client) *qoSPolicies {
 	return &qoSPolicies{
-		gentype.NewClientWithList[*v1.QoSPolicy, *v1.QoSPolicyList](
+		gentype.NewClientWithList[*kubeovnv1.QoSPolicy, *kubeovnv1.QoSPolicyList](
 			"qos-policies",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.QoSPolicy { return &v1.QoSPolicy{} },
-			func() *v1.QoSPolicyList { return &v1.QoSPolicyList{} }),
+			func() *kubeovnv1.QoSPolicy { return &kubeovnv1.QoSPolicy{} },
+			func() *kubeovnv1.QoSPolicyList { return &kubeovnv1.QoSPolicyList{} },
+		),
 	}
 }

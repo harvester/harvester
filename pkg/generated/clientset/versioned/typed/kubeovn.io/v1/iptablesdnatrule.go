@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type IptablesDnatRulesGetter interface {
 
 // IptablesDnatRuleInterface has methods to work with IptablesDnatRule resources.
 type IptablesDnatRuleInterface interface {
-	Create(ctx context.Context, iptablesDnatRule *v1.IptablesDnatRule, opts metav1.CreateOptions) (*v1.IptablesDnatRule, error)
-	Update(ctx context.Context, iptablesDnatRule *v1.IptablesDnatRule, opts metav1.UpdateOptions) (*v1.IptablesDnatRule, error)
+	Create(ctx context.Context, iptablesDnatRule *kubeovnv1.IptablesDnatRule, opts metav1.CreateOptions) (*kubeovnv1.IptablesDnatRule, error)
+	Update(ctx context.Context, iptablesDnatRule *kubeovnv1.IptablesDnatRule, opts metav1.UpdateOptions) (*kubeovnv1.IptablesDnatRule, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, iptablesDnatRule *v1.IptablesDnatRule, opts metav1.UpdateOptions) (*v1.IptablesDnatRule, error)
+	UpdateStatus(ctx context.Context, iptablesDnatRule *kubeovnv1.IptablesDnatRule, opts metav1.UpdateOptions) (*kubeovnv1.IptablesDnatRule, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.IptablesDnatRule, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.IptablesDnatRuleList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.IptablesDnatRule, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.IptablesDnatRuleList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.IptablesDnatRule, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.IptablesDnatRule, err error)
 	IptablesDnatRuleExpansion
 }
 
 // iptablesDnatRules implements IptablesDnatRuleInterface
 type iptablesDnatRules struct {
-	*gentype.ClientWithList[*v1.IptablesDnatRule, *v1.IptablesDnatRuleList]
+	*gentype.ClientWithList[*kubeovnv1.IptablesDnatRule, *kubeovnv1.IptablesDnatRuleList]
 }
 
 // newIptablesDnatRules returns a IptablesDnatRules
 func newIptablesDnatRules(c *KubeovnV1Client) *iptablesDnatRules {
 	return &iptablesDnatRules{
-		gentype.NewClientWithList[*v1.IptablesDnatRule, *v1.IptablesDnatRuleList](
+		gentype.NewClientWithList[*kubeovnv1.IptablesDnatRule, *kubeovnv1.IptablesDnatRuleList](
 			"iptables-dnat-rules",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.IptablesDnatRule { return &v1.IptablesDnatRule{} },
-			func() *v1.IptablesDnatRuleList { return &v1.IptablesDnatRuleList{} }),
+			func() *kubeovnv1.IptablesDnatRule { return &kubeovnv1.IptablesDnatRule{} },
+			func() *kubeovnv1.IptablesDnatRuleList { return &kubeovnv1.IptablesDnatRuleList{} },
+		),
 	}
 }

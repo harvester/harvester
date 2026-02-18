@@ -3,7 +3,6 @@ package writer
 import (
 	"compress/gzip"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -16,7 +15,7 @@ type GzipWriter struct {
 
 func setup(apiOp *types.APIRequest) (*types.APIRequest, io.Closer) {
 	if !strings.Contains(apiOp.Request.Header.Get("Accept-Encoding"), "gzip") {
-		return apiOp, ioutil.NopCloser(nil)
+		return apiOp, io.NopCloser(nil)
 	}
 
 	apiOp.Response.Header().Set("Content-Encoding", "gzip")

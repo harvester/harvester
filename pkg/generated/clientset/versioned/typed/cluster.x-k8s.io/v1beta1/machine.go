@@ -19,14 +19,14 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	gentype "k8s.io/client-go/gentype"
-	v1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	apiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 // MachinesGetter has a method to return a MachineInterface.
@@ -37,33 +37,34 @@ type MachinesGetter interface {
 
 // MachineInterface has methods to work with Machine resources.
 type MachineInterface interface {
-	Create(ctx context.Context, machine *v1beta1.Machine, opts v1.CreateOptions) (*v1beta1.Machine, error)
-	Update(ctx context.Context, machine *v1beta1.Machine, opts v1.UpdateOptions) (*v1beta1.Machine, error)
+	Create(ctx context.Context, machine *apiv1beta1.Machine, opts v1.CreateOptions) (*apiv1beta1.Machine, error)
+	Update(ctx context.Context, machine *apiv1beta1.Machine, opts v1.UpdateOptions) (*apiv1beta1.Machine, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, machine *v1beta1.Machine, opts v1.UpdateOptions) (*v1beta1.Machine, error)
+	UpdateStatus(ctx context.Context, machine *apiv1beta1.Machine, opts v1.UpdateOptions) (*apiv1beta1.Machine, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.Machine, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.MachineList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*apiv1beta1.Machine, error)
+	List(ctx context.Context, opts v1.ListOptions) (*apiv1beta1.MachineList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Machine, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *apiv1beta1.Machine, err error)
 	MachineExpansion
 }
 
 // machines implements MachineInterface
 type machines struct {
-	*gentype.ClientWithList[*v1beta1.Machine, *v1beta1.MachineList]
+	*gentype.ClientWithList[*apiv1beta1.Machine, *apiv1beta1.MachineList]
 }
 
 // newMachines returns a Machines
 func newMachines(c *ClusterV1beta1Client, namespace string) *machines {
 	return &machines{
-		gentype.NewClientWithList[*v1beta1.Machine, *v1beta1.MachineList](
+		gentype.NewClientWithList[*apiv1beta1.Machine, *apiv1beta1.MachineList](
 			"machines",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.Machine { return &v1beta1.Machine{} },
-			func() *v1beta1.MachineList { return &v1beta1.MachineList{} }),
+			func() *apiv1beta1.Machine { return &apiv1beta1.Machine{} },
+			func() *apiv1beta1.MachineList { return &apiv1beta1.MachineList{} },
+		),
 	}
 }

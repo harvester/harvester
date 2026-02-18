@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type IptablesEIPsGetter interface {
 
 // IptablesEIPInterface has methods to work with IptablesEIP resources.
 type IptablesEIPInterface interface {
-	Create(ctx context.Context, iptablesEIP *v1.IptablesEIP, opts metav1.CreateOptions) (*v1.IptablesEIP, error)
-	Update(ctx context.Context, iptablesEIP *v1.IptablesEIP, opts metav1.UpdateOptions) (*v1.IptablesEIP, error)
+	Create(ctx context.Context, iptablesEIP *kubeovnv1.IptablesEIP, opts metav1.CreateOptions) (*kubeovnv1.IptablesEIP, error)
+	Update(ctx context.Context, iptablesEIP *kubeovnv1.IptablesEIP, opts metav1.UpdateOptions) (*kubeovnv1.IptablesEIP, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, iptablesEIP *v1.IptablesEIP, opts metav1.UpdateOptions) (*v1.IptablesEIP, error)
+	UpdateStatus(ctx context.Context, iptablesEIP *kubeovnv1.IptablesEIP, opts metav1.UpdateOptions) (*kubeovnv1.IptablesEIP, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.IptablesEIP, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.IptablesEIPList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.IptablesEIP, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.IptablesEIPList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.IptablesEIP, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.IptablesEIP, err error)
 	IptablesEIPExpansion
 }
 
 // iptablesEIPs implements IptablesEIPInterface
 type iptablesEIPs struct {
-	*gentype.ClientWithList[*v1.IptablesEIP, *v1.IptablesEIPList]
+	*gentype.ClientWithList[*kubeovnv1.IptablesEIP, *kubeovnv1.IptablesEIPList]
 }
 
 // newIptablesEIPs returns a IptablesEIPs
 func newIptablesEIPs(c *KubeovnV1Client) *iptablesEIPs {
 	return &iptablesEIPs{
-		gentype.NewClientWithList[*v1.IptablesEIP, *v1.IptablesEIPList](
+		gentype.NewClientWithList[*kubeovnv1.IptablesEIP, *kubeovnv1.IptablesEIPList](
 			"iptables-eips",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.IptablesEIP { return &v1.IptablesEIP{} },
-			func() *v1.IptablesEIPList { return &v1.IptablesEIPList{} }),
+			func() *kubeovnv1.IptablesEIP { return &kubeovnv1.IptablesEIP{} },
+			func() *kubeovnv1.IptablesEIPList { return &kubeovnv1.IptablesEIPList{} },
+		),
 	}
 }

@@ -37,7 +37,7 @@ type LocalKindCluster struct {
 	ExportImageStoragePort int
 	// Specify the image for running cluster,
 	// configure in "KIND_IMAGE" env,
-	// default is "kindest/node:v1.18.2".
+	// default is DefaultKindImage.
 	Image string
 	// Specify the image mirror,
 	// configure in "KIND_IMAGE_MIRROR" env,
@@ -67,6 +67,7 @@ type LocalKindCluster struct {
 const (
 	DefaultControlPlanes = 1
 	DefaultWorkers       = 3
+	DefaultKindImage     = "kindest/node:v1.34.0"
 )
 
 func (c *LocalKindCluster) Startup(output io.Writer) error {
@@ -271,6 +272,7 @@ func NewLocalKindCluster() *LocalKindCluster {
 			ExportIngressHTTPPort:  envFinder.GetInt("exportIngressHttpPort", 0),
 			ExportIngressHTTPSPort: envFinder.GetInt("exportIngressHttpsPort", 0),
 			ExportImageStoragePort: envFinder.GetInt("exportImageStoragePort", 0),
+			Image:                  envFinder.Get("image", DefaultKindImage),
 			ImageMirror:            envFinder.Get("imageMirror", ""),
 			ClusterName:            envFinder.Get("clusterName", "harvester"),
 			ControlPlanes:          envFinder.GetInt("controlPlanes", DefaultControlPlanes),

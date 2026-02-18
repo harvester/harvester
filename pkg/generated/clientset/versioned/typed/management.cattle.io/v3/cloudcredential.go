@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type CloudCredentialsGetter interface {
 
 // CloudCredentialInterface has methods to work with CloudCredential resources.
 type CloudCredentialInterface interface {
-	Create(ctx context.Context, cloudCredential *v3.CloudCredential, opts v1.CreateOptions) (*v3.CloudCredential, error)
-	Update(ctx context.Context, cloudCredential *v3.CloudCredential, opts v1.UpdateOptions) (*v3.CloudCredential, error)
+	Create(ctx context.Context, cloudCredential *managementcattleiov3.CloudCredential, opts v1.CreateOptions) (*managementcattleiov3.CloudCredential, error)
+	Update(ctx context.Context, cloudCredential *managementcattleiov3.CloudCredential, opts v1.UpdateOptions) (*managementcattleiov3.CloudCredential, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.CloudCredential, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.CloudCredentialList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.CloudCredential, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.CloudCredentialList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.CloudCredential, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.CloudCredential, err error)
 	CloudCredentialExpansion
 }
 
 // cloudCredentials implements CloudCredentialInterface
 type cloudCredentials struct {
-	*gentype.ClientWithList[*v3.CloudCredential, *v3.CloudCredentialList]
+	*gentype.ClientWithList[*managementcattleiov3.CloudCredential, *managementcattleiov3.CloudCredentialList]
 }
 
 // newCloudCredentials returns a CloudCredentials
 func newCloudCredentials(c *ManagementV3Client, namespace string) *cloudCredentials {
 	return &cloudCredentials{
-		gentype.NewClientWithList[*v3.CloudCredential, *v3.CloudCredentialList](
+		gentype.NewClientWithList[*managementcattleiov3.CloudCredential, *managementcattleiov3.CloudCredentialList](
 			"cloudcredentials",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.CloudCredential { return &v3.CloudCredential{} },
-			func() *v3.CloudCredentialList { return &v3.CloudCredentialList{} }),
+			func() *managementcattleiov3.CloudCredential { return &managementcattleiov3.CloudCredential{} },
+			func() *managementcattleiov3.CloudCredentialList { return &managementcattleiov3.CloudCredentialList{} },
+		),
 	}
 }

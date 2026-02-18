@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type IPPoolsGetter interface {
 
 // IPPoolInterface has methods to work with IPPool resources.
 type IPPoolInterface interface {
-	Create(ctx context.Context, iPPool *v1.IPPool, opts metav1.CreateOptions) (*v1.IPPool, error)
-	Update(ctx context.Context, iPPool *v1.IPPool, opts metav1.UpdateOptions) (*v1.IPPool, error)
+	Create(ctx context.Context, iPPool *kubeovnv1.IPPool, opts metav1.CreateOptions) (*kubeovnv1.IPPool, error)
+	Update(ctx context.Context, iPPool *kubeovnv1.IPPool, opts metav1.UpdateOptions) (*kubeovnv1.IPPool, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, iPPool *v1.IPPool, opts metav1.UpdateOptions) (*v1.IPPool, error)
+	UpdateStatus(ctx context.Context, iPPool *kubeovnv1.IPPool, opts metav1.UpdateOptions) (*kubeovnv1.IPPool, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.IPPool, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.IPPoolList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.IPPool, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.IPPoolList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.IPPool, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.IPPool, err error)
 	IPPoolExpansion
 }
 
 // iPPools implements IPPoolInterface
 type iPPools struct {
-	*gentype.ClientWithList[*v1.IPPool, *v1.IPPoolList]
+	*gentype.ClientWithList[*kubeovnv1.IPPool, *kubeovnv1.IPPoolList]
 }
 
 // newIPPools returns a IPPools
 func newIPPools(c *KubeovnV1Client) *iPPools {
 	return &iPPools{
-		gentype.NewClientWithList[*v1.IPPool, *v1.IPPoolList](
+		gentype.NewClientWithList[*kubeovnv1.IPPool, *kubeovnv1.IPPoolList](
 			"ippools",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.IPPool { return &v1.IPPool{} },
-			func() *v1.IPPoolList { return &v1.IPPoolList{} }),
+			func() *kubeovnv1.IPPool { return &kubeovnv1.IPPool{} },
+			func() *kubeovnv1.IPPoolList { return &kubeovnv1.IPPoolList{} },
+		),
 	}
 }

@@ -19,120 +19,30 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	kubeovniov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubeovn.io/v1"
 	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeVips implements VipInterface
-type FakeVips struct {
+// fakeVips implements VipInterface
+type fakeVips struct {
+	*gentype.FakeClientWithList[*v1.Vip, *v1.VipList]
 	Fake *FakeKubeovnV1
 }
 
-var vipsResource = v1.SchemeGroupVersion.WithResource("vips")
-
-var vipsKind = v1.SchemeGroupVersion.WithKind("Vip")
-
-// Get takes name of the vip, and returns the corresponding vip object, and an error if there is any.
-func (c *FakeVips) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.Vip, err error) {
-	emptyResult := &v1.Vip{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(vipsResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeVips(fake *FakeKubeovnV1) kubeovniov1.VipInterface {
+	return &fakeVips{
+		gentype.NewFakeClientWithList[*v1.Vip, *v1.VipList](
+			fake.Fake,
+			"",
+			v1.SchemeGroupVersion.WithResource("vips"),
+			v1.SchemeGroupVersion.WithKind("Vip"),
+			func() *v1.Vip { return &v1.Vip{} },
+			func() *v1.VipList { return &v1.VipList{} },
+			func(dst, src *v1.VipList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.VipList) []*v1.Vip { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1.VipList, items []*v1.Vip) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*v1.Vip), err
-}
-
-// List takes label and field selectors, and returns the list of Vips that match those selectors.
-func (c *FakeVips) List(ctx context.Context, opts metav1.ListOptions) (result *v1.VipList, err error) {
-	emptyResult := &v1.VipList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(vipsResource, vipsKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1.VipList{ListMeta: obj.(*v1.VipList).ListMeta}
-	for _, item := range obj.(*v1.VipList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested vips.
-func (c *FakeVips) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(vipsResource, opts))
-}
-
-// Create takes the representation of a vip and creates it.  Returns the server's representation of the vip, and an error, if there is any.
-func (c *FakeVips) Create(ctx context.Context, vip *v1.Vip, opts metav1.CreateOptions) (result *v1.Vip, err error) {
-	emptyResult := &v1.Vip{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(vipsResource, vip, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.Vip), err
-}
-
-// Update takes the representation of a vip and updates it. Returns the server's representation of the vip, and an error, if there is any.
-func (c *FakeVips) Update(ctx context.Context, vip *v1.Vip, opts metav1.UpdateOptions) (result *v1.Vip, err error) {
-	emptyResult := &v1.Vip{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(vipsResource, vip, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.Vip), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeVips) UpdateStatus(ctx context.Context, vip *v1.Vip, opts metav1.UpdateOptions) (result *v1.Vip, err error) {
-	emptyResult := &v1.Vip{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(vipsResource, "status", vip, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.Vip), err
-}
-
-// Delete takes name of the vip and deletes it. Returns an error if one occurs.
-func (c *FakeVips) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(vipsResource, name, opts), &v1.Vip{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeVips) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(vipsResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1.VipList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched vip.
-func (c *FakeVips) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Vip, err error) {
-	emptyResult := &v1.Vip{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(vipsResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.Vip), err
 }

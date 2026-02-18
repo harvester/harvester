@@ -19,14 +19,14 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	gentype "k8s.io/client-go/gentype"
-	v1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	apiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 // ClustersGetter has a method to return a ClusterInterface.
@@ -37,33 +37,34 @@ type ClustersGetter interface {
 
 // ClusterInterface has methods to work with Cluster resources.
 type ClusterInterface interface {
-	Create(ctx context.Context, cluster *v1beta1.Cluster, opts v1.CreateOptions) (*v1beta1.Cluster, error)
-	Update(ctx context.Context, cluster *v1beta1.Cluster, opts v1.UpdateOptions) (*v1beta1.Cluster, error)
+	Create(ctx context.Context, cluster *apiv1beta1.Cluster, opts v1.CreateOptions) (*apiv1beta1.Cluster, error)
+	Update(ctx context.Context, cluster *apiv1beta1.Cluster, opts v1.UpdateOptions) (*apiv1beta1.Cluster, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, cluster *v1beta1.Cluster, opts v1.UpdateOptions) (*v1beta1.Cluster, error)
+	UpdateStatus(ctx context.Context, cluster *apiv1beta1.Cluster, opts v1.UpdateOptions) (*apiv1beta1.Cluster, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.Cluster, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.ClusterList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*apiv1beta1.Cluster, error)
+	List(ctx context.Context, opts v1.ListOptions) (*apiv1beta1.ClusterList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Cluster, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *apiv1beta1.Cluster, err error)
 	ClusterExpansion
 }
 
 // clusters implements ClusterInterface
 type clusters struct {
-	*gentype.ClientWithList[*v1beta1.Cluster, *v1beta1.ClusterList]
+	*gentype.ClientWithList[*apiv1beta1.Cluster, *apiv1beta1.ClusterList]
 }
 
 // newClusters returns a Clusters
 func newClusters(c *ClusterV1beta1Client, namespace string) *clusters {
 	return &clusters{
-		gentype.NewClientWithList[*v1beta1.Cluster, *v1beta1.ClusterList](
+		gentype.NewClientWithList[*apiv1beta1.Cluster, *apiv1beta1.ClusterList](
 			"clusters",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.Cluster { return &v1beta1.Cluster{} },
-			func() *v1beta1.ClusterList { return &v1beta1.ClusterList{} }),
+			func() *apiv1beta1.Cluster { return &apiv1beta1.Cluster{} },
+			func() *apiv1beta1.ClusterList { return &apiv1beta1.ClusterList{} },
+		),
 	}
 }

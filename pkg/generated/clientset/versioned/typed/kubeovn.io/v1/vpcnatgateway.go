@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type VpcNatGatewaysGetter interface {
 
 // VpcNatGatewayInterface has methods to work with VpcNatGateway resources.
 type VpcNatGatewayInterface interface {
-	Create(ctx context.Context, vpcNatGateway *v1.VpcNatGateway, opts metav1.CreateOptions) (*v1.VpcNatGateway, error)
-	Update(ctx context.Context, vpcNatGateway *v1.VpcNatGateway, opts metav1.UpdateOptions) (*v1.VpcNatGateway, error)
+	Create(ctx context.Context, vpcNatGateway *kubeovnv1.VpcNatGateway, opts metav1.CreateOptions) (*kubeovnv1.VpcNatGateway, error)
+	Update(ctx context.Context, vpcNatGateway *kubeovnv1.VpcNatGateway, opts metav1.UpdateOptions) (*kubeovnv1.VpcNatGateway, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, vpcNatGateway *v1.VpcNatGateway, opts metav1.UpdateOptions) (*v1.VpcNatGateway, error)
+	UpdateStatus(ctx context.Context, vpcNatGateway *kubeovnv1.VpcNatGateway, opts metav1.UpdateOptions) (*kubeovnv1.VpcNatGateway, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.VpcNatGateway, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.VpcNatGatewayList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.VpcNatGateway, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.VpcNatGatewayList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.VpcNatGateway, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.VpcNatGateway, err error)
 	VpcNatGatewayExpansion
 }
 
 // vpcNatGateways implements VpcNatGatewayInterface
 type vpcNatGateways struct {
-	*gentype.ClientWithList[*v1.VpcNatGateway, *v1.VpcNatGatewayList]
+	*gentype.ClientWithList[*kubeovnv1.VpcNatGateway, *kubeovnv1.VpcNatGatewayList]
 }
 
 // newVpcNatGateways returns a VpcNatGateways
 func newVpcNatGateways(c *KubeovnV1Client) *vpcNatGateways {
 	return &vpcNatGateways{
-		gentype.NewClientWithList[*v1.VpcNatGateway, *v1.VpcNatGatewayList](
+		gentype.NewClientWithList[*kubeovnv1.VpcNatGateway, *kubeovnv1.VpcNatGatewayList](
 			"vpc-nat-gateways",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.VpcNatGateway { return &v1.VpcNatGateway{} },
-			func() *v1.VpcNatGatewayList { return &v1.VpcNatGatewayList{} }),
+			func() *kubeovnv1.VpcNatGateway { return &kubeovnv1.VpcNatGateway{} },
+			func() *kubeovnv1.VpcNatGatewayList { return &kubeovnv1.VpcNatGatewayList{} },
+		),
 	}
 }

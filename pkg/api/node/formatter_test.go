@@ -622,7 +622,7 @@ func Test_listUnmigratableVM(t *testing.T) {
 	resp := []ListUnhealthyVM{}
 	err = json.NewDecoder(fakeHTTP.Body).Decode(&resp)
 	assert.NoError(err, "expected no error parsing json response")
-	assert.Len(resp[0].VMs, 2, "expected to find 2 non migratable VMs")
+	assert.Len(resp, 0, "expected to find 0 non migratable VMs")
 }
 
 func Test_vmWithPCIDevices(t *testing.T) {

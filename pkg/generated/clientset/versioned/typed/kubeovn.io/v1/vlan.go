@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type VlansGetter interface {
 
 // VlanInterface has methods to work with Vlan resources.
 type VlanInterface interface {
-	Create(ctx context.Context, vlan *v1.Vlan, opts metav1.CreateOptions) (*v1.Vlan, error)
-	Update(ctx context.Context, vlan *v1.Vlan, opts metav1.UpdateOptions) (*v1.Vlan, error)
+	Create(ctx context.Context, vlan *kubeovnv1.Vlan, opts metav1.CreateOptions) (*kubeovnv1.Vlan, error)
+	Update(ctx context.Context, vlan *kubeovnv1.Vlan, opts metav1.UpdateOptions) (*kubeovnv1.Vlan, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, vlan *v1.Vlan, opts metav1.UpdateOptions) (*v1.Vlan, error)
+	UpdateStatus(ctx context.Context, vlan *kubeovnv1.Vlan, opts metav1.UpdateOptions) (*kubeovnv1.Vlan, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.Vlan, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.VlanList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.Vlan, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.VlanList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Vlan, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.Vlan, err error)
 	VlanExpansion
 }
 
 // vlans implements VlanInterface
 type vlans struct {
-	*gentype.ClientWithList[*v1.Vlan, *v1.VlanList]
+	*gentype.ClientWithList[*kubeovnv1.Vlan, *kubeovnv1.VlanList]
 }
 
 // newVlans returns a Vlans
 func newVlans(c *KubeovnV1Client) *vlans {
 	return &vlans{
-		gentype.NewClientWithList[*v1.Vlan, *v1.VlanList](
+		gentype.NewClientWithList[*kubeovnv1.Vlan, *kubeovnv1.VlanList](
 			"vlans",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.Vlan { return &v1.Vlan{} },
-			func() *v1.VlanList { return &v1.VlanList{} }),
+			func() *kubeovnv1.Vlan { return &kubeovnv1.Vlan{} },
+			func() *kubeovnv1.VlanList { return &kubeovnv1.VlanList{} },
+		),
 	}
 }

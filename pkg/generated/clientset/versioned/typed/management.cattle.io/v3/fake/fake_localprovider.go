@@ -19,108 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeLocalProviders implements LocalProviderInterface
-type FakeLocalProviders struct {
+// fakeLocalProviders implements LocalProviderInterface
+type fakeLocalProviders struct {
+	*gentype.FakeClientWithList[*v3.LocalProvider, *v3.LocalProviderList]
 	Fake *FakeManagementV3
 }
 
-var localprovidersResource = v3.SchemeGroupVersion.WithResource("localproviders")
-
-var localprovidersKind = v3.SchemeGroupVersion.WithKind("LocalProvider")
-
-// Get takes name of the localProvider, and returns the corresponding localProvider object, and an error if there is any.
-func (c *FakeLocalProviders) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.LocalProvider, err error) {
-	emptyResult := &v3.LocalProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(localprovidersResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeLocalProviders(fake *FakeManagementV3) managementcattleiov3.LocalProviderInterface {
+	return &fakeLocalProviders{
+		gentype.NewFakeClientWithList[*v3.LocalProvider, *v3.LocalProviderList](
+			fake.Fake,
+			"",
+			v3.SchemeGroupVersion.WithResource("localproviders"),
+			v3.SchemeGroupVersion.WithKind("LocalProvider"),
+			func() *v3.LocalProvider { return &v3.LocalProvider{} },
+			func() *v3.LocalProviderList { return &v3.LocalProviderList{} },
+			func(dst, src *v3.LocalProviderList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.LocalProviderList) []*v3.LocalProvider { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.LocalProviderList, items []*v3.LocalProvider) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.LocalProvider), err
-}
-
-// List takes label and field selectors, and returns the list of LocalProviders that match those selectors.
-func (c *FakeLocalProviders) List(ctx context.Context, opts v1.ListOptions) (result *v3.LocalProviderList, err error) {
-	emptyResult := &v3.LocalProviderList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(localprovidersResource, localprovidersKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.LocalProviderList{ListMeta: obj.(*v3.LocalProviderList).ListMeta}
-	for _, item := range obj.(*v3.LocalProviderList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested localProviders.
-func (c *FakeLocalProviders) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(localprovidersResource, opts))
-}
-
-// Create takes the representation of a localProvider and creates it.  Returns the server's representation of the localProvider, and an error, if there is any.
-func (c *FakeLocalProviders) Create(ctx context.Context, localProvider *v3.LocalProvider, opts v1.CreateOptions) (result *v3.LocalProvider, err error) {
-	emptyResult := &v3.LocalProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(localprovidersResource, localProvider, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.LocalProvider), err
-}
-
-// Update takes the representation of a localProvider and updates it. Returns the server's representation of the localProvider, and an error, if there is any.
-func (c *FakeLocalProviders) Update(ctx context.Context, localProvider *v3.LocalProvider, opts v1.UpdateOptions) (result *v3.LocalProvider, err error) {
-	emptyResult := &v3.LocalProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(localprovidersResource, localProvider, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.LocalProvider), err
-}
-
-// Delete takes name of the localProvider and deletes it. Returns an error if one occurs.
-func (c *FakeLocalProviders) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(localprovidersResource, name, opts), &v3.LocalProvider{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeLocalProviders) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(localprovidersResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.LocalProviderList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched localProvider.
-func (c *FakeLocalProviders) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.LocalProvider, err error) {
-	emptyResult := &v3.LocalProvider{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(localprovidersResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.LocalProvider), err
 }

@@ -19,129 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeUpgradeLogs implements UpgradeLogInterface
-type FakeUpgradeLogs struct {
+// fakeUpgradeLogs implements UpgradeLogInterface
+type fakeUpgradeLogs struct {
+	*gentype.FakeClientWithList[*v1beta1.UpgradeLog, *v1beta1.UpgradeLogList]
 	Fake *FakeHarvesterhciV1beta1
-	ns   string
 }
 
-var upgradelogsResource = v1beta1.SchemeGroupVersion.WithResource("upgradelogs")
-
-var upgradelogsKind = v1beta1.SchemeGroupVersion.WithKind("UpgradeLog")
-
-// Get takes name of the upgradeLog, and returns the corresponding upgradeLog object, and an error if there is any.
-func (c *FakeUpgradeLogs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.UpgradeLog, err error) {
-	emptyResult := &v1beta1.UpgradeLog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(upgradelogsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeUpgradeLogs(fake *FakeHarvesterhciV1beta1, namespace string) harvesterhciiov1beta1.UpgradeLogInterface {
+	return &fakeUpgradeLogs{
+		gentype.NewFakeClientWithList[*v1beta1.UpgradeLog, *v1beta1.UpgradeLogList](
+			fake.Fake,
+			namespace,
+			v1beta1.SchemeGroupVersion.WithResource("upgradelogs"),
+			v1beta1.SchemeGroupVersion.WithKind("UpgradeLog"),
+			func() *v1beta1.UpgradeLog { return &v1beta1.UpgradeLog{} },
+			func() *v1beta1.UpgradeLogList { return &v1beta1.UpgradeLogList{} },
+			func(dst, src *v1beta1.UpgradeLogList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta1.UpgradeLogList) []*v1beta1.UpgradeLog { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1beta1.UpgradeLogList, items []*v1beta1.UpgradeLog) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta1.UpgradeLog), err
-}
-
-// List takes label and field selectors, and returns the list of UpgradeLogs that match those selectors.
-func (c *FakeUpgradeLogs) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.UpgradeLogList, err error) {
-	emptyResult := &v1beta1.UpgradeLogList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(upgradelogsResource, upgradelogsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta1.UpgradeLogList{ListMeta: obj.(*v1beta1.UpgradeLogList).ListMeta}
-	for _, item := range obj.(*v1beta1.UpgradeLogList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested upgradeLogs.
-func (c *FakeUpgradeLogs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(upgradelogsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a upgradeLog and creates it.  Returns the server's representation of the upgradeLog, and an error, if there is any.
-func (c *FakeUpgradeLogs) Create(ctx context.Context, upgradeLog *v1beta1.UpgradeLog, opts v1.CreateOptions) (result *v1beta1.UpgradeLog, err error) {
-	emptyResult := &v1beta1.UpgradeLog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(upgradelogsResource, c.ns, upgradeLog, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.UpgradeLog), err
-}
-
-// Update takes the representation of a upgradeLog and updates it. Returns the server's representation of the upgradeLog, and an error, if there is any.
-func (c *FakeUpgradeLogs) Update(ctx context.Context, upgradeLog *v1beta1.UpgradeLog, opts v1.UpdateOptions) (result *v1beta1.UpgradeLog, err error) {
-	emptyResult := &v1beta1.UpgradeLog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(upgradelogsResource, c.ns, upgradeLog, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.UpgradeLog), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeUpgradeLogs) UpdateStatus(ctx context.Context, upgradeLog *v1beta1.UpgradeLog, opts v1.UpdateOptions) (result *v1beta1.UpgradeLog, err error) {
-	emptyResult := &v1beta1.UpgradeLog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(upgradelogsResource, "status", c.ns, upgradeLog, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.UpgradeLog), err
-}
-
-// Delete takes name of the upgradeLog and deletes it. Returns an error if one occurs.
-func (c *FakeUpgradeLogs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(upgradelogsResource, c.ns, name, opts), &v1beta1.UpgradeLog{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeUpgradeLogs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(upgradelogsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta1.UpgradeLogList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched upgradeLog.
-func (c *FakeUpgradeLogs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.UpgradeLog, err error) {
-	emptyResult := &v1beta1.UpgradeLog{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(upgradelogsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.UpgradeLog), err
 }

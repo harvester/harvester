@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type VpcsGetter interface {
 
 // VpcInterface has methods to work with Vpc resources.
 type VpcInterface interface {
-	Create(ctx context.Context, vpc *v1.Vpc, opts metav1.CreateOptions) (*v1.Vpc, error)
-	Update(ctx context.Context, vpc *v1.Vpc, opts metav1.UpdateOptions) (*v1.Vpc, error)
+	Create(ctx context.Context, vpc *kubeovnv1.Vpc, opts metav1.CreateOptions) (*kubeovnv1.Vpc, error)
+	Update(ctx context.Context, vpc *kubeovnv1.Vpc, opts metav1.UpdateOptions) (*kubeovnv1.Vpc, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, vpc *v1.Vpc, opts metav1.UpdateOptions) (*v1.Vpc, error)
+	UpdateStatus(ctx context.Context, vpc *kubeovnv1.Vpc, opts metav1.UpdateOptions) (*kubeovnv1.Vpc, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.Vpc, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.VpcList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.Vpc, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.VpcList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Vpc, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.Vpc, err error)
 	VpcExpansion
 }
 
 // vpcs implements VpcInterface
 type vpcs struct {
-	*gentype.ClientWithList[*v1.Vpc, *v1.VpcList]
+	*gentype.ClientWithList[*kubeovnv1.Vpc, *kubeovnv1.VpcList]
 }
 
 // newVpcs returns a Vpcs
 func newVpcs(c *KubeovnV1Client) *vpcs {
 	return &vpcs{
-		gentype.NewClientWithList[*v1.Vpc, *v1.VpcList](
+		gentype.NewClientWithList[*kubeovnv1.Vpc, *kubeovnv1.VpcList](
 			"vpcs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.Vpc { return &v1.Vpc{} },
-			func() *v1.VpcList { return &v1.VpcList{} }),
+			func() *kubeovnv1.Vpc { return &kubeovnv1.Vpc{} },
+			func() *kubeovnv1.VpcList { return &kubeovnv1.VpcList{} },
+		),
 	}
 }

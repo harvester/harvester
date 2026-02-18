@@ -776,7 +776,7 @@ var _ = ginkgo.Describe("enable and disable failed addon", func() {
 					return nil
 				}
 				return fmt.Errorf("waiting for addon to be deploy failed. current status is %s", aObj.Status.Status)
-			}, "120s", "5s").ShouldNot(gomega.HaveOccurred())
+			}, "300s", "5s").ShouldNot(gomega.HaveOccurred())
 		})
 
 		ginkgo.By("updating addon to disable", func() {

@@ -39,8 +39,10 @@ const (
 	AnnotationMacAddressName            = prefix + "/mac-address"
 	AnnotationEnableCPUAndMemoryHotplug = prefix + "/enableCPUAndMemoryHotplug"
 
-	AnnotationSkipRancherLoggingAddonWebhookCheck = prefix + "/skipRancherLoggingAddonWebhookCheck"
-	AnnotationSkipDeschedulerAddonWebhookCheck    = prefix + "/skipDeschedulerAddonWebhookCheck"
+	AnnotationSkipRancherLoggingAddonWebhookCheck       = prefix + "/skipRancherLoggingAddonWebhookCheck"
+	AnnotationSkipDeschedulerAddonWebhookCheck          = prefix + "/skipDeschedulerAddonWebhookCheck"
+	AnnotationSkipPCIDevicesControllerAddonWebhookCheck = prefix + "/skipPCIDevicesControllerAddonWebhookCheck"
+	AnnotationSkipNvidiaDriverToolkitAddonWebhookCheck  = prefix + "/skipNvidiaDriverToolkitAddonWebhookCheck"
 
 	// AnnotationSkipResourceQuotaAutoScaling is used to disable to resourcequota auto scaling
 	AnnotationSkipResourceQuotaAutoScaling = prefix + "/skipResourceQuotaAutoScaling"
@@ -103,6 +105,8 @@ const (
 	HarvesterSystemNamespaceName        = "harvester-system"
 	RancherLoggingName                  = "rancher-logging"
 	DeschedulerName                     = "descheduler"
+	PCIDevicesControllerName            = "pcidevices-controller"
+	NvidiaDriverToolkitName             = "nvidia-driver-toolkit"
 	RancherMonitoringPrometheus         = "rancher-monitoring-prometheus"
 	RancherMonitoringAlertmanager       = "rancher-monitoring-alertmanager"
 	RancherMonitoring                   = "rancher-monitoring"
@@ -208,6 +212,8 @@ var (
 		MaintainModeStrategyShutdownAndRestartAfterDisable,
 		MaintainModeStrategyShutdown,
 	}
+
+	DefaultHarvesterNamespaceWhiteList = []string{"calico-apiserver", "calico-system", "cattle-alerting", "cattle-csp-adapter-system", "cattle-elemental-system", "cattle-epinio-system", "cattle-externalip-system", "cattle-fleet-local-system", "cattle-fleet-system", "cattle-gatekeeper-system", "cattle-global-data", "cattle-global-nt", "cattle-impersonation-system", "cattle-istio", "cattle-istio-system", "cattle-logging", "cattle-logging-system", "cattle-monitoring-system", "cattle-neuvector-system", "cattle-prometheus", "cattle-provisioning-capi-system", "cattle-resources-system", "cattle-sriov-system", "cattle-system", "cattle-ui-plugin-system", "cattle-windows-gmsa-system", "cert-manager", "cis-operator-system", "fleet-default", "ingress-nginx", "istio-system", "kube-node-lease", "kube-public", "kube-system", "longhorn-system", "rancher-alerting-drivers", "security-scan", "tigera-operator", "harvester-system", "harvester-public", "rancher-vcluster", "cattle-dashboards", "fleet-local", "local", "forklift"}
 )
 
 const (
@@ -240,7 +246,6 @@ const (
 	HelmReleaseNamespaceAnnotation = "meta.helm.sh/release-namespace"
 
 	// moved from nodedrain_controller for public usage
-	ContainerDiskOrCDRomKey             = "CDRomOrContainerDiskPresent"
 	NodeSchedulingRequirementsNotMetKey = "NodeSchedulingRequirementsNotMet"
 	MaintainModeStrategyKey             = "MaintainModeStrategy"
 	LastHealthyReplicaKey               = "LastHealthyReplica"
@@ -286,4 +291,10 @@ const (
 	AddonExperimentalLabel = AddonPrefix + "/experimental"
 
 	HarvesterUpgradeComponentRepo = "repo"
+
+	// PSS controller labels
+	HarvesterManagedPSSKey   = "pss.harvesterhci.io/managed"
+	HarvesterManagedPSSValue = "true"
+
+	GoArchArm64 = "arm64"
 )

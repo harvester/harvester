@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
+	networkharvesterhciiov1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,31 +37,34 @@ type VlanConfigsGetter interface {
 
 // VlanConfigInterface has methods to work with VlanConfig resources.
 type VlanConfigInterface interface {
-	Create(ctx context.Context, vlanConfig *v1beta1.VlanConfig, opts v1.CreateOptions) (*v1beta1.VlanConfig, error)
-	Update(ctx context.Context, vlanConfig *v1beta1.VlanConfig, opts v1.UpdateOptions) (*v1beta1.VlanConfig, error)
+	Create(ctx context.Context, vlanConfig *networkharvesterhciiov1beta1.VlanConfig, opts v1.CreateOptions) (*networkharvesterhciiov1beta1.VlanConfig, error)
+	Update(ctx context.Context, vlanConfig *networkharvesterhciiov1beta1.VlanConfig, opts v1.UpdateOptions) (*networkharvesterhciiov1beta1.VlanConfig, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.VlanConfig, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.VlanConfigList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*networkharvesterhciiov1beta1.VlanConfig, error)
+	List(ctx context.Context, opts v1.ListOptions) (*networkharvesterhciiov1beta1.VlanConfigList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VlanConfig, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *networkharvesterhciiov1beta1.VlanConfig, err error)
 	VlanConfigExpansion
 }
 
 // vlanConfigs implements VlanConfigInterface
 type vlanConfigs struct {
-	*gentype.ClientWithList[*v1beta1.VlanConfig, *v1beta1.VlanConfigList]
+	*gentype.ClientWithList[*networkharvesterhciiov1beta1.VlanConfig, *networkharvesterhciiov1beta1.VlanConfigList]
 }
 
 // newVlanConfigs returns a VlanConfigs
 func newVlanConfigs(c *NetworkV1beta1Client) *vlanConfigs {
 	return &vlanConfigs{
-		gentype.NewClientWithList[*v1beta1.VlanConfig, *v1beta1.VlanConfigList](
+		gentype.NewClientWithList[*networkharvesterhciiov1beta1.VlanConfig, *networkharvesterhciiov1beta1.VlanConfigList](
 			"vlanconfigs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1beta1.VlanConfig { return &v1beta1.VlanConfig{} },
-			func() *v1beta1.VlanConfigList { return &v1beta1.VlanConfigList{} }),
+			func() *networkharvesterhciiov1beta1.VlanConfig { return &networkharvesterhciiov1beta1.VlanConfig{} },
+			func() *networkharvesterhciiov1beta1.VlanConfigList {
+				return &networkharvesterhciiov1beta1.VlanConfigList{}
+			},
+		),
 	}
 }

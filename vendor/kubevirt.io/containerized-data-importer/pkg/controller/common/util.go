@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"net/http"
 	"reflect"
@@ -86,6 +85,8 @@ const (
 	AnnPodReady = AnnAPIGroup + "/storage.pod.ready"
 	// AnnPodRestarts is a PVC annotation that tells how many times a related pod was restarted
 	AnnPodRestarts = AnnAPIGroup + "/storage.pod.restarts"
+	// AnnPodSchedulable is a PVC annotation that tells if the Pod is schedulable or not
+	AnnPodSchedulable = AnnAPIGroup + "/storage.pod.schedulable"
 	// AnnPopulatedFor is a PVC annotation telling the datavolume controller that the PVC is already populated
 	AnnPopulatedFor = AnnAPIGroup + "/storage.populatedFor"
 	// AnnPrePopulated is a PVC annotation telling the datavolume controller that the PVC is already populated
@@ -180,6 +181,8 @@ const (
 	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
 	// AnnUUID provides a const for our PVC uuid annotation
 	AnnUUID = AnnAPIGroup + "/storage.import.uuid"
+	// AnnInsecureSkipVerify provides a const for skipping certificate verification
+	AnnInsecureSkipVerify = AnnAPIGroup + "/storage.import.insecureSkipVerify"
 	// AnnBackingFile provides a const for our PVC backing file annotation
 	AnnBackingFile = AnnAPIGroup + "/storage.import.backingFile"
 	// AnnThumbprint provides a const for our PVC backing thumbprint annotation
@@ -188,6 +191,8 @@ const (
 	AnnExtraHeaders = AnnAPIGroup + "/storage.import.extraHeaders"
 	// AnnSecretExtraHeaders provides a const for our PVC secretExtraHeaders annotation
 	AnnSecretExtraHeaders = AnnAPIGroup + "/storage.import.secretExtraHeaders"
+	// AnnRegistryImageArchitecture provides a const for our PVC registryImageArchitecture annotation
+	AnnRegistryImageArchitecture = AnnAPIGroup + "/storage.import.registryImageArchitecture"
 
 	// AnnCloneToken is the annotation containing the clone token
 	AnnCloneToken = AnnAPIGroup + "/storage.clone.token"
@@ -217,6 +222,9 @@ const (
 	AnnPopulatorKind = AnnAPIGroup + "/storage.populator.kind"
 	// AnnUsePopulator annotation indicates if the datavolume population will use populators
 	AnnUsePopulator = AnnAPIGroup + "/storage.usePopulator"
+
+	// AnnMinimumSupportedPVCSize annotation on a StorageProfile specifies its minimum supported PVC size
+	AnnMinimumSupportedPVCSize = AnnAPIGroup + "/minimumSupportedPvcSize"
 
 	// AnnDefaultStorageClass is the annotation indicating that a storage class is the default one
 	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
@@ -344,6 +352,9 @@ const (
 
 	// AnnCreatedForDataVolume stores the UID of the datavolume that the PVC was created for
 	AnnCreatedForDataVolume = AnnAPIGroup + "/createdForDataVolume"
+
+	// AnnPVCPrimeName annotation is the name of the PVC' that is used to populate the PV which is then rebound to the target PVC
+	AnnPVCPrimeName = AnnAPIGroup + "/storage.populator.pvcPrime"
 )
 
 // Size-detection pod error codes
@@ -383,7 +394,11 @@ var (
 		AnnPodMultusDefaultNetwork:    "",
 	}
 
-	validLabelsMatch = regexp.MustCompile(`^([\w.]+\.kubevirt.io|kubevirt.io)/[\w-]+$`)
+	validLabelsMatch = regexp.MustCompile(`^([\w.]+\.kubevirt.io|kubevirt.io)/[\w.-]+$`)
+
+	ErrDataSourceMaxDepthReached = errors.New("DataSource reference chain exceeds maximum depth of 1")
+	ErrDataSourceSelfReference   = errors.New("DataSource cannot self-reference")
+	ErrDataSourceCrossNamespace  = errors.New("DataSource cannot reference a DataSource in another namespace")
 )
 
 // FakeValidator is a fake token validator
@@ -1086,6 +1101,51 @@ func AddImportVolumeMounts() []corev1.VolumeMount {
 	return volumeMounts
 }
 
+// GetEffectiveStorageResources returns the maximum of the passed storageResources and the storageProfile minimumSupportedPVCSize.
+// If the passed storageResources has no size, it is returned as-is.
+func GetEffectiveStorageResources(ctx context.Context, client client.Client, storageResources corev1.VolumeResourceRequirements,
+	storageClassName *string, contentType cdiv1.DataVolumeContentType, log logr.Logger) (corev1.VolumeResourceRequirements, error) {
+	sc, err := GetStorageClassByNameWithVirtFallback(ctx, client, storageClassName, contentType)
+	if err != nil || sc == nil {
+		return storageResources, err
+	}
+
+	requestedSize, hasSize := storageResources.Requests[corev1.ResourceStorage]
+	if !hasSize {
+		return storageResources, nil
+	}
+
+	if requestedSize, err = GetEffectiveVolumeSize(ctx, client, requestedSize, sc.Name, &log); err != nil {
+		return storageResources, err
+	}
+
+	return corev1.VolumeResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceStorage: requestedSize,
+		},
+	}, nil
+}
+
+// GetEffectiveVolumeSize returns the maximum of the passed requestedSize and the storageProfile minimumSupportedPVCSize.
+func GetEffectiveVolumeSize(ctx context.Context, client client.Client, requestedSize resource.Quantity, storageClassName string, log *logr.Logger) (resource.Quantity, error) {
+	storageProfile := &cdiv1.StorageProfile{}
+	if err := client.Get(ctx, types.NamespacedName{Name: storageClassName}, storageProfile); err != nil {
+		return requestedSize, IgnoreNotFound(err)
+	}
+
+	if val, exists := storageProfile.Annotations[AnnMinimumSupportedPVCSize]; exists {
+		if minSize, err := resource.ParseQuantity(val); err == nil {
+			if requestedSize.Cmp(minSize) == -1 {
+				return minSize, nil
+			}
+		} else if log != nil {
+			log.V(1).Info("Invalid minimum PVC size in annotation", "value", val, "error", err)
+		}
+	}
+
+	return requestedSize, nil
+}
+
 // ValidateRequestedCloneSize validates the clone size requirements on block
 func ValidateRequestedCloneSize(sourceResources, targetResources corev1.VolumeResourceRequirements) error {
 	sourceRequest, hasSource := sourceResources.Requests[corev1.ResourceStorage]
@@ -1151,10 +1211,14 @@ func SetRestrictedSecurityContext(podSpec *corev1.PodSpec) {
 		}
 	}
 
+	if podSpec.SecurityContext == nil {
+		podSpec.SecurityContext = &corev1.PodSecurityContext{}
+	}
+	// Some tools like istio inject containers and thus rely on a pod level seccomp profile being specified
+	podSpec.SecurityContext.SeccompProfile = &corev1.SeccompProfile{
+		Type: corev1.SeccompProfileTypeRuntimeDefault,
+	}
 	if hasVolumeMounts {
-		if podSpec.SecurityContext == nil {
-			podSpec.SecurityContext = &corev1.PodSecurityContext{}
-		}
 		podSpec.SecurityContext.FSGroup = ptr.To[int64](common.QemuSubGid)
 	}
 }
@@ -1478,18 +1542,6 @@ func AddImmediateBindingAnnotationIfWFFCDisabled(obj metav1.Object, gates featur
 	return nil
 }
 
-// GetRequiredSpace calculates space required taking file system overhead into account
-func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
-	// the `image` has to be aligned correctly, so the space requested has to be aligned to
-	// next value that is a multiple of a block size
-	alignedSize := util.RoundUp(requestedSpace, util.DefaultAlignBlockSize)
-
-	// count overhead as a percentage of the whole/new size, including aligned image
-	// and the space required by filesystem metadata
-	spaceWithOverhead := int64(math.Ceil(float64(alignedSize) / (1 - filesystemOverhead)))
-	return spaceWithOverhead
-}
-
 // InflateSizeWithOverhead inflates a storage size with proper overhead calculations
 func InflateSizeWithOverhead(ctx context.Context, c client.Client, imgSize int64, pvcSpec *corev1.PersistentVolumeClaimSpec) (resource.Quantity, error) {
 	var returnSize resource.Quantity
@@ -1503,7 +1555,7 @@ func InflateSizeWithOverhead(ctx context.Context, c client.Client, imgSize int64
 		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
 
 		// Merge the previous values into a 'resource.Quantity' struct
-		requiredSpace := GetRequiredSpace(fsOverheadFloat, imgSize)
+		requiredSpace := util.GetRequiredSpace(fsOverheadFloat, imgSize)
 		returnSize = *resource.NewScaledQuantity(requiredSpace, 0)
 	} else {
 		// Inflation is not needed with 'Block' mode
@@ -1601,9 +1653,17 @@ func GetMetricsURL(pod *corev1.Pod) (string, error) {
 }
 
 // GetProgressReportFromURL fetches the progress report from the passed URL according to an specific metric expression and ownerUID
-func GetProgressReportFromURL(url string, httpClient *http.Client, metricExp, ownerUID string) (string, error) {
+func GetProgressReportFromURL(ctx context.Context, url string, httpClient *http.Client, metricExp, ownerUID string) (string, error) {
 	regExp := regexp.MustCompile(fmt.Sprintf("(%s)\\{ownerUID\\=%q\\} (\\d{1,3}\\.?\\d*)", metricExp, ownerUID))
-	resp, err := httpClient.Get(url)
+	// pod could be gone, don't block an entire thread for 30 seconds
+	// just to get back an i/o timeout
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		if ErrConnectionRefused(err) {
 			return "", nil
@@ -1690,6 +1750,10 @@ func UpdateRegistryAnnotations(annotations map[string]string, registry *cdiv1.Da
 	if certConfigMap != nil && *certConfigMap != "" {
 		annotations[AnnCertConfigMap] = *certConfigMap
 	}
+
+	if registry.Platform != nil && registry.Platform.Architecture != "" {
+		annotations[AnnRegistryImageArchitecture] = registry.Platform.Architecture
+	}
 }
 
 // UpdateVDDKAnnotations updates the passed annotations for proper VDDK import
@@ -1703,6 +1767,9 @@ func UpdateVDDKAnnotations(annotations map[string]string, vddk *cdiv1.DataVolume
 	if vddk.InitImageURL != "" {
 		annotations[AnnVddkInitImageURL] = vddk.InitImageURL
 	}
+	if vddk.ExtraArgs != "" {
+		annotations[AnnVddkExtraArgs] = vddk.ExtraArgs
+	}
 }
 
 // UpdateImageIOAnnotations updates the passed annotations for proper imageIO import
@@ -1712,6 +1779,9 @@ func UpdateImageIOAnnotations(annotations map[string]string, imageio *cdiv1.Data
 	annotations[AnnSecret] = imageio.SecretRef
 	annotations[AnnCertConfigMap] = imageio.CertConfigMap
 	annotations[AnnDiskID] = imageio.DiskID
+	if imageio.InsecureSkipVerify != nil && *imageio.InsecureSkipVerify {
+		annotations[AnnInsecureSkipVerify] = "true"
+	}
 }
 
 // IsPVBoundToPVC checks if a PV is bound to a specific PVC
@@ -2059,4 +2129,193 @@ func AllowClaimAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim, dv *
 		return val, nil
 	}
 	return featuregates.NewFeatureGates(c).ClaimAdoptionEnabled()
+}
+
+// ResolveDataSourceChain resolves a DataSource reference.
+// Returns an error if DataSource reference is not found or
+// DataSource reference points to another DataSource
+func ResolveDataSourceChain(ctx context.Context, client client.Client, dataSource *cdiv1.DataSource) (*cdiv1.DataSource, error) {
+	if dataSource.Spec.Source.DataSource == nil {
+		return dataSource, nil
+	}
+
+	ref := dataSource.Spec.Source.DataSource
+	refNs := GetNamespace(ref.Namespace, dataSource.Namespace)
+	if dataSource.Namespace != refNs {
+		return dataSource, ErrDataSourceCrossNamespace
+	}
+	if ref.Name == dataSource.Name && refNs == dataSource.Namespace {
+		return nil, ErrDataSourceSelfReference
+	}
+
+	resolved := &cdiv1.DataSource{}
+	if err := client.Get(ctx, types.NamespacedName{Name: ref.Name, Namespace: refNs}, resolved); err != nil {
+		return nil, err
+	}
+
+	if resolved.Spec.Source.DataSource != nil {
+		return nil, ErrDataSourceMaxDepthReached
+	}
+
+	return resolved, nil
+}
+
+func sortEvents(events *corev1.EventList, usingPopulator bool, pvcPrimeName string) {
+	// Sort event lists by containing primeName substring and most recent timestamp
+	sort.Slice(events.Items, func(i, j int) bool {
+		if usingPopulator {
+			firstContainsPrime := strings.Contains(events.Items[i].Message, pvcPrimeName)
+			secondContainsPrime := strings.Contains(events.Items[j].Message, pvcPrimeName)
+
+			if firstContainsPrime && !secondContainsPrime {
+				return true
+			}
+			if !firstContainsPrime && secondContainsPrime {
+				return false
+			}
+		}
+
+		// if the timestamps are the same, prioritze longer messages to make sure our sorting is deterministic
+		if events.Items[i].LastTimestamp.Time.Equal(events.Items[j].LastTimestamp.Time) {
+			return len(events.Items[i].Message) > len(events.Items[j].Message)
+		}
+
+		// if both contains primeName substring or neither, just sort on timestamp
+		return events.Items[i].LastTimestamp.Time.After(events.Items[j].LastTimestamp.Time)
+	})
+}
+
+// UpdatePVCBoundContionFromEvents updates the bound condition annotations on the PVC based on recent events
+// This function can be used by both controller and populator packages to update PVC bound condition information
+func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) error {
+	currentPvcCopy := pvc.DeepCopy()
+
+	anno := pvc.GetAnnotations()
+	if anno == nil {
+		return nil
+	}
+
+	if IsBound(pvc) {
+		anno := pvc.GetAnnotations()
+		delete(anno, AnnBoundCondition)
+		delete(anno, AnnBoundConditionReason)
+		delete(anno, AnnBoundConditionMessage)
+
+		if !reflect.DeepEqual(currentPvcCopy, pvc) {
+			patch := client.MergeFrom(currentPvcCopy)
+			if err := c.Patch(context.TODO(), pvc, patch); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	if pvc.Status.Phase != corev1.ClaimPending {
+		return nil
+	}
+
+	// set bound condition by getting the latest event
+	events := &corev1.EventList{}
+
+	err := c.List(context.TODO(), events,
+		client.InNamespace(pvc.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": pvc.GetName(),
+			"involvedObject.uid": string(pvc.GetUID())},
+	)
+
+	if err != nil {
+		// Log the error but don't fail the reconciliation
+		log.Error(err, "Unable to list events for PVC bound condition update", "pvc", pvc.Name)
+		return nil
+	}
+
+	if len(events.Items) == 0 {
+		return nil
+	}
+
+	pvcPrime, usingPopulator := anno[AnnPVCPrimeName]
+
+	// Sort event lists by containing primeName substring and most recent timestamp
+	sortEvents(events, usingPopulator, pvcPrime)
+
+	boundMessage := ""
+	// check if prime name annotation exists
+	if usingPopulator {
+		// if we are using populators get the latest event from prime pvc
+		pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
+
+		// if the first event does not contain a prime message, none will so return
+		primeIdx := strings.Index(events.Items[0].Message, pvcPrime)
+		if primeIdx == -1 {
+			log.V(1).Info("No bound message found, skipping bound condition update", "pvc", pvc.Name)
+			return nil
+		}
+		boundMessage = events.Items[0].Message[primeIdx+len(pvcPrime):]
+	} else {
+		// if not using populators just get the latest event
+		boundMessage = events.Items[0].Message
+	}
+
+	// since we checked status of phase above, we know this is pending
+	anno[AnnBoundCondition] = "false"
+	anno[AnnBoundConditionReason] = "Pending"
+	anno[AnnBoundConditionMessage] = boundMessage
+
+	patch := client.MergeFrom(currentPvcCopy)
+	if err := c.Patch(context.TODO(), pvc, patch); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// CopyEvents gets srcPvc events and re-emits them on the target PVC with the src name prefix
+func CopyEvents(srcPVC, targetPVC client.Object, c client.Client, recorder record.EventRecorder) {
+	srcPrefixMsg := fmt.Sprintf("[%s] : ", srcPVC.GetName())
+
+	newEvents := &corev1.EventList{}
+	err := c.List(context.TODO(), newEvents,
+		client.InNamespace(srcPVC.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": srcPVC.GetName(),
+			"involvedObject.uid": string(srcPVC.GetUID())},
+	)
+
+	if err != nil {
+		klog.Error(err, "Could not retrieve srcPVC list of Events")
+	}
+
+	currEvents := &corev1.EventList{}
+	err = c.List(context.TODO(), currEvents,
+		client.InNamespace(targetPVC.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": targetPVC.GetName(),
+			"involvedObject.uid": string(targetPVC.GetUID())},
+	)
+
+	if err != nil {
+		klog.Error(err, "Could not retrieve targetPVC list of Events")
+	}
+
+	// use this to hash each message for quick lookup, value is unused
+	eventMap := map[string]struct{}{}
+
+	for _, event := range currEvents.Items {
+		eventMap[event.Message] = struct{}{}
+	}
+
+	for _, newEvent := range newEvents.Items {
+		msg := newEvent.Message
+
+		// check if target PVC already has this equivalent event
+		if _, exists := eventMap[msg]; exists {
+			continue
+		}
+
+		formattedMsg := srcPrefixMsg + msg
+		// check if we already emitted this event with the src prefix
+		if _, exists := eventMap[formattedMsg]; exists {
+			continue
+		}
+		recorder.Event(targetPVC, newEvent.Type, newEvent.Reason, formattedMsg)
+	}
 }

@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type ReplicasGetter interface {
 
 // ReplicaInterface has methods to work with Replica resources.
 type ReplicaInterface interface {
-	Create(ctx context.Context, replica *v1beta2.Replica, opts v1.CreateOptions) (*v1beta2.Replica, error)
-	Update(ctx context.Context, replica *v1beta2.Replica, opts v1.UpdateOptions) (*v1beta2.Replica, error)
+	Create(ctx context.Context, replica *longhornv1beta2.Replica, opts v1.CreateOptions) (*longhornv1beta2.Replica, error)
+	Update(ctx context.Context, replica *longhornv1beta2.Replica, opts v1.UpdateOptions) (*longhornv1beta2.Replica, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, replica *v1beta2.Replica, opts v1.UpdateOptions) (*v1beta2.Replica, error)
+	UpdateStatus(ctx context.Context, replica *longhornv1beta2.Replica, opts v1.UpdateOptions) (*longhornv1beta2.Replica, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.Replica, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.ReplicaList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.Replica, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.ReplicaList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.Replica, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.Replica, err error)
 	ReplicaExpansion
 }
 
 // replicas implements ReplicaInterface
 type replicas struct {
-	*gentype.ClientWithList[*v1beta2.Replica, *v1beta2.ReplicaList]
+	*gentype.ClientWithList[*longhornv1beta2.Replica, *longhornv1beta2.ReplicaList]
 }
 
 // newReplicas returns a Replicas
 func newReplicas(c *LonghornV1beta2Client, namespace string) *replicas {
 	return &replicas{
-		gentype.NewClientWithList[*v1beta2.Replica, *v1beta2.ReplicaList](
+		gentype.NewClientWithList[*longhornv1beta2.Replica, *longhornv1beta2.ReplicaList](
 			"replicas",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.Replica { return &v1beta2.Replica{} },
-			func() *v1beta2.ReplicaList { return &v1beta2.ReplicaList{} }),
+			func() *longhornv1beta2.Replica { return &longhornv1beta2.Replica{} },
+			func() *longhornv1beta2.ReplicaList { return &longhornv1beta2.ReplicaList{} },
+		),
 	}
 }

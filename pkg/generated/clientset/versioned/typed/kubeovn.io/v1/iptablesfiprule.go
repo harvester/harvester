@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type IptablesFIPRulesGetter interface {
 
 // IptablesFIPRuleInterface has methods to work with IptablesFIPRule resources.
 type IptablesFIPRuleInterface interface {
-	Create(ctx context.Context, iptablesFIPRule *v1.IptablesFIPRule, opts metav1.CreateOptions) (*v1.IptablesFIPRule, error)
-	Update(ctx context.Context, iptablesFIPRule *v1.IptablesFIPRule, opts metav1.UpdateOptions) (*v1.IptablesFIPRule, error)
+	Create(ctx context.Context, iptablesFIPRule *kubeovnv1.IptablesFIPRule, opts metav1.CreateOptions) (*kubeovnv1.IptablesFIPRule, error)
+	Update(ctx context.Context, iptablesFIPRule *kubeovnv1.IptablesFIPRule, opts metav1.UpdateOptions) (*kubeovnv1.IptablesFIPRule, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, iptablesFIPRule *v1.IptablesFIPRule, opts metav1.UpdateOptions) (*v1.IptablesFIPRule, error)
+	UpdateStatus(ctx context.Context, iptablesFIPRule *kubeovnv1.IptablesFIPRule, opts metav1.UpdateOptions) (*kubeovnv1.IptablesFIPRule, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.IptablesFIPRule, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.IptablesFIPRuleList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.IptablesFIPRule, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.IptablesFIPRuleList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.IptablesFIPRule, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.IptablesFIPRule, err error)
 	IptablesFIPRuleExpansion
 }
 
 // iptablesFIPRules implements IptablesFIPRuleInterface
 type iptablesFIPRules struct {
-	*gentype.ClientWithList[*v1.IptablesFIPRule, *v1.IptablesFIPRuleList]
+	*gentype.ClientWithList[*kubeovnv1.IptablesFIPRule, *kubeovnv1.IptablesFIPRuleList]
 }
 
 // newIptablesFIPRules returns a IptablesFIPRules
 func newIptablesFIPRules(c *KubeovnV1Client) *iptablesFIPRules {
 	return &iptablesFIPRules{
-		gentype.NewClientWithList[*v1.IptablesFIPRule, *v1.IptablesFIPRuleList](
+		gentype.NewClientWithList[*kubeovnv1.IptablesFIPRule, *kubeovnv1.IptablesFIPRuleList](
 			"iptables-fip-rules",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.IptablesFIPRule { return &v1.IptablesFIPRule{} },
-			func() *v1.IptablesFIPRuleList { return &v1.IptablesFIPRuleList{} }),
+			func() *kubeovnv1.IptablesFIPRule { return &kubeovnv1.IptablesFIPRule{} },
+			func() *kubeovnv1.IptablesFIPRuleList { return &kubeovnv1.IptablesFIPRuleList{} },
+		),
 	}
 }

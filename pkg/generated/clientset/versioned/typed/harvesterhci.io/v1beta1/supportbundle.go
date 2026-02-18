@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type SupportBundlesGetter interface {
 
 // SupportBundleInterface has methods to work with SupportBundle resources.
 type SupportBundleInterface interface {
-	Create(ctx context.Context, supportBundle *v1beta1.SupportBundle, opts v1.CreateOptions) (*v1beta1.SupportBundle, error)
-	Update(ctx context.Context, supportBundle *v1beta1.SupportBundle, opts v1.UpdateOptions) (*v1beta1.SupportBundle, error)
+	Create(ctx context.Context, supportBundle *harvesterhciiov1beta1.SupportBundle, opts v1.CreateOptions) (*harvesterhciiov1beta1.SupportBundle, error)
+	Update(ctx context.Context, supportBundle *harvesterhciiov1beta1.SupportBundle, opts v1.UpdateOptions) (*harvesterhciiov1beta1.SupportBundle, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, supportBundle *v1beta1.SupportBundle, opts v1.UpdateOptions) (*v1beta1.SupportBundle, error)
+	UpdateStatus(ctx context.Context, supportBundle *harvesterhciiov1beta1.SupportBundle, opts v1.UpdateOptions) (*harvesterhciiov1beta1.SupportBundle, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.SupportBundle, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.SupportBundleList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*harvesterhciiov1beta1.SupportBundle, error)
+	List(ctx context.Context, opts v1.ListOptions) (*harvesterhciiov1beta1.SupportBundleList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.SupportBundle, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *harvesterhciiov1beta1.SupportBundle, err error)
 	SupportBundleExpansion
 }
 
 // supportBundles implements SupportBundleInterface
 type supportBundles struct {
-	*gentype.ClientWithList[*v1beta1.SupportBundle, *v1beta1.SupportBundleList]
+	*gentype.ClientWithList[*harvesterhciiov1beta1.SupportBundle, *harvesterhciiov1beta1.SupportBundleList]
 }
 
 // newSupportBundles returns a SupportBundles
 func newSupportBundles(c *HarvesterhciV1beta1Client, namespace string) *supportBundles {
 	return &supportBundles{
-		gentype.NewClientWithList[*v1beta1.SupportBundle, *v1beta1.SupportBundleList](
+		gentype.NewClientWithList[*harvesterhciiov1beta1.SupportBundle, *harvesterhciiov1beta1.SupportBundleList](
 			"supportbundles",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.SupportBundle { return &v1beta1.SupportBundle{} },
-			func() *v1beta1.SupportBundleList { return &v1beta1.SupportBundleList{} }),
+			func() *harvesterhciiov1beta1.SupportBundle { return &harvesterhciiov1beta1.SupportBundle{} },
+			func() *harvesterhciiov1beta1.SupportBundleList { return &harvesterhciiov1beta1.SupportBundleList{} },
+		),
 	}
 }

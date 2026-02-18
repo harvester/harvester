@@ -19,139 +19,46 @@ limitations under the License.
 package fake
 
 import (
-	"context"
+	context "context"
 
+	kubeovniov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubeovn.io/v1"
 	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
+	gentype "k8s.io/client-go/gentype"
 	testing "k8s.io/client-go/testing"
 )
 
-// FakeVpcEgressGateways implements VpcEgressGatewayInterface
-type FakeVpcEgressGateways struct {
+// fakeVpcEgressGateways implements VpcEgressGatewayInterface
+type fakeVpcEgressGateways struct {
+	*gentype.FakeClientWithList[*v1.VpcEgressGateway, *v1.VpcEgressGatewayList]
 	Fake *FakeKubeovnV1
-	ns   string
 }
 
-var vpcegressgatewaysResource = v1.SchemeGroupVersion.WithResource("vpc-egress-gateways")
-
-var vpcegressgatewaysKind = v1.SchemeGroupVersion.WithKind("VpcEgressGateway")
-
-// Get takes name of the vpcEgressGateway, and returns the corresponding vpcEgressGateway object, and an error if there is any.
-func (c *FakeVpcEgressGateways) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.VpcEgressGateway, err error) {
-	emptyResult := &v1.VpcEgressGateway{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(vpcegressgatewaysResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeVpcEgressGateways(fake *FakeKubeovnV1, namespace string) kubeovniov1.VpcEgressGatewayInterface {
+	return &fakeVpcEgressGateways{
+		gentype.NewFakeClientWithList[*v1.VpcEgressGateway, *v1.VpcEgressGatewayList](
+			fake.Fake,
+			namespace,
+			v1.SchemeGroupVersion.WithResource("vpc-egress-gateways"),
+			v1.SchemeGroupVersion.WithKind("VpcEgressGateway"),
+			func() *v1.VpcEgressGateway { return &v1.VpcEgressGateway{} },
+			func() *v1.VpcEgressGatewayList { return &v1.VpcEgressGatewayList{} },
+			func(dst, src *v1.VpcEgressGatewayList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.VpcEgressGatewayList) []*v1.VpcEgressGateway { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1.VpcEgressGatewayList, items []*v1.VpcEgressGateway) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1.VpcEgressGateway), err
-}
-
-// List takes label and field selectors, and returns the list of VpcEgressGateways that match those selectors.
-func (c *FakeVpcEgressGateways) List(ctx context.Context, opts metav1.ListOptions) (result *v1.VpcEgressGatewayList, err error) {
-	emptyResult := &v1.VpcEgressGatewayList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(vpcegressgatewaysResource, vpcegressgatewaysKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1.VpcEgressGatewayList{ListMeta: obj.(*v1.VpcEgressGatewayList).ListMeta}
-	for _, item := range obj.(*v1.VpcEgressGatewayList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested vpcEgressGateways.
-func (c *FakeVpcEgressGateways) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(vpcegressgatewaysResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a vpcEgressGateway and creates it.  Returns the server's representation of the vpcEgressGateway, and an error, if there is any.
-func (c *FakeVpcEgressGateways) Create(ctx context.Context, vpcEgressGateway *v1.VpcEgressGateway, opts metav1.CreateOptions) (result *v1.VpcEgressGateway, err error) {
-	emptyResult := &v1.VpcEgressGateway{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(vpcegressgatewaysResource, c.ns, vpcEgressGateway, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.VpcEgressGateway), err
-}
-
-// Update takes the representation of a vpcEgressGateway and updates it. Returns the server's representation of the vpcEgressGateway, and an error, if there is any.
-func (c *FakeVpcEgressGateways) Update(ctx context.Context, vpcEgressGateway *v1.VpcEgressGateway, opts metav1.UpdateOptions) (result *v1.VpcEgressGateway, err error) {
-	emptyResult := &v1.VpcEgressGateway{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(vpcegressgatewaysResource, c.ns, vpcEgressGateway, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.VpcEgressGateway), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeVpcEgressGateways) UpdateStatus(ctx context.Context, vpcEgressGateway *v1.VpcEgressGateway, opts metav1.UpdateOptions) (result *v1.VpcEgressGateway, err error) {
-	emptyResult := &v1.VpcEgressGateway{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(vpcegressgatewaysResource, "status", c.ns, vpcEgressGateway, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.VpcEgressGateway), err
-}
-
-// Delete takes name of the vpcEgressGateway and deletes it. Returns an error if one occurs.
-func (c *FakeVpcEgressGateways) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(vpcegressgatewaysResource, c.ns, name, opts), &v1.VpcEgressGateway{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeVpcEgressGateways) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(vpcegressgatewaysResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1.VpcEgressGatewayList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched vpcEgressGateway.
-func (c *FakeVpcEgressGateways) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.VpcEgressGateway, err error) {
-	emptyResult := &v1.VpcEgressGateway{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(vpcegressgatewaysResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.VpcEgressGateway), err
 }
 
 // GetScale takes name of the vpcEgressGateway, and returns the corresponding scale object, and an error if there is any.
-func (c *FakeVpcEgressGateways) GetScale(ctx context.Context, vpcEgressGatewayName string, options metav1.GetOptions) (result *autoscalingv1.Scale, err error) {
+func (c *fakeVpcEgressGateways) GetScale(ctx context.Context, vpcEgressGatewayName string, options metav1.GetOptions) (result *autoscalingv1.Scale, err error) {
 	emptyResult := &autoscalingv1.Scale{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetSubresourceActionWithOptions(vpcegressgatewaysResource, c.ns, "scale", vpcEgressGatewayName, options), emptyResult)
+		Invokes(testing.NewGetSubresourceActionWithOptions(c.Resource(), c.Namespace(), "scale", vpcEgressGatewayName, options), emptyResult)
 
 	if obj == nil {
 		return emptyResult, err
@@ -160,10 +67,10 @@ func (c *FakeVpcEgressGateways) GetScale(ctx context.Context, vpcEgressGatewayNa
 }
 
 // UpdateScale takes the representation of a scale and updates it. Returns the server's representation of the scale, and an error, if there is any.
-func (c *FakeVpcEgressGateways) UpdateScale(ctx context.Context, vpcEgressGatewayName string, scale *autoscalingv1.Scale, opts metav1.UpdateOptions) (result *autoscalingv1.Scale, err error) {
+func (c *fakeVpcEgressGateways) UpdateScale(ctx context.Context, vpcEgressGatewayName string, scale *autoscalingv1.Scale, opts metav1.UpdateOptions) (result *autoscalingv1.Scale, err error) {
 	emptyResult := &autoscalingv1.Scale{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(vpcegressgatewaysResource, "scale", c.ns, scale, opts), &autoscalingv1.Scale{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(c.Resource(), "scale", c.Namespace(), scale, opts), &autoscalingv1.Scale{})
 
 	if obj == nil {
 		return emptyResult, err

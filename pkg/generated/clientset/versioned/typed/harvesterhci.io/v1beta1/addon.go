@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type AddonsGetter interface {
 
 // AddonInterface has methods to work with Addon resources.
 type AddonInterface interface {
-	Create(ctx context.Context, addon *v1beta1.Addon, opts v1.CreateOptions) (*v1beta1.Addon, error)
-	Update(ctx context.Context, addon *v1beta1.Addon, opts v1.UpdateOptions) (*v1beta1.Addon, error)
+	Create(ctx context.Context, addon *harvesterhciiov1beta1.Addon, opts v1.CreateOptions) (*harvesterhciiov1beta1.Addon, error)
+	Update(ctx context.Context, addon *harvesterhciiov1beta1.Addon, opts v1.UpdateOptions) (*harvesterhciiov1beta1.Addon, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, addon *v1beta1.Addon, opts v1.UpdateOptions) (*v1beta1.Addon, error)
+	UpdateStatus(ctx context.Context, addon *harvesterhciiov1beta1.Addon, opts v1.UpdateOptions) (*harvesterhciiov1beta1.Addon, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.Addon, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.AddonList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*harvesterhciiov1beta1.Addon, error)
+	List(ctx context.Context, opts v1.ListOptions) (*harvesterhciiov1beta1.AddonList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Addon, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *harvesterhciiov1beta1.Addon, err error)
 	AddonExpansion
 }
 
 // addons implements AddonInterface
 type addons struct {
-	*gentype.ClientWithList[*v1beta1.Addon, *v1beta1.AddonList]
+	*gentype.ClientWithList[*harvesterhciiov1beta1.Addon, *harvesterhciiov1beta1.AddonList]
 }
 
 // newAddons returns a Addons
 func newAddons(c *HarvesterhciV1beta1Client, namespace string) *addons {
 	return &addons{
-		gentype.NewClientWithList[*v1beta1.Addon, *v1beta1.AddonList](
+		gentype.NewClientWithList[*harvesterhciiov1beta1.Addon, *harvesterhciiov1beta1.AddonList](
 			"addons",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.Addon { return &v1beta1.Addon{} },
-			func() *v1beta1.AddonList { return &v1beta1.AddonList{} }),
+			func() *harvesterhciiov1beta1.Addon { return &harvesterhciiov1beta1.Addon{} },
+			func() *harvesterhciiov1beta1.AddonList { return &harvesterhciiov1beta1.AddonList{} },
+		),
 	}
 }

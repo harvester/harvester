@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "k8s.io/api/batch/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type JobsGetter interface {
 
 // JobInterface has methods to work with Job resources.
 type JobInterface interface {
-	Create(ctx context.Context, job *v1.Job, opts metav1.CreateOptions) (*v1.Job, error)
-	Update(ctx context.Context, job *v1.Job, opts metav1.UpdateOptions) (*v1.Job, error)
+	Create(ctx context.Context, job *batchv1.Job, opts metav1.CreateOptions) (*batchv1.Job, error)
+	Update(ctx context.Context, job *batchv1.Job, opts metav1.UpdateOptions) (*batchv1.Job, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, job *v1.Job, opts metav1.UpdateOptions) (*v1.Job, error)
+	UpdateStatus(ctx context.Context, job *batchv1.Job, opts metav1.UpdateOptions) (*batchv1.Job, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.Job, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.JobList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*batchv1.Job, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*batchv1.JobList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Job, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *batchv1.Job, err error)
 	JobExpansion
 }
 
 // jobs implements JobInterface
 type jobs struct {
-	*gentype.ClientWithList[*v1.Job, *v1.JobList]
+	*gentype.ClientWithList[*batchv1.Job, *batchv1.JobList]
 }
 
 // newJobs returns a Jobs
 func newJobs(c *BatchV1Client, namespace string) *jobs {
 	return &jobs{
-		gentype.NewClientWithList[*v1.Job, *v1.JobList](
+		gentype.NewClientWithList[*batchv1.Job, *batchv1.JobList](
 			"jobs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1.Job { return &v1.Job{} },
-			func() *v1.JobList { return &v1.JobList{} }),
+			func() *batchv1.Job { return &batchv1.Job{} },
+			func() *batchv1.JobList { return &batchv1.JobList{} },
+		),
 	}
 }

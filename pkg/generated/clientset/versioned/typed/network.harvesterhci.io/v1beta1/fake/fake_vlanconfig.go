@@ -19,108 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	v1beta1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	networkharvesterhciiov1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/network.harvesterhci.io/v1beta1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeVlanConfigs implements VlanConfigInterface
-type FakeVlanConfigs struct {
+// fakeVlanConfigs implements VlanConfigInterface
+type fakeVlanConfigs struct {
+	*gentype.FakeClientWithList[*v1beta1.VlanConfig, *v1beta1.VlanConfigList]
 	Fake *FakeNetworkV1beta1
 }
 
-var vlanconfigsResource = v1beta1.SchemeGroupVersion.WithResource("vlanconfigs")
-
-var vlanconfigsKind = v1beta1.SchemeGroupVersion.WithKind("VlanConfig")
-
-// Get takes name of the vlanConfig, and returns the corresponding vlanConfig object, and an error if there is any.
-func (c *FakeVlanConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.VlanConfig, err error) {
-	emptyResult := &v1beta1.VlanConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(vlanconfigsResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeVlanConfigs(fake *FakeNetworkV1beta1) networkharvesterhciiov1beta1.VlanConfigInterface {
+	return &fakeVlanConfigs{
+		gentype.NewFakeClientWithList[*v1beta1.VlanConfig, *v1beta1.VlanConfigList](
+			fake.Fake,
+			"",
+			v1beta1.SchemeGroupVersion.WithResource("vlanconfigs"),
+			v1beta1.SchemeGroupVersion.WithKind("VlanConfig"),
+			func() *v1beta1.VlanConfig { return &v1beta1.VlanConfig{} },
+			func() *v1beta1.VlanConfigList { return &v1beta1.VlanConfigList{} },
+			func(dst, src *v1beta1.VlanConfigList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta1.VlanConfigList) []*v1beta1.VlanConfig { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1beta1.VlanConfigList, items []*v1beta1.VlanConfig) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta1.VlanConfig), err
-}
-
-// List takes label and field selectors, and returns the list of VlanConfigs that match those selectors.
-func (c *FakeVlanConfigs) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.VlanConfigList, err error) {
-	emptyResult := &v1beta1.VlanConfigList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(vlanconfigsResource, vlanconfigsKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta1.VlanConfigList{ListMeta: obj.(*v1beta1.VlanConfigList).ListMeta}
-	for _, item := range obj.(*v1beta1.VlanConfigList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested vlanConfigs.
-func (c *FakeVlanConfigs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(vlanconfigsResource, opts))
-}
-
-// Create takes the representation of a vlanConfig and creates it.  Returns the server's representation of the vlanConfig, and an error, if there is any.
-func (c *FakeVlanConfigs) Create(ctx context.Context, vlanConfig *v1beta1.VlanConfig, opts v1.CreateOptions) (result *v1beta1.VlanConfig, err error) {
-	emptyResult := &v1beta1.VlanConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(vlanconfigsResource, vlanConfig, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.VlanConfig), err
-}
-
-// Update takes the representation of a vlanConfig and updates it. Returns the server's representation of the vlanConfig, and an error, if there is any.
-func (c *FakeVlanConfigs) Update(ctx context.Context, vlanConfig *v1beta1.VlanConfig, opts v1.UpdateOptions) (result *v1beta1.VlanConfig, err error) {
-	emptyResult := &v1beta1.VlanConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(vlanconfigsResource, vlanConfig, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.VlanConfig), err
-}
-
-// Delete takes name of the vlanConfig and deletes it. Returns an error if one occurs.
-func (c *FakeVlanConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(vlanconfigsResource, name, opts), &v1beta1.VlanConfig{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeVlanConfigs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(vlanconfigsResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta1.VlanConfigList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched vlanConfig.
-func (c *FakeVlanConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VlanConfig, err error) {
-	emptyResult := &v1beta1.VlanConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(vlanconfigsResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.VlanConfig), err
 }

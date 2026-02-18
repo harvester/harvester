@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
+	apiv1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type ClusterFlowsGetter interface {
 
 // ClusterFlowInterface has methods to work with ClusterFlow resources.
 type ClusterFlowInterface interface {
-	Create(ctx context.Context, clusterFlow *v1beta1.ClusterFlow, opts v1.CreateOptions) (*v1beta1.ClusterFlow, error)
-	Update(ctx context.Context, clusterFlow *v1beta1.ClusterFlow, opts v1.UpdateOptions) (*v1beta1.ClusterFlow, error)
+	Create(ctx context.Context, clusterFlow *apiv1beta1.ClusterFlow, opts v1.CreateOptions) (*apiv1beta1.ClusterFlow, error)
+	Update(ctx context.Context, clusterFlow *apiv1beta1.ClusterFlow, opts v1.UpdateOptions) (*apiv1beta1.ClusterFlow, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, clusterFlow *v1beta1.ClusterFlow, opts v1.UpdateOptions) (*v1beta1.ClusterFlow, error)
+	UpdateStatus(ctx context.Context, clusterFlow *apiv1beta1.ClusterFlow, opts v1.UpdateOptions) (*apiv1beta1.ClusterFlow, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.ClusterFlow, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.ClusterFlowList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*apiv1beta1.ClusterFlow, error)
+	List(ctx context.Context, opts v1.ListOptions) (*apiv1beta1.ClusterFlowList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.ClusterFlow, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *apiv1beta1.ClusterFlow, err error)
 	ClusterFlowExpansion
 }
 
 // clusterFlows implements ClusterFlowInterface
 type clusterFlows struct {
-	*gentype.ClientWithList[*v1beta1.ClusterFlow, *v1beta1.ClusterFlowList]
+	*gentype.ClientWithList[*apiv1beta1.ClusterFlow, *apiv1beta1.ClusterFlowList]
 }
 
 // newClusterFlows returns a ClusterFlows
 func newClusterFlows(c *LoggingV1beta1Client) *clusterFlows {
 	return &clusterFlows{
-		gentype.NewClientWithList[*v1beta1.ClusterFlow, *v1beta1.ClusterFlowList](
+		gentype.NewClientWithList[*apiv1beta1.ClusterFlow, *apiv1beta1.ClusterFlowList](
 			"clusterflows",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1beta1.ClusterFlow { return &v1beta1.ClusterFlow{} },
-			func() *v1beta1.ClusterFlowList { return &v1beta1.ClusterFlowList{} }),
+			func() *apiv1beta1.ClusterFlow { return &apiv1beta1.ClusterFlow{} },
+			func() *apiv1beta1.ClusterFlowList { return &apiv1beta1.ClusterFlowList{} },
+		),
 	}
 }

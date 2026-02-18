@@ -19,129 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeScheduleVMBackups implements ScheduleVMBackupInterface
-type FakeScheduleVMBackups struct {
+// fakeScheduleVMBackups implements ScheduleVMBackupInterface
+type fakeScheduleVMBackups struct {
+	*gentype.FakeClientWithList[*v1beta1.ScheduleVMBackup, *v1beta1.ScheduleVMBackupList]
 	Fake *FakeHarvesterhciV1beta1
-	ns   string
 }
 
-var schedulevmbackupsResource = v1beta1.SchemeGroupVersion.WithResource("schedulevmbackups")
-
-var schedulevmbackupsKind = v1beta1.SchemeGroupVersion.WithKind("ScheduleVMBackup")
-
-// Get takes name of the scheduleVMBackup, and returns the corresponding scheduleVMBackup object, and an error if there is any.
-func (c *FakeScheduleVMBackups) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.ScheduleVMBackup, err error) {
-	emptyResult := &v1beta1.ScheduleVMBackup{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(schedulevmbackupsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeScheduleVMBackups(fake *FakeHarvesterhciV1beta1, namespace string) harvesterhciiov1beta1.ScheduleVMBackupInterface {
+	return &fakeScheduleVMBackups{
+		gentype.NewFakeClientWithList[*v1beta1.ScheduleVMBackup, *v1beta1.ScheduleVMBackupList](
+			fake.Fake,
+			namespace,
+			v1beta1.SchemeGroupVersion.WithResource("schedulevmbackups"),
+			v1beta1.SchemeGroupVersion.WithKind("ScheduleVMBackup"),
+			func() *v1beta1.ScheduleVMBackup { return &v1beta1.ScheduleVMBackup{} },
+			func() *v1beta1.ScheduleVMBackupList { return &v1beta1.ScheduleVMBackupList{} },
+			func(dst, src *v1beta1.ScheduleVMBackupList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta1.ScheduleVMBackupList) []*v1beta1.ScheduleVMBackup {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1beta1.ScheduleVMBackupList, items []*v1beta1.ScheduleVMBackup) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta1.ScheduleVMBackup), err
-}
-
-// List takes label and field selectors, and returns the list of ScheduleVMBackups that match those selectors.
-func (c *FakeScheduleVMBackups) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.ScheduleVMBackupList, err error) {
-	emptyResult := &v1beta1.ScheduleVMBackupList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(schedulevmbackupsResource, schedulevmbackupsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta1.ScheduleVMBackupList{ListMeta: obj.(*v1beta1.ScheduleVMBackupList).ListMeta}
-	for _, item := range obj.(*v1beta1.ScheduleVMBackupList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested scheduleVMBackups.
-func (c *FakeScheduleVMBackups) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(schedulevmbackupsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a scheduleVMBackup and creates it.  Returns the server's representation of the scheduleVMBackup, and an error, if there is any.
-func (c *FakeScheduleVMBackups) Create(ctx context.Context, scheduleVMBackup *v1beta1.ScheduleVMBackup, opts v1.CreateOptions) (result *v1beta1.ScheduleVMBackup, err error) {
-	emptyResult := &v1beta1.ScheduleVMBackup{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(schedulevmbackupsResource, c.ns, scheduleVMBackup, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ScheduleVMBackup), err
-}
-
-// Update takes the representation of a scheduleVMBackup and updates it. Returns the server's representation of the scheduleVMBackup, and an error, if there is any.
-func (c *FakeScheduleVMBackups) Update(ctx context.Context, scheduleVMBackup *v1beta1.ScheduleVMBackup, opts v1.UpdateOptions) (result *v1beta1.ScheduleVMBackup, err error) {
-	emptyResult := &v1beta1.ScheduleVMBackup{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(schedulevmbackupsResource, c.ns, scheduleVMBackup, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ScheduleVMBackup), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeScheduleVMBackups) UpdateStatus(ctx context.Context, scheduleVMBackup *v1beta1.ScheduleVMBackup, opts v1.UpdateOptions) (result *v1beta1.ScheduleVMBackup, err error) {
-	emptyResult := &v1beta1.ScheduleVMBackup{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(schedulevmbackupsResource, "status", c.ns, scheduleVMBackup, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ScheduleVMBackup), err
-}
-
-// Delete takes name of the scheduleVMBackup and deletes it. Returns an error if one occurs.
-func (c *FakeScheduleVMBackups) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(schedulevmbackupsResource, c.ns, name, opts), &v1beta1.ScheduleVMBackup{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeScheduleVMBackups) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(schedulevmbackupsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta1.ScheduleVMBackupList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched scheduleVMBackup.
-func (c *FakeScheduleVMBackups) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.ScheduleVMBackup, err error) {
-	emptyResult := &v1beta1.ScheduleVMBackup{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(schedulevmbackupsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ScheduleVMBackup), err
 }

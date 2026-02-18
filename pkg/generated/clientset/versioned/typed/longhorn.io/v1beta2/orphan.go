@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type OrphansGetter interface {
 
 // OrphanInterface has methods to work with Orphan resources.
 type OrphanInterface interface {
-	Create(ctx context.Context, orphan *v1beta2.Orphan, opts v1.CreateOptions) (*v1beta2.Orphan, error)
-	Update(ctx context.Context, orphan *v1beta2.Orphan, opts v1.UpdateOptions) (*v1beta2.Orphan, error)
+	Create(ctx context.Context, orphan *longhornv1beta2.Orphan, opts v1.CreateOptions) (*longhornv1beta2.Orphan, error)
+	Update(ctx context.Context, orphan *longhornv1beta2.Orphan, opts v1.UpdateOptions) (*longhornv1beta2.Orphan, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, orphan *v1beta2.Orphan, opts v1.UpdateOptions) (*v1beta2.Orphan, error)
+	UpdateStatus(ctx context.Context, orphan *longhornv1beta2.Orphan, opts v1.UpdateOptions) (*longhornv1beta2.Orphan, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta2.Orphan, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta2.OrphanList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*longhornv1beta2.Orphan, error)
+	List(ctx context.Context, opts v1.ListOptions) (*longhornv1beta2.OrphanList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.Orphan, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *longhornv1beta2.Orphan, err error)
 	OrphanExpansion
 }
 
 // orphans implements OrphanInterface
 type orphans struct {
-	*gentype.ClientWithList[*v1beta2.Orphan, *v1beta2.OrphanList]
+	*gentype.ClientWithList[*longhornv1beta2.Orphan, *longhornv1beta2.OrphanList]
 }
 
 // newOrphans returns a Orphans
 func newOrphans(c *LonghornV1beta2Client, namespace string) *orphans {
 	return &orphans{
-		gentype.NewClientWithList[*v1beta2.Orphan, *v1beta2.OrphanList](
+		gentype.NewClientWithList[*longhornv1beta2.Orphan, *longhornv1beta2.OrphanList](
 			"orphans",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta2.Orphan { return &v1beta2.Orphan{} },
-			func() *v1beta2.OrphanList { return &v1beta2.OrphanList{} }),
+			func() *longhornv1beta2.Orphan { return &longhornv1beta2.Orphan{} },
+			func() *longhornv1beta2.OrphanList { return &longhornv1beta2.OrphanList{} },
+		),
 	}
 }

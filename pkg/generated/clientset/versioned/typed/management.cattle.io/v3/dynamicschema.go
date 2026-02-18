@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type DynamicSchemasGetter interface {
 
 // DynamicSchemaInterface has methods to work with DynamicSchema resources.
 type DynamicSchemaInterface interface {
-	Create(ctx context.Context, dynamicSchema *v3.DynamicSchema, opts v1.CreateOptions) (*v3.DynamicSchema, error)
-	Update(ctx context.Context, dynamicSchema *v3.DynamicSchema, opts v1.UpdateOptions) (*v3.DynamicSchema, error)
+	Create(ctx context.Context, dynamicSchema *managementcattleiov3.DynamicSchema, opts v1.CreateOptions) (*managementcattleiov3.DynamicSchema, error)
+	Update(ctx context.Context, dynamicSchema *managementcattleiov3.DynamicSchema, opts v1.UpdateOptions) (*managementcattleiov3.DynamicSchema, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, dynamicSchema *v3.DynamicSchema, opts v1.UpdateOptions) (*v3.DynamicSchema, error)
+	UpdateStatus(ctx context.Context, dynamicSchema *managementcattleiov3.DynamicSchema, opts v1.UpdateOptions) (*managementcattleiov3.DynamicSchema, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.DynamicSchema, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.DynamicSchemaList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.DynamicSchema, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.DynamicSchemaList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.DynamicSchema, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.DynamicSchema, err error)
 	DynamicSchemaExpansion
 }
 
 // dynamicSchemas implements DynamicSchemaInterface
 type dynamicSchemas struct {
-	*gentype.ClientWithList[*v3.DynamicSchema, *v3.DynamicSchemaList]
+	*gentype.ClientWithList[*managementcattleiov3.DynamicSchema, *managementcattleiov3.DynamicSchemaList]
 }
 
 // newDynamicSchemas returns a DynamicSchemas
 func newDynamicSchemas(c *ManagementV3Client) *dynamicSchemas {
 	return &dynamicSchemas{
-		gentype.NewClientWithList[*v3.DynamicSchema, *v3.DynamicSchemaList](
+		gentype.NewClientWithList[*managementcattleiov3.DynamicSchema, *managementcattleiov3.DynamicSchemaList](
 			"dynamicschemas",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.DynamicSchema { return &v3.DynamicSchema{} },
-			func() *v3.DynamicSchemaList { return &v3.DynamicSchemaList{} }),
+			func() *managementcattleiov3.DynamicSchema { return &managementcattleiov3.DynamicSchema{} },
+			func() *managementcattleiov3.DynamicSchemaList { return &managementcattleiov3.DynamicSchemaList{} },
+		),
 	}
 }

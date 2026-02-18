@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	JSURL          = "https://releases.rancher.com/api-ui/%API_UI_VERSION%/ui.min.js"
-	CSSURL         = "https://releases.rancher.com/api-ui/%API_UI_VERSION%/ui.min.css"
+	JSURL          = "/api-ui/%API_UI_VERSION%/ui.min.js"
+	CSSURL         = "/api-ui/%API_UI_VERSION%/ui.min.css"
 	DefaultVersion = "1.1.11"
 )
 
@@ -41,7 +41,7 @@ type HTMLResponseWriter struct {
 }
 
 func (h *HTMLResponseWriter) start(apiOp *types.APIRequest, code int) {
-	AddCommonResponseHeader(apiOp)
+	_ = AddCommonResponseHeader(apiOp)
 	apiOp.Response.Header().Set("content-type", "text/html")
 	apiOp.Response.WriteHeader(code)
 }
@@ -80,14 +80,14 @@ func (h *HTMLResponseWriter) write(apiOp *types.APIRequest, code int, obj interf
 	headerString = strings.Replace(headerString, "%JSURL%", jsurl, 1)
 	headerString = strings.Replace(headerString, "%CSSURL%", cssurl, 1)
 
-	apiOp.Response.Write([]byte(headerString))
+	_, _ = apiOp.Response.Write([]byte(headerString))
 	if apiObj, ok := obj.(types.APIObject); ok {
-		h.Body(apiOp, apiOp.Response, apiObj)
+		_ = h.Body(apiOp, apiOp.Response, apiObj)
 	} else if list, ok := obj.(types.APIObjectList); ok {
-		h.BodyList(apiOp, apiOp.Response, list)
+		_ = h.BodyList(apiOp, apiOp.Response, list)
 	}
 	if schemaSchema != nil {
-		apiOp.Response.Write(end)
+		_, _ = apiOp.Response.Write(end)
 	}
 }
 

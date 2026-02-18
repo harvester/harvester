@@ -47,6 +47,7 @@ var (
 		settings.LogLevelSettingName,
 		settings.KubeconfigDefaultTokenTTLMinutesSettingName,
 		settings.AdditionalGuestMemoryOverheadRatioName,
+		settings.ClusterPodSecurityStandardSettingName,
 	}
 )
 
@@ -85,6 +86,8 @@ type Handler struct {
 	rancherSettingsCache ctlmgmtv3.SettingCache
 	kubeVirtConfig       kubevirtv1.KubeVirtClient
 	kubeVirtConfigCache  kubevirtv1.KubeVirtCache
+	namespaces           ctlcorev1.NamespaceClient
+	namespacesCache      ctlcorev1.NamespaceCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {

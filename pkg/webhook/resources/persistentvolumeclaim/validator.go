@@ -105,7 +105,7 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 	for _, vm := range vms {
 		if vm.DeletionTimestamp == nil {
 			message := fmt.Sprintf("can not delete the volume %s which is currently attached to VM: %s/%s", oldPVC.Name, vm.Namespace, vm.Name)
-			return werror.NewInvalidError(message, "")
+			return werror.NewConflict(message)
 		}
 	}
 

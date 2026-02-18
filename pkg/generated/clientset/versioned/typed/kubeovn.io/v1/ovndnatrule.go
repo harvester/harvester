@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type OvnDnatRulesGetter interface {
 
 // OvnDnatRuleInterface has methods to work with OvnDnatRule resources.
 type OvnDnatRuleInterface interface {
-	Create(ctx context.Context, ovnDnatRule *v1.OvnDnatRule, opts metav1.CreateOptions) (*v1.OvnDnatRule, error)
-	Update(ctx context.Context, ovnDnatRule *v1.OvnDnatRule, opts metav1.UpdateOptions) (*v1.OvnDnatRule, error)
+	Create(ctx context.Context, ovnDnatRule *kubeovnv1.OvnDnatRule, opts metav1.CreateOptions) (*kubeovnv1.OvnDnatRule, error)
+	Update(ctx context.Context, ovnDnatRule *kubeovnv1.OvnDnatRule, opts metav1.UpdateOptions) (*kubeovnv1.OvnDnatRule, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, ovnDnatRule *v1.OvnDnatRule, opts metav1.UpdateOptions) (*v1.OvnDnatRule, error)
+	UpdateStatus(ctx context.Context, ovnDnatRule *kubeovnv1.OvnDnatRule, opts metav1.UpdateOptions) (*kubeovnv1.OvnDnatRule, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.OvnDnatRule, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.OvnDnatRuleList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.OvnDnatRule, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.OvnDnatRuleList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.OvnDnatRule, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.OvnDnatRule, err error)
 	OvnDnatRuleExpansion
 }
 
 // ovnDnatRules implements OvnDnatRuleInterface
 type ovnDnatRules struct {
-	*gentype.ClientWithList[*v1.OvnDnatRule, *v1.OvnDnatRuleList]
+	*gentype.ClientWithList[*kubeovnv1.OvnDnatRule, *kubeovnv1.OvnDnatRuleList]
 }
 
 // newOvnDnatRules returns a OvnDnatRules
 func newOvnDnatRules(c *KubeovnV1Client) *ovnDnatRules {
 	return &ovnDnatRules{
-		gentype.NewClientWithList[*v1.OvnDnatRule, *v1.OvnDnatRuleList](
+		gentype.NewClientWithList[*kubeovnv1.OvnDnatRule, *kubeovnv1.OvnDnatRuleList](
 			"ovn-dnat-rules",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.OvnDnatRule { return &v1.OvnDnatRule{} },
-			func() *v1.OvnDnatRuleList { return &v1.OvnDnatRuleList{} }),
+			func() *kubeovnv1.OvnDnatRule { return &kubeovnv1.OvnDnatRule{} },
+			func() *kubeovnv1.OvnDnatRuleList { return &kubeovnv1.OvnDnatRuleList{} },
+		),
 	}
 }

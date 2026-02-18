@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type AuthTokensGetter interface {
 
 // AuthTokenInterface has methods to work with AuthToken resources.
 type AuthTokenInterface interface {
-	Create(ctx context.Context, authToken *v3.AuthToken, opts v1.CreateOptions) (*v3.AuthToken, error)
-	Update(ctx context.Context, authToken *v3.AuthToken, opts v1.UpdateOptions) (*v3.AuthToken, error)
+	Create(ctx context.Context, authToken *managementcattleiov3.AuthToken, opts v1.CreateOptions) (*managementcattleiov3.AuthToken, error)
+	Update(ctx context.Context, authToken *managementcattleiov3.AuthToken, opts v1.UpdateOptions) (*managementcattleiov3.AuthToken, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.AuthToken, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.AuthTokenList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.AuthToken, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.AuthTokenList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.AuthToken, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.AuthToken, err error)
 	AuthTokenExpansion
 }
 
 // authTokens implements AuthTokenInterface
 type authTokens struct {
-	*gentype.ClientWithList[*v3.AuthToken, *v3.AuthTokenList]
+	*gentype.ClientWithList[*managementcattleiov3.AuthToken, *managementcattleiov3.AuthTokenList]
 }
 
 // newAuthTokens returns a AuthTokens
 func newAuthTokens(c *ManagementV3Client) *authTokens {
 	return &authTokens{
-		gentype.NewClientWithList[*v3.AuthToken, *v3.AuthTokenList](
+		gentype.NewClientWithList[*managementcattleiov3.AuthToken, *managementcattleiov3.AuthTokenList](
 			"authtokens",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.AuthToken { return &v3.AuthToken{} },
-			func() *v3.AuthTokenList { return &v3.AuthTokenList{} }),
+			func() *managementcattleiov3.AuthToken { return &managementcattleiov3.AuthToken{} },
+			func() *managementcattleiov3.AuthTokenList { return &managementcattleiov3.AuthTokenList{} },
+		),
 	}
 }

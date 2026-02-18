@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type IPsGetter interface {
 
 // IPInterface has methods to work with IP resources.
 type IPInterface interface {
-	Create(ctx context.Context, iP *v1.IP, opts metav1.CreateOptions) (*v1.IP, error)
-	Update(ctx context.Context, iP *v1.IP, opts metav1.UpdateOptions) (*v1.IP, error)
+	Create(ctx context.Context, iP *kubeovnv1.IP, opts metav1.CreateOptions) (*kubeovnv1.IP, error)
+	Update(ctx context.Context, iP *kubeovnv1.IP, opts metav1.UpdateOptions) (*kubeovnv1.IP, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.IP, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.IPList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.IP, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.IPList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.IP, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.IP, err error)
 	IPExpansion
 }
 
 // iPs implements IPInterface
 type iPs struct {
-	*gentype.ClientWithList[*v1.IP, *v1.IPList]
+	*gentype.ClientWithList[*kubeovnv1.IP, *kubeovnv1.IPList]
 }
 
 // newIPs returns a IPs
 func newIPs(c *KubeovnV1Client) *iPs {
 	return &iPs{
-		gentype.NewClientWithList[*v1.IP, *v1.IPList](
+		gentype.NewClientWithList[*kubeovnv1.IP, *kubeovnv1.IPList](
 			"ips",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.IP { return &v1.IP{} },
-			func() *v1.IPList { return &v1.IPList{} }),
+			func() *kubeovnv1.IP { return &kubeovnv1.IP{} },
+			func() *kubeovnv1.IPList { return &kubeovnv1.IPList{} },
+		),
 	}
 }

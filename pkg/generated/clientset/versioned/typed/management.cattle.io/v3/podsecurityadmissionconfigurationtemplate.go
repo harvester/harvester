@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,35 +37,36 @@ type PodSecurityAdmissionConfigurationTemplatesGetter interface {
 
 // PodSecurityAdmissionConfigurationTemplateInterface has methods to work with PodSecurityAdmissionConfigurationTemplate resources.
 type PodSecurityAdmissionConfigurationTemplateInterface interface {
-	Create(ctx context.Context, podSecurityAdmissionConfigurationTemplate *v3.PodSecurityAdmissionConfigurationTemplate, opts v1.CreateOptions) (*v3.PodSecurityAdmissionConfigurationTemplate, error)
-	Update(ctx context.Context, podSecurityAdmissionConfigurationTemplate *v3.PodSecurityAdmissionConfigurationTemplate, opts v1.UpdateOptions) (*v3.PodSecurityAdmissionConfigurationTemplate, error)
+	Create(ctx context.Context, podSecurityAdmissionConfigurationTemplate *managementcattleiov3.PodSecurityAdmissionConfigurationTemplate, opts v1.CreateOptions) (*managementcattleiov3.PodSecurityAdmissionConfigurationTemplate, error)
+	Update(ctx context.Context, podSecurityAdmissionConfigurationTemplate *managementcattleiov3.PodSecurityAdmissionConfigurationTemplate, opts v1.UpdateOptions) (*managementcattleiov3.PodSecurityAdmissionConfigurationTemplate, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.PodSecurityAdmissionConfigurationTemplate, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.PodSecurityAdmissionConfigurationTemplateList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.PodSecurityAdmissionConfigurationTemplate, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.PodSecurityAdmissionConfigurationTemplateList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.PodSecurityAdmissionConfigurationTemplate, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.PodSecurityAdmissionConfigurationTemplate, err error)
 	PodSecurityAdmissionConfigurationTemplateExpansion
 }
 
 // podSecurityAdmissionConfigurationTemplates implements PodSecurityAdmissionConfigurationTemplateInterface
 type podSecurityAdmissionConfigurationTemplates struct {
-	*gentype.ClientWithList[*v3.PodSecurityAdmissionConfigurationTemplate, *v3.PodSecurityAdmissionConfigurationTemplateList]
+	*gentype.ClientWithList[*managementcattleiov3.PodSecurityAdmissionConfigurationTemplate, *managementcattleiov3.PodSecurityAdmissionConfigurationTemplateList]
 }
 
 // newPodSecurityAdmissionConfigurationTemplates returns a PodSecurityAdmissionConfigurationTemplates
 func newPodSecurityAdmissionConfigurationTemplates(c *ManagementV3Client) *podSecurityAdmissionConfigurationTemplates {
 	return &podSecurityAdmissionConfigurationTemplates{
-		gentype.NewClientWithList[*v3.PodSecurityAdmissionConfigurationTemplate, *v3.PodSecurityAdmissionConfigurationTemplateList](
+		gentype.NewClientWithList[*managementcattleiov3.PodSecurityAdmissionConfigurationTemplate, *managementcattleiov3.PodSecurityAdmissionConfigurationTemplateList](
 			"podsecurityadmissionconfigurationtemplates",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.PodSecurityAdmissionConfigurationTemplate {
-				return &v3.PodSecurityAdmissionConfigurationTemplate{}
+			func() *managementcattleiov3.PodSecurityAdmissionConfigurationTemplate {
+				return &managementcattleiov3.PodSecurityAdmissionConfigurationTemplate{}
 			},
-			func() *v3.PodSecurityAdmissionConfigurationTemplateList {
-				return &v3.PodSecurityAdmissionConfigurationTemplateList{}
-			}),
+			func() *managementcattleiov3.PodSecurityAdmissionConfigurationTemplateList {
+				return &managementcattleiov3.PodSecurityAdmissionConfigurationTemplateList{}
+			},
+		),
 	}
 }

@@ -19,129 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	longhorniov1beta2 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2"
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeBackupVolumes implements BackupVolumeInterface
-type FakeBackupVolumes struct {
+// fakeBackupVolumes implements BackupVolumeInterface
+type fakeBackupVolumes struct {
+	*gentype.FakeClientWithList[*v1beta2.BackupVolume, *v1beta2.BackupVolumeList]
 	Fake *FakeLonghornV1beta2
-	ns   string
 }
 
-var backupvolumesResource = v1beta2.SchemeGroupVersion.WithResource("backupvolumes")
-
-var backupvolumesKind = v1beta2.SchemeGroupVersion.WithKind("BackupVolume")
-
-// Get takes name of the backupVolume, and returns the corresponding backupVolume object, and an error if there is any.
-func (c *FakeBackupVolumes) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.BackupVolume, err error) {
-	emptyResult := &v1beta2.BackupVolume{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(backupvolumesResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeBackupVolumes(fake *FakeLonghornV1beta2, namespace string) longhorniov1beta2.BackupVolumeInterface {
+	return &fakeBackupVolumes{
+		gentype.NewFakeClientWithList[*v1beta2.BackupVolume, *v1beta2.BackupVolumeList](
+			fake.Fake,
+			namespace,
+			v1beta2.SchemeGroupVersion.WithResource("backupvolumes"),
+			v1beta2.SchemeGroupVersion.WithKind("BackupVolume"),
+			func() *v1beta2.BackupVolume { return &v1beta2.BackupVolume{} },
+			func() *v1beta2.BackupVolumeList { return &v1beta2.BackupVolumeList{} },
+			func(dst, src *v1beta2.BackupVolumeList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta2.BackupVolumeList) []*v1beta2.BackupVolume {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1beta2.BackupVolumeList, items []*v1beta2.BackupVolume) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta2.BackupVolume), err
-}
-
-// List takes label and field selectors, and returns the list of BackupVolumes that match those selectors.
-func (c *FakeBackupVolumes) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.BackupVolumeList, err error) {
-	emptyResult := &v1beta2.BackupVolumeList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(backupvolumesResource, backupvolumesKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta2.BackupVolumeList{ListMeta: obj.(*v1beta2.BackupVolumeList).ListMeta}
-	for _, item := range obj.(*v1beta2.BackupVolumeList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested backupVolumes.
-func (c *FakeBackupVolumes) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(backupvolumesResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a backupVolume and creates it.  Returns the server's representation of the backupVolume, and an error, if there is any.
-func (c *FakeBackupVolumes) Create(ctx context.Context, backupVolume *v1beta2.BackupVolume, opts v1.CreateOptions) (result *v1beta2.BackupVolume, err error) {
-	emptyResult := &v1beta2.BackupVolume{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(backupvolumesResource, c.ns, backupVolume, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.BackupVolume), err
-}
-
-// Update takes the representation of a backupVolume and updates it. Returns the server's representation of the backupVolume, and an error, if there is any.
-func (c *FakeBackupVolumes) Update(ctx context.Context, backupVolume *v1beta2.BackupVolume, opts v1.UpdateOptions) (result *v1beta2.BackupVolume, err error) {
-	emptyResult := &v1beta2.BackupVolume{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(backupvolumesResource, c.ns, backupVolume, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.BackupVolume), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeBackupVolumes) UpdateStatus(ctx context.Context, backupVolume *v1beta2.BackupVolume, opts v1.UpdateOptions) (result *v1beta2.BackupVolume, err error) {
-	emptyResult := &v1beta2.BackupVolume{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(backupvolumesResource, "status", c.ns, backupVolume, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.BackupVolume), err
-}
-
-// Delete takes name of the backupVolume and deletes it. Returns an error if one occurs.
-func (c *FakeBackupVolumes) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(backupvolumesResource, c.ns, name, opts), &v1beta2.BackupVolume{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeBackupVolumes) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(backupvolumesResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta2.BackupVolumeList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched backupVolume.
-func (c *FakeBackupVolumes) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.BackupVolume, err error) {
-	emptyResult := &v1beta2.BackupVolume{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(backupvolumesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.BackupVolume), err
 }

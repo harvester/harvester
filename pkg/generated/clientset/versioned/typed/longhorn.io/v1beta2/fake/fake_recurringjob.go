@@ -19,129 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	longhorniov1beta2 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2"
 	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeRecurringJobs implements RecurringJobInterface
-type FakeRecurringJobs struct {
+// fakeRecurringJobs implements RecurringJobInterface
+type fakeRecurringJobs struct {
+	*gentype.FakeClientWithList[*v1beta2.RecurringJob, *v1beta2.RecurringJobList]
 	Fake *FakeLonghornV1beta2
-	ns   string
 }
 
-var recurringjobsResource = v1beta2.SchemeGroupVersion.WithResource("recurringjobs")
-
-var recurringjobsKind = v1beta2.SchemeGroupVersion.WithKind("RecurringJob")
-
-// Get takes name of the recurringJob, and returns the corresponding recurringJob object, and an error if there is any.
-func (c *FakeRecurringJobs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.RecurringJob, err error) {
-	emptyResult := &v1beta2.RecurringJob{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(recurringjobsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeRecurringJobs(fake *FakeLonghornV1beta2, namespace string) longhorniov1beta2.RecurringJobInterface {
+	return &fakeRecurringJobs{
+		gentype.NewFakeClientWithList[*v1beta2.RecurringJob, *v1beta2.RecurringJobList](
+			fake.Fake,
+			namespace,
+			v1beta2.SchemeGroupVersion.WithResource("recurringjobs"),
+			v1beta2.SchemeGroupVersion.WithKind("RecurringJob"),
+			func() *v1beta2.RecurringJob { return &v1beta2.RecurringJob{} },
+			func() *v1beta2.RecurringJobList { return &v1beta2.RecurringJobList{} },
+			func(dst, src *v1beta2.RecurringJobList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta2.RecurringJobList) []*v1beta2.RecurringJob {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1beta2.RecurringJobList, items []*v1beta2.RecurringJob) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta2.RecurringJob), err
-}
-
-// List takes label and field selectors, and returns the list of RecurringJobs that match those selectors.
-func (c *FakeRecurringJobs) List(ctx context.Context, opts v1.ListOptions) (result *v1beta2.RecurringJobList, err error) {
-	emptyResult := &v1beta2.RecurringJobList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(recurringjobsResource, recurringjobsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta2.RecurringJobList{ListMeta: obj.(*v1beta2.RecurringJobList).ListMeta}
-	for _, item := range obj.(*v1beta2.RecurringJobList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested recurringJobs.
-func (c *FakeRecurringJobs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(recurringjobsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a recurringJob and creates it.  Returns the server's representation of the recurringJob, and an error, if there is any.
-func (c *FakeRecurringJobs) Create(ctx context.Context, recurringJob *v1beta2.RecurringJob, opts v1.CreateOptions) (result *v1beta2.RecurringJob, err error) {
-	emptyResult := &v1beta2.RecurringJob{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(recurringjobsResource, c.ns, recurringJob, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.RecurringJob), err
-}
-
-// Update takes the representation of a recurringJob and updates it. Returns the server's representation of the recurringJob, and an error, if there is any.
-func (c *FakeRecurringJobs) Update(ctx context.Context, recurringJob *v1beta2.RecurringJob, opts v1.UpdateOptions) (result *v1beta2.RecurringJob, err error) {
-	emptyResult := &v1beta2.RecurringJob{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(recurringjobsResource, c.ns, recurringJob, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.RecurringJob), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeRecurringJobs) UpdateStatus(ctx context.Context, recurringJob *v1beta2.RecurringJob, opts v1.UpdateOptions) (result *v1beta2.RecurringJob, err error) {
-	emptyResult := &v1beta2.RecurringJob{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(recurringjobsResource, "status", c.ns, recurringJob, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.RecurringJob), err
-}
-
-// Delete takes name of the recurringJob and deletes it. Returns an error if one occurs.
-func (c *FakeRecurringJobs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(recurringjobsResource, c.ns, name, opts), &v1beta2.RecurringJob{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeRecurringJobs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(recurringjobsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta2.RecurringJobList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched recurringJob.
-func (c *FakeRecurringJobs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta2.RecurringJob, err error) {
-	emptyResult := &v1beta2.RecurringJob{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(recurringjobsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta2.RecurringJob), err
 }

@@ -19,96 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeGithubConfigs implements GithubConfigInterface
-type FakeGithubConfigs struct {
+// fakeGithubConfigs implements GithubConfigInterface
+type fakeGithubConfigs struct {
+	*gentype.FakeClientWithList[*v3.GithubConfig, *v3.GithubConfigList]
 	Fake *FakeManagementV3
 }
 
-var githubconfigsResource = v3.SchemeGroupVersion.WithResource("githubconfigs")
-
-var githubconfigsKind = v3.SchemeGroupVersion.WithKind("GithubConfig")
-
-// Get takes name of the githubConfig, and returns the corresponding githubConfig object, and an error if there is any.
-func (c *FakeGithubConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.GithubConfig, err error) {
-	emptyResult := &v3.GithubConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(githubconfigsResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeGithubConfigs(fake *FakeManagementV3) managementcattleiov3.GithubConfigInterface {
+	return &fakeGithubConfigs{
+		gentype.NewFakeClientWithList[*v3.GithubConfig, *v3.GithubConfigList](
+			fake.Fake,
+			"",
+			v3.SchemeGroupVersion.WithResource("githubconfigs"),
+			v3.SchemeGroupVersion.WithKind("GithubConfig"),
+			func() *v3.GithubConfig { return &v3.GithubConfig{} },
+			func() *v3.GithubConfigList { return &v3.GithubConfigList{} },
+			func(dst, src *v3.GithubConfigList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.GithubConfigList) []*v3.GithubConfig { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.GithubConfigList, items []*v3.GithubConfig) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.GithubConfig), err
-}
-
-// List takes label and field selectors, and returns the list of GithubConfigs that match those selectors.
-func (c *FakeGithubConfigs) List(ctx context.Context, opts v1.ListOptions) (result *v3.GithubConfigList, err error) {
-	emptyResult := &v3.GithubConfigList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(githubconfigsResource, githubconfigsKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.GithubConfigList), err
-}
-
-// Watch returns a watch.Interface that watches the requested githubConfigs.
-func (c *FakeGithubConfigs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(githubconfigsResource, opts))
-}
-
-// Create takes the representation of a githubConfig and creates it.  Returns the server's representation of the githubConfig, and an error, if there is any.
-func (c *FakeGithubConfigs) Create(ctx context.Context, githubConfig *v3.GithubConfig, opts v1.CreateOptions) (result *v3.GithubConfig, err error) {
-	emptyResult := &v3.GithubConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(githubconfigsResource, githubConfig, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.GithubConfig), err
-}
-
-// Update takes the representation of a githubConfig and updates it. Returns the server's representation of the githubConfig, and an error, if there is any.
-func (c *FakeGithubConfigs) Update(ctx context.Context, githubConfig *v3.GithubConfig, opts v1.UpdateOptions) (result *v3.GithubConfig, err error) {
-	emptyResult := &v3.GithubConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(githubconfigsResource, githubConfig, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.GithubConfig), err
-}
-
-// Delete takes name of the githubConfig and deletes it. Returns an error if one occurs.
-func (c *FakeGithubConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(githubconfigsResource, name, opts), &v3.GithubConfig{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeGithubConfigs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(githubconfigsResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.GithubConfigList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched githubConfig.
-func (c *FakeGithubConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.GithubConfig, err error) {
-	emptyResult := &v3.GithubConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(githubconfigsResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.GithubConfig), err
 }

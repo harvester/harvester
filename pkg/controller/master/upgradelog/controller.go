@@ -88,7 +88,7 @@ type handler struct {
 	upgradeCache        ctlharvesterv1.UpgradeCache
 	upgradeLogClient    ctlharvesterv1.UpgradeLogClient
 	upgradeLogCache     ctlharvesterv1.UpgradeLogCache
-	clientset           *kubernetes.Clientset
+	clientset           kubernetes.Interface
 
 	imageGetter ImageGetterInterface // for test code to mock helm
 }
@@ -798,7 +798,7 @@ func (h *handler) cleanup(upgradeLog *harvesterv1.UpgradeLog) error {
 
 type ImageGetter struct{}
 
-func (i *ImageGetter) GetConsolidatedLoggingImageListFromHelmValues(c *kubernetes.Clientset, namespace, name string) (map[string]settings.Image, error) {
+func (i *ImageGetter) GetConsolidatedLoggingImageListFromHelmValues(c kubernetes.Interface, namespace, name string) (map[string]settings.Image, error) {
 	images := make(map[string]settings.Image, len(loggingImagesList))
 
 	for img, key := range loggingImagesList {

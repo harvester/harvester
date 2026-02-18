@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,36 @@ type ProjectRoleTemplateBindingsGetter interface {
 
 // ProjectRoleTemplateBindingInterface has methods to work with ProjectRoleTemplateBinding resources.
 type ProjectRoleTemplateBindingInterface interface {
-	Create(ctx context.Context, projectRoleTemplateBinding *v3.ProjectRoleTemplateBinding, opts v1.CreateOptions) (*v3.ProjectRoleTemplateBinding, error)
-	Update(ctx context.Context, projectRoleTemplateBinding *v3.ProjectRoleTemplateBinding, opts v1.UpdateOptions) (*v3.ProjectRoleTemplateBinding, error)
+	Create(ctx context.Context, projectRoleTemplateBinding *managementcattleiov3.ProjectRoleTemplateBinding, opts v1.CreateOptions) (*managementcattleiov3.ProjectRoleTemplateBinding, error)
+	Update(ctx context.Context, projectRoleTemplateBinding *managementcattleiov3.ProjectRoleTemplateBinding, opts v1.UpdateOptions) (*managementcattleiov3.ProjectRoleTemplateBinding, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ProjectRoleTemplateBinding, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ProjectRoleTemplateBindingList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ProjectRoleTemplateBinding, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ProjectRoleTemplateBindingList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ProjectRoleTemplateBinding, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ProjectRoleTemplateBinding, err error)
 	ProjectRoleTemplateBindingExpansion
 }
 
 // projectRoleTemplateBindings implements ProjectRoleTemplateBindingInterface
 type projectRoleTemplateBindings struct {
-	*gentype.ClientWithList[*v3.ProjectRoleTemplateBinding, *v3.ProjectRoleTemplateBindingList]
+	*gentype.ClientWithList[*managementcattleiov3.ProjectRoleTemplateBinding, *managementcattleiov3.ProjectRoleTemplateBindingList]
 }
 
 // newProjectRoleTemplateBindings returns a ProjectRoleTemplateBindings
 func newProjectRoleTemplateBindings(c *ManagementV3Client, namespace string) *projectRoleTemplateBindings {
 	return &projectRoleTemplateBindings{
-		gentype.NewClientWithList[*v3.ProjectRoleTemplateBinding, *v3.ProjectRoleTemplateBindingList](
+		gentype.NewClientWithList[*managementcattleiov3.ProjectRoleTemplateBinding, *managementcattleiov3.ProjectRoleTemplateBindingList](
 			"projectroletemplatebindings",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.ProjectRoleTemplateBinding { return &v3.ProjectRoleTemplateBinding{} },
-			func() *v3.ProjectRoleTemplateBindingList { return &v3.ProjectRoleTemplateBindingList{} }),
+			func() *managementcattleiov3.ProjectRoleTemplateBinding {
+				return &managementcattleiov3.ProjectRoleTemplateBinding{}
+			},
+			func() *managementcattleiov3.ProjectRoleTemplateBindingList {
+				return &managementcattleiov3.ProjectRoleTemplateBindingList{}
+			},
+		),
 	}
 }

@@ -19,9 +19,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvesterhciiov1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,36 @@ type ScheduleVMBackupsGetter interface {
 
 // ScheduleVMBackupInterface has methods to work with ScheduleVMBackup resources.
 type ScheduleVMBackupInterface interface {
-	Create(ctx context.Context, scheduleVMBackup *v1beta1.ScheduleVMBackup, opts v1.CreateOptions) (*v1beta1.ScheduleVMBackup, error)
-	Update(ctx context.Context, scheduleVMBackup *v1beta1.ScheduleVMBackup, opts v1.UpdateOptions) (*v1beta1.ScheduleVMBackup, error)
+	Create(ctx context.Context, scheduleVMBackup *harvesterhciiov1beta1.ScheduleVMBackup, opts v1.CreateOptions) (*harvesterhciiov1beta1.ScheduleVMBackup, error)
+	Update(ctx context.Context, scheduleVMBackup *harvesterhciiov1beta1.ScheduleVMBackup, opts v1.UpdateOptions) (*harvesterhciiov1beta1.ScheduleVMBackup, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, scheduleVMBackup *v1beta1.ScheduleVMBackup, opts v1.UpdateOptions) (*v1beta1.ScheduleVMBackup, error)
+	UpdateStatus(ctx context.Context, scheduleVMBackup *harvesterhciiov1beta1.ScheduleVMBackup, opts v1.UpdateOptions) (*harvesterhciiov1beta1.ScheduleVMBackup, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.ScheduleVMBackup, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.ScheduleVMBackupList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*harvesterhciiov1beta1.ScheduleVMBackup, error)
+	List(ctx context.Context, opts v1.ListOptions) (*harvesterhciiov1beta1.ScheduleVMBackupList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.ScheduleVMBackup, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *harvesterhciiov1beta1.ScheduleVMBackup, err error)
 	ScheduleVMBackupExpansion
 }
 
 // scheduleVMBackups implements ScheduleVMBackupInterface
 type scheduleVMBackups struct {
-	*gentype.ClientWithList[*v1beta1.ScheduleVMBackup, *v1beta1.ScheduleVMBackupList]
+	*gentype.ClientWithList[*harvesterhciiov1beta1.ScheduleVMBackup, *harvesterhciiov1beta1.ScheduleVMBackupList]
 }
 
 // newScheduleVMBackups returns a ScheduleVMBackups
 func newScheduleVMBackups(c *HarvesterhciV1beta1Client, namespace string) *scheduleVMBackups {
 	return &scheduleVMBackups{
-		gentype.NewClientWithList[*v1beta1.ScheduleVMBackup, *v1beta1.ScheduleVMBackupList](
+		gentype.NewClientWithList[*harvesterhciiov1beta1.ScheduleVMBackup, *harvesterhciiov1beta1.ScheduleVMBackupList](
 			"schedulevmbackups",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.ScheduleVMBackup { return &v1beta1.ScheduleVMBackup{} },
-			func() *v1beta1.ScheduleVMBackupList { return &v1beta1.ScheduleVMBackupList{} }),
+			func() *harvesterhciiov1beta1.ScheduleVMBackup { return &harvesterhciiov1beta1.ScheduleVMBackup{} },
+			func() *harvesterhciiov1beta1.ScheduleVMBackupList {
+				return &harvesterhciiov1beta1.ScheduleVMBackupList{}
+			},
+		),
 	}
 }

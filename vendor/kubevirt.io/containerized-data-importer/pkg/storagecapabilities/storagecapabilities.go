@@ -4,6 +4,8 @@ package storagecapabilities
 
 import (
 	"context"
+	"regexp"
+	"slices"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -46,8 +48,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"rook-ceph.rbd.csi.ceph.com":         createRbdCapabilities(),
 	"openshift-storage.rbd.csi.ceph.com": createRbdCapabilities(),
 	// ceph-fs
-	"cephfs.csi.ceph.com":                   {{rwx, file}},
-	"openshift-storage.cephfs.csi.ceph.com": {{rwx, file}},
+	"cephfs.csi.ceph.com":                   {{rwx, file}, {rwo, file}},
+	"rook-ceph.cephfs.csi.ceph.com":         {{rwx, file}, {rwo, file}},
+	"openshift-storage.cephfs.csi.ceph.com": {{rwx, file}, {rwo, file}},
 	// LINSTOR
 	"linstor.csi.linbit.com": createAllButRWXFileCapabilities(),
 	// DELL Unity XT
@@ -70,7 +73,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// AWSElasticBlockStore
 	"kubernetes.io/aws-ebs": {{rwo, block}},
 	"ebs.csi.aws.com":       {{rwo, block}},
+	"ebs.csi.aws.com/io1":   {{rwo, block}},
 	"ebs.csi.aws.com/io2":   {{rwx, block}, {rwo, block}, {rwo, file}},
+	"ebs.csi.aws.com/gp":    {{rwo, block}},
 	// AWSElasticFileSystem
 	"efs.csi.aws.com": {{rwx, file}, {rwo, file}},
 	// Azure disk
@@ -90,18 +95,21 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// IBM HCI/GPFS2 (Spectrum Scale / Spectrum Fusion)
 	"spectrumscale.csi.ibm.com": {{rwx, file}, {rwo, file}},
 	// IBM block arrays (FlashSystem)
-	"block.csi.ibm.com": {{rwx, block}, {rwo, block}, {rwo, file}, {rwx, file}},
+	"block.csi.ibm.com": {{rwx, block}, {rwo, block}, {rwo, file}},
+	// IBM VPC Block CSI
+	"vpc.block.csi.ibm.io": {{rwo, block}, {rwo, file}},
 	// Portworx in-tree CSI
-	"kubernetes.io/portworx-volume/shared": {{rwx, file}},
-	"kubernetes.io/portworx-volume":        {{rwo, file}},
+	"kubernetes.io/portworx-volume/nfs": {{rwx, file}, {rwo, file}},
+	"kubernetes.io/portworx-volume":     {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
 	// Portworx CSI
-	"pxd.openstorage.org/shared": createOpenStorageSharedVolumeCapabilities(),
-	"pxd.openstorage.org":        createOpenStorageSharedVolumeCapabilities(),
-	"pxd.portworx.com/shared":    {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
-	"pxd.portworx.com":           {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
+	"pxd.portworx.com/nfs":          {{rwx, file}, {rwo, file}},
+	"pxd.portworx.com":              {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
+	"pxd.portworx.com/pure_block":   {{rwx, block}, {rwo, block}, {rwo, file}},
+	"pxd.portworx.com/pure_fa_file": {{rwx, file}, {rwo, file}},
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{rwx, file}, {rwo, file}},
 	"csi.trident.netapp.io/ontap-san": {{rwx, block}},
+	"csi.trident.netapp.io/gcnv-flex": {{rwx, file}, {rwo, file}},
 	// topolvm
 	"topolvm.cybozu.com": createTopoLVMCapabilities(),
 	"topolvm.io":         createTopoLVMCapabilities(),
@@ -126,8 +134,14 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// Longhorn
 	"driver.longhorn.io":            {{rwo, block}},
 	"driver.longhorn.io/migratable": {{rwx, block}, {rwo, block}},
+	"driver.longhorn.io/nfs":        {{rwx, file}, {rwo, file}},
+	"driver.longhorn.io/fs":         {{rwo, file}},
 	// Oracle cloud
 	"blockvolume.csi.oraclecloud.com": {{rwx, block}, {rwo, block}, {rwo, file}},
+	// Synology
+	"csi.san.synology.com/iscsi": {{rwx, block}, {rwo, block}, {rwo, file}},
+	"csi.san.synology.com/nfs":   {{rwx, file}, {rwo, file}},
+	"csi.san.synology.com/smb":   {{rwx, file}, {rwo, file}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -137,6 +151,7 @@ var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"openshift-storage.rbd.csi.ceph.com": cdiv1.DataImportCronSourceFormatSnapshot,
 	"csi.trident.netapp.io/ontap-nas":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"csi.trident.netapp.io/ontap-san":    cdiv1.DataImportCronSourceFormatSnapshot,
+	"csi.trident.netapp.io/gcnv-flex":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"pd.csi.storage.gke.io":              cdiv1.DataImportCronSourceFormatSnapshot,
 	"pd.csi.storage.gke.io/hyperdisk":    cdiv1.DataImportCronSourceFormatSnapshot,
 }
@@ -150,13 +165,15 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"hspc.csi.hitachi.com":                     cdiv1.CloneStrategyCsiClone,
 	"csi.hpe.com":                              cdiv1.CloneStrategyCsiClone,
 	"spectrumscale.csi.ibm.com":                cdiv1.CloneStrategyCsiClone,
+	"block.csi.ibm.com":                        cdiv1.CloneStrategyCsiClone,
+	"vpc.block.csi.ibm.io":                     cdiv1.CloneStrategyHostAssisted,
+	"rbd.csi.ceph.com":                         cdiv1.CloneStrategyCsiClone,
 	"rook-ceph.rbd.csi.ceph.com":               cdiv1.CloneStrategyCsiClone,
 	"openshift-storage.rbd.csi.ceph.com":       cdiv1.CloneStrategyCsiClone,
 	"cephfs.csi.ceph.com":                      cdiv1.CloneStrategyCsiClone,
+	"rook-ceph.cephfs.csi.ceph.com":            cdiv1.CloneStrategyCsiClone,
 	"openshift-storage.cephfs.csi.ceph.com":    cdiv1.CloneStrategyCsiClone,
-	"pxd.openstorage.org/shared":               cdiv1.CloneStrategyCsiClone,
-	"pxd.openstorage.org":                      cdiv1.CloneStrategyCsiClone,
-	"pxd.portworx.com/shared":                  cdiv1.CloneStrategyCsiClone,
+	"pxd.portworx.com/nfs":                     cdiv1.CloneStrategyCsiClone,
 	"pxd.portworx.com":                         cdiv1.CloneStrategyCsiClone,
 	"topolvm.cybozu.com":                       cdiv1.CloneStrategyHostAssisted,
 	"topolvm.io":                               cdiv1.CloneStrategyHostAssisted,
@@ -165,9 +182,29 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"infinibox-csi-driver/nfs":                 cdiv1.CloneStrategyCsiClone,
 	"csi.trident.netapp.io/ontap-nas":          cdiv1.CloneStrategySnapshot,
 	"csi.trident.netapp.io/ontap-san":          cdiv1.CloneStrategySnapshot,
+	"csi.trident.netapp.io/gcnv-flex":          cdiv1.CloneStrategySnapshot,
 	"kubesan.gitlab.io":                        cdiv1.CloneStrategyCsiClone,
 	"pd.csi.storage.gke.io":                    cdiv1.CloneStrategySnapshot,
 	"pd.csi.storage.gke.io/hyperdisk":          cdiv1.CloneStrategySnapshot,
+	"csi.san.synology.com/iscsi":               cdiv1.CloneStrategyCsiClone,
+	"csi.san.synology.com/nfs":                 cdiv1.CloneStrategyCsiClone,
+	"csi.san.synology.com/smb":                 cdiv1.CloneStrategyCsiClone,
+	"blockvolume.csi.oraclecloud.com":          cdiv1.CloneStrategyCsiClone,
+}
+
+// MinimumSupportedPVCSizeByProvisionerKey defines the minimum supported PVC size for a provisioner
+var MinimumSupportedPVCSizeByProvisionerKey = map[string]string{
+	"pd.csi.storage.gke.io/hyperdisk": "4Gi",
+	// https://aws.amazon.com/ebs/volume-types
+	"ebs.csi.aws.com/io1": "4Gi",
+	"ebs.csi.aws.com/io2": "4Gi",
+	"ebs.csi.aws.com/gp":  "1Gi",
+	// https://github.com/SynologyOpenSource/synology-csi/blob/e2cc8de2fa555e26ad2377b564fac841e02100ba/pkg/driver/controllerserver.go#L55
+	"csi.san.synology.com/iscsi": "1Gi",
+	"csi.san.synology.com/nfs":   "1Gi",
+	"csi.san.synology.com/smb":   "1Gi",
+	// https://cloud.google.com/netapp/volumes/docs/discover/service-levels
+	"csi.trident.netapp.io/gcnv-flex": "1Gi",
 }
 
 const (
@@ -215,6 +252,13 @@ func GetAdvisedCloneStrategy(sc *storagev1.StorageClass) (cdiv1.CDICloneStrategy
 	return strategy, found
 }
 
+// GetMinimumSupportedPVCSize finds and returns the minimum supported PVC size
+func GetMinimumSupportedPVCSize(sc *storagev1.StorageClass) (string, bool) {
+	provisionerKey := storageProvisionerKey(sc)
+	size, found := MinimumSupportedPVCSizeByProvisionerKey[provisionerKey]
+	return size, found
+}
+
 func capabilitiesForNoProvisioner(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
 	pvs := &v1.PersistentVolumeList{}
 	err := cl.List(context.TODO(), pvs)
@@ -258,26 +302,26 @@ func storageProvisionerKey(sc *storagev1.StorageClass) string {
 }
 
 var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageClass) string{
-	"pxd.openstorage.org": func(sc *storagev1.StorageClass) string {
-		// https://docs.portworx.com/portworx-install-with-kubernetes/storage-operations/create-pvcs/create-shared-pvcs/
-		val := sc.Parameters["shared"]
-		if val == "true" {
-			return "pxd.openstorage.org/shared"
-		}
-		return "pxd.openstorage.org"
-	},
 	"kubernetes.io/portworx-volume": func(sc *storagev1.StorageClass) string {
-		val := sc.Parameters["shared"]
-		if val == "true" {
-			return "kubernetes.io/portworx-volume/shared"
+		opts := strings.Split(sc.Parameters["sharedv4_mount_options"], ",")
+		if slices.Contains(opts, "vers=3.0") && slices.Contains(opts, "nolock") {
+			return "kubernetes.io/portworx-volume/nfs"
 		}
 		return "kubernetes.io/portworx-volume"
 	},
 	"pxd.portworx.com": func(sc *storagev1.StorageClass) string {
-		// https://docs.portworx.com/portworx-install-with-kubernetes/storage-operations/csi/volumelifecycle/#create-shared-csi-enabled-volumes
-		val := sc.Parameters["shared"]
-		if val == "true" {
-			return "pxd.portworx.com/shared"
+		// https://docs.portworx.com/portworx-enterprise/operations/operate-kubernetes/storage-operations/manage-kubevirt-vms.html#create-a-storageclass
+		if val, exists := sc.Parameters["backend"]; exists {
+			if val == "pure_block" {
+				return "pxd.portworx.com/pure_block"
+			} else if val == "pure_fa_file" {
+				return "pxd.portworx.com/pure_fa_file"
+			}
+		} else {
+			opts := strings.Split(sc.Parameters["sharedv4_mount_options"], ",")
+			if slices.Contains(opts, "vers=3.0") && slices.Contains(opts, "nolock") {
+				return "pxd.portworx.com/nfs"
+			}
 		}
 		return "pxd.portworx.com"
 	},
@@ -289,6 +333,11 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		}
 		if strings.HasPrefix(val, "ontap-san") {
 			return "csi.trident.netapp.io/ontap-san"
+		}
+		regExp := regexp.MustCompile(`\s*[;,]\s*`)
+		selector := regExp.Split(sc.Parameters["selector"], -1)
+		if val == "google-cloud-netapp-volumes" && slices.Contains(selector, "performance=flex") {
+			return "csi.trident.netapp.io/gcnv-flex"
 		}
 		return "UNKNOWN"
 	},
@@ -360,18 +409,29 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		}
 	},
 	"driver.longhorn.io": func(sc *storagev1.StorageClass) string {
-		migratable := sc.Parameters["migratable"]
-		if migratable == "true" {
+		if sc.Parameters["migratable"] == "true" {
 			return "driver.longhorn.io/migratable"
 		}
+		if sc.Parameters["nfsOptions"] != "" {
+			return "driver.longhorn.io/nfs"
+		}
+		if sc.Parameters["fsType"] != "" {
+			return "driver.longhorn.io/fs"
+		}
+
 		return "driver.longhorn.io"
 	},
 	"ebs.csi.aws.com": func(sc *storagev1.StorageClass) string {
-		val := sc.Parameters["type"]
-		if val == "io2" {
+		switch sc.Parameters["type"] {
+		case "io1":
+			return "ebs.csi.aws.com/io1"
+		case "io2":
 			return "ebs.csi.aws.com/io2"
+		case "gp2", "gp3":
+			return "ebs.csi.aws.com/gp"
+		default:
+			return "ebs.csi.aws.com"
 		}
-		return "ebs.csi.aws.com"
 	},
 	"pd.csi.storage.gke.io": func(sc *storagev1.StorageClass) string {
 		switch sc.Parameters["type"] {
@@ -379,6 +439,19 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 			return "pd.csi.storage.gke.io/hyperdisk"
 		default:
 			return "pd.csi.storage.gke.io"
+		}
+	},
+	"csi.san.synology.com": func(sc *storagev1.StorageClass) string {
+		// https://github.com/SynologyOpenSource/synology-csi/tree/e2cc8de2fa555e26ad2377b564fac841e02100ba/deploy/kubernetes/v1.20
+		switch sc.Parameters["protocol"] {
+		case "iscsi", "":
+			return "csi.san.synology.com/iscsi"
+		case "smb":
+			return "csi.san.synology.com/smb"
+		case "nfs", "nfs_treeq":
+			return "csi.san.synology.com/nfs"
+		default:
+			return "UNKNOWN"
 		}
 	},
 }
@@ -443,14 +516,6 @@ func createDellPowerStoreCapabilities() []StorageCapabilities {
 
 func createTopoLVMCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
-		{rwo, block},
-		{rwo, file},
-	}
-}
-
-func createOpenStorageSharedVolumeCapabilities() []StorageCapabilities {
-	return []StorageCapabilities{
-		{rwx, file},
 		{rwo, block},
 		{rwo, file},
 	}

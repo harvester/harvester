@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type OvnEipsGetter interface {
 
 // OvnEipInterface has methods to work with OvnEip resources.
 type OvnEipInterface interface {
-	Create(ctx context.Context, ovnEip *v1.OvnEip, opts metav1.CreateOptions) (*v1.OvnEip, error)
-	Update(ctx context.Context, ovnEip *v1.OvnEip, opts metav1.UpdateOptions) (*v1.OvnEip, error)
+	Create(ctx context.Context, ovnEip *kubeovnv1.OvnEip, opts metav1.CreateOptions) (*kubeovnv1.OvnEip, error)
+	Update(ctx context.Context, ovnEip *kubeovnv1.OvnEip, opts metav1.UpdateOptions) (*kubeovnv1.OvnEip, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, ovnEip *v1.OvnEip, opts metav1.UpdateOptions) (*v1.OvnEip, error)
+	UpdateStatus(ctx context.Context, ovnEip *kubeovnv1.OvnEip, opts metav1.UpdateOptions) (*kubeovnv1.OvnEip, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.OvnEip, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.OvnEipList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.OvnEip, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.OvnEipList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.OvnEip, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.OvnEip, err error)
 	OvnEipExpansion
 }
 
 // ovnEips implements OvnEipInterface
 type ovnEips struct {
-	*gentype.ClientWithList[*v1.OvnEip, *v1.OvnEipList]
+	*gentype.ClientWithList[*kubeovnv1.OvnEip, *kubeovnv1.OvnEipList]
 }
 
 // newOvnEips returns a OvnEips
 func newOvnEips(c *KubeovnV1Client) *ovnEips {
 	return &ovnEips{
-		gentype.NewClientWithList[*v1.OvnEip, *v1.OvnEipList](
+		gentype.NewClientWithList[*kubeovnv1.OvnEip, *kubeovnv1.OvnEipList](
 			"ovn-eips",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.OvnEip { return &v1.OvnEip{} },
-			func() *v1.OvnEipList { return &v1.OvnEipList{} }),
+			func() *kubeovnv1.OvnEip { return &kubeovnv1.OvnEip{} },
+			func() *kubeovnv1.OvnEipList { return &kubeovnv1.OvnEipList{} },
+		),
 	}
 }

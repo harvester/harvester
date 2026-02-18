@@ -19,120 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	kubeovniov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubeovn.io/v1"
 	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeProviderNetworks implements ProviderNetworkInterface
-type FakeProviderNetworks struct {
+// fakeProviderNetworks implements ProviderNetworkInterface
+type fakeProviderNetworks struct {
+	*gentype.FakeClientWithList[*v1.ProviderNetwork, *v1.ProviderNetworkList]
 	Fake *FakeKubeovnV1
 }
 
-var providernetworksResource = v1.SchemeGroupVersion.WithResource("provider-networks")
-
-var providernetworksKind = v1.SchemeGroupVersion.WithKind("ProviderNetwork")
-
-// Get takes name of the providerNetwork, and returns the corresponding providerNetwork object, and an error if there is any.
-func (c *FakeProviderNetworks) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.ProviderNetwork, err error) {
-	emptyResult := &v1.ProviderNetwork{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(providernetworksResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeProviderNetworks(fake *FakeKubeovnV1) kubeovniov1.ProviderNetworkInterface {
+	return &fakeProviderNetworks{
+		gentype.NewFakeClientWithList[*v1.ProviderNetwork, *v1.ProviderNetworkList](
+			fake.Fake,
+			"",
+			v1.SchemeGroupVersion.WithResource("provider-networks"),
+			v1.SchemeGroupVersion.WithKind("ProviderNetwork"),
+			func() *v1.ProviderNetwork { return &v1.ProviderNetwork{} },
+			func() *v1.ProviderNetworkList { return &v1.ProviderNetworkList{} },
+			func(dst, src *v1.ProviderNetworkList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.ProviderNetworkList) []*v1.ProviderNetwork { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1.ProviderNetworkList, items []*v1.ProviderNetwork) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1.ProviderNetwork), err
-}
-
-// List takes label and field selectors, and returns the list of ProviderNetworks that match those selectors.
-func (c *FakeProviderNetworks) List(ctx context.Context, opts metav1.ListOptions) (result *v1.ProviderNetworkList, err error) {
-	emptyResult := &v1.ProviderNetworkList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(providernetworksResource, providernetworksKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1.ProviderNetworkList{ListMeta: obj.(*v1.ProviderNetworkList).ListMeta}
-	for _, item := range obj.(*v1.ProviderNetworkList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested providerNetworks.
-func (c *FakeProviderNetworks) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(providernetworksResource, opts))
-}
-
-// Create takes the representation of a providerNetwork and creates it.  Returns the server's representation of the providerNetwork, and an error, if there is any.
-func (c *FakeProviderNetworks) Create(ctx context.Context, providerNetwork *v1.ProviderNetwork, opts metav1.CreateOptions) (result *v1.ProviderNetwork, err error) {
-	emptyResult := &v1.ProviderNetwork{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(providernetworksResource, providerNetwork, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.ProviderNetwork), err
-}
-
-// Update takes the representation of a providerNetwork and updates it. Returns the server's representation of the providerNetwork, and an error, if there is any.
-func (c *FakeProviderNetworks) Update(ctx context.Context, providerNetwork *v1.ProviderNetwork, opts metav1.UpdateOptions) (result *v1.ProviderNetwork, err error) {
-	emptyResult := &v1.ProviderNetwork{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(providernetworksResource, providerNetwork, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.ProviderNetwork), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeProviderNetworks) UpdateStatus(ctx context.Context, providerNetwork *v1.ProviderNetwork, opts metav1.UpdateOptions) (result *v1.ProviderNetwork, err error) {
-	emptyResult := &v1.ProviderNetwork{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(providernetworksResource, "status", providerNetwork, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.ProviderNetwork), err
-}
-
-// Delete takes name of the providerNetwork and deletes it. Returns an error if one occurs.
-func (c *FakeProviderNetworks) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(providernetworksResource, name, opts), &v1.ProviderNetwork{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeProviderNetworks) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(providernetworksResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1.ProviderNetworkList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched providerNetwork.
-func (c *FakeProviderNetworks) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.ProviderNetwork, err error) {
-	emptyResult := &v1.ProviderNetwork{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(providernetworksResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.ProviderNetwork), err
 }

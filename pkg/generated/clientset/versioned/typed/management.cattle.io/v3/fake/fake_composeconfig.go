@@ -19,120 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeComposeConfigs implements ComposeConfigInterface
-type FakeComposeConfigs struct {
+// fakeComposeConfigs implements ComposeConfigInterface
+type fakeComposeConfigs struct {
+	*gentype.FakeClientWithList[*v3.ComposeConfig, *v3.ComposeConfigList]
 	Fake *FakeManagementV3
 }
 
-var composeconfigsResource = v3.SchemeGroupVersion.WithResource("composeconfigs")
-
-var composeconfigsKind = v3.SchemeGroupVersion.WithKind("ComposeConfig")
-
-// Get takes name of the composeConfig, and returns the corresponding composeConfig object, and an error if there is any.
-func (c *FakeComposeConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ComposeConfig, err error) {
-	emptyResult := &v3.ComposeConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(composeconfigsResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeComposeConfigs(fake *FakeManagementV3) managementcattleiov3.ComposeConfigInterface {
+	return &fakeComposeConfigs{
+		gentype.NewFakeClientWithList[*v3.ComposeConfig, *v3.ComposeConfigList](
+			fake.Fake,
+			"",
+			v3.SchemeGroupVersion.WithResource("composeconfigs"),
+			v3.SchemeGroupVersion.WithKind("ComposeConfig"),
+			func() *v3.ComposeConfig { return &v3.ComposeConfig{} },
+			func() *v3.ComposeConfigList { return &v3.ComposeConfigList{} },
+			func(dst, src *v3.ComposeConfigList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.ComposeConfigList) []*v3.ComposeConfig { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.ComposeConfigList, items []*v3.ComposeConfig) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.ComposeConfig), err
-}
-
-// List takes label and field selectors, and returns the list of ComposeConfigs that match those selectors.
-func (c *FakeComposeConfigs) List(ctx context.Context, opts v1.ListOptions) (result *v3.ComposeConfigList, err error) {
-	emptyResult := &v3.ComposeConfigList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(composeconfigsResource, composeconfigsKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.ComposeConfigList{ListMeta: obj.(*v3.ComposeConfigList).ListMeta}
-	for _, item := range obj.(*v3.ComposeConfigList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested composeConfigs.
-func (c *FakeComposeConfigs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(composeconfigsResource, opts))
-}
-
-// Create takes the representation of a composeConfig and creates it.  Returns the server's representation of the composeConfig, and an error, if there is any.
-func (c *FakeComposeConfigs) Create(ctx context.Context, composeConfig *v3.ComposeConfig, opts v1.CreateOptions) (result *v3.ComposeConfig, err error) {
-	emptyResult := &v3.ComposeConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(composeconfigsResource, composeConfig, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ComposeConfig), err
-}
-
-// Update takes the representation of a composeConfig and updates it. Returns the server's representation of the composeConfig, and an error, if there is any.
-func (c *FakeComposeConfigs) Update(ctx context.Context, composeConfig *v3.ComposeConfig, opts v1.UpdateOptions) (result *v3.ComposeConfig, err error) {
-	emptyResult := &v3.ComposeConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(composeconfigsResource, composeConfig, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ComposeConfig), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeComposeConfigs) UpdateStatus(ctx context.Context, composeConfig *v3.ComposeConfig, opts v1.UpdateOptions) (result *v3.ComposeConfig, err error) {
-	emptyResult := &v3.ComposeConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(composeconfigsResource, "status", composeConfig, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ComposeConfig), err
-}
-
-// Delete takes name of the composeConfig and deletes it. Returns an error if one occurs.
-func (c *FakeComposeConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(composeconfigsResource, name, opts), &v3.ComposeConfig{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeComposeConfigs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(composeconfigsResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.ComposeConfigList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched composeConfig.
-func (c *FakeComposeConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ComposeConfig, err error) {
-	emptyResult := &v3.ComposeConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(composeconfigsResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ComposeConfig), err
 }

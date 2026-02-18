@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,36 @@ type ProjectNetworkPoliciesGetter interface {
 
 // ProjectNetworkPolicyInterface has methods to work with ProjectNetworkPolicy resources.
 type ProjectNetworkPolicyInterface interface {
-	Create(ctx context.Context, projectNetworkPolicy *v3.ProjectNetworkPolicy, opts v1.CreateOptions) (*v3.ProjectNetworkPolicy, error)
-	Update(ctx context.Context, projectNetworkPolicy *v3.ProjectNetworkPolicy, opts v1.UpdateOptions) (*v3.ProjectNetworkPolicy, error)
+	Create(ctx context.Context, projectNetworkPolicy *managementcattleiov3.ProjectNetworkPolicy, opts v1.CreateOptions) (*managementcattleiov3.ProjectNetworkPolicy, error)
+	Update(ctx context.Context, projectNetworkPolicy *managementcattleiov3.ProjectNetworkPolicy, opts v1.UpdateOptions) (*managementcattleiov3.ProjectNetworkPolicy, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, projectNetworkPolicy *v3.ProjectNetworkPolicy, opts v1.UpdateOptions) (*v3.ProjectNetworkPolicy, error)
+	UpdateStatus(ctx context.Context, projectNetworkPolicy *managementcattleiov3.ProjectNetworkPolicy, opts v1.UpdateOptions) (*managementcattleiov3.ProjectNetworkPolicy, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.ProjectNetworkPolicy, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.ProjectNetworkPolicyList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.ProjectNetworkPolicy, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.ProjectNetworkPolicyList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ProjectNetworkPolicy, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.ProjectNetworkPolicy, err error)
 	ProjectNetworkPolicyExpansion
 }
 
 // projectNetworkPolicies implements ProjectNetworkPolicyInterface
 type projectNetworkPolicies struct {
-	*gentype.ClientWithList[*v3.ProjectNetworkPolicy, *v3.ProjectNetworkPolicyList]
+	*gentype.ClientWithList[*managementcattleiov3.ProjectNetworkPolicy, *managementcattleiov3.ProjectNetworkPolicyList]
 }
 
 // newProjectNetworkPolicies returns a ProjectNetworkPolicies
 func newProjectNetworkPolicies(c *ManagementV3Client, namespace string) *projectNetworkPolicies {
 	return &projectNetworkPolicies{
-		gentype.NewClientWithList[*v3.ProjectNetworkPolicy, *v3.ProjectNetworkPolicyList](
+		gentype.NewClientWithList[*managementcattleiov3.ProjectNetworkPolicy, *managementcattleiov3.ProjectNetworkPolicyList](
 			"projectnetworkpolicies",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v3.ProjectNetworkPolicy { return &v3.ProjectNetworkPolicy{} },
-			func() *v3.ProjectNetworkPolicyList { return &v3.ProjectNetworkPolicyList{} }),
+			func() *managementcattleiov3.ProjectNetworkPolicy { return &managementcattleiov3.ProjectNetworkPolicy{} },
+			func() *managementcattleiov3.ProjectNetworkPolicyList {
+				return &managementcattleiov3.ProjectNetworkPolicyList{}
+			},
+		),
 	}
 }

@@ -19,116 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeRkeK8sServiceOptions implements RkeK8sServiceOptionInterface
-type FakeRkeK8sServiceOptions struct {
+// fakeRkeK8sServiceOptions implements RkeK8sServiceOptionInterface
+type fakeRkeK8sServiceOptions struct {
+	*gentype.FakeClientWithList[*v3.RkeK8sServiceOption, *v3.RkeK8sServiceOptionList]
 	Fake *FakeManagementV3
-	ns   string
 }
 
-var rkek8sserviceoptionsResource = v3.SchemeGroupVersion.WithResource("rkek8sserviceoptions")
-
-var rkek8sserviceoptionsKind = v3.SchemeGroupVersion.WithKind("RkeK8sServiceOption")
-
-// Get takes name of the rkeK8sServiceOption, and returns the corresponding rkeK8sServiceOption object, and an error if there is any.
-func (c *FakeRkeK8sServiceOptions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.RkeK8sServiceOption, err error) {
-	emptyResult := &v3.RkeK8sServiceOption{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(rkek8sserviceoptionsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeRkeK8sServiceOptions(fake *FakeManagementV3, namespace string) managementcattleiov3.RkeK8sServiceOptionInterface {
+	return &fakeRkeK8sServiceOptions{
+		gentype.NewFakeClientWithList[*v3.RkeK8sServiceOption, *v3.RkeK8sServiceOptionList](
+			fake.Fake,
+			namespace,
+			v3.SchemeGroupVersion.WithResource("rkek8sserviceoptions"),
+			v3.SchemeGroupVersion.WithKind("RkeK8sServiceOption"),
+			func() *v3.RkeK8sServiceOption { return &v3.RkeK8sServiceOption{} },
+			func() *v3.RkeK8sServiceOptionList { return &v3.RkeK8sServiceOptionList{} },
+			func(dst, src *v3.RkeK8sServiceOptionList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.RkeK8sServiceOptionList) []*v3.RkeK8sServiceOption {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v3.RkeK8sServiceOptionList, items []*v3.RkeK8sServiceOption) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.RkeK8sServiceOption), err
-}
-
-// List takes label and field selectors, and returns the list of RkeK8sServiceOptions that match those selectors.
-func (c *FakeRkeK8sServiceOptions) List(ctx context.Context, opts v1.ListOptions) (result *v3.RkeK8sServiceOptionList, err error) {
-	emptyResult := &v3.RkeK8sServiceOptionList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(rkek8sserviceoptionsResource, rkek8sserviceoptionsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.RkeK8sServiceOptionList{ListMeta: obj.(*v3.RkeK8sServiceOptionList).ListMeta}
-	for _, item := range obj.(*v3.RkeK8sServiceOptionList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested rkeK8sServiceOptions.
-func (c *FakeRkeK8sServiceOptions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(rkek8sserviceoptionsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a rkeK8sServiceOption and creates it.  Returns the server's representation of the rkeK8sServiceOption, and an error, if there is any.
-func (c *FakeRkeK8sServiceOptions) Create(ctx context.Context, rkeK8sServiceOption *v3.RkeK8sServiceOption, opts v1.CreateOptions) (result *v3.RkeK8sServiceOption, err error) {
-	emptyResult := &v3.RkeK8sServiceOption{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(rkek8sserviceoptionsResource, c.ns, rkeK8sServiceOption, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.RkeK8sServiceOption), err
-}
-
-// Update takes the representation of a rkeK8sServiceOption and updates it. Returns the server's representation of the rkeK8sServiceOption, and an error, if there is any.
-func (c *FakeRkeK8sServiceOptions) Update(ctx context.Context, rkeK8sServiceOption *v3.RkeK8sServiceOption, opts v1.UpdateOptions) (result *v3.RkeK8sServiceOption, err error) {
-	emptyResult := &v3.RkeK8sServiceOption{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(rkek8sserviceoptionsResource, c.ns, rkeK8sServiceOption, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.RkeK8sServiceOption), err
-}
-
-// Delete takes name of the rkeK8sServiceOption and deletes it. Returns an error if one occurs.
-func (c *FakeRkeK8sServiceOptions) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(rkek8sserviceoptionsResource, c.ns, name, opts), &v3.RkeK8sServiceOption{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeRkeK8sServiceOptions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(rkek8sserviceoptionsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.RkeK8sServiceOptionList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched rkeK8sServiceOption.
-func (c *FakeRkeK8sServiceOptions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.RkeK8sServiceOption, err error) {
-	emptyResult := &v3.RkeK8sServiceOption{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(rkek8sserviceoptionsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.RkeK8sServiceOption), err
 }

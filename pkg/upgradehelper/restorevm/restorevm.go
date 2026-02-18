@@ -46,7 +46,7 @@ type RestoreVMHandler struct {
 	upgradeCache ctlharvesterv1.UpgradeCache
 
 	vmRestClient *rest.RESTClient
-	k8sClient    *kubernetes.Clientset
+	k8sClient    kubernetes.Interface
 	recorder     record.EventRecorder
 }
 

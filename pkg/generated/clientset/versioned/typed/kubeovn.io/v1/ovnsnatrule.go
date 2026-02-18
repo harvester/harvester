@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type OvnSnatRulesGetter interface {
 
 // OvnSnatRuleInterface has methods to work with OvnSnatRule resources.
 type OvnSnatRuleInterface interface {
-	Create(ctx context.Context, ovnSnatRule *v1.OvnSnatRule, opts metav1.CreateOptions) (*v1.OvnSnatRule, error)
-	Update(ctx context.Context, ovnSnatRule *v1.OvnSnatRule, opts metav1.UpdateOptions) (*v1.OvnSnatRule, error)
+	Create(ctx context.Context, ovnSnatRule *kubeovnv1.OvnSnatRule, opts metav1.CreateOptions) (*kubeovnv1.OvnSnatRule, error)
+	Update(ctx context.Context, ovnSnatRule *kubeovnv1.OvnSnatRule, opts metav1.UpdateOptions) (*kubeovnv1.OvnSnatRule, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, ovnSnatRule *v1.OvnSnatRule, opts metav1.UpdateOptions) (*v1.OvnSnatRule, error)
+	UpdateStatus(ctx context.Context, ovnSnatRule *kubeovnv1.OvnSnatRule, opts metav1.UpdateOptions) (*kubeovnv1.OvnSnatRule, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.OvnSnatRule, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.OvnSnatRuleList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.OvnSnatRule, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.OvnSnatRuleList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.OvnSnatRule, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.OvnSnatRule, err error)
 	OvnSnatRuleExpansion
 }
 
 // ovnSnatRules implements OvnSnatRuleInterface
 type ovnSnatRules struct {
-	*gentype.ClientWithList[*v1.OvnSnatRule, *v1.OvnSnatRuleList]
+	*gentype.ClientWithList[*kubeovnv1.OvnSnatRule, *kubeovnv1.OvnSnatRuleList]
 }
 
 // newOvnSnatRules returns a OvnSnatRules
 func newOvnSnatRules(c *KubeovnV1Client) *ovnSnatRules {
 	return &ovnSnatRules{
-		gentype.NewClientWithList[*v1.OvnSnatRule, *v1.OvnSnatRuleList](
+		gentype.NewClientWithList[*kubeovnv1.OvnSnatRule, *kubeovnv1.OvnSnatRuleList](
 			"ovn-snat-rules",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.OvnSnatRule { return &v1.OvnSnatRule{} },
-			func() *v1.OvnSnatRuleList { return &v1.OvnSnatRuleList{} }),
+			func() *kubeovnv1.OvnSnatRule { return &kubeovnv1.OvnSnatRule{} },
+			func() *kubeovnv1.OvnSnatRuleList { return &kubeovnv1.OvnSnatRuleList{} },
+		),
 	}
 }

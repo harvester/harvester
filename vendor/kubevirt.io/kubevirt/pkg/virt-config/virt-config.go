@@ -24,8 +24,6 @@ package virtconfig
 */
 
 import (
-	"strings"
-
 	"kubevirt.io/client-go/log"
 
 	k8sv1 "k8s.io/api/core/v1"
@@ -45,13 +43,11 @@ const (
 	MigrationProgressTimeout                 int64  = 150
 	MigrationCompletionTimeoutPerGiB         int64  = 150
 	DefaultAMD64MachineType                         = "q35"
-	DefaultPPC64LEMachineType                       = "pseries"
 	DefaultAARCH64MachineType                       = "virt"
 	DefaultS390XMachineType                         = "s390-ccw-virtio"
 	DefaultCPURequest                               = "100m"
 	DefaultMemoryOvercommit                         = 100
 	DefaultAMD64EmulatedMachines                    = "q35*,pc-q35*"
-	DefaultPPC64LEEmulatedMachines                  = "pseries*"
 	DefaultAARCH64EmulatedMachines                  = "virt*"
 	DefaultS390XEmulatedMachines                    = "s390-ccw-virtio*"
 	DefaultLessPVCSpaceToleration                   = 10
@@ -70,6 +66,7 @@ const (
 	SupportedGuestAgentVersions                     = "2.*,3.*,4.*,5.*"
 	DefaultARCHOVMFPath                             = "/usr/share/OVMF"
 	DefaultAARCH64OVMFPath                          = "/usr/share/AAVMF"
+	DefaultS390xOVMFPath                            = ""
 	DefaultMemBalloonStatsPeriod             uint32 = 10
 	DefaultCPUAllocationRatio                       = 10
 	DefaultDiskVerificationMemoryLimitBytes         = 2000 * 1024 * 1024
@@ -80,12 +77,12 @@ const (
 	DefaultVirtOperatorLogVerbosity                 = 2
 
 	// Default REST configuration settings
-	DefaultVirtHandlerQPS         float32 = 5
-	DefaultVirtHandlerBurst               = 10
+	DefaultVirtHandlerQPS         float32 = 50
+	DefaultVirtHandlerBurst               = 100
 	DefaultVirtControllerQPS      float32 = 200
 	DefaultVirtControllerBurst            = 400
-	DefaultVirtAPIQPS             float32 = 5
-	DefaultVirtAPIBurst                   = 10
+	DefaultVirtAPIQPS             float32 = 200
+	DefaultVirtAPIBurst                   = 400
 	DefaultVirtWebhookClientQPS           = 200
 	DefaultVirtWebhookClientBurst         = 400
 
@@ -137,10 +134,8 @@ func (c *ClusterConfig) GetMachineType(arch string) string {
 	switch arch {
 	case "arm64":
 		return c.GetConfig().ArchitectureConfiguration.Arm64.MachineType
-	case "ppc64le":
-		return c.GetConfig().ArchitectureConfiguration.Ppc64le.MachineType
 	case "s390x":
-		return DefaultS390XMachineType
+		return c.GetConfig().ArchitectureConfiguration.S390x.MachineType
 	default:
 		return c.GetConfig().ArchitectureConfiguration.Amd64.MachineType
 	}
@@ -171,10 +166,8 @@ func (c *ClusterConfig) GetEmulatedMachines(arch string) []string {
 	switch arch {
 	case "arm64":
 		return c.GetConfig().ArchitectureConfiguration.Arm64.EmulatedMachines
-	case "ppc64le":
-		return c.GetConfig().ArchitectureConfiguration.Ppc64le.EmulatedMachines
 	case "s390x":
-		return strings.Split(DefaultS390XEmulatedMachines, ",")
+		return c.GetConfig().ArchitectureConfiguration.S390x.EmulatedMachines
 	default:
 		return c.GetConfig().ArchitectureConfiguration.Amd64.EmulatedMachines
 	}
@@ -233,10 +226,8 @@ func (c *ClusterConfig) GetOVMFPath(arch string) string {
 	switch arch {
 	case "arm64":
 		return c.GetConfig().ArchitectureConfiguration.Arm64.OVMFPath
-	case "ppc64le":
-		return c.GetConfig().ArchitectureConfiguration.Ppc64le.OVMFPath
 	case "s390x":
-		return ""
+		return c.GetConfig().ArchitectureConfiguration.S390x.OVMFPath
 	default:
 		return c.GetConfig().ArchitectureConfiguration.Amd64.OVMFPath
 	}

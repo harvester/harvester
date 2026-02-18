@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,31 +37,32 @@ type GithubProvidersGetter interface {
 
 // GithubProviderInterface has methods to work with GithubProvider resources.
 type GithubProviderInterface interface {
-	Create(ctx context.Context, githubProvider *v3.GithubProvider, opts v1.CreateOptions) (*v3.GithubProvider, error)
-	Update(ctx context.Context, githubProvider *v3.GithubProvider, opts v1.UpdateOptions) (*v3.GithubProvider, error)
+	Create(ctx context.Context, githubProvider *managementcattleiov3.GithubProvider, opts v1.CreateOptions) (*managementcattleiov3.GithubProvider, error)
+	Update(ctx context.Context, githubProvider *managementcattleiov3.GithubProvider, opts v1.UpdateOptions) (*managementcattleiov3.GithubProvider, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.GithubProvider, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.GithubProviderList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.GithubProvider, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.GithubProviderList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.GithubProvider, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.GithubProvider, err error)
 	GithubProviderExpansion
 }
 
 // githubProviders implements GithubProviderInterface
 type githubProviders struct {
-	*gentype.ClientWithList[*v3.GithubProvider, *v3.GithubProviderList]
+	*gentype.ClientWithList[*managementcattleiov3.GithubProvider, *managementcattleiov3.GithubProviderList]
 }
 
 // newGithubProviders returns a GithubProviders
 func newGithubProviders(c *ManagementV3Client) *githubProviders {
 	return &githubProviders{
-		gentype.NewClientWithList[*v3.GithubProvider, *v3.GithubProviderList](
+		gentype.NewClientWithList[*managementcattleiov3.GithubProvider, *managementcattleiov3.GithubProviderList](
 			"githubproviders",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.GithubProvider { return &v3.GithubProvider{} },
-			func() *v3.GithubProviderList { return &v3.GithubProviderList{} }),
+			func() *managementcattleiov3.GithubProvider { return &managementcattleiov3.GithubProvider{} },
+			func() *managementcattleiov3.GithubProviderList { return &managementcattleiov3.GithubProviderList{} },
+		),
 	}
 }

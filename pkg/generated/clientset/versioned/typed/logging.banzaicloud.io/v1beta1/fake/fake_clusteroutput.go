@@ -19,120 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	loggingbanzaicloudiov1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1"
 	v1beta1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeClusterOutputs implements ClusterOutputInterface
-type FakeClusterOutputs struct {
+// fakeClusterOutputs implements ClusterOutputInterface
+type fakeClusterOutputs struct {
+	*gentype.FakeClientWithList[*v1beta1.ClusterOutput, *v1beta1.ClusterOutputList]
 	Fake *FakeLoggingV1beta1
 }
 
-var clusteroutputsResource = v1beta1.GroupVersion.WithResource("clusteroutputs")
-
-var clusteroutputsKind = v1beta1.GroupVersion.WithKind("ClusterOutput")
-
-// Get takes name of the clusterOutput, and returns the corresponding clusterOutput object, and an error if there is any.
-func (c *FakeClusterOutputs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.ClusterOutput, err error) {
-	emptyResult := &v1beta1.ClusterOutput{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(clusteroutputsResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeClusterOutputs(fake *FakeLoggingV1beta1) loggingbanzaicloudiov1beta1.ClusterOutputInterface {
+	return &fakeClusterOutputs{
+		gentype.NewFakeClientWithList[*v1beta1.ClusterOutput, *v1beta1.ClusterOutputList](
+			fake.Fake,
+			"",
+			v1beta1.GroupVersion.WithResource("clusteroutputs"),
+			v1beta1.GroupVersion.WithKind("ClusterOutput"),
+			func() *v1beta1.ClusterOutput { return &v1beta1.ClusterOutput{} },
+			func() *v1beta1.ClusterOutputList { return &v1beta1.ClusterOutputList{} },
+			func(dst, src *v1beta1.ClusterOutputList) { dst.ListMeta = src.ListMeta },
+			func(list *v1beta1.ClusterOutputList) []*v1beta1.ClusterOutput {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1beta1.ClusterOutputList, items []*v1beta1.ClusterOutput) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1beta1.ClusterOutput), err
-}
-
-// List takes label and field selectors, and returns the list of ClusterOutputs that match those selectors.
-func (c *FakeClusterOutputs) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.ClusterOutputList, err error) {
-	emptyResult := &v1beta1.ClusterOutputList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(clusteroutputsResource, clusteroutputsKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1beta1.ClusterOutputList{ListMeta: obj.(*v1beta1.ClusterOutputList).ListMeta}
-	for _, item := range obj.(*v1beta1.ClusterOutputList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested clusterOutputs.
-func (c *FakeClusterOutputs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(clusteroutputsResource, opts))
-}
-
-// Create takes the representation of a clusterOutput and creates it.  Returns the server's representation of the clusterOutput, and an error, if there is any.
-func (c *FakeClusterOutputs) Create(ctx context.Context, clusterOutput *v1beta1.ClusterOutput, opts v1.CreateOptions) (result *v1beta1.ClusterOutput, err error) {
-	emptyResult := &v1beta1.ClusterOutput{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(clusteroutputsResource, clusterOutput, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ClusterOutput), err
-}
-
-// Update takes the representation of a clusterOutput and updates it. Returns the server's representation of the clusterOutput, and an error, if there is any.
-func (c *FakeClusterOutputs) Update(ctx context.Context, clusterOutput *v1beta1.ClusterOutput, opts v1.UpdateOptions) (result *v1beta1.ClusterOutput, err error) {
-	emptyResult := &v1beta1.ClusterOutput{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(clusteroutputsResource, clusterOutput, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ClusterOutput), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeClusterOutputs) UpdateStatus(ctx context.Context, clusterOutput *v1beta1.ClusterOutput, opts v1.UpdateOptions) (result *v1beta1.ClusterOutput, err error) {
-	emptyResult := &v1beta1.ClusterOutput{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(clusteroutputsResource, "status", clusterOutput, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ClusterOutput), err
-}
-
-// Delete takes name of the clusterOutput and deletes it. Returns an error if one occurs.
-func (c *FakeClusterOutputs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(clusteroutputsResource, name, opts), &v1beta1.ClusterOutput{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeClusterOutputs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(clusteroutputsResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1beta1.ClusterOutputList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched clusterOutput.
-func (c *FakeClusterOutputs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.ClusterOutput, err error) {
-	emptyResult := &v1beta1.ClusterOutput{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(clusteroutputsResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1beta1.ClusterOutput), err
 }

@@ -10986,6 +10986,18 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.ChangedBlockTrackingStatus": {
+        "type": "object",
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.Chassis": {
         "type": "object",
         "properties": {
@@ -11141,20 +11153,18 @@
       },
       "kubevirt.io.api.core.v1.CustomBlockSize": {
         "type": "object",
-        "required": [
-          "logical",
-          "physical"
-        ],
         "properties": {
+          "discardGranularity": {
+            "type": "integer",
+            "format": "int32"
+          },
           "logical": {
             "type": "integer",
-            "format": "int32",
-            "default": 0
+            "format": "int32"
           },
           "physical": {
             "type": "integer",
-            "format": "int32",
-            "default": 0
+            "format": "int32"
           }
         }
       },
@@ -11501,6 +11511,9 @@
           },
           "cdrom": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.CDRomTarget"
+          },
+          "changedBlockTracking": {
+            "type": "boolean"
           },
           "dedicatedIOThread": {
             "type": "boolean"
@@ -12211,6 +12224,12 @@
         "properties": {
           "sev": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.SEV"
+          },
+          "snp": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.SEVSNP"
+          },
+          "tdx": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.TDX"
           }
         }
       },
@@ -12668,6 +12687,9 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.SEVSNP": {
+        "type": "object"
+      },
       "kubevirt.io.api.core.v1.SSHPublicKeyAccessCredential": {
         "type": "object",
         "required": [
@@ -12791,6 +12813,9 @@
             "$ref": "#/components/schemas/k8s.io.v1.LocalObjectReference"
           }
         }
+      },
+      "kubevirt.io.api.core.v1.TDX": {
+        "type": "object"
       },
       "kubevirt.io.api.core.v1.TPMDevice": {
         "type": "object",
@@ -13278,6 +13303,9 @@
               "default": ""
             }
           },
+          "priority": {
+            "type": "string"
+          },
           "receive": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachineInstanceMigrationTarget"
           },
@@ -13713,6 +13741,9 @@
               "default": ""
             }
           },
+          "changedBlockTracking": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.ChangedBlockTrackingStatus"
+          },
           "conditions": {
             "type": "array",
             "items": {
@@ -14005,6 +14036,9 @@
       "kubevirt.io.api.core.v1.VirtualMachineStatus": {
         "type": "object",
         "properties": {
+          "changedBlockTracking": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.ChangedBlockTrackingStatus"
+          },
           "conditions": {
             "type": "array",
             "items": {
@@ -14382,6 +14416,9 @@
             "type": "string",
             "default": ""
           },
+          "insecureSkipVerify": {
+            "type": "boolean"
+          },
           "secretRef": {
             "type": "string"
           },
@@ -14436,6 +14473,9 @@
           },
           "imageStream": {
             "type": "string"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.PlatformOptions"
           },
           "pullMethod": {
             "type": "string"
@@ -14492,6 +14532,9 @@
           "backingFile": {
             "type": "string"
           },
+          "extraArgs": {
+            "type": "string"
+          },
           "initImageURL": {
             "type": "string"
           },
@@ -14546,6 +14589,14 @@
           },
           "storage": {
             "$ref": "#/components/schemas/kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.StorageSpec"
+          }
+        }
+      },
+      "kubevirt.io.containerized-data-importer-api.pkg.apis.core.v1beta1.PlatformOptions": {
+        "type": "object",
+        "properties": {
+          "architecture": {
+            "type": "string"
           }
         }
       },

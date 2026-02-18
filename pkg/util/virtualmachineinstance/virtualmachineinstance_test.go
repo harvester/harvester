@@ -632,83 +632,83 @@ func Test_ListByNode(t *testing.T) {
 
 func Test_ValidateVMMigratable(t *testing.T) {
 	var testCases = []struct {
-		name   string
-		vmi    *kubevirtv1.VirtualMachineInstance
-		err    error
+		name string
+		vmi  *kubevirtv1.VirtualMachineInstance
+		err  error
 	}{
-			{
-				name: "should return err when status condition LiveMigratable is False",
-				vmi: &kubevirtv1.VirtualMachineInstance{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "vm1",
-					},
-					Status: kubevirtv1.VirtualMachineInstanceStatus{
-						Phase: kubevirtv1.Running,
-						Conditions: []kubevirtv1.VirtualMachineInstanceCondition{
-							{
-								Type: kubevirtv1.VirtualMachineInstanceIsMigratable,
-								Status: corev1.ConditionFalse,
-								Reason: "InterfaceNotLiveMigratable",
-							},
+		{
+			name: "should return err when status condition LiveMigratable is False",
+			vmi: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "vm1",
+				},
+				Status: kubevirtv1.VirtualMachineInstanceStatus{
+					Phase: kubevirtv1.Running,
+					Conditions: []kubevirtv1.VirtualMachineInstanceCondition{
+						{
+							Type:   kubevirtv1.VirtualMachineInstanceIsMigratable,
+							Status: corev1.ConditionFalse,
+							Reason: "InterfaceNotLiveMigratable",
 						},
 					},
 				},
-				err: fmt.Errorf("VM default/vm1 is not live migratable as the condition reported with reason: InterfaceNotLiveMigratable"),
 			},
-			{
-				name: "should return nil when status condition LiveMigratable is True",
-				vmi: &kubevirtv1.VirtualMachineInstance{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "vm1",
-					},
-					Status: kubevirtv1.VirtualMachineInstanceStatus{
-						Phase: kubevirtv1.Running,
-						Conditions: []kubevirtv1.VirtualMachineInstanceCondition{
-							{
-								Type: kubevirtv1.VirtualMachineInstanceIsMigratable,
-								Status: corev1.ConditionTrue,
-							},
+			err: fmt.Errorf("VM default/vm1 is not live migratable as the condition reported with reason: InterfaceNotLiveMigratable"),
+		},
+		{
+			name: "should return nil when status condition LiveMigratable is True",
+			vmi: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "vm1",
+				},
+				Status: kubevirtv1.VirtualMachineInstanceStatus{
+					Phase: kubevirtv1.Running,
+					Conditions: []kubevirtv1.VirtualMachineInstanceCondition{
+						{
+							Type:   kubevirtv1.VirtualMachineInstanceIsMigratable,
+							Status: corev1.ConditionTrue,
 						},
 					},
 				},
-				err: nil,
 			},
-			{
-				name: "should return nil when status condition LiveMigratable is Unknown",
-				vmi: &kubevirtv1.VirtualMachineInstance{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "vm1",
-					},
-					Status: kubevirtv1.VirtualMachineInstanceStatus{
-						Phase: kubevirtv1.Running,
-						Conditions: []kubevirtv1.VirtualMachineInstanceCondition{
-							{
-								Type: kubevirtv1.VirtualMachineInstanceIsMigratable,
-								Status: corev1.ConditionUnknown,
-							},
+			err: nil,
+		},
+		{
+			name: "should return nil when status condition LiveMigratable is Unknown",
+			vmi: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "vm1",
+				},
+				Status: kubevirtv1.VirtualMachineInstanceStatus{
+					Phase: kubevirtv1.Running,
+					Conditions: []kubevirtv1.VirtualMachineInstanceCondition{
+						{
+							Type:   kubevirtv1.VirtualMachineInstanceIsMigratable,
+							Status: corev1.ConditionUnknown,
 						},
 					},
 				},
-				err: nil,
 			},
-			{
-				name: "should return nil when status condition LiveMigratable is not found",
-				vmi: &kubevirtv1.VirtualMachineInstance{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "vm1",
-					},
-					Status: kubevirtv1.VirtualMachineInstanceStatus{
-						Phase: kubevirtv1.Running,
-						Conditions: []kubevirtv1.VirtualMachineInstanceCondition{},
-					},
+			err: nil,
+		},
+		{
+			name: "should return nil when status condition LiveMigratable is not found",
+			vmi: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "vm1",
 				},
-				err: nil,
+				Status: kubevirtv1.VirtualMachineInstanceStatus{
+					Phase:      kubevirtv1.Running,
+					Conditions: []kubevirtv1.VirtualMachineInstanceCondition{},
+				},
 			},
-		}
+			err: nil,
+		},
+	}
 
 	for _, tc := range testCases {
 		err := ValidateVMMigratable(tc.vmi)

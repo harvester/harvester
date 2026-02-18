@@ -26,12 +26,12 @@ func toAPIObject(schema *types.APISchema) types.APIObject {
 	}
 }
 
-func (s *Store) ByID(apiOp *types.APIRequest, schema *types.APISchema, id string) (types.APIObject, error) {
-	schema = apiOp.Schemas.LookupSchema(id)
-	if schema == nil {
+func (s *Store) ByID(apiOp *types.APIRequest, _ *types.APISchema, id string) (types.APIObject, error) {
+	lookupSchema := apiOp.Schemas.LookupSchema(id)
+	if lookupSchema == nil {
 		return types.APIObject{}, apierror.NewAPIError(validation.NotFound, "no such schema")
 	}
-	return toAPIObject(schema), nil
+	return toAPIObject(lookupSchema), nil
 }
 
 func (s *Store) List(apiOp *types.APIRequest, schema *types.APISchema) (types.APIObjectList, error) {

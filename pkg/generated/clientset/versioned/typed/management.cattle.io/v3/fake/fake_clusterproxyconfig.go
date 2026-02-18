@@ -19,116 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeClusterProxyConfigs implements ClusterProxyConfigInterface
-type FakeClusterProxyConfigs struct {
+// fakeClusterProxyConfigs implements ClusterProxyConfigInterface
+type fakeClusterProxyConfigs struct {
+	*gentype.FakeClientWithList[*v3.ClusterProxyConfig, *v3.ClusterProxyConfigList]
 	Fake *FakeManagementV3
-	ns   string
 }
 
-var clusterproxyconfigsResource = v3.SchemeGroupVersion.WithResource("clusterproxyconfigs")
-
-var clusterproxyconfigsKind = v3.SchemeGroupVersion.WithKind("ClusterProxyConfig")
-
-// Get takes name of the clusterProxyConfig, and returns the corresponding clusterProxyConfig object, and an error if there is any.
-func (c *FakeClusterProxyConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.ClusterProxyConfig, err error) {
-	emptyResult := &v3.ClusterProxyConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(clusterproxyconfigsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeClusterProxyConfigs(fake *FakeManagementV3, namespace string) managementcattleiov3.ClusterProxyConfigInterface {
+	return &fakeClusterProxyConfigs{
+		gentype.NewFakeClientWithList[*v3.ClusterProxyConfig, *v3.ClusterProxyConfigList](
+			fake.Fake,
+			namespace,
+			v3.SchemeGroupVersion.WithResource("clusterproxyconfigs"),
+			v3.SchemeGroupVersion.WithKind("ClusterProxyConfig"),
+			func() *v3.ClusterProxyConfig { return &v3.ClusterProxyConfig{} },
+			func() *v3.ClusterProxyConfigList { return &v3.ClusterProxyConfigList{} },
+			func(dst, src *v3.ClusterProxyConfigList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.ClusterProxyConfigList) []*v3.ClusterProxyConfig {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v3.ClusterProxyConfigList, items []*v3.ClusterProxyConfig) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v3.ClusterProxyConfig), err
-}
-
-// List takes label and field selectors, and returns the list of ClusterProxyConfigs that match those selectors.
-func (c *FakeClusterProxyConfigs) List(ctx context.Context, opts v1.ListOptions) (result *v3.ClusterProxyConfigList, err error) {
-	emptyResult := &v3.ClusterProxyConfigList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(clusterproxyconfigsResource, clusterproxyconfigsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.ClusterProxyConfigList{ListMeta: obj.(*v3.ClusterProxyConfigList).ListMeta}
-	for _, item := range obj.(*v3.ClusterProxyConfigList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested clusterProxyConfigs.
-func (c *FakeClusterProxyConfigs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(clusterproxyconfigsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a clusterProxyConfig and creates it.  Returns the server's representation of the clusterProxyConfig, and an error, if there is any.
-func (c *FakeClusterProxyConfigs) Create(ctx context.Context, clusterProxyConfig *v3.ClusterProxyConfig, opts v1.CreateOptions) (result *v3.ClusterProxyConfig, err error) {
-	emptyResult := &v3.ClusterProxyConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(clusterproxyconfigsResource, c.ns, clusterProxyConfig, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ClusterProxyConfig), err
-}
-
-// Update takes the representation of a clusterProxyConfig and updates it. Returns the server's representation of the clusterProxyConfig, and an error, if there is any.
-func (c *FakeClusterProxyConfigs) Update(ctx context.Context, clusterProxyConfig *v3.ClusterProxyConfig, opts v1.UpdateOptions) (result *v3.ClusterProxyConfig, err error) {
-	emptyResult := &v3.ClusterProxyConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(clusterproxyconfigsResource, c.ns, clusterProxyConfig, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ClusterProxyConfig), err
-}
-
-// Delete takes name of the clusterProxyConfig and deletes it. Returns an error if one occurs.
-func (c *FakeClusterProxyConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(clusterproxyconfigsResource, c.ns, name, opts), &v3.ClusterProxyConfig{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeClusterProxyConfigs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(clusterproxyconfigsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.ClusterProxyConfigList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched clusterProxyConfig.
-func (c *FakeClusterProxyConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.ClusterProxyConfig, err error) {
-	emptyResult := &v3.ClusterProxyConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(clusterproxyconfigsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.ClusterProxyConfig), err
 }

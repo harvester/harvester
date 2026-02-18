@@ -19,120 +19,30 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	kubeovniov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubeovn.io/v1"
 	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeOvnSnatRules implements OvnSnatRuleInterface
-type FakeOvnSnatRules struct {
+// fakeOvnSnatRules implements OvnSnatRuleInterface
+type fakeOvnSnatRules struct {
+	*gentype.FakeClientWithList[*v1.OvnSnatRule, *v1.OvnSnatRuleList]
 	Fake *FakeKubeovnV1
 }
 
-var ovnsnatrulesResource = v1.SchemeGroupVersion.WithResource("ovn-snat-rules")
-
-var ovnsnatrulesKind = v1.SchemeGroupVersion.WithKind("OvnSnatRule")
-
-// Get takes name of the ovnSnatRule, and returns the corresponding ovnSnatRule object, and an error if there is any.
-func (c *FakeOvnSnatRules) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.OvnSnatRule, err error) {
-	emptyResult := &v1.OvnSnatRule{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(ovnsnatrulesResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeOvnSnatRules(fake *FakeKubeovnV1) kubeovniov1.OvnSnatRuleInterface {
+	return &fakeOvnSnatRules{
+		gentype.NewFakeClientWithList[*v1.OvnSnatRule, *v1.OvnSnatRuleList](
+			fake.Fake,
+			"",
+			v1.SchemeGroupVersion.WithResource("ovn-snat-rules"),
+			v1.SchemeGroupVersion.WithKind("OvnSnatRule"),
+			func() *v1.OvnSnatRule { return &v1.OvnSnatRule{} },
+			func() *v1.OvnSnatRuleList { return &v1.OvnSnatRuleList{} },
+			func(dst, src *v1.OvnSnatRuleList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.OvnSnatRuleList) []*v1.OvnSnatRule { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1.OvnSnatRuleList, items []*v1.OvnSnatRule) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*v1.OvnSnatRule), err
-}
-
-// List takes label and field selectors, and returns the list of OvnSnatRules that match those selectors.
-func (c *FakeOvnSnatRules) List(ctx context.Context, opts metav1.ListOptions) (result *v1.OvnSnatRuleList, err error) {
-	emptyResult := &v1.OvnSnatRuleList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(ovnsnatrulesResource, ovnsnatrulesKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1.OvnSnatRuleList{ListMeta: obj.(*v1.OvnSnatRuleList).ListMeta}
-	for _, item := range obj.(*v1.OvnSnatRuleList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested ovnSnatRules.
-func (c *FakeOvnSnatRules) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(ovnsnatrulesResource, opts))
-}
-
-// Create takes the representation of a ovnSnatRule and creates it.  Returns the server's representation of the ovnSnatRule, and an error, if there is any.
-func (c *FakeOvnSnatRules) Create(ctx context.Context, ovnSnatRule *v1.OvnSnatRule, opts metav1.CreateOptions) (result *v1.OvnSnatRule, err error) {
-	emptyResult := &v1.OvnSnatRule{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(ovnsnatrulesResource, ovnSnatRule, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.OvnSnatRule), err
-}
-
-// Update takes the representation of a ovnSnatRule and updates it. Returns the server's representation of the ovnSnatRule, and an error, if there is any.
-func (c *FakeOvnSnatRules) Update(ctx context.Context, ovnSnatRule *v1.OvnSnatRule, opts metav1.UpdateOptions) (result *v1.OvnSnatRule, err error) {
-	emptyResult := &v1.OvnSnatRule{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(ovnsnatrulesResource, ovnSnatRule, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.OvnSnatRule), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeOvnSnatRules) UpdateStatus(ctx context.Context, ovnSnatRule *v1.OvnSnatRule, opts metav1.UpdateOptions) (result *v1.OvnSnatRule, err error) {
-	emptyResult := &v1.OvnSnatRule{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(ovnsnatrulesResource, "status", ovnSnatRule, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.OvnSnatRule), err
-}
-
-// Delete takes name of the ovnSnatRule and deletes it. Returns an error if one occurs.
-func (c *FakeOvnSnatRules) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(ovnsnatrulesResource, name, opts), &v1.OvnSnatRule{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeOvnSnatRules) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(ovnsnatrulesResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1.OvnSnatRuleList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched ovnSnatRule.
-func (c *FakeOvnSnatRules) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.OvnSnatRule, err error) {
-	emptyResult := &v1.OvnSnatRule{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(ovnsnatrulesResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.OvnSnatRule), err
 }

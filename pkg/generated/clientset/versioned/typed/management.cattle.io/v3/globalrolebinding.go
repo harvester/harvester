@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,36 @@ type GlobalRoleBindingsGetter interface {
 
 // GlobalRoleBindingInterface has methods to work with GlobalRoleBinding resources.
 type GlobalRoleBindingInterface interface {
-	Create(ctx context.Context, globalRoleBinding *v3.GlobalRoleBinding, opts v1.CreateOptions) (*v3.GlobalRoleBinding, error)
-	Update(ctx context.Context, globalRoleBinding *v3.GlobalRoleBinding, opts v1.UpdateOptions) (*v3.GlobalRoleBinding, error)
+	Create(ctx context.Context, globalRoleBinding *managementcattleiov3.GlobalRoleBinding, opts v1.CreateOptions) (*managementcattleiov3.GlobalRoleBinding, error)
+	Update(ctx context.Context, globalRoleBinding *managementcattleiov3.GlobalRoleBinding, opts v1.UpdateOptions) (*managementcattleiov3.GlobalRoleBinding, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, globalRoleBinding *v3.GlobalRoleBinding, opts v1.UpdateOptions) (*v3.GlobalRoleBinding, error)
+	UpdateStatus(ctx context.Context, globalRoleBinding *managementcattleiov3.GlobalRoleBinding, opts v1.UpdateOptions) (*managementcattleiov3.GlobalRoleBinding, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v3.GlobalRoleBinding, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v3.GlobalRoleBindingList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*managementcattleiov3.GlobalRoleBinding, error)
+	List(ctx context.Context, opts v1.ListOptions) (*managementcattleiov3.GlobalRoleBindingList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.GlobalRoleBinding, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *managementcattleiov3.GlobalRoleBinding, err error)
 	GlobalRoleBindingExpansion
 }
 
 // globalRoleBindings implements GlobalRoleBindingInterface
 type globalRoleBindings struct {
-	*gentype.ClientWithList[*v3.GlobalRoleBinding, *v3.GlobalRoleBindingList]
+	*gentype.ClientWithList[*managementcattleiov3.GlobalRoleBinding, *managementcattleiov3.GlobalRoleBindingList]
 }
 
 // newGlobalRoleBindings returns a GlobalRoleBindings
 func newGlobalRoleBindings(c *ManagementV3Client) *globalRoleBindings {
 	return &globalRoleBindings{
-		gentype.NewClientWithList[*v3.GlobalRoleBinding, *v3.GlobalRoleBindingList](
+		gentype.NewClientWithList[*managementcattleiov3.GlobalRoleBinding, *managementcattleiov3.GlobalRoleBindingList](
 			"globalrolebindings",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v3.GlobalRoleBinding { return &v3.GlobalRoleBinding{} },
-			func() *v3.GlobalRoleBindingList { return &v3.GlobalRoleBindingList{} }),
+			func() *managementcattleiov3.GlobalRoleBinding { return &managementcattleiov3.GlobalRoleBinding{} },
+			func() *managementcattleiov3.GlobalRoleBindingList {
+				return &managementcattleiov3.GlobalRoleBindingList{}
+			},
+		),
 	}
 }

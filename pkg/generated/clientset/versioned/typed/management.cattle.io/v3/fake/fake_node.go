@@ -19,129 +19,30 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	managementcattleiov3 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/management.cattle.io/v3"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeNodes implements NodeInterface
-type FakeNodes struct {
+// fakeNodes implements NodeInterface
+type fakeNodes struct {
+	*gentype.FakeClientWithList[*v3.Node, *v3.NodeList]
 	Fake *FakeManagementV3
-	ns   string
 }
 
-var nodesResource = v3.SchemeGroupVersion.WithResource("nodes")
-
-var nodesKind = v3.SchemeGroupVersion.WithKind("Node")
-
-// Get takes name of the node, and returns the corresponding node object, and an error if there is any.
-func (c *FakeNodes) Get(ctx context.Context, name string, options v1.GetOptions) (result *v3.Node, err error) {
-	emptyResult := &v3.Node{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(nodesResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeNodes(fake *FakeManagementV3, namespace string) managementcattleiov3.NodeInterface {
+	return &fakeNodes{
+		gentype.NewFakeClientWithList[*v3.Node, *v3.NodeList](
+			fake.Fake,
+			namespace,
+			v3.SchemeGroupVersion.WithResource("nodes"),
+			v3.SchemeGroupVersion.WithKind("Node"),
+			func() *v3.Node { return &v3.Node{} },
+			func() *v3.NodeList { return &v3.NodeList{} },
+			func(dst, src *v3.NodeList) { dst.ListMeta = src.ListMeta },
+			func(list *v3.NodeList) []*v3.Node { return gentype.ToPointerSlice(list.Items) },
+			func(list *v3.NodeList, items []*v3.Node) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*v3.Node), err
-}
-
-// List takes label and field selectors, and returns the list of Nodes that match those selectors.
-func (c *FakeNodes) List(ctx context.Context, opts v1.ListOptions) (result *v3.NodeList, err error) {
-	emptyResult := &v3.NodeList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(nodesResource, nodesKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v3.NodeList{ListMeta: obj.(*v3.NodeList).ListMeta}
-	for _, item := range obj.(*v3.NodeList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested nodes.
-func (c *FakeNodes) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(nodesResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a node and creates it.  Returns the server's representation of the node, and an error, if there is any.
-func (c *FakeNodes) Create(ctx context.Context, node *v3.Node, opts v1.CreateOptions) (result *v3.Node, err error) {
-	emptyResult := &v3.Node{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(nodesResource, c.ns, node, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.Node), err
-}
-
-// Update takes the representation of a node and updates it. Returns the server's representation of the node, and an error, if there is any.
-func (c *FakeNodes) Update(ctx context.Context, node *v3.Node, opts v1.UpdateOptions) (result *v3.Node, err error) {
-	emptyResult := &v3.Node{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(nodesResource, c.ns, node, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.Node), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeNodes) UpdateStatus(ctx context.Context, node *v3.Node, opts v1.UpdateOptions) (result *v3.Node, err error) {
-	emptyResult := &v3.Node{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(nodesResource, "status", c.ns, node, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.Node), err
-}
-
-// Delete takes name of the node and deletes it. Returns an error if one occurs.
-func (c *FakeNodes) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(nodesResource, c.ns, name, opts), &v3.Node{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeNodes) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(nodesResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v3.NodeList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched node.
-func (c *FakeNodes) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v3.Node, err error) {
-	emptyResult := &v3.Node{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(nodesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v3.Node), err
 }

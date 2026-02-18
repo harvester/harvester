@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
 	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -37,33 +37,34 @@ type ProviderNetworksGetter interface {
 
 // ProviderNetworkInterface has methods to work with ProviderNetwork resources.
 type ProviderNetworkInterface interface {
-	Create(ctx context.Context, providerNetwork *v1.ProviderNetwork, opts metav1.CreateOptions) (*v1.ProviderNetwork, error)
-	Update(ctx context.Context, providerNetwork *v1.ProviderNetwork, opts metav1.UpdateOptions) (*v1.ProviderNetwork, error)
+	Create(ctx context.Context, providerNetwork *kubeovnv1.ProviderNetwork, opts metav1.CreateOptions) (*kubeovnv1.ProviderNetwork, error)
+	Update(ctx context.Context, providerNetwork *kubeovnv1.ProviderNetwork, opts metav1.UpdateOptions) (*kubeovnv1.ProviderNetwork, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, providerNetwork *v1.ProviderNetwork, opts metav1.UpdateOptions) (*v1.ProviderNetwork, error)
+	UpdateStatus(ctx context.Context, providerNetwork *kubeovnv1.ProviderNetwork, opts metav1.UpdateOptions) (*kubeovnv1.ProviderNetwork, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.ProviderNetwork, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.ProviderNetworkList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*kubeovnv1.ProviderNetwork, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*kubeovnv1.ProviderNetworkList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.ProviderNetwork, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *kubeovnv1.ProviderNetwork, err error)
 	ProviderNetworkExpansion
 }
 
 // providerNetworks implements ProviderNetworkInterface
 type providerNetworks struct {
-	*gentype.ClientWithList[*v1.ProviderNetwork, *v1.ProviderNetworkList]
+	*gentype.ClientWithList[*kubeovnv1.ProviderNetwork, *kubeovnv1.ProviderNetworkList]
 }
 
 // newProviderNetworks returns a ProviderNetworks
 func newProviderNetworks(c *KubeovnV1Client) *providerNetworks {
 	return &providerNetworks{
-		gentype.NewClientWithList[*v1.ProviderNetwork, *v1.ProviderNetworkList](
+		gentype.NewClientWithList[*kubeovnv1.ProviderNetwork, *kubeovnv1.ProviderNetworkList](
 			"provider-networks",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.ProviderNetwork { return &v1.ProviderNetwork{} },
-			func() *v1.ProviderNetworkList { return &v1.ProviderNetworkList{} }),
+			func() *kubeovnv1.ProviderNetwork { return &kubeovnv1.ProviderNetwork{} },
+			func() *kubeovnv1.ProviderNetworkList { return &kubeovnv1.ProviderNetworkList{} },
+		),
 	}
 }

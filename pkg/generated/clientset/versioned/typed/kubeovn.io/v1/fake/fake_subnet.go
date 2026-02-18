@@ -19,120 +19,30 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
+	kubeovniov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubeovn.io/v1"
 	v1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeSubnets implements SubnetInterface
-type FakeSubnets struct {
+// fakeSubnets implements SubnetInterface
+type fakeSubnets struct {
+	*gentype.FakeClientWithList[*v1.Subnet, *v1.SubnetList]
 	Fake *FakeKubeovnV1
 }
 
-var subnetsResource = v1.SchemeGroupVersion.WithResource("subnets")
-
-var subnetsKind = v1.SchemeGroupVersion.WithKind("Subnet")
-
-// Get takes name of the subnet, and returns the corresponding subnet object, and an error if there is any.
-func (c *FakeSubnets) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.Subnet, err error) {
-	emptyResult := &v1.Subnet{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(subnetsResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeSubnets(fake *FakeKubeovnV1) kubeovniov1.SubnetInterface {
+	return &fakeSubnets{
+		gentype.NewFakeClientWithList[*v1.Subnet, *v1.SubnetList](
+			fake.Fake,
+			"",
+			v1.SchemeGroupVersion.WithResource("subnets"),
+			v1.SchemeGroupVersion.WithKind("Subnet"),
+			func() *v1.Subnet { return &v1.Subnet{} },
+			func() *v1.SubnetList { return &v1.SubnetList{} },
+			func(dst, src *v1.SubnetList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.SubnetList) []*v1.Subnet { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1.SubnetList, items []*v1.Subnet) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*v1.Subnet), err
-}
-
-// List takes label and field selectors, and returns the list of Subnets that match those selectors.
-func (c *FakeSubnets) List(ctx context.Context, opts metav1.ListOptions) (result *v1.SubnetList, err error) {
-	emptyResult := &v1.SubnetList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(subnetsResource, subnetsKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1.SubnetList{ListMeta: obj.(*v1.SubnetList).ListMeta}
-	for _, item := range obj.(*v1.SubnetList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested subnets.
-func (c *FakeSubnets) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(subnetsResource, opts))
-}
-
-// Create takes the representation of a subnet and creates it.  Returns the server's representation of the subnet, and an error, if there is any.
-func (c *FakeSubnets) Create(ctx context.Context, subnet *v1.Subnet, opts metav1.CreateOptions) (result *v1.Subnet, err error) {
-	emptyResult := &v1.Subnet{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(subnetsResource, subnet, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.Subnet), err
-}
-
-// Update takes the representation of a subnet and updates it. Returns the server's representation of the subnet, and an error, if there is any.
-func (c *FakeSubnets) Update(ctx context.Context, subnet *v1.Subnet, opts metav1.UpdateOptions) (result *v1.Subnet, err error) {
-	emptyResult := &v1.Subnet{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(subnetsResource, subnet, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.Subnet), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeSubnets) UpdateStatus(ctx context.Context, subnet *v1.Subnet, opts metav1.UpdateOptions) (result *v1.Subnet, err error) {
-	emptyResult := &v1.Subnet{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(subnetsResource, "status", subnet, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.Subnet), err
-}
-
-// Delete takes name of the subnet and deletes it. Returns an error if one occurs.
-func (c *FakeSubnets) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(subnetsResource, name, opts), &v1.Subnet{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeSubnets) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(subnetsResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1.SubnetList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched subnet.
-func (c *FakeSubnets) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Subnet, err error) {
-	emptyResult := &v1.Subnet{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(subnetsResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.Subnet), err
 }

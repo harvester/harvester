@@ -71,10 +71,33 @@ func forVersion(group, kind string, version v1.CustomResourceDefinitionVersion, 
 	if schema == nil {
 		return
 	}
+	attributes.MarkCRD(schema)
 	if len(versionColumns) > 0 {
 		attributes.SetColumns(schema, versionColumns)
 	}
 	if version.Schema != nil && version.Schema.OpenAPIV3Schema != nil {
 		schema.Description = version.Schema.OpenAPIV3Schema.Description
+
+		if hasObservedGeneration(version.Schema.OpenAPIV3Schema) {
+			schemas.SetHasObservedGeneration(schema.Schema, true)
+		}
 	}
+}
+
+func hasObservedGeneration(schema *v1.JSONSchemaProps) bool {
+	if schema == nil {
+		return false
+	}
+	if schema.Properties == nil {
+		return false
+	}
+	status, ok := schema.Properties["status"]
+	if !ok {
+		return false
+	}
+	if status.Properties == nil {
+		return false
+	}
+	_, found := status.Properties["observedGeneration"]
+	return found
 }
