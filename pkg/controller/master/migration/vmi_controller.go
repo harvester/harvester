@@ -26,16 +26,16 @@ type Handler struct {
 }
 
 func (h *Handler) OnVmiChanged(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
-	if vmi == nil || vmi.DeletionTimestamp != nil ||
-		vmi.Annotations == nil || vmi.Status.MigrationState == nil {
+	if vmi == nil || vmi.DeletionTimestamp != nil {
 		return vmi, nil
 	}
 
-	if isVmiWithHarvesterMigrationAnnotation(vmi) && isVmiMigrationDone(vmi) {
-		logrus.Debugf("vmi %s/%s finished migration, reset state", vmi.Namespace, vmi.Name)
+	if IsVmiResetHarvesterMigrationAnnotationRequired(vmi) {
+		logrus.Debugf("vmi %s/%s finished migration, reset Harvester related state", vmi.Namespace, vmi.Name)
+		// note: this is a bit redundant with vmim controller, which runs below function when vmim is finished
 		if err := h.resetHarvesterMigrationStateInVmiAndSyncVM(vmi); err != nil {
-			logrus.Infof("vmi %s/%s finished migration but fail to reset state %s", vmi.Namespace, vmi.Name, err.Error())
-			return vmi, err
+			logrus.Infof("vmi %s/%s finished migration but fail to reset Harvester related state %s", vmi.Namespace, vmi.Name, err.Error())
+			return nil, err
 		}
 	}
 
