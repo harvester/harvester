@@ -22,6 +22,10 @@ type AddonExpansion interface{}
 
 type KeyPairExpansion interface{}
 
+type PVCBackupExpansion interface{}
+
+type PVCRestoreExpansion interface{}
+
 type PreferenceExpansion interface{}
 
 type ResourceQuotaExpansion interface{}

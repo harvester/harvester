@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	whereaboutscniv1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
@@ -29,7 +30,6 @@ import (
 	cdiuploadv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 	capi "sigs.k8s.io/cluster-api/api/v1beta1"
 
-	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
@@ -56,6 +56,8 @@ func main() {
 					harvesterv1.Addon{},
 					harvesterv1.ResourceQuota{},
 					harvesterv1.ScheduleVMBackup{},
+					harvesterv1.PVCBackup{},
+					harvesterv1.PVCRestore{},
 					harvesterv1.VirtualMachineImageDownloader{},
 				},
 				GenerateTypes:   true,
