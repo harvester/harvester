@@ -1,6 +1,7 @@
 package setting
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/slice"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/dynamic"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -88,6 +90,8 @@ type Handler struct {
 	kubeVirtConfigCache  kubevirtv1.KubeVirtCache
 	namespaces           ctlcorev1.NamespaceClient
 	namespacesCache      ctlcorev1.NamespaceCache
+	dynamicClient        *dynamic.DynamicClient
+	ctx                  context.Context
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {

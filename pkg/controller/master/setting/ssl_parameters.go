@@ -2,14 +2,20 @@ package setting
 
 import (
 	"encoding/json"
+	"strings"
 
-	"github.com/rancher/wrangler/v3/pkg/data"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+)
+
+const (
+	defaultTLSOptionName = "default"
 )
 
 func (h *Handler) syncSSLParameters(setting *harvesterv1.Setting) error {
@@ -28,37 +34,49 @@ func (h *Handler) syncSSLParameters(setting *harvesterv1.Setting) error {
 func (h *Handler) updateSSLParameters(sslParameter *settings.SSLParameter) error {
 	logrus.Infof("Update SSL Parameters: Ciphers: %s, Protocols: %s", sslParameter.Ciphers, sslParameter.Protocols)
 
-	helmChartConfig, err := h.helmChartConfigCache.Get(util.KubeSystemNamespace, util.Rke2IngressNginxAppName)
-	if err != nil {
-		return err
-	}
-	toUpdateHelmChartConfig := helmChartConfig.DeepCopy()
-
-	var values = make(map[string]interface{})
-	if err := yaml.Unmarshal([]byte(helmChartConfig.Spec.ValuesContent), &values); err != nil {
-		return err
-	}
-
+	tlsOptionRes := schema.GroupVersionResource{Group: "traefik.io", Version: "v1alpha1", Resource: "tlsoptions"}
 	if sslParameter.Ciphers == "" {
-		data.RemoveValue(values, "controller", "config", "ssl-ciphers")
-	} else {
-		data.PutValue(values, sslParameter.Ciphers, "controller", "config", "ssl-ciphers")
+		return h.dynamicClient.Resource(tlsOptionRes).Namespace(util.KubeSystemNamespace).Delete(h.ctx, defaultTLSOptionName, metav1.DeleteOptions{})
 	}
-	if sslParameter.Protocols == "" {
-		data.RemoveValue(values, "controller", "config", "ssl-protocols")
-	} else {
-		data.PutValue(values, sslParameter.Protocols, "controller", "config", "ssl-protocols")
-	}
+	ciphers := strings.Split(sslParameter.Ciphers, ":")
+	obj := generateUnstructuredTLSOption(ciphers)
+	return h.apply.WithDynamicLookup().WithSetID(util.HarvesterChartReleaseName).ApplyObjects(obj)
+}
 
-	newValuesContent, err := yaml.Marshal(values)
-	if err != nil {
-		return err
-	}
+/*
+# Generate a TLSOption object
+# https://doc.traefik.io/traefik/reference/routing-configuration/kubernetes/crd/tls/tlsoption/
+apiVersion: traefik.io/v1alpha1
+kind: TLSOption
+metadata:
+  name: mytlsoption
+  namespace: default
 
-	toUpdateHelmChartConfig.Spec.ValuesContent = string(newValuesContent)
-	if _, err := h.helmChartConfigs.Update(toUpdateHelmChartConfig); err != nil {
-		return err
-	}
+spec:
+  minVersion: VersionTLS12
+  sniStrict: true
+  cipherSuites:
+    - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    - TLS_RSA_WITH_AES_256_GCM_SHA384
+  clientAuth:
+    secretNames:
+      - secret-ca1
+      - secret-ca2
+    clientAuthType: VerifyClientCertIfGiven
+*/
 
-	return nil
+func generateUnstructuredTLSOption(ciphers []string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "traefik.io/v1alpha1",
+			"kind":       "TLSOption",
+			"metadata": map[string]interface{}{
+				"name":      defaultTLSOptionName,
+				"namespace": util.KubeSystemNamespace,
+			},
+			"spec": map[string]interface{}{
+				"cipherSuites": ciphers,
+			},
+		},
+	}
 }
