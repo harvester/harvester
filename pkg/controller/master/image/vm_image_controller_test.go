@@ -141,6 +141,7 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 			vmio, err := common.GetVMIOperator(
 				fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 				fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+				fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
 				http.Client{},
 			)
 			assert.Nil(t, err, "should create VMIOperator")
