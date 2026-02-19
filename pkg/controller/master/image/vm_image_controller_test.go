@@ -9,7 +9,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	fakecore "k8s.io/client-go/kubernetes/fake"
+	kubefake "k8s.io/client-go/kubernetes/fake"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -118,12 +118,12 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup fake clients
-			var coreClientset = fakecore.NewSimpleClientset()
+			var kubeFakeClient = kubefake.NewSimpleClientset()
 			var harvFakeClient = fakegenerated.NewSimpleClientset()
 
 			// Add StorageClass
 			if tt.args.storageClass != nil {
-				err := coreClientset.Tracker().Add(tt.args.storageClass)
+				err := kubeFakeClient.Tracker().Add(tt.args.storageClass)
 				assert.Nil(t, err, "should add StorageClass to tracker")
 			}
 
@@ -143,6 +143,7 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 			vmio, err := common.GetVMIOperator(
 				fakeclients.VirtualMachineImageClient(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
 				fakeclients.VirtualMachineImageCache(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
+				fakeclients.StorageClassCache(kubeFakeClient.StorageV1().StorageClasses),
 				http.Client{},
 			)
 			assert.Nil(t, err, "should create VMIOperator")
@@ -151,8 +152,8 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 			cdiBackend := cdi.GetBackend(
 				context.Background(),
 				fakeclients.DataVolumeClient(harvFakeClient.CdiV1beta1().DataVolumes),
-				fakeclients.StorageClassClient(coreClientset.StorageV1().StorageClasses),
-				fakeclients.PersistentVolumeClaimCache(coreClientset.CoreV1().PersistentVolumeClaims),
+				fakeclients.StorageClassClient(kubeFakeClient.StorageV1().StorageClasses),
+				fakeclients.PersistentVolumeClaimCache(kubeFakeClient.CoreV1().PersistentVolumeClaims),
 				vmio,
 			)
 
