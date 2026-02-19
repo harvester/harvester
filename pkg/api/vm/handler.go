@@ -912,36 +912,6 @@ func getMigrationUID(vmi *kubevirtv1.VirtualMachineInstance) string {
 	return ""
 }
 
-func (h *vmActionHandler) updateVMVolumeClaimTemplate(vm *kubevirtv1.VirtualMachine, updateVolumeClaimTemplate func([]corev1.PersistentVolumeClaim) ([]corev1.PersistentVolumeClaim, bool)) error {
-	var volumeClaimTemplates []corev1.PersistentVolumeClaim
-	vmCopy := vm.DeepCopy()
-	anno := vmCopy.GetAnnotations()
-	if volumeClaimTemplatesJSON, ok := anno[util.AnnotationVolumeClaimTemplates]; ok {
-		if err := json.Unmarshal([]byte(volumeClaimTemplatesJSON), &volumeClaimTemplates); err != nil {
-			return fmt.Errorf("failed to unserialize %s, error: %v", util.AnnotationVolumeClaimTemplates, err)
-		}
-	}
-
-	var changed bool
-	volumeClaimTemplates, changed = updateVolumeClaimTemplate(volumeClaimTemplates)
-	if !changed {
-		return nil
-	}
-
-	volumeClaimTemplatesJSON, err := json.Marshal(volumeClaimTemplates)
-	if err != nil {
-		return fmt.Errorf("failed to serialize payload %v, error: %v", volumeClaimTemplates, err)
-	}
-	anno[util.AnnotationVolumeClaimTemplates] = string(volumeClaimTemplatesJSON)
-	vmCopy.SetAnnotations(anno)
-	if !reflect.DeepEqual(vm, vmCopy) {
-		if _, err = h.vmClient.Update(vmCopy); err != nil {
-			return fmt.Errorf("failed to update vm %s/%s, error: %v", vm.Namespace, vm.Name, err)
-		}
-	}
-	return nil
-}
-
 // Since the LH volume creation and replica scheduling are asynchronous
 // Even the CreateVolume csi call success, the replica scheduling may still fail
 // However for the sc with VolumeBindingMode is Immediate
