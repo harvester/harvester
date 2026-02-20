@@ -3,10 +3,12 @@ package setting
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/relatedresource"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/harvester/harvester/pkg/config"
 	harvSettings "github.com/harvester/harvester/pkg/settings"
@@ -35,6 +37,10 @@ func Register(ctx context.Context, management *config.Management, options config
 	rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 	kubevirt := management.VirtFactory.Kubevirt().V1().KubeVirt()
 	namespaces := management.CoreFactory.Core().V1().Namespace()
+	dynamicClient, err := dynamic.NewForConfig(management.RestConfig)
+	if err != nil {
+		return fmt.Errorf("error generating dynamic client in settings handler: %w", err)
+	}
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -71,6 +77,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		kubeVirtConfigCache:  kubevirt.Cache(),
 		namespaces:           namespaces,
 		namespacesCache:      namespaces.Cache(),
+		dynamicClient:        dynamicClient,
+		ctx:                  ctx,
 
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,

@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/rancher/wrangler/v3/pkg/data"
-	"gopkg.in/yaml.v3"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
@@ -13,8 +14,10 @@ import (
 )
 
 const (
-	rancherDeploymentName = "rancher"
-	tlsIngressSecretName  = "tls-ingress"
+	rancherDeploymentName       = "rancher"
+	tlsIngressSecretName        = "tls-ingress"
+	traefikDefaultIngressSecret = "traefik-ingress"
+	defaultTLSStoreName         = "default"
 )
 
 func (h *Handler) syncSSLCertificate(setting *harvesterv1.Setting) error {
@@ -65,33 +68,73 @@ func (h *Handler) updateTLSSecret(publicCertificate, privateKey string) error {
 
 // updateIngressDefaultCertificate updates default ssl certificate of nginx ingress controller
 func (h *Handler) updateIngressDefaultCertificate(namespace, secretName string) error {
-	secretRef := fmt.Sprintf("%s/%s", namespace, secretName)
-	helmChartConfig, err := h.helmChartConfigCache.Get(util.KubeSystemNamespace, util.Rke2IngressNginxAppName)
+	// generate traefik secret
+	traefikSecret, err := h.generateDefaultCertificate(namespace, secretName)
 	if err != nil {
 		return err
 	}
-	toUpdateHelmChartConfig := helmChartConfig.DeepCopy()
-	var values = make(map[string]interface{})
 
-	if err := yaml.Unmarshal([]byte(helmChartConfig.Spec.ValuesContent), &values); err != nil {
-		return err
-	}
-	data.PutValue(values, secretRef, "controller", "extraArgs", "default-ssl-certificate")
-	newValuesContent, err := yaml.Marshal(values)
+	err = h.apply.WithDynamicLookup().WithSetID(util.HarvesterChartReleaseName).ApplyObjects(traefikSecret)
 	if err != nil {
-		return err
+		return fmt.Errorf("error applying default traefik secret: %w", err)
 	}
-	toUpdateHelmChartConfig.Spec.ValuesContent = string(newValuesContent)
-	if _, err := h.helmChartConfigs.Update(toUpdateHelmChartConfig); err != nil {
-		return err
-	}
-	return nil
+
+	tlsStore := generateTLSStore(traefikDefaultIngressSecret)
+	return h.apply.WithDynamicLookup().WithSetID(util.HarvesterChartReleaseName).ApplyObjects(tlsStore)
 }
 
 func (h *Handler) redeploySSLCertificateWorkload() error {
-	if err := h.redeployDaemonset(util.KubeSystemNamespace, util.Rke2IngressNginxControllerName); err != nil {
+	if err := h.redeployDaemonset(util.KubeSystemNamespace, util.Rke2TraefikControllerName); err != nil {
 		return err
 	}
 
 	return h.redeployDeployment(util.CattleSystemNamespaceName, rancherDeploymentName)
+}
+
+func (h *Handler) generateDefaultCertificate(namespace, name string) (*corev1.Secret, error) {
+	secretObj, err := h.secretCache.Get(namespace, name)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching secret %s/%s: %w", namespace, name, err)
+	}
+
+	traefikSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      traefikDefaultIngressSecret,
+			Namespace: util.KubeSystemNamespace,
+		},
+		Data: secretObj.Data,
+	}
+	return traefikSecret, nil
+}
+
+/*
+# Generate TLSStore object
+# https://doc.traefik.io/traefik/reference/routing-configuration/kubernetes/crd/tls/tlsstore/
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+
+	name: default
+
+spec:
+
+	defaultCertificate:
+	  secretName:  supersecret
+*/
+func generateTLSStore(secretName string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "traefik.io/v1alpha1",
+			"kind":       "TLSStore",
+			"metadata": map[string]interface{}{
+				"name":      defaultTLSStoreName,
+				"namespace": util.KubeSystemNamespace,
+			},
+			"spec": map[string]interface{}{
+				"defaultCertificate": map[string]interface{}{
+					"secretName": secretName,
+				},
+			},
+		},
+	}
 }
