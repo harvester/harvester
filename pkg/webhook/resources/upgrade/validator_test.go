@@ -8,11 +8,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	harvesterFake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	fake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -530,9 +529,9 @@ func TestUpgradeValidator_validatePauseMapAnnotation(t *testing.T) {
 			for _, node := range givenNodes {
 				nodes = append(nodes, node)
 			}
-			k8sclientset := k8sfake.NewSimpleClientset(nodes...)
+			clientset := fake.NewSimpleClientset(nodes...)
 			validator := &upgradeValidator{
-				nodes: fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+				nodes: fakeclients.NodeCache(clientset.CoreV1().Nodes),
 			}
 
 			err := validator.validatePauseMapAnnotation(tc.upgrade)
@@ -632,15 +631,15 @@ func Test_validateAddons(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		harvesterClientSet := harvesterFake.NewSimpleClientset()
-		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
 
 		validator := NewValidator(nil, fakeAddonCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, "").(*upgradeValidator)
 		addon := getTestAddon(tc.enabled)
 		if tc.addonState != "" {
 			setAddonState(addon, tc.addonState)
 		}
-		err := harvesterClientSet.Tracker().Add(addon)
+		err := clientset.Tracker().Add(addon)
 		assert.Nil(t, err)
 
 		err = validator.checkAddons()

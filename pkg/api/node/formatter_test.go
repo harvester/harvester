@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -498,15 +497,14 @@ func Test_listUnhealthyVM(t *testing.T) {
 	assert := require.New(t)
 	typedObjects := []runtime.Object{workingVolume, workingVM, workingReplica1, workingReplica2, workingReplica3, failingVolume, failingVM,
 		failingReplica1, failingReplica2, failingReplica3, failingVM2, failingVolume2, failingReplica12, failingReplica22, failingReplica32}
-	client := fake.NewSimpleClientset(typedObjects...)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+	clientset := fake.NewSimpleClientset(typedObjects...)
 
 	h := ActionHandler{
-		nodeCache:                   fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-		nodeClient:                  fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
-		longhornVolumeCache:         fakeclients.LonghornVolumeCache(client.LonghornV1beta2().Volumes),
-		longhornReplicaCache:        fakeclients.LonghornReplicaCache(client.LonghornV1beta2().Replicas),
-		virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(client.KubevirtV1().VirtualMachineInstances),
+		nodeCache:                   fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		nodeClient:                  fakeclients.NodeClient(clientset.CoreV1().Nodes),
+		longhornVolumeCache:         fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		longhornReplicaCache:        fakeclients.LonghornReplicaCache(clientset.LonghornV1beta2().Replicas),
+		virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
 	}
 
 	fakeHTTP := httptest.NewRecorder()
@@ -524,15 +522,16 @@ func Test_powerActionNotPossible(t *testing.T) {
 	err := harvesterv1beta1.AddToScheme(scheme.Scheme)
 	assert.NoError(err, "expected no error building scheme")
 
-	typedObjects := []runtime.Object{}
-	client := fake.NewSimpleClientset(typedObjects...)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+	typedObjects := []runtime.Object{
+		testNode,
+	}
+	clientset := fake.NewSimpleClientset(typedObjects...)
 	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme)
 
 	h := ActionHandler{
-		nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-		nodeClient:    fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
-		addonCache:    fakeclients.AddonCache(client.HarvesterhciV1beta1().Addons),
+		nodeCache:     fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		nodeClient:    fakeclients.NodeClient(clientset.CoreV1().Nodes),
+		addonCache:    fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons),
 		dynamicClient: fakeDynamicClient,
 	}
 	fakeHTTP := httptest.NewRecorder()
@@ -548,15 +547,14 @@ func Test_powerActionPossible(t *testing.T) {
 	err := harvesterv1beta1.AddToScheme(scheme.Scheme)
 	assert.NoError(err, "expected no error building scheme")
 
-	typedObjects := []runtime.Object{seederAddon}
-	client := fake.NewSimpleClientset(typedObjects...)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+	typedObjects := []runtime.Object{seederAddon, testNode}
+	clientset := fake.NewSimpleClientset(typedObjects...)
 	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, dynamicInventoryObj)
 
 	h := ActionHandler{
-		nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-		nodeClient:    fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
-		addonCache:    fakeclients.AddonCache(client.HarvesterhciV1beta1().Addons),
+		nodeCache:     fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		nodeClient:    fakeclients.NodeClient(clientset.CoreV1().Nodes),
+		addonCache:    fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons),
 		dynamicClient: fakeDynamicClient,
 	}
 	fakeHTTP := httptest.NewRecorder()
@@ -569,11 +567,12 @@ func Test_powerAction(t *testing.T) {
 	assert := require.New(t)
 
 	powerOperation := "shutdown"
-	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+	typedObjects := []runtime.Object{testNode}
+	clientset := fake.NewSimpleClientset(typedObjects...)
 	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, dynamicInventoryObj)
 	h := ActionHandler{
-		nodeCache:     fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-		nodeClient:    fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
+		nodeCache:     fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		nodeClient:    fakeclients.NodeClient(clientset.CoreV1().Nodes),
 		dynamicClient: fakeDynamicClient,
 	}
 
@@ -591,11 +590,12 @@ func Test_invalidPowerAction(t *testing.T) {
 	assert := require.New(t)
 
 	powerOperation := "something"
-	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+	typedObjects := []runtime.Object{testNode}
+	clientset := fake.NewSimpleClientset(typedObjects...)
 
 	h := ActionHandler{
-		nodeCache:  fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-		nodeClient: fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
+		nodeCache:  fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		nodeClient: fakeclients.NodeClient(clientset.CoreV1().Nodes),
 	}
 
 	err := h.powerAction(testNode, powerOperation)
@@ -604,16 +604,15 @@ func Test_invalidPowerAction(t *testing.T) {
 
 func Test_listUnmigratableVM(t *testing.T) {
 	assert := require.New(t)
-	typedObjects := []runtime.Object{workingVM, vmWithContainerDisk, vmWithCDROM}
-	client := fake.NewSimpleClientset(typedObjects...)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode, testNode2)
+	typedObjects := []runtime.Object{testNode, testNode2, workingVM, vmWithContainerDisk, vmWithCDROM}
+	clientset := fake.NewSimpleClientset(typedObjects...)
 
 	h := ActionHandler{
-		nodeCache:                   fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-		nodeClient:                  fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
-		longhornVolumeCache:         fakeclients.LonghornVolumeCache(client.LonghornV1beta2().Volumes),
-		longhornReplicaCache:        fakeclients.LonghornReplicaCache(client.LonghornV1beta2().Replicas),
-		virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(client.KubevirtV1().VirtualMachineInstances),
+		nodeCache:                   fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		nodeClient:                  fakeclients.NodeClient(clientset.CoreV1().Nodes),
+		longhornVolumeCache:         fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		longhornReplicaCache:        fakeclients.LonghornReplicaCache(clientset.LonghornV1beta2().Replicas),
+		virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
 	}
 
 	fakeHTTP := httptest.NewRecorder()
@@ -627,16 +626,15 @@ func Test_listUnmigratableVM(t *testing.T) {
 
 func Test_vmWithPCIDevices(t *testing.T) {
 	assert := require.New(t)
-	typedObjects := []runtime.Object{workingVM, vmWithPCIDevice}
-	client := fake.NewSimpleClientset(typedObjects...)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+	typedObjects := []runtime.Object{testNode, workingVM, vmWithPCIDevice}
+	clientset := fake.NewSimpleClientset(typedObjects...)
 
 	h := ActionHandler{
-		nodeCache:                   fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-		nodeClient:                  fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
-		longhornVolumeCache:         fakeclients.LonghornVolumeCache(client.LonghornV1beta2().Volumes),
-		longhornReplicaCache:        fakeclients.LonghornReplicaCache(client.LonghornV1beta2().Replicas),
-		virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(client.KubevirtV1().VirtualMachineInstances),
+		nodeCache:                   fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		nodeClient:                  fakeclients.NodeClient(clientset.CoreV1().Nodes),
+		longhornVolumeCache:         fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		longhornReplicaCache:        fakeclients.LonghornReplicaCache(clientset.LonghornV1beta2().Replicas),
+		virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
 	}
 
 	fakeHTTP := httptest.NewRecorder()
@@ -678,16 +676,15 @@ func Test_vmMigrationPossible(t *testing.T) {
 
 	for _, test := range testCases {
 		assert := require.New(t)
-		typedObjects := []runtime.Object{workingVM, test.vmi}
-		client := fake.NewSimpleClientset(typedObjects...)
-		k8sclientset := k8sfake.NewSimpleClientset(testNode, testNode2, testNode3, testNode4)
+		typedObjects := []runtime.Object{testNode, testNode2, testNode3, testNode4, workingVM, test.vmi}
+		clientset := fake.NewSimpleClientset(typedObjects...)
 
 		h := ActionHandler{
-			nodeCache:                   fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-			nodeClient:                  fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
-			longhornVolumeCache:         fakeclients.LonghornVolumeCache(client.LonghornV1beta2().Volumes),
-			longhornReplicaCache:        fakeclients.LonghornReplicaCache(client.LonghornV1beta2().Replicas),
-			virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(client.KubevirtV1().VirtualMachineInstances),
+			nodeCache:                   fakeclients.NodeCache(clientset.CoreV1().Nodes),
+			nodeClient:                  fakeclients.NodeClient(clientset.CoreV1().Nodes),
+			longhornVolumeCache:         fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+			longhornReplicaCache:        fakeclients.LonghornReplicaCache(clientset.LonghornV1beta2().Replicas),
+			virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
 		}
 		fakeHTTP := httptest.NewRecorder()
 		err := h.listUnhealthyVM(fakeHTTP, testNode)

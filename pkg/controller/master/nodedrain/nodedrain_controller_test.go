@@ -10,7 +10,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -264,18 +263,17 @@ func Test_listVMI(t *testing.T) {
 	assert := require.New(t)
 	typedObjects := []runtime.Object{workingVolume, workingVM, workingReplica1, workingReplica2, workingReplica3, failingVolume, failingVM,
 		failingReplica1, failingReplica2, failingReplica3, failingVM2, failingVolume2, failingReplica12, failingReplica22, failingReplica32}
-	client := fake.NewSimpleClientset(typedObjects...)
-	k8sclientset := k8sfake.NewSimpleClientset(testNode)
+	clientset := fake.NewSimpleClientset(typedObjects...)
 
 	ndc := &ControllerHandler{
-		nodes:                        fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
-		nodeCache:                    fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-		virtualMachineInstanceClient: fakeclients.VirtualMachineInstanceClient(client.KubevirtV1().VirtualMachineInstances),
-		virtualMachineInstanceCache:  fakeclients.VirtualMachineInstanceCache(client.KubevirtV1().VirtualMachineInstances),
-		virtualMachineClient:         fakeclients.VirtualMachineClient(client.KubevirtV1().VirtualMachines),
-		virtualMachineCache:          fakeclients.VirtualMachineCache(client.KubevirtV1().VirtualMachines),
-		longhornVolumeCache:          fakeclients.LonghornVolumeCache(client.LonghornV1beta2().Volumes),
-		longhornReplicaCache:         fakeclients.LonghornReplicaCache(client.LonghornV1beta2().Replicas),
+		nodes:                        fakeclients.NodeClient(clientset.CoreV1().Nodes),
+		nodeCache:                    fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		virtualMachineInstanceClient: fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
+		virtualMachineInstanceCache:  fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+		virtualMachineClient:         fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+		virtualMachineCache:          fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+		longhornVolumeCache:          fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		longhornReplicaCache:         fakeclients.LonghornReplicaCache(clientset.LonghornV1beta2().Replicas),
 		restConfig:                   nil,
 		context:                      context.TODO(),
 	}
@@ -614,11 +612,11 @@ func Test_virtualMachineContainsHostName(t *testing.T) {
 		},
 	}
 
-	k8sclientset := k8sfake.NewSimpleClientset(node1, node2, node3)
+	clientset := fake.NewSimpleClientset(node1, node2, node3)
 
 	ndc := &ControllerHandler{
-		nodes:      fakeclients.NodeClient(k8sclientset.CoreV1().Nodes),
-		nodeCache:  fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+		nodes:      fakeclients.NodeClient(clientset.CoreV1().Nodes),
+		nodeCache:  fakeclients.NodeCache(clientset.CoreV1().Nodes),
 		restConfig: nil,
 		context:    context.TODO(),
 	}

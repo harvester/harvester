@@ -73,34 +73,37 @@ var (
 
 type vmActionHandler struct {
 	namespace                 string
-	datavolumeClient          ctlcdiv1.DataVolumeClient
-	kubevirtCache             ctlkubevirtv1.KubeVirtCache
-	vms                       ctlkubevirtv1.VirtualMachineClient
-	vmis                      ctlkubevirtv1.VirtualMachineInstanceClient
-	vmCache                   ctlkubevirtv1.VirtualMachineCache
-	vmiCache                  ctlkubevirtv1.VirtualMachineInstanceCache
-	vmims                     ctlkubevirtv1.VirtualMachineInstanceMigrationClient
-	vmTemplateClient          ctlharvesterv1.VirtualMachineTemplateClient
-	vmTemplateVersionClient   ctlharvesterv1.VirtualMachineTemplateVersionClient
-	vmimCache                 ctlkubevirtv1.VirtualMachineInstanceMigrationCache
-	backups                   ctlharvesterv1.VirtualMachineBackupClient
-	backupCache               ctlharvesterv1.VirtualMachineBackupCache
-	restores                  ctlharvesterv1.VirtualMachineRestoreClient
-	settingCache              ctlharvesterv1.SettingCache
-	nadCache                  ctlcniv1.NetworkAttachmentDefinitionCache
-	nodeCache                 ctlcorev1.NodeCache
-	pvcCache                  ctlcorev1.PersistentVolumeClaimCache
-	pvCache                   ctlcorev1.PersistentVolumeCache
-	secretClient              ctlcorev1.SecretClient
-	secretCache               ctlcorev1.SecretCache
-	virtSubresourceRestClient rest.Interface
-	virtRestClient            rest.Interface
-	vmImages                  ctlharvesterv1.VirtualMachineImageClient
-	vmImageCache              ctlharvesterv1.VirtualMachineImageCache
-	storageClassCache         ctlstoragev1.StorageClassCache
-	resourceQuotaClient       ctlharvesterv1.ResourceQuotaClient
 	clientSet                 kubernetes.Interface
-	podCache                  ctlcorev1.PodCache
+	virtRestClient            rest.Interface
+	virtSubresourceRestClient rest.Interface
+
+	backupClient            ctlharvesterv1.VirtualMachineBackupClient
+	datavolumeClient        ctlcdiv1.DataVolumeClient
+	pvcClient               ctlcorev1.PersistentVolumeClaimClient
+	resourceQuotaClient     ctlharvesterv1.ResourceQuotaClient
+	restoreClient           ctlharvesterv1.VirtualMachineRestoreClient
+	secretClient            ctlcorev1.SecretClient
+	vmClient                ctlkubevirtv1.VirtualMachineClient
+	vmImageClient           ctlharvesterv1.VirtualMachineImageClient
+	vmTemplateClient        ctlharvesterv1.VirtualMachineTemplateClient
+	vmTemplateVersionClient ctlharvesterv1.VirtualMachineTemplateVersionClient
+	vmiClient               ctlkubevirtv1.VirtualMachineInstanceClient
+	vmimClient              ctlkubevirtv1.VirtualMachineInstanceMigrationClient
+
+	backupCache       ctlharvesterv1.VirtualMachineBackupCache
+	kubevirtCache     ctlkubevirtv1.KubeVirtCache
+	nadCache          ctlcniv1.NetworkAttachmentDefinitionCache
+	nodeCache         ctlcorev1.NodeCache
+	podCache          ctlcorev1.PodCache
+	pvCache           ctlcorev1.PersistentVolumeCache
+	pvcCache          ctlcorev1.PersistentVolumeClaimCache
+	secretCache       ctlcorev1.SecretCache
+	settingCache      ctlharvesterv1.SettingCache
+	storageClassCache ctlstoragev1.StorageClassCache
+	vmCache           ctlkubevirtv1.VirtualMachineCache
+	vmImageCache      ctlharvesterv1.VirtualMachineImageCache
+	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
+	vmimCache         ctlkubevirtv1.VirtualMachineInstanceMigrationCache
 }
 
 func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
@@ -369,7 +372,7 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 		return err
 	}
 	vmCopy.Spec.Template.Spec.Volumes = append(vmCopy.Spec.Template.Spec.Volumes, newVol)
-	_, err = h.vms.Update(vmCopy)
+	_, err = h.vmClient.Update(vmCopy)
 	return err
 }
 
@@ -402,13 +405,13 @@ func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace 
 	}
 
 	vmCopy.Spec.Template.Spec.Volumes = volumes
-	if _, err = h.vms.Update(vmCopy); err != nil {
+	if _, err = h.vmClient.Update(vmCopy); err != nil {
 		return err
 	}
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		for _, name := range toRemoveClaimNames {
-			if err := h.clientSet.CoreV1().PersistentVolumeClaims(vm.Namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
+			if err := h.pvcClient.Delete(vm.Namespace, name, &metav1.DeleteOptions{}); err != nil {
 				if !apierrors.IsNotFound(err) {
 					return err
 				}
@@ -462,7 +465,7 @@ func (h *vmActionHandler) stopVM(namespace, name string) error {
 	runStrategy := kubevirtv1.RunStrategyHalted
 	vmCopy.Spec.RunStrategy = &runStrategy
 	if !reflect.DeepEqual(vm, vmCopy) {
-		_, err = h.vms.Update(vmCopy)
+		_, err = h.vmClient.Update(vmCopy)
 		return err
 	}
 	return nil
@@ -580,7 +583,7 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 		}
 	}
 
-	vmimc, err := h.vmims.Create(vmim)
+	vmimc, err := h.vmimClient.Create(vmim)
 	if err != nil {
 		logrus.Infof("start migration of vm %s/%s to node %s but fail to create vmim %s", namespace, vmName, nodeName, err.Error())
 		return err
@@ -627,7 +630,7 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 			}
 			// Migration is aborted by deleting the VMIM object
 			logrus.Infof("abort migration of vm %s/%s, delete vmim %s", namespace, name, vmim.Name)
-			if err := h.vmims.Delete(namespace, vmim.Name, &metav1.DeleteOptions{}); err != nil {
+			if err := h.vmimClient.Delete(namespace, vmim.Name, &metav1.DeleteOptions{}); err != nil {
 				return err
 			}
 		}
@@ -850,7 +853,7 @@ func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input Backu
 			Type: harvesterv1.Backup,
 		},
 	}
-	if _, err := h.backups.Create(backup); err != nil {
+	if _, err := h.backupClient.Create(backup); err != nil {
 		return fmt.Errorf("failed to create VM backup, error: %s", err.Error())
 	}
 	return nil
@@ -877,7 +880,7 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 			NewVM:                         false,
 		},
 	}
-	_, err := h.restores.Create(restore)
+	_, err := h.restoreClient.Create(restore)
 	if err != nil {
 		return fmt.Errorf("failed to create restore, error: %s", err.Error())
 	}
@@ -1144,7 +1147,7 @@ func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMac
 			},
 		}
 
-		if _, err := h.vmImages.Create(vmImage); err != nil {
+		if _, err := h.vmImageClient.Create(vmImage); err != nil {
 			return err
 		}
 	}
@@ -1259,7 +1262,7 @@ func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string,
 		return err
 	}
 
-	_, err = h.vms.Update(vmCopy)
+	_, err = h.vmClient.Update(vmCopy)
 	return err
 }
 
@@ -1302,7 +1305,7 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 		return err
 	}
 
-	_, err = h.vms.Update(vmCopy)
+	_, err = h.vmClient.Update(vmCopy)
 	return err
 }
 
@@ -1374,7 +1377,7 @@ func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, in
 	}
 	vmCopy.Spec.Template.Spec.Networks = append(vmCopy.Spec.Template.Spec.Networks, newNetwork)
 
-	_, err = h.vms.Update(vmCopy)
+	_, err = h.vmClient.Update(vmCopy)
 	if err != nil {
 		return err
 	}
@@ -1417,7 +1420,7 @@ func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string,
 		return fmt.Errorf("interface %s doesn't exist", input.InterfaceName)
 	}
 
-	_, err = h.vms.Update(vmCopy)
+	_, err = h.vmClient.Update(vmCopy)
 	if err != nil {
 		return err
 	}
@@ -1472,7 +1475,7 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 	}
 
 	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(newPVCsString)
-	if newVM, err = h.vms.Create(newVM); err != nil {
+	if newVM, err = h.vmClient.Create(newVM); err != nil {
 		return fmt.Errorf("cannot create new VM %s/%s, err: %w", newVM.Namespace, newVM.Name, err)
 	}
 
@@ -1681,7 +1684,7 @@ func (h *vmActionHandler) dismissInsufficientResourceQuota(name, namespace strin
 
 	vmCpy := vm.DeepCopy()
 	delete(vmCpy.Annotations, util.AnnotationInsufficientResourceQuota)
-	if _, err = h.vms.Update(vmCpy); err != nil {
+	if _, err = h.vmClient.Update(vmCpy); err != nil {
 		return fmt.Errorf("failed to update vm %s/%s, error: %v", vm.Namespace, vm.Name, err)
 	}
 	return nil
@@ -1864,6 +1867,6 @@ func (h *vmActionHandler) cpuAndMemoryHotplug(namespace, name string, input CPUA
 		"patchOps":  patchOps,
 	}).Info("patch cpu and memory hotplug")
 	patchData := fmt.Sprintf("[%s]", strings.Join(patchOps, ","))
-	_, err := h.vms.Patch(namespace, name, k8stypes.JSONPatchType, []byte(patchData))
+	_, err := h.vmClient.Patch(namespace, name, k8stypes.JSONPatchType, []byte(patchData))
 	return err
 }

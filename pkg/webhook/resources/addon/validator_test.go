@@ -8,11 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	harvesterFake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	fake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -461,17 +460,16 @@ func Test_validateUpdatedAddon(t *testing.T) {
 		},
 	}
 
-	harvesterClientSet := harvesterFake.NewSimpleClientset()
-	k8sclientset := k8sfake.NewClientset()
+	clientset := fake.NewSimpleClientset()
 
-	fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
-	fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
-	fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
-	fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
-	fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-	upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
-	fakeNodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
-	fakeVMCache := fakeclients.VirtualMachineCache(harvesterClientSet.KubevirtV1().VirtualMachines)
+	fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+	fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+	fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+	fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+	fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+	upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
+	fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+	fakeVMCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
 	validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, fakeVMCache).(*addonValidator)
 
 	for _, tc := range testCases {
@@ -541,19 +539,18 @@ func Test_validateNewAddon(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		harvesterClientSet := harvesterFake.NewSimpleClientset()
-		k8sclientset := k8sfake.NewClientset()
-		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
-		fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
-		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
-		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
-		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-		fakeNodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
-		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
 
 		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
 		for _, addon := range tc.addonList {
-			err := harvesterClientSet.Tracker().Add(addon)
+			err := clientset.Tracker().Add(addon)
 			assert.Nil(t, err)
 		}
 
@@ -905,22 +902,21 @@ func Test_validateRancherLoggingAddonWithClusterFlow(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		harvesterClientSet := harvesterFake.NewSimpleClientset()
-		k8sclientset := k8sfake.NewClientset()
-		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
-		fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
-		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
-		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
-		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-		fakeNodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
-		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
 		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
 		for _, cf := range tc.clusterFlows {
-			err := harvesterClientSet.Tracker().Add(cf)
+			err := clientset.Tracker().Add(cf)
 			assert.Nil(t, err)
 		}
 		for _, co := range tc.clusterOutputs {
-			err := harvesterClientSet.Tracker().Add(co)
+			err := clientset.Tracker().Add(co)
 			assert.Nil(t, err)
 		}
 
@@ -1188,22 +1184,21 @@ func Test_validateRancherLoggingAddonWithFlow(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		harvesterClientSet := harvesterFake.NewSimpleClientset()
-		k8sclientset := k8sfake.NewClientset()
-		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
-		fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
-		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
-		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
-		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-		fakeNodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
-		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
 		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
 		for _, cf := range tc.flows {
-			err := harvesterClientSet.Tracker().Add(cf)
+			err := clientset.Tracker().Add(cf)
 			assert.Nil(t, err)
 		}
 		for _, co := range tc.outputs {
-			err := harvesterClientSet.Tracker().Add(co)
+			err := clientset.Tracker().Add(co)
 			assert.Nil(t, err)
 		}
 
@@ -1420,19 +1415,17 @@ func Test_validateRancherLoggingWithUpgradeLog(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-
-		harvesterClientSet := harvesterFake.NewSimpleClientset()
-		k8sclientset := k8sfake.NewClientset()
-		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
-		fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
-		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
-		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
-		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-		fakeNodeCache := fakeclients.NodeCache(k8sclientset.CoreV1().Nodes)
-		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
 		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
 		for _, upgradeLog := range tc.upgradeLogs {
-			err := harvesterClientSet.Tracker().Add(upgradeLog)
+			err := clientset.Tracker().Add(upgradeLog)
 			assert.Nil(t, err)
 		}
 
@@ -1535,16 +1528,16 @@ func Test_validateRancherLoggingWithUpgradeLogThenUpgradeAddon(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		harvesterClientSet := harvesterFake.NewSimpleClientset()
-		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
-		fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
-		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
-		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
-		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
 		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil).(*addonValidator)
 		for _, upgradeLog := range tc.upgradeLogs {
-			err := harvesterClientSet.Tracker().Add(upgradeLog)
+			err := clientset.Tracker().Add(upgradeLog)
 			assert.Nil(t, err)
 		}
 
@@ -1640,13 +1633,13 @@ func Test_validateDeleteAddon(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		harvesterClientSet := harvesterFake.NewSimpleClientset()
-		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
-		fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
-		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
-		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
-		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-		upgradeLogCache := fakeclients.UpgradeLogCache(harvesterClientSet.HarvesterhciV1beta1().UpgradeLogs)
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
 		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil).(*addonValidator)
 
 		err := validator.Delete(nil, tc.oldAddon)
@@ -1905,7 +1898,7 @@ func Test_validatePCIDevicesControllerAddon(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create fake kubevirt clientset
-			clientset := harvesterFake.NewSimpleClientset()
+			clientset := fake.NewSimpleClientset()
 
 			// Add VMs to the tracker
 			for _, vm := range tc.vms {
@@ -2104,7 +2097,7 @@ func Test_validateNvidiaDriverToolkitAddon(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create fake kubevirt clientset
-			clientset := harvesterFake.NewSimpleClientset()
+			clientset := fake.NewSimpleClientset()
 
 			// Add VMs to the tracker
 			for _, vm := range tc.vms {

@@ -31,7 +31,9 @@ import (
 	managementv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,6 +51,8 @@ var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
 
 var localSchemeBuilder = runtime.SchemeBuilder{
+	corev1.AddToScheme,
+	appsv1.AddToScheme,
 	batchv1.AddToScheme,
 	catalogv1.AddToScheme,
 	cdiv1beta1.AddToScheme,

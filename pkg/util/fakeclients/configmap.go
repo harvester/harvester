@@ -10,9 +10,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 
+	corev1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1type "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
 type ConfigmapClient func(namespace string) corev1type.ConfigMapInterface

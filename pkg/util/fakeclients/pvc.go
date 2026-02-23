@@ -3,17 +3,17 @@ package fakeclients
 import (
 	"context"
 
+	corev1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/v1"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
-	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 )
 
-type PersistentVolumeClaimClient func(string) v1.PersistentVolumeClaimInterface
+type PersistentVolumeClaimClient func(string) corev1type.PersistentVolumeClaimInterface
 
 func (c PersistentVolumeClaimClient) Create(volume *corev1.PersistentVolumeClaim) (*corev1.PersistentVolumeClaim, error) {
 	return c(volume.Namespace).Create(context.TODO(), volume, metav1.CreateOptions{})
@@ -51,7 +51,7 @@ func (c PersistentVolumeClaimClient) WithImpersonation(_ rest.ImpersonationConfi
 	panic("implement me")
 }
 
-type PersistentVolumeClaimCache func(string) v1.PersistentVolumeClaimInterface
+type PersistentVolumeClaimCache func(string) corev1type.PersistentVolumeClaimInterface
 
 func (c PersistentVolumeClaimCache) Get(namespace, name string) (*corev1.PersistentVolumeClaim, error) {
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})

@@ -9,7 +9,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
@@ -341,7 +340,7 @@ func TestJobHandler_sendRestoreVMJob(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup fake clients
-			var k8sObjects []runtime.Object
+			k8sObjects := make([]runtime.Object, 0, 3+len(tc.given.jobs))
 			if tc.given.configMap != nil {
 				k8sObjects = append(k8sObjects, tc.given.configMap)
 			}
@@ -349,8 +348,7 @@ func TestJobHandler_sendRestoreVMJob(t *testing.T) {
 				k8sObjects = append(k8sObjects, job)
 			}
 
-			var harvesterObjects []runtime.Object
-			harvesterObjects = append(harvesterObjects, tc.given.upgrade)
+			k8sObjects = append(k8sObjects, tc.given.upgrade)
 			// Mock the setting
 			if tc.given.restoreVM {
 				setting := &harvesterv1.Setting{
@@ -359,19 +357,18 @@ func TestJobHandler_sendRestoreVMJob(t *testing.T) {
 					},
 					Value: `{"restoreVM":true}`,
 				}
-				harvesterObjects = append(harvesterObjects, setting)
+				k8sObjects = append(k8sObjects, setting)
 			}
 
-			k8sClientset := k8sfake.NewSimpleClientset(k8sObjects...)
-			harvesterClientset := fake.NewSimpleClientset(harvesterObjects...)
+			clientset := fake.NewSimpleClientset(k8sObjects...)
 
 			handler := &jobHandler{
 				namespace:      util.HarvesterSystemNamespaceName,
-				upgradeCache:   fakeclients.UpgradeCache(harvesterClientset.HarvesterhciV1beta1().Upgrades),
-				jobClient:      fakeclients.JobClient(k8sClientset.BatchV1().Jobs),
-				jobCache:       fakeclients.JobCache(k8sClientset.BatchV1().Jobs),
-				configMapCache: fakeclients.ConfigmapCache(k8sClientset.CoreV1().ConfigMaps),
-				settingCache:   fakeclients.HarvesterSettingCache(harvesterClientset.HarvesterhciV1beta1().Settings),
+				upgradeCache:   fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+				jobClient:      fakeclients.JobClient(clientset.BatchV1().Jobs),
+				jobCache:       fakeclients.JobCache(clientset.BatchV1().Jobs),
+				configMapCache: fakeclients.ConfigmapCache(clientset.CoreV1().ConfigMaps),
+				settingCache:   fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
 			}
 
 			// Create mock repo info

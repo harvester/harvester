@@ -3,13 +3,13 @@ package fakeclients
 import (
 	"context"
 
+	batchv1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
-	batchv1type "k8s.io/client-go/kubernetes/typed/batch/v1"
 	"k8s.io/client-go/rest"
 )
 
