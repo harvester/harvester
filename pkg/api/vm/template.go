@@ -1,7 +1,6 @@
 package vm
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -182,31 +181,31 @@ func (h *vmActionHandler) getSCNameFromImgID(imageId string) (scName string, err
 func (h *vmActionHandler) sanitizeVolumes(templateVersion *harvesterv1.VirtualMachineTemplateVersion, pvcMap map[string]corev1.PersistentVolumeClaim, vmImageMap map[string]harvesterv1.VirtualMachineImage) error {
 	templateVersionCopy := templateVersion.DeepCopy()
 	vmSource := &templateVersionCopy.Spec.VM
-	volumeClaimTemplates := []corev1.PersistentVolumeClaim{}
+	var entries []util.VolumeClaimTemplateEntry
 	for index, volume := range vmSource.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim == nil {
 			continue
 		}
 
 		volumeClaimTemplate := h.generateVolumeClaimTemplate(index, templateVersion.Name, templateVersion.Namespace, volume.PersistentVolumeClaim.ClaimName, pvcMap, vmImageMap)
-		volumeClaimTemplates = append(volumeClaimTemplates, volumeClaimTemplate)
+		entries = append(entries, util.VolumeClaimTemplateEntry{PersistentVolumeClaim: volumeClaimTemplate})
 		vmSource.Spec.Template.Spec.Volumes[index].PersistentVolumeClaim.ClaimName = volumeClaimTemplate.Name
 	}
 
-	volumeCliamTemplatesJSON, err := json.Marshal(volumeClaimTemplates)
+	data, err := util.MarshalVolumeClaimTemplates(entries)
 	if err != nil {
 		logrus.WithError(err).WithFields(logrus.Fields{
 			"namespace":       templateVersion.Namespace,
 			"templateVersion": templateVersion.Name,
-			"volumeClaim":     volumeClaimTemplates,
-		}).Error("Failed to json.Marshal volume claim templates")
+			"entries":         entries,
+		}).Error("Failed to marshal volume claim templates")
 		return err
 	}
 
 	if vmSource.ObjectMeta.Annotations == nil {
 		vmSource.ObjectMeta.Annotations = make(map[string]string)
 	}
-	vmSource.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(volumeCliamTemplatesJSON)
+	vmSource.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = data
 	if _, err := h.vmTemplateVersionClient.Update(templateVersionCopy); err != nil {
 		return err
 	}

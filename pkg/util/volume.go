@@ -25,6 +25,50 @@ var (
 	PersistentVolumeClaimsKind = schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolumeClaim"}
 )
 
+// VolumeClaimTemplateEntry represents a single entry in the volumeClaimTemplates annotation.
+// PVC fields are inlined so access patterns remain the same as the legacy []PVC format.
+// The optional TargetVolume field is used for storage migration.
+type VolumeClaimTemplateEntry struct {
+	corev1.PersistentVolumeClaim `json:",inline"`
+	TargetVolume                 string `json:"targetVolume,omitempty"`
+}
+
+// UnmarshalVolumeClaimTemplates parses the volumeClaimTemplates annotation value.
+// The inline embedding makes the format backward compatible with the legacy []PVC format.
+func UnmarshalVolumeClaimTemplates(data string) ([]VolumeClaimTemplateEntry, error) {
+	if data == "" {
+		return nil, nil
+	}
+
+	var entries []VolumeClaimTemplateEntry
+	if err := json.Unmarshal([]byte(data), &entries); err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
+// MarshalVolumeClaimTemplates serializes entries to JSON for the annotation.
+func MarshalVolumeClaimTemplates(entries []VolumeClaimTemplateEntry) (string, error) {
+	if len(entries) == 0 {
+		return "", nil
+	}
+	data, err := json.Marshal(entries)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// GetPVCsFromVolumeClaimTemplates extracts the PVC list from entries.
+func GetPVCsFromVolumeClaimTemplates(entries []VolumeClaimTemplateEntry) []*corev1.PersistentVolumeClaim {
+	pvcs := make([]*corev1.PersistentVolumeClaim, 0, len(entries))
+	for i := range entries {
+		pvc := entries[i].PersistentVolumeClaim
+		pvcs = append(pvcs, &pvc)
+	}
+	return pvcs
+}
+
 func GetCSIProvisionerSnapshotCapability(provisioner string) bool {
 	csiDriverConfig := make(map[string]settings.CSIDriverInfo)
 	if err := json.Unmarshal([]byte(settings.CSIDriverConfig.Get()), &csiDriverConfig); err != nil {
