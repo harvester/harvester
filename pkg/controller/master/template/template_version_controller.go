@@ -1,13 +1,11 @@
 package template
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sort"
 	"sync"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -107,13 +105,13 @@ func (h *templateVersionHandler) isVMImagesReady(tv *harvesterv1.VirtualMachineT
 		return true, nil
 	}
 
-	var volumeClaimTemplates []corev1.PersistentVolumeClaim
-	if err := json.Unmarshal([]byte(volumeClaimTemplatesStr), &volumeClaimTemplates); err != nil {
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
+	if err != nil {
 		return false, fmt.Errorf("can't unmarshal %s annotation, err: %w", util.AnnotationVolumeClaimTemplates, err)
 	}
 
-	for _, volumeClaimTemplate := range volumeClaimTemplates {
-		imageID, ok := volumeClaimTemplate.Annotations[util.AnnotationImageID]
+	for _, entry := range entries {
+		imageID, ok := entry.PVC.Annotations[util.AnnotationImageID]
 		if !ok || imageID == "" {
 			continue
 		}

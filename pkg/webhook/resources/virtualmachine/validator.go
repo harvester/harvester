@@ -1,7 +1,6 @@
 package virtualmachine
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -388,16 +387,16 @@ func (v *vmValidator) checkVMStoppingStatus(oldVM *kubevirtv1.VirtualMachine, ne
 }
 
 func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(vm *kubevirtv1.VirtualMachine) error {
-	volumeClaimTemplates, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
-	if !ok || volumeClaimTemplates == "" {
+	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplatesStr == "" {
 		return nil
 	}
-	var pvcs []*corev1.PersistentVolumeClaim
-	if err := json.Unmarshal([]byte(volumeClaimTemplates), &pvcs); err != nil {
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
+	if err != nil {
 		return err
 	}
-	for _, pvc := range pvcs {
-		if pvc.Name == "" {
+	for _, entry := range entries {
+		if entry.PVC.Name == "" {
 			return errors.New("PVC name is required")
 		}
 	}
@@ -440,10 +439,11 @@ func (v *vmValidator) checkVolumeAnnotations(oldVM, newVM *kubevirtv1.VirtualMac
 
 // unmarshalPVCsWithNamespace unmarshals a JSON string into a slice of PVCs and sets their namespace if missing.
 func unmarshalPVCsWithNamespace(data, ns string) ([]*corev1.PersistentVolumeClaim, error) {
-	var pvcs []*corev1.PersistentVolumeClaim
-	if err := json.Unmarshal([]byte(data), &pvcs); err != nil {
+	entries, err := util.UnmarshalVolumeClaimTemplates(data)
+	if err != nil {
 		return nil, err
 	}
+	pvcs := util.GetPVCsFromVolumeClaimTemplates(entries)
 	for _, pvc := range pvcs {
 		if pvc.Namespace == "" {
 			pvc.Namespace = ns

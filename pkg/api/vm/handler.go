@@ -476,17 +476,17 @@ func appendVolumeClaimTemplatesFromVMAnnotation(vm *kubevirtv1.VirtualMachine, p
 	if !ok {
 		return nil
 	}
-	volumeClaimTemplates := make([]corev1.PersistentVolumeClaim, 0, 1)
-	if err := json.Unmarshal([]byte(volumeClaimTemplatesStr), &volumeClaimTemplates); err != nil {
-		return err
-	}
-
-	volumeClaimTemplates = append(volumeClaimTemplates, pvc)
-	updateVolumeClaimTemplateBytes, err := json.Marshal(volumeClaimTemplates)
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
 	if err != nil {
 		return err
 	}
-	vm.Annotations[util.AnnotationVolumeClaimTemplates] = string(updateVolumeClaimTemplateBytes)
+
+	entries = append(entries, util.VolumeClaimTemplateEntry{PVC: pvc})
+	data, err := util.MarshalVolumeClaimTemplates(entries)
+	if err != nil {
+		return err
+	}
+	vm.Annotations[util.AnnotationVolumeClaimTemplates] = data
 	return nil
 }
 
@@ -495,20 +495,21 @@ func removeVolumeClaimTemplatesFromVMAnnotation(vm *kubevirtv1.VirtualMachine, t
 	if !ok {
 		return nil
 	}
-	var volumeClaimTemplates, toUpdateVolumeClaimTemplates []corev1.PersistentVolumeClaim
-	if err := json.Unmarshal([]byte(volumeClaimTemplatesStr), &volumeClaimTemplates); err != nil {
-		return err
-	}
-	for _, volumeClaimTemplate := range volumeClaimTemplates {
-		if !slice.ContainsString(toRemoveDiskNames, volumeClaimTemplate.Name) {
-			toUpdateVolumeClaimTemplates = append(toUpdateVolumeClaimTemplates, volumeClaimTemplate)
-		}
-	}
-	toUpdateVolumeClaimTemplateBytes, err := json.Marshal(toUpdateVolumeClaimTemplates)
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
 	if err != nil {
 		return err
 	}
-	vm.Annotations[util.AnnotationVolumeClaimTemplates] = string(toUpdateVolumeClaimTemplateBytes)
+	var toUpdate []util.VolumeClaimTemplateEntry
+	for _, entry := range entries {
+		if !slice.ContainsString(toRemoveDiskNames, entry.PVC.Name) {
+			toUpdate = append(toUpdate, entry)
+		}
+	}
+	data, err := util.MarshalVolumeClaimTemplates(toUpdate)
+	if err != nil {
+		return err
+	}
+	vm.Annotations[util.AnnotationVolumeClaimTemplates] = data
 	return nil
 }
 
@@ -1469,12 +1470,16 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 	if err != nil {
 		return fmt.Errorf("clone volumes error for new vm %s/%s, err %w", newVM.Namespace, newVM.Name, err)
 	}
-	newPVCsString, err := json.Marshal(newPVCs)
+	newEntries := make([]util.VolumeClaimTemplateEntry, len(newPVCs))
+	for i, pvc := range newPVCs {
+		newEntries[i] = util.VolumeClaimTemplateEntry{PVC: pvc}
+	}
+	newPVCsString, err := util.MarshalVolumeClaimTemplates(newEntries)
 	if err != nil {
-		return fmt.Errorf("cannot marshal value %+v, err: %w", newPVCs, err)
+		return fmt.Errorf("cannot marshal value %+v, err: %w", newEntries, err)
 	}
 
-	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(newPVCsString)
+	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = newPVCsString
 	if newVM, err = h.vmClient.Create(newVM); err != nil {
 		return fmt.Errorf("cannot create new VM %s/%s, err: %w", newVM.Namespace, newVM.Name, err)
 	}
@@ -1622,7 +1627,7 @@ func replaceSecrets(templateVersionName string, vm *kubevirtv1.VirtualMachine) *
 
 func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 	sanitizedVM := vm.DeepCopy()
-	volumeClaimTemplates := []corev1.PersistentVolumeClaim{}
+	var entries []util.VolumeClaimTemplateEntry
 	for index, volume := range sanitizedVM.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim == nil {
 			continue
@@ -1643,24 +1648,26 @@ func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevir
 		}
 		annoImageID := fmt.Sprintf("%s/%s", vm.Namespace, vmImageName)
 		pvcName := getTemplateVersionPvcName(templateVersionName, index)
-		volumeClaimTemplates = append(volumeClaimTemplates, corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: pvcName,
-				Annotations: map[string]string{
-					util.AnnotationImageID: annoImageID,
+		entries = append(entries, util.VolumeClaimTemplateEntry{
+			PVC: corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: pvcName,
+					Annotations: map[string]string{
+						util.AnnotationImageID: annoImageID,
+					},
 				},
-			},
-			Spec: corev1.PersistentVolumeClaimSpec{
-				AccessModes:      pvc.Spec.AccessModes,
-				Resources:        pvc.Spec.Resources,
-				VolumeMode:       pvc.Spec.VolumeMode,
-				StorageClassName: &targetStorageClassName,
+				Spec: corev1.PersistentVolumeClaimSpec{
+					AccessModes:      pvc.Spec.AccessModes,
+					Resources:        pvc.Spec.Resources,
+					VolumeMode:       pvc.Spec.VolumeMode,
+					StorageClassName: &targetStorageClassName,
+				},
 			},
 		})
 		sanitizedVM.Spec.Template.Spec.Volumes[index].PersistentVolumeClaim.ClaimName = pvcName
 	}
 
-	volumeCliamTemplatesJSON, err := json.Marshal(volumeClaimTemplates)
+	data, err := util.MarshalVolumeClaimTemplates(entries)
 	if err != nil {
 		return nil, err
 	}
@@ -1668,7 +1675,7 @@ func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevir
 	if sanitizedVM.Annotations == nil {
 		sanitizedVM.Annotations = map[string]string{}
 	}
-	sanitizedVM.Annotations[util.AnnotationVolumeClaimTemplates] = string(volumeCliamTemplatesJSON)
+	sanitizedVM.Annotations[util.AnnotationVolumeClaimTemplates] = data
 	return sanitizedVM, nil
 }
 

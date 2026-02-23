@@ -1,7 +1,6 @@
 package virtualmachine
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -63,14 +62,15 @@ func (h *VMController) createPVCsFromAnnotation(_ string, vm *kubevirtv1.Virtual
 	if vm == nil || vm.DeletionTimestamp != nil {
 		return nil, nil
 	}
-	volumeClaimTemplates, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
-	if !ok || volumeClaimTemplates == "" {
+	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplatesStr == "" {
 		return nil, nil
 	}
-	var pvcs []*corev1.PersistentVolumeClaim
-	if err := json.Unmarshal([]byte(volumeClaimTemplates), &pvcs); err != nil {
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
+	if err != nil {
 		return nil, err
 	}
+	pvcs := util.GetPVCsFromVolumeClaimTemplates(entries)
 
 	for _, pvcAnno := range pvcs {
 		imageName := ""
