@@ -2,11 +2,11 @@ package vm
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
+	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -22,7 +22,6 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
-	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 )
 
 func TestMigrateAction(t *testing.T) {
@@ -1492,11 +1491,10 @@ func TestInsertCdRomVolumeAction(t *testing.T) {
 
 	assert.Len(t, vmUpdated.Spec.Template.Spec.Volumes, 1, "Should have hot-plug new volume")
 
-	var pvcs []corev1.PersistentVolumeClaim
 	volumeClaimTemplates := vmUpdated.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
-	err = json.Unmarshal([]byte(volumeClaimTemplates), &pvcs)
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplates)
 	assert.Nil(t, err, "Should unmarshal volumeClaimTemplates annotation correctly")
-	assert.Len(t, pvcs, 1, "Should add to volumeClaimTemplates annotation")
+	assert.Len(t, entries, 1, "Should add to volumeClaimTemplates annotation")
 }
 
 func TestEjectCdRomVolumeAction(t *testing.T) {
@@ -1581,11 +1579,10 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 
 	assert.Len(t, vmUpdated.Spec.Template.Spec.Volumes, 0, "Should have hot-unplug volume")
 
-	var pvcs []corev1.PersistentVolumeClaim
 	volumeClaimTemplates := vmUpdated.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
-	err = json.Unmarshal([]byte(volumeClaimTemplates), &pvcs)
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplates)
 	assert.Nil(t, err, "Should unmarshal volumeClaimTemplates annotation correctly")
-	assert.Len(t, pvcs, 0, "Should remove from volumeClaimTemplates annotation")
+	assert.Len(t, entries, 0, "Should remove from volumeClaimTemplates annotation")
 
 	_, err = pvcCache.Get(pvcNamespace, pvcName)
 	assert.True(t, apierrors.IsNotFound(err), "Should delete pvc")
