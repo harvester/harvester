@@ -263,6 +263,16 @@ const (
 	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
 	StorageNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
 
+	RWXStorageNetworkAnnotation       = "rwx-storage-network.settings.harvesterhci.io"
+	RWXHashStorageNetworkAnnotation   = RWXStorageNetworkAnnotation + "/hash"
+	RWXNadStorageNetworkAnnotation    = RWXStorageNetworkAnnotation + "/net-attach-def"
+	RWXOldNadStorageNetworkAnnotation = RWXStorageNetworkAnnotation + "/old-net-attach-def"
+
+	RWXHashStorageNetworkLabel = RWXHashStorageNetworkAnnotation
+
+	RWXStorageNetworkNetAttachDefPrefix    = "rwx-storagenetwork-"
+	RWXStorageNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
+
 	HarvesterCRDManagedChart         = "harvester-crd"
 	HarvesterManagedChart            = "harvester"
 	RancherLoggingCRDManagedChart    = "rancher-logging-crd"
