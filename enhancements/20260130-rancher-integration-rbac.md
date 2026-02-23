@@ -40,7 +40,7 @@ The cluster-scoped roles consist of permissions for cluster users to manage virt
 
 The privileges granted by the roles span across all projects within the cluster.
 
-Generally, these roles do not have permissions to modify Rancher resources like guest clusters configuration, cluster membership.
+Generally, these roles do not have permissions to modify Rancher resources like Rancher settings, device configuration, cluster membership etc.
 
 * Define a set of RBAC roles to ***support namespace-scoped operations*** on Harvester resources.
 
@@ -62,7 +62,7 @@ TBD.
 
 The primary objective is to utilize the Rancher `RoleTemplate` API to define a set of cluster-scoped and namespace-scoped RBAC roles to attribute Harvester permission groups.
 
-The proposed roles do not include Rancher-level administrative permissions, which grant privileges to manage Rancher resources like guest clusters or node drivers configuration. These permissions can be granted to users from the existing "Built-In" global permissions page:
+The proposed roles do not include Rancher-level administrative permissions, which grant privileges to manage Rancher resources like cluster membership or node drivers configuration. These permissions can be granted to users from the existing "Built-In" global permissions page:
 
 ![screenshot to show built-in global permissions](./20260130-rancher-integration-rbac/builtin-global-permissions.png)
 
@@ -105,7 +105,6 @@ This role **does not** grant permissions to:
 * modify project memberships
 * modify SSH keys, templates and secrets
 * modify advanced cluster settings
-* view or modify guest clusters configuration
 
 The `Manage Virtualization Resources` role provides a cluster "power user" with management access to all virtualization resources.
 
@@ -129,7 +128,8 @@ This role **does not** grant permissions to:
 
 * upgrade the cluster
 * modify cluster memberships
-* view or modify guest clusters configuration
+
+Cluster users can view, create or modify downstream guest clusters configuration in Harvester projects where they are designated the appropriate project roles.
 
 ### Project Roles Definition
 
@@ -153,7 +153,6 @@ This role **does not** grant permissions to:
 * modify project memberships
 * modify infrastructure resources
 * modify host devices like PCI devices, SR-IOV devices, vGPU devices
-* view or modify guest clusters configuration
 
 The `Manage Virtualization Resources` role inherits the permissions of the built-in `Project User`, allowing project users to deploy and manage their virtualization workloads and services within the designated projects.
 
@@ -169,7 +168,8 @@ This role **does not** grant permissions to:
 * modify project memberships
 * modify infrastructure resources
 * modify host devices like PCI devices, SR-IOV devices, vGPU devices
-* view or modify guest clusters configuration
+
+Project users can view, create or modify downstream guest clusters configuration only in Harvester projects where they are designated the appropriate project roles.
 
 ### User Stories
 
