@@ -53,6 +53,12 @@ func addAuthenticatedRoles(apply apply.Apply) error {
 						Resources:     []string{"namespaces"},
 						ResourceNames: []string{publicNamespace},
 					},
+					{
+						Verbs:         []string{"get", "watch"},
+						APIGroups:     []string{"management.cattle.io"},
+						Resources:     []string{"settings"},
+						ResourceNames: []string{systemNamespaces},
+					},
 				},
 			},
 			&rbacv1.ClusterRoleBinding{
