@@ -283,6 +283,11 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 		return err
 	}
 
+	// Check targetVolume validations
+	if err := v.checkTargetVolumes(newVM); err != nil {
+		return err
+	}
+
 	// This logic will return in case interfaces are existing and not changed
 	// make sure new validation logic is added above this comment
 	if oldVM.Spec.Template != nil && newVM.Spec.Template != nil && reflect.DeepEqual(oldVM.Spec.Template.Spec.Domain.Devices.Interfaces, newVM.Spec.Template.Spec.Domain.Devices.Interfaces) {
@@ -687,6 +692,90 @@ func (v *vmValidator) checkCdRomVolumeIsValid(vm *kubevirtv1.VirtualMachine) err
 
 	if _, err := vmutil.SupportEjectCdRomVolume(vm); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (v *vmValidator) checkTargetVolumes(vm *kubevirtv1.VirtualMachine) error {
+	annStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || annStr == "" {
+		return nil
+	}
+
+	entries, err := util.UnmarshalVolumeClaimTemplates(annStr)
+	if err != nil {
+		return werror.NewInvalidError(
+			fmt.Sprintf("failed to unmarshal volumeClaimTemplates annotation: %v", err),
+			fmt.Sprintf("metadata.annotations[%s]", util.AnnotationVolumeClaimTemplates),
+		)
+	}
+
+	fieldPath := fmt.Sprintf("metadata.annotations[%s]", util.AnnotationVolumeClaimTemplates)
+
+	// Build a set of volume names from VM spec for validation
+	vmVolumeNames := map[string]bool{}
+	if vm.Spec.Template != nil {
+		for _, vol := range vm.Spec.Template.Spec.Volumes {
+			if vol.PersistentVolumeClaim != nil {
+				vmVolumeNames[vol.PersistentVolumeClaim.ClaimName] = true
+			}
+			if vol.DataVolume != nil {
+				vmVolumeNames[vol.DataVolume.Name] = true
+			}
+		}
+	}
+
+	for _, entry := range entries {
+		if entry.TargetVolume == "" {
+			continue
+		}
+
+		// PVC content must not be empty when targetVolume is set
+		if entry.PVC.Name == "" {
+			return werror.NewInvalidError(
+				"PVC content must not be empty when targetVolume is set",
+				fieldPath,
+			)
+		}
+
+		// PVC must correspond to a volume attached to the VM
+		if !vmVolumeNames[entry.PVC.Name] {
+			return werror.NewInvalidError(
+				fmt.Sprintf("PVC %s is not attached to the VM", entry.PVC.Name),
+				fieldPath,
+			)
+		}
+
+		// VM must be running for volume migration
+		if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusRunning {
+			return werror.NewInvalidError(
+				"VM must be running to set targetVolume for volume migration",
+				fieldPath,
+			)
+		}
+
+		// targetVolume size must not be smaller than source volume size
+		sourceSize := entry.PVC.Spec.Resources.Requests.Storage()
+		targetPVC, err := v.pvcCache.Get(vm.Namespace, entry.TargetVolume)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return werror.NewInvalidError(
+					fmt.Sprintf("targetVolume PVC %s/%s not found", vm.Namespace, entry.TargetVolume),
+					fieldPath,
+				)
+			}
+			return werror.NewInternalError(fmt.Sprintf("failed to get targetVolume PVC %s/%s: %v", vm.Namespace, entry.TargetVolume, err))
+		}
+
+		targetSize := targetPVC.Spec.Resources.Requests.Storage()
+		if targetSize.Cmp(*sourceSize) < 0 {
+			return werror.NewInvalidError(
+				fmt.Sprintf("targetVolume %s size (%s) must not be less than source volume %s size (%s)",
+					entry.TargetVolume, targetSize.String(), entry.PVC.Name, sourceSize.String()),
+				fieldPath,
+			)
+		}
 	}
 
 	return nil
