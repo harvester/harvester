@@ -10,6 +10,7 @@ import (
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/util/retry"
@@ -84,6 +85,22 @@ func (h *vmActionHandler) createTemplateWithData(vm *kubevirtv1.VirtualMachine, 
 		out                *harvesterv1.VirtualMachineTemplateVersion
 		err                error
 	)
+
+	defer func() {
+		var cleanupErr error
+
+		logrus.WithFields(logrus.Fields{
+			"namespace": vm.Namespace,
+			"name":      vm.Name,
+		}).Errorf("failed to create VM images while trying to create VM Template with data: %v", err)
+
+		if err == nil {
+			return
+		}
+		if cleanupErr = h.cleanupVMImages(vmtv, vm); cleanupErr != nil {
+			err = fmt.Errorf("failed to clean up VM images while dealing with error %w: %s", err, cleanupErr.Error())
+		}
+	}()
 
 	pvcMap, pvcStorageClassMap, err = h.getPVCStorageClassMap(vm)
 	if err != nil {
@@ -448,6 +465,10 @@ func (h *vmActionHandler) cleanupVMTemplate(vmt *harvesterv1.VirtualMachineTempl
 	}
 
 	if err = h.vmTemplateClient.Delete(vmt.Namespace, vmt.Name, &metav1.DeleteOptions{}); err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+
 		logrus.WithFields(logrus.Fields{
 			"namespace": vmt.Namespace,
 			"name":      vmt.Name,
@@ -464,11 +485,63 @@ func (h *vmActionHandler) cleanupVMTemplateVersion(vmtv *harvesterv1.VirtualMach
 	}
 
 	if err = h.vmTemplateVersionClient.Delete(vmtv.Namespace, vmtv.Name, &metav1.DeleteOptions{}); err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+
 		logrus.WithFields(logrus.Fields{
 			"namespace": vmtv.Namespace,
 			"name":      vmtv.Name,
 		}).Errorf("failed to clean up template version: %v", err)
 		return err
+	}
+	return nil
+}
+
+// cleanup the VirtualMachineImage in case we hold a non-nil reference
+func (h *vmActionHandler) cleanupVMImage(vmi *harvesterv1.VirtualMachineImage) (err error) {
+	if vmi == nil {
+		return nil
+	}
+
+	if err = h.vmImages.Delete(vmi.Namespace, vmi.Name, &metav1.DeleteOptions{}); err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+
+		logrus.WithFields(logrus.Fields{
+			"namespace": vmi.Namespace,
+			"name":      vmi.Name,
+		}).Errorf("failed to clean up image: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (h *vmActionHandler) cleanupVMImages(templateVersion *harvesterv1.VirtualMachineTemplateVersion, vm *kubevirtv1.VirtualMachine) error {
+	for index, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim == nil {
+			continue
+		}
+
+		vmImageName := getTemplateVersionVMImageName(templateVersion.Name, index)
+		image, err := h.vmImageCache.Get(vm.Namespace, vmImageName)
+		if err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"namespace": vm.Namespace,
+				"name":      vmImageName,
+			}).Error("failed to find VM Image")
+			return err
+		}
+
+		err = h.cleanupVMImage(image)
+		if err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"namespace":       templateVersion.Namespace,
+				"templateVersion": templateVersion.Name,
+			}).Error("Failed to create VM image")
+			return err
+		}
 	}
 	return nil
 }
