@@ -1242,3 +1242,431 @@ func TestCheckCdRomVolumeIsValid(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckTargetVolumes(t *testing.T) {
+	var testCases = []struct {
+		name        string
+		vm          *kubevirtv1.VirtualMachine
+		pvc         *corev1.PersistentVolumeClaim
+		expectError bool
+		errContains string
+	}{
+		{
+			name: "no annotation, pass",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm",
+					Namespace: "default",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "no targetVolume entries, pass",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"source-pvc"},"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}}}]`,
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Volumes: []kubevirtv1.Volume{
+								{
+									Name: "source-vol",
+									VolumeSource: kubevirtv1.VolumeSource{
+										PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+											PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+												ClaimName: "source-pvc",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "targetVolume set but PVC name is empty, reject",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationVolumeClaimTemplates: `[{"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}},"targetVolume":"target-pvc"}]`,
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{},
+					},
+				},
+			},
+			expectError: true,
+			errContains: "PVC content must not be empty",
+		},
+		{
+			name: "source volume is DataVolume type, reject",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"source-dv"},"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}},"targetVolume":"target-pvc"}]`,
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Volumes: []kubevirtv1.Volume{
+								{
+									Name: "source-vol",
+									VolumeSource: kubevirtv1.VolumeSource{
+										DataVolume: &kubevirtv1.DataVolumeSource{
+											Name: "source-dv",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Status: kubevirtv1.VirtualMachineStatus{
+					PrintableStatus: kubevirtv1.VirtualMachineStatusRunning,
+				},
+			},
+			expectError: true,
+			errContains: "is a DataVolume",
+		},
+		{
+			name: "targetVolume set but PVC not attached to VM, reject",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"source-pvc"},"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}},"targetVolume":"target-pvc"}]`,
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Volumes: []kubevirtv1.Volume{
+								{
+									Name: "other-vol",
+									VolumeSource: kubevirtv1.VolumeSource{
+										PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+											PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+												ClaimName: "other-pvc",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+			errContains: "is not attached to the VM",
+		},
+		{
+			name: "targetVolume set but VM not running, reject",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"source-pvc"},"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}},"targetVolume":"target-pvc"}]`,
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Volumes: []kubevirtv1.Volume{
+								{
+									Name: "source-vol",
+									VolumeSource: kubevirtv1.VolumeSource{
+										PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+											PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+												ClaimName: "source-pvc",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Status: kubevirtv1.VirtualMachineStatus{
+					PrintableStatus: kubevirtv1.VirtualMachineStatusStopped,
+				},
+			},
+			expectError: true,
+			errContains: "VM must be running",
+		},
+		{
+			name: "targetVolume PVC not found, reject",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"source-pvc"},"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}},"targetVolume":"nonexistent-pvc"}]`,
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Volumes: []kubevirtv1.Volume{
+								{
+									Name: "source-vol",
+									VolumeSource: kubevirtv1.VolumeSource{
+										PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+											PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+												ClaimName: "source-pvc",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Status: kubevirtv1.VirtualMachineStatus{
+					PrintableStatus: kubevirtv1.VirtualMachineStatusRunning,
+				},
+			},
+			expectError: true,
+			errContains: "not found",
+		},
+		{
+			name: "targetVolume size smaller than source, reject",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"source-pvc"},"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}},"targetVolume":"target-pvc"}]`,
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Volumes: []kubevirtv1.Volume{
+								{
+									Name: "source-vol",
+									VolumeSource: kubevirtv1.VolumeSource{
+										PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+											PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+												ClaimName: "source-pvc",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Status: kubevirtv1.VirtualMachineStatus{
+					PrintableStatus: kubevirtv1.VirtualMachineStatusRunning,
+				},
+			},
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "target-pvc",
+					Namespace: "default",
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse("5Gi"),
+						},
+					},
+				},
+			},
+			expectError: true,
+			errContains: "must not be less than",
+		},
+		{
+			name: "targetVolume size equal to source, pass",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"source-pvc"},"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}},"targetVolume":"target-pvc"}]`,
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Volumes: []kubevirtv1.Volume{
+								{
+									Name: "source-vol",
+									VolumeSource: kubevirtv1.VolumeSource{
+										PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+											PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+												ClaimName: "source-pvc",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Status: kubevirtv1.VirtualMachineStatus{
+					PrintableStatus: kubevirtv1.VirtualMachineStatusRunning,
+				},
+			},
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "target-pvc",
+					Namespace: "default",
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse("10Gi"),
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "multiple targetVolumes set, reject",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"source-pvc-1"},"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}},"targetVolume":"target-pvc-1"},{"metadata":{"name":"source-pvc-2"},"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}},"targetVolume":"target-pvc-2"}]`,
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Volumes: []kubevirtv1.Volume{
+								{
+									Name: "source-vol-1",
+									VolumeSource: kubevirtv1.VolumeSource{
+										PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+											PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+												ClaimName: "source-pvc-1",
+											},
+										},
+									},
+								},
+								{
+									Name: "source-vol-2",
+									VolumeSource: kubevirtv1.VolumeSource{
+										PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+											PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+												ClaimName: "source-pvc-2",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Status: kubevirtv1.VirtualMachineStatus{
+					PrintableStatus: kubevirtv1.VirtualMachineStatusRunning,
+				},
+			},
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "target-pvc-1",
+					Namespace: "default",
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse("10Gi"),
+						},
+					},
+				},
+			},
+			expectError: true,
+			errContains: "only one volume migration is allowed at a time",
+		},
+		{
+			name: "targetVolume size larger than source, pass",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"source-pvc"},"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}},"targetVolume":"target-pvc"}]`,
+					},
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Volumes: []kubevirtv1.Volume{
+								{
+									Name: "source-vol",
+									VolumeSource: kubevirtv1.VolumeSource{
+										PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+											PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+												ClaimName: "source-pvc",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Status: kubevirtv1.VirtualMachineStatus{
+					PrintableStatus: kubevirtv1.VirtualMachineStatusRunning,
+				},
+			},
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "target-pvc",
+					Namespace: "default",
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse("20Gi"),
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			if tc.pvc != nil {
+				err := clientset.Tracker().Add(tc.pvc)
+				assert.NoError(t, err, "Mock resource should add into fake controller tracker")
+			}
+			pvcCache := fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims)
+			validator := NewValidator(nil, nil, pvcCache, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
+
+			err := validator.checkTargetVolumes(nil, tc.vm)
+			if tc.expectError {
+				assert.NotNil(t, err, tc.name)
+				if tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains, tc.name)
+				}
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
