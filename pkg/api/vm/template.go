@@ -352,7 +352,7 @@ func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMac
 }
 
 func (h *vmActionHandler) createVMImage(namespace, name string, backend harvesterv1.VMIBackend, targetSCName, claimName string, owner metav1.OwnerReference) (*harvesterv1.VirtualMachineImage, error) {
-	vmImage, err := h.vmImages.Create(&harvesterv1.VirtualMachineImage{
+	vmImage, err := h.vmImageClient.Create(&harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -504,7 +504,7 @@ func (h *vmActionHandler) cleanupVMImage(vmi *harvesterv1.VirtualMachineImage) (
 		return nil
 	}
 
-	if err = h.vmImages.Delete(vmi.Namespace, vmi.Name, &metav1.DeleteOptions{}); err != nil {
+	if err = h.vmImageClient.Delete(vmi.Namespace, vmi.Name, &metav1.DeleteOptions{}); err != nil {
 		if errors.IsNotFound(err) {
 			return nil
 		}
