@@ -599,6 +599,16 @@ get_cluster_repo_index_download_time() {
   fi
 }
 
+# The legacy capi webhooks will cause Rancher pod prints errors after upgraded to v1.8.0
+clean_capi_legacy_webhooks() {
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.7\.[0-9]$ ]]; then
+    return
+  fi
+  echo "clean capi legay webhooks which are not used from Harvester v1.8.0"
+  kubectl delete mutatingwebhookconfigurations mutating-webhook-configuration || echo "mutating-webhook-configuration has been deleted"
+  kubectl delete validatingwebhookconfiguration validating-webhook-configuration || echo "validating-webhook-configuration has been deleted"
+}
+
 upgrade_rancher() {
   echo "Upgrading Rancher"
 
@@ -631,6 +641,7 @@ upgrade_rancher() {
   fi
 
   if [[ "$RANCHER_CURRENT_VERSION" == "$REPO_RANCHER_VERSION" ]]; then
+    clean_capi_legacy_webhooks
     echo "Skip update Rancher. The version is already $RANCHER_CURRENT_VERSION"
     return
   fi
@@ -672,6 +683,7 @@ upgrade_rancher() {
 
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.image.tag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
 
+  clean_capi_legacy_webhooks
   echo "Rancher patch file to be run via helm upgrade"
   cat values.yaml
   ./helm upgrade rancher ./*.tgz --namespace cattle-system -f values.yaml --wait
