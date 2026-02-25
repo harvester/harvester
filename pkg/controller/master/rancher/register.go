@@ -52,6 +52,7 @@ const (
 	controllerCAPIDeployment          = "harvester-capi-controller"
 	capiControllerDeploymentName      = "capi-controller-manager"
 	capiControllerDeploymentNamespace = "cattle-capi-system"
+	daemonSetsController              = "daemonset-controller"
 )
 
 type Handler struct {
@@ -71,6 +72,7 @@ type Handler struct {
 	Namespace                string
 	RancherTokenController   rancherv3.TokenController
 	SettingCache             v1beta1.SettingCache
+	SettingClient            v1beta1.SettingClient
 }
 
 type VIPConfig struct {
@@ -96,6 +98,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		namespaces := management.CoreFactory.Core().V1().Namespace()
 		deployments := management.AppsFactory.Apps().V1().Deployment()
 		settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
+		daemonSets := management.AppsFactory.Apps().V1().DaemonSet()
 		h := Handler{
 			RancherSettings:          rancherSettings,
 			RancherSettingController: rancherSettings,
@@ -113,6 +116,7 @@ func Register(ctx context.Context, management *config.Management, options config
 			Namespace:                options.Namespace,
 			Deployments:              deployments,
 			SettingCache:             settings.Cache(),
+			SettingClient:            settings,
 		}
 		nodes.OnChange(ctx, controllerRancherName, h.PodResourcesOnChanged)
 		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
@@ -120,6 +124,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		deployments.OnChange(ctx, controllerCAPIDeployment, h.PatchCAPIDeployment)
 		rancherTokens.OnChange(ctx, controllerRancherName, h.RancherTokenOnChange)
 		namespaces.OnRemove(ctx, controllerNamespaceName, h.onNamespaceRemoved)
+		daemonSets.OnChange(ctx, daemonSetsController, h.reconcileIngressResources)
 
 		if err := h.registerExposeService(); err != nil {
 			return err
@@ -154,14 +159,14 @@ func (h *Handler) registerExposeService() error {
 		return nil
 	}
 
+	// clean up old nginx service as it is no longer needed
+	if err := h.cleanupIngressExpose(); err != nil {
+		return fmt.Errorf("error cleaning up ingress expose service: %w", err)
+	}
 	// traefik exists post rke2 upgrade
 	// and we can just traefik service annotations
-	if err := h.patchTraefikServiceAnnotations(); err != nil {
-		return err
-	}
+	return h.patchTraefikServiceAnnotations()
 
-	// clean up old nginx service as it is no longer needed
-	return h.cleanupIngressExpose()
 }
 
 func (h *Handler) createIngressExposeService() error {
@@ -219,25 +224,6 @@ func (h *Handler) createIngressExposeService() error {
 
 	if _, err := h.Services.Create(svc); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func (h *Handler) updateIngressExposeService(svc *corev1.Service) error {
-	svcCopy := svc.DeepCopy()
-	if svc.Annotations == nil {
-		svcCopy.Annotations = make(map[string]string)
-	}
-	svcCopy.Annotations[keyKubevipIgnoreServiceSecurity] = trueStr
-	if _, ok := svcCopy.Annotations[keyKubevipLoadBalancerIPs]; !ok {
-		svcCopy.Annotations[keyKubevipLoadBalancerIPs] = svc.Spec.LoadBalancerIP
-	}
-	if _, err := h.Services.Update(svcCopy); err != nil {
-		return err
-	}
-	if err := h.restartKubevipPods(); err != nil {
-		return fmt.Errorf("failed to restart kube-vip pods: %w", err)
 	}
 
 	return nil
@@ -346,6 +332,11 @@ func (h *Handler) patchTraefikServiceAnnotations() error {
 
 	if enabled && vip.ServiceType == corev1.ServiceTypeLoadBalancer {
 		svc.Spec.Type = vip.ServiceType
+		svc.Spec.LoadBalancerIP = vip.IP
+		if svc.Annotations == nil {
+			svc.Annotations = make(map[string]string)
+		}
+		svc.Annotations[keyKubevipIgnoreServiceSecurity] = trueStr
 		// After kube-vip v0.5.2, it uses annotation kube-vip.io/loadbalancerIPs to set the loadBalancerIP
 		if strings.ToLower(vip.Mode) == vipDHCPMode {
 			svc.Annotations[keyKubevipRequestIP] = vip.IP
@@ -355,8 +346,13 @@ func (h *Handler) patchTraefikServiceAnnotations() error {
 			svc.Annotations[keyKubevipLoadBalancerIPs] = vip.IP
 		}
 	}
-	if !reflect.DeepEqual(svc.Annotations, svcCopy.Annotations) {
-		_, err = h.Services.Update(svc)
+	if !reflect.DeepEqual(svc, svcCopy) {
+		if _, err = h.Services.Update(svc); err != nil {
+			return fmt.Errorf("error updating %s svc: %w", svc.Name, err)
+		}
+
+		// svc got updated, restart kubevip to ensure changes take effect
+		return h.restartKubevipPods()
 	}
 
 	return err
