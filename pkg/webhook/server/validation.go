@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	ctlkubeovnv1 "github.com/harvester/harvester/pkg/generated/controllers/kubeovn.io/v1"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
 	"github.com/harvester/harvester/pkg/webhook/resources/addon"
@@ -39,7 +40,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/util"
 )
 
-func Validation(clients *clients.Clients, options *config.Options) (http.Handler, []types.Resource, error) {
+func Validation(clients *clients.Clients, options *config.Options, crdExists bool) (http.Handler, []types.Resource, error) {
 	bearToken, err := os.ReadFile(clients.RESTConfig.BearerTokenFile)
 	if err != nil {
 		return nil, nil, err
@@ -52,6 +53,11 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 	client, err := client.New(clients.RESTConfig, client.Options{})
 	if err != nil {
 		return nil, nil, err
+	}
+
+	var kubeovnSubnetCache ctlkubeovnv1.SubnetCache
+	if crdExists {
+		kubeovnSubnetCache = clients.KubeovnFactory.Kubeovn().V1().Subnet().Cache()
 	}
 
 	resources := []types.Resource{}
@@ -179,6 +185,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().UpgradeLog().Cache(),
 			clients.Core.Node().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
+			kubeovnSubnetCache,
 		),
 		version.NewValidator(),
 		volumesnapshot.NewValidator(
