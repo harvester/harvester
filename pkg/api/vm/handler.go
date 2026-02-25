@@ -1337,43 +1337,6 @@ func cloneSecretVolume(volume *kubevirtv1.Volume, secretNameMap map[string]strin
 	volume.Secret.SecretName = secretNameMap[volume.Secret.SecretName]
 }
 
-// sanitizeVirtualMachineForTemplateVersion removes mac addresses and changes secrets names.
-// The PVCs are not sanitized in the function because users may want to create template with data.
-// This will change storage class name in PVCs, so we handle it with VMImages.
-func (h *vmActionHandler) sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kubevirtv1.VirtualMachine) harvesterv1.VirtualMachineSourceSpec {
-	sanitizedVM := removeMacAddresses(vm)
-	sanitizedVM = replaceSecrets(templateVersionName, sanitizedVM)
-
-	return harvesterv1.VirtualMachineSourceSpec{
-		ObjectMeta: sanitizedVM.ObjectMeta,
-		Spec:       sanitizedVM.Spec,
-	}
-}
-
-func replaceSecrets(templateVersionName string, vm *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachine {
-	sanitizedVM := vm.DeepCopy()
-	for index, credential := range sanitizedVM.Spec.Template.Spec.AccessCredentials {
-		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
-			sanitizedVM.Spec.Template.Spec.AccessCredentials[index].SSHPublicKey.Source.Secret.SecretName = getTemplateVersionSSHPublicKeySecretName(templateVersionName, index)
-		}
-		if userPassword := credential.UserPassword; userPassword != nil && userPassword.Source.Secret != nil {
-			sanitizedVM.Spec.Template.Spec.AccessCredentials[index].UserPassword.Source.Secret.SecretName = getTemplateVersionUserPasswordSecretName(templateVersionName, index)
-		}
-	}
-	for index, volume := range sanitizedVM.Spec.Template.Spec.Volumes {
-		if volume.CloudInitNoCloud == nil {
-			continue
-		}
-		if volume.CloudInitNoCloud.UserDataSecretRef != nil {
-			sanitizedVM.Spec.Template.Spec.Volumes[index].CloudInitNoCloud.UserDataSecretRef.Name = getTemplateVersionUserDataSecretName(templateVersionName, volume.Name)
-		}
-		if volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
-			sanitizedVM.Spec.Template.Spec.Volumes[index].CloudInitNoCloud.NetworkDataSecretRef.Name = getTemplateVersionNetworkDataSecretName(templateVersionName, volume.Name)
-		}
-	}
-	return sanitizedVM
-}
-
 func (h *vmActionHandler) dismissInsufficientResourceQuota(name, namespace string) error {
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
