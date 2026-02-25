@@ -120,7 +120,7 @@ func (s *AdmissionWebhookServer) ListenAndServe() error {
 
 	indexeres.RegisterIndexers(clients)
 
-	validationHandler, validationResources, err := Validation(clients, s.options)
+	validationHandler, validationResources, err := Validation(clients, s.options, crdExists)
 	if err != nil {
 		return err
 	}
