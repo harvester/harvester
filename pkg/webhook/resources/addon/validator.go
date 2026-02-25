@@ -15,6 +15,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkubeovnv1 "github.com/harvester/harvester/pkg/generated/controllers/kubeovn.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlloggingv1 "github.com/harvester/harvester/pkg/generated/controllers/logging.banzaicloud.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
@@ -28,9 +29,10 @@ const (
 	vClusterAddonNamespace = "rancher-vcluster"
 	vCluster0190           = "v0.19.0"
 	vCluster0300           = "v0.30.0"
+	kubeOVNOperatorAddon   = util.KubeOVNOperatorName
 )
 
-func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache, nodeCache ctlcorev1.NodeCache, vmCache ctlkubevirtv1.VirtualMachineCache) types.Validator {
+func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache, nodeCache ctlcorev1.NodeCache, vmCache ctlkubevirtv1.VirtualMachineCache, kubeovnSubnet ctlkubeovnv1.SubnetCache) types.Validator {
 	return &addonValidator{
 		addons:             addons,
 		flowCache:          flowCache,
@@ -40,6 +42,7 @@ func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowC
 		upgradeLogCache:    upgradeLogCache,
 		nodeCache:          nodeCache,
 		vmCache:            vmCache,
+		kubeovnSubnet:      kubeovnSubnet,
 	}
 }
 
@@ -54,6 +57,7 @@ type addonValidator struct {
 	upgradeLogCache    ctlharvesterv1.UpgradeLogCache
 	nodeCache          ctlcorev1.NodeCache
 	vmCache            ctlkubevirtv1.VirtualMachineCache
+	kubeovnSubnet      ctlkubeovnv1.SubnetCache
 }
 
 func (v *addonValidator) Resource() types.Resource {
@@ -122,6 +126,8 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 		return v.validatePCIDevicesControllerAddonUpdate(newAddon, oldAddon)
 	case util.NvidiaDriverToolkitName:
 		return v.validateNvidiaDriverToolkitAddonUpdate(newAddon, oldAddon)
+	case util.KubeOVNOperatorName:
+		return v.validateKubeOVNAddonUpdate(newAddon, oldAddon)
 	}
 
 	return nil
@@ -305,8 +311,8 @@ func (v *addonValidator) Delete(_ *types.Request, oldObj runtime.Object) error {
 		return nil
 	}
 	// don't allow delete non-experimental addons
-	//  strictly protect rancher-monitoring and rancher-logging
-	if oldAddon.Name == util.RancherLoggingName || oldAddon.Name == util.RancherMonitoringName || oldAddon.Labels[util.AddonExperimentalLabel] != "true" {
+	//  strictly protect rancher-monitoring and rancher-logging and kubeovn-operator
+	if oldAddon.Name == util.KubeOVNOperatorName || oldAddon.Name == util.RancherLoggingName || oldAddon.Name == util.RancherMonitoringName || oldAddon.Labels[util.AddonExperimentalLabel] != "true" {
 		return werror.NewBadRequest(fmt.Sprintf("%v/%v addon cannot be deleted", oldAddon.Namespace, oldAddon.Name))
 	}
 	return nil
@@ -374,6 +380,33 @@ func (v *addonValidator) validateNvidiaDriverToolkitAddon() error {
 
 	if len(vmsWithGPUs) > 0 {
 		return werror.NewBadRequest(fmt.Sprintf("nvidia-driver-toolkit addon cannot be disabled as the following VMs are using GPU devices: %v", vmsWithGPUs))
+	}
+
+	return nil
+}
+
+// restrict disabling kubeovn-operator addon when VMs are using the overlay networks provided by kubeovn.
+func (v *addonValidator) validateKubeOVNAddonUpdate(newAddon, oldAddon *v1beta1.Addon) error {
+	// addon not being disabled, no validation needed
+	if !oldAddon.Spec.Enabled || newAddon.Spec.Enabled {
+		return nil
+	}
+
+	//subnet crds already removed, return no-op
+	if v.kubeovnSubnet == nil {
+		return nil
+	}
+
+	subnets, err := v.kubeovnSubnet.List("", labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to retrieve subnets err=%v", err))
+	}
+
+	//V4UsingIPs will be non-zero even when the VMs are not in running state.
+	for _, subnet := range subnets {
+		if subnet.Status.V4UsingIPs != 0 {
+			return werror.NewBadRequest(fmt.Sprintf("kubeovn-operator addon cannot be disabled as VMs attached to overlay network %s in subnet %s are still in use, delete the VMs before disabling the addon", subnet.Spec.Provider, subnet.Name))
+		}
 	}
 
 	return nil

@@ -179,6 +179,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().UpgradeLog().Cache(),
 			clients.Core.Node().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
+			clients.KubeovnFactory.Kubeovn().V1().Subnet().Cache(),
 		),
 		version.NewValidator(),
 		volumesnapshot.NewValidator(
