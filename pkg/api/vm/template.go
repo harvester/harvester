@@ -125,12 +125,15 @@ func (h *vmActionHandler) createTemplateWithData(vm *kubevirtv1.VirtualMachine, 
 // getPVCMap analyzes a VM spec and returns a map, which contains
 // the PVC names as keys and PVC spec as values.
 func (h *vmActionHandler) getPVCMap(vm *kubevirtv1.VirtualMachine) (pvcMap map[string]corev1.PersistentVolumeClaim, err error) {
+	var pvc *corev1.PersistentVolumeClaim
+	pvcMap = make(map[string]corev1.PersistentVolumeClaim)
+
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim == nil {
 			continue // Skip if the volume does not reference a PVC
 		}
 
-		pvc, err := h.pvcCache.Get(vm.Namespace, volume.PersistentVolumeClaim.ClaimName)
+		pvc, err = h.pvcCache.Get(vm.Namespace, volume.PersistentVolumeClaim.ClaimName)
 		if err != nil {
 			return pvcMap, err
 		}
@@ -290,18 +293,15 @@ func (h *vmActionHandler) copySecret(sourceName, targetName string, templateVers
 		}).Error("Failed to get secret")
 		return err
 	}
+	ref, err := util.GetOwnerReferenceFor(templateVersion)
+	if err != nil {
+		return err
+	}
 	toCreate := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      targetName,
-			Namespace: secret.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: templateVersion.APIVersion,
-					Kind:       templateVersion.Kind,
-					Name:       templateVersion.Name,
-					UID:        templateVersion.UID,
-				},
-			},
+			Name:            targetName,
+			Namespace:       secret.Namespace,
+			OwnerReferences: []metav1.OwnerReference{*ref},
 		},
 		Data: secret.Data,
 	}
@@ -311,6 +311,9 @@ func (h *vmActionHandler) copySecret(sourceName, targetName string, templateVers
 }
 
 func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMachineTemplateVersion, vm *kubevirtv1.VirtualMachine) (vmImageMap map[string]harvesterv1.VirtualMachineImage, err error) {
+	var vmImage *harvesterv1.VirtualMachineImage
+	vmImageMap = make(map[string]harvesterv1.VirtualMachineImage)
+
 	for index, volume := range vm.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim == nil {
 			continue
@@ -323,7 +326,7 @@ func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMac
 			return nil, err
 		}
 
-		vmImage, err := h.createVMImage(vm.Namespace, vmImageName, claimName, *ownerRef)
+		vmImage, err = h.createVMImage(vm.Namespace, vmImageName, claimName, *ownerRef)
 		if err != nil {
 			logrus.WithError(err).WithFields(logrus.Fields{
 				"namespace":       templateVersion.Namespace,
@@ -377,8 +380,12 @@ func (h *vmActionHandler) createVMImage(namespace, name, claimName string, owner
 
 // If target StorageClass name starts with `longhorn-templateversion-` use
 // backingImage
-// If target StorageClass uses Longhorn V1 provisioner, use backingImage
-// Otherwise use CDI backend
+// If target StorageClass uses does not use Longhorn as provisioner, use CDI
+// backend.
+// If target StorageClass uses Longhorn as provisioner with v2 data engine, use
+// CDI backend as well.
+// Otherwise (Longhorn as provisioner, with v1 data engine or no data engine
+// explicitly specified) use backingImage backend
 func (h *vmActionHandler) getVMImageBackend(targetSCName string, pvc *corev1.PersistentVolumeClaim) (harvesterv1.VMIBackend, error) {
 	if strings.HasPrefix(targetSCName, "longhorn-templateversion-") {
 		return harvesterv1.VMIBackendBackingImage, nil
@@ -394,10 +401,10 @@ func (h *vmActionHandler) getVMImageBackend(targetSCName string, pvc *corev1.Per
 	}
 
 	v := util.GetLonghornDataEngineType(targetSC)
-	if v == longhorn.DataEngineTypeV1 {
-		return harvesterv1.VMIBackendBackingImage, nil
+	if v == longhorn.DataEngineTypeV2 {
+		return harvesterv1.VMIBackendCDI, nil
 	}
-	return harvesterv1.VMIBackendCDI, nil
+	return harvesterv1.VMIBackendBackingImage, nil
 }
 
 func (h *vmActionHandler) createVMTemplate(namespace string, input CreateTemplateInput) (vmt *harvesterv1.VirtualMachineTemplate, err error) {
