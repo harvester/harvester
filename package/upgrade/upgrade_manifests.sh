@@ -435,10 +435,16 @@ wait_capi_cluster() {
   generation=$3
 
   while [ true ]; do
-    cluster=$(kubectl get clusters.cluster.x-k8s.io $name -n $namespace -o yaml)
+    unset localcluster
+    local localcluster=$(kubectl get clusters.cluster.x-k8s.io $name -n $namespace -o yaml)
+    if [[ -z ${localcluster} ]]; then
+      echo "failed to get CAPI cluster $namespace/$name, retry..."
+      sleep 5
+      continue
+    fi
 
-    current_generation=$(echo "$cluster" | yq e '.status.observedGeneration' -)
-    current_phase=$(echo "$cluster" | yq e '.status.phase' -)
+    current_generation=$(echo "$localcluster" | yq e '.status.observedGeneration' -)
+    current_phase=$(echo "$localcluster" | yq e '.status.phase' -)
 
     if [ "$current_generation" -gt "$generation" ]; then
       if [ "$current_phase" = "Provisioned" ]; then
@@ -605,8 +611,8 @@ clean_capi_legacy_webhooks() {
     return
   fi
   echo "clean capi legay webhooks which are not used from Harvester v1.8.0"
-  kubectl delete mutatingwebhookconfigurations mutating-webhook-configuration || echo "mutating-webhook-configuration has been deleted"
-  kubectl delete validatingwebhookconfiguration validating-webhook-configuration || echo "validating-webhook-configuration has been deleted"
+  kubectl delete mutatingwebhookconfigurations mutating-webhook-configuration --ignore-not-found
+  kubectl delete validatingwebhookconfiguration validating-webhook-configuration --ignore-not-found
 }
 
 upgrade_rancher() {
