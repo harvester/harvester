@@ -38,21 +38,8 @@ func (v *VMBuilder) HostDevice(name, hostDeviceName, tag string) *VMBuilder {
 	return v
 }
 
-func (v *VMBuilder) GPU(name, hostDeviceName, tag string, virtualGPUOptions *kubevirtv1.VGPUOptions) *VMBuilder {
-	gpus := v.VirtualMachine.Spec.Template.Spec.Domain.Devices.GPUs
-	gpu := kubevirtv1.GPU{
-		Name:       name,
-		DeviceName: hostDeviceName,
-	}
-	if virtualGPUOptions != nil {
-		gpu.VirtualGPUOptions = virtualGPUOptions
-	}
-	if tag != "" {
-		gpu.Tag = tag
-	}
-	gpus = append(gpus, gpu)
-	v.VirtualMachine.Spec.Template.Spec.Domain.Devices.GPUs = gpus
-	return v
+func (v *VMBuilder) GPU(name, hostDeviceName, tag string, _ *kubevirtv1.VGPUOptions) *VMBuilder {
+	return v.HostDevice(name, hostDeviceName, tag)
 }
 
 func (v *VMBuilder) TPM() *VMBuilder {
