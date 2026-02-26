@@ -129,7 +129,7 @@ func Test_vmValidator_checkResourceQuota(t *testing.T) {
 				nil,
 				nil)
 
-			got, err := c.getNamespaceResourceQuota(tt.args.vm)
+			got, err := c.getNamespaceResourceQuota(tt.args.vm.Namespace)
 			assert.Equalf(t, tt.wantErr, err, "getNamespaceResourceQuota(%v)", tt.args.vm)
 			assert.Equalf(t, tt.want, got, "getNamespaceResourceQuota(%v)", tt.args.vm)
 		})
@@ -395,7 +395,7 @@ func Test_vmValidator_containsEnoughResourceQuotaToStartVM(t *testing.T) {
 				Spec: corev1.ResourceQuotaSpec{
 					Hard: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceLimitsCPU:    *resource.NewQuantity(6, resource.DecimalSI),
-						corev1.ResourceLimitsMemory: *resource.NewQuantity(14.5*memory1Gi, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(14*memory1Gi, resource.DecimalSI),
 					},
 				},
 				Status: corev1.ResourceQuotaStatus{
@@ -408,7 +408,7 @@ func Test_vmValidator_containsEnoughResourceQuotaToStartVM(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "VM can start and RQ is also scaled",
+			name: "VM can't start and RQ is also scaled with compensation",
 			vm: &kubevirtv1.VirtualMachine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "vm1",
@@ -431,21 +431,111 @@ func Test_vmValidator_containsEnoughResourceQuotaToStartVM(t *testing.T) {
 					Name:      "rq1",
 					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 					Annotations: map[string]string{
-						util.CattleAnnotationResourceQuota:                          "{\"limit\":{\"limitsCpu\":\"4\", \"limitsMemory\":\"10240Mi\"}}",
-						util.GenerateAnnotationKeyMigratingVMName("vminmigration1"): `{"limits.cpu":"1","limits.memory":"2Gi"}`, // name based key still works
-						util.GenerateAnnotationKeyMigratingVMName("vminmigration2"): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+						util.CattleAnnotationResourceQuota:             "{\"limit\":{\"limitsCpu\":\"4\", \"limitsMemory\":\"10240Mi\"}}",
+						util.GenerateAnnotationKeyMigratingVMUID(uid1): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+						util.GenerateAnnotationKeyMigratingVMUID(uid2): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+						util.AnnotationMigratingCompensation:           `{"limits.memory":"1Gi"}`,
 					},
 				},
 				Spec: corev1.ResourceQuotaSpec{
 					Hard: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceLimitsCPU:    *resource.NewQuantity(6, resource.DecimalSI),
-						corev1.ResourceLimitsMemory: *resource.NewQuantity(14.5*memory1Gi, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(15*memory1Gi, resource.DecimalSI),
 					},
 				},
 				Status: corev1.ResourceQuotaStatus{
 					Used: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceLimitsCPU:    *resource.NewQuantity(3, resource.DecimalSI),
-						corev1.ResourceLimitsMemory: *resource.NewQuantity(12*memory1Gi, resource.DecimalSI), // 10 - ( 12 - 2 -2 ) = 2, meets the VM's requirement
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(14*memory1Gi, resource.DecimalSI), // 10 - ( 14 - 2 -2 -1 ) = 1, does not meet the VM's requirement
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "VM can't start and RQ is also scaled with compensation 2",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vm1",
+					Namespace: testNS,
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: generateRQ(1, 4),
+							},
+						},
+					},
+				},
+			},
+			nsrq: &nsrq,
+			rq: &corev1.ResourceQuota{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNS,
+					Name:      "rq1",
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					Annotations: map[string]string{
+						util.CattleAnnotationResourceQuota:             "{\"limit\":{\"limitsCpu\":\"4\", \"limitsMemory\":\"10240Mi\"}}",
+						util.GenerateAnnotationKeyMigratingVMUID(uid1): `{"limits.cpu":"1","limits.memory":"4Gi"}`,
+						util.AnnotationMigratingCompensation:           `{"limits.memory":"2Gi"}`,
+					},
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(5, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(16*memory1Gi, resource.DecimalSI),
+					},
+				},
+				Status: corev1.ResourceQuotaStatus{
+					Used: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(2, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(11*memory1Gi+768*(1<<20), resource.DecimalSI), // 10 - ( 11.7 - 4 - 2 ) = 4.3, does not meet the VM's requirement
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "VM can start and RQ is also scaled with compensation",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vm1",
+					Namespace: testNS,
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: generateRQ(1, 1),
+							},
+						},
+					},
+				},
+			},
+			nsrq: &nsrq,
+			rq: &corev1.ResourceQuota{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNS,
+					Name:      "rq1",
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					Annotations: map[string]string{
+						util.CattleAnnotationResourceQuota:             "{\"limit\":{\"limitsCpu\":\"4\", \"limitsMemory\":\"10240Mi\"}}",
+						util.GenerateAnnotationKeyMigratingVMUID(uid1): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+						util.GenerateAnnotationKeyMigratingVMUID(uid2): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+						util.AnnotationMigratingCompensation:           `{"limits.memory":"1Gi"}`,
+					},
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(6, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(15*memory1Gi, resource.DecimalSI),
+					},
+				},
+				Status: corev1.ResourceQuotaStatus{
+					Used: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(3, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(13*memory1Gi, resource.DecimalSI), // 10 - ( 13 - 2 -2 -1 ) = 2, meets the VM's requirement
 					},
 				},
 			},
