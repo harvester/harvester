@@ -463,19 +463,18 @@ func IsEmptyResourceQuota(rq *corev1.ResourceQuota) bool {
 func calculateVMStorageQuantity(vm *kubevirtv1.VirtualMachine) (resource.Quantity, error) {
 	storage := *resource.NewQuantity(0, resource.BinarySI)
 
-	volumeClaimTemplates, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
-	if !ok || volumeClaimTemplates == "" {
+	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplatesStr == "" {
 		return storage, nil
 	}
 
-	var pvcs []*corev1.PersistentVolumeClaim
-	err := json.Unmarshal([]byte(volumeClaimTemplates), &pvcs)
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
 	if err != nil {
 		return storage, fmt.Errorf("failed to unmarshal the volumeClaimTemplates annotation: %w", err)
 	}
 
-	for _, pvc := range pvcs {
-		storage.Add(*pvc.Spec.Resources.Requests.Storage())
+	for _, entry := range entries {
+		storage.Add(*entry.PVC.Spec.Resources.Requests.Storage())
 	}
 
 	return storage, nil

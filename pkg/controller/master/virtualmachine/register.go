@@ -17,6 +17,8 @@ const (
 	vmControllerSyncLabelsToVmi                                  = "VMController.SyncLabelsToVmi"
 	vmControllerSetHaltIfInsufficientResourceQuotaControllerName = "VMController.SetHaltIfInsufficientResourceQuota"
 	vmControllerRemoveDeprecatedFinalizerControllerName          = "VMController.RemoveDeprecatedFinalizer"
+	vmControllerSetTargetVolumeStrategyControllerName            = "VMController.SetTargetVolumeStrategy"
+	vmControllerCleanupTargetVolumeAnnotationControllerName      = "VMController.CleanupTargetVolumeAnnotation"
 	vmiControllerRemoveDeprecatedFinalizerControllerName         = "VMIController.RemoveDeprecatedFinalizer"
 	vmiControllerSetHaltIfOccurExceededQuotaControllerName       = "VMIController.StopVMIfExceededQuota"
 
@@ -85,6 +87,8 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	virtualMachineClient.OnChange(ctx, vmControllerSyncLabelsToVmi, vmCtrl.SyncLabelsToVmi)
 	virtualMachineClient.OnChange(ctx, vmControllerSetHaltIfInsufficientResourceQuotaControllerName, vmCtrl.SetHaltIfInsufficientResourceQuota)
 	virtualMachineClient.OnChange(ctx, vmControllerRemoveDeprecatedFinalizerControllerName, vmCtrl.removeDeprecatedFinalizer)
+	virtualMachineClient.OnChange(ctx, vmControllerSetTargetVolumeStrategyControllerName, vmCtrl.SetTargetVolumeStrategy)
+	virtualMachineClient.OnChange(ctx, vmControllerCleanupTargetVolumeAnnotationControllerName, vmCtrl.CleanupTargetVolumeAnnotation)
 	virtualMachineClient.OnRemove(ctx, vmControllerCleanupPVCAndSnapshotFinalizerName, vmCtrl.cleanupPVCAndSnapshot)
 
 	// registers the vmi controller

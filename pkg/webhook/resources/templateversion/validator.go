@@ -1,7 +1,6 @@
 package templateversion
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/sirupsen/logrus"
@@ -141,8 +140,7 @@ func validateVolumeClaimTemplateString(vmTemplateVersion *v1beta1.VirtualMachine
 	if annotations != nil {
 		volumeClaimTemplateString, ok := annotations[util.AnnotationVolumeClaimTemplates]
 		if ok && volumeClaimTemplateString != "" {
-			var volumeClaimTemplates []corev1.PersistentVolumeClaim
-			if err := json.Unmarshal([]byte(volumeClaimTemplateString), &volumeClaimTemplates); err != nil {
+			if _, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplateString); err != nil {
 				return werror.NewInvalidError(
 					fmt.Sprintf("Invalid JSON data in annotation %s", util.AnnotationVolumeClaimTemplates),
 					fieldVolumeClaimTemplatesAnnotation,

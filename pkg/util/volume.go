@@ -24,6 +24,58 @@ var (
 	PersistentVolumeClaimsKind = schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolumeClaim"}
 )
 
+// VolumeClaimTemplateEntry represents a single entry in the volumeClaimTemplates annotation.
+// New format wraps PVC with an optional targetVolume field for storage migration.
+type VolumeClaimTemplateEntry struct {
+	PVC          corev1.PersistentVolumeClaim `json:"pvc"`
+	TargetVolume string                       `json:"targetVolume,omitempty"`
+}
+
+// UnmarshalVolumeClaimTemplates parses the volumeClaimTemplates annotation value.
+// It auto-detects the format: new format ([]VolumeClaimTemplateEntry) or
+// legacy format ([]corev1.PersistentVolumeClaim), converting legacy to new format.
+func UnmarshalVolumeClaimTemplates(data string) ([]VolumeClaimTemplateEntry, error) {
+	if data == "" {
+		return nil, nil
+	}
+
+	// Try new format first
+	var entries []VolumeClaimTemplateEntry
+	if err := json.Unmarshal([]byte(data), &entries); err == nil && len(entries) > 0 && entries[0].PVC.Name != "" {
+		return entries, nil
+	}
+
+	// Fallback: legacy format []PVC
+	var pvcs []corev1.PersistentVolumeClaim
+	if err := json.Unmarshal([]byte(data), &pvcs); err != nil {
+		return nil, err
+	}
+	entries = make([]VolumeClaimTemplateEntry, len(pvcs))
+	for i, pvc := range pvcs {
+		entries[i] = VolumeClaimTemplateEntry{PVC: pvc}
+	}
+	return entries, nil
+}
+
+// MarshalVolumeClaimTemplates serializes entries to JSON for the annotation.
+func MarshalVolumeClaimTemplates(entries []VolumeClaimTemplateEntry) (string, error) {
+	data, err := json.Marshal(entries)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// GetPVCsFromVolumeClaimTemplates extracts the PVC list from entries.
+func GetPVCsFromVolumeClaimTemplates(entries []VolumeClaimTemplateEntry) []*corev1.PersistentVolumeClaim {
+	pvcs := make([]*corev1.PersistentVolumeClaim, 0, len(entries))
+	for i := range entries {
+		pvc := entries[i].PVC
+		pvcs = append(pvcs, &pvc)
+	}
+	return pvcs
+}
+
 func GetCSIProvisionerSnapshotCapability(provisioner string) bool {
 	csiDriverConfig := make(map[string]settings.CSIDriverInfo)
 	if err := json.Unmarshal([]byte(settings.CSIDriverConfig.Get()), &csiDriverConfig); err != nil {

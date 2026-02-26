@@ -1,7 +1,6 @@
 package builder
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/sirupsen/logrus"
@@ -175,17 +174,19 @@ func (v *VMBuilder) PVCVolume(diskName, diskSize, pvcName string, hotpluggable b
 	}
 
 	//nolint:prealloc // we cannot determine the length of pvcs beforehand (due to possible unmarshal error)
-	var pvcs []*corev1.PersistentVolumeClaim
-	volumeClaimTemplates, ok := v.VirtualMachine.Annotations[util.AnnotationVolumeClaimTemplates]
-	if ok && volumeClaimTemplates != "" {
-		if err := json.Unmarshal([]byte(volumeClaimTemplates), &pvcs); err != nil {
+	var entries []util.VolumeClaimTemplateEntry
+	volumeClaimTemplatesStr, ok := v.VirtualMachine.Annotations[util.AnnotationVolumeClaimTemplates]
+	if ok && volumeClaimTemplatesStr != "" {
+		var err error
+		entries, err = util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
+		if err != nil {
 			logrus.Warnf("failed to unmarshal the volumeClaimTemplates annotation: %v", err)
 		}
 	}
 	if opt.Annotations == nil {
 		opt.Annotations = map[string]string{}
 	}
-	pvc := &corev1.PersistentVolumeClaim{
+	pvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        pvcName,
 			Annotations: opt.Annotations,
@@ -207,13 +208,13 @@ func (v *VMBuilder) PVCVolume(diskName, diskSize, pvcName string, hotpluggable b
 		pvc.Annotations[AnnotationKeyImageID] = opt.ImageID
 	}
 
-	pvcs = append(pvcs, pvc)
+	entries = append(entries, util.VolumeClaimTemplateEntry{PVC: pvc})
 
-	toUpdateVolumeClaimTemplates, err := json.Marshal(pvcs)
+	data, err := util.MarshalVolumeClaimTemplates(entries)
 	if err != nil {
 		logrus.Warnf("failed to marshal the volumeClaimTemplates annotation: %v", err)
 	} else {
-		v.VirtualMachine.Annotations[util.AnnotationVolumeClaimTemplates] = string(toUpdateVolumeClaimTemplates)
+		v.VirtualMachine.Annotations[util.AnnotationVolumeClaimTemplates] = data
 	}
 
 	return v.ExistingPVCVolume(diskName, pvcName, hotpluggable)

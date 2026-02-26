@@ -1,12 +1,10 @@
 package datavolume
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -93,17 +91,17 @@ func (v *dataVolumeValidator) Delete(request *types.Request, curObj runtime.Obje
 }
 
 func dataVolumeIsAttachedToVM(vm *kubevirtv1.VirtualMachine, curDV *cdiv1.DataVolume) bool {
-	volumeClaimTemplates, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
-	if !ok || volumeClaimTemplates == "" {
+	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplatesStr == "" {
 		return false
 	}
-	var pvcs []*corev1.PersistentVolumeClaim
-	if err := json.Unmarshal([]byte(volumeClaimTemplates), &pvcs); err != nil {
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
+	if err != nil {
 		logrus.Warnf("failed to unmarshal volumeClaimTemplates: %s, assume the dataVolume is in use", err)
 		return false
 	}
-	for _, pvc := range pvcs {
-		if pvc.Name == curDV.Name {
+	for _, entry := range entries {
+		if entry.PVC.Name == curDV.Name {
 			return true
 		}
 	}

@@ -2,7 +2,6 @@ package indexeres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
@@ -100,8 +99,8 @@ func VMTemplateVersionByImageID(obj *harvesterv1.VirtualMachineTemplateVersion) 
 		return []string{}, nil
 	}
 
-	var volumeClaimTemplates []corev1.PersistentVolumeClaim
-	if err := json.Unmarshal([]byte(volumeClaimTemplateStr), &volumeClaimTemplates); err != nil {
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplateStr)
+	if err != nil {
 		// an IndexFunc should never return an error as this would cause the cache
 		// to panic. Therefore we just log the error and return an empty result.
 		logrus.WithFields(logrus.Fields{
@@ -114,8 +113,8 @@ func VMTemplateVersionByImageID(obj *harvesterv1.VirtualMachineTemplateVersion) 
 	}
 
 	imageIDs := []string{}
-	for _, volumeClaimTemplate := range volumeClaimTemplates {
-		imageID, ok := volumeClaimTemplate.Annotations[util.AnnotationImageID]
+	for _, entry := range entries {
+		imageID, ok := entry.PVC.Annotations[util.AnnotationImageID]
 		if !ok || imageID == "" {
 			continue
 		}
