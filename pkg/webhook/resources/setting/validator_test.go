@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,6 +15,7 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	networkutil "github.com/harvester/harvester/pkg/util/network"
 )
 
 func Test_validateOvercommitConfig(t *testing.T) {
@@ -1270,6 +1272,45 @@ func Test_validateStorageNetworkConfig(t *testing.T) {
 	}
 }
 
+func Test_checkStorageNetworkNotBlockedByRWX(t *testing.T) {
+	clearSetting := &v1beta1.Setting{
+		ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+		Value:      "",
+	}
+
+	tests := []struct {
+		name        string
+		toggleValue string
+		expectedErr bool
+	}{
+		{
+			name:        "clear storage-network while toggle is true -> blocked",
+			toggleValue: "true",
+			expectedErr: true,
+		},
+		{
+			name:        "clear storage-network while toggle is false -> allowed",
+			toggleValue: "false",
+			expectedErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset(&v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+				Value:      tt.toggleValue,
+			})
+			v := &settingValidator{
+				settingCache: fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+			}
+
+			err := v.checkStorageNetworkNotBlockedByRWX(clearSetting)
+			assert.Equal(t, tt.expectedErr, err != nil, err)
+		})
+	}
+}
+
 func Test_validateMaxHotplugRatio(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -1348,5 +1389,434 @@ func Test_validateMaxHotplugRatio(t *testing.T) {
 			}
 		})
 
+	}
+}
+
+func Test_validateUpdateStorageNetworkForRWXVolumeEnabled(t *testing.T) {
+	// Any non-empty string suffices; validateUpdateStorageNetworkForRWXVolumeEnabled only
+	// checks non-emptiness of storage-network, not its JSON validity.
+	storageNetworkValue := `{"vlan":100,"clusterNetwork":"vlan","range":"192.168.0.0/24"}`
+	rwxStorageNetworkValue := `{"vlan":101,"clusterNetwork":"vlan","range":"192.168.1.0/24"}`
+
+	attachedRWXVolume := &lhv1beta2.Volume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rwx-vol-attached",
+			Namespace: "longhorn-system",
+		},
+		Spec: lhv1beta2.VolumeSpec{
+			AccessMode: lhv1beta2.AccessModeReadWriteMany,
+		},
+		Status: lhv1beta2.VolumeStatus{
+			State: lhv1beta2.VolumeStateAttached,
+		},
+	}
+
+	tests := []struct {
+		name             string
+		oldSetting       *v1beta1.Setting
+		newSetting       *v1beta1.Setting
+		existingSettings []*v1beta1.Setting
+		existingVolumes  []*lhv1beta2.Volume
+		expectedErr      bool
+	}{
+		{
+			// false->true: storage-network set, rwx-storage-network set, no attached RWX volumes -> ok
+			name: "false->true, storageNetwork=valid, rwxStorageNetwork=valid, volumes detached",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+				Default:    "false",
+				Value:      "false",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+				Default:    "false",
+				Value:      "true",
+			},
+			existingSettings: []*v1beta1.Setting{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+					Value:      storageNetworkValue,
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+					Value:      rwxStorageNetworkValue,
+				},
+			},
+			expectedErr: false,
+		},
+		{
+			// true->false: storage-network set, rwx-storage-network set, no attached RWX volumes -> ok
+			name: "true->false, storageNetwork=valid, rwxStorageNetwork=valid, volumes detached",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+				Default:    "false",
+				Value:      "true",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+				Default:    "false",
+				Value:      "false",
+			},
+			existingSettings: []*v1beta1.Setting{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+					Value:      storageNetworkValue,
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+					Value:      rwxStorageNetworkValue,
+				},
+			},
+			expectedErr: false,
+		},
+		{
+			// false->true: storage-network and rwx-storage-network both empty -> not ok (storage-network required)
+			name: "false->true, storageNetwork=\"\", rwxStorageNetwork=\"\"",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+				Default:    "false",
+				Value:      "false",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+				Default:    "false",
+				Value:      "true",
+			},
+			existingSettings: []*v1beta1.Setting{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+					Value:      "",
+				},
+			},
+			expectedErr: true,
+		},
+		{
+			// false->true: storage-network set, but RWX volumes are still attached -> not ok
+			name: "false->true, storageNetwork=valid, volumes attached RWX",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+				Default:    "false",
+				Value:      "false",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+				Default:    "false",
+				Value:      "true",
+			},
+			existingSettings: []*v1beta1.Setting{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+					Value:      storageNetworkValue,
+				},
+			},
+			existingVolumes: []*lhv1beta2.Volume{attachedRWXVolume},
+			expectedErr:     true,
+		},
+		{
+			// true->false: RWX volumes still attached -> not ok
+			name: "true->false, volumes attached RWX",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+				Default:    "false",
+				Value:      "true",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+				Default:    "false",
+				Value:      "false",
+			},
+			existingVolumes: []*lhv1beta2.Volume{attachedRWXVolume},
+			expectedErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			objects := make([]runtime.Object, 0, len(tt.existingSettings)+len(tt.existingVolumes))
+			for _, s := range tt.existingSettings {
+				objects = append(objects, s)
+			}
+			for _, vol := range tt.existingVolumes {
+				objects = append(objects, vol)
+			}
+
+			clientset := fake.NewSimpleClientset(objects...)
+			v := &settingValidator{
+				settingCache:  fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				lhVolumeCache: fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+			}
+
+			err := v.validateUpdateStorageNetworkForRWXVolumeEnabled(tt.oldSetting, tt.newSetting)
+			assert.Equal(t, tt.expectedErr, err != nil, err)
+		})
+	}
+}
+
+func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
+	rwxStorageNetwork := `{"vlan":100,"clusterNetwork":"vlan","range":"192.168.0.0/24"}`
+
+	attachedRWXVolume := &lhv1beta2.Volume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rwx-vol-attached",
+			Namespace: "longhorn-system",
+		},
+		Spec: lhv1beta2.VolumeSpec{
+			AccessMode: lhv1beta2.AccessModeReadWriteMany,
+		},
+		Status: lhv1beta2.VolumeStatus{
+			State: lhv1beta2.VolumeStateAttached,
+		},
+	}
+
+	tests := []struct {
+		name             string
+		oldSetting       *v1beta1.Setting
+		newSetting       *v1beta1.Setting
+		existingSettings []*v1beta1.Setting
+		existingVolumes  []*lhv1beta2.Volume
+		expectedErr      bool
+	}{
+		{
+			// Same effective value -> early return, no further checks
+			name: "no change -> ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      "",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      "",
+			},
+			expectedErr: false,
+		},
+		{
+			// StorageNetworkForRWXVolumeEnabled=true: RWX governed by storage-network,
+			// volume-detach check is skipped even with attached RWX volumes -> ok
+			name: "value changed, enabled=true, volumes attached -> ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      rwxStorageNetwork,
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Default:    "",
+				Value:      "",
+			},
+			existingSettings: []*v1beta1.Setting{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+					Default:    "false",
+					Value:      "true",
+				},
+			},
+			existingVolumes: []*lhv1beta2.Volume{attachedRWXVolume},
+			expectedErr:     false,
+		},
+		{
+			// StorageNetworkForRWXVolumeEnabled=false: volume-detach check runs, no attached volumes -> ok
+			name: "value changed, enabled=false, volumes detached -> ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      rwxStorageNetwork,
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Default:    "",
+				Value:      "",
+			},
+			existingSettings: []*v1beta1.Setting{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+					Default:    "false",
+					Value:      "",
+				},
+			},
+			expectedErr: false,
+		},
+		{
+			// StorageNetworkForRWXVolumeEnabled=false: volume-detach check runs, attached volumes -> not ok
+			name: "value changed, enabled=false, volumes attached -> not ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      rwxStorageNetwork,
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Default:    "",
+				Value:      "",
+			},
+			existingSettings: []*v1beta1.Setting{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+					Default:    "false",
+					Value:      "",
+				},
+			},
+			existingVolumes: []*lhv1beta2.Volume{attachedRWXVolume},
+			expectedErr:     true,
+		},
+		{
+			// "" -> valid JSON (mgmt cluster bypasses VlanStatus/VC checks), no volumes -> ok
+			name: "value changed, empty->valid JSON, no volumes -> ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      "",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      `{"vlan":100,"clusterNetwork":"mgmt","range":"192.168.0.0/24"}`,
+			},
+			existingSettings: []*v1beta1.Setting{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkForRWXVolumeEnabledSettingName},
+					Default:    "false",
+					Value:      "",
+				},
+			},
+			expectedErr: false,
+		},
+		{
+			// "" -> invalid JSON: unmarshal fails -> error
+			name: "value changed, empty->invalid JSON -> error",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      "",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      `{invalid}`,
+			},
+			expectedErr: true,
+		},
+		{
+			// "" -> JSON with VLAN ID > 4094: checkNetworkVlanValid fails -> error
+			name: "value changed, empty->invalid VLAN ID -> error",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      "",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      `{"vlan":5000,"clusterNetwork":"mgmt","range":"192.168.0.0/24"}`,
+			},
+			expectedErr: true,
+		},
+		{
+			// "" -> JSON with non-CIDR range: checkNetworkRangeValid fails -> error
+			name: "value changed, empty->invalid range -> error",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      "",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				Value:      `{"vlan":100,"clusterNetwork":"mgmt","range":"not-a-cidr"}`,
+			},
+			expectedErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			objects := make([]runtime.Object, 0, len(tt.existingSettings)+len(tt.existingVolumes))
+			for _, s := range tt.existingSettings {
+				objects = append(objects, s)
+			}
+			for _, vol := range tt.existingVolumes {
+				objects = append(objects, vol)
+			}
+
+			clientset := fake.NewSimpleClientset(objects...)
+			v := &settingValidator{
+				settingCache:  fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				lhVolumeCache: fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+			}
+
+			err := v.validateUpdateRWXStorageNetwork(tt.oldSetting, tt.newSetting)
+			assert.Equal(t, tt.expectedErr, err != nil, err)
+		})
+	}
+}
+
+func Test_checkNetworkOverlap(t *testing.T) {
+	tests := []struct {
+		name    string
+		c1Name  string
+		c1      *networkutil.Config
+		c2      map[string]*networkutil.Config
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "c1 is nil, skip check",
+			c1Name:  "storage-network",
+			c1:      nil,
+			c2:      map[string]*networkutil.Config{"vm-migration-network": {Range: "192.168.1.0/24"}},
+			wantErr: false,
+		},
+		{
+			name:    "c2 contains only nil configs, no overlap",
+			c1Name:  "storage-network",
+			c1:      &networkutil.Config{Range: "192.168.1.0/24"},
+			c2:      map[string]*networkutil.Config{"vm-migration-network": nil},
+			wantErr: false,
+		},
+		{
+			name:    "non-overlapping CIDRs, no error",
+			c1Name:  "storage-network",
+			c1:      &networkutil.Config{Range: "192.168.1.0/24"},
+			c2:      map[string]*networkutil.Config{"vm-migration-network": {Range: "192.168.2.0/24"}},
+			wantErr: false,
+		},
+		{
+			name:    "overlapping CIDRs, return error",
+			c1Name:  "storage-network",
+			c1:      &networkutil.Config{Range: "192.168.1.0/24"},
+			c2:      map[string]*networkutil.Config{"vm-migration-network": {Range: "192.168.1.0/24"}},
+			wantErr: true,
+			errMsg:  "storage-network: the network configuration is overlapped with vm-migration-network",
+		},
+		{
+			name:   "c1 exclude removes overlap, no error",
+			c1Name: "storage-network",
+			c1: &networkutil.Config{
+				Range:   "192.168.1.0/30",
+				Exclude: []string{"192.168.1.1/32", "192.168.1.2/32"},
+			},
+			c2:      map[string]*networkutil.Config{"vm-migration-network": {Range: "192.168.1.1/32"}},
+			wantErr: false,
+		},
+		{
+			name:    "invalid CIDR in c1, return error",
+			c1Name:  "storage-network",
+			c1:      &networkutil.Config{Range: "not-a-cidr"},
+			c2:      map[string]*networkutil.Config{"vm-migration-network": {Range: "192.168.1.0/24"}},
+			wantErr: true,
+		},
+		{
+			name:   "multiple c2 configs, one overlaps, return error",
+			c1Name: "storage-network",
+			c1:     &networkutil.Config{Range: "10.0.0.0/24"},
+			c2: map[string]*networkutil.Config{
+				"vm-migration-network": {Range: "192.168.1.0/24"},
+				"rwx-storage-network":  {Range: "10.0.0.0/24"},
+			},
+			wantErr: true,
+			errMsg:  "storage-network: the network configuration is overlapped with rwx-storage-network",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkNetworkOverlap(tt.c1Name, tt.c1, tt.c2)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errMsg != "" {
+					assert.EqualError(t, err, tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
 	}
 }
