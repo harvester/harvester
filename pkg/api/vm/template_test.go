@@ -31,7 +31,7 @@ func TestGetSCNameFromImgID(t *testing.T) {
 			in: input{
 				imageId: "default/test",
 				images: []*harvesterv1.VirtualMachineImage{
-					&harvesterv1.VirtualMachineImage{
+					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "notthisone",
 							Namespace: "default",
@@ -40,7 +40,7 @@ func TestGetSCNameFromImgID(t *testing.T) {
 							},
 						},
 					},
-					&harvesterv1.VirtualMachineImage{
+					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test",
 							Namespace: "default",
@@ -49,7 +49,7 @@ func TestGetSCNameFromImgID(t *testing.T) {
 							},
 						},
 					},
-					&harvesterv1.VirtualMachineImage{
+					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test",
 							Namespace: "alsonotthisone",
@@ -70,7 +70,7 @@ func TestGetSCNameFromImgID(t *testing.T) {
 			in: input{
 				imageId: "default/test",
 				images: []*harvesterv1.VirtualMachineImage{
-					&harvesterv1.VirtualMachineImage{
+					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "notthisone",
 							Namespace: "default",
@@ -79,7 +79,7 @@ func TestGetSCNameFromImgID(t *testing.T) {
 							},
 						},
 					},
-					&harvesterv1.VirtualMachineImage{
+					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test",
 							Namespace: "alsonotthisone",
@@ -100,7 +100,7 @@ func TestGetSCNameFromImgID(t *testing.T) {
 			in: input{
 				imageId: "default/test",
 				images: []*harvesterv1.VirtualMachineImage{
-					&harvesterv1.VirtualMachineImage{
+					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:        "test",
 							Namespace:   "default",
