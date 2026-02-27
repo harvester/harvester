@@ -13,6 +13,40 @@ pre_upgrade_manifest() {
   fi
 }
 
+# Preserve the current overcommit-config value before upgrade.
+# The new version lowers the default storage overcommit from 200% to 100%.
+# For users who never customized the setting (value is empty), we pin the
+# current default so their effective configuration is not silently changed.
+preserve_overcommit_config() {
+  local setting_name="overcommit-config"
+  local setting_json
+  setting_json=$(kubectl get settings.harvesterhci.io "$setting_name" -o json 2>/dev/null) || {
+    echo "Warning: failed to get $setting_name setting, skipping preservation"
+    return 0
+  }
+
+  local current_value
+  current_value=$(echo "$setting_json" | jq -r '.value // empty')
+
+  if [ -n "$current_value" ]; then
+    echo "overcommit-config already has a customized value, skipping preservation"
+    return 0
+  fi
+
+  local default_value
+  default_value=$(echo "$setting_json" | jq -r '.default // empty')
+
+  if [ -z "$default_value" ]; then
+    echo "Warning: overcommit-config has no default value, skipping preservation"
+    return 0
+  fi
+
+  echo "Preserving current overcommit-config default as explicit value: $default_value"
+  local patch_json
+  patch_json=$(jq -n --arg v "$default_value" '{"value": $v}')
+  kubectl patch settings.harvesterhci.io "$setting_name" --type merge -p "$patch_json"
+}
+
 wait_managed_chart() {
   namespace=$1
   name=$2
@@ -1358,6 +1392,7 @@ wait_repo
 detect_repo
 detect_upgrade
 pre_upgrade_manifest
+preserve_overcommit_config
 pause_all_charts
 skip_restart_rancher_system_agent
 upgrade_rancher
