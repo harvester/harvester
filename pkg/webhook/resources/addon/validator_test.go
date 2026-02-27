@@ -8,12 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	fake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	kubeovnapiv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 )
 
 func Test_validateUpdatedAddon(t *testing.T) {
@@ -470,7 +472,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 	upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
 	fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 	fakeVMCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
-	validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, fakeVMCache).(*addonValidator)
+	validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, fakeVMCache, nil).(*addonValidator)
 
 	for _, tc := range testCases {
 		err := validator.validateUpdatedAddon(tc.newAddon, tc.oldAddon)
@@ -548,7 +550,7 @@ func Test_validateNewAddon(t *testing.T) {
 		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
 
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil, nil).(*addonValidator)
 		for _, addon := range tc.addonList {
 			err := clientset.Tracker().Add(addon)
 			assert.Nil(t, err)
@@ -910,7 +912,7 @@ func Test_validateRancherLoggingAddonWithClusterFlow(t *testing.T) {
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
 		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil, nil).(*addonValidator)
 		for _, cf := range tc.clusterFlows {
 			err := clientset.Tracker().Add(cf)
 			assert.Nil(t, err)
@@ -1192,7 +1194,7 @@ func Test_validateRancherLoggingAddonWithFlow(t *testing.T) {
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
 		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil, nil).(*addonValidator)
 		for _, cf := range tc.flows {
 			err := clientset.Tracker().Add(cf)
 			assert.Nil(t, err)
@@ -1423,7 +1425,7 @@ func Test_validateRancherLoggingWithUpgradeLog(t *testing.T) {
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
 		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil, nil).(*addonValidator)
 		for _, upgradeLog := range tc.upgradeLogs {
 			err := clientset.Tracker().Add(upgradeLog)
 			assert.Nil(t, err)
@@ -1535,7 +1537,7 @@ func Test_validateRancherLoggingWithUpgradeLogThenUpgradeAddon(t *testing.T) {
 		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
 		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil, nil).(*addonValidator)
 		for _, upgradeLog := range tc.upgradeLogs {
 			err := clientset.Tracker().Add(upgradeLog)
 			assert.Nil(t, err)
@@ -1640,7 +1642,7 @@ func Test_validateDeleteAddon(t *testing.T) {
 		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
 		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil, nil).(*addonValidator)
 
 		err := validator.Delete(nil, tc.oldAddon)
 		if tc.expectedError {
@@ -2115,6 +2117,157 @@ func Test_validateNvidiaDriverToolkitAddon(t *testing.T) {
 
 			// Test the validation
 			err := validator.validateNvidiaDriverToolkitAddon()
+			if tc.expectedError {
+				assert.NotNil(t, err, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func Test_validateKubeOVNOperatorAddon(t *testing.T) {
+	type testCase struct {
+		name          string
+		ovnsubnet     *kubeovnapiv1.Subnet
+		newAddon      *harvesterv1.Addon
+		oldAddon      *harvesterv1.Addon
+		expectedError bool
+	}
+
+	testCases := []testCase{
+		{
+			name: "When VMs are not using ovn subnets, addon should be allowed to disable and return success",
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider: "test-nad1.default.ovn",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+			},
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: true,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "When VMs are using ovn subnets, addon should not be allowed to disable and return error",
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider: "test-nad1.default.ovn",
+				},
+				Status: kubeovnapiv1.SubnetStatus{
+					V4UsingIPs: 4,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+			},
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: true,
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "when newAddon is enabled, no validation required, return success",
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider: "test-nad1.default.ovn",
+				},
+				Status: kubeovnapiv1.SubnetStatus{
+					V4UsingIPs: 1,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: true,
+				},
+			},
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: true,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "when oldAddon is already disabled, no validation required, return success",
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider: "test-nad1.default.ovn",
+				},
+				Status: kubeovnapiv1.SubnetStatus{
+					V4UsingIPs: 1,
+				},
+			},
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: false,
+				},
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create fake kubevirt clientset
+			clientset := fake.NewSimpleClientset()
+
+			if tc.ovnsubnet != nil {
+				ovnSubnetGvr := schema.GroupVersionResource{
+					Group:    "kubeovn.io",
+					Version:  "v1",
+					Resource: "subnets",
+				}
+				if err := clientset.Tracker().Create(ovnSubnetGvr, tc.ovnsubnet.DeepCopy(), ""); err != nil {
+					t.Fatalf("failed to add ovn subnet %+v", tc)
+				}
+			}
+
+			// Create validator
+			validator := &addonValidator{
+				kubeovnSubnet: fakeclients.KubeovnSubnetCache(clientset.KubeovnV1().Subnets),
+			}
+
+			// Test the validation
+			err := validator.validateKubeOVNAddonUpdate(tc.newAddon, tc.oldAddon)
 			if tc.expectedError {
 				assert.NotNil(t, err, tc.name)
 			} else {
