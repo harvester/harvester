@@ -12,9 +12,12 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
+
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/util"
+	lhdatastore "github.com/longhorn/longhorn-manager/datastore"
+	lhutil "github.com/longhorn/longhorn-manager/util"
 )
 
 const (
@@ -64,6 +67,7 @@ type VMIOperator interface {
 	GetSecuritySrcImgName(vmi *harvesterv1.VirtualMachineImage) string
 	GetBackupTarget(vmi *harvesterv1.VirtualMachineImage) *harvesterv1.BackupTarget
 	GetDisplayName(vmi *harvesterv1.VirtualMachineImage) string
+	GetStorageClassName(vmi *harvesterv1.VirtualMachineImage) string
 
 	IsInitialized(vmi *harvesterv1.VirtualMachineImage) bool
 	IsImported(vmi *harvesterv1.VirtualMachineImage) bool
@@ -91,17 +95,18 @@ type VMIOperator interface {
 type vmiOperator struct {
 	client     ctlharvesterv1.VirtualMachineImageClient
 	cache      ctlharvesterv1.VirtualMachineImageCache
+	scCache    ctlstoragev1.StorageClassCache
 	httpClient http.Client
 }
 
-func GetVMIOperator(client ctlharvesterv1.VirtualMachineImageClient, cache ctlharvesterv1.VirtualMachineImageCache, httpClient http.Client) (VMIOperator, error) {
+func GetVMIOperator(client ctlharvesterv1.VirtualMachineImageClient, cache ctlharvesterv1.VirtualMachineImageCache, scCache ctlstoragev1.StorageClassCache, httpClient http.Client) (VMIOperator, error) {
 	if client == nil {
 		return nil, fmt.Errorf("failed to get VMI operator: client is nil")
 	}
 	if cache == nil {
 		return nil, fmt.Errorf("failed to get VMI operator: cache is nil")
 	}
-	return &vmiOperator{client, cache, httpClient}, nil
+	return &vmiOperator{client, cache, scCache, httpClient}, nil
 }
 
 func (vmio *vmiOperator) UpdateVMI(oldVMI, newVMI *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
@@ -170,6 +175,33 @@ func (vmio *vmiOperator) GetSecuritySrcImgName(vmi *harvesterv1.VirtualMachineIm
 
 func (vmio *vmiOperator) GetDisplayName(vmi *harvesterv1.VirtualMachineImage) string {
 	return vmi.Spec.DisplayName
+}
+
+func (vmio *vmiOperator) GetStorageClassName(vmi *harvesterv1.VirtualMachineImage) string {
+	if vmi.Spec.Backend == harvesterv1.VMIBackendCDI {
+		return vmi.Spec.TargetStorageClassName
+	}
+
+	scName := lhutil.AutoCorrectName(
+		fmt.Sprintf("lh-%s", vmio.GetUID(vmi)),
+		lhdatastore.NameMaximumLength,
+	)
+	_, err := vmio.scCache.Get(scName)
+	if err == nil {
+		return scName
+	}
+
+	legacySCName := fmt.Sprintf("longhorn-%s", vmi.Name)
+	_, err = vmio.scCache.Get(legacySCName)
+	if err == nil {
+		return legacySCName
+	}
+
+	// If neither a storage class with the new naming nor with the old naming
+	// exists, then return the new name. This allows the GetStorageClassName
+	// method to be used to generate the name of the storage class to be used
+	// during creation.
+	return scName
 }
 
 func (vmio *vmiOperator) GetBackupTarget(vmi *harvesterv1.VirtualMachineImage) *harvesterv1.BackupTarget {
@@ -309,7 +341,7 @@ func (vmio *vmiOperator) stateTransit(old *harvesterv1.VirtualMachineImage, stat
 	case VMImageStateInitialized:
 		newVMI := old.DeepCopy()
 		newVMI.Status.AppliedURL = newVMI.Spec.URL
-		newVMI.Status.StorageClassName = util.GetImageStorageClassName(newVMI)
+		newVMI.Status.StorageClassName = vmio.GetStorageClassName(newVMI)
 		newVMI.Status.Progress = 0
 
 		harvesterv1.ImageImported.Unknown(newVMI)

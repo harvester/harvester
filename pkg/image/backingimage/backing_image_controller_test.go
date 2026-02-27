@@ -146,20 +146,21 @@ func TestBackingImageHandler_OnChanged_RetryLimitExceeded(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup fake clients
-			var harvFakeClient = fakegenerated.NewSimpleClientset()
-			require.NoError(t, harvFakeClient.Tracker().Add(tt.vmImage))
+			var clientset = fakegenerated.NewSimpleClientset()
+			require.NoError(t, clientset.Tracker().Add(tt.vmImage))
 
 			// Create VMIOperator
 			vmio, err := common.GetVMIOperator(
-				fakeclients.VirtualMachineImageClient(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
-				fakeclients.VirtualMachineImageCache(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
+				fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+				fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+				fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
 				http.Client{},
 			)
 			require.Nil(t, err, "should create VMIOperator")
 
 			// Create handler
 			h := &backingImageHandler{
-				vmiCache: fakeclients.VirtualMachineImageCache(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
+				vmiCache: fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 				vmio:     vmio,
 			}
 
@@ -168,7 +169,7 @@ func TestBackingImageHandler_OnChanged_RetryLimitExceeded(t *testing.T) {
 			require.Equal(t, tt.result, result)
 			require.Equal(t, tt.err, err)
 
-			updated, err := harvFakeClient.HarvesterhciV1beta1().
+			updated, err := clientset.HarvesterhciV1beta1().
 				VirtualMachineImages(testNamespace).
 				Get(context.Background(), testImageName, metav1.GetOptions{})
 			require.NoError(t, err)

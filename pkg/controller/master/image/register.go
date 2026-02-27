@@ -25,7 +25,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	secrets := management.CoreFactory.Core().V1().Secret()
 	ctlcdi := management.CdiFactory.Cdi().V1beta1().DataVolume()
 
-	vmio, err := common.GetVMIOperator(vmi, vmi.Cache(), http.Client{Timeout: 15 * time.Second})
+	vmio, err := common.GetVMIOperator(vmi, vmi.Cache(), sc.Cache(), http.Client{Timeout: 15 * time.Second})
 	if err != nil {
 		return err
 	}

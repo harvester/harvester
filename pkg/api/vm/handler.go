@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/kubernetes"
@@ -37,7 +36,6 @@ import (
 	k8svolumehelpers "k8s.io/cloud-provider/volume/helpers"
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
-	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	kubevirtmultus "kubevirt.io/kubevirt/pkg/network/multus"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
@@ -50,6 +48,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	vmicommon "github.com/harvester/harvester/pkg/image/common"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -76,6 +75,7 @@ type vmActionHandler struct {
 	clientSet                 kubernetes.Interface
 	virtRestClient            rest.Interface
 	virtSubresourceRestClient rest.Interface
+	vmio                      vmicommon.VMIOperator
 
 	backupClient            ctlharvesterv1.VirtualMachineBackupClient
 	datavolumeClient        ctlcdiv1.DataVolumeClient
@@ -912,248 +912,6 @@ func getMigrationUID(vmi *kubevirtv1.VirtualMachineInstance) string {
 	return ""
 }
 
-// createTemplate creates a template and version that are derived from the given virtual machine.
-func (h *vmActionHandler) createTemplate(namespace, name string, input CreateTemplateInput) error {
-	vm, err := h.vmCache.Get(namespace, name)
-	if err != nil {
-		return err
-	}
-
-	keyPairIDs, err := getSSHKeysFromVMITemplateSpec(vm.Spec.Template)
-	if err != nil {
-		return err
-	}
-
-	vmtvName := fmt.Sprintf("%s-%s", input.Name, rand.String(5))
-	vmSourceSpec, err := h.sanitizeVirtualMachineForTemplateVersion(vmtvName, vm, input.WithData)
-	if err != nil {
-		return err
-	}
-
-	var pvcStorageClassMap map[string]string
-	if input.WithData {
-		pvcStorageClassMap, err = h.getPVCStorageClassMap(vm)
-		if err != nil {
-			return err
-		}
-	}
-
-	vmt, err := h.vmTemplateClient.Create(
-		&harvesterv1.VirtualMachineTemplate{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      input.Name,
-				Namespace: namespace,
-			},
-			Spec: harvesterv1.VirtualMachineTemplateSpec{
-				Description: input.Description,
-			},
-		})
-	if err != nil {
-		return err
-	}
-
-	vmID := fmt.Sprintf("%s/%s", vmt.Namespace, vmt.Name)
-
-	vmtv, err := h.vmTemplateVersionClient.Create(
-		&harvesterv1.VirtualMachineTemplateVersion{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      vmtvName,
-				Namespace: namespace,
-			},
-			Spec: harvesterv1.VirtualMachineTemplateVersionSpec{
-				TemplateID:  vmID,
-				Description: fmt.Sprintf("Template drived from virtual machine [%s]", vmID),
-				VM:          vmSourceSpec,
-				KeyPairIDs:  keyPairIDs,
-			},
-		})
-	if err != nil {
-		return err
-	}
-
-	if input.WithData {
-		if err := h.createVMImages(vmtv, vm, pvcStorageClassMap); err != nil {
-			return err
-		}
-	}
-
-	return h.createSecrets(vmtv, vm)
-}
-
-func (h *vmActionHandler) createSecrets(templateVersion *harvesterv1.VirtualMachineTemplateVersion, vm *kubevirtv1.VirtualMachine) error {
-	for index, credential := range vm.Spec.Template.Spec.AccessCredentials {
-		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
-			toCreateSecretName := getTemplateVersionSSHPublicKeySecretName(templateVersion.Name, index)
-			if err := h.copySecret(sshPublicKey.Source.Secret.SecretName, toCreateSecretName, templateVersion); err != nil {
-				return err
-			}
-		}
-		if userPassword := credential.UserPassword; userPassword != nil && userPassword.Source.Secret != nil {
-			toCreateSecretName := getTemplateVersionUserPasswordSecretName(templateVersion.Name, index)
-			if err := h.copySecret(userPassword.Source.Secret.SecretName, toCreateSecretName, templateVersion); err != nil {
-				return err
-			}
-		}
-	}
-	for _, volume := range vm.Spec.Template.Spec.Volumes {
-		if volume.CloudInitNoCloud == nil {
-			continue
-		}
-		if volume.CloudInitNoCloud.UserDataSecretRef != nil {
-			toCreateSecretName := getTemplateVersionUserDataSecretName(templateVersion.Name, volume.Name)
-			if err := h.copySecret(volume.CloudInitNoCloud.UserDataSecretRef.Name, toCreateSecretName, templateVersion); err != nil {
-				return err
-			}
-		}
-		if volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
-			toCreateSecretName := getTemplateVersionNetworkDataSecretName(templateVersion.Name, volume.Name)
-			if err := h.copySecret(volume.CloudInitNoCloud.NetworkDataSecretRef.Name, toCreateSecretName, templateVersion); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (h *vmActionHandler) copySecret(sourceName, targetName string, templateVersion *harvesterv1.VirtualMachineTemplateVersion) error {
-	secret, err := h.secretCache.Get(templateVersion.Namespace, sourceName)
-	if err != nil {
-		return err
-	}
-	toCreate := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      targetName,
-			Namespace: secret.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: templateVersion.APIVersion,
-					Kind:       templateVersion.Kind,
-					Name:       templateVersion.Name,
-					UID:        templateVersion.UID,
-				},
-			},
-		},
-		Data: secret.Data,
-	}
-	_, err = h.secretClient.Create(toCreate)
-	return err
-
-}
-
-func (h *vmActionHandler) getPVCStorageClassMap(vm *kubevirtv1.VirtualMachine) (map[string]string, error) {
-	pvcStorageClassMap := map[string]string{}
-	for _, volume := range vm.Spec.Template.Spec.Volumes {
-		if volume.PersistentVolumeClaim == nil {
-			continue
-		}
-
-		pvc, err := h.pvcCache.Get(vm.Namespace, volume.PersistentVolumeClaim.ClaimName)
-		if err != nil {
-			return pvcStorageClassMap, err
-		}
-		pvcStorageClass, err := h.storageClassCache.Get(*pvc.Spec.StorageClassName)
-		if err != nil {
-			return pvcStorageClassMap, err
-		}
-		var sc *storagev1.StorageClass
-		if _, ok := pvcStorageClass.Parameters["backingImage"]; ok {
-			// If "backingImage" is set, the storage class is from a VM image.
-			// We can't use it directly. We need to find storageClassName annotation.
-			if imageID, ok := pvc.Annotations[util.AnnotationImageID]; ok {
-				imageIDSplit := strings.Split(imageID, "/")
-				if len(imageIDSplit) == 2 {
-					vmImage, err := h.vmImageCache.Get(imageIDSplit[0], imageIDSplit[1])
-					if err != nil {
-						return pvcStorageClassMap, err
-					}
-					if storageClassName, ok := vmImage.Annotations[util.AnnotationStorageClassName]; ok {
-						sc, err = h.storageClassCache.Get(storageClassName)
-						if err != nil {
-							return pvcStorageClassMap, err
-						}
-					}
-				}
-			}
-		} else {
-			sc = pvcStorageClass
-		}
-
-		if sc == nil {
-			pvcStorageClassMap[pvc.Name] = ""
-			continue
-		}
-		pvcStorageClassMap[pvc.Name] = sc.Name
-	}
-	return pvcStorageClassMap, nil
-}
-
-func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMachineTemplateVersion, vm *kubevirtv1.VirtualMachine, pvcStorageClassMap map[string]string) error {
-	for index, volume := range vm.Spec.Template.Spec.Volumes {
-		if volume.PersistentVolumeClaim == nil {
-			continue
-		}
-		targetSCName := pvcStorageClassMap[volume.PersistentVolumeClaim.ClaimName]
-		// 3 cases here:
-		// Root volume with backingImage, check SC name starts with "longhorn-templateversion-", use backingImage backend
-		// volume with non longhorn provisioner, use CDI backend
-		// volume with longhorn provisioner, use backingImage backend
-		// we use CDI as default, so we need to check other two cases
-		vmImageBackend := harvesterv1.VMIBackendCDI
-		if strings.HasPrefix(targetSCName, "longhorn-templateversion-") {
-			vmImageBackend = harvesterv1.VMIBackendBackingImage
-		} else {
-			// checking SC
-			targetSC, err := h.storageClassCache.Get(targetSCName)
-			if err != nil {
-				return fmt.Errorf("failed to get storage class %s, error: %v", targetSCName, err)
-			}
-			if targetSC.Provisioner == util.CSIProvisionerLonghorn {
-				if dataEngineVers, find := targetSC.Parameters["dataEngine"]; find {
-					if dataEngineVers == string(longhorn.DataEngineTypeV1) {
-						vmImageBackend = harvesterv1.VMIBackendBackingImage
-					}
-				} else {
-					vmImageBackend = harvesterv1.VMIBackendBackingImage
-				}
-			}
-		}
-		if vmImageBackend == "" {
-			return fmt.Errorf("failed to configure vm image backend for volume %s", volume.Name)
-		}
-		vmImageName := getTemplateVersionVMImageName(templateVersion.Name, index)
-		vmImage := &harvesterv1.VirtualMachineImage{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      vmImageName,
-				Namespace: vm.Namespace,
-				Annotations: map[string]string{
-					util.AnnotationStorageClassName: targetSCName,
-				},
-				OwnerReferences: []metav1.OwnerReference{
-					{
-						APIVersion: templateVersion.APIVersion,
-						Kind:       templateVersion.Kind,
-						Name:       templateVersion.Name,
-						UID:        templateVersion.UID,
-					},
-				},
-			},
-			Spec: harvesterv1.VirtualMachineImageSpec{
-				Backend:                vmImageBackend,
-				DisplayName:            vmImageName,
-				SourceType:             harvesterv1.VirtualMachineImageSourceTypeExportVolume,
-				PVCName:                volume.PersistentVolumeClaim.ClaimName,
-				PVCNamespace:           vm.Namespace,
-				TargetStorageClassName: targetSCName,
-			},
-		}
-
-		if _, err := h.vmImageClient.Create(vmImage); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Since the LH volume creation and replica scheduling are asynchronous
 // Even the CreateVolume csi call success, the replica scheduling may still fail
 // However for the sc with VolumeBindingMode is Immediate
@@ -1577,99 +1335,6 @@ func cloneSecretVolume(volume *kubevirtv1.Volume, secretNameMap map[string]strin
 		secretNameMap[volume.Secret.SecretName] = names.SimpleNameGenerator.GenerateName("clone-")
 	}
 	volume.Secret.SecretName = secretNameMap[volume.Secret.SecretName]
-}
-
-func (h *vmActionHandler) sanitizeVirtualMachineForTemplateVersion(templateVersionName string, vm *kubevirtv1.VirtualMachine, withData bool) (harvesterv1.VirtualMachineSourceSpec, error) {
-	var err error
-	sanitizedVM := removeMacAddresses(vm)
-	sanitizedVM = replaceSecrets(templateVersionName, sanitizedVM)
-	if withData {
-		sanitizedVM, err = h.replaceVolumes(templateVersionName, sanitizedVM)
-		if err != nil {
-			return harvesterv1.VirtualMachineSourceSpec{}, err
-		}
-	}
-
-	return harvesterv1.VirtualMachineSourceSpec{
-		ObjectMeta: sanitizedVM.ObjectMeta,
-		Spec:       sanitizedVM.Spec,
-	}, nil
-}
-
-func replaceSecrets(templateVersionName string, vm *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachine {
-	sanitizedVM := vm.DeepCopy()
-	for index, credential := range sanitizedVM.Spec.Template.Spec.AccessCredentials {
-		if sshPublicKey := credential.SSHPublicKey; sshPublicKey != nil && sshPublicKey.Source.Secret != nil {
-			sanitizedVM.Spec.Template.Spec.AccessCredentials[index].SSHPublicKey.Source.Secret.SecretName = getTemplateVersionSSHPublicKeySecretName(templateVersionName, index)
-		}
-		if userPassword := credential.UserPassword; userPassword != nil && userPassword.Source.Secret != nil {
-			sanitizedVM.Spec.Template.Spec.AccessCredentials[index].UserPassword.Source.Secret.SecretName = getTemplateVersionUserPasswordSecretName(templateVersionName, index)
-		}
-	}
-	for index, volume := range sanitizedVM.Spec.Template.Spec.Volumes {
-		if volume.CloudInitNoCloud == nil {
-			continue
-		}
-		if volume.CloudInitNoCloud.UserDataSecretRef != nil {
-			sanitizedVM.Spec.Template.Spec.Volumes[index].CloudInitNoCloud.UserDataSecretRef.Name = getTemplateVersionUserDataSecretName(templateVersionName, volume.Name)
-		}
-		if volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
-			sanitizedVM.Spec.Template.Spec.Volumes[index].CloudInitNoCloud.NetworkDataSecretRef.Name = getTemplateVersionNetworkDataSecretName(templateVersionName, volume.Name)
-		}
-	}
-	return sanitizedVM
-}
-
-func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
-	sanitizedVM := vm.DeepCopy()
-	volumeClaimTemplates := []corev1.PersistentVolumeClaim{}
-	for index, volume := range sanitizedVM.Spec.Template.Spec.Volumes {
-		if volume.PersistentVolumeClaim == nil {
-			continue
-		}
-
-		pvc, err := h.pvcCache.Get(vm.Namespace, volume.PersistentVolumeClaim.ClaimName)
-		if err != nil {
-			return nil, err
-		}
-
-		// generate new volume template
-		// - longhorn v1, we need to use the new storageclass Name (for backingImage)
-		// - others, use the pvc StorageClassName
-		vmImageName := getTemplateVersionVMImageName(templateVersionName, index)
-		targetStorageClassName := fmt.Sprintf("longhorn-%s", vmImageName)
-		if _, find := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; find {
-			targetStorageClassName = *pvc.Spec.StorageClassName
-		}
-		annoImageID := fmt.Sprintf("%s/%s", vm.Namespace, vmImageName)
-		pvcName := getTemplateVersionPvcName(templateVersionName, index)
-		volumeClaimTemplates = append(volumeClaimTemplates, corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: pvcName,
-				Annotations: map[string]string{
-					util.AnnotationImageID: annoImageID,
-				},
-			},
-			Spec: corev1.PersistentVolumeClaimSpec{
-				AccessModes:      pvc.Spec.AccessModes,
-				Resources:        pvc.Spec.Resources,
-				VolumeMode:       pvc.Spec.VolumeMode,
-				StorageClassName: &targetStorageClassName,
-			},
-		})
-		sanitizedVM.Spec.Template.Spec.Volumes[index].PersistentVolumeClaim.ClaimName = pvcName
-	}
-
-	volumeCliamTemplatesJSON, err := json.Marshal(volumeClaimTemplates)
-	if err != nil {
-		return nil, err
-	}
-
-	if sanitizedVM.Annotations == nil {
-		sanitizedVM.Annotations = map[string]string{}
-	}
-	sanitizedVM.Annotations[util.AnnotationVolumeClaimTemplates] = string(volumeCliamTemplatesJSON)
-	return sanitizedVM, nil
 }
 
 func (h *vmActionHandler) dismissInsufficientResourceQuota(name, namespace string) error {
