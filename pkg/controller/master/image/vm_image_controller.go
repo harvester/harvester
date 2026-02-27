@@ -29,17 +29,21 @@ func (h *vmImageHandler) OnChanged(_ string, vmi *harvesterv1.VirtualMachineImag
 		return vmi, nil
 	}
 
-	if h.vmio.IsImported(vmi) {
-		// sync display_name to labels in order to list by labelSelector
-		if vmi.Spec.DisplayName != vmi.Labels[util.LabelImageDisplayName] {
-			toUpdate := vmi.DeepCopy()
-			if toUpdate.Labels == nil {
-				toUpdate.Labels = map[string]string{}
-			}
-			toUpdate.Labels[util.LabelImageDisplayName] = vmi.Spec.DisplayName
-			return h.vmiClient.Update(toUpdate)
+	// Backward compatibility: ensure all images have the imageDisplayName label.
+	// New images get this label from the Mutating Webhook at creation time, but
+	// images created before this change may be missing it. On controller startup,
+	// the informer resyncs all existing resources, triggering OnChanged for each,
+	// so any old images missing the label will have it added here.
+	if vmi.Spec.DisplayName != vmi.Labels[util.LabelImageDisplayName] {
+		toUpdate := vmi.DeepCopy()
+		if toUpdate.Labels == nil {
+			toUpdate.Labels = map[string]string{}
 		}
+		toUpdate.Labels[util.LabelImageDisplayName] = vmi.Spec.DisplayName
+		return h.vmiClient.Update(toUpdate)
+	}
 
+	if h.vmio.IsImported(vmi) {
 		// sync virtualSize (handles the case for existing images that were
 		// imported before this field was added, because adding the field to
 		// the CRD triggers vmImageHandler.OnChanged)
@@ -135,3 +139,4 @@ func (h *vmImageHandler) handleRetry(vmi *harvesterv1.VirtualMachineImage) (*har
 	}
 	return h.initialize(vmi)
 }
+

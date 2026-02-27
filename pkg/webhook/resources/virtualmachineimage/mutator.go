@@ -6,6 +6,7 @@ import (
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/image/backend"
@@ -58,6 +59,15 @@ func (m *virtualMachineImageMutator) Create(_ *types.Request, newObj runtime.Obj
 		vmi.Spec.Backend = harvesterv1.VMIBackendBackingImage
 	}
 
+	// Inject the imageDisplayName label at creation time so that the validating
+	// webhook's CheckDisplayName can always detect duplicate display names via
+	// label selector, regardless of whether the image upload succeeds or fails.
+	if len(vmi.Labels) == 0 {
+		patchOps = append(patchOps, `{"op": "add", "path": "/metadata/labels", "value": {}}`)
+	}
+	escapedLabel := patch.EscapeJSONPointer(util.LabelImageDisplayName)
+	patchOps = append(patchOps, fmt.Sprintf(`{"op": "add", "path": "/metadata/labels/%s", "value": "%s"}`, escapedLabel, vmi.Spec.DisplayName))
+
 	mutatePatches, err := m.mutators[util.GetVMIBackend(vmi)].Create(vmi)
 	if err != nil {
 		return patchOps, err
@@ -80,3 +90,4 @@ func (m *virtualMachineImageMutator) Update(_ *types.Request, oldObj runtime.Obj
 	patchOps = append(patchOps, mutatePatches...)
 	return patchOps, nil
 }
+
