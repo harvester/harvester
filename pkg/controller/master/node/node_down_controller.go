@@ -88,9 +88,8 @@ func (h *nodeDownHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev1.No
 func getNodeCondition(conditions []corev1.NodeCondition, conditionType corev1.NodeConditionType) *corev1.NodeCondition {
 	var cond *corev1.NodeCondition
 	for i := range conditions {
-		c := conditions[i]
-		if c.Type == conditionType {
-			cond = &c
+		if conditions[i].Type == conditionType {
+			cond = &conditions[i]
 			break
 		}
 	}
@@ -336,9 +335,8 @@ func (h *nodeDownHandler) removeTaints(node *corev1.Node, taintKeys ...string) e
 func getNodeTaint(taints []corev1.Taint, taintKey string) *corev1.Taint {
 	var taint *corev1.Taint
 	for i := range taints {
-		t := taints[i]
-		if t.Key == taintKey {
-			taint = &t
+		if taints[i].Key == taintKey {
+			taint = &taints[i]
 			break
 		}
 	}
