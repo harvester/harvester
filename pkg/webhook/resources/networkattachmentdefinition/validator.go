@@ -3,7 +3,6 @@ package networkattachmentdefinition
 import (
 	"fmt"
 
-	hncutils "github.com/harvester/harvester-network-controller/pkg/utils"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -47,33 +46,33 @@ func (v *nadValidator) Delete(_ *types.Request, obj runtime.Object) error {
 		return nil
 	}
 
-	// Skip NADs that are not used for storage network.
-	// A resource is considered as a storage network NAD if it meets all the
-	// following conditions:
-	// 1. The namespace is `harvester-system`
-	// 2. It has the annotation `storage-network.settings.harvesterhci.io: true`
-	// 3. The name has the prefix `storagenetwork-`
-	if !hncutils.IsStorageNetworkNad(nad) {
-		return nil
-	}
-
-	// Get the `storage-network` setting to check if it uses the deleting NAD.
-	setting, err := v.settingCache.Get(settings.StorageNetworkName)
-	if err != nil && apierrors.IsNotFound(err) {
-		return nil
-	}
-	if err != nil {
-		return werror.NewInternalError(err.Error())
-	}
-	if setting == nil {
-		return nil
-	}
-
-	nadNamespacedName := fmt.Sprintf("%s/%s", nad.Namespace, nad.Name)
-	current := setting.Annotations[util.NadStorageNetworkAnnotation]
-	if current == nadNamespacedName {
-		return werror.NewBadRequest(fmt.Sprintf("cannot delete NetworkAttachmentDefinition %s which is used by Harvester setting '%s'", nadNamespacedName, settings.StorageNetworkName))
+	for _, settingName := range []string{settings.StorageNetworkName, settings.RWXStorageNetworkSettingName} {
+		usedBySetting, err := v.checkNadUsedBySetting(nad, settingName)
+		if err != nil {
+			return werror.NewInternalError(err.Error())
+		}
+		if usedBySetting {
+			return werror.NewBadRequest(fmt.Sprintf("cannot delete NetworkAttachmentDefinition %s/%s which is used by Harvester setting '%s'", nad.Namespace, nad.Name, settingName))
+		}
 	}
 
 	return nil
+}
+
+func (v *nadValidator) checkNadUsedBySetting(nad *cniv1.NetworkAttachmentDefinition, settingName string) (bool, error) {
+	setting, err := v.settingCache.Get(settingName)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return false, err
+	}
+	if setting == nil {
+		return false, nil
+	}
+
+	nadAnno := util.NadStorageNetworkAnnotation
+	if settingName == settings.RWXStorageNetworkSettingName {
+		nadAnno = util.RWXNadStorageNetworkAnnotation
+	}
+	nadNamespacedName := fmt.Sprintf("%s/%s", nad.Namespace, nad.Name)
+	current := setting.Annotations[nadAnno]
+	return current == nadNamespacedName, nil
 }

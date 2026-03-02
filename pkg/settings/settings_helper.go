@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	networkutil "github.com/harvester/harvester/pkg/util/network"
 )
 
 type TargetType string
@@ -322,4 +323,10 @@ func GetClusterRegistrationURLSetting(setting *harvesterv1.Setting) *ClusterRegi
 		reg.InsecureSkipTLSVerify = true
 	}
 	return reg
+
+}
+
+type RWXStorageNetworkConfig struct {
+	ShareStorageNetwork bool                `json:"share-storage-network"`
+	Network             *networkutil.Config `json:"network,omitempty"`
 }
