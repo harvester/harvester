@@ -4,10 +4,11 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/harvester/harvester/pkg/config"
-	"github.com/harvester/harvester/pkg/util"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -32,7 +33,7 @@ func ConditionAnnotationRegister(ctx context.Context, management *config.Managem
 // to the node object, which can be used by UI to render more informative UI messages
 func (cm *ConditionManager) UpdateStatusAnnotations(_ string, node *corev1.Node) (*corev1.Node, error) {
 	nodeCopy := node.DeepCopy()
-	cond := getNodeCondition(nodeCopy.Status.Conditions, HarvesterNodeCondDrained)
+	cond := util.FindNodeStatusCondition(nodeCopy.Status.Conditions, HarvesterNodeCondDrained)
 	if nodeCopy.Annotations == nil {
 		nodeCopy.Annotations = make(map[string]string)
 	}
