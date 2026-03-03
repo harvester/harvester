@@ -48,6 +48,7 @@ import (
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/containerd"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
+	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1b2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -1174,8 +1175,26 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 		return nil
 	}
 
+	// Skip if the `Default` and `Value` fields are not changed. This is the
+	// case when the status is updated.
 	if oldSetting.Default == newSetting.Default && oldSetting.Value == newSetting.Value {
 		return nil
+	}
+
+	// Block updates if a previous `storage-network` change is still in
+	// progress; except for status updates and resetting the setting to its
+	// default value.
+	sc := v1beta1.SettingConfigured
+	isInProgress := sc.IsFalse(oldSetting) && sc.GetReason(oldSetting) == storagenetwork.ReasonInProgress
+	isResetToDefault := newSetting.Value == settings.StorageNetwork.Default &&
+		newSetting.Default == settings.StorageNetwork.Default
+	if isInProgress && !isResetToDefault {
+		return werror.NewConflict(fmt.Sprintf(
+			"cannot update the setting %q because it is still being configured (reason: %q, message: %q)",
+			settings.StorageNetworkName,
+			sc.GetReason(oldSetting),
+			sc.GetMessage(oldSetting),
+		))
 	}
 
 	var (
