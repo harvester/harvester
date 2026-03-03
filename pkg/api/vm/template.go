@@ -87,15 +87,15 @@ func (h *vmActionHandler) createTemplateWithData(vm *kubevirtv1.VirtualMachine, 
 
 	defer func() {
 		var cleanupErr error
+		if err == nil {
+			return
+		}
 
 		logrus.WithFields(logrus.Fields{
 			"namespace": vm.Namespace,
 			"name":      vm.Name,
 		}).Errorf("failed to create VM images while trying to create VM Template with data: %v", err)
 
-		if err == nil {
-			return
-		}
 		if cleanupErr = h.cleanupVMImages(vmtv, vm); cleanupErr != nil {
 			err = fmt.Errorf("failed to clean up VM images while dealing with error %w: %s", err, cleanupErr.Error())
 		}
@@ -135,7 +135,7 @@ func (h *vmActionHandler) getPVCMap(vm *kubevirtv1.VirtualMachine) (pvcMap map[s
 
 		pvc, err = h.pvcCache.Get(vm.Namespace, volume.PersistentVolumeClaim.ClaimName)
 		if err != nil {
-			return pvcMap, err
+			return nil, err
 		}
 		pvcMap[pvc.Name] = *pvc
 	}
@@ -150,6 +150,11 @@ func (h *vmActionHandler) getSCNameFromPVC(pvc *corev1.PersistentVolumeClaim) (s
 	if imageId, ok := pvc.Annotations[util.AnnotationImageID]; ok {
 		return h.getSCNameFromImgID(imageId)
 	}
+	if pvc.Spec.StorageClassName == nil {
+		return "", fmt.Errorf("failed to get the storage class name from PVC")
+	}
+	// There should really be a bit more logic here to deal with default storage
+	// classes properly.
 	return *pvc.Spec.StorageClassName, nil
 }
 
@@ -198,7 +203,7 @@ func (h *vmActionHandler) sanitizeVolumes(templateVersion *harvesterv1.VirtualMa
 	}
 
 	if vmSource.ObjectMeta.Annotations == nil {
-		vmSource.ObjectMeta.Annotations = map[string]string{}
+		vmSource.ObjectMeta.Annotations = make(map[string]string)
 	}
 	vmSource.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(volumeCliamTemplatesJSON)
 	if _, err := h.vmTemplateVersionClient.Update(templateVersionCopy); err != nil {
