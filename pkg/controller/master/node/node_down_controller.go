@@ -85,22 +85,11 @@ func (h *nodeDownHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev1.No
 	return node, nil
 }
 
-func getNodeCondition(conditions []corev1.NodeCondition, conditionType corev1.NodeConditionType) *corev1.NodeCondition {
-	var cond *corev1.NodeCondition
-	for i := range conditions {
-		if conditions[i].Type == conditionType {
-			cond = &conditions[i]
-			break
-		}
-	}
-	return cond
-}
-
 // We treat the node not ready (False/Unknown) as node down
 // In this situation, we will wait for the extra timeout and then add taints to trigger migration and cleanup
 func (h *nodeDownHandler) checkNodeReady(node *corev1.Node) error {
 	// get Ready condition
-	cond := getNodeCondition(node.Status.Conditions, corev1.NodeReady)
+	cond := util.FindNodeStatusCondition(node.Status.Conditions, corev1.NodeReady)
 	if cond == nil {
 		return fmt.Errorf("can't find %s condition in node %s", corev1.NodeReady, node.Name)
 	}
@@ -126,7 +115,7 @@ func (h *nodeDownHandler) checkNodeReady(node *corev1.Node) error {
 		}
 
 		// try and check if condition exists
-		drainCondition := getNodeCondition(node.Status.Conditions, HarvesterNodeCondDrained)
+		drainCondition := util.FindNodeStatusCondition(node.Status.Conditions, HarvesterNodeCondDrained)
 		// both taints exist so lets mark condition as true
 		// check if both taints exist
 		hasKubevirtDrainTaint := getNodeTaint(node.Spec.Taints, virtconfig.NodeDrainTaintDefaultKey) != nil
@@ -160,7 +149,7 @@ func (h *nodeDownHandler) checkNodeReady(node *corev1.Node) error {
 		}
 
 		// reset HarvesterNodeFailure condition if needed
-		cond := getNodeCondition(node.Status.Conditions, HarvesterNodeCondDrained)
+		cond := util.FindNodeStatusCondition(node.Status.Conditions, HarvesterNodeCondDrained)
 		if cond != nil {
 			// remove the condition if exists
 			logrus.Infof("Removing HarvesterNodeDrained condition from node %s", node.Name)
@@ -227,44 +216,12 @@ func (h *nodeDownHandler) removeHarvesterNodeDrainedCond(node *corev1.Node) erro
 
 func (h *nodeDownHandler) createOrUpdateNodeCondition(node *corev1.Node, condType corev1.NodeConditionType, status corev1.ConditionStatus, reason string, message string) (*corev1.Node, error) {
 	logrus.Debugf("createOrUpdateNodeCondition: %v, %v, %v, %v", condType, status, reason, message)
-	cond := getNodeCondition(node.Status.Conditions, condType)
-	now := metav1.Now()
-	notFound := false
-	if cond == nil {
-		cond = generateNewNodeCondition(condType, status, reason, message, now, now)
-		notFound = true
-	}
-	if cond.Status != status {
-		cond.Status = status
-		cond.LastTransitionTime = now
-	}
-	cond.LastHeartbeatTime = now
-	cond.Reason = reason
-	cond.Message = message
 
 	nodeCpy := node.DeepCopy()
-	if notFound {
-		nodeCpy.Status.Conditions = append(nodeCpy.Status.Conditions, *cond)
-	} else {
-		for id, c := range nodeCpy.Status.Conditions {
-			if c.Type == condType {
-				nodeCpy.Status.Conditions[id] = *cond
-			}
-		}
-	}
+	util.SetNodeStatusCondition(nodeCpy, condType, status, reason, message)
+
 	logrus.Debugf("toUpdated status: %v", nodeCpy.Status.Conditions)
 	return h.nodes.UpdateStatus(nodeCpy)
-}
-
-func generateNewNodeCondition(condType corev1.NodeConditionType, status corev1.ConditionStatus, reason string, message string, lastHeartbeatTime metav1.Time, lastTransitionTime metav1.Time) *corev1.NodeCondition {
-	return &corev1.NodeCondition{
-		Type:               condType,
-		Status:             status,
-		LastHeartbeatTime:  lastHeartbeatTime,
-		LastTransitionTime: lastTransitionTime,
-		Reason:             reason,
-		Message:            message,
-	}
 }
 
 func (h *nodeDownHandler) fetchVMForceResetPolicy() (*settings.VMForceResetPolicy, error) {

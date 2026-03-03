@@ -2,6 +2,7 @@ package util
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -95,4 +96,57 @@ func CountNonWitnessNodes(nodes []*corev1.Node) int {
 	}
 
 	return count
+}
+
+// SetNodeStatusCondition sets the condition of the node.
+// If the condition doesn't exist, it will be added. If the condition already
+// exists, it will be updated.
+func SetNodeStatusCondition(node *corev1.Node, condType corev1.NodeConditionType, status corev1.ConditionStatus, reason string, message string) {
+	now := metav1.Now()
+	cond := FindNodeStatusCondition(node.Status.Conditions, condType)
+	var newCond corev1.NodeCondition
+
+	if cond == nil {
+		newCond = corev1.NodeCondition{
+			Type:               condType,
+			Status:             status,
+			LastTransitionTime: now,
+		}
+	} else {
+		newCond = *cond
+		if newCond.Status != status {
+			newCond.Status = status
+			newCond.LastTransitionTime = now
+		}
+	}
+
+	newCond.LastHeartbeatTime = now
+	newCond.Reason = reason
+	newCond.Message = message
+
+	if cond == nil {
+		node.Status.Conditions = append(node.Status.Conditions, newCond)
+	} else {
+		for id, c := range node.Status.Conditions {
+			if c.Type == condType {
+				node.Status.Conditions[id] = newCond
+			}
+		}
+	}
+}
+
+// FindNodeStatusCondition returns the condition of the node based on the condition type.
+// If the condition doesn't exist, it will return nil.
+// Note: The returned pointer may reference an element of the input `conditions` slice.
+// Modifying the returned `*corev1.NodeCondition` will mutate the corresponding element
+// in the original slice.
+func FindNodeStatusCondition(conditions []corev1.NodeCondition, conditionType corev1.NodeConditionType) *corev1.NodeCondition {
+	var cond *corev1.NodeCondition
+	for i := range conditions {
+		if conditions[i].Type == conditionType {
+			cond = &conditions[i]
+			break
+		}
+	}
+	return cond
 }
