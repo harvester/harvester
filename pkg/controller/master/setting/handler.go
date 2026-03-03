@@ -70,6 +70,7 @@ type Handler struct {
 	ingressCache         networkingv1.IngressCache
 	longhornSettings     ctllhv1.SettingClient
 	longhornSettingCache ctllhv1.SettingCache
+	longhornVolumeCache  ctllhv1.VolumeCache
 	configmaps           ctlcorev1.ConfigMapClient
 	configmapCache       ctlcorev1.ConfigMapCache
 	endpointCache        ctlcorev1.EndpointsCache
