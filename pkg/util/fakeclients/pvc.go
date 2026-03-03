@@ -3,7 +3,6 @@ package fakeclients
 import (
 	"context"
 
-	corev1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/v1"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,6 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/rest"
+
+	corev1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/v1"
 )
 
 type PersistentVolumeClaimClient func(string) corev1type.PersistentVolumeClaimInterface
@@ -57,8 +58,18 @@ func (c PersistentVolumeClaimCache) Get(namespace, name string) (*corev1.Persist
 	return c(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (c PersistentVolumeClaimCache) List(_ string, _ labels.Selector) ([]*corev1.PersistentVolumeClaim, error) {
-	panic("implement me")
+func (c PersistentVolumeClaimCache) List(namespace string, selector labels.Selector) ([]*corev1.PersistentVolumeClaim, error) {
+	list, err := c(namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*corev1.PersistentVolumeClaim, 0, len(list.Items))
+	for i := range list.Items {
+		result = append(result, &list.Items[i])
+	}
+	return result, err
 }
 
 func (c PersistentVolumeClaimCache) AddIndexer(_ string, _ generic.Indexer[*corev1.PersistentVolumeClaim]) {
