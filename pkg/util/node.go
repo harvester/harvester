@@ -2,6 +2,7 @@ package util
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -57,7 +58,7 @@ func IsWitnessNode(node *corev1.Node, isManagement bool) bool {
 	}
 
 	// promotion has already been run for this node
-	if found && (isManagement || IsPromoteStatusIn(node, PromoteStatusComplete, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown)) {
+	if isManagement || IsPromoteStatusIn(node, PromoteStatusComplete, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown) {
 		return true
 	}
 
@@ -95,4 +96,54 @@ func CountNonWitnessNodes(nodes []*corev1.Node) int {
 	}
 
 	return count
+}
+
+// SetNodeStatusCondition sets the condition of the node.
+// If the condition doesn't exist, it will be added. If the condition already
+// exists, it will be updated.
+func SetNodeStatusCondition(node *corev1.Node, condType corev1.NodeConditionType, status corev1.ConditionStatus, reason string, message string) {
+	now := metav1.Now()
+	cond := FindNodeStatusCondition(node.Status.Conditions, condType)
+
+	if cond == nil {
+		node.Status.Conditions = append(node.Status.Conditions,
+			corev1.NodeCondition{
+				Type:               condType,
+				Status:             status,
+				LastTransitionTime: now,
+				LastHeartbeatTime:  now,
+				Reason:             reason,
+				Message:            message,
+			},
+		)
+		return
+	}
+
+	if cond.Status != status {
+		cond.Status = status
+		cond.LastTransitionTime = now
+	}
+
+	cond.LastHeartbeatTime = now
+	cond.Reason = reason
+	cond.Message = message
+
+	for id, c := range node.Status.Conditions {
+		if c.Type == condType {
+			node.Status.Conditions[id] = *cond
+		}
+	}
+}
+
+// FindNodeStatusCondition returns the condition of the node based on the condition type.
+// If the condition doesn't exist, it will return nil.
+// Note: The returned pointer references a copy of the matched condition.
+func FindNodeStatusCondition(conditions []corev1.NodeCondition, conditionType corev1.NodeConditionType) *corev1.NodeCondition {
+	for i := range conditions {
+		if conditions[i].Type == conditionType {
+			c := conditions[i]
+			return &c
+		}
+	}
+	return nil
 }
