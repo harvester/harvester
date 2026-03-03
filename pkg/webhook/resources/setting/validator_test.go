@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,6 +15,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -1563,6 +1565,276 @@ func Test_validateStorageNetwork_Update_InProgress(t *testing.T) {
 		newSetting.Value = settings.StorageNetwork.Default
 
 		err := v.Update(nil, oldSetting, newSetting)
+		assert.NoError(t, err)
+	})
+}
+
+func Test_validateLHIMResources(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   *v1beta1.Setting
+		errMsg string
+	}{
+		{
+			name: "ok to create instance-manager-resources with none values",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+			},
+			errMsg: "",
+		},
+		{
+			name: "ok to create instance-manager-resources with default only",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+				Default:    `{"cpu":{}}`,
+				Value:      "",
+			},
+			errMsg: "",
+		},
+		{
+			name: "ok to create instance-manager-resources with value cpu empty object",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+				Value:      `{"cpu":{}}`,
+			},
+			errMsg: "",
+		},
+		{
+			name: "ok to create instance-manager-resources with valid value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+				Default:    `{"cpu":{"v1":"12","v2":"12"}}`,
+				Value:      `{"cpu":{"v1":"20","v2":"30"}}`,
+			},
+			errMsg: "",
+		},
+		{
+			name: "fail to create instance-manager-resources with invalid value",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+				Value:      `{"cpu":{"v1":"41","v2":"12"}}`,
+			},
+			errMsg: "failed to validate value",
+		},
+		{
+			name: "fail to create instance-manager-resources with invalid json",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+				Value:      `{"memory":1024}`,
+			},
+			errMsg: "failed to parse value",
+		},
+		{
+			name: "fail to create instance-manager-resources with float cpu.v1",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+				Value:      `{"cpu":{"v1":41.8,"v2":12}}`,
+			},
+			errMsg: "failed to parse value",
+		},
+		{
+			name: "fail to create instance-manager-resources with non-numeric cpu.v1 string",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+				Value:      `{"cpu":{"v1":"abc","v2":12}}`,
+			},
+			errMsg: "failed to parse value",
+		},
+		{
+			name: "fail to create instance-manager-resources with empty cpu.v1 string",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+				Value:      `{"cpu":{"v1":"","v2":12}}`,
+			},
+			errMsg: "failed to parse value",
+		},
+	}
+
+	v := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := v.Create(nil, tt.args)
+			if tt.errMsg != "" {
+				assert.True(t, strings.Contains(err.Error(), tt.errMsg))
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func Test_settingValidator_validateUpdateLHIMResources(t *testing.T) {
+	t.Run("rejects update when there are attached volumes", func(t *testing.T) {
+		clientset := fake.NewSimpleClientset()
+		err := clientset.Tracker().Add(&lhv1beta2.Volume{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: util.LonghornSystemNamespaceName,
+				Name:      "vol-attached",
+			},
+			Status: lhv1beta2.VolumeStatus{
+				State: lhv1beta2.VolumeStateAttached,
+			},
+		})
+		assert.NoError(t, err)
+
+		v := &settingValidator{
+			lhVolumeCache: fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		}
+
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+			Value:      `{"cpu":{"v1":"12","v2":"12"}}`,
+		}
+		newSetting := oldSetting.DeepCopy()
+		newSetting.Value = `{"cpu":{"v1":"20","v2":"20"}}`
+
+		err = v.validateUpdateLHIMResources(oldSetting, newSetting)
+		assert.Error(t, err)
+		assert.True(t, strings.Contains(err.Error(), "detach all Longhorn volumes"))
+	})
+
+	t.Run("allows update when all volumes are detached", func(t *testing.T) {
+		clientset := fake.NewSimpleClientset()
+		err := clientset.Tracker().Add(&lhv1beta2.Volume{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: util.LonghornSystemNamespaceName,
+				Name:      "vol-detached",
+			},
+			Status: lhv1beta2.VolumeStatus{
+				State: lhv1beta2.VolumeStateDetached,
+			},
+		})
+		assert.NoError(t, err)
+
+		v := &settingValidator{
+			lhVolumeCache: fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		}
+
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+			Value:      `{"cpu":{"v1":"12","v2":"12"}}`,
+		}
+		newSetting := oldSetting.DeepCopy()
+		newSetting.Value = `{"cpu":{"v1":"20","v2":"20"}}`
+
+		err = v.validateUpdateLHIMResources(oldSetting, newSetting)
+		assert.NoError(t, err)
+	})
+
+	t.Run("allows update when value is empty and setting stays on default", func(t *testing.T) {
+		clientset := fake.NewSimpleClientset()
+		err := clientset.Tracker().Add(&lhv1beta2.Volume{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: util.LonghornSystemNamespaceName,
+				Name:      "vol-attached",
+			},
+			Status: lhv1beta2.VolumeStatus{
+				State: lhv1beta2.VolumeStateAttached,
+			},
+		})
+		assert.NoError(t, err)
+
+		v := &settingValidator{
+			lhVolumeCache: fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		}
+
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+			Default:    `{"cpu":{}}`,
+			Value:      "",
+		}
+		newSetting := oldSetting.DeepCopy()
+		newSetting.Default = `{"cpu":{"v1":"12","v2":"12"}}`
+		newSetting.Value = ""
+
+		err = v.validateUpdateLHIMResources(oldSetting, newSetting)
+		assert.NoError(t, err)
+	})
+
+	t.Run("rejects update when changing from meaningful value to empty value and there are attached volumes", func(t *testing.T) {
+		clientset := fake.NewSimpleClientset()
+		err := clientset.Tracker().Add(&lhv1beta2.Volume{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: util.LonghornSystemNamespaceName,
+				Name:      "vol-attached",
+			},
+			Status: lhv1beta2.VolumeStatus{
+				State: lhv1beta2.VolumeStateAttached,
+			},
+		})
+		assert.NoError(t, err)
+
+		v := &settingValidator{
+			lhVolumeCache: fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		}
+
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+			Value:      `{"cpu":{"v1":"12","v2":"12"}}`,
+		}
+		newSetting := oldSetting.DeepCopy()
+		newSetting.Value = ""
+
+		err = v.validateUpdateLHIMResources(oldSetting, newSetting)
+		assert.Error(t, err)
+		assert.True(t, strings.Contains(err.Error(), "detach all Longhorn volumes"))
+	})
+
+	t.Run("rejects update when changing from meaningful value to cpu empty object and there are attached volumes", func(t *testing.T) {
+		clientset := fake.NewSimpleClientset()
+		err := clientset.Tracker().Add(&lhv1beta2.Volume{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: util.LonghornSystemNamespaceName,
+				Name:      "vol-attached",
+			},
+			Status: lhv1beta2.VolumeStatus{
+				State: lhv1beta2.VolumeStateAttached,
+			},
+		})
+		assert.NoError(t, err)
+
+		v := &settingValidator{
+			lhVolumeCache: fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		}
+
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+			Value:      `{"cpu":{"v1":"12","v2":"12"}}`,
+		}
+		newSetting := oldSetting.DeepCopy()
+		newSetting.Value = `{"cpu":{}}`
+
+		err = v.validateUpdateLHIMResources(oldSetting, newSetting)
+		assert.Error(t, err)
+		assert.True(t, strings.Contains(err.Error(), "detach all Longhorn volumes"))
+	})
+
+	t.Run("allows update when changing from meaningful value to cpu empty object and all volumes are detached", func(t *testing.T) {
+		clientset := fake.NewSimpleClientset()
+		err := clientset.Tracker().Add(&lhv1beta2.Volume{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: util.LonghornSystemNamespaceName,
+				Name:      "vol-detached",
+			},
+			Status: lhv1beta2.VolumeStatus{
+				State: lhv1beta2.VolumeStateDetached,
+			},
+		})
+		assert.NoError(t, err)
+
+		v := &settingValidator{
+			lhVolumeCache: fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		}
+
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.LHIMResourcesSettingName},
+			Value:      `{"cpu":{"v1":"12","v2":"12"}}`,
+		}
+		newSetting := oldSetting.DeepCopy()
+		newSetting.Value = `{"cpu":{}}`
+
+		err = v.validateUpdateLHIMResources(oldSetting, newSetting)
 		assert.NoError(t, err)
 	})
 }
