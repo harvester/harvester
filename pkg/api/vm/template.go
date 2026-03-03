@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
@@ -212,24 +213,28 @@ func (h *vmActionHandler) sanitizeVolumes(templateVersion *harvesterv1.VirtualMa
 	return nil
 }
 
+// generate new volume template
+// - longhorn v1, we need to use the new storageclass Name (for backingImage)
+// - others, use the pvc StorageClassName
 func (h *vmActionHandler) generateVolumeClaimTemplate(index int, tvName, tvNamespace, claimName string, pvcMap map[string]corev1.PersistentVolumeClaim, vmImageMap map[string]harvesterv1.VirtualMachineImage) (pvc corev1.PersistentVolumeClaim) {
-	// generate new volume template
-	// - longhorn v1, we need to use the new storageclass Name (for backingImage)
-	// - others, use the pvc StorageClassName
+	var targetSCName *string
+
 	vmImageName := getTemplateVersionVMImageName(tvName, index)
 	vmImage := vmImageMap[vmImageName]
 
 	claim := pvcMap[claimName]
-	// target storage class name
-	targetSCName := h.vmio.GetStorageClassName(&vmImage)
-	if _, ok := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; ok {
-		targetSCName = *claim.Spec.StorageClassName
+	if _, ok := claim.Annotations[cdicommon.AnnCreatedForDataVolume]; ok {
+		// no nil check, because if claim.Spec.StorageClassName is nil, it needs to
+		// be copied to the PVC template as well, so the PVC template can also use
+		// the default storage class
+		targetSCName = claim.Spec.StorageClassName
+	} else {
+		targetSCName = ptr.To(h.vmio.GetStorageClassName(&vmImage))
 	}
-	pvcName := getTemplateVersionPvcName(tvName, index)
 
 	pvc = corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: pvcName,
+			Name: getTemplateVersionPvcName(tvName, index),
 			Annotations: map[string]string{
 				util.AnnotationImageID: fmt.Sprintf("%s/%s", tvNamespace, vmImageName),
 			},
@@ -238,7 +243,7 @@ func (h *vmActionHandler) generateVolumeClaimTemplate(index int, tvName, tvNames
 			AccessModes:      claim.Spec.AccessModes,
 			Resources:        claim.Spec.Resources,
 			VolumeMode:       claim.Spec.VolumeMode,
-			StorageClassName: &targetSCName,
+			StorageClassName: targetSCName,
 		},
 	}
 	return pvc
