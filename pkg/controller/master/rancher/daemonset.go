@@ -8,6 +8,7 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 )
@@ -22,7 +23,7 @@ func (h *Handler) reconcileIngressResources(_ string, ds *appsv1.DaemonSet) (*ap
 		return ds, nil
 	}
 
-	if ds.Name == util.TraefikIngressClassName && ds.Namespace == util.KubeSystemNamespace {
+	if ds.Name == util.Rke2TraefikAppName && ds.Namespace == util.KubeSystemNamespace {
 		logrus.Info("found traefik ds, checking if ingress object needs an update")
 		// traefik exists.. lets verify ingress and update settings
 		ingressObj, err := h.ingresses.Get(util.CattleSystemNamespaceName, util.RancherExposeIngressName, metav1.GetOptions{})
@@ -47,7 +48,19 @@ func (h *Handler) reconcileIngressResources(_ string, ds *appsv1.DaemonSet) (*ap
 				return ds, fmt.Errorf("error reconciling rancher expose service: %w", err)
 			}
 
-			// remove hash annotations from ssl related settings to ensure
+		}
+
+		// if tls-ingress secret does not exist in kube-system namespace then remove annotation hash from ssl-certificates setting
+		// to force reconcile and recreation of secrets
+		// remove hash annotations from ssl related settings to ensure
+
+		_, err = h.SecretCache.Get(util.KubeSystemNamespace, util.TraefikIngressSecret)
+		if err == nil {
+			// secret exists, no further action is needed
+			return ds, nil
+		}
+
+		if apierrors.IsNotFound(err) {
 			// correct tls settings are setup
 			for _, settingName := range []string{settings.SSLCertificatesSettingName, settings.SSLParametersName} {
 				settingObj, err := h.SettingCache.Get(settingName)
@@ -62,6 +75,9 @@ func (h *Handler) reconcileIngressResources(_ string, ds *appsv1.DaemonSet) (*ap
 					}
 				}
 			}
+		} else {
+			// unexpected error, requeue and try again
+			return ds, err
 		}
 	}
 	return ds, nil

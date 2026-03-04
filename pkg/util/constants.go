@@ -96,6 +96,7 @@ const (
 	Rke2IngressNginxAppName             = "rke2-ingress-nginx"
 	Rke2TraefikAppName                  = "rke2-traefik"
 	Rke2TraefikControllerName           = "rke2-traefik"
+	TraefikIngressSecret                = "traefik-ingress"
 	RancherExposeIngressName            = "rancher-expose"
 	TraefikIngressClassName             = "traefik"
 	NginxIngressClass                   = "nginx"

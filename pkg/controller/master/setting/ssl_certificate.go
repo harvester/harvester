@@ -14,10 +14,9 @@ import (
 )
 
 const (
-	rancherDeploymentName       = "rancher"
-	tlsIngressSecretName        = "tls-ingress"
-	traefikDefaultIngressSecret = "traefik-ingress"
-	defaultTLSStoreName         = "default"
+	rancherDeploymentName = "rancher"
+	tlsIngressSecretName  = "tls-ingress"
+	defaultTLSStoreName   = "default"
 )
 
 func (h *Handler) syncSSLCertificate(setting *harvesterv1.Setting) error {
@@ -79,7 +78,7 @@ func (h *Handler) updateIngressDefaultCertificate(namespace, secretName string) 
 		return fmt.Errorf("error applying default traefik secret: %w", err)
 	}
 
-	tlsStore := generateTLSStore(traefikDefaultIngressSecret)
+	tlsStore := generateTLSStore(util.TraefikIngressSecret)
 	return h.apply.WithDynamicLookup().WithSetID(util.HarvesterChartReleaseName).ApplyObjects(tlsStore)
 }
 
@@ -99,7 +98,7 @@ func (h *Handler) generateDefaultCertificate(namespace, name string) (*corev1.Se
 
 	traefikSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      traefikDefaultIngressSecret,
+			Name:      util.TraefikIngressSecret,
 			Namespace: util.KubeSystemNamespace,
 		},
 		Data: secretObj.Data,
