@@ -74,3 +74,8 @@ type CPUAndMemoryHotplugInput struct {
 	Sockets uint32 `json:"sockets"`
 	Memory  string `json:"memory"`
 }
+
+type StorageMigrationInput struct {
+	SourceVolume string `json:"sourceVolume"`
+	TargetVolume string `json:"targetVolume"`
+}
