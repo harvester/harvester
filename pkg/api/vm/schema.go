@@ -42,8 +42,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	server.BaseSchemas.MustImportAndCustomize(RemoveNicInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(CloneInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(CPUAndMemoryHotplugInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(StorageMigrationInput{}, nil)
 
-	dataVolumeClient := scaled.CdiFactory.Cdi().V1beta1().DataVolume()
 	kubevirtCache := scaled.VirtFactory.Kubevirt().V1().KubeVirt().Cache()
 	vms := scaled.VirtFactory.Kubevirt().V1().VirtualMachine()
 	vmis := scaled.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
@@ -88,7 +88,6 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		vmio:                      vmiOperator,
 
 		backupClient:            backups,
-		datavolumeClient:        dataVolumeClient,
 		pvcClient:               pvcs,
 		resourceQuotaClient:     resourceQuotas,
 		restoreClient:           restores,
@@ -165,6 +164,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				updateResourceQuotaAction:        actionHandler,
 				deleteResourceQuotaAction:        actionHandler,
 				cpuAndMemoryHotplug:              actionHandler,
+				storageMigration:                 actionHandler,
+				cancelStorageMigration:           actionHandler,
 			}
 			apiSchema.ResourceActions = map[string]schemas.Action{
 				startVM:    {},
@@ -219,6 +220,10 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				cpuAndMemoryHotplug: {
 					Input: "cpuAndMemoryHotplugInput",
 				},
+				storageMigration: {
+					Input: "storageMigrationInput",
+				},
+				cancelStorageMigration: {},
 			}
 		},
 		Formatter: vmformatter.formatter,
