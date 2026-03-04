@@ -53,6 +53,8 @@ const (
 	updateResourceQuotaAction        = "updateResourceQuota"
 	deleteResourceQuotaAction        = "deleteResourceQuota"
 	cpuAndMemoryHotplug              = "cpuAndMemoryHotplug"
+	storageMigration                 = "storageMigration"
+	cancelStorageMigration           = "cancelStorageMigration"
 )
 
 type vmformatter struct {
@@ -172,6 +174,27 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	if canDismissInsufficientResourceQuota(vm) {
 		resource.AddAction(request, dismissInsufficientResourceQuota)
 	}
+
+	if vm.Status.PrintableStatus == kubevirtv1.VirtualMachineStatusRunning {
+		resource.AddAction(request, storageMigration)
+	}
+
+	if vm.Status.PrintableStatus == kubevirtv1.VirtualMachineStatusMigrating && hasActiveStorageMigration(vm) {
+		resource.AddAction(request, cancelStorageMigration)
+	}
+}
+
+func hasActiveStorageMigration(vm *kubevirtv1.VirtualMachine) bool {
+	entries, err := util.UnmarshalVolumeClaimTemplates(vm.Annotations[util.AnnotationVolumeClaimTemplates])
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if entry.TargetVolume != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (vf *vmformatter) canPause(vmi *kubevirtv1.VirtualMachineInstance) bool {

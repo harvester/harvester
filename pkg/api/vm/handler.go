@@ -300,6 +300,17 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
 		return nil, h.cpuAndMemoryHotplug(namespace, name, input)
+	case storageMigration:
+		var input StorageMigrationInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		if input.SourceVolume == "" || input.TargetVolume == "" {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `sourceVolume` and `targetVolume` are required")
+		}
+		return nil, h.storageMigration(namespace, name, input)
+	case cancelStorageMigration:
+		return nil, h.cancelStorageMigration(namespace, name)
 	default:
 		return nil, apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -1876,4 +1887,117 @@ func (h *vmActionHandler) cpuAndMemoryHotplug(namespace, name string, input CPUA
 	patchData := fmt.Sprintf("[%s]", strings.Join(patchOps, ","))
 	_, err := h.vmClient.Patch(namespace, name, k8stypes.JSONPatchType, []byte(patchData))
 	return err
+}
+
+func (h *vmActionHandler) storageMigration(namespace, name string, input StorageMigrationInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	annStr := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	entries, err := util.UnmarshalVolumeClaimTemplates(annStr)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal volumeClaimTemplates annotation: %w", err)
+	}
+
+	found := false
+	for i, entry := range entries {
+		if entry.Name == input.SourceVolume {
+			entries[i].TargetVolume = input.TargetVolume
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("source volume %s not found in volumeClaimTemplates annotation", input.SourceVolume)
+	}
+
+	newAnn, err := util.MarshalVolumeClaimTemplates(entries)
+	if err != nil {
+		return fmt.Errorf("failed to marshal volumeClaimTemplates annotation: %w", err)
+	}
+
+	vmCopy := vm.DeepCopy()
+	vmCopy.Annotations[util.AnnotationVolumeClaimTemplates] = newAnn
+	_, err = h.vmClient.Update(vmCopy)
+	return err
+}
+
+func (h *vmActionHandler) cancelStorageMigration(namespace, name string) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	annStr := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	entries, err := util.UnmarshalVolumeClaimTemplates(annStr)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal volumeClaimTemplates annotation: %w", err)
+	}
+
+	// Build a map of targetVolume -> sourceVolume from entries that have active migrations
+	targetToSource := map[string]string{}
+	for i, entry := range entries {
+		if entry.TargetVolume != "" {
+			targetToSource[entry.TargetVolume] = entry.Name
+			entries[i].TargetVolume = ""
+		}
+	}
+	if len(targetToSource) == 0 {
+		return fmt.Errorf("no active storage migration found")
+	}
+
+	newAnn, err := util.MarshalVolumeClaimTemplates(entries)
+	if err != nil {
+		return fmt.Errorf("failed to marshal volumeClaimTemplates annotation: %w", err)
+	}
+
+	vmCopy := vm.DeepCopy()
+	vmCopy.Annotations[util.AnnotationVolumeClaimTemplates] = newAnn
+
+	// Restore VM spec volumes that were swapped to target back to source
+	for i, vol := range vmCopy.Spec.Template.Spec.Volumes {
+		var claimName string
+		var hotpluggable bool
+		if vol.PersistentVolumeClaim != nil {
+			claimName = vol.PersistentVolumeClaim.ClaimName
+			hotpluggable = vol.PersistentVolumeClaim.Hotpluggable
+		} else if vol.DataVolume != nil {
+			claimName = vol.DataVolume.Name
+			hotpluggable = vol.DataVolume.Hotpluggable
+		}
+
+		sourceName, ok := targetToSource[claimName]
+		if !ok {
+			continue
+		}
+
+		// Determine if source is a DataVolume or PVC
+		_, dvErr := h.datavolumeClient.Get(namespace, sourceName, metav1.GetOptions{})
+		if dvErr == nil {
+			vmCopy.Spec.Template.Spec.Volumes[i].VolumeSource = kubevirtv1.VolumeSource{
+				DataVolume: &kubevirtv1.DataVolumeSource{
+					Name:         sourceName,
+					Hotpluggable: hotpluggable,
+				},
+			}
+		} else {
+			vmCopy.Spec.Template.Spec.Volumes[i].VolumeSource = kubevirtv1.VolumeSource{
+				PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+					PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: sourceName,
+					},
+					Hotpluggable: hotpluggable,
+				},
+			}
+		}
+	}
+
+	delete(vmCopy.Annotations, util.AnnotationWaitingStorageMigration)
+	vmCopy.Spec.UpdateVolumesStrategy = nil
+	if _, err = h.vmClient.Update(vmCopy); err != nil {
+		return err
+	}
+	return h.abortMigration(namespace, name)
 }
