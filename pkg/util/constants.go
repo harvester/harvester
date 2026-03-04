@@ -29,6 +29,7 @@ const (
 	LabelVMCreator                      = prefix + "/creator"
 	LabelVMimported                     = "migration.harvesterhci.io/imported"
 	LabelNodeNameKey                    = "kubevirt.io/nodeName"
+	LabelKubeVirtPersistentState        = "persistent-state-for" // KubeVirt-managed label for persistent state PVCs
 	LabelHarvesterUpgrade               = prefix + "/upgrade"
 	LabelHarvesterUpgradeState          = prefix + "/upgradeState"
 	LabelHarvesterUpgradeComponent      = prefix + "/upgradeComponent"
