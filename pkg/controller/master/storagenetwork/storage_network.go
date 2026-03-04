@@ -493,6 +493,8 @@ func (h *Handler) handleLonghornSettingPostConfig(setting *harvesterv1.Setting) 
 		var rwxConfig settings.RWXStorageNetworkConfig
 		if parseErr := json.Unmarshal([]byte(rwxSN.EffectiveValue()), &rwxConfig); parseErr == nil && rwxConfig.ShareStorageNetwork {
 			h.settingsController.Enqueue(settings.RWXStorageNetworkSettingName)
+		} else if parseErr != nil {
+			return setting, fmt.Errorf("failed to parse %s setting value: %v", settings.RWXStorageNetworkSettingName, parseErr)
 		}
 	}
 
