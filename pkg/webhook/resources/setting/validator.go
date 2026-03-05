@@ -180,6 +180,10 @@ func NewValidator(
 	validateSettingUpdateFuncs[settings.StorageNetworkName] = validator.validateUpdateStorageNetwork
 	validateSettingDeleteFuncs[settings.StorageNetworkName] = validator.validateDeleteStorageNetwork
 
+	validateSettingFuncs[settings.RWXStorageNetworkSettingName] = validator.validateRWXStorageNetwork
+	validateSettingUpdateFuncs[settings.RWXStorageNetworkSettingName] = validator.validateUpdateRWXStorageNetwork
+	validateSettingDeleteFuncs[settings.RWXStorageNetworkSettingName] = validator.validateDeleteRWXStorageNetwork
+
 	validateSettingFuncs[settings.VMMigrationNetworkSettingName] = validator.validateVMMigrationNetwork
 	validateSettingUpdateFuncs[settings.VMMigrationNetworkSettingName] = validator.validateUpdateVMMigrationNetwork
 	validateSettingDeleteFuncs[settings.VMMigrationNetworkSettingName] = validator.validateDeleteVMMigrationNetwork
@@ -1103,34 +1107,44 @@ func (v *settingValidator) validateNetworkHelper(name, value string) (*networkut
 }
 
 func (v *settingValidator) getNetworkConfig(settingName string) (*networkutil.Config, error) {
-	if settingName != settings.StorageNetworkName && settingName != settings.VMMigrationNetworkSettingName {
+	if settingName != settings.StorageNetworkName &&
+		settingName != settings.VMMigrationNetworkSettingName &&
+		settingName != settings.RWXStorageNetworkSettingName {
 		return nil, nil
 	}
 
 	networkConfigSetting, err := v.settingCache.Get(settingName)
 	if err != nil {
+		// during harvester bootstrap, the setting might not be created yet, return nil in this case
 		if apierrors.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get %s setting, err: %v", settingName, err)
 	}
 
-	if networkConfigSetting.Value != "" {
-		var config networkutil.Config
-		if err := json.Unmarshal([]byte(networkConfigSetting.Value), &config); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal the %s setting value %v, %w", settingName, networkConfigSetting.Value, err)
-		}
-		return &config, nil
+	effectiveValue := networkConfigSetting.EffectiveValue()
+	if effectiveValue == "" {
+		return nil, nil
 	}
 
-	if networkConfigSetting.Default != "" {
-		var config networkutil.Config
-		if err := json.Unmarshal([]byte(networkConfigSetting.Default), &config); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal the %s setting default value %v, %w", settingName, networkConfigSetting.Default, err)
+	// rwx-storage-network uses a composite JSON format; extract the inner network config.
+	if settingName == settings.RWXStorageNetworkSettingName {
+		var rwxConfig settings.RWXStorageNetworkConfig
+		if err := json.Unmarshal([]byte(effectiveValue), &rwxConfig); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal the %s setting value %v, %w", settingName, effectiveValue, err)
 		}
-		return &config, nil
+		// When sharing the storage-network, the networks are identical — no overlap possible.
+		if rwxConfig.ShareStorageNetwork {
+			return nil, nil
+		}
+		return rwxConfig.Network, nil
 	}
-	return nil, nil
+
+	var config networkutil.Config
+	if err := json.Unmarshal([]byte(effectiveValue), &config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal the %s setting value %v, %w", settingName, effectiveValue, err)
+	}
+	return &config, nil
 }
 
 func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) error {
@@ -1152,12 +1166,19 @@ func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) erro
 		config = valueConfig
 	}
 
-	vmMigraionNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
+	vmMigrationNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	rwxStorageNetworkConfig, err := v.getNetworkConfig(settings.RWXStorageNetworkSettingName)
 	if err != nil {
 		return werror.NewInternalError(err.Error())
 	}
 
-	if err = checkNetworkOverlap(settings.StorageNetworkName, config, settings.VMMigrationNetworkSettingName, vmMigraionNetworkConfig); err != nil {
+	if err = checkNetworkOverlap(settings.StorageNetworkName, config, map[string]*networkutil.Config{
+		settings.VMMigrationNetworkSettingName: vmMigrationNetworkConfig,
+		settings.RWXStorageNetworkSettingName:  rwxStorageNetworkConfig,
+	}); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.StorageNetworkName)
 	}
 
@@ -1178,6 +1199,10 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 		return nil
 	}
 
+	if err := v.checkStorageNetworkNotBlockedByRWX(newSetting); err != nil {
+		return err
+	}
+
 	var (
 		config *networkutil.Config
 		err    error
@@ -1192,20 +1217,153 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 		config = valueConfig
 	}
 
-	vmMigraionNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
+	vmMigrationNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	rwxStorageNetworkConfig, err := v.getNetworkConfig(settings.RWXStorageNetworkSettingName)
 	if err != nil {
 		return werror.NewInternalError(err.Error())
 	}
 
-	if err = checkNetworkOverlap(settings.StorageNetworkName, config, settings.VMMigrationNetworkSettingName, vmMigraionNetworkConfig); err != nil {
+	if err = checkNetworkOverlap(settings.StorageNetworkName, config, map[string]*networkutil.Config{
+		settings.VMMigrationNetworkSettingName: vmMigrationNetworkConfig,
+		settings.RWXStorageNetworkSettingName:  rwxStorageNetworkConfig,
+	}); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.StorageNetworkName)
 	}
 
 	return v.checkStorageNetworkUsage()
 }
 
+// checkStorageNetworkNotBlockedByRWX returns an error if the new setting would clear the storage
+// network while rwx-storage-network is in share mode (share-storage-network=true).
+func (v *settingValidator) checkStorageNetworkNotBlockedByRWX(newSetting *v1beta1.Setting) error {
+	if newSetting.EffectiveValue() != "" {
+		return nil
+	}
+	rwxSN, err := v.settingCache.Get(settings.RWXStorageNetworkSettingName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return werror.NewInternalError(fmt.Sprintf("failed to get %s setting, err: %v", settings.RWXStorageNetworkSettingName, err))
+	}
+	if rwxSN.EffectiveValue() == "" {
+		return nil
+	}
+	var rwxConfig settings.RWXStorageNetworkConfig
+	if err := json.Unmarshal([]byte(rwxSN.EffectiveValue()), &rwxConfig); err != nil {
+		// Unparseable value — don't block the update.
+		logrus.Warnf("Failed to parse %s setting value as JSON, err: %v.", settings.RWXStorageNetworkSettingName, err)
+		return nil
+	}
+	if rwxConfig.ShareStorageNetwork {
+		return werror.NewInvalidError(
+			fmt.Sprintf("%s cannot be disabled while %s has share-storage-network=true",
+				settings.StorageNetworkName, settings.RWXStorageNetworkSettingName),
+			settings.StorageNetworkName,
+		)
+	}
+	return nil
+}
+
 func (v *settingValidator) validateDeleteStorageNetwork(_ *v1beta1.Setting) error {
 	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.StorageNetworkName))
+}
+
+func (v *settingValidator) validateRWXStorageNetwork(setting *v1beta1.Setting) error {
+	return v.validateRWXStorageNetworkHelper(setting)
+}
+
+func (v *settingValidator) validateUpdateRWXStorageNetwork(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	if oldSetting.EffectiveValue() == newSetting.EffectiveValue() {
+		return nil
+	}
+
+	if err := v.validateRWXStorageNetworkHelper(newSetting); err != nil {
+		return err
+	}
+
+	// Parse old and new composite configs to detect share-flag transitions.
+	var oldConfig, newConfig settings.RWXStorageNetworkConfig
+	if oldSetting.EffectiveValue() != "" {
+		if err := json.Unmarshal([]byte(oldSetting.EffectiveValue()), &oldConfig); err != nil {
+			return werror.NewInvalidError(fmt.Sprintf("failed to parse old %s value: %v", settings.RWXStorageNetworkSettingName, err), settings.KeywordValue)
+		}
+	}
+	if newSetting.EffectiveValue() != "" {
+		if err := json.Unmarshal([]byte(newSetting.EffectiveValue()), &newConfig); err != nil {
+			return werror.NewInvalidError(fmt.Sprintf("failed to parse new %s value: %v", settings.RWXStorageNetworkSettingName, err), settings.KeywordValue)
+		}
+	}
+
+	// false -> true: storage-network must already be configured.
+	if !oldConfig.ShareStorageNetwork && newConfig.ShareStorageNetwork {
+		sn, err := v.settingCache.Get(settings.StorageNetworkName)
+		if err != nil {
+			return werror.NewInternalError(fmt.Sprintf("failed to get %s setting, err: %v", settings.StorageNetworkName, err))
+		}
+		if sn.EffectiveValue() == "" {
+			return werror.NewInvalidError(fmt.Sprintf("%s is not set", settings.StorageNetworkName), settings.RWXStorageNetworkSettingName)
+		}
+	}
+
+	if err := util.CheckRWXVolumesDetached(v.lhVolumeCache); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.RWXStorageNetworkSettingName)
+	}
+
+	return nil
+}
+
+// validateRWXStorageNetworkHelper validates the rwx-storage-network composite config.
+func (v *settingValidator) validateRWXStorageNetworkHelper(setting *v1beta1.Setting) error {
+	if setting == nil || setting.Name != settings.RWXStorageNetworkSettingName {
+		return nil
+	}
+
+	effectiveValue := setting.EffectiveValue()
+
+	var rwxConfig settings.RWXStorageNetworkConfig
+	if err := json.Unmarshal([]byte(effectiveValue), &rwxConfig); err != nil {
+		return werror.NewInvalidError(fmt.Sprintf("invalid JSON for %s: %v", settings.RWXStorageNetworkSettingName, err), settings.KeywordValue)
+	}
+
+	if rwxConfig.Network == nil {
+		return nil
+	}
+
+	networkJSON, err := json.Marshal(rwxConfig.Network)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to marshal network config: %v", err))
+	}
+
+	config, err := v.validateNetworkHelper(settings.RWXStorageNetworkSettingName, string(networkJSON))
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+
+	storageNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	vmMigrationNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	if err = checkNetworkOverlap(settings.RWXStorageNetworkSettingName, config, map[string]*networkutil.Config{
+		settings.StorageNetworkName:            storageNetworkConfig,
+		settings.VMMigrationNetworkSettingName: vmMigrationNetworkConfig,
+	}); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.RWXStorageNetworkSettingName)
+	}
+
+	return nil
+}
+
+func (v *settingValidator) validateDeleteRWXStorageNetwork(_ *v1beta1.Setting) error {
+	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.RWXStorageNetworkSettingName))
 }
 
 func (v *settingValidator) validateVMMigrationNetwork(setting *v1beta1.Setting) error {
@@ -1235,12 +1393,19 @@ func (v *settingValidator) validateVMMigrationNetwork(setting *v1beta1.Setting) 
 		config = valueConfig
 	}
 
-	storagetNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+	storageNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	rwxStorageNetworkConfig, err := v.getNetworkConfig(settings.RWXStorageNetworkSettingName)
 	if err != nil {
 		return werror.NewInternalError(err.Error())
 	}
 
-	if err = checkNetworkOverlap(settings.VMMigrationNetworkSettingName, config, settings.StorageNetworkName, storagetNetworkConfig); err != nil {
+	if err = checkNetworkOverlap(settings.VMMigrationNetworkSettingName, config, map[string]*networkutil.Config{
+		settings.StorageNetworkName:           storageNetworkConfig,
+		settings.RWXStorageNetworkSettingName: rwxStorageNetworkConfig,
+	}); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.VMMigrationNetworkSettingName)
 	}
 
@@ -1270,12 +1435,19 @@ func (v *settingValidator) validateUpdateVMMigrationNetwork(oldSetting *v1beta1.
 		config = valueConfig
 	}
 
-	storagetNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+	storageNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	rwxStorageNetworkConfig, err := v.getNetworkConfig(settings.RWXStorageNetworkSettingName)
 	if err != nil {
 		return werror.NewInternalError(err.Error())
 	}
 
-	if err = checkNetworkOverlap(settings.VMMigrationNetworkSettingName, config, settings.StorageNetworkName, storagetNetworkConfig); err != nil {
+	if err = checkNetworkOverlap(settings.VMMigrationNetworkSettingName, config, map[string]*networkutil.Config{
+		settings.StorageNetworkName:           storageNetworkConfig,
+		settings.RWXStorageNetworkSettingName: rwxStorageNetworkConfig,
+	}); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.VMMigrationNetworkSettingName)
 	}
 
@@ -1677,24 +1849,31 @@ func (v *settingValidator) checkVMMigrationNetworkRangeValid(config *networkutil
 	return nil
 }
 
-func checkNetworkOverlap(c1Name string, c1 *networkutil.Config, c2Name string, c2 *networkutil.Config) error {
-	if c1 == nil || c2 == nil {
+// checkNetworkOverlap checks that the c1 config does not have overlapping usable IP addresses
+// with any config in the c2 map. Nil configs are skipped, so if a peer setting does not
+// exist yet (e.g. during fresh install), its overlap check is safely bypassed.
+func checkNetworkOverlap(c1Name string, c1 *networkutil.Config, c2 map[string]*networkutil.Config) error {
+	if c1 == nil {
 		return nil
 	}
 
-	c1UsableIPAddresses, err := webhookUtil.GetUsableIPAddresses(c1.Range, c1.Exclude)
+	c1UsableIPs, err := webhookUtil.GetUsableIPAddresses(c1.Range, c1.Exclude)
 	if err != nil {
 		return err
 	}
 
-	c2UsableIPAddresses, err := webhookUtil.GetUsableIPAddresses(c2.Range, c2.Exclude)
-	if err != nil {
-		return err
-	}
-
-	for c1IP := range c1UsableIPAddresses {
-		if _, ok := c2UsableIPAddresses[c1IP]; ok {
-			return fmt.Errorf("%s: the network configuration is overlapped with %s", c1Name, c2Name)
+	for name, config := range c2 {
+		if config == nil {
+			continue
+		}
+		ips, err := webhookUtil.GetUsableIPAddresses(config.Range, config.Exclude)
+		if err != nil {
+			return err
+		}
+		for ip := range c1UsableIPs {
+			if _, ok := ips[ip]; ok {
+				return fmt.Errorf("%s: the network configuration is overlapped with %s", c1Name, name)
+			}
 		}
 	}
 	return nil
