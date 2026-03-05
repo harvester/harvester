@@ -241,7 +241,74 @@ func TestCreate(t *testing.T) {
 					StorageClassName: ptr.To(util.StorageClassVmstatePersistence),
 				},
 			},
+			expectError:   true,
+			errorContains: "reserved storage class",
+		},
+		{
+			name: "create PVC with reserved vmstate-persistence storage class managed by KubeVirt",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "persistent-state-for-vm1",
+					Namespace: "default",
+					Labels: map[string]string{
+						util.LabelKubeVirtPersistentState: "vm1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "kubevirt.io/v1",
+							Kind:       "VirtualMachine",
+							Name:       "vm1",
+							UID:        "test-uid",
+						},
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To(util.StorageClassVmstatePersistence),
+				},
+			},
 			expectError: false,
+		},
+		{
+			name: "create PVC with reserved vmstate-persistence storage class with label but no owner reference",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "persistent-state-for-vm1",
+					Namespace: "default",
+					Labels: map[string]string{
+						util.LabelKubeVirtPersistentState: "vm1",
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To(util.StorageClassVmstatePersistence),
+				},
+			},
+			expectError:   true,
+			errorContains: "reserved storage class",
+		},
+		{
+			name: "create PVC with reserved vmstate-persistence storage class with mismatched label and owner",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "persistent-state-for-vm1",
+					Namespace: "default",
+					Labels: map[string]string{
+						util.LabelKubeVirtPersistentState: "vm1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "kubevirt.io/v1",
+							Kind:       "VirtualMachine",
+							Name:       "vm2", // mismatched name
+							UID:        "test-uid",
+						},
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To(util.StorageClassVmstatePersistence),
+				},
+			},
+			expectError:   true,
+			errorContains: "reserved storage class",
 		},
 	}
 

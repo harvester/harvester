@@ -190,20 +190,31 @@ func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) e
 }
 
 func (v *pvcValidator) validateInternalUsage(pvc *corev1.PersistentVolumeClaim) error {
-	if !isUsingReservedSC(pvc) {
+	if pvc.Spec.StorageClassName == nil {
 		return nil
 	}
 
-	isBelongToUpgradeImage, err := v.isBelongToUpgradeImage(pvc)
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("failed to check if pvc %s/%s is for internal usage: %v", pvc.Namespace, pvc.Name, err))
+	scName := *pvc.Spec.StorageClassName
+	switch scName {
+	case util.StorageClassLonghornStatic:
+		isBelongToUpgradeImage, err := v.isBelongToUpgradeImage(pvc)
+		if err != nil {
+			return werror.NewInternalError(fmt.Sprintf("failed to check if pvc %s/%s is for internal usage: %v", pvc.Namespace, pvc.Name, err))
+		}
+		if !isBelongToUpgradeImage {
+			message := fmt.Sprintf("can not create volume with the reserved storage class %s", scName)
+			return werror.NewInvalidError(message, "spec.storageClassName")
+		}
+		return nil
+	case util.StorageClassVmstatePersistence:
+		if !isManagedByKubeVirt(pvc) {
+			message := fmt.Sprintf("can not create volume with the reserved storage class %s", scName)
+			return werror.NewInvalidError(message, "spec.storageClassName")
+		}
+		return nil
+	default:
+		return nil
 	}
-	if !isBelongToUpgradeImage {
-		message := fmt.Sprintf("can not create volume with the reserved storage class %s", *pvc.Spec.StorageClassName)
-		return werror.NewInvalidError(message, "spec.storageClassName")
-	}
-
-	return nil
 }
 
 func (v *pvcValidator) isBelongToUpgradeImage(pvc *corev1.PersistentVolumeClaim) (bool, error) {
@@ -238,6 +249,34 @@ func (v *pvcValidator) isBelongToUpgradeImage(pvc *corev1.PersistentVolumeClaim)
 	return false, nil
 }
 
-func isUsingReservedSC(pvc *corev1.PersistentVolumeClaim) bool {
-	return pvc.Spec.StorageClassName != nil && *pvc.Spec.StorageClassName == util.StorageClassLonghornStatic
+// isManagedByKubeVirt checks if a PVC creation request is legitimately from KubeVirt.
+// It validates multiple criteria to prevent users from bypassing the restriction:
+// 1. Must have the persistent-state-for label with a non-empty value
+// 2. Must have owner reference to a VM or VMI
+// 3. The label value must match the owner's name (VM/VMI name)
+func isManagedByKubeVirt(pvc *corev1.PersistentVolumeClaim) bool {
+	if pvc.Labels == nil {
+		return false
+	}
+
+	// Check if the label exists and has a non-empty value
+	vmName, exists := pvc.Labels[util.LabelKubeVirtPersistentState]
+	if !exists || vmName == "" {
+		return false
+	}
+
+	// Verify that the PVC has an owner reference to a VM or VMI
+	hasValidOwner := false
+	for _, owner := range pvc.OwnerReferences {
+		if owner.Kind == kubevirtv1.VirtualMachineGroupVersionKind.Kind ||
+			owner.Kind == kubevirtv1.VirtualMachineInstanceGroupVersionKind.Kind {
+			// The owner name should match the label value
+			if owner.Name == vmName {
+				hasValidOwner = true
+				break
+			}
+		}
+	}
+
+	return hasValidOwner
 }
