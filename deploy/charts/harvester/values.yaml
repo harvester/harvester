@@ -606,7 +606,7 @@ whereabouts:
   image:
     pullPolicy: IfNotPresent
     repository: ghcr.io/k8snetworkplumbingwg/whereabouts
-    tag: "v0.9.2"
+    tag: "v0.9.3"
 
 harvester-node-manager:
   image:
