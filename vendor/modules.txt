@@ -533,7 +533,11 @@ github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1
 ## explicit; go 1.21
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1
+<<<<<<< HEAD
 # github.com/k8snetworkplumbingwg/whereabouts v0.9.4
+=======
+# github.com/k8snetworkplumbingwg/whereabouts v0.9.3
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 ## explicit; go 1.25.5
 github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io
 github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1
@@ -1375,8 +1379,13 @@ golang.org/x/oauth2/internal
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
+<<<<<<< HEAD
 # golang.org/x/sys v0.44.0
 ## explicit; go 1.25.0
+=======
+# golang.org/x/sys v0.40.0
+## explicit; go 1.24.0
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
 golang.org/x/sys/plan9
@@ -1525,8 +1534,13 @@ google.golang.org/grpc/serviceconfig
 google.golang.org/grpc/stats
 google.golang.org/grpc/status
 google.golang.org/grpc/tap
+<<<<<<< HEAD
 # google.golang.org/protobuf v1.36.9
 ## explicit; go 1.23
+=======
+# google.golang.org/protobuf v1.36.7
+## explicit; go 1.22
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 google.golang.org/protobuf/encoding/protodelim
 google.golang.org/protobuf/encoding/protojson
 google.golang.org/protobuf/encoding/prototext

@@ -188,11 +188,16 @@ var (
 	procGetBestInterfaceEx                                   = modiphlpapi.NewProc("GetBestInterfaceEx")
 	procGetIfEntry                                           = modiphlpapi.NewProc("GetIfEntry")
 	procGetIfEntry2Ex                                        = modiphlpapi.NewProc("GetIfEntry2Ex")
+<<<<<<< HEAD
 	procGetIfTable2Ex                                        = modiphlpapi.NewProc("GetIfTable2Ex")
 	procGetIpForwardEntry2                                   = modiphlpapi.NewProc("GetIpForwardEntry2")
 	procGetIpForwardTable2                                   = modiphlpapi.NewProc("GetIpForwardTable2")
 	procGetIpInterfaceEntry                                  = modiphlpapi.NewProc("GetIpInterfaceEntry")
 	procGetIpInterfaceTable                                  = modiphlpapi.NewProc("GetIpInterfaceTable")
+=======
+	procGetIpForwardEntry2                                   = modiphlpapi.NewProc("GetIpForwardEntry2")
+	procGetIpForwardTable2                                   = modiphlpapi.NewProc("GetIpForwardTable2")
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 	procGetUnicastIpAddressEntry                             = modiphlpapi.NewProc("GetUnicastIpAddressEntry")
 	procGetUnicastIpAddressTable                             = modiphlpapi.NewProc("GetUnicastIpAddressTable")
 	procNotifyIpInterfaceChange                              = modiphlpapi.NewProc("NotifyIpInterfaceChange")
@@ -1678,6 +1683,7 @@ func GetIfEntry2Ex(level uint32, row *MibIfRow2) (errcode error) {
 	return
 }
 
+<<<<<<< HEAD
 func GetIfTable2Ex(level uint32, table **MibIfTable2) (errcode error) {
 	r0, _, _ := syscall.SyscallN(procGetIfTable2Ex.Addr(), uintptr(level), uintptr(unsafe.Pointer(table)))
 	if r0 != 0 {
@@ -1686,6 +1692,8 @@ func GetIfTable2Ex(level uint32, table **MibIfTable2) (errcode error) {
 	return
 }
 
+=======
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 func GetIpForwardEntry2(row *MibIpForwardRow2) (errcode error) {
 	r0, _, _ := syscall.SyscallN(procGetIpForwardEntry2.Addr(), uintptr(unsafe.Pointer(row)))
 	if r0 != 0 {
@@ -1702,6 +1710,7 @@ func GetIpForwardTable2(family uint16, table **MibIpForwardTable2) (errcode erro
 	return
 }
 
+<<<<<<< HEAD
 func GetIpInterfaceEntry(row *MibIpInterfaceRow) (errcode error) {
 	r0, _, _ := syscall.SyscallN(procGetIpInterfaceEntry.Addr(), uintptr(unsafe.Pointer(row)))
 	if r0 != 0 {
@@ -1718,6 +1727,8 @@ func GetIpInterfaceTable(family uint16, table **MibIpInterfaceTable) (errcode er
 	return
 }
 
+=======
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 func GetUnicastIpAddressEntry(row *MibUnicastIpAddressRow) (errcode error) {
 	r0, _, _ := syscall.SyscallN(procGetUnicastIpAddressEntry.Addr(), uintptr(unsafe.Pointer(row)))
 	if r0 != 0 {

@@ -2320,6 +2320,7 @@ type MibIfRow2 struct {
 	OutQLen                     uint64
 }
 
+<<<<<<< HEAD
 // MIB_IF_TABLE_LEVEL enumeration from netioapi.h or
 // https://learn.microsoft.com/en-us/windows/win32/api/netioapi/ne-netioapi-mib_if_table_level.
 const (
@@ -2335,6 +2336,8 @@ type MibIfTable2 struct {
 	Table      [1]MibIfRow2
 }
 
+=======
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 // IP_ADDRESS_PREFIX stores an IP address prefix. See
 // https://learn.microsoft.com/en-us/windows/win32/api/netioapi/ns-netioapi-ip_address_prefix.
 type IpAddressPrefix struct {

@@ -53,7 +53,13 @@ func (s *CPUSet) Zero() {
 // will silently ignore any invalid CPU bits in [CPUSet] so this is an
 // efficient way of resetting the CPU affinity of a process.
 func (s *CPUSet) Fill() {
+<<<<<<< HEAD
 	cpuMaskFill(s[:])
+=======
+	for i := range s {
+		s[i] = ^cpuMask(0)
+	}
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 }
 
 func cpuBitsIndex(cpu int) int {

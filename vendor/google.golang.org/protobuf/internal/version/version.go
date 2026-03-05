@@ -52,7 +52,11 @@ import (
 const (
 	Major      = 1
 	Minor      = 36
+<<<<<<< HEAD
 	Patch      = 9
+=======
+	Patch      = 7
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 	PreRelease = ""
 )
 

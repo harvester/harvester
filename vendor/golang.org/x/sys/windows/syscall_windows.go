@@ -892,6 +892,7 @@ const socket_error = uintptr(^uint32(0))
 //sys	MultiByteToWideChar(codePage uint32, dwFlags uint32, str *byte, nstr int32, wchar *uint16, nwchar int32) (nwrite int32, err error) = kernel32.MultiByteToWideChar
 //sys	getBestInterfaceEx(sockaddr unsafe.Pointer, pdwBestIfIndex *uint32) (errcode error) = iphlpapi.GetBestInterfaceEx
 //sys   GetIfEntry2Ex(level uint32, row *MibIfRow2) (errcode error) = iphlpapi.GetIfEntry2Ex
+<<<<<<< HEAD
 //sys   GetIfTable2Ex(level uint32, table **MibIfTable2) (errcode error) = iphlpapi.GetIfTable2Ex
 //sys   GetIpForwardEntry2(row *MibIpForwardRow2) (errcode error) = iphlpapi.GetIpForwardEntry2
 //sys   GetIpForwardTable2(family uint16, table **MibIpForwardTable2) (errcode error) = iphlpapi.GetIpForwardTable2
@@ -899,6 +900,11 @@ const socket_error = uintptr(^uint32(0))
 //sys   GetIpInterfaceTable(family uint16, table **MibIpInterfaceTable) (errcode error) = iphlpapi.GetIpInterfaceTable
 //sys   GetUnicastIpAddressEntry(row *MibUnicastIpAddressRow) (errcode error) = iphlpapi.GetUnicastIpAddressEntry
 //sys   GetUnicastIpAddressTable(family uint16, table **MibUnicastIpAddressTable) (errcode error) = iphlpapi.GetUnicastIpAddressTable
+=======
+//sys   GetIpForwardEntry2(row *MibIpForwardRow2) (errcode error) = iphlpapi.GetIpForwardEntry2
+//sys   GetIpForwardTable2(family uint16, table **MibIpForwardTable2) (errcode error) = iphlpapi.GetIpForwardTable2
+//sys   GetUnicastIpAddressEntry(row *MibUnicastIpAddressRow) (errcode error) = iphlpapi.GetUnicastIpAddressEntry
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 //sys   FreeMibTable(memory unsafe.Pointer) = iphlpapi.FreeMibTable
 //sys   NotifyIpInterfaceChange(family uint16, callback uintptr, callerContext unsafe.Pointer, initialNotification bool, notificationHandle *Handle) (errcode error) = iphlpapi.NotifyIpInterfaceChange
 //sys   NotifyRouteChange2(family uint16, callback uintptr, callerContext unsafe.Pointer, initialNotification bool, notificationHandle *Handle) (errcode error) = iphlpapi.NotifyRouteChange2

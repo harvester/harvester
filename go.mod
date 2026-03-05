@@ -69,7 +69,11 @@ require (
 	github.com/iancoleman/strcase v0.2.0
 	github.com/k3s-io/helm-controller v0.16.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
+<<<<<<< HEAD
 	github.com/k8snetworkplumbingwg/whereabouts v0.9.4
+=======
+	github.com/k8snetworkplumbingwg/whereabouts v0.9.3
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 	github.com/kube-logging/logging-operator/pkg/sdk v0.12.0
 	github.com/kubeovn/kube-ovn v1.14.10
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
@@ -101,7 +105,11 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.18.0
+<<<<<<< HEAD
 	github.com/urfave/cli v1.22.17
+=======
+	github.com/urfave/cli v1.22.16
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 	go.uber.org/multierr v1.11.0
 	golang.org/x/crypto v0.47.0
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621
@@ -112,9 +120,15 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.17.3
 	k8s.io/api v0.34.1
+<<<<<<< HEAD
 	k8s.io/apiextensions-apiserver v0.34.1
 	k8s.io/apimachinery v0.34.1
 	k8s.io/apiserver v0.34.1
+=======
+	k8s.io/apiextensions-apiserver v0.34.0
+	k8s.io/apimachinery v0.34.1
+	k8s.io/apiserver v0.34.0
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cloud-provider v0.0.0
 	k8s.io/component-helpers v0.33.7
@@ -326,13 +340,18 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/oauth2 v0.31.0 // indirect
+<<<<<<< HEAD
 	golang.org/x/sys v0.44.0 // indirect
+=======
+	golang.org/x/sys v0.40.0 // indirect
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 	golang.org/x/term v0.39.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.41.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
+<<<<<<< HEAD
 	google.golang.org/grpc v1.75.1 // indirect
 	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
@@ -341,6 +360,16 @@ require (
 	k8s.io/cli-runtime v0.34.1 // indirect
 	k8s.io/code-generator v0.34.1 // indirect
 	k8s.io/component-base v0.34.1 // indirect
+=======
+	google.golang.org/grpc v1.73.0 // indirect
+	google.golang.org/protobuf v1.36.7 // indirect
+	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
+	gopkg.in/inf.v0 v0.9.1 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
+	k8s.io/cli-runtime v0.33.7 // indirect
+	k8s.io/code-generator v0.34.1 // indirect
+	k8s.io/component-base v0.34.0 // indirect
+>>>>>>> 37c1e0da (bump whereabouts to v0.9.3)
 	k8s.io/gengo v0.0.0-20250130153323-76c5745d3511 // indirect
 	k8s.io/gengo/v2 v2.0.0-20250604051438-85fd79dbfd9f // indirect
 	k8s.io/klog v1.0.0 // indirect
