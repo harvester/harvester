@@ -310,6 +310,98 @@ func Test_validateSupportBundleNodeCollectionTimeout(t *testing.T) {
 	}
 }
 
+func Test_validateSupportBundleFileName(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        *v1beta1.Setting
+		expectedErr bool
+	}{
+		{
+			name: "empty default",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleFileNameSettingName},
+				Default:    "",
+			},
+			expectedErr: false,
+		},
+		{
+			name: "valid name with hyphens",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleFileNameSettingName},
+				Value:      "my-cluster-01",
+			},
+			expectedErr: false,
+		},
+		{
+			name: "invalid name starting with hyphen",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleFileNameSettingName},
+				Value:      "-invalid",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid name ending with hyphen",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleFileNameSettingName},
+				Value:      "invalid-",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid name with uppercase letters",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleFileNameSettingName},
+				Value:      "Invalid",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid name with underscore",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleFileNameSettingName},
+				Value:      "test_name",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid name with special characters",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleFileNameSettingName},
+				Value:      "test@name",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid name exceeding max length (64 chars)",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleFileNameSettingName},
+				Value:      "a1234567890123456789012345678901234567890123456789012345678901234",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid name with spaces",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SupportBundleFileNameSettingName},
+				Value:      "my cluster",
+			},
+			expectedErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSupportBundleFileName(tt.args)
+			if tt.expectedErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+		})
+	}
+}
+
 func Test_validateSSLProtocols(t *testing.T) {
 	tests := []struct {
 		name        string
