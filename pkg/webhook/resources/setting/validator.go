@@ -38,6 +38,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -97,6 +98,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.SupportBundleTimeoutSettingName:                   validateSupportBundleTimeout,
 	settings.SupportBundleExpirationSettingName:                validateSupportBundleExpiration,
 	settings.SupportBundleNodeCollectionTimeoutName:            validateSupportBundleNodeCollectionTimeout,
+	settings.SupportBundleFileNameSettingName:                  validateSupportBundleFileName,
 	settings.OvercommitConfigSettingName:                       validateOvercommitConfig,
 	settings.VipPoolsConfigSettingName:                         validateVipPoolsConfig,
 	settings.SSLCertificatesSettingName:                        validateSSLCertificates,
@@ -118,6 +120,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.SupportBundleTimeoutSettingName:                   validateUpdateSupportBundleTimeout,
 	settings.SupportBundleExpirationSettingName:                validateUpdateSupportBundle,
 	settings.SupportBundleNodeCollectionTimeoutName:            validateUpdateSupportBundleNodeCollectionTimeout,
+	settings.SupportBundleFileNameSettingName:                  validateUpdateSupportBundleFileName,
 	settings.OvercommitConfigSettingName:                       validateUpdateOvercommitConfig,
 	settings.VipPoolsConfigSettingName:                         validateUpdateVipPoolsConfig,
 	settings.SSLCertificatesSettingName:                        validateUpdateSSLCertificates,
@@ -833,6 +836,36 @@ func validateSupportBundleNodeCollectionTimeout(setting *v1beta1.Setting) error 
 
 func validateUpdateSupportBundle(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleExpiration(newSetting)
+}
+
+// validateSupportBundleFileNameHelper validates that the file name follows RFC 1123 Label Names
+// using Kubernetes built-in validation.
+func validateSupportBundleFileNameHelper(value string) error {
+	if value == "" {
+		return nil
+	}
+
+	errs := validation.IsDNS1123Label(value)
+	if len(errs) > 0 {
+		return fmt.Errorf("invalid file name: %s", strings.Join(errs, "; "))
+	}
+
+	return nil
+}
+
+func validateSupportBundleFileName(setting *v1beta1.Setting) error {
+	if err := validateSupportBundleFileNameHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+	}
+
+	if err := validateSupportBundleFileNameHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+	return nil
+}
+
+func validateUpdateSupportBundleFileName(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateSupportBundleFileName(newSetting)
 }
 
 func validateSSLCertificatesHelper(field, value string) error {

@@ -39,6 +39,7 @@ var (
 	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, supportBundleUtil.SupportBundleTimeoutDefaultStr)                      // Unit is minute. 0 means disable timeout.
 	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, supportBundleUtil.SupportBundleExpirationDefaultStr)                // Unit is minute.
 	SupportBundleNodeCollectionTimeout     = NewSetting(SupportBundleNodeCollectionTimeoutName, supportBundleUtil.SupportBundleNodeCollectionTimeoutDefaultStr) // Unit is minute.
+	SupportBundleFileName                  = NewSetting(SupportBundleFileNameSettingName, "")                                                                   // Custom file name for support bundle files, must follow RFC 1123 Label Names
 	DefaultStorageClass                    = NewSetting(DefaultStorageClassSettingName, "longhorn")
 	HTTPProxy                              = NewSetting(HTTPProxySettingName, "{}")
 	VMForceResetPolicySet                  = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
@@ -96,6 +97,7 @@ const (
 	AutoRotateRKE2CertsSettingName                    = "auto-rotate-rke2-certs"
 	KubeconfigDefaultTokenTTLMinutesSettingName       = "kubeconfig-default-token-ttl-minutes"
 	SupportBundleNodeCollectionTimeoutName            = "support-bundle-node-collection-timeout"
+	SupportBundleFileNameSettingName                  = "support-bundle-file-name"
 	UpgradeConfigSettingName                          = "upgrade-config"
 	LonghornV2DataEngineSettingName                   = "longhorn-v2-data-engine-enabled"
 	LogLevelSettingName                               = "log-level"
