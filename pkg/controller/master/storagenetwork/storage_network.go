@@ -1011,12 +1011,12 @@ func (h *Handler) updateLonghornRWXStorageNetwork(storageNetwork string) error {
 		return err
 	}
 
+	if rwxSN.Value == storageNetwork {
+		return nil
+	}
+
 	rwxSNCpy := rwxSN.DeepCopy()
 	rwxSNCpy.Value = storageNetwork
-
-	if !reflect.DeepEqual(rwxSN, rwxSNCpy) {
-		_, err := h.longhornSettings.Update(rwxSNCpy)
-		return err
-	}
-	return nil
+	_, err = h.longhornSettings.Update(rwxSNCpy)
+	return err
 }
