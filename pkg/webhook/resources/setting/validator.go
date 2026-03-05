@@ -1307,6 +1307,7 @@ func (v *settingValidator) checkStorageNetworkNotBlockedByRWX(newSetting *v1beta
 	var rwxConfig settings.RWXStorageNetworkConfig
 	if err := json.Unmarshal([]byte(rwxSN.EffectiveValue()), &rwxConfig); err != nil {
 		// Unparseable value — don't block the update.
+		logrus.Warnf("Failed to parse %s setting value as JSON, err: %v.", settings.RWXStorageNetworkSettingName, err)
 		return nil
 	}
 	if rwxConfig.ShareStorageNetwork {
