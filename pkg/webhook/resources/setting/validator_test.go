@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/rancher/wrangler/v3/pkg/webhook"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +18,7 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	networkutil "github.com/harvester/harvester/pkg/util/network"
+	whTypes "github.com/harvester/harvester/pkg/webhook/types"
 )
 
 func Test_validateOvercommitConfig(t *testing.T) {
@@ -1812,7 +1814,8 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 				lhVolumeCache: fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
 			}
 
-			err := v.validateUpdateRWXStorageNetwork(tt.oldSetting, tt.newSetting)
+			req := &whTypes.Request{Request: &webhook.Request{}}
+			err := v.validateUpdateRWXStorageNetwork(req, tt.oldSetting, tt.newSetting)
 			assert.Equal(t, tt.expectedErr, err != nil, err)
 		})
 	}

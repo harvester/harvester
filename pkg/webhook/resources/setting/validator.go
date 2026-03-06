@@ -112,7 +112,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.MaxHotplugRatioSettingName:                        validateMaxHotplugRatio,
 }
 
-type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
+type validateSettingUpdateFunc func(request *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
 
 var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.VMForceResetPolicySettingName:                     validateUpdateVMForceResetPolicy,
@@ -247,19 +247,19 @@ func (v *settingValidator) Resource() types.Resource {
 	}
 }
 
-func (v *settingValidator) Create(_ *types.Request, newObj runtime.Object) error {
-	return validateSetting(newObj)
+func (v *settingValidator) Create(request *types.Request, newObj runtime.Object) error {
+	return validateSetting(request, newObj)
 }
 
-func (v *settingValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
-	return validateUpdateSetting(oldObj, newObj)
+func (v *settingValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+	return validateUpdateSetting(request, oldObj, newObj)
 }
 
 func (v *settingValidator) Delete(_ *types.Request, oldObj runtime.Object) error {
 	return validateDeleteSetting(oldObj)
 }
 
-func validateSetting(newObj runtime.Object) error {
+func validateSetting(request *types.Request, newObj runtime.Object) error {
 	setting := newObj.(*v1beta1.Setting)
 
 	if validateFunc, ok := validateSettingFuncs[setting.Name]; ok {
@@ -269,12 +269,12 @@ func validateSetting(newObj runtime.Object) error {
 	return nil
 }
 
-func validateUpdateSetting(oldObj runtime.Object, newObj runtime.Object) error {
+func validateUpdateSetting(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	oldSetting := oldObj.(*v1beta1.Setting)
 	newSetting := newObj.(*v1beta1.Setting)
 
 	if validateUpdateFunc, ok := validateSettingUpdateFuncs[newSetting.Name]; ok {
-		return validateUpdateFunc(oldSetting, newSetting)
+		return validateUpdateFunc(request, oldSetting, newSetting)
 	}
 
 	return nil
@@ -333,7 +333,7 @@ func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func (v *settingValidator) validateUpdateHTTPProxy(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateHTTPProxy(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateHTTPProxy(newSetting)
 }
 
@@ -419,7 +419,7 @@ func validateOvercommitConfig(setting *v1beta1.Setting) error {
 	return validateOvercommitConfigHelper(settings.KeywordValue, setting.Value)
 }
 
-func validateUpdateOvercommitConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateOvercommitConfig(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateOvercommitConfig(newSetting)
 }
 
@@ -447,7 +447,7 @@ func validateVMForceResetPolicy(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateVMForceResetPolicy(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateVMForceResetPolicy(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateVMForceResetPolicy(newSetting)
 }
 
@@ -502,7 +502,7 @@ func (v *settingValidator) validateBackupTargetFields(target *settings.BackupTar
 	return nil
 }
 
-func (v *settingValidator) validateUpdateBackupTarget(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateBackupTarget(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateBackupTarget(newSetting)
 }
 
@@ -719,7 +719,7 @@ func validateNTPServer(server string, nameValidator, patternValidator *regexp.Re
 	return true
 }
 
-func validateUpdateNTPServers(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateNTPServers(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateNTPServers(newSetting)
 }
 
@@ -748,7 +748,7 @@ func validateVipPoolsConfig(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateVipPoolsConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateVipPoolsConfig(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateVipPoolsConfig(newSetting)
 }
 
@@ -778,7 +778,7 @@ func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSupportBundleTimeout(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundleTimeout(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleTimeout(newSetting)
 }
 
@@ -808,7 +808,7 @@ func validateSupportBundleExpiration(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSupportBundleNodeCollectionTimeout(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundleNodeCollectionTimeout(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleNodeCollectionTimeout(newSetting)
 }
 
@@ -838,7 +838,7 @@ func validateSupportBundleNodeCollectionTimeout(setting *v1beta1.Setting) error 
 	return nil
 }
 
-func validateUpdateSupportBundle(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundle(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleExpiration(newSetting)
 }
 
@@ -910,7 +910,7 @@ func validateSSLCertificates(setting *v1beta1.Setting) error {
 	return validateSSLCertificatesHelper(settings.KeywordValue, setting.Value)
 }
 
-func validateUpdateSSLCertificates(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSSLCertificates(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSSLCertificates(newSetting)
 }
 
@@ -949,7 +949,7 @@ func validateSSLParameters(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSSLParameters(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSSLParameters(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSSLParameters(newSetting)
 }
 
@@ -1028,7 +1028,7 @@ func validateSupportBundleImage(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSupportBundleImage(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundleImage(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleImage(newSetting)
 }
 
@@ -1048,11 +1048,11 @@ func (v *settingValidator) validateVolumeSnapshotClass(setting *v1beta1.Setting)
 	return nil
 }
 
-func (v *settingValidator) validateUpdateVolumeSnapshotClass(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateVolumeSnapshotClass(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateVolumeSnapshotClass(newSetting)
 }
 
-func (v *settingValidator) validateUpdateLonghornV2DataEngine(oldSetting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateLonghornV2DataEngine(_ *types.Request, oldSetting, newSetting *v1beta1.Setting) error {
 	if oldSetting.Value == newSetting.Value {
 		return nil
 	}
@@ -1096,7 +1096,7 @@ func validateContainerdRegistry(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateContainerdRegistry(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateContainerdRegistry(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateContainerdRegistry(newSetting)
 }
 
@@ -1224,7 +1224,7 @@ func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) erro
 	return nil
 }
 
-func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateStorageNetwork(_ *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	if newSetting.Name != settings.StorageNetworkName {
 		return nil
 	}
@@ -1328,9 +1328,31 @@ func (v *settingValidator) validateRWXStorageNetwork(setting *v1beta1.Setting) e
 	return v.validateRWXStorageNetworkHelper(setting)
 }
 
-func (v *settingValidator) validateUpdateRWXStorageNetwork(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateRWXStorageNetwork(request *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	if oldSetting.EffectiveValue() == newSetting.EffectiveValue() {
 		return nil
+	}
+
+	// Internal controller writes (e.g. bootstrap/upgrade init) bypass user-facing
+	// validation: volumes may still be attached and the network config may be
+	// intentionally omitted (share-storage-network=true with no Network field).
+	if request.IsFromController() {
+		return nil
+	}
+
+	// Block updates while a previous change is still in progress, except for
+	// resetting the setting to its default value.
+	sc := v1beta1.SettingConfigured
+	isInProgress := sc.IsFalse(oldSetting) && sc.GetReason(oldSetting) == storagenetwork.ReasonInProgress
+	isResetToDefault := newSetting.Value == settings.RWXStorageNetwork.Default &&
+		newSetting.Default == settings.RWXStorageNetwork.Default
+	if isInProgress && !isResetToDefault {
+		return werror.NewConflict(fmt.Sprintf(
+			"cannot update the setting %q because it is still being configured (reason: %q, message: %q)",
+			settings.RWXStorageNetworkSettingName,
+			sc.GetReason(oldSetting),
+			sc.GetMessage(oldSetting),
+		))
 	}
 
 	if err := v.validateRWXStorageNetworkHelper(newSetting); err != nil {
@@ -1464,7 +1486,7 @@ func (v *settingValidator) validateVMMigrationNetwork(setting *v1beta1.Setting) 
 	return nil
 }
 
-func (v *settingValidator) validateUpdateVMMigrationNetwork(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateVMMigrationNetwork(_ *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	if newSetting.Name != settings.VMMigrationNetworkSettingName {
 		return nil
 	}
@@ -1959,7 +1981,7 @@ func validateDefaultVMTerminationGracePeriodSeconds(setting *v1beta1.Setting) er
 	return nil
 }
 
-func validateUpdateDefaultVMTerminationGracePeriodSeconds(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateDefaultVMTerminationGracePeriodSeconds(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateDefaultVMTerminationGracePeriodSeconds(newSetting)
 }
 
@@ -1996,7 +2018,7 @@ func validateAutoRotateRKE2Certs(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateAutoRotateRKE2Certs(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateAutoRotateRKE2Certs(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateAutoRotateRKE2Certs(newSetting)
 }
 
@@ -2031,7 +2053,7 @@ func validateKubeConfigTTLSetting(newSetting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateKubeConfigTTLSetting(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateKubeConfigTTLSetting(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateKubeConfigTTLSetting(newSetting)
 }
 
@@ -2162,7 +2184,7 @@ func (v *settingValidator) validateUpgradeConfig(setting *v1beta1.Setting) error
 	return v.validateUpgradeConfigFields(setting)
 }
 
-func (v *settingValidator) validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateUpgradeConfig(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateUpgradeConfig(newSetting)
 }
 
@@ -2177,7 +2199,7 @@ func validateAdditionalGuestMemoryOverheadRatio(newSetting *v1beta1.Setting) err
 	return nil
 }
 
-func validateUpdateAdditionalGuestMemoryOverheadRatio(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateAdditionalGuestMemoryOverheadRatio(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateAdditionalGuestMemoryOverheadRatio(newSetting)
 }
 
@@ -2189,7 +2211,7 @@ func validateMaxHotplugRatio(setting *v1beta1.Setting) error {
 	return validateMaxHotplugRatioHelper(settings.KeywordValue, setting.Value)
 }
 
-func validateUpdateMaxHotplugRatio(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateMaxHotplugRatio(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateMaxHotplugRatio(newSetting)
 }
 
@@ -2250,7 +2272,7 @@ func (v *settingValidator) validateRancherCluster(newSetting *v1beta1.Setting) e
 	return nil
 }
 
-func (v *settingValidator) validateUpdateRancherCluster(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateRancherCluster(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateRancherCluster(newSetting)
 }
 
@@ -2296,7 +2318,7 @@ func (v *settingValidator) validateKubeVirtMigration(newSetting *v1beta1.Setting
 	return nil
 }
 
-func (v *settingValidator) validateUpdateKubeVirtMigration(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateKubeVirtMigration(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateKubeVirtMigration(newSetting)
 }
 
