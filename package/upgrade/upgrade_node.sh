@@ -806,6 +806,13 @@ start_repo_vm() {
   virtctl start $repo_vm -n harvester-system || true
 }
 
+switch_ingress() {
+  if [ ! -f $HOST_DIR/etc/rancher/rke2/config.yaml.d/99-traefik.yaml ]
+  then
+    echo "ingress-controller: traefik" > $HOST_DIR/etc/rancher/rke2/config.yaml.d/99-traefik.yaml
+  fi
+}
+
 command_post_drain() {
   wait_repo
   detect_repo
@@ -826,6 +833,7 @@ command_post_drain() {
 
   generate_hostname_persistance
 
+  switch_ingress
   upgrade_os
 }
 
@@ -866,6 +874,7 @@ command_single_node_upgrade() {
   generate_networkmanager_config
 
   generate_hostname_persistance
+  switch_ingress
   # Upgrade OS
   upgrade_os
 }
