@@ -10,6 +10,9 @@ on:
 env:
   REPO_NAME: harvester/harvester
 
+permissions:
+  pull-requests: write
+
 jobs:
   check-backport:
     runs-on: ubuntu-latest
