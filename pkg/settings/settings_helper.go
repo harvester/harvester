@@ -107,6 +107,71 @@ type Overcommit struct {
 	Storage int `json:"storage"`
 }
 
+type LHIMCPUConfig struct {
+	V1 string `json:"v1"`
+	V2 string `json:"v2"`
+}
+
+type LHIMResourcesConfig struct {
+	CPU LHIMCPUConfig `json:"cpu"`
+}
+
+func DecodeLHIMResources(value string) (*LHIMResourcesConfig, error) {
+	if value == "" {
+		return &LHIMResourcesConfig{}, nil
+	}
+
+	raw := map[string]json.RawMessage{}
+	if err := json.Unmarshal([]byte(value), &raw); err != nil {
+		return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
+	}
+	cpuRaw, ok := raw["cpu"]
+	if !ok {
+		return nil, fmt.Errorf("cpu is required")
+	}
+
+	cpuMap := map[string]json.RawMessage{}
+	if err := json.Unmarshal(cpuRaw, &cpuMap); err != nil {
+		return nil, fmt.Errorf("cpu must be an object with v1/v2, error: %w", err)
+	}
+
+	v1Raw, ok := cpuMap["v1"]
+	if !ok {
+		return nil, fmt.Errorf("cpu.v1 is required")
+	}
+	v2Raw, ok := cpuMap["v2"]
+	if !ok {
+		return nil, fmt.Errorf("cpu.v2 is required")
+	}
+
+	v1, err := decodeLHIMCPUValue(v1Raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cpu.v1: %w", err)
+	}
+	v2, err := decodeLHIMCPUValue(v2Raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cpu.v2: %w", err)
+	}
+
+	return &LHIMResourcesConfig{
+		CPU: LHIMCPUConfig{
+			V1: v1,
+			V2: v2,
+		},
+	}, nil
+}
+
+func decodeLHIMCPUValue(raw json.RawMessage) (string, error) {
+	var stringValue string
+	if err := json.Unmarshal(raw, &stringValue); err != nil {
+		return "", err
+	}
+	if _, err := strconv.Atoi(stringValue); err != nil {
+		return "", err
+	}
+	return stringValue, nil
+}
+
 type SSLCertificate struct {
 	CA                string `json:"ca"`
 	PublicCertificate string `json:"publicCertificate"`

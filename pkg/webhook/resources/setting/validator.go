@@ -22,10 +22,13 @@ import (
 	// S3 Ref: https://github.com/longhorn/backupstore/blob/3912081eb7c5708f0027ebbb0da4934537eb9d72/s3/s3.go#L33-L37
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/harvester/go-common/ds"
+	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester-network-controller/pkg/utils"
 	"github.com/longhorn/backupstore"
 	_ "github.com/longhorn/backupstore/nfs" //nolint
 	_ "github.com/longhorn/backupstore/s3"  //nolint
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	lhtypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/rancher/lasso/pkg/log"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -41,9 +44,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
 	kubevirtv1 "kubevirt.io/api/core/v1"
-
-	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester-network-controller/pkg/utils"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/containerd"
@@ -108,6 +108,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateAdditionalGuestMemoryOverheadRatio,
 	settings.MaxHotplugRatioSettingName:                        validateMaxHotplugRatio,
+	settings.LHIMResourcesSettingName:                          validateLHIMResources,
 }
 
 type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -200,6 +201,9 @@ func NewValidator(
 	validateSettingUpdateFuncs[settings.KubeVirtMigrationSettingName] = validator.validateUpdateKubeVirtMigration
 
 	validateSettingDeleteFuncs[settings.ClusterPodSecurityStandardSettingName] = validator.validateDeleteClusterPodSecurityStandard
+
+	validateSettingUpdateFuncs[settings.LHIMResourcesSettingName] = validator.validateUpdateLHIMResources
+	validateSettingDeleteFuncs[settings.LHIMResourcesSettingName] = validator.validateDeleteLHIMResources
 
 	return validator
 }
@@ -1981,6 +1985,36 @@ func validateUpdateMaxHotplugRatio(_ *v1beta1.Setting, newSetting *v1beta1.Setti
 	return validateMaxHotplugRatio(newSetting)
 }
 
+func validateLHIMResources(setting *v1beta1.Setting) error {
+	if err := validateLHIMResourcesHelper(settings.KeywordDefault, setting.Default); err != nil {
+		return err
+	}
+
+	return validateLHIMResourcesHelper(settings.KeywordValue, setting.Value)
+}
+
+func validateLHIMResourcesHelper(field, value string) error {
+	if value == "" {
+		return nil
+	}
+
+	resources, err := settings.DecodeLHIMResources(value)
+	if err != nil {
+		return fmt.Errorf("failed to parse %v: %w", field, err)
+	}
+
+	v1CPU := resources.CPU.V1
+	v2CPU := resources.CPU.V2
+	if err := lhtypes.ValidateCPUReservationValues(lhtypes.SettingNameGuaranteedInstanceManagerCPU, v1CPU); err != nil {
+		return fmt.Errorf("failed to validate %v cpu.v1: %w", field, err)
+	}
+	if err := lhtypes.ValidateCPUReservationValues(lhtypes.SettingNameGuaranteedInstanceManagerCPU, v2CPU); err != nil {
+		return fmt.Errorf("failed to validate %v cpu.v2: %w", field, err)
+	}
+
+	return nil
+}
+
 func validateMaxHotplugRatioHelper(field, value string) error {
 	if value == "" {
 		return nil
@@ -1994,6 +2028,38 @@ func validateMaxHotplugRatioHelper(field, value string) error {
 	}
 	return nil
 }
+
+func (v *settingValidator) validateUpdateLHIMResources(oldSetting, newSetting *v1beta1.Setting) error {
+	if newSetting.Name != settings.LHIMResourcesSettingName {
+		return nil
+	}
+
+	if oldSetting.Default == newSetting.Default && oldSetting.Value == newSetting.Value {
+		return nil
+	}
+
+	if err := validateLHIMResources(newSetting); err != nil {
+		return err
+	}
+
+	volumes, err := v.lhVolumeCache.List(util.LonghornSystemNamespaceName, labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	for _, volume := range volumes {
+		if volume.Status.State != lhv1beta2.VolumeStateDetached {
+			return werror.NewInvalidError("please detach all Longhorn volumes before configuring instance-manager-resources", settings.KeywordValue)
+		}
+	}
+
+	return nil
+}
+
+func (v *settingValidator) validateDeleteLHIMResources(_ *v1beta1.Setting) error {
+	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.LHIMResourcesSettingName))
+}
+
 func (v *settingValidator) validateRancherCluster(newSetting *v1beta1.Setting) error {
 	var (
 		rancherClusterConfig *settings.RancherClusterConfig

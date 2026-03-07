@@ -26,6 +26,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
 	endpoints := management.CoreFactory.Core().V1().Endpoints()
 	lhs := management.LonghornFactory.Longhorn().V1beta2().Setting()
+	lhVolumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
 	ingresses := management.NetworkingFactory.Networking().V1().Ingress()
 	helmChartConfigs := management.HelmFactory.Helm().V1().HelmChartConfig()
@@ -53,6 +54,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		ingressCache:         ingresses.Cache(),
 		longhornSettings:     lhs,
 		longhornSettingCache: lhs.Cache(),
+		longhornVolumeCache:  lhVolumes.Cache(),
 		configmaps:           configmaps,
 		configmapCache:       configmaps.Cache(),
 		endpointCache:        endpoints.Cache(),
@@ -96,6 +98,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		harvSettings.ContainerdRegistrySettingName:               controller.syncContainerdRegistry,
 		harvSettings.NTPServersSettingName:                       controller.syncNodeConfig,
 		harvSettings.LonghornV2DataEngineSettingName:             controller.syncNodeConfig,
+		harvSettings.LHIMResourcesSettingName:                    controller.syncLHIMResources,
 		harvSettings.AutoRotateRKE2CertsSettingName:              controller.syncAutoRotateRKE2Certs,
 		harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName: controller.syncKubeconfigTTL,
 		harvSettings.AdditionalGuestMemoryOverheadRatioName:      controller.syncAdditionalGuestMemoryOverheadRatio,
