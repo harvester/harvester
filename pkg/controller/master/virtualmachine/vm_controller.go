@@ -1,7 +1,6 @@
 package virtualmachine
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -63,14 +62,15 @@ func (h *VMController) createPVCsFromAnnotation(_ string, vm *kubevirtv1.Virtual
 	if vm == nil || vm.DeletionTimestamp != nil {
 		return nil, nil
 	}
-	volumeClaimTemplates, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
-	if !ok || volumeClaimTemplates == "" {
+	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplatesStr == "" {
 		return nil, nil
 	}
-	var pvcs []*corev1.PersistentVolumeClaim
-	if err := json.Unmarshal([]byte(volumeClaimTemplates), &pvcs); err != nil {
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
+	if err != nil {
 		return nil, err
 	}
+	pvcs := util.GetPVCsFromVolumeClaimTemplates(entries)
 
 	for _, pvcAnno := range pvcs {
 		imageName := ""
@@ -499,6 +499,225 @@ func (h *VMController) createDataVolume(pvcName, pvcNS, imageID, imageNS string,
 	}
 
 	return nil
+}
+
+// SetTargetVolumeStrategy detects targetVolume entries in volumeClaimTemplates
+// and updates the VM spec to trigger KubeVirt volume migration.
+func (h *VMController) SetTargetVolumeStrategy(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	if vm == nil || vm.DeletionTimestamp != nil || vm.Spec.Template == nil {
+		return vm, nil
+	}
+
+	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplatesStr == "" {
+		return vm, nil
+	}
+
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Collect target volumes: old PVC name -> new name
+	targetVolumes := map[string]string{}
+	for _, entry := range entries {
+		if entry.TargetVolume != "" {
+			targetVolumes[entry.Name] = entry.TargetVolume
+		}
+	}
+	if len(targetVolumes) == 0 {
+		return vm, nil
+	}
+
+	vmCopy := vm.DeepCopy()
+	for i, vol := range vmCopy.Spec.Template.Spec.Volumes {
+		var oldName string
+		var hotpluggable bool
+		if vol.PersistentVolumeClaim != nil {
+			oldName = vol.PersistentVolumeClaim.ClaimName
+			hotpluggable = vol.PersistentVolumeClaim.Hotpluggable
+		} else if vol.DataVolume != nil {
+			oldName = vol.DataVolume.Name
+			hotpluggable = vol.DataVolume.Hotpluggable
+		}
+		if oldName == "" {
+			continue
+		}
+
+		newName, ok := targetVolumes[oldName]
+		if !ok {
+			continue
+		}
+
+		vmCopy.Spec.Template.Spec.Volumes[i].VolumeSource = h.buildVolumeSource(vm.Namespace, newName, hotpluggable)
+	}
+
+	strategy := kubevirtv1.UpdateVolumesStrategyMigration
+	vmCopy.Spec.UpdateVolumesStrategy = &strategy
+
+	if reflect.DeepEqual(vm, vmCopy) {
+		return h.handleMigrationWait(vm)
+	}
+
+	// First round: set spec + waiting annotation
+	vmCopy.Annotations[util.AnnotationWaitingStorageMigration] = "true"
+	return h.vmClient.Update(vmCopy)
+}
+
+func (h *VMController) buildVolumeSource(namespace, name string, hotpluggable bool) kubevirtv1.VolumeSource {
+	_, dvErr := h.dataVolumeClient.Get(namespace, name, metav1.GetOptions{})
+	if dvErr == nil {
+		return kubevirtv1.VolumeSource{
+			DataVolume: &kubevirtv1.DataVolumeSource{
+				Name:         name,
+				Hotpluggable: hotpluggable,
+			},
+		}
+	}
+	return kubevirtv1.VolumeSource{
+		PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+			PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: name,
+			},
+			Hotpluggable: hotpluggable,
+		},
+	}
+}
+
+func (h *VMController) handleMigrationWait(vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	if vm.Status.PrintableStatus == kubevirtv1.VirtualMachineStatusMigrating {
+		if _, ok := vm.Annotations[util.AnnotationWaitingStorageMigration]; ok {
+			vmCopy := vm.DeepCopy()
+			delete(vmCopy.Annotations, util.AnnotationWaitingStorageMigration)
+			return h.vmClient.Update(vmCopy)
+		}
+		return vm, nil
+	}
+	// Not yet migrating, keep waiting
+	h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 5*time.Second)
+	return vm, nil
+}
+
+// CleanupTargetVolumeAnnotation updates the volumeClaimTemplates annotation after volume migration completes.
+// Migration is considered complete when:
+// 1. The annotation entry has a non-empty targetVolume field
+// 2. The VM spec volume already points to the targetVolume name
+// 3. The VM does NOT have a VolumesChange condition (migration finished)
+// When all conditions are met, the entry's PVC fields are updated from the actual new PVC in the cluster.
+func (h *VMController) CleanupTargetVolumeAnnotation(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	if vm == nil || vm.DeletionTimestamp != nil || vm.Spec.Template == nil {
+		return vm, nil
+	}
+
+	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplatesStr == "" {
+		return vm, nil
+	}
+
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
+	if err != nil {
+		return nil, err
+	}
+
+	if !hasAnyTargetVolume(entries) {
+		return vm, nil
+	}
+
+	// Skip cleanup if storage migration is waiting to start
+	if _, ok := vm.Annotations[util.AnnotationWaitingStorageMigration]; ok {
+		return vm, nil
+	}
+
+	// Wait until VM is back to Running and VolumesChange condition is gone
+	if vm.Status.PrintableStatus != kubevirtv1.VirtualMachineStatusRunning {
+		return vm, nil
+	}
+	if hasVolumesChangeCondition(vm) {
+		return vm, nil
+	}
+
+	currentVolumes := getVMSpecVolumeNames(vm)
+	entries, updated, err := h.finalizeCompletedMigrations(vm.Namespace, entries, currentVolumes)
+	if err != nil {
+		return nil, err
+	}
+
+	if !updated {
+		return vm, nil
+	}
+
+	data, err := util.MarshalVolumeClaimTemplates(entries)
+	if err != nil {
+		return nil, err
+	}
+
+	vmCopy := vm.DeepCopy()
+	vmCopy.Annotations[util.AnnotationVolumeClaimTemplates] = data
+	return h.vmClient.Update(vmCopy)
+}
+
+func hasAnyTargetVolume(entries []util.VolumeClaimTemplateEntry) bool {
+	for _, entry := range entries {
+		if entry.TargetVolume != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func getVMSpecVolumeNames(vm *kubevirtv1.VirtualMachine) map[string]bool {
+	names := map[string]bool{}
+	for _, vol := range vm.Spec.Template.Spec.Volumes {
+		if vol.PersistentVolumeClaim != nil {
+			names[vol.PersistentVolumeClaim.ClaimName] = true
+		}
+		if vol.DataVolume != nil {
+			names[vol.DataVolume.Name] = true
+		}
+	}
+	return names
+}
+
+// finalizeCompletedMigrations updates annotation entries whose targetVolume is already
+// reflected in the VM spec volumes, replacing the PVC fields with the actual new PVC from the cluster.
+func (h *VMController) finalizeCompletedMigrations(namespace string, entries []util.VolumeClaimTemplateEntry, currentVolumes map[string]bool) ([]util.VolumeClaimTemplateEntry, bool, error) {
+	updated := false
+	for i, entry := range entries {
+		if entry.TargetVolume == "" || !currentVolumes[entry.TargetVolume] {
+			continue
+		}
+
+		newPVC, err := h.pvcCache.Get(namespace, entry.TargetVolume)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to get target volume PVC %s/%s: %w", namespace, entry.TargetVolume, err)
+		}
+
+		entries[i].PersistentVolumeClaim = corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        newPVC.Name,
+				Annotations: newPVC.Annotations,
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes:      newPVC.Spec.AccessModes,
+				Resources:        newPVC.Spec.Resources,
+				VolumeMode:       newPVC.Spec.VolumeMode,
+				StorageClassName: newPVC.Spec.StorageClassName,
+			},
+		}
+		entries[i].TargetVolume = ""
+		updated = true
+	}
+	return entries, updated, nil
+}
+
+func hasVolumesChangeCondition(vm *kubevirtv1.VirtualMachine) bool {
+	for _, cond := range vm.Status.Conditions {
+		if string(cond.Type) == string(kubevirtv1.VirtualMachineInstanceVolumesChange) &&
+			cond.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *VMController) getPVCStorageClass(pvc *corev1.PersistentVolumeClaim) (*storagev1.StorageClass, error) {
