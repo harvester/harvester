@@ -91,7 +91,14 @@ func scaleResourceQuotaOnDemand(rq *corev1.ResourceQuota, rqStr string) (bool, e
 		return update, errSkipScaling
 	}
 
+	// compensation if real usage already more than base
+	cpuCompensation, memCompensation, _, err := rqutils.GetCompensationFromRQAnnotation(rq)
+	if err != nil {
+		logrus.Warnf("resourcequota %s/%s can't get valid Compensation values from Harvester vm annotations, skip scaling, error %s", rq.Namespace, rq.Name, err.Error())
+		return update, errSkipScaling
+	}
+
 	// note: if any base has no limit, the delta is not added
-	_, update = rqutils.CalculateNewResourceQuotaFromBaseDelta(rq, rCPULimit, rMemoryLimit, cpuDelta, memDelta)
+	_, update = rqutils.CalculateNewResourceQuotaFromBaseDelta(rq, rCPULimit, rMemoryLimit, cpuDelta, memDelta, cpuCompensation, memCompensation)
 	return update, nil
 }
