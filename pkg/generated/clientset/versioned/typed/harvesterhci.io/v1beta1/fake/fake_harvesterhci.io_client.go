@@ -92,6 +92,14 @@ func (c *FakeHarvesterhciV1beta1) VirtualMachineTemplateVersions(namespace strin
 	return newFakeVirtualMachineTemplateVersions(c, namespace)
 }
 
+func (c *FakeHarvesterhciV1beta1) VolumeRemoteBackups(namespace string) v1beta1.VolumeRemoteBackupInterface {
+	return newFakeVolumeRemoteBackups(c, namespace)
+}
+
+func (c *FakeHarvesterhciV1beta1) VolumeRemoteRestores(namespace string) v1beta1.VolumeRemoteRestoreInterface {
+	return newFakeVolumeRemoteRestores(c, namespace)
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeHarvesterhciV1beta1) RESTClient() rest.Interface {
