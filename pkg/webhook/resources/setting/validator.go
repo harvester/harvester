@@ -1340,26 +1340,48 @@ func (v *settingValidator) validateUpdateRWXStorageNetwork(request *types.Reques
 		return nil
 	}
 
-	// Block updates while a previous change is still in progress, except for
-	// resetting the setting to its default value.
-	sc := v1beta1.SettingConfigured
-	isInProgress := sc.IsFalse(oldSetting) && sc.GetReason(oldSetting) == storagenetwork.ReasonInProgress
-	isResetToDefault := newSetting.Value == settings.RWXStorageNetwork.Default &&
-		newSetting.Default == settings.RWXStorageNetwork.Default
-	if isInProgress && !isResetToDefault {
-		return werror.NewConflict(fmt.Sprintf(
-			"cannot update the setting %q because it is still being configured (reason: %q, message: %q)",
-			settings.RWXStorageNetworkSettingName,
-			sc.GetReason(oldSetting),
-			sc.GetMessage(oldSetting),
-		))
+	if err := v.checkRWXNotInProgress(oldSetting, newSetting); err != nil {
+		return err
 	}
 
 	if err := v.validateRWXStorageNetworkHelper(newSetting); err != nil {
 		return err
 	}
 
-	// Parse old and new composite configs to detect share-flag transitions.
+	if err := v.validateShareFlagTransition(oldSetting, newSetting); err != nil {
+		return err
+	}
+
+	if err := util.CheckRWXVolumesDetached(v.lhVolumeCache); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.RWXStorageNetworkSettingName)
+	}
+
+	return nil
+}
+
+// checkRWXNotInProgress blocks updates while a previous change is still in
+// progress, unless the update is a reset to the default value.
+func (v *settingValidator) checkRWXNotInProgress(oldSetting, newSetting *v1beta1.Setting) error {
+	sc := v1beta1.SettingConfigured
+	if !sc.IsFalse(oldSetting) || sc.GetReason(oldSetting) != storagenetwork.ReasonInProgress {
+		return nil
+	}
+	isResetToDefault := newSetting.Value == settings.RWXStorageNetwork.Default &&
+		newSetting.Default == settings.RWXStorageNetwork.Default
+	if isResetToDefault {
+		return nil
+	}
+	return werror.NewConflict(fmt.Sprintf(
+		"cannot update the setting %q because it is still being configured (reason: %q, message: %q)",
+		settings.RWXStorageNetworkSettingName,
+		sc.GetReason(oldSetting),
+		sc.GetMessage(oldSetting),
+	))
+}
+
+// validateShareFlagTransition ensures that switching from dedicated to shared
+// mode (false -> true) is only allowed when storage-network is already configured.
+func (v *settingValidator) validateShareFlagTransition(oldSetting, newSetting *v1beta1.Setting) error {
 	var oldConfig, newConfig settings.RWXStorageNetworkConfig
 	if oldSetting.EffectiveValue() != "" {
 		if err := json.Unmarshal([]byte(oldSetting.EffectiveValue()), &oldConfig); err != nil {
@@ -1372,21 +1394,17 @@ func (v *settingValidator) validateUpdateRWXStorageNetwork(request *types.Reques
 		}
 	}
 
-	// false -> true: storage-network must already be configured.
-	if !oldConfig.ShareStorageNetwork && newConfig.ShareStorageNetwork {
-		sn, err := v.settingCache.Get(settings.StorageNetworkName)
-		if err != nil {
-			return werror.NewInternalError(fmt.Sprintf("failed to get %s setting, err: %v", settings.StorageNetworkName, err))
-		}
-		if sn.EffectiveValue() == "" {
-			return werror.NewInvalidError(fmt.Sprintf("%s is not set", settings.StorageNetworkName), settings.RWXStorageNetworkSettingName)
-		}
+	if oldConfig.ShareStorageNetwork || !newConfig.ShareStorageNetwork {
+		return nil
 	}
 
-	if err := util.CheckRWXVolumesDetached(v.lhVolumeCache); err != nil {
-		return werror.NewInvalidError(err.Error(), settings.RWXStorageNetworkSettingName)
+	sn, err := v.settingCache.Get(settings.StorageNetworkName)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to get %s setting, err: %v", settings.StorageNetworkName, err))
 	}
-
+	if sn.EffectiveValue() == "" {
+		return werror.NewInvalidError(fmt.Sprintf("%s is not set", settings.StorageNetworkName), settings.RWXStorageNetworkSettingName)
+	}
 	return nil
 }
 
