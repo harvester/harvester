@@ -276,10 +276,6 @@ The Harvester API server will expose two new actions on `VirtualMachine` resourc
 
 - **Deprecate `ejectCdRom` VM action**: The old `ejectCdRom` action, which detaches the entire device, will be removed.
 
-#### Handling Existing VMs with CD-ROMs
-
-For existing VMs with attached CD-ROMs, the ability to eject the media without a restart will be enabled upon the next VM shutdown. When the VM's VMI is deleted (during a shutdown), the controller will patch the `spec.template.spec.volumes` of any `cd-rom` devices connected via SATA bus to include the `hotpluggable: true` flag.
-
 #### Relaxing the Live Migration Feasibility Check
 
 https://github.com/harvester/harvester/issues/9779
