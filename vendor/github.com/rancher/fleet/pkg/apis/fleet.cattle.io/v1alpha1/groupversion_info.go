@@ -25,7 +25,7 @@ var (
 	AddToScheme = InternalSchemeBuilder.AddToScheme
 )
 
-// Resource takes an unqualified resource and returns a Group qualified GroupResource
-func Resource(resource string) schema.GroupResource {
+// GroupResource takes an unqualified resource and returns a Group qualified GroupResource
+func GroupResource(resource string) schema.GroupResource {
 	return SchemeGroupVersion.WithResource(resource).GroupResource()
 }

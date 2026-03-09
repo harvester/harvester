@@ -151,7 +151,7 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 					MustFinallyBeTrue(func() bool {
 						backup, err := backupController.Get(backupNamespace, backupName, metav1.GetOptions{})
 						MustNotError(err)
-						return backup.Status != nil && *backup.Status.ReadyToUse
+						return backup.Status.ReadyToUse != nil && *backup.Status.ReadyToUse
 					}, 120, 5)
 				})
 
@@ -177,7 +177,7 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 					MustFinallyBeTrue(func() bool {
 						restore, err := restoreController.Get(backupNamespace, restoreName, metav1.GetOptions{})
 						MustNotError(err)
-						return restore.Status != nil && *restore.Status.Complete
+						return restore.Status.Complete != nil && *restore.Status.Complete
 					}, 120, 5)
 					MustVMIRunning(vmController, backupNamespace, vm.Name, vmiController)
 				})
@@ -208,7 +208,7 @@ var _ = Describe("verify vm backup & restore APIs", func() {
 					MustFinallyBeTrue(func() bool {
 						restore, err := restoreController.Get(backupNamespace, restoreName, metav1.GetOptions{})
 						MustNotError(err)
-						return restore.Status != nil && *restore.Status.Complete
+						return restore.Status.Complete != nil && *restore.Status.Complete
 					}, 120, 5)
 
 					MustVMIRunning(vmController, backupNamespace, vmName, vmiController)

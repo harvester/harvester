@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/steve/pkg/clustercache"
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/schema/converter"
+	wranglerSchemas "github.com/rancher/wrangler/v3/pkg/schemas"
 	"github.com/rancher/wrangler/v3/pkg/slice"
 	"github.com/rancher/wrangler/v3/pkg/summary"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -106,7 +107,7 @@ func (s *SummaryCache) SummaryAndRelationship(obj runtime.Object) (*summary.Summ
 	defer s.RUnlock()
 
 	key := toKey(obj)
-	summarized := summary.Summarized(obj)
+	summarized := summary.SummarizedWithOptions(obj, getSummarizeOptions(obj, s.schemas))
 
 	relObjs, err := s.cache.ByIndex(relationshipIndex, key)
 	if err != nil {
@@ -183,7 +184,7 @@ func (s *SummaryCache) toRel(ns string, rel *summary.Relationship) Relationship 
 			FromID:   id,
 			FromType: converter.GVKToSchemaID(runtimeschema.FromAPIVersionAndKind(rel.APIVersion, rel.Kind)),
 			Rel:      rel.Type,
-		}, obj)
+		}, obj, s.schemas)
 	}
 
 	toNS := ""
@@ -197,10 +198,10 @@ func (s *SummaryCache) toRel(ns string, rel *summary.Relationship) Relationship 
 		Rel:         rel.Type,
 		ToNamespace: toNS,
 		Selector:    toSelector(rel.Selector),
-	}, obj)
+	}, obj, s.schemas)
 }
 
-func addObject(rel Relationship, obj interface{}) Relationship {
+func addObject(rel Relationship, obj interface{}, schemas *schema.Collection) Relationship {
 	if obj == nil {
 		return rel
 	}
@@ -210,7 +211,8 @@ func addObject(rel Relationship, obj interface{}) Relationship {
 		return rel
 	}
 
-	summarized := summary.Summarized(ro)
+	summarized := summary.SummarizedWithOptions(ro, getSummarizeOptions(ro, schemas))
+
 	rel.State = summarized.State
 	rel.Error = summarized.Error
 	rel.Message = strings.Join(summarized.Message, "; ")
@@ -267,7 +269,7 @@ func (s *SummaryCache) Change(newObj, oldObj runtime.Object) {
 func (s *SummaryCache) process(obj runtime.Object) (*summary.SummarizedObject, []*summary.Relationship) {
 	var (
 		rels    []*summary.Relationship
-		summary = summary.Summarized(obj)
+		summary = summary.SummarizedWithOptions(obj, getSummarizeOptions(obj, s.schemas))
 	)
 
 	for _, rel := range summary.Relationships {
@@ -337,6 +339,19 @@ func (s *SummaryCache) OnRemove(_ runtimeschema.GroupVersionKind, key string, ob
 func (s *SummaryCache) OnChange(_ runtimeschema.GroupVersionKind, key string, obj, oldObj runtime.Object) error {
 	s.Change(obj, oldObj)
 	return nil
+}
+
+func getSummarizeOptions(obj runtime.Object, schemas *schema.Collection) *summary.SummarizeOptions {
+	gvk := obj.GetObjectKind().GroupVersionKind()
+	schemaID := converter.GVKToSchemaID(gvk)
+	schema := schemas.Schema(schemaID)
+
+	opts := &summary.SummarizeOptions{HasObservedGeneration: false}
+	if schema != nil && schema.Attributes != nil {
+		opts.HasObservedGeneration = wranglerSchemas.HasObservedGeneration(schema.Schema)
+	}
+
+	return opts
 }
 
 func toKeyFrom(namespace, name string, gvk runtimeschema.GroupVersionKind, other ...string) string {

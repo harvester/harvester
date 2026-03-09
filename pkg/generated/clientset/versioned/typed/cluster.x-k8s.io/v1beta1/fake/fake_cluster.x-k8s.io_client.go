@@ -1,5 +1,5 @@
 /*
-Copyright 2025 Rancher Labs, Inc.
+Copyright 2026 SUSE, LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,11 +29,11 @@ type FakeClusterV1beta1 struct {
 }
 
 func (c *FakeClusterV1beta1) Clusters(namespace string) v1beta1.ClusterInterface {
-	return &FakeClusters{c, namespace}
+	return newFakeClusters(c, namespace)
 }
 
 func (c *FakeClusterV1beta1) Machines(namespace string) v1beta1.MachineInterface {
-	return &FakeMachines{c, namespace}
+	return newFakeMachines(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

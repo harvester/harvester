@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"runtime"
+
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/v3/pkg/data/convert"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -31,7 +33,8 @@ const (
 	softReboot                       = "softreboot"
 	pauseVM                          = "pause"
 	unpauseVM                        = "unpause"
-	ejectCdRom                       = "ejectCdRom"
+	insertCdRomVolume                = "insertCdRomVolume"
+	ejectCdRomVolume                 = "ejectCdRomVolume"
 	migrate                          = "migrate"
 	abortMigration                   = "abortMigration"
 	findMigratableNodes              = "findMigratableNodes"
@@ -41,6 +44,9 @@ const (
 	createTemplate                   = "createTemplate"
 	addVolume                        = "addVolume"
 	removeVolume                     = "removeVolume"
+	addNic                           = "addNic"
+	removeNic                        = "removeNic"
+	findHotunpluggableNics           = "findHotunpluggableNics"
 	cloneVM                          = "clone"
 	forceStopVM                      = "forceStop"
 	dismissInsufficientResourceQuota = "dismissInsufficientResourceQuota"
@@ -51,12 +57,13 @@ const (
 
 type vmformatter struct {
 	vmiCache      ctlkubevirtv1.VirtualMachineInstanceCache
+	vmCache       ctlkubevirtv1.VirtualMachineCache
 	pvcCache      ctlcorev1.PersistentVolumeClaimCache
 	nodeCache     ctlcorev1.NodeCache
 	scCache       ctlstoragev1.StorageClassCache
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
 	settingCache  ctlharvesterv1.SettingCache
-	clientSet     kubernetes.Clientset
+	clientSet     kubernetes.Interface
 }
 
 func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -87,8 +94,12 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	resource.AddAction(request, removeVolume)
 	resource.AddAction(request, cloneVM)
 
-	if canEjectCdRom(vm) {
-		resource.AddAction(request, ejectCdRom)
+	if canInsertCdRomVolume(vm) {
+		resource.AddAction(request, insertCdRomVolume)
+	}
+
+	if canEjectCdRomVolume(vm) {
+		resource.AddAction(request, ejectCdRomVolume)
 	}
 
 	vmi := vf.getVMI(vm)
@@ -123,6 +134,15 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 		if canCPUAndMemoryHotplug(vm) {
 			resource.AddAction(request, cpuAndMemoryHotplug)
 		}
+
+		if canHotplugNic(vm) {
+			resource.AddAction(request, addNic)
+		}
+
+		if canHotUnplugNic(vm) {
+			resource.AddAction(request, removeNic)
+			resource.AddAction(request, findHotunpluggableNics)
+		}
 	}
 
 	if canAbortMigrate(vmi) {
@@ -152,19 +172,6 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	if canDismissInsufficientResourceQuota(vm) {
 		resource.AddAction(request, dismissInsufficientResourceQuota)
 	}
-}
-
-func canEjectCdRom(vm *kubevirtv1.VirtualMachine) bool {
-	if !vmReady.IsTrue(vm) {
-		return false
-	}
-
-	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if disk.CDRom != nil {
-			return true
-		}
-	}
-	return false
 }
 
 func (vf *vmformatter) canPause(vmi *kubevirtv1.VirtualMachineInstance) bool {
@@ -461,4 +468,32 @@ func canCPUAndMemoryHotplug(vm *kubevirtv1.VirtualMachine) bool {
 		}
 	}
 	return !hasRestartRequiredOrHotplugMigration
+}
+
+func canHotplugNic(vm *kubevirtv1.VirtualMachine) bool {
+	ok, _ := virtualmachine.SupportHotplugNic(vm)
+	return ok
+}
+
+func canHotUnplugNic(vm *kubevirtv1.VirtualMachine) bool {
+	ok, _ := virtualmachine.SupportHotUnplugNic(vm)
+	return ok
+}
+
+func canInsertCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
+	if runtime.GOARCH == util.GoArchArm64 {
+		return false
+	}
+
+	ok, _ := virtualmachine.SupportInsertCdRomVolume(vm)
+	return ok
+}
+
+func canEjectCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
+	if runtime.GOARCH == util.GoArchArm64 {
+		return false
+	}
+
+	ok, _ := virtualmachine.SupportEjectCdRomVolume(vm)
+	return ok
 }

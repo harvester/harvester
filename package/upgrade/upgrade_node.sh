@@ -213,14 +213,51 @@ wait_vms_out_or_shutdown()
       break
     fi
 
+    check_migrations_phase "Scheduling"
+    check_migrations_phase "Pending"
+    check_migrations_phase "Failed"
+
     echo "Waiting for VM live-migration or shutdown...(count: $vm_count)"
     sleep 5
   done
   echo "all VMs on node $HARVESTER_UPGRADE_NODE_NAME have been live-migrated or shutdown"
 }
 
-shutdown_repo_vm()
-{
+check_migrations_phase() {
+  local migration_phase="${1}"
+  local running_vmis=($(kubectl get vmi -A -lkubevirt.io/nodeName="${HARVESTER_UPGRADE_NODE_NAME}" -ojsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}'))
+  for vmi in "${running_vmis[@]}"; do
+    vmi_namespace=$(echo "${vmi}" | cut -d '/' -f1)
+    vmi_name=$(echo "${vmi}" | cut -d '/' -f2)
+    vmims=($(kubectl get vmim -n "${vmi_namespace}" -lkubevirt.io/vmi-name=${vmi_name} -ojsonpath="{.items[?(@.status.phase=='${migration_phase}')].metadata.name}"))
+    for vmim in "${vmims[@]}"; do
+      # filter out non-upgrade related vmims to avoid shutting down the vm due
+      # to any previous unrelated pre-upgrade migration failures.
+      # the vmim's name prefix is used as the filter because the vmim doesn't
+      # have any labels or annotations that reference the upgrade resource.
+      # all upgrade-related vmims have the 'kubevirt-evacuation-' prefix.
+      if [[ "${vmim}" != "kubevirt-evacuation"* ]]; then
+        echo "skipping non-upgrade related vmim ${vmim}"
+        continue
+      fi
+
+      echo "found virtual machine migration. phase:${migration_phase}, node:${HARVESTER_UPGRADE_NODE_NAME}, ns: ${vmi_namespace}, vm:${vmi_name}, vmim:${vmim}"
+
+      # if the warning events confirmed a migration failure, shutdown this vm
+      if [ "${migration_phase}" = "Failed" ]; then
+        warnings=$(kubectl -n "${vmi_namespace}" events --for=virtualmachineinstancemigration/"${vmim}" --types=warning -ojsonpath='{.items[*].reason}' 2>/dev/null)
+        if [ ! -z "${warnings}" ]; then
+          if echo "${warnings}" | grep -i -q "failedmigration"; then
+            echo "shutting down virtual machine ${vmi_namespace}/${vmi_name} due to failed migration. vmim: ${vmi_namespace}/${vmim}, reasons: ${warnings}"
+            virtctl -n "${vmi_namespace}" stop "${vmi_name}" || true # don't fail upgrade if virtctl failed
+          fi
+        fi
+      fi
+    done
+  done
+}
+
+shutdown_repo_vm() {
   # We don't need to live-migrate upgrade repo VM. Just make sure it's up when we need it.
   # Shutdown it if it's running on this upgrading node.
   repo_vm_name="upgrade-repo-$HARVESTER_UPGRADE_NAME"
@@ -270,46 +307,57 @@ recover_rancher_system_agent() {
 wait_longhorn_engines() {
   local node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
 
-  # For each running engine and its volume
-  kubectl get engines.longhorn.io -n longhorn-system -o json |
-    jq -r '.items | map(select(.status.currentState == "running")) | map(.metadata.name + " " + .metadata.labels.longhornvolume) | .[]' |
+  while true; do
+    local unhealthy_found=0
+
+    # For each running engine and its volume
     while read -r lh_engine lh_volume; do
       echo Checking running engine "${lh_engine}..."
 
+      if [ -f "/tmp/skip-$lh_volume" ]; then
+        echo "Skip $lh_volume."
+        continue
+      fi
+
       # Wait until volume turn healthy (except two-node clusters)
-      while [ true ]; do
-        if [ $node_count -gt 2 ];then
-          robustness=$(kubectl get volumes.longhorn.io/$lh_volume -n longhorn-system -o jsonpath='{.status.robustness}')
-          if [ "$robustness" = "healthy" ]; then
-            echo "Volume $lh_volume is healthy."
-            break
-          fi
-        else
-          # two node situation, make sure maximum two replicas are healthy
-          expected_replicas=2
-
-          # replica 1 case
-          volume_replicas=$(kubectl get volumes.longhorn.io/$lh_volume -n longhorn-system -o jsonpath='{.spec.numberOfReplicas}')
-          if [ $volume_replicas -eq 1 ]; then
-            expected_replicas=1
-          fi
-
-          ready_replicas=$(kubectl get engines.longhorn.io/$lh_engine -n longhorn-system -o json |
-                             jq -r '.status.replicaModeMap | to_entries | map(select(.value == "RW")) | length')
-          if [ $ready_replicas -ge $expected_replicas ]; then
-            break
-          fi
-        fi
-
-        if [ -f "/tmp/skip-$lh_volume" ]; then
-          echo "Skip $lh_volume."
+      if [ $node_count -gt 2 ];then
+        robustness=$(kubectl get volumes.longhorn.io/$lh_volume -n longhorn-system -o jsonpath='{.status.robustness}')
+        if [ "$robustness" != "healthy" ]; then
+          echo "Volume $lh_volume is not healthy."
+          unhealthy_found=1
           break
         fi
+      else
+        # two node situation, make sure maximum two replicas are healthy
+        expected_replicas=2
 
-        echo "Waiting for volume $lh_volume to be healthy..."
-        sleep 10
-      done
-    done
+        # replica 1 case
+        volume_replicas=$(kubectl get volumes.longhorn.io/$lh_volume -n longhorn-system -o jsonpath='{.spec.numberOfReplicas}')
+        if [ $volume_replicas -eq 1 ]; then
+          expected_replicas=1
+        fi
+
+        ready_replicas=$(kubectl get engines.longhorn.io/$lh_engine -n longhorn-system -o json |
+                            jq -r '.status.replicaModeMap // {} | to_entries | map(select(.value == "RW")) | length')
+        if [ $ready_replicas -lt $expected_replicas ]; then
+          echo "Volume $lh_volume does not have enough healthy replicas."
+          unhealthy_found=1
+          break
+        fi
+      fi
+    done < <(
+      kubectl get engines.longhorn.io -n longhorn-system -o json |
+        jq -r '.items | map(select(.status.currentState == "running")) | map(.metadata.name + " " + .metadata.labels.longhornvolume) | .[]'
+    )
+
+    if [ $unhealthy_found -eq 0 ]; then
+      echo "All Longhorn volumes are healthy."
+      break
+    fi
+
+    echo "Waiting for all Longhorn volumes to be healthy..."
+    sleep 10
+  done
 }
 
 command_pre_drain() {
@@ -484,22 +532,126 @@ generate_networkmanager_config() {
     return
   fi
 
-  # Just in case NetworkManager config has already been generated
-  # and/or potentially modified by the user, let's not overwrite it.
-  if [ -e ${HOST_DIR}/oem/91_networkmanager.yaml ]; then
-    echo "skipping NetworkManager config generation (${HOST_DIR}/oem/91_networkmanager.yaml already exists)"
-    return
+  local CUSTOM90_FILE="${HOST_DIR}/oem/90_custom.yaml"
+  if [[ -f "$CUSTOM90_FILE" ]]; then
+    # We need to ensure /var/lib/NetworkManager is in the list of persistent paths
+    local current_paths_line=$(grep 'PERSISTENT_STATE_PATHS:.*/var/lib/wicked' $CUSTOM90_FILE)
+    if [ -n "$current_paths_line" ]; then
+      if ! [[ "$current_paths_line" =~ "/var/lib/NetworkManager" ]]; then
+        echo "Adding /var/lib/NetworkManager to PERSISTENT_STATE_PATHS in $CUSTOM90_FILE"
+        sed -i 's%PERSISTENT_STATE_PATHS:.*/var/lib/wicked%& /var/lib/NetworkManager /etc/NetworkManager%' $CUSTOM90_FILE
+        local updated_paths_line=$(grep 'PERSISTENT_STATE_PATHS:.*/var/lib/wicked' $CUSTOM90_FILE)
+        if ! [[ "$updated_paths_line" =~ "/var/lib/NetworkManager" ]]; then
+          echo "Failed to add /var/lib/NetworkManager to PERSISTENT_STATE_PATHS in $CUSTOM90_FILE"
+        fi
+      fi
+    else
+      echo "Unable to find expected PERSISTENT_STATE_PATHS line in $CUSTOM90_FILE"
+    fi
+  else
+    echo "File not found: $CUSTOM90_FILE"
   fi
 
   echo "Generating NetworkManager config..."
   # Whether this succeeds or fails, it will print a message either way...
-  /usr/local/bin/harvester-installer generate-network-yaml --config ${HOST_DIR}/oem/harvester.config --cloud-init ${HOST_DIR}/oem/91_networkmanager.yaml 2>&1
+  /usr/local/bin/harvester-installer generate-network-config --config ${HOST_DIR}/oem/harvester.config --connection-path ${HOST_DIR}/usr/local/.state/etc-NetworkManager.bind/system-connections 2>&1
   # ...but because we're running with set -e, if the above fails, the script
   # will abort, and the rest of the OS upgrade will not proceed.  If that
   # happens, the upgrade job will probably be re-run indefinitely.  Is it
   # better to get stuck here in that way?  Or would it be better to barrel
   # on regardless and continue the OS upgrade with the knowledge that
   # when the node comes back up after reboot, networking may be broken?
+
+  # In case the system is configured for DHCP, we need to try to keep the
+  # previous DHCP client ID to ensure that IP addresses don't change on
+  # upgrade.  If we're using DHCP, there will be exactly one NM connection
+  # profile which includes the string "method=auto" (it will be either
+  # bridge-mgmt or vlan-mgmt), and there will also be a wicked DHCP lease
+  # file.  To be careful, we assign to arrays here to be sure that there's
+  # only one matching NM connection profile, and one wicked lease file.
+  # If either of these things are not true, we do nothing.
+  local dhcp_connection_profiles=($(grep -l '^method=auto$' ${HOST_DIR}/usr/local/.state/etc-NetworkManager.bind/system-connections/*nmconnection 2>/dev/null))
+  local wicked_leases=($(ls ${HOST_DIR}/var/lib/wicked/lease*xml 2>/dev/null))
+  if [ ${#dhcp_connection_profiles[@]} -eq 1 ] && [ ${#wicked_leases[@]} -eq 1 ]; then
+    echo "Found wicked lease and DHCP connection profile, attempting to update DHCP client ID"
+    local dhcp_client_id=$(yq '.lease."ipv4:dhcp".client-id // ""' ${wicked_leases[0]})
+    if [ -n "$dhcp_client_id" ]; then
+      if ! grep -q ^dhcp-client-id ${dhcp_connection_profiles[0]}; then
+        echo "Adding DHCP client ID to ${dhcp_connection_profiles[0]}"
+        sed -i /^method=auto$/adhcp-client-id=$dhcp_client_id ${dhcp_connection_profiles[0]}
+      else
+        echo "DHCP client ID already set in ${dhcp_connection_profiles[0]} - will not update"
+      fi
+    else
+      echo "Unable to find DHCP client ID in ${wicked_leases[0]}"
+    fi
+  fi
+}
+
+generate_hostname_persistance() {
+   if [ -z "$UPGRADE_PREVIOUS_VERSION" ]; then
+    detect_upgrade
+  fi
+
+  # NetworkManager is new in Harvester v1.7.0
+  # nodes installed via v1.5.x or lower which may have used fqdn hostnames
+  # only render short hostname in the k8s node name however the
+  # harvester.config and /oem/90_custom.yaml set hostname to fqdn 
+  # the /oem/90_custom.yaml sets hostname to fqdn as part which was ignored
+  # we need to ensure the hostname does not change after bump to NetworkManager
+  # as this will cause the node to be re-registered with apiserver using 
+  # the fqdn hostname which will cause upgrade to break as the node never 
+  # completes the upgrade
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.6\.[0-9]$ ]]; then
+    echo "version: $UPGRADE_PREVIOUS_VERSION does not require generating Hostname override"
+    return
+  fi
+
+  # Just in case Hostname override has already been generated
+  # and/or potentially modified by the user, let's not overwrite it.
+  if [ -e ${HOST_DIR}/oem/92_hostname_override.yaml ]; then
+    echo "skipping hostname override config generation (${HOST_DIR}/oem/92_hostname_override.yaml already exists)"
+    return
+  fi
+
+  HARVESTER_CONFIG_HOSTNAME=$(cat ${HOST_DIR}/oem/harvester.config | yq -r .os.hostname)
+  CURRENT_HOSTNAME=$(${HOST_DIR}/usr/bin/hostname)
+
+  if [ "$CURRENT_HOSTNAME" = "$HARVESTER_CONFIG_HOSTNAME" ]; then
+    echo "skipping hostname override config generation as current hostname matches harvester config"
+    return
+  fi
+
+  echo "Generating Hostname override"
+  cat > ${HOST_DIR}/oem/92_hostname_override.yaml << EOF
+name: "ensure hostname persists across upgrade to NetworkManager"
+stages:
+   network:
+     - hostname: $CURRENT_HOSTNAME
+EOF
+}
+
+set_nic_names_by_mac_address() {
+  # get current third_party_kernel_args
+  local args=$(chroot $HOST_DIR grub2-editenv /oem/grubenv list |grep third_party_kernel_args | awk -F"third_party_kernel_args=" '{print $2}')
+
+  local update_args=0
+  # append ifname=name:mac for all existing en* interfaces
+  for i in $HOST_DIR/sys/class/net/en* ; do
+    [ -e "$i" ] || continue
+    [ -e "$i/address" ] || continue
+    local name=$(basename $i)
+    local mac=$(cat "$i/address")
+    # don't add duplicates if there's already an ifname= for this mac address
+    [[ "$args" =~ ifname=[^[:space:]]+:$mac ]] && continue
+    args="$args ifname=$name:$mac"
+    update_args=1
+  done
+
+  if [ $update_args -eq 1 ]; then
+    # save updated third_party_kernel_args
+    chroot $HOST_DIR grub2-editenv /oem/grubenv set third_party_kernel_args="${args}"
+  fi
 }
 
 upgrade_os() {
@@ -546,11 +698,26 @@ EOF
 
   elemental_upgrade_log="${UPGRADE_TMP_DIR#"$HOST_DIR"}/elemental-upgrade-$(date +%Y%m%d%H%M%S).log"
   local ret=0
+  # elemental-toolkit built for SL Micro 6.1 needs a newer glibc than
+  # is available on SLE Micro 5.5 hosts.  We can work around this by
+  # bind mounting /lib64 from this newer container into the host
+  # environment, but we only want to do this if we know there's a
+  # problem (if the host is already running SL Micro 6.1, then bind
+  # mounting /lib64 from a SLE 15 SP7 container will actually break
+  # things).
+  local glibc_too_old=$(chroot $HOST_DIR /tmp/elemental version 2>&1 | grep 'GLIBC.*not found')
+  if [ -n "$glibc_too_old" ]; then
+    echo "GLIBC on host is too old for new elemental build; bind mounting /lib64 to fix"
+    mount -o bind /lib64 $HOST_DIR/lib64
+  fi
   chroot $HOST_DIR /tmp/elemental upgrade \
     --logfile "$elemental_upgrade_log" \
     --directory ${tmp_rootfs_mount#"$HOST_DIR"} \
     --config-dir ${tmp_elemental_config_dir#"$HOST_DIR"} \
     --debug || ret=$?
+  if [ -n "$glibc_too_old" ]; then
+    umount $HOST_DIR/lib64
+  fi
   if [ "$ret" != 0 ]; then
     echo "elemental upgrade failed with return code: $ret"
     cat "$HOST_DIR$elemental_upgrade_log"
@@ -585,8 +752,10 @@ EOF
       thirdPartyArgs=$(echo ${thirdPartyArgs} | xargs)
       chroot $HOST_DIR grub2-editenv /oem/grubenv set third_party_kernel_args="${thirdPartyArgs}"
     fi
-    # add cloud-init directive to disable multipathing for longhorn
-    cat > ${HOST_DIR}/oem/99_disable_lh_multipathd.yaml << EOF
+  fi
+
+    # add cloud-init directive to disable multipathing for longhorn as default behaviour
+  cat > ${HOST_DIR}/oem/99_disable_lh_multipathd.yaml << EOF
 name: "disable longhorn multipathing"
 stages:
    initramfs:
@@ -606,11 +775,20 @@ stages:
          permissions: 420
          owner: 0
          group: 0
-         content: W1VuaXRdCkRlc2NyaXB0aW9uPURldmljZS1NYXBwZXIgTXVsdGlwYXRoIERldmljZSBDb250cm9sbGVyCkJlZm9yZT1sdm0yLWFjdGl2YXRpb24tZWFybHkuc2VydmljZQpCZWZvcmU9bG9jYWwtZnMtcHJlLnRhcmdldCBibGstYXZhaWxhYmlsaXR5LnNlcnZpY2Ugc2h1dGRvd24udGFyZ2V0CldhbnRzPXN5c3RlbWQtdWRldmQta2VybmVsLnNvY2tldApBZnRlcj1zeXN0ZW1kLXVkZXZkLWtlcm5lbC5zb2NrZXQKQWZ0ZXI9bXVsdGlwYXRoZC5zb2NrZXQgc3lzdGVtZC1yZW1vdW50LWZzLnNlcnZpY2UKQmVmb3JlPWluaXRyZC1jbGVhbnVwLnNlcnZpY2UKRGVmYXVsdERlcGVuZGVuY2llcz1ubwpDb25mbGljdHM9c2h1dGRvd24udGFyZ2V0CkNvbmZsaWN0cz1pbml0cmQtY2xlYW51cC5zZXJ2aWNlCkNvbmRpdGlvbktlcm5lbENvbW1hbmRMaW5lPSFub21wYXRoCkNvbmRpdGlvblZpcnR1YWxpemF0aW9uPSFjb250YWluZXIKCltTZXJ2aWNlXQpUeXBlPW5vdGlmeQpOb3RpZnlBY2Nlc3M9bWFpbgpFeGVjU3RhcnQ9L3NiaW4vbXVsdGlwYXRoZCAtZCAtcwpFeGVjUmVsb2FkPS9zYmluL211bHRpcGF0aGQgcmVjb25maWd1cmUKVGFza3NNYXg9aW5maW5pdHkKCltJbnN0YWxsXQpXYW50ZWRCeT1zeXNpbml0LnRhcmdldA==
+         content: W1VuaXRdCkRlc2NyaXB0aW9uPURldmljZS1NYXBwZXIgTXVsdGlwYXRoIERldmljZSBDb250cm9sbGVyCkJlZm9yZT1sdm0yLWFjdGl2YXRpb24tZWFybHkuc2VydmljZQpCZWZvcmU9bG9jYWwtZnMtcHJlLnRhcmdldCBibGstYXZhaWxhYmlsaXR5LnNlcnZpY2Ugc2h1dGRvd24udGFyZ2V0CldhbnRzPXN5c3RlbWQtdWRldmQta2VybmVsLnNvY2tldCBtb2Rwcm9iZUBkbV9tdWx0aXBhdGguc2VydmljZQpBZnRlcj1zeXN0ZW1kLXVkZXZkLWtlcm5lbC5zb2NrZXQgbW9kcHJvYmVAZG1fbXVsdGlwYXRoLnNlcnZpY2UKQWZ0ZXI9bXVsdGlwYXRoZC5zb2NrZXQgc3lzdGVtZC1yZW1vdW50LWZzLnNlcnZpY2UKQmVmb3JlPWluaXRyZC1jbGVhbnVwLnNlcnZpY2UKRGVmYXVsdERlcGVuZGVuY2llcz1ubwpDb25mbGljdHM9c2h1dGRvd24udGFyZ2V0CkNvbmZsaWN0cz1pbml0cmQtY2xlYW51cC5zZXJ2aWNlCkNvbmRpdGlvbktlcm5lbENvbW1hbmRMaW5lPSFub21wYXRoCkNvbmRpdGlvblZpcnR1YWxpemF0aW9uPSFjb250YWluZXIKCltTZXJ2aWNlXQpUeXBlPW5vdGlmeQpOb3RpZnlBY2Nlc3M9bWFpbgpFeGVjU3RhcnQ9L3Vzci9zYmluL211bHRpcGF0aGQgLWQgLXMKRXhlY1JlbG9hZD0vdXNyL3NiaW4vbXVsdGlwYXRoZCByZWNvbmZpZ3VyZQpUYXNrc01heD1pbmZpbml0eQpMaW1pdFJUUFJJTz0xMApDUFVXZWlnaHQ9MTAwMAoKW0luc3RhbGxdCldhbnRlZEJ5PXN5c2luaXQudGFyZ2V0Cg==
          encoding: base64
          ownerstring: ""
 EOF
+  # SLE Micro 5.5 uses /usr/lib/ssh/sftp-server
+  # SL Micro 6.1 uses /usr/libexec/ssh/sftp-server
+  if [ -e ${HOST_DIR}/etc/ssh/sshd_config.d/sftp.conf ]; then
+    sed -i 's%/usr/lib/ssh/sftp-server%/usr/libexec/ssh/sftp-server%' ${HOST_DIR}/etc/ssh/sshd_config.d/sftp.conf
   fi
+
+  # Work around for
+  #   https://github.com/harvester/harvester/issues/9802
+  #   https://github.com/harvester/harvester/issues/9815
+  set_nic_names_by_mac_address
 
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
@@ -645,6 +823,8 @@ command_post_drain() {
   kubectl taint node $HARVESTER_UPGRADE_NODE_NAME kubevirt.io/drain- || true
 
   generate_networkmanager_config
+
+  generate_hostname_persistance
 
   upgrade_os
 }
@@ -685,6 +865,7 @@ command_single_node_upgrade() {
 
   generate_networkmanager_config
 
+  generate_hostname_persistance
   # Upgrade OS
   upgrade_os
 }

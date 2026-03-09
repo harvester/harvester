@@ -18,6 +18,7 @@ import (
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 var (
@@ -117,6 +118,13 @@ func generateDVTargetStorage(vmi *harvesterv1.VirtualMachineImage) (*cdiv1.Stora
 		return nil, fmt.Errorf("virtual size is not set")
 	}
 	targetDVStorage.Resources.Requests[corev1.ResourceStorage] = *resource.NewQuantity(vmi.Status.VirtualSize, resource.DecimalSI)
+	// for upgrade repo deployment usage, we need to create RWX filesystem data volume
+	// so that it can be mounted to multiple pods.
+	if vmi.Annotations != nil && vmi.Annotations[util.AnnotationUpgradeImage] == "True" {
+		targetDVStorage.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}
+		volumeMode := corev1.PersistentVolumeFilesystem
+		targetDVStorage.VolumeMode = &volumeMode
+	}
 	return targetDVStorage, nil
 }
 
@@ -132,16 +140,27 @@ func fetchImageSize(url string) (int64, error) {
 	}
 	defer rsp.Body.Close()
 
-	contentLengthStr := rsp.Header.Get("Content-Length")
-	if contentLengthStr == "" {
-		return 0, ErrHeaderContentLengthNotFound
+	cl, err := getContentLength(rsp)
+	if err != nil {
+		return 0, err
 	}
 
-	contentLength, err := strconv.ParseInt(contentLengthStr, 10, 64)
+	contentLength, err := strconv.ParseInt(cl, 10, 64)
 	if err != nil {
 		return 0, err
 	}
 	return contentLength, nil
+}
+
+func getContentLength(rsp *http.Response) (string, error) {
+	if cl := rsp.Header.Get("Content-Length"); cl != "" {
+		return cl, nil
+	} else if xgcl := rsp.Header.Get("x-goog-stored-content-length"); xgcl != "" {
+		// fallback to x-goog-stored-content-length if Content-Length is not available
+		return xgcl, nil
+	}
+	// if both headers are missing, return an error
+	return "", ErrHeaderContentLengthNotFound
 }
 
 func fetchImageVirtualSize(url string) (int64, error) {

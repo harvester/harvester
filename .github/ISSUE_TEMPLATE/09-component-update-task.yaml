@@ -22,41 +22,43 @@ body:
         - [ ] OBS Projects @tserong
         - [ ] OS2 @tserong
       - Main Components
-        - [ ] Embedded Rancher @FrankYang0529
-        - [ ] RKE2 @FrankYang0529
+        - [ ] Embedded Rancher @wheatdog
+        - [ ] RKE2 @wheatdog
         - [ ] Longhorn @Vicente-Cheng
         - [ ] KubeVirt @Vicente-Cheng (also virtctl)
+        - [ ] Kube-OVN @starbops
+        - [ ] Containerized-Data Importer @brandboat
       - Libraries
         - [ ] Go @harvester/dev
         - [ ] K8s @harvester/dev
-      - Built-in Dependent Components
-        - [ ] * Network Controller @mingshuoqiu
-        - [ ] * Network FS Manager @Vicente-Cheng @WebberHuang1118
-        - [ ] * Node Disk Manager @tserong  @Vicente-Cheng
-        - [ ] * Node Manager @tserong
-        - [ ] * Load Balancer @starbops
-        - [ ] * Eventrouter @w13915984028
-        - [ ] CDI @Vicente-Cheng
+      - Built-in Dependent Components (Should be handled by release automation)
+        - [ ] * Network Controller @harvester/release
+        - [ ] * Network FS Manager @harvester/release
+        - [ ] * Node Disk Manager @harvester/release
+        - [ ] * Node Manager @harvester/release
+        - [ ] * Load Balancer @harvester/release
+        - [ ] * Eventrouter @harvester/release
         - [ ] Whereabouts @rrajendran17
         - [ ] Kube-VIP @starbops
         - [ ] CSI Snapshotter @brandboat  (need to align with Longhorn version)
-        - [ ] snapshot-validation-webhook @brandboat
-      - Built-in Opt-In Add-Ons
-        - [ ] * VM Import Controller @votdev
-        - [ ] * PCI Device Controller @Yu-Jack
-        - [ ] * Seeder @ibrokethecloud
+      - Built-in Opt-In Add-Ons (Should be handled by release automation)
+        - [ ] * VM Import Controller @harvester/release
+        - [ ] * PCI Device Controller @harvester/release
+        - [ ] * Seeder @harvester/release
         - [ ] Rancher Logging @w13915984028
         - [ ] Rancher Monitoring @w13915984028
         - [ ] * Nvidia Driver Runtime @ibrokethecloud
       - User Interface Components
         - [ ] * UI Extension @a110605
-        - [ ] * Terraform Provider @FrankYang0529
+        - [ ] * Terraform Provider @brandboat
       - Experimental Opt-In Add-Ons (OOB)
         - [ ] vCluster @ibrokethecloud
         - [ ] LVM CSI Driver @Vicente-Cheng
         - [ ] VM DHCP Controller @starbops
       - Extra Images
         - [ ] VMDP (Virtual Machine Driver Pack for Microsoft Windows) @Vicente-Cheng
+      - Misc
+        - [ ] [Storage Certification Validator](https://github.com/harvester/storage-validator) @ibrokethecloud
         
       > [!Note]
       > `*` means the component version (including the chart versions and/or the image tags) will align with Harvester releases.

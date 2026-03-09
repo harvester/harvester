@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net"
+	"slices"
 	"testing"
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -17,14 +19,73 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	kubeovnapiv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 )
 
 const (
 	replaceOP        = "replace"
 	nodeAffinityPath = "/spec/template/spec/affinity"
 )
+
+func setupTestMutator(clientset *fake.Clientset) types.Mutator {
+	return NewMutator(
+		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
+		fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
+		fakeclients.KubeovnSubnetCache(clientset.KubeovnV1().Subnets),
+	)
+}
+
+func setupTestMutatorWithoutSubnetCache(clientset *fake.Clientset) types.Mutator {
+	return NewMutator(
+		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
+		fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
+		nil,
+	)
+}
+
+func createTestVM(
+	resourceReq kubevirtv1.ResourceRequirements,
+	memory *kubevirtv1.Memory,
+	annotations map[string]string,
+	namespace, name string,
+) *kubevirtv1.VirtualMachine {
+	return &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: annotations,
+			Namespace:   namespace,
+			Name:        name,
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Resources: resourceReq,
+						Memory:    memory,
+					},
+				},
+			},
+		},
+	}
+}
+
+func createDefaultKubeVirt(clientset *fake.Clientset) {
+	kv := &kubevirtv1.KubeVirt{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      util.KubeVirtObjectName,
+			Namespace: util.HarvesterSystemNamespaceName,
+		},
+		Status: kubevirtv1.KubeVirtStatus{
+			DefaultArchitecture: "amd64",
+		},
+	}
+	_ = clientset.Tracker().Add(kv)
+}
 
 func TestPatchResourceOvercommit(t *testing.T) {
 	tests := []struct {
@@ -265,9 +326,14 @@ func TestPatchResourceOvercommit(t *testing.T) {
 		Default: `{"cpu":200,"memory":400,"storage":800}`,
 	}
 
-	for _, tc := range tests {
+	runTestCase := func(tc struct {
+		name        string
+		resourceReq kubevirtv1.ResourceRequirements
+		memory      *kubevirtv1.Memory
+		patchOps    []string
+		setting     string
+	}, annotations map[string]string, expectError bool, errorMsg string) {
 		t.Run(tc.name, func(t *testing.T) {
-			// arrage
 			clientset := fake.NewSimpleClientset()
 			settingCpy := setting.DeepCopy()
 			if tc.setting != "" {
@@ -275,145 +341,37 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			}
 			err := clientset.Tracker().Add(settingCpy)
 			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
-			vm := &kubevirtv1.VirtualMachine{
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
+			createDefaultKubeVirt(clientset)
+			mutator := setupTestMutator(clientset)
 
-			// act
+			vm := createTestVM(tc.resourceReq, tc.memory, annotations, "", "")
+
 			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
 
-			// assert
-			assert.Nil(t, err, tc.name)
-			assert.Equal(t, tc.patchOps, actual)
+			if expectError {
+				assert.NotNil(t, err)
+				assert.Contains(t, err.Error(), errorMsg)
+			} else {
+				assert.Nil(t, err, tc.name)
+				assert.Equal(t, tc.patchOps, actual)
+			}
 		})
+	}
+
+	for _, tc := range tests {
+		runTestCase(tc, nil, false, "")
 	}
 
 	for _, tc := range tests2 {
-		t.Run(tc.name, func(t *testing.T) {
-			// arrage
-			clientset := fake.NewSimpleClientset()
-			settingCpy := setting.DeepCopy()
-			if tc.setting != "" {
-				settingCpy.Value = tc.setting
-			}
-			err := clientset.Tracker().Add(settingCpy)
-			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"harvesterhci.io/reservedMemory": "384Mi",
-					},
-				},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			// act
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
-
-			// assert
-			assert.Nil(t, err, tc.name)
-			assert.Equal(t, tc.patchOps, actual)
-		})
+		runTestCase(tc, map[string]string{"harvesterhci.io/reservedMemory": "384Mi"}, false, "")
 	}
 
 	for _, tc := range tests3 {
-		t.Run(tc.name, func(t *testing.T) {
-			// arrage
-			clientset := fake.NewSimpleClientset()
-			settingCpy := setting.DeepCopy()
-			if tc.setting != "" {
-				settingCpy.Value = tc.setting
-			}
-			err := clientset.Tracker().Add(settingCpy)
-			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"harvesterhci.io/reservedMemory": "384Mi",
-					},
-				},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			_, err = mutator.(*vmMutator).patchResourceOvercommit(vm)
-			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), "reservedMemory can't be equal or greater than limits.memory")
-		})
+		runTestCase(tc, map[string]string{"harvesterhci.io/reservedMemory": "384Mi"}, true, "reservedMemory can't be equal or greater than limits.memory")
 	}
 
 	for _, tc := range tests4 {
-		t.Run(tc.name, func(t *testing.T) {
-			// arrage
-			clientset := fake.NewSimpleClientset()
-			settingCpy := setting.DeepCopy()
-			if tc.setting != "" {
-				settingCpy.Value = tc.setting
-			}
-			err := clientset.Tracker().Add(settingCpy)
-			assert.Nil(t, err, "Mock resource should add into fake controller tracker")
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"harvesterhci.io/reservedMemory": "384Mi",
-					},
-					Namespace: "test",
-					Name:      "NotEnoughMemory",
-				},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			_, err = mutator.(*vmMutator).patchResourceOvercommit(vm)
-			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), "guest memory is under the minimum requirement")
-		})
+		runTestCase(tc, map[string]string{"harvesterhci.io/reservedMemory": "384Mi"}, true, "guest memory is under the minimum requirement")
 	}
 }
 
@@ -574,159 +532,43 @@ func TestPatchResourceOvercommitWithAdditionalGuestMemoryOverheadRatio(t *testin
 		}
 	}
 
-	// has invalid OvercommitWithAdditionalGuestMemoryOverheadRatio then use default reserved memory
-	for _, tc := range tests1 {
+	runOverheadRatioTestCase := func(tc *testStruct, annotations map[string]string) {
 		t.Run(tc.name, func(t *testing.T) {
-			// arrage
 			clientset := fake.NewSimpleClientset()
-			setConfig(clientset, &tc) // #nosec G601
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
-			vm := &kubevirtv1.VirtualMachine{
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
+			setConfig(clientset, tc)
+			createDefaultKubeVirt(clientset)
+			mutator := setupTestMutator(clientset)
+			vm := createTestVM(tc.resourceReq, tc.memory, annotations, "", "")
 
-			// act
 			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
-
-			// assert
 			assert.Nil(t, err, tc.name)
 			assert.Equal(t, tc.patchOps, actual)
 		})
+	}
+
+	// has invalid OvercommitWithAdditionalGuestMemoryOverheadRatio then use default reserved memory
+	for i := range tests1 {
+		runOverheadRatioTestCase(&tests1[i], nil)
 	}
 
 	// has invalid OvercommitWithAdditionalGuestMemoryOverheadRatioand and reserved memory annotation then use reserved memory annotation
-	for _, tc := range tests2 {
-		t.Run(tc.name, func(t *testing.T) {
-			// arrage
-			clientset := fake.NewSimpleClientset()
-			setConfig(clientset, &tc) // #nosec G601
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"harvesterhci.io/reservedMemory": "1Gi",
-					},
-				},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			// act
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
-
-			// assert
-			assert.Nil(t, err, tc.name)
-			assert.Equal(t, tc.patchOps, actual)
-		})
+	for i := range tests2 {
+		runOverheadRatioTestCase(&tests2[i], map[string]string{"harvesterhci.io/reservedMemory": "1Gi"})
 	}
 
 	// has valid OvercommitWithAdditionalGuestMemoryOverheadRatio and no reserved memory annotation
-	for _, tc := range tests3 {
-		t.Run(tc.name, func(t *testing.T) {
-			clientset := fake.NewSimpleClientset()
-			setConfig(clientset, &tc) // #nosec G601
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
-			assert.Nil(t, err, tc.name)
-			assert.Equal(t, tc.patchOps, actual)
-		})
+	for i := range tests3 {
+		runOverheadRatioTestCase(&tests3[i], nil)
 	}
 
 	// has valid OvercommitWithAdditionalGuestMemoryOverheadRatio and reserved memory annotation then use reserved memory
-	for _, tc := range tests4 {
-		t.Run(tc.name, func(t *testing.T) {
-			clientset := fake.NewSimpleClientset()
-			setConfig(clientset, &tc) // #nosec G601
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"harvesterhci.io/reservedMemory": "1Gi",
-					},
-				},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
-			assert.Nil(t, err, tc.name)
-			assert.Equal(t, tc.patchOps, actual)
-		})
+	for i := range tests4 {
+		runOverheadRatioTestCase(&tests4[i], map[string]string{"harvesterhci.io/reservedMemory": "1Gi"})
 	}
 
 	// has valid but zero OvercommitWithAdditionalGuestMemoryOverheadRatio then use default reserved memory
-	for _, tc := range tests5 {
-		t.Run(tc.name, func(t *testing.T) {
-			clientset := fake.NewSimpleClientset()
-			setConfig(clientset, &tc) // #nosec G601
-			mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
-			vm := &kubevirtv1.VirtualMachine{
-				ObjectMeta: metav1.ObjectMeta{},
-				Spec: kubevirtv1.VirtualMachineSpec{
-					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{},
-						Spec: kubevirtv1.VirtualMachineInstanceSpec{
-							Domain: kubevirtv1.DomainSpec{
-								Resources: tc.resourceReq,
-								Memory:    tc.memory,
-							},
-						},
-					},
-				},
-			}
-
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
-			assert.Nil(t, err, tc.name)
-			assert.Equal(t, tc.patchOps, actual)
-		})
+	for i := range tests5 {
+		runOverheadRatioTestCase(&tests5[i], nil)
 	}
 }
 
@@ -763,8 +605,8 @@ func TestPatchResourceOvercommitWithDedicatedCPUPlacement(t *testing.T) {
 	clientset := fake.NewSimpleClientset()
 	err := clientset.Tracker().Add(setting)
 	assert.Nil(t, err)
-	mutator := NewMutator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-		fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+	createDefaultKubeVirt(clientset)
+	mutator := setupTestMutator(clientset)
 	actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
 	assert.Nil(t, err)
 	assert.Equal(t,
@@ -773,6 +615,112 @@ func TestPatchResourceOvercommitWithDedicatedCPUPlacement(t *testing.T) {
 			"{\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/cpu/maxSockets\", \"value\": 1}",
 			"{\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/resources/requests\", \"value\": {\"cpu\":\"8\",\"memory\":\"1Gi\"}}"},
 		actual)
+}
+
+func TestPatchResourceOvercommitWithARMArchitecture(t *testing.T) {
+	tests := []struct {
+		name                  string
+		vmArchitecture        string
+		kvDefaultArchitecture string
+		expectMaxSocketsPatch bool
+	}{
+		{
+			name:                  "ARM VM on ARM default cluster",
+			vmArchitecture:        "arm64",
+			kvDefaultArchitecture: "arm64",
+			expectMaxSocketsPatch: false,
+		},
+		{
+			name:                  "ARM VM on x86 default cluster",
+			vmArchitecture:        "arm64",
+			kvDefaultArchitecture: "amd64",
+			expectMaxSocketsPatch: false,
+		},
+		{
+			name:                  "x86 VM on ARM default cluster",
+			vmArchitecture:        "amd64",
+			kvDefaultArchitecture: "arm64",
+			expectMaxSocketsPatch: false,
+		},
+		{
+			name:                  "x86 VM on x86 default cluster",
+			vmArchitecture:        "amd64",
+			kvDefaultArchitecture: "amd64",
+			expectMaxSocketsPatch: true,
+		},
+		{
+			name:                  "VM without architecture on ARM default cluster",
+			vmArchitecture:        "",
+			kvDefaultArchitecture: "arm64",
+			expectMaxSocketsPatch: false,
+		},
+		{
+			name:                  "VM without architecture on x86 default cluster",
+			vmArchitecture:        "",
+			kvDefaultArchitecture: "amd64",
+			expectMaxSocketsPatch: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup
+			setting := &harvesterv1.Setting{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "overcommit-config",
+				},
+				Default: `{"cpu":200,"memory":400,"storage":800}`,
+			}
+			kv := &kubevirtv1.KubeVirt{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.KubeVirtObjectName,
+					Namespace: util.HarvesterSystemNamespaceName,
+				},
+				Status: kubevirtv1.KubeVirtStatus{
+					DefaultArchitecture: tc.kvDefaultArchitecture,
+				},
+			}
+
+			clientset := fake.NewSimpleClientset()
+			err := clientset.Tracker().Add(setting)
+			assert.Nil(t, err)
+			err = clientset.Tracker().Add(kv)
+			assert.Nil(t, err)
+
+			vm := &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Architecture: tc.vmArchitecture,
+							Domain: kubevirtv1.DomainSpec{
+								Resources: kubevirtv1.ResourceRequirements{
+									Limits: map[v1.ResourceName]resource.Quantity{
+										v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 30)), resource.BinarySI), // 1Gi
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			mutator := NewMutator(
+				fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions),
+				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
+				fakeclients.KubeovnSubnetCache(clientset.KubeovnV1().Subnets))
+
+			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
+			assert.Nil(t, err, tc.name)
+
+			hasMaxSocketsPatch := slices.Contains(actual, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`)
+			if tc.expectMaxSocketsPatch {
+				assert.True(t, hasMaxSocketsPatch, "Expected maxSockets patch for %s", tc.name)
+			} else {
+				assert.False(t, hasMaxSocketsPatch, "Did not expect maxSockets patch for %s", tc.name)
+			}
+		})
+	}
 }
 
 func TestPatchAffinity(t *testing.T) {
@@ -1238,8 +1186,8 @@ func TestPatchAffinity(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		mutator := NewMutator(fakeclients.HarvesterSettingCache(clientSet.HarvesterhciV1beta1().Settings),
-			fakeclients.NetworkAttachmentDefinitionCache(clientSet.K8sCniCncfIoV1().NetworkAttachmentDefinitions))
+		createDefaultKubeVirt(clientSet)
+		mutator := setupTestMutator(clientSet)
 		patchOps, err := mutator.(*vmMutator).patchAffinity(tc.vm, nil)
 		assert.Nil(t, err, tc.name)
 
@@ -1254,5 +1202,644 @@ func TestPatchAffinity(t *testing.T) {
 			assert.Nil(t, err, tc.name)
 		}
 		assert.Equal(t, types.PatchOps{string(bytes)}, patchOps)
+	}
+}
+
+func TestPatchInterfaceMacAddress(t *testing.T) {
+	type patch struct {
+		Op    string `json:"op"`
+		Path  string `json:"path"`
+		Value string `json:"value"`
+	}
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		interfaces  []kubevirtv1.Interface
+		patchOps    []patch
+	}{
+		{
+			name:        "1 interface with MacAddress",
+			annotations: nil,
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name:       "default",
+					Model:      "virtio",
+					MacAddress: "de:ad:00:00:be:af",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			patchOps: nil,
+		},
+		{
+			name:        "1 interface without MacAddress",
+			annotations: nil,
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name:  "default",
+					Model: "virtio",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			patchOps: []patch{
+				{Op: "replace", Path: "/spec/template/spec/domain/devices/interfaces/0/macAddress", Value: "GENERATED"},
+			},
+		},
+		{
+			name: "1 interface with MacAddress in the annotation",
+			annotations: map[string]string{
+				"harvesterhci.io/mac-address": `{"default":"c2:c7:74:4b:4a:77"}`,
+			},
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name:  "default",
+					Model: "virtio",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			patchOps: nil,
+		},
+		{
+			name:        "2 interfaces with MacAddress",
+			annotations: nil,
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name:       "default",
+					Model:      "virtio",
+					MacAddress: "de:ad:00:00:be:af",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+				{
+					Name:       "default",
+					Model:      "virtio",
+					MacAddress: "de:ad:00:00:be:bf",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			patchOps: nil,
+		},
+		{
+			name:        "3 interfaces 2 without MacAddress",
+			annotations: nil,
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name:  "default",
+					Model: "virtio",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+				{
+					Name:       "default",
+					Model:      "virtio",
+					MacAddress: "de:ad:00:00:be:af",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+				{
+					Name:  "default",
+					Model: "virtio",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			patchOps: []patch{
+				{Op: "replace", Path: "/spec/template/spec/domain/devices/interfaces/0/macAddress", Value: "GENERATED"},
+				{Op: "replace", Path: "/spec/template/spec/domain/devices/interfaces/2/macAddress", Value: "GENERATED"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// arrage
+			clientset := fake.NewSimpleClientset()
+			createDefaultKubeVirt(clientset)
+			mutator := setupTestMutator(clientset)
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: tc.annotations,
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{},
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									Interfaces: tc.interfaces,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			// act
+			actualPatchOps, err := mutator.(*vmMutator).patchInterfaceMacAddress(vm, nil)
+
+			// assert
+			assert.Nil(t, err, tc.name)
+			assert.Equal(t, len(tc.patchOps), len(actualPatchOps), tc.name)
+
+			for idx, patchOp := range actualPatchOps {
+				testMsg := fmt.Sprintf("test: %s, idx: %d", tc.name, idx)
+				var actual patch
+				err := json.Unmarshal([]byte(patchOp), &actual)
+				if err != nil {
+					assert.Nil(t, err, testMsg)
+				}
+
+				expected := tc.patchOps[idx]
+				assert.Equal(t, expected.Op, actual.Op, testMsg)
+				assert.Equal(t, expected.Path, actual.Path, testMsg)
+
+				// mac is randomly generated
+				mac, err := net.ParseMAC(actual.Value)
+				assert.Nil(t, err, tc.name, testMsg)
+
+				// local bit should be 1
+				// multicast bit should be 0
+				assert.Equal(t, uint8(0x02), mac[0]&0x03, testMsg)
+			}
+		})
+	}
+}
+
+func TestPatchManagedTapBinding(t *testing.T) {
+	type patch struct {
+		Op    string                 `json:"op"`
+		Path  string                 `json:"path"`
+		Value map[string]interface{} `json:"value"`
+	}
+
+	tests := []struct {
+		name       string
+		interfaces []kubevirtv1.Interface
+		networks   []kubevirtv1.Network
+		expected   []patch
+		nad1       *cniv1.NetworkAttachmentDefinition
+		nad2       *cniv1.NetworkAttachmentDefinition
+		ovnsubnet  *kubeovnapiv1.Subnet
+	}{
+		{
+			name: "overlay network removes bridge and adds managedtap binding",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name:                   "nic-1",
+					InterfaceBindingMethod: kubevirtv1.DefaultBridgeNetworkInterface().InterfaceBindingMethod,
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-1",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad1",
+						},
+					},
+				},
+			},
+			nad1: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "overlayNetwork",
+					},
+				},
+			},
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider:   "test-nad1.default.ovn",
+					EnableDHCP: true,
+				},
+			},
+			expected: []patch{
+				{
+					Op:   "remove",
+					Path: "/spec/template/spec/domain/devices/interfaces/0/bridge",
+				},
+				{
+					Op:   "add",
+					Path: "/spec/template/spec/domain/devices/interfaces/0/binding",
+					Value: map[string]interface{}{
+						"name": "managedtap",
+					},
+				},
+			},
+		},
+		{
+			name: "non-overlay removes managedtap binding",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "nic-2",
+					Binding: &kubevirtv1.PluginBinding{
+						Name: "managedtap",
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-2",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad2",
+						},
+					},
+				},
+			},
+			nad2: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad2",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "L2VlanNetwork",
+					},
+				},
+			},
+			expected: []patch{
+				{
+					Op:   "remove",
+					Path: "/spec/template/spec/domain/devices/interfaces/0/binding",
+				},
+			},
+		},
+		{
+			name: "no multus network results in no patches",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "default",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-3",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Pod: &kubevirtv1.PodNetwork{},
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "no ovn subnet results in no patches",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "default",
+					InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+						Bridge: &kubevirtv1.InterfaceBridge{},
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-1",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad1",
+						},
+					},
+				},
+			},
+			nad1: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "overlayNetwork",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "subnet without dhcp results in removing managedtap binding",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "nic-1",
+					Binding: &kubevirtv1.PluginBinding{
+						Name: "managedtap",
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-1",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad1",
+						},
+					},
+				},
+			},
+			nad1: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "overlayNetwork",
+					},
+				},
+			},
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider: "test-nad1.default.ovn",
+				},
+			},
+			expected: []patch{
+				{
+					Op:   "remove",
+					Path: "/spec/template/spec/domain/devices/interfaces/0/binding",
+				},
+			},
+		},
+		{
+			name: "no change when managedtap binding is already present for overlay network",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name: "nic-1",
+					Binding: &kubevirtv1.PluginBinding{
+						Name: "managedtap",
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-1",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad1",
+						},
+					},
+				},
+			},
+			nad1: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "overlayNetwork",
+					},
+				},
+			},
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider:   "test-nad1.default.ovn",
+					EnableDHCP: true,
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "remove bridge binding when both bridge and managedtap binding is already present for overlay network",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name:                   "nic-1",
+					InterfaceBindingMethod: kubevirtv1.DefaultBridgeNetworkInterface().InterfaceBindingMethod,
+					Binding: &kubevirtv1.PluginBinding{
+						Name: "managedtap",
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-1",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad1",
+						},
+					},
+				},
+			},
+			nad1: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "overlayNetwork",
+					},
+				},
+			},
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider:   "test-nad1.default.ovn",
+					EnableDHCP: true,
+				},
+			},
+			expected: []patch{
+				{
+					Op:   "remove",
+					Path: "/spec/template/spec/domain/devices/interfaces/0/bridge",
+				},
+			},
+		},
+		{
+			name: "remove masquerade binding when both masquerade and managedtap binding is already present for overlay network",
+			interfaces: []kubevirtv1.Interface{
+				{
+					Name:                   "nic-1",
+					InterfaceBindingMethod: kubevirtv1.DefaultMasqueradeNetworkInterface().InterfaceBindingMethod,
+					Binding: &kubevirtv1.PluginBinding{
+						Name: "managedtap",
+					},
+				},
+			},
+			networks: []kubevirtv1.Network{
+				{
+					Name: "nic-1",
+					NetworkSource: kubevirtv1.NetworkSource{
+						Multus: &kubevirtv1.MultusNetwork{
+							NetworkName: "default/test-nad1",
+						},
+					},
+				},
+			},
+			nad1: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-nad1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"network.harvesterhci.io/type": "overlayNetwork",
+					},
+				},
+			},
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-test-nad1",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider:   "test-nad1.default.ovn",
+					EnableDHCP: true,
+				},
+			},
+			expected: []patch{
+				{
+					Op:   "remove",
+					Path: "/spec/template/spec/domain/devices/interfaces/0/masquerade",
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			createDefaultKubeVirt(clientset)
+			mutator := setupTestMutator(clientset)
+
+			nadGvr := schema.GroupVersionResource{
+				Group:    "k8s.cni.cncf.io",
+				Version:  "v1",
+				Resource: "network-attachment-definitions",
+			}
+
+			if tc.nad1 != nil {
+				if err := clientset.Tracker().Create(nadGvr, tc.nad1.DeepCopy(), tc.nad1.Namespace); err != nil {
+					t.Fatalf("failed to add net1 %+v", tc)
+				}
+			}
+			if tc.nad2 != nil {
+				if err := clientset.Tracker().Create(nadGvr, tc.nad2.DeepCopy(), tc.nad2.Namespace); err != nil {
+					t.Fatalf("failed to add net2 %+v", tc)
+				}
+			}
+
+			if tc.ovnsubnet != nil {
+				ovnSubnetGvr := schema.GroupVersionResource{
+					Group:    "kubeovn.io",
+					Version:  "v1",
+					Resource: "subnets",
+				}
+				if err := clientset.Tracker().Create(ovnSubnetGvr, tc.ovnsubnet.DeepCopy(), ""); err != nil {
+					t.Fatalf("failed to add ovn subnet %+v", tc)
+				}
+			}
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Networks: tc.networks,
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									Interfaces: tc.interfaces,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			// act
+			patchOps, err := mutator.(*vmMutator).patchManagedTapBinding(vm, nil)
+
+			// assert
+			assert.NoError(t, err)
+			assert.Equal(t, len(tc.expected), len(patchOps))
+
+			for i, patchOp := range patchOps {
+				var actual patch
+				err := json.Unmarshal([]byte(patchOp), &actual)
+				assert.NoError(t, err)
+
+				expected := tc.expected[i]
+				assert.Equal(t, expected.Op, actual.Op)
+				assert.Equal(t, expected.Path, actual.Path)
+				assert.Equal(t, expected.Value, actual.Value)
+			}
+		})
+	}
+}
+
+func TestPatchManagedTapBindingWithoutSubnetCRD(t *testing.T) {
+	type patch struct {
+		Op    string                 `json:"op"`
+		Path  string                 `json:"path"`
+		Value map[string]interface{} `json:"value"`
+	}
+
+	tests := []struct {
+		name       string
+		expected   []patch
+		interfaces []kubevirtv1.Interface
+		networks   []kubevirtv1.Network
+	}{
+		{
+			name:     "no patches when Subnet CRD is not present",
+			expected: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			createDefaultKubeVirt(clientset)
+			mutator := setupTestMutatorWithoutSubnetCache(clientset)
+
+			vm := &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Networks: tc.networks,
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									Interfaces: tc.interfaces,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			// act
+			patchOps, err := mutator.(*vmMutator).patchManagedTapBinding(vm, nil)
+
+			// assert
+			assert.NoError(t, err)
+			assert.Equal(t, len(tc.expected), len(patchOps))
+
+			for i, patchOp := range patchOps {
+				var actual patch
+				err := json.Unmarshal([]byte(patchOp), &actual)
+				assert.NoError(t, err)
+
+				expected := tc.expected[i]
+				assert.Equal(t, expected.Op, actual.Op)
+				assert.Equal(t, expected.Path, actual.Path)
+				assert.Equal(t, expected.Value, actual.Value)
+			}
+		})
 	}
 }

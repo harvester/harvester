@@ -3,10 +3,12 @@ package setting
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/objectset"
 	"github.com/sirupsen/logrus"
@@ -17,21 +19,47 @@ import (
 	"sigs.k8s.io/yaml"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	harvsettings "github.com/harvester/harvester/pkg/settings"
 )
+
+const defaultResponseMaxSize = 1 * 1024 * 1024 // 1MB
 
 // registerCluster imports Harvester to Rancher by applying manifests from the registration URL.
 func (h *Handler) registerCluster(setting *harvesterv1.Setting) error {
-	url := setting.Value
+	logrus.Info("syncing cluster registration URL setting")
+	s := harvsettings.GetClusterRegistrationURLSetting(setting)
+	url := s.URL
 	if url == "" {
+		logrus.Info("resetting cluster registration URL, cleaning up cluster agent if exists")
 		return h.cleanupClusterAgent()
 	}
-	resp, err := h.httpClient.Get(url)
+
+	httpClient := h.httpClient
+	if !s.InsecureSkipTLSVerify {
+		logrus.Info("using system CA certificates to verify the cluster registration URL")
+		caCertPool, err := x509.SystemCertPool()
+		if err != nil {
+			return err
+		}
+		httpClient = http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				TLSClientConfig: &tls.Config{
+					RootCAs: caCertPool,
+				},
+			},
+		}
+	}
+
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	limitReader := io.LimitReader(resp.Body, defaultResponseMaxSize)
+	body, err := io.ReadAll(limitReader)
 	if err != nil {
 		return err
 	}

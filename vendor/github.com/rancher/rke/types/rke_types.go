@@ -409,6 +409,8 @@ type NetworkConfig struct {
 	UpdateStrategy *DaemonSetUpdateStrategy `yaml:"update_strategy" json:"updateStrategy,omitempty"`
 	// Tolerations for Deployments
 	Tolerations []v1.Toleration `yaml:"tolerations" json:"tolerations,omitempty"`
+	// Enable/Disable br_netfilter on nodes
+	EnableBrNetfilter *bool `yaml:"enable_br_netfilter" json:"enableBrNetfilter" norman:"default=true"`
 }
 
 type AuthWebhookConfig struct {
@@ -703,12 +705,20 @@ type AciNetworkProvider struct {
 	ApicConnectionRetryLimit             string              `yaml:"apic_connection_retry_limit,omitempty" json:"apicConnectionRetryLimit,omitempty"`
 	TaintNotReadyNode                    string              `yaml:"taint_not_ready_node,omitempty" json:"taintNotReadyNode,omitempty"`
 	DropLogDisableEvents                 string              `yaml:"drop_log_disable_events,omitempty" json:"dropLogDisableEvents,omitempty"`
+	DropLogOpflexRedirectDropLogs        string              `yaml:"drop_log_opflex_redirect_drop_logs,omitempty" json:"dropLogOpflexRedirectDropLogs,omitempty"`
 	OpflexStartupEnabled                 string              `yaml:"opflex_startup_enabled,omitempty" json:"opflexStartupEnabled,omitempty"`
 	OpflexStartupPolicyDuration          string              `yaml:"opflex_startup_policy_duration,omitempty" json:"opflexStartupPolicyDuration,omitempty"`
 	OpflexStartupResolveAftConn          string              `yaml:"opflex_startup_resolve_aft_conn,omitempty" json:"opflexStartupResolveAftConn,omitempty"`
 	OpflexSwitchSyncDelay                string              `yaml:"opflex_switch_sync_delay,omitempty" json:"opflexSwitchSyncDelay,omitempty"`
 	OpflexSwitchSyncDynamic              string              `yaml:"opflex_switch_sync_dynamic,omitempty" json:"opflexSwitchSyncDynamic,omitempty"`
 	UnknownMacUnicastAction              string              `yaml:"unknown_mac_unicast_action,omitempty" json:"unknownMacUnicastAction,omitempty"`
+	EnableHppDirect                      string              `yaml:"enable_hpp_direct,omitempty" json:"enableHppDirect,omitempty"`
+	OpflexAgentResetWaitDelay            string              `yaml:"opflex_agent_reset_wait_delay,omitempty" json:"opflexAgentResetWaitDelay,omitempty"`
+	ProactiveConf                        string              `yaml:"proactive_conf,omitempty" json:"proactiveConf,omitempty"`
+	EpgResolvePrioritize                 string              `yaml:"epg_resolve_prioritize,omitempty" json:"epgResolvePrioritize,omitempty"`
+	ForceEpUndeclares                    string              `yaml:"force_ep_undeclares,omitempty" json:"forceEpUndeclares,omitempty"`
+	EnableApicRequestRetryDelay          string              `yaml:"enable_apic_request_retry_delay,omitempty" json:"enableApicRequestRetryDelay,omitempty"`
+	ApicRequestRetryDelay                string              `yaml:"apic_request_retry_delay,omitempty" json:"apicRequestRetryDelay,omitempty"`
 }
 
 type KubernetesServicesOptions struct {

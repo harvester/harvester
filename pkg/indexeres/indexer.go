@@ -55,6 +55,7 @@ func Setup(ctx context.Context, _ *server.Server, _ *server.Controllers, _ confi
 
 	vmInformer := management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	vmInformer.AddIndexer(indexeresutil.VMByPVCIndex, indexeresutil.VMByPVC)
+	vmInformer.AddIndexer(indexeresutil.VMByNonShareablePVCIndex, indexeresutil.VMByNonShareablePVC)
 
 	scInformer := management.StorageFactory.Storage().V1().StorageClass().Cache()
 	scInformer.AddIndexer(indexeresutil.StorageClassBySecretIndex, indexeresutil.StorageClassBySecret)
@@ -83,7 +84,7 @@ func pvcByDataSourceVolumeSnapshot(obj *corev1.PersistentVolumeClaim) ([]string,
 }
 
 func VMBackupBySourceVMUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
-	if obj.Status == nil || obj.Status.SourceUID == nil {
+	if obj.Status.SourceUID == nil {
 		return []string{}, nil
 	}
 	return []string{string(*obj.Status.SourceUID)}, nil

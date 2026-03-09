@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/pkg/errors"
@@ -33,8 +34,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
+	k8svolumehelpers "k8s.io/cloud-provider/volume/helpers"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	kubevirtmultus "kubevirt.io/kubevirt/pkg/network/multus"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
 	apiutil "github.com/harvester/harvester/pkg/api/util"
@@ -50,6 +54,7 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
+	"github.com/harvester/harvester/pkg/util/virtualmachine"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 )
 
@@ -68,33 +73,37 @@ var (
 
 type vmActionHandler struct {
 	namespace                 string
-	datavolumeClient          ctlcdiv1.DataVolumeClient
-	kubevirtCache             ctlkubevirtv1.KubeVirtCache
-	vms                       ctlkubevirtv1.VirtualMachineClient
-	vmis                      ctlkubevirtv1.VirtualMachineInstanceClient
-	vmCache                   ctlkubevirtv1.VirtualMachineCache
-	vmiCache                  ctlkubevirtv1.VirtualMachineInstanceCache
-	vmims                     ctlkubevirtv1.VirtualMachineInstanceMigrationClient
-	vmTemplateClient          ctlharvesterv1.VirtualMachineTemplateClient
-	vmTemplateVersionClient   ctlharvesterv1.VirtualMachineTemplateVersionClient
-	vmimCache                 ctlkubevirtv1.VirtualMachineInstanceMigrationCache
-	backups                   ctlharvesterv1.VirtualMachineBackupClient
-	backupCache               ctlharvesterv1.VirtualMachineBackupCache
-	restores                  ctlharvesterv1.VirtualMachineRestoreClient
-	settingCache              ctlharvesterv1.SettingCache
-	nadCache                  ctlcniv1.NetworkAttachmentDefinitionCache
-	nodeCache                 ctlcorev1.NodeCache
-	pvcCache                  ctlcorev1.PersistentVolumeClaimCache
-	pvCache                   ctlcorev1.PersistentVolumeCache
-	secretClient              ctlcorev1.SecretClient
-	secretCache               ctlcorev1.SecretCache
-	virtSubresourceRestClient rest.Interface
+	clientSet                 kubernetes.Interface
 	virtRestClient            rest.Interface
-	vmImages                  ctlharvesterv1.VirtualMachineImageClient
-	vmImageCache              ctlharvesterv1.VirtualMachineImageCache
-	storageClassCache         ctlstoragev1.StorageClassCache
-	resourceQuotaClient       ctlharvesterv1.ResourceQuotaClient
-	clientSet                 kubernetes.Clientset
+	virtSubresourceRestClient rest.Interface
+
+	backupClient            ctlharvesterv1.VirtualMachineBackupClient
+	datavolumeClient        ctlcdiv1.DataVolumeClient
+	pvcClient               ctlcorev1.PersistentVolumeClaimClient
+	resourceQuotaClient     ctlharvesterv1.ResourceQuotaClient
+	restoreClient           ctlharvesterv1.VirtualMachineRestoreClient
+	secretClient            ctlcorev1.SecretClient
+	vmClient                ctlkubevirtv1.VirtualMachineClient
+	vmImageClient           ctlharvesterv1.VirtualMachineImageClient
+	vmTemplateClient        ctlharvesterv1.VirtualMachineTemplateClient
+	vmTemplateVersionClient ctlharvesterv1.VirtualMachineTemplateVersionClient
+	vmiClient               ctlkubevirtv1.VirtualMachineInstanceClient
+	vmimClient              ctlkubevirtv1.VirtualMachineInstanceMigrationClient
+
+	backupCache       ctlharvesterv1.VirtualMachineBackupCache
+	kubevirtCache     ctlkubevirtv1.KubeVirtCache
+	nadCache          ctlcniv1.NetworkAttachmentDefinitionCache
+	nodeCache         ctlcorev1.NodeCache
+	podCache          ctlcorev1.PodCache
+	pvCache           ctlcorev1.PersistentVolumeCache
+	pvcCache          ctlcorev1.PersistentVolumeClaimCache
+	secretCache       ctlcorev1.SecretCache
+	settingCache      ctlharvesterv1.SettingCache
+	storageClassCache ctlstoragev1.StorageClassCache
+	vmCache           ctlkubevirtv1.VirtualMachineCache
+	vmImageCache      ctlharvesterv1.VirtualMachineImageCache
+	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
+	vmimCache         ctlkubevirtv1.VirtualMachineInstanceMigrationCache
 }
 
 func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
@@ -111,17 +120,18 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	}
 
 	switch action {
-	case ejectCdRom:
-		var input EjectCdRomActionInput
+	case insertCdRomVolume:
+		var input InsertCdRomVolumeActionInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
-
-		if len(input.DiskNames) == 0 {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter diskNames is empty")
+		return nil, h.insertCdRomVolume(name, namespace, input)
+	case ejectCdRomVolume:
+		var input EjectCdRomVolumeActionInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
-
-		return nil, h.ejectCdRom(r.Context(), name, namespace, input.DiskNames)
+		return nil, h.ejectCdRomVolume(r.Context(), name, namespace, input)
 	case migrate:
 		var input MigrateInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -213,6 +223,20 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `volumeName` are required")
 		}
 		return nil, h.removeVolume(r.Context(), namespace, name, input)
+	case addNic:
+		var input AddNicInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		return nil, h.addNic(r.Context(), namespace, name, input)
+	case removeNic:
+		var input RemoveNicInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		return nil, h.removeNic(r.Context(), namespace, name, input)
+	case findHotunpluggableNics:
+		return nil, h.findHotunpluggableNics(rw, namespace, name)
 	case cloneVM:
 		var input CloneInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -283,25 +307,118 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	return nil, nil
 }
 
-func (h *vmActionHandler) ejectCdRom(ctx context.Context, name, namespace string, diskNames []string) error {
+func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input InsertCdRomVolumeActionInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
 		return err
 	}
 
+	if !virtualmachine.HasDiskSataCdRomWithName(vm, input.DeviceName) {
+		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Errorf("can not find the SATA CD-ROM device %s from the VM %s/%s", input.DeviceName, vm.Namespace, vm.Name).Error())
+	}
+
 	vmCopy := vm.DeepCopy()
-	if err := ejectCdRomFromVM(vmCopy, diskNames); err != nil {
+
+	parts := strings.SplitN(input.ImageName, "/", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid image name: %s, should be namespace/name", input.ImageName)
+	}
+
+	vmImage, err := h.vmImageCache.Get(parts[0], parts[1])
+	if err != nil {
 		return err
 	}
 
-	if !reflect.DeepEqual(vm, vmCopy) {
-		if _, err := h.vms.Update(vmCopy); err != nil {
-			return err
-		}
-		return h.subresourceOperate(ctx, vmResource, namespace, name, restartVM)
+	imgSize := max(vmImage.Status.VirtualSize, vmImage.Status.Size)
+	// round up to GiB for UI
+	imgSizeRoundUp, err := k8svolumehelpers.RoundUpToGiB(*resource.NewQuantity(imgSize, resource.BinarySI))
+	if err != nil {
+		return err
+	}
+	storageSize := resource.NewQuantity(imgSizeRoundUp*k8svolumehelpers.GiB, resource.BinarySI)
+
+	newPvc := corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-%s-", name, input.DeviceName)),
+			Annotations: map[string]string{
+				util.AnnotationImageID: input.ImageName,
+			},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
+			VolumeMode:  ptr.To(corev1.PersistentVolumeBlock),
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: *storageSize,
+				},
+			},
+			StorageClassName: &vmImage.Status.StorageClassName,
+		},
+	}
+	newVol := kubevirtv1.Volume{
+		Name: input.DeviceName,
+		VolumeSource: kubevirtv1.VolumeSource{
+			PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+				PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: newPvc.Name,
+				},
+				Hotpluggable: true,
+			},
+		},
 	}
 
-	return nil
+	err = appendVolumeClaimTemplatesFromVMAnnotation(vmCopy, newPvc)
+	if err != nil {
+		return err
+	}
+	vmCopy.Spec.Template.Spec.Volumes = append(vmCopy.Spec.Template.Spec.Volumes, newVol)
+	_, err = h.vmClient.Update(vmCopy)
+	return err
+}
+
+func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace string, input EjectCdRomVolumeActionInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	if !virtualmachine.HasDiskSataCdRomWithName(vm, input.DeviceName) {
+		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Errorf("can not find the SATA CD-ROM device %s from the VM %s/%s", input.DeviceName, vm.Namespace, vm.Name).Error())
+	}
+
+	vmCopy := vm.DeepCopy()
+
+	volumes := make([]kubevirtv1.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
+	toRemoveClaimNames := make([]string, 0, 1)
+	for _, vol := range vm.Spec.Template.Spec.Volumes {
+		if input.DeviceName != vol.Name {
+			volumes = append(volumes, vol)
+			continue
+		}
+		if vol.VolumeSource.PersistentVolumeClaim != nil {
+			toRemoveClaimNames = append(toRemoveClaimNames, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
+		}
+	}
+
+	if err := removeVolumeClaimTemplatesFromVMAnnotation(vmCopy, toRemoveClaimNames); err != nil {
+		return err
+	}
+
+	vmCopy.Spec.Template.Spec.Volumes = volumes
+	if _, err = h.vmClient.Update(vmCopy); err != nil {
+		return err
+	}
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		for _, name := range toRemoveClaimNames {
+			if err := h.pvcClient.Delete(vm.Namespace, name, &metav1.DeleteOptions{}); err != nil {
+				if !apierrors.IsNotFound(err) {
+					return err
+				}
+			}
+		}
+		return nil
+	})
 }
 
 func (h *vmActionHandler) startPreCheck(namespace, name string) error {
@@ -318,7 +435,7 @@ func (h *vmActionHandler) startPreCheck(namespace, name string) error {
 			if err != nil {
 				return err
 			}
-			if volumeapi.IsResizing(pvc) {
+			if volumeapi.IsResizing(pvc, h.storageClassCache) {
 				return fmt.Errorf("can not start the VM %s/%s which has a resizing volume %s/%s", vm.Namespace, vm.Name, pvcNamespace, pvcName)
 			}
 		}
@@ -348,41 +465,28 @@ func (h *vmActionHandler) stopVM(namespace, name string) error {
 	runStrategy := kubevirtv1.RunStrategyHalted
 	vmCopy.Spec.RunStrategy = &runStrategy
 	if !reflect.DeepEqual(vm, vmCopy) {
-		_, err = h.vms.Update(vmCopy)
+		_, err = h.vmClient.Update(vmCopy)
 		return err
 	}
 	return nil
 }
 
-func ejectCdRomFromVM(vm *kubevirtv1.VirtualMachine, diskNames []string) error {
-	disks := make([]kubevirtv1.Disk, 0, len(vm.Spec.Template.Spec.Domain.Devices.Disks))
-	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if slice.ContainsString(diskNames, disk.Name) {
-			if disk.CDRom == nil {
-				return errors.New("disk " + disk.Name + " isn't a CD-ROM disk")
-			}
-			continue
-		}
-		disks = append(disks, disk)
+func appendVolumeClaimTemplatesFromVMAnnotation(vm *kubevirtv1.VirtualMachine, pvc corev1.PersistentVolumeClaim) error {
+	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok {
+		return nil
 	}
-
-	volumes := make([]kubevirtv1.Volume, 0, len(vm.Spec.Template.Spec.Volumes))
-	toRemoveClaimNames := make([]string, 0, len(vm.Spec.Template.Spec.Volumes))
-	for _, vol := range vm.Spec.Template.Spec.Volumes {
-		if !slice.ContainsString(diskNames, vol.Name) {
-			volumes = append(volumes, vol)
-			continue
-		}
-		if vol.VolumeSource.PersistentVolumeClaim != nil {
-			toRemoveClaimNames = append(toRemoveClaimNames, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
-		}
-	}
-
-	if err := removeVolumeClaimTemplatesFromVMAnnotation(vm, toRemoveClaimNames); err != nil {
+	volumeClaimTemplates := make([]corev1.PersistentVolumeClaim, 0, 1)
+	if err := json.Unmarshal([]byte(volumeClaimTemplatesStr), &volumeClaimTemplates); err != nil {
 		return err
 	}
-	vm.Spec.Template.Spec.Volumes = volumes
-	vm.Spec.Template.Spec.Domain.Devices.Disks = disks
+
+	volumeClaimTemplates = append(volumeClaimTemplates, pvc)
+	updateVolumeClaimTemplateBytes, err := json.Marshal(volumeClaimTemplates)
+	if err != nil {
+		return err
+	}
+	vm.Annotations[util.AnnotationVolumeClaimTemplates] = string(updateVolumeClaimTemplateBytes)
 	return nil
 }
 
@@ -479,7 +583,7 @@ func (h *vmActionHandler) migrate(ctx context.Context, namespace, vmName string,
 		}
 	}
 
-	vmimc, err := h.vmims.Create(vmim)
+	vmimc, err := h.vmimClient.Create(vmim)
 	if err != nil {
 		logrus.Infof("start migration of vm %s/%s to node %s but fail to create vmim %s", namespace, vmName, nodeName, err.Error())
 		return err
@@ -521,17 +625,32 @@ func (h *vmActionHandler) abortMigration(namespace, name string) error {
 	migrationUID := getMigrationUID(vmi)
 	for _, vmim := range vmims {
 		if migrationUID == string(vmim.UID) {
-			if !vmim.IsRunning() {
+			if !isVmimAbortable(vmim) {
 				return fmt.Errorf("cannot abort the migration as it is in %q phase", vmim.Status.Phase)
 			}
 			// Migration is aborted by deleting the VMIM object
 			logrus.Infof("abort migration of vm %s/%s, delete vmim %s", namespace, name, vmim.Name)
-			if err := h.vmims.Delete(namespace, vmim.Name, &metav1.DeleteOptions{}); err != nil {
+			if err := h.vmimClient.Delete(namespace, vmim.Name, &metav1.DeleteOptions{}); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func isVmimAbortable(vmim *kubevirtv1.VirtualMachineInstanceMigration) bool {
+	switch vmim.Status.Phase {
+	case kubevirtv1.MigrationPhaseUnset,
+		kubevirtv1.MigrationPending,
+		kubevirtv1.MigrationScheduling,
+		kubevirtv1.MigrationScheduled,
+		kubevirtv1.MigrationPreparingTarget,
+		kubevirtv1.MigrationTargetReady,
+		kubevirtv1.MigrationRunning:
+		return true
+	default:
+		return false
+	}
 }
 
 func (h *vmActionHandler) findMigratableNodes(rw http.ResponseWriter, namespace, name string) error {
@@ -557,12 +676,12 @@ func (h *vmActionHandler) findMigratableNodes(rw http.ResponseWriter, namespace,
 }
 
 func (h *vmActionHandler) findMigratableNodesByVMI(vmi *kubevirtv1.VirtualMachineInstance) ([]string, error) {
-	nodeSelector, err := h.getNodeSelectorRequirementFromVMI(vmi)
+	nodeFilter, err := h.getNodeSelectorRequirementFromVMI(vmi)
 	if err != nil {
 		return nil, err
 	}
 
-	nodes, err := h.nodeCache.List(nodeSelector)
+	nodes, err := h.nodeCache.List(nodeFilter)
 	if err != nil || len(nodes) == 0 {
 		return nil, err
 	}
@@ -605,23 +724,117 @@ func isDrained(node *corev1.Node) bool {
 }
 
 func (h *vmActionHandler) getNodeSelectorRequirementFromVMI(vmi *kubevirtv1.VirtualMachineInstance) (labels.Selector, error) {
-	if vmi == nil || vmi.Spec.Affinity == nil || vmi.Spec.Affinity.NodeAffinity == nil || vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+	if vmi == nil {
 		return labels.Everything(), nil
 	}
 
-	nodeSelector := labels.NewSelector()
-	terms := vmi.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+	vmiPod, err := h.getVMIPod(vmi)
+	if err != nil {
+		return labels.Nothing(), err
+	}
+
+	nodeFilter := labels.NewSelector()
+
+	for key, value := range vmiPod.Spec.NodeSelector {
+		if key == corev1.LabelHostname {
+			continue
+		}
+		requirement, err := labels.NewRequirement(key, selection.Equals, []string{value})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create requirement for %s=%s: %w", key, value, err)
+		}
+		nodeFilter = nodeFilter.Add(*requirement)
+	}
+
+	if isRequiredAffinityFilterPresent(vmiPod) {
+		required := vmiPod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+		var err error
+		nodeFilter, err = addNodeAffinityFilters(nodeFilter, required.NodeSelectorTerms)
+		if err != nil {
+			return nil, err
+		}
+
+	}
+
+	return nodeFilter, nil
+}
+
+func isRequiredAffinityFilterPresent(pod *corev1.Pod) bool {
+	return pod.Spec.Affinity != nil &&
+		pod.Spec.Affinity.NodeAffinity != nil &&
+		pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil
+}
+
+func addNodeAffinityFilters(nodeFilter labels.Selector, terms []corev1.NodeSelectorTerm) (labels.Selector, error) {
 	for _, term := range terms {
-		for _, e := range term.MatchExpressions {
-			r, err := convertNodeSelectorRequirementToSelector(e)
+		for _, expr := range term.MatchExpressions {
+			if expr.Key == corev1.LabelHostname {
+				continue
+			}
+
+			requirement, err := convertNodeSelectorRequirementToSelector(expr)
 			if err != nil {
 				return nil, err
 			}
-			nodeSelector = nodeSelector.Add(*r)
+			if requirement != nil {
+				nodeFilter = nodeFilter.Add(*requirement)
+			}
+		}
+	}
+	return nodeFilter, nil
+}
+
+func convertNodeSelectorRequirementToSelector(req corev1.NodeSelectorRequirement) (*labels.Requirement, error) {
+	var op selection.Operator
+	switch req.Operator {
+	case corev1.NodeSelectorOpIn:
+		op = selection.In
+	case corev1.NodeSelectorOpNotIn:
+		op = selection.NotIn
+	case corev1.NodeSelectorOpExists:
+		op = selection.Exists
+	case corev1.NodeSelectorOpDoesNotExist:
+		op = selection.DoesNotExist
+	case corev1.NodeSelectorOpGt, corev1.NodeSelectorOpLt:
+		logrus.Debugf("Skipping unsupported node selector operator %s for key %s", req.Operator, req.Key)
+		return nil, nil
+	default:
+		logrus.Warnf("Unknown node selector operator %s for key %s", req.Operator, req.Key)
+		return nil, nil
+	}
+
+	requirement, err := labels.NewRequirement(req.Key, op, req.Values)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create requirement for %s %v %v: %w", req.Key, op, req.Values, err)
+	}
+	return requirement, nil
+}
+
+func (h *vmActionHandler) getVMIPod(vmi *kubevirtv1.VirtualMachineInstance) (*corev1.Pod, error) {
+	selector := labels.SelectorFromSet(labels.Set{
+		kubevirtv1.CreatedByLabel: string(vmi.UID),
+	})
+
+	vmiPods, err := h.podCache.List(vmi.Namespace, selector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pods for VMI %s/%s: %w", vmi.Namespace, vmi.Name, err)
+	}
+
+	var activePods []*corev1.Pod
+	for _, pod := range vmiPods {
+		if pod.Status.Phase != corev1.PodSucceeded && pod.Status.Phase != corev1.PodFailed {
+			activePods = append(activePods, pod)
 		}
 	}
 
-	return nodeSelector, nil
+	if len(activePods) == 0 {
+		return nil, fmt.Errorf("there are no active pods for VMI: %s/%s, migration target cannot be picked unless only 1 pod is active", vmi.Namespace, vmi.Name)
+	}
+	if len(activePods) > 1 {
+		return nil, fmt.Errorf("there are multiple active pods for VMI: %s/%s, migration target can be picked only when at most 1 pod is active", vmi.Namespace, vmi.Name)
+	}
+
+	return activePods[0], nil
 }
 
 func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input BackupInput) error {
@@ -640,7 +853,7 @@ func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input Backu
 			Type: harvesterv1.Backup,
 		},
 	}
-	if _, err := h.backups.Create(backup); err != nil {
+	if _, err := h.backupClient.Create(backup); err != nil {
 		return fmt.Errorf("failed to create VM backup, error: %s", err.Error())
 	}
 	return nil
@@ -667,7 +880,7 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 			NewVM:                         false,
 		},
 	}
-	_, err := h.restores.Create(restore)
+	_, err := h.restoreClient.Create(restore)
 	if err != nil {
 		return fmt.Errorf("failed to create restore, error: %s", err.Error())
 	}
@@ -827,36 +1040,6 @@ func (h *vmActionHandler) copySecret(sourceName, targetName string, templateVers
 
 }
 
-func (h *vmActionHandler) updateVMVolumeClaimTemplate(vm *kubevirtv1.VirtualMachine, updateVolumeClaimTemplate func([]corev1.PersistentVolumeClaim) ([]corev1.PersistentVolumeClaim, bool)) error {
-	var volumeClaimTemplates []corev1.PersistentVolumeClaim
-	vmCopy := vm.DeepCopy()
-	anno := vmCopy.GetAnnotations()
-	if volumeClaimTemplatesJSON, ok := anno[util.AnnotationVolumeClaimTemplates]; ok {
-		if err := json.Unmarshal([]byte(volumeClaimTemplatesJSON), &volumeClaimTemplates); err != nil {
-			return fmt.Errorf("failed to unserialize %s, error: %v", util.AnnotationVolumeClaimTemplates, err)
-		}
-	}
-
-	var changed bool
-	volumeClaimTemplates, changed = updateVolumeClaimTemplate(volumeClaimTemplates)
-	if !changed {
-		return nil
-	}
-
-	volumeClaimTemplatesJSON, err := json.Marshal(volumeClaimTemplates)
-	if err != nil {
-		return fmt.Errorf("failed to serialize payload %v, error: %v", volumeClaimTemplates, err)
-	}
-	anno[util.AnnotationVolumeClaimTemplates] = string(volumeClaimTemplatesJSON)
-	vmCopy.SetAnnotations(anno)
-	if !reflect.DeepEqual(vm, vmCopy) {
-		if _, err = h.vms.Update(vmCopy); err != nil {
-			return fmt.Errorf("failed to update vm %s/%s, error: %v", vm.Namespace, vm.Name, err)
-		}
-	}
-	return nil
-}
-
 func (h *vmActionHandler) getPVCStorageClassMap(vm *kubevirtv1.VirtualMachine) (map[string]string, error) {
 	pvcStorageClassMap := map[string]string{}
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
@@ -964,7 +1147,7 @@ func (h *vmActionHandler) createVMImages(templateVersion *harvesterv1.VirtualMac
 			},
 		}
 
-		if _, err := h.vmImages.Create(vmImage); err != nil {
+		if _, err := h.vmImageClient.Create(vmImage); err != nil {
 			return err
 		}
 	}
@@ -1015,6 +1198,7 @@ func (h *vmActionHandler) checkAttachable(pvc *corev1.PersistentVolumeClaim) err
 }
 
 // addVolume add a hotplug volume with given volume source and disk name.
+// name -> VM name, namespace -> VM namespace, input.VolumeSourceName -> PVC name
 func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string, input AddVolumeInput) error {
 	// We only permit volume source from existing PersistentVolumeClaim at this moment.
 	// KubeVirt won't check PVC existence so we validate it on our own.
@@ -1027,72 +1211,59 @@ func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string,
 		return err
 	}
 
+	if err := virtualmachine.CheckBlockRWXVolumeForVM(h.pvcCache, h.storageClassCache, h.vmCache, namespace, input.VolumeSourceName, namespace, name); err != nil {
+		return err
+	}
+
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	vmCopy := vm.DeepCopy()
+
 	// Restrict the flexibility of disk options here but future extension may be possible.
-	body, err := json.Marshal(kubevirtv1.AddVolumeOptions{
+	newDisk := kubevirtv1.Disk{
 		Name: input.DiskName,
-		Disk: &kubevirtv1.Disk{
-			DiskDevice: kubevirtv1.DiskDevice{
-				Disk: &kubevirtv1.DiskTarget{
-					// KubeVirt only support SCSI for hotplug volume.
-					Bus: "scsi",
-				},
+		DiskDevice: kubevirtv1.DiskDevice{
+			Disk: &kubevirtv1.DiskTarget{
+				// https://kubevirt.io/user-guide/storage/hotplug_volumes/#supported-disk-busses
+				Bus: "scsi",
 			},
 		},
-		VolumeSource: &kubevirtv1.HotplugVolumeSource{
+	}
+	newVol := kubevirtv1.Volume{
+		Name: input.DiskName,
+		VolumeSource: kubevirtv1.VolumeSource{
 			PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
 				PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: input.VolumeSourceName,
+					ClaimName: pvc.Name,
 				},
 				Hotpluggable: true,
 			},
 		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to serialize payload,: %v", err)
 	}
+	vmCopy.Spec.Template.Spec.Domain.Devices.Disks = append(vmCopy.Spec.Template.Spec.Domain.Devices.Disks, newDisk)
+	vmCopy.Spec.Template.Spec.Volumes = append(vmCopy.Spec.Template.Spec.Volumes, newVol)
 
-	// Ref: https://kubevirt.io/api-reference/v0.44.0/operations.html#_v1vm-addvolume
-	if err = h.virtSubresourceRestClient.
-		Put().
-		Namespace(namespace).
-		Resource(vmResource).
-		Name(name).
-		SubResource(strings.ToLower(addVolume)).
-		Body(body).
-		Do(ctx).
-		Error(); err != nil {
+	volumeClaimTemplate := corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: pvc.Name,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes:      pvc.Spec.AccessModes,
+			Resources:        pvc.Spec.Resources,
+			VolumeMode:       pvc.Spec.VolumeMode,
+			StorageClassName: pvc.Spec.StorageClassName,
+		},
+	}
+	err = appendVolumeClaimTemplatesFromVMAnnotation(vmCopy, volumeClaimTemplate)
+	if err != nil {
 		return err
 	}
 
-	addVolumeClaimTemplate := func(volumeClaimTemplates []corev1.PersistentVolumeClaim) ([]corev1.PersistentVolumeClaim, bool) {
-		for _, volumeClaimTemplate := range volumeClaimTemplates {
-			if volumeClaimTemplate.Name == input.VolumeSourceName {
-				return volumeClaimTemplates, false
-			}
-		}
-		volumeClaimTemplates = append(volumeClaimTemplates, corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: pvc.Name,
-			},
-			Spec: corev1.PersistentVolumeClaimSpec{
-				AccessModes:      pvc.Spec.AccessModes,
-				Resources:        pvc.Spec.Resources,
-				VolumeMode:       pvc.Spec.VolumeMode,
-				StorageClassName: pvc.Spec.StorageClassName,
-			},
-		})
-		return volumeClaimTemplates, true
-	}
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// We just updated the VM in the last step, so we get the VM from api-server directly, not local cache.
-		vm, err := h.vms.Get(namespace, name, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to get vm %s/%s, error: %v", namespace, name, err)
-		}
-
-		return h.updateVMVolumeClaimTemplate(vm, addVolumeClaimTemplate)
-	})
+	_, err = h.vmClient.Update(vmCopy)
+	return err
 }
 
 // removeVolume remove a hotplug volume by its disk name
@@ -1102,66 +1273,188 @@ func (h *vmActionHandler) removeVolume(ctx context.Context, namespace, name stri
 		return err
 	}
 
-	// Ensure the existence of the disk. KubeVirt will take care of other cases
-	// such as trying to remove a non-hotplug volume.
-	var pvcName string
-	found := false
-	for _, vol := range vm.Spec.Template.Spec.Volumes {
-		if vol.Name == input.DiskName {
-			found = true
-			if vol.PersistentVolumeClaim != nil {
-				pvcName = vol.PersistentVolumeClaim.ClaimName
-			}
+	oldDisks := vm.Spec.Template.Spec.Domain.Devices.Disks
+	newDisks := make([]kubevirtv1.Disk, 0, len(oldDisks))
+	for _, disk := range oldDisks {
+		if disk.Name != input.DiskName {
+			newDisks = append(newDisks, disk)
 		}
 	}
-	if !found {
+	if len(oldDisks) == len(newDisks) {
 		return fmt.Errorf("disk `%s` not found in virtual machine `%s/%s`", input.DiskName, namespace, name)
 	}
 
-	body, err := json.Marshal(kubevirtv1.RemoveVolumeOptions{
-		Name: input.DiskName,
-	})
-
-	if err != nil {
-		return fmt.Errorf("failed to serialize payload,: %v", err)
+	oldVolumes := vm.Spec.Template.Spec.Volumes
+	newVolumes := make([]kubevirtv1.Volume, 0, len(oldVolumes))
+	toRemoveClaimNames := make([]string, 0, 1)
+	for _, vol := range oldVolumes {
+		if vol.Name != input.DiskName {
+			newVolumes = append(newVolumes, vol)
+			continue
+		}
+		if vol.VolumeSource.PersistentVolumeClaim != nil {
+			toRemoveClaimNames = append(toRemoveClaimNames, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
+		}
 	}
-	// Ref: https://kubevirt.io/api-reference/v0.44.0/operations.html#_v1vm-removevolume
-	if err = h.virtSubresourceRestClient.
-		Put().
-		Namespace(namespace).
-		Resource(vmResource).
-		Name(name).
-		SubResource(strings.ToLower(removeVolume)).
-		Body(body).
-		Do(ctx).
-		Error(); err != nil {
+
+	vmCopy := vm.DeepCopy()
+	vmCopy.Spec.Template.Spec.Domain.Devices.Disks = newDisks
+	vmCopy.Spec.Template.Spec.Volumes = newVolumes
+
+	if err := removeVolumeClaimTemplatesFromVMAnnotation(vmCopy, toRemoveClaimNames); err != nil {
 		return err
 	}
 
-	if pvcName == "" {
-		return nil
+	_, err = h.vmClient.Update(vmCopy)
+	return err
+}
+
+func (h *vmActionHandler) getVmNetwork(name, vmNamespaceFallback string) (*cniv1.NetworkAttachmentDefinition, error) {
+	nadNamespacedName := kubevirtmultus.NetAttachDefNamespacedName(vmNamespaceFallback, name)
+	nad, err := h.nadCache.Get(nadNamespacedName.Namespace, nadNamespacedName.Name)
+	if err != nil {
+		return nil, err
+	}
+	return nad, nil
+}
+
+func isVmNetworkHotpluggable(nad *cniv1.NetworkAttachmentDefinition) (bool, error) {
+	if nad.DeletionTimestamp != nil {
+		return false, nil
 	}
 
-	removeVolumeClaimTemplate := func(volumeClaimTemplates []corev1.PersistentVolumeClaim) ([]corev1.PersistentVolumeClaim, bool) {
-		for i, volumeClaimTemplate := range volumeClaimTemplates {
-			if volumeClaimTemplate.Name == pvcName {
-				volumeClaimTemplates[i], volumeClaimTemplates[len(volumeClaimTemplates)-1] = volumeClaimTemplates[len(volumeClaimTemplates)-1], volumeClaimTemplates[i]
-				volumeClaimTemplates = volumeClaimTemplates[:len(volumeClaimTemplates)-1]
-				return volumeClaimTemplates, true
+	// nads created by system are not hotpluggable
+	// they were used for special cases, like migration network or storage network
+	if util.IsNadCreatedBySystem(nad) {
+		return false, nil
+	}
+
+	conf, err := util.DecodeNadConfigToNetConf(nad)
+	if err != nil {
+		return false, err
+	}
+
+	if !conf.IsBridgeCNI() {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// addNic add a hotplug NIC with given interface name and network name.
+func (h *vmActionHandler) addNic(ctx context.Context, namespace, name string, input AddNicInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	nad, err := h.getVmNetwork(input.NetworkName, namespace)
+	if err != nil {
+		return err
+	}
+
+	ok, err := isVmNetworkHotpluggable(nad)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("network %s is not hot-pluggable", input.NetworkName)
+	}
+
+	vmCopy := vm.DeepCopy()
+
+	newIface := kubevirtv1.Interface{
+		Name:                   input.InterfaceName,
+		MacAddress:             input.MacAddress,
+		Model:                  kubevirtv1.VirtIO,
+		InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{Bridge: &kubevirtv1.InterfaceBridge{}},
+	}
+	vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces = append(vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces, newIface)
+
+	newNetwork := kubevirtv1.Network{
+		Name:          input.InterfaceName,
+		NetworkSource: kubevirtv1.NetworkSource{Multus: &kubevirtv1.MultusNetwork{NetworkName: input.NetworkName}},
+	}
+	vmCopy.Spec.Template.Spec.Networks = append(vmCopy.Spec.Template.Spec.Networks, newNetwork)
+
+	_, err = h.vmClient.Update(vmCopy)
+	if err != nil {
+		return err
+	}
+
+	logrus.Infof("VM %s/%s has interface %s backed by network %s hot-plugged", namespace, name, input.InterfaceName, input.NetworkName)
+
+	// https://kubevirt.io/user-guide/network/hotplug_interfaces/#migration-based-hotplug
+	// Although it's not required to manually migrate the VM as mentioned in the document,
+	// we still immediately call the migration here for better UX instead of waiting KubeVirt to discover and reconcile.
+	return h.migrate(ctx, namespace, name, "")
+}
+
+// removeNic remove a hotplug NIC by its interface name
+func (h *vmActionHandler) removeNic(ctx context.Context, namespace, name string, input RemoveNicInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	if _, err := virtualmachine.SupportHotUnplugNic(vm); err != nil {
+		return err
+	}
+
+	vmCopy := vm.DeepCopy()
+
+	found := false
+	interfaces := vmCopy.Spec.Template.Spec.Domain.Devices.Interfaces
+	for idx := range interfaces {
+		if interfaces[idx].Name == input.InterfaceName {
+			if ok, _ := virtualmachine.IsInterfaceHotUnpluggable(interfaces[idx]); ok {
+				interfaces[idx].State = kubevirtv1.InterfaceStateAbsent
+				found = true
+				break
+			}
+			return fmt.Errorf("interface %s is not hot-unpluggable", input.InterfaceName)
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("interface %s doesn't exist", input.InterfaceName)
+	}
+
+	_, err = h.vmClient.Update(vmCopy)
+	if err != nil {
+		return err
+	}
+
+	logrus.Infof("VM %s/%s has interface %s hot-unplugged", namespace, name, input.InterfaceName)
+
+	// https://kubevirt.io/user-guide/network/hotplug_interfaces/#migration-based-hotplug
+	// Although it's not required to manually migrate the VM as mentioned in the document,
+	// we still immediately call the migration here for better UX instead of waiting KubeVirt to discover and reconcile.
+	return h.migrate(ctx, namespace, name, "")
+}
+
+// findHotunpluggableNics return a list of NIC names that could be hot-unplugged
+func (h *vmActionHandler) findHotunpluggableNics(rw http.ResponseWriter, namespace, name string) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	ifaceNames := make([]string, 0)
+	if ok, _ := virtualmachine.SupportHotUnplugNic(vm); ok {
+		iterfaces := vm.Spec.Template.Spec.Domain.Devices.Interfaces
+		for _, iface := range iterfaces {
+			if ok, _ := virtualmachine.IsInterfaceHotUnpluggable(iface); ok {
+				ifaceNames = append(ifaceNames, iface.Name)
 			}
 		}
-		return volumeClaimTemplates, false
+	}
+	resp := FindHotunpluggableNicsOutput{
+		Interfaces: ifaceNames,
 	}
 
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// We just updated the VM in the last step, so we get the VM from api-server directly, not local cache.
-		vm, err = h.vms.Get(namespace, name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-
-		return h.updateVMVolumeClaimTemplate(vm, removeVolumeClaimTemplate)
-	})
+	util.ResponseOKWithBody(rw, resp)
+	return nil
 }
 
 // cloneVM creates a VM which uses volume cloning from the source VM.
@@ -1182,7 +1475,7 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 	}
 
 	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(newPVCsString)
-	if newVM, err = h.vms.Create(newVM); err != nil {
+	if newVM, err = h.vmClient.Create(newVM); err != nil {
 		return fmt.Errorf("cannot create new VM %s/%s, err: %w", newVM.Namespace, newVM.Name, err)
 	}
 
@@ -1391,7 +1684,7 @@ func (h *vmActionHandler) dismissInsufficientResourceQuota(name, namespace strin
 
 	vmCpy := vm.DeepCopy()
 	delete(vmCpy.Annotations, util.AnnotationInsufficientResourceQuota)
-	if _, err = h.vms.Update(vmCpy); err != nil {
+	if _, err = h.vmClient.Update(vmCpy); err != nil {
 		return fmt.Errorf("failed to update vm %s/%s, error: %v", vm.Namespace, vm.Name, err)
 	}
 	return nil
@@ -1475,25 +1768,6 @@ func getClonedVMYamlFromSourceVM(input CloneInput, sourceVM *kubevirtv1.VirtualM
 		newVM.Spec.Template.Spec.Domain.Devices.Interfaces[i].MacAddress = ""
 	}
 	return newVM
-}
-
-func convertNodeSelectorRequirementToSelector(req corev1.NodeSelectorRequirement) (*labels.Requirement, error) {
-	switch req.Operator {
-	case corev1.NodeSelectorOpIn:
-		return labels.NewRequirement(req.Key, selection.In, req.Values)
-	case corev1.NodeSelectorOpNotIn:
-		return labels.NewRequirement(req.Key, selection.NotIn, req.Values)
-	case corev1.NodeSelectorOpExists:
-		return labels.NewRequirement(req.Key, selection.Exists, nil)
-	case corev1.NodeSelectorOpDoesNotExist:
-		return labels.NewRequirement(req.Key, selection.DoesNotExist, nil)
-	case corev1.NodeSelectorOpGt:
-		return labels.NewRequirement(req.Key, selection.GreaterThan, req.Values)
-	case corev1.NodeSelectorOpLt:
-		return labels.NewRequirement(req.Key, selection.LessThan, req.Values)
-	default:
-		return &labels.Requirement{}, fmt.Errorf("unsupported operator: %v", req.Operator)
-	}
 }
 
 func (h *vmActionHandler) updateResourceQuota(namespace, name string, input UpdateResourceQuotaInput) error {
@@ -1593,6 +1867,6 @@ func (h *vmActionHandler) cpuAndMemoryHotplug(namespace, name string, input CPUA
 		"patchOps":  patchOps,
 	}).Info("patch cpu and memory hotplug")
 	patchData := fmt.Sprintf("[%s]", strings.Join(patchOps, ","))
-	_, err := h.vms.Patch(namespace, name, k8stypes.JSONPatchType, []byte(patchData))
+	_, err := h.vmClient.Patch(namespace, name, k8stypes.JSONPatchType, []byte(patchData))
 	return err
 }

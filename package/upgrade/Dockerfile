@@ -1,13 +1,13 @@
 ARG HARVESTER_INSTALLER_REF=master-head
-FROM registry.opensuse.org/isv/rancher/harvester/os/v1.6/main/baseos:v1.6 as baseos
+FROM registry.opensuse.org/isv/rancher/harvester/os/dev/main/baseos:latest as baseos
 FROM rancher/harvester-installer:${HARVESTER_INSTALLER_REF} as installer
-FROM registry.suse.com/bci/bci-base:15.7
+FROM registry.suse.com/bci/bci-base:16.0
 
 ARG ARCH=amd64
 ENV ARCH=${ARCH}
 RUN zypper rm -y container-suseconnect && \
     zypper --no-gpg-checks ref && \
-    zypper in -y curl e2fsprogs rsync awk zstd jq helm zip unzip nginx && zypper clean -a
+    zypper in -y curl e2fsprogs rsync awk zstd jq helm zip unzip nginx util-linux && zypper clean -a
 
 ENV KUBECTL_VERSION v1.32.3
 RUN curl -sfL https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl > /usr/bin/kubectl && \

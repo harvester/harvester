@@ -12,6 +12,8 @@ import (
 	corefake "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -461,6 +463,206 @@ func Test_vmValidator_containsEnoughResourceQuotaToStartVM(t *testing.T) {
 
 			err := c.containsEnoughResourceQuotaToStartVM(tt.vm, tt.nsrq, tt.rq)
 			assert.Equalf(t, tt.wantErr, err != nil, "case %s containsEnoughResourceQuotaToStartVM(%v) failed", tt.name, tt.vm.Name)
+		})
+	}
+}
+
+// when setting `additional-guest-memory-overhead-ratio` changes, the VM might reach the limit and can't start
+// tune those two parameters accordingly
+func Test_vmValidator_containsEnoughResourceQuotaToStartVM_WithChangedOverheadRatio(t *testing.T) {
+	generateRQ := func(cpu, mem int64) kubevirtv1.ResourceRequirements {
+		return kubevirtv1.ResourceRequirements{
+			Limits: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceMemory: *resource.NewQuantity(mem*memory1Gi, resource.DecimalSI),
+				corev1.ResourceCPU:    *resource.NewQuantity(cpu, resource.DecimalSI),
+			},
+		}
+	}
+
+	nsrq := v3.NamespaceResourceQuota{
+		Limit: v3.ResourceQuotaLimit{
+			LimitsCPU:    "5000m",
+			LimitsMemory: "5120Mi", // 5Gi
+		},
+	}
+
+	tests := []struct {
+		name          string
+		vm            *kubevirtv1.VirtualMachine
+		nsrq          *v3.NamespaceResourceQuota
+		rq            *corev1.ResourceQuota
+		overheadRatio string
+		wantErr       bool
+	}{
+		{
+			name: "VM can start as quota is enough with default overhead-ratio 1.5",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vm1",
+					Namespace: testNS,
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: generateRQ(4, 4), // 4core, 4Gi
+							},
+						},
+					},
+				},
+			},
+			nsrq: &nsrq,
+			rq: &corev1.ResourceQuota{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNS,
+					Name:      "rq1",
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					Annotations: map[string]string{
+						util.CattleAnnotationResourceQuota: "{\"limit\":{\"limitsCpu\":\"4\", \"limitsMemory\":\"5120Mi\"}}",
+					},
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(4, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(10*memory1Gi, resource.DecimalSI),
+					},
+				},
+			},
+			overheadRatio: "1.5", // default
+			wantErr:       false,
+		},
+		{
+			name: "VM can start as quota is enough with customized overhead-ratio 2.5",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vm1",
+					Namespace: testNS,
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: generateRQ(4, 4),
+							},
+						},
+					},
+				},
+			},
+			nsrq: &nsrq,
+			rq: &corev1.ResourceQuota{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNS,
+					Name:      "rq1",
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					Annotations: map[string]string{
+						util.CattleAnnotationResourceQuota: "{\"limit\":{\"limitsCpu\":\"4\", \"limitsMemory\":\"5120Mi\"}}",
+					},
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(4, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(10*memory1Gi, resource.DecimalSI),
+					},
+				},
+			},
+			overheadRatio: "2.5",
+			wantErr:       false,
+		},
+		{
+			name: "VM can't start as quota is not enough with customized overhead-ratio 5.0",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vm1",
+					Namespace: testNS,
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: generateRQ(4, 4),
+							},
+						},
+					},
+				},
+			},
+			nsrq: &nsrq,
+			rq: &corev1.ResourceQuota{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNS,
+					Name:      "rq1",
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					Annotations: map[string]string{
+						util.CattleAnnotationResourceQuota: "{\"limit\":{\"limitsCpu\":\"4\", \"limitsMemory\":\"5120Mi\"}}",
+					},
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(4, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(10*memory1Gi, resource.DecimalSI),
+					},
+				},
+			},
+			overheadRatio: "5.0",
+			wantErr:       true,
+		},
+		{
+			name: "VM can start as quota is enough with customized overhead-ratio 5.0",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vm1",
+					Namespace: testNS,
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Resources: generateRQ(4, 3), // RQ does not change, but VM requests less memory
+							},
+						},
+					},
+				},
+			},
+			nsrq: &nsrq,
+			rq: &corev1.ResourceQuota{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNS,
+					Name:      "rq1",
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					Annotations: map[string]string{
+						util.CattleAnnotationResourceQuota: "{\"limit\":{\"limitsCpu\":\"4\", \"limitsMemory\":\"5120Mi\"}}",
+					},
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(4, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(10*memory1Gi, resource.DecimalSI),
+					},
+				},
+			},
+			overheadRatio: "5.0",
+			wantErr:       false,
+		},
+	}
+	for _, tt := range tests {
+		clientset := fake.NewSimpleClientset()
+		overheadRatio := &harvesterv1.Setting{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "additional-guest-memory-overhead-ratio",
+			},
+			Value: tt.overheadRatio,
+		}
+		err := clientset.Tracker().Add(overheadRatio)
+		assert.Nil(t, err, "mock resource should add into fake controller tracker")
+		settingCache := fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings)
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewCalculator(
+				nil,
+				nil,
+				nil,
+				nil,
+				settingCache)
+			err := c.containsEnoughResourceQuotaToStartVM(tt.vm, tt.nsrq, tt.rq)
+			assert.Equalf(t, tt.wantErr, err != nil, "case %s Test_vmValidator_containsEnoughResourceQuotaToStartVM_WithChangedOverheadRatio(%v) failed", tt.name, tt.vm.Name)
 		})
 	}
 }

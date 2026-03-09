@@ -27,7 +27,10 @@ cp ../../bin/upgrade-helper .
 
 BUILD_ARGS="--build-arg ARCH=${ARCH}"
 if [ -n "${HARVESTER_INSTALLER_REF}" ]; then
+    docker pull rancher/harvester-installer:${HARVESTER_INSTALLER_REF}
     BUILD_ARGS="${BUILD_ARGS} --build-arg HARVESTER_INSTALLER_REF=${HARVESTER_INSTALLER_REF}"
+else
+    docker pull rancher/harvester-installer:master-head
 fi
 docker build -f ${DOCKERFILE} ${BUILD_ARGS} -t ${IMAGE} .
 echo Built ${IMAGE}

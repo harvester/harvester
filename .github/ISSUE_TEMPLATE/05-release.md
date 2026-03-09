@@ -21,7 +21,7 @@ Action items for releasing v
 
 **The Release Captain needs to finish the following items.**
 
-- [ ] Before creating RC1, create a new milestone and stable branches for the release [[doc](https://github.com/harvester/harvester/wiki/Creating-a-new-milestone)].
+- [ ] Before creating RC1, create a new milestone and stable branches for the release [[doc](https://github.com/harvester/harvester/wiki/RC-Readiness-and-Version-Bumping-Guide)].
 - [ ] Release candidate builds [[doc](https://github.com/harvester/harvester/wiki/Create-a-Harvester-release)].
 
 **The QA captain needs to coordinate the following items before the GA release.**
@@ -61,14 +61,9 @@ Action items for releasing v
 ### Post-Release
 
 - [ ] Update [support-versions](https://github.com/harvester/harvester/blob/master/misc/support-versions.txt). You can only keep the latest patch release here.
-- [ ] Update upgrade responder 1 week after the release [doc].
+- [ ] Update upgrade responder 1 week after the release (community release can skip this) [doc].
   - For the first stable release, we need to consider several factors and reach a consensus among maintainers before claiming it stable. 
   - For any patch release after a stable release, we need to wait 1-2 weeks for user feedback.
-- [ ] Create `isv:rancher:Harvester:OS:v<next minor>` and `isv:Rancher:Harvester:ExtraPackages:v<next minor>` projects on BS and link them to the corresponding dev project, and unlink the previous minor from dev.
 
-
-**After marking the release as a `stable` release, the Release Captain needs to coordinate the following items**
-
-- [ ] Update the [support matrix](https://www.suse.com/suse-harvester/support-matrix) - @asettle
 
 cc @harvester/dev @harvester/qa

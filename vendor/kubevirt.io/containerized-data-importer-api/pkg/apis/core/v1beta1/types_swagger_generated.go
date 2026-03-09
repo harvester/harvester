@@ -68,6 +68,14 @@ func (DataVolumeSourceSnapshot) SwaggerDoc() map[string]string {
 	}
 }
 
+func (DataSourceRefSourceDataSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":          "DataSourceRefSourceDataSource serves as a reference to another DataSource\nCan be resolved into a DataVolumeSourcePVC or a DataVolumeSourceSnapshot\nThe maximum depth of a reference chain may not exceed 1.",
+		"namespace": "The namespace of the source DataSource",
+		"name":      "The name of the source DataSource",
+	}
+}
+
 func (DataVolumeBlankImage) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"": "DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC",
@@ -105,6 +113,13 @@ func (DataVolumeSourceRegistry) SwaggerDoc() map[string]string {
 		"pullMethod":    "PullMethod can be either \"pod\" (default import), or \"node\" (node docker cache based import)\n+optional",
 		"secretRef":     "SecretRef provides the secret reference needed to access the Registry source\n+optional",
 		"certConfigMap": "CertConfigMap provides a reference to the Registry certs\n+optional",
+		"platform":      "Platform describes the minimum runtime requirements of the image\n+optional",
+	}
+}
+
+func (PlatformOptions) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"architecture": "Architecture specifies the image target CPU architecture\n+optional",
 	}
 }
 
@@ -121,11 +136,12 @@ func (DataVolumeSourceHTTP) SwaggerDoc() map[string]string {
 
 func (DataVolumeSourceImageIO) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":              "DataVolumeSourceImageIO provides the parameters to create a Data Volume from an imageio source",
-		"url":           "URL is the URL of the ovirt-engine",
-		"diskId":        "DiskID provides id of a disk to be imported",
-		"secretRef":     "SecretRef provides the secret reference needed to access the ovirt-engine",
-		"certConfigMap": "CertConfigMap provides a reference to the CA cert",
+		"":                   "DataVolumeSourceImageIO provides the parameters to create a Data Volume from an imageio source",
+		"url":                "URL is the URL of the ovirt-engine",
+		"diskId":             "DiskID provides id of a disk to be imported",
+		"secretRef":          "SecretRef provides the secret reference needed to access the ovirt-engine",
+		"certConfigMap":      "CertConfigMap provides a reference to the CA cert",
+		"insecureSkipVerify": "InsecureSkipVerify is a flag to skip certificate verification",
 	}
 }
 
@@ -138,6 +154,7 @@ func (DataVolumeSourceVDDK) SwaggerDoc() map[string]string {
 		"thumbprint":   "Thumbprint is the certificate thumbprint of the vCenter or ESXi host",
 		"secretRef":    "SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host",
 		"initImageURL": "InitImageURL is an optional URL to an image containing an extracted VDDK library, overrides v2v-vmware config map",
+		"extraArgs":    "ExtraArgs is a reference to a ConfigMap containing extra arguments to pass directly to the VDDK library",
 	}
 }
 
@@ -174,7 +191,7 @@ func (DataVolumeCondition) SwaggerDoc() map[string]string {
 
 func (StorageProfile) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "StorageProfile provides a CDI specific recommendation for storage parameters\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion\n+kubebuilder:resource:scope=Cluster",
+		"": "StorageProfile provides a CDI specific recommendation for storage parameters\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion\n+kubebuilder:resource:scope=Cluster\n+kubebuilder:subresource:status",
 	}
 }
 
@@ -230,9 +247,10 @@ func (DataSourceSpec) SwaggerDoc() map[string]string {
 
 func (DataSourceSource) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":         "DataSourceSource represents the source for our DataSource",
-		"pvc":      "+optional",
-		"snapshot": "+optional",
+		"":           "DataSourceSource represents the source for our DataSource",
+		"pvc":        "+optional",
+		"snapshot":   "+optional",
+		"dataSource": "+optional",
 	}
 }
 
@@ -270,13 +288,14 @@ func (DataImportCron) SwaggerDoc() map[string]string {
 
 func (DataImportCronSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                  "DataImportCronSpec defines specification for DataImportCron",
-		"template":          "Template specifies template for the DVs to be created",
-		"schedule":          "Schedule specifies in cron format when and how often to look for new imports",
-		"garbageCollect":    "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.\nOptions are currently \"Outdated\" and \"Never\", defaults to \"Outdated\".\n+optional",
-		"importsToKeep":     "Number of import PVCs to keep when garbage collecting. Default is 3.\n+optional",
-		"managedDataSource": "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.\nDataSource has to be in the same namespace.",
-		"retentionPolicy":   "RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RatainAll.\n+optional",
+		"":                   "DataImportCronSpec defines specification for DataImportCron",
+		"template":           "Template specifies template for the DVs to be created",
+		"schedule":           "Schedule specifies in cron format when and how often to look for new imports",
+		"garbageCollect":     "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.\nOptions are currently \"Outdated\" and \"Never\", defaults to \"Outdated\".\n+optional",
+		"importsToKeep":      "Number of import PVCs to keep when garbage collecting. Default is 3.\n+optional",
+		"managedDataSource":  "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.\nDataSource has to be in the same namespace.",
+		"retentionPolicy":    "RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RatainAll.\n+optional",
+		"serviceAccountName": "ServiceAccountName is the name of the ServiceAccount for creating DataVolumes.\n+optional\n+kubebuilder:validation:MinLength=1",
 	}
 }
 
@@ -504,10 +523,10 @@ func (CDIConfigSpec) SwaggerDoc() map[string]string {
 		"scratchSpaceStorageClass": "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
 		"podResourceRequirements":  "ResourceRequirements describes the compute resource requirements.",
 		"featureGates":             "FeatureGates are a list of specific enabled feature gates",
-		"filesystemOverhead":       "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
+		"filesystemOverhead":       "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.06 (6% overhead)",
 		"preallocation":            "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 		"insecureRegistries":       "InsecureRegistries is a list of TLS disabled registries",
-		"dataVolumeTTLSeconds":     "DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. Disabled by default.\n+optional",
+		"dataVolumeTTLSeconds":     "DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. Disabled by default.\nDeprecated: Removed in v1.62.\n+optional",
 		"tlsSecurityProfile":       "TLSSecurityProfile is used by operators to apply cluster-wide TLS security settings to operands.",
 		"imagePullSecrets":         "The imagePullSecrets used to pull the container images",
 		"logVerbosity":             "LogVerbosity overrides the default verbosity level used to initialize loggers\n+optional",

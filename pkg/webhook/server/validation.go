@@ -1,8 +1,8 @@
 package server
 
 import (
-	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/webhook"
@@ -14,9 +14,11 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/bundle"
 	"github.com/harvester/harvester/pkg/webhook/resources/bundledeployment"
 	"github.com/harvester/harvester/pkg/webhook/resources/datavolume"
+	"github.com/harvester/harvester/pkg/webhook/resources/deployment"
 	"github.com/harvester/harvester/pkg/webhook/resources/keypair"
 	"github.com/harvester/harvester/pkg/webhook/resources/managedchart"
 	"github.com/harvester/harvester/pkg/webhook/resources/namespace"
+	"github.com/harvester/harvester/pkg/webhook/resources/networkattachmentdefinition"
 	"github.com/harvester/harvester/pkg/webhook/resources/node"
 	"github.com/harvester/harvester/pkg/webhook/resources/persistentvolumeclaim"
 	"github.com/harvester/harvester/pkg/webhook/resources/resourcequota"
@@ -38,7 +40,7 @@ import (
 )
 
 func Validation(clients *clients.Clients, options *config.Options) (http.Handler, []types.Resource, error) {
-	bearToken, err := ioutil.ReadFile(clients.RESTConfig.BearerTokenFile)
+	bearToken, err := os.ReadFile(clients.RESTConfig.BearerTokenFile)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -89,6 +91,7 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()),
 		upgrade.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache(),
 			clients.Core.Node().Cache(),
 			clients.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
 			clients.ClusterFactory.Cluster().V1beta1().Cluster().Cache(),
@@ -163,13 +166,19 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 			clients.SnapshotFactory.Snapshot().V1().VolumeSnapshotClass().Cache(),
 			client,
 		),
-		namespace.NewValidator(clients.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache()),
+		namespace.NewValidator(
+			clients.HarvesterCoreFactory.Core().V1().ResourceQuota().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
+		),
 		addon.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache(),
 			clients.LoggingFactory.Logging().V1beta1().Flow().Cache(),
 			clients.LoggingFactory.Logging().V1beta1().Output().Cache(),
 			clients.LoggingFactory.Logging().V1beta1().ClusterFlow().Cache(),
 			clients.LoggingFactory.Logging().V1beta1().ClusterOutput().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().UpgradeLog().Cache(),
+			clients.Core.Node().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 		),
 		version.NewValidator(),
 		volumesnapshot.NewValidator(
@@ -190,6 +199,13 @@ func Validation(clients *clients.Clients, options *config.Options) (http.Handler
 		datavolume.NewValidator(
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
+		),
+		deployment.NewValidator(
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
+			clients.AppsFactory.Apps().V1().Deployment().Cache(),
+		),
+		networkattachmentdefinition.NewValidator(
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 		),
 	}
 

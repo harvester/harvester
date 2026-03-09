@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -55,15 +55,17 @@ var (
 				util.LabelSVMBackupTimestamp: timestamp1,
 			},
 		},
-		Status: &harvesterv1.VirtualMachineBackupStatus{
-			ReadyToUse: pointer.Bool(true),
-			Error:      nil,
+		Status: harvesterv1.VirtualMachineBackupStatus{
+			SourceSpec:    &harvesterv1.VirtualMachineSourceSpec{},
+			VolumeBackups: []harvesterv1.VolumeBackup{},
+			ReadyToUse:    ptr.To(true),
+			Error:         nil,
 		},
 	}
 
 	vmbackup1Info = &harvesterv1.VMBackupInfo{
 		Name:       vmbackup1.Name,
-		ReadyToUse: pointer.Bool(true),
+		ReadyToUse: ptr.To(true),
 		Error:      nil,
 	}
 
@@ -79,8 +81,8 @@ var (
 				util.LabelSVMBackupTimestamp: timestamp2,
 			},
 		},
-		Status: &harvesterv1.VirtualMachineBackupStatus{
-			ReadyToUse: pointer.Bool(true),
+		Status: harvesterv1.VirtualMachineBackupStatus{
+			ReadyToUse: ptr.To(true),
 			Error:      nil,
 		},
 	}
@@ -97,8 +99,8 @@ var (
 				util.LabelSVMBackupTimestamp: timestamp3,
 			},
 		},
-		Status: &harvesterv1.VirtualMachineBackupStatus{
-			ReadyToUse: pointer.Bool(true),
+		Status: harvesterv1.VirtualMachineBackupStatus{
+			ReadyToUse: ptr.To(true),
 			Error:      nil,
 		},
 	}
@@ -115,8 +117,8 @@ var (
 				util.LabelSVMBackupTimestamp: timestampErr,
 			},
 		},
-		Status: &harvesterv1.VirtualMachineBackupStatus{
-			ReadyToUse: pointer.Bool(false),
+		Status: harvesterv1.VirtualMachineBackupStatus{
+			ReadyToUse: ptr.To(false),
 			Error:      &harvesterv1.Error{},
 		},
 	}

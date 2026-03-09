@@ -1,5 +1,5 @@
 /*
-Copyright 2025 Rancher Labs, Inc.
+Copyright 2026 SUSE, LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ type FakeUpgradeV1 struct {
 }
 
 func (c *FakeUpgradeV1) Plans(namespace string) v1.PlanInterface {
-	return &FakePlans{c, namespace}
+	return newFakePlans(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

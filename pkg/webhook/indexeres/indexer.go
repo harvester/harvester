@@ -56,6 +56,7 @@ func RegisterIndexers(clients *clients.Clients) {
 	vmInformer := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	vmInformer.AddIndexer(indexeresutil.VMByPVCIndex, indexeresutil.VMByPVC)
 	vmInformer.AddIndexer(indexeresutil.VMByHotplugPVCIndex, indexeresutil.VMByHotplugPVC)
+	vmInformer.AddIndexer(indexeresutil.VMByNonShareablePVCIndex, indexeresutil.VMByNonShareablePVC)
 
 	svmBackupCache := clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache()
 	svmBackupCache.AddIndexer(ScheduleVMBackupBySourceVM, scheduleVMBackupBySourceVM)
@@ -73,14 +74,14 @@ func RegisterIndexers(clients *clients.Clients) {
 }
 
 func vmBackupBySourceUID(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
-	if obj.Status != nil && obj.Status.SourceUID != nil {
+	if obj.Status.SourceUID != nil {
 		return []string{string(*obj.Status.SourceUID)}, nil
 	}
 	return []string{}, nil
 }
 
 func vmBackupSnapshotByPVCNamespaceAndName(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
-	if obj.Spec.Type == harvesterv1.Backup || obj.Status == nil {
+	if obj.Spec.Type == harvesterv1.Backup {
 		return []string{}, nil
 	}
 
@@ -98,11 +99,7 @@ func vmBackupByIsProgressing(obj *harvesterv1.VirtualMachineBackup) ([]string, e
 }
 
 func vmBackupByStorageClassName(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
-	storageClassNames := []string{}
-	if obj.Status == nil {
-		return storageClassNames, nil
-	}
-
+	storageClassNames := make([]string, 0, len(obj.Status.VolumeBackups))
 	for _, volumeBackup := range obj.Status.VolumeBackups {
 		storageClassNames = append(storageClassNames, *volumeBackup.PersistentVolumeClaim.Spec.StorageClassName)
 	}

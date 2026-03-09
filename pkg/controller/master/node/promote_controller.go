@@ -3,8 +3,10 @@ package node
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
@@ -19,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/util"
@@ -28,11 +30,6 @@ import (
 
 const (
 	promoteControllerName = "promote-node-controller"
-
-	KubeNodeRoleLabelPrefix      = "node-role.kubernetes.io/"
-	KubeMasterNodeLabelKey       = KubeNodeRoleLabelPrefix + "master"
-	KubeControlPlaneNodeLabelKey = KubeNodeRoleLabelPrefix + "control-plane"
-	KubeEtcdNodeLabelKey         = KubeNodeRoleLabelPrefix + "etcd"
 
 	// promote rules:
 	// w/o role definition: promote the ready worker node randomly
@@ -47,11 +44,6 @@ const (
 	HarvesterManagedNodeLabelKey        = util.HarvesterManagedNodeLabelKey
 	HarvesterPromoteNodeLabelKey        = util.HarvesterPromoteNodeLabelKey
 	HarvesterPromoteStatusAnnotationKey = util.HarvesterPromoteStatusAnnotationKey
-
-	PromoteStatusComplete = "complete"
-	PromoteStatusRunning  = "running"
-	PromoteStatusUnknown  = "unknown"
-	PromoteStatusFailed   = "failed"
 
 	defaultSpecManagementNumber = 3
 
@@ -68,6 +60,8 @@ var (
 
 	ConditionJobComplete = condition.Cond(batchv1.JobComplete)
 	ConditionJobFailed   = condition.Cond(batchv1.JobFailed)
+
+	promoteEventTitle = cases.Title(language.English)
 )
 
 // PromoteHandler
@@ -78,7 +72,7 @@ type PromoteHandler struct {
 	jobCache  ctlbatchv1.JobCache
 	recorder  record.EventRecorder
 	namespace string
-	clientset *kubernetes.Clientset
+	clientset kubernetes.Interface
 }
 
 // PromoteRegister registers the node controller
@@ -164,11 +158,11 @@ func (h *PromoteHandler) OnJobChanged(_ string, job *batchv1.Job) (*batchv1.Job,
 	}
 
 	if ConditionJobComplete.IsTrue(job) {
-		return h.setPromoteResult(job, node, PromoteStatusComplete)
+		return h.setPromoteResult(job, node, util.PromoteStatusComplete)
 	}
 
 	if ConditionJobFailed.IsTrue(job) {
-		return h.setPromoteResult(job, node, PromoteStatusFailed)
+		return h.setPromoteResult(job, node, util.PromoteStatusFailed)
 	}
 
 	return job, nil
@@ -197,8 +191,8 @@ func (h *PromoteHandler) OnJobRemove(_ string, job *batchv1.Job) (*batchv1.Job, 
 		return job, err
 	}
 
-	if isPromoteStatusIn(node, PromoteStatusRunning) {
-		return h.setPromoteResult(job, node, PromoteStatusUnknown)
+	if util.IsPromoteStatusIn(node, util.PromoteStatusRunning) {
+		return h.setPromoteResult(job, node, util.PromoteStatusUnknown)
 	}
 
 	return job, nil
@@ -223,7 +217,7 @@ func (h *PromoteHandler) logPromoteEvent(node *corev1.Node, status string) {
 	preStatus := node.Annotations[HarvesterPromoteStatusAnnotationKey]
 	eventType := corev1.EventTypeNormal
 	switch status {
-	case PromoteStatusUnknown, PromoteStatusFailed:
+	case util.PromoteStatusUnknown, util.PromoteStatusFailed:
 		eventType = corev1.EventTypeWarning
 	}
 	nodeReference := &corev1.ObjectReference{
@@ -232,18 +226,18 @@ func (h *PromoteHandler) logPromoteEvent(node *corev1.Node, status string) {
 		Kind: "Node",
 	}
 	h.recorder.Event(nodeReference, eventType,
-		fmt.Sprintf("NodePromote%s", strings.Title(status)),
+		fmt.Sprintf("NodePromote%s", promoteEventTitle.String(status)),
 		fmt.Sprintf("Node %s promote status change: %s => %s", node.Name, preStatus, status))
 }
 
 // setPromoteStart set node unschedulable and set promote status running.
 func (h *PromoteHandler) setPromoteStart(node *corev1.Node) (*corev1.Node, error) {
-	if node.Annotations[HarvesterPromoteStatusAnnotationKey] == PromoteStatusRunning {
+	if node.Annotations[HarvesterPromoteStatusAnnotationKey] == util.PromoteStatusRunning {
 		return node, nil
 	}
-	h.logPromoteEvent(node, PromoteStatusRunning)
+	h.logPromoteEvent(node, util.PromoteStatusRunning)
 	toUpdate := node.DeepCopy()
-	toUpdate.Annotations[HarvesterPromoteStatusAnnotationKey] = PromoteStatusRunning
+	toUpdate.Annotations[HarvesterPromoteStatusAnnotationKey] = util.PromoteStatusRunning
 	toUpdate.Spec.Unschedulable = true
 	return h.nodes.Update(toUpdate)
 }
@@ -256,7 +250,7 @@ func (h *PromoteHandler) setPromoteResult(job *batchv1.Job, node *corev1.Node, s
 	h.logPromoteEvent(node, status)
 	toUpdate := node.DeepCopy()
 	toUpdate.Annotations[HarvesterPromoteStatusAnnotationKey] = status
-	if status == PromoteStatusComplete {
+	if status == util.PromoteStatusComplete {
 		toUpdate.Spec.Unschedulable = false
 	}
 	_, err := h.nodes.Update(toUpdate)
@@ -282,13 +276,13 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 	nodeNumber := len(nodeList)
 	canBeManagementNodeCount := nodeNumber
 	for _, node := range nodeList {
-		isManagement := IsManagementRole(node)
+		isManagement := util.IsManagementRole(node)
 
 		if isManagement {
 			managementNumber++
 		}
 
-		witnessPromoted = witnessPromoted || IsWitnessNode(node, isManagement)
+		witnessPromoted = witnessPromoted || util.IsWitnessNode(node, isManagement)
 
 		// return if there are already enough management nodes or total amount of nodes
 		if managementNumber == func() int {
@@ -301,12 +295,12 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 		}
 
 		// worker promotion is complete but node is not yet labeled as a management node
-		if !isManagement && isPromoteStatusIn(node, PromoteStatusComplete) {
+		if !isManagement && util.IsPromoteStatusIn(node, util.PromoteStatusComplete) {
 			return nil
 		}
 
 		// wait until the node promotion is completed or the failed or unknown status is cleared
-		if isPromoteStatusIn(node, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown) {
+		if util.IsPromoteStatusIn(node, util.PromoteStatusRunning, util.PromoteStatusFailed, util.PromoteStatusUnknown) {
 			return nil
 		}
 
@@ -376,20 +370,6 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 	return promoteNode
 }
 
-func IsWitnessNode(node *corev1.Node, isManagement bool) bool {
-	_, found := node.Labels[HarvesterWitnessNodeLabelKey]
-	if !found {
-		return false
-	}
-
-	// promotion has already been run for this node
-	if found && (isManagement || isPromoteStatusIn(node, PromoteStatusComplete, PromoteStatusRunning, PromoteStatusFailed, PromoteStatusUnknown)) {
-		return true
-	}
-
-	return false
-}
-
 func isExtraWitnessNode(node *corev1.Node, numOfWitnessNode int, promotedWitnessNode bool) bool {
 	if numOfWitnessNode == 0 && !promotedWitnessNode {
 		return false
@@ -428,41 +408,6 @@ func isHealthyNode(node *corev1.Node) bool {
 func isHarvesterNode(node *corev1.Node) bool {
 	_, ok := node.Labels[HarvesterManagedNodeLabelKey]
 	return ok
-}
-
-// IsManagementRole determine whether it's an management node based on the node's label.
-// Management Role included: master, control-plane, etcd
-func IsManagementRole(node *corev1.Node) bool {
-	if value, ok := node.Labels[KubeMasterNodeLabelKey]; ok {
-		return value == "true"
-	}
-
-	// Related to https://github.com/kubernetes/kubernetes/pull/95382
-	if value, ok := node.Labels[KubeControlPlaneNodeLabelKey]; ok {
-		return value == "true"
-	}
-
-	// Now we have the witness node, we need to count it as a management node
-	if value, ok := node.Labels[KubeEtcdNodeLabelKey]; ok {
-		return value == "true"
-	}
-
-	return false
-}
-
-func isPromoteStatusIn(node *corev1.Node, statuses ...string) bool {
-	status, ok := node.Annotations[HarvesterPromoteStatusAnnotationKey]
-	if !ok {
-		return false
-	}
-
-	for _, s := range statuses {
-		if status == s {
-			return true
-		}
-	}
-
-	return false
 }
 
 func (h *PromoteHandler) createPromoteJob(node *corev1.Node) (*batchv1.Job, error) {
@@ -597,7 +542,7 @@ func buildPromoteJob(namespace string, node *corev1.Node, promoteImage string) *
 			},
 			ImagePullPolicy: corev1.PullIfNotPresent,
 			SecurityContext: &corev1.SecurityContext{
-				Privileged: pointer.Bool(true),
+				Privileged: ptr.To(true),
 			},
 			Env: []corev1.EnvVar{
 				{

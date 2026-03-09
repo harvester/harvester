@@ -45,6 +45,9 @@ wait_managed_chart() {
   done
 }
 
+# wait for helm release to be deployed to a specified version and status
+# if the most-recent revision of the release is in a pending state and is
+# older than 5 minutes, perform a rollback to the last-known deployed
 wait_helm_release() {
   # Wait for helm release to be deployed to a specified version
   namespace=$1
@@ -52,6 +55,8 @@ wait_helm_release() {
   chart=$3
   app_version=$4
   status=$5
+  rollback_attempts=0
+  rollback_attempts_limit=1
   echo "wait helm release $namespace $release_name $chart $app_version $status"
   while [ true ]; do
     last_history=$(helm history $release_name -n $namespace -o yaml | yq e '.[-1]' -)
@@ -59,13 +64,38 @@ wait_helm_release() {
     current_chart=$(echo "$last_history" | yq e '.chart' -)
     current_app_version=$(echo "$last_history" | yq e '.app_version' -)
     current_status=$(echo "$last_history" | yq e '.status' -)
+    current_revision=$(echo "$last_history" | yq e '.revision' -)
+    last_updated_time=$(echo "$last_history" | yq e '.updated' -)
 
-    if [ "$current_chart" != "$chart" ]; then
-      sleep 5
-      continue
-    fi
+    pending_prefix="pending-"
+    deadline_minutes=5
+    if [ "$current_chart" != "$chart" ] || [ "$current_app_version" != "$app_version" ]; then
+      # if the most-recent revision of the release is in a pending state and is
+      # older than 5 minutes, perform a rollback to the last-known deployed
+      # revision to unstuck it. fleet will retry upgrading the revision.
+      if [[ "$current_status" == "$pending_prefix"* ]]; then
+        minutes_passed=$((($(date +%s) - $(date -d"$last_updated_time" +%s)) / 60))
+        echo "$current_chart:$current_app_version in $current_status state for $minutes_passed minutes"
 
-    if [ "$current_app_version" != "$app_version" ]; then
+        if [ "$minutes_passed" -gt "$deadline_minutes" ] && [ "$rollback_attempts" -lt "$rollback_attempts_limit" ]; then
+          last_deployed_revision=$(helm -n $namespace history $release_name -oyaml | yq '[.[] | select(.status == "deployed")] | sort_by(.revision) | reverse | .[0].revision')
+          if [ -z "$last_deployed_revision" ]; then
+            echo "no deployed revision found, cannot rollback, resume wait..."
+            continue
+          fi
+
+          rollback_attempts=$((rollback_attempts + 1))
+          echo "deadline exceeded. rolling back $current_chart:$current_app_version from revision $current_revision to revision $last_deployed_revision (rollback attempt #$rollback_attempts)"
+          helm -n "$namespace" rollback "$release_name" "$last_deployed_revision" --wait
+          rollback_status=$?
+          if [ $rollback_status -ne 0 ]; then
+            echo "failed to rollback $current_chart:$current_app_version to revision $last_deployed_revision, resume wait..."
+          else
+            echo "rollback succeeded, resume wait..."
+          fi
+        fi
+      fi
+
       sleep 5
       continue
     fi
@@ -77,6 +107,7 @@ wait_helm_release() {
 
     break
   done
+  echo "completed helm release $namespace $release_name $chart $app_version $status"
 }
 
 wait_rollout() {
@@ -404,10 +435,16 @@ wait_capi_cluster() {
   generation=$3
 
   while [ true ]; do
-    cluster=$(kubectl get clusters.cluster.x-k8s.io $name -n $namespace -o yaml)
+    unset localcluster
+    local localcluster=$(kubectl get clusters.cluster.x-k8s.io $name -n $namespace -o yaml)
+    if [[ -z ${localcluster} ]]; then
+      echo "failed to get CAPI cluster $namespace/$name, retry..."
+      sleep 5
+      continue
+    fi
 
-    current_generation=$(echo "$cluster" | yq e '.status.observedGeneration' -)
-    current_phase=$(echo "$cluster" | yq e '.status.phase' -)
+    current_generation=$(echo "$localcluster" | yq e '.status.observedGeneration' -)
+    current_phase=$(echo "$localcluster" | yq e '.status.phase' -)
 
     if [ "$current_generation" -gt "$generation" ]; then
       if [ "$current_phase" = "Provisioned" ]; then
@@ -450,7 +487,18 @@ wait_longhorn_manager() {
 
   lm_repo=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.repository)
   lm_tag=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.tag)
-  lm_image="${lm_repo}:${lm_tag}"
+  # Ref: https://github.com/longhorn/longhorn/pull/12269, now we need to check global.imageRegistry first
+  # Check global.imageRegistry first; if not set, fall back to the longhorn-manager registry value.
+  lm_registry=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.global.imageRegistry)
+  if [ -z "$lm_registry" ] || [ "$lm_registry" = "null" ]; then
+    lm_registry=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.manager.registry)
+  fi
+  # registry should be the mandatory field in later version, but still need to check here
+  if [ -z "$lm_registry" ] || [ "$lm_registry" = "null" ]; then
+    lm_image="${lm_repo}:${lm_tag}"
+  else
+    lm_image="${lm_registry}/${lm_repo}:${lm_tag}"
+  fi
   local node_count=$(kubectl get nodes --selector=harvesterhci.io/managed=true,node-role.harvesterhci.io/witness!=true -o json | jq -r '.items | length')
 
   while [ true ]; do
@@ -478,18 +526,28 @@ wait_longhorn_instance_manager_aio() {
 
   im_repo=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.instanceManager.repository)
   im_tag=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.instanceManager.tag)
-  im_image="${im_repo}:${im_tag}"
+  # Prefer global.imageRegistry; if empty, fall back to instance-manager-specific registry
+  im_registry=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.global.imageRegistry)
+  if [ -z "$im_registry" ] || [ "$im_registry" = "null" ]; then
+    im_registry=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.image.longhorn.instanceManager.registry)
+  fi
+  # registry should be the mandatory field in later version, but still need to check here
+  if [ -z "$im_registry" ] || [ "$im_registry" = "null" ]; then
+    im_image="${im_repo}:${im_tag}"
+  else
+    im_image="${im_registry}/${im_repo}:${im_tag}"
+  fi
 
-  # Get instance-manager-image chechsum
+  # Get instance-manager-image checksum
   # reference: https://github.com/longhorn/longhorn-manager/blob/2ec649c35486d782731982c9dff1db41c9031c99/types/types.go#L429
-  im_image_checksum="${im_image/\//-}" # replace / with -
+  im_image_checksum="${im_image//\//-}" # replace all / with -
   im_image_checksum="${im_image_checksum/:/-}" # replace : with -
   im_image_checksum=$(echo -n "$im_image_checksum" | openssl dgst -sha512 | awk '{print $2}')
   im_image_checksum="imi-${im_image_checksum:0:8}"
 
   # Wait for instance-manager (aio) pods upgraded to new version first.
   kubectl get nodes.longhorn.io -n longhorn-system -o json | jq -r '.items[].metadata.name' | while read -r node; do
-    echo "Checking instance-manager (aio) pod on node $node..."
+    echo "Checking instance-manager (aio) pod on node $node with image checksum $im_image_checksum ..."
     check_instance_manager $node $im_image $im_image_checksum "v1"
 
     v2EngineEnabled=$(kubectl get settings.harvesterhci.io longhorn-v2-data-engine-enabled -o yaml | yq e '.value' -)
@@ -547,6 +605,16 @@ get_cluster_repo_index_download_time() {
   fi
 }
 
+# The legacy capi webhooks will cause Rancher pod prints errors after upgraded to v1.8.0
+clean_capi_legacy_webhooks() {
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.7\.[0-9]$ ]]; then
+    return
+  fi
+  echo "clean capi legay webhooks which are not used from Harvester v1.8.0"
+  kubectl delete mutatingwebhookconfigurations mutating-webhook-configuration --ignore-not-found
+  kubectl delete validatingwebhookconfiguration validating-webhook-configuration --ignore-not-found
+}
+
 upgrade_rancher() {
   echo "Upgrading Rancher"
 
@@ -565,10 +633,23 @@ upgrade_rancher() {
   echo "Rancher values:"
   cat values.yaml
 
-  RANCHER_CURRENT_VERSION=$(yq -e e '.rancherImageTag' values.yaml)
-  if [ -z "$RANCHER_CURRENT_VERSION" ]; then
+  local RANCHER_CURRENT_VERSION=$(yq -e e '.rancherImageTag' values.yaml) # if not matched, the return result is "null"
+  local RANCHER_CURRENT_VERSION_NEW_MODE=$(yq -e e '.image.tag' values.yaml)
+  if [[ "$RANCHER_CURRENT_VERSION" == "null" ]] && [[ "$RANCHER_CURRENT_VERSION_NEW_MODE" == "null" ]]; then
     echo "[ERROR] Fail to get current Rancher version."
     exit 1
+  fi
+
+  local imageMode="legacy"
+  if [[ "$RANCHER_CURRENT_VERSION" == "null" ]]; then
+    RANCHER_CURRENT_VERSION="$RANCHER_CURRENT_VERSION_NEW_MODE"
+    imageMode="new"
+  fi
+
+  if [[ "$RANCHER_CURRENT_VERSION" == "$REPO_RANCHER_VERSION" ]]; then
+    clean_capi_legacy_webhooks
+    echo "Skip update Rancher. The version is already $RANCHER_CURRENT_VERSION"
+    return
   fi
 
   # Clusters with witness node should have rancher's replicas set to -2 if the total number of nodes is 3.
@@ -578,11 +659,6 @@ upgrade_rancher() {
   if [[ "$witness_nodes_count" -gt 0 && "$total_nodes_count" -eq 3 ]]; then
       echo "3-node cluster with witness node detected, setting Rancher replicas to -2"
       RANCHER_REPLICAS=-2 yq e '.replicas = env(RANCHER_REPLICAS)' values.yaml -i
-  fi
-
-  if [ "$RANCHER_CURRENT_VERSION" = "$REPO_RANCHER_VERSION" ]; then
-    echo "Skip update Rancher. The version is already $RANCHER_CURRENT_VERSION"
-    return
   fi
 
   # Wait for Rancher to settle down before start upgrading, just in case
@@ -601,7 +677,19 @@ upgrade_rancher() {
 
   yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false"' values.yaml
 
-  REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.rancherImageTag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
+  if [[ "$imageMode" == "legacy" ]]; then
+    echo "Rancher image values are in legacy mode, convert them to new mode"
+    yq -e e 'del(.rancherImage)' values.yaml -i
+    yq -e e 'del(.rancherImagePullPolicy)' values.yaml -i
+    yq -e e 'del(.rancherImageTag)' values.yaml -i
+
+    yq -e e '.image.pullPolicy = "IfNotPresent"' values.yaml -i
+    yq -e e '.image.repository = "rancher/rancher"' values.yaml -i
+  fi
+
+  REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.image.tag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
+
+  clean_capi_legacy_webhooks
   echo "Rancher patch file to be run via helm upgrade"
   cat values.yaml
   ./helm upgrade rancher ./*.tgz --namespace cattle-system -f values.yaml --wait
@@ -645,6 +733,7 @@ upgrade_rancher() {
   wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
   pre_patch_timestamp=$(fleet_agent_timestamp)
   patch_fleet_cluster
+  wait_for_fleet_agent $pre_patch_timestamp
   wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
 
   # After fleet-controller POD is restarted, it will check until the local cluster is imported, after that, redeploy the fleet-agent
@@ -1014,7 +1103,7 @@ spec:
   tolerations:
   - operator: "Exists"
   upgrade:
-    image: registry.suse.com/bci/bci-base:15.6
+    image: registry.suse.com/bci/bci-base:16.0
     command:
     - chroot
     - /host
@@ -1079,6 +1168,8 @@ upgrade_addons()
   for addon in $addons; do
     upgrade_addon $addon "harvester-system"
   done
+
+  upgrade_addon descheduler "kube-system"
 
   # the rancher-monitoring and rancher-logging addon have flexible user-configurable fields
   # from v1.2.0, they are upgraded per following
@@ -1244,6 +1335,43 @@ apply_extra_nonversion_manifests()
   shopt -u nullglob
 }
 
+migrate_longhorn_v1beta1_crds() {
+
+  # reference: https://longhorn.io/docs/1.10.0/important-notes/#upgrade
+  # Harvester v1.6.x -> v1.7.x, Longhorn is upgraded from v1.9.x to v1.10.x
+  echo "Checking if migrating Longhorn v1beta1 CRDs to v1beta2 is required, it only occurs from v1.6.x to v1.7.x upgrade"
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.6\.[0-9]$ ]]; then
+    echo "Skip migrate longhorn v1beta1 CRDs with Harvester version $UPGRADE_PREVIOUS_VERSION"
+    return
+  fi
+
+  # Temporarily disable the Longhorn webhook for CR validation
+  echo "Temporarily disabling the Longhorn webhook validator..."
+  kubectl patch validatingwebhookconfiguration longhorn-webhook-validator \
+      --type=merge \
+      -p "$(kubectl get validatingwebhookconfiguration longhorn-webhook-validator -o json | jq '.webhooks[0].rules |= map(if .apiGroups == ["longhorn.io"] and .resources == ["settings"] then .operations |= map(select(. != "UPDATE")) else . end)')"
+
+  # Find and migrate CRDs with v1beta1 stored versions
+  echo "Starting migration of CRDs that store v1beta1 resources to v1beta2"
+  migration_time="$(date +%Y-%m-%dT%H:%M:%S)"
+  crds=($(kubectl get crd -l app.kubernetes.io/name=longhorn -o json | jq -r '.items[] | select(.status.storedVersions | index("v1beta1")) | .metadata.name'))
+  for crd in "${crds[@]}"; do
+    echo "Migrating ${crd} ..."
+    for name in $(kubectl -n longhorn-system get "$crd" -o jsonpath='{.items[*].metadata.name}'); do
+      echo "migrating ${name} ..."
+      kubectl patch "${crd}" "${name}" -n longhorn-system --type=merge -p='{"metadata":{"annotations":{"migration-time":"'"${migration_time}"'"}}}'
+    done
+
+    kubectl patch crd "${crd}" --type=merge -p '{"status":{"storedVersions":["v1beta2"]}}' --subresource=status
+  done
+
+  # Re-enable the Longhorn webhook
+  echo "Re-enabling the CR validation webhook..."
+  kubectl patch validatingwebhookconfiguration longhorn-webhook-validator \
+      --type=merge \
+      -p "$(kubectl get validatingwebhookconfiguration longhorn-webhook-validator -o json | jq '.webhooks[0].rules |= map(if .apiGroups == ["longhorn.io"] and .resources == ["settings"] then .operations |= (. + ["UPDATE"] | unique) else . end)')"
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -1253,6 +1381,7 @@ skip_restart_rancher_system_agent
 upgrade_rancher
 patch_local_cluster_details
 update_local_rke_state_secret
+migrate_longhorn_v1beta1_crds
 upgrade_harvester_cluster_repo
 ensure_ingress_class_name
 apply_extra_nonversion_manifests

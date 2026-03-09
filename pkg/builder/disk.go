@@ -91,6 +91,18 @@ func (v *VMBuilder) Disk(diskName, diskBus string, isCDRom bool, bootOrder uint)
 	return v
 }
 
+func (v *VMBuilder) DiskCacheMode(name string, mode kubevirtv1.DriverCache) *VMBuilder {
+	for i, disk := range v.VirtualMachine.Spec.Template.Spec.Domain.Devices.Disks {
+		if disk.Name == name {
+			v.VirtualMachine.Spec.Template.Spec.Domain.Devices.Disks[i].Cache = mode
+			return v
+		}
+	}
+
+	v.Error = fmt.Errorf("disk %s does not exist in VM %s", name, v.VirtualMachine.Name)
+	return v
+}
+
 func (v *VMBuilder) Volume(diskName string, volume kubevirtv1.Volume) *VMBuilder {
 	var (
 		exist   bool
@@ -162,6 +174,7 @@ func (v *VMBuilder) PVCVolume(diskName, diskSize, pvcName string, hotpluggable b
 		pvcName = fmt.Sprintf("%s-%s-%s", v.VirtualMachine.Name, diskName, rand.String(5))
 	}
 
+	//nolint:prealloc // we cannot determine the length of pvcs beforehand (due to possible unmarshal error)
 	var pvcs []*corev1.PersistentVolumeClaim
 	volumeClaimTemplates, ok := v.VirtualMachine.Annotations[util.AnnotationVolumeClaimTemplates]
 	if ok && volumeClaimTemplates != "" {

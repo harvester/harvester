@@ -1,10 +1,12 @@
 package backup
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/longhorn/backupstore"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -16,6 +18,8 @@ import (
 
 const (
 	VMImageMetadataFolderPath = "harvester/vmimages/"
+	// The webhook timeout is 10 seconds, so we can't set too long timeout here.
+	ConnectBackupStoreTimeout = 8 * time.Second
 )
 
 func ConstructEndpoint(target *settings.BackupTarget) string {
@@ -43,9 +47,15 @@ func GetBackupStoreDriver(secretCache ctlcorev1.SecretCache, target *settings.Ba
 	}
 
 	endpoint := ConstructEndpoint(target)
-	bsDriver, err := backupstore.GetBackupStoreDriver(endpoint)
+
+	// There might be a goroutine leak if the driver doesn't end properly,
+	// Although we can pass ctx, but the underlying driver implementation doesn't support it.
+	// So we should be careful when using GetBackupStoreDriver function.
+	bsDriver, err := util.RunWithTimeoutAndResult(ConnectBackupStoreTimeout, func(_ context.Context) (backupstore.BackupStoreDriver, error) {
+		return backupstore.GetBackupStoreDriver(endpoint)
+	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to backup target, reason: %w", err)
 	}
 	return bsDriver, nil
 }

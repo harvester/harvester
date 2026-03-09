@@ -77,7 +77,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	dsl.MustNotError(err)
 
 	ginkgo.By("install crds")
-	var crds []apiextensionsv1.CustomResourceDefinition
+	crds := make([]apiextensionsv1.CustomResourceDefinition, 0, len(crdList))
 
 	for _, v := range crdList {
 		objs, err := generateObjects(v)

@@ -194,6 +194,7 @@ rules:
   - list
   resourceNames:
   - csi-online-expand-validation
+  - csi-driver-config
 - apiGroups:
   - longhorn.io
   resources:

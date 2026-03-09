@@ -30,7 +30,7 @@ import (
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -153,7 +153,7 @@ func (h *Handler) OnBackupChange(_ string, vmBackup *harvesterv1.VirtualMachineB
 
 	logrus.Debugf("OnBackupChange: vmBackup name:%s", vmBackup.Name)
 	// set vmBackup init status
-	if isBackupMissingStatus(vmBackup) {
+	if IsBackupMissingStatus(vmBackup) {
 		// We cannot get VM outside this block, because we also can sync VMBackup from remote target.
 		// A VMBackup without status is a new VMBackup, so it must have sourceVM.
 		sourceVM, err := h.getBackupSource(vmBackup)
@@ -190,7 +190,7 @@ func (h *Handler) OnBackupChange(_ string, vmBackup *harvesterv1.VirtualMachineB
 
 // OnBackupRemove remove remote vm backup metadata
 func (h *Handler) OnBackupRemove(_ string, vmBackup *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
-	if vmBackup == nil || vmBackup.Status == nil || vmBackup.Status.BackupTarget == nil {
+	if vmBackup == nil || vmBackup.Status.BackupTarget == nil {
 		return nil, nil
 	}
 
@@ -376,7 +376,7 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 				},
 				Spec: pvc.Spec,
 			},
-			ReadyToUse: pointer.BoolPtr(false),
+			ReadyToUse: ptr.To(false),
 			VolumeSize: volumeSize,
 		}
 
@@ -501,8 +501,8 @@ func (h *Handler) getSecretBackupFromSecret(namespace, name string) (*harvesterv
 func (h *Handler) initBackup(backup *harvesterv1.VirtualMachineBackup, vm *kubevirtv1.VirtualMachine) error {
 	var err error
 	backupCpy := backup.DeepCopy()
-	backupCpy.Status = &harvesterv1.VirtualMachineBackupStatus{
-		ReadyToUse: pointer.BoolPtr(false),
+	backupCpy.Status = harvesterv1.VirtualMachineBackupStatus{
+		ReadyToUse: ptr.To(false),
 		SourceUID:  &vm.UID,
 		SourceSpec: &harvesterv1.VirtualMachineSourceSpec{
 			ObjectMeta: metav1.ObjectMeta{
@@ -687,14 +687,14 @@ func (h *Handler) createVolumeSnapshot(vmBackup *harvesterv1.VirtualMachineBacku
 					Kind:       vmBackupKind.Kind,
 					Name:       vmBackup.Name,
 					UID:        vmBackup.UID,
-					Controller: pointer.BoolPtr(true),
+					Controller: ptr.To(true),
 				},
 			},
 			Annotations: map[string]string{},
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
 			Source:                  volumeSnapshotSource,
-			VolumeSnapshotClassName: pointer.StringPtr(volumeSnapshotClass.Name),
+			VolumeSnapshotClassName: ptr.To(volumeSnapshotClass.Name),
 		},
 	}
 
@@ -768,7 +768,7 @@ func (h *Handler) createVolumeSnapshotContent(
 					Kind:       vmBackupKind.Kind,
 					Name:       vmBackup.Name,
 					UID:        vmBackup.UID,
-					Controller: pointer.BoolPtr(true),
+					Controller: ptr.To(true),
 				},
 			},
 		},
@@ -776,9 +776,9 @@ func (h *Handler) createVolumeSnapshotContent(
 			Driver:         "driver.longhorn.io",
 			DeletionPolicy: snapshotv1.VolumeSnapshotContentDelete,
 			Source: snapshotv1.VolumeSnapshotContentSource{
-				SnapshotHandle: pointer.StringPtr(snapshotHandle),
+				SnapshotHandle: ptr.To(snapshotHandle),
 			},
-			VolumeSnapshotClassName: pointer.StringPtr(snapshotClass.Name),
+			VolumeSnapshotClassName: ptr.To(snapshotClass.Name),
 			VolumeSnapshotRef: corev1.ObjectReference{
 				Name:      *volumeBackup.Name,
 				Namespace: vmBackup.Namespace,
@@ -789,16 +789,13 @@ func (h *Handler) createVolumeSnapshotContent(
 
 func (h *Handler) setStatusError(vmBackup *harvesterv1.VirtualMachineBackup, err error) error {
 	vmBackupCpy := vmBackup.DeepCopy()
-	if vmBackupCpy.Status == nil {
-		vmBackupCpy.Status = &harvesterv1.VirtualMachineBackupStatus{}
-	}
+	setCondition(vmBackupCpy, harvesterv1.BackupConditionProgressing, false, "Error", err.Error())
+	setCondition(vmBackupCpy, harvesterv1.BackupConditionReady, false, "", "Not Ready")
 
 	vmBackupCpy.Status.Error = &harvesterv1.Error{
 		Time:    currentTime(),
-		Message: pointer.StringPtr(err.Error()),
+		Message: ptr.To(err.Error()),
 	}
-	updateBackupCondition(vmBackupCpy, newProgressingCondition(corev1.ConditionFalse, "Error", err.Error()))
-	updateBackupCondition(vmBackupCpy, newReadyCondition(corev1.ConditionFalse, "", "Not Ready"))
 
 	if _, updateErr := h.vmBackups.Update(vmBackupCpy); updateErr != nil {
 		return updateErr
@@ -899,11 +896,7 @@ func (h *Handler) uploadVMBackupMetadata(vmBackup *harvesterv1.VirtualMachineBac
 	}
 
 	vmBackupCopy := vmBackup.DeepCopy()
-	updateBackupCondition(vmBackupCopy, harvesterv1.Condition{
-		Type:               harvesterv1.BackupConditionMetadataReady,
-		Status:             corev1.ConditionTrue,
-		LastTransitionTime: currentTime().Format(time.RFC3339),
-	})
+	setCondition(vmBackupCopy, harvesterv1.BackupConditionMetadataReady, true, "", "")
 	if !reflect.DeepEqual(vmBackup.Status, vmBackupCopy.Status) {
 		_, err = h.vmBackups.Update(vmBackupCopy)
 		return err

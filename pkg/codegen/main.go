@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -32,6 +31,7 @@ import (
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 )
 
 func main() {
@@ -155,9 +155,13 @@ func main() {
 			},
 			corev1.GroupName: {
 				Types: []interface{}{
+					corev1.Node{},
 					corev1.PersistentVolume{},
+					corev1.PersistentVolumeClaim{},
 					corev1.ResourceQuota{},
 				},
+				GenerateTypes:   false,
+				GenerateClients: true,
 			},
 			batchv1.GroupName: {
 				Types: []interface{}{
@@ -197,7 +201,10 @@ func main() {
 			appsv1.GroupName: {
 				Types: []interface{}{
 					appsv1.ControllerRevision{},
+					appsv1.Deployment{},
 				},
+				GenerateTypes:   false,
+				GenerateClients: true,
 			},
 			networkv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
@@ -225,11 +232,19 @@ func main() {
 				GenerateTypes:   false,
 				GenerateClients: true,
 			},
+			kubeovnv1.SchemeGroupVersion.Group: {
+				Types: []interface{}{
+					kubeovnv1.Subnet{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
 		},
 	})
 	nadControllerInterfaceRefactor()
 	capiWorkaround()
 	loggingWorkaround()
+	coreWorkaround()
 }
 
 // NB(GC), nadControllerInterfaceRefactor modify the generated resource name of NetworkAttachmentDefinition controller using a dash-separator,
@@ -238,14 +253,14 @@ func main() {
 // `networkattachementdefinitions` that will raises crd not found exception of the NAD controller.
 func nadControllerInterfaceRefactor() {
 	absPath, _ := filepath.Abs("pkg/generated/controllers/k8s.cni.cncf.io/v1/interface.go")
-	input, err := ioutil.ReadFile(absPath)
+	input, err := os.ReadFile(absPath)
 	if err != nil {
 		logrus.Fatalf("failed to read the network-attachment-definition file: %v", err)
 	}
 
 	output := bytes.ReplaceAll(input, []byte("networkattachmentdefinitions"), []byte("network-attachment-definitions"))
 
-	if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
+	if err = os.WriteFile(absPath, output, 0600); err != nil {
 		logrus.Fatalf("failed to update the network-attachment-definition file: %v", err)
 	}
 }
@@ -262,13 +277,13 @@ func capiWorkaround() {
 
 	// Replace the variable `SchemeGroupVersion` with `GroupVersion` in the above files path
 	for _, absPath := range files {
-		input, err := ioutil.ReadFile(absPath)
+		input, err := os.ReadFile(absPath)
 		if err != nil {
 			logrus.Fatalf("failed to read the clusters.cluster.x-k8s.io client file: %v", err)
 		}
 		output := bytes.ReplaceAll(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"))
 
-		if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
+		if err = os.WriteFile(absPath, output, 0600); err != nil {
 			logrus.Fatalf("failed to update the clusters.cluster.x-k8s.io client file: %v", err)
 		}
 	}
@@ -290,14 +305,30 @@ func loggingWorkaround() {
 
 	// Replace the variable `SchemeGroupVersion` with `GroupVersion` in the above files path
 	for _, absPath := range files {
-		input, err := ioutil.ReadFile(absPath)
+		input, err := os.ReadFile(absPath)
 		if err != nil {
 			logrus.Fatalf("failed to read the logging.banzaicloud.io client file: %v", err)
 		}
 		output := bytes.ReplaceAll(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"))
 
-		if err = ioutil.WriteFile(absPath, output, 0644); err != nil {
+		if err = os.WriteFile(absPath, output, 0600); err != nil {
 			logrus.Fatalf("failed to update the logging.banzaicloud.io client file: %v", err)
+		}
+	}
+}
+
+// The group name of the CoreV1 API group is usually omitted.
+// This happens unfortunately also when generating the source file name for the
+// client from the schema $GROUPNAME_client.go, resulting in _client.go. This is
+// an invalid file name, so the group name must be added back manually.
+func coreWorkaround() {
+	files := map[string]string{
+		"pkg/generated/clientset/versioned/typed/v1/_client.go": "pkg/generated/clientset/versioned/typed/v1/core_client.go",
+	}
+
+	for src, tgt := range files {
+		if err := os.Rename(src, tgt); err != nil {
+			logrus.Fatalf("failed to rename file %s: %v", src, err)
 		}
 	}
 }

@@ -1,6 +1,6 @@
-version: 2
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
     - errcheck
     - govet
@@ -10,9 +10,6 @@ linters:
     - unused
     - misspell
     - prealloc
-  formatters:
-    enable:
-      - gofmt
   settings:
     gosec:
       # https://github.com/securego/gosec#available-rules
@@ -23,13 +20,13 @@ linters:
         - G402 # TLS InsecureSkipVerify set true
         - G505 # Blocklisted import crypto/md5: weak cryptographic primitive
       config:
-        G306: "0644" # Poor file permissions used when writing to a new file 
-  exclude-files:
-    - /zz_generated_
-    - _generated
-  exclude-dirs:
-    - generated
+        G306: "0644" # Poor file permissions used when writing to a new file
   exclusions:
+    paths:
+      - vendor
+      - pkg/generated
+      - .*zz_generated.*
+      - .*_generated.*
     presets:
       - comments
       - common-false-positives
@@ -47,10 +44,10 @@ linters:
         text: "QF1008:" # could remove embedded field from selector (staticcheck)
       - linters:
           - staticcheck
-        text: "SA1019:" # function is deprecated (staticcheck)
-      - linters:
-          - staticcheck
         text: "QF1012:" # Use fmt.Fprint(...) instead of Write([]byte(fmt.Sprint(...)))
+formatters:
+  enable:
+    - gofmt
 run:
   timeout: 5m
   tests: true

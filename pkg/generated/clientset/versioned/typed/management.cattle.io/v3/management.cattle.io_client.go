@@ -1,5 +1,5 @@
 /*
-Copyright 2025 Rancher Labs, Inc.
+Copyright 2026 SUSE, LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ limitations under the License.
 package v3
 
 import (
-	"net/http"
+	http "net/http"
 
-	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
+	scheme "github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
+	managementcattleiov3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	rest "k8s.io/client-go/rest"
 )
 
@@ -34,13 +34,8 @@ type ManagementV3Interface interface {
 	AuthProvidersGetter
 	AuthTokensGetter
 	AzureADProvidersGetter
-	CatalogsGetter
-	CatalogTemplatesGetter
-	CatalogTemplateVersionsGetter
 	CloudCredentialsGetter
 	ClustersGetter
-	ClusterCatalogsGetter
-	ClusterLoggingsGetter
 	ClusterProxyConfigsGetter
 	ClusterRegistrationTokensGetter
 	ClusterRoleTemplateBindingsGetter
@@ -55,8 +50,6 @@ type ManagementV3Interface interface {
 	GenericOIDCProvidersGetter
 	GithubConfigsGetter
 	GithubProvidersGetter
-	GlobalDnsesGetter
-	GlobalDnsProvidersGetter
 	GlobalRolesGetter
 	GlobalRoleBindingsGetter
 	GoogleOAuthProvidersGetter
@@ -65,8 +58,6 @@ type ManagementV3Interface interface {
 	KontainerDriversGetter
 	LocalProvidersGetter
 	ManagedChartsGetter
-	MultiClusterAppsGetter
-	MultiClusterAppRevisionsGetter
 	NodesGetter
 	NodeDriversGetter
 	NodePoolsGetter
@@ -77,8 +68,6 @@ type ManagementV3Interface interface {
 	PreferencesGetter
 	PrincipalsGetter
 	ProjectsGetter
-	ProjectCatalogsGetter
-	ProjectLoggingsGetter
 	ProjectNetworkPoliciesGetter
 	ProjectRoleTemplateBindingsGetter
 	RancherUserNotificationsGetter
@@ -89,9 +78,6 @@ type ManagementV3Interface interface {
 	SamlProvidersGetter
 	SamlTokensGetter
 	SettingsGetter
-	TemplatesGetter
-	TemplateContentsGetter
-	TemplateVersionsGetter
 	TokensGetter
 	UsersGetter
 	UserAttributesGetter
@@ -126,32 +112,12 @@ func (c *ManagementV3Client) AzureADProviders() AzureADProviderInterface {
 	return newAzureADProviders(c)
 }
 
-func (c *ManagementV3Client) Catalogs() CatalogInterface {
-	return newCatalogs(c)
-}
-
-func (c *ManagementV3Client) CatalogTemplates(namespace string) CatalogTemplateInterface {
-	return newCatalogTemplates(c, namespace)
-}
-
-func (c *ManagementV3Client) CatalogTemplateVersions(namespace string) CatalogTemplateVersionInterface {
-	return newCatalogTemplateVersions(c, namespace)
-}
-
 func (c *ManagementV3Client) CloudCredentials(namespace string) CloudCredentialInterface {
 	return newCloudCredentials(c, namespace)
 }
 
 func (c *ManagementV3Client) Clusters() ClusterInterface {
 	return newClusters(c)
-}
-
-func (c *ManagementV3Client) ClusterCatalogs(namespace string) ClusterCatalogInterface {
-	return newClusterCatalogs(c, namespace)
-}
-
-func (c *ManagementV3Client) ClusterLoggings(namespace string) ClusterLoggingInterface {
-	return newClusterLoggings(c, namespace)
 }
 
 func (c *ManagementV3Client) ClusterProxyConfigs(namespace string) ClusterProxyConfigInterface {
@@ -210,14 +176,6 @@ func (c *ManagementV3Client) GithubProviders() GithubProviderInterface {
 	return newGithubProviders(c)
 }
 
-func (c *ManagementV3Client) GlobalDnses(namespace string) GlobalDnsInterface {
-	return newGlobalDnses(c, namespace)
-}
-
-func (c *ManagementV3Client) GlobalDnsProviders(namespace string) GlobalDnsProviderInterface {
-	return newGlobalDnsProviders(c, namespace)
-}
-
 func (c *ManagementV3Client) GlobalRoles() GlobalRoleInterface {
 	return newGlobalRoles(c)
 }
@@ -248,14 +206,6 @@ func (c *ManagementV3Client) LocalProviders() LocalProviderInterface {
 
 func (c *ManagementV3Client) ManagedCharts(namespace string) ManagedChartInterface {
 	return newManagedCharts(c, namespace)
-}
-
-func (c *ManagementV3Client) MultiClusterApps(namespace string) MultiClusterAppInterface {
-	return newMultiClusterApps(c, namespace)
-}
-
-func (c *ManagementV3Client) MultiClusterAppRevisions(namespace string) MultiClusterAppRevisionInterface {
-	return newMultiClusterAppRevisions(c, namespace)
 }
 
 func (c *ManagementV3Client) Nodes(namespace string) NodeInterface {
@@ -298,14 +248,6 @@ func (c *ManagementV3Client) Projects(namespace string) ProjectInterface {
 	return newProjects(c, namespace)
 }
 
-func (c *ManagementV3Client) ProjectCatalogs(namespace string) ProjectCatalogInterface {
-	return newProjectCatalogs(c, namespace)
-}
-
-func (c *ManagementV3Client) ProjectLoggings(namespace string) ProjectLoggingInterface {
-	return newProjectLoggings(c, namespace)
-}
-
 func (c *ManagementV3Client) ProjectNetworkPolicies(namespace string) ProjectNetworkPolicyInterface {
 	return newProjectNetworkPolicies(c, namespace)
 }
@@ -346,18 +288,6 @@ func (c *ManagementV3Client) Settings() SettingInterface {
 	return newSettings(c)
 }
 
-func (c *ManagementV3Client) Templates() TemplateInterface {
-	return newTemplates(c)
-}
-
-func (c *ManagementV3Client) TemplateContents() TemplateContentInterface {
-	return newTemplateContents(c)
-}
-
-func (c *ManagementV3Client) TemplateVersions() TemplateVersionInterface {
-	return newTemplateVersions(c)
-}
-
 func (c *ManagementV3Client) Tokens() TokenInterface {
 	return newTokens(c)
 }
@@ -375,9 +305,7 @@ func (c *ManagementV3Client) UserAttributes() UserAttributeInterface {
 // where httpClient was generated with rest.HTTPClientFor(c).
 func NewForConfig(c *rest.Config) (*ManagementV3Client, error) {
 	config := *c
-	if err := setConfigDefaults(&config); err != nil {
-		return nil, err
-	}
+	setConfigDefaults(&config)
 	httpClient, err := rest.HTTPClientFor(&config)
 	if err != nil {
 		return nil, err
@@ -389,9 +317,7 @@ func NewForConfig(c *rest.Config) (*ManagementV3Client, error) {
 // Note the http client provided takes precedence over the configured transport values.
 func NewForConfigAndClient(c *rest.Config, h *http.Client) (*ManagementV3Client, error) {
 	config := *c
-	if err := setConfigDefaults(&config); err != nil {
-		return nil, err
-	}
+	setConfigDefaults(&config)
 	client, err := rest.RESTClientForConfigAndClient(&config, h)
 	if err != nil {
 		return nil, err
@@ -414,17 +340,15 @@ func New(c rest.Interface) *ManagementV3Client {
 	return &ManagementV3Client{c}
 }
 
-func setConfigDefaults(config *rest.Config) error {
-	gv := v3.SchemeGroupVersion
+func setConfigDefaults(config *rest.Config) {
+	gv := managementcattleiov3.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()
 	}
-
-	return nil
 }
 
 // RESTClient returns a RESTClient that is used to communicate

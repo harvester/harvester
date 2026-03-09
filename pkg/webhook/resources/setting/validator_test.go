@@ -8,8 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
@@ -845,6 +847,23 @@ func Test_validateNTPServers(t *testing.T) {
 }
 
 func Test_validateUpgradeConfig(t *testing.T) {
+	givenNodes := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-0",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-1",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-2",
+			},
+		},
+	}
 	tests := []struct {
 		name        string
 		args        *v1beta1.Setting
@@ -995,6 +1014,46 @@ func Test_validateUpgradeConfig(t *testing.T) {
 			expectedErr: false,
 		},
 		{
+			name: "node upgrade with auto mode",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto"}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "node upgrade with manual mode",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto"}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "node upgrade with manual mode for node-1 only",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto","pauseNodes":["node-1"]}}}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "node upgrade with duplicated pause nodes specified should be rejected",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto","pauseNodes":["node-1","node-1","node-2"]}}}`,
+			},
+			expectedErr: true,
+		},
+		{
+			name: "node upgrade with manual mode for a non-existing node should be rejected",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto","pauseNodes":["node-100"]}}}`,
+			},
+			expectedErr: true,
+		},
+		{
 			name: "enable restoreVM",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
@@ -1030,8 +1089,19 @@ func Test_validateUpgradeConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateUpgradeConfigFields(tt.args)
-			assert.Equal(t, tt.expectedErr, err != nil)
+			nodes := make([]runtime.Object, 0, len(givenNodes))
+			for _, node := range givenNodes {
+				nodes = append(nodes, node)
+			}
+
+			clientset := fake.NewSimpleClientset(nodes...)
+			v := &settingValidator{
+				settingCache: fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				nodeCache:    fakeclients.NodeCache(clientset.CoreV1().Nodes),
+			}
+
+			err := v.validateUpgradeConfig(tt.args)
+			assert.Equal(t, tt.expectedErr, err != nil, err)
 		})
 	}
 }
@@ -1280,4 +1350,127 @@ func Test_validateMaxHotplugRatio(t *testing.T) {
 		})
 
 	}
+}
+
+func Test_validateStorageNetwork_Update_InProgress(t *testing.T) {
+	clientset := fake.NewSimpleClientset()
+	v := NewValidator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings), nil, nil, nil, nil, fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines), nil, nil, nil, fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims), nil, nil, nil, fakeclients.LonghornNodeCache(clientset.LonghornV1beta2().Nodes), nil)
+
+	t.Run("reject update when 'In Progress'", func(t *testing.T) {
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+			Default:    settings.StorageNetwork.Default,
+			Value:      `{"vlan":50,"clusterNetwork":"mgmt","range":"192.168.50.0/24","exclude":["192.168.50.1/32","192.168.50.2/32"]}`,
+		}
+		v1beta1.SettingConfigured.False(oldSetting)
+		v1beta1.SettingConfigured.Reason(oldSetting, storagenetwork.ReasonInProgress)
+		v1beta1.SettingConfigured.Message(oldSetting, "waiting for all volumes detached: pvc-12375075-487e-4add-9dfb-4e9c3881370d,pvc-736e8599-daf4-458e-8af2-3bbb038b0d46,pvc-d29243f2-e8e8-408a-98cc-e441dc83085d")
+
+		newSetting := oldSetting.DeepCopy()
+		newSetting.Value = `{"vlan":50,"clusterNetwork":"mgmt","range":"192.168.50.0/24","exclude":["192.168.50.1/32"]}`
+
+		err := v.Update(nil, oldSetting, newSetting)
+		assert.Error(t, err)
+		assert.ErrorContains(t, err, "cannot update the setting \"storage-network\" because it is still being configured")
+	})
+
+	t.Run("do not reject update when 'In Progress'", func(t *testing.T) {
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+			Default:    settings.StorageNetwork.Default,
+			Value:      `{"vlan":1, "clusterNetwork":"mgmt", "range":"10.0.0.0/24"}`,
+		}
+		v1beta1.SettingConfigured.False(oldSetting)
+		v1beta1.SettingConfigured.Reason(oldSetting, storagenetwork.ReasonInProgress)
+		v1beta1.SettingConfigured.Message(oldSetting, "waiting for all volumes detached: pvc-12375075-487e-4add-9dfb-4e9c3881370d,pvc-736e8599-daf4-458e-8af2-3bbb038b0d46,pvc-d29243f2-e8e8-408a-98cc-e441dc83085d")
+
+		newSetting := oldSetting.DeepCopy()
+		v1beta1.SettingConfigured.True(newSetting)
+		v1beta1.SettingConfigured.Reason(newSetting, storagenetwork.ReasonCompleted)
+
+		err := v.Update(nil, oldSetting, newSetting)
+		assert.NoError(t, err)
+	})
+
+	t.Run("allow update when 'Completed'", func(t *testing.T) {
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+			Default:    settings.StorageNetwork.Default,
+			Value:      `{"vlan":1, "clusterNetwork":"mgmt", "range":"10.0.0.0/24"}`,
+		}
+		v1beta1.SettingConfigured.True(oldSetting)
+		v1beta1.SettingConfigured.Reason(oldSetting, storagenetwork.ReasonCompleted)
+
+		newSetting := oldSetting.DeepCopy()
+		newSetting.Value = `{"vlan":2, "clusterNetwork":"mgmt", "range":"10.0.0.0/24"}`
+
+		err := v.Update(nil, oldSetting, newSetting)
+		assert.NoError(t, err)
+	})
+
+	t.Run("reject update default when 'In Progress'", func(t *testing.T) {
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+			Default:    settings.StorageNetwork.Default,
+			Value:      `{"vlan":50,"clusterNetwork":"mgmt","range":"192.168.50.0/24","exclude":["192.168.50.1/32","192.168.50.2/32"]}`,
+		}
+		v1beta1.SettingConfigured.False(oldSetting)
+		v1beta1.SettingConfigured.Reason(oldSetting, storagenetwork.ReasonInProgress)
+		v1beta1.SettingConfigured.Message(oldSetting, "waiting for all volumes detached: ...")
+
+		newSetting := oldSetting.DeepCopy()
+		newSetting.Default = `{"vlan":50,"clusterNetwork":"mgmt","range":"192.168.50.0/24","exclude":[]}`
+
+		err := v.Update(nil, oldSetting, newSetting)
+		assert.Error(t, err)
+		assert.ErrorContains(t, err, "cannot update the setting")
+	})
+
+	t.Run("allow update default when 'Completed'", func(t *testing.T) {
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+			Default:    settings.StorageNetwork.Default,
+		}
+		v1beta1.SettingConfigured.True(oldSetting)
+		v1beta1.SettingConfigured.Reason(oldSetting, storagenetwork.ReasonCompleted)
+
+		newSetting := oldSetting.DeepCopy()
+		newSetting.Default = `{"vlan":50,"clusterNetwork":"mgmt","range":"192.168.50.0/24","exclude":[]}`
+
+		err := v.Update(nil, oldSetting, newSetting)
+		assert.NoError(t, err)
+	})
+
+	t.Run("allow update to default when 'In Progress'", func(t *testing.T) {
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+			Default:    settings.StorageNetwork.Default,
+			Value:      `{"vlan":50,"clusterNetwork":"mgmt","range":"192.168.50.0/24","exclude":["192.168.50.1/32","192.168.50.2/32"]}`,
+		}
+		v1beta1.SettingConfigured.False(oldSetting)
+		v1beta1.SettingConfigured.Reason(oldSetting, storagenetwork.ReasonInProgress)
+		v1beta1.SettingConfigured.Message(oldSetting, "waiting for all volumes detached: ...")
+
+		newSetting := oldSetting.DeepCopy()
+		newSetting.Value = settings.StorageNetwork.Default
+
+		err := v.Update(nil, oldSetting, newSetting)
+		assert.NoError(t, err)
+	})
+
+	t.Run("allow update to default when 'Completed'", func(t *testing.T) {
+		oldSetting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+			Default:    settings.StorageNetwork.Default,
+			Value:      `{"vlan":50,"clusterNetwork":"mgmt","range":"192.168.50.0/24","exclude":["192.168.50.1/32","192.168.50.2/32"]}`,
+		}
+		v1beta1.SettingConfigured.True(oldSetting)
+		v1beta1.SettingConfigured.Reason(oldSetting, storagenetwork.ReasonCompleted)
+
+		newSetting := oldSetting.DeepCopy()
+		newSetting.Value = settings.StorageNetwork.Default
+
+		err := v.Update(nil, oldSetting, newSetting)
+		assert.NoError(t, err)
+	})
 }

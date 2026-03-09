@@ -137,6 +137,10 @@ func (config *ClusterConfig) WorkloadEncryptionSEVEnabled() bool {
 	return config.isFeatureGateEnabled(featuregate.WorkloadEncryptionSEV)
 }
 
+func (config *ClusterConfig) WorkloadEncryptionTDXEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.WorkloadEncryptionTDX)
+}
+
 func (config *ClusterConfig) DockerSELinuxMCSWorkaroundEnabled() bool {
 	return config.isFeatureGateEnabled(featuregate.DockerSELinuxMCSWorkaround)
 }
@@ -201,6 +205,10 @@ func (config *ClusterConfig) PasstIPStackMigrationEnabled() bool {
 	return config.isFeatureGateEnabled(featuregate.PasstIPStackMigration)
 }
 
+func (config *ClusterConfig) DecentralizedLiveMigrationEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.DecentralizedLiveMigration)
+}
+
 func (config *ClusterConfig) GPUsWithDRAGateEnabled() bool {
 	return config.isFeatureGateEnabled(featuregate.GPUsWithDRAGate)
 }
@@ -209,6 +217,10 @@ func (config *ClusterConfig) HostDevicesWithDRAEnabled() bool {
 	return config.isFeatureGateEnabled(featuregate.HostDevicesWithDRAGate)
 }
 
-func (config *ClusterConfig) DecentralizedLiveMigrationEnabled() bool {
-	return config.isFeatureGateEnabled(featuregate.DecentralizedLiveMigration)
+func (config *ClusterConfig) IncrementalBackupEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.IncrementalBackupGate)
+}
+
+func (config *ClusterConfig) MigrationPriorityQueueEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.MigrationPriorityQueue)
 }

@@ -34,7 +34,7 @@ func NewHealthyHandler(scaled *config.Scaled) *HealthyHandler {
 	}
 }
 
-func (h *HealthyHandler) Do(_ *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
+func (h *HealthyHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
 	backupTargetSetting, err := h.settingCache.Get(settings.BackupTargetSettingName)
 	if err != nil {
 		return nil, apierror.NewAPIError(validation.ServerError, fmt.Errorf("can't get %s setting, error: %w", settings.BackupTargetSettingName, err).Error())
@@ -55,6 +55,8 @@ func (h *HealthyHandler) Do(_ *harvesterServer.Ctx) (harvesterServer.ResponseBod
 	if err != nil {
 		return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Errorf("can't connect to backup target %+v, error: %w", target, err).Error())
 	}
+
+	ctx.SetStatusOK()
 
 	return nil, nil
 }

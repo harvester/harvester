@@ -91,6 +91,9 @@ func (h *nodeHandler) OnChanged(_ string, node *corev1.Node) (*corev1.Node, erro
 		if upgrade.Status.SingleNode == "" {
 			logrus.Infof("Adding post-hook done annotation on %s/%s", secret.Namespace, secret.Name)
 			secretUpdate := secret.DeepCopy()
+			if secretUpdate.Annotations == nil {
+				secretUpdate.Annotations = make(map[string]string)
+			}
 			secretUpdate.Annotations[postDrainAnnotation] = secret.Annotations[rke2PostDrainAnnotation]
 			if _, err := h.secretClient.Update(secretUpdate); err != nil {
 				return nil, err

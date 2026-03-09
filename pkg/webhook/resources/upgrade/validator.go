@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
+	addonutil "github.com/harvester/harvester/pkg/util/addon"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
@@ -51,6 +53,7 @@ const (
 
 func NewValidator(
 	upgrades ctlharvesterv1.UpgradeCache,
+	addons ctlharvesterv1.AddonCache,
 	nodes v1.NodeCache,
 	lhVolumes ctllhv1.VolumeCache,
 	clusters ctlclusterv1.ClusterCache,
@@ -67,6 +70,7 @@ func NewValidator(
 ) types.Validator {
 	return &upgradeValidator{
 		upgrades:          upgrades,
+		addons:            addons,
 		nodes:             nodes,
 		lhVolumes:         lhVolumes,
 		clusters:          clusters,
@@ -87,6 +91,7 @@ type upgradeValidator struct {
 	types.DefaultValidator
 
 	upgrades          ctlharvesterv1.UpgradeCache
+	addons            ctlharvesterv1.AddonCache
 	nodes             v1.NodeCache
 	lhVolumes         ctllhv1.VolumeCache
 	clusters          ctlclusterv1.ClusterCache
@@ -111,6 +116,7 @@ func (v *upgradeValidator) Resource() types.Resource {
 		ObjectType: &v1beta1.Upgrade{},
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Create,
+			admissionregv1.Update,
 			admissionregv1.Delete,
 		},
 	}
@@ -166,7 +172,49 @@ func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error
 		}
 	}
 
+	if err := v.validatePauseMapAnnotation(newUpgrade); err != nil {
+		return err
+	}
+
 	return v.checkResources(newUpgrade)
+}
+
+func (v *upgradeValidator) Update(_ *types.Request, _, newObj runtime.Object) error {
+	newUpgrade := newObj.(*v1beta1.Upgrade)
+	return v.validatePauseMapAnnotation(newUpgrade)
+}
+
+func (v *upgradeValidator) validatePauseMapAnnotation(upgrade *v1beta1.Upgrade) error {
+	value, ok := upgrade.Annotations[util.AnnotationNodeUpgradePauseMap]
+	if !ok {
+		return nil
+	}
+
+	pauseMap := map[string]string{}
+	if err := json.Unmarshal([]byte(value), &pauseMap); err != nil {
+		return werror.NewBadRequest(fmt.Sprintf("fail to unmarshal %s annotation, err: %+v", util.AnnotationNodeUpgradePauseMap, err))
+	}
+
+	nodes, err := v.nodes.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("fail to list nodes, err: %+v", err))
+	}
+
+	existingNodeNames := make([]string, len(nodes))
+	for _, node := range nodes {
+		existingNodeNames = append(existingNodeNames, node.Name)
+	}
+
+	for nodeName, desiredAction := range pauseMap {
+		if desiredAction != util.NodePause && desiredAction != util.NodeUnpause {
+			return werror.NewBadRequest(fmt.Sprintf("desired action for node %s must be either %q or %q", nodeName, util.NodePause, util.NodeUnpause))
+		}
+		if !slices.Contains(existingNodeNames, nodeName) {
+			return werror.NewBadRequest(fmt.Sprintf("node %s does not exist", nodeName))
+		}
+	}
+
+	return nil
 }
 
 func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
@@ -197,6 +245,10 @@ func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 	}
 
 	if err := v.checkManagedCharts(); err != nil {
+		return err
+	}
+
+	if err := v.checkAddons(); err != nil {
 		return err
 	}
 
@@ -263,10 +315,25 @@ func (v *upgradeValidator) checkManagedCharts() error {
 		for _, condition := range managedChart.Status.Conditions {
 			if condition.Type == fleetv1alpha1.BundleConditionReady {
 				if condition.Status != corev1.ConditionTrue {
-					return werror.NewBadRequest(fmt.Sprintf("managed chart %s is not ready, please wait for it to be ready", managedChart.Name))
+					return werror.NewBadRequest(fmt.Sprintf("managed chart %s is not ready, please wait for it to be ready or fix it", managedChart.Name))
 				}
 				break
 			}
+		}
+	}
+
+	return nil
+}
+
+func (v *upgradeValidator) checkAddons() error {
+	addons, err := v.addons.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("can't list addons, err: %+v", err))
+	}
+
+	for _, addon := range addons {
+		if msg, ok := addonutil.IsAddonOnProcessing(addon); ok {
+			return werror.NewBadRequest(fmt.Sprintf("%s, please wait for it to be ready or fix it", msg))
 		}
 	}
 

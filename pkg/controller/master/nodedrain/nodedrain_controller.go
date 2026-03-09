@@ -381,14 +381,6 @@ func (ndc *ControllerHandler) FindNonMigratableVMS(node *corev1.Node) (map[strin
 		return nil, fmt.Errorf("error listing VMI: %v", err)
 	}
 
-	cdromOrContainerDiskVMs, err := findVMSwithCDROMOrContainerDisk(vmiList)
-	if err != nil {
-		return nil, fmt.Errorf("error finding VMs with CDROM or container disk: %v", err)
-	}
-	if len(cdromOrContainerDiskVMs) > 0 {
-		result[util.ContainerDiskOrCDRomKey] = cdromOrContainerDiskVMs
-	}
-
 	for k, v := range IdentifyNonMigratableVMS(vmiList) {
 		result[k] = v
 	}
@@ -403,18 +395,6 @@ func (ndc *ControllerHandler) FindNonMigratableVMS(node *corev1.Node) (map[strin
 	}
 
 	return result, nil
-}
-
-// findVMSwithCDROMOrContainerDisk is called by action handler to leverage caches to find VM's which may have a cdrom or container disk
-// attached to vmi
-func findVMSwithCDROMOrContainerDisk(vmiList []*kubevirtv1.VirtualMachineInstance) ([]string, error) {
-	var impactedVMI []string
-	for _, vmi := range vmiList {
-		if virtualmachineinstance.VMContainsCDRomOrContainerDisk(vmi) {
-			impactedVMI = append(impactedVMI, namespacedVMName(vmi))
-		}
-	}
-	return impactedVMI, nil
 }
 
 func ActionHelper(nodeCache ctlcorev1.NodeCache, virtualMachineInstanceCache ctlkubevirtv1.VirtualMachineInstanceCache,
@@ -527,10 +507,12 @@ func isNodeReady(node *corev1.Node) bool {
 }
 
 func getUniqueVMSfromConditionMap(vms map[string][]string) []string {
+	//nolint:prealloc // if we want to preallocate we need to calculate the length first, so skip this linter
 	var vmList []string
 	for _, v := range vms {
 		vmList = append(vmList, v...)
 	}
+	slices.Sort(vmList) // ensure Compact works correctly
 	return slices.Compact(vmList)
 }
 
@@ -542,11 +524,7 @@ func getUniqueVMSfromConditionMap(vms map[string][]string) []string {
 // - ShutdownAndRestartAfterDisable
 // - Shutdown
 func (ndc *ControllerHandler) listVMILabelMaintainModeStrategy(node *corev1.Node) ([]*kubevirtv1.VirtualMachineInstance, error) {
-	req, err := labels.NewRequirement(util.LabelMaintainModeStrategy, selection.In, []string{
-		util.MaintainModeStrategyShutdownAndRestartAfterEnable,
-		util.MaintainModeStrategyShutdownAndRestartAfterDisable,
-		util.MaintainModeStrategyShutdown,
-	})
+	req, err := labels.NewRequirement(util.LabelMaintainModeStrategy, selection.In, util.MaintainModeStrategyShutdownValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create selector to list VMIs that are to be administratively stopped before migration: %w", err)
 	}

@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whereabouts-controller
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whereabouts-controller
+  template:
+    metadata:
+      labels:
+        app: whereabouts-controller
+    spec:
+      containers:
+        - command:
+            - /node-slice-controller
+          env:
+            - name: NODENAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: WHEREABOUTS_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          name: whereabouts
+          resources:
+            limits:
+              cpu: 100m
+              memory: 200Mi
+            requests:
+              cpu: 100m
+              memory: 100Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /host/opt/cni/bin
+              name: cnibin
+            - mountPath: /host/etc/cni/net.d
+              name: cni-net-dir
+            - mountPath: /cron-schedule
+              name: cron-scheduler-configmap
+            - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              name: kube-api-access-6kd6k
+              readOnly: true
+      preemptionPolicy: PreemptLowerPriority
+      priority: 0
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: harvester-whereabouts
+      serviceAccountName: harvester-whereabouts
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - hostPath:
+            path: /opt/cni/bin
+            type: ""
+          name: cnibin
+        - hostPath:
+            path: /etc/cni/net.d
+            type: ""
+          name: cni-net-dir
+        - configMap:
+            defaultMode: 484
+            items:
+              - key: cron-expression
+                path: config
+            name: whereabouts-config
+          name: cron-scheduler-configmap
+        - name: kube-api-access-6kd6k
+          projected:
+            defaultMode: 420
+            sources:
+              - serviceAccountToken:
+                  expirationSeconds: 3607
+                  path: token
+              - configMap:
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+                  name: kube-root-ca.crt
+              - downwardAPI:
+                  items:
+                    - fieldRef:
+                        apiVersion: v1
+                        fieldPath: metadata.namespace
+                      path: namespace

@@ -102,7 +102,7 @@ func (v *nodeValidator) validateCPUManagerOperation(node *corev1.Node) error {
 	}
 
 	// check if the node is in witness role
-	if _, found := node.Labels[ctlnode.HarvesterWitnessNodeLabelKey]; found {
+	if _, found := node.Labels[util.HarvesterWitnessNodeLabelKey]; found {
 		return werror.NewBadRequest("The witness node is unable to update the CPU manager policy.")
 	}
 
@@ -199,7 +199,7 @@ func checkCurrentNodeCPUManagerJobs(node *corev1.Node, jobCache ctlbatchv1.JobCa
 
 func checkMasterNodeJobs(node *corev1.Node, nodeCache v1.NodeCache, jobCache ctlbatchv1.JobCache) error {
 	// the node is worker, no need to do validation
-	if !ctlnode.IsManagementRole(node) {
+	if !util.IsManagementRole(node) {
 		return nil
 	}
 
@@ -211,7 +211,7 @@ func checkMasterNodeJobs(node *corev1.Node, nodeCache v1.NodeCache, jobCache ctl
 	// collect master node names except the node itself
 	masterNodeNames := []string{}
 	for _, n := range nodes {
-		if n.Name != node.Name && ctlnode.IsManagementRole(n) {
+		if n.Name != node.Name && util.IsManagementRole(n) {
 			masterNodeNames = append(masterNodeNames, n.Name)
 		}
 	}

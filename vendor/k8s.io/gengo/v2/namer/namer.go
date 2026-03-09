@@ -281,12 +281,12 @@ func (ns *NameStrategy) Name(t *types.Type) string {
 	case types.Func:
 		// TODO: add to name test
 		parts := []string{"Func"}
-		for _, pt := range t.Signature.Parameters {
-			parts = append(parts, ns.removePrefixAndSuffix(ns.Name(pt)))
+		for _, param := range t.Signature.Parameters {
+			parts = append(parts, ns.removePrefixAndSuffix(ns.Name(param.Type)))
 		}
 		parts = append(parts, "Returns")
-		for _, rt := range t.Signature.Results {
-			parts = append(parts, ns.removePrefixAndSuffix(ns.Name(rt)))
+		for _, result := range t.Signature.Results {
+			parts = append(parts, ns.removePrefixAndSuffix(ns.Name(result.Type)))
 		}
 		name = ns.Join(ns.Prefix, parts, ns.Suffix)
 	default:
@@ -370,16 +370,20 @@ func (r *rawNamer) Name(t *types.Type) string {
 			// TODO: include function signature
 			elems = append(elems, m.Name.Name)
 		}
-		name = "interface{" + strings.Join(elems, "; ") + "}"
+		if len(elems) == 0 {
+			name = "any"
+		} else {
+			name = "interface{" + strings.Join(elems, "; ") + "}"
+		}
 	case types.Func:
 		// TODO: add to name test
 		params := []string{}
-		for _, pt := range t.Signature.Parameters {
-			params = append(params, r.Name(pt))
+		for _, param := range t.Signature.Parameters {
+			params = append(params, r.Name(param.Type))
 		}
 		results := []string{}
-		for _, rt := range t.Signature.Results {
-			results = append(results, r.Name(rt))
+		for _, result := range t.Signature.Results {
+			results = append(results, r.Name(result.Type))
 		}
 		name = "func(" + strings.Join(params, ",") + ")"
 		if len(results) == 1 {

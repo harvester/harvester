@@ -36,15 +36,16 @@ const (
 	ClusterActionSaveAsTemplate        = "saveAsTemplate"
 
 	// ClusterConditionReady Cluster ready to serve API (healthy when true, unhealthy when false)
-	ClusterConditionReady          condition.Cond = "Ready"
-	ClusterConditionPending        condition.Cond = "Pending"
-	ClusterConditionCertsGenerated condition.Cond = "CertsGenerated"
-	ClusterConditionEtcd           condition.Cond = "etcd"
-	ClusterConditionProvisioned    condition.Cond = "Provisioned"
-	ClusterConditionUpdated        condition.Cond = "Updated"
-	ClusterConditionUpgraded       condition.Cond = "Upgraded"
-	ClusterConditionWaiting        condition.Cond = "Waiting"
-	ClusterConditionRemoved        condition.Cond = "Removed"
+	ClusterConditionReady           condition.Cond = "Ready"
+	ClusterConditionPending         condition.Cond = "Pending"
+	ClusterConditionCertsGenerated  condition.Cond = "CertsGenerated"
+	ClusterConditionEtcd            condition.Cond = "etcd"
+	ClusterConditionPreBootstrapped condition.Cond = "PreBootstrapped"
+	ClusterConditionProvisioned     condition.Cond = "Provisioned"
+	ClusterConditionUpdated         condition.Cond = "Updated"
+	ClusterConditionUpgraded        condition.Cond = "Upgraded"
+	ClusterConditionWaiting         condition.Cond = "Waiting"
+	ClusterConditionRemoved         condition.Cond = "Removed"
 	// ClusterConditionNoDiskPressure true when all cluster nodes have sufficient disk
 	ClusterConditionNoDiskPressure condition.Cond = "NoDiskPressure"
 	// ClusterConditionNoMemoryPressure true when all cluster nodes have sufficient memory
@@ -122,9 +123,25 @@ type ClusterSpecBase struct {
 }
 
 type AgentDeploymentCustomization struct {
-	AppendTolerations            []v1.Toleration          `json:"appendTolerations,omitempty"`
-	OverrideAffinity             *v1.Affinity             `json:"overrideAffinity,omitempty"`
-	OverrideResourceRequirements *v1.ResourceRequirements `json:"overrideResourceRequirements,omitempty"`
+	AppendTolerations            []v1.Toleration               `json:"appendTolerations,omitempty"`
+	OverrideAffinity             *v1.Affinity                  `json:"overrideAffinity,omitempty"`
+	OverrideResourceRequirements *v1.ResourceRequirements      `json:"overrideResourceRequirements,omitempty"`
+	SchedulingCustomization      *AgentSchedulingCustomization `json:"schedulingCustomization,omitempty"`
+}
+
+type AgentSchedulingCustomization struct {
+	PriorityClass       *PriorityClassSpec       `json:"priorityClass,omitempty"`
+	PodDisruptionBudget *PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
+}
+
+type PriorityClassSpec struct {
+	Value            int                  `json:"value,omitempty"`
+	PreemptionPolicy *v1.PreemptionPolicy `json:"preemptionPolicy,omitempty"`
+}
+
+type PodDisruptionBudgetSpec struct {
+	MinAvailable   string `json:"minAvailable,omitempty"`
+	MaxUnavailable string `json:"maxUnavailable,omitempty"`
 }
 
 type ClusterSpec struct {
@@ -134,7 +151,7 @@ type ClusterSpec struct {
 	Internal                            bool                        `json:"internal" norman:"nocreate,noupdate"`
 	K3sConfig                           *K3sConfig                  `json:"k3sConfig,omitempty"`
 	Rke2Config                          *Rke2Config                 `json:"rke2Config,omitempty"`
-	ImportedConfig                      *ImportedConfig             `json:"importedConfig,omitempty" norman:"nocreate,noupdate"`
+	ImportedConfig                      *ImportedConfig             `json:"importedConfig,omitempty"`
 	GoogleKubernetesEngineConfig        *MapStringInterface         `json:"googleKubernetesEngineConfig,omitempty"`
 	AzureKubernetesServiceConfig        *MapStringInterface         `json:"azureKubernetesServiceConfig,omitempty"`
 	AmazonElasticContainerServiceConfig *MapStringInterface         `json:"amazonElasticContainerServiceConfig,omitempty"`
@@ -149,8 +166,20 @@ type ClusterSpec struct {
 	FleetWorkspaceName                  string                      `json:"fleetWorkspaceName,omitempty"`
 }
 
+type Answer struct {
+	ProjectName     string            `json:"projectName,omitempty" norman:"type=reference[project]"`
+	ClusterName     string            `json:"clusterName,omitempty" norman:"type=reference[cluster]"`
+	Values          map[string]string `json:"values,omitempty"`
+	ValuesSetString map[string]string `json:"valuesSetString,omitempty"`
+}
+
+func (a *Answer) ObjClusterName() string {
+	return a.ClusterName
+}
+
 type ImportedConfig struct {
-	KubeConfig string `json:"kubeConfig" norman:"type=password"`
+	KubeConfig         string `json:"kubeConfig" norman:"type=password"`
+	PrivateRegistryURL string `json:"privateRegistryURL,omitempty"`
 }
 
 type ClusterStatus struct {

@@ -3,12 +3,16 @@ package vm
 import "github.com/rancher/wrangler/v3/pkg/condition"
 
 var (
-	vmReady   condition.Cond = "Ready"
 	vmiPaused condition.Cond = "Paused"
 )
 
-type EjectCdRomActionInput struct {
-	DiskNames []string `json:"diskNames,omitempty"`
+type InsertCdRomVolumeActionInput struct {
+	DeviceName string `json:"DeviceName"`
+	ImageName  string `json:"imageName"`
+}
+
+type EjectCdRomVolumeActionInput struct {
+	DeviceName string `json:"deviceName"`
 }
 
 type BackupInput struct {
@@ -37,6 +41,20 @@ type AddVolumeInput struct {
 
 type RemoveVolumeInput struct {
 	DiskName string `json:"diskName"`
+}
+
+type AddNicInput struct {
+	InterfaceName string `json:"interfaceName"`
+	NetworkName   string `json:"networkName"`
+	MacAddress    string `json:"macAddress"`
+}
+
+type RemoveNicInput struct {
+	InterfaceName string `json:"interfaceName"`
+}
+
+type FindHotunpluggableNicsOutput struct {
+	Interfaces []string `json:"interfaces"`
 }
 
 type CloneInput struct {

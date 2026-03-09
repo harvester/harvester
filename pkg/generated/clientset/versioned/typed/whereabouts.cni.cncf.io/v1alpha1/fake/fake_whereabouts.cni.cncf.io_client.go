@@ -1,5 +1,5 @@
 /*
-Copyright 2025 Rancher Labs, Inc.
+Copyright 2026 SUSE, LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,11 +29,15 @@ type FakeWhereaboutsV1alpha1 struct {
 }
 
 func (c *FakeWhereaboutsV1alpha1) IPPools() v1alpha1.IPPoolInterface {
-	return &FakeIPPools{c}
+	return newFakeIPPools(c)
+}
+
+func (c *FakeWhereaboutsV1alpha1) NodeSlicePools(namespace string) v1alpha1.NodeSlicePoolInterface {
+	return newFakeNodeSlicePools(c, namespace)
 }
 
 func (c *FakeWhereaboutsV1alpha1) OverlappingRangeIPReservations(namespace string) v1alpha1.OverlappingRangeIPReservationInterface {
-	return &FakeOverlappingRangeIPReservations{c, namespace}
+	return newFakeOverlappingRangeIPReservations(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

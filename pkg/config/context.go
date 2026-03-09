@@ -123,7 +123,7 @@ type Management struct {
 	CdiFactory                *ctlcdiv1.Factory
 	CdiUploadFactory          *ctlcdiuploadv1.Factory
 
-	ClientSet  *kubernetes.Clientset
+	ClientSet  kubernetes.Interface
 	RestConfig *rest.Config
 
 	starters []start.Starter

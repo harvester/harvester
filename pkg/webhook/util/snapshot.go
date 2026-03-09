@@ -142,7 +142,7 @@ func (s snapshotBackupAbility) IsSupported(backupType v1beta1.BackupType) bool {
 func genAbilityMatrix() map[string]snapshotBackupAbility {
 	return map[string]snapshotBackupAbility{
 		string(lhv1beta2.DataEngineTypeV1) + "." + lhtypes.LonghornDriverName: {true, true},
-		string(lhv1beta2.DataEngineTypeV2) + "." + lhtypes.LonghornDriverName: {false, false},
+		string(lhv1beta2.DataEngineTypeV2) + "." + lhtypes.LonghornDriverName: {true, true},
 	}
 }
 

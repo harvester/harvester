@@ -62,6 +62,7 @@ func (v *pvcValidator) Resource() types.Resource {
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Delete,
 			admissionregv1.Update,
+			admissionregv1.Create,
 		},
 	}
 }
@@ -104,7 +105,7 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 	for _, vm := range vms {
 		if vm.DeletionTimestamp == nil {
 			message := fmt.Sprintf("can not delete the volume %s which is currently attached to VM: %s/%s", oldPVC.Name, vm.Namespace, vm.Name)
-			return werror.NewInvalidError(message, "")
+			return werror.NewConflict(message)
 		}
 	}
 
@@ -152,6 +153,11 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 	return webhookutil.CheckExpand(newPVC, v.vmCache, v.kubevirtCache, v.scCache, v.settingCache)
 }
 
+func (v *pvcValidator) Create(request *types.Request, newObj runtime.Object) error {
+	newPVC := newObj.(*corev1.PersistentVolumeClaim)
+	return v.validateInternalUsage(newPVC)
+}
+
 func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) error {
 	if _, find := pvc.Annotations[util.AnnotationGoldenImage]; find {
 		if pvc.Annotations[util.AnnotationGoldenImage] == "true" {
@@ -181,4 +187,96 @@ func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) e
 		}
 	}
 	return nil
+}
+
+func (v *pvcValidator) validateInternalUsage(pvc *corev1.PersistentVolumeClaim) error {
+	if pvc.Spec.StorageClassName == nil {
+		return nil
+	}
+
+	scName := *pvc.Spec.StorageClassName
+	switch scName {
+	case util.StorageClassLonghornStatic:
+		isBelongToUpgradeImage, err := v.isBelongToUpgradeImage(pvc)
+		if err != nil {
+			return werror.NewInternalError(fmt.Sprintf("failed to check if pvc %s/%s is for internal usage: %v", pvc.Namespace, pvc.Name, err))
+		}
+		if !isBelongToUpgradeImage {
+			message := fmt.Sprintf("can not create volume with the reserved storage class %s", scName)
+			return werror.NewInvalidError(message, "spec.storageClassName")
+		}
+		return nil
+	case util.StorageClassVmstatePersistence:
+		if !isManagedByKubeVirt(pvc) {
+			message := fmt.Sprintf("can not create volume with the reserved storage class %s", scName)
+			return werror.NewInvalidError(message, "spec.storageClassName")
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+func (v *pvcValidator) isBelongToUpgradeImage(pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	// only longhorn-static storage class pvc could be for upgrade image
+	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName != util.StorageClassLonghornStatic {
+		return false, nil
+	}
+
+	for _, owner := range pvc.OwnerReferences {
+		// upgrade vm image will create 3 pvcs
+		// 1. image-xxxxx pvc (owner kind: DataVolume) with longhorn-static storage class, the owner here is the underlying data volume of upgrade vm image
+		// 2. prime-{uuid} pvc (owner kind: PersistentVolumeClaim) with longhorn-static storage class, the owner here is the image-xxxxx pvc
+		// 3. prime-{uuid}-scratch pvc (owner kind: Pod) with default storage class, generally harvester-longhorn, the owner here is the cdi importer/upload pod
+		// note that vm image and data volume and image-xxxxx pvc share the same name
+		if owner.Kind != util.DVObjectName && owner.Kind != util.PVCObjectName {
+			continue
+		}
+
+		upgradeImage, err := v.imageCache.Get(pvc.Namespace, owner.Name)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return false, err
+		}
+
+		if val, ok := upgradeImage.Annotations[util.AnnotationUpgradeImage]; ok && val == "True" {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// isManagedByKubeVirt checks if a PVC creation request is legitimately from KubeVirt.
+// It validates multiple criteria to prevent users from bypassing the restriction:
+// 1. Must have the persistent-state-for label with a non-empty value
+// 2. Must have owner reference to a VM or VMI
+// 3. The label value must match the owner's name (VM/VMI name)
+func isManagedByKubeVirt(pvc *corev1.PersistentVolumeClaim) bool {
+	if pvc.Labels == nil {
+		return false
+	}
+
+	// Check if the label exists and has a non-empty value
+	vmName, exists := pvc.Labels[util.LabelKubeVirtPersistentState]
+	if !exists || vmName == "" {
+		return false
+	}
+
+	// Verify that the PVC has an owner reference to a VM or VMI
+	hasValidOwner := false
+	for _, owner := range pvc.OwnerReferences {
+		if owner.Kind == kubevirtv1.VirtualMachineGroupVersionKind.Kind ||
+			owner.Kind == kubevirtv1.VirtualMachineInstanceGroupVersionKind.Kind {
+			// The owner name should match the label value
+			if owner.Name == vmName {
+				hasValidOwner = true
+				break
+			}
+		}
+	}
+
+	return hasValidOwner
 }

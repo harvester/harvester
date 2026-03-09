@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	publicNamespace = "harvester-public"
+	publicNamespace  = "harvester-public"
+	systemNamespaces = "system-namespaces"
 )
 
 func addPublicNamespace(apply apply.Apply) error {

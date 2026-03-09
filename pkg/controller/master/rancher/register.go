@@ -48,7 +48,7 @@ const (
 	trueStr                           = "true"
 	controllerCAPIDeployment          = "harvester-capi-controller"
 	capiControllerDeploymentName      = "capi-controller-manager"
-	capiControllerDeploymentNamespace = "cattle-provisioning-capi-system"
+	capiControllerDeploymentNamespace = "cattle-capi-system"
 )
 
 type Handler struct {

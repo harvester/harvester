@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -18,8 +17,10 @@ import (
 
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	uploadcdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 
@@ -32,7 +33,8 @@ import (
 
 const (
 	CDIUploadURLRaw = "cdi-uploadproxy.harvester-system"
-	UploadProxyURI  = "/v1alpha1/upload"
+	UploadURI       = "/v1beta1/upload"
+	UploadFormURI   = "/v1beta1/upload-form"
 )
 
 type Uploader struct {
@@ -87,9 +89,9 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 
 	// check multipart
 	contentType := req.Header.Get("Content-Type")
-	multipartFormat := false
+	isMultipartFormat := false
 	if strings.HasPrefix(contentType, "multipart/form-data") {
-		multipartFormat = true
+		isMultipartFormat = true
 	}
 
 	// no matter multipart or not, the first 4k would be enough
@@ -102,13 +104,6 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	logrus.Debugf("Read %d bytes from the request body", readLen)
 
 	rawContent := tmpBuff[:readLen]
-	// find the boundary of the header with multipart
-	headerEndIndex := 0
-	if multipartFormat {
-		headerEnd := []byte("\r\n\r\n")
-		headerEndIndex = bytes.Index(rawContent, headerEnd)
-		logrus.Debugf("headerEndIndex (boundary): %v", headerEndIndex)
-	}
 	// try to find the magic number of first 4096 bytes
 	// the multipart body will contain the boundary string and the headers.
 	// We should still find the magic number in the first 4096 bytes
@@ -125,12 +120,8 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	}
 	logrus.Debugf("Qcow header index: %v, virtual size: %v", qcowHeaderIndex, virtualSize)
 
-	dataContent := rawContent
-	if multipartFormat {
-		dataContent = rawContent[headerEndIndex+4:]
-	}
-	if _, err := cu.vmio.UpdateVirtualSizeAndSize(vmImg, virtualSize, fileSize); err != nil {
-		return fmt.Errorf("failed to update VM Image size and virtual size: %v", err)
+	if err = cu.updateVirtualSizeAndSize(vmImg, virtualSize, fileSize); err != nil {
+		return err
 	}
 
 	// check VMImage status again (for size/virtual size)
@@ -215,7 +206,7 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 		return fmt.Errorf("failed to create UploadTokenRequest %s/%s: %v", dvNamespace, dvName, err)
 	}
 
-	newBody := io.MultiReader(bytes.NewReader(dataContent), req.Body)
+	newBody := io.MultiReader(bytes.NewReader(rawContent), req.Body)
 
 	progress := &ProgressUpdater{
 		targetBytes:       fileSize,
@@ -228,8 +219,7 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	hookedReader := io.TeeReader(newBody, progress)
 
 	token := retUploadTokenRequest.Status.Token
-	cdiUploadURL := fmt.Sprintf("https://%s%s", CDIUploadURLRaw, UploadProxyURI)
-	uploadReq, err := http.NewRequestWithContext(req.Context(), http.MethodPost, cdiUploadURL, io.NopCloser(hookedReader))
+	uploadReq, err := http.NewRequestWithContext(req.Context(), http.MethodPost, getUploadFormURL(isMultipartFormat), io.NopCloser(hookedReader))
 	if err != nil {
 		return fmt.Errorf("failed to wrap the upload request: %w", err)
 	}
@@ -258,7 +248,7 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	}
 	defer uploadResp.Body.Close()
 
-	body, err := ioutil.ReadAll(uploadResp.Body)
+	body, err := io.ReadAll(uploadResp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -368,4 +358,59 @@ func (cu *Uploader) updateVMImageProgress(vmImg *harvesterv1.VirtualMachineImage
 			return
 		}
 	}
+}
+
+func getUploadFormURL(isMultipartFormat bool) string {
+	if isMultipartFormat {
+		return fmt.Sprintf("https://%s%s", CDIUploadURLRaw, UploadFormURI)
+	}
+	return fmt.Sprintf("https://%s%s", CDIUploadURLRaw, UploadURI)
+}
+
+func (cu *Uploader) updateVirtualSizeAndSize(vmImg *harvesterv1.VirtualMachineImage, virtualSize, fileSize int64) error {
+	// retry is needed here as the vm image controller could update the VMImage at the same time
+	if _, err := cu.updateVMIWithRetryOnConflict(vmImg, func(img *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
+		return cu.vmio.UpdateVirtualSizeAndSize(img, virtualSize, fileSize)
+	}); err != nil {
+		return fmt.Errorf("failed to update VM Image size and virtual size: %v", err)
+	}
+	return nil
+}
+
+func (cu *Uploader) updateVMIWithRetryOnConflict(
+	vmImg *harvesterv1.VirtualMachineImage,
+	updateFunc func(*harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error),
+) (*harvesterv1.VirtualMachineImage, error) {
+	namespace := vmImg.Namespace
+	name := vmImg.Name
+	var updatedVMI *harvesterv1.VirtualMachineImage
+
+	err := retry.OnError(retry.DefaultRetry, func(err error) bool {
+		// Retry on conflict errors or transient API errors
+		return apierrors.IsConflict(err) || apierrors.IsServerTimeout(err) || apierrors.IsTimeout(err) || apierrors.IsServiceUnavailable(err)
+	}, func() error {
+		// Fetch the latest VMImage before each retry attempt to get the current resource version
+		latestVMI, err := cu.vmio.GetVMImageObj(namespace, name)
+		if err != nil {
+			logrus.Warnf("Failed to get latest VMImage %s/%s: %v", namespace, name, err)
+			return err
+		}
+
+		newVMI, err := updateFunc(latestVMI.DeepCopy())
+		if err != nil {
+			return err
+		}
+
+		updatedVMI, err = cu.vmio.UpdateVMI(latestVMI, newVMI)
+		if err != nil {
+			logrus.Warnf("Failed to update VM Image: %v, will retry if retriable.", err)
+		}
+		return err
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update VM Image %s/%s after retries: %v", namespace, name, err)
+	}
+
+	return updatedVMI, nil
 }

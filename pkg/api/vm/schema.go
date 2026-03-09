@@ -26,16 +26,19 @@ var (
 )
 
 func RegisterSchema(scaled *config.Scaled, server *server.Server, options config.Options) error {
-	// import the struct EjectCdRomActionInput to the schema, then the action could use it as input,
+	// import the struct of action input to the schema, then the action could use it as input,
 	// and because wrangler converts the struct typeName to lower title, so the action input should start with lower case.
 	// https://github.com/rancher/wrangler/blob/master/pkg/schemas/reflection.go#L26
-	server.BaseSchemas.MustImportAndCustomize(EjectCdRomActionInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(InsertCdRomVolumeActionInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(EjectCdRomVolumeActionInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(BackupInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(RestoreInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(MigrateInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(CreateTemplateInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(AddVolumeInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(RemoveVolumeInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(AddNicInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(RemoveNicInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(CloneInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(CPUAndMemoryHotplugInput{}, nil)
 
@@ -50,6 +53,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	nodes := scaled.CoreFactory.Core().V1().Node()
 	pvcs := scaled.CoreFactory.Core().V1().PersistentVolumeClaim()
 	pvs := scaled.CoreFactory.Core().V1().PersistentVolume()
+	pods := scaled.CoreFactory.Core().V1().Pod()
 	secrets := scaled.CoreFactory.Core().V1().Secret()
 	vmt := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate()
 	vmtv := scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion()
@@ -72,43 +76,48 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	}
 	actionHandler := harvesterServer.NewHandler(&vmActionHandler{
 		namespace:                 options.Namespace,
-		datavolumeClient:          dataVolumeClient,
-		kubevirtCache:             kubevirtCache,
-		vms:                       vms,
-		vmCache:                   vms.Cache(),
-		vmis:                      vmis,
-		vmiCache:                  vmis.Cache(),
-		vmims:                     vmims,
-		vmimCache:                 vmims.Cache(),
-		vmTemplateClient:          vmt,
-		vmTemplateVersionClient:   vmtv,
-		backups:                   backups,
-		backupCache:               backups.Cache(),
-		restores:                  restores,
-		settingCache:              settings.Cache(),
-		nadCache:                  nads.Cache(),
-		nodeCache:                 nodes.Cache(),
-		pvcCache:                  pvcs.Cache(),
-		pvCache:                   pvs.Cache(),
-		secretClient:              secrets,
-		secretCache:               secrets.Cache(),
-		virtSubresourceRestClient: virtSubresourceClient,
+		clientSet:                 scaled.Management.ClientSet,
 		virtRestClient:            virtv1Client.RESTClient(),
-		vmImages:                  vmImages,
-		vmImageCache:              vmImages.Cache(),
-		storageClassCache:         storageClasses.Cache(),
-		resourceQuotaClient:       resourceQuotas,
-		clientSet:                 *scaled.Management.ClientSet,
+		virtSubresourceRestClient: virtSubresourceClient,
+
+		backupClient:            backups,
+		datavolumeClient:        dataVolumeClient,
+		pvcClient:               pvcs,
+		resourceQuotaClient:     resourceQuotas,
+		restoreClient:           restores,
+		secretClient:            secrets,
+		vmClient:                vms,
+		vmImageClient:           vmImages,
+		vmTemplateClient:        vmt,
+		vmTemplateVersionClient: vmtv,
+		vmiClient:               vmis,
+		vmimClient:              vmims,
+
+		backupCache:       backups.Cache(),
+		kubevirtCache:     kubevirtCache,
+		nadCache:          nads.Cache(),
+		nodeCache:         nodes.Cache(),
+		podCache:          pods.Cache(),
+		pvCache:           pvs.Cache(),
+		pvcCache:          pvcs.Cache(),
+		secretCache:       secrets.Cache(),
+		settingCache:      settings.Cache(),
+		storageClassCache: storageClasses.Cache(),
+		vmCache:           vms.Cache(),
+		vmImageCache:      vmImages.Cache(),
+		vmiCache:          vmis.Cache(),
+		vmimCache:         vmims.Cache(),
 	})
 
 	vmformatter := vmformatter{
 		pvcCache:      pvcs.Cache(),
 		vmiCache:      vmis.Cache(),
+		vmCache:       vms.Cache(),
 		nodeCache:     nodes.Cache(),
 		scCache:       storageClasses.Cache(),
 		vmBackupCache: backups.Cache(),
 		settingCache:  settings.Cache(),
-		clientSet:     *scaled.Management.ClientSet,
+		clientSet:     scaled.Management.ClientSet,
 	}
 
 	vmStore := &vmStore{
@@ -127,7 +136,8 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				stopVM:                           actionHandler,
 				restartVM:                        actionHandler,
 				softReboot:                       actionHandler,
-				ejectCdRom:                       actionHandler,
+				insertCdRomVolume:                actionHandler,
+				ejectCdRomVolume:                 actionHandler,
 				pauseVM:                          actionHandler,
 				unpauseVM:                        actionHandler,
 				migrate:                          actionHandler,
@@ -139,6 +149,9 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				createTemplate:                   actionHandler,
 				addVolume:                        actionHandler,
 				removeVolume:                     actionHandler,
+				addNic:                           actionHandler,
+				removeNic:                        actionHandler,
+				findHotunpluggableNics:           actionHandler,
 				cloneVM:                          actionHandler,
 				forceStopVM:                      actionHandler,
 				dismissInsufficientResourceQuota: actionHandler,
@@ -159,8 +172,11 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				},
 				abortMigration:      {},
 				findMigratableNodes: {},
-				ejectCdRom: {
-					Input: "ejectCdRomActionInput",
+				insertCdRomVolume: {
+					Input: "insertCdRomVolumeActionInput",
+				},
+				ejectCdRomVolume: {
+					Input: "ejectCdRomVolumeActionInput",
 				},
 				backupVM: {
 					Input: "backupInput",
@@ -177,6 +193,13 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 				removeVolume: {
 					Input: "removeVolumeInput",
 				},
+				addNic: {
+					Input: "addNicInput",
+				},
+				removeNic: {
+					Input: "removeNicInput",
+				},
+				findHotunpluggableNics: {},
 				cloneVM: {
 					Input: "cloneInput",
 				},

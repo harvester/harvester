@@ -5,11 +5,13 @@ import (
 
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	harvesterFake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	fake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -319,7 +321,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 				Spec: harvesterv1.AddonSpec{
 					Repo:          "repo1",
 					Chart:         "vcluster",
-					Version:       "version1",
+					Version:       vCluster0190,
 					Enabled:       true,
 					ValuesContent: "hostname: rancher.172.19.108.3.sslip.io\nrancherVersion: v2.7.4\nbootstrapPassword: harvesterAdmin\n",
 				},
@@ -349,7 +351,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 				Spec: harvesterv1.AddonSpec{
 					Repo:          "repo1",
 					Chart:         "vcluster",
-					Version:       "version1",
+					Version:       vCluster0190,
 					Enabled:       true,
 					ValuesContent: "hostname: 172.19.108.3\nrancherVersion: v2.7.4\nbootstrapPassword: harvesterAdmin\n",
 				},
@@ -379,7 +381,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 				Spec: harvesterv1.AddonSpec{
 					Repo:          "repo1",
 					Chart:         "vcluster",
-					Version:       "version1",
+					Version:       vCluster0190,
 					Enabled:       true,
 					ValuesContent: "hostname: FakeAddress.com\nrancherVersion: v2.7.4\nbootstrapPassword: harvesterAdmin\n",
 				},
@@ -409,23 +411,66 @@ func Test_validateUpdatedAddon(t *testing.T) {
 				Spec: harvesterv1.AddonSpec{
 					Repo:          "repo1",
 					Chart:         "vcluster",
-					Version:       "version1",
+					Version:       vCluster0190,
 					Enabled:       true,
 					ValuesContent: "hostname: \nrancherVersion: v2.7.4\nbootstrapPassword: harvesterAdmin\n",
 				},
 			},
 			expectedError: true,
 		},
+		{
+			name: "disable pcidevices-controller with no VMs",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.PCIDevicesControllerName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: true,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.PCIDevicesControllerName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: false,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "disable nvidia-driver-toolkit with no VMs",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.NvidiaDriverToolkitName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: true,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.NvidiaDriverToolkitName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: false,
+				},
+			},
+			expectedError: false,
+		},
 	}
 
-	harvesterClientSet := harvesterFake.NewSimpleClientset()
+	clientset := fake.NewSimpleClientset()
 
-	fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
-	fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
-	fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
-	fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
-	fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-	validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache).(*addonValidator)
+	fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+	fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+	fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+	fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+	fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+	upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
+	fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+	fakeVMCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
+	validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, fakeVMCache).(*addonValidator)
 
 	for _, tc := range testCases {
 		err := validator.validateUpdatedAddon(tc.newAddon, tc.oldAddon)
@@ -494,15 +539,18 @@ func Test_validateNewAddon(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		harvesterClientSet := harvesterFake.NewSimpleClientset()
-		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
-		fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
-		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
-		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
-		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache).(*addonValidator)
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
+
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
 		for _, addon := range tc.addonList {
-			err := harvesterClientSet.Tracker().Add(addon)
+			err := clientset.Tracker().Add(addon)
 			assert.Nil(t, err)
 		}
 
@@ -854,19 +902,21 @@ func Test_validateRancherLoggingAddonWithClusterFlow(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		harvesterClientSet := harvesterFake.NewSimpleClientset()
-		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
-		fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
-		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
-		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
-		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache).(*addonValidator)
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
 		for _, cf := range tc.clusterFlows {
-			err := harvesterClientSet.Tracker().Add(cf)
+			err := clientset.Tracker().Add(cf)
 			assert.Nil(t, err)
 		}
 		for _, co := range tc.clusterOutputs {
-			err := harvesterClientSet.Tracker().Add(co)
+			err := clientset.Tracker().Add(co)
 			assert.Nil(t, err)
 		}
 
@@ -1134,19 +1184,21 @@ func Test_validateRancherLoggingAddonWithFlow(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		harvesterClientSet := harvesterFake.NewSimpleClientset()
-		fakeAddonCache := fakeclients.AddonCache(harvesterClientSet.HarvesterhciV1beta1().Addons)
-		fakeFlowCache := fakeclients.FlowCache(harvesterClientSet.LoggingV1beta1().Flows)
-		fakeOutputCache := fakeclients.OutputCache(harvesterClientSet.LoggingV1beta1().Outputs)
-		fakeClusterFlowCache := fakeclients.ClusterFlowCache(harvesterClientSet.LoggingV1beta1().ClusterFlows)
-		fakeClusterOutputCache := fakeclients.ClusterOutputCache(harvesterClientSet.LoggingV1beta1().ClusterOutputs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache).(*addonValidator)
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
 		for _, cf := range tc.flows {
-			err := harvesterClientSet.Tracker().Add(cf)
+			err := clientset.Tracker().Add(cf)
 			assert.Nil(t, err)
 		}
 		for _, co := range tc.outputs {
-			err := harvesterClientSet.Tracker().Add(co)
+			err := clientset.Tracker().Add(co)
 			assert.Nil(t, err)
 		}
 
@@ -1156,5 +1208,918 @@ func Test_validateRancherLoggingAddonWithFlow(t *testing.T) {
 		} else {
 			assert.Nil(t, err, tc.name)
 		}
+	}
+}
+
+func Test_validateRancherLoggingWithUpgradeLog(t *testing.T) {
+	var testCases = []struct {
+		name          string
+		oldAddon      *harvesterv1.Addon
+		newAddon      *harvesterv1.Addon
+		upgradeLogs   []*harvesterv1.UpgradeLog
+		expectedError bool
+	}{
+		{
+			name: "user can't enable rancher-logging addon with existing upgradeLog objects",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs: []*harvesterv1.UpgradeLog{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "hvst-upgrade-xxxx-upgradelog1",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Spec: harvesterv1.UpgradeLogSpec{},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "user can't disable rancher-logging addon with existing upgradeLog objects",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs: []*harvesterv1.UpgradeLog{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "hvst-upgrade-xxxx-upgradelog2", // relies on rancher-logging to deploy logging-operator
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Spec: harvesterv1.UpgradeLogSpec{},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "user can't enable rancher-logging addon with existing upgradeLog objects, but webhook check is bypassed",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+					Annotations: map[string]string{
+						util.AnnotationSkipRancherLoggingAddonWebhookCheck: "true", // bypass the check
+					},
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs: []*harvesterv1.UpgradeLog{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "hvst-upgrade-xxxx-upgradelog3",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Spec: harvesterv1.UpgradeLogSpec{},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "user can't disable rancher-logging addon with existing upgradeLog objects, but webhook check is bypassed",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+					Annotations: map[string]string{
+						util.AnnotationSkipRancherLoggingAddonWebhookCheck: "true", // bypass the check
+					},
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs: []*harvesterv1.UpgradeLog{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "hvst-upgrade-xxxx-upgradelog4",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Spec: harvesterv1.UpgradeLogSpec{},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "user can successfully enable rancher-logging addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs:   []*harvesterv1.UpgradeLog{},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil).(*addonValidator)
+		for _, upgradeLog := range tc.upgradeLogs {
+			err := clientset.Tracker().Add(upgradeLog)
+			assert.Nil(t, err)
+		}
+
+		err := validator.validateUpdatedAddon(tc.newAddon, tc.oldAddon)
+		if tc.expectedError {
+			assert.NotNil(t, err, tc.name)
+		} else {
+			assert.Nil(t, err, tc.name)
+		}
+	}
+}
+
+func Test_validateRancherLoggingWithUpgradeLogThenUpgradeAddon(t *testing.T) {
+
+	var testCases = []struct {
+		name          string
+		oldAddon      *harvesterv1.Addon
+		newAddon      *harvesterv1.Addon
+		upgradeLogs   []*harvesterv1.UpgradeLog
+		expectedError bool
+	}{
+		{
+			name: "user can upgrade rancher-logging addon with existing upgradeLog objects, addon is disabled",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version2",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs: []*harvesterv1.UpgradeLog{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "hvst-upgrade-xxxx-upgradelog3",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Spec: harvesterv1.UpgradeLogSpec{},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "user can upgrade rancher-logging addon with existing upgradeLog objects, addon is enabled",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version2",
+					Enabled:       true,
+					ValuesContent: "sample",
+				},
+			},
+			upgradeLogs: []*harvesterv1.UpgradeLog{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "hvst-upgrade-xxxx-upgradelog4",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Spec: harvesterv1.UpgradeLogSpec{},
+				},
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil).(*addonValidator)
+		for _, upgradeLog := range tc.upgradeLogs {
+			err := clientset.Tracker().Add(upgradeLog)
+			assert.Nil(t, err)
+		}
+
+		err := validator.validateUpdatedAddon(tc.newAddon, tc.oldAddon)
+		if tc.expectedError {
+			assert.NotNil(t, err, tc.name)
+		} else {
+			assert.Nil(t, err, tc.name)
+		}
+	}
+}
+
+func Test_validateDeleteAddon(t *testing.T) {
+	var testCases = []struct {
+		name          string
+		oldAddon      *harvesterv1.Addon
+		expectedError bool
+	}{
+		{
+			name: "user cannot delete rancher-logging addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherLoggingName,
+					Namespace: util.CattleLoggingSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "user cannot delete rancher-monitoring addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherMonitoringName,
+					Namespace: util.CattleMonitoringSystemNamespaceName,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "user cannot delete rancher-monitoring addon even when hacking with experimental label",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      util.RancherMonitoringName,
+					Namespace: util.CattleMonitoringSystemNamespaceName,
+					Labels: map[string]string{
+						util.AddonExperimentalLabel: "true",
+					},
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "user can delete test experimental addon",
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test",
+					Labels: map[string]string{
+						util.AddonExperimentalLabel: "true",
+					},
+				},
+				Spec: harvesterv1.AddonSpec{
+					Repo:          "repo1",
+					Chart:         "chart1",
+					Version:       "version1",
+					Enabled:       false,
+					ValuesContent: "sample",
+				},
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+		fakeFlowCache := fakeclients.FlowCache(clientset.LoggingV1beta1().Flows)
+		fakeOutputCache := fakeclients.OutputCache(clientset.LoggingV1beta1().Outputs)
+		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
+		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
+		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil).(*addonValidator)
+
+		err := validator.Delete(nil, tc.oldAddon)
+		if tc.expectedError {
+			assert.NotNil(t, err, tc.name)
+		} else {
+			assert.Nil(t, err, tc.name)
+		}
+	}
+}
+
+func Test_validateVersionedVClusterAddon(t *testing.T) {
+	assert := require.New(t)
+	var testCases = []struct {
+		name          string
+		addon         *harvesterv1.Addon
+		expectedError bool
+	}{
+		{
+			name: "v0.19.0 with valid hostname",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "rancher-vcluster",
+					Namespace: "rancher-vcluster",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Version:       vCluster0190,
+					ValuesContent: "hostname: demo.com",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "v0.19.0 with invalid hostname",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "rancher-vcluster",
+					Namespace: "rancher-vcluster",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Version:       vCluster0190,
+					ValuesContent: "global:\n  hostname: demo.com",
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "v0.30.0 with invalid hostname",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "rancher-vcluster",
+					Namespace: "rancher-vcluster",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Version:       vCluster0300,
+					ValuesContent: `hostname: demo.com`,
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "v0.30.0 with valid hostname",
+			addon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "rancher-vcluster",
+					Namespace: "rancher-vcluster",
+				},
+				Spec: harvesterv1.AddonSpec{
+					Version:       vCluster0300,
+					ValuesContent: "global:\n  hostname: demo.com",
+				},
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		err := validateVClusterAddon(tc.addon)
+		if tc.expectedError {
+			assert.Error(err, tc.name)
+		} else {
+			assert.NoError(err, tc.name)
+		}
+	}
+}
+
+func Test_validatePCIDevicesControllerAddon(t *testing.T) {
+	type testCase struct {
+		name          string
+		vms           []*kubevirtv1.VirtualMachine
+		expectedError bool
+	}
+
+	testCases := []testCase{
+		{
+			name:          "no VMs, should allow disable",
+			vms:           []*kubevirtv1.VirtualMachine{},
+			expectedError: false,
+		},
+		{
+			name: "VM with no passthrough devices, should allow disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-no-passthrough",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "VM with host devices, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-hostdev",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										HostDevices: []kubevirtv1.HostDevice{
+											{
+												Name:       "pci-device-1",
+												DeviceName: "pci.example.com/device",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "VM with GPUs, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-gpu",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										GPUs: []kubevirtv1.GPU{
+											{
+												Name:       "gpu-1",
+												DeviceName: "nvidia.com/GPU",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "VM with both host devices and GPUs, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-both",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										HostDevices: []kubevirtv1.HostDevice{
+											{
+												Name:       "pci-device-1",
+												DeviceName: "pci.example.com/device",
+											},
+										},
+										GPUs: []kubevirtv1.GPU{
+											{
+												Name:       "gpu-1",
+												DeviceName: "nvidia.com/GPU",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "multiple VMs, one with host device, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-no-passthrough",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-hostdev",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										HostDevices: []kubevirtv1.HostDevice{
+											{
+												Name:       "pci-device-1",
+												DeviceName: "pci.example.com/device",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create fake kubevirt clientset
+			clientset := fake.NewSimpleClientset()
+
+			// Add VMs to the tracker
+			for _, vm := range tc.vms {
+				err := clientset.Tracker().Add(vm)
+				require.NoError(t, err, "failed to add VM to fake tracker")
+			}
+
+			// Create VM cache
+			vmCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
+
+			// Create validator
+			validator := &addonValidator{
+				vmCache: vmCache,
+			}
+
+			// Test the validation
+			err := validator.validatePCIDevicesControllerAddon()
+			if tc.expectedError {
+				assert.NotNil(t, err, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func Test_validateNvidiaDriverToolkitAddon(t *testing.T) {
+	type testCase struct {
+		name          string
+		vms           []*kubevirtv1.VirtualMachine
+		expectedError bool
+	}
+
+	testCases := []testCase{
+		{
+			name:          "no VMs, should allow disable",
+			vms:           []*kubevirtv1.VirtualMachine{},
+			expectedError: false,
+		},
+		{
+			name: "VM with no GPUs, should allow disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-no-gpu",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "VM with host devices but no GPUs, should allow disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-hostdev-only",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										HostDevices: []kubevirtv1.HostDevice{
+											{
+												Name:       "pci-device-1",
+												DeviceName: "pci.example.com/device",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "VM with GPUs, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-gpu",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										GPUs: []kubevirtv1.GPU{
+											{
+												Name:       "gpu-1",
+												DeviceName: "nvidia.com/GPU",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "VM with both host devices and GPUs, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-both",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										HostDevices: []kubevirtv1.HostDevice{
+											{
+												Name:       "pci-device-1",
+												DeviceName: "pci.example.com/device",
+											},
+										},
+										GPUs: []kubevirtv1.GPU{
+											{
+												Name:       "gpu-1",
+												DeviceName: "nvidia.com/GPU",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "multiple VMs, one with GPU, should block disable",
+			vms: []*kubevirtv1.VirtualMachine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-no-gpu",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vm-with-gpu",
+						Namespace: "default",
+					},
+					Spec: kubevirtv1.VirtualMachineSpec{
+						Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+							Spec: kubevirtv1.VirtualMachineInstanceSpec{
+								Domain: kubevirtv1.DomainSpec{
+									Devices: kubevirtv1.Devices{
+										GPUs: []kubevirtv1.GPU{
+											{
+												Name:       "gpu-1",
+												DeviceName: "nvidia.com/GPU",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create fake kubevirt clientset
+			clientset := fake.NewSimpleClientset()
+
+			// Add VMs to the tracker
+			for _, vm := range tc.vms {
+				err := clientset.Tracker().Add(vm)
+				require.NoError(t, err, "failed to add VM to fake tracker")
+			}
+
+			// Create VM cache
+			vmCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
+
+			// Create validator
+			validator := &addonValidator{
+				vmCache: vmCache,
+			}
+
+			// Test the validation
+			err := validator.validateNvidiaDriverToolkitAddon()
+			if tc.expectedError {
+				assert.NotNil(t, err, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
 	}
 }

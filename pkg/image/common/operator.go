@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rancher/norman/condition"
+	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -68,6 +69,7 @@ type VMIOperator interface {
 	IsImported(vmi *harvesterv1.VirtualMachineImage) bool
 	IsDecryptOperation(vmi *harvesterv1.VirtualMachineImage) bool
 	IsEncryptOperation(vmi *harvesterv1.VirtualMachineImage) bool
+	IsRetryLimitExceeded(vmi *harvesterv1.VirtualMachineImage) bool
 
 	CheckURLAndUpdate(old *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error)
 	UpdateVirtualSize(old *harvesterv1.VirtualMachineImage, virtualSize int64) (*harvesterv1.VirtualMachineImage, error)
@@ -92,8 +94,14 @@ type vmiOperator struct {
 	httpClient http.Client
 }
 
-func GetVMIOperator(client ctlharvesterv1.VirtualMachineImageClient, cache ctlharvesterv1.VirtualMachineImageCache, httpClient http.Client) VMIOperator {
-	return &vmiOperator{client, cache, httpClient}
+func GetVMIOperator(client ctlharvesterv1.VirtualMachineImageClient, cache ctlharvesterv1.VirtualMachineImageCache, httpClient http.Client) (VMIOperator, error) {
+	if client == nil {
+		return nil, fmt.Errorf("failed to get VMI operator: client is nil")
+	}
+	if cache == nil {
+		return nil, fmt.Errorf("failed to get VMI operator: cache is nil")
+	}
+	return &vmiOperator{client, cache, httpClient}, nil
 }
 
 func (vmio *vmiOperator) UpdateVMI(oldVMI, newVMI *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
@@ -180,6 +188,10 @@ func (vmio *vmiOperator) IsDecryptOperation(vmi *harvesterv1.VirtualMachineImage
 	return vmi.Spec.SecurityParameters.CryptoOperation == harvesterv1.VirtualMachineImageCryptoOperationTypeDecrypt
 }
 
+func (vmio *vmiOperator) IsRetryLimitExceeded(vmi *harvesterv1.VirtualMachineImage) bool {
+	return harvesterv1.ImageRetryLimitExceeded.IsTrue(vmi)
+}
+
 func (vmio *vmiOperator) IsEncryptOperation(vmi *harvesterv1.VirtualMachineImage) bool {
 	if vmi.Spec.SecurityParameters == nil {
 		return false
@@ -225,6 +237,7 @@ func (vmio *vmiOperator) UpdateSize(old *harvesterv1.VirtualMachineImage, size i
 }
 
 func (vmio *vmiOperator) UpdateVirtualSizeAndSize(old *harvesterv1.VirtualMachineImage, virtualSize, size int64) (*harvesterv1.VirtualMachineImage, error) {
+	logrus.Debugf("Updating VMImage %s/%s: virtualSize=%d, size=%d (resourceVersion: %s)", old.Namespace, old.Name, virtualSize, size, old.ResourceVersion)
 	newVMI := old.DeepCopy()
 	newVMI.Status.VirtualSize = virtualSize
 	newVMI.Status.Size = size

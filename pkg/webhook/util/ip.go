@@ -18,8 +18,7 @@ func incrementIP(ip net.IP) net.IP {
 }
 
 func GetUsableIPAddresses(includeRange string, excludeRange []string) (map[string]struct{}, error) {
-	var includeRangeList []string
-	includeRangeList = append(includeRangeList, includeRange)
+	includeRangeList := []string{includeRange}
 
 	includeIPAddrMap, err := getIPAddressesFromSubnet(includeRangeList, true)
 	if err != nil {

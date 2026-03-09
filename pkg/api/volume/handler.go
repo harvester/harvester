@@ -100,7 +100,7 @@ func (h *ActionHandler) assertPVCNotInUse(pvcNamespace, pvcName string) error {
 	// find any pod use this PVC (same validation on CDI)
 	index := fmt.Sprintf("%s-%s", pvcNamespace, pvcName)
 	if pods, err := h.pods.GetByIndex(util.IndexPodByPVC, index); err == nil && len(pods) > 0 {
-		podList := []string{}
+		podList := make([]string, 0, len(pods))
 		for _, pod := range pods {
 			indexedPod := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 			podList = append(podList, indexedPod)

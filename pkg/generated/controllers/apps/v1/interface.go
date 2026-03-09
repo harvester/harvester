@@ -1,5 +1,5 @@
 /*
-Copyright 2025 Rancher Labs, Inc.
+Copyright 2026 SUSE, LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ func init() {
 
 type Interface interface {
 	ControllerRevision() ControllerRevisionController
+	Deployment() DeploymentController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -46,4 +47,8 @@ type version struct {
 
 func (v *version) ControllerRevision() ControllerRevisionController {
 	return generic.NewController[*v1.ControllerRevision, *v1.ControllerRevisionList](schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "ControllerRevision"}, "controllerrevisions", true, v.controllerFactory)
+}
+
+func (v *version) Deployment() DeploymentController {
+	return generic.NewController[*v1.Deployment, *v1.DeploymentList](schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, "deployments", true, v.controllerFactory)
 }

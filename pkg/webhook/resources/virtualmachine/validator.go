@@ -9,6 +9,8 @@ import (
 
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,10 +22,9 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
-	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
+	vmutil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	indexerwebhook "github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -156,6 +157,7 @@ func (v *vmValidator) getVMInterfaceInfo(vms []*kubevirtv1.VirtualMachine) (MacA
 
 func (v *vmValidator) checkForDuplicateMacAddrs(vm *kubevirtv1.VirtualMachine) (err error) {
 	var newVMs []*kubevirtv1.VirtualMachine
+	newVMs = make([]*kubevirtv1.VirtualMachine, 0, 1)
 	var oldVMsInfo map[string]map[string]string
 	var oldVMsList []*kubevirtv1.VirtualMachine
 
@@ -236,6 +238,14 @@ func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 		return err
 	}
 
+	if err := v.checkMaintenanceModeStrategyIsValid(vm, nil); err != nil {
+		return err
+	}
+
+	if err := v.checkCdRomVolumeIsValid(vm); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -284,6 +294,14 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 		return err
 	}
 
+	if err := v.checkMaintenanceModeStrategyIsValid(newVM, oldVM); err != nil {
+		return err
+	}
+
+	if err := v.checkCdRomVolumeIsValid(newVM); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -299,6 +317,9 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 		return err
 	}
 	if err := v.checkTerminationGracePeriodSeconds(vm); err != nil {
+		return err
+	}
+	if err := v.checkEmptyMemory(vm); err != nil {
 		return err
 	}
 	if err := v.checkReservedMemoryAnnotation(vm); err != nil {
@@ -513,18 +534,23 @@ func (v *vmValidator) checkGoldenImage(vm *kubevirtv1.VirtualMachine) error {
 }
 
 func (v *vmValidator) checkOccupiedPVCs(vm *kubevirtv1.VirtualMachine) error {
+	// only block two scenarios:
+	// - RWO volume
+	// - Longhorn volume
+	// other scenarios like RWX volume, user should know what they are doing
 	for _, volume := range vm.Spec.Template.Spec.Volumes {
-		if volume.PersistentVolumeClaim != nil {
-			vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(vm.Namespace, volume.PersistentVolumeClaim.ClaimName))
-			if err != nil {
-				return werror.NewInternalError(fmt.Sprintf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByPVCIndex, vm.Namespace, volume.PersistentVolumeClaim.ClaimName, err))
+		// only check PVC volumes
+		if volume.PersistentVolumeClaim == nil {
+			continue
+		}
+		if err := vmutil.CheckBlockRWXVolumeForVM(v.pvcCache, v.scCache, v.vmCache, vm.Namespace, volume.PersistentVolumeClaim.ClaimName, vm.Namespace, vm.Name); err != nil {
+			if err == vmutil.ErrVolumeIsUsedByOtherVM {
+				return werror.NewInvalidError(
+					fmt.Sprintf("PVC %s/%s is already used by other VM, please use a shareable RWX volume.", vm.Namespace, volume.PersistentVolumeClaim.ClaimName),
+					"spec.templates.spec.volumes",
+				)
 			}
-			for _, otherVM := range vms {
-				if otherVM.Namespace != vm.Namespace || otherVM.Name != vm.Name {
-					message := fmt.Sprintf("the volume %s is already used by VM %s/%s", volume.PersistentVolumeClaim.ClaimName, otherVM.Namespace, otherVM.Name)
-					return werror.NewInvalidError(message, "spec.templates.spec.volumes")
-				}
-			}
+			return werror.NewInternalError(err.Error())
 		}
 	}
 
@@ -593,4 +619,75 @@ func (v *vmValidator) checkReservedMemoryAnnotation(vm *kubevirtv1.VirtualMachin
 
 func (v *vmValidator) checkStorageResourceQuota(vm *kubevirtv1.VirtualMachine, oldVM *kubevirtv1.VirtualMachine) error {
 	return v.rqCalculator.CheckStorageResourceQuota(vm, oldVM)
+}
+
+func (v *vmValidator) checkEmptyMemory(vm *kubevirtv1.VirtualMachine) error {
+	guestMem := resource.NewQuantity(0, resource.BinarySI)
+	if vm.Spec.Template.Spec.Domain.Memory != nil {
+		guestMem = vm.Spec.Template.Spec.Domain.Memory.Guest
+	}
+	limitMem := vm.Spec.Template.Spec.Domain.Resources.Limits.Memory()
+	if guestMem.IsZero() && limitMem.IsZero() {
+		return werror.NewInvalidError("either memory.guest or resources.limits.memory must be set", "spec.template.spec.domain")
+	}
+	return nil
+}
+
+func (v *vmValidator) checkMaintenanceModeStrategyIsValid(newVM, oldVM *kubevirtv1.VirtualMachine) error {
+	newLabels := newVM.ObjectMeta.Labels
+	newStrategy, newOk := newLabels[util.LabelMaintainModeStrategy]
+	// Creating a new VM without maintenance mode strategy is ok, since
+	// integrators (e.g. Rancher) may omit it. Similarly removing the label is ok.
+	// Therefore just log that the label is missing
+	if !newOk {
+		logrus.WithFields(logrus.Fields{
+			"name":      newVM.Name,
+			"namespace": newVM.Namespace,
+		}).Warnf(
+			"no maintenance-mode strategy for VM, behavior will be equivalent to default `%v`",
+			util.MaintainModeStrategyMigrate,
+		)
+		return nil
+	}
+
+	if oldVM != nil {
+		oldLabels := oldVM.ObjectMeta.Labels
+		oldStrategy, oldOk := oldLabels[util.LabelMaintainModeStrategy]
+		if oldOk && newOk && oldStrategy == newStrategy && !slices.Contains(util.MaintenanceModeStrategyValidValues, oldStrategy) {
+			// Maintenance mode strategy was invalid and was not updted. Emit log
+			// message, but return ok
+			logrus.WithFields(logrus.Fields{
+				"name":      oldVM.Name,
+				"namespace": oldVM.Namespace,
+			}).Warnf(
+				"invalid maintenance-mode strategy for VM, behavior will be equivalent to default `%v`",
+				util.MaintainModeStrategyMigrate,
+			)
+			return nil
+		}
+	}
+
+	// New maintenance mode strategy is invalid, not ok
+	if newOk && !slices.Contains(util.MaintenanceModeStrategyValidValues, newStrategy) {
+		return werror.NewInvalidError(
+			fmt.Sprintf("invalid maintenance mode strategy: %v", newStrategy),
+			fmt.Sprintf("metadata.labels[%v]", util.LabelMaintainModeStrategy),
+		)
+	}
+
+	// VM was created with a valid maintenance mode strategy, or it was updated
+	// and the new maintenance mode strategy is valid. Both are ok
+	return nil
+}
+
+func (v *vmValidator) checkCdRomVolumeIsValid(vm *kubevirtv1.VirtualMachine) error {
+	if _, err := vmutil.SupportInsertCdRomVolume(vm); err != nil {
+		return err
+	}
+
+	if _, err := vmutil.SupportEjectCdRomVolume(vm); err != nil {
+		return err
+	}
+
+	return nil
 }

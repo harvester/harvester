@@ -62,6 +62,8 @@ const (
 	DataImportCronLabel = CDIComponentLabel + "/dataImportCron"
 	// DataImportCronNsLabel has the namespace of the DataImportCron responsible for the labeled resource
 	DataImportCronNsLabel = CDIComponentLabel + "/dataImportCronNs"
+	// DataImportCronPollerLabel indicates that the pod is a DataImportCron poller pod
+	DataImportCronPollerLabel = CDIComponentLabel + "/dataImportCronPoller"
 	// DataImportCronCleanupLabel tells whether to delete the resource when its DataImportCron is deleted
 	DataImportCronCleanupLabel = DataImportCronLabel + ".cleanup"
 
@@ -163,6 +165,8 @@ const (
 	ImporterExtraHeader = "IMPORTER_EXTRA_HEADER_"
 	// ImporterSecretExtraHeadersDir is where the secrets containing extra HTTP headers will be mounted
 	ImporterSecretExtraHeadersDir = "/extraheaders"
+	// ImporterRegistryImageArchitecture provides a constant to capture our env variable "IMPORTER_REGISTRY_IMAGE_ARCHITECTURE"
+	ImporterRegistryImageArchitecture = "IMPORTER_REGISTRY_IMAGE_ARCHITECTURE"
 
 	// ImporterGoogleCredentialFileVar provides a constant to capture our env variable "GOOGLE_APPLICATION_CREDENTIALS"
 	//nolint:gosec // This is not a real credential
@@ -211,7 +215,7 @@ const (
 	// FilesystemOverheadVar provides a constant to capture our env variable "FILESYSTEM_OVERHEAD"
 	FilesystemOverheadVar = "FILESYSTEM_OVERHEAD"
 	// DefaultGlobalOverhead is the amount of space reserved on Filesystem volumes by default
-	DefaultGlobalOverhead = "0.055"
+	DefaultGlobalOverhead = "0.06"
 
 	// ConfigName is the name of default CDI Config
 	ConfigName = "config"
@@ -254,6 +258,12 @@ const (
 	VddkConfigDataKey = "vddk-init-image"
 	// AwaitingVDDK is a Pending condition reason that indicates the PVC is waiting for a VDDK image
 	AwaitingVDDK = "AwaitingVDDK"
+	// VddkArgsDir is the path to the volume mount containing extra VDDK arguments
+	VddkArgsDir = "/vddk-args"
+	// VddkArgsVolName is the name of the volume referencing the extra VDDK arguments ConfigMap
+	VddkArgsVolName = "vddk-extra-args"
+	// VddkArgsKeyName is the name of the key that must be present in the VDDK arguments ConfigMap
+	VddkArgsKeyName = "vddk-config-file"
 
 	// UploadContentTypeHeader is the header upload clients may use to set the content type explicitly
 	UploadContentTypeHeader = "x-cdi-content-type"
@@ -303,6 +313,20 @@ const (
 	// ImagePullFailureText is the text of the ErrImagePullFailed error. We need it as a common constant because we're using
 	// both to create and to later check the error in the termination text of the importer pod.
 	ImagePullFailureText = "failed to pull image"
+
+	// The restricted SCC and particularly v2 is considered best practice for workloads that can manage without extended privileges
+	RestrictedSCCName = "restricted-v2"
+
+	// AllowAccessClusterServicesNPLabel is a pod label to be set by virt-components to indicate that they require
+	// access to cluster services otherwise blocked by the strict network policy (NP).
+	// This label will be applied to the following CDI pods:
+	// - cdi-operator
+	// - cdi-deployment
+	// - cdi-apiserver
+	// - cdi-uploadproxy
+	// - poller (DataImportCron poller pods that run in the CDI namespace)
+	// Copied from: https://github.com/kubevirt/kubevirt/blob/e5da5c9405d7f263ad70489a52747cc21a472489/staging/src/kubevirt.io/api/core/v1/types.go#L1369
+	AllowAccessClusterServicesNPLabel string = "np.kubevirt.io/allow-access-cluster-services"
 )
 
 // ProxyPaths are all supported paths

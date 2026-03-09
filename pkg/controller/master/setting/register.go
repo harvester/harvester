@@ -6,18 +6,22 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rancher/wrangler/v3/pkg/relatedresource"
+
 	"github.com/harvester/harvester/pkg/config"
 	harvSettings "github.com/harvester/harvester/pkg/settings"
 )
 
 const (
-	controllerName = "harvester-setting-controller"
+	controllerName        = "harvester-setting-controller"
+	watchNamespaceChanges = "harvester-namespace-pss-setting-watcher"
 )
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
+	daemonsets := management.AppsFactory.Apps().V1().DaemonSet()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
 	endpoints := management.CoreFactory.Core().V1().Endpoints()
@@ -30,6 +34,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	rkeControlPlane := management.RKEFactory.Rke().V1().RKEControlPlane()
 	rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 	kubevirt := management.VirtFactory.Kubevirt().V1().KubeVirt()
+	namespaces := management.CoreFactory.Core().V1().Namespace()
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -40,6 +45,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		secretCache:          secrets.Cache(),
 		clusters:             clusters,
 		clusterCache:         clusters.Cache(),
+		daemonsets:           daemonsets,
+		daemonsetCache:       daemonsets.Cache(),
 		deployments:          deployments,
 		deploymentCache:      deployments.Cache(),
 		ingresses:            ingresses,
@@ -62,6 +69,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		rancherSettingsCache: rancherSettings.Cache(),
 		kubeVirtConfig:       kubevirt,
 		kubeVirtConfigCache:  kubevirt.Cache(),
+		namespaces:           namespaces,
+		namespacesCache:      namespaces.Cache(),
 
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
@@ -91,6 +100,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName: controller.syncKubeconfigTTL,
 		harvSettings.AdditionalGuestMemoryOverheadRatioName:      controller.syncAdditionalGuestMemoryOverheadRatio,
 		harvSettings.MaxHotplugRatioSettingName:                  controller.syncMaxHotplugRatio,
+		harvSettings.KubeVirtMigrationSettingName:                controller.syncKubeVirtMigration,
+		harvSettings.ClusterPodSecurityStandardSettingName:       controller.syncPodSecuritySetting,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
 		// for "vm-migration-network" syncer, please check harvester-vm-migration-network-controller
@@ -98,5 +109,6 @@ func Register(ctx context.Context, management *config.Management, options config
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
 	node.OnChange(ctx, controllerName, controller.nodeOnChanged)
+	relatedresource.WatchClusterScoped(ctx, watchNamespaceChanges, controller.watchNamespaceChanges, settings, namespaces)
 	return nil
 }

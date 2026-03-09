@@ -1,0 +1,63 @@
+name: Task request (component update for patch release)
+description: Create a component update task targeting a specific Harvester patch release
+title: "[TASK] Component updates for Harvester vX.Y.Z"
+labels: [ "kind/task", "area/build-package" ]
+assignees:
+-
+body:
+- type: textarea
+  attributes:
+    label: Component update request
+    description: |
+      List the dependent components that need to be updated for a specific Harvester release.
+
+      Please note that for different Harvester releases, the component update strategies are different:
+      - For feature or minor releases, the minor version of the component should be updated.
+      - For patch releases, only the patch version of the component should be updated.
+      - For built-in components/add-ons, the version should be aligned with the Harvester version.
+    value: |
+      Components to be updated for Harvester version vX.Y.Z:
+      For patch releases, not all components may need updates. Please only check those that require patch version updates.
+
+      - Main Components
+        - [ ] Embedded Rancher @wheatdog
+        - [ ] RKE2 @wheatdog
+        - [ ] Longhorn @Vicente-Cheng
+        - [ ] KubeVirt @Vicente-Cheng (also virtctl)
+        - [ ] Kube-OVN @starbops
+        - [ ] Containerized-Data Importer @brandboat
+      - Built-in Dependent Components
+        - [ ] * Network Controller @harvester/release
+        - [ ] * Network FS Manager @harvester/release
+        - [ ] * Node Disk Manager @harvester/release
+        - [ ] * Node Manager @harvester/release
+        - [ ] * Load Balancer @harvester/release
+        - [ ] * Eventrouter @harvester/release
+        - [ ] CSI Snapshotter @brandboat  (align with Longhorn version)
+      - Built-in Opt-In Add-Ons
+        - [ ] * VM Import Controller @harvester/release
+        - [ ] * PCI Device Controller @harvester/release
+        - [ ] * Seeder @harvester/release
+        - [ ] * Nvidia Driver Runtime @harvester/release
+      - User Interface Components
+        - [ ] * UI Extension @a110605
+        - [ ] * Terraform Provider @brandboat
+      - Experimental Opt-In Add-Ons (OOB)
+        - [ ] vCluster @ibrokethecloud
+        - [ ] LVM CSI Driver @Vicente-Cheng
+        - [ ] VM DHCP Controller @starbops
+      - Misc
+        - [ ] [Storage Certification Validator](https://github.com/harvester/storage-validator) @ibrokethecloud
+        
+      > [!Note]
+      > - `*` means the component version (including the chart versions and/or the image tags) will align with Harvester releases.
+      > - Assigning to the @harvester/release means the tasks would be done automatically.
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: Additional context
+    description: Please add any other context about the task here.
+  validations:
+    required: false

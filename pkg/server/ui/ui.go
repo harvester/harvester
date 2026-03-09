@@ -3,7 +3,6 @@ package ui
 import (
 	"crypto/tls"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -43,6 +42,7 @@ func newHandler(
 		middleware: responsewriter.Chain{
 			responsewriter.Gzip,
 			responsewriter.FrameOptions,
+			responsewriter.ContentType,
 			responsewriter.CacheMiddleware("json", "js", "css"),
 		}.Handler,
 		indexMiddleware: responsewriter.Chain{
@@ -67,7 +67,7 @@ type handler struct {
 
 func (u *handler) canDownload(url string) bool {
 	u.downloadOnce.Do(func() {
-		if err := serveIndex(ioutil.Discard, url); err == nil {
+		if err := serveIndex(io.Discard, url); err == nil {
 			u.downloadSuccess = true
 		} else {
 			logrus.Errorf("Failed to download %s, falling back to packaged UI", url)

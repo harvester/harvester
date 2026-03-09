@@ -31,7 +31,7 @@ func (f *volFormatter) Formatter(request *types.APIRequest, resource *types.RawR
 		return
 	}
 
-	if IsResizing(pvc) {
+	if IsResizing(pvc, f.scCache) {
 		resource.AddAction(request, actionCancelExpand)
 		return
 	}
@@ -51,8 +51,16 @@ func (f *volFormatter) Formatter(request *types.APIRequest, resource *types.RawR
 	}
 }
 
-func IsResizing(pvc *corev1.PersistentVolumeClaim) bool {
+func IsResizing(pvc *corev1.PersistentVolumeClaim, scCache ctlstoragev1.StorageClassCache) bool {
 	if pvc == nil {
+		return false
+	}
+
+	// check ensures we only apply IsReszing check when provisioner is longhorn
+	// for 3rd party CSI we ignore this validation
+	// related to https://github.com/harvester/harvester/issues/9454
+	provisioner := util.GetProvisionedPVCProvisioner(pvc, scCache)
+	if provisioner != util.CSIProvisionerLonghorn {
 		return false
 	}
 

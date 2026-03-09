@@ -1,5 +1,5 @@
 /*
-Copyright 2025 Rancher Labs, Inc.
+Copyright 2026 SUSE, LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@ package fake
 
 import (
 	clientset "github.com/harvester/harvester/pkg/generated/clientset/versioned"
+	appsv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/apps/v1"
+	fakeappsv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/apps/v1/fake"
 	batchv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1"
 	fakebatchv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1/fake"
 	catalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1"
@@ -32,6 +34,8 @@ import (
 	fakeharvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1/fake"
 	k8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 	fakek8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1/fake"
+	kubeovnv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubeovn.io/v1"
+	fakekubeovnv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubeovn.io/v1/fake"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 	fakekubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1/fake"
 	loggingv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1"
@@ -56,8 +60,11 @@ import (
 	fakeupgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1/fake"
 	uploadv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upload.cdi.kubevirt.io/v1beta1"
 	fakeuploadv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upload.cdi.kubevirt.io/v1beta1/fake"
+	corev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/v1"
+	fakecorev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/v1/fake"
 	whereaboutsv1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1"
 	fakewhereaboutsv1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1/fake"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -85,9 +92,13 @@ func NewSimpleClientset(objects ...runtime.Object) *Clientset {
 	cs.discovery = &fakediscovery.FakeDiscovery{Fake: &cs.Fake}
 	cs.AddReactor("*", "*", testing.ObjectReaction(o))
 	cs.AddWatchReactor("*", func(action testing.Action) (handled bool, ret watch.Interface, err error) {
+		var opts metav1.ListOptions
+		if watchActcion, ok := action.(testing.WatchActionImpl); ok {
+			opts = watchActcion.ListOptions
+		}
 		gvr := action.GetResource()
 		ns := action.GetNamespace()
-		watch, err := o.Watch(gvr, ns)
+		watch, err := o.Watch(gvr, ns, opts)
 		if err != nil {
 			return false, nil, err
 		}
@@ -119,6 +130,16 @@ var (
 	_ testing.FakeClient  = &Clientset{}
 )
 
+// CoreV1 retrieves the CoreV1Client
+func (c *Clientset) CoreV1() corev1.CoreV1Interface {
+	return &fakecorev1.FakeCoreV1{Fake: &c.Fake}
+}
+
+// AppsV1 retrieves the AppsV1Client
+func (c *Clientset) AppsV1() appsv1.AppsV1Interface {
+	return &fakeappsv1.FakeAppsV1{Fake: &c.Fake}
+}
+
 // BatchV1 retrieves the BatchV1Client
 func (c *Clientset) BatchV1() batchv1.BatchV1Interface {
 	return &fakebatchv1.FakeBatchV1{Fake: &c.Fake}
@@ -147,6 +168,11 @@ func (c *Clientset) HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta
 // K8sCniCncfIoV1 retrieves the K8sCniCncfIoV1Client
 func (c *Clientset) K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface {
 	return &fakek8scnicncfiov1.FakeK8sCniCncfIoV1{Fake: &c.Fake}
+}
+
+// KubeovnV1 retrieves the KubeovnV1Client
+func (c *Clientset) KubeovnV1() kubeovnv1.KubeovnV1Interface {
+	return &fakekubeovnv1.FakeKubeovnV1{Fake: &c.Fake}
 }
 
 // KubevirtV1 retrieves the KubevirtV1Client

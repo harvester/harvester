@@ -31,13 +31,13 @@ const (
 
 type Handler struct {
 	resourceQuotaClient ctlharvesterv1.ResourceQuotaClient
-	clientSet           kubernetes.Clientset
+	clientSet           kubernetes.Interface
 
 	ctx context.Context
 }
 
 type nsformatter struct {
-	clientSet kubernetes.Clientset
+	clientSet kubernetes.Interface
 }
 
 func (nf *nsformatter) formatter(request *types.APIRequest, resource *types.RawResource) {

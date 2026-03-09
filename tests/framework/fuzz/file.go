@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 )
 
@@ -21,7 +20,7 @@ const (
 
 // File tries to create a file with given size and returns the path and the SHA256 checksum or error.
 func File(size FileByteSize) (path string, checksum string, berr error) {
-	tempFile, err := ioutil.TempFile("", "rand-")
+	tempFile, err := os.CreateTemp("", "rand-")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create temp file: %w", err)
 	}

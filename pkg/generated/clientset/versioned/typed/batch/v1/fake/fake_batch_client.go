@@ -1,5 +1,5 @@
 /*
-Copyright 2025 Rancher Labs, Inc.
+Copyright 2026 SUSE, LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,11 +29,11 @@ type FakeBatchV1 struct {
 }
 
 func (c *FakeBatchV1) CronJobs(namespace string) v1.CronJobInterface {
-	return &FakeCronJobs{c, namespace}
+	return newFakeCronJobs(c, namespace)
 }
 
 func (c *FakeBatchV1) Jobs(namespace string) v1.JobInterface {
-	return &FakeJobs{c, namespace}
+	return newFakeJobs(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

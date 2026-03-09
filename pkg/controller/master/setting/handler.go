@@ -47,6 +47,7 @@ var (
 		settings.LogLevelSettingName,
 		settings.KubeconfigDefaultTokenTTLMinutesSettingName,
 		settings.AdditionalGuestMemoryOverheadRatioName,
+		settings.ClusterPodSecurityStandardSettingName,
 	}
 )
 
@@ -61,6 +62,8 @@ type Handler struct {
 	settingController    v1beta1.SettingController
 	secrets              ctlcorev1.SecretClient
 	secretCache          ctlcorev1.SecretCache
+	daemonsets           v1.DaemonSetClient
+	daemonsetCache       v1.DaemonSetCache
 	deployments          v1.DeploymentClient
 	deploymentCache      v1.DeploymentCache
 	ingresses            networkingv1.IngressClient
@@ -83,6 +86,8 @@ type Handler struct {
 	rancherSettingsCache ctlmgmtv3.SettingCache
 	kubeVirtConfig       kubevirtv1.KubeVirtClient
 	kubeVirtConfigCache  kubevirtv1.KubeVirtCache
+	namespaces           ctlcorev1.NamespaceClient
+	namespacesCache      ctlcorev1.NamespaceCache
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
@@ -183,5 +188,20 @@ func (h *Handler) redeployDeployment(namespace, name string) error {
 	toUpdate.Spec.Template.Annotations[util.AnnotationTimestamp] = time.Now().Format(time.RFC3339)
 
 	_, err = h.deployments.Update(toUpdate)
+	return err
+}
+
+func (h *Handler) redeployDaemonset(namespace, name string) error {
+	daemonset, err := h.daemonsetCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+	toUpdate := daemonset.DeepCopy()
+	if daemonset.Spec.Template.Annotations == nil {
+		toUpdate.Spec.Template.Annotations = make(map[string]string)
+	}
+	toUpdate.Spec.Template.Annotations[util.AnnotationTimestamp] = time.Now().Format(time.RFC3339)
+
+	_, err = h.daemonsets.Update(toUpdate)
 	return err
 }

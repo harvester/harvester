@@ -37,8 +37,7 @@ func (h *Handler) resetCertificates() error {
 	if err := h.updateIngressDefaultCertificate(util.CattleSystemNamespaceName, util.InternalTLSSecretName); err != nil {
 		return err
 	}
-
-	return h.redeployDeployment(util.CattleSystemNamespaceName, rancherDeploymentName)
+	return h.redeploySSLCertificateWorkload()
 }
 
 func (h *Handler) updateCertificates(sslCertificate *settings.SSLCertificate) error {
@@ -49,8 +48,7 @@ func (h *Handler) updateCertificates(sslCertificate *settings.SSLCertificate) er
 	if err := h.updateIngressDefaultCertificate(util.CattleSystemNamespaceName, tlsIngressSecretName); err != nil {
 		return err
 	}
-
-	return h.redeployDeployment(util.CattleSystemNamespaceName, rancherDeploymentName)
+	return h.redeploySSLCertificateWorkload()
 }
 
 func (h *Handler) updateTLSSecret(publicCertificate, privateKey string) error {
@@ -88,4 +86,12 @@ func (h *Handler) updateIngressDefaultCertificate(namespace, secretName string) 
 		return err
 	}
 	return nil
+}
+
+func (h *Handler) redeploySSLCertificateWorkload() error {
+	if err := h.redeployDaemonset(util.KubeSystemNamespace, util.Rke2IngressNginxControllerName); err != nil {
+		return err
+	}
+
+	return h.redeployDeployment(util.CattleSystemNamespaceName, rancherDeploymentName)
 }

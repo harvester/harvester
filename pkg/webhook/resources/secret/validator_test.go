@@ -3,11 +3,11 @@ package secret
 import (
 	"testing"
 
+	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corefake "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
@@ -66,13 +66,13 @@ func Test_secretValidator_Delete(t *testing.T) {
 		},
 	}
 
-	coreclientset := corefake.NewSimpleClientset()
+	clientset := fake.NewSimpleClientset()
 	for _, sc := range storageClasses {
-		err := coreclientset.Tracker().Add(sc.DeepCopy())
+		err := clientset.Tracker().Add(sc.DeepCopy())
 		assert.Nil(t, err, "Mock resource should add into fake controller tracker")
 	}
 
-	fakeStorageClassCache := fakeclients.StorageClassCache(coreclientset.StorageV1().StorageClasses)
+	fakeStorageClassCache := fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses)
 	validator := NewValidator(fakeStorageClassCache).(*secretValidator)
 
 	for _, tc := range tests {

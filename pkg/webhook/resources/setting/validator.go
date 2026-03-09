@@ -1,6 +1,7 @@
 package setting
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -39,13 +40,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester-network-controller/pkg/utils"
+
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/containerd"
-	nodectl "github.com/harvester/harvester/pkg/controller/master/node"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
+	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1b2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -192,6 +195,11 @@ func NewValidator(
 
 	validateSettingFuncs[settings.RancherClusterSettingName] = validator.validateRancherCluster
 	validateSettingUpdateFuncs[settings.RancherClusterSettingName] = validator.validateUpdateRancherCluster
+
+	validateSettingFuncs[settings.KubeVirtMigrationSettingName] = validator.validateKubeVirtMigration
+	validateSettingUpdateFuncs[settings.KubeVirtMigrationSettingName] = validator.validateUpdateKubeVirtMigration
+
+	validateSettingDeleteFuncs[settings.ClusterPodSecurityStandardSettingName] = validator.validateDeleteClusterPodSecurityStandard
 
 	return validator
 }
@@ -572,9 +580,17 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	// S3: https://github.com/longhorn/backupstore/blob/56ddc538b85950b02c37432e4854e74f2647ca61/s3/s3.go#L38-L87
 	// NFS: https://github.com/longhorn/backupstore/blob/56ddc538b85950b02c37432e4854e74f2647ca61/nfs/nfs.go#L46-L81
 	endpoint := backuputil.ConstructEndpoint(target)
-	if _, err := backupstore.GetBackupStoreDriver(endpoint); err != nil {
-		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+
+	// There might be a goroutine leak if the driver doesn't end properly,
+	// Although we can pass ctx, but the underlying driver implementation doesn't support it.
+	// So we should be careful when using GetBackupStoreDriver function.
+	_, err = util.RunWithTimeoutAndResult(backuputil.ConnectBackupStoreTimeout, func(_ context.Context) (backupstore.BackupStoreDriver, error) {
+		return backupstore.GetBackupStoreDriver(endpoint)
+	})
+	if err != nil {
+		return werror.NewInvalidError("failed to connect to backup target, reason: "+err.Error(), settings.KeywordValue)
 	}
+
 	return nil
 }
 
@@ -930,7 +946,7 @@ func getSystemCerts() *x509.CertPool {
 
 func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachineBackup) bool {
 	for _, vmBackup := range vmBackups {
-		if vmBackup.DeletionTimestamp != nil || vmBackup.Status == nil || !*vmBackup.Status.ReadyToUse {
+		if vmBackup.DeletionTimestamp != nil || vmBackup.Status.ReadyToUse == nil || !*vmBackup.Status.ReadyToUse {
 			return true
 		}
 	}
@@ -939,7 +955,7 @@ func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachine
 
 func hasVMRestoreInCreatingOrDeletingProgress(vmRestores []*v1beta1.VirtualMachineRestore) bool {
 	for _, vmRestore := range vmRestores {
-		if vmRestore.DeletionTimestamp != nil || vmRestore.Status == nil || !*vmRestore.Status.Complete {
+		if vmRestore.DeletionTimestamp != nil || vmRestore.Status.Complete == nil || !*vmRestore.Status.Complete {
 			return true
 		}
 	}
@@ -1159,8 +1175,26 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 		return nil
 	}
 
+	// Skip if the `Default` and `Value` fields are not changed. This is the
+	// case when the status is updated.
 	if oldSetting.Default == newSetting.Default && oldSetting.Value == newSetting.Value {
 		return nil
+	}
+
+	// Block updates if a previous `storage-network` change is still in
+	// progress; except for status updates and resetting the setting to its
+	// default value.
+	sc := v1beta1.SettingConfigured
+	isInProgress := sc.IsFalse(oldSetting) && sc.GetReason(oldSetting) == storagenetwork.ReasonInProgress
+	isResetToDefault := newSetting.Value == settings.StorageNetwork.Default &&
+		newSetting.Default == settings.StorageNetwork.Default
+	if isInProgress && !isResetToDefault {
+		return werror.NewConflict(fmt.Sprintf(
+			"cannot update the setting %q because it is still being configured (reason: %q, message: %q)",
+			settings.StorageNetworkName,
+			sc.GetReason(oldSetting),
+			sc.GetMessage(oldSetting),
+		))
 	}
 
 	var (
@@ -1496,8 +1530,7 @@ func (v *settingValidator) checkVCSpansAllNodes(config *networkutil.Config) erro
 	//check if vlanconfig contains all the nodes in the cluster
 	for _, node := range nodes {
 		//skip witness nodes which do not run LH Pods
-		isManagement := nodectl.IsManagementRole(node)
-		if nodectl.IsWitnessNode(node, isManagement) {
+		if util.IsWitnessNodeWithoutPromotionStatus(node) {
 			continue
 		}
 
@@ -1811,7 +1844,61 @@ func validateUpgradeConfigHelper(setting *v1beta1.Setting) (*settings.UpgradeCon
 	return config, nil
 }
 
-func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
+func checkNodesDuplicates(nodeNames []string) error {
+	duplicates := ds.SliceFindDuplicates(nodeNames)
+	if len(duplicates) > 0 {
+		errMsg := fmt.Sprintf("duplicate pause node names: %v", duplicates)
+		logrus.Errorf("%s", errMsg)
+		return fmt.Errorf("%s", errMsg)
+	}
+	return nil
+}
+
+func (v *settingValidator) checkNodesExist(nodeNames []string) error {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	existingNodes := make(map[string]struct{}, len(nodes))
+	for _, node := range nodes {
+		existingNodes[node.Name] = struct{}{}
+	}
+
+	var missing []string
+	for _, name := range nodeNames {
+		if _, exists := existingNodes[name]; !exists {
+			missing = append(missing, name)
+		}
+	}
+
+	if len(missing) > 0 {
+		return werror.NewBadRequest(fmt.Sprintf("nodes not found: %v", missing))
+	}
+
+	return nil
+}
+
+func (v *settingValidator) checkNodeUpgradeOption(nodeUpgradeOption *settings.NodeUpgradeOption) error {
+	if nodeUpgradeOption == nil || nodeUpgradeOption.Strategy == nil || nodeUpgradeOption.Strategy.Mode == nil {
+		return nil
+	}
+
+	modeType := *nodeUpgradeOption.Strategy.Mode
+	switch modeType {
+	case settings.AutoType, settings.ManualType:
+	default:
+		return fmt.Errorf("invalid node upgrade strategy mode: %s", modeType)
+	}
+
+	if err := checkNodesDuplicates(nodeUpgradeOption.Strategy.PauseNodes); err != nil {
+		return err
+	}
+
+	return v.checkNodesExist(nodeUpgradeOption.Strategy.PauseNodes)
+}
+
+func (v *settingValidator) validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 	upgradeConfig, err := validateUpgradeConfigHelper(setting)
 	if err != nil {
 		return err
@@ -1836,6 +1923,10 @@ func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 		return fmt.Errorf("invalid image preload concurrency: %d", concurrency)
 	}
 
+	if err := v.checkNodeUpgradeOption(upgradeConfig.NodeUpgradeOption); err != nil {
+		return err
+	}
+
 	// If LogReadyTimeout is not set by the user, JSON unmarshalling will set it to 0 by default.
 	// We return nil in that case from the perspective of unit tests
 	timeoutStr := upgradeConfig.LogReadyTimeout
@@ -1856,7 +1947,7 @@ func validateUpgradeConfigFields(setting *v1beta1.Setting) error {
 }
 
 func (v *settingValidator) validateUpgradeConfig(setting *v1beta1.Setting) error {
-	return validateUpgradeConfigFields(setting)
+	return v.validateUpgradeConfigFields(setting)
 }
 
 func (v *settingValidator) validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
@@ -1949,4 +2040,54 @@ func (v *settingValidator) validateRancherCluster(newSetting *v1beta1.Setting) e
 
 func (v *settingValidator) validateUpdateRancherCluster(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateRancherCluster(newSetting)
+}
+
+func (v *settingValidator) validateKubeVirtMigration(newSetting *v1beta1.Setting) error {
+	if newSetting.Name != settings.KubeVirtMigrationSettingName {
+		return nil
+	}
+
+	vmims, err := v.vmimCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("Failed to list VM Migrations, err: %v", err.Error()))
+	}
+	for _, vmim := range vmims {
+		if vmim.DeletionTimestamp != nil || vmim.Status.MigrationState.Completed {
+			continue
+		}
+		return werror.NewBadRequest("There is a VM Migration in progress, please wait until it is completed before updating the kubevirt-migration setting")
+	}
+
+	var kubevirtMigration *kubevirtv1.MigrationConfiguration
+	if newSetting.Default != "" && newSetting.Default != "{}" {
+		kubevirtMigration, err = settings.DecodeConfig[kubevirtv1.MigrationConfiguration](newSetting.Default)
+		if err != nil {
+			return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+		}
+	}
+
+	if newSetting.Value != "" && newSetting.Value != "{}" {
+		kubevirtMigration, err = settings.DecodeConfig[kubevirtv1.MigrationConfiguration](newSetting.Value)
+		if err != nil {
+			return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+		}
+	}
+	if kubevirtMigration == nil {
+		return nil
+	}
+	if kubevirtMigration.NodeDrainTaintKey != nil && *kubevirtMigration.NodeDrainTaintKey != "" {
+		return werror.NewInvalidError("nodeDrainTaintKey field cannot be configured", "nodeDrainTaintKey")
+	}
+	if kubevirtMigration.Network != nil && *kubevirtMigration.Network != "" {
+		return werror.NewInvalidError("network field is configured by vm-migration-network setting", "network")
+	}
+	return nil
+}
+
+func (v *settingValidator) validateUpdateKubeVirtMigration(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return v.validateKubeVirtMigration(newSetting)
+}
+
+func (v *settingValidator) validateDeleteClusterPodSecurityStandard(_ *v1beta1.Setting) error {
+	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.ClusterPodSecurityStandardSettingName))
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2025 Rancher Labs, Inc.
+Copyright 2026 SUSE, LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,15 +19,17 @@ limitations under the License.
 package versioned
 
 import (
-	"fmt"
-	"net/http"
+	fmt "fmt"
+	http "net/http"
 
+	appsv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/apps/v1"
 	batchv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/batch/v1"
 	catalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1"
 	cdiv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
 	clusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1"
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	k8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
+	kubeovnv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubeovn.io/v1"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubevirt.io/v1"
 	loggingv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/logging.banzaicloud.io/v1beta1"
 	longhornv1beta2 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/longhorn.io/v1beta2"
@@ -40,6 +42,7 @@ import (
 	storagev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1"
 	upgradev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upgrade.cattle.io/v1"
 	uploadv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/upload.cdi.kubevirt.io/v1beta1"
+	corev1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/v1"
 	whereaboutsv1alpha1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
@@ -48,12 +51,15 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
+	CoreV1() corev1.CoreV1Interface
+	AppsV1() appsv1.AppsV1Interface
 	BatchV1() batchv1.BatchV1Interface
 	CatalogV1() catalogv1.CatalogV1Interface
 	CdiV1beta1() cdiv1beta1.CdiV1beta1Interface
 	ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface
 	HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta1Interface
 	K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface
+	KubeovnV1() kubeovnv1.KubeovnV1Interface
 	KubevirtV1() kubevirtv1.KubevirtV1Interface
 	LoggingV1beta1() loggingv1beta1.LoggingV1beta1Interface
 	LonghornV1beta2() longhornv1beta2.LonghornV1beta2Interface
@@ -72,12 +78,15 @@ type Interface interface {
 // Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
+	coreV1              *corev1.CoreV1Client
+	appsV1              *appsv1.AppsV1Client
 	batchV1             *batchv1.BatchV1Client
 	catalogV1           *catalogv1.CatalogV1Client
 	cdiV1beta1          *cdiv1beta1.CdiV1beta1Client
 	clusterV1beta1      *clusterv1beta1.ClusterV1beta1Client
 	harvesterhciV1beta1 *harvesterhciv1beta1.HarvesterhciV1beta1Client
 	k8sCniCncfIoV1      *k8scnicncfiov1.K8sCniCncfIoV1Client
+	kubeovnV1           *kubeovnv1.KubeovnV1Client
 	kubevirtV1          *kubevirtv1.KubevirtV1Client
 	loggingV1beta1      *loggingv1beta1.LoggingV1beta1Client
 	longhornV1beta2     *longhornv1beta2.LonghornV1beta2Client
@@ -91,6 +100,16 @@ type Clientset struct {
 	upgradeV1           *upgradev1.UpgradeV1Client
 	uploadV1beta1       *uploadv1beta1.UploadV1beta1Client
 	whereaboutsV1alpha1 *whereaboutsv1alpha1.WhereaboutsV1alpha1Client
+}
+
+// CoreV1 retrieves the CoreV1Client
+func (c *Clientset) CoreV1() corev1.CoreV1Interface {
+	return c.coreV1
+}
+
+// AppsV1 retrieves the AppsV1Client
+func (c *Clientset) AppsV1() appsv1.AppsV1Interface {
+	return c.appsV1
 }
 
 // BatchV1 retrieves the BatchV1Client
@@ -121,6 +140,11 @@ func (c *Clientset) HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta
 // K8sCniCncfIoV1 retrieves the K8sCniCncfIoV1Client
 func (c *Clientset) K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface {
 	return c.k8sCniCncfIoV1
+}
+
+// KubeovnV1 retrieves the KubeovnV1Client
+func (c *Clientset) KubeovnV1() kubeovnv1.KubeovnV1Interface {
+	return c.kubeovnV1
 }
 
 // KubevirtV1 retrieves the KubevirtV1Client
@@ -232,6 +256,14 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
+	cs.coreV1, err = corev1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
+	cs.appsV1, err = appsv1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.batchV1, err = batchv1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -253,6 +285,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 		return nil, err
 	}
 	cs.k8sCniCncfIoV1, err = k8scnicncfiov1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
+	cs.kubeovnV1, err = kubeovnv1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -329,12 +365,15 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
+	cs.coreV1 = corev1.New(c)
+	cs.appsV1 = appsv1.New(c)
 	cs.batchV1 = batchv1.New(c)
 	cs.catalogV1 = catalogv1.New(c)
 	cs.cdiV1beta1 = cdiv1beta1.New(c)
 	cs.clusterV1beta1 = clusterv1beta1.New(c)
 	cs.harvesterhciV1beta1 = harvesterhciv1beta1.New(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.New(c)
+	cs.kubeovnV1 = kubeovnv1.New(c)
 	cs.kubevirtV1 = kubevirtv1.New(c)
 	cs.loggingV1beta1 = loggingv1beta1.New(c)
 	cs.longhornV1beta2 = longhornv1beta2.New(c)

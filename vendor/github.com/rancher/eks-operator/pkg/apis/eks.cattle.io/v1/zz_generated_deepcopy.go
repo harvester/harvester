@@ -196,6 +196,11 @@ func (in *EKSClusterConfigStatus) DeepCopyInto(out *EKSClusterConfigStatus) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.CompletedUpdateIDs != nil {
+		in, out := &in.CompletedUpdateIDs, &out.CompletedUpdateIDs
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

@@ -48,6 +48,7 @@ var registerFuncs = []registerFunc{
 	mcmsettings.Register,
 	migration.Register,
 	node.CPUManagerRegister,
+	node.CPUModelConfigRegister,
 	node.DownRegister,
 	node.MaintainRegister,
 	node.PromoteRegister,
@@ -67,6 +68,7 @@ var registerFuncs = []registerFunc{
 	upgradelog.Register,
 	virtualmachine.Register,
 	vmimagedownloader.Register,
+	node.ConditionAnnotationRegister,
 }
 
 func register(ctx context.Context, management *config.Management, options config.Options) error {

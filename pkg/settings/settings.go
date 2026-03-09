@@ -19,7 +19,7 @@ var (
 
 	AdditionalCA                           = NewSetting(AdditionalCASettingName, "")
 	APIUIVersion                           = NewSetting(APIUIVersionSettingName, "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
-	ClusterRegistrationURL                 = NewSetting(ClusterRegistrationURLSettingName, "")
+	ClusterRegistrationURL                 = NewSetting(ClusterRegistrationURLSettingName, `{"url":"","insecureSkipTLSVerify":false}`)
 	ServerVersion                          = NewSetting(ServerVersionSettingName, "dev")
 	UIIndex                                = NewSetting(UIIndexSettingName, DefaultDashboardUIURL)
 	UIPath                                 = NewSetting(UIPathSettingName, "/usr/share/harvester/harvester")
@@ -56,12 +56,14 @@ var (
 	AdditionalGuestMemoryOverheadRatio     = NewSetting(AdditionalGuestMemoryOverheadRatioName, AdditionalGuestMemoryOverheadRatioDefault)
 	RancherCluster                         = NewSetting(RancherClusterSettingName, "{}")
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
-	HarvesterCSICCMVersion = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
-	NTPServers             = NewSetting(NTPServersSettingName, "")
-	WhiteListedSettings    = []string{ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
-	UpgradeConfigSet       = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "restoreVM": false, "logReadyTimeout": "5"}`)
-	MaxHotplugRatio        = NewSetting(MaxHotplugRatioSettingName, "4")
-	VMMigrationNetwork     = NewSetting(VMMigrationNetworkSettingName, "")
+	HarvesterCSICCMVersion            = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
+	NTPServers                        = NewSetting(NTPServersSettingName, "")
+	WhiteListedSettings               = []string{ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
+	UpgradeConfigSet                  = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto"}},"restoreVM": false, "logReadyTimeout": "5"}`)
+	MaxHotplugRatio                   = NewSetting(MaxHotplugRatioSettingName, "4")
+	VMMigrationNetwork                = NewSetting(VMMigrationNetworkSettingName, "")
+	KubeVirtMigration                 = NewSetting(KubeVirtMigrationSettingName, `{"parallelOutboundMigrationsPerNode":2,"parallelMigrationsPerCluster":5,"allowAutoConverge":false,"bandwidthPerMigration":0,"completionTimeoutPerGiB":150,"progressTimeout":150,"unsafeMigrationOverride":false,"allowPostCopy":false,"allowWorkloadDisruption":false,"disableTLS":false,"matchSELinuxLevelOnMigration":false}`)
+	ClusterPodSecurityStandardSetting = NewSetting(ClusterPodSecurityStandardSettingName, `{"enabled":false,"whitelistedNamespacesList":"", "privilegedNamespacesList":"", "restrictedNamespacesList":""}`)
 )
 
 const (
@@ -111,6 +113,8 @@ const (
 	MaxHotplugRatioSettingName                        = "max-hotplug-ratio"
 	VMMigrationNetworkSettingName                     = "vm-migration-network"
 	RancherClusterSettingName                         = "rancher-cluster"
+	KubeVirtMigrationSettingName                      = "kubevirt-migration"
+	ClusterPodSecurityStandardSettingName             = "cluster-pod-security-standard"
 
 	// settings have `default` and `value` string used in many places, replace them with const
 	KeywordDefault = "default"

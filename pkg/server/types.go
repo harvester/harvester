@@ -36,6 +36,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master"
 	"github.com/harvester/harvester/pkg/data"
 	"github.com/harvester/harvester/pkg/indexeres"
+	"github.com/harvester/harvester/pkg/server/customizers"
 	"github.com/harvester/harvester/pkg/server/ui"
 )
 
@@ -46,7 +47,7 @@ type HarvesterServer struct {
 
 	RESTConfig    *rest.Config
 	DynamicClient dynamic.Interface
-	ClientSet     *kubernetes.Clientset
+	ClientSet     kubernetes.Interface
 	ASL           accesscontrol.AccessSetLookup
 
 	steve          *steveserver.Server
@@ -194,31 +195,6 @@ func (s *HarvesterServer) Scaled() *config.Scaled {
 	return config.ScaledWithContext(s.Context)
 }
 
-// noopExtensionAPIServer is a no-op implementation of ExtensionAPIServer
-type noopExtensionAPIServer struct {
-	registered chan struct{}
-}
-
-func newNoopExtensionAPIServer() *noopExtensionAPIServer {
-	ch := make(chan struct{})
-	close(ch) // immediately close the channel to indicate "registered"
-	return &noopExtensionAPIServer{
-		registered: ch,
-	}
-}
-
-func (n *noopExtensionAPIServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	http.NotFoundHandler().ServeHTTP(rw, req)
-}
-
-func (n *noopExtensionAPIServer) Run(ctx context.Context) error {
-	return nil // no-op
-}
-
-func (n *noopExtensionAPIServer) Registered() <-chan struct{} {
-	return n.registered
-}
-
 func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 	factory, err := controller.NewSharedControllerFactoryFromConfig(s.RESTConfig, Scheme)
 	if err != nil {
@@ -263,10 +239,6 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 		AuthMiddleware:  steveauth.ExistingContext,
 		Router:          router.Routes,
 		AccessSetLookup: s.ASL,
-
-		// FIXME: Steve requires an ExtensionAPIServer, otherwise it panics.
-		// We can remove this line after bumping rancher/steve to v0.6.20.
-		ExtensionAPIServer: newNoopExtensionAPIServer(),
 	})
 	if err != nil {
 		return err
@@ -290,6 +262,8 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 		scaled.Start,
 	}
 
+	// add custom templates if needed
+	s.steve.SchemaFactory.AddTemplate(customizers.VMCustomizerTemplate)
 	return s.start(options)
 }
 

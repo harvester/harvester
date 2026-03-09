@@ -7,9 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	fake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
 const (
@@ -413,5 +417,236 @@ func Test_isNodeMachineMatching(t *testing.T) {
 				assert.Nil(t, err, tc.name)
 			}
 		})
+	}
+}
+
+func TestUpgradeValidator_validatePauseMapAnnotation(t *testing.T) {
+	givenNodes := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-0",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-1",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-2",
+			},
+		},
+	}
+
+	var testCases = []struct {
+		name      string
+		upgrade   *harvesterv1.Upgrade
+		expectErr bool
+	}{
+		{
+			name: "empty string",
+			upgrade: &harvesterv1.Upgrade{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						util.AnnotationNodeUpgradePauseMap: "",
+					},
+				},
+			},
+			expectErr: true,
+		},
+		{
+			name: "bad json string",
+			upgrade: &harvesterv1.Upgrade{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						util.AnnotationNodeUpgradePauseMap: "{\"node-0\"}",
+					},
+				},
+			},
+			expectErr: true,
+		},
+		{
+			name: "empty pause map",
+			upgrade: &harvesterv1.Upgrade{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						util.AnnotationNodeUpgradePauseMap: "{}",
+					},
+				},
+			},
+			expectErr: false,
+		},
+		{
+			name: "unpause nodes in pause map",
+			upgrade: &harvesterv1.Upgrade{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						util.AnnotationNodeUpgradePauseMap: "{\"node-0\":\"unpause\",\"node-1\":\"pause\"}",
+					},
+				},
+			},
+			expectErr: false,
+		},
+		{
+			name: "invalid desire action for nodes in pause map",
+			upgrade: &harvesterv1.Upgrade{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						util.AnnotationNodeUpgradePauseMap: "{\"node-0\":\"pause\",\"node-1\":\"restart\"}",
+					},
+				},
+			},
+			expectErr: true,
+		},
+		{
+			name: "nodes in pause map are a subset of cluster nodes",
+			upgrade: &harvesterv1.Upgrade{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						util.AnnotationNodeUpgradePauseMap: "{\"node-0\":\"pause\"}",
+					},
+				},
+			},
+			expectErr: false,
+		},
+		{
+			name: "some nodes in pause map do not exist",
+			upgrade: &harvesterv1.Upgrade{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						util.AnnotationNodeUpgradePauseMap: "{\"node-0\":\"pause\",\"node-100\":\"pause\"}",
+					},
+				},
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			nodes := make([]runtime.Object, 0, len(givenNodes))
+			for _, node := range givenNodes {
+				nodes = append(nodes, node)
+			}
+			clientset := fake.NewSimpleClientset(nodes...)
+			validator := &upgradeValidator{
+				nodes: fakeclients.NodeCache(clientset.CoreV1().Nodes),
+			}
+
+			err := validator.validatePauseMapAnnotation(tc.upgrade)
+
+			assert.Equal(t, tc.expectErr, err != nil, tc.name)
+		})
+	}
+}
+
+func getTestAddon(enabled bool) *harvesterv1.Addon {
+	return &harvesterv1.Addon{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "addon1",
+		},
+		Spec: harvesterv1.AddonSpec{
+			Repo:          "repo1",
+			Chart:         "chart1",
+			Version:       "version1",
+			Enabled:       enabled,
+			ValuesContent: "sample",
+		},
+	}
+}
+
+func setAddonState(addon *harvesterv1.Addon, state harvesterv1.AddonState) {
+	if addon == nil {
+		return
+	}
+	addon.Status.Status = state
+}
+
+func Test_validateAddons(t *testing.T) {
+	var testCases = []struct {
+		name          string
+		enabled       bool
+		addonState    harvesterv1.AddonState
+		expectedError bool
+	}{
+		{
+			name:          "good: addon is enabled, and deployed",
+			enabled:       true,
+			expectedError: false,
+			addonState:    harvesterv1.AddonDeployed,
+		},
+		{
+			name:          "bad: addon is enabled, but with no state",
+			enabled:       true,
+			expectedError: true,
+		},
+		{
+			name:          "bad: addon is enabled, but with enabling state",
+			enabled:       true,
+			expectedError: true,
+			addonState:    harvesterv1.AddonEnabling,
+		},
+		{
+			name:          "bad: addon is enabled, but with init state",
+			enabled:       true,
+			expectedError: true,
+			addonState:    harvesterv1.AddonInitState,
+		},
+		{
+			name:          "bad: addon is enabled, but with updating state",
+			enabled:       true,
+			expectedError: true,
+			addonState:    harvesterv1.AddonUpdating,
+		},
+		{
+			name:          "bad: addon is enabled, but with invalid state",
+			enabled:       true,
+			expectedError: true,
+			addonState:    "invalid",
+		},
+		{
+			name:          "good: addon is disabled, no state, it is from initial",
+			enabled:       false,
+			expectedError: false,
+		},
+		{
+			name:          "good: addon is disabled, and with disabled state",
+			enabled:       false,
+			expectedError: false,
+			addonState:    harvesterv1.AddonDisabled,
+		},
+		{
+			name:          "bad: addon is disabled, but with disabling state",
+			enabled:       false,
+			expectedError: true,
+			addonState:    harvesterv1.AddonDisabling,
+		},
+		{
+			name:          "bad: addon is disabled, but with invalid state",
+			enabled:       false,
+			expectedError: true,
+			addonState:    "invalid",
+		},
+	}
+
+	for _, tc := range testCases {
+		clientset := fake.NewSimpleClientset()
+		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
+
+		validator := NewValidator(nil, fakeAddonCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, "").(*upgradeValidator)
+		addon := getTestAddon(tc.enabled)
+		if tc.addonState != "" {
+			setAddonState(addon, tc.addonState)
+		}
+		err := clientset.Tracker().Add(addon)
+		assert.Nil(t, err)
+
+		err = validator.checkAddons()
+		if tc.expectedError {
+			assert.NotNil(t, err, tc.name)
+		} else {
+			assert.Nil(t, err, tc.name)
+		}
 	}
 }

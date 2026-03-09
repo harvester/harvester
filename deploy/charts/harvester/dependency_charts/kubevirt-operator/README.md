@@ -43,7 +43,7 @@ Specify each parameter using the `--set key=value[,key=value]` argument to `helm
 For details on using parameters, please refer to [values.yaml](values.yaml).
 
 ## License
-Copyright (c) 2025 [SUSE, LLC.](https://www.suse.com/)
+Copyright (c) 2026 [SUSE, LLC.](https://www.suse.com/)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

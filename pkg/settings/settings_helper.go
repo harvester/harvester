@@ -7,6 +7,8 @@ import (
 	"strconv"
 
 	"github.com/sirupsen/logrus"
+
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
 type TargetType string
@@ -32,6 +34,8 @@ type VMForceResetPolicy struct {
 	Enable bool `json:"enable"`
 	// Period means how many seconds to wait for a node get back.
 	Period int64 `json:"period"`
+	// VMMigrationTimeout means how many seconds to wait for a VM to migrate when a node is reported not ready.
+	VMMigrationTimeout int64 `json:"vmMigrationTimeout,omitempty"`
 }
 
 func InitBackupTargetToString() string {
@@ -66,8 +70,9 @@ func (target *BackupTarget) IsDefaultBackupTarget() bool {
 
 func InitVMForceResetPolicy() string {
 	policy := &VMForceResetPolicy{
-		Enable: true,
-		Period: 5 * 60, // 5 minutes
+		Enable:             true,
+		Period:             15,  // 15 seconds for default timeout
+		VMMigrationTimeout: 180, // 180 seconds for default VM migration timeout
 	}
 	policyStr, err := json.Marshal(policy)
 	if err != nil {
@@ -84,6 +89,13 @@ func DecodeVMForceResetPolicy(value string) (*VMForceResetPolicy, error) {
 
 	if policy.Period <= 0 {
 		return nil, fmt.Errorf("period value should be greater than 0, value: %d", policy.Period)
+	}
+
+	if policy.VMMigrationTimeout < 0 {
+		return nil, fmt.Errorf("vmMigrationTimeout value should be greater than 0, value: %d", policy.VMMigrationTimeout)
+	}
+	if policy.VMMigrationTimeout == 0 {
+		policy.VMMigrationTimeout = 180 // set default VM migration timeout to 180 seconds
 	}
 
 	return policy, nil
@@ -145,10 +157,8 @@ type StrategyType string
 const (
 	// Do no preloading
 	SkipType StrategyType = "skip"
-
 	// Preloading one node at a time
 	SequentialType StrategyType = "sequential"
-
 	// Preloading multiple nodes starts at the same time
 	ParallelType StrategyType = "parallel"
 )
@@ -168,6 +178,29 @@ type ImagePreloadOption struct {
 	Strategy PreloadStrategy `json:"strategy,omitempty"`
 }
 
+type ModeType string
+
+const (
+	// Every node enters the pre-draining state automatically (default mode)
+	AutoType ModeType = "auto"
+	// Each node waits indefinitely before entering the pre-draining state until the user agrees to continue
+	ManualType ModeType = "manual"
+)
+
+type NodeUpgradeStrategy struct {
+	Mode *ModeType `json:"mode,omitempty"`
+
+	// PauseNodes contains the node names that should be paused before entering the pre-draining state during the node
+	// upgrade phase. It is only honored when the Mode is "manual". If the Mode is "manual" but no node names are
+	// provided, all nodes will be paused before entering the pre-draining state.
+	PauseNodes []string `json:"pauseNodes,omitempty"`
+}
+
+type NodeUpgradeOption struct {
+	// Strategy defines how node upgrades are conducted.
+	Strategy *NodeUpgradeStrategy `json:"strategy,omitempty"`
+}
+
 type UpgradeConfig struct {
 	// Options for the Image Preload phase of Harvester Upgrade
 	PreloadOption ImagePreloadOption `json:"imagePreloadOption,omitempty"`
@@ -175,6 +208,8 @@ type UpgradeConfig struct {
 	RestoreVM bool `json:"restoreVM,omitempty"`
 	// LogReadyTimeout is the time in minutes to wait for LogReady condition to be set True or False.
 	LogReadyTimeout string `json:"logReadyTimeout,omitempty"`
+	// Options for specifying nodes to pause when entering the pre-draining state
+	NodeUpgradeOption *NodeUpgradeOption `json:"nodeUpgradeOption,omitempty"`
 }
 
 func DecodeConfig[T any](value string) (*T, error) {
@@ -246,4 +281,45 @@ func ValidateAdditionalGuestMemoryOverheadRatioHelper(value string) error {
 
 type RancherClusterConfig struct {
 	RemoveUpstreamClusterWhenNamespaceIsDeleted bool `json:"removeUpstreamClusterWhenNamespaceIsDeleted"`
+}
+
+type PodSecuritySetting struct {
+	Enabled                   bool   `json:"enabled"`
+	WhitelistedNamespacesList string `json:"whitelistedNamespacesList,omitempty"`
+	PrivilegedNamespacesList  string `json:"privilegedNamespacesList,omitempty"`
+	RestrictedNamespacesList  string `json:"restrictedNamespacesList,omitempty"`
+}
+
+func GetPodSecuritySetting(setting *harvesterv1.Setting) (*PodSecuritySetting, error) {
+	pssSetting := &PodSecuritySetting{}
+	var value string
+	if setting.Value != "" {
+		value = setting.Value
+	} else {
+		value = setting.Default
+	}
+	if err := json.Unmarshal([]byte(value), pssSetting); err != nil {
+		return nil, fmt.Errorf("invalid JSON `%s`: %s", value, err.Error())
+	}
+	return pssSetting, nil
+}
+
+type ClusterRegistrationURLSetting struct {
+	URL                   string `json:"url"`
+	InsecureSkipTLSVerify bool   `json:"insecureSkipTLSVerify"`
+}
+
+func GetClusterRegistrationURLSetting(setting *harvesterv1.Setting) *ClusterRegistrationURLSetting {
+	reg := &ClusterRegistrationURLSetting{}
+	value := setting.Default
+	if setting.Value != "" {
+		value = setting.Value
+	}
+
+	if err := json.Unmarshal([]byte(value), reg); err != nil {
+		logrus.Warnf("%s. treating the registration URL value directly for backward compatibility", err.Error())
+		reg.URL = value
+		reg.InsecureSkipTLSVerify = true
+	}
+	return reg
 }
