@@ -19,7 +19,7 @@ var (
 
 	AdditionalCA                           = NewSetting(AdditionalCASettingName, "")
 	APIUIVersion                           = NewSetting(APIUIVersionSettingName, "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
-	ClusterRegistrationURL                 = NewSetting(ClusterRegistrationURLSettingName, "")
+	ClusterRegistrationURL                 = NewSetting(ClusterRegistrationURLSettingName, `{"url":"","insecureSkipTLSVerify":false}`)
 	ServerVersion                          = NewSetting(ServerVersionSettingName, "dev")
 	UIIndex                                = NewSetting(UIIndexSettingName, DefaultDashboardUIURL)
 	UIPath                                 = NewSetting(UIPathSettingName, "/usr/share/harvester/harvester")
