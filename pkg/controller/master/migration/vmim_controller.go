@@ -34,7 +34,7 @@ func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanc
 
 	vmi, err := h.vmiCache.Get(vmim.Namespace, vmim.Spec.VMIName)
 	if err != nil {
-		// the vmim might be a leftover object when it's parent vmi object was deleted
+		// the vmim might be a leftover object when its parent vmi object was deleted
 		if apierrors.IsNotFound(err) {
 			return vmim, nil
 		}
@@ -173,7 +173,7 @@ func (h *Handler) scaleResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInstan
 	}
 
 	// add migrating vmi information to ResourceQuota
-	if err := rqutils.AddMigratingVM(rqToUpdate, vmi.Name, string(vmi.UID), rl); err != nil {
+	if err := rqutils.AddMigratingVM(rqToUpdate, string(vmi.UID), rl); err != nil {
 		return err
 	}
 	logrus.Debugf("scaleResourceQuotaWithVMI: update resource quota with vmi %s/%s", vmi.Namespace, vmi.Name)
@@ -206,9 +206,11 @@ func (h *Handler) restoreResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInst
 	rqCpy := rq.DeepCopy()
 
 	// delete migrating vmi information from ResourceQuota annotation, then the ResourceQuota controller will re-calculate the final value
-	if rqutils.DeleteMigratingVM(rqCpy, vmi.Name, string(vmi.UID)) {
+	if rqutils.DeleteMigratingVM(rqCpy, string(vmi.UID)) {
 		// when there is compensation, no matter for which vmim, delete it
-		// if a pending vmi is blocked due to quota, the rq controller will re-add the compensation
+		// after the ResourceQuota is updated, kubevirt will re-schedule all ResourceQuota blocked VMs
+		// if some other VM is blocked due to ResourceQuota after the re-schedule,
+		// the ResourceQuota controller will compensate accordingly
 		_ = rqutils.DeleteMigratingCompensation(rqCpy)
 		_, err = h.rqs.Update(rqCpy)
 		return err

@@ -13,7 +13,7 @@ import (
 const (
 	// even kubevirt can't 100% precisely calculate the exact memory a vmi POD will consume
 	// we add additional 128Mi when compensate RQ, to ensure the vmi migration target pod can be created
-	additionalCompensationMemeory = 128 << 20
+	additionalCompensationMemory = 128 << 20
 )
 
 func HasMigratingVM(rq *corev1.ResourceQuota) bool {
@@ -47,7 +47,7 @@ func AddMigratingCompensation(rq *corev1.ResourceQuota, rl corev1.ResourceList) 
 	return nil
 }
 
-// delete the may existing Miration compensation, return true if it exists
+// delete the maybe existing Migration compensation, return true if it exists
 func DeleteMigratingCompensation(rq *corev1.ResourceQuota) bool {
 	if rq.Annotations == nil {
 		return false
@@ -58,7 +58,7 @@ func DeleteMigratingCompensation(rq *corev1.ResourceQuota) bool {
 	return len1 != len2
 }
 
-func AddMigratingVM(rq *corev1.ResourceQuota, vmName, vmUID string, rl corev1.ResourceList) error {
+func AddMigratingVM(rq *corev1.ResourceQuota, vmUID string, rl corev1.ResourceList) error {
 	rlb, err := json.Marshal(rl)
 	if err != nil {
 		return err
@@ -68,12 +68,12 @@ func AddMigratingVM(rq *corev1.ResourceQuota, vmName, vmUID string, rl corev1.Re
 		rq.Annotations = make(map[string]string)
 	}
 
-	rq.Annotations[util.GenerateAnnotationKeyMigratingVMUID(vmUID)] = string(rlb) // add UID based key, value
+	rq.Annotations[util.GenerateAnnotationKeyMigratingVMUID(vmUID)] = string(rlb)
 	return nil
 }
 
-// delete the may existing VM Miration, return true if it exists
-func DeleteMigratingVM(rq *corev1.ResourceQuota, vmName, vmUID string) bool {
+// delete the maybe existing VM Migration, return true if it exists
+func DeleteMigratingVM(rq *corev1.ResourceQuota, vmUID string) bool {
 	if rq.Annotations == nil {
 		return false
 	}
@@ -99,14 +99,14 @@ func getResourceListOfMigratingVMsFromRQ(rq *corev1.ResourceQuota) (map[string]c
 		return vms, nil
 	}
 
-	for k := range rq.Annotations {
+	for k, v := range rq.Annotations {
 		if !strings.HasPrefix(k, util.AnnotationMigratingUIDPrefix) {
 			continue
 		}
 
 		var rl corev1.ResourceList
-		if err := json.Unmarshal([]byte(rq.Annotations[k]), &rl); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal vm %v quantity %v %w", k, rq.Annotations[k], err)
+		if err := json.Unmarshal([]byte(v), &rl); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal vm %v quantity %v %w", k, v, err)
 		}
 		vms[strings.TrimPrefix(k, util.AnnotationMigratingUIDPrefix)] = rl
 

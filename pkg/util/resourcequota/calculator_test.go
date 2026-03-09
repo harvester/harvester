@@ -129,9 +129,9 @@ func Test_vmValidator_checkResourceQuota(t *testing.T) {
 				nil,
 				nil)
 
-			got, err := c.getNamespaceResourceQuota(tt.args.vm.Namespace)
-			assert.Equalf(t, tt.wantErr, err, "getNamespaceResourceQuota(%v)", tt.args.vm)
-			assert.Equalf(t, tt.want, got, "getNamespaceResourceQuota(%v)", tt.args.vm)
+			got, err := c.getRancherNamespaceResourceQuota(tt.args.vm.Namespace)
+			assert.Equalf(t, tt.wantErr, err, "getRancherNamespaceResourceQuota(%v)", tt.args.vm)
+			assert.Equalf(t, tt.want, got, "getRancherNamespaceResourceQuota(%v)", tt.args.vm)
 		})
 	}
 }

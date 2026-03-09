@@ -50,10 +50,9 @@ const (
 
 	// AnnotationMigratingUIDPrefix is used to store the migrating vm in the annotation of ResourceQuota
 	// eg: harvesterhci.io/migratingUID-id1: jsonOfResourceList, harvesterhci.io/migratingUID-id2: jsonOfResourceList
-	// replace` AnnotationMigratingNamePrefix = prefix + "/migrating-"` from v1.5.0
 	AnnotationMigratingUIDPrefix = prefix + "/migratingUID-"
 
-	// AnnotationMigratingCompensation is used to add more to resourcequota base
+	// AnnotationMigratingCompensation is used to add compensation quota to help the already blocked vmim, due to insufficient ResourceQuota, to move on
 	AnnotationMigratingCompensation = prefix + "/migratingCompensation"
 
 	// AnnotationInsufficientResourceQuota is indicated the resource is insufficient of Namespace

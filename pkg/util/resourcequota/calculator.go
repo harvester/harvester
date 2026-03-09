@@ -63,8 +63,10 @@ func (c *Calculator) VMPodsExist(namespace, vmName string) (bool, error) {
 	return true, nil
 }
 
-func (c *Calculator) getNamespaceResourceQuotaAndRQ(namespace string) (*v3.NamespaceResourceQuota, *corev1.ResourceQuota, error) {
-	nrq, err := c.getNamespaceResourceQuota(namespace)
+// Get the Rancher NamespaceResourceQuota (via namespace annotation) and the first K8s ResourceQuota of a given namespace
+// They work together to influence the following actions
+func (c *Calculator) getNamespaceResourceQuota(namespace string) (*v3.NamespaceResourceQuota, *corev1.ResourceQuota, error) {
+	nrq, err := c.getRancherNamespaceResourceQuota(namespace)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -72,13 +74,12 @@ func (c *Calculator) getNamespaceResourceQuotaAndRQ(namespace string) (*v3.Names
 		return nil, nil, nil
 	}
 
-	// get resource quota limits from ResourceQuota
 	rq, err := c.getNamespaceDefaultResourceQuota(namespace)
 	if err != nil {
-		return nil, nil, err
+		return nrq, nil, err
 	}
 	if rq == nil {
-		return nil, nil, nil
+		return nrq, nil, nil
 	}
 
 	return nrq, rq, nil
@@ -109,30 +110,30 @@ func (c *Calculator) CheckIfVMCanStartByResourceQuota(vm *kubevirtv1.VirtualMach
 		return nil
 	}
 
-	nrq, rq, err := c.getNamespaceResourceQuotaAndRQ(vm.Namespace)
+	nrq, rq, err := c.getNamespaceResourceQuota(vm.Namespace)
 	if err != nil {
 		return err
 	}
 	if nrq == nil {
-		logrus.Debugf("CheckIfVMCanStartByResourceQuota: rancher resource quota is not set in the namespace %s, skip check", vm.Namespace)
+		logrus.Debugf("CheckIfVMCanStartByResourceQuota: Rancher defined namespace ResourceQuota is not found in the namespace %s, skip check", vm.Namespace)
 		return nil
 	}
 	if rq == nil {
-		logrus.Debugf("CheckIfVMCanStartByResourceQuota: default resource quota is not found in the namespace %s, skip check", vm.Namespace)
+		logrus.Debugf("CheckIfVMCanStartByResourceQuota: K8s default ResourceQuota is not found in the namespace %s, skip check", vm.Namespace)
 		return nil
 	}
 
 	return c.containsEnoughResourceQuotaToStartVM(vm, nrq, rq)
 }
 
-func (c *Calculator) getNamespaceResourceQuota(namespace string) (*v3.NamespaceResourceQuota, error) {
-	// check namespace ResourceQuota
+// When Rancher Manager has related settings, it will update the info onto Harvester namespace's annotation CattleAnnotationResourceQuota
+func (c *Calculator) getRancherNamespaceResourceQuota(namespace string) (*v3.NamespaceResourceQuota, error) {
 	ns, err := c.nsCache.Get(namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	// if not ResourceQuota annotation in namespace, return nil
+	// if there is no Rancher ResourceQuota annotation on the namespace object, return nil
 	var resourceQuota *v3.NamespaceResourceQuota
 	if rqStr, ok := ns.Annotations[util.CattleAnnotationResourceQuota]; !ok {
 		return nil, nil
@@ -258,7 +259,7 @@ func GetVMIMResourcesAndCompensationFromRQAnnotation(rq *corev1.ResourceQuota) (
 }
 
 // Get ResourceQuota annotations about vmim and convert them to quantity
-// each running vmim has a correspoding auto-sacling annotation to record the scaled resources
+// each running vmim has a corresponding auto-scaling annotation to record the scaled resources
 func GetVMIMResourcesFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, storage resource.Quantity, err error) {
 	vms, err := getResourceListOfMigratingVMsFromRQ(rq)
 	if err != nil {
@@ -312,16 +313,16 @@ func (c *Calculator) getVMPods(namespace, vmName string) ([]*corev1.Pod, error) 
 }
 
 func (c *Calculator) CheckStorageResourceQuota(vm *kubevirtv1.VirtualMachine, oldVM *kubevirtv1.VirtualMachine) error {
-	nrq, rq, err := c.getNamespaceResourceQuotaAndRQ(vm.Namespace)
+	nrq, rq, err := c.getNamespaceResourceQuota(vm.Namespace)
 	if err != nil {
 		return err
 	}
 	if nrq == nil {
-		logrus.Debugf("CheckStorageResourceQuota: resource quota not found in the namespace %s, skip check", vm.Namespace)
+		logrus.Debugf("CheckStorageResourceQuota: Rancher defined namespace ResourceQuota is not found in the namespace %s, skip check", vm.Namespace)
 		return nil
 	}
 	if rq == nil {
-		logrus.Debugf("CheckStorageResourceQuota: not found any default resource quota in the namespace %s, skip check", vm.Namespace)
+		logrus.Debugf("CheckStorageResourceQuota: K8s default ResourceQuota is not found in the namespace %s, skip check", vm.Namespace)
 		return nil
 	}
 
@@ -567,7 +568,7 @@ func CalculateCompensationResourceQuotaWithVMI(
 	// used + migration target pod exceeds limit, compensate the delta
 	if usedMem.Cmp(*limitMem) == 1 {
 		usedMem.Sub(*limitMem)
-		usedMem.Add(*resource.NewQuantity(additionalCompensationMemeory, resource.BinarySI))
+		usedMem.Add(*resource.NewQuantity(additionalCompensationMemory, resource.BinarySI))
 		rl[corev1.ResourceLimitsMemory] = *usedMem
 		return true, rq, rl
 	}
