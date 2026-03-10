@@ -300,6 +300,17 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
 		}
 		return nil, h.cpuAndMemoryHotplug(namespace, name, input)
+	case storageMigration:
+		var input StorageMigrationInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		if input.SourceVolume == "" || input.TargetVolume == "" {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `sourceVolume` and `targetVolume` are required")
+		}
+		return nil, h.storageMigration(namespace, name, input)
+	case cancelStorageMigration:
+		return nil, h.cancelStorageMigration(namespace, name)
 	default:
 		return nil, apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -476,17 +487,17 @@ func appendVolumeClaimTemplatesFromVMAnnotation(vm *kubevirtv1.VirtualMachine, p
 	if !ok {
 		return nil
 	}
-	volumeClaimTemplates := make([]corev1.PersistentVolumeClaim, 0, 1)
-	if err := json.Unmarshal([]byte(volumeClaimTemplatesStr), &volumeClaimTemplates); err != nil {
-		return err
-	}
-
-	volumeClaimTemplates = append(volumeClaimTemplates, pvc)
-	updateVolumeClaimTemplateBytes, err := json.Marshal(volumeClaimTemplates)
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
 	if err != nil {
 		return err
 	}
-	vm.Annotations[util.AnnotationVolumeClaimTemplates] = string(updateVolumeClaimTemplateBytes)
+
+	entries = append(entries, util.VolumeClaimTemplateEntry{PersistentVolumeClaim: pvc})
+	data, err := util.MarshalVolumeClaimTemplates(entries)
+	if err != nil {
+		return err
+	}
+	vm.Annotations[util.AnnotationVolumeClaimTemplates] = data
 	return nil
 }
 
@@ -495,20 +506,21 @@ func removeVolumeClaimTemplatesFromVMAnnotation(vm *kubevirtv1.VirtualMachine, t
 	if !ok {
 		return nil
 	}
-	var volumeClaimTemplates, toUpdateVolumeClaimTemplates []corev1.PersistentVolumeClaim
-	if err := json.Unmarshal([]byte(volumeClaimTemplatesStr), &volumeClaimTemplates); err != nil {
-		return err
-	}
-	for _, volumeClaimTemplate := range volumeClaimTemplates {
-		if !slice.ContainsString(toRemoveDiskNames, volumeClaimTemplate.Name) {
-			toUpdateVolumeClaimTemplates = append(toUpdateVolumeClaimTemplates, volumeClaimTemplate)
-		}
-	}
-	toUpdateVolumeClaimTemplateBytes, err := json.Marshal(toUpdateVolumeClaimTemplates)
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
 	if err != nil {
 		return err
 	}
-	vm.Annotations[util.AnnotationVolumeClaimTemplates] = string(toUpdateVolumeClaimTemplateBytes)
+	var toUpdate []util.VolumeClaimTemplateEntry
+	for _, entry := range entries {
+		if !slice.ContainsString(toRemoveDiskNames, entry.Name) {
+			toUpdate = append(toUpdate, entry)
+		}
+	}
+	data, err := util.MarshalVolumeClaimTemplates(toUpdate)
+	if err != nil {
+		return err
+	}
+	vm.Annotations[util.AnnotationVolumeClaimTemplates] = data
 	return nil
 }
 
@@ -1469,12 +1481,16 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 	if err != nil {
 		return fmt.Errorf("clone volumes error for new vm %s/%s, err %w", newVM.Namespace, newVM.Name, err)
 	}
-	newPVCsString, err := json.Marshal(newPVCs)
+	newEntries := make([]util.VolumeClaimTemplateEntry, len(newPVCs))
+	for i, pvc := range newPVCs {
+		newEntries[i] = util.VolumeClaimTemplateEntry{PersistentVolumeClaim: pvc}
+	}
+	newPVCsString, err := util.MarshalVolumeClaimTemplates(newEntries)
 	if err != nil {
-		return fmt.Errorf("cannot marshal value %+v, err: %w", newPVCs, err)
+		return fmt.Errorf("cannot marshal value %+v, err: %w", newEntries, err)
 	}
 
-	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(newPVCsString)
+	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = newPVCsString
 	if newVM, err = h.vmClient.Create(newVM); err != nil {
 		return fmt.Errorf("cannot create new VM %s/%s, err: %w", newVM.Namespace, newVM.Name, err)
 	}
@@ -1622,7 +1638,7 @@ func replaceSecrets(templateVersionName string, vm *kubevirtv1.VirtualMachine) *
 
 func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
 	sanitizedVM := vm.DeepCopy()
-	volumeClaimTemplates := []corev1.PersistentVolumeClaim{}
+	var entries []util.VolumeClaimTemplateEntry
 	for index, volume := range sanitizedVM.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim == nil {
 			continue
@@ -1643,24 +1659,26 @@ func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevir
 		}
 		annoImageID := fmt.Sprintf("%s/%s", vm.Namespace, vmImageName)
 		pvcName := getTemplateVersionPvcName(templateVersionName, index)
-		volumeClaimTemplates = append(volumeClaimTemplates, corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: pvcName,
-				Annotations: map[string]string{
-					util.AnnotationImageID: annoImageID,
+		entries = append(entries, util.VolumeClaimTemplateEntry{
+			PersistentVolumeClaim: corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: pvcName,
+					Annotations: map[string]string{
+						util.AnnotationImageID: annoImageID,
+					},
 				},
-			},
-			Spec: corev1.PersistentVolumeClaimSpec{
-				AccessModes:      pvc.Spec.AccessModes,
-				Resources:        pvc.Spec.Resources,
-				VolumeMode:       pvc.Spec.VolumeMode,
-				StorageClassName: &targetStorageClassName,
+				Spec: corev1.PersistentVolumeClaimSpec{
+					AccessModes:      pvc.Spec.AccessModes,
+					Resources:        pvc.Spec.Resources,
+					VolumeMode:       pvc.Spec.VolumeMode,
+					StorageClassName: &targetStorageClassName,
+				},
 			},
 		})
 		sanitizedVM.Spec.Template.Spec.Volumes[index].PersistentVolumeClaim.ClaimName = pvcName
 	}
 
-	volumeCliamTemplatesJSON, err := json.Marshal(volumeClaimTemplates)
+	data, err := util.MarshalVolumeClaimTemplates(entries)
 	if err != nil {
 		return nil, err
 	}
@@ -1668,7 +1686,7 @@ func (h *vmActionHandler) replaceVolumes(templateVersionName string, vm *kubevir
 	if sanitizedVM.Annotations == nil {
 		sanitizedVM.Annotations = map[string]string{}
 	}
-	sanitizedVM.Annotations[util.AnnotationVolumeClaimTemplates] = string(volumeCliamTemplatesJSON)
+	sanitizedVM.Annotations[util.AnnotationVolumeClaimTemplates] = data
 	return sanitizedVM, nil
 }
 
@@ -1869,4 +1887,117 @@ func (h *vmActionHandler) cpuAndMemoryHotplug(namespace, name string, input CPUA
 	patchData := fmt.Sprintf("[%s]", strings.Join(patchOps, ","))
 	_, err := h.vmClient.Patch(namespace, name, k8stypes.JSONPatchType, []byte(patchData))
 	return err
+}
+
+func (h *vmActionHandler) storageMigration(namespace, name string, input StorageMigrationInput) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	annStr := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	entries, err := util.UnmarshalVolumeClaimTemplates(annStr)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal volumeClaimTemplates annotation: %w", err)
+	}
+
+	found := false
+	for i, entry := range entries {
+		if entry.Name == input.SourceVolume {
+			entries[i].TargetVolume = input.TargetVolume
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("source volume %s not found in volumeClaimTemplates annotation", input.SourceVolume)
+	}
+
+	newAnn, err := util.MarshalVolumeClaimTemplates(entries)
+	if err != nil {
+		return fmt.Errorf("failed to marshal volumeClaimTemplates annotation: %w", err)
+	}
+
+	vmCopy := vm.DeepCopy()
+	vmCopy.Annotations[util.AnnotationVolumeClaimTemplates] = newAnn
+	_, err = h.vmClient.Update(vmCopy)
+	return err
+}
+
+func (h *vmActionHandler) cancelStorageMigration(namespace, name string) error {
+	vm, err := h.vmCache.Get(namespace, name)
+	if err != nil {
+		return err
+	}
+
+	annStr := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	entries, err := util.UnmarshalVolumeClaimTemplates(annStr)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal volumeClaimTemplates annotation: %w", err)
+	}
+
+	// Build a map of targetVolume -> sourceVolume from entries that have active migrations
+	targetToSource := map[string]string{}
+	for i, entry := range entries {
+		if entry.TargetVolume != "" {
+			targetToSource[entry.TargetVolume] = entry.Name
+			entries[i].TargetVolume = ""
+		}
+	}
+	if len(targetToSource) == 0 {
+		return fmt.Errorf("no active storage migration found")
+	}
+
+	newAnn, err := util.MarshalVolumeClaimTemplates(entries)
+	if err != nil {
+		return fmt.Errorf("failed to marshal volumeClaimTemplates annotation: %w", err)
+	}
+
+	vmCopy := vm.DeepCopy()
+	vmCopy.Annotations[util.AnnotationVolumeClaimTemplates] = newAnn
+
+	// Restore VM spec volumes that were swapped to target back to source
+	for i, vol := range vmCopy.Spec.Template.Spec.Volumes {
+		var claimName string
+		var hotpluggable bool
+		if vol.PersistentVolumeClaim != nil {
+			claimName = vol.PersistentVolumeClaim.ClaimName
+			hotpluggable = vol.PersistentVolumeClaim.Hotpluggable
+		} else if vol.DataVolume != nil {
+			claimName = vol.DataVolume.Name
+			hotpluggable = vol.DataVolume.Hotpluggable
+		}
+
+		sourceName, ok := targetToSource[claimName]
+		if !ok {
+			continue
+		}
+
+		// Determine if source is a DataVolume or PVC
+		_, dvErr := h.datavolumeClient.Get(namespace, sourceName, metav1.GetOptions{})
+		if dvErr == nil {
+			vmCopy.Spec.Template.Spec.Volumes[i].VolumeSource = kubevirtv1.VolumeSource{
+				DataVolume: &kubevirtv1.DataVolumeSource{
+					Name:         sourceName,
+					Hotpluggable: hotpluggable,
+				},
+			}
+		} else {
+			vmCopy.Spec.Template.Spec.Volumes[i].VolumeSource = kubevirtv1.VolumeSource{
+				PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+					PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: sourceName,
+					},
+					Hotpluggable: hotpluggable,
+				},
+			}
+		}
+	}
+
+	delete(vmCopy.Annotations, util.AnnotationWaitingStorageMigration)
+	vmCopy.Spec.UpdateVolumesStrategy = nil
+	if _, err = h.vmClient.Update(vmCopy); err != nil {
+		return err
+	}
+	return h.abortMigration(namespace, name)
 }

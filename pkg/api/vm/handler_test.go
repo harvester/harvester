@@ -2,7 +2,6 @@ package vm
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -1492,11 +1491,10 @@ func TestInsertCdRomVolumeAction(t *testing.T) {
 
 	assert.Len(t, vmUpdated.Spec.Template.Spec.Volumes, 1, "Should have hot-plug new volume")
 
-	var pvcs []corev1.PersistentVolumeClaim
 	volumeClaimTemplates := vmUpdated.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
-	err = json.Unmarshal([]byte(volumeClaimTemplates), &pvcs)
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplates)
 	assert.Nil(t, err, "Should unmarshal volumeClaimTemplates annotation correctly")
-	assert.Len(t, pvcs, 1, "Should add to volumeClaimTemplates annotation")
+	assert.Len(t, entries, 1, "Should add to volumeClaimTemplates annotation")
 }
 
 func TestEjectCdRomVolumeAction(t *testing.T) {
@@ -1581,11 +1579,10 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 
 	assert.Len(t, vmUpdated.Spec.Template.Spec.Volumes, 0, "Should have hot-unplug volume")
 
-	var pvcs []corev1.PersistentVolumeClaim
 	volumeClaimTemplates := vmUpdated.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
-	err = json.Unmarshal([]byte(volumeClaimTemplates), &pvcs)
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplates)
 	assert.Nil(t, err, "Should unmarshal volumeClaimTemplates annotation correctly")
-	assert.Len(t, pvcs, 0, "Should remove from volumeClaimTemplates annotation")
+	assert.Len(t, entries, 0, "Should remove from volumeClaimTemplates annotation")
 
 	_, err = pvcCache.Get(pvcNamespace, pvcName)
 	assert.True(t, apierrors.IsNotFound(err), "Should delete pvc")
