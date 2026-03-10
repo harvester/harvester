@@ -9,12 +9,16 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	k8stesting "k8s.io/client-go/testing"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -1589,4 +1593,318 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 
 	_, err = pvcCache.Get(pvcNamespace, pvcName)
 	assert.True(t, apierrors.IsNotFound(err), "Should delete pvc")
+}
+
+func TestBuildEFICopyJob(t *testing.T) {
+	h := &vmActionHandler{}
+	targetVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "target-vm",
+			Namespace: "default",
+			UID:       "test-uid",
+		},
+	}
+	sourcePVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "persistent-state-for-source-vm-abc123",
+			Namespace: "default",
+		},
+	}
+	targetPVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "persistent-state-for-target-vm-def456",
+			Namespace: "default",
+		},
+	}
+	script := "test-script"
+
+	job := h.buildEFICopyJob(targetVM, sourcePVC, targetPVC, script)
+
+	assert.Contains(t, job.Name, "efi-copy-target-vm-")
+	assert.Equal(t, "default", job.Namespace)
+	assert.Len(t, job.OwnerReferences, 1)
+	assert.Equal(t, "target-vm", job.OwnerReferences[0].Name)
+	assert.Equal(t, types.UID("test-uid"), job.OwnerReferences[0].UID)
+	assert.Equal(t, int32(efiRenameJobBackoffLimit), *job.Spec.BackoffLimit)
+	assert.Equal(t, int32(efiRenameJobTTL), *job.Spec.TTLSecondsAfterFinished)
+	assert.Equal(t, corev1.RestartPolicyNever, job.Spec.Template.Spec.RestartPolicy)
+	assert.Equal(t, int64(0), *job.Spec.Template.Spec.SecurityContext.RunAsUser)
+	assert.Equal(t, int64(0), *job.Spec.Template.Spec.SecurityContext.RunAsGroup)
+
+	assert.Len(t, job.Spec.Template.Spec.Containers, 1)
+	c := job.Spec.Template.Spec.Containers[0]
+	assert.Equal(t, "efi-copy", c.Name)
+	assert.Equal(t, efiRenameJobImage, c.Image)
+	assert.Equal(t, []string{"sh", "-c", script}, c.Command)
+	assert.Len(t, c.VolumeMounts, 2)
+	assert.Equal(t, "src-pvc", c.VolumeMounts[0].Name)
+	assert.Equal(t, "/src", c.VolumeMounts[0].MountPath)
+	assert.Equal(t, "dst-pvc", c.VolumeMounts[1].Name)
+	assert.Equal(t, "/dst", c.VolumeMounts[1].MountPath)
+
+	assert.Len(t, job.Spec.Template.Spec.Volumes, 2)
+	assert.Equal(t, sourcePVC.Name, job.Spec.Template.Spec.Volumes[0].VolumeSource.PersistentVolumeClaim.ClaimName)
+	assert.Equal(t, targetPVC.Name, job.Spec.Template.Spec.Volumes[1].VolumeSource.PersistentVolumeClaim.ClaimName)
+}
+
+func TestCopyEFIFile(t *testing.T) {
+	sourceVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "source-vm", Namespace: "default"},
+	}
+	targetVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "target-vm", Namespace: "default", UID: "uid-1"},
+	}
+	sourcePVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "persistent-state-for-source-vm-xyz", Namespace: "default"},
+	}
+	targetPVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "persistent-state-for-target-vm-xyz", Namespace: "default"},
+	}
+
+	t.Run("create job fails", func(t *testing.T) {
+		clientset := fake.NewSimpleClientset()
+		clientset.PrependReactor("create", "jobs", func(action k8stesting.Action) (bool, runtime.Object, error) {
+			return true, nil, errors.New("mock create job error")
+		})
+
+		h := &vmActionHandler{
+			jobClient: fakeclients.JobClient(clientset.BatchV1().Jobs),
+		}
+
+		err := h.copyEFIFile(context.Background(), sourceVM, targetVM, sourcePVC, targetPVC)
+		assert.EqualError(t, err, "create job: mock create job error")
+	})
+
+	t.Run("success", func(t *testing.T) {
+		clientset := fake.NewSimpleClientset()
+		clientset.PrependReactor("get", "jobs", func(action k8stesting.Action) (bool, runtime.Object, error) {
+			ga := action.(k8stesting.GetAction)
+			return true, &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ga.GetName(),
+					Namespace: ga.GetNamespace(),
+				},
+				Status: batchv1.JobStatus{Succeeded: 1},
+			}, nil
+		})
+
+		h := &vmActionHandler{
+			jobClient: fakeclients.JobClient(clientset.BatchV1().Jobs),
+		}
+
+		err := h.copyEFIFile(context.Background(), sourceVM, targetVM, sourcePVC, targetPVC)
+		assert.NoError(t, err)
+
+		jobList, err := clientset.BatchV1().Jobs("default").List(context.Background(), metav1.ListOptions{})
+		assert.NoError(t, err)
+		assert.Len(t, jobList.Items, 1)
+
+		createdJob := jobList.Items[0]
+		assert.Contains(t, createdJob.Name, "efi-copy-target-vm-")
+		assert.Equal(t, []string{"sh", "-c", `set -e
+src="/src/nvram/source-vm_VARS.fd"
+dst="/dst/nvram/target-vm_VARS.fd"
+[ -f "$src" ] && cp "$src" "$dst"
+[ -f "$dst" ] && chown 107:107 "$dst"
+[ -f "$dst" ] && chmod 600 "$dst"`}, createdJob.Spec.Template.Spec.Containers[0].Command)
+		assert.Len(t, createdJob.Spec.Template.Spec.Volumes, 2)
+		assert.Equal(t, sourcePVC.Name, createdJob.Spec.Template.Spec.Volumes[0].VolumeSource.PersistentVolumeClaim.ClaimName)
+		assert.Equal(t, targetPVC.Name, createdJob.Spec.Template.Spec.Volumes[1].VolumeSource.PersistentVolumeClaim.ClaimName)
+	})
+}
+
+func TestWaitForPVCBound(t *testing.T) {
+	vm := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "source-vm", Namespace: "default"},
+	}
+	boundPVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "persistent-state-for-source-vm-abc",
+			Namespace: "default",
+			Labels:    map[string]string{backendstorage.PVCPrefix: "source-vm"},
+		},
+		Status: corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
+	}
+	secondPVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "persistent-state-for-source-vm-def",
+			Namespace: "default",
+			Labels:    map[string]string{backendstorage.PVCPrefix: "source-vm"},
+		},
+	}
+
+	tests := []struct {
+		name             string
+		objects          []runtime.Object
+		setupReactors    func(*fake.Clientset)
+		expectedPVCName  string
+		expectedErrorMsg string
+	}{
+		{
+			name:            "no pvc returns nil",
+			expectedPVCName: "",
+		},
+		{
+			name:             "list fails",
+			expectedErrorMsg: "cannot list source persistent state PVC for VM default/source-vm, err: mock list error",
+			setupReactors: func(clientset *fake.Clientset) {
+				clientset.PrependReactor("list", "persistentvolumeclaims", func(action k8stesting.Action) (bool, runtime.Object, error) {
+					return true, nil, errors.New("mock list error")
+				})
+			},
+		},
+		{
+			name:             "multiple pvcs fail",
+			objects:          []runtime.Object{boundPVC, secondPVC},
+			expectedErrorMsg: "expect 1 source persistent state PVC for VM default/source-vm, got 2",
+		},
+		{
+			name:            "bound pvc succeeds",
+			objects:         []runtime.Object{boundPVC},
+			expectedPVCName: boundPVC.Name,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset(tc.objects...)
+			if tc.setupReactors != nil {
+				tc.setupReactors(clientset)
+			}
+
+			h := &vmActionHandler{
+				pvcCache: fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
+			}
+
+			pvc, err := h.waitForPVCBound(context.Background(), vm)
+			if tc.expectedErrorMsg != "" {
+				assert.EqualError(t, err, tc.expectedErrorMsg)
+				return
+			}
+
+			assert.NoError(t, err)
+			if tc.expectedPVCName == "" {
+				assert.Nil(t, pvc)
+				return
+			}
+
+			assert.NotNil(t, pvc)
+			assert.Equal(t, tc.expectedPVCName, pvc.Name)
+		})
+	}
+}
+
+func TestCopyEFIPersistent(t *testing.T) {
+	sourceVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "source-vm", Namespace: "default"},
+	}
+	targetVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "target-vm", Namespace: "default", UID: "uid-1"},
+	}
+	sourcePVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "persistent-state-for-source-vm-abc",
+			Namespace: "default",
+			Labels:    map[string]string{backendstorage.PVCPrefix: "source-vm"},
+		},
+		Status: corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
+	}
+	targetPVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "persistent-state-for-target-vm-xyz",
+			Namespace: "default",
+			Labels:    map[string]string{backendstorage.PVCPrefix: "target-vm"},
+		},
+		Status: corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
+	}
+
+	tests := []struct {
+		name             string
+		objects          []runtime.Object
+		setupReactors    func(*fake.Clientset)
+		expectedErrorMsg string
+	}{
+		{
+			name:             "source pvc list fails",
+			objects:          nil,
+			expectedErrorMsg: "cannot wait for source persistent state PVC for VM default/source-vm: cannot list source persistent state PVC for VM default/source-vm, err: mock source list error",
+			setupReactors: func(clientset *fake.Clientset) {
+				clientset.PrependReactor("list", "persistentvolumeclaims", func(action k8stesting.Action) (bool, runtime.Object, error) {
+					listAction := action.(k8stesting.ListAction)
+					if listAction.GetListRestrictions().Labels.String() == labels.SelectorFromSet(map[string]string{backendstorage.PVCPrefix: "source-vm"}).String() {
+						return true, nil, errors.New("mock source list error")
+					}
+					return false, nil, nil
+				})
+			},
+		},
+		{
+			name:             "target pvc list fails",
+			objects:          []runtime.Object{sourcePVC},
+			expectedErrorMsg: "cannot wait for target persistent state PVC for VM default/target-vm: cannot list source persistent state PVC for VM default/target-vm, err: mock target list error",
+			setupReactors: func(clientset *fake.Clientset) {
+				clientset.PrependReactor("list", "persistentvolumeclaims", func(action k8stesting.Action) (bool, runtime.Object, error) {
+					listAction := action.(k8stesting.ListAction)
+					if listAction.GetListRestrictions().Labels.String() == labels.SelectorFromSet(map[string]string{backendstorage.PVCPrefix: "target-vm"}).String() {
+						return true, nil, errors.New("mock target list error")
+					}
+					return false, nil, nil
+				})
+			},
+		},
+		{
+			name:             "copy job creation fails",
+			objects:          []runtime.Object{sourcePVC, targetPVC},
+			expectedErrorMsg: "create job: mock create job error",
+			setupReactors: func(clientset *fake.Clientset) {
+				clientset.PrependReactor("create", "jobs", func(action k8stesting.Action) (bool, runtime.Object, error) {
+					return true, nil, errors.New("mock create job error")
+				})
+			},
+		},
+		{
+			name:    "success",
+			objects: []runtime.Object{sourcePVC, targetPVC},
+			setupReactors: func(clientset *fake.Clientset) {
+				clientset.PrependReactor("get", "jobs", func(action k8stesting.Action) (bool, runtime.Object, error) {
+					ga := action.(k8stesting.GetAction)
+					return true, &batchv1.Job{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      ga.GetName(),
+							Namespace: ga.GetNamespace(),
+						},
+						Status: batchv1.JobStatus{Succeeded: 1},
+					}, nil
+				})
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset(tc.objects...)
+			if tc.setupReactors != nil {
+				tc.setupReactors(clientset)
+			}
+
+			h := &vmActionHandler{
+				pvcCache:  fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
+				jobClient: fakeclients.JobClient(clientset.BatchV1().Jobs),
+			}
+
+			err := h.copyEFIPersistent(sourceVM, targetVM)
+			if tc.expectedErrorMsg != "" {
+				assert.EqualError(t, err, tc.expectedErrorMsg)
+				return
+			}
+
+			assert.NoError(t, err)
+
+			jobList, err := clientset.BatchV1().Jobs("default").List(context.Background(), metav1.ListOptions{})
+			assert.NoError(t, err)
+			assert.Len(t, jobList.Items, 1)
+			assert.Equal(t, sourcePVC.Name, jobList.Items[0].Spec.Template.Spec.Volumes[0].VolumeSource.PersistentVolumeClaim.ClaimName)
+			assert.Equal(t, targetPVC.Name, jobList.Items[0].Spec.Template.Spec.Volumes[1].VolumeSource.PersistentVolumeClaim.ClaimName)
+		})
+	}
 }
