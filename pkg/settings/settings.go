@@ -87,7 +87,7 @@ const (
 	UISourceSettingName                               = "ui-source"
 	UIPluginIndexSettingName                          = "ui-plugin-index"
 	UIPluginBundledVersionSettingName                 = "ui-plugin-bundled-version"
-	DefaultUIPluginURL                                = "https://releases.rancher.com/harvester-ui/plugin/harvester-release-harvester-v1.8/harvester-latest.umd.min.js"
+	DefaultUIPluginURL                                = "https://releases.rancher.com/harvester-ui/plugin/harvester-release-harvester-v1.8/harvester-release-harvester-v1.8.umd.min.js"
 	ContainerdRegistrySettingName                     = "containerd-registry"
 	HarvesterCSICCMSettingName                        = "harvester-csi-ccm-versions"
 	StorageNetworkName                                = "storage-network"
