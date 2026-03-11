@@ -268,19 +268,21 @@ func (h *Handler) compensatePendingMigration(vmim *kubevirtv1.VirtualMachineInst
 		return nil
 	}
 	for _, cond := range vmim.Status.Conditions {
-		if cond.Type == kubevirtv1.VirtualMachineInstanceMigrationRejectedByResourceQuota {
-			// vmim is blocked due to quota, compensate in special cases
-			if cond.Status == corev1.ConditionTrue {
-				return h.compensateResourceQuotaBase(vmim, vmi)
-			}
+		if cond.Type != kubevirtv1.VirtualMachineInstanceMigrationRejectedByResourceQuota {
+			continue
+		}
+		// when condition is kubevirtv1.VirtualMachineInstanceMigrationRejectedByResourceQuota
+		if cond.Status != corev1.ConditionTrue {
 			return nil
 		}
+		// vmim is blocked due to quota, compensate if necessary
+		return h.compensateResourceQuotaBase(vmim, vmi)
 	}
 
 	return nil
 }
 
-// compute the real usage of VM's POD, if it exceeds the hard limit, then compensate the delta
+// compute the real usage of VM's PoD, if it exceeds the hard limit, then compensate the delta
 // when user changes the global setting additional-guest-memory-overhead-ratio after the VM is up and then migrates the vm
 // the RQ usage can exceed the hard limit
 // this function will ensure the already running VMs can still migrate
@@ -307,7 +309,7 @@ func (h *Handler) compensateResourceQuotaBase(vmim *kubevirtv1.VirtualMachineIns
 		return nil
 	}
 
-	logrus.Debugf("compensateResourceQuotaBase: compensate resource quota %s in namespace %s for vm %s : %v", rq.Name, vmi.Namespace, vmi.Name, rl)
+	logrus.Infof("compensateResourceQuotaBase: compensate resource quota %s in namespace %s for vm %s : %v", rq.Name, vmi.Namespace, vmi.Name, rl)
 	// add compensation information to ResourceQuota
 	if err := rqutils.AddMigratingCompensation(rqToUpdate, rl); err != nil {
 		return err

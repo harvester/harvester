@@ -9,6 +9,8 @@ import (
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlvirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+
+	"github.com/harvester/harvester/pkg/util"
 )
 
 type Handler struct {
@@ -30,14 +32,31 @@ func (h *Handler) OnVmiChanged(_ string, vmi *kubevirtv1.VirtualMachineInstance)
 		return vmi, nil
 	}
 
-	if IsVmiResetHarvesterMigrationAnnotationRequired(vmi) {
-		logrus.Debugf("vmi %s/%s finished migration, reset Harvester related state", vmi.Namespace, vmi.Name)
-		// note: this is a bit redundant with vmim controller, which runs below function when vmim is finished
-		if err := h.resetHarvesterMigrationStateInVmiAndSyncVM(vmi); err != nil {
-			logrus.Infof("vmi %s/%s finished migration but fail to reset Harvester related state %s", vmi.Namespace, vmi.Name, err.Error())
-			return nil, err
-		}
+	if !isVmiResetHarvesterMigrationAnnotationRequired(vmi) {
+		return vmi, nil
+	}
+
+	logrus.Debugf("vmi %s/%s finished migration, reset Harvester related state", vmi.Namespace, vmi.Name)
+	// note: this is a bit redundant with vmim controller, which runs below function when vmim is finished
+	if err := h.resetHarvesterMigrationStateInVmiAndSyncVM(vmi); err != nil {
+		logrus.Infof("vmi %s/%s finished migration but fail to reset Harvester related state %s", vmi.Namespace, vmi.Name, err.Error())
+		return nil, err
 	}
 
 	return vmi, nil
+}
+
+// When all conditions are met, Harvester needs to do following cleanup work
+func isVmiResetHarvesterMigrationAnnotationRequired(vmi *kubevirtv1.VirtualMachineInstance) bool {
+	if vmi == nil || vmi.Annotations == nil || vmi.Status.MigrationState == nil {
+		return false
+	}
+
+	// when migration is done or aborted, vmi.Status.MigrationState has Completed or Failed
+	if !vmi.Status.MigrationState.Completed && !vmi.Status.MigrationState.Failed {
+		return false
+	}
+
+	// The Harvester related annotation is still existing and same with the MigrationUID
+	return vmi.Annotations[util.AnnotationMigrationUID] == string(vmi.Status.MigrationState.MigrationUID)
 }

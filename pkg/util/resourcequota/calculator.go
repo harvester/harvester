@@ -326,7 +326,6 @@ func (c *Calculator) CheckStorageResourceQuota(vm *kubevirtv1.VirtualMachine, ol
 		return nil
 	}
 
-	// _, _, vmimsStorage, err := c.getVMIMResourcesFromRQAnnotation(rq)
 	_, _, vmimsStorage, err := GetVMIMResourcesAndCompensationFromRQAnnotation(rq)
 	if err != nil {
 		return err
