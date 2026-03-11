@@ -1,18 +1,23 @@
 package migration
 
 import (
+	"context"
+
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlvirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-
 	"github.com/harvester/harvester/pkg/util"
 )
 
+// Handler resets vmi annotations and nodeSelector when a migration completes
 type Handler struct {
 	namespace      string
 	rqs            ctlharvcorev1.ResourceQuotaClient
@@ -28,35 +33,54 @@ type Handler struct {
 }
 
 func (h *Handler) OnVmiChanged(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
-	if vmi == nil || vmi.DeletionTimestamp != nil {
+	if vmi == nil || vmi.DeletionTimestamp != nil ||
+		vmi.Annotations == nil || vmi.Status.MigrationState == nil {
 		return vmi, nil
 	}
 
-	if !isVmiResetHarvesterMigrationAnnotationRequired(vmi) {
-		return vmi, nil
+	if vmi.Annotations[util.AnnotationMigrationUID] == string(vmi.Status.MigrationState.MigrationUID) &&
+		vmi.Status.MigrationState.Completed {
+		if err := h.resetHarvesterMigrationStateInVmiAndSyncVM(vmi); err != nil {
+			logrus.Infof("vmi %s/%s finished migration but fail to reset state %s", vmi.Namespace, vmi.Name, err.Error())
+			return vmi, err
+		}
 	}
 
-	logrus.Debugf("vmi %s/%s finished migration, reset Harvester related state", vmi.Namespace, vmi.Name)
-	// note: this is a bit redundant with vmim controller, which runs below function when vmim is finished
-	if err := h.resetHarvesterMigrationStateInVmiAndSyncVM(vmi); err != nil {
-		logrus.Infof("vmi %s/%s finished migration but fail to reset Harvester related state %s", vmi.Namespace, vmi.Name, err.Error())
-		return nil, err
+	if vmi.Status.MigrationState.Completed && vmi.Status.MigrationState.AbortStatus == kubevirtv1.MigrationAbortSucceeded {
+		// clean up leftover pod on abortion success
+		// https://github.com/kubevirt/kubevirt/issues/5373
+		sets := labels.Set{
+			kubevirtv1.MigrationJobLabel: string(vmi.Status.MigrationState.MigrationUID),
+		}
+		pods, err := h.podCache.List(vmi.Namespace, sets.AsSelector())
+		if err != nil {
+			return vmi, err
+		}
+		if len(pods) > 0 {
+			if err := h.pods.Delete(vmi.Namespace, pods[0].Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+				return vmi, err
+			}
+		}
 	}
 
 	return vmi, nil
 }
 
-// When all conditions are met, Harvester needs to do following cleanup work
-func isVmiResetHarvesterMigrationAnnotationRequired(vmi *kubevirtv1.VirtualMachineInstance) bool {
-	if vmi == nil || vmi.Annotations == nil || vmi.Status.MigrationState == nil {
-		return false
+func (h *Handler) resetHarvesterMigrationStateInVMI(vmi *kubevirtv1.VirtualMachineInstance) error {
+	toUpdate := vmi.DeepCopy()
+
+	initialLen := len(toUpdate.Annotations)
+	delete(toUpdate.Annotations, util.AnnotationMigrationUID)
+	delete(toUpdate.Annotations, util.AnnotationMigrationState)
+	delete(toUpdate.Annotations, util.AnnotationMigrationTarget)
+
+	// for the convenience of unit test code, it can bypass following call upon VirtClient
+	if initialLen == len(toUpdate.Annotations) {
+		return nil
 	}
 
-	// when migration is done or aborted, vmi.Status.MigrationState has Completed or Failed
-	if !vmi.Status.MigrationState.Completed && !vmi.Status.MigrationState.Failed {
-		return false
+	if err := util.VirtClientUpdateVmi(context.Background(), h.restClient, h.namespace, vmi.Namespace, vmi.Name, toUpdate); err != nil {
+		return err
 	}
-
-	// The Harvester related annotation is still existing and same with the MigrationUID
-	return vmi.Annotations[util.AnnotationMigrationUID] == string(vmi.Status.MigrationState.MigrationUID)
+	return nil
 }

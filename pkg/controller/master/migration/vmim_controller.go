@@ -230,22 +230,6 @@ func isAbortRequested(vmim *kubevirtv1.VirtualMachineInstanceMigration) bool {
 	return false
 }
 
-func (h *Handler) resetHarvesterMigrationStateInVMI(vmi *kubevirtv1.VirtualMachineInstance) error {
-	toUpdate := vmi.DeepCopy()
-	len1 := len(toUpdate.Annotations)
-	delete(toUpdate.Annotations, util.AnnotationMigrationUID)
-	delete(toUpdate.Annotations, util.AnnotationMigrationState)
-	delete(toUpdate.Annotations, util.AnnotationMigrationTarget)
-	len2 := len(toUpdate.Annotations)
-	if len1 == len2 {
-		return nil
-	}
-	if err := util.VirtClientUpdateVmi(context.Background(), h.restClient, h.namespace, vmi.Namespace, vmi.Name, toUpdate); err != nil {
-		return err
-	}
-	return nil
-}
-
 // https://github.com/harvester/harvester/issues/6193
 // The UI VM page is anchored on VM object, only when VM object's resorceVersion is changed
 // then UI will update the VM action menu
