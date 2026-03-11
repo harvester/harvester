@@ -1393,7 +1393,7 @@ func Test_checkStorageNetworkNotBlockedByRWX(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			clientset := fake.NewSimpleClientset(&v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      tt.rwxValue,
 			})
 			v := &settingValidator{
@@ -1610,7 +1610,7 @@ func Test_validateStorageNetwork_Update_InProgress(t *testing.T) {
 	})
 }
 
-func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
+func Test_validateUpdateRWXNetwork(t *testing.T) {
 	// composite format helpers
 	rwxDedicated := func(vlan int, clusterNetwork, ipRange string) string {
 		return fmt.Sprintf(`{"share-storage-network":false,"network":{"vlan":%d,"clusterNetwork":%q,"range":%q}}`, vlan, clusterNetwork, ipRange)
@@ -1643,11 +1643,11 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 			// Same effective value -> early return, no further checks
 			name: "no change -> ok",
 			oldSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      "",
 			},
 			newSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      "",
 			},
 			expectedErr: false,
@@ -1655,11 +1655,11 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 		{
 			name: "dedicated->share, storage-network set, volumes attached -> not ok",
 			oldSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxDedicated(101, "vlan", "192.168.1.0/24"),
 			},
 			newSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxShare,
 			},
 			existingSettings: []*v1beta1.Setting{
@@ -1675,11 +1675,11 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 			// share=false->false, network changed, no attached volumes -> ok
 			name: "dedicated network changed, volumes detached -> ok",
 			oldSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxDedicated(101, "mgmt", "192.168.1.0/24"),
 			},
 			newSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxDedicated(102, "mgmt", "192.168.2.0/24"),
 			},
 			expectedErr: false,
@@ -1688,11 +1688,11 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 			// share=false->false, network changed, volumes attached -> not ok
 			name: "dedicated network changed, volumes attached -> not ok",
 			oldSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxDedicated(101, "mgmt", "192.168.1.0/24"),
 			},
 			newSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxDedicated(102, "mgmt", "192.168.2.0/24"),
 			},
 			existingVolumes: []*lhv1beta2.Volume{attachedRWXVolume},
@@ -1702,11 +1702,11 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 			// share=false->true: storage-network not set -> not ok
 			name: "dedicated->share, storage-network not set -> not ok",
 			oldSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxDedicated(101, "vlan", "192.168.1.0/24"),
 			},
 			newSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxShare,
 			},
 			existingSettings: []*v1beta1.Setting{
@@ -1721,11 +1721,11 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 			// share=true->false: no attached volumes -> ok
 			name: "share->dedicated, volumes detached -> ok",
 			oldSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxShare,
 			},
 			newSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxDedicated(101, "mgmt", "192.168.1.0/24"),
 			},
 			expectedErr: false,
@@ -1734,11 +1734,11 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 			// share=true->false: volumes attached -> not ok
 			name: "share->dedicated, volumes attached -> not ok",
 			oldSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxShare,
 			},
 			newSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxDedicated(101, "mgmt", "192.168.1.0/24"),
 			},
 			existingVolumes: []*lhv1beta2.Volume{attachedRWXVolume},
@@ -1748,11 +1748,11 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 			// empty->valid dedicated JSON (mgmt cluster bypasses VlanStatus/VC checks), no volumes -> ok
 			name: "empty->valid dedicated JSON, no volumes -> ok",
 			oldSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      "",
 			},
 			newSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      rwxDedicated(100, "mgmt", "192.168.0.0/24"),
 			},
 			expectedErr: false,
@@ -1761,11 +1761,11 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 			// empty->invalid JSON: unmarshal fails -> error
 			name: "empty->invalid JSON -> error",
 			oldSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      "",
 			},
 			newSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      `{invalid}`,
 			},
 			expectedErr: true,
@@ -1774,11 +1774,11 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 			// dedicated with VLAN ID > 4094: checkNetworkVlanValid fails -> error
 			name: "dedicated->invalid VLAN ID -> error",
 			oldSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      "",
 			},
 			newSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      `{"share-storage-network":false,"network":{"vlan":5000,"clusterNetwork":"mgmt","range":"192.168.0.0/24"}}`,
 			},
 			expectedErr: true,
@@ -1787,11 +1787,11 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 			// dedicated with non-CIDR range: checkNetworkRangeValid fails -> error
 			name: "dedicated->invalid range -> error",
 			oldSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      "",
 			},
 			newSetting: &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXStorageNetworkSettingName},
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
 				Value:      `{"share-storage-network":false,"network":{"vlan":100,"clusterNetwork":"mgmt","range":"not-a-cidr"}}`,
 			},
 			expectedErr: true,
@@ -1815,7 +1815,7 @@ func Test_validateUpdateRWXStorageNetwork(t *testing.T) {
 			}
 
 			req := &whTypes.Request{Request: &webhook.Request{}}
-			err := v.validateUpdateRWXStorageNetwork(req, tt.oldSetting, tt.newSetting)
+			err := v.validateUpdateRWXNetwork(req, tt.oldSetting, tt.newSetting)
 			assert.Equal(t, tt.expectedErr, err != nil, err)
 		})
 	}
@@ -1882,10 +1882,10 @@ func Test_checkNetworkOverlap(t *testing.T) {
 			c1:     &networkutil.Config{Range: "10.0.0.0/24"},
 			c2: map[string]*networkutil.Config{
 				"vm-migration-network": {Range: "192.168.1.0/24"},
-				"rwx-storage-network":  {Range: "10.0.0.0/24"},
+				"rwx-network":          {Range: "10.0.0.0/24"},
 			},
 			wantErr: true,
-			errMsg:  "storage-network: the network configuration is overlapped with rwx-storage-network",
+			errMsg:  "storage-network: the network configuration is overlapped with rwx-network",
 		},
 	}
 

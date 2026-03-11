@@ -49,11 +49,11 @@ func TestDeleteAllowsWhenNotUsed(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "rwx-storage-network NAD: correct namespace and name, setting not referencing it",
+			name: "rwx-network NAD: correct namespace and name, setting not referencing it",
 			nad: &cniv1.NetworkAttachmentDefinition{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: util.RWXStorageNetworkNetAttachDefNamespace,
-					Name:      util.RWXStorageNetworkNetAttachDefPrefix + "aaaaa",
+					Namespace: util.RWXNetworkNetAttachDefNamespace,
+					Name:      util.RWXNetworkNetAttachDefPrefix + "aaaaa",
 				},
 			},
 			expectErr: false,
@@ -101,14 +101,14 @@ func TestDeleteBlocksWhenUsed(t *testing.T) {
 }
 
 func TestDeleteBlocksRWXNadWhenUsed(t *testing.T) {
-	nadName := util.RWXStorageNetworkNetAttachDefPrefix + "bbbbb"
-	nadNamespacedName := fmt.Sprintf("%s/%s", util.RWXStorageNetworkNetAttachDefNamespace, nadName)
+	nadName := util.RWXNetworkNetAttachDefPrefix + "bbbbb"
+	nadNamespacedName := fmt.Sprintf("%s/%s", util.RWXNetworkNetAttachDefNamespace, nadName)
 
 	clientset := fakegenerated.NewSimpleClientset(&apiv1.Setting{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: settings.RWXStorageNetworkSettingName,
+			Name: settings.RWXNetworkSettingName,
 			Annotations: map[string]string{
-				util.RWXNadStorageNetworkAnnotation: nadNamespacedName,
+				util.RWXNadNetworkAnnotation: nadNamespacedName,
 			},
 		},
 	})
@@ -117,10 +117,10 @@ func TestDeleteBlocksRWXNadWhenUsed(t *testing.T) {
 
 	nad := &cniv1.NetworkAttachmentDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: util.RWXStorageNetworkNetAttachDefNamespace,
+			Namespace: util.RWXNetworkNetAttachDefNamespace,
 			Name:      nadName,
 			Annotations: map[string]string{
-				util.RWXStorageNetworkAnnotation: "true",
+				util.RWXNetworkAnnotation: "true",
 			},
 		},
 	}

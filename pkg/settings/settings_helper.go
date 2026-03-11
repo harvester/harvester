@@ -326,7 +326,7 @@ func GetClusterRegistrationURLSetting(setting *harvesterv1.Setting) *ClusterRegi
 
 }
 
-type RWXStorageNetworkConfig struct {
+type RWXNetworkConfig struct {
 	ShareStorageNetwork bool                `json:"share-storage-network"`
 	Network             *networkutil.Config `json:"network,omitempty"`
 }

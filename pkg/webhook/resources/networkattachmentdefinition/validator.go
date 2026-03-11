@@ -46,7 +46,7 @@ func (v *nadValidator) Delete(_ *types.Request, obj runtime.Object) error {
 		return nil
 	}
 
-	for _, settingName := range []string{settings.StorageNetworkName, settings.RWXStorageNetworkSettingName} {
+	for _, settingName := range []string{settings.StorageNetworkName, settings.RWXNetworkSettingName} {
 		usedBySetting, err := v.checkNadUsedBySetting(nad, settingName)
 		if err != nil {
 			return werror.NewInternalError(err.Error())
@@ -69,8 +69,8 @@ func (v *nadValidator) checkNadUsedBySetting(nad *cniv1.NetworkAttachmentDefinit
 	}
 
 	nadAnno := util.NadStorageNetworkAnnotation
-	if settingName == settings.RWXStorageNetworkSettingName {
-		nadAnno = util.RWXNadStorageNetworkAnnotation
+	if settingName == settings.RWXNetworkSettingName {
+		nadAnno = util.RWXNadNetworkAnnotation
 	}
 	nadNamespacedName := fmt.Sprintf("%s/%s", nad.Namespace, nad.Name)
 	current := setting.Annotations[nadAnno]
