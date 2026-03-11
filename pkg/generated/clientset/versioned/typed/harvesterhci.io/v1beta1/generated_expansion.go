@@ -49,3 +49,7 @@ type VirtualMachineRestoreExpansion interface{}
 type VirtualMachineTemplateExpansion interface{}
 
 type VirtualMachineTemplateVersionExpansion interface{}
+
+type VolumeRemoteBackupExpansion interface{}
+
+type VolumeRemoteRestoreExpansion interface{}
