@@ -1294,23 +1294,11 @@ func (v *settingValidator) checkStorageNetworkNotBlockedByRWX(newSetting *v1beta
 	if newSetting.EffectiveValue() != "" {
 		return nil
 	}
-	rwxSN, err := v.settingCache.Get(settings.RWXNetworkSettingName)
+	isShareStorageNetwork, err := util.IsShareStorageNetwork(v.settingCache)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		return werror.NewInternalError(fmt.Sprintf("failed to get %s setting, err: %v", settings.RWXNetworkSettingName, err))
+		return werror.NewInternalError(fmt.Sprintf("failed to determine if %s is in share mode: %v", settings.RWXNetworkSettingName, err))
 	}
-	if rwxSN.EffectiveValue() == "" {
-		return nil
-	}
-	var rwxConfig settings.RWXNetworkConfig
-	if err := json.Unmarshal([]byte(rwxSN.EffectiveValue()), &rwxConfig); err != nil {
-		// Unparseable value — don't block the update.
-		logrus.Warnf("Failed to parse %s setting value as JSON, err: %v.", settings.RWXNetworkSettingName, err)
-		return nil
-	}
-	if rwxConfig.ShareStorageNetwork {
+	if isShareStorageNetwork {
 		return werror.NewInvalidError(
 			fmt.Sprintf("%s cannot be disabled while %s has share-storage-network=true",
 				settings.StorageNetworkName, settings.RWXNetworkSettingName),

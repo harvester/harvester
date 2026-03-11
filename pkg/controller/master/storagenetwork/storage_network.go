@@ -371,9 +371,9 @@ func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkA
 
 	if len(nads.Items) > 1 {
 		logrus.WithFields(logrus.Fields{
-			"num_of_nad":          len(nads.Items),
-			"storage_network_nad": nads.Items[0].Name,
-		}).Info("storage network: found more than one match nad")
+			"num_of_nad": len(nads.Items),
+			"nad_name":   nads.Items[0].Name,
+		}).Info("Found more than one match nad")
 	}
 
 	return &nads.Items[0], nil
@@ -490,17 +490,12 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 func (h *Handler) handleLonghornSettingPostConfig(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	// If rwx-network is in share mode, re-trigger its reconciliation so the
 	// freshly-configured storage-network NAD is propagated to Longhorn.
-	rwxSN, err := h.settings.Get(settings.RWXNetworkSettingName, metav1.GetOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
-		return setting, fmt.Errorf("failed to get %s setting: %v", settings.RWXNetworkSettingName, err)
+	isShareStorageNetwork, err := util.IsShareStorageNetwork(h.settingsController.Cache())
+	if err != nil {
+		return nil, err
 	}
-	if rwxSN != nil {
-		var rwxConfig settings.RWXNetworkConfig
-		if parseErr := json.Unmarshal([]byte(rwxSN.EffectiveValue()), &rwxConfig); parseErr == nil && rwxConfig.ShareStorageNetwork {
-			h.settingsController.Enqueue(settings.RWXNetworkSettingName)
-		} else if parseErr != nil {
-			return setting, fmt.Errorf("failed to parse %s setting value: %v", settings.RWXNetworkSettingName, parseErr)
-		}
+	if isShareStorageNetwork {
+		h.settingsController.Enqueue(settings.RWXNetworkSettingName)
 	}
 
 	// check if we need to restart monitoring pods
@@ -974,31 +969,39 @@ func (h *Handler) OnRWXNetworkChange(_ string, setting *harvesterv1.Setting) (*h
 // the user had both pointing at the same network before this setting existed, so we reflect that
 // by setting share-storage-network=true. Otherwise the setting is skipped (pure initialization).
 func (h *Handler) initRWXNetwork(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+	isShare, err := h.isLHRWXShareStorageNetwork()
+	if err != nil {
+		return setting, err
+	}
+	if !isShare {
+		return setting, nil
+	}
+	shareConfig := settings.RWXNetworkConfig{ShareStorageNetwork: true}
+	shareConfigJSON, err := json.Marshal(shareConfig)
+	if err != nil {
+		return setting, fmt.Errorf("failed to marshal rwx-network config: %v", err)
+	}
+	setting.Value = string(shareConfigJSON)
+	newSetting, err := h.settings.Update(setting)
+	if err != nil {
+		logrus.Errorf("failed to update rwx-network setting during init: %v", err)
+		return setting, fmt.Errorf("failed to update rwx-network setting: %v", err)
+	}
+	return newSetting, nil
+}
+
+func (h *Handler) isLHRWXShareStorageNetwork() (bool, error) {
 	// don't use cache here since we want to reflect the latest LH setting values
-	lhStorageSN, err := h.longhornSettings.Get(util.LonghornSystemNamespaceName, longhornStorageNetworkName, metav1.GetOptions{})
+	lhStorageNetwork, err := h.longhornSettings.Get(util.LonghornSystemNamespaceName, longhornStorageNetworkName, metav1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return setting, fmt.Errorf("failed to get longhorn %s setting: %v", longhornStorageNetworkName, err)
+		return false, fmt.Errorf("failed to get longhorn %s setting: %v", longhornStorageNetworkName, err)
 	}
-	lhRWXSN, err := h.longhornSettings.Get(util.LonghornSystemNamespaceName, longhornEndpointNetworkForRWXVolume, metav1.GetOptions{})
+	lhRWXEndpoint, err := h.longhornSettings.Get(util.LonghornSystemNamespaceName, longhornEndpointNetworkForRWXVolume, metav1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return setting, fmt.Errorf("failed to get longhorn %s setting: %v", longhornEndpointNetworkForRWXVolume, err)
+		return false, fmt.Errorf("failed to get longhorn %s setting: %v", longhornEndpointNetworkForRWXVolume, err)
 	}
-	if lhStorageSN != nil && lhRWXSN != nil &&
-		lhStorageSN.Value != "" && lhStorageSN.Value == lhRWXSN.Value {
-		shareConfig := settings.RWXNetworkConfig{ShareStorageNetwork: true}
-		shareConfigJSON, err := json.Marshal(shareConfig)
-		if err != nil {
-			return setting, fmt.Errorf("failed to marshal rwx-network config: %v", err)
-		}
-		setting.Value = string(shareConfigJSON)
-		newSetting, err := h.settings.Update(setting)
-		if err != nil {
-			logrus.Errorf("failed to update rwx-network setting during init: %v", err)
-			return setting, fmt.Errorf("failed to update rwx-network setting: %v", err)
-		}
-		return newSetting, nil
-	}
-	return setting, nil
+	return lhStorageNetwork != nil && lhRWXEndpoint != nil &&
+		lhStorageNetwork.Value != "" && lhStorageNetwork.Value == lhRWXEndpoint.Value, nil
 }
 
 // getStorageNetworkNAD returns the NAD name currently in use by the storage-network setting.
