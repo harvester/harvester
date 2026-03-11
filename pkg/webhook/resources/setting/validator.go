@@ -1131,6 +1131,7 @@ func (v *settingValidator) validateNetworkHelper(name, value string) (*networkut
 	networkRangeValidators := map[string]func(*networkutil.Config) error{
 		settings.StorageNetworkName:            v.checkStorageNetworkRangeValid,
 		settings.VMMigrationNetworkSettingName: v.checkVMMigrationNetworkRangeValid,
+		settings.RWXNetworkSettingName:         v.checkRWXNetworkRangeValid,
 	}
 	if validator, ok := networkRangeValidators[name]; ok {
 		if err := validator(&config); err != nil {
@@ -1924,6 +1925,36 @@ func (v *settingValidator) checkVMMigrationNetworkRangeValid(config *networkutil
 	// 1 node has 1 virt-handler which needs 1 IP address.
 	if count < len(nodes)-witnessNode {
 		return fmt.Errorf("allocatable IP address range is < %d,allocate sufficient range", len(nodes))
+	}
+
+	return nil
+}
+
+func (v *settingValidator) checkRWXNetworkRangeValid(config *networkutil.Config) error {
+	nodes, err := v.nodeCache.List(labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	witnessNodes := 0
+	for _, node := range nodes {
+		if node.Labels == nil {
+			continue
+		}
+		if _, ok := node.Labels["node-role.harvesterhci.io/witness"]; ok {
+			witnessNodes++
+		}
+	}
+
+	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	if err != nil {
+		return err
+	}
+
+	// Minimum: 1 IP per non-witness node for the longhorn-csi-plugin DaemonSet.
+	// share-manager pods and guest cluster VMs are dynamic and cannot be checked here.
+	minIPs := len(nodes) - witnessNodes
+	if count < minIPs {
+		return fmt.Errorf("allocatable IP address range is < %d, allocate sufficient range", minIPs)
 	}
 
 	return nil
