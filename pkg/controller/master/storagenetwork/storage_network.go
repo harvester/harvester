@@ -92,6 +92,7 @@ func getNetworkKeys(setting *harvesterv1.Setting) *NetworkKeys {
 type Handler struct {
 	ctx                               context.Context
 	settings                          ctlharvesterv1.SettingClient
+	settingsCache                     ctlharvesterv1.SettingCache
 	longhornSettings                  ctllhv1.SettingClient
 	longhornSettingCache              ctllhv1.SettingCache
 	longhornVolumeCache               ctllhv1.VolumeCache
@@ -126,6 +127,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	controller := &Handler{
 		ctx:                               ctx,
 		settings:                          settings,
+		settingsCache:                     settings.Cache(),
 		longhornSettings:                  longhornSettings,
 		longhornSettingCache:              longhornSettings.Cache(),
 		longhornVolumeCache:               longhornVolumes.Cache(),
@@ -490,7 +492,7 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 func (h *Handler) handleLonghornSettingPostConfig(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	// If rwx-network is in share mode, re-trigger its reconciliation so the
 	// freshly-configured storage-network NAD is propagated to Longhorn.
-	isShareStorageNetwork, err := util.IsShareStorageNetwork(h.settingsController.Cache())
+	isShareStorageNetwork, err := util.IsShareStorageNetwork(h.settingsCache)
 	if err != nil {
 		return nil, err
 	}
