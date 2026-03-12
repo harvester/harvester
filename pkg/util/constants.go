@@ -59,6 +59,9 @@ const (
 	// AnnotationMigratingPrefix is replaced by AnnotationMigratingNamePrefix, and is kept for compatibility
 	AnnotationMigratingPrefix = AnnotationMigratingNamePrefix
 
+	// AnnotationMigratingCompensation is used to add compensating quota to help already blocked VMIMs, due to insufficient ResourceQuota, to proceed
+	AnnotationMigratingCompensation = prefix + "/migratingCompensation"
+
 	// AnnotationInsufficientResourceQuota is indicated the resource is insufficient of Namespace
 	AnnotationInsufficientResourceQuota = prefix + "/insufficient-resource-quota"
 
