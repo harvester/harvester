@@ -4,7 +4,10 @@ import (
 	"testing"
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	"github.com/rancher/wrangler/v3/pkg/webhook"
 	"github.com/stretchr/testify/assert"
+	admissionv1 "k8s.io/api/admission/v1"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,7 +18,11 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	"github.com/harvester/harvester/pkg/webhook/config"
+	"github.com/harvester/harvester/pkg/webhook/types"
 )
+
+const harvesterControllerUsername = "harvester-controller"
 
 func TestCheckMaintenanceModeStrategyIsValid(t *testing.T) {
 	var testCases = []struct {
@@ -947,6 +954,7 @@ func TestVmValidator_Update(t *testing.T) {
 
 	tests := []struct {
 		name          string
+		request       *types.Request
 		oldVM         *kubevirtv1.VirtualMachine
 		newVM         *kubevirtv1.VirtualMachine
 		oldObjMeta    *metav1.ObjectMeta
@@ -1057,6 +1065,63 @@ func TestVmValidator_Update(t *testing.T) {
 			newSpec:       nil,
 			expectedError: false,
 		},
+		{
+			name:    "user sets reserved cpumanager affinity key – rejected",
+			request: newUserRequest("alice"),
+			oldVM:   templateVM.DeepCopy(),
+			newVM:   templateVM.DeepCopy(),
+			newSpec: &kubevirtv1.VirtualMachineSpec{
+				Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Affinity: &corev1.Affinity{
+							NodeAffinity: &corev1.NodeAffinity{
+								RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+									NodeSelectorTerms: []corev1.NodeSelectorTerm{{
+										MatchExpressions: []corev1.NodeSelectorRequirement{{
+											Key:      kubevirtv1.CPUManager,
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"true"},
+										}},
+									}},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name:    "controller sets reserved cpumanager affinity key – allowed",
+			request: newControllerRequest(),
+			oldVM:   templateVM.DeepCopy(),
+			newVM:   templateVM.DeepCopy(),
+			newSpec: &kubevirtv1.VirtualMachineSpec{
+				Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Affinity: &corev1.Affinity{
+							NodeAffinity: &corev1.NodeAffinity{
+								RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+									NodeSelectorTerms: []corev1.NodeSelectorTerm{{
+										MatchExpressions: []corev1.NodeSelectorRequirement{{
+											Key:      kubevirtv1.CPUManager,
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"true"},
+										}},
+									}},
+								},
+							},
+						},
+						Domain: kubevirtv1.DomainSpec{
+							Memory: &kubevirtv1.Memory{
+								Guest: resource.NewQuantity(1024*1024*1024, resource.BinarySI),
+							},
+						},
+					},
+				},
+			},
+			expectedError: false,
+		},
 	}
 
 	corefakeclientset := corefake.NewClientset()
@@ -1078,7 +1143,7 @@ func TestVmValidator_Update(t *testing.T) {
 			if test.newSpec != nil {
 				test.newVM.Spec = *test.newSpec
 			}
-			err := validator.Update(nil, test.oldVM, test.newVM)
+			err := validator.Update(test.request, test.oldVM, test.newVM)
 
 			if test.expectedError {
 				assert.Error(t, err)
@@ -1241,4 +1306,26 @@ func TestCheckCdRomVolumeIsValid(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newUserRequest(username string) *types.Request {
+	return types.NewRequest(
+		&webhook.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				UserInfo: authenticationv1.UserInfo{Username: username},
+			},
+		},
+		&config.Options{HarvesterControllerUsername: harvesterControllerUsername},
+	)
+}
+
+func newControllerRequest() *types.Request {
+	return types.NewRequest(
+		&webhook.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				UserInfo: authenticationv1.UserInfo{Username: harvesterControllerUsername},
+			},
+		},
+		&config.Options{HarvesterControllerUsername: harvesterControllerUsername},
+	)
 }

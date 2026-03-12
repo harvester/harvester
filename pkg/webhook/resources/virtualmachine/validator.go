@@ -220,10 +220,16 @@ func comparemacs(macList1 map[string]string, macList2 map[string]string) bool {
 	return false
 }
 
-func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
+func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) error {
 	vm := newObj.(*kubevirtv1.VirtualMachine)
 	if vm == nil {
 		return nil
+	}
+
+	if request == nil || !request.IsFromController() {
+		if err := v.checkReservedAffinityKeys(vm); err != nil {
+			return err
+		}
 	}
 
 	if err := v.checkVMSpec(vm); err != nil {
@@ -249,10 +255,17 @@ func (v *vmValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	return nil
 }
 
-func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+//revive:disable
+func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	newVM := newObj.(*kubevirtv1.VirtualMachine)
 	if newVM == nil {
 		return nil
+	}
+
+	if request == nil || !request.IsFromController() {
+		if err := v.checkReservedAffinityKeys(newVM); err != nil {
+			return err
+		}
 	}
 
 	if err := v.checkVMSpec(newVM); err != nil {
@@ -326,6 +339,31 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 		return err
 	}
 	return v.rqCalculator.CheckIfVMCanStartByResourceQuota(vm)
+}
+
+func (v *vmValidator) checkReservedAffinityKeys(vm *kubevirtv1.VirtualMachine) error {
+	if vm.Spec.Template == nil {
+		return nil
+	}
+	affinity := vm.Spec.Template.Spec.Affinity
+	if affinity == nil || affinity.NodeAffinity == nil {
+		return nil
+	}
+	required := affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+	if required == nil {
+		return nil
+	}
+	for _, term := range required.NodeSelectorTerms {
+		for _, expr := range term.MatchExpressions {
+			if expr.Key == kubevirtv1.CPUManager {
+				return werror.NewInvalidError(
+					fmt.Sprintf("key %q is reserved and managed by Harvester", expr.Key),
+					"spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution",
+				)
+			}
+		}
+	}
+	return nil
 }
 
 func (v *vmValidator) checkVolumeReq(newVM *kubevirtv1.VirtualMachine) error {
