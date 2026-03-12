@@ -1812,6 +1812,7 @@ func Test_validateUpdateRWXNetwork(t *testing.T) {
 			v := &settingValidator{
 				settingCache:  fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
 				lhVolumeCache: fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+				nodeCache:     fakeclients.NodeCache(clientset.CoreV1().Nodes),
 			}
 
 			req := &whTypes.Request{Request: &webhook.Request{}}
