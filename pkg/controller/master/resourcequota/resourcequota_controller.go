@@ -34,7 +34,7 @@ func (h *Handler) OnResourceQuotaChanged(_ string, rq *corev1.ResourceQuota) (*c
 	}
 
 	// for debugging or manually disabling this feature
-	if rq.Annotations[util.AnnotationSkipResourceQuotaAutoScaling] == "true" {
+	if rqutils.IsResourceQuotaAutoScalingDisabled(rq) {
 		logrus.Debugf("resourcequota %s/%s annotation %s is set, skip auto scaling", rq.Namespace, rq.Name, util.AnnotationSkipResourceQuotaAutoScaling)
 		return rq, nil
 	}
@@ -49,12 +49,28 @@ func (h *Handler) OnResourceQuotaChanged(_ string, rq *corev1.ResourceQuota) (*c
 	update, err := scaleResourceQuotaOnDemand(rqCopy, ns.Annotations[util.CattleAnnotationResourceQuota])
 	if err != nil {
 		if errors.Is(err, errSkipScaling) {
+			// rq scaling is skipped, but the sync flag is set, clear it
+			if rqutils.IsMigratingScalingResyncNeeded(rqCopy) {
+				logrus.Debugf("OnResourceQuotaChanged: resourcequota %s/%s auto-scale is skipped, but sync flag is set, clear it", rq.Namespace, rq.Name)
+				rqutils.ClearAnnotationMigratingScalingResyncNeeded(rqCopy)
+				return h.rqs.Update(rqCopy)
+			}
+			// rq scaling is skipped and no sync is needed; treat as successful no-op
 			return rq, nil
 		}
 		return rq, err
 	}
 	if update {
 		logrus.Debugf("resourcequota %s/%s is updated from %+v to %+v", rq.Namespace, rq.Name, rq.Spec, rqCopy.Spec)
+		// the sync will be done, clear the flag
+		rqutils.ClearAnnotationMigratingScalingResyncNeeded(rqCopy)
+		return h.rqs.Update(rqCopy)
+	}
+
+	// rq is not updated, but the sync flag is set, clear it
+	if rqutils.IsMigratingScalingResyncNeeded(rqCopy) {
+		logrus.Debugf("resourcequota %s/%s is not changed but sync flag is set, clear it", rq.Namespace, rq.Name)
+		rqutils.ClearAnnotationMigratingScalingResyncNeeded(rqCopy)
 		return h.rqs.Update(rqCopy)
 	}
 
@@ -87,11 +103,18 @@ func scaleResourceQuotaOnDemand(rq *corev1.ResourceQuota, rqStr string) (bool, e
 
 	cpuDelta, memDelta, _, err := rqutils.GetVMIMResourcesFromRQAnnotation(rq)
 	if err != nil {
-		logrus.Warnf("resourcequota %s/%s can't get valid Quantity values from Harvester vm annotations, skip scaling, error %s", rq.Namespace, rq.Name, err.Error())
+		logrus.Warnf("resourcequota %s/%s can't get valid Quantity values from annotations, skip scaling, error %s", rq.Namespace, rq.Name, err.Error())
+		return update, errSkipScaling
+	}
+
+	// compensation if real usage already more than base
+	memCompensation, err := rqutils.GetCompensationFromResourceQuota(rq)
+	if err != nil {
+		logrus.Warnf("resourcequota %s/%s can't get valid Compensation values from annotations, skip scaling, error %s", rq.Namespace, rq.Name, err.Error())
 		return update, errSkipScaling
 	}
 
 	// note: if any base has no limit, the delta is not added
-	_, update = rqutils.CalculateNewResourceQuotaFromBaseDelta(rq, rCPULimit, rMemoryLimit, cpuDelta, memDelta)
+	_, update = rqutils.CalculateNewResourceQuotaFromBaseDelta(rq, rCPULimit, rMemoryLimit, cpuDelta, memDelta, memCompensation)
 	return update, nil
 }
