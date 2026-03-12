@@ -7,9 +7,6 @@ type EngineImageState string
 const (
 	EngineImageStateDeploying = EngineImageState("deploying")
 	EngineImageStateDeployed  = EngineImageState("deployed")
-	// EngineImageStateIncompatible is deprecated from 1.6.0. It has been replaced with `incompatible` of EngineImageStatus
-	EngineImageStateIncompatible = EngineImageState("incompatible")
-	EngineImageStateError        = EngineImageState("error")
 )
 
 const (

@@ -35,7 +35,7 @@ const (
 	DefaultReplicaPortCountV1 = 10
 	DefaultReplicaPortCountV2 = 5
 
-	DefaultPortArg         = "--listen,0.0.0.0:"
+	DefaultPortArg         = "--listen,:"
 	DefaultTerminateSignal = "SIGHUP"
 
 	// IncompatibleInstanceManagerAPIVersion means the instance manager version in v0.7.0
@@ -187,7 +187,9 @@ func NewInstanceManagerClient(im *longhorn.InstanceManager, allowUnknown bool) (
 		processManagerClient, err = initProcessManagerTLSClient(endpoint)
 		defer func() {
 			if err != nil && processManagerClient != nil {
-				processManagerClient.Close()
+				if closeErr := processManagerClient.Close(); closeErr != nil {
+					logrus.WithError(closeErr).WithField("endpoint", endpoint).Warn("Failed to close process manager client")
+				}
 				processManagerClient = nil
 			}
 		}()
@@ -228,7 +230,9 @@ func NewInstanceManagerClient(im *longhorn.InstanceManager, allowUnknown bool) (
 	instanceServiceClient, err := initInstanceServiceTLSClient(endpoint)
 	defer func() {
 		if err != nil && instanceServiceClient != nil {
-			instanceServiceClient.Close()
+			if closeErr := instanceServiceClient.Close(); closeErr != nil {
+				logrus.WithError(closeErr).WithField("endpoint", endpoint).Warn("Failed to close instance service client")
+			}
 			instanceServiceClient = nil
 		}
 	}()
@@ -287,6 +291,8 @@ func parseInstance(p *imapi.Instance) *longhorn.InstanceProcess {
 			PortEnd:         p.InstanceStatus.PortEnd,
 			TargetPortStart: p.InstanceStatus.TargetPortStart,
 			TargetPortEnd:   p.InstanceStatus.TargetPortEnd,
+			UblkID:          p.InstanceStatus.UblkID,
+			UUID:            p.InstanceStatus.UUID,
 
 			// FIXME: These fields are not used, maybe we can deprecate them later.
 			Listen:   "",
@@ -312,6 +318,7 @@ func parseProcess(p *imapi.Process) *longhorn.InstanceProcess {
 			Conditions: p.ProcessStatus.Conditions,
 			PortStart:  p.ProcessStatus.PortStart,
 			PortEnd:    p.ProcessStatus.PortEnd,
+			UUID:       p.ProcessStatus.UUID,
 
 			// FIXME: These fields are not used, maybe we can deprecate them later.
 			Listen:   "",
@@ -451,7 +458,6 @@ type EngineInstanceCreateRequest struct {
 	EngineReplicaTimeout             int64
 	ReplicaFileSyncHTTPClientTimeout int64
 	DataLocality                     longhorn.DataLocality
-	ImIP                             string
 	EngineCLIAPIVersion              int
 	UpgradeRequired                  bool
 	InitiatorAddress                 string
@@ -529,7 +535,6 @@ type ReplicaInstanceCreateRequest struct {
 	DataPath            string
 	BackingImagePath    string
 	DataLocality        longhorn.DataLocality
-	ImIP                string
 	EngineCLIAPIVersion int
 }
 
@@ -584,13 +589,13 @@ func (c *InstanceManagerClient) ReplicaInstanceCreate(req *ReplicaInstanceCreate
 	return parseInstance(instance), nil
 }
 
-// InstanceDelete deletes the instance
-func (c *InstanceManagerClient) InstanceDelete(dataEngine longhorn.DataEngineType, name, kind, diskUUID string, cleanupRequired bool) (err error) {
+// InstanceDelete deletes the instance by name. UUID will be validated if not empty.
+func (c *InstanceManagerClient) InstanceDelete(dataEngine longhorn.DataEngineType, name, uuid, kind, diskUUID string, cleanupRequired bool) (err error) {
 	if c.GetAPIVersion() < 4 {
 		/* Fall back to the old way of deleting process */
-		_, err = c.processManagerGrpcClient.ProcessDelete(name)
+		_, err = c.processManagerGrpcClient.ProcessDelete(name, uuid)
 	} else {
-		_, err = c.instanceServiceGrpcClient.InstanceDelete(string(dataEngine), name, kind, diskUUID, cleanupRequired)
+		_, err = c.instanceServiceGrpcClient.InstanceDelete(string(dataEngine), name, uuid, kind, diskUUID, cleanupRequired)
 	}
 
 	return err

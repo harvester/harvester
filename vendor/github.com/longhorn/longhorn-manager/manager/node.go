@@ -1,13 +1,10 @@
 package manager
 
 import (
-	"fmt"
-
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 )
 
@@ -118,28 +115,6 @@ func (m *VolumeManager) DiskUpdate(name string, updateDisks map[string]longhorn.
 }
 
 func (m *VolumeManager) DeleteNode(name string) error {
-	node, err := m.ds.GetNode(name)
-	if err != nil {
-		return err
-	}
-	// only remove node from longhorn without any volumes on it
-	replicas, err := m.ds.ListReplicasByNodeRO(name)
-	if err != nil {
-		return err
-	}
-	engines, err := m.ds.ListEnginesByNodeRO(name)
-	if err != nil {
-		return err
-	}
-	condition := types.GetCondition(node.Status.Conditions, longhorn.NodeConditionTypeReady)
-	// Only could delete node from longhorn if kubernetes node missing or manager pod is missing
-	if condition.Status == longhorn.ConditionStatusTrue ||
-		(condition.Reason != longhorn.NodeConditionReasonKubernetesNodeGone &&
-			condition.Reason != longhorn.NodeConditionReasonManagerPodMissing) ||
-		node.Spec.AllowScheduling || len(replicas) > 0 || len(engines) > 0 {
-		return fmt.Errorf("could not delete node %v with node ready condition is %v, reason is %v, node schedulable %v, and %v replica, %v engine running on it", name,
-			condition.Status, condition.Reason, node.Spec.AllowScheduling, len(replicas), len(engines))
-	}
 	if err := m.ds.DeleteNode(name); err != nil {
 		return err
 	}

@@ -33,10 +33,11 @@ func CmdOutLines(cmd *exec.Cmd, cancel <-chan interface{}) (<-chan string, <-cha
 			}
 		}()
 		scanner := bufio.NewScanner(out)
+	loop:
 		for scanner.Scan() {
 			select {
 			case <-cancel:
-				break
+				break loop
 			case r <- scanner.Text():
 				// continue
 			}

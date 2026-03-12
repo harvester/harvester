@@ -56,6 +56,10 @@ type Backup struct {
 	SingleFile BackupFile     `json:",omitempty"`
 }
 
+func (backup *Backup) GetBlockSize() (int64, error) {
+	return getBlockSizeFromParameters(backup.Parameters)
+}
+
 type LastBackupInfo struct {
 	Name              string
 	SnapshotCreatedAt string

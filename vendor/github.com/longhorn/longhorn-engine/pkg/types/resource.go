@@ -18,6 +18,7 @@ type ReplicaInfo struct {
 	RevisionCounterDisabled   bool                `json:"revisioncounterdisabled"`
 	UnmapMarkDiskChainRemoved bool                `json:"unmapMarkDiskChainRemoved"`
 	SnapshotCountUsage        int                 `json:"snapshotCountUsage"`
+	SnapshotCountTotal        int                 `json:"snapshotCountTotal"`
 	SnapshotSizeUsage         int64               `json:"snapshotSizeUsage"`
 }
 

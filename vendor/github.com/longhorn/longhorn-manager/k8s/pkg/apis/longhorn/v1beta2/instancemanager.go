@@ -48,9 +48,6 @@ type InstanceProcess struct {
 type InstanceProcessSpec struct {
 	// +optional
 	Name string `json:"name"`
-	// Deprecated:Replaced by field `dataEngine`.
-	// +optional
-	BackendStoreDriver BackendStoreDriverType `json:"backendStoreDriver"`
 	// +optional
 	DataEngine DataEngineType `json:"dataEngine"`
 }
@@ -64,6 +61,8 @@ const (
 	InstanceStateStarting = InstanceState("starting")
 	InstanceStateStopping = InstanceState("stopping")
 	InstanceStateUnknown  = InstanceState("unknown")
+	// InstanceStateTerminated indicates the instance is deleted and not found
+	InstanceStateTerminated = InstanceState("terminated")
 )
 
 type InstanceSpec struct {
@@ -74,9 +73,6 @@ type InstanceSpec struct {
 	VolumeSize int64 `json:"volumeSize,string"`
 	// +optional
 	NodeID string `json:"nodeID"`
-	// Deprecated: Replaced by field `image`.
-	// +optional
-	EngineImage string `json:"engineImage"`
 	// +optional
 	Image string `json:"image"`
 	// +optional
@@ -85,9 +81,6 @@ type InstanceSpec struct {
 	LogRequested bool `json:"logRequested"`
 	// +optional
 	SalvageRequested bool `json:"salvageRequested"`
-	// Deprecated:Replaced by field `dataEngine`.
-	// +optional
-	BackendStoreDriver BackendStoreDriverType `json:"backendStoreDriver"`
 	// +kubebuilder:validation:Enum=v1;v2
 	// +optional
 	DataEngine DataEngineType `json:"dataEngine"`
@@ -109,6 +102,8 @@ type InstanceStatus struct {
 	// +optional
 	Port int `json:"port"`
 	// +optional
+	Starting bool `json:"starting"`
+	// +optional
 	Started bool `json:"started"`
 	// +optional
 	LogFetched bool `json:"logFetched"`
@@ -117,6 +112,10 @@ type InstanceStatus struct {
 	// +optional
 	// +nullable
 	Conditions []Condition `json:"conditions"`
+	// +optional
+	UblkID int32 `json:"ublkID,omitempty"`
+	// +optional
+	UUID string `json:"uuid,omitempty"`
 }
 
 type InstanceProcessStatus struct {
@@ -143,6 +142,10 @@ type InstanceProcessStatus struct {
 	Type InstanceType `json:"type"`
 	// +optional
 	ResourceVersion int64 `json:"resourceVersion"`
+	// +optional
+	UblkID int32 `json:"ublkID,omitempty"`
+	// +optional
+	UUID string `json:"uuid,omitempty"`
 }
 
 type V2DataEngineSpec struct {
@@ -172,6 +175,13 @@ type InstanceManagerSpec struct {
 type V2DataEngineStatus struct {
 	// +optional
 	CPUMask string `json:"cpuMask"`
+
+	// InterruptModeEnabled indicates whether the V2 data engine is running in
+	// interrupt mode (true) or polling mode (false). Set by Longhorn manager;
+	// read-only to users.
+	// +optional
+	// +kubebuilder:validation:Enum="";"true";"false"
+	InterruptModeEnabled string `json:"interruptModeEnabled"`
 }
 
 type DataEngineStatus struct {
