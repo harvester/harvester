@@ -868,7 +868,7 @@ func validateSupportBundleFileName(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSupportBundleFileName(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundleFileName(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleFileName(newSetting)
 }
 
@@ -1130,8 +1130,8 @@ func (v *settingValidator) validateNetworkHelper(name, value string) (*networkut
 	// Add a map of setting names to their specific network range validation callbacks
 	networkRangeValidators := map[string]func(*networkutil.Config) error{
 		settings.StorageNetworkName:            v.checkStorageNetworkRangeValid,
-		settings.VMMigrationNetworkSettingName: v.checkVMMigrationNetworkRangeValid,
-		settings.RWXNetworkSettingName:         v.checkRWXNetworkRangeValid,
+		settings.VMMigrationNetworkSettingName: v.checkNodeCountNetworkRangeValid,
+		settings.RWXNetworkSettingName:         v.checkNodeCountNetworkRangeValid,
 	}
 	if validator, ok := networkRangeValidators[name]; ok {
 		if err := validator(&config); err != nil {
@@ -1882,12 +1882,26 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *networkutil.Con
 		return werror.NewInternalError(err.Error())
 	}
 
-	MinAllocatableIPAddrs := 0
+	minAllocatableIPAddrs := 0
 
 	// Formula - https://docs.harvesterhci.io/v1.4/advanced/storagenetwork/
-	//Number of Images to download/upload is dynamic, so skipped in the formula calculated.
+	// Number of Images to download/upload is dynamic, so skipped in the formula calculated.
 	for _, lhNode := range lhnodes {
-		MinAllocatableIPAddrs = MinAllocatableIPAddrs + 2 + (len(lhNode.Spec.Disks) * 2)
+		minAllocatableIPAddrs += 2 + (len(lhNode.Spec.Disks) * 2)
+	}
+
+	// In shared mode the storage network also carries RWX traffic, so add
+	// 1 IP per non-witness node for the longhorn-csi-plugin DaemonSet.
+	isShared, err := util.IsShareStorageNetwork(v.settingCache)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	if isShared {
+		nonWitnessCount, err := v.countNonWitnessNodes()
+		if err != nil {
+			return err
+		}
+		minAllocatableIPAddrs += nonWitnessCount
 	}
 
 	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
@@ -1895,26 +1909,20 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *networkutil.Con
 		return err
 	}
 
-	if count < MinAllocatableIPAddrs {
-		return fmt.Errorf("allocatable IP address range is < %d,allocate sufficient range", MinAllocatableIPAddrs)
+	if count < minAllocatableIPAddrs {
+		return fmt.Errorf("allocatable IP address range is < %d, allocate sufficient range", minAllocatableIPAddrs)
 	}
 
 	return nil
 }
 
-func (v *settingValidator) checkVMMigrationNetworkRangeValid(config *networkutil.Config) error {
-	nodes, err := v.nodeCache.List(labels.Everything())
+// checkNodeCountNetworkRangeValid validates that the usable IP range has at least
+// 1 address per non-witness node. Used for both VM migration network
+// (1 IP per virt-handler) and RWX network (1 IP per longhorn-csi-plugin pod).
+func (v *settingValidator) checkNodeCountNetworkRangeValid(config *networkutil.Config) error {
+	nonWitnessCount, err := v.countNonWitnessNodes()
 	if err != nil {
-		return werror.NewInternalError(err.Error())
-	}
-	witnessNode := 0
-	for _, node := range nodes {
-		if node.Labels == nil {
-			continue
-		}
-		if _, ok := node.Labels["node-role.harvesterhci.io/witness"]; ok {
-			witnessNode++
-		}
+		return err
 	}
 
 	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
@@ -1922,18 +1930,18 @@ func (v *settingValidator) checkVMMigrationNetworkRangeValid(config *networkutil
 		return err
 	}
 
-	// 1 node has 1 virt-handler which needs 1 IP address.
-	if count < len(nodes)-witnessNode {
-		return fmt.Errorf("allocatable IP address range is < %d,allocate sufficient range", len(nodes))
+	if count < nonWitnessCount {
+		return fmt.Errorf("allocatable IP address range is < %d, allocate sufficient range", nonWitnessCount)
 	}
 
 	return nil
 }
 
-func (v *settingValidator) checkRWXNetworkRangeValid(config *networkutil.Config) error {
+// countNonWitnessNodes returns the number of nodes that are not witness nodes.
+func (v *settingValidator) countNonWitnessNodes() (int, error) {
 	nodes, err := v.nodeCache.List(labels.Everything())
 	if err != nil {
-		return werror.NewInternalError(err.Error())
+		return 0, werror.NewInternalError(err.Error())
 	}
 	witnessNodes := 0
 	for _, node := range nodes {
@@ -1944,20 +1952,7 @@ func (v *settingValidator) checkRWXNetworkRangeValid(config *networkutil.Config)
 			witnessNodes++
 		}
 	}
-
-	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
-	if err != nil {
-		return err
-	}
-
-	// Minimum: 1 IP per non-witness node for the longhorn-csi-plugin DaemonSet.
-	// share-manager pods and guest cluster VMs are dynamic and cannot be checked here.
-	minIPs := len(nodes) - witnessNodes
-	if count < minIPs {
-		return fmt.Errorf("allocatable IP address range is < %d, allocate sufficient range", minIPs)
-	}
-
-	return nil
+	return len(nodes) - witnessNodes, nil
 }
 
 // checkNetworkOverlap checks that the c1 config does not have overlapping usable IP addresses
