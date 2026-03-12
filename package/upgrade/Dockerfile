@@ -1,5 +1,5 @@
-ARG HARVESTER_INSTALLER_REF=master-head
-FROM registry.opensuse.org/isv/rancher/harvester/os/dev/main/baseos:latest as baseos
+ARG HARVESTER_INSTALLER_REF=v1.8-head
+FROM registry.opensuse.org/isv/rancher/harvester/os/v1.8/main/baseos:v1.8 as baseos
 FROM rancher/harvester-installer:${HARVESTER_INSTALLER_REF} as installer
 FROM registry.suse.com/bci/bci-base:16.0
 
