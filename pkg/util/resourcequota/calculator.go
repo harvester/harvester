@@ -413,11 +413,10 @@ func CalculateRestoreResourceQuotaWithVMI(
 }
 
 // If base is zero, delta is not added
-func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, memBase, cpuDelta, memDelta, cpuCompensation, memCompensation resource.Quantity) (*corev1.ResourceQuota, bool) {
+func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, memBase, cpuDelta, memDelta, memCompensation resource.Quantity) (*corev1.ResourceQuota, bool) {
 	needUpdate := false
 	if !cpuBase.IsZero() {
 		cpuBase.Add(cpuDelta)
-		cpuBase.Add(cpuCompensation)
 		if !rq.Spec.Hard[corev1.ResourceLimitsCPU].Equal(cpuBase) {
 			needUpdate = true
 			rq.Spec.Hard[corev1.ResourceLimitsCPU] = cpuBase
@@ -494,17 +493,15 @@ func calculateVMStorageQuantity(vm *kubevirtv1.VirtualMachine) (resource.Quantit
 	return storage, nil
 }
 
-// Get ResourceQuota annotations about compensation
-func GetCompensationFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, storage resource.Quantity, err error) {
+// Get ResourceQuota annotations about compensation, only memory is supported
+func GetCompensationFromRQAnnotation(rq *corev1.ResourceQuota) (mem resource.Quantity, err error) {
 	rl, err := getResourceListOfMigratingCompensationFromRQ(rq)
 	if err != nil {
-		return cpu, mem, storage, err
+		return mem, err
 	}
 
-	cpu.Add(*rl.Name(corev1.ResourceLimitsCPU, resource.DecimalSI))
 	mem.Add(*rl.Name(corev1.ResourceLimitsMemory, resource.BinarySI))
-	storage.Add(*rl.Name(corev1.ResourceRequestsStorage, resource.BinarySI))
-	return
+	return mem, nil
 }
 
 func CalculateCompensationResourceQuotaWithVMI(
