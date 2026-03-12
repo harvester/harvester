@@ -124,10 +124,9 @@ func DeleteMigratingCompensation(rq *corev1.ResourceQuota) bool {
 	if rq.Annotations == nil {
 		return false
 	}
-	len1 := len(rq.Annotations)
+	initialLen := len(rq.Annotations)
 	delete(rq.Annotations, util.AnnotationMigratingCompensation)
-	len2 := len(rq.Annotations)
-	return len1 != len2
+	return initialLen != len(rq.Annotations)
 }
 
 func getResourceListOfMigratingCompensationFromRQ(rq *corev1.ResourceQuota) (corev1.ResourceList, error) {

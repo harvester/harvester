@@ -83,7 +83,7 @@ func (h *Handler) handlePendingMigration(vmi *kubevirtv1.VirtualMachineInstance,
 	}
 
 	// scale ResourceQuota through VMI resource specifications
-	if err := h.scaleResourceQuotaWithVMI(vmi); err != nil {
+	if err := h.scaleResourceQuota(vmi); err != nil {
 		return nil, fmt.Errorf("failed to scale resource quota with vmi %s/%s: %w", vmi.Namespace, vmi.Name, err)
 	}
 
@@ -98,7 +98,7 @@ func (h *Handler) handlePendingMigration(vmi *kubevirtv1.VirtualMachineInstance,
 // when vmim is finished
 func (h *Handler) handleFinishedMigration(vmi *kubevirtv1.VirtualMachineInstance, vmim *kubevirtv1.VirtualMachineInstanceMigration) (*kubevirtv1.VirtualMachineInstanceMigration, error) {
 	// restore the resource quota when the migration is completed
-	if err := h.restoreResourceQuotaWithVMI(vmi); err != nil {
+	if err := h.restoreResourceQuota(vmim, vmi); err != nil {
 		logrus.Infof("vmim %s/%s is on phase %s but fail to restore vmi %s on resource quota %s", vmim.Namespace, vmim.Name, vmim.Status.Phase, vmi.Name, err.Error())
 		return nil, err
 	}
@@ -151,6 +151,41 @@ func (h *Handler) syncVM(vmi *kubevirtv1.VirtualMachineInstance) error {
 	return err
 }
 
+// scaleResourceQuota scales the ResourceQuota of the namespace to allow the migration to succeed
+func (h *Handler) scaleResourceQuota(vmi *kubevirtv1.VirtualMachineInstance) error {
+	// If the namespace is not managed by the resource quota, skip scaling
+	if exist, err := h.isNamespaceManagedByResourceQuota(vmi.Namespace); !exist && err == nil {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("failed to check if the namespace is managed by the resource quota: %v", err)
+	}
+
+	// Scale ResourceQuota through VMI resource specifications
+	if err := h.scaleResourceQuotaWithVMI(vmi); err != nil {
+		return fmt.Errorf("failed to scale resource quota with vmi: %v", err)
+	}
+
+	return nil
+}
+
+// isNamespaceManagedByResourceQuota checks if the namespace is managed by the resource quota
+func (h *Handler) isNamespaceManagedByResourceQuota(namespace string) (bool, error) {
+	rqs, err := h.rqCache.List(namespace, labels.Everything())
+	if err != nil {
+		return false, err
+	}
+
+	// If there is any resource quota in the namespace,
+	// return true check it if finding cpu or memory limit.
+	for _, v := range rqs {
+		if v.Spec.Hard.Cpu() != nil || v.Spec.Hard.Memory() != nil {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // scaleResourceQuotaWithVMI scales ResourceQuota through VMI resource specifications
 func (h *Handler) scaleResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInstance) error {
 	selector := labels.Set{util.LabelManagementDefaultResourceQuota: "true"}.AsSelector()
@@ -181,6 +216,27 @@ func (h *Handler) scaleResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInstan
 	}
 	_, err = h.rqs.Update(rqToUpdate)
 	return err
+}
+
+// restoreResourceQuota restores the ResourceQuota when the migration is completed
+func (h *Handler) restoreResourceQuota(vmim *kubevirtv1.VirtualMachineInstanceMigration, vmi *kubevirtv1.VirtualMachineInstance) error {
+	if vmim.Status.Phase != kubevirtv1.MigrationFailed && vmim.Status.Phase != kubevirtv1.MigrationSucceeded {
+		return nil
+	}
+
+	// If the namespace is not managed by the ResourceQuota, skip scaling
+	if exist, err := h.isNamespaceManagedByResourceQuota(vmi.Namespace); !exist && err == nil {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("failed to check if the namespace is managed by the resource quota: %v", err)
+	}
+
+	// restore ResourceQuota through vmi resource specifications
+	if err := h.restoreResourceQuotaWithVMI(vmi); err != nil {
+		return fmt.Errorf("failed to restore resource quota with vmi: %v", err)
+	}
+
+	return nil
 }
 
 // restoreResourceQuotaWithVMI restores the ResourceQuota when the migration is completed
