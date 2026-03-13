@@ -214,6 +214,8 @@ func (h *Handler) scaleResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInstan
 	if err := rqutils.AddMigratingVM(rqToUpdate, vmi.Name, string(vmi.UID), rl); err != nil {
 		return err
 	}
+	// set the flag until ResourceQuota controller clears it
+	rqutils.SetAnnotationMigratingScalingResyncNeeded(rqToUpdate)
 	_, err = h.rqs.Update(rqToUpdate)
 	return err
 }
@@ -259,6 +261,7 @@ func (h *Handler) restoreResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInst
 		// if some other VM is blocked due to ResourceQuota after the re-schedule,
 		// the ResourceQuota controller will compensate accordingly
 		_ = rqutils.DeleteMigratingCompensation(rqCpy)
+		rqutils.SetAnnotationMigratingScalingResyncNeeded(rqCpy)
 		_, err = h.rqs.Update(rqCpy)
 		return err
 	}
@@ -333,6 +336,16 @@ func (h *Handler) compensateResourceQuotaBase(vmim *kubevirtv1.VirtualMachineIns
 		return nil
 	}
 
+	// not synced yet, wait a moment
+	// note: after resourcequota_controller sets the rq.Spec to increase the quota, kubevirt controller will action upon it to reschedule all RQ blocked vmims
+	// there is still a lower chance that the compensation is done before kubevirt finishes the reschedulling
+	// it is taken care on containsEnoughResourceQuotaToStartVM
+	if rqutils.IsMigratingScalingResyncNeeded(rq) {
+		logrus.Debugf("compensateResourceQuotaBase: the resource quota in the namespace %s is not synced by controller, don't compensate, wait", vmi.Namespace)
+		h.vmimController.EnqueueAfter(vmim.Namespace, vmim.Name, 1*time.Second)
+		return nil
+	}
+
 	rqToUpdate := rq.DeepCopy()
 	// only update to ResourceQuota annotation, do not change ResourceQuota spec directly in this step
 	needUpdate, rqToUpdate, rl := rqutils.CalculateCompensationResourceQuotaWithVMI(rqToUpdate, vmi, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(h.settingCache))
@@ -346,6 +359,7 @@ func (h *Handler) compensateResourceQuotaBase(vmim *kubevirtv1.VirtualMachineIns
 	if err := rqutils.AddMigratingCompensation(rqToUpdate, rl); err != nil {
 		return err
 	}
+	rqutils.SetAnnotationMigratingScalingResyncNeeded(rqToUpdate)
 	_, err = h.rqs.Update(rqToUpdate)
 	return err
 }

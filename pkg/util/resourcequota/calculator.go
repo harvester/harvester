@@ -495,6 +495,7 @@ func calculateVMStorageQuantity(vm *kubevirtv1.VirtualMachine) (resource.Quantit
 
 // Get ResourceQuota annotations about compensation, only memory is supported
 func GetCompensationFromRQAnnotation(rq *corev1.ResourceQuota) (mem resource.Quantity, err error) {
+	mem = *resource.NewQuantity(0, resource.BinarySI)
 	rl, err := getResourceListOfMigratingCompensationFromRQ(rq)
 	if err != nil {
 		return mem, err

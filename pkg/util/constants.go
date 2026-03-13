@@ -62,6 +62,9 @@ const (
 	// AnnotationMigratingCompensation is used to add compensating quota to help already blocked VMIMs, due to insufficient ResourceQuota, to proceed
 	AnnotationMigratingCompensation = prefix + "/migratingCompensation"
 
+	// AnnotationMigratingScalingResyncNeeded is used for ping-pong between vmim_controller and resourcequota_controller
+	AnnotationMigratingScalingResyncNeeded = prefix + "/migratingScalingResyncNeeded"
+
 	// AnnotationInsufficientResourceQuota is indicated the resource is insufficient of Namespace
 	AnnotationInsufficientResourceQuota = prefix + "/insufficient-resource-quota"
 

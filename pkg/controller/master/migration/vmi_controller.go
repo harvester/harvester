@@ -74,7 +74,8 @@ func (h *Handler) resetHarvesterMigrationStateInVMI(vmi *kubevirtv1.VirtualMachi
 	delete(toUpdate.Annotations, util.AnnotationMigrationState)
 	delete(toUpdate.Annotations, util.AnnotationMigrationTarget)
 
-	// for the convenience of unit test code, it can bypass following call upon VirtClient
+	// skip unnecessary update
+	// also for the convenience of unit test code, it can bypass following call upon VirtClient
 	if initialLen == len(toUpdate.Annotations) {
 		return nil
 	}
