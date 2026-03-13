@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -14,12 +16,14 @@ import (
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
+	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	wranglername "github.com/rancher/wrangler/v3/pkg/name"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/rancher/wrangler/v3/pkg/slice"
 	"github.com/sirupsen/logrus"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/kubernetes"
@@ -37,6 +42,7 @@ import (
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kubevirtmultus "kubevirt.io/kubevirt/pkg/network/multus"
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
 	apiutil "github.com/harvester/harvester/pkg/api/util"
@@ -58,9 +64,12 @@ import (
 )
 
 const (
-	vmResource    = "virtualmachines"
-	vmiResource   = "virtualmachineinstances"
-	sshAnnotation = "harvesterhci.io/sshNames"
+	vmResource               = "virtualmachines"
+	vmiResource              = "virtualmachineinstances"
+	sshAnnotation            = "harvesterhci.io/sshNames"
+	efiRenameJobImage        = "busybox:1.37.0"
+	efiRenameJobTTL          = 300
+	efiRenameJobBackoffLimit = 3
 )
 
 var (
@@ -89,6 +98,7 @@ type vmActionHandler struct {
 	vmTemplateVersionClient ctlharvesterv1.VirtualMachineTemplateVersionClient
 	vmiClient               ctlkubevirtv1.VirtualMachineInstanceClient
 	vmimClient              ctlkubevirtv1.VirtualMachineInstanceMigrationClient
+	jobClient               ctlbatchv1.JobClient
 
 	backupCache       ctlharvesterv1.VirtualMachineBackupCache
 	kubevirtCache     ctlkubevirtv1.KubeVirtCache
@@ -104,6 +114,7 @@ type vmActionHandler struct {
 	vmImageCache      ctlharvesterv1.VirtualMachineImageCache
 	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
 	vmimCache         ctlkubevirtv1.VirtualMachineInstanceMigrationCache
+	jobCache          ctlbatchv1.JobCache
 }
 
 func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
@@ -1216,6 +1227,8 @@ func (h *vmActionHandler) findHotunpluggableNics(rw http.ResponseWriter, namespa
 }
 
 // cloneVM creates a VM which uses volume cloning from the source VM.
+// AnnotationBackendStorageCloneStatus signals the clone progress to the UI.
+// "cloning" = in progress, "cloned" = done.
 func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
@@ -1232,9 +1245,20 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 		return fmt.Errorf("cannot marshal value %+v, err: %w", newPVCs, err)
 	}
 
+	desiredRunStrategy := newVM.Spec.RunStrategy
+	if backendstorage.IsBackendStorageNeeded(newVM) {
+		always := kubevirtv1.RunStrategyAlways
+		newVM.Spec.RunStrategy = &always
+		newVM.Annotations[util.AnnotationBackendStorageCloneStatus] = "cloning"
+	}
+
 	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(newPVCsString)
 	if newVM, err = h.vmClient.Create(newVM); err != nil {
 		return fmt.Errorf("cannot create new VM %s/%s, err: %w", newVM.Namespace, newVM.Name, err)
+	}
+
+	if backendstorage.IsBackendStorageNeeded(newVM) {
+		go h.cloneBackendStorage(vm, newVM, desiredRunStrategy)
 	}
 
 	for oldSecretName, newSecretName := range secretNameMap {
@@ -1328,6 +1352,187 @@ func (h *vmActionHandler) cloneVolumes(newVM *kubevirtv1.VirtualMachine) ([]core
 		newVM.Spec.Template.Spec.Volumes[i] = volume
 	}
 	return newPVCs, secretNameMap, nil
+}
+
+// cloneBackendStorage clones the backend storage (EFI/TPM) of the source VM to the target VM.
+//
+// KubeVirt only creates the backend storage PVC when a VM starts up. The flow is:
+//  1. Force target VM to RunStrategyAlways so KubeVirt creates its backend storage PVC
+//  2. Wait for the target PVC to be created, then copy EFI content from source to target
+//  3. Restore the target VM to the desired RunStrategy
+//
+// This ensures EFI and TPM are independent per-VM (not shared).
+//
+// AnnotationBackendStorageCloneStatus signals the clone progress to the UI.
+// "cloning" = in progress, "cloned" = done.
+func (h *vmActionHandler) cloneBackendStorage(sourceVM, targetVM *kubevirtv1.VirtualMachine, desiredRunStrategy *kubevirtv1.VirtualMachineRunStrategy) {
+	if err := h.copyEFIPersistent(sourceVM, targetVM); err != nil {
+		logrus.Errorf("clone backend storage failed: %v", err)
+		return
+	}
+
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		latestVM, err := h.vmClient.Get(targetVM.Namespace, targetVM.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		vmCopy := latestVM.DeepCopy()
+		vmCopy.Spec.RunStrategy = desiredRunStrategy
+		vmCopy.Annotations[util.AnnotationBackendStorageCloneStatus] = "cloned"
+		_, err = h.vmClient.Update(vmCopy)
+		return err
+	}); err != nil {
+		logrus.Errorf("cannot update run strategy for new VM %s/%s, err: %v", targetVM.Namespace, targetVM.Name, err)
+	}
+}
+
+func (h *vmActionHandler) copyEFIPersistent(sourceVM, targetVM *kubevirtv1.VirtualMachine) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	sourcePVC, err := h.waitForPVCBound(ctx, sourceVM)
+	if err != nil {
+		return fmt.Errorf("cannot wait for source persistent state PVC for VM %s/%s: %w", sourceVM.Namespace, sourceVM.Name, err)
+	}
+	targetPVC, err := h.waitForPVCBound(ctx, targetVM)
+	if err != nil {
+		return fmt.Errorf("cannot wait for target persistent state PVC for VM %s/%s: %w", targetVM.Namespace, targetVM.Name, err)
+	}
+
+	return h.copyEFIFile(ctx, sourceVM, targetVM, sourcePVC, targetPVC)
+}
+
+func (h *vmActionHandler) waitForPVCBound(ctx context.Context, vm *kubevirtv1.VirtualMachine) (*corev1.PersistentVolumeClaim, error) {
+	pvcs, err := h.pvcCache.List(vm.Namespace, labels.SelectorFromSet(map[string]string{
+		backendstorage.PVCPrefix: vm.Name,
+	}))
+	if err != nil {
+		return nil, fmt.Errorf("cannot list source persistent state PVC for VM %s/%s, err: %w", vm.Namespace, vm.Name, err)
+	}
+	if len(pvcs) == 0 {
+		return nil, nil
+	}
+	if len(pvcs) != 1 {
+		return nil, fmt.Errorf("expect 1 source persistent state PVC for VM %s/%s, got %d", vm.Namespace, vm.Name, len(pvcs))
+	}
+	pvc := pvcs[0]
+
+	return pvc, wait.PollUntilContextTimeout(ctx, 2*time.Second, 2*time.Minute, false, func(ctx context.Context) (bool, error) {
+		pvc, err := h.pvcCache.Get(vm.Namespace, pvc.Name)
+		if err != nil {
+			return false, err
+		}
+		return pvc.Status.Phase == corev1.ClaimBound, nil
+	})
+}
+
+func (h *vmActionHandler) copyEFIFile(ctx context.Context, sourceVM, targetVM *kubevirtv1.VirtualMachine, sourcePVC, targetPVC *corev1.PersistentVolumeClaim) error {
+	srcFile := fmt.Sprintf("%s_VARS.fd", sourceVM.Name)
+	dstFile := fmt.Sprintf("%s_VARS.fd", targetVM.Name)
+	qemuUserID := strconv.Itoa(107)
+
+	logrus.Infof("Copying EFI file %s from PVC %s to %s in PVC %s", srcFile, sourcePVC.Name, dstFile, targetPVC.Name)
+
+	efiCopyScriptTemplate := `set -e
+src="/src/nvram/{{.Src}}"
+dst="/dst/nvram/{{.Dst}}"
+[ -f "$src" ] && cp "$src" "$dst"
+[ -f "$dst" ] && chown {{.UID}}:{{.UID}} "$dst"
+[ -f "$dst" ] && chmod 600 "$dst"`
+
+	script := strings.NewReplacer(
+		"{{.Src}}", srcFile,
+		"{{.Dst}}", dstFile,
+		"{{.UID}}", qemuUserID,
+	).Replace(efiCopyScriptTemplate)
+
+	copyJob := h.buildEFICopyJob(targetVM, sourcePVC, targetPVC, script)
+	job, err := h.jobClient.Create(copyJob)
+	if err != nil {
+		return fmt.Errorf("create job: %w", err)
+	}
+
+	return h.waitForJobComplete(ctx, job.Namespace, job.Name)
+}
+
+func (h *vmActionHandler) buildEFICopyJob(targetVM *kubevirtv1.VirtualMachine, sourcePVC, targetPVC *corev1.PersistentVolumeClaim, script string) *batchv1.Job {
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      names.SimpleNameGenerator.GenerateName(fmt.Sprintf("efi-copy-%s-", targetVM.Name)),
+			Namespace: targetPVC.Namespace,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: targetVM.APIVersion,
+				Kind:       targetVM.Kind,
+				Name:       targetVM.Name,
+				UID:        targetVM.UID,
+			}},
+		},
+		Spec: batchv1.JobSpec{
+			BackoffLimit:            ptr.To(int32(efiRenameJobBackoffLimit)),
+			TTLSecondsAfterFinished: ptr.To(int32(efiRenameJobTTL)),
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					RestartPolicy: corev1.RestartPolicyNever,
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsUser:  ptr.To(int64(0)),
+						RunAsGroup: ptr.To(int64(0)),
+					},
+					Containers: []corev1.Container{{
+						Name:    "efi-copy",
+						Image:   efiRenameJobImage,
+						Command: []string{"sh", "-c", script},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "src-pvc",
+								MountPath: "/src",
+							},
+							{
+								Name:      "dst-pvc",
+								MountPath: "/dst",
+							},
+						},
+					}},
+					Volumes: []corev1.Volume{
+						{
+							Name: "src-pvc",
+							VolumeSource: corev1.VolumeSource{
+								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+									ClaimName: sourcePVC.Name,
+								},
+							},
+						},
+						{
+							Name: "dst-pvc",
+							VolumeSource: corev1.VolumeSource{
+								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+									ClaimName: targetPVC.Name,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func (h *vmActionHandler) waitForJobComplete(ctx context.Context, namespace, name string) error {
+	return wait.PollUntilContextTimeout(ctx, 2*time.Second, 2*time.Minute, false, func(ctx context.Context) (bool, error) {
+		job, err := h.jobClient.Get(namespace, name, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		if job.Status.Succeeded > 0 {
+			return true, nil
+		}
+
+		if job.Status.Failed > 0 && job.Spec.BackoffLimit != nil && job.Status.Failed >= *job.Spec.BackoffLimit {
+			return false, fmt.Errorf("job failed after %d attempts", job.Status.Failed)
+		}
+
+		return false, nil
+	})
 }
 
 func cloneSecretVolume(volume *kubevirtv1.Volume, secretNameMap map[string]string) {
