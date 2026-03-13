@@ -9,6 +9,7 @@ import (
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	whereaboutscniv1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
+	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 	storagesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring"
@@ -31,7 +32,6 @@ import (
 	capi "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	kubeovnv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 )
 
 func main() {
@@ -43,6 +43,7 @@ func main() {
 			"harvesterhci.io": {
 				Types: []interface{}{
 					harvesterv1.KeyPair{},
+					harvesterv1.IPPoolUsage{},
 					harvesterv1.Preference{},
 					harvesterv1.Setting{},
 					harvesterv1.Upgrade{},
@@ -96,6 +97,7 @@ func main() {
 			whereaboutscniv1.SchemeGroupVersion.Group: {
 				Types: []interface{}{
 					whereaboutscniv1.IPPool{},
+					whereaboutscniv1.OverlappingRangeIPReservation{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
@@ -136,6 +138,7 @@ func main() {
 					longhornv1.Replica{},
 					longhornv1.Engine{},
 					longhornv1.Snapshot{},
+					longhornv1.ShareManager{},
 					longhornv1.BackupTarget{},
 				},
 				GenerateClients: true,

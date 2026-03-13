@@ -43,6 +43,23 @@ func NewKeyPair(namespace, name string, obj KeyPair) *KeyPair {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// IPPoolUsageList is a list of IPPoolUsage resources
+type IPPoolUsageList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []IPPoolUsage `json:"items"`
+}
+
+func NewIPPoolUsage(namespace, name string, obj IPPoolUsage) *IPPoolUsage {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("IPPoolUsage").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // PreferenceList is a list of Preference resources
 type PreferenceList struct {
 	metav1.TypeMeta `json:",inline"`

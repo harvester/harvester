@@ -46,8 +46,8 @@ func (c *WhereaboutsV1alpha1Client) NodeSlicePools(namespace string) NodeSlicePo
 	return newNodeSlicePools(c, namespace)
 }
 
-func (c *WhereaboutsV1alpha1Client) OverlappingRangeIPReservations(namespace string) OverlappingRangeIPReservationInterface {
-	return newOverlappingRangeIPReservations(c, namespace)
+func (c *WhereaboutsV1alpha1Client) OverlappingRangeIPReservations() OverlappingRangeIPReservationInterface {
+	return newOverlappingRangeIPReservations(c)
 }
 
 // NewForConfig creates a new WhereaboutsV1alpha1Client for the given config.

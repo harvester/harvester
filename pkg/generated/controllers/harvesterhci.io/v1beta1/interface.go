@@ -32,6 +32,7 @@ func init() {
 
 type Interface interface {
 	Addon() AddonController
+	IPPoolUsage() IPPoolUsageController
 	KeyPair() KeyPairController
 	Preference() PreferenceController
 	ResourceQuota() ResourceQuotaController
@@ -63,6 +64,10 @@ type version struct {
 
 func (v *version) Addon() AddonController {
 	return generic.NewController[*v1beta1.Addon, *v1beta1.AddonList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "Addon"}, "addons", true, v.controllerFactory)
+}
+
+func (v *version) IPPoolUsage() IPPoolUsageController {
+	return generic.NewNonNamespacedController[*v1beta1.IPPoolUsage, *v1beta1.IPPoolUsageList](schema.GroupVersionKind{Group: "harvesterhci.io", Version: "v1beta1", Kind: "IPPoolUsage"}, "ippoolusages", v.controllerFactory)
 }
 
 func (v *version) KeyPair() KeyPairController {

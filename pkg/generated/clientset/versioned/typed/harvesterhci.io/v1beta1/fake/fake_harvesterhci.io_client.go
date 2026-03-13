@@ -32,6 +32,10 @@ func (c *FakeHarvesterhciV1beta1) Addons(namespace string) v1beta1.AddonInterfac
 	return newFakeAddons(c, namespace)
 }
 
+func (c *FakeHarvesterhciV1beta1) IPPoolUsages() v1beta1.IPPoolUsageInterface {
+	return newFakeIPPoolUsages(c)
+}
+
 func (c *FakeHarvesterhciV1beta1) KeyPairs(namespace string) v1beta1.KeyPairInterface {
 	return newFakeKeyPairs(c, namespace)
 }

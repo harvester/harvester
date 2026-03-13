@@ -10,6 +10,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/addon"
 	"github.com/harvester/harvester/pkg/controller/master/backup"
 	"github.com/harvester/harvester/pkg/controller/master/image"
+	"github.com/harvester/harvester/pkg/controller/master/ippoolusage"
 	"github.com/harvester/harvester/pkg/controller/master/keypair"
 	"github.com/harvester/harvester/pkg/controller/master/kubevirt"
 	"github.com/harvester/harvester/pkg/controller/master/machine"
@@ -22,6 +23,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/resourcequota"
 	"github.com/harvester/harvester/pkg/controller/master/schedulevmbackup"
 	"github.com/harvester/harvester/pkg/controller/master/setting"
+	"github.com/harvester/harvester/pkg/controller/master/sharemanager"
 	"github.com/harvester/harvester/pkg/controller/master/storageclass"
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle"
@@ -43,6 +45,7 @@ var registerFuncs = []registerFunc{
 	backup.RegisterBackupTarget,
 	backup.RegisterRestore,
 	image.Register,
+	ippoolusage.Register,
 	keypair.Register,
 	kubevirt.Register,
 	machine.ControlPlaneRegister,
@@ -59,6 +62,7 @@ var registerFuncs = []registerFunc{
 	pvc.Register,
 	rancher.Register,
 	resourcequota.Register,
+	sharemanager.Register,
 	schedulevmbackup.Register,
 	setting.Register,
 	storageclass.Register,

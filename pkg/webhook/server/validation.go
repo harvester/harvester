@@ -17,6 +17,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/bundledeployment"
 	"github.com/harvester/harvester/pkg/webhook/resources/datavolume"
 	"github.com/harvester/harvester/pkg/webhook/resources/deployment"
+	"github.com/harvester/harvester/pkg/webhook/resources/ippoolusage"
 	"github.com/harvester/harvester/pkg/webhook/resources/keypair"
 	"github.com/harvester/harvester/pkg/webhook/resources/managedchart"
 	"github.com/harvester/harvester/pkg/webhook/resources/namespace"
@@ -231,6 +232,7 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
 			clients.AppsFactory.Apps().V1().Deployment().Cache(),
 		),
+		ippoolusage.NewValidator(),
 		networkattachmentdefinition.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 		),

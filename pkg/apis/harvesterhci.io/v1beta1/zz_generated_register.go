@@ -29,6 +29,7 @@ import (
 
 var (
 	AddonResourceName                         = "addons"
+	IPPoolUsageResourceName                   = "ippoolusages"
 	KeyPairResourceName                       = "keypairs"
 	PreferenceResourceName                    = "preferences"
 	ResourceQuotaResourceName                 = "resourcequotas"
@@ -71,6 +72,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Addon{},
 		&AddonList{},
+		&IPPoolUsage{},
+		&IPPoolUsageList{},
 		&KeyPair{},
 		&KeyPairList{},
 		&Preference{},
