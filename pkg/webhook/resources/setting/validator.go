@@ -112,7 +112,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.MaxHotplugRatioSettingName:                        validateMaxHotplugRatio,
 }
 
-type validateSettingUpdateFunc func(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
+type validateSettingUpdateFunc func(request *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
 
 var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.VMForceResetPolicySettingName:                     validateUpdateVMForceResetPolicy,
@@ -184,6 +184,10 @@ func NewValidator(
 	validateSettingUpdateFuncs[settings.StorageNetworkName] = validator.validateUpdateStorageNetwork
 	validateSettingDeleteFuncs[settings.StorageNetworkName] = validator.validateDeleteStorageNetwork
 
+	validateSettingFuncs[settings.RWXNetworkSettingName] = validator.validateRWXNetwork
+	validateSettingUpdateFuncs[settings.RWXNetworkSettingName] = validator.validateUpdateRWXNetwork
+	validateSettingDeleteFuncs[settings.RWXNetworkSettingName] = validator.validateDeleteRWXNetwork
+
 	validateSettingFuncs[settings.VMMigrationNetworkSettingName] = validator.validateVMMigrationNetwork
 	validateSettingUpdateFuncs[settings.VMMigrationNetworkSettingName] = validator.validateUpdateVMMigrationNetwork
 	validateSettingDeleteFuncs[settings.VMMigrationNetworkSettingName] = validator.validateDeleteVMMigrationNetwork
@@ -243,19 +247,19 @@ func (v *settingValidator) Resource() types.Resource {
 	}
 }
 
-func (v *settingValidator) Create(_ *types.Request, newObj runtime.Object) error {
-	return validateSetting(newObj)
+func (v *settingValidator) Create(request *types.Request, newObj runtime.Object) error {
+	return validateSetting(request, newObj)
 }
 
-func (v *settingValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
-	return validateUpdateSetting(oldObj, newObj)
+func (v *settingValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+	return validateUpdateSetting(request, oldObj, newObj)
 }
 
 func (v *settingValidator) Delete(_ *types.Request, oldObj runtime.Object) error {
 	return validateDeleteSetting(oldObj)
 }
 
-func validateSetting(newObj runtime.Object) error {
+func validateSetting(request *types.Request, newObj runtime.Object) error {
 	setting := newObj.(*v1beta1.Setting)
 
 	if validateFunc, ok := validateSettingFuncs[setting.Name]; ok {
@@ -265,12 +269,12 @@ func validateSetting(newObj runtime.Object) error {
 	return nil
 }
 
-func validateUpdateSetting(oldObj runtime.Object, newObj runtime.Object) error {
+func validateUpdateSetting(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	oldSetting := oldObj.(*v1beta1.Setting)
 	newSetting := newObj.(*v1beta1.Setting)
 
 	if validateUpdateFunc, ok := validateSettingUpdateFuncs[newSetting.Name]; ok {
-		return validateUpdateFunc(oldSetting, newSetting)
+		return validateUpdateFunc(request, oldSetting, newSetting)
 	}
 
 	return nil
@@ -329,7 +333,7 @@ func (v *settingValidator) validateHTTPProxy(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func (v *settingValidator) validateUpdateHTTPProxy(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateHTTPProxy(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateHTTPProxy(newSetting)
 }
 
@@ -415,7 +419,7 @@ func validateOvercommitConfig(setting *v1beta1.Setting) error {
 	return validateOvercommitConfigHelper(settings.KeywordValue, setting.Value)
 }
 
-func validateUpdateOvercommitConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateOvercommitConfig(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateOvercommitConfig(newSetting)
 }
 
@@ -443,7 +447,7 @@ func validateVMForceResetPolicy(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateVMForceResetPolicy(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateVMForceResetPolicy(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateVMForceResetPolicy(newSetting)
 }
 
@@ -498,7 +502,7 @@ func (v *settingValidator) validateBackupTargetFields(target *settings.BackupTar
 	return nil
 }
 
-func (v *settingValidator) validateUpdateBackupTarget(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateBackupTarget(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateBackupTarget(newSetting)
 }
 
@@ -715,7 +719,7 @@ func validateNTPServer(server string, nameValidator, patternValidator *regexp.Re
 	return true
 }
 
-func validateUpdateNTPServers(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateNTPServers(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateNTPServers(newSetting)
 }
 
@@ -744,7 +748,7 @@ func validateVipPoolsConfig(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateVipPoolsConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateVipPoolsConfig(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateVipPoolsConfig(newSetting)
 }
 
@@ -774,7 +778,7 @@ func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSupportBundleTimeout(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundleTimeout(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleTimeout(newSetting)
 }
 
@@ -804,7 +808,7 @@ func validateSupportBundleExpiration(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSupportBundleNodeCollectionTimeout(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundleNodeCollectionTimeout(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleNodeCollectionTimeout(newSetting)
 }
 
@@ -834,7 +838,7 @@ func validateSupportBundleNodeCollectionTimeout(setting *v1beta1.Setting) error 
 	return nil
 }
 
-func validateUpdateSupportBundle(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundle(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleExpiration(newSetting)
 }
 
@@ -864,7 +868,7 @@ func validateSupportBundleFileName(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSupportBundleFileName(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundleFileName(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleFileName(newSetting)
 }
 
@@ -906,7 +910,7 @@ func validateSSLCertificates(setting *v1beta1.Setting) error {
 	return validateSSLCertificatesHelper(settings.KeywordValue, setting.Value)
 }
 
-func validateUpdateSSLCertificates(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSSLCertificates(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSSLCertificates(newSetting)
 }
 
@@ -945,7 +949,7 @@ func validateSSLParameters(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSSLParameters(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSSLParameters(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSSLParameters(newSetting)
 }
 
@@ -1024,7 +1028,7 @@ func validateSupportBundleImage(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateSupportBundleImage(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateSupportBundleImage(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleImage(newSetting)
 }
 
@@ -1044,11 +1048,11 @@ func (v *settingValidator) validateVolumeSnapshotClass(setting *v1beta1.Setting)
 	return nil
 }
 
-func (v *settingValidator) validateUpdateVolumeSnapshotClass(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateVolumeSnapshotClass(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateVolumeSnapshotClass(newSetting)
 }
 
-func (v *settingValidator) validateUpdateLonghornV2DataEngine(oldSetting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateLonghornV2DataEngine(_ *types.Request, oldSetting, newSetting *v1beta1.Setting) error {
 	if oldSetting.Value == newSetting.Value {
 		return nil
 	}
@@ -1092,7 +1096,7 @@ func validateContainerdRegistry(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateContainerdRegistry(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateContainerdRegistry(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateContainerdRegistry(newSetting)
 }
 
@@ -1126,7 +1130,8 @@ func (v *settingValidator) validateNetworkHelper(name, value string) (*networkut
 	// Add a map of setting names to their specific network range validation callbacks
 	networkRangeValidators := map[string]func(*networkutil.Config) error{
 		settings.StorageNetworkName:            v.checkStorageNetworkRangeValid,
-		settings.VMMigrationNetworkSettingName: v.checkVMMigrationNetworkRangeValid,
+		settings.VMMigrationNetworkSettingName: v.checkNodeCountNetworkRangeValid,
+		settings.RWXNetworkSettingName:         v.checkNodeCountNetworkRangeValid,
 	}
 	if validator, ok := networkRangeValidators[name]; ok {
 		if err := validator(&config); err != nil {
@@ -1137,34 +1142,44 @@ func (v *settingValidator) validateNetworkHelper(name, value string) (*networkut
 }
 
 func (v *settingValidator) getNetworkConfig(settingName string) (*networkutil.Config, error) {
-	if settingName != settings.StorageNetworkName && settingName != settings.VMMigrationNetworkSettingName {
+	if settingName != settings.StorageNetworkName &&
+		settingName != settings.VMMigrationNetworkSettingName &&
+		settingName != settings.RWXNetworkSettingName {
 		return nil, nil
 	}
 
 	networkConfigSetting, err := v.settingCache.Get(settingName)
 	if err != nil {
+		// during harvester bootstrap, the setting might not be created yet, return nil in this case
 		if apierrors.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get %s setting, err: %v", settingName, err)
 	}
 
-	if networkConfigSetting.Value != "" {
-		var config networkutil.Config
-		if err := json.Unmarshal([]byte(networkConfigSetting.Value), &config); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal the %s setting value %v, %w", settingName, networkConfigSetting.Value, err)
-		}
-		return &config, nil
+	effectiveValue := networkConfigSetting.EffectiveValue()
+	if effectiveValue == "" {
+		return nil, nil
 	}
 
-	if networkConfigSetting.Default != "" {
-		var config networkutil.Config
-		if err := json.Unmarshal([]byte(networkConfigSetting.Default), &config); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal the %s setting default value %v, %w", settingName, networkConfigSetting.Default, err)
+	// rwx-network uses a composite JSON format; extract the inner network config.
+	if settingName == settings.RWXNetworkSettingName {
+		var rwxConfig settings.RWXNetworkConfig
+		if err := json.Unmarshal([]byte(effectiveValue), &rwxConfig); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal the %s setting value %v, %w", settingName, effectiveValue, err)
 		}
-		return &config, nil
+		// When sharing the storage-network, the networks are identical — no overlap possible.
+		if rwxConfig.ShareStorageNetwork {
+			return nil, nil
+		}
+		return rwxConfig.Network, nil
 	}
-	return nil, nil
+
+	var config networkutil.Config
+	if err := json.Unmarshal([]byte(effectiveValue), &config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal the %s setting value %v, %w", settingName, effectiveValue, err)
+	}
+	return &config, nil
 }
 
 func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) error {
@@ -1186,12 +1201,19 @@ func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) erro
 		config = valueConfig
 	}
 
-	vmMigraionNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
+	vmMigrationNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	rwxNetworkConfig, err := v.getNetworkConfig(settings.RWXNetworkSettingName)
 	if err != nil {
 		return werror.NewInternalError(err.Error())
 	}
 
-	if err = checkNetworkOverlap(settings.StorageNetworkName, config, settings.VMMigrationNetworkSettingName, vmMigraionNetworkConfig); err != nil {
+	if err = checkNetworkOverlap(settings.StorageNetworkName, config, map[string]*networkutil.Config{
+		settings.VMMigrationNetworkSettingName: vmMigrationNetworkConfig,
+		settings.RWXNetworkSettingName:         rwxNetworkConfig,
+	}); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.StorageNetworkName)
 	}
 
@@ -1203,7 +1225,7 @@ func (v *settingValidator) validateStorageNetwork(setting *v1beta1.Setting) erro
 	return nil
 }
 
-func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateStorageNetwork(_ *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	if newSetting.Name != settings.StorageNetworkName {
 		return nil
 	}
@@ -1244,20 +1266,185 @@ func (v *settingValidator) validateUpdateStorageNetwork(oldSetting *v1beta1.Sett
 		config = valueConfig
 	}
 
-	vmMigraionNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
+	vmMigrationNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	rwxNetworkConfig, err := v.getNetworkConfig(settings.RWXNetworkSettingName)
 	if err != nil {
 		return werror.NewInternalError(err.Error())
 	}
 
-	if err = checkNetworkOverlap(settings.StorageNetworkName, config, settings.VMMigrationNetworkSettingName, vmMigraionNetworkConfig); err != nil {
+	if err = checkNetworkOverlap(settings.StorageNetworkName, config, map[string]*networkutil.Config{
+		settings.VMMigrationNetworkSettingName: vmMigrationNetworkConfig,
+		settings.RWXNetworkSettingName:         rwxNetworkConfig,
+	}); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.StorageNetworkName)
+	}
+
+	if err := v.checkStorageNetworkNotBlockedByRWX(newSetting); err != nil {
+		return err
 	}
 
 	return v.checkStorageNetworkUsage()
 }
 
+// checkStorageNetworkNotBlockedByRWX returns an error if the new setting would clear the storage
+// network while rwx-network is in share mode (share-storage-network=true).
+func (v *settingValidator) checkStorageNetworkNotBlockedByRWX(newSetting *v1beta1.Setting) error {
+	if newSetting.EffectiveValue() != "" {
+		return nil
+	}
+	isShareStorageNetwork, err := util.IsShareStorageNetwork(v.settingCache)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to determine if %s is in share mode: %v", settings.RWXNetworkSettingName, err))
+	}
+	if isShareStorageNetwork {
+		return werror.NewInvalidError(
+			fmt.Sprintf("%s cannot be disabled while %s has share-storage-network=true",
+				settings.StorageNetworkName, settings.RWXNetworkSettingName),
+			settings.StorageNetworkName,
+		)
+	}
+	return nil
+}
+
 func (v *settingValidator) validateDeleteStorageNetwork(_ *v1beta1.Setting) error {
 	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.StorageNetworkName))
+}
+
+func (v *settingValidator) validateRWXNetwork(setting *v1beta1.Setting) error {
+	return v.validateRWXNetworkHelper(setting)
+}
+
+func (v *settingValidator) validateUpdateRWXNetwork(request *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	if oldSetting.EffectiveValue() == newSetting.EffectiveValue() {
+		return nil
+	}
+
+	// Internal controller writes (e.g. bootstrap/upgrade init) bypass user-facing
+	// validation: volumes may still be attached and the network config may be
+	// intentionally omitted (share-storage-network=true with no Network field).
+	if request.IsFromController() {
+		return nil
+	}
+
+	if err := v.checkRWXNotInProgress(oldSetting, newSetting); err != nil {
+		return err
+	}
+
+	if err := v.validateRWXNetworkHelper(newSetting); err != nil {
+		return err
+	}
+
+	if err := v.validateShareFlagTransition(oldSetting, newSetting); err != nil {
+		return err
+	}
+
+	if err := util.CheckRWXVolumesDetached(v.lhVolumeCache); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.RWXNetworkSettingName)
+	}
+
+	return nil
+}
+
+// checkRWXNotInProgress blocks updates while a previous change is still in
+// progress, unless the update is a reset to the default value.
+func (v *settingValidator) checkRWXNotInProgress(oldSetting, newSetting *v1beta1.Setting) error {
+	sc := v1beta1.SettingConfigured
+	if !sc.IsFalse(oldSetting) || sc.GetReason(oldSetting) != storagenetwork.ReasonInProgress {
+		return nil
+	}
+	isResetToDefault := newSetting.Value == settings.RWXNetwork.Default &&
+		newSetting.Default == settings.RWXNetwork.Default
+	if isResetToDefault {
+		return nil
+	}
+	return werror.NewConflict(fmt.Sprintf(
+		"cannot update the setting %q because it is still being configured (reason: %q, message: %q)",
+		settings.RWXNetworkSettingName,
+		sc.GetReason(oldSetting),
+		sc.GetMessage(oldSetting),
+	))
+}
+
+// validateShareFlagTransition ensures that switching from dedicated to shared
+// mode (false -> true) is only allowed when storage-network is already configured.
+func (v *settingValidator) validateShareFlagTransition(oldSetting, newSetting *v1beta1.Setting) error {
+	var oldConfig, newConfig settings.RWXNetworkConfig
+	if oldSetting.EffectiveValue() != "" {
+		if err := json.Unmarshal([]byte(oldSetting.EffectiveValue()), &oldConfig); err != nil {
+			return werror.NewInvalidError(fmt.Sprintf("failed to parse old %s value: %v", settings.RWXNetworkSettingName, err), settings.KeywordValue)
+		}
+	}
+	if newSetting.EffectiveValue() != "" {
+		if err := json.Unmarshal([]byte(newSetting.EffectiveValue()), &newConfig); err != nil {
+			return werror.NewInvalidError(fmt.Sprintf("failed to parse new %s value: %v", settings.RWXNetworkSettingName, err), settings.KeywordValue)
+		}
+	}
+
+	if oldConfig.ShareStorageNetwork || !newConfig.ShareStorageNetwork {
+		return nil
+	}
+
+	sn, err := v.settingCache.Get(settings.StorageNetworkName)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to get %s setting, err: %v", settings.StorageNetworkName, err))
+	}
+	if sn.EffectiveValue() == "" {
+		return werror.NewInvalidError(fmt.Sprintf("%s is not set", settings.StorageNetworkName), settings.RWXNetworkSettingName)
+	}
+	return nil
+}
+
+// validateRWXNetworkHelper validates the rwx-network composite config.
+func (v *settingValidator) validateRWXNetworkHelper(setting *v1beta1.Setting) error {
+	if setting == nil || setting.Name != settings.RWXNetworkSettingName {
+		return nil
+	}
+
+	effectiveValue := setting.EffectiveValue()
+
+	var rwxConfig settings.RWXNetworkConfig
+	if err := json.Unmarshal([]byte(effectiveValue), &rwxConfig); err != nil {
+		return werror.NewInvalidError(fmt.Sprintf("invalid JSON for %s: %v", settings.RWXNetworkSettingName, err), settings.KeywordValue)
+	}
+
+	if rwxConfig.Network == nil {
+		return nil
+	}
+
+	networkJSON, err := json.Marshal(rwxConfig.Network)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to marshal network config: %v", err))
+	}
+
+	config, err := v.validateNetworkHelper(settings.RWXNetworkSettingName, string(networkJSON))
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+
+	storageNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	vmMigrationNetworkConfig, err := v.getNetworkConfig(settings.VMMigrationNetworkSettingName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+
+	if err = checkNetworkOverlap(settings.RWXNetworkSettingName, config, map[string]*networkutil.Config{
+		settings.StorageNetworkName:            storageNetworkConfig,
+		settings.VMMigrationNetworkSettingName: vmMigrationNetworkConfig,
+	}); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.RWXNetworkSettingName)
+	}
+
+	return nil
+}
+
+func (v *settingValidator) validateDeleteRWXNetwork(_ *v1beta1.Setting) error {
+	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.RWXNetworkSettingName))
 }
 
 func (v *settingValidator) validateVMMigrationNetwork(setting *v1beta1.Setting) error {
@@ -1287,19 +1474,26 @@ func (v *settingValidator) validateVMMigrationNetwork(setting *v1beta1.Setting) 
 		config = valueConfig
 	}
 
-	storagetNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+	storageNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	rwxNetworkConfig, err := v.getNetworkConfig(settings.RWXNetworkSettingName)
 	if err != nil {
 		return werror.NewInternalError(err.Error())
 	}
 
-	if err = checkNetworkOverlap(settings.VMMigrationNetworkSettingName, config, settings.StorageNetworkName, storagetNetworkConfig); err != nil {
+	if err = checkNetworkOverlap(settings.VMMigrationNetworkSettingName, config, map[string]*networkutil.Config{
+		settings.StorageNetworkName:    storageNetworkConfig,
+		settings.RWXNetworkSettingName: rwxNetworkConfig,
+	}); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.VMMigrationNetworkSettingName)
 	}
 
 	return nil
 }
 
-func (v *settingValidator) validateUpdateVMMigrationNetwork(oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateVMMigrationNetwork(_ *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	if newSetting.Name != settings.VMMigrationNetworkSettingName {
 		return nil
 	}
@@ -1322,12 +1516,19 @@ func (v *settingValidator) validateUpdateVMMigrationNetwork(oldSetting *v1beta1.
 		config = valueConfig
 	}
 
-	storagetNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+	storageNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	rwxNetworkConfig, err := v.getNetworkConfig(settings.RWXNetworkSettingName)
 	if err != nil {
 		return werror.NewInternalError(err.Error())
 	}
 
-	if err = checkNetworkOverlap(settings.VMMigrationNetworkSettingName, config, settings.StorageNetworkName, storagetNetworkConfig); err != nil {
+	if err = checkNetworkOverlap(settings.VMMigrationNetworkSettingName, config, map[string]*networkutil.Config{
+		settings.StorageNetworkName:    storageNetworkConfig,
+		settings.RWXNetworkSettingName: rwxNetworkConfig,
+	}); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.VMMigrationNetworkSettingName)
 	}
 
@@ -1681,12 +1882,26 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *networkutil.Con
 		return werror.NewInternalError(err.Error())
 	}
 
-	MinAllocatableIPAddrs := 0
+	minAllocatableIPAddrs := 0
 
 	// Formula - https://docs.harvesterhci.io/v1.4/advanced/storagenetwork/
-	//Number of Images to download/upload is dynamic, so skipped in the formula calculated.
+	// Number of Images to download/upload is dynamic, so skipped in the formula calculated.
 	for _, lhNode := range lhnodes {
-		MinAllocatableIPAddrs = MinAllocatableIPAddrs + 2 + (len(lhNode.Spec.Disks) * 2)
+		minAllocatableIPAddrs += 2 + (len(lhNode.Spec.Disks) * 2)
+	}
+
+	// In shared mode the storage network also carries RWX traffic, so add
+	// 1 IP per non-witness node for the longhorn-csi-plugin DaemonSet.
+	isShared, err := util.IsShareStorageNetwork(v.settingCache)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	if isShared {
+		nonWitnessCount, err := v.countNonWitnessNodes()
+		if err != nil {
+			return err
+		}
+		minAllocatableIPAddrs += nonWitnessCount
 	}
 
 	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
@@ -1694,59 +1909,77 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *networkutil.Con
 		return err
 	}
 
-	if count < MinAllocatableIPAddrs {
-		return fmt.Errorf("allocatable IP address range is < %d,allocate sufficient range", MinAllocatableIPAddrs)
+	if count < minAllocatableIPAddrs {
+		return fmt.Errorf("allocatable IP address range is < %d, allocate sufficient range", minAllocatableIPAddrs)
 	}
 
 	return nil
 }
 
-func (v *settingValidator) checkVMMigrationNetworkRangeValid(config *networkutil.Config) error {
+// checkNodeCountNetworkRangeValid validates that the usable IP range has at least
+// 1 address per non-witness node. Used for both VM migration network
+// (1 IP per virt-handler) and RWX network (1 IP per longhorn-csi-plugin pod).
+func (v *settingValidator) checkNodeCountNetworkRangeValid(config *networkutil.Config) error {
+	nonWitnessCount, err := v.countNonWitnessNodes()
+	if err != nil {
+		return err
+	}
+
+	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	if err != nil {
+		return err
+	}
+
+	if count < nonWitnessCount {
+		return fmt.Errorf("allocatable IP address range is < %d, allocate sufficient range", nonWitnessCount)
+	}
+
+	return nil
+}
+
+// countNonWitnessNodes returns the number of nodes that are not witness nodes.
+func (v *settingValidator) countNonWitnessNodes() (int, error) {
 	nodes, err := v.nodeCache.List(labels.Everything())
 	if err != nil {
-		return werror.NewInternalError(err.Error())
+		return 0, werror.NewInternalError(err.Error())
 	}
-	witnessNode := 0
+	witnessNodes := 0
 	for _, node := range nodes {
 		if node.Labels == nil {
 			continue
 		}
 		if _, ok := node.Labels["node-role.harvesterhci.io/witness"]; ok {
-			witnessNode++
+			witnessNodes++
 		}
 	}
-
-	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
-	if err != nil {
-		return err
-	}
-
-	// 1 node has 1 virt-handler which needs 1 IP address.
-	if count < len(nodes)-witnessNode {
-		return fmt.Errorf("allocatable IP address range is < %d,allocate sufficient range", len(nodes))
-	}
-
-	return nil
+	return len(nodes) - witnessNodes, nil
 }
 
-func checkNetworkOverlap(c1Name string, c1 *networkutil.Config, c2Name string, c2 *networkutil.Config) error {
-	if c1 == nil || c2 == nil {
+// checkNetworkOverlap checks that the c1 config does not have overlapping usable IP addresses
+// with any config in the c2 map. Nil configs are skipped, so if a peer setting does not
+// exist yet (e.g. during fresh install), its overlap check is safely bypassed.
+func checkNetworkOverlap(c1Name string, c1 *networkutil.Config, c2 map[string]*networkutil.Config) error {
+	if c1 == nil {
 		return nil
 	}
 
-	c1UsableIPAddresses, err := webhookUtil.GetUsableIPAddresses(c1.Range, c1.Exclude)
+	c1UsableIPs, err := webhookUtil.GetUsableIPAddresses(c1.Range, c1.Exclude)
 	if err != nil {
 		return err
 	}
 
-	c2UsableIPAddresses, err := webhookUtil.GetUsableIPAddresses(c2.Range, c2.Exclude)
-	if err != nil {
-		return err
-	}
-
-	for c1IP := range c1UsableIPAddresses {
-		if _, ok := c2UsableIPAddresses[c1IP]; ok {
-			return fmt.Errorf("%s: the network configuration is overlapped with %s", c1Name, c2Name)
+	for name, config := range c2 {
+		if config == nil {
+			continue
+		}
+		ips, err := webhookUtil.GetUsableIPAddresses(config.Range, config.Exclude)
+		if err != nil {
+			return err
+		}
+		for ip := range c1UsableIPs {
+			if _, ok := ips[ip]; ok {
+				return fmt.Errorf("%s: the network configuration is overlapped with %s", c1Name, name)
+			}
 		}
 	}
 	return nil
@@ -1780,7 +2013,7 @@ func validateDefaultVMTerminationGracePeriodSeconds(setting *v1beta1.Setting) er
 	return nil
 }
 
-func validateUpdateDefaultVMTerminationGracePeriodSeconds(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateDefaultVMTerminationGracePeriodSeconds(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateDefaultVMTerminationGracePeriodSeconds(newSetting)
 }
 
@@ -1817,7 +2050,7 @@ func validateAutoRotateRKE2Certs(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateAutoRotateRKE2Certs(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateAutoRotateRKE2Certs(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateAutoRotateRKE2Certs(newSetting)
 }
 
@@ -1852,7 +2085,7 @@ func validateKubeConfigTTLSetting(newSetting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateKubeConfigTTLSetting(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateKubeConfigTTLSetting(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateKubeConfigTTLSetting(newSetting)
 }
 
@@ -1983,7 +2216,7 @@ func (v *settingValidator) validateUpgradeConfig(setting *v1beta1.Setting) error
 	return v.validateUpgradeConfigFields(setting)
 }
 
-func (v *settingValidator) validateUpdateUpgradeConfig(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateUpgradeConfig(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateUpgradeConfig(newSetting)
 }
 
@@ -1998,7 +2231,7 @@ func validateAdditionalGuestMemoryOverheadRatio(newSetting *v1beta1.Setting) err
 	return nil
 }
 
-func validateUpdateAdditionalGuestMemoryOverheadRatio(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateAdditionalGuestMemoryOverheadRatio(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateAdditionalGuestMemoryOverheadRatio(newSetting)
 }
 
@@ -2010,7 +2243,7 @@ func validateMaxHotplugRatio(setting *v1beta1.Setting) error {
 	return validateMaxHotplugRatioHelper(settings.KeywordValue, setting.Value)
 }
 
-func validateUpdateMaxHotplugRatio(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func validateUpdateMaxHotplugRatio(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateMaxHotplugRatio(newSetting)
 }
 
@@ -2071,7 +2304,7 @@ func (v *settingValidator) validateRancherCluster(newSetting *v1beta1.Setting) e
 	return nil
 }
 
-func (v *settingValidator) validateUpdateRancherCluster(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateRancherCluster(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateRancherCluster(newSetting)
 }
 
@@ -2117,7 +2350,7 @@ func (v *settingValidator) validateKubeVirtMigration(newSetting *v1beta1.Setting
 	return nil
 }
 
-func (v *settingValidator) validateUpdateKubeVirtMigration(_ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+func (v *settingValidator) validateUpdateKubeVirtMigration(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateKubeVirtMigration(newSetting)
 }
 

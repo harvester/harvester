@@ -31,20 +31,8 @@ import (
 )
 
 const (
-	ControllerName = "harvester-storage-network-controller"
-
-	// for compatiability, will be removed on Harvester v1.6.0
-	StorageNetworkAnnotation        = util.StorageNetworkAnnotation
-	ReplicaStorageNetworkAnnotation = util.ReplicaStorageNetworkAnnotation
-	PausedStorageNetworkAnnotation  = util.PausedStorageNetworkAnnotation
-	HashStorageNetworkAnnotation    = util.HashStorageNetworkAnnotation
-	NadStorageNetworkAnnotation     = util.NadStorageNetworkAnnotation
-	OldNadStorageNetworkAnnotation  = util.OldNadStorageNetworkAnnotation
-
-	HashStorageNetworkLabel = util.HashStorageNetworkLabel
-
-	StorageNetworkNetAttachDefPrefix    = util.StorageNetworkNetAttachDefPrefix
-	StorageNetworkNetAttachDefNamespace = util.StorageNetworkNetAttachDefNamespace
+	ControllerName    = "harvester-storage-network-controller"
+	RWXControllerName = "harvester-rwx-network-controller"
 
 	BridgeSuffix = "-br"
 
@@ -59,12 +47,52 @@ const (
 	// error messages
 	msgWaitForVolumes = "waiting for all volumes detached: %s"
 
-	longhornStorageNetworkName = "storage-network"
+	longhornStorageNetworkName          = "storage-network"
+	longhornEndpointNetworkForRWXVolume = "endpoint-network-for-rwx-volume"
 )
+
+type NetworkKeys struct {
+	nadPrefix         string // the prefix of the generated NAD, the full name will be prefix + random string
+	nadNamespace      string // the namespace of the generated NAD
+	settingHashAnno   string // the annotation to save the hash value of the setting, used to check if the value is changed
+	settingNadAnno    string // the annotation to save the current NAD name used by the setting
+	settingOldNadAnno string // the annotation to save the old NAD name used by the setting, used to remove old NAD after new NAD is created successfully
+	nadAnno           string // the annotation to mark if the NAD is created for storage network setting
+	nadHashLabel      string // the label to save the hash value of the NAD used by setting, used to find the NAD by hash value
+}
+
+var (
+	snAnnotationKeys = &NetworkKeys{
+		nadPrefix:         util.StorageNetworkNetAttachDefPrefix,
+		nadNamespace:      util.StorageNetworkNetAttachDefNamespace,
+		settingHashAnno:   util.HashStorageNetworkAnnotation,
+		settingNadAnno:    util.NadStorageNetworkAnnotation,
+		settingOldNadAnno: util.OldNadStorageNetworkAnnotation,
+		nadAnno:           util.StorageNetworkAnnotation,
+		nadHashLabel:      util.HashStorageNetworkLabel,
+	}
+	rwxAnnotationKeys = &NetworkKeys{
+		nadPrefix:         util.RWXNetworkNetAttachDefPrefix,
+		nadNamespace:      util.RWXNetworkNetAttachDefNamespace,
+		settingHashAnno:   util.RWXHashNetworkAnnotation,
+		settingNadAnno:    util.RWXNadNetworkAnnotation,
+		settingOldNadAnno: util.RWXOldNadNetworkAnnotation,
+		nadAnno:           util.RWXNetworkAnnotation,
+		nadHashLabel:      util.RWXHashNetworkLabel,
+	}
+)
+
+func getNetworkKeys(setting *harvesterv1.Setting) *NetworkKeys {
+	if setting.Name == settings.StorageNetworkName {
+		return snAnnotationKeys
+	}
+	return rwxAnnotationKeys
+}
 
 type Handler struct {
 	ctx                               context.Context
 	settings                          ctlharvesterv1.SettingClient
+	settingsCache                     ctlharvesterv1.SettingCache
 	longhornSettings                  ctllhv1.SettingClient
 	longhornSettingCache              ctllhv1.SettingCache
 	longhornVolumeCache               ctllhv1.VolumeCache
@@ -99,6 +127,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	controller := &Handler{
 		ctx:                               ctx,
 		settings:                          settings,
+		settingsCache:                     settings.Cache(),
 		longhornSettings:                  longhornSettings,
 		longhornSettingCache:              longhornSettings.Cache(),
 		longhornVolumeCache:               longhornVolumes.Cache(),
@@ -118,6 +147,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	}
 
 	settings.OnChange(ctx, ControllerName, controller.OnStorageNetworkChange)
+	settings.OnChange(ctx, RWXControllerName, controller.OnRWXNetworkChange)
 	return nil
 }
 
@@ -225,27 +255,65 @@ func (h *Handler) sha1(s string) string {
 	return fmt.Sprintf("%x", sha1sum)
 }
 
-func (h *Handler) checkIsSameHashValue(setting *harvesterv1.Setting) bool {
-	currentHash := h.sha1(setting.Value)
-	savedHash := setting.Annotations[util.HashStorageNetworkAnnotation]
-	return currentHash == savedHash
+func (h *Handler) getValue(setting *harvesterv1.Setting) (string, error) {
+	if setting.Name == settings.RWXNetworkSettingName {
+		return h.getRWXNetworkValue(setting.Value)
+	}
+	return setting.Value, nil
 }
 
-func (h *Handler) setHashAnnotations(setting *harvesterv1.Setting) *harvesterv1.Setting {
-	setting.Annotations[util.HashStorageNetworkAnnotation] = h.sha1(setting.Value)
-	return setting
+func (h *Handler) checkIsSameHashValue(setting *harvesterv1.Setting) (bool, error) {
+	hashInput, err := h.getValue(setting)
+	if err != nil {
+		return false, err
+	}
+	currentHash := h.sha1(hashInput)
+	keys := getNetworkKeys(setting)
+	savedHash := setting.Annotations[keys.settingHashAnno]
+	return currentHash == savedHash, nil
+}
+
+func (h *Handler) setHashAnnotations(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+	keys := getNetworkKeys(setting)
+	hashInput, err := h.getValue(setting)
+	if err != nil {
+		return nil, err
+	}
+	setting.Annotations[keys.settingHashAnno] = h.sha1(hashInput)
+	return setting, nil
 }
 
 func (h *Handler) setNadAnnotations(setting *harvesterv1.Setting, newNad string) *harvesterv1.Setting {
-	setting.Annotations[util.OldNadStorageNetworkAnnotation] = setting.Annotations[util.NadStorageNetworkAnnotation]
-	setting.Annotations[util.NadStorageNetworkAnnotation] = newNad
+	keys := getNetworkKeys(setting)
+	setting.Annotations[keys.settingOldNadAnno] = setting.Annotations[keys.settingNadAnno]
+	setting.Annotations[keys.settingNadAnno] = newNad
 	return setting
 }
 
-func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachmentDefinition, error) {
+// getNetworkConfig returns the network.Config to use for NAD creation.
+// For the rwx-network composite setting, it extracts the inner Network field.
+func (h *Handler) getNetworkConfig(setting *harvesterv1.Setting) (network.Config, error) {
+	if setting.Name == settings.RWXNetworkSettingName {
+		var rwxConfig settings.RWXNetworkConfig
+		if err := json.Unmarshal([]byte(setting.Value), &rwxConfig); err != nil {
+			return network.Config{}, fmt.Errorf("parsing rwx-network value: %v", err)
+		}
+		if rwxConfig.Network == nil {
+			return network.Config{}, fmt.Errorf("network config is nil in rwx-network setting value")
+		}
+		return *rwxConfig.Network, nil
+	}
 	var config network.Config
 	if err := json.Unmarshal([]byte(setting.Value), &config); err != nil {
-		return nil, fmt.Errorf("parsing value error %v", err)
+		return network.Config{}, fmt.Errorf("parsing value error %v", err)
+	}
+	return config, nil
+}
+
+func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachmentDefinition, error) {
+	config, err := h.getNetworkConfig(setting)
+	if err != nil {
+		return nil, err
 	}
 	bridgeConfig := network.CreateBridgeConfig(config)
 
@@ -254,17 +322,23 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 		return nil, fmt.Errorf("output json error %v", err)
 	}
 
+	hashInput, err := h.getValue(setting)
+	if err != nil {
+		return nil, err
+	}
+
+	keys := getNetworkKeys(setting)
 	nad := nadv1.NetworkAttachmentDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: util.StorageNetworkNetAttachDefPrefix,
-			Namespace:    util.StorageNetworkNetAttachDefNamespace,
+			GenerateName: keys.nadPrefix,
+			Namespace:    keys.nadNamespace,
 		},
 	}
 	nad.Annotations = map[string]string{
-		util.StorageNetworkAnnotation: "true",
+		keys.nadAnno: "true",
 	}
 	nad.Labels = map[string]string{
-		util.HashStorageNetworkLabel: h.sha1(setting.Value),
+		keys.nadHashLabel: h.sha1(hashInput),
 	}
 	nad.Spec.Config = string(nadConfig)
 
@@ -278,9 +352,15 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 }
 
 func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachmentDefinition, error) {
-	nads, err := h.networkAttachmentDefinitions.List(util.StorageNetworkNetAttachDefNamespace, metav1.ListOptions{
+	hashInput, err := h.getValue(setting)
+	if err != nil {
+		return nil, err
+	}
+
+	keys := getNetworkKeys(setting)
+	nads, err := h.networkAttachmentDefinitions.List(keys.nadNamespace, metav1.ListOptions{
 		LabelSelector: labels.Set{
-			util.HashStorageNetworkLabel: h.sha1(setting.Value),
+			keys.nadHashLabel: h.sha1(hashInput),
 		}.String(),
 	})
 	if err != nil {
@@ -293,9 +373,9 @@ func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkA
 
 	if len(nads.Items) > 1 {
 		logrus.WithFields(logrus.Fields{
-			"num_of_nad":          len(nads.Items),
-			"storage_network_nad": nads.Items[0].Name,
-		}).Info("storage network: found more than one match nad")
+			"num_of_nad": len(nads.Items),
+			"nad_name":   nads.Items[0].Name,
+		}).Info("Found more than one match nad")
 	}
 
 	return &nads.Items[0], nil
@@ -306,11 +386,20 @@ func (h *Handler) checkValueIsChanged(setting *harvesterv1.Setting) (*harvesterv
 	var err error
 	nadAnnotation := ""
 
-	if h.checkIsSameHashValue(setting) {
+	hashInput, err := h.getValue(setting)
+	if err != nil {
+		return setting, err
+	}
+
+	same, err := h.checkIsSameHashValue(setting)
+	if err != nil {
+		return setting, err
+	}
+	if same {
 		return setting, nil
 	}
 
-	if setting.Value != "" {
+	if hashInput != "" {
 		nad, err := h.findOrCreateNad(setting)
 		if err != nil {
 			return setting, err
@@ -319,7 +408,9 @@ func (h *Handler) checkValueIsChanged(setting *harvesterv1.Setting) (*harvesterv
 	}
 
 	setting = h.setNadAnnotations(setting, nadAnnotation)
-	setting = h.setHashAnnotations(setting)
+	if setting, err = h.setHashAnnotations(setting); err != nil {
+		return setting, err
+	}
 
 	if updatedSetting, err = h.setConfiguredCondition(setting, false, ReasonInProgress, "create NAD"); err != nil {
 		return setting, fmt.Errorf("create nad update status error %v", err)
@@ -328,7 +419,8 @@ func (h *Handler) checkValueIsChanged(setting *harvesterv1.Setting) (*harvesterv
 }
 
 func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
-	oldNad := setting.Annotations[util.OldNadStorageNetworkAnnotation]
+	keys := getNetworkKeys(setting)
+	oldNad := setting.Annotations[keys.settingOldNadAnno]
 	if oldNad == "" {
 		return nil
 	}
@@ -336,7 +428,7 @@ func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
 	nadName := strings.Split(oldNad, "/")
 	if len(nadName) != 2 {
 		logrus.Errorf("split nad namespace and name failed %s", oldNad)
-		setting.Annotations[util.OldNadStorageNetworkAnnotation] = ""
+		setting.Annotations[keys.settingOldNadAnno] = ""
 		return nil
 	}
 	namespace := nadName[0]
@@ -344,7 +436,7 @@ func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
 
 	if _, err := h.networkAttachmentDefinitionsCache.Get(namespace, name); err != nil {
 		if apierrors.IsNotFound(err) {
-			setting.Annotations[util.OldNadStorageNetworkAnnotation] = ""
+			setting.Annotations[keys.settingOldNadAnno] = ""
 			return nil
 		}
 
@@ -356,7 +448,7 @@ func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
 		return fmt.Errorf("remove nad error %v", err)
 	}
 
-	setting.Annotations[util.OldNadStorageNetworkAnnotation] = ""
+	setting.Annotations[keys.settingOldNadAnno] = ""
 	return nil
 }
 
@@ -398,6 +490,16 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 }
 
 func (h *Handler) handleLonghornSettingPostConfig(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+	// If rwx-network is in share mode, re-trigger its reconciliation so the
+	// freshly-configured storage-network NAD is propagated to Longhorn.
+	isShareStorageNetwork, err := util.IsShareStorageNetwork(h.settingsCache)
+	if err != nil {
+		return nil, err
+	}
+	if isShareStorageNetwork {
+		h.settingsController.Enqueue(settings.RWXNetworkSettingName)
+	}
+
 	// check if we need to restart monitoring pods
 	if err := h.checkPodStatusAndStart(); err != nil {
 		if _, updateConditionErr := h.setConfiguredCondition(setting, false, ReasonInProgress, MsgRestartPod); updateConditionErr != nil {
@@ -411,7 +513,7 @@ func (h *Handler) handleLonghornSettingPostConfig(setting *harvesterv1.Setting) 
 		return setting, fmt.Errorf("remove old nad error %v", err)
 	}
 
-	err := h.validateIPAddressesAllocations(setting)
+	err = h.validateIPAddressesAllocations(setting)
 	if err != nil {
 		setting, err := h.setConfiguredCondition(setting, false, ReasonInProgress, MsgIPAssignmentFailure)
 		if err != nil {
@@ -812,4 +914,150 @@ func (h *Handler) updateLonghornStorageNetwork(storageNetwork string) error {
 		return err
 	}
 	return nil
+}
+
+// OnRWXNetworkChange handles changes to the rwx-network setting.
+// The setting value is a JSON-encoded RWXNetworkConfig:
+//   - share-storage-network=true  -> propagate the storage-network NAD to Longhorn
+//   - share-storage-network=false -> manage a dedicated RWX NAD and propagate it to Longhorn
+func (h *Handler) OnRWXNetworkChange(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != settings.RWXNetworkSettingName {
+		return setting, nil
+	}
+	settingCopy := setting.DeepCopy()
+	if settingCopy.Annotations == nil {
+		if settingCopy.Value == "" {
+			return h.initRWXNetwork(settingCopy)
+		}
+		settingCopy.Annotations = make(map[string]string)
+	}
+
+	var rwxConfig settings.RWXNetworkConfig
+	if err := json.Unmarshal([]byte(setting.EffectiveValue()), &rwxConfig); err != nil {
+		return setting, fmt.Errorf("parsing rwx-network value: %v", err)
+	}
+
+	if rwxConfig.ShareStorageNetwork {
+		// Delegate to the storage-network NAD.
+		nad, err := h.getStorageNetworkNAD()
+		if err != nil {
+			return nil, err
+		}
+		if err := h.updateLonghornRWXEndpoint(nad); err != nil {
+			return nil, err
+		}
+		return h.setConfiguredCondition(settingCopy, true, ReasonCompleted, "")
+	}
+
+	// Dedicated RWX network path — reuse the generic NAD-management flow.
+	updatedSetting, err := h.checkValueIsChanged(settingCopy)
+	if err != nil {
+		return nil, err
+	}
+
+	nad := updatedSetting.Annotations[util.RWXNadNetworkAnnotation]
+	if err = h.updateLonghornRWXEndpoint(nad); err != nil {
+		return nil, err
+	}
+	if err = h.removeOldNad(updatedSetting); err != nil {
+		return nil, fmt.Errorf("failed to remove old NAD: %v", err)
+	}
+
+	return h.setConfiguredCondition(updatedSetting, true, ReasonCompleted, "")
+}
+
+// initRWXNetwork handles the upgrade case where rwx-network has no value.
+// If the Longhorn storage-network and endpoint-network-for-rwx-volume settings share the same NAD,
+// the user had both pointing at the same network before this setting existed, so we reflect that
+// by setting share-storage-network=true. Otherwise the setting is skipped (pure initialization).
+func (h *Handler) initRWXNetwork(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+	isShare, err := h.isLHRWXShareStorageNetwork()
+	if err != nil {
+		return setting, err
+	}
+	if !isShare {
+		return setting, nil
+	}
+	shareConfig := settings.RWXNetworkConfig{ShareStorageNetwork: true}
+	shareConfigJSON, err := json.Marshal(shareConfig)
+	if err != nil {
+		return setting, fmt.Errorf("failed to marshal rwx-network config: %v", err)
+	}
+	setting.Value = string(shareConfigJSON)
+	newSetting, err := h.settings.Update(setting)
+	if err != nil {
+		logrus.Errorf("failed to update rwx-network setting during init: %v", err)
+		return setting, fmt.Errorf("failed to update rwx-network setting: %v", err)
+	}
+	return newSetting, nil
+}
+
+func (h *Handler) isLHRWXShareStorageNetwork() (bool, error) {
+	// don't use cache here since we want to reflect the latest LH setting values
+	lhStorageNetwork, err := h.longhornSettings.Get(util.LonghornSystemNamespaceName, longhornStorageNetworkName, metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return false, fmt.Errorf("failed to get longhorn %s setting: %v", longhornStorageNetworkName, err)
+	}
+	lhRWXEndpoint, err := h.longhornSettings.Get(util.LonghornSystemNamespaceName, longhornEndpointNetworkForRWXVolume, metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return false, fmt.Errorf("failed to get longhorn %s setting: %v", longhornEndpointNetworkForRWXVolume, err)
+	}
+	return lhStorageNetwork != nil && lhRWXEndpoint != nil &&
+		lhStorageNetwork.Value != "" && lhStorageNetwork.Value == lhRWXEndpoint.Value, nil
+}
+
+// getStorageNetworkNAD returns the NAD name currently in use by the storage-network setting.
+func (h *Handler) getStorageNetworkNAD() (string, error) {
+	storageNetwork, err := h.settings.Get(settings.StorageNetworkName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to get %s setting: %v", settings.StorageNetworkName, err)
+	}
+	if storageNetwork.EffectiveValue() == "" {
+		return "", nil
+	}
+	nad, ok := storageNetwork.Annotations[util.NadStorageNetworkAnnotation]
+	if !ok || nad == "" {
+		return "", fmt.Errorf("storage-network annotation %s does not exist or is empty", util.NadStorageNetworkAnnotation)
+	}
+	return nad, nil
+}
+
+// getRWXNetworkValue returns the canonical JSON of the network-only portion of the
+// rwx-network composite value. This ensures the NAD hash is stable across
+// share-storage-network flag changes.
+func (h *Handler) getRWXNetworkValue(settingValue string) (string, error) {
+	if settingValue == "" {
+		return "", nil
+	}
+	var rwxConfig settings.RWXNetworkConfig
+	if err := json.Unmarshal([]byte(settingValue), &rwxConfig); err != nil {
+		return "", fmt.Errorf("failed to unmarshal rwx-network: %v", err)
+	}
+	if rwxConfig.Network == nil {
+		return "", nil
+	}
+	networkJSON, err := json.Marshal(rwxConfig.Network)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal network config: %v", err)
+	}
+	return string(networkJSON), nil
+}
+
+func (h *Handler) updateLonghornRWXEndpoint(storageNetwork string) error {
+	rwxSN, err := h.longhornSettingCache.Get(util.LonghornSystemNamespaceName, longhornEndpointNetworkForRWXVolume)
+	if err != nil {
+		return err
+	}
+
+	if rwxSN.Value == storageNetwork {
+		return nil
+	}
+
+	rwxSNCpy := rwxSN.DeepCopy()
+	rwxSNCpy.Value = storageNetwork
+	_, err = h.longhornSettings.Update(rwxSNCpy)
+	return err
 }
