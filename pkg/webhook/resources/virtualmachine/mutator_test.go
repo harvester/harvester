@@ -1416,7 +1416,7 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Name:      "test-nad1",
 					Namespace: "default",
 					Labels: map[string]string{
-						"network.harvesterhci.io/type": "overlayNetwork",
+						"network.harvesterhci.io/type": overlayNetwork,
 					},
 				},
 			},
@@ -1477,6 +1477,11 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Op:   "remove",
 					Path: "/spec/template/spec/domain/devices/interfaces/0/binding",
 				},
+				{
+					Op:    "add",
+					Path:  "/spec/template/spec/domain/devices/interfaces/0/bridge",
+					Value: map[string]interface{}{},
+				},
 			},
 		},
 		{
@@ -1524,7 +1529,7 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Name:      "test-nad1",
 					Namespace: "default",
 					Labels: map[string]string{
-						"network.harvesterhci.io/type": "overlayNetwork",
+						"network.harvesterhci.io/type": overlayNetwork,
 					},
 				},
 			},
@@ -1555,7 +1560,7 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Name:      "test-nad1",
 					Namespace: "default",
 					Labels: map[string]string{
-						"network.harvesterhci.io/type": "overlayNetwork",
+						"network.harvesterhci.io/type": overlayNetwork,
 					},
 				},
 			},
@@ -1571,6 +1576,11 @@ func TestPatchManagedTapBinding(t *testing.T) {
 				{
 					Op:   "remove",
 					Path: "/spec/template/spec/domain/devices/interfaces/0/binding",
+				},
+				{
+					Op:    "add",
+					Path:  "/spec/template/spec/domain/devices/interfaces/0/bridge",
+					Value: map[string]interface{}{},
 				},
 			},
 		},
@@ -1599,7 +1609,7 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Name:      "test-nad1",
 					Namespace: "default",
 					Labels: map[string]string{
-						"network.harvesterhci.io/type": "overlayNetwork",
+						"network.harvesterhci.io/type": overlayNetwork,
 					},
 				},
 			},
@@ -1640,7 +1650,7 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Name:      "test-nad1",
 					Namespace: "default",
 					Labels: map[string]string{
-						"network.harvesterhci.io/type": "overlayNetwork",
+						"network.harvesterhci.io/type": overlayNetwork,
 					},
 				},
 			},
@@ -1686,7 +1696,7 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Name:      "test-nad1",
 					Namespace: "default",
 					Labels: map[string]string{
-						"network.harvesterhci.io/type": "overlayNetwork",
+						"network.harvesterhci.io/type": overlayNetwork,
 					},
 				},
 			},
