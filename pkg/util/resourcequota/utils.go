@@ -141,3 +141,35 @@ func getResourceListOfMigratingCompensationFromRQ(rq *corev1.ResourceQuota) (cor
 
 	return rl, nil
 }
+
+func SetAnnotationMigratingScalingResyncNeeded(rq *corev1.ResourceQuota) {
+	if rq == nil {
+		return
+	}
+	// set true
+	if rq.Annotations == nil {
+		rq.Annotations = make(map[string]string)
+	}
+	rq.Annotations[util.AnnotationMigratingScalingResyncNeeded] = "true"
+}
+
+func ClearAnnotationMigratingScalingResyncNeeded(rq *corev1.ResourceQuota) {
+	if rq == nil || rq.Annotations == nil {
+		return
+	}
+
+	// clear the flag if it exists and is "true"
+	val, ok := rq.Annotations[util.AnnotationMigratingScalingResyncNeeded]
+	if !ok || val != "true" {
+		return
+	}
+
+	rq.Annotations[util.AnnotationMigratingScalingResyncNeeded] = "false"
+}
+
+func IsMigratingScalingResyncNeeded(rq *corev1.ResourceQuota) bool {
+	if rq == nil {
+		return false
+	}
+	return rq.Annotations[util.AnnotationMigratingScalingResyncNeeded] == "true"
+}
