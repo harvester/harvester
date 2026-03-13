@@ -262,6 +262,15 @@ const (
 
 	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
 	StorageNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
+	StorageNetworkStaticNADName         = StorageNetworkNetAttachDefPrefix + "static"
+
+	ShareManagerStaticIPAnno       = "rwx-harvester-csi.harvesterhci.io/static-ip"
+	ShareManagerIfaceAnno          = "rwx-harvester-csi.harvesterhci.io/interface"
+	ShareManagerIPAnno             = "rwx-harvester-csi.harvesterhci.io/ip"
+	ShareManagerMACAnno            = "rwx-harvester-csi.harvesterhci.io/mac"
+	ShareManagerNADAnno            = "rwx-harvester-csi.harvesterhci.io/nad"
+	ShareManagerStaticNADAnno      = "rwx-harvester-csi.harvesterhci.io/static-nad"
+	ShareManagerStaticIPStatusAnno = "rwx-harvester-csi.harvesterhci.io/static-ip-status"
 
 	RWXNetworkAnnotation       = "rwx-network.settings.harvesterhci.io"
 	RWXHashNetworkAnnotation   = RWXNetworkAnnotation + "/hash"

@@ -1,11 +1,15 @@
 package pod
 
 import (
+	stdjson "encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 
-	"sigs.k8s.io/json"
+	fakeclientset "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	networkv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	sigjson "sigs.k8s.io/json"
 
 	"github.com/rancher/wrangler/v3/pkg/patch"
 	"github.com/stretchr/testify/assert"
@@ -15,6 +19,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
@@ -552,8 +557,239 @@ func Test_generateForkliftV2VPatch(t *testing.T) {
 
 }
 
+func TestMutateNetworksAnnotation(t *testing.T) {
+	tests := []struct {
+		name       string
+		annotation string
+		nad        string
+		ip         string
+		mac        string
+		iface      string
+		expected   string
+		changed    bool
+	}{
+		{
+			name:       "no change without annotated interface",
+			annotation: `[{"namespace":"harvester-system","name":"storagenetwork-old","interface":"lhnet1","ips":["172.16.0.23"]}]`,
+			nad:        "harvester-system/storagenetwork-frqx7",
+			ip:         "172.16.0.5/24",
+			changed:    false,
+		},
+		{
+			name:       "no change when interface is absent and not annotated",
+			annotation: `[{"name":"mgmt-vlan","namespace":"default","interface":"net1"}]`,
+			nad:        "harvester-system/storagenetwork-frqx7",
+			ip:         "172.16.0.5/24",
+			changed:    false,
+		},
+		{
+			name:       "no change when network already matches but interface is not annotated",
+			annotation: `[{"name":"storagenetwork-frqx7","namespace":"harvester-system","ips":["172.16.0.5/24"],"mac":"02:00:00:00:00:01","interface":"lhnet1"}]`,
+			nad:        "harvester-system/storagenetwork-frqx7",
+			ip:         "172.16.0.5/24",
+			mac:        "02:00:00:00:00:01",
+			changed:    false,
+		},
+		{
+			name:       "replace existing annotated interface selection",
+			annotation: `[{"name":"storagenetwork-old","namespace":"harvester-system","interface":"lhnet1","ips":["172.16.0.23"]},{"name":"mgmt-vlan","namespace":"default","interface":"net1"}]`,
+			nad:        "harvester-system/storagenetwork-frqx7",
+			ip:         "172.16.0.5/24",
+			mac:        "02:00:00:00:00:01",
+			iface:      "lhnet1",
+			expected:   `[{"name":"storagenetwork-frqx7","namespace":"harvester-system","ips":["172.16.0.5/24"],"mac":"02:00:00:00:00:01","interface":"lhnet1"},{"name":"mgmt-vlan","namespace":"default","interface":"net1"}]`,
+			changed:    true,
+		},
+		{
+			name:       "do not append annotated interface when absent",
+			annotation: `[{"name":"mgmt-vlan","namespace":"default","interface":"net1"}]`,
+			nad:        "harvester-system/storagenetwork-frqx7",
+			ip:         "172.16.0.5/24",
+			mac:        "02:00:00:00:00:01",
+			iface:      "lhnet1",
+			changed:    false,
+		},
+	}
+
+	for _, test := range tests {
+		actual, changed, err := mutateNetworksAnnotation(test.annotation, test.nad, test.ip, test.mac, test.iface)
+		require.NoError(t, err)
+		assert.Equal(t, test.changed, changed, "case %q", test.name)
+		assert.Equal(t, test.expected, actual, "case %q", test.name)
+	}
+}
+
+func TestPodMutatorShareManagerNetworkPatch(t *testing.T) {
+	clientset := fakeclientset.NewSimpleClientset(&longhornv1beta2.ShareManager{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pvc-test",
+			Namespace: util.LonghornSystemNamespaceName,
+			Annotations: map[string]string{
+				shareManagerPodStaticIPAnnotation:  "true",
+				shareManagerPodIfaceAnnotation:     "lhnet1",
+				shareManagerPodIPAnnotation:        "172.16.0.5/24",
+				shareManagerPodMACAnnotation:       "02:00:00:00:00:01",
+				shareManagerPodStaticNADAnnotation: "harvester-system/storagenetwork-frqx7-static",
+			},
+		},
+	})
+
+	mutator := NewMutator(
+		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.LonghornShareManagerCache(clientset.LonghornV1beta2().ShareManagers),
+	)
+
+	sourcePod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "share-manager-pvc-test",
+			Namespace: util.LonghornSystemNamespaceName,
+			Annotations: map[string]string{
+				networkv1.NetworkAttachmentAnnot: `[{"namespace":"harvester-system","name":"storagenetwork-frqx7","interface":"lhnet1","ips":["172.16.0.23"]}]`,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "longhorn.io/v1beta2",
+					Kind:       shareManagerKind,
+					Name:       "pvc-test",
+				},
+			},
+		},
+	}
+
+	patchOps, err := mutator.Create(nil, sourcePod)
+	require.NoError(t, err)
+	require.Len(t, patchOps, 1)
+
+	sourceBytes, err := stdjson.Marshal(sourcePod)
+	require.NoError(t, err)
+	patchData := fmt.Sprintf("[%s]", strings.Join(patchOps, ","))
+	patchedPodBytes, err := patch.Apply(sourceBytes, []byte(patchData))
+	require.NoError(t, err)
+
+	targetPod := &corev1.Pod{}
+	require.NoError(t, sigjson.UnmarshalCaseSensitivePreserveInts(patchedPodBytes, targetPod))
+	assert.Equal(t, `[{"name":"storagenetwork-frqx7-static","namespace":"harvester-system","ips":["172.16.0.5/24"],"mac":"02:00:00:00:00:01","interface":"lhnet1"}]`, targetPod.Annotations[networkv1.NetworkAttachmentAnnot])
+}
+
+func TestPodMutatorShareManagerNetworkPatchRequiresAnnotatedInterfaceToExist(t *testing.T) {
+	clientset := fakeclientset.NewSimpleClientset(&longhornv1beta2.ShareManager{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pvc-test",
+			Namespace: util.LonghornSystemNamespaceName,
+			Annotations: map[string]string{
+				shareManagerPodStaticIPAnnotation:  "true",
+				shareManagerPodIfaceAnnotation:     "lhnet1",
+				shareManagerPodIPAnnotation:        "172.16.0.5/24",
+				shareManagerPodMACAnnotation:       "02:00:00:00:00:01",
+				shareManagerPodStaticNADAnnotation: "harvester-system/storagenetwork-frqx7-static",
+			},
+		},
+	})
+
+	mutator := NewMutator(
+		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.LonghornShareManagerCache(clientset.LonghornV1beta2().ShareManagers),
+	)
+
+	sourcePod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "share-manager-pvc-test",
+			Namespace: util.LonghornSystemNamespaceName,
+			Annotations: map[string]string{
+				networkv1.NetworkAttachmentAnnot: `[{"namespace":"default","name":"mgmt-vlan","interface":"net1"}]`,
+			},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "longhorn.io/v1beta2",
+				Kind:       shareManagerKind,
+				Name:       "pvc-test",
+			}},
+		},
+	}
+
+	patchOps, err := mutator.Create(nil, sourcePod)
+	require.NoError(t, err)
+	require.Nil(t, patchOps)
+}
+
+func TestPodMutatorShareManagerNetworkPatchRequiresStaticIPAnnotation(t *testing.T) {
+	clientset := fakeclientset.NewSimpleClientset(&longhornv1beta2.ShareManager{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pvc-test",
+			Namespace: util.LonghornSystemNamespaceName,
+			Annotations: map[string]string{
+				shareManagerPodIfaceAnnotation:     "lhnet1",
+				shareManagerPodIPAnnotation:        "172.16.0.5/24",
+				shareManagerPodMACAnnotation:       "02:00:00:00:00:01",
+				shareManagerPodStaticNADAnnotation: "harvester-system/storagenetwork-frqx7-static",
+			},
+		},
+	})
+
+	mutator := NewMutator(
+		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.LonghornShareManagerCache(clientset.LonghornV1beta2().ShareManagers),
+	)
+
+	sourcePod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "share-manager-pvc-test",
+			Namespace: util.LonghornSystemNamespaceName,
+			Annotations: map[string]string{
+				networkv1.NetworkAttachmentAnnot: `[{"namespace":"harvester-system","name":"storagenetwork-frqx7","interface":"lhnet1","ips":["172.16.0.23"]}]`,
+			},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "longhorn.io/v1beta2",
+				Kind:       shareManagerKind,
+				Name:       "pvc-test",
+			}},
+		},
+	}
+
+	patchOps, err := mutator.Create(nil, sourcePod)
+	require.NoError(t, err)
+	require.Nil(t, patchOps)
+}
+
+func TestPodMutatorShareManagerNetworkPatchRequiresInterfaceAnnotation(t *testing.T) {
+	clientset := fakeclientset.NewSimpleClientset(&longhornv1beta2.ShareManager{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pvc-test",
+			Namespace: util.LonghornSystemNamespaceName,
+			Annotations: map[string]string{
+				shareManagerPodMACAnnotation:       "02:00:00:00:00:01",
+				shareManagerPodIPAnnotation:        "172.16.0.5/24",
+				shareManagerPodStaticNADAnnotation: "harvester-system/storagenetwork-frqx7-static",
+			},
+		},
+	})
+
+	mutator := NewMutator(
+		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+		fakeclients.LonghornShareManagerCache(clientset.LonghornV1beta2().ShareManagers),
+	)
+
+	sourcePod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "share-manager-pvc-test",
+			Namespace: util.LonghornSystemNamespaceName,
+			Annotations: map[string]string{
+				networkv1.NetworkAttachmentAnnot: `[{"namespace":"harvester-system","name":"storagenetwork-frqx7","interface":"lhnet1","ips":["172.16.0.23"]}]`,
+			},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "longhorn.io/v1beta2",
+				Kind:       shareManagerKind,
+				Name:       "pvc-test",
+			}},
+		},
+	}
+
+	patchOps, err := mutator.Create(nil, sourcePod)
+	require.NoError(t, err)
+	require.Nil(t, patchOps)
+}
+
 func generatePod(content []byte) (*corev1.Pod, error) {
 	pod := &corev1.Pod{}
-	err := json.UnmarshalCaseSensitivePreserveInts(content, pod)
+	err := sigjson.UnmarshalCaseSensitivePreserveInts(content, pod)
 	return pod, err
 }
