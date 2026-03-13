@@ -1,11 +1,11 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright The Longhorn Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,16 +19,18 @@ limitations under the License.
 package v1beta2
 
 import (
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // BackupBackingImageLister helps list BackupBackingImages.
+// All objects returned here must be treated as read-only.
 type BackupBackingImageLister interface {
 	// List lists all BackupBackingImages in the indexer.
-	List(selector labels.Selector) (ret []*v1beta2.BackupBackingImage, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.BackupBackingImage, err error)
 	// BackupBackingImages returns an object that can list and get BackupBackingImages.
 	BackupBackingImages(namespace string) BackupBackingImageNamespaceLister
 	BackupBackingImageListerExpansion
@@ -36,59 +38,33 @@ type BackupBackingImageLister interface {
 
 // backupBackingImageLister implements the BackupBackingImageLister interface.
 type backupBackingImageLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*longhornv1beta2.BackupBackingImage]
 }
 
 // NewBackupBackingImageLister returns a new BackupBackingImageLister.
 func NewBackupBackingImageLister(indexer cache.Indexer) BackupBackingImageLister {
-	return &backupBackingImageLister{indexer: indexer}
-}
-
-// List lists all BackupBackingImages in the indexer.
-func (s *backupBackingImageLister) List(selector labels.Selector) (ret []*v1beta2.BackupBackingImage, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.BackupBackingImage))
-	})
-	return ret, err
+	return &backupBackingImageLister{listers.New[*longhornv1beta2.BackupBackingImage](indexer, longhornv1beta2.Resource("backupbackingimage"))}
 }
 
 // BackupBackingImages returns an object that can list and get BackupBackingImages.
 func (s *backupBackingImageLister) BackupBackingImages(namespace string) BackupBackingImageNamespaceLister {
-	return backupBackingImageNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return backupBackingImageNamespaceLister{listers.NewNamespaced[*longhornv1beta2.BackupBackingImage](s.ResourceIndexer, namespace)}
 }
 
 // BackupBackingImageNamespaceLister helps list and get BackupBackingImages.
+// All objects returned here must be treated as read-only.
 type BackupBackingImageNamespaceLister interface {
 	// List lists all BackupBackingImages in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1beta2.BackupBackingImage, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.BackupBackingImage, err error)
 	// Get retrieves the BackupBackingImage from the indexer for a given namespace and name.
-	Get(name string) (*v1beta2.BackupBackingImage, error)
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*longhornv1beta2.BackupBackingImage, error)
 	BackupBackingImageNamespaceListerExpansion
 }
 
 // backupBackingImageNamespaceLister implements the BackupBackingImageNamespaceLister
 // interface.
 type backupBackingImageNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all BackupBackingImages in the indexer for a given namespace.
-func (s backupBackingImageNamespaceLister) List(selector labels.Selector) (ret []*v1beta2.BackupBackingImage, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.BackupBackingImage))
-	})
-	return ret, err
-}
-
-// Get retrieves the BackupBackingImage from the indexer for a given namespace and name.
-func (s backupBackingImageNamespaceLister) Get(name string) (*v1beta2.BackupBackingImage, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta2.Resource("backupbackingimage"), name)
-	}
-	return obj.(*v1beta2.BackupBackingImage), nil
+	listers.ResourceIndexer[*longhornv1beta2.BackupBackingImage]
 }

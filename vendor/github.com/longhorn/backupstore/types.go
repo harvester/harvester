@@ -1,7 +1,8 @@
 package backupstore
 
 const (
-	DEFAULT_BLOCK_SIZE        = 2 * 1024 * 1024
+	DEFAULT_BLOCK_SIZE_IN_MB  = 2
+	DEFAULT_BLOCK_SIZE        = DEFAULT_BLOCK_SIZE_IN_MB * 1024 * 1024
 	LEGACY_COMPRESSION_METHOD = "gzip"
 
 	BLOCKS_DIRECTORY      = "blocks"

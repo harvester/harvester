@@ -330,7 +330,7 @@ func loadBackup(bsDriver BackupStoreDriver, backupName, volumeName string) (*Bac
 	}
 	// Backward compatibility
 	if backup.CompressionMethod == "" {
-		log.Infof("Fall back compression method to %v for backup %v", LEGACY_COMPRESSION_METHOD, backup.Name)
+		log.Infof("Falling back compression method to %v for backup %v", LEGACY_COMPRESSION_METHOD, backup.Name)
 		backup.CompressionMethod = LEGACY_COMPRESSION_METHOD
 	}
 	return backup, nil

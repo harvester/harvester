@@ -250,6 +250,11 @@ func (e *EngineBinary) ReplicaRebuildStatus(*longhorn.Engine) (map[string]*longh
 	return data, nil
 }
 
+func (e *EngineBinary) ReplicaRebuildQosSet(engine *longhorn.Engine, qosLimitMbps int64) error {
+	// NOTE: Not implemented for EngineBinary (deprecated path)
+	return nil
+}
+
 // VolumeFrontendStart calls engine binary
 // TODO: Deprecated, replaced by gRPC proxy
 func (e *EngineBinary) VolumeFrontendStart(engine *longhorn.Engine) error {

@@ -47,7 +47,11 @@ func GetFileChecksum(filePath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() {
+		if errClose := f.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close file")
+		}
+	}()
 
 	h := sha512.New()
 	if _, err := io.Copy(h, f); err != nil {
@@ -62,7 +66,11 @@ func CopyFile(srcPath, dstPath string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer src.Close()
+	defer func() {
+		if errClose := src.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close source file")
+		}
+	}()
 
 	if _, err := os.Stat(dstPath); err == nil || !os.IsNotExist(err) {
 		if err := os.RemoveAll(dstPath); err != nil {
@@ -73,7 +81,11 @@ func CopyFile(srcPath, dstPath string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer dst.Close()
+	defer func() {
+		if errClose := dst.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close destination file")
+		}
+	}()
 
 	return io.Copy(dst, src)
 }
@@ -293,7 +305,11 @@ func ConvertFromRawToQcow2(filePath string) error {
 	}
 
 	tmpFilePath := filePath + ".qcow2tmp"
-	defer os.RemoveAll(tmpFilePath)
+	defer func() {
+		if errRemove := os.RemoveAll(tmpFilePath); errRemove != nil {
+			logrus.WithError(errRemove).Error("Failed to remove temporary file")
+		}
+	}()
 
 	if _, err := Execute([]string{}, QemuImgBinary, "convert", "-f", "raw", "-O", "qcow2", filePath, tmpFilePath); err != nil {
 		return err
@@ -342,19 +358,31 @@ func GunzipFile(filePath string, dstFilePath string) error {
 	if err != nil {
 		return err
 	}
-	defer gzipfile.Close()
+	defer func() {
+		if errClose := gzipfile.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close gzip file")
+		}
+	}()
 
 	reader, err := gzip.NewReader(gzipfile)
 	if err != nil {
 		return err
 	}
-	defer reader.Close()
+	defer func() {
+		if errClose := reader.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close gzip reader")
+		}
+	}()
 
 	writer, err := os.Create(dstFilePath)
 	if err != nil {
 		return err
 	}
-	defer writer.Close()
+	defer func() {
+		if errClose := writer.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close destination file")
+		}
+	}()
 
 	if _, err = io.Copy(writer, reader); err != nil {
 		return err
