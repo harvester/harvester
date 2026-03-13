@@ -125,6 +125,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Annotations: map[string]string{
 						util.GenerateAnnotationKeyMigratingVMUID(uid): fmt.Sprintf(vmResourceLimitStr, getMemWithOverhead(memory1Gi)),
+						util.AnnotationMigratingScalingResyncNeeded:   "true",
 					},
 					Namespace: resourceQuotaNamespace,
 					Name:      resourceQuotaName,
@@ -192,6 +193,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Annotations: map[string]string{
 						util.GenerateAnnotationKeyMigratingVMUID(uid): fmt.Sprintf(vmResourceLimitStr, getMemWithOverhead(memory1Gi)),
+						util.AnnotationMigratingScalingResyncNeeded:   "true",
 					},
 					Namespace: resourceQuotaNamespace,
 					Name:      resourceQuotaName,
@@ -226,11 +228,12 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 				},
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: v1.ObjectMeta{
-						Name:      "vm1",
-						Namespace: resourceQuotaNamespace,
+						Name:        "vm1",
+						Namespace:   resourceQuotaNamespace,
+						UID:         uid,
 						Annotations: map[string]string{
-							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
-							util.AnnotationMigrationState: StatePending,
+							// util.AnnotationMigrationUID:   vmimUID,       // bypass vmi migration state updating
+							// util.AnnotationMigrationState: StatePending,
 						},
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{
@@ -259,10 +262,12 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			wantErr: false,
 			want: &corev1.ResourceQuota{
 				ObjectMeta: v1.ObjectMeta{
-					Namespace:   resourceQuotaNamespace,
-					Name:        resourceQuotaName,
-					Annotations: map[string]string{},
-					Labels:      map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					Namespace: resourceQuotaNamespace,
+					Name:      resourceQuotaName,
+					Annotations: map[string]string{
+						util.AnnotationMigratingScalingResyncNeeded: "true",
+					},
+					Labels: map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 				},
 				Spec: corev1.ResourceQuotaSpec{
 					Hard: map[corev1.ResourceName]resource.Quantity{
@@ -293,12 +298,12 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 				},
 				vmi: &kubevirtv1.VirtualMachineInstance{
 					ObjectMeta: v1.ObjectMeta{
-						Name:      "vm1",
-						Namespace: resourceQuotaNamespace,
-						UID:       uid,
+						Name:        "vm1",
+						Namespace:   resourceQuotaNamespace,
+						UID:         uid,
 						Annotations: map[string]string{
-							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
-							util.AnnotationMigrationState: StatePending,
+							// util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
+							// util.AnnotationMigrationState: StatePending,
 						},
 					},
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{
@@ -327,10 +332,12 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			wantErr: false,
 			want: &corev1.ResourceQuota{
 				ObjectMeta: v1.ObjectMeta{
-					Namespace:   resourceQuotaNamespace,
-					Name:        resourceQuotaName,
-					Annotations: map[string]string{},
-					Labels:      map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					Namespace: resourceQuotaNamespace,
+					Name:      resourceQuotaName,
+					Annotations: map[string]string{
+						util.AnnotationMigratingScalingResyncNeeded: "true",
+					},
+					Labels: map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 				},
 				Spec: corev1.ResourceQuotaSpec{
 					Hard: map[corev1.ResourceName]resource.Quantity{
@@ -603,6 +610,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 				rqs:      fakeclients.ResourceQuotaClient(clientset.CoreV1().ResourceQuotas),
 				rqCache:  fakeclients.ResourceQuotaCache(clientset.CoreV1().ResourceQuotas),
 				vmiCache: fakeclients.VirtualMachineInstanceCache(harvFakeClient.KubevirtV1().VirtualMachineInstances),
+				vmCache:  fakeclients.VirtualMachineCache(harvFakeClient.KubevirtV1().VirtualMachines),
 			}
 
 			_, err := h.OnVmimChanged("", tt.args.vmim)

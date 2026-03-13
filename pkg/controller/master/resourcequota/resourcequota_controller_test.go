@@ -11,6 +11,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/harvester/harvester/pkg/util"
+	rqutils "github.com/harvester/harvester/pkg/util/resourcequota"
 )
 
 const (
@@ -38,7 +39,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 		want    *corev1.ResourceQuota
 	}{
 		{
-			name: "ResourceQuota has all zero CPU and memory limits value, skip scalling",
+			name: "ResourceQuota has all zero CPU and memory limits value, skip scaling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -58,7 +59,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "ResourceQuota has no or empty CattleAnnotationResourceQuota on namespace annotation, skip scalling",
+			name: "ResourceQuota has no or empty CattleAnnotationResourceQuota on namespace annotation, skip scaling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -78,7 +79,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "ResourceQuota has invalid CattleAnnotationResourceQuota on namespace annotation, skip scalling",
+			name: "ResourceQuota has invalid CattleAnnotationResourceQuota on namespace annotation, skip scaling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -98,7 +99,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "ResourceQuota has invalid invalid Harvester VM migration annotation, skip scalling",
+			name: "ResourceQuota has invalid Harvester VM migration annotation, skip scaling",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -165,6 +166,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 						Annotations: map[string]string{
 							util.GenerateAnnotationKeyMigratingVMUID(uid): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+							util.AnnotationMigratingScalingResyncNeeded:   "true",
 						},
 					},
 					Spec: corev1.ResourceQuotaSpec{
@@ -184,6 +186,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 					Annotations: map[string]string{
 						util.GenerateAnnotationKeyMigratingVMUID(uid): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+						util.AnnotationMigratingScalingResyncNeeded:   "false",
 					},
 				},
 				Spec: corev1.ResourceQuotaSpec{
@@ -204,6 +207,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 						Annotations: map[string]string{
 							util.GenerateAnnotationKeyMigratingVMUID(uid): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+							util.AnnotationMigratingScalingResyncNeeded:   "true",
 						},
 					},
 					Spec: corev1.ResourceQuotaSpec{
@@ -222,6 +226,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 					Annotations: map[string]string{
 						util.GenerateAnnotationKeyMigratingVMUID(uid): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+						util.AnnotationMigratingScalingResyncNeeded:   "false",
 					},
 				},
 				Spec: corev1.ResourceQuotaSpec{
@@ -241,6 +246,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 						Annotations: map[string]string{
 							util.GenerateAnnotationKeyMigratingVMUID(uid): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+							util.AnnotationMigratingScalingResyncNeeded:   "true",
 						},
 					},
 					Spec: corev1.ResourceQuotaSpec{
@@ -259,6 +265,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 					Annotations: map[string]string{
 						util.GenerateAnnotationKeyMigratingVMUID(uid): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+						util.AnnotationMigratingScalingResyncNeeded:   "false",
 					},
 				},
 				Spec: corev1.ResourceQuotaSpec{
@@ -279,6 +286,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 						Annotations: map[string]string{
 							util.GenerateAnnotationKeyMigratingVMName("vm1"): `{"limits.cpu":"1","limits.memory":"2Gi"}`, // name based key is still working
 							util.GenerateAnnotationKeyMigratingVMName("vm2"): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+							util.AnnotationMigratingScalingResyncNeeded:      "true",
 						},
 					},
 					Spec: corev1.ResourceQuotaSpec{
@@ -299,6 +307,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 					Annotations: map[string]string{
 						util.GenerateAnnotationKeyMigratingVMName("vm1"): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
 						util.GenerateAnnotationKeyMigratingVMName("vm2"): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+						util.AnnotationMigratingScalingResyncNeeded:      "false",
 					},
 				},
 				Spec: corev1.ResourceQuotaSpec{
@@ -314,11 +323,12 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
-						Namespace:   resourceQuotaNamespace,
-						Name:        resourceQuotaName,
-						Labels:      map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+						Namespace: resourceQuotaNamespace,
+						Name:      resourceQuotaName,
+						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
 						Annotations: map[string]string{
 							// util.AnnotationMigratingNamePrefix + "vm1": `{"limits.cpu":"1","limits.memory":"2Gi"}`, // vm1 finished the migration
+							util.AnnotationMigratingScalingResyncNeeded: "true",
 						},
 					},
 					Spec: corev1.ResourceQuotaSpec{
@@ -333,10 +343,12 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			wantErr: false,
 			want: &corev1.ResourceQuota{
 				ObjectMeta: v1.ObjectMeta{
-					Namespace:   resourceQuotaNamespace,
-					Name:        resourceQuotaName,
-					Labels:      map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
-					Annotations: map[string]string{},
+					Namespace: resourceQuotaNamespace,
+					Name:      resourceQuotaName,
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					Annotations: map[string]string{
+						util.AnnotationMigratingScalingResyncNeeded: "false",
+					},
 				},
 				Spec: corev1.ResourceQuotaSpec{
 					Hard: map[corev1.ResourceName]resource.Quantity{
@@ -357,6 +369,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 						Annotations: map[string]string{
 							util.GenerateAnnotationKeyMigratingVMName("vm1"): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
 							util.GenerateAnnotationKeyMigratingVMName("vm2"): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+							util.AnnotationMigratingScalingResyncNeeded:      "true",
 						},
 					},
 					Spec: corev1.ResourceQuotaSpec{
@@ -377,6 +390,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 					Annotations: map[string]string{
 						util.GenerateAnnotationKeyMigratingVMName("vm1"): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
 						util.GenerateAnnotationKeyMigratingVMName("vm2"): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+						util.AnnotationMigratingScalingResyncNeeded:      "false",
 					},
 				},
 				Spec: corev1.ResourceQuotaSpec{
@@ -398,6 +412,7 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 						Annotations: map[string]string{
 							util.GenerateAnnotationKeyMigratingVMName("vm1"): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
 							util.GenerateAnnotationKeyMigratingVMName("vm2"): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+							// Rancher does not set the `AnnotationMigratingScalingResyncNeeded`, it does not matter
 						},
 					},
 					Spec: corev1.ResourceQuotaSpec{
@@ -428,7 +443,88 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "ResourceQuota has sync requests per Harvester VM migration annotation, but no real changes, the flag is cleared when it is set",
+			args: args{
+				rq: &corev1.ResourceQuota{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: resourceQuotaNamespace,
+						Name:      resourceQuotaName,
+						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+						Annotations: map[string]string{
+							util.GenerateAnnotationKeyMigratingVMUID(uid): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+							util.AnnotationMigratingScalingResyncNeeded:   "true", // flag is set, but no real changes
+						},
+					},
+					Spec: corev1.ResourceQuotaSpec{
+						Hard: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceLimitsCPU:    *resource.NewQuantity(cpuCore1, resource.DecimalSI),
+							corev1.ResourceLimitsMemory: *resource.NewQuantity(12*memory1Gi, resource.BinarySI), // already scaled
+						},
+					},
+				},
+				nsrqAnnotation: "{\"limit\":{\"limitsCpu\":\"1\", \"limitsMemory\":\"10Gi\"}}",
+			},
+			wantErr: false,
+			want: &corev1.ResourceQuota{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: resourceQuotaNamespace,
+					Name:      resourceQuotaName,
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					Annotations: map[string]string{
+						util.GenerateAnnotationKeyMigratingVMUID(uid): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+						util.AnnotationMigratingScalingResyncNeeded:   "false", // flag is cleared
+					},
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(cpuCore2, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(12*memory1Gi, resource.BinarySI),
+					},
+				},
+			},
+		},
+		{
+			name: "ResourceQuota is processed, no quota annotation change , no sync flag; then no change",
+			args: args{
+				rq: &corev1.ResourceQuota{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: resourceQuotaNamespace,
+						Name:      resourceQuotaName,
+						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+						Annotations: map[string]string{
+							util.GenerateAnnotationKeyMigratingVMUID(uid): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+						},
+					},
+					Spec: corev1.ResourceQuotaSpec{
+						Hard: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceLimitsCPU:    *resource.NewQuantity(cpuCore1, resource.DecimalSI),
+							corev1.ResourceLimitsMemory: *resource.NewQuantity(12*memory1Gi, resource.BinarySI), // already scaled
+						},
+					},
+				},
+				nsrqAnnotation: "{\"limit\":{\"limitsCpu\":\"1\", \"limitsMemory\":\"10Gi\"}}",
+			},
+			wantErr: false,
+			want: &corev1.ResourceQuota{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: resourceQuotaNamespace,
+					Name:      resourceQuotaName,
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+					Annotations: map[string]string{
+						util.GenerateAnnotationKeyMigratingVMUID(uid): `{"limits.cpu":"1","limits.memory":"2Gi"}`,
+					},
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceLimitsCPU:    *resource.NewQuantity(cpuCore2, resource.DecimalSI),
+						corev1.ResourceLimitsMemory: *resource.NewQuantity(12*memory1Gi, resource.BinarySI),
+					},
+				},
+			},
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.args.rq == nil {
@@ -441,6 +537,10 @@ func TestHandler_OnResourceQuotaChanged(t *testing.T) {
 			}
 			if tt.wantErr {
 				return
+			}
+			// same code run sequences as OnResourceQuotaChanged
+			if rqutils.IsMigratingScalingResyncNeeded(tt.args.rq) {
+				rqutils.ClearAnnotationMigratingScalingResyncNeeded(tt.args.rq)
 			}
 			assert.Equal(t, tt.want, tt.args.rq, "case %q", tt.name)
 		})

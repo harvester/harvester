@@ -413,7 +413,7 @@ func CalculateRestoreResourceQuotaWithVMI(
 }
 
 // If base is zero, delta is not added
-func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, memBase, cpuDelta, memDelta resource.Quantity) (*corev1.ResourceQuota, bool) {
+func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, memBase, cpuDelta, memDelta, memCompensation resource.Quantity) (*corev1.ResourceQuota, bool) {
 	needUpdate := false
 	if !cpuBase.IsZero() {
 		cpuBase.Add(cpuDelta)
@@ -424,6 +424,7 @@ func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, m
 	}
 	if !memBase.IsZero() {
 		memBase.Add(memDelta)
+		memBase.Add(memCompensation)
 		if !rq.Spec.Hard[corev1.ResourceLimitsMemory].Equal(memBase) {
 			needUpdate = true
 			rq.Spec.Hard[corev1.ResourceLimitsMemory] = memBase
@@ -456,6 +457,17 @@ func isEmpty(rq *corev1.ResourceQuota) bool {
 	return false
 }
 
+func isMemoryLimitEmpty(rq *corev1.ResourceQuota) bool {
+	if rq == nil {
+		return true
+	}
+	hard := rq.Spec.Hard
+	if hard == nil || hard.Name(corev1.ResourceLimitsMemory, resource.BinarySI).IsZero() {
+		return true
+	}
+	return false
+}
+
 func IsEmptyResourceQuota(rq *corev1.ResourceQuota) bool {
 	return isEmpty(rq)
 }
@@ -479,4 +491,47 @@ func calculateVMStorageQuantity(vm *kubevirtv1.VirtualMachine) (resource.Quantit
 	}
 
 	return storage, nil
+}
+
+// Get ResourceQuota annotations about compensation, only memory is supported
+func GetCompensationFromRQAnnotation(rq *corev1.ResourceQuota) (mem resource.Quantity, err error) {
+	mem = *resource.NewQuantity(0, resource.BinarySI)
+	rl, err := getResourceListOfMigratingCompensationFromRQ(rq)
+	if err != nil {
+		return mem, err
+	}
+
+	mem.Add(*rl.Name(corev1.ResourceLimitsMemory, resource.BinarySI))
+	return mem, nil
+}
+
+func CalculateCompensationResourceQuotaWithVMI(
+	rq *corev1.ResourceQuota,
+	vmi *kubevirtv1.VirtualMachineInstance,
+	ratio *string,
+) (needUpdate bool, toUpdate *corev1.ResourceQuota, rl corev1.ResourceList) {
+	vmiLimits := vmi.Spec.Domain.Resources.Limits
+	if isMemoryLimitEmpty(rq) || vmiLimits.Memory().IsZero() {
+		return false, nil, nil
+	}
+
+	rl = corev1.ResourceList{}
+	mem := vmiLimits[corev1.ResourceMemory]
+	mem.Add(kubevirtservices.GetMemoryOverhead(vmi, runtime.GOARCH, ratio)) // add overhead
+
+	// hard limit:
+	limitMem := rq.Spec.Hard.Name(corev1.ResourceLimitsMemory, resource.BinarySI)
+	// used
+	usedMem := rq.Status.Used.Name(corev1.ResourceLimitsMemory, resource.BinarySI)
+
+	usedMem.Add(mem)
+	// used + migration target pod exceeds limit, compensate the delta
+	if usedMem.Cmp(*limitMem) == 1 {
+		usedMem.Sub(*limitMem)
+		usedMem.Add(*resource.NewQuantity(additionalCompensationMemory, resource.BinarySI))
+		rl[corev1.ResourceLimitsMemory] = *usedMem
+		return true, rq, rl
+	}
+
+	return false, rq, rl
 }

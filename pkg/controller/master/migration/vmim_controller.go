@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -25,8 +26,7 @@ const (
 )
 
 // The handler adds the AnnotationMigrationUID annotation to the VMI when vmim starts.
-// This is mainly for the period when vmim is created but VMI.status.migrationState is not updated before
-// the target pod is running.
+// And also adjusts the ResourceQuota per vmim phase
 func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanceMigration) (*kubevirtv1.VirtualMachineInstanceMigration, error) {
 	if vmim == nil {
 		return nil, nil
@@ -34,40 +34,77 @@ func (h *Handler) OnVmimChanged(_ string, vmim *kubevirtv1.VirtualMachineInstanc
 
 	vmi, err := h.vmiCache.Get(vmim.Namespace, vmim.Spec.VMIName)
 	if err != nil {
-		return vmim, err
+		// the vmim might be a leftover object when its parent vmi object was deleted
+		if apierrors.IsNotFound(err) {
+			return vmim, nil
+		}
+		return nil, err
 	}
 
-	// restore the resource quota when the migration is completed
-	if err := h.restoreResourceQuota(vmim, vmi); err != nil {
-		return vmim, err
-	}
-
+	// when a migration is aborted, the phase will transfer to kubevirtv1.MigrationFailed finally
 	abortRequested := isAbortRequest(vmim)
 	phase := vmim.Status.Phase
 	// debug log shows, after vmim was deleted, the OnChange here may be called two times
 	logrus.Debugf("syncing vmim %s/%s/%s phase %v abortRequested %v deleted %t", vmim.Namespace, vmim.Name, vmi.Name, phase, abortRequested, vmim.DeletionTimestamp != nil)
 
-	if phase == kubevirtv1.MigrationPhaseUnset && !abortRequested {
-		// set StatePending for UI status showing and menu rendering
+	switch phase {
+	case kubevirtv1.MigrationPhaseUnset:
+		if abortRequested {
+			return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateAbortingMigration)
+		}
 		return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StatePending)
-	} else if phase == kubevirtv1.MigrationPending && !abortRequested {
-		err := h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StatePending)
-		if err != nil {
-			return nil, err
+	case kubevirtv1.MigrationPending:
+		if abortRequested {
+			return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateAbortingMigration)
 		}
-		return vmim, h.scaleResourceQuota(vmi)
-	} else if phase != kubevirtv1.MigrationFailed && abortRequested {
-		return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateAbortingMigration)
-	} else if phase == kubevirtv1.MigrationScheduling || phase == kubevirtv1.MigrationScheduled || phase == kubevirtv1.MigrationPreparingTarget || phase == kubevirtv1.MigrationTargetReady || phase == kubevirtv1.MigrationRunning {
+		return h.handlePendingMigration(vmi, vmim)
+	case kubevirtv1.MigrationScheduling,
+		kubevirtv1.MigrationScheduled,
+		kubevirtv1.MigrationPreparingTarget,
+		kubevirtv1.MigrationTargetReady,
+		kubevirtv1.MigrationRunning:
+		if abortRequested {
+			return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateAbortingMigration)
+		}
 		return vmim, h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StateMigrating)
-	} else if vmi.Annotations[util.AnnotationMigrationUID] == string(vmim.UID) && phase == kubevirtv1.MigrationFailed {
-		// There are cases when VMIM failed but the status is not reported in VMI.status.migrationState
-		// https://github.com/kubevirt/kubevirt/issues/5503
-		if err := h.resetHarvesterMigrationStateInVmiAndSyncVM(vmi); err != nil {
-			logrus.Infof("vmim %s/%s/%s has MigrationFailed but fail to reset vmi state %s", vmim.Namespace, vmim.Name, vmi.Name, err.Error())
-			return vmim, err
-		}
-		return vmim, nil
+	case kubevirtv1.MigrationFailed, kubevirtv1.MigrationSucceeded:
+		// restore the resource quota and clear vmi migration related information
+		return h.handleFinishedMigration(vmi, vmim)
+	}
+
+	return vmim, nil
+}
+
+// when vmim is pending
+func (h *Handler) handlePendingMigration(vmi *kubevirtv1.VirtualMachineInstance, vmim *kubevirtv1.VirtualMachineInstanceMigration) (*kubevirtv1.VirtualMachineInstanceMigration, error) {
+	err := h.setVmiMigrationUIDAnnotation(vmi, string(vmim.UID), StatePending)
+	if err != nil {
+		return nil, err
+	}
+
+	// scale ResourceQuota through VMI resource specifications
+	if err := h.scaleResourceQuota(vmi); err != nil {
+		return nil, fmt.Errorf("failed to scale resource quota with vmi %s/%s: %w", vmi.Namespace, vmi.Name, err)
+	}
+
+	// if vmim is blocked by RQ, it is on phase MigrationPending
+	err = h.compensatePendingMigration(vmim, vmi)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compensate resource quota with vmi %s/%s: %w", vmi.Namespace, vmi.Name, err)
+	}
+	return vmim, nil
+}
+
+// when vmim is finished
+func (h *Handler) handleFinishedMigration(vmi *kubevirtv1.VirtualMachineInstance, vmim *kubevirtv1.VirtualMachineInstanceMigration) (*kubevirtv1.VirtualMachineInstanceMigration, error) {
+	// restore the resource quota when the migration is completed
+	if err := h.restoreResourceQuota(vmim, vmi); err != nil {
+		logrus.Infof("vmim %s/%s is on phase %s but fail to restore vmi %s on resource quota %s", vmim.Namespace, vmim.Name, vmim.Status.Phase, vmi.Name, err.Error())
+		return nil, err
+	}
+	if err := h.resetHarvesterMigrationStateInVmiAndSyncVM(vmi); err != nil {
+		logrus.Infof("vmim %s/%s is on phase %s but fail to reset vmi %s state %s", vmim.Namespace, vmim.Name, vmim.Status.Phase, vmi.Name, err.Error())
+		return nil, err
 	}
 	return vmim, nil
 }
@@ -98,6 +135,10 @@ func (h *Handler) setVmiMigrationUIDAnnotation(vmi *kubevirtv1.VirtualMachineIns
 func (h *Handler) syncVM(vmi *kubevirtv1.VirtualMachineInstance) error {
 	vm, err := h.vmCache.Get(vmi.Namespace, vmi.Name)
 	if err != nil {
+		// headless vmi
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
 	toUpdateVM := vm.DeepCopy()
@@ -173,6 +214,8 @@ func (h *Handler) scaleResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInstan
 	if err := rqutils.AddMigratingVM(rqToUpdate, vmi.Name, string(vmi.UID), rl); err != nil {
 		return err
 	}
+	// set the flag until ResourceQuota controller clears it
+	rqutils.SetAnnotationMigratingScalingResyncNeeded(rqToUpdate)
 	_, err = h.rqs.Update(rqToUpdate)
 	return err
 }
@@ -213,6 +256,12 @@ func (h *Handler) restoreResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInst
 
 	// delete migrating vmi information from ResourceQuota annotation, then the ResourceQuota controller will re-calculate the final value
 	if rqutils.DeleteMigratingVM(rqCpy, vmi.Name, string(vmi.UID)) {
+		// when there is compensation, no matter for which vmim, delete it
+		// after the ResourceQuota is updated, kubevirt will re-schedule all ResourceQuota blocked VMs
+		// if some other VM is blocked due to ResourceQuota after the re-schedule,
+		// the ResourceQuota controller will compensate accordingly
+		_ = rqutils.DeleteMigratingCompensation(rqCpy)
+		rqutils.SetAnnotationMigratingScalingResyncNeeded(rqCpy)
 		_, err = h.rqs.Update(rqCpy)
 		return err
 	}
@@ -243,4 +292,74 @@ func (h *Handler) resetHarvesterMigrationStateInVmiAndSyncVM(vmi *kubevirtv1.Vir
 		return fmt.Errorf("fail to reset vmi migration to vm %w", err)
 	}
 	return nil
+}
+
+// compensate the ResourceQuota when the migration is blocked due to quota exceeds limit
+func (h *Handler) compensatePendingMigration(vmim *kubevirtv1.VirtualMachineInstanceMigration, vmi *kubevirtv1.VirtualMachineInstance) error {
+	if vmim.Status.Conditions == nil {
+		return nil
+	}
+	for _, cond := range vmim.Status.Conditions {
+		if cond.Type != kubevirtv1.VirtualMachineInstanceMigrationRejectedByResourceQuota {
+			continue
+		}
+		// when condition is kubevirtv1.VirtualMachineInstanceMigrationRejectedByResourceQuota
+		if cond.Status != corev1.ConditionTrue {
+			return nil
+		}
+		// vmim is blocked due to quota, compensate if necessary
+		return h.compensateResourceQuotaBase(vmim, vmi)
+	}
+
+	return nil
+}
+
+// compute the real usage of VM's Pod, if it exceeds the hard limit, then compensate the delta
+// when user changes the global setting additional-guest-memory-overhead-ratio after the VM is up and then migrates the vm
+// the RQ usage can exceed the hard limit
+// this function will ensure the already running VMs can still migrate
+func (h *Handler) compensateResourceQuotaBase(vmim *kubevirtv1.VirtualMachineInstanceMigration, vmi *kubevirtv1.VirtualMachineInstance) error {
+	selector := labels.Set{util.LabelManagementDefaultResourceQuota: "true"}.AsSelector()
+	rqs, err := h.rqCache.List(vmi.Namespace, selector)
+	if err != nil {
+		return err
+	} else if len(rqs) == 0 {
+		logrus.Debugf("compensateResourceQuotaBase: can't find any default resource quota, skip updating namespace %s", vmi.Namespace)
+		return nil
+	}
+	rq := rqs[0]
+
+	// wait until auto-scaling has been applied to RQ, if it is still not enough, then consider to compensate
+	if ok := rqutils.ContainsMigratingVM(rq, vmi.Name, string(vmi.UID)); !ok {
+		logrus.Debugf("compensateResourceQuotaBase: the resource quota in the namespace %s does not include migrating vm %s resource scaling info, don't compensate, wait", vmi.Namespace, vmi.Name)
+		h.vmimController.EnqueueAfter(vmim.Namespace, vmim.Name, 1*time.Second)
+		return nil
+	}
+
+	// not synced yet, wait a moment
+	// note: after resourcequota_controller sets the rq.Spec to increase the quota, kubevirt controller will action upon it to reschedule all RQ blocked vmims
+	// there is still a lower chance that the compensation is done before kubevirt finishes the reschedulling
+	// it is taken care on containsEnoughResourceQuotaToStartVM
+	if rqutils.IsMigratingScalingResyncNeeded(rq) {
+		logrus.Debugf("compensateResourceQuotaBase: the resource quota in the namespace %s is not synced by controller, don't compensate, wait", vmi.Namespace)
+		h.vmimController.EnqueueAfter(vmim.Namespace, vmim.Name, 1*time.Second)
+		return nil
+	}
+
+	rqToUpdate := rq.DeepCopy()
+	// only update to ResourceQuota annotation, do not change ResourceQuota spec directly in this step
+	needUpdate, rqToUpdate, rl := rqutils.CalculateCompensationResourceQuotaWithVMI(rqToUpdate, vmi, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(h.settingCache))
+	if !needUpdate {
+		logrus.Debugf("compensateResourceQuotaBase: no need to update resource quota, skip updating namespace %s and vm %s", vmi.Namespace, vmi.Name)
+		return nil
+	}
+
+	logrus.Infof("compensateResourceQuotaBase: compensate resource quota %s in namespace %s for vm %s : %v", rq.Name, vmi.Namespace, vmi.Name, rl)
+	// add compensation information to ResourceQuota
+	if err := rqutils.AddMigratingCompensation(rqToUpdate, rl); err != nil {
+		return err
+	}
+	rqutils.SetAnnotationMigratingScalingResyncNeeded(rqToUpdate)
+	_, err = h.rqs.Update(rqToUpdate)
+	return err
 }

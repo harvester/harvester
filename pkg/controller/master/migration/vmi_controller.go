@@ -19,16 +19,17 @@ import (
 
 // Handler resets vmi annotations and nodeSelector when a migration completes
 type Handler struct {
-	namespace    string
-	rqs          ctlharvcorev1.ResourceQuotaClient
-	rqCache      ctlharvcorev1.ResourceQuotaCache
-	vmiCache     ctlvirtv1.VirtualMachineInstanceCache
-	vms          ctlvirtv1.VirtualMachineClient
-	vmCache      ctlvirtv1.VirtualMachineCache
-	podCache     ctlcorev1.PodCache
-	pods         ctlcorev1.PodClient
-	settingCache ctlharvesterv1.SettingCache
-	restClient   rest.Interface
+	namespace      string
+	rqs            ctlharvcorev1.ResourceQuotaClient
+	rqCache        ctlharvcorev1.ResourceQuotaCache
+	vmiCache       ctlvirtv1.VirtualMachineInstanceCache
+	vms            ctlvirtv1.VirtualMachineClient
+	vmCache        ctlvirtv1.VirtualMachineCache
+	vmimController ctlvirtv1.VirtualMachineInstanceMigrationController
+	podCache       ctlcorev1.PodCache
+	pods           ctlcorev1.PodClient
+	settingCache   ctlharvesterv1.SettingCache
+	restClient     rest.Interface
 }
 
 func (h *Handler) OnVmiChanged(_ string, vmi *kubevirtv1.VirtualMachineInstance) (*kubevirtv1.VirtualMachineInstance, error) {
@@ -68,11 +69,15 @@ func (h *Handler) OnVmiChanged(_ string, vmi *kubevirtv1.VirtualMachineInstance)
 func (h *Handler) resetHarvesterMigrationStateInVMI(vmi *kubevirtv1.VirtualMachineInstance) error {
 	toUpdate := vmi.DeepCopy()
 
+	initialLen := len(toUpdate.Annotations)
 	delete(toUpdate.Annotations, util.AnnotationMigrationUID)
 	delete(toUpdate.Annotations, util.AnnotationMigrationState)
+	delete(toUpdate.Annotations, util.AnnotationMigrationTarget)
 
-	if vmi.Annotations[util.AnnotationMigrationTarget] != "" {
-		delete(toUpdate.Annotations, util.AnnotationMigrationTarget)
+	// skip unnecessary update
+	// also for the convenience of unit test code, it can bypass following call upon VirtClient
+	if initialLen == len(toUpdate.Annotations) {
+		return nil
 	}
 
 	if err := util.VirtClientUpdateVmi(context.Background(), h.restClient, h.namespace, vmi.Namespace, vmi.Name, toUpdate); err != nil {
