@@ -28,7 +28,7 @@ import (
 const (
 	networkGroup      = "network.harvesterhci.io"
 	keyClusterNetwork = networkGroup + "/clusternetwork"
-	overlayNetwork    = "overlayNetwork"
+	overlayNetwork    = "OverlayNetwork"
 	keyNetworkType    = networkGroup + "/type"
 
 	memory10M  = 10485760
@@ -702,6 +702,7 @@ func (m *vmMutator) patchInterfaceMacAddress(vm *kubevirtv1.VirtualMachine, patc
 }
 
 func (m *vmMutator) checkDHCPEnabledOnSubnet(namespace, name string) (bool, error) {
+
 	provider := fmt.Sprintf("%s.%s.ovn", name, namespace)
 
 	if m.kubeovnSubnet == nil {
@@ -797,6 +798,14 @@ func (m *vmMutator) patchManagedTapBinding(vm *kubevirtv1.VirtualMachine, patchO
 				patchOps = append(patchOps,
 					fmt.Sprintf(
 						`{"op":"remove","path":"/spec/template/spec/domain/devices/interfaces/%d/binding"}`,
+						idx,
+					),
+				)
+			}
+			if iface.Bridge == nil {
+				patchOps = append(patchOps,
+					fmt.Sprintf(
+						`{"op":"add","path":"/spec/template/spec/domain/devices/interfaces/%d/bridge", "value":{}}`,
 						idx,
 					),
 				)
