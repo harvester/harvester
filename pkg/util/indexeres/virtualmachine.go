@@ -3,9 +3,11 @@ package indexeres
 import (
 	"slices"
 
+	"github.com/harvester/go-common/ds"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 // The file contains the indexers which are used by controller and webhook.
@@ -26,7 +28,32 @@ func VMByPVC(obj *kubevirtv1.VirtualMachine) ([]string, error) {
 			results = append(results, ref.Construct(obj.Namespace, volume.PersistentVolumeClaim.ClaimName))
 		}
 	}
-	return results, nil
+
+	// Also index source PVCs from volumeClaimTemplates annotation,
+	// so they remain protected during storage migration even after
+	// the VM spec volumes have been swapped to the target PVC.
+	results = append(results, vmSourcePVCsFromAnnotation(obj)...)
+
+	return ds.SliceDedupe(results), nil
+}
+
+func vmSourcePVCsFromAnnotation(obj *kubevirtv1.VirtualMachine) []string {
+	if obj.Annotations == nil {
+		return nil
+	}
+
+	entries, err := util.UnmarshalVolumeClaimTemplates(obj.Annotations[util.AnnotationVolumeClaimTemplates])
+	if err != nil {
+		return nil
+	}
+
+	var results []string
+	for _, entry := range entries {
+		if entry.Name != "" {
+			results = append(results, ref.Construct(obj.Namespace, entry.Name))
+		}
+	}
+	return results
 }
 
 func isVolumeHotplugged(volume kubevirtv1.Volume) bool {
