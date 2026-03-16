@@ -34,7 +34,7 @@ func (h *Handler) OnResourceQuotaChanged(_ string, rq *corev1.ResourceQuota) (*c
 	}
 
 	// for debugging or manually disabling this feature
-	if rq.Annotations[util.AnnotationSkipResourceQuotaAutoScaling] == "true" {
+	if rqutils.IsResourceQuotaAutoScalingDisabled(rq) {
 		logrus.Debugf("resourcequota %s/%s annotation %s is set, skip auto scaling", rq.Namespace, rq.Name, util.AnnotationSkipResourceQuotaAutoScaling)
 		return rq, nil
 	}
@@ -55,6 +55,8 @@ func (h *Handler) OnResourceQuotaChanged(_ string, rq *corev1.ResourceQuota) (*c
 				rqutils.ClearAnnotationMigratingScalingResyncNeeded(rqCopy)
 				return h.rqs.Update(rqCopy)
 			}
+			// rq scaling is skipped and no sync is needed; treat as successful no-op
+			return rq, nil
 		}
 		return rq, err
 	}

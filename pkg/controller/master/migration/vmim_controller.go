@@ -197,6 +197,13 @@ func (h *Handler) scaleResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInstan
 		return nil
 	}
 
+	// resourcequota_controller check this
+	// vmim_controller also adds the check to stop the auto-scaling asap.
+	if rqutils.IsResourceQuotaAutoScalingDisabled(rqs[0]) {
+		logrus.Debugf("resourcequota %s/%s annotation %s is set, skip scaling", rqs[0].Namespace, rqs[0].Name, util.AnnotationSkipResourceQuotaAutoScaling)
+		return nil
+	}
+
 	rqCpy := rqs[0].DeepCopy()
 	if ok := rqutils.ContainsMigratingVM(rqCpy, vmi.Name, string(vmi.UID)); ok {
 		logrus.Debugf("scaleResourceQuotaWithVMI: the resource quota in the namespace %s and vm %s is already scaled, skip updating", vmi.Namespace, vmi.Name)
@@ -251,6 +258,8 @@ func (h *Handler) restoreResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInst
 		logrus.Debugf("restoreResourceQuotaWithVMI: can't find any default resource quota, skip updating namespace %s", vmi.Namespace)
 		return nil
 	}
+
+	// restore does not care IsResourceQuotaAutoScalingDisabled to ensure any before-disabling-added scaling is still removed
 
 	rqCpy := rqs[0].DeepCopy()
 
@@ -329,16 +338,23 @@ func (h *Handler) compensateResourceQuotaBase(vmim *kubevirtv1.VirtualMachineIns
 	}
 	rq := rqs[0]
 
-	// wait until auto-scaling has been applied to RQ, if it is still not enough, then consider to compensate
+	// as there is EnqueueAfter operation, it is essential to check this flag
+	// to avoid: vmim_controller keeps updating but resourcequota_controller do nothing
+	if rqutils.IsResourceQuotaAutoScalingDisabled(rq) {
+		logrus.Debugf("resourcequota %s/%s annotation %s is set, skip compensation", rq.Namespace, rq.Name, util.AnnotationSkipResourceQuotaAutoScaling)
+		return nil
+	}
+
+	// first, wait until auto-scaling has been applied to resource quota annotations
 	if ok := rqutils.ContainsMigratingVM(rq, vmi.Name, string(vmi.UID)); !ok {
 		logrus.Debugf("compensateResourceQuotaBase: the resource quota in the namespace %s does not include migrating vm %s resource scaling info, don't compensate, wait", vmi.Namespace, vmi.Name)
 		h.vmimController.EnqueueAfter(vmim.Namespace, vmim.Name, 1*time.Second)
 		return nil
 	}
 
-	// not synced yet, wait a moment
+	// second, wait until the resourcequota_controller has calculated the base + annotation to update the quota limits
 	// note: after resourcequota_controller sets the rq.Spec to increase the quota, kubevirt controller will action upon it to reschedule all RQ blocked vmims
-	// there is still a lower chance that the compensation is done before kubevirt finishes the reschedulling
+	// there is still a lower chance that the compensation is done before kubevirt finishes the rescheduling
 	// it is taken care on containsEnoughResourceQuotaToStartVM
 	if rqutils.IsMigratingScalingResyncNeeded(rq) {
 		logrus.Debugf("compensateResourceQuotaBase: the resource quota in the namespace %s is not synced by controller, don't compensate, wait", vmi.Namespace)

@@ -14,10 +14,13 @@ const (
 	// even kubevirt can't 100% precisely calculate the exact memory a vmi POD will consume
 	// we add an additional 128Mi when compensating RQ, to ensure the vmi migration target pod can be created
 	additionalCompensationMemory = 128 << 20
+
+	stringTrue  = "true"
+	stringFalse = "false"
 )
 
 func HasMigratingVM(rq *corev1.ResourceQuota) bool {
-	if rq.Annotations == nil {
+	if rq == nil || rq.Annotations == nil {
 		return false
 	}
 
@@ -33,6 +36,9 @@ func HasMigratingVM(rq *corev1.ResourceQuota) bool {
 }
 
 func AddMigratingVM(rq *corev1.ResourceQuota, vmName, vmUID string, rl corev1.ResourceList) error {
+	if rq == nil {
+		return fmt.Errorf("failed to call AddMigratingVM as input rq is nil")
+	}
 	rlb, err := json.Marshal(rl)
 	if err != nil {
 		return err
@@ -50,7 +56,7 @@ func AddMigratingVM(rq *corev1.ResourceQuota, vmName, vmUID string, rl corev1.Re
 
 // delete the may existing VM Miration, return true if it exists
 func DeleteMigratingVM(rq *corev1.ResourceQuota, vmName, vmUID string) bool {
-	if rq.Annotations == nil {
+	if rq == nil || rq.Annotations == nil {
 		return false
 	}
 	len1 := len(rq.Annotations)
@@ -61,7 +67,7 @@ func DeleteMigratingVM(rq *corev1.ResourceQuota, vmName, vmUID string) bool {
 }
 
 func ContainsMigratingVM(rq *corev1.ResourceQuota, vmName, vmUID string) bool {
-	if rq.Annotations == nil {
+	if rq == nil || rq.Annotations == nil {
 		return false
 	}
 	// check both possible keys
@@ -77,7 +83,7 @@ func ContainsMigratingVM(rq *corev1.ResourceQuota, vmName, vmUID string) bool {
 // check both possible keys
 func getResourceListFromMigratingVMs(rq *corev1.ResourceQuota) (map[string]corev1.ResourceList, error) {
 	vms := make(map[string]corev1.ResourceList)
-	if rq.Annotations == nil {
+	if rq == nil || rq.Annotations == nil {
 		return vms, nil
 	}
 
@@ -102,10 +108,16 @@ func getResourceListFromMigratingVMs(rq *corev1.ResourceQuota) (map[string]corev
 }
 
 func HasMigratingCompensation(rq *corev1.ResourceQuota) bool {
+	if rq == nil || rq.Annotations == nil {
+		return false
+	}
 	return rq.Annotations[util.AnnotationMigratingCompensation] != ""
 }
 
 func AddMigratingCompensation(rq *corev1.ResourceQuota, rl corev1.ResourceList) error {
+	if rq == nil {
+		return fmt.Errorf("failed to call AddMigratingCompensation as input rq is nil")
+	}
 	rlb, err := json.Marshal(rl)
 	if err != nil {
 		return err
@@ -121,7 +133,7 @@ func AddMigratingCompensation(rq *corev1.ResourceQuota, rl corev1.ResourceList) 
 
 // delete the maybe existing Migration compensation, return true if it exists
 func DeleteMigratingCompensation(rq *corev1.ResourceQuota) bool {
-	if rq.Annotations == nil {
+	if rq == nil || rq.Annotations == nil {
 		return false
 	}
 	initialLen := len(rq.Annotations)
@@ -150,7 +162,7 @@ func SetAnnotationMigratingScalingResyncNeeded(rq *corev1.ResourceQuota) {
 	if rq.Annotations == nil {
 		rq.Annotations = make(map[string]string)
 	}
-	rq.Annotations[util.AnnotationMigratingScalingResyncNeeded] = "true"
+	rq.Annotations[util.AnnotationMigratingScalingResyncNeeded] = stringTrue
 }
 
 func ClearAnnotationMigratingScalingResyncNeeded(rq *corev1.ResourceQuota) {
@@ -160,16 +172,23 @@ func ClearAnnotationMigratingScalingResyncNeeded(rq *corev1.ResourceQuota) {
 
 	// clear the flag if it exists and is "true"
 	val, ok := rq.Annotations[util.AnnotationMigratingScalingResyncNeeded]
-	if !ok || val != "true" {
+	if !ok || val != stringTrue {
 		return
 	}
 
-	rq.Annotations[util.AnnotationMigratingScalingResyncNeeded] = "false"
+	rq.Annotations[util.AnnotationMigratingScalingResyncNeeded] = stringFalse
 }
 
 func IsMigratingScalingResyncNeeded(rq *corev1.ResourceQuota) bool {
-	if rq == nil {
+	if rq == nil || rq.Annotations == nil {
 		return false
 	}
-	return rq.Annotations[util.AnnotationMigratingScalingResyncNeeded] == "true"
+	return rq.Annotations[util.AnnotationMigratingScalingResyncNeeded] == stringTrue
+}
+
+func IsResourceQuotaAutoScalingDisabled(rq *corev1.ResourceQuota) bool {
+	if rq == nil || rq.Annotations == nil {
+		return false
+	}
+	return rq.Annotations[util.AnnotationSkipResourceQuotaAutoScaling] == stringTrue
 }
