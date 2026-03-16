@@ -20,6 +20,7 @@ import (
 // Handler resets vmi annotations and nodeSelector when a migration completes
 type Handler struct {
 	namespace      string
+	nsCache        ctlcorev1.NamespaceCache
 	rqs            ctlharvcorev1.ResourceQuotaClient
 	rqCache        ctlharvcorev1.ResourceQuotaCache
 	vmiCache       ctlvirtv1.VirtualMachineInstanceCache

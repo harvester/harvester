@@ -253,6 +253,18 @@ func GetCPUMemoryLimitsFromRancherNamespaceResourceQuota(nrq *v3.NamespaceResour
 	return
 }
 
+// Get Rancher NamespaceResourceQuota LimitsMemory
+func GetMemoryLimitsFromRancherNamespaceResourceQuota(nrq *v3.NamespaceResourceQuota) (mem resource.Quantity, err error) {
+	if nrq.Limit.LimitsMemory == "" {
+		mem = *resource.NewQuantity(0, resource.BinarySI)
+	} else {
+		if mem, err = resource.ParseQuantity(nrq.Limit.LimitsMemory); err != nil {
+			return
+		}
+	}
+	return
+}
+
 func (c *Calculator) getVMPods(namespace, vmName string) ([]*corev1.Pod, error) {
 	return c.podCache.GetByIndex(indexeresutil.PodByVMNameIndex, ref.Construct(namespace, vmName))
 }

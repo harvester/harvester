@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/util"
@@ -191,4 +192,42 @@ func IsResourceQuotaAutoScalingDisabled(rq *corev1.ResourceQuota) bool {
 		return false
 	}
 	return rq.Annotations[util.AnnotationSkipResourceQuotaAutoScaling] == stringTrue
+}
+
+// check if a resourcequota is managed by the namespace annotation util.CattleAnnotationResourceQuota
+func IsResourceQuotaManagedByNamespaceAnnotation(rq *corev1.ResourceQuota, rqStr string) (bool, error) {
+	if rqStr == "" {
+		return false, nil
+	}
+	if IsEmptyResourceQuota(rq) {
+		return false, nil
+	}
+	var rqBase *v3.NamespaceResourceQuota
+	if err := json.Unmarshal([]byte(rqStr), &rqBase); err != nil {
+		return false, err
+	}
+	rCPULimit, rMemoryLimit, err := GetCPUMemoryLimitsFromRancherNamespaceResourceQuota(rqBase)
+	if err != nil {
+		return false, err
+	}
+	return !rCPULimit.IsZero() || !rMemoryLimit.IsZero(), nil
+}
+
+// check if a resourcequota is managed by the namespace annotation util.CattleAnnotationResourceQuota and has MemoryLimits
+func IsResourceQuotaManagedByNamespaceAnnotationWithMemoryLimits(rq *corev1.ResourceQuota, rqStr string) (bool, error) {
+	if rqStr == "" {
+		return false, nil
+	}
+	if isMemoryLimitEmpty(rq) {
+		return false, nil
+	}
+	var rqBase *v3.NamespaceResourceQuota
+	if err := json.Unmarshal([]byte(rqStr), &rqBase); err != nil {
+		return false, err
+	}
+	rMemoryLimit, err := GetMemoryLimitsFromRancherNamespaceResourceQuota(rqBase)
+	if err != nil {
+		return false, err
+	}
+	return !rMemoryLimit.IsZero(), nil
 }
