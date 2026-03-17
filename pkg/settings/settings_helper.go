@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	networkutil "github.com/harvester/harvester/pkg/util/network"
 )
 
 type TargetType string
@@ -395,4 +396,23 @@ func GetClusterRegistrationURLSetting(setting *harvesterv1.Setting) *ClusterRegi
 		reg.InsecureSkipTLSVerify = true
 	}
 	return reg
+
+}
+
+type RWXNetworkConfig struct {
+	ShareStorageNetwork bool                `json:"share-storage-network"`
+	Network             *networkutil.Config `json:"network,omitempty"`
+}
+
+func GetRWXNetworkConfig(setting *harvesterv1.Setting) (*RWXNetworkConfig, error) {
+	if setting == nil {
+		return nil, fmt.Errorf("the setting is empty, can't get the setting")
+	}
+
+	rwxConfig := &RWXNetworkConfig{}
+	value := setting.EffectiveValue()
+	if err := json.Unmarshal([]byte(value), rwxConfig); err != nil {
+		return nil, fmt.Errorf("invalid JSON `%s`: %s", value, err.Error())
+	}
+	return rwxConfig, nil
 }

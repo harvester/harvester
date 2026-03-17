@@ -27,6 +27,9 @@ func (r *Request) Username() string {
 }
 
 func (r *Request) IsFromController() bool {
+	if r.options == nil {
+		return false
+	}
 	return r.Username() == r.options.HarvesterControllerUsername
 }
 
