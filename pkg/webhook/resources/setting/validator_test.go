@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/rancher/wrangler/v3/pkg/webhook"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +18,8 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	networkutil "github.com/harvester/harvester/pkg/util/network"
+	whTypes "github.com/harvester/harvester/pkg/webhook/types"
 )
 
 func Test_validateOvercommitConfig(t *testing.T) {
@@ -1365,6 +1368,45 @@ func Test_validateStorageNetworkConfig(t *testing.T) {
 	}
 }
 
+func Test_checkStorageNetworkNotBlockedByRWX(t *testing.T) {
+	clearSetting := &v1beta1.Setting{
+		ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+		Value:      "",
+	}
+
+	tests := []struct {
+		name        string
+		rwxValue    string
+		expectedErr bool
+	}{
+		{
+			name:        "clear storage-network while share-storage-network=true -> blocked",
+			rwxValue:    `{"share-storage-network":true,"network":{}}`,
+			expectedErr: true,
+		},
+		{
+			name:        "clear storage-network while share-storage-network=false -> allowed",
+			rwxValue:    `{"share-storage-network":false,"network":{}}`,
+			expectedErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset(&v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      tt.rwxValue,
+			})
+			v := &settingValidator{
+				settingCache: fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+			}
+
+			err := v.checkStorageNetworkNotBlockedByRWX(clearSetting)
+			assert.Equal(t, tt.expectedErr, err != nil, err)
+		})
+	}
+}
+
 func Test_validateMaxHotplugRatio(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -1689,7 +1731,7 @@ func Test_settingValidator_validateUpdateLHIMResources(t *testing.T) {
 		newSetting := oldSetting.DeepCopy()
 		newSetting.Value = `{"cpu":{"v1":"20","v2":"20"}}`
 
-		err = v.validateUpdateLHIMResources(oldSetting, newSetting)
+		err = v.validateUpdateLHIMResources(nil, oldSetting, newSetting)
 		assert.Error(t, err)
 		assert.True(t, strings.Contains(err.Error(), "detach all Longhorn volumes"))
 	})
@@ -1718,7 +1760,7 @@ func Test_settingValidator_validateUpdateLHIMResources(t *testing.T) {
 		newSetting := oldSetting.DeepCopy()
 		newSetting.Value = `{"cpu":{"v1":"20","v2":"20"}}`
 
-		err = v.validateUpdateLHIMResources(oldSetting, newSetting)
+		err = v.validateUpdateLHIMResources(nil, oldSetting, newSetting)
 		assert.NoError(t, err)
 	})
 
@@ -1748,7 +1790,7 @@ func Test_settingValidator_validateUpdateLHIMResources(t *testing.T) {
 		newSetting.Default = `{"cpu":{"v1":"12","v2":"12"}}`
 		newSetting.Value = ""
 
-		err = v.validateUpdateLHIMResources(oldSetting, newSetting)
+		err = v.validateUpdateLHIMResources(nil, oldSetting, newSetting)
 		assert.NoError(t, err)
 	})
 
@@ -1776,7 +1818,7 @@ func Test_settingValidator_validateUpdateLHIMResources(t *testing.T) {
 		newSetting := oldSetting.DeepCopy()
 		newSetting.Value = ""
 
-		err = v.validateUpdateLHIMResources(oldSetting, newSetting)
+		err = v.validateUpdateLHIMResources(nil, oldSetting, newSetting)
 		assert.Error(t, err)
 		assert.True(t, strings.Contains(err.Error(), "detach all Longhorn volumes"))
 	})
@@ -1805,7 +1847,7 @@ func Test_settingValidator_validateUpdateLHIMResources(t *testing.T) {
 		newSetting := oldSetting.DeepCopy()
 		newSetting.Value = `{"cpu":{}}`
 
-		err = v.validateUpdateLHIMResources(oldSetting, newSetting)
+		err = v.validateUpdateLHIMResources(nil, oldSetting, newSetting)
 		assert.Error(t, err)
 		assert.True(t, strings.Contains(err.Error(), "detach all Longhorn volumes"))
 	})
@@ -1834,7 +1876,410 @@ func Test_settingValidator_validateUpdateLHIMResources(t *testing.T) {
 		newSetting := oldSetting.DeepCopy()
 		newSetting.Value = `{"cpu":{}}`
 
-		err = v.validateUpdateLHIMResources(oldSetting, newSetting)
+		err = v.validateUpdateLHIMResources(nil, oldSetting, newSetting)
 		assert.NoError(t, err)
 	})
+}
+
+func Test_validateUpdateRWXNetwork(t *testing.T) {
+	// composite format helpers
+	rwxDedicated := func(vlan int, clusterNetwork, ipRange string) string {
+		return fmt.Sprintf(`{"share-storage-network":false,"network":{"vlan":%d,"clusterNetwork":%q,"range":%q}}`, vlan, clusterNetwork, ipRange)
+	}
+	rwxShare := `{"share-storage-network":true,"network":{}}`
+	storageNetworkValue := `{"vlan":100,"clusterNetwork":"vlan","range":"192.168.0.0/24"}`
+
+	attachedRWXVolume := &lhv1beta2.Volume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rwx-vol-attached",
+			Namespace: "longhorn-system",
+		},
+		Spec: lhv1beta2.VolumeSpec{
+			AccessMode: lhv1beta2.AccessModeReadWriteMany,
+		},
+		Status: lhv1beta2.VolumeStatus{
+			State: lhv1beta2.VolumeStateAttached,
+		},
+	}
+
+	attachedMigratableRWXVolume := &lhv1beta2.Volume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rwx-migratable-vol-attached",
+			Namespace: "longhorn-system",
+		},
+		Spec: lhv1beta2.VolumeSpec{
+			AccessMode: lhv1beta2.AccessModeReadWriteMany,
+			Migratable: true,
+		},
+		Status: lhv1beta2.VolumeStatus{
+			State: lhv1beta2.VolumeStateAttached,
+		},
+	}
+
+	tests := []struct {
+		name             string
+		oldSetting       *v1beta1.Setting
+		newSetting       *v1beta1.Setting
+		existingSettings []*v1beta1.Setting
+		existingVolumes  []*lhv1beta2.Volume
+		expectedErr      bool
+	}{
+		{
+			// Same effective value -> early return, no further checks
+			name: "no change -> ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      "",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      "",
+			},
+			expectedErr: false,
+		},
+		{
+			name: "dedicated->share, storage-network set, volumes attached -> not ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxDedicated(101, "vlan", "192.168.1.0/24"),
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxShare,
+			},
+			existingSettings: []*v1beta1.Setting{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+					Value:      storageNetworkValue,
+				},
+			},
+			existingVolumes: []*lhv1beta2.Volume{attachedRWXVolume},
+			expectedErr:     true,
+		},
+		{
+			// share=false->false, network changed, no attached volumes -> ok
+			name: "dedicated network changed, volumes detached -> ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxDedicated(101, "mgmt", "192.168.1.0/24"),
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxDedicated(102, "mgmt", "192.168.2.0/24"),
+			},
+			expectedErr: false,
+		},
+		{
+			// share=false->false, network changed, volumes attached -> not ok
+			name: "dedicated network changed, volumes attached -> not ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxDedicated(101, "mgmt", "192.168.1.0/24"),
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxDedicated(102, "mgmt", "192.168.2.0/24"),
+			},
+			existingVolumes: []*lhv1beta2.Volume{attachedRWXVolume},
+			expectedErr:     true,
+		},
+		{
+			// share=false->true: storage-network not set -> not ok
+			name: "dedicated->share, storage-network not set -> not ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxDedicated(101, "vlan", "192.168.1.0/24"),
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxShare,
+			},
+			existingSettings: []*v1beta1.Setting{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+					Value:      "",
+				},
+			},
+			expectedErr: true,
+		},
+		{
+			// share=true->false: no attached volumes -> ok
+			name: "share->dedicated, volumes detached -> ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxShare,
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxDedicated(101, "mgmt", "192.168.1.0/24"),
+			},
+			expectedErr: false,
+		},
+		{
+			// share=true->false: volumes attached -> not ok
+			name: "share->dedicated, volumes attached -> not ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxShare,
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxDedicated(101, "mgmt", "192.168.1.0/24"),
+			},
+			existingVolumes: []*lhv1beta2.Volume{attachedRWXVolume},
+			expectedErr:     true,
+		},
+		{
+			// empty->valid dedicated JSON (mgmt cluster bypasses VlanStatus/VC checks), no volumes -> ok
+			name: "empty->valid dedicated JSON, no volumes -> ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      "",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxDedicated(100, "mgmt", "192.168.0.0/24"),
+			},
+			expectedErr: false,
+		},
+		{
+			// empty->invalid JSON: unmarshal fails -> error
+			name: "empty->invalid JSON -> error",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      "",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      `{invalid}`,
+			},
+			expectedErr: true,
+		},
+		{
+			// dedicated with VLAN ID > 4094: checkNetworkVlanValid fails -> error
+			name: "dedicated->invalid VLAN ID -> error",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      "",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      `{"share-storage-network":false,"network":{"vlan":5000,"clusterNetwork":"mgmt","range":"192.168.0.0/24"}}`,
+			},
+			expectedErr: true,
+		},
+		{
+			// attached migratable RWX volume should NOT block the update
+			name: "dedicated network changed, only migratable RWX volumes attached -> ok",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxDedicated(101, "mgmt", "192.168.1.0/24"),
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      rwxDedicated(102, "mgmt", "192.168.2.0/24"),
+			},
+			existingVolumes: []*lhv1beta2.Volume{attachedMigratableRWXVolume},
+			expectedErr:     false,
+		},
+		{
+			// dedicated with non-CIDR range: checkNetworkRangeValid fails -> error
+			name: "dedicated->invalid range -> error",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      "",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      `{"share-storage-network":false,"network":{"vlan":100,"clusterNetwork":"mgmt","range":"not-a-cidr"}}`,
+			},
+			expectedErr: true,
+		},
+		{
+			name: "empty->network fields at top level instead of nested under 'network' -> error",
+			oldSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      "",
+			},
+			newSetting: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName},
+				Value:      `{"share-storage-network":false,"vlan":201,"clusterNetwork":"rwx","range":"192.168.201.0/24","exclude":["192.168.201.1/32"]}`,
+			},
+			expectedErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			objects := make([]runtime.Object, 0, len(tt.existingSettings)+len(tt.existingVolumes))
+			for _, s := range tt.existingSettings {
+				objects = append(objects, s)
+			}
+			for _, vol := range tt.existingVolumes {
+				objects = append(objects, vol)
+			}
+
+			clientset := fake.NewSimpleClientset(objects...)
+			v := &settingValidator{
+				settingCache:  fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				lhVolumeCache: fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+				nodeCache:     fakeclients.NodeCache(clientset.CoreV1().Nodes),
+			}
+
+			req := &whTypes.Request{Request: &webhook.Request{}}
+			err := v.validateUpdateRWXNetwork(req, tt.oldSetting, tt.newSetting)
+			assert.Equal(t, tt.expectedErr, err != nil, err)
+		})
+	}
+}
+
+func Test_checkNetworkOverlap(t *testing.T) {
+	tests := []struct {
+		name    string
+		c1Name  string
+		c1      *networkutil.Config
+		c2      map[string]*networkutil.Config
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "c1 is nil, skip check",
+			c1Name:  "storage-network",
+			c1:      nil,
+			c2:      map[string]*networkutil.Config{"vm-migration-network": {Range: "192.168.1.0/24"}},
+			wantErr: false,
+		},
+		{
+			name:    "c2 contains only nil configs, no overlap",
+			c1Name:  "storage-network",
+			c1:      &networkutil.Config{Range: "192.168.1.0/24"},
+			c2:      map[string]*networkutil.Config{"vm-migration-network": nil},
+			wantErr: false,
+		},
+		{
+			name:    "non-overlapping CIDRs, no error",
+			c1Name:  "storage-network",
+			c1:      &networkutil.Config{Range: "192.168.1.0/24"},
+			c2:      map[string]*networkutil.Config{"vm-migration-network": {Range: "192.168.2.0/24"}},
+			wantErr: false,
+		},
+		{
+			name:    "overlapping CIDRs, return error",
+			c1Name:  "storage-network",
+			c1:      &networkutil.Config{Range: "192.168.1.0/24"},
+			c2:      map[string]*networkutil.Config{"vm-migration-network": {Range: "192.168.1.0/24"}},
+			wantErr: true,
+			errMsg:  "storage-network: the network configuration is overlapped with vm-migration-network",
+		},
+		{
+			name:   "c1 exclude removes overlap, no error",
+			c1Name: "storage-network",
+			c1: &networkutil.Config{
+				Range:   "192.168.1.0/30",
+				Exclude: []string{"192.168.1.1/32", "192.168.1.2/32"},
+			},
+			c2:      map[string]*networkutil.Config{"vm-migration-network": {Range: "192.168.1.1/32"}},
+			wantErr: false,
+		},
+		{
+			name:    "invalid CIDR in c1, return error",
+			c1Name:  "storage-network",
+			c1:      &networkutil.Config{Range: "not-a-cidr"},
+			c2:      map[string]*networkutil.Config{"vm-migration-network": {Range: "192.168.1.0/24"}},
+			wantErr: true,
+		},
+		{
+			name:   "multiple c2 configs, one overlaps, return error",
+			c1Name: "storage-network",
+			c1:     &networkutil.Config{Range: "10.0.0.0/24"},
+			c2: map[string]*networkutil.Config{
+				"vm-migration-network": {Range: "192.168.1.0/24"},
+				"rwx-network":          {Range: "10.0.0.0/24"},
+			},
+			wantErr: true,
+			errMsg:  "storage-network: the network configuration is overlapped with rwx-network",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkNetworkOverlap(tt.c1Name, tt.c1, tt.c2)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errMsg != "" {
+					assert.EqualError(t, err, tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func Test_checkRWXNetworkRangeValid(t *testing.T) {
+	witnessLabel := map[string]string{"node-role.harvesterhci.io/witness": "true"}
+
+	tests := []struct {
+		name        string
+		nodes       []runtime.Object
+		config      *networkutil.Config
+		expectedErr bool
+	}{
+		{
+			// 3 non-witness nodes, required = 3+32 = 35; /24 gives 254 usable IPs
+			name: "sufficient IPs for 3 nodes -> ok",
+			nodes: []runtime.Object{
+				&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}},
+				&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-2"}},
+				&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-3"}},
+			},
+			config:      &networkutil.Config{Range: "192.168.0.0/24"},
+			expectedErr: false,
+		},
+		{
+			// 3 non-witness nodes, required = 35; /27 gives 30 usable IPs
+			name: "insufficient IPs for 3 nodes -> error",
+			nodes: []runtime.Object{
+				&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}},
+				&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-2"}},
+				&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-3"}},
+			},
+			config:      &networkutil.Config{Range: "192.168.0.0/27"},
+			expectedErr: true,
+		},
+		{
+			// 2 non-witness + 1 witness; required = 2+32 = 34; /27 gives 30 usable IPs
+			name: "witness node not counted, still insufficient -> error",
+			nodes: []runtime.Object{
+				&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}},
+				&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-2"}},
+				&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "witness-1", Labels: witnessLabel}},
+			},
+			config:      &networkutil.Config{Range: "192.168.0.0/27"},
+			expectedErr: true,
+		},
+		{
+			// exclude reduces usable IPs below required
+			name: "exclude range makes IPs insufficient -> error",
+			nodes: []runtime.Object{
+				&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}},
+				&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-2"}},
+				&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-3"}},
+			},
+			// Use tighter: /27=30 IPs, exclude /28=14 IPs -> 16 IPs, required=35 -> error
+			config:      &networkutil.Config{Range: "192.168.0.0/27", Exclude: []string{"192.168.0.0/28"}},
+			expectedErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset(tt.nodes...)
+			v := &settingValidator{
+				nodeCache: fakeclients.NodeCache(clientset.CoreV1().Nodes),
+			}
+			err := v.checkRWXNetworkRangeValid(tt.config)
+			assert.Equal(t, tt.expectedErr, err != nil, err)
+		})
+	}
 }
