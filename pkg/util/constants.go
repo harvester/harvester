@@ -234,9 +234,9 @@ const (
 	LabelCPUManagerUpdatePolicy      = prefix + "/cpu-manager-update-policy"
 	LabelCPUManagerExitCode          = prefix + "/cpu-manager-exit-code"
 
-	VClusterNamespace          = "rancher-vcluster"
-	LablelVClusterAppNameKey   = "app"
-	LablelVClusterAppNameValue = "vcluster"
+	VClusterNamespace         = "rancher-vcluster"
+	LabelAppNameKey           = "app"
+	LabelVClusterAppNameValue = "vcluster"
 
 	StorageClassHarvesterLonghorn  = "harvester-longhorn"  // the initial & default storageclass
 	StorageClassLonghornStatic     = "longhorn-static"     // internal storageclass used for management of existing Longhorn volumes
@@ -265,6 +265,17 @@ const (
 
 	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
 	StorageNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
+
+	RWXNetworkAnnotation       = "rwx-network.settings.harvesterhci.io"
+	RWXHashNetworkAnnotation   = RWXNetworkAnnotation + "/hash"
+	RWXNadNetworkAnnotation    = RWXNetworkAnnotation + "/net-attach-def"
+	RWXOldNadNetworkAnnotation = RWXNetworkAnnotation + "/old-net-attach-def"
+	RWXNetworkInitializedAnno  = RWXNetworkAnnotation + "/initialized"
+
+	RWXHashNetworkLabel = RWXHashNetworkAnnotation
+
+	RWXNetworkNetAttachDefPrefix    = "rwx-network-"
+	RWXNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
 
 	HarvesterCRDManagedChart         = "harvester-crd"
 	HarvesterManagedChart            = "harvester"

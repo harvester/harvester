@@ -39,11 +39,21 @@ func TestDeleteAllowsWhenNotUsed(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "correct namespace and name",
+			name: "storage-network NAD: correct namespace and name, setting not referencing it",
 			nad: &cniv1.NetworkAttachmentDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: util.HarvesterSystemNamespaceName,
 					Name:      util.StorageNetworkNetAttachDefPrefix + "aaaaa",
+				},
+			},
+			expectErr: false,
+		},
+		{
+			name: "rwx-network NAD: correct namespace and name, setting not referencing it",
+			nad: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: util.RWXNetworkNetAttachDefNamespace,
+					Name:      util.RWXNetworkNetAttachDefPrefix + "aaaaa",
 				},
 			},
 			expectErr: false,
@@ -81,6 +91,36 @@ func TestDeleteBlocksWhenUsed(t *testing.T) {
 			Name:      nadName,
 			Annotations: map[string]string{
 				util.StorageNetworkAnnotation: "true",
+			},
+		},
+	}
+
+	err := validator.Delete(nil, nad)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot delete NetworkAttachmentDefinition")
+}
+
+func TestDeleteBlocksRWXNadWhenUsed(t *testing.T) {
+	nadName := util.RWXNetworkNetAttachDefPrefix + "bbbbb"
+	nadNamespacedName := fmt.Sprintf("%s/%s", util.RWXNetworkNetAttachDefNamespace, nadName)
+
+	clientset := fakegenerated.NewSimpleClientset(&apiv1.Setting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: settings.RWXNetworkSettingName,
+			Annotations: map[string]string{
+				util.RWXNadNetworkAnnotation: nadNamespacedName,
+			},
+		},
+	})
+
+	validator := NewValidator(ctlv1beta1.SettingCache(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings)))
+
+	nad := &cniv1.NetworkAttachmentDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: util.RWXNetworkNetAttachDefNamespace,
+			Name:      nadName,
+			Annotations: map[string]string{
+				util.RWXNetworkAnnotation: "true",
 			},
 		},
 	}
