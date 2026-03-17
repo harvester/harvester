@@ -38,3 +38,12 @@ type SettingStatus struct {
 	// +optional
 	Conditions []Condition `json:"conditions,omitempty"`
 }
+
+// EffectiveValue returns the effective value of the setting.
+// Value takes precedence; if it is empty, Default is returned.
+func (s *Setting) EffectiveValue() string {
+	if s.Value != "" {
+		return s.Value
+	}
+	return s.Default
+}

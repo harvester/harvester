@@ -5,6 +5,7 @@ import (
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // get the value of AdditionalGuestMemoryOverheadRatio, if failed, return the default ratio
@@ -81,4 +82,24 @@ func IsRestoreVM(settingCache ctlharvesterv1.SettingCache) (bool, error) {
 		return false, err
 	}
 	return upgradeConfig.RestoreVM, nil
+}
+
+func IsShareStorageNetwork(settingCache ctlharvesterv1.SettingCache) (bool, error) {
+	if settingCache == nil {
+		return false, fmt.Errorf("the settingCache is empty, can't get the setting")
+	}
+	rwxSN, err := settingCache.Get(settings.RWXNetworkSettingName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to get %s setting, err: %v", settings.RWXNetworkSettingName, err)
+	}
+
+	rwxConfig, err := settings.DecodeConfig[settings.RWXNetworkConfig](rwxSN.EffectiveValue())
+	if err != nil || rwxConfig == nil {
+		return false, err
+	}
+
+	return rwxConfig.ShareStorageNetwork, nil
 }
