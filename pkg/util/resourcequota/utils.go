@@ -55,7 +55,7 @@ func AddMigratingVM(rq *corev1.ResourceQuota, vmName, vmUID string, rl corev1.Re
 	return nil
 }
 
-// delete the may existing VM Miration, return true if it exists
+// delete the maybe existing VM Migration, return true if it exists
 func DeleteMigratingVM(rq *corev1.ResourceQuota, vmName, vmUID string) bool {
 	if rq == nil || rq.Annotations == nil {
 		return false
@@ -142,7 +142,10 @@ func DeleteMigratingCompensation(rq *corev1.ResourceQuota) bool {
 	return initialLen != len(rq.Annotations)
 }
 
-func getResourceListOfMigratingCompensationFromRQ(rq *corev1.ResourceQuota) (corev1.ResourceList, error) {
+func getResourceListOfMigratingCompensation(rq *corev1.ResourceQuota) (corev1.ResourceList, error) {
+	if rq == nil || rq.Annotations == nil {
+		return nil, nil
+	}
 	compensation := rq.Annotations[util.AnnotationMigratingCompensation]
 	if compensation == "" {
 		return nil, nil
@@ -202,11 +205,11 @@ func IsResourceQuotaManagedByNamespaceAnnotation(rq *corev1.ResourceQuota, rqStr
 	if IsEmptyResourceQuota(rq) {
 		return false, nil
 	}
-	var rqBase *v3.NamespaceResourceQuota
+	var rqBase v3.NamespaceResourceQuota
 	if err := json.Unmarshal([]byte(rqStr), &rqBase); err != nil {
 		return false, err
 	}
-	rCPULimit, rMemoryLimit, err := GetCPUMemoryLimitsFromRancherNamespaceResourceQuota(rqBase)
+	rCPULimit, rMemoryLimit, err := GetCPUMemoryLimitsFromRancherNamespaceResourceQuota(&rqBase)
 	if err != nil {
 		return false, err
 	}
@@ -221,11 +224,11 @@ func IsResourceQuotaManagedByNamespaceAnnotationWithMemoryLimits(rq *corev1.Reso
 	if isMemoryLimitEmpty(rq) {
 		return false, nil
 	}
-	var rqBase *v3.NamespaceResourceQuota
+	var rqBase v3.NamespaceResourceQuota
 	if err := json.Unmarshal([]byte(rqStr), &rqBase); err != nil {
 		return false, err
 	}
-	rMemoryLimit, err := GetMemoryLimitsFromRancherNamespaceResourceQuota(rqBase)
+	rMemoryLimit, err := GetMemoryLimitsFromRancherNamespaceResourceQuota(&rqBase)
 	if err != nil {
 		return false, err
 	}

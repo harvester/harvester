@@ -589,6 +589,16 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 			},
 		},
 	}
+	getNamespace := func() *corev1.Namespace {
+		return &corev1.Namespace{
+			ObjectMeta: v1.ObjectMeta{
+				Name: resourceQuotaNamespace,
+				Annotations: map[string]string{
+					util.CattleAnnotationResourceQuota: "{\"limit\":{\"limitsCpu\":\"1\", \"limitsMemory\":\"1Gi\"}}",
+				},
+			},
+		}
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var clientset = fakecore.NewSimpleClientset()
@@ -606,10 +616,15 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 				err := harvFakeClient.Tracker().Add(tt.args.vmim)
 				assert.Nil(t, err, errMockTrackerAdd)
 			}
+			if ns := getNamespace(); ns != nil {
+				err := clientset.Tracker().Add(ns)
+				assert.Nil(t, err, errMockTrackerAdd)
+			}
 
 			h := &Handler{
 				rqs:      fakeclients.ResourceQuotaClient(clientset.CoreV1().ResourceQuotas),
 				rqCache:  fakeclients.ResourceQuotaCache(clientset.CoreV1().ResourceQuotas),
+				nsCache:  fakeclients.NamespaceCache(clientset.CoreV1().Namespaces),
 				vmiCache: fakeclients.VirtualMachineInstanceCache(harvFakeClient.KubevirtV1().VirtualMachineInstances),
 				vmCache:  fakeclients.VirtualMachineCache(harvFakeClient.KubevirtV1().VirtualMachines),
 			}
@@ -662,7 +677,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota_WithCompensation(t *testing.T) 
 		want    *corev1.ResourceQuota
 	}{
 		{
-			name: "VMIM is in Pending and with RQ Rejected status, RQ auot-scaling is disabled, no op",
+			name: "VMIM is in Pending and with RQ Rejected status, RQ auto-scaling is disabled, no op",
 			args: args{
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
@@ -903,6 +918,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota_WithCompensation(t *testing.T) 
 			h := &Handler{
 				rqs:      fakeclients.ResourceQuotaClient(clientset.CoreV1().ResourceQuotas),
 				rqCache:  fakeclients.ResourceQuotaCache(clientset.CoreV1().ResourceQuotas),
+				nsCache:  fakeclients.NamespaceCache(clientset.CoreV1().Namespaces),
 				vmiCache: fakeclients.VirtualMachineInstanceCache(harvFakeClient.KubevirtV1().VirtualMachineInstances),
 				vmCache:  fakeclients.VirtualMachineCache(harvFakeClient.KubevirtV1().VirtualMachines),
 			}
@@ -944,6 +960,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota_WithCompensationResult(t *testi
 
 	type args struct {
 		rq   *corev1.ResourceQuota
+		ns   *corev1.Namespace
 		vmi  *kubevirtv1.VirtualMachineInstance
 		vmim *kubevirtv1.VirtualMachineInstanceMigration
 	}
@@ -957,6 +974,14 @@ func TestHandler_OnVmimChanged_WithResourceQuota_WithCompensationResult(t *testi
 		{
 			name: "VMIM is in Pending and with RQ Rejected status, RQ is compensated",
 			args: args{
+				ns: &corev1.Namespace{
+					ObjectMeta: v1.ObjectMeta{
+						Name: resourceQuotaNamespace,
+						Annotations: map[string]string{
+							util.CattleAnnotationResourceQuota: "{\"limit\":{\"limitsCpu\":\"1\", \"limitsMemory\":\"1Gi\"}}",
+						},
+					},
+				},
 				rq: &corev1.ResourceQuota{
 					ObjectMeta: v1.ObjectMeta{
 						Namespace: resourceQuotaNamespace,
@@ -1016,6 +1041,221 @@ func TestHandler_OnVmimChanged_WithResourceQuota_WithCompensationResult(t *testi
 			wantErr:         false,
 			hasCompensation: true,
 		},
+		{
+			name: "VMIM is in Pending and with RQ Rejected status, but namespace has no annotation CattleAnnotationResourceQuota, RQ is not compensated",
+			args: args{
+				ns: &corev1.Namespace{
+					ObjectMeta: v1.ObjectMeta{
+						Name:        resourceQuotaNamespace,
+						Annotations: map[string]string{
+							// namespace object does not have CattleAnnotationResourceQuota
+							// no compensation is applied
+							// util.CattleAnnotationResourceQuota: "{\"limit\":{\"limitsCpu\":\"1\", \"limitsMemory\":\"1Gi\"}}",
+						},
+					},
+				},
+				rq: &corev1.ResourceQuota{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: resourceQuotaNamespace,
+						Name:      resourceQuotaName,
+						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+						Annotations: map[string]string{
+							util.GenerateAnnotationKeyMigratingVMUID(uid): fmt.Sprintf(vmResourceLimitStr, getMemWithOverhead(memory1Gi*2)),
+							util.AnnotationMigratingScalingResyncNeeded:   "false", // to bypass controller EnqueueAfter
+						},
+					},
+					Spec: corev1.ResourceQuotaSpec{
+						Hard: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+							corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+						},
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vm1",
+						Namespace: resourceQuotaNamespace,
+						UID:       uid,
+						Annotations: map[string]string{
+							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
+							util.AnnotationMigrationState: StatePending,
+						},
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							Resources: kubevirtv1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+								},
+							},
+						},
+					},
+				},
+				vmim: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vmim1",
+						Namespace: resourceQuotaNamespace,
+						UID:       vmimUID,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationPending,
+						Conditions: []kubevirtv1.VirtualMachineInstanceMigrationCondition{
+							{
+								Type:   kubevirtv1.VirtualMachineInstanceMigrationRejectedByResourceQuota,
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+			wantErr:         false,
+			hasCompensation: false,
+		},
+		{
+			name: "VMIM is in Pending and with RQ Rejected status, but namespace has annotation CattleAnnotationResourceQuota but zero memory limit, RQ is not compensated",
+			args: args{
+				ns: &corev1.Namespace{
+					ObjectMeta: v1.ObjectMeta{
+						Name: resourceQuotaNamespace,
+						Annotations: map[string]string{
+							// namespace object has CattleAnnotationResourceQuota, but zero memory limit
+							// no compensation is applied
+							util.CattleAnnotationResourceQuota: "{\"limit\":{\"limitsCpu\":\"1\", \"limitsMemory\":\"0Gi\"}}",
+						},
+					},
+				},
+				rq: &corev1.ResourceQuota{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: resourceQuotaNamespace,
+						Name:      resourceQuotaName,
+						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+						Annotations: map[string]string{
+							util.GenerateAnnotationKeyMigratingVMUID(uid): fmt.Sprintf(vmResourceLimitStr, getMemWithOverhead(memory1Gi*2)),
+							util.AnnotationMigratingScalingResyncNeeded:   "false", // to bypass controller EnqueueAfter
+						},
+					},
+					Spec: corev1.ResourceQuotaSpec{
+						Hard: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceLimitsCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+							corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+						},
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vm1",
+						Namespace: resourceQuotaNamespace,
+						UID:       uid,
+						Annotations: map[string]string{
+							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
+							util.AnnotationMigrationState: StatePending,
+						},
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							Resources: kubevirtv1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+								},
+							},
+						},
+					},
+				},
+				vmim: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vmim1",
+						Namespace: resourceQuotaNamespace,
+						UID:       vmimUID,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationPending,
+						Conditions: []kubevirtv1.VirtualMachineInstanceMigrationCondition{
+							{
+								Type:   kubevirtv1.VirtualMachineInstanceMigrationRejectedByResourceQuota,
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+			wantErr:         false,
+			hasCompensation: false,
+		},
+		{
+			name: "VMIM is in Pending and with RQ Rejected status, but the default rq has no memory limits, RQ is not compensated",
+			args: args{
+				ns: &corev1.Namespace{
+					ObjectMeta: v1.ObjectMeta{
+						Name: resourceQuotaNamespace,
+						Annotations: map[string]string{
+							util.CattleAnnotationResourceQuota: "{\"limit\":{\"limitsCpu\":\"1\", \"limitsMemory\":\"1Gi\"}}",
+						},
+					},
+				},
+				rq: &corev1.ResourceQuota{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: resourceQuotaNamespace,
+						Name:      resourceQuotaName,
+						Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+						Annotations: map[string]string{
+							util.GenerateAnnotationKeyMigratingVMUID(uid): fmt.Sprintf(vmResourceLimitStr, getMemWithOverhead(memory1Gi*2)),
+							util.AnnotationMigratingScalingResyncNeeded:   "false", // to bypass controller EnqueueAfter
+						},
+					},
+					Spec: corev1.ResourceQuotaSpec{
+						Hard: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceLimitsCPU: *resource.NewQuantity(1, resource.DecimalSI),
+							// no memory limit, no compensation
+							// corev1.ResourceLimitsMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+						},
+					},
+				},
+				vmi: &kubevirtv1.VirtualMachineInstance{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vm1",
+						Namespace: resourceQuotaNamespace,
+						UID:       uid,
+						Annotations: map[string]string{
+							util.AnnotationMigrationUID:   vmimUID, // bypass vmi migration state updating
+							util.AnnotationMigrationState: StatePending,
+						},
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							Resources: kubevirtv1.ResourceRequirements{
+								Limits: map[corev1.ResourceName]resource.Quantity{
+									corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewQuantity(memory1Gi*2, resource.BinarySI),
+								},
+							},
+						},
+					},
+				},
+				vmim: &kubevirtv1.VirtualMachineInstanceMigration{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "vmim1",
+						Namespace: resourceQuotaNamespace,
+						UID:       vmimUID,
+					},
+					Spec: kubevirtv1.VirtualMachineInstanceMigrationSpec{VMIName: "vm1"},
+					Status: kubevirtv1.VirtualMachineInstanceMigrationStatus{
+						Phase: kubevirtv1.MigrationPending,
+						Conditions: []kubevirtv1.VirtualMachineInstanceMigrationCondition{
+							{
+								Type:   kubevirtv1.VirtualMachineInstanceMigrationRejectedByResourceQuota,
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+			wantErr:         false,
+			hasCompensation: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1024,6 +1264,10 @@ func TestHandler_OnVmimChanged_WithResourceQuota_WithCompensationResult(t *testi
 
 			if tt.args.rq != nil {
 				err := clientset.Tracker().Add(tt.args.rq)
+				assert.Nil(t, err, errMockTrackerAdd)
+			}
+			if tt.args.ns != nil {
+				err := clientset.Tracker().Add(tt.args.ns)
 				assert.Nil(t, err, errMockTrackerAdd)
 			}
 			if tt.args.vmi != nil {
@@ -1038,6 +1282,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota_WithCompensationResult(t *testi
 			h := &Handler{
 				rqs:      fakeclients.ResourceQuotaClient(clientset.CoreV1().ResourceQuotas),
 				rqCache:  fakeclients.ResourceQuotaCache(clientset.CoreV1().ResourceQuotas),
+				nsCache:  fakeclients.NamespaceCache(clientset.CoreV1().Namespaces),
 				vmiCache: fakeclients.VirtualMachineInstanceCache(harvFakeClient.KubevirtV1().VirtualMachineInstances),
 				vmCache:  fakeclients.VirtualMachineCache(harvFakeClient.KubevirtV1().VirtualMachines),
 			}

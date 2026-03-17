@@ -108,7 +108,7 @@ func scaleResourceQuotaOnDemand(rq *corev1.ResourceQuota, rqStr string) (bool, e
 	}
 
 	// compensation if real usage already more than base
-	memCompensation, err := rqutils.GetCompensationFromRQAnnotation(rq)
+	memCompensation, err := rqutils.GetCompensationFromResourceQuota(rq)
 	if err != nil {
 		logrus.Warnf("resourcequota %s/%s can't get valid Compensation values from annotations, skip scaling, error %s", rq.Namespace, rq.Name, err.Error())
 		return update, errSkipScaling

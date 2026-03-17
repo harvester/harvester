@@ -188,6 +188,13 @@ func (h *Handler) isNamespaceManagedByResourceQuota(namespace string) (bool, err
 
 // scaleResourceQuotaWithVMI scales ResourceQuota through VMI resource specifications
 func (h *Handler) scaleResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInstance) error {
+
+	// in this case, current code can do nothing
+	if vmi.Spec.Domain.Resources.Limits.Memory().IsZero() && vmi.Spec.Domain.Resources.Limits.Cpu().IsZero() {
+		logrus.Warnf("scaleResourceQuotaWithVMI: there is no cpu, memory limits on vmi %s/%s, but there is resourcequota, something might be wrong", vmi.Namespace, vmi.Name)
+		return nil
+	}
+
 	selector := labels.Set{util.LabelManagementDefaultResourceQuota: "true"}.AsSelector()
 	rqs, err := h.rqCache.List(vmi.Namespace, selector)
 	if err != nil {
@@ -196,15 +203,29 @@ func (h *Handler) scaleResourceQuotaWithVMI(vmi *kubevirtv1.VirtualMachineInstan
 		logrus.Debugf("scaleResourceQuotaWithVMI: can't find any default resource quota, skip updating namespace %s", vmi.Namespace)
 		return nil
 	}
-
+	rq := rqs[0]
 	// resourcequota_controller check this
 	// vmim_controller also adds the check to stop the auto-scaling asap.
-	if rqutils.IsResourceQuotaAutoScalingDisabled(rqs[0]) {
-		logrus.Debugf("resourcequota %s/%s annotation %s is set, skip scaling", rqs[0].Namespace, rqs[0].Name, util.AnnotationSkipResourceQuotaAutoScaling)
+	if rqutils.IsResourceQuotaAutoScalingDisabled(rq) {
+		logrus.Debugf("scaleResourceQuotaWithVMI: resourcequota %s/%s annotation %s is set, skip scaling", rq.Namespace, rq.Name, util.AnnotationSkipResourceQuotaAutoScaling)
 		return nil
 	}
 
-	rqCpy := rqs[0].DeepCopy()
+	// ensure all parameters are set
+	ns, err := h.nsCache.Get(vmi.Namespace)
+	if err != nil {
+		return fmt.Errorf("scaleResourceQuotaWithVMI: failed to get vmi's namespace object %s: %w", vmi.Namespace, err)
+	}
+	managed, err := rqutils.IsResourceQuotaManagedByNamespaceAnnotation(rq, ns.Annotations[util.CattleAnnotationResourceQuota])
+	if err != nil {
+		return fmt.Errorf("scaleResourceQuotaWithVMI: failed to get all parameters to decide if this resourcequota %s/%s is managed: %w", rq.Namespace, rq.Name, err)
+	}
+	// not managed
+	if !managed {
+		return nil
+	}
+
+	rqCpy := rq.DeepCopy()
 	if ok := rqutils.ContainsMigratingVM(rqCpy, vmi.Name, string(vmi.UID)); ok {
 		logrus.Debugf("scaleResourceQuotaWithVMI: the resource quota in the namespace %s and vm %s is already scaled, skip updating", vmi.Namespace, vmi.Name)
 		return nil
@@ -328,6 +349,12 @@ func (h *Handler) compensatePendingMigration(vmim *kubevirtv1.VirtualMachineInst
 // the RQ usage can exceed the hard limit
 // this function will ensure the already running VMs can still migrate
 func (h *Handler) compensateResourceQuotaBase(vmim *kubevirtv1.VirtualMachineInstanceMigration, vmi *kubevirtv1.VirtualMachineInstance) error {
+	// in this case, current code can do nothing
+	if vmi.Spec.Domain.Resources.Limits.Memory().IsZero() {
+		logrus.Warnf("compensateResourceQuotaBase: the vmim %s/%s is blocked due to resource quota, but there is no memory limits on vmi %s, might due to CPU limits", vmim.Namespace, vmim.Name, vmi.Name)
+		return nil
+	}
+
 	selector := labels.Set{util.LabelManagementDefaultResourceQuota: "true"}.AsSelector()
 	rqs, err := h.rqCache.List(vmi.Namespace, selector)
 	if err != nil {
@@ -341,7 +368,21 @@ func (h *Handler) compensateResourceQuotaBase(vmim *kubevirtv1.VirtualMachineIns
 	// as there is EnqueueAfter operation, it is essential to check this flag
 	// to avoid: vmim_controller keeps updating but resourcequota_controller do nothing
 	if rqutils.IsResourceQuotaAutoScalingDisabled(rq) {
-		logrus.Debugf("resourcequota %s/%s annotation %s is set, skip compensation", rq.Namespace, rq.Name, util.AnnotationSkipResourceQuotaAutoScaling)
+		logrus.Debugf("compensateResourceQuotaBase: resourcequota %s/%s annotation %s is set, skip compensation", rq.Namespace, rq.Name, util.AnnotationSkipResourceQuotaAutoScaling)
+		return nil
+	}
+
+	// ensure all parameters are set
+	ns, err := h.nsCache.Get(vmi.Namespace)
+	if err != nil {
+		return fmt.Errorf("compensateResourceQuotaBase: failed to get vmi's namespace object %s: %w", vmi.Namespace, err)
+	}
+	managed, err := rqutils.IsResourceQuotaManagedByNamespaceAnnotationWithMemoryLimits(rq, ns.Annotations[util.CattleAnnotationResourceQuota])
+	if err != nil {
+		return fmt.Errorf("compensateResourceQuotaBase: failed to get all parameters to decide if this resourcequota %s/%s is managed: %w", rq.Namespace, rq.Name, err)
+	}
+	// not managed
+	if !managed {
 		return nil
 	}
 
@@ -363,15 +404,14 @@ func (h *Handler) compensateResourceQuotaBase(vmim *kubevirtv1.VirtualMachineIns
 	}
 
 	rqToUpdate := rq.DeepCopy()
-	// only update to ResourceQuota annotation, do not change ResourceQuota spec directly in this step
-	needUpdate, rqToUpdate, rl := rqutils.CalculateCompensationResourceQuotaWithVMI(rqToUpdate, vmi, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(h.settingCache))
+	needUpdate, rl := rqutils.CalculateCompensationResourceQuotaWithVMI(rqToUpdate, vmi, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(h.settingCache))
 	if !needUpdate {
 		logrus.Debugf("compensateResourceQuotaBase: no need to update resource quota, skip updating namespace %s and vm %s", vmi.Namespace, vmi.Name)
 		return nil
 	}
 
 	logrus.Infof("compensateResourceQuotaBase: compensate resource quota %s in namespace %s for vm %s : %v", rq.Name, vmi.Namespace, vmi.Name, rl)
-	// add compensation information to ResourceQuota
+	// add compensation information to ResourceQuota annotation, do not change ResourceQuota spec directly in this step
 	if err := rqutils.AddMigratingCompensation(rqToUpdate, rl); err != nil {
 		return err
 	}
