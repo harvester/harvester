@@ -1,7 +1,7 @@
 name: Task request (component update for patch release)
 description: Create a component update task targeting a specific Harvester patch release
 title: "[TASK] Component updates for Harvester vX.Y.Z"
-labels: [ "kind/task", "area/build-package", "not-require/test-plan" ]
+labels: [ "kind/task", "area/build-dep-package", "not-require/test-plan" ]
 assignees:
 -
 body:
