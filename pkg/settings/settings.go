@@ -54,6 +54,7 @@ var (
 	AutoRotateRKE2CertsSet                 = NewSetting(AutoRotateRKE2CertsSettingName, InitAutoRotateRKE2Certs())
 	KubeconfigTTL                          = NewSetting(KubeconfigDefaultTokenTTLMinutesSettingName, "0") // "0" is default value to ensure token does not expire
 	LonghornV2DataEngineEnabled            = NewSetting(LonghornV2DataEngineSettingName, "false")
+	LHIMResources                          = NewSetting(LHIMResourcesSettingName, `{"cpu":{}}`)
 	AdditionalGuestMemoryOverheadRatio     = NewSetting(AdditionalGuestMemoryOverheadRatioName, AdditionalGuestMemoryOverheadRatioDefault)
 	RancherCluster                         = NewSetting(RancherClusterSettingName, "{}")
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
@@ -100,6 +101,7 @@ const (
 	SupportBundleFileNameSettingName                  = "support-bundle-file-name"
 	UpgradeConfigSettingName                          = "upgrade-config"
 	LonghornV2DataEngineSettingName                   = "longhorn-v2-data-engine-enabled"
+	LHIMResourcesSettingName                          = "instance-manager-resources"
 	LogLevelSettingName                               = "log-level"
 	AdditionalGuestMemoryOverheadRatioName            = "additional-guest-memory-overhead-ratio"
 	ClusterRegistrationURLSettingName                 = "cluster-registration-url"

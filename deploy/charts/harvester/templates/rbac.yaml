@@ -183,6 +183,8 @@ rules:
   resources:
   - networkfilesystems
   - networkfilesystems/status
+  - volumeremotebackups
+  - volumeremoterestores
   verbs:
   - '*'
 - apiGroups:
