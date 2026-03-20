@@ -1,11 +1,11 @@
-name: "[Issue Management] Link Backport PR Issue"
+name: "Issue Management Backport PR Collect Data"
 
 on:
-  pull_request_target:
-    types: [ opened ]
+  pull_request:
+    types: [opened]
     branches:
-    - master
-    - "v*"
+      - master
+      - "v*"
 
 env:
   REPO_NAME: harvester/harvester
@@ -14,10 +14,9 @@ jobs:
   check-backport:
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write
+      actions: write
+      pull-requests: read
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
     - name: Check if PR is a backport
       env:
@@ -34,8 +33,6 @@ jobs:
     - name: Extract backport branch and issue number
       if: env.BACKPORT == 'true'
       env:
-        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
         BASE_REF: ${{ github.event.pull_request.base.ref }}
         BODY: ${{ github.event.pull_request.body }}
       run: |
@@ -57,59 +54,18 @@ jobs:
         ORIGINAL_ISSUE_NUMBER=$(echo $ALL_ISSUES | xargs) # trim
         echo "ORIGINAL_ISSUE_NUMBER=$ORIGINAL_ISSUE_NUMBER" >> $GITHUB_ENV
 
-    - name: Link the PR with the backport issue
-      if: ${{ env.BACKPORT == 'true' && env.ORIGINAL_ISSUE_NUMBER != '' }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+    - name: Save PR data to artifact
       run: |
-        for issue_number in ${{ env.ORIGINAL_ISSUE_NUMBER }}; do
-          echo "Found source issue ${REPO_NAME}#${issue_number}"
-          issue_title=$(gh issue view "$issue_number" --json title --jq ".title")
-          
-          # Reset backport_issue_number for each iteration
-          backport_issue_number=""
+        {
+          echo "BACKPORT=${{ env.BACKPORT }}"
+          echo "BRANCH=${{ env.BRANCH }}"
+          echo "ORIGINAL_ISSUE_NUMBER=${{ env.ORIGINAL_ISSUE_NUMBER }}"
+          echo "HTML_URL=${{ github.event.pull_request.html_url }}"
+          echo "PR_NUMBER=${{ github.event.pull_request.number }}"
+        } > pr-data.env
 
-          if [[ -n "$issue_number" && -n "$issue_title" ]]; then
-            search_title="[backport ${BRANCH}] ${issue_title}"
-
-            echo "Searching for backport issue with title: '${search_title}'"
-
-            # Get both number and title from the search results
-            backport_issues_json=$(gh search issues "${search_title}" --state open --match title  --json number,title)
-
-            if [[ "$backport_issues_json" != "[]" && -n "$backport_issues_json" ]]; then
-              # Get the length of the JSON array
-              array_length=$(echo "$backport_issues_json" | jq 'length')
-              
-              # Loop through each issue in the JSON array
-              for ((i=0; i<$array_length; i++)); do
-                found_number=$(echo "$backport_issues_json" | jq -r ".[$i].number")
-                found_title=$(echo "$backport_issues_json" | jq -r ".[$i].title")
-                
-                # Compare the found title with our expected title
-                if [[ "$found_title" == "$search_title" ]]; then
-                  echo "Found exact match backport issue ${REPO_NAME}#${found_number} with title: '${found_title}'"
-                  echo "Linking backport issue ${REPO_NAME}#${found_number}"
-                  backport_issue_number="$found_number"
-                  break
-                else
-                  echo "Found partial match ${REPO_NAME}#${found_number} but title doesn't match exactly: '${found_title}'"
-                fi
-              done
-            fi
-
-            if [[ -n "$backport_issue_number" ]]; then
-
-              # comment on the backport issue
-              gh issue comment "${backport_issue_number}" --body "Backport PR (${BRANCH}): ${{ github.event.pull_request.html_url }}"
-
-              # comment on the PR
-              backport_issue_url=$(gh issue view "${backport_issue_number}" --json url --jq ".url")
-              gh pr comment "${{ github.event.pull_request.number }}" --body "Backport issue (${BRANCH}): ${backport_issue_url}"
-              continue
-            fi
-          fi
-
-          echo "No issue title found"
-        done
+    - name: Upload PR data artifact
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: pr-data
+        path: pr-data.env
