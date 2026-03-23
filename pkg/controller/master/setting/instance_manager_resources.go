@@ -33,10 +33,10 @@ func (h *Handler) syncLHIMResources(setting *harvesterv1.Setting) error {
 	v1CPU := resources.CPU.V1
 	v2CPU := resources.CPU.V2
 
-	if err := lhtypes.ValidateCPUReservationValues(lhtypes.SettingNameGuaranteedInstanceManagerCPU, v1CPU); err != nil {
+	if err := lhtypes.ValidateSetting(string(lhtypes.SettingNameGuaranteedInstanceManagerCPU), v1CPU); err != nil {
 		return fmt.Errorf("invalid CPU value for cpu.v1 %q in %s: %w", v1CPU, setting.Name, err)
 	}
-	if err := lhtypes.ValidateCPUReservationValues(lhtypes.SettingNameGuaranteedInstanceManagerCPU, v2CPU); err != nil {
+	if err := lhtypes.ValidateSetting(string(lhtypes.SettingNameGuaranteedInstanceManagerCPU), v2CPU); err != nil {
 		return fmt.Errorf("invalid CPU value for cpu.v2 %q in %s: %w", v2CPU, setting.Name, err)
 	}
 
@@ -74,10 +74,7 @@ func (h *Handler) syncLHIMResourcesToLonghornDefault() error {
 		return err
 	}
 
-	defaultValue, err := defaultLonghornLHIMResourcesValue()
-	if err != nil {
-		return err
-	}
+	defaultValue := defaultLonghornLHIMResourcesValue()
 	if lhSetting.Value == defaultValue {
 		return nil
 	}
@@ -92,16 +89,8 @@ func (h *Handler) syncLHIMResourcesToLonghornDefault() error {
 	return err
 }
 
-func defaultLonghornLHIMResourcesValue() (string, error) {
-	valueBytes, err := json.Marshal(map[string]string{
-		string(lhv1beta2.DataEngineTypeV1): lhtypes.SettingDefinitionGuaranteedInstanceManagerCPU.Default,
-		string(lhv1beta2.DataEngineTypeV2): lhtypes.SettingDefinitionGuaranteedInstanceManagerCPU.Default,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	return string(valueBytes), nil
+func defaultLonghornLHIMResourcesValue() string {
+	return lhtypes.SettingDefinitionGuaranteedInstanceManagerCPU.Default
 }
 
 func (h *Handler) checkLonghornVolumeDetached() error {
