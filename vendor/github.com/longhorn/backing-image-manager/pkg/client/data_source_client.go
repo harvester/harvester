@@ -9,6 +9,8 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/longhorn/backing-image-manager/api"
 	"github.com/longhorn/backing-image-manager/pkg/util"
 	"github.com/pkg/errors"
@@ -31,7 +33,11 @@ func (client *DataSourceClient) Get() (*api.DataSourceInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -69,7 +75,11 @@ func (client *DataSourceClient) Transfer() error {
 	if err != nil {
 		return fmt.Errorf("transfer failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -93,8 +103,16 @@ func (client *DataSourceClient) Upload(filePath string) error {
 	r, w := io.Pipe()
 	m := multipart.NewWriter(w)
 	go func() {
-		defer w.Close()
-		defer m.Close()
+		defer func() {
+			if errClose := w.Close(); errClose != nil {
+				logrus.WithError(errClose).Error("Failed to close writer")
+			}
+		}()
+		defer func() {
+			if errClose := m.Close(); errClose != nil {
+				logrus.WithError(errClose).Error("Failed to close multipart writer")
+			}
+		}()
 		part, err := m.CreateFormFile("chunk", "blob")
 		if err != nil {
 			return
@@ -103,7 +121,11 @@ func (client *DataSourceClient) Upload(filePath string) error {
 		if err != nil {
 			return
 		}
-		defer file.Close()
+		defer func() {
+			if errClose := file.Close(); errClose != nil {
+				logrus.WithError(errClose).Error("Failed to close file")
+			}
+		}()
 		if _, err = io.Copy(part, file); err != nil {
 			return
 		}
@@ -125,7 +147,11 @@ func (client *DataSourceClient) Upload(filePath string) error {
 	if err != nil {
 		return fmt.Errorf("upload failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {

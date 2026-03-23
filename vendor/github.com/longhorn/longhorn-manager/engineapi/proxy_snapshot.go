@@ -1,6 +1,10 @@
 package engineapi
 
 import (
+	"github.com/pkg/errors"
+
+	"github.com/longhorn/longhorn-manager/util"
+
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
@@ -34,9 +38,9 @@ func (p *Proxy) SnapshotGet(e *longhorn.Engine, name string) (snapshot *longhorn
 }
 
 func (p *Proxy) SnapshotClone(e *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName, fromEngineName string,
-	fileSyncHTTPClientTimeout, grpcTimeoutSeconds int64) (err error) {
+	fileSyncHTTPClientTimeout, grpcTimeoutSeconds int64, cloneMode string) (err error) {
 	return p.grpcClient.SnapshotClone(string(e.Spec.DataEngine), e.Name, e.Spec.VolumeName, p.DirectToURL(e),
-		snapshotName, fromEngineAddress, fromVolumeName, fromEngineName, int(fileSyncHTTPClientTimeout), grpcTimeoutSeconds)
+		snapshotName, fromEngineAddress, fromVolumeName, fromEngineName, int(fileSyncHTTPClientTimeout), grpcTimeoutSeconds, cloneMode)
 }
 
 func (p *Proxy) SnapshotCloneStatus(e *longhorn.Engine) (status map[string]*longhorn.SnapshotCloneStatus, err error) {
@@ -59,6 +63,15 @@ func (p *Proxy) SnapshotRevert(e *longhorn.Engine, snapshotName string) (err err
 }
 
 func (p *Proxy) SnapshotPurge(e *longhorn.Engine) (err error) {
+	v, err := p.ds.GetVolumeRO(e.Spec.VolumeName)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get volume %v before purging snapshots", e.Spec.VolumeName)
+	}
+
+	if util.IsVolumeMigrating(v) {
+		return errors.Errorf("failed to start snapshot purge for engine %v and volume %v because the volume is migrating", e.Name, e.Spec.VolumeName)
+	}
+
 	return p.grpcClient.SnapshotPurge(string(e.Spec.DataEngine), e.Name, e.Spec.VolumeName, p.DirectToURL(e),
 		true)
 }

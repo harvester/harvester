@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 
 	"github.com/longhorn/backing-image-manager/api"
 	"github.com/longhorn/backing-image-manager/pkg/util"
@@ -39,7 +40,11 @@ func (client *SyncClient) Get(filePath string) (*api.FileInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -74,7 +79,11 @@ func (client *SyncClient) List() (map[string]*api.FileInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -109,7 +118,11 @@ func (client *SyncClient) Delete(filePath string) error {
 	if err != nil {
 		return fmt.Errorf("delete failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -138,7 +151,11 @@ func (client *SyncClient) Forget(filePath string) error {
 	if err != nil {
 		return fmt.Errorf("forget failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -173,7 +190,11 @@ func (client *SyncClient) Fetch(srcFilePath, dstFilePath, uuid, diskUUID, expect
 	if err != nil {
 		return fmt.Errorf("fetch failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -208,7 +229,11 @@ func (client *SyncClient) DownloadFromURL(downloadURL, filePath, uuid, diskUUID,
 	if err != nil {
 		return fmt.Errorf("download from URL failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -251,7 +276,11 @@ func (client *SyncClient) CloneFromBackingImage(sourceBackingImage, sourceBackin
 	if err != nil {
 		return errors.Wrapf(err, "clone from backing image failed")
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -293,7 +322,11 @@ func (client *SyncClient) RestoreFromBackupURL(backupURL, concurrentLimit, fileP
 	if err != nil {
 		return fmt.Errorf("download from URL failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -317,8 +350,16 @@ func (client *SyncClient) Upload(src, dst, uuid, diskUUID, expectedChecksum stri
 	r, w := io.Pipe()
 	m := multipart.NewWriter(w)
 	go func() {
-		defer w.Close()
-		defer m.Close()
+		defer func() {
+			if errClose := w.Close(); errClose != nil {
+				logrus.WithError(errClose).Error("Failed to close writer")
+			}
+		}()
+		defer func() {
+			if errClose := m.Close(); errClose != nil {
+				logrus.WithError(errClose).Error("Failed to close multipart writer")
+			}
+		}()
 		part, err := m.CreateFormFile("chunk", "blob")
 		if err != nil {
 			return
@@ -327,7 +368,11 @@ func (client *SyncClient) Upload(src, dst, uuid, diskUUID, expectedChecksum stri
 		if err != nil {
 			return
 		}
-		defer file.Close()
+		defer func() {
+			if errClose := file.Close(); errClose != nil {
+				logrus.WithError(errClose).Error("Failed to close file")
+			}
+		}()
 		if _, err = io.Copy(part, file); err != nil {
 			return
 		}
@@ -353,7 +398,11 @@ func (client *SyncClient) Upload(src, dst, uuid, diskUUID, expectedChecksum stri
 	if err != nil {
 		return fmt.Errorf("upload failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -390,7 +439,11 @@ func (client *SyncClient) Receive(filePath, uuid, diskUUID, expectedChecksum, fi
 	if err != nil {
 		return fmt.Errorf("receive from peer failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -420,7 +473,11 @@ func (client *SyncClient) Send(filePath, toAddress string) error {
 	if err != nil {
 		return fmt.Errorf("send to peer failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	bodyContent, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -443,7 +500,11 @@ func (client *SyncClient) DownloadToDst(srcFilePath, dstFilePath string) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to create the dst file before download")
 	}
-	defer dst.Close()
+	defer func() {
+		if errClose := dst.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close dst file")
+		}
+	}()
 
 	httpClient := &http.Client{Timeout: 0}
 
@@ -457,7 +518,11 @@ func (client *SyncClient) DownloadToDst(srcFilePath, dstFilePath string) error {
 	if err != nil {
 		return fmt.Errorf("download to dst failed, err: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if errClose := resp.Body.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close response body")
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%s, skip reading the response body content", util.GetHTTPClientErrorPrefix(resp.StatusCode))

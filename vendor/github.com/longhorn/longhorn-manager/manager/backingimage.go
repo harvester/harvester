@@ -87,17 +87,6 @@ func (m *VolumeManager) GetDefaultBackingImageManagersByDiskUUID(diskUUID string
 }
 
 func (m *VolumeManager) CreateBackingImage(name, checksum, sourceType string, parameters map[string]string, minNumberOfCopies int, nodeSelector, diskSelector []string, secret, secretNamespace string, DataEngine string) (bi *longhorn.BackingImage, err error) {
-	if secret != "" || secretNamespace != "" {
-		_, err := m.ds.GetSecretRO(secretNamespace, secret)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to get secret %v in namespace %v for the backing image %v", secret, secretNamespace, name)
-		}
-	}
-
-	if DataEngine == "" {
-		DataEngine = string(longhorn.DataEngineTypeV1)
-	}
-
 	bi = &longhorn.BackingImage{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
@@ -166,7 +155,7 @@ func (m *VolumeManager) CleanUpBackingImageDiskFiles(name string, diskFileList [
 		}
 	}()
 
-	replicas, err := m.ds.ListReplicasByBackingImage(name)
+	replicas, err := m.ds.ListReplicasByBackingImage(name, "")
 	if err != nil {
 		return nil, err
 	}
