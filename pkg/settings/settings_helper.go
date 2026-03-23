@@ -175,7 +175,7 @@ func decodeLHIMCPUValue(raw json.RawMessage) (string, error) {
 	if err := json.Unmarshal(raw, &stringValue); err != nil {
 		return "", err
 	}
-	if _, err := strconv.Atoi(stringValue); err != nil {
+	if _, err := strconv.ParseFloat(stringValue, 64); err != nil {
 		return "", err
 	}
 	return stringValue, nil
