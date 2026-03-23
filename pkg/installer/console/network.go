@@ -16,6 +16,23 @@ import (
 	"github.com/harvester/harvester/pkg/installer/config"
 )
 
+func isDefaultRoute(r netlink.Route) bool {
+	// In netlink, a nil Dst is a common way to represent 'match everything'
+	if r.Dst == nil {
+		return true
+	}
+
+	// Ensure the mask is present before calling Size() to avoid panics
+	if r.Dst.Mask != nil {
+		ones, _ := r.Dst.Mask.Size()
+		if ones == 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 func checkDefaultRoute() (bool, error) {
 	routes, err := netlink.RouteList(nil, syscall.AF_INET)
 	if err != nil {
@@ -23,15 +40,22 @@ func checkDefaultRoute() (bool, error) {
 		return false, err
 	}
 
-	defaultRouteExists := false
-	for _, route := range routes {
-		if route.Dst == nil {
-			defaultRouteExists = true
-			break
+	for i, r := range routes {
+		// Log summaries instead of dumping the whole struct to keep logs clean
+		logrus.WithFields(logrus.Fields{
+			"index": i,
+			"dst":   r.Dst,
+			"gw":    r.Gw,
+			"iface": r.LinkIndex,
+		}).Debug("Processing route")
+
+		if isDefaultRoute(r) {
+			logrus.WithField("route", r).Info("Default route detected")
+			return true, nil
 		}
 	}
 
-	return defaultRouteExists, nil
+	return false, nil
 }
 
 func applyNetworks(network config.Network, hostname string) error {
