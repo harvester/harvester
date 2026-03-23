@@ -2299,10 +2299,10 @@ func validateLHIMResourcesHelper(field, value string) error {
 
 	v1CPU := resources.CPU.V1
 	v2CPU := resources.CPU.V2
-	if err := lhtypes.ValidateCPUReservationValues(lhtypes.SettingNameGuaranteedInstanceManagerCPU, v1CPU); err != nil {
+	if err := lhtypes.ValidateSetting(string(lhtypes.SettingNameGuaranteedInstanceManagerCPU), v1CPU); err != nil {
 		return fmt.Errorf("failed to validate %v cpu.v1: %w", field, err)
 	}
-	if err := lhtypes.ValidateCPUReservationValues(lhtypes.SettingNameGuaranteedInstanceManagerCPU, v2CPU); err != nil {
+	if err := lhtypes.ValidateSetting(string(lhtypes.SettingNameGuaranteedInstanceManagerCPU), v2CPU); err != nil {
 		return fmt.Errorf("failed to validate %v cpu.v2: %w", field, err)
 	}
 
