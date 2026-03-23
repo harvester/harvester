@@ -67,11 +67,12 @@ type EngineBackupInfo struct {
 }
 
 type ReplicaRebuildStatus struct {
-	Error              string
-	IsRebuilding       bool
-	Progress           int
-	State              string
-	FromReplicaAddress string
+	Error                 string
+	IsRebuilding          bool
+	Progress              int
+	State                 string
+	FromReplicaAddress    string
+	AppliedRebuildingMBps int64
 }
 
 type SnapshotHashStatus struct {

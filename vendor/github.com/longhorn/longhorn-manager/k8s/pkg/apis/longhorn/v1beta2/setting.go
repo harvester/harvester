@@ -17,6 +17,8 @@ type Setting struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// The value of the setting.
+	// - It can be a non-JSON formatted string that is applied to all the applicable data engines listed in the setting definition.
+	// - It can be a JSON formatted string that contains values for applicable data engines listed in the setting definition's Default.
 	Value string `json:"value"`
 
 	// The status of the setting.

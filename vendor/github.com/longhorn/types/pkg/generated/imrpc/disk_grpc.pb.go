@@ -25,6 +25,7 @@ const (
 	DiskService_DiskGet_FullMethodName                   = "/imrpc.DiskService/DiskGet"
 	DiskService_DiskReplicaInstanceList_FullMethodName   = "/imrpc.DiskService/DiskReplicaInstanceList"
 	DiskService_DiskReplicaInstanceDelete_FullMethodName = "/imrpc.DiskService/DiskReplicaInstanceDelete"
+	DiskService_MetricsGet_FullMethodName                = "/imrpc.DiskService/MetricsGet"
 	DiskService_VersionGet_FullMethodName                = "/imrpc.DiskService/VersionGet"
 )
 
@@ -37,6 +38,7 @@ type DiskServiceClient interface {
 	DiskGet(ctx context.Context, in *DiskGetRequest, opts ...grpc.CallOption) (*Disk, error)
 	DiskReplicaInstanceList(ctx context.Context, in *DiskReplicaInstanceListRequest, opts ...grpc.CallOption) (*DiskReplicaInstanceListResponse, error)
 	DiskReplicaInstanceDelete(ctx context.Context, in *DiskReplicaInstanceDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	MetricsGet(ctx context.Context, in *DiskGetRequest, opts ...grpc.CallOption) (*DiskMetricsGetReply, error)
 	VersionGet(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*DiskVersionResponse, error)
 }
 
@@ -93,6 +95,15 @@ func (c *diskServiceClient) DiskReplicaInstanceDelete(ctx context.Context, in *D
 	return out, nil
 }
 
+func (c *diskServiceClient) MetricsGet(ctx context.Context, in *DiskGetRequest, opts ...grpc.CallOption) (*DiskMetricsGetReply, error) {
+	out := new(DiskMetricsGetReply)
+	err := c.cc.Invoke(ctx, DiskService_MetricsGet_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *diskServiceClient) VersionGet(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*DiskVersionResponse, error) {
 	out := new(DiskVersionResponse)
 	err := c.cc.Invoke(ctx, DiskService_VersionGet_FullMethodName, in, out, opts...)
@@ -111,6 +122,7 @@ type DiskServiceServer interface {
 	DiskGet(context.Context, *DiskGetRequest) (*Disk, error)
 	DiskReplicaInstanceList(context.Context, *DiskReplicaInstanceListRequest) (*DiskReplicaInstanceListResponse, error)
 	DiskReplicaInstanceDelete(context.Context, *DiskReplicaInstanceDeleteRequest) (*emptypb.Empty, error)
+	MetricsGet(context.Context, *DiskGetRequest) (*DiskMetricsGetReply, error)
 	VersionGet(context.Context, *emptypb.Empty) (*DiskVersionResponse, error)
 	mustEmbedUnimplementedDiskServiceServer()
 }
@@ -133,6 +145,9 @@ func (UnimplementedDiskServiceServer) DiskReplicaInstanceList(context.Context, *
 }
 func (UnimplementedDiskServiceServer) DiskReplicaInstanceDelete(context.Context, *DiskReplicaInstanceDeleteRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DiskReplicaInstanceDelete not implemented")
+}
+func (UnimplementedDiskServiceServer) MetricsGet(context.Context, *DiskGetRequest) (*DiskMetricsGetReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MetricsGet not implemented")
 }
 func (UnimplementedDiskServiceServer) VersionGet(context.Context, *emptypb.Empty) (*DiskVersionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VersionGet not implemented")
@@ -240,6 +255,24 @@ func _DiskService_DiskReplicaInstanceDelete_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DiskService_MetricsGet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DiskGetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DiskServiceServer).MetricsGet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DiskService_MetricsGet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DiskServiceServer).MetricsGet(ctx, req.(*DiskGetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _DiskService_VersionGet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
@@ -284,6 +317,10 @@ var DiskService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DiskReplicaInstanceDelete",
 			Handler:    _DiskService_DiskReplicaInstanceDelete_Handler,
+		},
+		{
+			MethodName: "MetricsGet",
+			Handler:    _DiskService_MetricsGet_Handler,
 		},
 		{
 			MethodName: "VersionGet",

@@ -10,6 +10,31 @@ import (
 	"github.com/longhorn/go-common-libs/types"
 )
 
+// GetArch switches to the host namespace and retrieves the system architecture.
+func GetArch() (string, error) {
+	var err error
+	defer func() {
+		err = errors.Wrap(err, "failed to get system architecture")
+	}()
+
+	fn := func() (interface{}, error) {
+		return sys.GetArch()
+	}
+
+	rawResult, err := RunFunc(fn, 0)
+	if err != nil {
+		return "", err
+	}
+
+	var result string
+	var ableToCast bool
+	result, ableToCast = rawResult.(string)
+	if !ableToCast {
+		return "", errors.Errorf(types.ErrNamespaceCastResultFmt, result, rawResult)
+	}
+	return result, nil
+}
+
 // GetKernelRelease switches to the host namespace and retrieves the kernel release.
 func GetKernelRelease() (string, error) {
 	var err error

@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -69,6 +70,8 @@ func SetUpLogger(logsDir string) error {
 				funcName := path.Base(f.Function)
 				return funcName, fileName
 			},
+			TimestampFormat: time.RFC3339Nano,
+			FullTimestamp:   true,
 		},
 		LogsDir: logsDir,
 	})
@@ -124,7 +127,9 @@ func (l LonghornWriter) StreamLog(done chan struct{}) (chan string, error) {
 			}
 		}
 		close(logChan)
-		file.Close()
+		if closeErr := file.Close(); closeErr != nil {
+			logrus.WithError(closeErr).Warn("Failed to close file")
+		}
 	}()
 	return logChan, nil
 }

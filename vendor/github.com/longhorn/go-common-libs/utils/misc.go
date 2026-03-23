@@ -72,7 +72,7 @@ func RandomID(randomIDLenth int) string {
 		randomIDLenth = types.RandomIDDefaultLength
 	}
 
-	uuid := strings.Replace(UUID(), "-", "", -1)
+	uuid := strings.ReplaceAll(UUID(), "-", "")
 
 	if len(uuid) > randomIDLenth {
 		uuid = uuid[:randomIDLenth]

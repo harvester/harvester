@@ -73,6 +73,8 @@ type InstanceStatus struct {
 	TargetPortEnd          int32           `json:"targetPortEnd"`
 	StandbyTargetPortStart int32           `json:"standbyTargetPortStart"`
 	StandbyTargetPortEnd   int32           `json:"standbyTargetPortEnd"`
+	UblkID                 int32           `json:"ublk_id"`
+	UUID                   string          `json:"uuid"`
 }
 
 func RPCToInstanceStatus(obj *rpc.InstanceStatus) InstanceStatus {
@@ -86,6 +88,8 @@ func RPCToInstanceStatus(obj *rpc.InstanceStatus) InstanceStatus {
 		TargetPortEnd:          obj.TargetPortEnd,
 		StandbyTargetPortStart: obj.StandbyTargetPortStart,
 		StandbyTargetPortEnd:   obj.StandbyTargetPortEnd,
+		UblkID:                 obj.UblkId,
+		UUID:                   obj.Uuid,
 	}
 }
 

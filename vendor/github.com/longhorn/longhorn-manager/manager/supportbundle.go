@@ -29,7 +29,7 @@ type SupportBundle struct {
 // creation of support bundle manager deployment. The support bundle manager then
 // creates a bundle zip file that is available in https://<cluster-ip>:8080/bundle
 func (m *VolumeManager) CreateSupportBundle(issueURL string, description string) (*SupportBundle, error) {
-	now := strings.ToLower(strings.Replace(util.Now(), ":", "-", -1))
+	now := strings.ToLower(strings.ReplaceAll(util.Now(), ":", "-"))
 	newSupportBundle := &longhorn.SupportBundle{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf(types.SupportBundleNameFmt, now),

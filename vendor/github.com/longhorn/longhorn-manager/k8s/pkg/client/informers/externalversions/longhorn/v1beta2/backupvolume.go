@@ -1,11 +1,11 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright The Longhorn Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,13 +19,13 @@ limitations under the License.
 package v1beta2
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	apislonghornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	versioned "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
 	internalinterfaces "github.com/longhorn/longhorn-manager/k8s/pkg/client/informers/externalversions/internalinterfaces"
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/client/listers/longhorn/v1beta2"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/client/listers/longhorn/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -36,7 +36,7 @@ import (
 // BackupVolumes.
 type BackupVolumeInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1beta2.BackupVolumeLister
+	Lister() longhornv1beta2.BackupVolumeLister
 }
 
 type backupVolumeInformer struct {
@@ -62,16 +62,28 @@ func NewFilteredBackupVolumeInformer(client versioned.Interface, namespace strin
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.LonghornV1beta2().BackupVolumes(namespace).List(context.TODO(), options)
+				return client.LonghornV1beta2().BackupVolumes(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.LonghornV1beta2().BackupVolumes(namespace).Watch(context.TODO(), options)
+				return client.LonghornV1beta2().BackupVolumes(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.LonghornV1beta2().BackupVolumes(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.LonghornV1beta2().BackupVolumes(namespace).Watch(ctx, options)
 			},
 		},
-		&longhornv1beta2.BackupVolume{},
+		&apislonghornv1beta2.BackupVolume{},
 		resyncPeriod,
 		indexers,
 	)
@@ -82,9 +94,9 @@ func (f *backupVolumeInformer) defaultInformer(client versioned.Interface, resyn
 }
 
 func (f *backupVolumeInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&longhornv1beta2.BackupVolume{}, f.defaultInformer)
+	return f.factory.InformerFor(&apislonghornv1beta2.BackupVolume{}, f.defaultInformer)
 }
 
-func (f *backupVolumeInformer) Lister() v1beta2.BackupVolumeLister {
-	return v1beta2.NewBackupVolumeLister(f.Informer().GetIndexer())
+func (f *backupVolumeInformer) Lister() longhornv1beta2.BackupVolumeLister {
+	return longhornv1beta2.NewBackupVolumeLister(f.Informer().GetIndexer())
 }

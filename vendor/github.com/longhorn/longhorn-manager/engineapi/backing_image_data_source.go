@@ -1,7 +1,8 @@
 package engineapi
 
 import (
-	"fmt"
+	"net"
+	"strconv"
 
 	bimapi "github.com/longhorn/backing-image-manager/api"
 	bimclient "github.com/longhorn/backing-image-manager/pkg/client"
@@ -30,7 +31,7 @@ type BackingImageDataSourceClient struct {
 func NewBackingImageDataSourceClient(ip string) *BackingImageDataSourceClient {
 	return &BackingImageDataSourceClient{
 		bimclient.DataSourceClient{
-			Remote: fmt.Sprintf("%s:%d", ip, BackingImageDataSourceDefaultPort),
+			Remote: net.JoinHostPort(ip, strconv.Itoa(BackingImageDataSourceDefaultPort)),
 		},
 	}
 }

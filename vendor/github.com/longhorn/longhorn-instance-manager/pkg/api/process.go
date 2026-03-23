@@ -41,6 +41,7 @@ type ProcessStatus struct {
 	Conditions map[string]bool `json:"conditions"`
 	PortStart  int32           `json:"portStart"`
 	PortEnd    int32           `json:"portEnd"`
+	UUID       string          `json:"uuid"`
 }
 
 func RPCToProcessStatus(obj *rpc.ProcessStatus) ProcessStatus {
@@ -50,6 +51,7 @@ func RPCToProcessStatus(obj *rpc.ProcessStatus) ProcessStatus {
 		Conditions: obj.Conditions,
 		PortStart:  obj.PortStart,
 		PortEnd:    obj.PortEnd,
+		UUID:       obj.Uuid,
 	}
 }
 

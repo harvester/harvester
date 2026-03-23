@@ -1,11 +1,11 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright The Longhorn Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,16 +19,18 @@ limitations under the License.
 package v1beta2
 
 import (
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // InstanceManagerLister helps list InstanceManagers.
+// All objects returned here must be treated as read-only.
 type InstanceManagerLister interface {
 	// List lists all InstanceManagers in the indexer.
-	List(selector labels.Selector) (ret []*v1beta2.InstanceManager, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.InstanceManager, err error)
 	// InstanceManagers returns an object that can list and get InstanceManagers.
 	InstanceManagers(namespace string) InstanceManagerNamespaceLister
 	InstanceManagerListerExpansion
@@ -36,59 +38,33 @@ type InstanceManagerLister interface {
 
 // instanceManagerLister implements the InstanceManagerLister interface.
 type instanceManagerLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*longhornv1beta2.InstanceManager]
 }
 
 // NewInstanceManagerLister returns a new InstanceManagerLister.
 func NewInstanceManagerLister(indexer cache.Indexer) InstanceManagerLister {
-	return &instanceManagerLister{indexer: indexer}
-}
-
-// List lists all InstanceManagers in the indexer.
-func (s *instanceManagerLister) List(selector labels.Selector) (ret []*v1beta2.InstanceManager, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.InstanceManager))
-	})
-	return ret, err
+	return &instanceManagerLister{listers.New[*longhornv1beta2.InstanceManager](indexer, longhornv1beta2.Resource("instancemanager"))}
 }
 
 // InstanceManagers returns an object that can list and get InstanceManagers.
 func (s *instanceManagerLister) InstanceManagers(namespace string) InstanceManagerNamespaceLister {
-	return instanceManagerNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return instanceManagerNamespaceLister{listers.NewNamespaced[*longhornv1beta2.InstanceManager](s.ResourceIndexer, namespace)}
 }
 
 // InstanceManagerNamespaceLister helps list and get InstanceManagers.
+// All objects returned here must be treated as read-only.
 type InstanceManagerNamespaceLister interface {
 	// List lists all InstanceManagers in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1beta2.InstanceManager, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.InstanceManager, err error)
 	// Get retrieves the InstanceManager from the indexer for a given namespace and name.
-	Get(name string) (*v1beta2.InstanceManager, error)
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*longhornv1beta2.InstanceManager, error)
 	InstanceManagerNamespaceListerExpansion
 }
 
 // instanceManagerNamespaceLister implements the InstanceManagerNamespaceLister
 // interface.
 type instanceManagerNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all InstanceManagers in the indexer for a given namespace.
-func (s instanceManagerNamespaceLister) List(selector labels.Selector) (ret []*v1beta2.InstanceManager, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.InstanceManager))
-	})
-	return ret, err
-}
-
-// Get retrieves the InstanceManager from the indexer for a given namespace and name.
-func (s instanceManagerNamespaceLister) Get(name string) (*v1beta2.InstanceManager, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta2.Resource("instancemanager"), name)
-	}
-	return obj.(*v1beta2.InstanceManager), nil
+	listers.ResourceIndexer[*longhornv1beta2.InstanceManager]
 }
