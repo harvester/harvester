@@ -1,11 +1,11 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright The Longhorn Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,16 +19,18 @@ limitations under the License.
 package v1beta2
 
 import (
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // SystemBackupLister helps list SystemBackups.
+// All objects returned here must be treated as read-only.
 type SystemBackupLister interface {
 	// List lists all SystemBackups in the indexer.
-	List(selector labels.Selector) (ret []*v1beta2.SystemBackup, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.SystemBackup, err error)
 	// SystemBackups returns an object that can list and get SystemBackups.
 	SystemBackups(namespace string) SystemBackupNamespaceLister
 	SystemBackupListerExpansion
@@ -36,59 +38,33 @@ type SystemBackupLister interface {
 
 // systemBackupLister implements the SystemBackupLister interface.
 type systemBackupLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*longhornv1beta2.SystemBackup]
 }
 
 // NewSystemBackupLister returns a new SystemBackupLister.
 func NewSystemBackupLister(indexer cache.Indexer) SystemBackupLister {
-	return &systemBackupLister{indexer: indexer}
-}
-
-// List lists all SystemBackups in the indexer.
-func (s *systemBackupLister) List(selector labels.Selector) (ret []*v1beta2.SystemBackup, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.SystemBackup))
-	})
-	return ret, err
+	return &systemBackupLister{listers.New[*longhornv1beta2.SystemBackup](indexer, longhornv1beta2.Resource("systembackup"))}
 }
 
 // SystemBackups returns an object that can list and get SystemBackups.
 func (s *systemBackupLister) SystemBackups(namespace string) SystemBackupNamespaceLister {
-	return systemBackupNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return systemBackupNamespaceLister{listers.NewNamespaced[*longhornv1beta2.SystemBackup](s.ResourceIndexer, namespace)}
 }
 
 // SystemBackupNamespaceLister helps list and get SystemBackups.
+// All objects returned here must be treated as read-only.
 type SystemBackupNamespaceLister interface {
 	// List lists all SystemBackups in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1beta2.SystemBackup, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.SystemBackup, err error)
 	// Get retrieves the SystemBackup from the indexer for a given namespace and name.
-	Get(name string) (*v1beta2.SystemBackup, error)
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*longhornv1beta2.SystemBackup, error)
 	SystemBackupNamespaceListerExpansion
 }
 
 // systemBackupNamespaceLister implements the SystemBackupNamespaceLister
 // interface.
 type systemBackupNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all SystemBackups in the indexer for a given namespace.
-func (s systemBackupNamespaceLister) List(selector labels.Selector) (ret []*v1beta2.SystemBackup, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.SystemBackup))
-	})
-	return ret, err
-}
-
-// Get retrieves the SystemBackup from the indexer for a given namespace and name.
-func (s systemBackupNamespaceLister) Get(name string) (*v1beta2.SystemBackup, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta2.Resource("systembackup"), name)
-	}
-	return obj.(*v1beta2.SystemBackup), nil
+	listers.ResourceIndexer[*longhornv1beta2.SystemBackup]
 }

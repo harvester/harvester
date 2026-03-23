@@ -1,11 +1,11 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright The Longhorn Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,16 +19,18 @@ limitations under the License.
 package v1beta2
 
 import (
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // OrphanLister helps list Orphans.
+// All objects returned here must be treated as read-only.
 type OrphanLister interface {
 	// List lists all Orphans in the indexer.
-	List(selector labels.Selector) (ret []*v1beta2.Orphan, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.Orphan, err error)
 	// Orphans returns an object that can list and get Orphans.
 	Orphans(namespace string) OrphanNamespaceLister
 	OrphanListerExpansion
@@ -36,59 +38,33 @@ type OrphanLister interface {
 
 // orphanLister implements the OrphanLister interface.
 type orphanLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*longhornv1beta2.Orphan]
 }
 
 // NewOrphanLister returns a new OrphanLister.
 func NewOrphanLister(indexer cache.Indexer) OrphanLister {
-	return &orphanLister{indexer: indexer}
-}
-
-// List lists all Orphans in the indexer.
-func (s *orphanLister) List(selector labels.Selector) (ret []*v1beta2.Orphan, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.Orphan))
-	})
-	return ret, err
+	return &orphanLister{listers.New[*longhornv1beta2.Orphan](indexer, longhornv1beta2.Resource("orphan"))}
 }
 
 // Orphans returns an object that can list and get Orphans.
 func (s *orphanLister) Orphans(namespace string) OrphanNamespaceLister {
-	return orphanNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return orphanNamespaceLister{listers.NewNamespaced[*longhornv1beta2.Orphan](s.ResourceIndexer, namespace)}
 }
 
 // OrphanNamespaceLister helps list and get Orphans.
+// All objects returned here must be treated as read-only.
 type OrphanNamespaceLister interface {
 	// List lists all Orphans in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1beta2.Orphan, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.Orphan, err error)
 	// Get retrieves the Orphan from the indexer for a given namespace and name.
-	Get(name string) (*v1beta2.Orphan, error)
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*longhornv1beta2.Orphan, error)
 	OrphanNamespaceListerExpansion
 }
 
 // orphanNamespaceLister implements the OrphanNamespaceLister
 // interface.
 type orphanNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all Orphans in the indexer for a given namespace.
-func (s orphanNamespaceLister) List(selector labels.Selector) (ret []*v1beta2.Orphan, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.Orphan))
-	})
-	return ret, err
-}
-
-// Get retrieves the Orphan from the indexer for a given namespace and name.
-func (s orphanNamespaceLister) Get(name string) (*v1beta2.Orphan, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta2.Resource("orphan"), name)
-	}
-	return obj.(*v1beta2.Orphan), nil
+	listers.ResourceIndexer[*longhornv1beta2.Orphan]
 }

@@ -43,10 +43,9 @@ const (
 	PodProbeTimeoutSeconds           = PodProbePeriodSeconds - 1
 	PodProbePeriodSeconds            = 5
 	PodLivenessProbeFailureThreshold = 3
+	PodStartupProbeFailureThreshold  = 36
 
 	IMPodProbeInitialDelay             = 3
-	IMPodProbeTimeoutSeconds           = IMPodProbePeriodSeconds - 1
-	IMPodProbePeriodSeconds            = 5
 	IMPodLivenessProbeFailureThreshold = 6
 )
 
@@ -419,6 +418,35 @@ func (s *DataStore) UpdateStorageClass(obj *storagev1.StorageClass) (*storagev1.
 // Consider using this function when you can guarantee read only access and don't want the overhead of deep copies
 func (s *DataStore) ListPodsRO(namespace string) ([]*corev1.Pod, error) {
 	return s.podLister.Pods(namespace).List(labels.Everything())
+}
+
+// ListPodsByPersistentVolumeClaimName returns a list of pods that are using the
+// specified PersistentVolumeClaim in the given namespace.
+func (s *DataStore) ListPodsByPersistentVolumeClaimName(claimName string, namespace string) ([]*corev1.Pod, error) {
+	pods, err := s.ListPodsRO(namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	matchedPods := []*corev1.Pod{}
+	for _, pod := range pods {
+		if pod.Spec.NodeName == "" {
+			continue
+		}
+
+		for _, volume := range pod.Spec.Volumes {
+			if volume.PersistentVolumeClaim == nil {
+				continue
+			}
+
+			if volume.PersistentVolumeClaim.ClaimName == claimName {
+				matchedPods = append(matchedPods, pod)
+				break
+			}
+		}
+	}
+
+	return matchedPods, nil
 }
 
 // GetPod returns a mutable Pod object for the given name and namespace
@@ -1041,7 +1069,7 @@ func (s *DataStore) UpdateService(namespace string, service *corev1.Service) (*c
 }
 
 // CreateKubernetesEndpoint creates a Kubernetes Endpoint resource.
-func (s *DataStore) CreateKubernetesEndpoint(endpoint *corev1.Endpoints) (*corev1.Endpoints, error) {
+func (s *DataStore) CreateKubernetesEndpoint(endpoint *corev1.Endpoints) (*corev1.Endpoints, error) { // nolint: staticcheck
 	return s.kubeClient.CoreV1().Endpoints(endpoint.Namespace).Create(context.TODO(), endpoint, metav1.CreateOptions{})
 }
 
@@ -1051,12 +1079,12 @@ func (s *DataStore) DeleteKubernetesEndpoint(namespace, name string) error {
 }
 
 // UpdateKubernetesEndpoint updates the Kubernetes Endpoint of the given name in the Longhorn namespace.
-func (s *DataStore) UpdateKubernetesEndpoint(endpoint *corev1.Endpoints) (*corev1.Endpoints, error) {
+func (s *DataStore) UpdateKubernetesEndpoint(endpoint *corev1.Endpoints) (*corev1.Endpoints, error) { // nolint: staticcheck
 	return s.kubeClient.CoreV1().Endpoints(s.namespace).Update(context.TODO(), endpoint, metav1.UpdateOptions{})
 }
 
 // GetKubernetesEndpointRO gets the Kubernetes Endpoint of the given name in the Longhorn namespace.
-func (s *DataStore) GetKubernetesEndpointRO(name string) (*corev1.Endpoints, error) {
+func (s *DataStore) GetKubernetesEndpointRO(name string) (*corev1.Endpoints, error) { // nolint: staticcheck
 	return s.endpointLister.Endpoints(s.namespace).Get(name)
 }
 

@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 )
 
 func (c *ProxyClient) CleanupBackupMountPoints() (err error) {

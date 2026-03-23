@@ -7,6 +7,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	"github.com/longhorn/go-common-libs/multierr"
+
 	"github.com/longhorn/longhorn-manager/datastore"
 	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
@@ -52,32 +54,66 @@ func NewReplicaScheduler(ds *datastore.DataStore) *ReplicaScheduler {
 }
 
 // ScheduleReplica will return (nil, nil) for unschedulable replica
-func (rcs *ReplicaScheduler) ScheduleReplica(replica *longhorn.Replica, replicas map[string]*longhorn.Replica, volume *longhorn.Volume) (*longhorn.Replica, util.MultiError, error) {
+func (rcs *ReplicaScheduler) ScheduleReplica(replica *longhorn.Replica, replicas map[string]*longhorn.Replica, volume *longhorn.Volume) (*longhorn.Replica, multierr.MultiError) {
+	errs := multierr.NewMultiError()
+
 	// only called when replica is starting for the first time
 	if replica.Spec.NodeID != "" {
-		return nil, nil, fmt.Errorf("BUG: Replica %v has been scheduled to node %v", replica.Name, replica.Spec.NodeID)
+		errs.Append(longhorn.ErrorReplicaScheduleReplicaAlreadyScheduled,
+			fmt.Errorf("replica %v has already been scheduled to node %v", replica.Name, replica.Spec.NodeID))
+		return nil, errs
 	}
 
 	// not to schedule a replica failed and unused before.
 	if replica.Spec.HealthyAt == "" && replica.Spec.FailedAt != "" {
-		logrus.WithField("replica", replica.Name).Warn("Failed replica is not scheduled")
-		return nil, nil, nil
+		errs.Append(longhorn.ErrorReplicaScheduleUnusedFailedReplicaIsNotSupported,
+			fmt.Errorf("failed replica %v cannot be scheduled because it has not been used before", replica.Name))
+		return nil, errs
 	}
 
-	diskCandidates, multiError, err := rcs.FindDiskCandidates(replica, replicas, volume)
-	if err != nil {
-		return nil, nil, err
-	}
-
+	diskCandidates, errs := rcs.FindDiskCandidates(replica, replicas, volume)
 	// there's no disk that fit for current replica
 	if len(diskCandidates) == 0 {
-		logrus.Errorf("There's no available disk for replica %v, size %v", replica.ObjectMeta.Name, replica.Spec.VolumeSize)
-		return nil, multiError, nil
+		return nil, errs
 	}
 
-	rcs.scheduleReplicaToDisk(replica, diskCandidates)
+	// If data locality is set to best-effort, try to schedule at least one replica on the local node.
+	if volume.Spec.DataLocality == longhorn.DataLocalityBestEffort {
+		rcs.scheduleReplicaToDiskOnLocalNode(replica, replicas, volume, diskCandidates)
+	}
 
-	return replica, nil, nil
+	// Data locality is not best-effort, or a local replica already exists, or there are no valid disk candidates on the local node.
+	if replica.Spec.NodeID == "" {
+		rcs.scheduleReplicaToDisk(replica, diskCandidates)
+	}
+
+	return replica, nil
+}
+
+// If no replicas are scheduled on the local node, try to schedule one there.
+// The local node refers to the node where the volume is attached.
+func (rcs *ReplicaScheduler) scheduleReplicaToDiskOnLocalNode(replica *longhorn.Replica, replicas map[string]*longhorn.Replica, volume *longhorn.Volume, diskCandidates map[string]*Disk) {
+	localNodeID := volume.Spec.NodeID
+	if localNodeID == "" {
+		logrus.Warnf("Failed to schedule replica %s on local node because volume %s is not attached", replica.Name, volume.Name)
+		return
+	}
+	// See if any healthy replicas are already scheduled on the local node.
+	for _, r := range replicas {
+		if r.Spec.NodeID == localNodeID && r.Spec.FailedAt == "" {
+			return
+		}
+	}
+	// No replicas found on the local node, so try to schedule this replica on the local node.
+	diskCandidatesOnLocalNode := map[string]*Disk{}
+	for diskName, disk := range diskCandidates {
+		if disk.NodeID == localNodeID {
+			diskCandidatesOnLocalNode[diskName] = disk
+		}
+	}
+	if len(diskCandidatesOnLocalNode) > 0 {
+		rcs.scheduleReplicaToDisk(replica, diskCandidatesOnLocalNode)
+	}
 }
 
 // FindDiskCandidates identifies suitable disks on eligible nodes for the replica.
@@ -90,17 +126,32 @@ func (rcs *ReplicaScheduler) ScheduleReplica(replica *longhorn.Replica, replicas
 // Returns:
 // - Map of disk candidates (disk UUID to Disk).
 // - MultiError for non-fatal errors encountered.
-// - Error for any fatal errors encountered.
-func (rcs *ReplicaScheduler) FindDiskCandidates(replica *longhorn.Replica, replicas map[string]*longhorn.Replica, volume *longhorn.Volume) (map[string]*Disk, util.MultiError, error) {
-	nodesInfo, err := rcs.getNodeInfo()
+func (rcs *ReplicaScheduler) FindDiskCandidates(replica *longhorn.Replica, replicas map[string]*longhorn.Replica, volume *longhorn.Volume) (map[string]*Disk, multierr.MultiError) {
+	errs := multierr.NewMultiError()
+
+	nodes, err := rcs.ListSchedulableNodes(volume.Spec.DataEngine)
 	if err != nil {
-		return nil, nil, err
+		errs.Append(longhorn.ErrorReplicaScheduleLonghornClientOperationFailed,
+			errors.Wrapf(err, "failed to list schedulable nodes for scheduling replica %v", replica.Name))
+		return nil, errs
 	}
 
-	nodeCandidates, multiError := rcs.getNodeCandidates(nodesInfo, replica)
+	linkedClone := volume.Spec.CloneMode == longhorn.CloneModeLinkedClone
+	linkedCloneSrcReplicaNodes := map[string]bool{}
+	linkedCloneSrcReplicaDisks := map[string]bool{}
+	if linkedClone {
+		linkedCloneSrcReplicaNodes, linkedCloneSrcReplicaDisks, err = rcs.getSrcReplicaNodesAndDisks(volume)
+		if err != nil {
+			errs.Append(longhorn.ErrorReplicaScheduleLonghornClientOperationFailed,
+				errors.Wrapf(err, "failed to list replicas of the src volume of volume %v", replica.Spec.VolumeName))
+			return nil, errs
+		}
+	}
+
+	nodeCandidates, errs := rcs.getNodeCandidates(nodes, replica, linkedClone, linkedCloneSrcReplicaNodes)
+
 	if len(nodeCandidates) == 0 {
-		logrus.Errorf("There's no available node for replica %v, size %v", replica.ObjectMeta.Name, replica.Spec.VolumeSize)
-		return nil, multiError, nil
+		return nil, errs
 	}
 
 	nodeDisksMap := map[string]map[string]struct{}{}
@@ -117,43 +168,89 @@ func (rcs *ReplicaScheduler) FindDiskCandidates(replica *longhorn.Replica, repli
 			if types.GetCondition(diskStatus.Conditions, longhorn.DiskConditionTypeSchedulable).Status != longhorn.ConditionStatusTrue {
 				continue
 			}
+			if linkedClone {
+				if _, ok := linkedCloneSrcReplicaDisks[diskStatus.DiskUUID]; !ok {
+					continue // only disks that host the source replicas
+				}
+			}
 			disks[diskStatus.DiskUUID] = struct{}{}
 		}
 		nodeDisksMap[node.Name] = disks
 	}
 
-	diskCandidates, multiError := rcs.getDiskCandidates(nodeCandidates, nodeDisksMap, replicas, volume, true, false)
-	return diskCandidates, multiError, nil
+	return rcs.getDiskCandidates(nodeCandidates, nodeDisksMap, replicas, volume, true, false)
 }
 
-func (rcs *ReplicaScheduler) getNodeCandidates(nodesInfo map[string]*longhorn.Node, schedulingReplica *longhorn.Replica) (nodeCandidates map[string]*longhorn.Node, multiError util.MultiError) {
-	if schedulingReplica.Spec.HardNodeAffinity != "" {
-		node, exist := nodesInfo[schedulingReplica.Spec.HardNodeAffinity]
-		if !exist {
-			return nil, util.NewMultiError(longhorn.ErrorReplicaScheduleHardNodeAffinityNotSatisfied)
+func (rcs *ReplicaScheduler) getSrcReplicaNodesAndDisks(volume *longhorn.Volume) (map[string]bool, map[string]bool, error) {
+	srcRNodes := map[string]bool{}
+	srcRDisks := map[string]bool{}
+	srcVolName := types.GetVolumeName(volume.Spec.DataSource)
+	srcRs, err := rcs.ds.ListVolumeReplicasRO(srcVolName)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, r := range srcRs {
+		if r.Spec.NodeID != "" &&
+			r.Spec.DiskID != "" &&
+			r.Spec.FailedAt == "" &&
+			r.Spec.HealthyAt != "" {
+			srcRNodes[r.Spec.NodeID] = true
+			srcRDisks[r.Spec.DiskID] = true
 		}
-		nodesInfo = map[string]*longhorn.Node{}
-		nodesInfo[schedulingReplica.Spec.HardNodeAffinity] = node
+	}
+	return srcRNodes, srcRDisks, nil
+}
+
+func (rcs *ReplicaScheduler) getNodeCandidates(nodes map[string]*longhorn.Node, schedulingReplica *longhorn.Replica, linkedClone bool, linkedCloneSrcReplicaNodes map[string]bool) (nodeCandidates map[string]*longhorn.Node, errs multierr.MultiError) {
+	errs = multierr.NewMultiError()
+
+	// If the replica has a hard node affinity, filter nodes based on that.
+	if schedulingReplica.Spec.HardNodeAffinity != "" {
+		node, exist := nodes[schedulingReplica.Spec.HardNodeAffinity]
+		if !exist {
+			errs.Append(longhorn.ErrorReplicaScheduleHardNodeAffinityNotSatisfied,
+				fmt.Errorf("node %v not found for hard node affinity %v", schedulingReplica.Spec.HardNodeAffinity, schedulingReplica.Spec.HardNodeAffinity))
+			return map[string]*longhorn.Node{}, errs
+		}
+		nodes = map[string]*longhorn.Node{}
+		nodes[schedulingReplica.Spec.HardNodeAffinity] = node
 	}
 
-	if len(nodesInfo) == 0 {
-		return nil, util.NewMultiError(longhorn.ErrorReplicaScheduleNodeUnavailable)
+	if linkedClone {
+		for nodeName := range nodes {
+			if _, ok := linkedCloneSrcReplicaNodes[nodeName]; !ok {
+				delete(nodeCandidates, nodeName)
+			}
+		}
+		if len(nodes) == 0 {
+			errs.Append(longhorn.ErrorReplicaScheduleLinkedCloneNotSatisfied,
+				fmt.Errorf("failed to find nodes for scheduling linked-cloned replica %v", schedulingReplica.Name))
+			return map[string]*longhorn.Node{}, errs
+		}
 	}
 
+	if len(nodes) == 0 {
+		errs.Append(longhorn.ErrorReplicaScheduleNodeUnavailable,
+			fmt.Errorf("failed to find nodes for scheduling replica %v", schedulingReplica.Name))
+		return map[string]*longhorn.Node{}, errs
+	}
+
+	// Find nodes that are ready and have a schedulable instance manager.
 	nodeCandidates = map[string]*longhorn.Node{}
-	for _, node := range nodesInfo {
+	for _, node := range nodes {
+		log := logrus.WithField("node", node.Name)
+
 		if types.IsDataEngineV2(schedulingReplica.Spec.DataEngine) {
 			disabled, err := rcs.ds.IsV2DataEngineDisabledForNode(node.Name)
 			if err != nil {
-				logrus.WithError(err).Errorf("Failed to check if v2 data engine is disabled on node %v", node.Name)
-				return nil, util.NewMultiError(longhorn.ErrorReplicaScheduleSchedulingFailed)
+				log.WithError(err).Errorf("Failed to check if v2 data engine is disabled on node %v", node.Name)
+				continue
 			}
 			if disabled {
+				log.Debugf("Excluding node %v from candidates because v2 data engine is disabled on it", node.Name)
 				continue
 			}
 		}
-
-		log := logrus.WithField("node", node.Name)
 
 		// After a node reboot, it might be listed in the nodeInfo but its InstanceManager
 		// is not ready. To prevent scheduling replicas on such nodes, verify the
@@ -166,21 +263,24 @@ func (rcs *ReplicaScheduler) getNodeCandidates(nodesInfo map[string]*longhorn.No
 			continue
 		}
 
-		if isReady, err := rcs.ds.CheckDataEngineImageReadiness(schedulingReplica.Spec.Image, schedulingReplica.Spec.DataEngine, node.Name); isReady {
-			nodeCandidates[node.Name] = node
-		} else {
+		if isReady, err := rcs.ds.CheckDataEngineImageReadiness(schedulingReplica.Spec.Image, schedulingReplica.Spec.DataEngine, node.Name); !isReady {
 			if err != nil {
 				log = log.WithError(err)
 			}
 			log.Debugf("Excluding node in node candidates because data engine image on node is not ready")
+			continue
 		}
+
+		nodeCandidates[node.Name] = node
 	}
 
 	if len(nodeCandidates) == 0 {
-		return map[string]*longhorn.Node{}, util.NewMultiError(longhorn.ErrorReplicaScheduleEngineImageNotReady)
+		errs.Append(longhorn.ErrorReplicaScheduleEngineImageNotReady,
+			fmt.Errorf("no nodes found with a ready instance manager and a ready data engine image for scheduling replica %v", schedulingReplica.Name))
+		return map[string]*longhorn.Node{}, errs
 	}
 
-	return nodeCandidates, nil
+	return nodeCandidates, errs
 }
 
 // getDiskCandidates returns a map of the most appropriate disks a replica can be scheduled to (assuming it can be
@@ -193,17 +293,18 @@ func (rcs *ReplicaScheduler) getDiskCandidates(nodeInfo map[string]*longhorn.Nod
 	nodeDisksMap map[string]map[string]struct{},
 	replicas map[string]*longhorn.Replica,
 	volume *longhorn.Volume,
-	requireSchedulingCheck, ignoreFailedReplicas bool) (map[string]*Disk, util.MultiError) {
-	multiError := util.NewMultiError()
+	requireSchedulingCheck, ignoreFailedReplicas bool) (map[string]*Disk, multierr.MultiError) {
+
+	errs := multierr.NewMultiError()
 
 	biNodeSelector := []string{}
 	biDiskSelector := []string{}
 	if volume.Spec.BackingImage != "" {
 		bi, err := rcs.ds.GetBackingImageRO(volume.Spec.BackingImage)
 		if err != nil {
-			err = errors.Wrapf(err, "failed to get backing image %v", volume.Spec.BackingImage)
-			multiError.Append(util.NewMultiError(err.Error()))
-			return map[string]*Disk{}, multiError
+			errs.Append(longhorn.ErrorReplicaScheduleLonghornClientOperationFailed,
+				errors.Wrapf(err, "failed to get backing image %v", volume.Spec.BackingImage))
+			return map[string]*Disk{}, errs
 		}
 		biNodeSelector = bi.Spec.NodeSelector
 		biDiskSelector = bi.Spec.DiskSelector
@@ -211,9 +312,9 @@ func (rcs *ReplicaScheduler) getDiskCandidates(nodeInfo map[string]*longhorn.Nod
 
 	nodeSoftAntiAffinity, err := rcs.ds.GetSettingAsBool(types.SettingNameReplicaSoftAntiAffinity)
 	if err != nil {
-		err = errors.Wrapf(err, "failed to get %v setting", types.SettingNameReplicaSoftAntiAffinity)
-		multiError.Append(util.NewMultiError(err.Error()))
-		return map[string]*Disk{}, multiError
+		errs.Append(longhorn.ErrorReplicaScheduleLonghornClientOperationFailed,
+			errors.Wrapf(err, "failed to get %v setting", types.SettingNameReplicaSoftAntiAffinity))
+		return map[string]*Disk{}, errs
 	}
 
 	if volume.Spec.ReplicaSoftAntiAffinity != longhorn.ReplicaSoftAntiAffinityDefault &&
@@ -223,9 +324,9 @@ func (rcs *ReplicaScheduler) getDiskCandidates(nodeInfo map[string]*longhorn.Nod
 
 	zoneSoftAntiAffinity, err := rcs.ds.GetSettingAsBool(types.SettingNameReplicaZoneSoftAntiAffinity)
 	if err != nil {
-		err = errors.Wrapf(err, "failed to get %v setting", types.SettingNameReplicaZoneSoftAntiAffinity)
-		multiError.Append(util.NewMultiError(err.Error()))
-		return map[string]*Disk{}, multiError
+		errs.Append(longhorn.ErrorReplicaScheduleLonghornClientOperationFailed,
+			errors.Wrapf(err, "failed to get %v setting", types.SettingNameReplicaZoneSoftAntiAffinity))
+		return map[string]*Disk{}, errs
 	}
 	if volume.Spec.ReplicaZoneSoftAntiAffinity != longhorn.ReplicaZoneSoftAntiAffinityDefault &&
 		volume.Spec.ReplicaZoneSoftAntiAffinity != "" {
@@ -234,9 +335,9 @@ func (rcs *ReplicaScheduler) getDiskCandidates(nodeInfo map[string]*longhorn.Nod
 
 	diskSoftAntiAffinity, err := rcs.ds.GetSettingAsBool(types.SettingNameReplicaDiskSoftAntiAffinity)
 	if err != nil {
-		err = errors.Wrapf(err, "failed to get %v setting", types.SettingNameReplicaDiskSoftAntiAffinity)
-		multiError.Append(util.NewMultiError(err.Error()))
-		return map[string]*Disk{}, multiError
+		errs.Append(longhorn.ErrorReplicaScheduleLonghornClientOperationFailed,
+			errors.Wrapf(err, "failed to get %v setting", types.SettingNameReplicaDiskSoftAntiAffinity))
+		return map[string]*Disk{}, errs
 	}
 	if volume.Spec.ReplicaDiskSoftAntiAffinity != longhorn.ReplicaDiskSoftAntiAffinityDefault &&
 		volume.Spec.ReplicaDiskSoftAntiAffinity != "" {
@@ -247,26 +348,27 @@ func (rcs *ReplicaScheduler) getDiskCandidates(nodeInfo map[string]*longhorn.Nod
 	if volume.Status.Robustness == longhorn.VolumeRobustnessDegraded {
 		timeToReplacementReplica, _, err := rcs.timeToReplacementReplica(volume)
 		if err != nil {
-			err = errors.Wrap(err, "failed to get time until replica replacement")
-			multiError.Append(util.NewMultiError(err.Error()))
-			return map[string]*Disk{}, multiError
+			errs.Append(longhorn.ErrorReplicaScheduleLonghornClientOperationFailed,
+				errors.Wrap(err, "failed to get time until replica replacement"))
+			return map[string]*Disk{}, errs
 		}
 		creatingNewReplicasForReplenishment = timeToReplacementReplica == 0
 	}
 
-	getDiskCandidatesFromNodes := func(nodes map[string]*longhorn.Node) (diskCandidates map[string]*Disk, multiError util.MultiError) {
+	getDiskCandidatesFromNodes := func(nodes map[string]*longhorn.Node) (diskCandidates map[string]*Disk, multiError multierr.MultiError) {
 		diskCandidates = map[string]*Disk{}
-		multiError = util.NewMultiError()
+		filterErrs := multierr.NewMultiError()
+
 		for _, node := range nodes {
-			diskCandidatesFromNode, errors := rcs.filterNodeDisksForReplica(node, nodeDisksMap[node.Name], replicas,
+			diskCandidatesFromNode, filterNodeDiskErrs := rcs.filterNodeDisksForReplica(node, nodeDisksMap[node.Name], replicas,
 				volume, requireSchedulingCheck, biDiskSelector)
 			for k, v := range diskCandidatesFromNode {
 				diskCandidates[k] = v
 			}
-			multiError.Append(errors)
+			filterErrs.AppendMultiError(filterNodeDiskErrs)
 		}
 		diskCandidates = filterDisksWithMatchingReplicas(diskCandidates, replicas, diskSoftAntiAffinity, ignoreFailedReplicas)
-		return diskCandidates, multiError
+		return diskCandidates, filterErrs
 	}
 
 	usedNodes, usedZones, onlyEvictingNodes, onlyEvictingZones := getCurrentNodesAndZones(replicas, nodeInfo,
@@ -274,9 +376,9 @@ func (rcs *ReplicaScheduler) getDiskCandidates(nodeInfo map[string]*longhorn.Nod
 
 	allowEmptyNodeSelectorVolume, err := rcs.ds.GetSettingAsBool(types.SettingNameAllowEmptyNodeSelectorVolume)
 	if err != nil {
-		err = errors.Wrapf(err, "failed to get %v setting", types.SettingNameAllowEmptyNodeSelectorVolume)
-		multiError.Append(util.NewMultiError(err.Error()))
-		return map[string]*Disk{}, multiError
+		errs.Append(longhorn.ErrorReplicaScheduleLonghornClientOperationFailed,
+			errors.Wrapf(err, "failed to get %v setting", types.SettingNameAllowEmptyNodeSelectorVolume))
+		return map[string]*Disk{}, errs
 	}
 
 	replicaAutoBalance := rcs.ds.GetAutoBalancedReplicasSetting(volume, &logrus.Entry{})
@@ -323,62 +425,64 @@ func (rcs *ReplicaScheduler) getDiskCandidates(nodeInfo map[string]*longhorn.Nod
 
 	// In all cases, we should try to use a disk on an unused node in an unused zone first. Don't bother considering
 	// zoneSoftAntiAffinity and nodeSoftAntiAffinity settings if such disks are available.
-	diskCandidates, errors := getDiskCandidatesFromNodes(unusedNodesInUnusedZones)
+	diskCandidates, filterErrs := getDiskCandidatesFromNodes(unusedNodesInUnusedZones)
 	if len(diskCandidates) > 0 {
 		return diskCandidates, nil
 	}
-	multiError.Append(errors)
+	errs.AppendMultiError(filterErrs)
 
 	switch {
 	case !zoneSoftAntiAffinity && !nodeSoftAntiAffinity:
 		fallthrough
 	// Same as the above. If we cannot schedule two replicas in the same zone, we cannot schedule them on the same node.
 	case !zoneSoftAntiAffinity && nodeSoftAntiAffinity:
-		diskCandidates, errors = getDiskCandidatesFromNodes(unusedNodesInUnusedZonesAfterEviction)
+		diskCandidates, filterErrs = getDiskCandidatesFromNodes(unusedNodesInUnusedZonesAfterEviction)
 		if len(diskCandidates) > 0 {
 			return diskCandidates, nil
 		}
-		multiError.Append(errors)
+		errs.AppendMultiError(filterErrs)
 	case zoneSoftAntiAffinity && !nodeSoftAntiAffinity:
-		diskCandidates, errors = getDiskCandidatesFromNodes(unusedNodes)
+		diskCandidates, filterErrs = getDiskCandidatesFromNodes(unusedNodes)
 		if len(diskCandidates) > 0 {
 			return diskCandidates, nil
 		}
-		multiError.Append(errors)
-		diskCandidates, errors = getDiskCandidatesFromNodes(unusedNodesAfterEviction)
+		errs.AppendMultiError(filterErrs)
+		diskCandidates, filterErrs = getDiskCandidatesFromNodes(unusedNodesAfterEviction)
 		if len(diskCandidates) > 0 {
 			return diskCandidates, nil
 		}
-		multiError.Append(errors)
+		errs.AppendMultiError(filterErrs)
 	case zoneSoftAntiAffinity && nodeSoftAntiAffinity:
-		diskCandidates, errors = getDiskCandidatesFromNodes(unusedNodes)
+		diskCandidates, filterErrs = getDiskCandidatesFromNodes(unusedNodes)
 		if len(diskCandidates) > 0 {
 			return diskCandidates, nil
 		}
-		multiError.Append(errors)
-		diskCandidates, errors = getDiskCandidatesFromNodes(usedNodes)
+		errs.AppendMultiError(filterErrs)
+		diskCandidates, filterErrs = getDiskCandidatesFromNodes(usedNodes)
 		if len(diskCandidates) > 0 {
 			return diskCandidates, nil
 		}
-		multiError.Append(errors)
+		errs.AppendMultiError(filterErrs)
 	}
-	return map[string]*Disk{}, multiError
+
+	return map[string]*Disk{}, errs
 }
 
-func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disks map[string]struct{}, replicas map[string]*longhorn.Replica, volume *longhorn.Volume, requireSchedulingCheck bool, biDiskSelector []string) (preferredDisks map[string]*Disk, multiError util.MultiError) {
-	multiError = util.NewMultiError()
+func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disks map[string]struct{}, replicas map[string]*longhorn.Replica, volume *longhorn.Volume, requireSchedulingCheck bool, biDiskSelector []string) (preferredDisks map[string]*Disk, errs multierr.MultiError) {
+	errs = multierr.NewMultiError()
 	preferredDisks = map[string]*Disk{}
+
+	if len(disks) == 0 {
+		errs.Append(longhorn.ErrorReplicaScheduleDiskUnavailable,
+			fmt.Errorf("no disks found on node %v", node.Name))
+		return preferredDisks, errs
+	}
 
 	allowEmptyDiskSelectorVolume, err := rcs.ds.GetSettingAsBool(types.SettingNameAllowEmptyDiskSelectorVolume)
 	if err != nil {
-		err = errors.Wrapf(err, "failed to get %v setting", types.SettingNameAllowEmptyDiskSelectorVolume)
-		multiError.Append(util.NewMultiError(err.Error()))
-		return preferredDisks, multiError
-	}
-
-	if len(disks) == 0 {
-		multiError.Append(util.NewMultiError(longhorn.ErrorReplicaScheduleDiskUnavailable))
-		return preferredDisks, multiError
+		errs.Append(longhorn.ErrorReplicaScheduleLonghornClientOperationFailed,
+			errors.Wrapf(err, "failed to get %v setting", types.SettingNameAllowEmptyDiskSelectorVolume))
+		return preferredDisks, errs
 	}
 
 	// find disk that fit for current replica
@@ -398,30 +502,36 @@ func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disk
 			}
 		}
 		if !diskFound {
-			logrus.Errorf("Cannot find the spec or the status for disk %v when scheduling replica", diskUUID)
-			multiError.Append(util.NewMultiError(longhorn.ErrorReplicaScheduleDiskNotFound))
+			errs.Append(longhorn.ErrorReplicaScheduleDiskNotFound,
+				fmt.Errorf("cannot find the spec or the status for disk %v when scheduling replica %v", diskUUID, volume.Name))
 			continue
 		}
 
-		if !(types.IsDataEngineV1(volume.Spec.DataEngine) && diskSpec.Type == longhorn.DiskTypeFilesystem) &&
-			!(types.IsDataEngineV2(volume.Spec.DataEngine) && diskSpec.Type == longhorn.DiskTypeBlock) {
+		isV1EngineFilesystemDisk := types.IsDataEngineV1(volume.Spec.DataEngine) && diskSpec.Type == longhorn.DiskTypeFilesystem
+		isV2EngineBlockDisk := types.IsDataEngineV2(volume.Spec.DataEngine) && diskSpec.Type == longhorn.DiskTypeBlock
+		if !isV1EngineFilesystemDisk && !isV2EngineBlockDisk {
 			logrus.Debugf("Volume %v is not compatible with disk %v", volume.Name, diskName)
 			continue
 		}
 
 		if !datastore.IsSupportedVolumeSize(volume.Spec.DataEngine, diskStatus.FSType, volume.Spec.Size) {
 			logrus.Debugf("Volume %v size %v is not compatible with the file system %v of the disk %v", volume.Name, volume.Spec.Size, diskStatus.Type, diskName)
+			errs.Append(longhorn.ErrorReplicaScheduleIncompatibleVolumeSize,
+				fmt.Errorf("volume %v size %v is not compatible with the file system %v of the disk %v",
+					volume.Name, volume.Spec.Size, diskStatus.Type, diskName))
 			continue
 		}
 
 		if requireSchedulingCheck {
 			info, err := rcs.GetDiskSchedulingInfo(diskSpec, diskStatus)
 			if err != nil {
-				logrus.Errorf("Failed to get settings when scheduling replica: %v", err)
-				multiError.Append(util.NewMultiError(longhorn.ErrorReplicaScheduleSchedulingSettingsRetrieveFailed))
-				return preferredDisks, multiError
+				errs.Append(longhorn.ErrorReplicaScheduleLonghornClientOperationFailed,
+					errors.Wrapf(err, "failed to get disk scheduling info for disk %v", diskName))
+				return preferredDisks, errs
 			}
+
 			scheduledReplica := diskStatus.ScheduledReplica
+
 			// check other replicas for the same volume has been accounted on current node
 			var storageScheduled int64
 			for rName, r := range replicas {
@@ -432,15 +542,19 @@ func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disk
 			if storageScheduled > 0 {
 				info.StorageScheduled += storageScheduled
 			}
-			if !rcs.IsSchedulableToDisk(volume.Spec.Size, volume.Status.ActualSize, info) {
-				multiError.Append(util.NewMultiError(longhorn.ErrorReplicaScheduleInsufficientStorage))
+			if isSchedulableToDisk, _ := rcs.IsSchedulableToDisk(volume.Spec.Size, volume.Status.ActualSize, info); !isSchedulableToDisk {
+				errs.Append(longhorn.ErrorReplicaScheduleInsufficientStorage,
+					fmt.Errorf("disk %v on node %v does not have enough storage available for replica %v with size %v",
+						diskName, node.Name, volume.Name, volume.Spec.Size))
 				continue
 			}
 		}
 
 		// Check if the Disk's Tags are valid.
 		if !types.IsSelectorsInTags(diskSpec.Tags, volume.Spec.DiskSelector, allowEmptyDiskSelectorVolume) {
-			multiError.Append(util.NewMultiError(longhorn.ErrorReplicaScheduleTagsNotFulfilled))
+			errs.Append(longhorn.ErrorReplicaScheduleTagsNotFulfilled,
+				fmt.Errorf("disk %v on node %v does not match the disk selector %v for volume %v",
+					diskName, node.Name, volume.Spec.DiskSelector, volume.Name))
 			continue
 		}
 
@@ -448,7 +562,9 @@ func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disk
 			// If the disks don't match the tags of the backing image of this volume,
 			// don't schedule the replica on it because it will hang there
 			if !types.IsSelectorsInTags(diskSpec.Tags, biDiskSelector, allowEmptyDiskSelectorVolume) {
-				multiError.Append(util.NewMultiError(longhorn.ErrorReplicaScheduleTagsNotFulfilled))
+				errs.Append(longhorn.ErrorReplicaScheduleTagsNotFulfilled,
+					fmt.Errorf("disk %v on node %v does not match the disk selector %v for backing image %v of volume %v",
+						diskName, node.Name, biDiskSelector, volume.Spec.BackingImage, volume.Name))
 				continue
 			}
 		}
@@ -461,7 +577,7 @@ func (rcs *ReplicaScheduler) filterNodeDisksForReplica(node *longhorn.Node, disk
 		preferredDisks[diskUUID] = suggestDisk
 	}
 
-	return preferredDisks, multiError
+	return preferredDisks, errs
 }
 
 // filterDiskWithMatchingReplicas returns disk that have no matching replicas when diskSoftAntiAffinity is false.
@@ -497,7 +613,7 @@ func filterDisksWithMatchingReplicas(disks map[string]*Disk, replicas map[string
 	return disks
 }
 
-func (rcs *ReplicaScheduler) getNodeInfo() (map[string]*longhorn.Node, error) {
+func (rcs *ReplicaScheduler) ListSchedulableNodes(dataEngine longhorn.DataEngineType) (map[string]*longhorn.Node, error) {
 	nodeInfo, err := rcs.ds.ListNodes()
 	if err != nil {
 		return nil, err
@@ -522,6 +638,18 @@ func (rcs *ReplicaScheduler) getNodeInfo() (map[string]*longhorn.Node, error) {
 		if !node.Spec.AllowScheduling {
 			continue
 		}
+		// Exclude nodes where the data engine is disabled.
+		if types.IsDataEngineV2(dataEngine) {
+			kubeNode, err := rcs.ds.GetKubernetesNodeRO(node.Name)
+			if err != nil {
+				logrus.WithField("node", node.Name).WithError(err).Warn("Skipping node because failed to get corresponding kubernetes node")
+				continue
+			}
+			if val, ok := kubeNode.Labels[types.NodeDisableV2DataEngineLabelKey]; ok && val == types.NodeDisableV2DataEngineLabelKeyTrue {
+				continue
+			}
+		}
+
 		scheduledNode[node.Name] = node
 	}
 
@@ -574,21 +702,25 @@ func filterActiveReplicas(replicas map[string]*longhorn.Replica) map[string]*lon
 }
 
 func (rcs *ReplicaScheduler) CheckAndReuseFailedReplica(replicas map[string]*longhorn.Replica, volume *longhorn.Volume, hardNodeAffinity string) (*longhorn.Replica, error) {
+	// No need the check for v1 data engine since the v1 data engine can reuse failed replicas
+	// for delta rebuilding although the fast replica rebuilding is not enabled.
 	if types.IsDataEngineV2(volume.Spec.DataEngine) {
-		V2DataEngineFastReplicaRebuilding, err := rcs.ds.GetSettingAsBool(types.SettingNameV2DataEngineFastReplicaRebuilding)
+		fastReplicaRebuilding, err := rcs.ds.GetSettingAsBoolByDataEngine(types.SettingNameFastReplicaRebuildEnabled, volume.Spec.DataEngine)
 		if err != nil {
-			logrus.WithError(err).Warnf("Failed to get the setting %v, will consider it as false", types.SettingDefinitionV2DataEngineFastReplicaRebuilding)
-			V2DataEngineFastReplicaRebuilding = false
+			logrus.WithError(err).Warnf("Failed to get %v setting for data engine %v, will consider it as false",
+				types.SettingNameFastReplicaRebuildEnabled, volume.Spec.DataEngine)
+			fastReplicaRebuilding = false
 		}
-		if !V2DataEngineFastReplicaRebuilding {
-			logrus.Infof("Skip checking and reusing replicas for volume %v since setting %v is not enabled", volume.Name, types.SettingNameV2DataEngineFastReplicaRebuilding)
+		if !fastReplicaRebuilding {
+			logrus.Infof("Skip checking and reusing replicas for volume %v since setting %v for data engine %v is not enabled",
+				volume.Name, types.SettingNameFastReplicaRebuildEnabled, volume.Spec.DataEngine)
 			return nil, nil
 		}
 	}
 
 	replicas = filterActiveReplicas(replicas)
 
-	allNodesInfo, err := rcs.getNodeInfo()
+	allNodesInfo, err := rcs.ListSchedulableNodes(volume.Spec.DataEngine)
 	if err != nil {
 		return nil, err
 	}
@@ -674,14 +806,18 @@ func (rcs *ReplicaScheduler) RequireNewReplica(replicas map[string]*longhorn.Rep
 		return 0
 	}
 
+	// No need the check for v1 data engine since the v1 data engine can reuse failed replicas
+	// for delta rebuilding although the fast replica rebuilding is not enabled.
 	if types.IsDataEngineV2(volume.Spec.DataEngine) {
-		V2DataEngineFastReplicaRebuilding, err := rcs.ds.GetSettingAsBool(types.SettingNameV2DataEngineFastReplicaRebuilding)
+		fastReplicaRebuilding, err := rcs.ds.GetSettingAsBoolByDataEngine(types.SettingNameFastReplicaRebuildEnabled, volume.Spec.DataEngine)
 		if err != nil {
-			logrus.WithError(err).Warnf("Failed to get the setting %v, will consider it as false", types.SettingDefinitionV2DataEngineFastReplicaRebuilding)
-			V2DataEngineFastReplicaRebuilding = false
+			logrus.WithError(err).Warnf("Failed to get %v setting for data engine %v, will consider it as false",
+				types.SettingNameFastReplicaRebuildEnabled, volume.Spec.DataEngine)
+			fastReplicaRebuilding = false
 		}
-		if !V2DataEngineFastReplicaRebuilding {
-			logrus.Infof("Skip checking potentially reusable replicas for volume %v since setting %v is not enabled", volume.Name, types.SettingNameV2DataEngineFastReplicaRebuilding)
+		if !fastReplicaRebuilding {
+			logrus.Infof("Skip checking potentially reusable replicas for volume %v since setting %v for data engine %v is not enabled",
+				volume.Name, types.SettingNameFastReplicaRebuildEnabled, volume.Spec.DataEngine)
 			return 0
 		}
 	}
@@ -813,13 +949,43 @@ func GetLatestFailedReplica(rs ...*longhorn.Replica) (res *longhorn.Replica) {
 	return res
 }
 
-func (rcs *ReplicaScheduler) IsSchedulableToDisk(size int64, requiredStorage int64, info *DiskSchedulingInfo) bool {
+func (rcs *ReplicaScheduler) IsSchedulableToDisk(size int64, requiredStorage int64, info *DiskSchedulingInfo) (isSchedulable bool, message string) {
 	// StorageReserved = the space is already used by 3rd party + the space will be used by 3rd party.
 	// StorageAvailable = the space can be used by 3rd party or Longhorn system.
 	// There is no (direct) relationship between StorageReserved and StorageAvailable.
-	return info.StorageMaximum > 0 && info.StorageAvailable > 0 &&
-		info.StorageAvailable-requiredStorage > int64(float64(info.StorageMaximum)*float64(info.MinimalAvailablePercentage)/100) &&
-		(size+info.StorageScheduled) <= int64(float64(info.StorageMaximum-info.StorageReserved)*float64(info.OverProvisioningPercentage)/100)
+	if info.StorageMaximum <= 0 {
+		return false, "Storage Max must be greater than 0"
+	}
+
+	if info.StorageAvailable <= 0 {
+		return false, "Storage Available must be greater than 0"
+	}
+
+	// Actual Space Usage Condition:
+	// Ensure that after scheduling the replica, the disk still has enough available space left.
+	// This prevents the disk from being completely filled.
+	currentAvailable := info.StorageAvailable - requiredStorage
+	minimalAvailable := int64(float64(info.StorageMaximum) * float64(info.MinimalAvailablePercentage) / 100)
+	if currentAvailable <= minimalAvailable {
+		return false, fmt.Sprintf(
+			"Actual space usage condition failed: CurrentAvailable = %d (StorageAvailable - Required) is less than or equal to MinimalAvailable = %d (%d%% of Storage Max).",
+			currentAvailable, minimalAvailable, info.MinimalAvailablePercentage,
+		)
+	}
+
+	// Scheduling Space Condition:
+	// Ensure that the total scheduled size (including this replica) does not exceed the allowed over-provisioning limit.
+	// This prevents excessive over-commitment of the disk capacity.
+	scheduledTotal := size + info.StorageScheduled
+	overProvisionLimit := int64(float64(info.StorageMaximum-info.StorageReserved) * float64(info.OverProvisioningPercentage) / 100)
+	if scheduledTotal > overProvisionLimit {
+		return false, fmt.Sprintf(
+			"Scheduling space condition failed: ScheduledTotal = %d (Size + StorageScheduled) is greater than ProvisionedLimit = %d (%d%% of StorageMax - StorageReserved). ",
+			scheduledTotal, overProvisionLimit, info.OverProvisioningPercentage,
+		)
+	}
+
+	return true, ""
 }
 
 func (rcs *ReplicaScheduler) IsSchedulableToDiskConsiderDiskPressure(diskPressurePercentage, size, requiredStorage int64, info *DiskSchedulingInfo) bool {
@@ -840,7 +1006,8 @@ func (rcs *ReplicaScheduler) IsSchedulableToDiskConsiderDiskPressure(diskPressur
 	newDiskUsagePercentage := (requiredStorage + info.StorageScheduled + info.StorageReserved) * 100 / info.StorageMaximum
 	log.Debugf("Evaluated new disk usage percentage after scheduling replica: %v%%", newDiskUsagePercentage)
 
-	return rcs.IsSchedulableToDisk(size, requiredStorage, info) &&
+	isSchedulableToDisk, _ := rcs.IsSchedulableToDisk(size, requiredStorage, info)
+	return isSchedulableToDisk &&
 		newDiskUsagePercentage < int64(diskPressurePercentage)
 }
 
@@ -873,7 +1040,7 @@ func (rcs *ReplicaScheduler) FilterNodesSchedulableForVolume(nodes map[string]*l
 				continue
 			}
 
-			if rcs.IsSchedulableToDisk(volume.Spec.Size, volume.Status.ActualSize, diskInfo) {
+			if isSchedulableToDisk, _ := rcs.IsSchedulableToDisk(volume.Spec.Size, volume.Status.ActualSize, diskInfo); isSchedulableToDisk {
 				isSchedulable = true
 				break
 			}
@@ -919,7 +1086,7 @@ func (rcs *ReplicaScheduler) GetDiskSchedulingInfo(disk longhorn.DiskSpec, diskS
 	return info, nil
 }
 
-func (rcs *ReplicaScheduler) CheckReplicasSizeExpansion(v *longhorn.Volume, oldSize, newSize int64) (diskScheduleMultiError util.MultiError, err error) {
+func (rcs *ReplicaScheduler) CheckReplicasSizeExpansion(v *longhorn.Volume, oldSize, newSize int64) (diskScheduleMultiError multierr.MultiError, err error) {
 	defer func() {
 		err = errors.Wrapf(err, "error while CheckReplicasSizeExpansion for volume %v", v.Name)
 	}()
@@ -940,13 +1107,15 @@ func (rcs *ReplicaScheduler) CheckReplicasSizeExpansion(v *longhorn.Volume, oldS
 		}
 		diskSpec, diskStatus, ok := findDiskSpecAndDiskStatusInNode(r.Spec.DiskID, node)
 		if !ok {
-			return util.NewMultiError(longhorn.ErrorReplicaScheduleDiskNotFound),
-				fmt.Errorf("cannot find the disk %v in node %v", r.Spec.DiskID, node.Name)
+			errs := multierr.NewMultiError()
+			errs.Append(longhorn.ErrorReplicaScheduleDiskNotFound, fmt.Errorf("failed to find disk %v in node %v", r.Spec.DiskID, node.Name))
+			return errs, fmt.Errorf("failed to find disk %v in node %v", r.Spec.DiskID, node.Name)
 		}
 		diskInfo, err := rcs.GetDiskSchedulingInfo(diskSpec, &diskStatus)
 		if err != nil {
-			return util.NewMultiError(longhorn.ErrorReplicaScheduleDiskUnavailable),
-				fmt.Errorf("failed to GetDiskSchedulingInfo %v", err)
+			errs := multierr.NewMultiError()
+			errs.Append(longhorn.ErrorReplicaScheduleLonghornClientOperationFailed, fmt.Errorf("failed to get disk scheduling info for disk %v on node %v: %v", r.Spec.DiskID, node.Name, err))
+			return errs, errors.Wrapf(err, "failed to get disk scheduling info for disk %v on node %v", r.Spec.DiskID, node.Name)
 		}
 		diskIDToDiskInfo[r.Spec.DiskID] = diskInfo
 		diskIDToReplicaCount[r.Spec.DiskID] = diskIDToReplicaCount[r.Spec.DiskID] + 1
@@ -955,10 +1124,11 @@ func (rcs *ReplicaScheduler) CheckReplicasSizeExpansion(v *longhorn.Volume, oldS
 	expandingSize := newSize - oldSize
 	for diskID, diskInfo := range diskIDToDiskInfo {
 		requestingSizeExpansionOnDisk := expandingSize * diskIDToReplicaCount[diskID]
-		if !rcs.IsSchedulableToDisk(requestingSizeExpansionOnDisk, 0, diskInfo) {
-			logrus.Errorf("Cannot schedule %v more bytes to disk %v with %+v", requestingSizeExpansionOnDisk, diskID, diskInfo)
-			return util.NewMultiError(longhorn.ErrorReplicaScheduleInsufficientStorage),
-				fmt.Errorf("cannot schedule %v more bytes to disk %v with %+v", requestingSizeExpansionOnDisk, diskID, diskInfo)
+		if isSchedulableToDisk, reason := rcs.IsSchedulableToDisk(requestingSizeExpansionOnDisk, 0, diskInfo); !isSchedulableToDisk {
+			errs := multierr.NewMultiError()
+			errs.Append(longhorn.ErrorReplicaScheduleInsufficientStorage, fmt.Errorf("cannot schedule %v more bytes to disk %v with %+v: %s", requestingSizeExpansionOnDisk, diskID, diskInfo, reason))
+			logrus.Errorf("Cannot schedule %v more bytes to disk %v with %+v; %s", requestingSizeExpansionOnDisk, diskID, diskInfo, reason)
+			return errs, fmt.Errorf("cannot schedule %v more bytes to disk %v with %+v", requestingSizeExpansionOnDisk, diskID, diskInfo)
 		}
 	}
 	return nil, nil

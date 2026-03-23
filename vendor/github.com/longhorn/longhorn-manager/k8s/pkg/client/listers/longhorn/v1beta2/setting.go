@@ -1,11 +1,11 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright The Longhorn Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,16 +19,18 @@ limitations under the License.
 package v1beta2
 
 import (
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // SettingLister helps list Settings.
+// All objects returned here must be treated as read-only.
 type SettingLister interface {
 	// List lists all Settings in the indexer.
-	List(selector labels.Selector) (ret []*v1beta2.Setting, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.Setting, err error)
 	// Settings returns an object that can list and get Settings.
 	Settings(namespace string) SettingNamespaceLister
 	SettingListerExpansion
@@ -36,59 +38,33 @@ type SettingLister interface {
 
 // settingLister implements the SettingLister interface.
 type settingLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*longhornv1beta2.Setting]
 }
 
 // NewSettingLister returns a new SettingLister.
 func NewSettingLister(indexer cache.Indexer) SettingLister {
-	return &settingLister{indexer: indexer}
-}
-
-// List lists all Settings in the indexer.
-func (s *settingLister) List(selector labels.Selector) (ret []*v1beta2.Setting, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.Setting))
-	})
-	return ret, err
+	return &settingLister{listers.New[*longhornv1beta2.Setting](indexer, longhornv1beta2.Resource("setting"))}
 }
 
 // Settings returns an object that can list and get Settings.
 func (s *settingLister) Settings(namespace string) SettingNamespaceLister {
-	return settingNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return settingNamespaceLister{listers.NewNamespaced[*longhornv1beta2.Setting](s.ResourceIndexer, namespace)}
 }
 
 // SettingNamespaceLister helps list and get Settings.
+// All objects returned here must be treated as read-only.
 type SettingNamespaceLister interface {
 	// List lists all Settings in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1beta2.Setting, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.Setting, err error)
 	// Get retrieves the Setting from the indexer for a given namespace and name.
-	Get(name string) (*v1beta2.Setting, error)
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*longhornv1beta2.Setting, error)
 	SettingNamespaceListerExpansion
 }
 
 // settingNamespaceLister implements the SettingNamespaceLister
 // interface.
 type settingNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all Settings in the indexer for a given namespace.
-func (s settingNamespaceLister) List(selector labels.Selector) (ret []*v1beta2.Setting, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.Setting))
-	})
-	return ret, err
-}
-
-// Get retrieves the Setting from the indexer for a given namespace and name.
-func (s settingNamespaceLister) Get(name string) (*v1beta2.Setting, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta2.Resource("setting"), name)
-	}
-	return obj.(*v1beta2.Setting), nil
+	listers.ResourceIndexer[*longhornv1beta2.Setting]
 }

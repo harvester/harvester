@@ -116,6 +116,7 @@ func CreateBackingImageBackup(config *BackupConfig, backupBackingImage *BackupBa
 
 	if exists {
 		log.Info("Backup BackingImage already exists, no need to perform backup")
+		backupOperation.UpdateBackupProgress(string(common.ProgressStateInProgress), 100, EncodeBackupBackingImageURL(config.Name, config.DestURL), "")
 		return nil
 	}
 

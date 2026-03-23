@@ -19,7 +19,31 @@ import (
 	commonio "github.com/longhorn/go-common-libs/io"
 )
 
-// GetKernelRelease returns the kernel release string.
+// GetArch retrieves the system architecture by calling the unix.Uname function
+// and extracting the architecture information from the Utsname structure.
+// It returns the architecture as a string and an error if the operation fails.
+func GetArch() (string, error) {
+	utsname := &unix.Utsname{}
+	if err := unix.Uname(utsname); err != nil {
+		logrus.WithError(err).Warn("Failed to get system architecture")
+		return "", err
+	}
+
+	// Extract the architecture from the Utsname structure
+	arch := make([]byte, 0, len(utsname.Machine))
+	for _, b := range utsname.Machine {
+		if b == 0x00 {
+			logrus.Trace("Found end of architecture string [0x00]")
+			break
+		}
+		arch = append(arch, byte(b))
+	}
+	return string(arch), nil
+}
+
+// GetKernelRelease retrieves the kernel release by calling the unix.Uname function
+// and extracting the release information from the Utsname structure.
+// It returns the kernel release as a string and an error if the operation fails.
 func GetKernelRelease() (string, error) {
 	utsname := &unix.Utsname{}
 	if err := unix.Uname(utsname); err != nil {
@@ -172,12 +196,20 @@ func GetProcKernelConfigMap(procDir string) (configMap map[string]string, err er
 	if err != nil {
 		return nil, err
 	}
-	defer configFile.Close()
+	defer func() {
+		if errClose := configFile.Close(); errClose != nil {
+			logrus.WithError(errClose).Errorf("Failed to close config file %s", configPath)
+		}
+	}()
 	gzReader, err := gzip.NewReader(configFile)
 	if err != nil {
 		return nil, err
 	}
-	defer gzReader.Close()
+	defer func() {
+		if errClose := gzReader.Close(); errClose != nil {
+			logrus.WithError(errClose).Errorf("Failed to close gzip reader for config file %s", configPath)
+		}
+	}()
 	return parseKernelModuleConfigMap(gzReader)
 }
 

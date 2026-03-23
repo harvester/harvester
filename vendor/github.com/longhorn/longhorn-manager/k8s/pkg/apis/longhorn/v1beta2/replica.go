@@ -89,9 +89,6 @@ type ReplicaSpec struct {
 // ReplicaStatus defines the observed state of the Longhorn replica
 type ReplicaStatus struct {
 	InstanceStatus `json:""`
-	// Deprecated: Replaced by field `spec.evictionRequested`.
-	// +optional
-	EvictionRequested bool `json:"evictionRequested"`
 }
 
 // +genclient

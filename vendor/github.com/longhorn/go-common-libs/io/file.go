@@ -122,7 +122,11 @@ func CopyFile(sourcePath, destinationPath string, overWrite bool) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() {
+		if errClose := sourceFile.Close(); errClose != nil {
+			logrus.WithError(errClose).Errorf("Failed to close source file %v", sourcePath)
+		}
+	}()
 
 	_, err = CreateDirectory(filepath.Dir(destinationPath), sourceFileInfo.ModTime())
 	if err != nil {
@@ -133,7 +137,11 @@ func CopyFile(sourcePath, destinationPath string, overWrite bool) error {
 	if err != nil {
 		return err
 	}
-	defer destinationFile.Close()
+	defer func() {
+		if errClose := destinationFile.Close(); errClose != nil {
+			logrus.WithError(errClose).Errorf("Failed to close destination file %v", destinationPath)
+		}
+	}()
 
 	_, err = io.Copy(destinationFile, sourceFile)
 	if err != nil {
@@ -217,7 +225,11 @@ func SyncFile(filePath string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if errClose := file.Close(); errClose != nil {
+			logrus.WithError(errClose).Errorf("Failed to close file %v", filePath)
+		}
+	}()
 
 	return file.Sync()
 }
@@ -315,7 +327,11 @@ func IsDirectoryEmpty(directory string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() {
+		if errClose := f.Close(); errClose != nil {
+			logrus.WithError(errClose).Errorf("Failed to close directory %v", directory)
+		}
+	}()
 
 	_, err = f.Readdirnames(1)
 	if err == io.EOF {

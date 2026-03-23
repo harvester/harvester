@@ -256,6 +256,22 @@ func DeletePath(path string) error {
 	return err
 }
 
+func Stat(path string) (os.FileInfo, error) {
+	var err error
+	defer func() {
+		err = errors.Wrapf(err, "failed to stat %s", path)
+	}()
+
+	fn := func() (any, error) {
+		return os.Stat(path)
+	}
+	rawResult, err := RunFunc(fn, 0)
+	if err != nil {
+		return nil, err
+	}
+	return rawResult.(os.FileInfo), err
+}
+
 // GetDiskStat switches to the host namespace and returns the disk stat
 // of the disk at the specified path.
 func GetDiskStat(path string) (*types.DiskStat, error) {
