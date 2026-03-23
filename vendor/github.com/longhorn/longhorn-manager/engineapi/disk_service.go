@@ -84,3 +84,7 @@ func (s *DiskService) DiskReplicaInstanceDelete(diskType, diskName, diskUUID, di
 func (s *DiskService) GetInstanceManagerName() string {
 	return s.instanceManagerName
 }
+
+func (s *DiskService) MetricsGet(diskType, diskName, diskPath, diskDriver string) (*imapi.DiskMetrics, error) {
+	return s.grpcClient.MetricsGet(diskType, diskName, diskPath, diskDriver)
+}

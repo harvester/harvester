@@ -51,6 +51,11 @@ func (p *Proxy) ReplicaRebuildStatus(e *longhorn.Engine) (status map[string]*lon
 	return status, nil
 }
 
+func (p *Proxy) ReplicaRebuildQosSet(e *longhorn.Engine, qosLimitMbps int64) error {
+	return p.grpcClient.ReplicaRebuildingQosSet(string(e.Spec.DataEngine), e.Name, e.Spec.VolumeName,
+		p.DirectToURL(e), qosLimitMbps)
+}
+
 func (p *Proxy) ReplicaRebuildVerify(e *longhorn.Engine, replicaName, url string) (err error) {
 	if err := ValidateReplicaURL(url); err != nil {
 		return err

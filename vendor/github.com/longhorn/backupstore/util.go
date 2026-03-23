@@ -8,9 +8,13 @@ import (
 	"strings"
 	"sync"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/pkg/errors"
 
 	"github.com/longhorn/backupstore/util"
+
+	lhbackup "github.com/longhorn/go-common-libs/backup"
 )
 
 func getBlockPath(volumeName string) string {
@@ -106,4 +110,22 @@ func DecompressAndVerifyWithFallback(bsDriver BackupStoreDriver, blkFile, decomp
 	}
 
 	return nil, errors.Wrapf(err, "decompression verification failed for block %v", blkFile)
+}
+
+func getBlockSizeFromParameters(parameters map[string]string) (int64, error) {
+	if parameters == nil {
+		return DEFAULT_BLOCK_SIZE, nil
+	}
+	sizeVal, exist := parameters[lhbackup.LonghornBackupParameterBackupBlockSize]
+	if !exist || sizeVal == "" {
+		return DEFAULT_BLOCK_SIZE, nil
+	}
+	quantity, err := resource.ParseQuantity(sizeVal)
+	if err != nil {
+		return 0, errors.Wrapf(err, "invalid block size %s from parameter %s", sizeVal, lhbackup.LonghornBackupParameterBackupBlockSize)
+	}
+	if quantity.IsZero() {
+		return DEFAULT_BLOCK_SIZE, nil
+	}
+	return quantity.Value(), nil
 }

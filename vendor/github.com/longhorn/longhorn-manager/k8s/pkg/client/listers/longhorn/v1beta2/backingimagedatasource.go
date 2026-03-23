@@ -1,11 +1,11 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright The Longhorn Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,16 +19,18 @@ limitations under the License.
 package v1beta2
 
 import (
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // BackingImageDataSourceLister helps list BackingImageDataSources.
+// All objects returned here must be treated as read-only.
 type BackingImageDataSourceLister interface {
 	// List lists all BackingImageDataSources in the indexer.
-	List(selector labels.Selector) (ret []*v1beta2.BackingImageDataSource, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.BackingImageDataSource, err error)
 	// BackingImageDataSources returns an object that can list and get BackingImageDataSources.
 	BackingImageDataSources(namespace string) BackingImageDataSourceNamespaceLister
 	BackingImageDataSourceListerExpansion
@@ -36,59 +38,33 @@ type BackingImageDataSourceLister interface {
 
 // backingImageDataSourceLister implements the BackingImageDataSourceLister interface.
 type backingImageDataSourceLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*longhornv1beta2.BackingImageDataSource]
 }
 
 // NewBackingImageDataSourceLister returns a new BackingImageDataSourceLister.
 func NewBackingImageDataSourceLister(indexer cache.Indexer) BackingImageDataSourceLister {
-	return &backingImageDataSourceLister{indexer: indexer}
-}
-
-// List lists all BackingImageDataSources in the indexer.
-func (s *backingImageDataSourceLister) List(selector labels.Selector) (ret []*v1beta2.BackingImageDataSource, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.BackingImageDataSource))
-	})
-	return ret, err
+	return &backingImageDataSourceLister{listers.New[*longhornv1beta2.BackingImageDataSource](indexer, longhornv1beta2.Resource("backingimagedatasource"))}
 }
 
 // BackingImageDataSources returns an object that can list and get BackingImageDataSources.
 func (s *backingImageDataSourceLister) BackingImageDataSources(namespace string) BackingImageDataSourceNamespaceLister {
-	return backingImageDataSourceNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return backingImageDataSourceNamespaceLister{listers.NewNamespaced[*longhornv1beta2.BackingImageDataSource](s.ResourceIndexer, namespace)}
 }
 
 // BackingImageDataSourceNamespaceLister helps list and get BackingImageDataSources.
+// All objects returned here must be treated as read-only.
 type BackingImageDataSourceNamespaceLister interface {
 	// List lists all BackingImageDataSources in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1beta2.BackingImageDataSource, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.BackingImageDataSource, err error)
 	// Get retrieves the BackingImageDataSource from the indexer for a given namespace and name.
-	Get(name string) (*v1beta2.BackingImageDataSource, error)
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*longhornv1beta2.BackingImageDataSource, error)
 	BackingImageDataSourceNamespaceListerExpansion
 }
 
 // backingImageDataSourceNamespaceLister implements the BackingImageDataSourceNamespaceLister
 // interface.
 type backingImageDataSourceNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all BackingImageDataSources in the indexer for a given namespace.
-func (s backingImageDataSourceNamespaceLister) List(selector labels.Selector) (ret []*v1beta2.BackingImageDataSource, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.BackingImageDataSource))
-	})
-	return ret, err
-}
-
-// Get retrieves the BackingImageDataSource from the indexer for a given namespace and name.
-func (s backingImageDataSourceNamespaceLister) Get(name string) (*v1beta2.BackingImageDataSource, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta2.Resource("backingimagedatasource"), name)
-	}
-	return obj.(*v1beta2.BackingImageDataSource), nil
+	listers.ResourceIndexer[*longhornv1beta2.BackingImageDataSource]
 }

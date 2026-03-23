@@ -130,7 +130,9 @@ func IsSPDKTgtReady(timeout time.Duration) bool {
 	for i := 0; i < int(timeout.Seconds()); i++ {
 		conn, err := net.DialTimeout(spdkhelpertypes.DefaultJSONServerNetwork, spdkhelpertypes.DefaultUnixDomainSocketPath, 1*time.Second)
 		if err == nil {
-			conn.Close()
+			if closeErr := conn.Close(); closeErr != nil {
+				logrus.WithError(closeErr).Warn("Failed to close connection")
+			}
 			return true
 		}
 		time.Sleep(time.Second)

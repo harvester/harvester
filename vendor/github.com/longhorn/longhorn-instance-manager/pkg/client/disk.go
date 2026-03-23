@@ -5,11 +5,13 @@ import (
 	"crypto/tls"
 	"fmt"
 
-	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 
 	"github.com/longhorn/longhorn-instance-manager/pkg/api"
 	"github.com/longhorn/longhorn-instance-manager/pkg/meta"
@@ -124,6 +126,7 @@ func (c *DiskServiceClient) DiskCreate(diskType, diskName, diskUUID, diskPath, d
 		FreeBlocks:  resp.GetFreeBlocks(),
 		BlockSize:   resp.GetBlockSize(),
 		ClusterSize: resp.GetClusterSize(),
+		State:       resp.GetState(),
 	}, nil
 }
 
@@ -165,6 +168,7 @@ func (c *DiskServiceClient) DiskGet(diskType, diskName, diskPath, diskDriver str
 		FreeBlocks:  resp.GetFreeBlocks(),
 		BlockSize:   resp.GetBlockSize(),
 		ClusterSize: resp.GetClusterSize(),
+		State:       resp.GetState(),
 	}, nil
 }
 
@@ -267,4 +271,40 @@ func (c *DiskServiceClient) CheckConnection() error {
 	req := &healthpb.HealthCheckRequest{}
 	_, err := c.health.Check(getContextWithGRPCTimeout(c.ctx), req)
 	return err
+}
+
+// MetricsGet returns the disk metrics with the given name and path.
+func (c *DiskServiceClient) MetricsGet(diskType, diskName, diskPath, diskDriver string) (*api.DiskMetrics, error) {
+	if diskName == "" {
+		return nil, fmt.Errorf("failed to get disk metrics: missing required parameter diskName")
+	}
+
+	t, ok := rpc.DiskType_value[diskType]
+	if !ok {
+		return nil, fmt.Errorf("failed to get disk metrics: invalid disk type %v", diskType)
+	}
+
+	client := c.getDiskServiceClient()
+	ctx, cancel := context.WithTimeout(context.Background(), types.GRPCServiceTimeout)
+	defer cancel()
+
+	resp, err := client.MetricsGet(ctx, &rpc.DiskGetRequest{
+		DiskType:   rpc.DiskType(t),
+		DiskName:   diskName,
+		DiskPath:   diskPath,
+		DiskDriver: diskDriver,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to api.DiskMetrics format
+	return &api.DiskMetrics{
+		ReadThroughput:  resp.Metrics.ReadThroughput,
+		WriteThroughput: resp.Metrics.WriteThroughput,
+		ReadLatency:     resp.Metrics.ReadLatency,
+		WriteLatency:    resp.Metrics.WriteLatency,
+		ReadIOPS:        resp.Metrics.ReadIOPS,
+		WriteIOPS:       resp.Metrics.WriteIOPS,
+	}, nil
 }

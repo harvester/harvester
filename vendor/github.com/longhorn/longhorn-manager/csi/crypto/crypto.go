@@ -110,6 +110,18 @@ func EncryptVolume(devicePath, passphrase string, cryptoParams *EncryptParams) e
 		lhtypes.LuksTimeout); err != nil {
 		return errors.Wrapf(err, "failed to encrypt device %s with LUKS", devicePath)
 	}
+
+	isEncrypted, err = isDeviceEncrypted(devicePath)
+	if err != nil {
+		logrus.WithError(err).Warnf("Failed to check IsDeviceEncrypted after encrypting volume %v", devicePath)
+		return err
+	}
+	if !isEncrypted {
+		logrus.Warnf("Attempted to encrypt device %s with LUKS, but it is not encrypted", devicePath)
+		return nil
+	}
+
+	logrus.Infof("Device %s is encrypted with LUKS", devicePath)
 	return nil
 }
 

@@ -7,3 +7,7 @@ import (
 func (m *VolumeManager) GetVolumeAttachment(volumeName string) (*longhorn.VolumeAttachment, error) {
 	return m.ds.GetLHVolumeAttachmentByVolumeName(volumeName)
 }
+
+func (m *VolumeManager) ListVolumeAttachment() ([]*longhorn.VolumeAttachment, error) {
+	return m.ds.ListLHVolumeAttachments()
+}

@@ -1,12 +1,12 @@
 package manager
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/longhorn/longhorn-manager/datastore"
@@ -71,28 +71,13 @@ func (m *VolumeManager) CreateEngineImage(image string) (*longhorn.EngineImage, 
 	return ei, nil
 }
 
-func (m *VolumeManager) DeleteEngineImageByName(name string) error {
-	ei, err := m.GetEngineImageByName(name)
-	if err != nil {
-		if datastore.ErrorIsNotFound(err) {
-			return nil
-		}
-		return errors.Wrapf(err, "unable to get engine image '%s'", name)
-	}
-	defaultImage, err := m.GetSettingValueExisted(types.SettingNameDefaultEngineImage)
-	if err != nil {
-		return errors.Wrap(err, "unable to delete engine image")
-	}
-	if ei.Spec.Image == defaultImage {
-		return fmt.Errorf("unable to delete the default engine image")
-	}
-	if ei.Status.RefCount != 0 {
-		return fmt.Errorf("unable to delete the engine image while being used")
-	}
-	if err := m.ds.DeleteEngineImage(name); err != nil {
+func (m *VolumeManager) DeleteEngineImage(name string) error {
+	err := m.ds.DeleteEngineImage(name)
+	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
-	logrus.Infof("Deleted engine image %v (%v)", ei.Name, ei.Spec.Image)
+
+	logrus.Infof("Deleted engine image %v", name)
 	return nil
 }
 
