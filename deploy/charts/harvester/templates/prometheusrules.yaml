@@ -1,0 +1,86 @@
+{{- if .Values.monitoring.prometheusrules.enabled -}}
+{{- $config := .Values.monitoring.prometheusrules.harvesterResourceQuotaAlerts -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: harvester-resource-quota-alerts
+  namespace: {{ .Values.monitoring.prometheusrules.namespaceOverride | default "cattle-monitoring-system" | quote }}
+  labels:
+    {{- if and $config $config.labels }}
+    {{- toYaml $config.labels | nindent 4 }}
+    {{- end }}
+    harvesterhci.io/prometheusRuleGroup: "ResourceQuota"    
+spec:
+  groups:
+  - name: harvester-resource-quota.rules
+    rules:
+    # --- CPU Alerts ---
+    - alert: ResourceQuotaCPUUsageWarning
+      expr: |
+        (
+          kube_resourcequota{resource="limits.cpu", type="used"} 
+          / on(namespace, resource, resourcequota) group_left() 
+          kube_resourcequota{resource="limits.cpu", type="hard"}
+        ) > 0.85
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: |
+          CPU Quota usage > 85% (Namespace: {{ "{{" }} $labels.namespace {{ "}}" }})
+        description: |
+          Quota "{{ "{{" }} $labels.resourcequota {{ "}}" }}" is using {{ "{{" }} $value | humanizePercentage {{ "}}" }} of its CPU limit.
+        runbook_url: "https://docs.harvesterhci.io/v1.8/monitoring/harvester-alerts#quota-cpu-warning"
+
+    - alert: ResourceQuotaCPUUsageCritical
+      expr: |
+        (
+          kube_resourcequota{resource="limits.cpu", type="used"} 
+          / on(namespace, resource, resourcequota) group_left() 
+          kube_resourcequota{resource="limits.cpu", type="hard"}
+        ) > 0.95
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: |
+          CRITICAL: CPU Quota exhausted in {{ "{{" }} $labels.namespace {{ "}}" }}
+        description: |
+          Quota "{{ "{{" }} $labels.resourcequota {{ "}}" }}" is at {{ "{{" }} $value | humanizePercentage {{ "}}" }}. New pods may fail to schedule.
+        runbook_url: "https://docs.harvesterhci.io/v1.8/monitoring/harvester-alerts#quota-exhausted-critical"
+
+    # --- Memory Alerts ---
+    - alert: ResourceQuotaMemoryUsageWarning
+      expr: |
+        (
+          kube_resourcequota{resource="limits.memory", type="used"} 
+          / on(namespace, resource, resourcequota) group_left() 
+          kube_resourcequota{resource="limits.memory", type="hard"}
+        ) > 0.85
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: |
+          Memory Quota usage > 85% (Namespace: {{ "{{" }} $labels.namespace {{ "}}" }})
+        description: |
+          Quota "{{ "{{" }} $labels.resourcequota {{ "}}" }}" is using {{ "{{" }} $value | humanizePercentage {{ "}}" }} of its Memory limit.
+        runbook_url: "https://docs.harvesterhci.io/v1.8/monitoring/harvester-alerts#quota-mem-warning"
+
+    - alert: ResourceQuotaMemoryUsageCritical
+      expr: |
+        (
+          kube_resourcequota{resource="limits.memory", type="used"} 
+          / on(namespace, resource, resourcequota) group_left() 
+          kube_resourcequota{resource="limits.memory", type="hard"}
+        ) > 0.95
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: |
+          CRITICAL: Memory Quota exhausted in {{ "{{" }} $labels.namespace {{ "}}" }}
+        description: |
+          Quota "{{ "{{" }} $labels.resourcequota {{ "}}" }}" is at {{ "{{" }} $value | humanizePercentage {{ "}}" }}.
+        runbook_url: "https://docs.harvesterhci.io/v1.8/monitoring/harvester-alerts#quota-exhausted-critical"
+{{- end -}}
