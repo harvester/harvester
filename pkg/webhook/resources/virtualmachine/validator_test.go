@@ -955,6 +955,20 @@ func TestVmValidator_Update(t *testing.T) {
 		expectedError bool
 	}{
 		{
+			name:  "Ensure that maintenance mode strategy is checked if there is no change to VM spec",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			newObjMeta: func() *metav1.ObjectMeta {
+				m := templateVM.ObjectMeta.DeepCopy()
+				m.Labels = map[string]string{
+					util.LabelMaintainModeStrategy: "foobar",
+				}
+				return m
+			}(),
+			newSpec:       nil,
+			expectedError: true,
+		},
+		{
 			name:  "storage class name is changed which results in rejection",
 			oldVM: templateVM.DeepCopy(),
 			newVM: templateVM.DeepCopy(),
