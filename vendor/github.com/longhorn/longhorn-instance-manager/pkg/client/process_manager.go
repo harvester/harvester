@@ -5,12 +5,14 @@ import (
 	"crypto/tls"
 	"fmt"
 
-	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+	rpc "github.com/longhorn/types/pkg/generated/imrpc"
 
 	"github.com/longhorn/longhorn-instance-manager/pkg/api"
 	"github.com/longhorn/longhorn-instance-manager/pkg/meta"
@@ -114,7 +116,7 @@ func (c *ProcessManagerClient) ProcessCreate(name, binary string, portCount int,
 	})
 }
 
-func (c *ProcessManagerClient) ProcessDelete(name string) (*rpc.ProcessResponse, error) {
+func (c *ProcessManagerClient) ProcessDelete(name, uuid string) (*rpc.ProcessResponse, error) {
 	if name == "" {
 		return nil, fmt.Errorf("failed to delete process: missing required parameter name")
 	}
@@ -125,6 +127,7 @@ func (c *ProcessManagerClient) ProcessDelete(name string) (*rpc.ProcessResponse,
 
 	return client.ProcessDelete(ctx, &rpc.ProcessDeleteRequest{
 		Name: name,
+		Uuid: uuid,
 	})
 }
 

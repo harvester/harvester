@@ -3,6 +3,7 @@ package engineapi
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -91,6 +92,7 @@ type EngineClient interface {
 	ReplicaAdd(engine *longhorn.Engine, replicaName, url string, isRestoreVolume, fastSync bool, localSync *etypes.FileLocalSync, replicaFileSyncHTTPClientTimeout, grpcTimeoutSeconds int64) error
 	ReplicaRemove(engine *longhorn.Engine, url, replicaName string) error
 	ReplicaRebuildStatus(*longhorn.Engine) (map[string]*longhorn.RebuildStatus, error)
+	ReplicaRebuildQosSet(engine *longhorn.Engine, qosLimitMbps int64) error
 	ReplicaRebuildVerify(engine *longhorn.Engine, replicaName, url string) error
 	ReplicaModeUpdate(engine *longhorn.Engine, url string, mode string) error
 
@@ -104,7 +106,7 @@ type EngineClient interface {
 	SnapshotBackup(engine *longhorn.Engine, snapshotName, backupName, backupTarget, backingImageName, backingImageChecksum, compressionMethod string, concurrentLimit int, storageClassName string, labels, credential, parameters map[string]string) (string, string, error)
 	SnapshotBackupStatus(engine *longhorn.Engine, backupName, replicaAddress, replicaName string) (*longhorn.EngineBackupStatus, error)
 	SnapshotCloneStatus(engine *longhorn.Engine) (map[string]*longhorn.SnapshotCloneStatus, error)
-	SnapshotClone(engine *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName, fromEngineName string, fileSyncHTTPClientTimeout, grpcTimeoutSeconds int64) error
+	SnapshotClone(engine *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName, fromEngineName string, fileSyncHTTPClientTimeout, grpcTimeoutSeconds int64, cloneMode string) error
 	SnapshotHash(engine *longhorn.Engine, snapshotName string, rehash bool) error
 	SnapshotHashStatus(engine *longhorn.Engine, snapshotName string) (map[string]*longhorn.HashStatus, error)
 
@@ -284,6 +286,8 @@ func GetEngineInstanceFrontend(dataEngine longhorn.DataEngineType, volumeFronten
 		frontend = string(iscsidevtypes.FrontendTGTISCSI)
 	case longhorn.VolumeFrontendNvmf:
 		frontend = string(spdkdevtypes.FrontendSPDKTCPNvmf)
+	case longhorn.VolumeFrontendUblk:
+		frontend = string(spdkdevtypes.FrontendSPDKUblk)
 	case longhorn.VolumeFrontendEmpty:
 		frontend = ""
 	default:
@@ -308,8 +312,9 @@ func GetEngineEndpoint(volume *Volume, ip string) (string, error) {
 
 		// it will looks like this in the end
 		// iscsi://10.42.0.12:3260/iqn.2014-09.com.rancher:vol-name/1
-		return EndpointISCSIPrefix + ip + ":" + DefaultISCSIPort + "/" + volume.Endpoint + "/" + DefaultISCSILUN, nil
-	case spdkdevtypes.FrontendSPDKTCPNvmf:
+		formattedIPPort := net.JoinHostPort(ip, DefaultISCSIPort)
+		return EndpointISCSIPrefix + formattedIPPort + "/" + volume.Endpoint + "/" + DefaultISCSILUN, nil
+	case spdkdevtypes.FrontendSPDKTCPNvmf, spdkdevtypes.FrontendSPDKUblk:
 		return volume.Endpoint, nil
 	}
 

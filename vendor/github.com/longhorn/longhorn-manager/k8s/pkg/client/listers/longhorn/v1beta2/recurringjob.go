@@ -1,11 +1,11 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright The Longhorn Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,16 +19,18 @@ limitations under the License.
 package v1beta2
 
 import (
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // RecurringJobLister helps list RecurringJobs.
+// All objects returned here must be treated as read-only.
 type RecurringJobLister interface {
 	// List lists all RecurringJobs in the indexer.
-	List(selector labels.Selector) (ret []*v1beta2.RecurringJob, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.RecurringJob, err error)
 	// RecurringJobs returns an object that can list and get RecurringJobs.
 	RecurringJobs(namespace string) RecurringJobNamespaceLister
 	RecurringJobListerExpansion
@@ -36,59 +38,33 @@ type RecurringJobLister interface {
 
 // recurringJobLister implements the RecurringJobLister interface.
 type recurringJobLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*longhornv1beta2.RecurringJob]
 }
 
 // NewRecurringJobLister returns a new RecurringJobLister.
 func NewRecurringJobLister(indexer cache.Indexer) RecurringJobLister {
-	return &recurringJobLister{indexer: indexer}
-}
-
-// List lists all RecurringJobs in the indexer.
-func (s *recurringJobLister) List(selector labels.Selector) (ret []*v1beta2.RecurringJob, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.RecurringJob))
-	})
-	return ret, err
+	return &recurringJobLister{listers.New[*longhornv1beta2.RecurringJob](indexer, longhornv1beta2.Resource("recurringjob"))}
 }
 
 // RecurringJobs returns an object that can list and get RecurringJobs.
 func (s *recurringJobLister) RecurringJobs(namespace string) RecurringJobNamespaceLister {
-	return recurringJobNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return recurringJobNamespaceLister{listers.NewNamespaced[*longhornv1beta2.RecurringJob](s.ResourceIndexer, namespace)}
 }
 
 // RecurringJobNamespaceLister helps list and get RecurringJobs.
+// All objects returned here must be treated as read-only.
 type RecurringJobNamespaceLister interface {
 	// List lists all RecurringJobs in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1beta2.RecurringJob, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.RecurringJob, err error)
 	// Get retrieves the RecurringJob from the indexer for a given namespace and name.
-	Get(name string) (*v1beta2.RecurringJob, error)
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*longhornv1beta2.RecurringJob, error)
 	RecurringJobNamespaceListerExpansion
 }
 
 // recurringJobNamespaceLister implements the RecurringJobNamespaceLister
 // interface.
 type recurringJobNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all RecurringJobs in the indexer for a given namespace.
-func (s recurringJobNamespaceLister) List(selector labels.Selector) (ret []*v1beta2.RecurringJob, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.RecurringJob))
-	})
-	return ret, err
-}
-
-// Get retrieves the RecurringJob from the indexer for a given namespace and name.
-func (s recurringJobNamespaceLister) Get(name string) (*v1beta2.RecurringJob, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta2.Resource("recurringjob"), name)
-	}
-	return obj.(*v1beta2.RecurringJob), nil
+	listers.ResourceIndexer[*longhornv1beta2.RecurringJob]
 }

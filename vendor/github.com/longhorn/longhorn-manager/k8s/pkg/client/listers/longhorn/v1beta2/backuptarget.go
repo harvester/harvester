@@ -1,11 +1,11 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright The Longhorn Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,16 +19,18 @@ limitations under the License.
 package v1beta2
 
 import (
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // BackupTargetLister helps list BackupTargets.
+// All objects returned here must be treated as read-only.
 type BackupTargetLister interface {
 	// List lists all BackupTargets in the indexer.
-	List(selector labels.Selector) (ret []*v1beta2.BackupTarget, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.BackupTarget, err error)
 	// BackupTargets returns an object that can list and get BackupTargets.
 	BackupTargets(namespace string) BackupTargetNamespaceLister
 	BackupTargetListerExpansion
@@ -36,59 +38,33 @@ type BackupTargetLister interface {
 
 // backupTargetLister implements the BackupTargetLister interface.
 type backupTargetLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*longhornv1beta2.BackupTarget]
 }
 
 // NewBackupTargetLister returns a new BackupTargetLister.
 func NewBackupTargetLister(indexer cache.Indexer) BackupTargetLister {
-	return &backupTargetLister{indexer: indexer}
-}
-
-// List lists all BackupTargets in the indexer.
-func (s *backupTargetLister) List(selector labels.Selector) (ret []*v1beta2.BackupTarget, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.BackupTarget))
-	})
-	return ret, err
+	return &backupTargetLister{listers.New[*longhornv1beta2.BackupTarget](indexer, longhornv1beta2.Resource("backuptarget"))}
 }
 
 // BackupTargets returns an object that can list and get BackupTargets.
 func (s *backupTargetLister) BackupTargets(namespace string) BackupTargetNamespaceLister {
-	return backupTargetNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return backupTargetNamespaceLister{listers.NewNamespaced[*longhornv1beta2.BackupTarget](s.ResourceIndexer, namespace)}
 }
 
 // BackupTargetNamespaceLister helps list and get BackupTargets.
+// All objects returned here must be treated as read-only.
 type BackupTargetNamespaceLister interface {
 	// List lists all BackupTargets in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1beta2.BackupTarget, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.BackupTarget, err error)
 	// Get retrieves the BackupTarget from the indexer for a given namespace and name.
-	Get(name string) (*v1beta2.BackupTarget, error)
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*longhornv1beta2.BackupTarget, error)
 	BackupTargetNamespaceListerExpansion
 }
 
 // backupTargetNamespaceLister implements the BackupTargetNamespaceLister
 // interface.
 type backupTargetNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all BackupTargets in the indexer for a given namespace.
-func (s backupTargetNamespaceLister) List(selector labels.Selector) (ret []*v1beta2.BackupTarget, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.BackupTarget))
-	})
-	return ret, err
-}
-
-// Get retrieves the BackupTarget from the indexer for a given namespace and name.
-func (s backupTargetNamespaceLister) Get(name string) (*v1beta2.BackupTarget, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta2.Resource("backuptarget"), name)
-	}
-	return obj.(*v1beta2.BackupTarget), nil
+	listers.ResourceIndexer[*longhornv1beta2.BackupTarget]
 }

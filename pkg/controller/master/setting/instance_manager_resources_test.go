@@ -18,9 +18,9 @@ import (
 )
 
 func TestHandler_syncLHIMResources(t *testing.T) {
-	defaultLHIMResources := map[string]string{
-		"v1": longhorn.SettingDefinitionGuaranteedInstanceManagerCPU.Default,
-		"v2": longhorn.SettingDefinitionGuaranteedInstanceManagerCPU.Default,
+	defaultLHIMResources := map[string]string{}
+	if err := json.Unmarshal([]byte(longhorn.SettingDefinitionGuaranteedInstanceManagerCPU.Default), &defaultLHIMResources); err != nil {
+		t.Fatalf("failed to unmarshal default LH IM resources: %v", err)
 	}
 
 	createHandler := func(clientset *fake.Clientset) *Handler {

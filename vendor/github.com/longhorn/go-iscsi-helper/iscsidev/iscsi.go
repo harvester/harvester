@@ -75,7 +75,7 @@ func NewDevice(name, backingFile, bsType, bsOpts string, scsiTimeout, iscsiAbort
 }
 
 func Volume2ISCSIName(name string) string {
-	return strings.Replace(name, "_", ":", -1)
+	return strings.ReplaceAll(name, "_", ":")
 }
 
 func GetTargetName(volumeName string) string {

@@ -289,6 +289,10 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 		return err
 	}
 
+	if err := v.checkMaintenanceModeStrategyIsValid(newVM, oldVM); err != nil {
+		return err
+	}
+
 	// This logic will return in case interfaces are existing and not changed
 	// make sure new validation logic is added above this comment
 	if oldVM.Spec.Template != nil && newVM.Spec.Template != nil && reflect.DeepEqual(oldVM.Spec.Template.Spec.Domain.Devices.Interfaces, newVM.Spec.Template.Spec.Domain.Devices.Interfaces) {
@@ -296,10 +300,6 @@ func (v *vmValidator) Update(_ *types.Request, oldObj runtime.Object, newObj run
 	}
 
 	if err := v.checkForDuplicateMacAddrs(newVM); err != nil {
-		return err
-	}
-
-	if err := v.checkMaintenanceModeStrategyIsValid(newVM, oldVM); err != nil {
 		return err
 	}
 

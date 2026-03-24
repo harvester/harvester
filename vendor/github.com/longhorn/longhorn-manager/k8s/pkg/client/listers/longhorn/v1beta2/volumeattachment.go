@@ -1,11 +1,11 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright The Longhorn Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,16 +19,18 @@ limitations under the License.
 package v1beta2
 
 import (
-	v1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // VolumeAttachmentLister helps list VolumeAttachments.
+// All objects returned here must be treated as read-only.
 type VolumeAttachmentLister interface {
 	// List lists all VolumeAttachments in the indexer.
-	List(selector labels.Selector) (ret []*v1beta2.VolumeAttachment, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.VolumeAttachment, err error)
 	// VolumeAttachments returns an object that can list and get VolumeAttachments.
 	VolumeAttachments(namespace string) VolumeAttachmentNamespaceLister
 	VolumeAttachmentListerExpansion
@@ -36,59 +38,33 @@ type VolumeAttachmentLister interface {
 
 // volumeAttachmentLister implements the VolumeAttachmentLister interface.
 type volumeAttachmentLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*longhornv1beta2.VolumeAttachment]
 }
 
 // NewVolumeAttachmentLister returns a new VolumeAttachmentLister.
 func NewVolumeAttachmentLister(indexer cache.Indexer) VolumeAttachmentLister {
-	return &volumeAttachmentLister{indexer: indexer}
-}
-
-// List lists all VolumeAttachments in the indexer.
-func (s *volumeAttachmentLister) List(selector labels.Selector) (ret []*v1beta2.VolumeAttachment, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.VolumeAttachment))
-	})
-	return ret, err
+	return &volumeAttachmentLister{listers.New[*longhornv1beta2.VolumeAttachment](indexer, longhornv1beta2.Resource("volumeattachment"))}
 }
 
 // VolumeAttachments returns an object that can list and get VolumeAttachments.
 func (s *volumeAttachmentLister) VolumeAttachments(namespace string) VolumeAttachmentNamespaceLister {
-	return volumeAttachmentNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return volumeAttachmentNamespaceLister{listers.NewNamespaced[*longhornv1beta2.VolumeAttachment](s.ResourceIndexer, namespace)}
 }
 
 // VolumeAttachmentNamespaceLister helps list and get VolumeAttachments.
+// All objects returned here must be treated as read-only.
 type VolumeAttachmentNamespaceLister interface {
 	// List lists all VolumeAttachments in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1beta2.VolumeAttachment, err error)
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*longhornv1beta2.VolumeAttachment, err error)
 	// Get retrieves the VolumeAttachment from the indexer for a given namespace and name.
-	Get(name string) (*v1beta2.VolumeAttachment, error)
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*longhornv1beta2.VolumeAttachment, error)
 	VolumeAttachmentNamespaceListerExpansion
 }
 
 // volumeAttachmentNamespaceLister implements the VolumeAttachmentNamespaceLister
 // interface.
 type volumeAttachmentNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all VolumeAttachments in the indexer for a given namespace.
-func (s volumeAttachmentNamespaceLister) List(selector labels.Selector) (ret []*v1beta2.VolumeAttachment, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.VolumeAttachment))
-	})
-	return ret, err
-}
-
-// Get retrieves the VolumeAttachment from the indexer for a given namespace and name.
-func (s volumeAttachmentNamespaceLister) Get(name string) (*v1beta2.VolumeAttachment, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta2.Resource("volumeattachment"), name)
-	}
-	return obj.(*v1beta2.VolumeAttachment), nil
+	listers.ResourceIndexer[*longhornv1beta2.VolumeAttachment]
 }

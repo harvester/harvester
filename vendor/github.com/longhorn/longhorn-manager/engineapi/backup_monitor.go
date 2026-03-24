@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -209,7 +211,11 @@ func (m *BackupMonitor) linerTimer() {
 		m.syncCallBack(currentBackupStatus)
 		return false, nil
 	}); err != nil {
-		m.logger.WithError(err).Error("Failed to sync backup status")
+		if errors.Is(err, context.Canceled) {
+			m.logger.WithError(err).Warn("Sync backup status canceled")
+		} else {
+			m.logger.WithError(err).Error("Failed to sync backup status")
+		}
 	}
 }
 
@@ -329,5 +335,6 @@ func (m *BackupMonitor) Close() {
 func getBackupParameters(backup *longhorn.Backup) map[string]string {
 	parameters := map[string]string{}
 	parameters[lhbackup.LonghornBackupParameterBackupMode] = string(backup.Spec.BackupMode)
+	parameters[lhbackup.LonghornBackupParameterBackupBlockSize] = strconv.FormatInt(backup.Spec.BackupBlockSize, 10)
 	return parameters
 }

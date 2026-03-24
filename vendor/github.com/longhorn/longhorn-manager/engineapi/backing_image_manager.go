@@ -2,6 +2,8 @@ package engineapi
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 
 	bimapi "github.com/longhorn/backing-image-manager/api"
 	bimclient "github.com/longhorn/backing-image-manager/pkg/client"
@@ -45,7 +47,7 @@ func NewBackingImageManagerClient(bim *longhorn.BackingImageManager) (*BackingIm
 		ip:            bim.Status.IP,
 		apiMinVersion: bim.Status.APIMinVersion,
 		apiVersion:    bim.Status.APIVersion,
-		grpcClient:    bimclient.NewBackingImageManagerClient(fmt.Sprintf("%s:%d", bim.Status.IP, BackingImageManagerDefaultPort)),
+		grpcClient:    bimclient.NewBackingImageManagerClient(net.JoinHostPort(bim.Status.IP, strconv.Itoa(BackingImageManagerDefaultPort))),
 	}, nil
 }
 
@@ -84,7 +86,7 @@ func (c *BackingImageManagerClient) Sync(name, uuid, checksum, fromHost string, 
 	if err := CheckBackingImageManagerCompatibility(c.apiMinVersion, c.apiVersion); err != nil {
 		return nil, err
 	}
-	resp, err := c.grpcClient.Sync(name, uuid, checksum, fmt.Sprintf("%s:%d", fromHost, BackingImageManagerDefaultPort), size)
+	resp, err := c.grpcClient.Sync(name, uuid, checksum, net.JoinHostPort(fromHost, strconv.Itoa(BackingImageManagerDefaultPort)), size)
 	if err != nil {
 		return nil, err
 	}
