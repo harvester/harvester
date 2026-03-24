@@ -79,6 +79,8 @@ The following is the list of the proposed cluster-scoped roles:
 
 🔒 By default, these roles do not grant permissions to view the list of guest clusters as guest clusters are managed by the Rancher API. Cluster owner can explicitly grant this permission to cluster users by assigning them this role in the guest cluster's "Member Roles" section.
 
+🔒 The aggregated permissions for these roles do not exceed that of the built-in "Cluster Member" role.
+
 The `View Virtualization Resources` role provides a read-only "single pane of glass" experience to cluster operators.
 
 This role inherits its permissions from the built-in `Cluster Member` and `View` roles.
@@ -134,6 +136,8 @@ The following is the list of the proposed namespace-scoped roles:
 * `Manage Virtualization Resources`
 
 🔒 By default, these roles do not grant permissions to view the list of guest clusters as guest clusters are managed by the Rancher API. Cluster owner can explicitly grant this permission to cluster users by assigning them this role in the guest cluster's "Member Roles" section.
+
+🔒 The aggregated permissions for these roles do not exceed that of the built-in "Project Member" role.
 
 The `View Virtualization Resources` role inherits the permissions of the built-in `Read-Only` role.
 
