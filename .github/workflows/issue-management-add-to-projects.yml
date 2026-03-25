@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
     - name: Is SUSE Member
       id: is-suse-member
@@ -39,7 +39,7 @@ jobs:
     
     - name: Is Harvester Member
       id: is-harvester-member
-      uses: rancher/gh-issue-mgr/get-user-teams-membership@main
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
       with:
         username: ${{ github.event.issue.user.login }}
         organization: harvester
@@ -61,7 +61,7 @@ jobs:
         steps.is-suse-member.outputs.isOrganization == 'true' &&
         steps.is-harvester-member.outputs.isOrganization == 'false'
         }}
-      uses: actions/add-to-project@v1.0.2
+      uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
       with:
         project-url: ${{ env.PRODUCT_BACKLOG_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
@@ -71,11 +71,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
     - name: Is Harvester Member
       id: is-harvester-member
-      uses: rancher/gh-issue-mgr/get-user-teams-membership@main
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
       with:
         username: ${{ github.event.issue.user.login }}
         organization: harvester
@@ -83,7 +83,7 @@ jobs:
 
     - name: Add Issue to Harvester Sprint Project
       if: steps.is-harvester-member.outputs.isOrganization == 'true'
-      uses: actions/add-to-project@v1.0.2
+      uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
       with:
         project-url: ${{ env.HARVESTER_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
@@ -134,7 +134,7 @@ jobs:
     - name: Is Harvester Member
       id: is-harvester-member
       continue-on-error: true
-      uses: rancher/gh-issue-mgr/get-user-teams-membership@main
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
       with:
         username: ${{ github.event.issue.user.login }}
         organization: harvester
@@ -142,7 +142,7 @@ jobs:
 
     - name: Get Issue
       if: steps.is-harvester-member.outcome == 'success'
-      uses: rancher/gh-issue-mgr/request-action@main
+      uses: rancher/gh-issue-mgr/request-action@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
       id: issue
       with:
         route: GET /repos/${{ github.repository }}/issues/${{ github.event.issue.number }}
@@ -155,7 +155,7 @@ jobs:
         steps.is-harvester-member.outcome == 'success' &&
         steps.is-harvester-member.outputs.isOrganization == 'false' && 
         steps.is-suse-member.outputs.isOrganization == 'false'
-      uses: actions/add-to-project@v1.0.2
+      uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
       with:
         project-url: ${{ env.COMMUNITY_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
@@ -166,7 +166,7 @@ jobs:
         steps.is-harvester-member.outputs.isOrganization == 'false' && 
         steps.is-suse-member.outputs.isOrganization == 'false' &&
         steps.add-project.outputs.itemId != ''
-      uses: rancher/gh-issue-mgr/update-project-fields@main
+      uses: rancher/gh-issue-mgr/update-project-fields@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
       with:
         project-url: ${{ env.COMMUNITY_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}

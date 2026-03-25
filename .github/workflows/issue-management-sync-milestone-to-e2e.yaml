@@ -1,0 +1,34 @@
+name: "[Issue Management] Sync Milestone to E2E Issue"
+
+on:
+  issues:
+    types: [ closed ]
+jobs:
+  sync-e2e-milestone:
+    runs-on: ubuntu-latest
+    if: contains(join(github.event.issue.labels.*.name, ', '), 'require/auto-e2e-test')
+    env:
+      HARVESTER_REPO: harvester/harvester
+      TEST_REPO: harvester/tests
+      E2E_TITLE: "[e2e] ${{ github.event.issue.title }}"
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    
+    - name: Sync Milestone to E2E Issue
+      run: |
+        # Search for e2e issue with matching title
+        E2E_ISSUE=$(gh search issues "$E2E_TITLE" --repo $TEST_REPO --match title --json number --jq '.[0].number')
+
+        if [ -n "$E2E_ISSUE" ]; then
+          echo "Found e2e issue #$E2E_ISSUE"
+
+          MILESTONE_TITLE="${{ github.event.issue.milestone.title }}"
+          gh issue edit $E2E_ISSUE --repo $TEST_REPO --milestone "$MILESTONE_TITLE"
+          echo "Successfully synced milestone to e2e issue"
+        else
+          echo "No matching e2e issue found"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
