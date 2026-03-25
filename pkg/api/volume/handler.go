@@ -20,8 +20,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -46,6 +48,7 @@ type ActionHandler struct {
 	volumes     ctllhv1.VolumeClient
 	volumeCache ctllhv1.VolumeCache
 	vmCache     ctlkubevirtv1.VirtualMachineCache
+	dataVolumes ctlcdiv1.DataVolumeClient
 }
 
 func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
@@ -91,6 +94,18 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
 		}
 		return nil, h.snapshot(req.Context(), pvcNamespace, pvcName, input.Name)
+	case actionDataMigration:
+		var input DataMigrationInput
+		if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+		}
+		if input.TargetVolumeName == "" {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `targetVolumeName` is required")
+		}
+		if input.TargetStorageClassName == "" {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `targetStorageClassName` is required")
+		}
+		return nil, h.dataMigration(req.Context(), pvcNamespace, pvcName, input)
 	default:
 		return nil, apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
@@ -459,6 +474,77 @@ func (h *ActionHandler) snapshot(_ context.Context, pvcNamespace, pvcName, snaps
 	}
 
 	return nil
+}
+
+func (h *ActionHandler) dataMigration(_ context.Context, pvcNamespace, pvcName string, input DataMigrationInput) error {
+	pvc, err := h.validateDataMigration(pvcNamespace, pvcName, input)
+	if err != nil {
+		return err
+	}
+
+	dv := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      input.TargetVolumeName,
+			Namespace: pvcNamespace,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Name:      pvcName,
+					Namespace: pvcNamespace,
+				},
+			},
+			Storage: &cdiv1.StorageSpec{
+				StorageClassName: &input.TargetStorageClassName,
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: pvc.Spec.Resources.Requests,
+				},
+			},
+		},
+	}
+
+	if _, err := h.dataVolumes.Create(dv); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"namespace":  pvcNamespace,
+			"name":       pvcName,
+			"targetName": input.TargetVolumeName,
+			"apiVersion": "cdi.kubevirt.io/v1beta1",
+			"kind":       "DataVolume",
+			"err":        err,
+		}).WithError(err).Error("failed to create DataVolume for data migration")
+		return err
+	}
+
+	return nil
+}
+
+func (h *ActionHandler) validateDataMigration(pvcNamespace, pvcName string, input DataMigrationInput) (*corev1.PersistentVolumeClaim, error) {
+	pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source PVC %s/%s: %v", pvcNamespace, pvcName, err)
+	}
+
+	if _, err := h.scCache.Get(input.TargetStorageClassName); err != nil {
+		return nil, fmt.Errorf("failed to get target StorageClass %s: %v", input.TargetStorageClassName, err)
+	}
+
+	if _, err := h.pvcCache.Get(pvcNamespace, input.TargetVolumeName); err == nil {
+		return nil, fmt.Errorf("PVC %s/%s already exists", pvcNamespace, input.TargetVolumeName)
+	} else if !apierrors.IsNotFound(err) {
+		return nil, fmt.Errorf("failed to check existing PVC %s/%s: %v", pvcNamespace, input.TargetVolumeName, err)
+	}
+
+	if _, err := h.dataVolumes.Get(pvcNamespace, input.TargetVolumeName, metav1.GetOptions{}); err == nil {
+		return nil, fmt.Errorf("DataVolume %s/%s already exists", pvcNamespace, input.TargetVolumeName)
+	} else if !apierrors.IsNotFound(err) {
+		return nil, fmt.Errorf("failed to check existing DataVolume %s/%s: %v", pvcNamespace, input.TargetVolumeName, err)
+	}
+
+	if err := h.assertPVCNotInUse(pvcNamespace, pvcName); err != nil {
+		return nil, fmt.Errorf("PVC %s/%s is currently in use: %v", pvcNamespace, pvcName, err)
+	}
+
+	return pvc, nil
 }
 
 func isCDIVolume(sc *storagev1.StorageClass) bool {
