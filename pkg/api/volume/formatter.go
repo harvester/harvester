@@ -6,18 +6,23 @@ import (
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	corev1 "k8s.io/api/core/v1"
 
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
+	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 )
 
 const (
-	actionExport       = "export"
-	actionCancelExpand = "cancelExpand"
-	actionClone        = "clone"
-	actionSnapshot     = "snapshot"
+	actionExport        = "export"
+	actionCancelExpand  = "cancelExpand"
+	actionClone         = "clone"
+	actionSnapshot      = "snapshot"
+	actionDataMigration = "dataMigration"
 )
 
 type volFormatter struct {
 	scCache ctlstoragev1.StorageClassCache
+	vmCache ctlkubevirtv1.VirtualMachineCache
 }
 
 func (f *volFormatter) Formatter(request *types.APIRequest, resource *types.RawResource) {
@@ -48,6 +53,10 @@ func (f *volFormatter) Formatter(request *types.APIRequest, resource *types.RawR
 	provisioner := util.GetProvisionedPVCProvisioner(pvc, f.scCache)
 	if find := util.GetCSIProvisionerSnapshotCapability(provisioner); find {
 		resource.AddAction(request, actionSnapshot)
+	}
+
+	if vms, err := f.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(pvc.Namespace, pvc.Name)); err == nil && len(vms) == 0 {
+		resource.AddAction(request, actionDataMigration)
 	}
 }
 
