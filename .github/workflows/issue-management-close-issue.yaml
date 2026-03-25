@@ -19,7 +19,7 @@ jobs:
     if: contains(github.event.label.name, 'backport-needed/')
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       
     - name: Get Backport Version
       run: |
@@ -51,7 +51,7 @@ jobs:
     if: contains(github.event.label.name, 'require/auto-e2e-test')
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       with:
         repository: harvester/tests
     
