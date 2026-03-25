@@ -111,26 +111,17 @@ func (h *VMController) createPVCsFromAnnotation(_ string, vm *kubevirtv1.Virtual
 
 		// check pvc
 		pvc, err := h.pvcCache.Get(vm.Namespace, pvcAnno.Name)
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				if !createPVCWithDataVolume {
-					pvcAnno.Namespace = vm.Namespace
-					// trigger to create the blank filesystem volume
-					if *pvcAnno.Spec.VolumeMode == corev1.PersistentVolumeFilesystem {
-						pvcAnnos := pvcAnno.GetAnnotations()
-						if pvcAnnos == nil {
-							pvcAnnos = make(map[string]string)
-						}
-						pvcAnnos[util.AnnotationVolForVM] = "true"
-						pvcAnno.SetAnnotations(pvcAnnos)
-					}
-					if _, err = h.pvcClient.Create(pvcAnno); err != nil {
-						return nil, err
-					}
-				}
-				continue
-			}
+		if err != nil && !apierrors.IsNotFound(err) {
 			return nil, err
+		}
+		if apierrors.IsNotFound(err) {
+			if !createPVCWithDataVolume {
+				pvcAnno.Namespace = vm.Namespace
+				if _, err = h.pvcClient.Create(pvcAnno); err != nil {
+					return nil, err
+				}
+			}
+			continue
 		}
 
 		// Users also can resize volumes through Volumes page. In that case, we can't track the update in VM annotation.
