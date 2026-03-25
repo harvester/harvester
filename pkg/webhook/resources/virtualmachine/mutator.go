@@ -87,10 +87,8 @@ func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types
 
 	patchOps = patchDefaultCPU(vm, patchOps)
 
-	if request == nil || !request.IsFromController() {
-		if err := m.checkReservedAffinityKeys(nil, vm); err != nil {
-			return nil, err
-		}
+	if err := checkCpuManagerAffinityTermChanged(request, nil, vm); err != nil {
+		return nil, err
 	}
 
 	patchOps, err = m.patchAffinity(vm, patchOps)
@@ -147,10 +145,8 @@ func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj
 		patchOps = patchRunStrategy(newVM, patchOps)
 	}
 
-	if request == nil || !request.IsFromController() {
-		if err := m.checkReservedAffinityKeys(oldVM, newVM); err != nil {
-			return nil, err
-		}
+	if err := checkCpuManagerAffinityTermChanged(request, oldVM, newVM); err != nil {
+		return nil, err
 	}
 
 	patchOps, err = m.patchAffinity(newVM, patchOps)
@@ -862,43 +858,43 @@ func (m *vmMutator) patchManagedTapBinding(vm *kubevirtv1.VirtualMachine, patchO
 	return patchOps, nil
 }
 
-func (m *vmMutator) checkReservedAffinityKeys(oldVM, newVM *kubevirtv1.VirtualMachine) error {
-	if reflect.DeepEqual(vmAffinityNotNil(oldVM), vmAffinityNotNil(newVM)) {
+func checkCpuManagerAffinityTermChanged(request *types.Request, oldVM, newVM *kubevirtv1.VirtualMachine) error {
+	if request != nil && request.IsFromController() {
 		return nil
 	}
-	if reflect.DeepEqual(cpuManagerAffinityTerms(oldVM), cpuManagerAffinityTerms(newVM)) {
+	getCPUManagerExprs := func(vm *kubevirtv1.VirtualMachine) []v1.NodeSelectorRequirement {
+		if vm == nil || vm.Spec.Template == nil {
+			return nil
+		}
+		affinity := vm.Spec.Template.Spec.Affinity
+		if affinity == nil || affinity.NodeAffinity == nil ||
+			affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+			return nil
+		}
+		var exprs []v1.NodeSelectorRequirement
+		for _, term := range affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
+			for _, expr := range term.MatchExpressions {
+				if expr.Key == kubevirtv1.CPUManager {
+					exprs = append(exprs, expr)
+				}
+			}
+		}
+		if len(exprs) > 1 {
+			slices.SortFunc(exprs, func(a, b v1.NodeSelectorRequirement) int {
+				if cmp := strings.Compare(string(a.Operator), string(b.Operator)); cmp != 0 {
+					return cmp
+				}
+				return strings.Compare(fmt.Sprintf("%v", a.Values), fmt.Sprintf("%v", b.Values))
+			})
+		}
+		return exprs
+	}
+
+	if reflect.DeepEqual(getCPUManagerExprs(oldVM), getCPUManagerExprs(newVM)) {
 		return nil
 	}
 	return werror.NewInvalidError(
 		fmt.Sprintf("key %q is automatically operated by Harvester controller and can't be changed manually", kubevirtv1.CPUManager),
 		"spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution",
 	)
-}
-
-func vmAffinityNotNil(vm *kubevirtv1.VirtualMachine) *v1.Affinity {
-	if vm == nil || vm.Spec.Template == nil {
-		return nil
-	}
-	return vm.Spec.Template.Spec.Affinity
-}
-
-func cpuManagerAffinityTerms(vm *kubevirtv1.VirtualMachine) []v1.NodeSelectorTerm {
-	affinity := vmAffinityNotNil(vm)
-	if affinity == nil || affinity.NodeAffinity == nil ||
-		affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
-		return nil
-	}
-	var terms []v1.NodeSelectorTerm
-	for _, term := range affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
-		for _, expr := range term.MatchExpressions {
-			if expr.Key == kubevirtv1.CPUManager {
-				terms = append(terms, term)
-				break
-			}
-		}
-	}
-	slices.SortFunc(terms, func(a, b v1.NodeSelectorTerm) int {
-		return strings.Compare(fmt.Sprintf("%v", a), fmt.Sprintf("%v", b))
-	})
-	return terms
 }
