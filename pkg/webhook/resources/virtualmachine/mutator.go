@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -865,11 +866,11 @@ func (m *vmMutator) checkReservedAffinityKeys(oldVM, newVM *kubevirtv1.VirtualMa
 	if reflect.DeepEqual(vmAffinityNotNil(oldVM), vmAffinityNotNil(newVM)) {
 		return nil
 	}
-	if reflect.DeepEqual(reservedAffinityTerms(oldVM), reservedAffinityTerms(newVM)) {
+	if reflect.DeepEqual(cpuManagerAffinityTerms(oldVM), cpuManagerAffinityTerms(newVM)) {
 		return nil
 	}
 	return werror.NewInvalidError(
-		fmt.Sprintf("key %q is reserved and managed by Harvester", kubevirtv1.CPUManager),
+		fmt.Sprintf("key %q is automatically operated by Harvester controller and can't be changed manually", kubevirtv1.CPUManager),
 		"spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution",
 	)
 }
@@ -881,7 +882,7 @@ func vmAffinityNotNil(vm *kubevirtv1.VirtualMachine) *v1.Affinity {
 	return vm.Spec.Template.Spec.Affinity
 }
 
-func reservedAffinityTerms(vm *kubevirtv1.VirtualMachine) []v1.NodeSelectorTerm {
+func cpuManagerAffinityTerms(vm *kubevirtv1.VirtualMachine) []v1.NodeSelectorTerm {
 	affinity := vmAffinityNotNil(vm)
 	if affinity == nil || affinity.NodeAffinity == nil ||
 		affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
@@ -896,5 +897,8 @@ func reservedAffinityTerms(vm *kubevirtv1.VirtualMachine) []v1.NodeSelectorTerm 
 			}
 		}
 	}
+	slices.SortFunc(terms, func(a, b v1.NodeSelectorTerm) int {
+		return strings.Compare(fmt.Sprintf("%v", a), fmt.Sprintf("%v", b))
+	})
 	return terms
 }
