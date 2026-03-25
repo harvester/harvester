@@ -21,7 +21,6 @@ const (
 	AnnotationSVMBackupID               = prefix + "/svmbackupId"
 	AnnotationSVMBackupSkipCronCheck    = prefix + "/svmbackupSkipCronCheck"
 	AnnotationGoldenImage               = prefix + "/goldenImage"
-	AnnotationVolForVM                  = prefix + "/volumeForVirtualMachine"
 	LabelImageDisplayName               = prefix + "/imageDisplayName"
 	LabelSetting                        = prefix + "/setting"
 	LabelVMName                         = prefix + "/vmName"
@@ -141,8 +140,6 @@ const (
 	// CDI constants
 	CSIProvisionerLVM      = "lvm.driver.harvesterhci.io"
 	CSIProvisionerLonghorn = "driver.longhorn.io"
-	KindVolumeImportSource = "VolumeImportSource"
-	ImportSourceFSBlank    = "filesystem-blank-source"
 	LVMTopologyNodeKey     = "topology.lvm.csi/node"
 
 	// CSI constants
