@@ -13,3 +13,8 @@ type CloneVolumeInput struct {
 type SnapshotVolumeInput struct {
 	Name string `json:"name"`
 }
+
+type DataMigrationInput struct {
+	TargetVolumeName       string `json:"targetVolumeName"`
+	TargetStorageClassName string `json:"targetStorageClassName"`
+}
