@@ -1,17 +1,22 @@
 package addon
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	validationutil "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -30,9 +35,17 @@ const (
 	vCluster0190           = "v0.19.0"
 	vCluster0300           = "v0.30.0"
 	kubeOVNOperatorAddon   = util.KubeOVNOperatorName
+
+	labelParentSRIOVGPUDevice = "harvesterhci.io/parentSRIOVGPUDevice"
 )
 
-func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache, nodeCache ctlcorev1.NodeCache, vmCache ctlkubevirtv1.VirtualMachineCache, kubeovnSubnet ctlkubeovnv1.SubnetCache) types.Validator {
+var vgpuDeviceGVR = schema.GroupVersionResource{
+	Group:    "devices.harvesterhci.io",
+	Version:  "v1beta1",
+	Resource: "vgpudevices",
+}
+
+func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache, nodeCache ctlcorev1.NodeCache, vmCache ctlkubevirtv1.VirtualMachineCache, kubeovnSubnet ctlkubeovnv1.SubnetCache, k8sClient client.Client) types.Validator {
 	return &addonValidator{
 		addons:             addons,
 		flowCache:          flowCache,
@@ -43,6 +56,7 @@ func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowC
 		nodeCache:          nodeCache,
 		vmCache:            vmCache,
 		kubeovnSubnet:      kubeovnSubnet,
+		k8sClient:          k8sClient,
 	}
 }
 
@@ -58,6 +72,7 @@ type addonValidator struct {
 	nodeCache          ctlcorev1.NodeCache
 	vmCache            ctlkubevirtv1.VirtualMachineCache
 	kubeovnSubnet      ctlkubeovnv1.SubnetCache
+	k8sClient          client.Client
 }
 
 func (v *addonValidator) Resource() types.Resource {
@@ -331,7 +346,6 @@ func (v *addonValidator) validateDeschedulerAddon(newAddon *v1beta1.Addon) error
 }
 
 func (v *addonValidator) validatePCIDevicesControllerAddon() error {
-	// Check if any VMs are using HostDevices (PCI devices, USB devices) or GPUs (vGPU devices)
 	vms, err := v.vmCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("error listing virtual machines: %v", err.Error()))
@@ -342,13 +356,7 @@ func (v *addonValidator) validatePCIDevicesControllerAddon() error {
 		if vm.Spec.Template == nil {
 			continue
 		}
-		// Check for HostDevices (PCI devices and USB devices)
 		if len(vm.Spec.Template.Spec.Domain.Devices.HostDevices) > 0 {
-			vmsWithDevices = append(vmsWithDevices, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
-			continue
-		}
-		// Check for GPUs (vGPU devices)
-		if len(vm.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
 			vmsWithDevices = append(vmsWithDevices, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
 		}
 	}
@@ -361,25 +369,57 @@ func (v *addonValidator) validatePCIDevicesControllerAddon() error {
 }
 
 func (v *addonValidator) validateNvidiaDriverToolkitAddon() error {
-	// Check if any VMs are using GPUs (vGPU devices and SR-IOV GPU devices)
 	vms, err := v.vmCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("error listing virtual machines: %v", err.Error()))
 	}
 
-	var vmsWithGPUs []string
+	// Collect all HostDevice names across all VMs
+	hostDeviceNames := map[string]string{} // device name -> vm namespace/name
 	for _, vm := range vms {
 		if vm.Spec.Template == nil {
 			continue
 		}
-		// Check for GPUs (vGPU devices and SR-IOV GPU devices)
-		if len(vm.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
-			vmsWithGPUs = append(vmsWithGPUs, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
+		for _, hd := range vm.Spec.Template.Spec.Domain.Devices.HostDevices {
+			hostDeviceNames[hd.Name] = fmt.Sprintf("%s/%s", vm.Namespace, vm.Name)
 		}
 	}
 
-	if len(vmsWithGPUs) > 0 {
-		return werror.NewBadRequest(fmt.Sprintf("nvidia-driver-toolkit addon cannot be disabled as the following VMs are using GPU devices: %v", vmsWithGPUs))
+	if len(hostDeviceNames) == 0 {
+		return nil
+	}
+
+	// List all VGPUDevice resources that have the parentSRIOVGPUDevice label,
+	// which indicates they are vGPU devices managed by nvidia-driver-toolkit.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	vgpuList := &unstructured.UnstructuredList{}
+	vgpuList.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   vgpuDeviceGVR.Group,
+		Version: vgpuDeviceGVR.Version,
+		Kind:    "VGPUDeviceList",
+	})
+	if err := v.k8sClient.List(ctx, vgpuList, client.HasLabels{labelParentSRIOVGPUDevice}); err != nil {
+		return werror.NewInternalError(fmt.Sprintf("error listing VGPUDevices: %v", err.Error()))
+	}
+
+	// Build a set of VGPUDevice names for fast lookup
+	vgpuDeviceNames := make(map[string]struct{}, len(vgpuList.Items))
+	for _, item := range vgpuList.Items {
+		vgpuDeviceNames[item.GetName()] = struct{}{}
+	}
+
+	// Check if any VM HostDevice matches a VGPUDevice
+	var vmsWithVGPU []string
+	for devName, vmRef := range hostDeviceNames {
+		if _, ok := vgpuDeviceNames[devName]; ok {
+			vmsWithVGPU = append(vmsWithVGPU, vmRef)
+		}
+	}
+
+	if len(vmsWithVGPU) > 0 {
+		return werror.NewBadRequest(fmt.Sprintf("nvidia-driver-toolkit addon cannot be disabled as the following VMs are using vGPU devices: %v", vmsWithVGPU))
 	}
 
 	return nil
