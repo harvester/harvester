@@ -169,55 +169,55 @@ metadata:
     app.kubernetes.io/component: apiserver
   name: harvesterhci.io:csi-driver
 rules:
-- apiGroups:
-  - storage.k8s.io
-  resources:
-  - storageclasses
-  - volumeattachments
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - harvesterhci.io
-  resources:
-  - networkfilesystems
-  - networkfilesystems/status
-  - volumeremotebackups
-  - volumeremoterestores
-  verbs:
-  - '*'
-- apiGroups:
-  - harvesterhci.io
-  resources:
-  - settings
-  verbs:
-  - get
-  - list
-  resourceNames:
-  - csi-online-expand-validation
-  - csi-driver-config
-- apiGroups:
-  - longhorn.io
-  resources:
-  - volumes
-  - volumes/status
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - snapshot.storage.k8s.io
-  resources:
-  - volumesnapshots
-  - volumesnapshotcontents
-  - volumesnapshotclasses
-  - volumesnapshots/status
-  - volumesnapshotcontents/status
-  verbs:
-  - '*'
-- apiGroups:
-  - kubevirt.io
-  resources:
-  - virtualmachines
-  verbs:
-  - patch
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - storageclasses
+      - volumeattachments
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - harvesterhci.io
+    resources:
+      - networkfilesystems
+      - networkfilesystems/status
+      - volumeremotebackups
+      - volumeremoterestores
+    verbs:
+      - '*'
+  - apiGroups:
+      - harvesterhci.io
+    resources:
+      - settings
+    verbs:
+      - get
+      - list
+    resourceNames:
+      - csi-online-expand-validation
+      - csi-driver-config
+  - apiGroups:
+      - longhorn.io
+    resources:
+      - volumes
+      - volumes/status
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - snapshot.storage.k8s.io
+    resources:
+      - volumesnapshots
+      - volumesnapshotcontents
+      - volumesnapshotclasses
+      - volumesnapshots/status
+      - volumesnapshotcontents/status
+    verbs:
+      - '*'
+  - apiGroups:
+      - kubevirt.io
+    resources:
+      - virtualmachines
+    verbs:
+      - patch
