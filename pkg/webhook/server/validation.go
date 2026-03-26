@@ -205,6 +205,7 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.Core.Node().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			kubeovnSubnetCache,
+			client,
 		),
 		version.NewValidator(),
 		volumesnapshot.NewValidator(
