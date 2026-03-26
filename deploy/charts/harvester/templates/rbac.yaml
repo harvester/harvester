@@ -213,3 +213,9 @@ rules:
   - volumesnapshotcontents/status
   verbs:
   - '*'
+- apiGroups:
+  - kubevirt.io
+  resources:
+  - virtualmachines
+  verbs:
+  - patch
