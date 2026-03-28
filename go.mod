@@ -78,6 +78,7 @@ require (
 	github.com/longhorn/longhorn-manager v1.10.0
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
+	github.com/metal3-io/cluster-api-provider-metal3 v1.7.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo/v2 v2.28.0
 	github.com/onsi/gomega v1.39.1
@@ -118,6 +119,7 @@ require (
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cloud-provider v0.0.0
 	k8s.io/component-helpers v0.33.7
+	sigs.k8s.io/cluster-api v1.7.4
 	k8s.io/kube-openapi v0.32.8
 	k8s.io/kubectl v0.32.2
 	k8s.io/kubelet v0.26.13
