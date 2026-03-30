@@ -297,8 +297,8 @@ func (h *VMController) removeVMBackupSnapshot(vm *kubevirtv1.VirtualMachine) err
 			volumeSnapshotCpy := volumeSnapshot.DeepCopy()
 			volumeSnapshotCpy.OwnerReferences = []metav1.OwnerReference{
 				{
-					APIVersion: pvc.APIVersion,
-					Kind:       pvc.Kind,
+					APIVersion: util.PersistentVolumeClaimsKind.GroupVersion().String(),
+					Kind:       util.PersistentVolumeClaimsKind.Kind,
 					Name:       pvc.Name,
 					UID:        pvc.UID,
 				},
