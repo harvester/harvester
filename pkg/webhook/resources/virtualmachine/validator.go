@@ -461,18 +461,21 @@ func (v *vmValidator) checkVolumeAnnotations(oldVM, newVM *kubevirtv1.VirtualMac
 
 func (v *vmValidator) checkStorageClassesExist(entries []util.VolumeClaimTemplateEntry) error {
 	for _, entry := range entries {
-		if entry.Spec.StorageClassName == nil || *entry.Spec.StorageClassName == "" {
+		scName := entry.Spec.StorageClassName
+		if scName == nil || *scName == "" {
 			continue
 		}
-		if _, err := v.scCache.Get(*entry.Spec.StorageClassName); err != nil {
-			if apierrors.IsNotFound(err) {
-				return werror.NewInvalidError(
-					fmt.Sprintf("storage class %s does not exist", *entry.Spec.StorageClassName),
-					fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates),
-				)
-			}
-			return werror.NewInternalError(fmt.Sprintf("failed to get storage class %s: %v", *entry.Spec.StorageClassName, err))
+		_, err := v.scCache.Get(*scName)
+		if err == nil {
+			continue
 		}
+		if apierrors.IsNotFound(err) {
+			return werror.NewInvalidError(
+				fmt.Sprintf("storage class %s does not exist", *scName),
+				fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates),
+			)
+		}
+		return werror.NewInternalError(fmt.Sprintf("failed to get storage class %s: %v", *scName, err))
 	}
 	return nil
 }
