@@ -20,7 +20,7 @@ jobs:
     # The FOSSA token is shared between all repos in Harvester's GH org. It can
     # be used directly and there is no need to request specific access to EIO.
     - name: Read FOSSA token
-      uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
+      uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # main
       with:
         secrets: |
           secret/data/github/org/harvester/fossa/credentials token | FOSSA_API_KEY_PUSH_ONLY
