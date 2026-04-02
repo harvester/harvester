@@ -32,7 +32,7 @@ ENV TINI_URL_amd64=https://github.com/krallin/tini/releases/download/${TINI_VERS
     TINI_URL=TINI_URL_${ARCH} \
     TINI_URL_sha256=TINI_URL_${ARCH}_sha256
 
-RUN curl -sLf ${!TINI_URL} > /usr/bin/tini && echo "${!TINI_URL_sha256} /usr/bin/tini" | sha256sum -c - && chmod +x /usr/bin/tini
+RUN curl -sLf ${!TINI_URL} > /usr/bin/tini && echo "${!TINI_URL_sha256}  /usr/bin/tini" | sha256sum -c - && chmod +x /usr/bin/tini
 
 RUN mkdir -p /usr/share/harvester/harvester && \
     cd /usr/share/harvester/harvester && \

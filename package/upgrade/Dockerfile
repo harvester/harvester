@@ -33,16 +33,16 @@ RUN KUBECTL_SHA256=KUBECTL_SHA256_${ARCH} && \
     YQ_SHA256=YQ_SHA256_${ARCH} && \
     WHARFIE_SHA256=WHARFIE_SHA256_${ARCH} && \
     curl -sfL https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl > /usr/bin/kubectl && \
-    echo "${!KUBECTL_SHA256} /usr/bin/kubectl" | sha256sum -c - && \
+    echo "${!KUBECTL_SHA256}  /usr/bin/kubectl" | sha256sum -c - && \
     chmod +x /usr/bin/kubectl && \
     curl -sfL https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/virtctl-${KUBEVIRT_VERSION}-linux-${ARCH} -o /usr/bin/virtctl && \
-    echo "${!VIRTCTL_SHA256} /usr/bin/virtctl" | sha256sum -c - && \
+    echo "${!VIRTCTL_SHA256}  /usr/bin/virtctl" | sha256sum -c - && \
     chmod +x /usr/bin/virtctl && \
     curl -sfL https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_${ARCH} -o /usr/bin/yq && \
-    echo "${!YQ_SHA256} /usr/bin/yq" | sha256sum -c - && \
+    echo "${!YQ_SHA256}  /usr/bin/yq" | sha256sum -c - && \
     chmod +x /usr/bin/yq && \
     curl -sfL https://github.com/rancher/wharfie/releases/download/${WHARFIE_VERSION}/wharfie-${ARCH}  -o /usr/bin/wharfie && \
-    echo "${!WHARFIE_SHA256} /usr/bin/wharfie" | sha256sum -c - && \
+    echo "${!WHARFIE_SHA256}  /usr/bin/wharfie" | sha256sum -c - && \
     chmod +x /usr/bin/wharfie
 # Copy elemental binary to be used for upgrades
 COPY --from=baseos /usr/bin/elemental /usr/local/bin/elemental

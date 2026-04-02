@@ -40,7 +40,7 @@ ENV HELM_URL=https://get.helm.sh/${HELM_TARBALL}
 RUN mkdir /usr/tmp && \
   curl -sSLO --output-dir /usr/tmp ${HELM_URL}  && \
   HELM_SHA256=HELM_SHA256_Linux_${ARCH} && \
-  echo "${!HELM_SHA256} /usr/tmp/${HELM_TARBALL}" | sha256sum -c - && \
+  echo "${!HELM_SHA256}  /usr/tmp/${HELM_TARBALL}" | sha256sum -c - && \
   tar xvzf /usr/tmp/${HELM_TARBALL} --strip-components=1 -C /usr/tmp/ && \
   mv /usr/tmp/helm /usr/bin/helm
 
@@ -74,12 +74,12 @@ RUN  GO111MODULE=on go install k8s.io/code-generator/cmd/openapi-gen@v0.29.13
 # install kind
 RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-${ARCH} && \
   KIND_SHA256="KIND_SHA256_Linux_${ARCH}" && \
-  echo "${!KIND_SHA256} /usr/bin/kind" | sha256sum -c - && \
+  echo "${!KIND_SHA256}  /usr/bin/kind" | sha256sum -c - && \
   chmod +x /usr/bin/kind
 
 # install codecov
 RUN curl -Lo /usr/bin/codecov https://uploader.codecov.io/${CODECOV_VERSION}/linux/codecov && \
-  echo "${CODECOV_SHA256_Linux} /usr/bin/codecov" | sha256sum -c - && \
+  echo "${CODECOV_SHA256_Linux}  /usr/bin/codecov" | sha256sum -c - && \
   chmod +x /usr/bin/codecov
 
 # copy bootloaders
