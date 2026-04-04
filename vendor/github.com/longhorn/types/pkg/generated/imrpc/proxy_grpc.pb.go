@@ -47,6 +47,7 @@ const (
 	ProxyEngineService_ReplicaAdd_FullMethodName                         = "/imrpc.ProxyEngineService/ReplicaAdd"
 	ProxyEngineService_ReplicaList_FullMethodName                        = "/imrpc.ProxyEngineService/ReplicaList"
 	ProxyEngineService_ReplicaRebuildingStatus_FullMethodName            = "/imrpc.ProxyEngineService/ReplicaRebuildingStatus"
+	ProxyEngineService_ReplicaRebuildingQosSet_FullMethodName            = "/imrpc.ProxyEngineService/ReplicaRebuildingQosSet"
 	ProxyEngineService_ReplicaVerifyRebuild_FullMethodName               = "/imrpc.ProxyEngineService/ReplicaVerifyRebuild"
 	ProxyEngineService_ReplicaRemove_FullMethodName                      = "/imrpc.ProxyEngineService/ReplicaRemove"
 	ProxyEngineService_ReplicaModeUpdate_FullMethodName                  = "/imrpc.ProxyEngineService/ReplicaModeUpdate"
@@ -90,6 +91,7 @@ type ProxyEngineServiceClient interface {
 	ReplicaAdd(ctx context.Context, in *EngineReplicaAddRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ReplicaList(ctx context.Context, in *ProxyEngineRequest, opts ...grpc.CallOption) (*EngineReplicaListProxyResponse, error)
 	ReplicaRebuildingStatus(ctx context.Context, in *ProxyEngineRequest, opts ...grpc.CallOption) (*EngineReplicaRebuildStatusProxyResponse, error)
+	ReplicaRebuildingQosSet(ctx context.Context, in *EngineReplicaRebuildingQosSetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ReplicaVerifyRebuild(ctx context.Context, in *EngineReplicaVerifyRebuildRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ReplicaRemove(ctx context.Context, in *EngineReplicaRemoveRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ReplicaModeUpdate(ctx context.Context, in *EngineReplicaModeUpdateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -353,6 +355,15 @@ func (c *proxyEngineServiceClient) ReplicaRebuildingStatus(ctx context.Context, 
 	return out, nil
 }
 
+func (c *proxyEngineServiceClient) ReplicaRebuildingQosSet(ctx context.Context, in *EngineReplicaRebuildingQosSetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ProxyEngineService_ReplicaRebuildingQosSet_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *proxyEngineServiceClient) ReplicaVerifyRebuild(ctx context.Context, in *EngineReplicaVerifyRebuildRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, ProxyEngineService_ReplicaVerifyRebuild_FullMethodName, in, out, opts...)
@@ -497,6 +508,7 @@ type ProxyEngineServiceServer interface {
 	ReplicaAdd(context.Context, *EngineReplicaAddRequest) (*emptypb.Empty, error)
 	ReplicaList(context.Context, *ProxyEngineRequest) (*EngineReplicaListProxyResponse, error)
 	ReplicaRebuildingStatus(context.Context, *ProxyEngineRequest) (*EngineReplicaRebuildStatusProxyResponse, error)
+	ReplicaRebuildingQosSet(context.Context, *EngineReplicaRebuildingQosSetRequest) (*emptypb.Empty, error)
 	ReplicaVerifyRebuild(context.Context, *EngineReplicaVerifyRebuildRequest) (*emptypb.Empty, error)
 	ReplicaRemove(context.Context, *EngineReplicaRemoveRequest) (*emptypb.Empty, error)
 	ReplicaModeUpdate(context.Context, *EngineReplicaModeUpdateRequest) (*emptypb.Empty, error)
@@ -594,6 +606,9 @@ func (UnimplementedProxyEngineServiceServer) ReplicaList(context.Context, *Proxy
 }
 func (UnimplementedProxyEngineServiceServer) ReplicaRebuildingStatus(context.Context, *ProxyEngineRequest) (*EngineReplicaRebuildStatusProxyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplicaRebuildingStatus not implemented")
+}
+func (UnimplementedProxyEngineServiceServer) ReplicaRebuildingQosSet(context.Context, *EngineReplicaRebuildingQosSetRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReplicaRebuildingQosSet not implemented")
 }
 func (UnimplementedProxyEngineServiceServer) ReplicaVerifyRebuild(context.Context, *EngineReplicaVerifyRebuildRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplicaVerifyRebuild not implemented")
@@ -1124,6 +1139,24 @@ func _ProxyEngineService_ReplicaRebuildingStatus_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProxyEngineService_ReplicaRebuildingQosSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EngineReplicaRebuildingQosSetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProxyEngineServiceServer).ReplicaRebuildingQosSet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProxyEngineService_ReplicaRebuildingQosSet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProxyEngineServiceServer).ReplicaRebuildingQosSet(ctx, req.(*EngineReplicaRebuildingQosSetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProxyEngineService_ReplicaVerifyRebuild_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EngineReplicaVerifyRebuildRequest)
 	if err := dec(in); err != nil {
@@ -1421,6 +1454,10 @@ var ProxyEngineService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReplicaRebuildingStatus",
 			Handler:    _ProxyEngineService_ReplicaRebuildingStatus_Handler,
+		},
+		{
+			MethodName: "ReplicaRebuildingQosSet",
+			Handler:    _ProxyEngineService_ReplicaRebuildingQosSet_Handler,
 		},
 		{
 			MethodName: "ReplicaVerifyRebuild",

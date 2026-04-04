@@ -36,8 +36,8 @@ var (
 	bootstrapSettings = []string{
 		settings.SSLCertificatesSettingName,
 		settings.KubeconfigDefaultTokenTTLMinutesSettingName,
-		// The Longhorn storage over-provisioning percentage is set to 100, whereas Harvester uses 200.
-		// This needs to be synchronized when Harvester starts.
+		// We need to sync overcommit config on bootstrap
+		// Now, storage overcommit was aligned with Longhorn setting,
 		settings.OvercommitConfigSettingName,
 		// always run this when Harvester POD starts
 		settings.AdditionalGuestMemoryOverheadRatioName,
@@ -70,6 +70,7 @@ type Handler struct {
 	ingressCache         networkingv1.IngressCache
 	longhornSettings     ctllhv1.SettingClient
 	longhornSettingCache ctllhv1.SettingCache
+	longhornVolumeCache  ctllhv1.VolumeCache
 	configmaps           ctlcorev1.ConfigMapClient
 	configmapCache       ctlcorev1.ConfigMapCache
 	endpointCache        ctlcorev1.EndpointsCache

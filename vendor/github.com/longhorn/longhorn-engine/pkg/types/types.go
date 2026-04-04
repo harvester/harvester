@@ -46,6 +46,8 @@ const (
 	EngineFrontendISCSI    = "tgt-iscsi"
 
 	VolumeHeadName = "volume-head"
+
+	MaximumTotalSnapshotCount = 250
 )
 
 type DataServerProtocol string
@@ -105,7 +107,7 @@ type Backend interface {
 	ResetRebuild() error
 	SetSnapshotMaxCount(count int) error
 	SetSnapshotMaxSize(size int64) error
-	GetSnapshotCountAndSizeUsage() (int, int64, error)
+	GetSnapshotCountAndSizeUsage() (int, int, int64, error)
 }
 
 type BackendFactory interface {

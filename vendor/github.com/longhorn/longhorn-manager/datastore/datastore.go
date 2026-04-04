@@ -1,6 +1,7 @@
 package datastore
 
 import (
+	"errors"
 	"time"
 
 	"k8s.io/client-go/tools/cache"
@@ -16,6 +17,7 @@ import (
 	schedulinglisters "k8s.io/client-go/listers/scheduling/v1"
 	storagelisters_v1 "k8s.io/client-go/listers/storage/v1"
 
+	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
 	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
@@ -318,7 +320,7 @@ func (s *DataStore) Sync(stopCh <-chan struct{}) bool {
 // ErrorIsNotFound checks if given error match
 // metav1.StatusReasonNotFound
 func ErrorIsNotFound(err error) bool {
-	return apierrors.IsNotFound(err)
+	return errors.Is(err, &types.NotFoundError{}) || apierrors.IsNotFound(err)
 }
 
 // ErrorIsConflict checks if given error match

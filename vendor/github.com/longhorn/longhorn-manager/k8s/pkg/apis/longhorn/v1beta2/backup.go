@@ -51,6 +51,11 @@ type BackupSpec struct {
 	// Can be "full" or "incremental"
 	// +optional
 	BackupMode BackupMode `json:"backupMode"`
+	// The backup block size. 0 means the legacy default size 2MiB, and -1 indicate the block size is invalid.
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Enum="-1";"2097152";"16777216"
+	// +optional
+	BackupBlockSize int64 `json:"backupBlockSize,string"`
 }
 
 // BackupStatus defines the observed state of the Longhorn backup

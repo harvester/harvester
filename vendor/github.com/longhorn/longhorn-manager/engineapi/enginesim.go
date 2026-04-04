@@ -224,7 +224,7 @@ func (e *EngineSimulator) BackupRestore(engine *longhorn.Engine, backupTarget, b
 }
 
 func (e *EngineSimulator) SnapshotClone(engine *longhorn.Engine, snapshotName, fromEngineAddress, fromVolumeName,
-	fromEngineName string, fileSyncHTTPClientTimeout, grpcTimeoutSeconds int64) error {
+	fromEngineName string, fileSyncHTTPClientTimeout, grpcTimeoutSeconds int64, cloneMode string) error {
 	return errors.New(ErrNotImplement)
 }
 
@@ -238,6 +238,10 @@ func (e *EngineSimulator) SnapshotCloneStatus(*longhorn.Engine) (map[string]*lon
 
 func (e *EngineSimulator) ReplicaRebuildStatus(*longhorn.Engine) (map[string]*longhorn.RebuildStatus, error) {
 	return nil, errors.New(ErrNotImplement)
+}
+
+func (e *EngineSimulator) ReplicaRebuildQosSet(engine *longhorn.Engine, qosLimitMbps int64) error {
+	return errors.New(ErrNotImplement)
 }
 
 func (e *EngineSimulator) VolumeFrontendStart(*longhorn.Engine) error {

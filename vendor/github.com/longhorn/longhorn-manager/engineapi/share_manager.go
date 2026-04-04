@@ -1,7 +1,8 @@
 package engineapi
 
 import (
-	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/pkg/errors"
 
@@ -17,7 +18,7 @@ type ShareManagerClient struct {
 }
 
 func NewShareManagerClient(sm *longhorn.ShareManager, pod *corev1.Pod) (*ShareManagerClient, error) {
-	client, err := smclient.NewShareManagerClient(fmt.Sprintf("%s:%d", pod.Status.PodIP, ShareManagerDefaultPort))
+	client, err := smclient.NewShareManagerClient(net.JoinHostPort(pod.Status.PodIP, strconv.Itoa(ShareManagerDefaultPort)))
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create Share Manager client for %v", sm.Name)
 	}

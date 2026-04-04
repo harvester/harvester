@@ -8,7 +8,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/longhorn/longhorn-manager/types"
 	"github.com/longhorn/longhorn-manager/util"
 
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
@@ -82,11 +81,6 @@ func (m *VolumeManager) CreateBackupBackingImage(name, backingImageName, backupT
 		return fmt.Errorf("backup backing image %v already exists", name)
 	}
 
-	btName := backupTargetName
-	if backupTargetName == "" {
-		btName = types.DefaultBackupTargetName
-	}
-
 	backupBackingImage = &longhorn.BackupBackingImage{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -94,7 +88,7 @@ func (m *VolumeManager) CreateBackupBackingImage(name, backingImageName, backupT
 		Spec: longhorn.BackupBackingImageSpec{
 			UserCreated:      true,
 			BackingImage:     backingImageName,
-			BackupTargetName: btName,
+			BackupTargetName: backupTargetName,
 		},
 	}
 	if _, err = m.ds.CreateBackupBackingImage(backupBackingImage); err != nil && !apierrors.IsAlreadyExists(err) {

@@ -88,7 +88,7 @@ func RestoreSingleFileBackup(backupURL, path string) (string, error) {
 	if _, err := loadVolume(driver, srcVolumeName); err != nil {
 		return "", generateError(logrus.Fields{
 			LogFieldVolume:    srcVolumeName,
-			LogEventBackupURL: backupURL,
+			LogFieldBackupURL: backupURL,
 		}, "Volume doesn't exist in backupstore: %v", err)
 	}
 

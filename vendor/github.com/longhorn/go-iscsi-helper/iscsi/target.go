@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 
 	lhexec "github.com/longhorn/go-common-libs/exec"
 	lhtypes "github.com/longhorn/go-common-libs/types"
@@ -212,7 +213,11 @@ func StartDaemon(debug bool) error {
 }
 
 func startDaemon(logf *os.File, debug bool) {
-	defer logf.Close()
+	defer func() {
+		if errClose := logf.Close(); errClose != nil {
+			logrus.WithError(errClose).Error("Failed to close log file")
+		}
+	}()
 
 	opts := []string{
 		"-f",
@@ -226,13 +231,13 @@ func startDaemon(logf *os.File, debug bool) {
 	cmd.Stderr = mw
 	if err := cmd.Run(); err != nil {
 		if CheckTargetForBackingStore("rdwr") {
-			fmt.Fprintf(mw, "go-iscsi-helper: tgtd is already running\n")
+			_, _ = fmt.Fprintf(mw, "go-iscsi-helper: tgtd is already running\n")
 			return
 		}
-		fmt.Fprintf(mw, "go-iscsi-helper: command failed: %v\n", err)
+		_, _ = fmt.Fprintf(mw, "go-iscsi-helper: command failed: %v\n", err)
 		panic(err)
 	}
-	fmt.Fprintln(mw, "go-iscsi-helper: done")
+	_, _ = fmt.Fprintln(mw, "go-iscsi-helper: done")
 }
 
 func CheckTargetForBackingStore(name string) bool {

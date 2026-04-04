@@ -21,6 +21,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 	server.BaseSchemas.MustImportAndCustomize(ExportVolumeInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(CloneVolumeInput{}, nil)
 	server.BaseSchemas.MustImportAndCustomize(SnapshotVolumeInput{}, nil)
+	server.BaseSchemas.MustImportAndCustomize(DataMigrationInput{}, nil)
 	actionHandler := &ActionHandler{
 		images:      scaled.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage(),
 		pods:        scaled.CoreFactory.Core().V1().Pod().Cache(),
@@ -33,6 +34,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		volumes:     scaled.LonghornFactory.Longhorn().V1beta2().Volume(),
 		volumeCache: scaled.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
 		vmCache:     scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
+		dataVolumes: scaled.CdiFactory.Cdi().V1beta1().DataVolume(),
 	}
 	actionHandler.pods.AddIndexer(util.IndexPodByPVC, util.IndexPodByPVCFunc)
 
@@ -40,6 +42,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 
 	formatter := &volFormatter{
 		scCache: scaled.StorageFactory.Storage().V1().StorageClass().Cache(),
+		vmCache: scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 	}
 
 	t := schema.Template{
@@ -56,12 +59,16 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 				actionSnapshot: {
 					Input: "snapshotVolumeInput",
 				},
+				actionDataMigration: {
+					Input: "dataMigrationInput",
+				},
 			}
 			s.ActionHandlers = map[string]http.Handler{
-				actionExport:       handler,
-				actionCancelExpand: handler,
-				actionClone:        handler,
-				actionSnapshot:     handler,
+				actionExport:        handler,
+				actionCancelExpand:  handler,
+				actionClone:         handler,
+				actionSnapshot:      handler,
+				actionDataMigration: handler,
 			}
 		},
 		Formatter: formatter.Formatter,

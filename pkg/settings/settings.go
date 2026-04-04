@@ -19,7 +19,7 @@ var (
 
 	AdditionalCA                           = NewSetting(AdditionalCASettingName, "")
 	APIUIVersion                           = NewSetting(APIUIVersionSettingName, "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
-	ClusterRegistrationURL                 = NewSetting(ClusterRegistrationURLSettingName, "")
+	ClusterRegistrationURL                 = NewSetting(ClusterRegistrationURLSettingName, `{"url":"","insecureSkipTLSVerify":false}`)
 	ServerVersion                          = NewSetting(ServerVersionSettingName, "dev")
 	UIIndex                                = NewSetting(UIIndexSettingName, DefaultDashboardUIURL)
 	UIPath                                 = NewSetting(UIPathSettingName, "/usr/share/harvester/harvester")
@@ -39,20 +39,23 @@ var (
 	SupportBundleTimeout                   = NewSetting(SupportBundleTimeoutSettingName, supportBundleUtil.SupportBundleTimeoutDefaultStr)                      // Unit is minute. 0 means disable timeout.
 	SupportBundleExpiration                = NewSetting(SupportBundleExpirationSettingName, supportBundleUtil.SupportBundleExpirationDefaultStr)                // Unit is minute.
 	SupportBundleNodeCollectionTimeout     = NewSetting(SupportBundleNodeCollectionTimeoutName, supportBundleUtil.SupportBundleNodeCollectionTimeoutDefaultStr) // Unit is minute.
+	SupportBundleFileName                  = NewSetting(SupportBundleFileNameSettingName, "")                                                                   // Custom file name for support bundle files, must follow RFC 1123 Label Names
 	DefaultStorageClass                    = NewSetting(DefaultStorageClassSettingName, "longhorn")
 	HTTPProxy                              = NewSetting(HTTPProxySettingName, "{}")
 	VMForceResetPolicySet                  = NewSetting(VMForceResetPolicySettingName, InitVMForceResetPolicy())
-	OvercommitConfig                       = NewSetting(OvercommitConfigSettingName, `{"cpu":1600,"memory":150,"storage":200}`)
+	OvercommitConfig                       = NewSetting(OvercommitConfigSettingName, `{"cpu":1000,"memory":150,"storage":100}`)
 	VipPools                               = NewSetting(VipPoolsConfigSettingName, "")
 	AutoDiskProvisionPaths                 = NewSetting(AutoDiskProvisionPathsSettingName, "")
 	CSIDriverConfig                        = NewSetting(CSIDriverConfigSettingName, `{"driver.longhorn.io":{"volumeSnapshotClassName":"longhorn-snapshot","backupVolumeSnapshotClassName":"longhorn"}}`)
 	CSIOnlineExpandValidation              = NewSetting(CSIOnlineExpandValidationSettingName, `{"driver.longhorn.io":true}`)
 	ContainerdRegistry                     = NewSetting(ContainerdRegistrySettingName, "")
 	StorageNetwork                         = NewSetting(StorageNetworkName, "")
+	RWXNetwork                             = NewSetting(RWXNetworkSettingName, `{"share-storage-network":false}`)
 	DefaultVMTerminationGracePeriodSeconds = NewSetting(DefaultVMTerminationGracePeriodSecondsSettingName, "120")
 	AutoRotateRKE2CertsSet                 = NewSetting(AutoRotateRKE2CertsSettingName, InitAutoRotateRKE2Certs())
 	KubeconfigTTL                          = NewSetting(KubeconfigDefaultTokenTTLMinutesSettingName, "0") // "0" is default value to ensure token does not expire
 	LonghornV2DataEngineEnabled            = NewSetting(LonghornV2DataEngineSettingName, "false")
+	LHIMResources                          = NewSetting(LHIMResourcesSettingName, `{"cpu":{}}`)
 	AdditionalGuestMemoryOverheadRatio     = NewSetting(AdditionalGuestMemoryOverheadRatioName, AdditionalGuestMemoryOverheadRatioDefault)
 	RancherCluster                         = NewSetting(RancherClusterSettingName, "{}")
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
@@ -90,14 +93,17 @@ const (
 	ContainerdRegistrySettingName                     = "containerd-registry"
 	HarvesterCSICCMSettingName                        = "harvester-csi-ccm-versions"
 	StorageNetworkName                                = "storage-network"
+	RWXNetworkSettingName                             = "rwx-network"
 	DefaultVMTerminationGracePeriodSecondsSettingName = "default-vm-termination-grace-period-seconds"
 	SupportBundleExpirationSettingName                = "support-bundle-expiration"
 	NTPServersSettingName                             = "ntp-servers"
 	AutoRotateRKE2CertsSettingName                    = "auto-rotate-rke2-certs"
 	KubeconfigDefaultTokenTTLMinutesSettingName       = "kubeconfig-default-token-ttl-minutes"
 	SupportBundleNodeCollectionTimeoutName            = "support-bundle-node-collection-timeout"
+	SupportBundleFileNameSettingName                  = "support-bundle-file-name"
 	UpgradeConfigSettingName                          = "upgrade-config"
 	LonghornV2DataEngineSettingName                   = "longhorn-v2-data-engine-enabled"
+	LHIMResourcesSettingName                          = "instance-manager-resources"
 	LogLevelSettingName                               = "log-level"
 	AdditionalGuestMemoryOverheadRatioName            = "additional-guest-memory-overhead-ratio"
 	ClusterRegistrationURLSettingName                 = "cluster-registration-url"

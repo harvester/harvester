@@ -108,6 +108,8 @@ const (
 	UnixDomainSocketDirectoryInContainer = "/host/var/lib/longhorn/unix-domain-socket/"
 	UnixDomainSocketDirectoryOnHost      = "/var/lib/longhorn/unix-domain-socket/"
 
+	DefaultLogDirectoryOnHost = "/var/lib/longhorn/logs/"
+
 	BackingImageManagerDirectory = "/backing-images/"
 	BackingImageFileName         = "backing"
 
@@ -119,8 +121,11 @@ const (
 
 	DefaultBackupTargetName = "default"
 
-	LonghornNodeKey     = "longhornnode"
-	LonghornDiskUUIDKey = "longhorndiskuuid"
+	LonghornNodeKey            = "longhornnode"
+	LonghornInstanceManagerKey = "longhorninstancemanager"
+	LonghornEngineKey          = "longhornengine"
+	LonghornReplicaKey         = "longhornreplica"
+	LonghornDiskUUIDKey        = "longhorndiskuuid"
 
 	NodeCreateDefaultDiskLabelKey             = "node.longhorn.io/create-default-disk"
 	NodeCreateDefaultDiskLabelValueTrue       = "true"
@@ -137,8 +142,10 @@ const (
 
 	DeleteCustomResourceOnly = "delete-custom-resource-only"
 
-	// const value `DeleteBackupTargetFromLonghorn` is used for annotation to note that deleting backup target is by Longhorn during uninstalling.
+	// annotations to note that deleting backup target is by Longhorn during uninstalling.
 	DeleteBackupTargetFromLonghorn = "delete-backup-target-from-longhorn"
+	DeleteEngineImageFromLonghorn  = "delete-engine-image-from-longhorn"
+	DeleteNodeFromLonghorn         = "delete-node-from-longhorn"
 
 	KubernetesStatusLabel = "KubernetesStatus"
 	KubernetesReplicaSet  = "ReplicaSet"
@@ -235,7 +242,8 @@ const (
 )
 
 const (
-	RecurringJobBackupParameterFullBackupInterval = "full-backup-interval"
+	RecurringJobParameterFullBackupInterval = "full-backup-interval"
+	RecurringJobParameterVolumeBackupPolicy = "volume-backup-policy"
 )
 
 const (
@@ -248,6 +256,7 @@ const (
 	EnvPodNamespace   = "POD_NAMESPACE"
 	EnvPodIP          = "POD_IP"
 	EnvServiceAccount = "SERVICE_ACCOUNT"
+	EnvDataEngine     = "DATA_ENGINE"
 
 	BackupStoreTypeS3     = "s3"
 	BackupStoreTypeCIFS   = "cifs"
@@ -334,6 +343,7 @@ const (
 	engineImagePrefix          = "ei-"
 	instanceManagerImagePrefix = "imi-"
 	shareManagerImagePrefix    = "smi-"
+	backingImageManagerPrefix  = "bim-"
 	orphanPrefix               = "orphan-"
 
 	BackingImageDataSourcePodNamePrefix = "backing-image-ds-"
@@ -378,7 +388,7 @@ func GetDefaultManagerURL() string {
 }
 
 func GetImageCanonicalName(image string) string {
-	return strings.Replace(strings.Replace(image, ":", "-", -1), "/", "-", -1)
+	return strings.ReplaceAll(strings.ReplaceAll(image, ":", "-"), "/", "-")
 }
 
 func GetEngineBinaryDirectoryOnHostForImage(image string) string {
@@ -396,13 +406,20 @@ func GetEngineBinaryDirectoryForReplicaManagerContainer(image string) string {
 	return filepath.Join(filepath.Join(ReplicaHostPrefix, EngineBinaryDirectoryOnHost), cname)
 }
 
-func EngineBinaryExistOnHostForImage(image string) bool {
-	st, err := os.Stat(filepath.Join(GetEngineBinaryDirectoryOnHostForImage(image), "longhorn"))
-	return err == nil && !st.IsDir()
+func EngineBinaryExistOnHostForImage(image string) (bool, error) {
+	engineBinaryPath := filepath.Join(GetEngineBinaryDirectoryOnHostForImage(image), "longhorn")
+	st, err := os.Stat(engineBinaryPath)
+	if err != nil {
+		return false, err
+	}
+	if st.IsDir() {
+		return false, errors.Errorf("expected %s to be a file, but it is a directory", engineBinaryPath)
+	}
+	return true, nil
 }
 
 func GetBackingImageManagerName(image, diskUUID string) string {
-	return fmt.Sprintf("backing-image-manager-%s-%s", util.GetStringChecksum(image)[:4], diskUUID[:4])
+	return backingImageManagerPrefix + util.GetStringChecksumSHA256(strings.TrimSpace(fmt.Sprintf("%s-%s", image, diskUUID)))
 }
 
 func GetBackingImageDirectoryName(backingImageName, backingImageUUID string) string {
@@ -653,7 +670,27 @@ func GetOrphanLabelsForOrphanedDirectory(nodeID, diskUUID string) map[string]str
 	labels := GetBaseLabelsForSystemManagedComponent()
 	labels[GetLonghornLabelComponentKey()] = LonghornLabelOrphan
 	labels[LonghornNodeKey] = nodeID
-	labels[GetLonghornLabelKey(LonghornLabelOrphanType)] = string(longhorn.OrphanTypeReplica)
+	labels[GetLonghornLabelKey(LonghornLabelOrphanType)] = string(longhorn.OrphanTypeReplicaData)
+	return labels
+}
+
+func GetOrphanLabelsForOrphanedEngineInstance(nodeID, instanceManager, engineName string) map[string]string {
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[GetLonghornLabelComponentKey()] = LonghornLabelOrphan
+	labels[LonghornNodeKey] = nodeID
+	labels[LonghornInstanceManagerKey] = instanceManager
+	labels[LonghornEngineKey] = engineName
+	labels[GetLonghornLabelKey(LonghornLabelOrphanType)] = string(longhorn.OrphanTypeEngineInstance)
+	return labels
+}
+
+func GetOrphanLabelsForOrphanedReplicaInstance(nodeID, instanceManager, replicaName string) map[string]string {
+	labels := GetBaseLabelsForSystemManagedComponent()
+	labels[GetLonghornLabelComponentKey()] = LonghornLabelOrphan
+	labels[LonghornNodeKey] = nodeID
+	labels[LonghornInstanceManagerKey] = instanceManager
+	labels[LonghornReplicaKey] = replicaName
+	labels[GetLonghornLabelKey(LonghornLabelOrphanType)] = string(longhorn.OrphanTypeReplicaInstance)
 	return labels
 }
 
@@ -725,6 +762,10 @@ func GetOrphanChecksumNameForOrphanedDataStore(nodeID, diskName, diskPath, diskU
 	return orphanPrefix + util.GetStringChecksumSHA256(strings.TrimSpace(fmt.Sprintf("%s-%s-%s-%s-%s", nodeID, diskName, diskPath, diskUUID, dataStore)))
 }
 
+func GetOrphanChecksumNameForOrphanedInstance(instanceName, instanceUUID, instanceManager, dataEngine string) string {
+	return orphanPrefix + util.GetStringChecksumSHA256(strings.TrimSpace(fmt.Sprintf("%s-%s-%s-%s", instanceName, instanceUUID, instanceManager, dataEngine)))
+}
+
 func GetShareManagerPodNameFromShareManagerName(smName string) string {
 	return shareManagerPrefix + smName
 }
@@ -741,8 +782,9 @@ func GetShareManagerNameFromShareManagerPodName(podName string) string {
 	return strings.TrimPrefix(podName, shareManagerPrefix)
 }
 
-func GetBackupVolumeNameFromVolumeName(volumeName string) string {
-	return volumeName + "-" + util.RandomID()
+func GetBackupVolumeNameFromVolumeName(volumeName, backupTargetName string) string {
+	// Generate a unique backup volume name based on the volume name and backup target name to prevent re-creation from a split-brain scenario.
+	return volumeName + "-" + util.GetStringChecksumSHA256(strings.TrimSpace(fmt.Sprintf("%s-%s", volumeName, backupTargetName)))[:util.RandomIDLength]
 }
 
 func GetBackupBackingImageNameFromBIName(backingImageName string) string {
@@ -847,7 +889,7 @@ func ValidateMinNumberOfBackingIamgeCopies(number int) error {
 	return nil
 }
 
-func ValidateV2DataEngineLogFlags(flags string) error {
+func ValidateDataEngineLogFlags(flags string) error {
 	if flags == "" {
 		return nil
 	}
@@ -984,6 +1026,38 @@ func ValidateFreezeFilesystemForSnapshot(value longhorn.FreezeFilesystemForSnaps
 	return nil
 }
 
+func ValidateOfflineRebuild(value longhorn.VolumeOfflineRebuilding) error {
+	if value != longhorn.VolumeOfflineRebuildingDisabled &&
+		value != longhorn.VolumeOfflineRebuildingEnabled &&
+		value != longhorn.VolumeOfflineRebuildingIgnored {
+		return fmt.Errorf("invalid OfflineRebuilding setting: %v", value)
+	}
+	return nil
+}
+
+// ValidateBackupBlockSize skips the volume size check if volSize set to negative.
+func ValidateBackupBlockSize(volSize int64, backupBlockSize int64) error {
+	if backupBlockSize != BackupBlockSize2Mi && backupBlockSize != BackupBlockSize16Mi {
+		return fmt.Errorf("unsupported BackupBlockSize: %v", backupBlockSize)
+	}
+	if volSize >= 0 && volSize%backupBlockSize != 0 {
+		return fmt.Errorf("volume size %v must be an integer multiple of the backup block size %v", volSize, backupBlockSize)
+	}
+	return nil
+}
+
+func ValidateReplicaRebuildingBandwidthLimit(dataEengine longhorn.DataEngineType, replicaRebuildingBandwidthLimit int64) error {
+	if replicaRebuildingBandwidthLimit == 0 {
+		return nil
+	}
+
+	if IsDataEngineV2(dataEengine) {
+		return nil
+	}
+
+	return fmt.Errorf("replicaRebuildingBandwidthLimit is not supported for data engine %v", dataEengine)
+}
+
 func GetDaemonSetNameFromEngineImageName(engineImageName string) string {
 	return "engine-image-" + engineImageName
 }
@@ -1076,7 +1150,11 @@ func getBlockDeviceSize(devicePath string) (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to open block device at %s: %w", devicePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			logrus.WithError(closeErr).Warnf("Failed to close block device %s", devicePath)
+		}
+	}()
 	var size uint64
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, file.Fd(), 0x80081272, uintptr(unsafe.Pointer(&size)))
 	if errno != 0 {
@@ -1189,26 +1267,6 @@ func CreateDefaultDisk(dataPath string, storageReservedPercentage int64) (map[st
 			Tags:              []string{},
 		},
 	}, nil
-}
-
-func ValidateCPUReservationValues(settingName SettingName, instanceManagerCPUStr string) error {
-	instanceManagerCPU, err := strconv.Atoi(instanceManagerCPUStr)
-	if err != nil {
-		return errors.Wrapf(err, "invalid guaranteed/requested instance manager CPU value (%v)", instanceManagerCPUStr)
-	}
-
-	definition, _ := GetSettingDefinition(settingName)
-	valueIntRange := definition.ValueIntRange
-
-	switch settingName {
-	case SettingNameGuaranteedInstanceManagerCPU, SettingNameV2DataEngineGuaranteedInstanceManagerCPU:
-		isUnderLimit := instanceManagerCPU < valueIntRange[ValueIntRangeMinimum]
-		isOverLimit := instanceManagerCPU > valueIntRange[ValueIntRangeMaximum]
-		if isUnderLimit || isOverLimit {
-			return fmt.Errorf("invalid requested instance manager CPUs. Valid instance manager CPU range between %v - %v millicpu", valueIntRange[ValueIntRangeMinimum], valueIntRange[ValueIntRangeMaximum])
-		}
-	}
-	return nil
 }
 
 type CniNetwork struct {

@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"io"
 	"strconv"
 	"time"
 
@@ -168,35 +169,39 @@ func (m *VolumeManager) Create(name string, spec *longhorn.VolumeSpec, recurring
 			Labels: labels,
 		},
 		Spec: longhorn.VolumeSpec{
-			Size:                        spec.Size,
-			AccessMode:                  spec.AccessMode,
-			Migratable:                  spec.Migratable,
-			Encrypted:                   spec.Encrypted,
-			Frontend:                    spec.Frontend,
-			Image:                       "",
-			FromBackup:                  spec.FromBackup,
-			RestoreVolumeRecurringJob:   spec.RestoreVolumeRecurringJob,
-			DataSource:                  spec.DataSource,
-			NumberOfReplicas:            spec.NumberOfReplicas,
-			ReplicaAutoBalance:          spec.ReplicaAutoBalance,
-			DataLocality:                spec.DataLocality,
-			StaleReplicaTimeout:         spec.StaleReplicaTimeout,
-			BackingImage:                spec.BackingImage,
-			Standby:                     spec.Standby,
-			DiskSelector:                spec.DiskSelector,
-			NodeSelector:                spec.NodeSelector,
-			RevisionCounterDisabled:     spec.RevisionCounterDisabled,
-			SnapshotDataIntegrity:       spec.SnapshotDataIntegrity,
-			SnapshotMaxCount:            spec.SnapshotMaxCount,
-			SnapshotMaxSize:             spec.SnapshotMaxSize,
-			BackupCompressionMethod:     spec.BackupCompressionMethod,
-			UnmapMarkSnapChainRemoved:   spec.UnmapMarkSnapChainRemoved,
-			ReplicaSoftAntiAffinity:     spec.ReplicaSoftAntiAffinity,
-			ReplicaZoneSoftAntiAffinity: spec.ReplicaZoneSoftAntiAffinity,
-			ReplicaDiskSoftAntiAffinity: spec.ReplicaDiskSoftAntiAffinity,
-			DataEngine:                  spec.DataEngine,
-			FreezeFilesystemForSnapshot: spec.FreezeFilesystemForSnapshot,
-			BackupTargetName:            backupTargetName,
+			Size:                            spec.Size,
+			AccessMode:                      spec.AccessMode,
+			Migratable:                      spec.Migratable,
+			Encrypted:                       spec.Encrypted,
+			Frontend:                        spec.Frontend,
+			Image:                           "",
+			FromBackup:                      spec.FromBackup,
+			RestoreVolumeRecurringJob:       spec.RestoreVolumeRecurringJob,
+			DataSource:                      spec.DataSource,
+			CloneMode:                       spec.CloneMode,
+			NumberOfReplicas:                spec.NumberOfReplicas,
+			ReplicaAutoBalance:              spec.ReplicaAutoBalance,
+			DataLocality:                    spec.DataLocality,
+			StaleReplicaTimeout:             spec.StaleReplicaTimeout,
+			BackingImage:                    spec.BackingImage,
+			Standby:                         spec.Standby,
+			DiskSelector:                    spec.DiskSelector,
+			NodeSelector:                    spec.NodeSelector,
+			RevisionCounterDisabled:         spec.RevisionCounterDisabled,
+			SnapshotDataIntegrity:           spec.SnapshotDataIntegrity,
+			SnapshotMaxCount:                spec.SnapshotMaxCount,
+			SnapshotMaxSize:                 spec.SnapshotMaxSize,
+			BackupCompressionMethod:         spec.BackupCompressionMethod,
+			BackupBlockSize:                 spec.BackupBlockSize,
+			UnmapMarkSnapChainRemoved:       spec.UnmapMarkSnapChainRemoved,
+			ReplicaSoftAntiAffinity:         spec.ReplicaSoftAntiAffinity,
+			ReplicaZoneSoftAntiAffinity:     spec.ReplicaZoneSoftAntiAffinity,
+			ReplicaDiskSoftAntiAffinity:     spec.ReplicaDiskSoftAntiAffinity,
+			DataEngine:                      spec.DataEngine,
+			FreezeFilesystemForSnapshot:     spec.FreezeFilesystemForSnapshot,
+			BackupTargetName:                backupTargetName,
+			OfflineRebuilding:               spec.OfflineRebuilding,
+			ReplicaRebuildingBandwidthLimit: spec.ReplicaRebuildingBandwidthLimit,
 		},
 	}
 
@@ -235,7 +240,7 @@ func (m *VolumeManager) Attach(name, nodeID string, disableFrontend bool, attach
 		return nil, err
 	}
 
-	if isReady, err := m.ds.CheckDataEngineImageReadyOnAtLeastOneVolumeReplica(v.Spec.Image, v.Name, node.Name, v.Spec.DataLocality, v.Spec.DataEngine); !isReady {
+	if isReady, err := m.ds.IsDataEngineImageReady(v.Spec.Image, v.Name, node.Name, v.Spec.DataLocality, v.Spec.DataEngine); !isReady {
 		if err != nil {
 			return nil, errors.Wrapf(err, "cannot attach volume %v with image %v", v.Name, v.Spec.Image)
 		}
@@ -602,6 +607,30 @@ func (m *VolumeManager) CancelExpansion(volumeName string) (v *longhorn.Volume, 
 	return v, nil
 }
 
+func (m *VolumeManager) UpdateOfflineRebuilding(volumeName string, offlineRebuildMode longhorn.VolumeOfflineRebuilding) (v *longhorn.Volume, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "unable to rebuild the offline volume %v", volumeName)
+	}()
+
+	v, err = m.ds.GetVolume(volumeName)
+	if err != nil {
+		return nil, err
+	}
+
+	if v.Spec.OfflineRebuilding == offlineRebuildMode {
+		return v, nil
+	}
+
+	v.Spec.OfflineRebuilding = offlineRebuildMode
+	v, err = m.ds.UpdateVolume(v)
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Infof("Updated volume %v offline rebuilding to %v", volumeName, v.Spec.OfflineRebuilding)
+	return v, nil
+}
+
 func (m *VolumeManager) TrimFilesystem(name string) (v *longhorn.Volume, err error) {
 	defer func() {
 		err = errors.Wrapf(err, "unable to trim filesystem for volume %v", name)
@@ -657,7 +686,11 @@ func (m *VolumeManager) trimRWXVolumeFilesystem(volumeName string, encryptedDevi
 	if err != nil {
 		return errors.Wrapf(err, "failed to launch gRPC client for share manager before trimming volume %v", volumeName)
 	}
-	defer client.Close()
+	defer func(client io.Closer) {
+		if closeErr := client.Close(); closeErr != nil {
+			logrus.WithError(closeErr).Warn("Failed to close share manager client")
+		}
+	}(client)
 
 	return client.FilesystemTrim(encryptedDevice)
 }
@@ -713,34 +746,10 @@ func (m *VolumeManager) DeleteVolumeRecurringJob(volumeName string, name string,
 }
 
 func (m *VolumeManager) DeleteReplica(volumeName, replicaName string) error {
-	healthyReplica := ""
-	rs, err := m.ds.ListVolumeReplicas(volumeName)
-	if err != nil {
-		return err
-	}
-	if _, exists := rs[replicaName]; !exists {
-		return fmt.Errorf("cannot find replica %v of volume %v", replicaName, volumeName)
-	}
-	for _, r := range rs {
-		if r.Name == replicaName {
-			continue
-		}
-		if !datastore.IsAvailableHealthyReplica(r) {
-			continue
-		}
-		if r.Spec.EvictionRequested {
-			continue
-		}
-		healthyReplica = r.Name
-		break
-	}
-	if healthyReplica == "" {
-		return fmt.Errorf("no other healthy replica available, cannot delete replica %v since it may still contain data for recovery", replicaName)
-	}
 	if err := m.ds.DeleteReplica(replicaName); err != nil {
 		return err
 	}
-	logrus.Infof("Deleted replica %v of volume %v, there is still at least one available healthy replica %v", replicaName, volumeName, healthyReplica)
+	logrus.Infof("Deleted replica %v of volume %v", replicaName, volumeName)
 	return nil
 }
 
@@ -1186,6 +1195,32 @@ func (m *VolumeManager) UpdateSnapshotMaxSize(name string, snapshotMaxSize int64
 	}
 
 	logrus.Infof("Updated volume %s field SnapshotMaxSize from %d to %d", v.Name, oldSnapshotMaxSize, snapshotMaxSize)
+	return v, nil
+}
+
+func (m *VolumeManager) UpdateReplicaRebuildingBandwidthLimit(name string, replicaRebuildingBandwidthLimit int64) (v *longhorn.Volume, err error) {
+	defer func() {
+		err = errors.Wrapf(err, "unable to update field ReplicaRebuildingBandwidthLimit for volume %s", name)
+	}()
+
+	v, err = m.ds.GetVolume(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if v.Spec.ReplicaRebuildingBandwidthLimit == replicaRebuildingBandwidthLimit {
+		logrus.Debugf("Volume %s already set field ReplicaRebuildingBandwidthLimit to %d", v.Name, replicaRebuildingBandwidthLimit)
+		return v, nil
+	}
+
+	oldReplicaRebuildingBandwidthLimit := v.Spec.ReplicaRebuildingBandwidthLimit
+	v.Spec.ReplicaRebuildingBandwidthLimit = replicaRebuildingBandwidthLimit
+	v, err = m.ds.UpdateVolume(v)
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Infof("Updated volume %s field ReplicaRebuildingBandwidthLimit from %d to %d", v.Name, oldReplicaRebuildingBandwidthLimit, replicaRebuildingBandwidthLimit)
 	return v, nil
 }
 

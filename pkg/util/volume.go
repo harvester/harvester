@@ -3,14 +3,19 @@ package util
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/settings"
+	lh "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -18,11 +23,56 @@ const (
 	AnnBetaStorageProvisioner = "volume.beta.kubernetes.io/storage-provisioner"
 	LonghornDataLocality      = "dataLocality"
 	IndexPodByPVC             = "indexPodByPVC"
+	rwxVolumeDisplayMax       = 3
 )
 
 var (
 	PersistentVolumeClaimsKind = schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolumeClaim"}
 )
+
+// VolumeClaimTemplateEntry represents a single entry in the volumeClaimTemplates annotation.
+// PVC fields are inlined so access patterns remain the same as the legacy []PVC format.
+// The optional TargetVolume field is used for storage migration.
+type VolumeClaimTemplateEntry struct {
+	corev1.PersistentVolumeClaim `json:",inline"`
+	TargetVolume                 string `json:"targetVolume,omitempty"`
+}
+
+// UnmarshalVolumeClaimTemplates parses the volumeClaimTemplates annotation value.
+// The inline embedding makes the format backward compatible with the legacy []PVC format.
+func UnmarshalVolumeClaimTemplates(data string) ([]VolumeClaimTemplateEntry, error) {
+	if data == "" {
+		return nil, nil
+	}
+
+	var entries []VolumeClaimTemplateEntry
+	if err := json.Unmarshal([]byte(data), &entries); err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
+// MarshalVolumeClaimTemplates serializes entries to JSON for the annotation.
+func MarshalVolumeClaimTemplates(entries []VolumeClaimTemplateEntry) (string, error) {
+	if len(entries) == 0 {
+		return "", nil
+	}
+	data, err := json.Marshal(entries)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// GetPVCsFromVolumeClaimTemplates extracts the PVC list from entries.
+func GetPVCsFromVolumeClaimTemplates(entries []VolumeClaimTemplateEntry) []*corev1.PersistentVolumeClaim {
+	pvcs := make([]*corev1.PersistentVolumeClaim, 0, len(entries))
+	for i := range entries {
+		pvc := entries[i].PersistentVolumeClaim
+		pvcs = append(pvcs, &pvc)
+	}
+	return pvcs
+}
 
 func GetCSIProvisionerSnapshotCapability(provisioner string) bool {
 	csiDriverConfig := make(map[string]settings.CSIDriverInfo)
@@ -135,4 +185,48 @@ func GetCSIOnlineExpandValidation(
 	}
 
 	return coev[provisioner], nil
+}
+
+// IsVolumeSnapshotReady checks if a VolumeSnapshot is ready to use.
+// Returns true if the VolumeSnapshot status is set and ReadyToUse is true.
+func IsVolumeSnapshotReady(vs *snapshotv1.VolumeSnapshot) bool {
+	if vs == nil {
+		return false
+	}
+	return vs.Status != nil && vs.Status.ReadyToUse != nil && *vs.Status.ReadyToUse
+}
+
+// CheckRWXNonMigratableVolumesDetached returns an error listing attached non-migratable RWX volumes if any exist.
+func CheckRWXNonMigratableVolumesDetached(volumeCache ctllhv1.VolumeCache) error {
+	volumes, err := volumeCache.List(LonghornSystemNamespaceName, labels.Everything())
+	if err != nil {
+		return fmt.Errorf("failed to list longhorn volumes: %v", err)
+	}
+
+	attached := make([]string, 0)
+	for _, volume := range volumes {
+		if volume.Spec.AccessMode != lh.AccessModeReadWriteMany {
+			continue
+		}
+		// Migratable volumes are VM live-migration block devices, not RWX
+		// filesystem volumes; they don't use the RWX network path.
+		if volume.Spec.Migratable {
+			continue
+		}
+		if volume.Status.State != lh.VolumeStateDetached {
+			attached = append(attached, volume.Name)
+		}
+	}
+
+	if len(attached) == 0 {
+		return nil
+	}
+
+	display := attached
+	suffix := ""
+	if len(attached) > rwxVolumeDisplayMax {
+		display = attached[:rwxVolumeDisplayMax]
+		suffix = "..."
+	}
+	return fmt.Errorf("there are RWX volumes not in detached state: %s", strings.Join(display, ", ")+suffix)
 }

@@ -10,6 +10,7 @@ const (
 	AnnotationMigrationState            = prefix + "/migrationState"
 	AnnotationTimestamp                 = prefix + "/timestamp"
 	AnnotationVolumeClaimTemplates      = prefix + "/volumeClaimTemplates"
+	AnnotationWaitingStorageMigration   = prefix + "/waitingStorageMigration"
 	AnnotationUpgradePatched            = prefix + "/upgrade-patched"
 	AnnotationImageID                   = prefix + "/imageId"
 	AnnotationReservedMemory            = prefix + "/reservedMemory"
@@ -20,7 +21,6 @@ const (
 	AnnotationSVMBackupID               = prefix + "/svmbackupId"
 	AnnotationSVMBackupSkipCronCheck    = prefix + "/svmbackupSkipCronCheck"
 	AnnotationGoldenImage               = prefix + "/goldenImage"
-	AnnotationVolForVM                  = prefix + "/volumeForVirtualMachine"
 	LabelImageDisplayName               = prefix + "/imageDisplayName"
 	LabelSetting                        = prefix + "/setting"
 	LabelVMName                         = prefix + "/vmName"
@@ -119,6 +119,7 @@ const (
 	RancherMonitoringName               = "rancher-monitoring"
 	CattleMonitoringSystemNamespaceName = "cattle-monitoring-system"
 	HarvesterVMImportController         = "vm-import-controller-harvester-vm-import-controller"
+	KubeOVNOperatorName                 = "kubeovn-operator"
 	// kubevirt create a CRD object automatically: type kubevirt, name kubevirt, namespace: harvester-system
 	// this object stores all kubevirt related configuration
 	KubeVirtObjectName = "kubevirt"
@@ -139,8 +140,6 @@ const (
 	// CDI constants
 	CSIProvisionerLVM      = "lvm.driver.harvesterhci.io"
 	CSIProvisionerLonghorn = "driver.longhorn.io"
-	KindVolumeImportSource = "VolumeImportSource"
-	ImportSourceFSBlank    = "filesystem-blank-source"
 	LVMTopologyNodeKey     = "topology.lvm.csi/node"
 
 	// CSI constants
@@ -232,9 +231,9 @@ const (
 	LabelCPUManagerUpdatePolicy      = prefix + "/cpu-manager-update-policy"
 	LabelCPUManagerExitCode          = prefix + "/cpu-manager-exit-code"
 
-	VClusterNamespace          = "rancher-vcluster"
-	LablelVClusterAppNameKey   = "app"
-	LablelVClusterAppNameValue = "vcluster"
+	VClusterNamespace         = "rancher-vcluster"
+	LabelAppNameKey           = "app"
+	LabelVClusterAppNameValue = "vcluster"
 
 	StorageClassHarvesterLonghorn  = "harvester-longhorn"  // the initial & default storageclass
 	StorageClassLonghornStatic     = "longhorn-static"     // internal storageclass used for management of existing Longhorn volumes
@@ -263,6 +262,17 @@ const (
 
 	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
 	StorageNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
+
+	RWXNetworkAnnotation       = "rwx-network.settings.harvesterhci.io"
+	RWXHashNetworkAnnotation   = RWXNetworkAnnotation + "/hash"
+	RWXNadNetworkAnnotation    = RWXNetworkAnnotation + "/net-attach-def"
+	RWXOldNadNetworkAnnotation = RWXNetworkAnnotation + "/old-net-attach-def"
+	RWXNetworkInitializedAnno  = RWXNetworkAnnotation + "/initialized"
+
+	RWXHashNetworkLabel = RWXHashNetworkAnnotation
+
+	RWXNetworkNetAttachDefPrefix    = "rwx-network-"
+	RWXNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
 
 	HarvesterCRDManagedChart         = "harvester-crd"
 	HarvesterManagedChart            = "harvester"

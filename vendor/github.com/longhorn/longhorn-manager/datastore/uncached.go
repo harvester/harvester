@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -25,6 +26,15 @@ import (
 // For example, support bundle creation
 func (s *DataStore) GetLonghornEventList() (*corev1.EventList, error) {
 	return s.kubeClient.CoreV1().Events(s.namespace).List(context.TODO(), metav1.ListOptions{FieldSelector: "involvedObject.apiVersion=longhorn.io/v1beta2"})
+}
+
+// GetResourceEventList retrieves a list of events associated with a specific resource
+// in the given namespace. It queries the Kubernetes API for events where the involved
+// object matches the provided kind and name.
+func (s *DataStore) GetResourceEventList(kind, name, namespace string) (*corev1.EventList, error) {
+	return s.kubeClient.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{
+		FieldSelector: fmt.Sprintf("involvedObject.name=%s,involvedObject.kind=%s", name, kind),
+	})
 }
 
 // GetAllPodsList returns an uncached list of pods for the given namespace
