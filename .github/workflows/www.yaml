@@ -1,0 +1,35 @@
+name: Bump golang version
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run every day at 08:00 UTC
+    - cron: "0 8 * * *"
+
+jobs:
+  updatecli:
+    name: Bump golang version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Updatecli
+        uses: updatecli/updatecli-action@4b17f4ea784de29f71f85f9bc4955402ba1ae53c # v2.100.0
+
+      - name: Diff (dry-run on PR)
+        if: github.ref != 'refs/heads/master'
+        env:
+          GITHUB_TOKEN: ${{ secrets.HARVESTER_TOKEN }}
+        run: |
+          updatecli diff ghcr.io/pohanhuang/harvester/golang/version:0.1.0
+
+      - name: Apply
+        if: github.ref == 'refs/heads/master'
+        env:
+          GITHUB_TOKEN: ${{ secrets.HARVESTER_TOKEN }}
+        run: |
+          updatecli apply ghcr.io/pohanhuang/harvester/golang/version:0.1.0
