@@ -3,6 +3,8 @@ package virtualmachine
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -21,6 +23,7 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/network"
 	"github.com/harvester/harvester/pkg/util/virtualmachine"
+	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 )
@@ -72,7 +75,7 @@ func (m *vmMutator) Resource() types.Resource {
 	}
 }
 
-func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.PatchOps, error) {
+func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types.PatchOps, error) {
 	vm := newObj.(*kubevirtv1.VirtualMachine)
 
 	logrus.Debugf("create VM %s/%s", vm.Namespace, vm.Name)
@@ -83,6 +86,10 @@ func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patch
 	}
 
 	patchOps = patchDefaultCPU(vm, patchOps)
+
+	if err := checkCpuManagerAffinityTermChanged(request, nil, vm); err != nil {
+		return nil, err
+	}
 
 	patchOps, err = m.patchAffinity(vm, patchOps)
 	if err != nil {
@@ -107,7 +114,7 @@ func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patch
 	return patchOps, nil
 }
 
-func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
+func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
 	newVM := newObj.(*kubevirtv1.VirtualMachine)
 	oldVM := oldObj.(*kubevirtv1.VirtualMachine)
 
@@ -136,6 +143,10 @@ func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runti
 
 	if needUpdateRunStrategy {
 		patchOps = patchRunStrategy(newVM, patchOps)
+	}
+
+	if err := checkCpuManagerAffinityTermChanged(request, oldVM, newVM); err != nil {
+		return nil, err
 	}
 
 	patchOps, err = m.patchAffinity(newVM, patchOps)
@@ -845,4 +856,45 @@ func (m *vmMutator) patchManagedTapBinding(vm *kubevirtv1.VirtualMachine, patchO
 	}
 
 	return patchOps, nil
+}
+
+func checkCpuManagerAffinityTermChanged(request *types.Request, oldVM, newVM *kubevirtv1.VirtualMachine) error {
+	if request != nil && request.IsFromController() {
+		return nil
+	}
+	getCPUManagerExprs := func(vm *kubevirtv1.VirtualMachine) []v1.NodeSelectorRequirement {
+		if vm == nil || vm.Spec.Template == nil {
+			return nil
+		}
+		affinity := vm.Spec.Template.Spec.Affinity
+		if affinity == nil || affinity.NodeAffinity == nil ||
+			affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+			return nil
+		}
+		var exprs []v1.NodeSelectorRequirement
+		for _, term := range affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
+			for _, expr := range term.MatchExpressions {
+				if expr.Key == kubevirtv1.CPUManager {
+					exprs = append(exprs, expr)
+				}
+			}
+		}
+		if len(exprs) > 1 {
+			slices.SortFunc(exprs, func(a, b v1.NodeSelectorRequirement) int {
+				if cmp := strings.Compare(string(a.Operator), string(b.Operator)); cmp != 0 {
+					return cmp
+				}
+				return strings.Compare(fmt.Sprintf("%v", a.Values), fmt.Sprintf("%v", b.Values))
+			})
+		}
+		return exprs
+	}
+
+	if reflect.DeepEqual(getCPUManagerExprs(oldVM), getCPUManagerExprs(newVM)) {
+		return nil
+	}
+	return werror.NewInvalidError(
+		fmt.Sprintf("key %q is automatically operated by Harvester controller and can't be changed manually", kubevirtv1.CPUManager),
+		"spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution",
+	)
 }

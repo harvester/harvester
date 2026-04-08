@@ -9,7 +9,10 @@ import (
 	"testing"
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	"github.com/rancher/wrangler/v3/pkg/webhook"
 	"github.com/stretchr/testify/assert"
+	admissionv1 "k8s.io/api/admission/v1"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,13 +24,15 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	"github.com/harvester/harvester/pkg/webhook/config"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	kubeovnapiv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 )
 
 const (
-	replaceOP        = "replace"
-	nodeAffinityPath = "/spec/template/spec/affinity"
+	replaceOP                   = "replace"
+	nodeAffinityPath            = "/spec/template/spec/affinity"
+	harvesterControllerUsername = "harvester-controller"
 )
 
 func setupTestMutator(clientset *fake.Clientset) types.Mutator {
@@ -53,6 +58,7 @@ func createTestVM(
 	memory *kubevirtv1.Memory,
 	annotations map[string]string,
 	namespace, name string,
+	affinity *v1.Affinity,
 ) *kubevirtv1.VirtualMachine {
 	return &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
@@ -64,6 +70,7 @@ func createTestVM(
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{},
 				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Affinity: affinity,
 					Domain: kubevirtv1.DomainSpec{
 						Resources: resourceReq,
 						Memory:    memory,
@@ -344,7 +351,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			createDefaultKubeVirt(clientset)
 			mutator := setupTestMutator(clientset)
 
-			vm := createTestVM(tc.resourceReq, tc.memory, annotations, "", "")
+			vm := createTestVM(tc.resourceReq, tc.memory, annotations, "", "", nil)
 
 			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
 
@@ -538,7 +545,7 @@ func TestPatchResourceOvercommitWithAdditionalGuestMemoryOverheadRatio(t *testin
 			setConfig(clientset, tc)
 			createDefaultKubeVirt(clientset)
 			mutator := setupTestMutator(clientset)
-			vm := createTestVM(tc.resourceReq, tc.memory, annotations, "", "")
+			vm := createTestVM(tc.resourceReq, tc.memory, annotations, "", "", nil)
 
 			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
 			assert.Nil(t, err, tc.name)
@@ -1787,6 +1794,398 @@ func TestPatchManagedTapBinding(t *testing.T) {
 				assert.Equal(t, expected.Value, actual.Value)
 			}
 		})
+	}
+}
+
+func TestMutatorCreate(t *testing.T) {
+	createReq := kubevirtv1.ResourceRequirements{
+		Limits: map[v1.ResourceName]resource.Quantity{
+			v1.ResourceMemory: resource.MustParse("1Gi"),
+			v1.ResourceCPU:    resource.MustParse("1"),
+		},
+	}
+	tests := []struct {
+		name          string
+		request       *types.Request
+		vm            *kubevirtv1.VirtualMachine
+		expectedError bool
+	}{
+		{
+			name:    "user injects cpumanager term on create – rejected",
+			request: newMutatorUserRequest("harvester"),
+			vm: createTestVM(createReq, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      kubevirtv1.CPUManager,
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"true"},
+				}},
+			})),
+			expectedError: true,
+		},
+		{
+			name:    "controller sets cpumanager term on create – allowed",
+			request: newMutatorControllerRequest(),
+			vm: createTestVM(createReq, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      kubevirtv1.CPUManager,
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"true"},
+				}},
+			})),
+			expectedError: false,
+		},
+		{
+			name:          "user creates VM without cpumanager term – allowed",
+			request:       newMutatorUserRequest("harvester"),
+			vm:            createTestVM(createReq, nil, nil, "default", "test-vm", nil),
+			expectedError: false,
+		},
+		{
+			name:    "user injects cpumanager among other keys on create – rejected",
+			request: newMutatorUserRequest("harvester"),
+			vm: createTestVM(createReq, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{
+					{
+						Key:      "custom/node-label",
+						Operator: v1.NodeSelectorOpIn,
+						Values:   []string{"zone-a"},
+					},
+					{
+						Key:      kubevirtv1.CPUManager,
+						Operator: v1.NodeSelectorOpIn,
+						Values:   []string{"true"},
+					},
+				},
+			})),
+			expectedError: true,
+		},
+		{
+			name:    "user creates VM with non-cpumanager affinity only – allowed",
+			request: newMutatorUserRequest("harvester"),
+			vm: createTestVM(createReq, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      "custom/node-label",
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"zone-a"},
+				}},
+			})),
+			expectedError: false,
+		},
+	}
+
+	setup := func() types.Mutator {
+		clientset := fake.NewSimpleClientset()
+		createDefaultKubeVirt(clientset)
+		err := clientset.Tracker().Add(&harvesterv1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.OvercommitConfigSettingName},
+			Default:    `{"cpu":100,"memory":100,"storage":100}`,
+		})
+		assert.NoError(t, err)
+		return setupTestMutator(clientset)
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := setup().(*vmMutator).Create(tc.request, tc.vm)
+			if tc.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestMutatorUpdate(t *testing.T) {
+	tests := []struct {
+		name          string
+		request       *types.Request
+		oldVM         *kubevirtv1.VirtualMachine
+		newVM         *kubevirtv1.VirtualMachine
+		expectedError bool
+	}{
+		{
+			name:    "user passes through unchanged cpumanager term – allowed",
+			request: newMutatorUserRequest("harvester"),
+			oldVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      kubevirtv1.CPUManager,
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"true"},
+				}},
+			})),
+			newVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      kubevirtv1.CPUManager,
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"true"},
+				}},
+			})),
+			expectedError: false,
+		},
+		{
+			name:    "user modifies cpumanager term value – rejected",
+			request: newMutatorUserRequest("harvester"),
+			oldVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      kubevirtv1.CPUManager,
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"true"},
+				}},
+			})),
+			newVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      kubevirtv1.CPUManager,
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"false"},
+				}},
+			})),
+			expectedError: true,
+		},
+		{
+			name:    "cpumanager term removed (CPU pinning off) – rejected",
+			request: newMutatorUserRequest("harvester"),
+			oldVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      kubevirtv1.CPUManager,
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"true"},
+				}},
+			})),
+			newVM:         createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", nil),
+			expectedError: true,
+		},
+		{
+			name:          "no cpumanager term in either VM – allowed",
+			request:       newMutatorUserRequest("harvester"),
+			oldVM:         createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", nil),
+			newVM:         createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", nil),
+			expectedError: false,
+		},
+		{
+			name:    "user modifies non-cpumanager node affinity – allowed",
+			request: newMutatorUserRequest("harvester"),
+			oldVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      "custom/node-label",
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"zone-a"},
+				}},
+			})),
+			newVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      "custom/node-label",
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"zone-b"},
+				}},
+			})),
+			expectedError: false,
+		},
+		{
+			name:    "user modifies network.harvesterhci.io affinity key – allowed (key is later dropped by mutator)",
+			request: newMutatorUserRequest("harvester"),
+			oldVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      networkGroup + "/mgmt",
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"true"},
+				}},
+			})),
+			newVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      networkGroup + "/vlan100",
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"true"},
+				}},
+			})),
+			expectedError: false,
+		},
+		{
+			name:    "user modifies non-cpumanager key in mixed term (cpumanager unchanged) – allowed",
+			request: newMutatorUserRequest("harvester"),
+			oldVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{
+					{Key: "custom/node-label", Operator: v1.NodeSelectorOpIn, Values: []string{"zone-a"}},
+					{Key: kubevirtv1.CPUManager, Operator: v1.NodeSelectorOpIn, Values: []string{"true"}},
+				},
+			})),
+			newVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{
+					{Key: "custom/node-label", Operator: v1.NodeSelectorOpIn, Values: []string{"zone-b"}},
+					{Key: kubevirtv1.CPUManager, Operator: v1.NodeSelectorOpIn, Values: []string{"true"}},
+				},
+			})),
+			expectedError: false,
+		},
+		{
+			name:    "user modifies cpumanager key in mixed term – rejected",
+			request: newMutatorUserRequest("harvester"),
+			oldVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{
+					{Key: "custom/node-label", Operator: v1.NodeSelectorOpIn, Values: []string{"zone-a"}},
+					{Key: kubevirtv1.CPUManager, Operator: v1.NodeSelectorOpIn, Values: []string{"true"}},
+				},
+			})),
+			newVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{
+					{Key: "custom/node-label", Operator: v1.NodeSelectorOpIn, Values: []string{"zone-a"}},
+					{Key: kubevirtv1.CPUManager, Operator: v1.NodeSelectorOpIn, Values: []string{"false"}},
+				},
+			})),
+			expectedError: true,
+		},
+		{
+			name:    "user injects cpumanager in second term while first term unchanged – rejected",
+			request: newMutatorUserRequest("harvester"),
+			oldVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{MatchExpressions: []v1.NodeSelectorRequirement{
+								{Key: kubevirtv1.CPUManager, Operator: v1.NodeSelectorOpIn, Values: []string{"true"}},
+							}},
+						},
+					},
+				},
+			}),
+			newVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{MatchExpressions: []v1.NodeSelectorRequirement{
+								{Key: kubevirtv1.CPUManager, Operator: v1.NodeSelectorOpIn, Values: []string{"true"}},
+							}},
+							{MatchExpressions: []v1.NodeSelectorRequirement{
+								{Key: kubevirtv1.CPUManager, Operator: v1.NodeSelectorOpIn, Values: []string{"false"}},
+							}},
+						},
+					},
+				},
+			}),
+			expectedError: true,
+		},
+		{
+			name:    "two cpumanager exprs with different operators in reversed term order – allowed (sort by operator)",
+			request: newMutatorUserRequest("harvester"),
+			oldVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{MatchExpressions: []v1.NodeSelectorRequirement{
+								{Key: kubevirtv1.CPUManager, Operator: v1.NodeSelectorOpIn, Values: []string{"true"}},
+							}},
+							{MatchExpressions: []v1.NodeSelectorRequirement{
+								{Key: kubevirtv1.CPUManager, Operator: v1.NodeSelectorOpNotIn, Values: []string{"false"}},
+							}},
+						},
+					},
+				},
+			}),
+			newVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{MatchExpressions: []v1.NodeSelectorRequirement{
+								{Key: kubevirtv1.CPUManager, Operator: v1.NodeSelectorOpNotIn, Values: []string{"false"}},
+							}},
+							{MatchExpressions: []v1.NodeSelectorRequirement{
+								{Key: kubevirtv1.CPUManager, Operator: v1.NodeSelectorOpIn, Values: []string{"true"}},
+							}},
+						},
+					},
+				},
+			}),
+			expectedError: false,
+		},
+		{
+			name:    "controller modifies cpumanager term – allowed",
+			request: newMutatorControllerRequest(),
+			oldVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      kubevirtv1.CPUManager,
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"true"},
+				}},
+			})),
+			newVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      kubevirtv1.CPUManager,
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"false"},
+				}},
+			})),
+			expectedError: false,
+		},
+		{
+			name:    "controller modifies non-cpumanager term – allowed",
+			request: newMutatorControllerRequest(),
+			oldVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      "custom/node-label",
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"zone-a"},
+				}},
+			})),
+			newVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{{
+					Key:      "custom/node-label",
+					Operator: v1.NodeSelectorOpIn,
+					Values:   []string{"zone-b"},
+				}},
+			})),
+			expectedError: false,
+		},
+	}
+
+	setup := func() types.Mutator {
+		clientset := fake.NewSimpleClientset()
+		createDefaultKubeVirt(clientset)
+		return setupTestMutator(clientset)
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := setup().(*vmMutator).Update(tc.request, tc.oldVM, tc.newVM)
+			if tc.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func newMutatorUserRequest(username string) *types.Request {
+	return types.NewRequest(
+		&webhook.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				UserInfo: authenticationv1.UserInfo{Username: username},
+			},
+		},
+		&config.Options{HarvesterControllerUsername: harvesterControllerUsername},
+	)
+}
+
+func newMutatorControllerRequest() *types.Request {
+	return types.NewRequest(
+		&webhook.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				UserInfo: authenticationv1.UserInfo{Username: harvesterControllerUsername},
+			},
+		},
+		&config.Options{HarvesterControllerUsername: harvesterControllerUsername},
+	)
+}
+
+func affinityForTerm(term *v1.NodeSelectorTerm) *v1.Affinity {
+	if term == nil {
+		return nil
+	}
+	return &v1.Affinity{
+		NodeAffinity: &v1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+				NodeSelectorTerms: []v1.NodeSelectorTerm{*term},
+			},
+		},
 	}
 }
 
