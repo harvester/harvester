@@ -1,0 +1,3 @@
+docker:
+  matcher: "golang"
+  suffix: "-bookworm"
