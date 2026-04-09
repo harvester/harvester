@@ -18,6 +18,9 @@ The proposal aligns with Harvester v1.7+ networking architecture, which uses Net
 - https://github.com/harvester/harvester/issues/2962
 - https://github.com/k3s-io/k3s/issues/284
 - https://github.com/flannel-io/flannel/pull/1398
+- https://github.com/flannel-io/flannel/pull/1448
+- https://docs.rke2.io/networking/basic_network_options#dual-stack-configuration
+- https://ranchermanager.docs.rancher.com/reference-guides/cluster-configuration/rancher-server-configuration/rke2-cluster-configuration#networking
 
 ## Terminology
 
@@ -26,6 +29,33 @@ The proposal aligns with Harvester v1.7+ networking architecture, which uses Net
 - SLAAC: Stateless Address Autoconfiguration for IPv6. The host derives its address from a Router Advertisement prefix — no server is required. This is the native IPv6 dynamic addressing mechanism, analogous to DHCPv4 for IPv4 in environments that do not use manually assigned addresses.
 - RA: Router Advertisement for IPv6 route and prefix discovery. Required for SLAAC and default gateway assignment.
 - DHCPv6: A server-based dynamic address assignment mechanism for IPv6. Not in scope for this HEP; see Non-goals.
+- NDP: Neighbor Discovery Protocol. The IPv6 equivalent of ARP. Used by kube-vip to advertise an IPv6 VIP on the local management network segment.
+- VIP: Virtual IP address. The stable management address for the Harvester UI and API, advertised by kube-vip. In IPv6-only mode this is an IPv6 address accessed via bracket notation, for example `https://[2001:db8::10]`.
+- node-ip: The address a Kubernetes node advertises to the control plane. RKE2 exposes this as `--node-ip`. In dual-stack, two values are required, one per address family.
+
+## IP Family Modes
+
+Harvester management and host networking can be configured in three IP family modes. The mode is chosen at install time and determines how nodes, the management VIP, the Kubernetes control plane, and host interfaces are addressed.
+
+| | IPv4-only | Dual-stack | IPv6-only |
+|---|---|---|---|
+| Management addresses | IPv4 | IPv4 + IPv6 | IPv6 |
+| Kubernetes cluster-cidr | IPv4 prefix | IPv4 + IPv6 prefixes | IPv6 prefix |
+| Kubernetes service-cidr | IPv4 prefix | IPv4 + IPv6 prefixes | IPv6 prefix |
+| Pod IPs | IPv4 | IPv4 + IPv6 | IPv6 |
+| Service IPs | IPv4 | IPv4 + IPv6 | IPv6 |
+| Management VIP | IPv4 | IPv4 + IPv6 | IPv6 |
+| VIP advertisement | ARP | ARP + NDP | NDP |
+| Management URL | `https://<vip>` | `https://<vip-v4>` | `https://[<vip-v6>]` |
+| Addressing mode (mgmt) | DHCP or static | Static required | Static required |
+
+### Advantages and trade-offs
+
+**IPv4-only** — Current default. Maximum compatibility with clients, tooling, and integrations. No IPv6 infrastructure required. Use where IPv4 addresses are available and IPv6 is not a requirement.
+
+**Dual-stack** — Both address families are routable simultaneously. Clients can reach the cluster via either family. Adds configuration complexity: each management interface has two addresses, RKE2 requires dual-prefix `cluster-cidr` and `service-cidr`, kube-vip must advertise two VIPs (ARP for IPv4, NDP for IPv6), and both must appear in `tls-san`. Failure modes can occur independently per family.
+
+**IPv6-only** — Required where IPv4 addresses are exhausted or not allocated. Eliminates NAT on the management segment. The management URL uses mandatory bracket notation (`https://[2001:db8::10]`); clients, DNS resolvers, and tooling must support IPv6 and AAAA records. Legacy IPv4-only integrations cannot reach the cluster directly. Rancher must also be reachable via IPv6 for cluster registration to work.
 
 ## Motivation
 
@@ -37,6 +67,9 @@ The proposal aligns with Harvester v1.7+ networking architecture, which uses Net
 - Support SLAAC mode for host VLAN sub-interfaces as the IPv6-native dynamic addressing mechanism.
 - Preserve backward compatibility for IPv4-only clusters.
 - Provide explicit upgrade and rollback guidance for IPv6-related configuration changes.
+- Configure kube-vip to advertise an IPv6 VIP via NDP for IPv6-only and dual-stack management networks, so the management URL is reachable over IPv6.
+- Configure RKE2 control-plane settings (node-ip, cluster-cidr, service-cidr, tls-san, stack-preference) for the selected IP family so the Kubernetes cluster operates correctly in IPv6 and dual-stack environments.
+- Enable IPv6 in the kube-ovn overlay that carries VM network traffic, so VM networks support IPv6 CIDR and gateway settings end-to-end.
 
 ### Non-goals
 
@@ -45,6 +78,9 @@ The proposal aligns with Harvester v1.7+ networking architecture, which uses Net
 - Automatic conversion of all existing IPv4-only user network definitions to IPv6.
 - Guest OS-specific network configuration inside the VM after NIC attachment.
 - DHCPv6 support. DHCPv6 requires server infrastructure that is not present in all IPv6 environments. IPv4 parity for dynamic addressing is satisfied by SLAAC for this HEP, since SLAAC is the infrastructure-free native mechanism. DHCPv6 can be revisited in a future HEP once SLAAC support is stable.
+- Storage network (SN) IPv6. Longhorn replication traffic runs over the storage network. IPv6 addressing on storage network interfaces is not in scope for this HEP. This is tracked as follow-on work for a subsequent release.
+- Rancher server IPv6 support. Rancher must be reachable via IPv6 for Harvester to register in IPv6-only deployments. Ensuring Rancher's own IPv6 reachability is out of scope for this HEP; the dependency is noted in the design. This is tracked as follow-on work for a subsequent release.
+- RKE2 guest cluster dual-stack provisioning. Provisioning RKE2 guest clusters with dual-stack networking via the Harvester node driver follows from Harvester host IPv6 support but is tracked as follow-on work for a subsequent release.
 
 ## Proposal
 
@@ -58,6 +94,9 @@ This enhancement covers:
 - SLAAC is the dynamic addressing mode for IPv6, equivalent in role to DHCPv4 for IPv4: it allows nodes to self-configure addresses from Router Advertisement prefixes without requiring manual per-node assignment or server infrastructure.
 - Validation and status conditions report IPv6-specific errors clearly.
 - Dual-stack support, meaning IPv4 and IPv6 enabled together.
+- RKE2 control-plane configuration (node-ip, cluster-cidr, service-cidr, tls-san, stack-preference) is generated by the installer for the selected IP family.
+- kube-vip VIP advertisement is configured for the selected IP family: ARP for IPv4, NDP for IPv6, or both for dual-stack. The installer config schema accepts an IPv6 VIP.
+- kube-ovn overlay IPv6: VM network traffic through the kube-ovn data plane supports IPv6 CIDR and gateway settings.
 
 ### User Stories
 
@@ -107,7 +146,7 @@ TODO: detail
 
 #### Cluster Network and Host Network Configuration
 
-- HostNetworkConfig is extended to represent IPv6 L3 addresses in both static and SLAAC modes. For the practical meaning of cluster network, bridge, bond, VLAN, and host-side networking, see [Cluster Network](https://docs.harvesterhci.io/v1.8/networking/) and the [Harvester Network Deep Dive](https://docs.harvesterhci.io/v1.8/networking/deep-dive).
+- HostNetworkConfig is extended to represent IPv6 L3 addresses in both static and SLAAC modes. For the practical meaning of cluster network, bridge, bond, VLAN, and host-side networking, see [Cluster Network](https://docs.harvesterhci.io/v1.8/networking/index) and the [Harvester Network Deep Dive](https://docs.harvesterhci.io/v1.8/networking/deep-dive).
 - Users can choose static or SLAAC for host VLAN sub-interfaces.
 - For SLAAC, the default gateway is not a config field — it is populated by the upstream router via Router Advertisement. The controller does not need to set a gateway explicitly.
 - Status conditions show per-node apply state and failure reason.
@@ -222,6 +261,27 @@ route:
   gatewayV6: 2001:db8:4000::1
 ```
 
+Example installer config additions for IPv6 VIP (dual-stack):
+
+```yaml
+install:
+  vip: 192.168.1.10       # existing IPv4 VIP
+  vipMode: static         # existing mode
+  vipV6: 2001:db8::10     # new: IPv6 VIP for dual-stack or IPv6-only
+```
+
+Example RKE2 config generated by the installer for dual-stack (`90-harvester-server.yaml`):
+
+```yaml
+cluster-cidr: 10.52.0.0/16,fd00:10:52::/56
+service-cidr: 10.53.0.0/16,fd00:10:53::/108
+node-ip: 192.168.1.11,2001:db8:100:10::11
+tls-san:
+  - 192.168.1.10     # IPv4 VIP
+  - 2001:db8::10     # IPv6 VIP
+stack-preference: dual  # controls loopback address for internal health probes (ipv4/ipv6/dual)
+```
+
 ## Design
 
 ### Implementation Overview
@@ -238,6 +298,10 @@ route:
 - Extend install management interface parsing and validation for IPv6 and dual-stack (static only for management interfaces).
 - Generate NetworkManager connection profiles with IPv6 settings for new installs.
 - Ensure generated profiles are persisted and re-generated consistently.
+- Accept an IPv6 VIP in the install config (`vipV6` field) for IPv6-only and dual-stack modes.
+- Generate RKE2 config (`90-harvester-server.yaml`) with appropriate node-ip, cluster-cidr, service-cidr (dual-prefix for dual-stack), tls-san for all configured VIPs, and stack-preference (ipv4/ipv6/dual) to control the loopback address used for internal health probes.
+- Configure kube-vip with ARP (IPv4), NDP (IPv6), or both (dual-stack) based on the selected IP family.
+- For IPv6-only: ensure `/etc/hosts` contains `::1 localhost` on each node, as required by RKE2 etcd liveness checks.
 
 2. harvester
 - Extend API validation/webhooks for IPv6 fields in relevant resources.
@@ -260,9 +324,15 @@ route:
 - Document that SLAAC requires a router sending Router Advertisements on the segment and that the gateway is not a user-configured field.
 - Add troubleshooting guidance for common IPv6 issues, including RA not received.
 
-6. charts and addons where applicable
+6. kube-ovn
+- Enable IPv6 address families in the kube-ovn overlay network used for VM traffic.
+- Align kube-ovn subnet and gateway configuration with IPv6 CIDR and gateway settings from VM network route specs.
+
+7. charts and addons where applicable
 - Validate default values and schema do not block IPv6 deployment.
 - Document required settings for integrated addons when dual-stack is enabled.
+
+**Note: Canal (Calico + Flannel) IPv6 overlay.** Canal automatically detects dual-stack when `cluster-cidr` and `service-cidr` contain both IPv4 and IPv6 prefixes — no separate HelmChartConfig is needed (see [RKE2 docs: dual-stack configuration](https://docs.rke2.io/networking/basic_network_options#dual-stack-configuration)). Flannel VXLAN dual-stack support has been in upstream Flannel since [flannel-io/flannel#1448](https://github.com/flannel-io/flannel/pull/1448) (Jul 2021) and is present in the hardened Flannel builds Harvester ships (`rancher/hardened-flannel:v0.28.1+`). Flannel also supports IPv6-only mode via `EnableIPv4: false`. The only required work is installer generation of the correct dual-stack or IPv6-only `cluster-cidr` and `service-cidr` values in `90-harvester-server.yaml`.
 
 ### Validation Rules
 
