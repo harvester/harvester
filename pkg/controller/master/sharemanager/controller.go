@@ -27,9 +27,9 @@ import (
 const (
 	shareManagerKind = "ShareManager"
 
-	shareManagerStaticIPStatusNoSourceNAD       = "storage network setting does not reference a source NAD"
+	shareManagerStaticIPStatusNoSourceNAD       = "rwx network configuration does not reference a source NAD"
 	shareManagerStaticIPStatusSourceNADNotFound = "source NAD is not available"
-	shareManagerStaticIPStatusNonStorageNAD     = "source NAD is not marked as a storage network"
+	shareManagerStaticIPStatusNonStorageNAD     = "source NAD is not marked as a storage or RWX network"
 	shareManagerStaticIPStatusNoExcludeRange    = "source NAD has no exclude range for static IP allocation"
 	shareManagerStaticIPStatusStaticNADPending  = "waiting for the derived static NAD"
 	shareManagerStaticIPStatusPoolPending       = "waiting for the derived static IP pool usage resource"
@@ -92,16 +92,10 @@ func (h *Handler) syncSourceNetworkAnnotations(m *longhornv1beta2.ShareManager) 
 		return nil
 	}
 
-	storageNetworkSetting, err := h.settingsCache.Get(settings.StorageNetworkName)
+	sourceNADName, err := h.getShareManagerSourceNADRef()
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			delete(m.Annotations, util.ShareManagerNADAnnotation)
-			return nil
-		}
 		return err
 	}
-
-	sourceNADName := storageNetworkSetting.Annotations[util.NadStorageNetworkAnnotation]
 	if sourceNADName == "" {
 		clearNetworkAnnotationsWithReason(m, shareManagerStaticIPStatusNoSourceNAD)
 		return nil
@@ -115,13 +109,64 @@ func (h *Handler) syncSourceNetworkAnnotations(m *longhornv1beta2.ShareManager) 
 		}
 		return err
 	}
-	if sourceNAD.Annotations[util.StorageNetworkAnnotation] != "true" {
+	if !isShareManagerSourceNAD(sourceNAD) {
 		clearNetworkAnnotationsWithReason(m, shareManagerStaticIPStatusNonStorageNAD)
 		return nil
 	}
 
 	m.Annotations[util.ShareManagerNADAnnotation] = sourceNADName
 	return nil
+}
+
+func (h *Handler) getShareManagerSourceNADRef() (string, error) {
+	rwxSetting, err := h.getRWXNetworkSetting()
+	if err != nil {
+		return "", err
+	}
+	if rwxSetting == nil {
+		storageSetting, err := h.getStorageNetworkSetting()
+		if err != nil || storageSetting == nil {
+			return "", err
+		}
+		return storageSetting.Annotations[util.NadStorageNetworkAnnotation], nil
+	}
+
+	rwxConfig, err := settings.GetRWXNetworkConfig(rwxSetting)
+	if err != nil {
+		return "", err
+	}
+	if rwxConfig.ShareStorageNetwork {
+		storageSetting, err := h.getStorageNetworkSetting()
+		if err != nil || storageSetting == nil {
+			return "", err
+		}
+		return storageSetting.Annotations[util.NadStorageNetworkAnnotation], nil
+	}
+
+	return rwxSetting.Annotations[util.RWXNadNetworkAnnotation], nil
+}
+
+func (h *Handler) getRWXNetworkSetting() (*harvesterv1beta1.Setting, error) {
+	if h.settingsCache == nil {
+		return nil, nil
+	}
+
+	setting, err := h.settingsCache.Get(settings.RWXNetworkSettingName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return setting, nil
+}
+
+func isShareManagerSourceNAD(sourceNAD *networkv1.NetworkAttachmentDefinition) bool {
+	if sourceNAD == nil {
+		return false
+	}
+	return sourceNAD.Annotations[util.StorageNetworkAnnotation] == "true" ||
+		sourceNAD.Annotations[util.RWXNetworkAnnotation] == "true"
 }
 
 func (h *Handler) OnShareManagerRemove(_ string, m *longhornv1beta2.ShareManager) (*longhornv1beta2.ShareManager, error) {

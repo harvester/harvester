@@ -10,20 +10,26 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
 
-func (h *Handler) OnStorageNetworkChange(_ string, setting *harvesterv1beta1.Setting) (*harvesterv1beta1.Setting, error) {
-	if setting == nil || setting.DeletionTimestamp != nil || !isStorageNetworkSetting(setting.Name) {
+func (h *Handler) reconcileDerivedNetworkResources(setting *harvesterv1beta1.Setting) (*harvesterv1beta1.Setting, error) {
+	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != settings.RWXNetworkSettingName {
 		return setting, nil
 	}
 
-	if err := h.ensureDerivedNetworkResources(setting.Annotations[util.NadStorageNetworkAnnotation]); err != nil {
+	currentSourceNADRef, oldSourceNADRef, err := h.getDerivedSourceNADRefs(setting)
+	if err != nil {
+		return setting, err
+	}
+
+	if err := h.ensureDerivedNetworkResources(currentSourceNADRef); err != nil {
 		return setting, err
 	}
 	if err := h.removeDerivedNetworkResources(
-		setting.Annotations[util.OldNadStorageNetworkAnnotation],
-		setting.Annotations[util.NadStorageNetworkAnnotation],
+		oldSourceNADRef,
+		currentSourceNADRef,
 	); err != nil {
 		return setting, err
 	}
@@ -32,6 +38,10 @@ func (h *Handler) OnStorageNetworkChange(_ string, setting *harvesterv1beta1.Set
 	}
 
 	return setting, nil
+}
+
+func (h *Handler) OnRWXNetworkChange(_ string, setting *harvesterv1beta1.Setting) (*harvesterv1beta1.Setting, error) {
+	return h.reconcileDerivedNetworkResources(setting)
 }
 
 func (h *Handler) ensureDerivedNetworkResources(sourceNADRef string) error {
@@ -60,6 +70,55 @@ func (h *Handler) ensureDerivedNetworkResources(sourceNADRef string) error {
 		return err
 	}
 	return h.ensureExcludeIPPoolUsage(newExcludeIPPoolUsage(sourceNAD, excludeCIDR))
+}
+
+func (h *Handler) getDerivedSourceNADRefs(setting *harvesterv1beta1.Setting) (string, string, error) {
+	rwxConfig, err := settings.GetRWXNetworkConfig(setting)
+	if err != nil {
+		return "", "", err
+	}
+	if rwxConfig.ShareStorageNetwork {
+		current, err := h.getSharedSourceNADRef()
+		if err != nil {
+			return "", "", err
+		}
+		return current, oldDerivedSourceNADRef(setting), nil
+	}
+
+	return setting.Annotations[util.RWXNadNetworkAnnotation], setting.Annotations[util.RWXOldNadNetworkAnnotation], nil
+}
+
+func (h *Handler) getSharedSourceNADRef() (string, error) {
+	storageSetting, err := h.getStorageNetworkSetting()
+	if err != nil {
+		return "", err
+	}
+	if storageSetting == nil {
+		return "", nil
+	}
+	return storageSetting.Annotations[util.NadStorageNetworkAnnotation], nil
+}
+
+func oldDerivedSourceNADRef(setting *harvesterv1beta1.Setting) string {
+	if old := setting.Annotations[util.RWXOldNadNetworkAnnotation]; old != "" {
+		return old
+	}
+	return setting.Annotations[util.RWXNadNetworkAnnotation]
+}
+
+func (h *Handler) getStorageNetworkSetting() (*harvesterv1beta1.Setting, error) {
+	if h.settingsCache == nil {
+		return nil, nil
+	}
+
+	setting, err := h.settingsCache.Get(settings.StorageNetworkName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return setting, nil
 }
 
 func (h *Handler) removeDerivedNetworkResources(sourceNADRef, currentSourceNADRef string) error {
@@ -146,7 +205,7 @@ func newStaticNAD(sourceNAD *networkv1.NetworkAttachmentDefinition) (*networkv1.
 
 	labelsCopy := map[string]string{}
 	for key, value := range sourceNAD.Labels {
-		if key == util.HashStorageNetworkAnnotation {
+		if key == util.HashStorageNetworkAnnotation || key == util.RWXHashNetworkAnnotation {
 			continue
 		}
 		labelsCopy[key] = value

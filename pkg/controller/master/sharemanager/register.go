@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/harvester/harvester/pkg/config"
-	"github.com/harvester/harvester/pkg/settings"
 )
 
 const ControllerName = "harvester-share-manager-static-ip-controller"
@@ -26,12 +25,8 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		ipPoolUsageCache:       ipPoolUsages.Cache(),
 	}
 
-	settings.OnChange(ctx, ControllerName+"-storage-network-setting", handler.OnStorageNetworkChange)
+	settings.OnChange(ctx, ControllerName+"-rwx-network-setting", handler.OnRWXNetworkChange)
 	shareManagers.OnChange(ctx, ControllerName, handler.OnShareManagerChange)
 	shareManagers.OnRemove(ctx, ControllerName, handler.OnShareManagerRemove)
 	return nil
-}
-
-func isStorageNetworkSetting(name string) bool {
-	return name == settings.StorageNetworkName
 }
