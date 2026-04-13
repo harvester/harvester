@@ -28,32 +28,40 @@ spec:
 EOF
 
   # 2. Check if the resource exists
-  local get_output
-  get_output=$(kubectl get helmchartconfig "$name" -n "$namespace" 2>&1) || true
-  if [[ "$get_output" == *"NotFound"* || "$get_output" == *"not found"* ]]; then
+  local EXIT_CODE=0
+  # Using a global variable to ensure EXIT_CODE is captured correctly under 'set -e'
+  rke2_multus_chart_config_output=$(kubectl get helmchartconfig "$name" -n "$namespace" 2>&1) || EXIT_CODE=$?
+
+  if [[ $EXIT_CODE -ne 0 ]]; then
+    if [[ "$rke2_multus_chart_config_output" == *"NotFound"* || "$rke2_multus_chart_config_output" == *"not found"* ]]; then
       echo "Resource '$name' not found. Creating..."
       kubectl apply -f "$manifest"
       echo "Waiting 10s for RKE2 controller to sync new config..."
       sleep 10
-  elif [[ "$get_output" == *"Error from server"* ]]; then
-      # This catches RBAC or API errors that aren't "NotFound"
-      echo "CRITICAL ERROR: kubectl check failed with: $get_output"
-      return 1
-  else
-
-    # 3. Resource exists, check policy
-    local current_policy
-    current_policy=$(kubectl get helmchartconfig "$name" -n "$namespace" -o jsonpath='{.spec.failurePolicy}')
-
-    if [ "$current_policy" != "abort" ]; then
-      echo "Current policy is '${current_policy:-unset}'. Patching to 'abort'..."
-      kubectl patch helmchartconfig "$name" -n "$namespace" \
-        --type merge -p '{"spec":{"failurePolicy":"abort"}}'
-      echo "Waiting 10s for RKE2 controller to sync patch..."
-      sleep 10
+      # When 'kubectl apply' is successful, we don't check helm-install job;
+      # RKE2 controller ensures the HelmChartConfig is used.
+      return 0
     else
-      echo "Verified: failurePolicy is already 'abort'. No action required."
+      # Catch critical errors (RBAC, API timeouts, etc.)
+      echo "CRITICAL ERROR: kubectl check failed with: $rke2_multus_chart_config_output EXIT_CODE:$EXIT_CODE"
+      return 1
     fi
+  fi
+
+  # 3. Resource exists, check current policy
+  local current_policy
+  current_policy=$(kubectl get helmchartconfig "$name" -n "$namespace" -o jsonpath='{.spec.failurePolicy}' 2>/dev/null || echo "unset")
+
+  if [[ "$current_policy" != "abort" ]]; then
+    echo "Current policy is '$current_policy'. Patching to 'abort'..."
+    kubectl patch helmchartconfig "$name" -n "$namespace" \
+      --type merge -p '{"spec":{"failurePolicy":"abort"}}'
+    echo "Waiting 10s for RKE2 controller to sync patch..."
+    sleep 10
+    # When 'kubectl patch' is successful, we don't check helm-install job;
+    # RKE2 controller ensures the HelmChartConfig is used.
+  else
+    echo "Verified: failurePolicy is already 'abort'. No action required."
   fi
 }
 
