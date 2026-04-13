@@ -10,8 +10,6 @@ ENV TINI_URL_amd64=https://github.com/krallin/tini/releases/download/${TINI_VERS
     TINI_URL_amd64_sha256=93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c \
     TINI_URL_arm64=https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-arm64 \
     TINI_URL_arm64_sha256=07952557df20bfd2a95f9bef198b445e006171969499a1d361bd9e6f8e5e0e81 \
-    TINI_URL_s390x=https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-s390x \
-    TINI_URL_s390x_sha256=931b70a182af879ca249ae9de87ef68423121b38d235c78997fafc680ceab32d \
     TINI_URL=TINI_URL_${ARCH} \
     TINI_URL_sha256=TINI_URL_${ARCH}_sha256
 
