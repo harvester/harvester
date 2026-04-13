@@ -268,6 +268,7 @@ const (
 	ShareManagerStaticIPAnnotation       = "rwx-harvester-csi.harvesterhci.io/static-ip"
 	ShareManagerIfaceAnnotation          = "rwx-harvester-csi.harvesterhci.io/interface"
 	ShareManagerIPAnnotation             = "rwx-harvester-csi.harvesterhci.io/ip"
+	ShareManagerMACAnnotation            = "rwx-harvester-csi.harvesterhci.io/mac"
 	ShareManagerNADAnnotation            = "rwx-harvester-csi.harvesterhci.io/nad"
 	ShareManagerStaticNADAnnotation      = "rwx-harvester-csi.harvesterhci.io/static-nad"
 	ShareManagerStaticIPStatusAnnotation = "rwx-harvester-csi.harvesterhci.io/static-ip-status"

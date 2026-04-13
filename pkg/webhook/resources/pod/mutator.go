@@ -46,6 +46,7 @@ const (
 	shareManagerPodStaticIPAnnotation  = util.ShareManagerStaticIPAnnotation
 	shareManagerPodIfaceAnnotation     = util.ShareManagerIfaceAnnotation
 	shareManagerPodIPAnnotation        = util.ShareManagerIPAnnotation
+	shareManagerPodMACAnnotation       = util.ShareManagerMACAnnotation
 	shareManagerPodStaticNADAnnotation = util.ShareManagerStaticNADAnnotation
 )
 
@@ -136,13 +137,14 @@ func (m *podMutator) shareManagerNetworkPatches(pod *corev1.Pod) (types.PatchOps
 
 	nad := shareManagerAnnotations[shareManagerPodStaticNADAnnotation]
 	ip := shareManagerAnnotations[shareManagerPodIPAnnotation]
+	mac := shareManagerAnnotations[shareManagerPodMACAnnotation]
 	iface := shareManagerAnnotations[shareManagerPodIfaceAnnotation]
-	if nad == "" || ip == "" || iface == "" {
+	if nad == "" || ip == "" || mac == "" || iface == "" {
 		return nil, nil
 	}
 
 	podAnnotations := pod.Annotations
-	networksAnnotation, changed, err := mutateNetworksAnnotation(podAnnotations[networkv1.NetworkAttachmentAnnot], nad, ip, iface)
+	networksAnnotation, changed, err := mutateNetworksAnnotation(podAnnotations[networkv1.NetworkAttachmentAnnot], nad, ip, mac, iface)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +336,7 @@ func isShareManagerPod(pod *corev1.Pod) bool {
 	return ok
 }
 
-func mutateNetworksAnnotation(annotation, nad, ip, iface string) (string, bool, error) {
+func mutateNetworksAnnotation(annotation, nad, ip, mac, iface string) (string, bool, error) {
 	networkName, networkNamespace, err := parseNADNamespacedName(nad)
 	if err != nil {
 		return "", false, err
@@ -360,6 +362,7 @@ func mutateNetworksAnnotation(annotation, nad, ip, iface string) (string, bool, 
 		if selections[i].Name == networkName &&
 			selections[i].Namespace == networkNamespace &&
 			stringSlicesEqual(selections[i].IPRequest, desiredIPs) &&
+			selections[i].MacRequest == mac &&
 			selections[i].IPAMClaimReference == "" {
 			continue
 		}
@@ -367,6 +370,7 @@ func mutateNetworksAnnotation(annotation, nad, ip, iface string) (string, bool, 
 		selections[i].Name = networkName
 		selections[i].Namespace = networkNamespace
 		selections[i].IPRequest = desiredIPs
+		selections[i].MacRequest = mac
 		selections[i].IPAMClaimReference = ""
 		changed = true
 	}

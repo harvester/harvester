@@ -563,6 +563,7 @@ func TestMutateNetworksAnnotation(t *testing.T) {
 		annotation string
 		nad        string
 		ip         string
+		mac        string
 		iface      string
 		expected   string
 		changed    bool
@@ -583,9 +584,10 @@ func TestMutateNetworksAnnotation(t *testing.T) {
 		},
 		{
 			name:       "no change when network already matches but interface is not annotated",
-			annotation: `[{"name":"storagenetwork-frqx7","namespace":"harvester-system","ips":["172.16.0.5/24"],"interface":"lhnet1"}]`,
+			annotation: `[{"name":"storagenetwork-frqx7","namespace":"harvester-system","ips":["172.16.0.5/24"],"mac":"02:00:00:00:00:01","interface":"lhnet1"}]`,
 			nad:        "harvester-system/storagenetwork-frqx7",
 			ip:         "172.16.0.5/24",
+			mac:        "02:00:00:00:00:01",
 			changed:    false,
 		},
 		{
@@ -593,8 +595,9 @@ func TestMutateNetworksAnnotation(t *testing.T) {
 			annotation: `[{"name":"storagenetwork-old","namespace":"harvester-system","interface":"lhnet1","ips":["172.16.0.23"]},{"name":"mgmt-vlan","namespace":"default","interface":"net1"}]`,
 			nad:        "harvester-system/storagenetwork-frqx7",
 			ip:         "172.16.0.5/24",
+			mac:        "02:00:00:00:00:01",
 			iface:      "lhnet1",
-			expected:   `[{"name":"storagenetwork-frqx7","namespace":"harvester-system","ips":["172.16.0.5/24"],"interface":"lhnet1"},{"name":"mgmt-vlan","namespace":"default","interface":"net1"}]`,
+			expected:   `[{"name":"storagenetwork-frqx7","namespace":"harvester-system","ips":["172.16.0.5/24"],"mac":"02:00:00:00:00:01","interface":"lhnet1"},{"name":"mgmt-vlan","namespace":"default","interface":"net1"}]`,
 			changed:    true,
 		},
 		{
@@ -602,13 +605,14 @@ func TestMutateNetworksAnnotation(t *testing.T) {
 			annotation: `[{"name":"mgmt-vlan","namespace":"default","interface":"net1"}]`,
 			nad:        "harvester-system/storagenetwork-frqx7",
 			ip:         "172.16.0.5/24",
+			mac:        "02:00:00:00:00:01",
 			iface:      "lhnet1",
 			changed:    false,
 		},
 	}
 
 	for _, test := range tests {
-		actual, changed, err := mutateNetworksAnnotation(test.annotation, test.nad, test.ip, test.iface)
+		actual, changed, err := mutateNetworksAnnotation(test.annotation, test.nad, test.ip, test.mac, test.iface)
 		require.NoError(t, err)
 		assert.Equal(t, test.changed, changed, "case %q", test.name)
 		assert.Equal(t, test.expected, actual, "case %q", test.name)
@@ -624,6 +628,7 @@ func TestPodMutatorShareManagerNetworkPatch(t *testing.T) {
 				shareManagerPodStaticIPAnnotation:  "true",
 				shareManagerPodIfaceAnnotation:     "lhnet1",
 				shareManagerPodIPAnnotation:        "172.16.0.5/24",
+				shareManagerPodMACAnnotation:       "02:00:00:00:00:01",
 				shareManagerPodStaticNADAnnotation: "harvester-system/storagenetwork-frqx7-static",
 			},
 		},
@@ -663,7 +668,7 @@ func TestPodMutatorShareManagerNetworkPatch(t *testing.T) {
 
 	targetPod := &corev1.Pod{}
 	require.NoError(t, sigjson.UnmarshalCaseSensitivePreserveInts(patchedPodBytes, targetPod))
-	assert.Equal(t, `[{"name":"storagenetwork-frqx7-static","namespace":"harvester-system","ips":["172.16.0.5/24"],"interface":"lhnet1"}]`, targetPod.Annotations[networkv1.NetworkAttachmentAnnot])
+	assert.Equal(t, `[{"name":"storagenetwork-frqx7-static","namespace":"harvester-system","ips":["172.16.0.5/24"],"mac":"02:00:00:00:00:01","interface":"lhnet1"}]`, targetPod.Annotations[networkv1.NetworkAttachmentAnnot])
 }
 
 func TestPodMutatorShareManagerNetworkPatchRequiresAnnotatedInterfaceToExist(t *testing.T) {
@@ -675,6 +680,7 @@ func TestPodMutatorShareManagerNetworkPatchRequiresAnnotatedInterfaceToExist(t *
 				shareManagerPodStaticIPAnnotation:  "true",
 				shareManagerPodIfaceAnnotation:     "lhnet1",
 				shareManagerPodIPAnnotation:        "172.16.0.5/24",
+				shareManagerPodMACAnnotation:       "02:00:00:00:00:01",
 				shareManagerPodStaticNADAnnotation: "harvester-system/storagenetwork-frqx7-static",
 			},
 		},
@@ -713,6 +719,7 @@ func TestPodMutatorShareManagerNetworkPatchRequiresStaticIPAnnotation(t *testing
 			Annotations: map[string]string{
 				shareManagerPodIfaceAnnotation:     "lhnet1",
 				shareManagerPodIPAnnotation:        "172.16.0.5/24",
+				shareManagerPodMACAnnotation:       "02:00:00:00:00:01",
 				shareManagerPodStaticNADAnnotation: "harvester-system/storagenetwork-frqx7-static",
 			},
 		},
@@ -749,6 +756,7 @@ func TestPodMutatorShareManagerNetworkPatchRequiresInterfaceAnnotation(t *testin
 			Name:      "pvc-test",
 			Namespace: util.LonghornSystemNamespaceName,
 			Annotations: map[string]string{
+				shareManagerPodMACAnnotation:       "02:00:00:00:00:01",
 				shareManagerPodIPAnnotation:        "172.16.0.5/24",
 				shareManagerPodStaticNADAnnotation: "harvester-system/storagenetwork-frqx7-static",
 			},

@@ -67,7 +67,8 @@ func (h *Handler) OnShareManagerChange(_ string, m *longhornv1beta2.ShareManager
 	}
 	if !shareManagerHasUsableStaticNetwork(mCpy) {
 		delete(mCpy.Annotations, util.ShareManagerIPAnnotation)
-	} else if err := h.ensureExcludePoolAllocation(mCpy); err != nil {
+		delete(mCpy.Annotations, util.ShareManagerMACAnnotation)
+	} else if err := h.syncShareManagerNetworkIdentity(mCpy); err != nil {
 		return m, err
 	}
 
@@ -75,14 +76,14 @@ func (h *Handler) OnShareManagerChange(_ string, m *longhornv1beta2.ShareManager
 		return m, nil
 	}
 
-	annotations := mCpy.Annotations
-	iface := annotations[util.ShareManagerIfaceAnnotation]
-	ipCIDR := annotations[util.ShareManagerIPAnnotation]
-	nadName := annotations[util.ShareManagerNADAnnotation]
-	staticNADName := annotations[util.ShareManagerStaticNADAnnotation]
-
-	logrus.Infof("Updating ShareManager %s/%s with requested IP %s on %s via source NAD %s and static NAD %s",
-		m.Namespace, m.Name, ipCIDR, iface, nadName, staticNADName)
+	logrus.Infof("Updating ShareManager %s/%s network settings: iface=%s ip=%s mac=%s staticNAD=%s",
+		m.Namespace,
+		m.Name,
+		mCpy.Annotations[util.ShareManagerIfaceAnnotation],
+		mCpy.Annotations[util.ShareManagerIPAnnotation],
+		mCpy.Annotations[util.ShareManagerMACAnnotation],
+		mCpy.Annotations[util.ShareManagerStaticNADAnnotation],
+	)
 	return h.shareManagers.Update(mCpy)
 
 }
@@ -290,8 +291,32 @@ func shareManagerHasUsableStaticNetwork(m *longhornv1beta2.ShareManager) bool {
 	return annotations[util.ShareManagerNADAnnotation] != "" && annotations[util.ShareManagerStaticNADAnnotation] != ""
 }
 
+func ensureShareManagerMACAnnotation(m *longhornv1beta2.ShareManager) error {
+	if m == nil {
+		return nil
+	}
+	if mac := m.Annotations[util.ShareManagerMACAnnotation]; mac != "" {
+		return nil
+	}
+
+	mac, err := utilnetwork.GenerateLAAMacAddress()
+	if err != nil {
+		return err
+	}
+	m.Annotations[util.ShareManagerMACAnnotation] = mac.String()
+	return nil
+}
+
+func (h *Handler) syncShareManagerNetworkIdentity(m *longhornv1beta2.ShareManager) error {
+	if err := ensureShareManagerMACAnnotation(m); err != nil {
+		return err
+	}
+	return h.ensureExcludePoolAllocation(m)
+}
+
 func clearNetworkAnnotations(m *longhornv1beta2.ShareManager) {
 	delete(m.Annotations, util.ShareManagerIPAnnotation)
+	delete(m.Annotations, util.ShareManagerMACAnnotation)
 	delete(m.Annotations, util.ShareManagerNADAnnotation)
 	delete(m.Annotations, util.ShareManagerStaticNADAnnotation)
 	delete(m.Annotations, util.ShareManagerStaticIPStatusAnnotation)

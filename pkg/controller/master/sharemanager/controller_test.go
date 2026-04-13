@@ -2,6 +2,7 @@ package sharemanager
 
 import (
 	"context"
+	"net"
 	"testing"
 
 	networkv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -92,6 +93,10 @@ func TestOnShareManagerChangeAnnotatesStaticIP(t *testing.T) {
 	assert.Equal(t, "172.16.0.9/24", actualShareManager.Annotations[util.ShareManagerIPAnnotation])
 	assert.Equal(t, "harvester-system/storagenetwork-frqx7", actualShareManager.Annotations[util.ShareManagerNADAnnotation])
 	assert.Equal(t, "harvester-system/storagenetwork-frqx7-static", actualShareManager.Annotations[util.ShareManagerStaticNADAnnotation])
+	mac, err := net.ParseMAC(actualShareManager.Annotations[util.ShareManagerMACAnnotation])
+	require.NoError(t, err)
+	assert.Len(t, mac, 6)
+	assert.Equal(t, byte(0x02), mac[0]&0x03)
 
 	staticNAD, err = clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions(util.HarvesterSystemNamespaceName).Get(context.Background(), "storagenetwork-frqx7-static", metav1.GetOptions{})
 	require.NoError(t, err)
@@ -184,6 +189,10 @@ func TestOnShareManagerChangeUsesDedicatedRWXNetwork(t *testing.T) {
 	assert.Equal(t, "172.16.0.9/24", actualShareManager.Annotations[util.ShareManagerIPAnnotation])
 	assert.Equal(t, "harvester-system/rwx-network-762g9", actualShareManager.Annotations[util.ShareManagerNADAnnotation])
 	assert.Equal(t, "harvester-system/rwx-network-762g9-static", actualShareManager.Annotations[util.ShareManagerStaticNADAnnotation])
+	mac, err := net.ParseMAC(actualShareManager.Annotations[util.ShareManagerMACAnnotation])
+	require.NoError(t, err)
+	assert.Len(t, mac, 6)
+	assert.Equal(t, byte(0x02), mac[0]&0x03)
 }
 
 func TestOnShareManagerChangeReusesExistingExcludePoolAllocation(t *testing.T) {
@@ -194,6 +203,7 @@ func TestOnShareManagerChangeReusesExistingExcludePoolAllocation(t *testing.T) {
 			Annotations: map[string]string{
 				util.ShareManagerStaticIPAnnotation:  "true",
 				util.ShareManagerIfaceAnnotation:     "lhnet1",
+				util.ShareManagerMACAnnotation:       "02:00:00:00:00:01",
 				util.ShareManagerNADAnnotation:       "harvester-system/storagenetwork-frqx7",
 				util.ShareManagerStaticNADAnnotation: "harvester-system/storagenetwork-frqx7-static",
 			},
@@ -270,6 +280,7 @@ func TestOnShareManagerChangeReusesExistingExcludePoolAllocation(t *testing.T) {
 	actualShareManager, err := clientset.LonghornV1beta2().ShareManagers(util.LonghornSystemNamespaceName).Get(context.Background(), shareManager.Name, metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, "172.16.0.5/24", actualShareManager.Annotations[util.ShareManagerIPAnnotation])
+	assert.Equal(t, "02:00:00:00:00:01", actualShareManager.Annotations[util.ShareManagerMACAnnotation])
 }
 
 func TestOnShareManagerChangeClearsAnnotationsWithoutExcludeRange(t *testing.T) {
@@ -281,6 +292,7 @@ func TestOnShareManagerChangeClearsAnnotationsWithoutExcludeRange(t *testing.T) 
 				util.ShareManagerStaticIPAnnotation:  "true",
 				util.ShareManagerIfaceAnnotation:     "lhnet1",
 				util.ShareManagerIPAnnotation:        "172.16.0.9/24",
+				util.ShareManagerMACAnnotation:       "02:00:00:00:00:01",
 				util.ShareManagerNADAnnotation:       "harvester-system/storagenetwork-frqx7",
 				util.ShareManagerStaticNADAnnotation: "harvester-system/storagenetwork-frqx7-static",
 			},
@@ -323,6 +335,7 @@ func TestOnShareManagerChangeClearsAnnotationsWithoutExcludeRange(t *testing.T) 
 	actualShareManager, err := clientset.LonghornV1beta2().ShareManagers(util.LonghornSystemNamespaceName).Get(context.Background(), shareManager.Name, metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Empty(t, actualShareManager.Annotations[util.ShareManagerIPAnnotation])
+	assert.Empty(t, actualShareManager.Annotations[util.ShareManagerMACAnnotation])
 	assert.Empty(t, actualShareManager.Annotations[util.ShareManagerNADAnnotation])
 	assert.Empty(t, actualShareManager.Annotations[util.ShareManagerStaticNADAnnotation])
 	assert.Equal(t, shareManagerStaticIPStatusNoExcludeRange, actualShareManager.Annotations[util.ShareManagerStaticIPStatusAnnotation])
@@ -337,6 +350,7 @@ func TestOnShareManagerChangeClearsAnnotationsUntilDerivedResourcesExist(t *test
 				util.ShareManagerStaticIPAnnotation:  "true",
 				util.ShareManagerIfaceAnnotation:     "lhnet1",
 				util.ShareManagerIPAnnotation:        "172.16.0.9/24",
+				util.ShareManagerMACAnnotation:       "02:00:00:00:00:01",
 				util.ShareManagerNADAnnotation:       "harvester-system/storagenetwork-frqx7",
 				util.ShareManagerStaticNADAnnotation: "harvester-system/storagenetwork-frqx7-static",
 			},
@@ -380,6 +394,7 @@ func TestOnShareManagerChangeClearsAnnotationsUntilDerivedResourcesExist(t *test
 	actualShareManager, err := clientset.LonghornV1beta2().ShareManagers(util.LonghornSystemNamespaceName).Get(context.Background(), shareManager.Name, metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Empty(t, actualShareManager.Annotations[util.ShareManagerIPAnnotation])
+	assert.Empty(t, actualShareManager.Annotations[util.ShareManagerMACAnnotation])
 	assert.Empty(t, actualShareManager.Annotations[util.ShareManagerNADAnnotation])
 	assert.Empty(t, actualShareManager.Annotations[util.ShareManagerStaticNADAnnotation])
 	assert.Equal(t, shareManagerStaticIPStatusStaticNADPending, actualShareManager.Annotations[util.ShareManagerStaticIPStatusAnnotation])
