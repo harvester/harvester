@@ -7,6 +7,18 @@ ARG DAPPER_HOST_ARCH
 ENV ARCH=$DAPPER_HOST_ARCH
 ENV GOTOOLCHAIN=auto
 
+ARG HELM_VERSION=v3.20.0
+ARG HELM_SHA256_Linux_amd64=dbb4c8fc8e19d159d1a63dda8db655f9ffa4aac1b9a6b188b34a40957119b286
+ARG HELM_SHA256_Linux_arm64=bfb14953295d5324d47ab55f3dfba6da28d46c848978c8fbf412d4271bdc29f1
+
+ARG KIND_VERSION=v0.31.0
+ARG KIND_SHA256_Linux_amd64=eb244cbafcc157dff60cf68693c14c9a75c4e6e6fedaf9cd71c58117cb93e3fa
+ARG KIND_SHA256_Linux_arm64=8e1014e87c34901cc422a1445866835d1e666f2a61301c27e722bdeab5a1f7e4
+
+ARG CODECOV_VERSION=v0.8.0
+ARG CODECOV_SHA256_Linux=b37359013b48fbc3b0790d59fc474a52a260fb96e28e1b2c2ae001dc9b9cc996
+
+SHELL ["/bin/bash", "-c"]
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     xz-utils \
     unzip \
@@ -22,11 +34,15 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
 # install yq
 RUN GO111MODULE=on go install github.com/mikefarah/yq/v4@v4.27.5
 # set up helm
-ENV HELM_VERSION=v3.5.4
-ENV HELM_URL=https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
+ENV HELM_VERSION=${HELM_VERSION}
+ENV HELM_TARBALL=helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
+ENV HELM_URL=https://get.helm.sh/${HELM_TARBALL}
 RUN mkdir /usr/tmp && \
-    curl ${HELM_URL} | tar xvzf - --strip-components=1 -C /usr/tmp/ && \
-    mv /usr/tmp/helm /usr/bin/helm
+  curl -sSLO --output-dir /usr/tmp ${HELM_URL}  && \
+  HELM_SHA256=HELM_SHA256_Linux_${ARCH} && \
+  echo "${!HELM_SHA256}  /usr/tmp/${HELM_TARBALL}" | sha256sum -c - && \
+  tar xvzf /usr/tmp/${HELM_TARBALL} --strip-components=1 -C /usr/tmp/ && \
+  mv /usr/tmp/helm /usr/bin/helm
 
 # -- for make rules
 ## install docker client
@@ -45,7 +61,11 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     docker-ce=5:20.10.* \
     && rm -rf /var/lib/apt/lists/*
 ## install golangci
+<<<<<<< HEAD
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
+=======
+COPY --from=golangci/golangci-lint:v2.8.0-alpine@sha256:1194f3bfcbaeeb92d8d159fdfbe2a79d18ec0a222d9d984b1438906bca416b51 /usr/bin/golangci-lint /usr/local/bin/golangci-lint
+>>>>>>> e41a67fe (chore: validate the checksums of build dependency artifacts (#10337))
 
 ## install controller-gen
 RUN GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.1
@@ -56,10 +76,19 @@ RUN GO111MODULE=on go install github.com/onsi/ginkgo/v2/ginkgo@v2.1.4
 RUN  GO111MODULE=on go install k8s.io/code-generator/cmd/openapi-gen@v0.29.13
 
 # install kind
+<<<<<<< HEAD
 RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.14.0/kind-linux-amd64 && chmod +x /usr/bin/kind
+=======
+RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-${ARCH} && \
+  KIND_SHA256="KIND_SHA256_Linux_${ARCH}" && \
+  echo "${!KIND_SHA256}  /usr/bin/kind" | sha256sum -c - && \
+  chmod +x /usr/bin/kind
+>>>>>>> e41a67fe (chore: validate the checksums of build dependency artifacts (#10337))
 
 # install codecov
-RUN curl -Lo /usr/bin/codecov https://uploader.codecov.io/latest/linux/codecov && chmod +x /usr/bin/codecov
+RUN curl -Lo /usr/bin/codecov https://uploader.codecov.io/${CODECOV_VERSION}/linux/codecov && \
+  echo "${CODECOV_SHA256_Linux}  /usr/bin/codecov" | sha256sum -c - && \
+  chmod +x /usr/bin/codecov
 
 # copy bootloaders
 RUN mkdir /grub2-mbr
