@@ -1,6 +1,6 @@
 {
     "extends": [
-        "github>harvester/renovate:renovate-default"
+        "github>pohanhuang/renovate:renovate-default"
     ],
     "baseBranches": [
         "master",
