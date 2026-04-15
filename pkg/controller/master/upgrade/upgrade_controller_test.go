@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	upgradeapiv1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	"github.com/stretchr/testify/assert"
@@ -15,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -103,15 +106,45 @@ func newCluster(namespace, name string) *provisioningv1.Cluster {
 	}
 }
 
+func newKubeVirt(namespace, name string) *kubevirtv1.KubeVirt {
+	return &kubevirtv1.KubeVirt{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: kubevirtv1.KubeVirtSpec{
+			WorkloadUpdateStrategy: kubevirtv1.KubeVirtWorkloadUpdateStrategy{
+				WorkloadUpdateMethods: []kubevirtv1.WorkloadUpdateMethod{},
+			},
+		},
+	}
+}
+
+func newManagedChart(namespace, name string) *mgmtv3.ManagedChart {
+	return &mgmtv3.ManagedChart{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: mgmtv3.ManagedChartSpec{
+			Diff: &fleet.DiffOptions{
+				ComparePatches: []fleet.ComparePatch{},
+			},
+		},
+	}
+}
+
 func TestUpgradeHandler_OnChanged(t *testing.T) {
 	type input struct {
-		key        string
-		upgrade    *harvesterv1.Upgrade
-		version    *harvesterv1.Version
-		vmi        *harvesterv1.VirtualMachineImage
-		cluster    *provisioningv1.Cluster
-		lhsettings []*lhv1beta2.Setting
-		nodes      []*v1.Node
+		key          string
+		upgrade      *harvesterv1.Upgrade
+		version      *harvesterv1.Version
+		vmi          *harvesterv1.VirtualMachineImage
+		cluster      *provisioningv1.Cluster
+		kubevirt     *kubevirtv1.KubeVirt
+		managedChart *mgmtv3.ManagedChart
+		lhsettings   []*lhv1beta2.Setting
+		nodes        []*v1.Node
 	}
 	type output struct {
 		plan       *upgradeapiv1.Plan
@@ -219,9 +252,11 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(autoCleanupSystemGeneratedSnapshotAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(replicaReplenishmentAnnotation, strconv.Itoa(600)).Build(),
-				version: newVersionBuilder(testVersion).Build(),
-				vmi:     newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
-				cluster: newCluster(util.FleetLocalNamespaceName, util.LocalClusterName),
+				version:      newVersionBuilder(testVersion).Build(),
+				vmi:          newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
+				cluster:      newCluster(util.FleetLocalNamespaceName, util.LocalClusterName),
+				kubevirt:     newKubeVirt(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName),
+				managedChart: newManagedChart(util.FleetLocalNamespaceName, util.HarvesterManagedChart),
 				lhsettings: []*lhv1beta2.Setting{
 					newLonghornSetting(replicaReplenishmentWaitIntervalSetting, strconv.Itoa(1200)),
 					newLonghornSetting(autoCleanupSystemGeneratedSnapshotSetting, strconv.FormatBool(false)),
@@ -253,6 +288,12 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		var defaultObjs = []runtime.Object{tc.given.upgrade, tc.given.version, tc.given.vmi, tc.given.cluster}
 		objs := make([]runtime.Object, 0, len(defaultObjs)+len(tc.given.lhsettings))
 		objs = append(objs, defaultObjs...)
+		if tc.given.kubevirt != nil {
+			objs = append(objs, tc.given.kubevirt)
+		}
+		if tc.given.managedChart != nil {
+			objs = append(objs, tc.given.managedChart)
+		}
 		for _, setting := range tc.given.lhsettings {
 			objs = append(objs, setting)
 		}
@@ -263,28 +304,31 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		}
 		var k8sclientset = k8sfake.NewSimpleClientset(nodes...)
 		var handler = &upgradeHandler{
-			namespace:         harvesterSystemNamespace,
-			nodeCache:         fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
-			planClient:        fakeclients.PlanClient(clientset.UpgradeV1().Plans),
-			planCache:         fakeclients.PlanCache(clientset.UpgradeV1().Plans),
-			upgradeClient:     fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
-			upgradeCache:      fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
-			upgradeLogClient:  fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
-			versionCache:      fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
-			vmClient:          fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
-			vmImageClient:     fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
-			vmImageCache:      fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
-			vmCache:           fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
-			serviceClient:     fakeclients.ServiceClient(k8sclientset.CoreV1().Services),
-			lhSettingCache:    fakeclients.LonghornSettingCache(clientset.LonghornV1beta2().Settings),
-			lhSettingClient:   fakeclients.LonghornSettingClient(clientset.LonghornV1beta2().Settings),
-			managedChartCache: fakeclients.ManagedChartCache(clientset.ManagementV3().ManagedCharts),
-			clusterClient:     fakeclients.ClusterClient(clientset.ProvisioningV1().Clusters),
-			clusterCache:      fakeclients.ClusterCache(clientset.ProvisioningV1().Clusters),
-			deploymentClient:  fakeclients.DeploymentClient(k8sclientset.AppsV1().Deployments),
-			deploymentCache:   fakeclients.DeploymentCache(k8sclientset.AppsV1().Deployments),
-			scClient:          fakeclients.StorageClassClient(k8sclientset.StorageV1().StorageClasses),
-			scCache:           fakeclients.StorageClassCache(k8sclientset.StorageV1().StorageClasses),
+			namespace:          harvesterSystemNamespace,
+			nodeCache:          fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
+			planClient:         fakeclients.PlanClient(clientset.UpgradeV1().Plans),
+			planCache:          fakeclients.PlanCache(clientset.UpgradeV1().Plans),
+			upgradeClient:      fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+			upgradeCache:       fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+			upgradeLogClient:   fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
+			versionCache:       fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
+			vmClient:           fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+			vmImageClient:      fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			vmImageCache:       fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			vmCache:            fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+			kubevirtClient:     fakeclients.KubeVirtClient(clientset.KubevirtV1().KubeVirts),
+			kubevirtCache:      fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
+			serviceClient:      fakeclients.ServiceClient(k8sclientset.CoreV1().Services),
+			lhSettingCache:     fakeclients.LonghornSettingCache(clientset.LonghornV1beta2().Settings),
+			lhSettingClient:    fakeclients.LonghornSettingClient(clientset.LonghornV1beta2().Settings),
+			managedChartCache:  fakeclients.ManagedChartCache(clientset.ManagementV3().ManagedCharts),
+			managedChartClient: fakeclients.ManagedChartClient(clientset.ManagementV3().ManagedCharts),
+			clusterClient:      fakeclients.ClusterClient(clientset.ProvisioningV1().Clusters),
+			clusterCache:       fakeclients.ClusterCache(clientset.ProvisioningV1().Clusters),
+			deploymentClient:   fakeclients.DeploymentClient(k8sclientset.AppsV1().Deployments),
+			deploymentCache:    fakeclients.DeploymentCache(k8sclientset.AppsV1().Deployments),
+			scClient:           fakeclients.StorageClassClient(k8sclientset.StorageV1().StorageClasses),
+			scCache:            fakeclients.StorageClassCache(k8sclientset.StorageV1().StorageClasses),
 		}
 		var actual output
 		actual.upgrade, actual.err = handler.OnChanged(tc.given.key, tc.given.upgrade)
