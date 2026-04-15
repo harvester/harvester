@@ -437,6 +437,12 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		return h.upgradeClient.Update(toUpdate)
 	}
 
+	if harvesterv1.UpgradeCompleted.IsUnknown(upgrade) {
+		logrus.Debugf("Upgrade %s/%s is in-progress, scheduling heartbeat re-check in %s",
+			upgrade.Namespace, upgrade.Name, upgradeHeartbeatInterval)
+		h.upgradeController.EnqueueAfter(upgrade.Namespace, upgrade.Name, upgradeHeartbeatInterval)
+	}
+
 	return upgrade, nil
 }
 
