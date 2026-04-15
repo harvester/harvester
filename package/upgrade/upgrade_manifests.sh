@@ -924,6 +924,39 @@ patch_longhorn_settings() {
   yq -e '.spec.values.longhorn' $target || echo "fail to get info .spec.values.longhorn"
 }
 
+patch_kubevirt_compare_patches() {
+  local target=$1
+  # patch diff compare patches to avoid complaining kubevirt resource is modified
+
+  # Check if the kubevirt comparePatches entry already exists
+  local EXIT_CODE=0
+  yq -e '.spec.diff.comparePatches[] | select(.apiVersion == "kubevirt.io/v1" and .kind == "KubeVirt" and .name == "kubevirt")' $target > /dev/null 2>&1 || EXIT_CODE=$?
+
+  if [ $EXIT_CODE != 0 ]; then
+    echo "Adding kubevirt comparePatches entry to $target"
+    # Ensure spec.diff.comparePatches exists as an array
+    yq -i '.spec.diff.comparePatches = .spec.diff.comparePatches // []' $target
+    # Add the kubevirt entry
+    yq -i '.spec.diff.comparePatches += [{"apiVersion": "kubevirt.io/v1", "kind": "KubeVirt", "name": "kubevirt", "jsonPointers": ["/spec/workloadUpdateStrategy/workloadUpdateMethods"]}]' $target
+  else
+    echo "kubevirt comparePatches entry already exists in $target, skip adding"
+  fi
+}
+
+disable_kubevirt_live_migrate() {
+  echo "Setting kubevirt workloadUpdateMethods to empty array"
+
+  local kubevirt_patch_file="kubevirt-workload-update-patch.yaml"
+  cat > ${kubevirt_patch_file} <<EOF
+spec:
+  workloadUpdateStrategy:
+    workloadUpdateMethods: []
+EOF
+
+  kubectl patch kubevirts.kubevirt.io kubevirt -n harvester-system --patch-file ${kubevirt_patch_file} --type merge
+  rm -f ${kubevirt_patch_file}
+}
+
 upgrade_managedchart_harvester_crd() {
   echo "Upgrading Harvester CRD managedchart fleet-local/harvester-crd"
 
@@ -973,6 +1006,8 @@ EOF
   fi
 
   patch_longhorn_settings ${hpatch}
+  patch_kubevirt_compare_patches ${hpatch}
+  disable_kubevirt_live_migrate
 
   update_managedchart_patch_file_annotations ${hpatch} $REPO_HARVESTER_CHART_VERSION
   update_managedchart_patch_file_unpause ${hpatch}
