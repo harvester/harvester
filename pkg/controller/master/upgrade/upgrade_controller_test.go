@@ -330,17 +330,6 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 								Path:  "/spec/workloadUpdateStrategy/workloadUpdateMethods",
 								Value: "[]",
 							},
-						},
-						JsonPointers: []string{
-							"/spec/workloadUpdateStrategy/workloadUpdateMethods",
-						},
-					},
-					{
-						APIVersion: "kubevirt.io/v1",
-						Kind:       "KubeVirt",
-						Name:       util.KubeVirtObjectName,
-						Namespace:  util.HarvesterSystemNamespaceName,
-						Operations: []fleet.Operation{
 							{
 								Op:    "replace",
 								Path:  "/spec/someOtherField",
@@ -348,6 +337,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 							},
 						},
 						JsonPointers: []string{
+							"/spec/workloadUpdateStrategy/workloadUpdateMethods",
 							"/spec/someOtherField",
 						},
 					},
@@ -397,6 +387,11 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 									Name:       util.KubeVirtObjectName,
 									Namespace:  util.HarvesterSystemNamespaceName,
 									Operations: []fleet.Operation{
+										{
+											Op:    "replace",
+											Path:  "/spec/workloadUpdateStrategy/workloadUpdateMethods",
+											Value: "[]",
+										},
 										{
 											Op:    "replace",
 											Path:  "/spec/someOtherField",
