@@ -134,6 +134,20 @@ func newManagedChart(namespace, name string) *mgmtv3.ManagedChart {
 	}
 }
 
+func newManagedChartWithComparePatches(namespace, name string, patches []fleet.ComparePatch) *mgmtv3.ManagedChart {
+	return &mgmtv3.ManagedChart{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: mgmtv3.ManagedChartSpec{
+			Diff: &fleet.DiffOptions{
+				ComparePatches: patches,
+			},
+		},
+	}
+}
+
 func TestUpgradeHandler_OnChanged(t *testing.T) {
 	type input struct {
 		key          string
@@ -147,11 +161,13 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		nodes        []*v1.Node
 	}
 	type output struct {
-		plan       *upgradeapiv1.Plan
-		upgrade    *harvesterv1.Upgrade
-		upgradeLog *harvesterv1.UpgradeLog
-		vmi        *harvesterv1.VirtualMachineImage
-		err        error
+		plan         *upgradeapiv1.Plan
+		upgrade      *harvesterv1.Upgrade
+		upgradeLog   *harvesterv1.UpgradeLog
+		vmi          *harvesterv1.VirtualMachineImage
+		kubevirt     *kubevirtv1.KubeVirt
+		managedChart *mgmtv3.ManagedChart
+		err          error
 	}
 	var testCases = []struct {
 		name     string
@@ -283,6 +299,118 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					WithLabel(upgradeCleanupLabel, StateSucceeded).Build(),
 			},
 		},
+		{
+			name: "kubevirt comparePatches should be removed after cleanup",
+			given: input{
+				key: testUpgradeName,
+				upgrade: newTestUpgradeBuilder().
+					InitStatus().
+					LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").
+					ImageReadyCondition(v1.ConditionTrue, "", "").
+					RepoProvisionedCondition(v1.ConditionTrue, "", "").
+					NodesPreparedCondition(v1.ConditionTrue, "", "").
+					ChartUpgradeStatus(v1.ConditionTrue, "", "").
+					NodesUpgradedCondition(v1.ConditionTrue, "", "").
+					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).Build(),
+				version:  newVersionBuilder(testVersion).Build(),
+				vmi:      newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
+				cluster:  newCluster(util.FleetLocalNamespaceName, util.LocalClusterName),
+				kubevirt: newKubeVirt(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName),
+				managedChart: newManagedChartWithComparePatches(util.FleetLocalNamespaceName, util.HarvesterManagedChart, []fleet.ComparePatch{
+					{
+						APIVersion: "kubevirt.io/v1",
+						Kind:       "KubeVirt",
+						Name:       util.KubeVirtObjectName,
+						Namespace:  util.HarvesterSystemNamespaceName,
+						Operations: []fleet.Operation{
+							{
+								Op:    "replace",
+								Path:  "/spec/workloadUpdateStrategy/workloadUpdateMethods",
+								Value: "[]",
+							},
+						},
+						JsonPointers: []string{
+							"/spec/workloadUpdateStrategy/workloadUpdateMethods",
+						},
+					},
+					{
+						APIVersion: "kubevirt.io/v1",
+						Kind:       "KubeVirt",
+						Name:       util.KubeVirtObjectName,
+						Namespace:  util.HarvesterSystemNamespaceName,
+						Operations: []fleet.Operation{
+							{
+								Op:    "replace",
+								Path:  "/spec/someOtherField",
+								Value: "test",
+							},
+						},
+						JsonPointers: []string{
+							"/spec/someOtherField",
+						},
+					},
+				}),
+				nodes: []*v1.Node{
+					newNodeBuilder("node-1").Managed().ControlPlane().Build(),
+					newNodeBuilder("node-2").Managed().ControlPlane().Build(),
+					newNodeBuilder("node-3").Managed().ControlPlane().Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					InitStatus().
+					LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").
+					ImageReadyCondition(v1.ConditionTrue, "", "").
+					RepoProvisionedCondition(v1.ConditionTrue, "", "").
+					NodesPreparedCondition(v1.ConditionTrue, "", "").
+					ChartUpgradeStatus(v1.ConditionTrue, "", "").
+					NodesUpgradedCondition(v1.ConditionTrue, "", "").
+					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(longhornSettingsRestoredAnnotation, strconv.FormatBool(true)).
+					WithLabel(upgradeCleanupLabel, StateSucceeded).Build(),
+				kubevirt: &kubevirtv1.KubeVirt{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: util.HarvesterSystemNamespaceName,
+						Name:      util.KubeVirtObjectName,
+					},
+					Spec: kubevirtv1.KubeVirtSpec{
+						WorkloadUpdateStrategy: kubevirtv1.KubeVirtWorkloadUpdateStrategy{
+							WorkloadUpdateMethods: []kubevirtv1.WorkloadUpdateMethod{
+								kubevirtv1.WorkloadUpdateMethodLiveMigrate,
+							},
+						},
+					},
+				},
+				managedChart: &mgmtv3.ManagedChart{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: util.FleetLocalNamespaceName,
+						Name:      util.HarvesterManagedChart,
+					},
+					Spec: mgmtv3.ManagedChartSpec{
+						Diff: &fleet.DiffOptions{
+							ComparePatches: []fleet.ComparePatch{
+								{
+									APIVersion: "kubevirt.io/v1",
+									Kind:       "KubeVirt",
+									Name:       util.KubeVirtObjectName,
+									Namespace:  util.HarvesterSystemNamespaceName,
+									Operations: []fleet.Operation{
+										{
+											Op:    "replace",
+											Path:  "/spec/someOtherField",
+											Value: "test",
+										},
+									},
+									JsonPointers: []string{
+										"/spec/someOtherField",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		var defaultObjs = []runtime.Object{tc.given.upgrade, tc.given.version, tc.given.vmi, tc.given.cluster}
@@ -373,6 +501,20 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			assert.Nil(t, err)
 
 			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
+		}
+
+		if tc.expected.kubevirt != nil {
+			var err error
+			actual.kubevirt, err = handler.kubevirtClient.Get(tc.expected.kubevirt.Namespace, tc.expected.kubevirt.Name, metav1.GetOptions{})
+			assert.Nil(t, err)
+			assert.Equal(t, tc.expected.kubevirt.Spec, actual.kubevirt.Spec, "case %q: kubevirt spec mismatch", tc.name)
+		}
+
+		if tc.expected.managedChart != nil {
+			var err error
+			actual.managedChart, err = handler.managedChartClient.Get(tc.expected.managedChart.Namespace, tc.expected.managedChart.Name, metav1.GetOptions{})
+			assert.Nil(t, err)
+			assert.Equal(t, tc.expected.managedChart.Spec.Diff.ComparePatches, actual.managedChart.Spec.Diff.ComparePatches, "case %q: managedChart comparePatches mismatch", tc.name)
 		}
 	}
 }
