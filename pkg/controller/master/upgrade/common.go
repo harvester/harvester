@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	upgradev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/name"
@@ -25,6 +26,10 @@ const (
 	labelArch               = "kubernetes.io/arch"
 	labelCriticalAddonsOnly = "CriticalAddonsOnly"
 
+	// upgradeHeartbeatInterval defines a coarse re-enqueue interval for the upgrade controller.
+	upgradeHeartbeatInterval = time.Minute * 2
+	// upgradeCommonRequeueInterval defines a fast re-enqueue interval for plan/node handlers.
+	upgradeCommonRequeueInterval = time.Second * 20
 	// keep jobs for 7 days
 	defaultTTLSecondsAfterFinished = 604800
 	// Give up to an hour for slower hardware to preload images.

@@ -2,6 +2,7 @@ package upgrade
 
 import (
 	"testing"
+	"time"
 
 	"github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io"
 	upgradeapiv1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
@@ -29,9 +30,10 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 		nodes   []*v1.Node
 	}
 	type output struct {
-		plan    *upgradeapiv1.Plan
-		upgrade *harvesterv1.Upgrade
-		err     error
+		plan          *upgradeapiv1.Plan
+		upgrade       *harvesterv1.Upgrade
+		err           error
+		enqueueCalled bool
 	}
 	var testCases = []struct {
 		name     string
@@ -51,8 +53,9 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 				},
 			},
 			expected: output{
-				plan: newTestPreparePlan(),
-				err:  nil,
+				plan:          newTestPreparePlan(),
+				err:           nil,
+				enqueueCalled: true,
 			},
 		},
 		{
@@ -82,7 +85,40 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 					NodeUpgradeStatus("node-4", nodeStateImagesPreloaded, "", "").
 					NodesPreparedCondition(v1.ConditionTrue, "", "").
 					Build(),
-				err: nil,
+				err:           nil,
+				enqueueCalled: false,
+			},
+		},
+		{
+			name: "requeue plan when nodes are not yet at latest hash",
+			given: input{
+				key:  testPlanName,
+				plan: newTestPreparePlan(),
+				upgrade: newTestUpgradeBuilder().
+					NodeUpgradeStatus("node-1", nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus("node-2", nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus("node-3", nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus("node-4", nodeStateImagesPreloaded, "", "").
+					NodesPreparedCondition(v1.ConditionUnknown, "", "").
+					Build(),
+				nodes: []*v1.Node{
+					// node-2 & node-4 are still at old hash — not done yet
+					newNodeBuilder("node-1").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestPreparePlan().Name), testPlanHash).Build(),
+					newNodeBuilder("node-2").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestPreparePlan().Name), "old-hash").Build(),
+					newNodeBuilder("node-3").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestPreparePlan().Name), testPlanHash).Build(),
+					newNodeBuilder("node-4").Managed().ControlPlane().WithLabel(upgrade.LabelPlanName(newTestPreparePlan().Name), "old-hash").Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					NodeUpgradeStatus("node-1", nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus("node-2", nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus("node-3", nodeStateImagesPreloaded, "", "").
+					NodeUpgradeStatus("node-4", nodeStateImagesPreloaded, "", "").
+					NodesPreparedCondition(v1.ConditionUnknown, "", "").
+					Build(),
+				err:           nil,
+				enqueueCalled: true,
 			},
 		},
 	}
@@ -94,12 +130,16 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 			objects = append(objects, node)
 		}
 		var clientset = fake.NewSimpleClientset(objects...)
+		enqueueCalled := false
 		var handler = &planHandler{
 			namespace:     harvesterSystemNamespace,
 			upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
 			upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 			nodeCache:     fakeclients.NodeCache(clientset.CoreV1().Nodes),
 			planClient:    fakeclients.PlanClient(clientset.UpgradeV1().Plans),
+			planEnqueueAfter: func(planNamespace, planName string, timeout time.Duration) {
+				enqueueCalled = true
+			},
 		}
 		var actual output
 		var err error
@@ -119,6 +159,7 @@ func TestPlanHandler_OnChanged(t *testing.T) {
 			tc.expected.plan.Status = expectedPlanStatus
 		}
 
+		actual.enqueueCalled = enqueueCalled
 		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
 	}
 }
