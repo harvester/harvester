@@ -4,6 +4,31 @@ This enhancement introduces first-class IPv6 support in Harvester host and VM ne
 
 The file name is lowercase and uses dashes, following HEP conventions.
 
+## Table of Contents
+
+- [Summary](#summary)
+  - [References](#references)
+- [Terminology](#terminology)
+- [Motivation](#motivation)
+  - [Goals](#goals)
+  - [Non-goals](#non-goals)
+- [IP Family Modes](#ip-family-modes)
+  - [Advantages and trade-offs](#advantages-and-trade-offs)
+- [Proposal](#proposal)
+  - [Scope](#scope)
+  - [User Stories](#user-stories)
+  - [User Experience In Detail](#user-experience-in-detail)
+  - [API changes](#api-changes)
+- [Design](#design)
+  - [Implementation Overview](#implementation-overview)
+  - [Validation Rules](#validation-rules)
+  - [Failure Modes and Reporting](#failure-modes-and-reporting)
+  - [Test plan](#test-plan)
+  - [Upgrade strategy](#upgrade-strategy)
+  - [References](#references)
+- [Note](#note)
+
+
 ## Summary
 
 Harvester users have requested IPv6 support for multiple years, especially for environments where IPv4 addresses are limited or unavailable. The current networking flows are primarily IPv4-oriented for host management and VM network route configuration, which prevents installation and operations in IPv6-only environments and creates friction for modern dual-stack deployments.
@@ -11,16 +36,6 @@ Harvester users have requested IPv6 support for multiple years, especially for e
 This proposal adds IPv6 support across installation, host network lifecycle, VM network configuration, management access, and upgrade behavior, while preserving current IPv4 behavior. The scope covers static addressing, SLAAC-based dynamic addressing, IPv6 route settings, Ingress and console proxy reachability over IPv6, and validation. DHCPv6 is out of scope; see Non-goals.
 
 The proposal aligns with Harvester v1.7+ networking architecture, which uses NetworkManager on hosts. Wicked is treated only as a legacy migration concern for upgrades from older releases.
-
-### Related Issues
-
-- https://github.com/harvester/harvester/issues/934
-- https://github.com/harvester/harvester/issues/2962
-- https://github.com/k3s-io/k3s/issues/284
-- https://github.com/flannel-io/flannel/pull/1398
-- https://github.com/flannel-io/flannel/pull/1448
-- https://docs.rke2.io/networking/basic_network_options#dual-stack-configuration
-- https://ranchermanager.docs.rancher.com/reference-guides/cluster-configuration/rancher-server-configuration/rke2-cluster-configuration#networking
 
 ## Terminology
 
@@ -32,30 +47,7 @@ The proposal aligns with Harvester v1.7+ networking architecture, which uses Net
 - NDP: Neighbor Discovery Protocol. The IPv6 equivalent of ARP. Used by kube-vip to advertise an IPv6 VIP on the local management network segment.
 - VIP: Virtual IP address. The stable management address for the Harvester UI and API, advertised by kube-vip. In IPv6-only mode this is an IPv6 address accessed via bracket notation, for example `https://[2001:db8::10]`.
 - node-ip: The address a Kubernetes node advertises to the control plane. RKE2 exposes this as `--node-ip`. In dual-stack, two values are required, one per address family.
-
-## IP Family Modes
-
-Harvester management and host networking can be configured in three IP family modes. The mode is chosen at install time and determines how nodes, the management VIP, the Kubernetes control plane, and host interfaces are addressed.
-
-| | IPv4-only | Dual-stack | IPv6-only |
-|---|---|---|---|
-| Management addresses | IPv4 | IPv4 + IPv6 | IPv6 |
-| Kubernetes cluster-cidr | IPv4 prefix | IPv4 + IPv6 prefixes | IPv6 prefix |
-| Kubernetes service-cidr | IPv4 prefix | IPv4 + IPv6 prefixes | IPv6 prefix |
-| Pod IPs | IPv4 | IPv4 + IPv6 | IPv6 |
-| Service IPs | IPv4 | IPv4 + IPv6 | IPv6 |
-| Management VIP | IPv4 | IPv4 + IPv6 | IPv6 |
-| VIP advertisement | ARP | ARP + NDP | NDP |
-| Management URL | `https://<vip>` | `https://<vip-v4>` | `https://[<vip-v6>]` |
-| Addressing mode (mgmt) | DHCP or static | Static required | Static required |
-
-### Advantages and trade-offs
-
-**IPv4-only** — Current default. Maximum compatibility with clients, tooling, and integrations. No IPv6 infrastructure required. Use where IPv4 addresses are available and IPv6 is not a requirement.
-
-**Dual-stack** — Both address families are routable simultaneously. Clients can reach the cluster via either family. Adds configuration complexity: each management interface has two addresses, RKE2 requires dual-prefix `cluster-cidr` and `service-cidr`, kube-vip must advertise two VIPs (ARP for IPv4, NDP for IPv6), and both must appear in `tls-san`. Failure modes can occur independently per family.
-
-**IPv6-only** — Required where IPv4 addresses are exhausted or not allocated. Eliminates NAT on the management segment. The management URL uses mandatory bracket notation (`https://[2001:db8::10]`); clients, DNS resolvers, and tooling must support IPv6 and AAAA records. Legacy IPv4-only integrations cannot reach the cluster directly. Rancher must also be reachable via IPv6 for cluster registration to work.
+- Migration network: A dedicated cluster network (VLAN) used exclusively for KVM/QEMU live migration traffic between nodes. Configured via `HostNetworkConfig` and selected by KubeVirt through a `NetworkAttachmentDefinition`. Carries VM memory state during live migration and is separate from both the management network and the storage network. Must be reachable on every node a VM may migrate to.
 
 ## Motivation
 
@@ -71,6 +63,7 @@ Harvester management and host networking can be configured in three IP family mo
 - Configure RKE2 control-plane settings (node-ip, cluster-cidr, service-cidr, tls-san, stack-preference) for the selected IP family so the Kubernetes cluster operates correctly in IPv6 and dual-stack environments.
 - Enable IPv6 in the kube-ovn overlay that carries VM network traffic, so VM networks support IPv6 CIDR and gateway settings end-to-end.
 - Ensure the Harvester web UI, API, and VM VNC/Serial console proxy are reachable via the IPv6 management VIP. This requires the Ingress controller to bind on IPv6 and the console proxy to accept IPv6 connections, so that operators and users in IPv6-only environments can reach all management surfaces.
+- Support IPv6 addressing on the VM live migration network so VMs can be live-migrated between nodes in IPv6-only and dual-stack clusters. The migration network is a `HostNetworkConfig`-managed VLAN; IPv6 support there follows directly from the host network config changes in this HEP. KubeVirt selects the migration network via a `NetworkAttachmentDefinition` and binds the migration server on the interface address — both Multus and KubeVirt v1.7.0 support IPv6 for this path.
 
 ### Non-goals
 
@@ -79,11 +72,39 @@ Harvester management and host networking can be configured in three IP family mo
 - Automatic conversion of all existing IPv4-only user network definitions to IPv6.
 - Guest OS IPv6 configuration: injecting IPv6 addresses via Cloud-Init after NIC attachment, or displaying IPv6 addresses reported by the qemu-guest-agent in the UI. The VM NIC is attached with IPv6 capability at the network layer; address configuration inside the guest is guest-OS-specific and out of scope for this HEP.
 - DHCPv6 support. DHCPv6 requires server infrastructure that is not present in all IPv6 environments. IPv4 parity for dynamic addressing is satisfied by SLAAC for this HEP, since SLAAC is the infrastructure-free native mechanism. DHCPv6 can be revisited in a future HEP once SLAAC support is stable.
-- Storage network (SN) IPv6. Longhorn replication traffic runs over the storage network. IPv6 addressing on storage network interfaces is not in scope for this HEP. This is tracked as follow-on work for a subsequent release.
+- Storage network (SN) IPv6, dedicated VLAN in IPv6-only clusters. The Harvester `storage-network` setting requires an IPv4 CIDR as a documented prerequisite; the dedicated storage network feature is unavailable in IPv6-only environments. Longhorn replication traffic falls back to the pod network, which is covered by this HEP. This is tracked as follow-on work for a subsequent release.
+- Storage network (SN) IPv6 enablement. Enabling IPv6 addressing on a dedicated Longhorn storage network requires changes to the `storage-network` setting schema, the Whereabouts IP pool configuration, and the generated NetworkAttachmentDefinition to accept an IPv6 CIDR range. This is tracked as follow-on work for a subsequent release.
 - Rancher server IPv6 support. Rancher must be reachable via IPv6 for Harvester to register in IPv6-only deployments. Ensuring Rancher's own IPv6 reachability is out of scope for this HEP; the dependency is noted in the design. This is tracked as follow-on work for a subsequent release.
 - RKE2 guest cluster dual-stack provisioning. Provisioning RKE2 guest clusters with dual-stack networking via the Harvester node driver follows from Harvester host IPv6 support but is tracked as follow-on work for a subsequent release.
 - VM management network (`mgmt`) IPv6 egress via NAT/Masquerade. VMs using the default `mgmt` network rely on NAT/Masquerade for external connectivity. Enabling IPv6 egress through this path requires changes to the `mgmt` bridge and masquerade rules that are independent from host and cluster networking scope. This is tracked as follow-on work for a subsequent release.
 - Backup target IPv6: configuring NFS or S3 backup targets reachable only via IPv6 addresses. Longhorn backup and restore traffic to external NFS/S3 endpoints involves storage and data protection paths that are outside the networking scope of this HEP. This is tracked as follow-on work for a subsequent release.
+
+## IP Family Modes
+
+Harvester management and host networking can be configured in three IP family modes. The mode is chosen at install time and determines how nodes, the management VIP, the Kubernetes control plane, and host interfaces are addressed.
+
+| | IPv4-only | Dual-stack | IPv6-only |
+|---|---|---|
+| Management addresses | IPv4 | IPv4 + IPv6 | IPv6 |
+| Kubernetes cluster-cidr | IPv4 prefix | IPv4 + IPv6 prefixes | IPv6 prefix |
+| Kubernetes service-cidr | IPv4 prefix | IPv4 + IPv6 prefixes | IPv6 prefix |
+| Pod IPs | IPv4 | IPv4 + IPv6 | IPv6 |
+| Service IPs | IPv4 | IPv4 + IPv6 | IPv6 |
+| Management VIP | IPv4 | IPv4 + IPv6 | IPv6 |
+| VIP advertisement | ARP | ARP + NDP | NDP |
+| Management URL | `https://<vip>` | `https://<vip-v4>` | `https://[<vip-v6>]` |
+| Addressing mode (mgmt) | DHCP or static | Static required | Static required |
+| Addressing mode (VLAN sub-interfaces) | DHCP or static | IPv4: DHCP or static; IPv6: static or SLAAC | static or SLAAC |
+| Storage network (dedicated VLAN) | IPv4 CIDR | IPv4 CIDR (IPv4-only; no IPv6 on storage VLAN) | Not supported — Harvester `storage-network` requires IPv4 CIDR; Longhorn falls back to pod network |
+| Migration network | IPv4 | IPv4 + IPv6 | IPv6 |
+
+### Advantages and trade-offs
+
+**IPv4-only** — Current default. Maximum compatibility with clients, tooling, and integrations. No IPv6 infrastructure required. Use where IPv4 addresses are available and IPv6 is not a requirement.
+
+**Dual-stack** — Both address families are routable simultaneously. Clients can reach the cluster via either family. Adds configuration complexity: each management interface has two addresses, RKE2 requires dual-prefix `cluster-cidr` and `service-cidr`, kube-vip must advertise two VIPs (ARP for IPv4, NDP for IPv6), and both must appear in `tls-san`. Failure modes can occur independently per family.
+
+**IPv6-only** — Required where IPv4 addresses are exhausted or not allocated. Eliminates NAT on the management segment. The management URL uses mandatory bracket notation (`https://[2001:db8::10]`); clients, DNS resolvers, and tooling must support IPv6 and AAAA records. Legacy IPv4-only integrations cannot reach the cluster directly. Rancher must also be reachable via IPv6 for cluster registration to work.
 
 ## Proposal
 
@@ -413,7 +434,7 @@ stack-preference: dual  # controls loopback address for internal health probes (
 
 - VM to external IPv6 connectivity over VLAN network.
 - VM scheduling behavior remains correct with cluster network selectors.
-- Storage and migration workflows remain functional in dual-stack setup where configured.
+- VM live migration succeeds between nodes in IPv6-only and dual-stack clusters: migrate a running VM across nodes over an IPv6-addressed migration network and verify the VM is reachable at its IPv6 address after migration completes.
 - Web UI and API accessible at the IPv6 management VIP (`https://[<vip-v6>]`) in IPv6-only and dual-stack deployments.
 - VM VNC and Serial console accessible via the IPv6 management VIP in IPv6-only and dual-stack deployments.
 
@@ -425,6 +446,35 @@ stack-preference: dual  # controls loopback address for internal health probes (
 - Provide a clear rollback path to last known-good network configuration if post-upgrade reconciliation fails.
 
 For upgrades from older versions where wicked artifacts still exist, wicked data is treated only as historical input during migration. Runtime host networking remains NetworkManager-based in supported v1.7+ upgrades.
+
+### References
+
+#### Tracking Issues
+
+- https://github.com/harvester/harvester/issues/934
+- https://github.com/harvester/harvester/issues/2962
+- https://github.com/k3s-io/k3s/issues/284
+- https://github.com/flannel-io/flannel/pull/1398
+- https://github.com/flannel-io/flannel/pull/1448
+- https://docs.rke2.io/networking/basic_network_options#dual-stack-configuration
+- https://ranchermanager.docs.rancher.com/reference-guides/cluster-configuration/rancher-server-configuration/rke2-cluster-configuration#networking
+- https://github.com/longhorn/longhorn/issues/11869
+- https://github.com/longhorn/longhorn/issues/12513
+
+#### Upstream Component IPv6 Support
+
+Each component integrated in this HEP has documented first-class IPv6 support in isolation. The table below links the upstream evidence so reviewers can verify that the claimed IPv6 capability exists in each project before Harvester wires them together.
+
+| Component | Role in Harvester | IPv6 capability confirmed | Reference |
+|---|---|---|---|
+| **kube-vip** v1.0.4 | Management VIP advertisement (ARP/NDP) | `--dnsMode (first,ipv4,ipv6,dual)` and `--dhcpMode (ipv4,ipv6,dual)` flags select the address family; `VIP_IFACE` and `address` fields in the kube-vip ConfigMap accept IPv6; v1.0.4 fixes endpointslice handling in dual-stack clusters | https://kube-vip.io/docs/about/features/ |
+| **kube-ovn** v1.15.4 | VM network overlay (SDN) | Subnet `spec.cidrBlock` accepts `IPv4CIDR,IPv6CIDR` pair; `spec.gateway` accepts comma-separated dual-stack gateways; KubeVirt VMs inherit both addresses | https://kubeovn.github.io/docs/v1.15.x/en/guide/dual-stack/ · https://kubeovn.github.io/docs/v1.15.x/en/kubevirt/dual-stack/ |
+| **Canal** (Calico v3.31.3 / Flannel v0.28.1) | Pod and cluster network CNI | Canal reads `cluster-cidr` and `service-cidr` from RKE2 config and auto-configures dual-stack IPAM — no separate HelmChartConfig needed; Calico `ipPools` supports IPv4-only, dual-stack, and IPv6-only; Flannel VXLAN dual-stack pre-dates v0.28.1 | https://docs.tigera.io/calico/3.31/networking/ipam/ipv6 · https://docs.rke2.io/networking/basic_network_options#dual-stack-configuration |
+| **RKE2** v1.35.2 | Kubernetes distribution | `cluster-cidr`, `service-cidr` accept comma-separated dual-stack prefixes; `node-ip` accepts comma-separated IPv4,IPv6 pair; `tls-san` lists both VIPs; `stack-preference` (ipv4/ipv6/dual) controls health-probe loopback; harvester-installer generates these into `90-harvester-server.yaml` | https://docs.rke2.io/networking/basic_network_options#dual-stack-configuration · https://ranchermanager.docs.rancher.com/reference-guides/cluster-configuration/rancher-server-configuration/rke2-cluster-configuration#networking |
+| **nginx Ingress Controller** v1.14.3 | Web UI, API, and console proxy exposure | Service `spec.ipFamilyPolicy: PreferDualStack` assigns both cluster IPs; nginx binds `[::]` natively; `tls-san` must include the IPv6 VIP; **Note**: ingress-nginx archived March 2026 — Harvester 1.8 ships v1.14.3; RKE2 v1.36+ defaults to Traefik | https://kubernetes.io/docs/concepts/services-networking/dual-stack/ |
+| **NetworkManager** 1.52.0 | Host interface IPv6 lifecycle | `ipv6.method=auto` (SLAAC — address derived from RA prefix, no gateway field required) or `ipv6.method=manual` (static, requires `ipv6.addresses` and `ipv6.gateway`); `ipv6.routes` for additional prefixes; network-controller-harvester writes these fields via `nmcli`/keyfile | https://networkmanager.dev/docs/api/latest/settings-ipv6.html |
+| **KubeVirt** v1.7.0 | VM networking | VM `spec.template.spec.domain.devices.interfaces[].masquerade` binding; user guide covers both IPv4+IPv6 dual-stack masquerade and IPv6 single-stack masquerade; no code change required in KubeVirt itself | https://kubevirt.io/user-guide/network/interfaces_and_networks/#masquerade-ipv4-and-ipv6-dual-stack-support |
+| **Multus CNI** v4.2.3 | Secondary network attachment (VLAN NICs) | `NetworkAttachmentDefinition` `spec.config` carries the delegate CNI JSON (bridge, VLAN, host-device); Multus passes it to the delegate unmodified — IPv6 support is in the delegate config, not Multus itself | https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/quickstart.md |
 
 ## Note
 
