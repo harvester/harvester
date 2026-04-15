@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
 
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
@@ -108,6 +110,8 @@ type upgradeHandler struct {
 	vmImageCache     ctlharvesterv1.VirtualMachineImageCache
 	vmClient         kubevirtctrl.VirtualMachineClient
 	vmCache          kubevirtctrl.VirtualMachineCache
+	kubevirtClient   kubevirtctrl.KubeVirtClient
+	kubevirtCache    kubevirtctrl.KubeVirtCache
 	serviceClient    ctlcorev1.ServiceClient
 	pvcClient        ctlcorev1.PersistentVolumeClaimClient
 	deploymentClient ctlappsv1.DeploymentClient
@@ -583,6 +587,11 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 	if upgrade, err = h.reenableAddons(upgrade); err != nil {
 		return upgrade, err
 	}
+
+	if upgrade, err = h.enableKubevirtWorkloadLiveMigrate(upgrade); err != nil {
+		return upgrade, err
+	}
+
 	return upgrade, h.resumeManagedCharts()
 }
 
@@ -939,6 +948,83 @@ func (h *upgradeHandler) addUpgradeLabelToDeschedulerAddons(upgrade *harvesterv1
 			return err
 		}
 	}
+	return nil
+}
+
+// enableKubevirtWorkloadLiveMigrate enables KubeVirt workload live migration
+// This brings back vCPU/memory hotplug features.
+// We disable the feature to avoid messy live migration during upgrade because virt-launcher pod images are outdated
+func (h *upgradeHandler) enableKubevirtWorkloadLiveMigrate(upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
+	logrus.Info("Enabling KubeVirt workload live migration for upgrade")
+	kubevirt, err := h.kubevirtCache.Get(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kubevirt object: %w", err)
+	}
+
+	kubevirtCopy := kubevirt.DeepCopy()
+	kubevirtCopy.Spec.WorkloadUpdateStrategy.WorkloadUpdateMethods = []kubevirtv1.WorkloadUpdateMethod{
+		kubevirtv1.WorkloadUpdateMethodLiveMigrate,
+	}
+
+	if !reflect.DeepEqual(kubevirt.Spec.WorkloadUpdateStrategy, kubevirtCopy.Spec.WorkloadUpdateStrategy) {
+		logrus.Infof("Updating KubeVirt workload update strategy to LiveMigrate")
+		if _, err := h.kubevirtClient.Update(kubevirtCopy); err != nil {
+			return nil, fmt.Errorf("failed to update kubevirt workload update strategy: %w", err)
+		}
+	}
+
+	// remove harvester ManagedChart comparePatches
+	if err := h.removeKubevirtComparePatches(); err != nil {
+		logrus.Warnf("Failed to remove kubevirt comparePatches from harvester managedchart: %v", err)
+	}
+
+	return upgrade, nil
+}
+
+func (h *upgradeHandler) removeKubevirtComparePatches() error {
+	logrus.Info("Removing kubevirt comparePatches from harvester managedchart")
+	managedChart, err := h.managedChartCache.Get(util.FleetLocalNamespaceName, util.HarvesterManagedChart)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logrus.Info("harvester managedchart not found, skip removing kubevirt comparePatches")
+			return nil
+		}
+		return fmt.Errorf("failed to get harvester managedchart: %w", err)
+	}
+
+	if managedChart.Spec.Diff == nil || len(managedChart.Spec.Diff.ComparePatches) == 0 {
+		logrus.Info("No comparePatches found in harvester managedchart, skip removing")
+		return nil
+	}
+
+	// Filter out the kubevirt comparePatch entry
+	var updatedComparePatches []fleet.ComparePatch
+	for _, patch := range managedChart.Spec.Diff.ComparePatches {
+		if patch.APIVersion == "kubevirt.io/v1" && patch.Kind == "KubeVirt" && patch.Name == "kubevirt" {
+			// Check if JsonPointers contains the specific path we're looking for
+			containsWorkloadUpdateMethods := slices.Contains(patch.JsonPointers, "/spec/workloadUpdateStrategy/workloadUpdateMethods")
+			if containsWorkloadUpdateMethods {
+				logrus.Info("Found kubevirt comparePatches entry with workloadUpdateMethods JsonPointer, removing it")
+				continue
+			}
+		}
+		updatedComparePatches = append(updatedComparePatches, patch)
+	}
+
+	// Only update if we actually removed something
+	if len(updatedComparePatches) == len(managedChart.Spec.Diff.ComparePatches) {
+		logrus.Info("kubevirt comparePatches entry not found, nothing to remove")
+		return nil
+	}
+
+	mcToUpdate := managedChart.DeepCopy()
+	mcToUpdate.Spec.Diff.ComparePatches = updatedComparePatches
+
+	if _, err := h.managedChartClient.Update(mcToUpdate); err != nil {
+		return fmt.Errorf("failed to update harvester managedchart: %w", err)
+	}
+
+	logrus.Info("Successfully removed kubevirt comparePatches from harvester managedchart")
 	return nil
 }
 
