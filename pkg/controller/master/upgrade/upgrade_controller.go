@@ -991,14 +991,29 @@ func (h *upgradeHandler) removeKubevirtComparePatches() error {
 		return nil
 	}
 
-	// Filter out the kubevirt comparePatch entry
+	// Filter out the kubevirt comparePatch entry or update its jsonPointers
 	var updatedComparePatches []fleet.ComparePatch
+	removed := false
 	for _, patch := range managedChart.Spec.Diff.ComparePatches {
 		if patch.APIVersion == "kubevirt.io/v1" && patch.Kind == "KubeVirt" && patch.Name == "kubevirt" {
 			// Check if JsonPointers contains the specific path we're looking for
 			containsWorkloadUpdateMethods := slices.Contains(patch.JsonPointers, "/spec/workloadUpdateStrategy/workloadUpdateMethods")
 			if containsWorkloadUpdateMethods {
 				logrus.Info("Found kubevirt comparePatches entry with workloadUpdateMethods JsonPointer, removing it")
+				// Filter out only the specific jsonPointer
+				var updatedJsonPointers []string
+				for _, jsonPointer := range patch.JsonPointers {
+					if jsonPointer != "/spec/workloadUpdateStrategy/workloadUpdateMethods" {
+						updatedJsonPointers = append(updatedJsonPointers, jsonPointer)
+					}
+				}
+				// Only keep the patch if it has remaining jsonPointers
+				if len(updatedJsonPointers) > 0 {
+					patchCopy := patch
+					patchCopy.JsonPointers = updatedJsonPointers
+					updatedComparePatches = append(updatedComparePatches, patchCopy)
+				}
+				removed = true
 				continue
 			}
 		}
@@ -1006,8 +1021,8 @@ func (h *upgradeHandler) removeKubevirtComparePatches() error {
 	}
 
 	// Only update if we actually removed something
-	if len(updatedComparePatches) == len(managedChart.Spec.Diff.ComparePatches) {
-		logrus.Info("kubevirt comparePatches entry not found, nothing to remove")
+	if !removed {
+		logrus.Info("kubevirt comparePatches entry with workloadUpdateMethods JsonPointer not found, nothing to remove")
 		return nil
 	}
 
