@@ -21,12 +21,13 @@ import (
 // If `harvesterhci.io/pendingOSImage` is equals to the value of `harvesterhci.io/pendingOSImage`, we know the
 // the reboot is done.
 type nodeHandler struct {
-	namespace     string
-	nodeClient    ctlcorev1.NodeClient
-	nodeCache     ctlcorev1.NodeCache
-	upgradeClient ctlharvesterv1.UpgradeClient
-	upgradeCache  ctlharvesterv1.UpgradeCache
-	secretClient  ctlcorev1.SecretClient
+	namespace        string
+	nodeClient       ctlcorev1.NodeClient
+	nodeCache        ctlcorev1.NodeCache
+	upgradeClient    ctlharvesterv1.UpgradeClient
+	upgradeCache     ctlharvesterv1.UpgradeCache
+	secretClient     ctlcorev1.SecretClient
+	nodeEnqueueAfter func(nodeName string, timeout time.Duration)
 }
 
 func (h *nodeHandler) OnChanged(_ string, node *corev1.Node) (*corev1.Node, error) {
@@ -109,6 +110,10 @@ func (h *nodeHandler) OnChanged(_ string, node *corev1.Node) (*corev1.Node, erro
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		// node may still be rebooting, or the watch event after reboot was dropped.
+		// Schedule a re-check so we don't permanently miss the transition.
+		h.nodeEnqueueAfter(node.Name, upgradeCommonRequeueInterval)
 	}
 	return node, nil
 }
