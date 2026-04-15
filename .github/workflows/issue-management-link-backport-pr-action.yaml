@@ -1,0 +1,85 @@
+name: "Issue Management Link Backport PR Issue"
+
+on:
+  workflow_run:
+    workflows: ["Issue Management Backport PR Collect Data"]
+    types: [completed]
+
+env:
+  REPO_NAME: harvester/harvester
+
+jobs:
+  link-backport-issue:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+    - name: Download PR data artifact
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      with:
+        name: pr-data
+        run-id: ${{ github.event.workflow_run.id }}
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+    - name: Load PR data
+      run: |
+        cat pr-data.env >> $GITHUB_ENV
+
+    - name: Link the PR with the backport issue
+      if: ${{ env.BACKPORT == 'true' && env.ORIGINAL_ISSUE_NUMBER != '' }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+      run: |
+        for issue_number in ${{ env.ORIGINAL_ISSUE_NUMBER }}; do
+          echo "Found source issue ${REPO_NAME}#${issue_number}"
+          issue_title=$(gh issue view "$issue_number" --repo "${REPO_NAME}" --json title --jq ".title")
+          
+          # Reset backport_issue_number for each iteration
+          backport_issue_number=""
+
+          if [[ -n "$issue_number" && -n "$issue_title" ]]; then
+            search_title="[backport ${BRANCH}] ${issue_title}"
+
+            echo "Searching for backport issue with title: '${search_title}'"
+
+            # Get both number and title from the search results
+            backport_issues_json=$(gh search issues "${search_title}" --repo "${REPO_NAME}" --state open --match title  --json number,title)
+
+            if [[ "$backport_issues_json" != "[]" && -n "$backport_issues_json" ]]; then
+              # Get the length of the JSON array
+              array_length=$(echo "$backport_issues_json" | jq 'length')
+              
+              # Loop through each issue in the JSON array
+              for ((i=0; i<$array_length; i++)); do
+                found_number=$(echo "$backport_issues_json" | jq -r ".[$i].number")
+                found_title=$(echo "$backport_issues_json" | jq -r ".[$i].title")
+                
+                # Compare the found title with our expected title
+                if [[ "$found_title" == "$search_title" ]]; then
+                  echo "Found exact match backport issue ${REPO_NAME}#${found_number} with title: '${found_title}'"
+                  echo "Linking backport issue ${REPO_NAME}#${found_number}"
+                  backport_issue_number="$found_number"
+                  break
+                else
+                  echo "Found partial match ${REPO_NAME}#${found_number} but title doesn't match exactly: '${found_title}'"
+                fi
+              done
+            fi
+
+            if [[ -n "$backport_issue_number" ]]; then
+
+              # comment on the backport issue
+              gh issue comment "${backport_issue_number}" --repo "${REPO_NAME}" --body "Backport PR (${BRANCH}): $HTML_URL"
+
+              # comment on the PR
+              backport_issue_url=$(gh issue view "${backport_issue_number}" --repo "${REPO_NAME}" --json url --jq ".url")
+              gh pr comment "$PR_NUMBER" --repo "${REPO_NAME}" --body "Backport issue (${BRANCH}): ${backport_issue_url}"
+              continue
+            fi
+          fi
+
+          echo "No issue title found"
+        done
