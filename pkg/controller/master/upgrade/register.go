@@ -3,6 +3,7 @@ package upgrade
 import (
 	"context"
 	"fmt"
+	"time"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/relatedresource"
@@ -167,6 +168,9 @@ func Register(ctx context.Context, management *config.Management, options config
 		upgradeCache:  upgrades.Cache(),
 		nodeCache:     nodes.Cache(),
 		planClient:    plans,
+		planEnqueueAfter: func(planNamespace, planName string, timeout time.Duration) {
+			plans.EnqueueAfter(planNamespace, planName, timeout)
+		},
 	}
 	plans.OnChange(ctx, planControllerName, planHandler.OnChanged)
 
@@ -217,6 +221,9 @@ func Register(ctx context.Context, management *config.Management, options config
 		upgradeClient: upgrades,
 		upgradeCache:  upgrades.Cache(),
 		secretClient:  secrets,
+		nodeEnqueueAfter: func(nodeName string, timeout time.Duration) {
+			nodes.EnqueueAfter(nodeName, timeout)
+		},
 	}
 	nodes.OnChange(ctx, nodeControllerName, nodeHandler.OnChanged)
 
