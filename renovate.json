@@ -1,6 +1,6 @@
 {
     "extends": [
-        "github>pohanhuang/renovate:renovate-default"
+        "github>pohanhuang/renovate:renovate.json"
     ],
     "baseBranches": [
         "master",
