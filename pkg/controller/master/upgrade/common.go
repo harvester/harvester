@@ -308,6 +308,16 @@ func prepareSkipManifestPlan(upgrade *harvesterv1.Upgrade, manifests []string, s
 					Effect:   corev1.TaintEffectNoSchedule,
 					Value:    "arm",
 				},
+				{
+					Key:      corev1.TaintNodeNotReady,
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
+				{
+					Key:      corev1.TaintNodeNetworkUnavailable,
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
 			},
 			Upgrade: &upgradev1.ContainerSpec{
 				Image: upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
