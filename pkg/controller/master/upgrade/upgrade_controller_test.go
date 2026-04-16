@@ -217,6 +217,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					ChartUpgradeStatus(v1.ConditionTrue, "", "").
 					NodesUpgradedCondition(v1.ConditionTrue, "", "").
 					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(skipManifestsRemovePlanCompletedAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(autoCleanupSystemGeneratedSnapshotAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(replicaReplenishmentAnnotation, strconv.Itoa(600)).Build(),
 				version: newVersionBuilder(testVersion).Build(),
@@ -242,6 +243,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					ChartUpgradeStatus(v1.ConditionTrue, "", "").
 					NodesUpgradedCondition(v1.ConditionTrue, "", "").
 					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(skipManifestsRemovePlanCompletedAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(longhornSettingsRestoredAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(autoCleanupSystemGeneratedSnapshotAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(replicaReplenishmentAnnotation, strconv.Itoa(600)).
@@ -263,6 +265,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		}
 		var k8sclientset = k8sfake.NewSimpleClientset(nodes...)
 		var handler = &upgradeHandler{
+<<<<<<< HEAD
 			namespace:         harvesterSystemNamespace,
 			nodeCache:         fakeclients.NodeCache(k8sclientset.CoreV1().Nodes),
 			planClient:        fakeclients.PlanClient(clientset.UpgradeV1().Plans),
@@ -285,6 +288,35 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			deploymentCache:   fakeclients.DeploymentCache(k8sclientset.AppsV1().Deployments),
 			scClient:          fakeclients.StorageClassClient(k8sclientset.StorageV1().StorageClasses),
 			scCache:           fakeclients.StorageClassCache(k8sclientset.StorageV1().StorageClasses),
+=======
+			namespace:          harvesterSystemNamespace,
+			nodeCache:          fakeclients.NodeCache(clientset.CoreV1().Nodes),
+			planClient:         fakeclients.PlanClient(clientset.UpgradeV1().Plans),
+			planCache:          fakeclients.PlanCache(clientset.UpgradeV1().Plans),
+			upgradeClient:      fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+			upgradeCache:       fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+			upgradeLogClient:   fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
+			versionCache:       fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
+			vmClient:           fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+			vmImageClient:      fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			vmImageCache:       fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			vmCache:            fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+			jobClient:          fakeclients.JobClient(clientset.BatchV1().Jobs),
+			jobCache:           fakeclients.JobCache(clientset.BatchV1().Jobs),
+			kubevirtClient:     fakeclients.KubeVirtClient(clientset.KubevirtV1().KubeVirts),
+			kubevirtCache:      fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
+			serviceClient:      fakeclients.ServiceClient(clientset.CoreV1().Services),
+			lhSettingCache:     fakeclients.LonghornSettingCache(clientset.LonghornV1beta2().Settings),
+			lhSettingClient:    fakeclients.LonghornSettingClient(clientset.LonghornV1beta2().Settings),
+			managedChartCache:  fakeclients.ManagedChartCache(clientset.ManagementV3().ManagedCharts),
+			managedChartClient: fakeclients.ManagedChartClient(clientset.ManagementV3().ManagedCharts),
+			clusterClient:      fakeclients.ClusterClient(clientset.ProvisioningV1().Clusters),
+			clusterCache:       fakeclients.ClusterCache(clientset.ProvisioningV1().Clusters),
+			deploymentClient:   fakeclients.DeploymentClient(clientset.AppsV1().Deployments),
+			deploymentCache:    fakeclients.DeploymentCache(clientset.AppsV1().Deployments),
+			scClient:           fakeclients.StorageClassClient(clientset.StorageV1().StorageClasses),
+			scCache:            fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+>>>>>>> 53465ea9 (test(upgrade): align OnChanged test with skip-manifest plan gates)
 		}
 		var actual output
 		actual.upgrade, actual.err = handler.OnChanged(tc.given.key, tc.given.upgrade)
