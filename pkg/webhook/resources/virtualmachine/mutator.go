@@ -3,6 +3,7 @@ package virtualmachine
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -12,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	"kubevirt.io/kubevirt/pkg/util/hardware"
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
@@ -31,9 +33,12 @@ const (
 	overlayNetwork    = "OverlayNetwork"
 	keyNetworkType    = networkGroup + "/type"
 
-	memory10M  = 10485760
-	memory100M = 104857600
-	memory256M = 268435456
+	memory10M    = 10485760
+	memory100M   = 104857600
+	memory256M   = 268435456
+	migrationKey = "migration"
+	planKey      = "plan"
+	vmIDKey      = "vmID"
 )
 
 func NewMutator(
@@ -104,7 +109,8 @@ func (m *vmMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patch
 		return nil, err
 	}
 
-	return patchOps, nil
+	patchOps = m.patchMissingForkliftLimits(vm, patchOps)
+	return patchOps, err
 }
 
 func (m *vmMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
@@ -845,4 +851,49 @@ func (m *vmMutator) patchManagedTapBinding(vm *kubevirtv1.VirtualMachine, patchO
 	}
 
 	return patchOps, nil
+}
+
+func (m *vmMutator) patchMissingForkliftLimits(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) types.PatchOps {
+	// this scenario only arises for VM's imported from forklift, and we need to copy cpu and memory in to resource limits
+	// if the vm is created by forklift
+	if !isCreatedByForklift(vm) {
+		return patchOps
+	}
+	if len(vm.Spec.Template.Spec.Domain.Resources.Limits) != 0 {
+		return patchOps
+	}
+	limits := buildForkliftResourceLimits(vm)
+	if len(limits) == 0 {
+		return patchOps
+	}
+	bytes, err := json.Marshal(limits)
+	if err != nil {
+		logrus.Errorf("error generating resource limit patch for vm %s/%s: %v", vm.Namespace, vm.Name, err)
+		return patchOps
+	}
+	return append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits", "value": %s}`, string(bytes)))
+}
+
+func buildForkliftResourceLimits(vm *kubevirtv1.VirtualMachine) v1.ResourceList {
+	limits := v1.ResourceList{}
+	if vm.Spec.Template.Spec.Domain.CPU != nil {
+		totalCPUs := hardware.GetNumberOfVCPUs(vm.Spec.Template.Spec.Domain.CPU)
+		limits[v1.ResourceCPU] = resource.MustParse(strconv.FormatInt(totalCPUs, 10))
+	}
+	if vm.Spec.Template.Spec.Domain.Memory != nil && vm.Spec.Template.Spec.Domain.Memory.Guest != nil {
+		limits[v1.ResourceMemory] = *vm.Spec.Template.Spec.Domain.Memory.Guest
+	}
+	return limits
+}
+
+// isCreatedByForklift checks if the VM is created by forklift by checking the existence of forklift related labels
+func isCreatedByForklift(vm *kubevirtv1.VirtualMachine) bool {
+	if vm.Labels == nil {
+		return false
+	}
+
+	_, migrationExists := vm.Labels[migrationKey]
+	_, planExists := vm.Labels[planKey]
+	_, vmIDExists := vm.Labels[vmIDKey]
+	return migrationExists && planExists && vmIDExists
 }
