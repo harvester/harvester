@@ -2,12 +2,9 @@
     "extends": [
         "github>pohanhuang/renovate:renovate.json"
     ],
-    "repositories": ["pohanhuang/harvester"],
     "schedule": ["at any time"],
     "baseBranches": [
         "master",
-        "v1.5",
-        "v1.6"
     ],
     "packageRules": [
         {
