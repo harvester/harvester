@@ -4,7 +4,7 @@
     ],
     "schedule": ["at any time"],
     "baseBranches": [
-        "master",
+        "master"
     ],
     "packageRules": [
         {
