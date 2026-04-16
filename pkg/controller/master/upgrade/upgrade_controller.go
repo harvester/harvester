@@ -480,10 +480,6 @@ func (h *upgradeHandler) OnRemove(_ string, upgrade *harvesterv1.Upgrade) (*harv
 // ensureSkipManifestPlanCompleted creates a Plan to apply/remove .skip files
 // and returns (true, nil) if still waiting, or (false, nil) if done.
 func (h *upgradeHandler) ensureSkipManifestPlanCompleted(upgrade *harvesterv1.Upgrade, skip bool) (bool, error) {
-	if _, err := h.planClient.Create(prepareSkipManifestPlan(upgrade, manifestsToSkip, skip)); err != nil && !apierrors.IsAlreadyExists(err) {
-		return false, err
-	}
-
 	annotation := skipManifestsRemovePlanCompletedAnnotation
 	component := skipManifestsRemoveComponent
 	if skip {
@@ -491,11 +487,16 @@ func (h *upgradeHandler) ensureSkipManifestPlanCompleted(upgrade *harvesterv1.Up
 		component = skipManifestsApplyComponent
 	}
 
-	if _, exists := upgrade.Annotations[annotation]; !exists {
-		logrus.Debugf("Waiting for %s plan to finish for upgrade %s", component, upgrade.Name)
-		return true, nil
+	if _, exists := upgrade.Annotations[annotation]; exists {
+		return false, nil
 	}
-	return false, nil
+
+	if _, err := h.planClient.Create(prepareSkipManifestPlan(upgrade, manifestsToSkip, skip)); err != nil && !apierrors.IsAlreadyExists(err) {
+		return false, err
+	}
+
+	logrus.Debugf("Waiting for %s plan to finish for upgrade %s", component, upgrade.Name)
+	return true, nil
 }
 
 func (h *upgradeHandler) cleanupImages(upgrade *harvesterv1.Upgrade, repo *Repo) error {
