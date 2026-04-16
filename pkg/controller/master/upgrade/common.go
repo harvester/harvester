@@ -22,8 +22,8 @@ const (
 	nodeComponent                = "node"
 	manifestComponent            = "manifest"
 	cleanupComponent             = "cleanup"
-	skipManifestsApplyComponent  = "apply-skip-manifests"
-	skipManifestsRemoveComponent = "remove-skip-manifests"
+	skipManifestsApplyComponent  = "apply-skip-rke2-manifests"
+	skipManifestsRemoveComponent = "remove-skip-rke2-manifests"
 
 	labelArch               = "kubernetes.io/arch"
 	labelCriticalAddonsOnly = "CriticalAddonsOnly"
