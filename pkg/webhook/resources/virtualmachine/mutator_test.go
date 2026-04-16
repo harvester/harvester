@@ -6,15 +6,20 @@ import (
 	"math"
 	"net"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	"github.com/rancher/wrangler/v3/pkg/patch"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	"kubevirt.io/kubevirt/pkg/util/hardware"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -1851,5 +1856,86 @@ func TestPatchManagedTapBindingWithoutSubnetCRD(t *testing.T) {
 				assert.Equal(t, expected.Value, actual.Value)
 			}
 		})
+	}
+}
+
+func Test_ForkliftPatch(t *testing.T) {
+	memory := resource.MustParse("1G")
+
+	forkliftVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "forklift-vm",
+			Namespace: "default",
+			Labels: map[string]string{
+				migrationKey: "sample-migration",
+				planKey:      "plan-uid",
+				vmIDKey:      "vm-id",
+			},
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						CPU: &kubevirtv1.CPU{
+							Cores:   4,
+							Sockets: 1,
+							Threads: 1,
+						},
+						Memory: &kubevirtv1.Memory{
+							Guest: &memory,
+						},
+						Resources: kubevirtv1.ResourceRequirements{},
+					},
+				},
+			},
+		},
+	}
+
+	nonForkliftVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "non-forklift-vm",
+			Namespace: "default",
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						CPU: &kubevirtv1.CPU{
+							Cores:   4,
+							Sockets: 1,
+							Threads: 1,
+						},
+						Memory: &kubevirtv1.Memory{
+							Guest: &memory,
+						},
+					},
+				},
+			},
+		},
+	}
+	mutator := vmMutator{}
+	testVMs := []*kubevirtv1.VirtualMachine{forkliftVM, nonForkliftVM}
+	assertions := require.New(t)
+	for _, vm := range testVMs {
+		var patchOps types.PatchOps
+		patchOps = mutator.patchMissingForkliftLimits(vm, patchOps)
+		patchData := fmt.Sprintf("[%s]", strings.Join(patchOps, ","))
+		vmJsonBytes, err := json.Marshal(vm)
+		assertions.NoError(err, "expected no error marshaling VM to JSON", vm.Name)
+		patchedVMJson, err := patch.Apply(vmJsonBytes, []byte(patchData))
+		assertions.NoError(err, "expected no error applying patch to VM JSON", vm.Name)
+		patchedVMObj := &kubevirtv1.VirtualMachine{}
+		err = json.Unmarshal(patchedVMJson, patchedVMObj)
+		assertions.NoError(err, "expected no error unmarshaling patched VM JSON", vm.Name)
+		if isCreatedByForklift(vm) {
+			totalCPUs := hardware.GetNumberOfVCPUs(vm.Spec.Template.Spec.Domain.CPU)
+			cpuLimit := resource.MustParse(strconv.FormatInt(totalCPUs, 10))
+			assertions.NotNil(patchedVMObj.Spec.Template.Spec.Domain.Resources.Limits.Cpu(), "expected CPU limit to be set for forklift VM", vm.Name)
+			assertions.NotNil(patchedVMObj.Spec.Template.Spec.Domain.Resources.Limits.Memory(), "expected Memory limit to be set for forklift VM", vm.Name)
+			assertions.True(patchedVMObj.Spec.Template.Spec.Domain.Resources.Limits.Cpu().Equal(cpuLimit), "expected CPU limit to equal total vCPUs for forklift VM", vm.Name)
+			assertions.True(patchedVMObj.Spec.Template.Spec.Domain.Resources.Limits.Memory().Equal(*vm.Spec.Template.Spec.Domain.Memory.Guest), "expected Memory limit to equal specified memory for forklift VM", vm.Name)
+		}
 	}
 }
