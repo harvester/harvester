@@ -113,18 +113,7 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 		return nil
 	}
 
-	var ownerList []string
-	for _, owner := range pvc.OwnerReferences {
-		if owner.Kind == kubevirtv1.VirtualMachineGroupVersionKind.Kind {
-			ownerList = append(ownerList, owner.Name)
-		}
-	}
-	if len(ownerList) > 0 {
-		message := fmt.Sprintf("can not delete the volume %s which is currently owned by these VMs: %s", oldPVC.Name, strings.Join(ownerList, ","))
-		return werror.NewInvalidError(message, "")
-	}
-
-	return nil
+	return v.validateOwnerReferences(pvc)
 }
 
 func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
@@ -279,4 +268,30 @@ func isManagedByKubeVirt(pvc *corev1.PersistentVolumeClaim) bool {
 	}
 
 	return hasValidOwner
+}
+
+func (v *pvcValidator) validateOwnerReferences(pvc *corev1.PersistentVolumeClaim) error {
+	var ownerList []string
+	for _, owner := range pvc.OwnerReferences {
+		if owner.Kind == kubevirtv1.VirtualMachineGroupVersionKind.Kind {
+			// check if VM exists and is not in deleting status, if so, block the deletion of PVC
+			vmObj, err := v.vmCache.Get(pvc.Namespace, owner.Name)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					continue
+				}
+				return werror.NewInternalError(fmt.Sprintf("failed to get VM %s/%s: %v", pvc.Namespace, owner.Name, err))
+			}
+			if vmObj.DeletionTimestamp == nil {
+				ownerList = append(ownerList, owner.Name)
+			}
+
+		}
+	}
+
+	if len(ownerList) > 0 {
+		message := fmt.Sprintf("can not delete the volume %s which is currently owned by these VMs: %s", pvc.Name, strings.Join(ownerList, ","))
+		return werror.NewInvalidError(message, "")
+	}
+	return nil
 }
