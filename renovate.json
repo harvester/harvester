@@ -2,6 +2,7 @@
     "extends": [
         "github>pohanhuang/renovate:renovate.json"
     ],
+    "schedule": ["at any time"],
     "baseBranches": [
         "master",
         "v1.5",
