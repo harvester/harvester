@@ -25,8 +25,8 @@ func (c PlanClient) Get(namespace, name string, options metav1.GetOptions) (*upg
 func (c PlanClient) Create(plan *upgradeapiv1.Plan) (*upgradeapiv1.Plan, error) {
 	return c(plan.Namespace).Create(context.TODO(), plan, metav1.CreateOptions{})
 }
-func (c PlanClient) Delete(_, _ string, _ *metav1.DeleteOptions) error {
-	panic("implement me")
+func (c PlanClient) Delete(namespace, name string, _ *metav1.DeleteOptions) error {
+	return c(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 func (c PlanClient) List(_ string, _ metav1.ListOptions) (*upgradeapiv1.PlanList, error) {
 	panic("implement me")
