@@ -5,29 +5,5 @@
     "schedule": ["at any time"],
     "baseBranches": [
         "master"
-    ],
-    "packageRules": [
-        {
-            "description": "Block specific Go modules from major/minor/patch version updates",
-            "matchManagers": [
-                "gomod"
-            ],
-            "matchPackageNames": [
-                "github.com/k8snetworkplumbingwg/whereabouts"
-            ],
-            "matchUpdateTypes": [
-                "major",
-                "minor",
-                "patch"
-            ],
-            "enabled": false
-        },
-        {
-            "description": "Block specific image updates for major/minor/patch version updates",
-            "matchManagers": [
-                "docker"
-            ],
-            "enabled": false
-        }
     ]
 }
