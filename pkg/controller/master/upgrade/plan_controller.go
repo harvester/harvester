@@ -73,12 +73,17 @@ func (h *planHandler) OnChanged(_ string, plan *upgradev1.Plan) (*upgradev1.Plan
 	}
 
 	component := plan.Labels[harvesterUpgradeComponentLabel]
-	if component == cleanupComponent {
+	componentAnnotations := map[string]string{
+		skipManifestsApplyComponent:  skipManifestsApplyPlanCompletedAnnotation,
+		skipManifestsRemoveComponent: skipManifestsRemovePlanCompletedAnnotation,
+		cleanupComponent:             imageCleanupPlanCompletedAnnotation,
+	}
+	if annotation, ok := componentAnnotations[component]; ok {
 		toUpdate := upgrade.DeepCopy()
 		if toUpdate.Annotations == nil {
 			toUpdate.Annotations = make(map[string]string)
 		}
-		toUpdate.Annotations[imageCleanupPlanCompletedAnnotation] = strconv.FormatBool(true)
+		toUpdate.Annotations[annotation] = strconv.FormatBool(true)
 		if _, err := h.upgradeClient.Update(toUpdate); err != nil {
 			return plan, err
 		}
