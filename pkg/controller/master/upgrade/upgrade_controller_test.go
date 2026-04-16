@@ -265,6 +265,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					ChartUpgradeStatus(v1.ConditionTrue, "", "").
 					NodesUpgradedCondition(v1.ConditionTrue, "", "").
 					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(skipManifestsRemovePlanCompletedAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(autoCleanupSystemGeneratedSnapshotAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(replicaReplenishmentAnnotation, strconv.Itoa(600)).Build(),
 				version:      newVersionBuilder(testVersion).Build(),
@@ -292,6 +293,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					ChartUpgradeStatus(v1.ConditionTrue, "", "").
 					NodesUpgradedCondition(v1.ConditionTrue, "", "").
 					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(skipManifestsRemovePlanCompletedAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(longhornSettingsRestoredAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(autoCleanupSystemGeneratedSnapshotAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(replicaReplenishmentAnnotation, strconv.Itoa(600)).
@@ -437,6 +439,8 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			vmImageClient:      fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 			vmImageCache:       fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 			vmCache:            fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+			jobClient:          fakeclients.JobClient(clientset.BatchV1().Jobs),
+			jobCache:           fakeclients.JobCache(clientset.BatchV1().Jobs),
 			kubevirtClient:     fakeclients.KubeVirtClient(clientset.KubevirtV1().KubeVirts),
 			kubevirtCache:      fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
 			serviceClient:      fakeclients.ServiceClient(clientset.CoreV1().Services),
