@@ -642,6 +642,9 @@ set_nic_names_by_mac_address() {
     [ -e "$i/address" ] || continue
     local name=$(basename $i)
     local mac=$(cat "$i/address")
+    if [ -f "$i/bonding_slave/perm_hwaddr" ]; then
+      mac=$(cat "$i/bonding_slave/perm_hwaddr")
+    fi
     # don't add duplicates if there's already an ifname= for this mac address
     [[ "$args" =~ ifname=[^[:space:]]+:$mac ]] && continue
     args="$args ifname=$name:$mac"
