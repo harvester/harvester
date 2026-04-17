@@ -43,6 +43,8 @@ The proposal aligns with Harvester v1.7+ networking architecture, which uses Net
 - Dual-stack: Environment where IPv4 and IPv6 are both enabled and routable.
 - SLAAC: Stateless Address Autoconfiguration for IPv6. The host derives its address from a Router Advertisement prefix — no server is required. This is the native IPv6 dynamic addressing mechanism, analogous to DHCPv4 for IPv4 in environments that do not use manually assigned addresses.
 - RA: Router Advertisement for IPv6 route and prefix discovery. Required for SLAAC and default gateway assignment.
+- RDNSS/DNSSL: Router Advertisement extensions (RFC 6106) that carry DNS recursive server addresses (RDNSS) and domain search lists (DNSSL) in RA messages. NetworkManager processes RDNSS/DNSSL options automatically when `ipv6.method=auto`. Environments whose routers do not send RDNSS must supply DNS nameserver addresses at install time via the installer config.
+- Privacy Extensions: RFC 8981 mechanism where the OS generates temporary, randomly-derived IPv6 addresses alongside its stable address. Enabled by default on SLE Micro and most modern Linux distributions. For Harvester cluster nodes, Privacy Extensions must be explicitly disabled (`ipv6.ip6-privacy=0`) on all IPv6 NetworkManager connection profiles to prevent unexpected temporary addresses appearing on cluster interfaces. For SLAAC interfaces, `ipv6.addr-gen-mode=eui64` must additionally be set so the RA-derived address is stable and MAC-based rather than a randomly rotating token. RFC 6106 (RDNSS) and RFC 8981 (Privacy Extensions) are independent: a node can receive DNS from RA while keeping a stable, non-rotating IP address.
 - DHCPv6: A server-based dynamic address assignment mechanism for IPv6. Not in scope for this HEP; see Non-goals.
 - NDP: Neighbor Discovery Protocol. The IPv6 equivalent of ARP. Used by kube-vip to advertise an IPv6 VIP on the local management network segment.
 - VIP: Virtual IP address. The stable management address for the Harvester UI and API, advertised by kube-vip. In IPv6-only mode this is an IPv6 address accessed via bracket notation, for example `https://[2001:db8::10]`.
@@ -54,9 +56,12 @@ The proposal aligns with Harvester v1.7+ networking architecture, which uses Net
 ### Goals
 
 - Support Harvester installation on IPv6-only and dual-stack management networks.
+- Enable IPv6 at the kernel level on all cluster nodes before any IPv6 interface configuration. The installer sets `net.ipv6.conf.all.disable_ipv6=0` via a persistent sysctl drop-in at install time; the network controller verifies this on running nodes and surfaces a condition if the setting is absent.
 - Support IPv6 route configuration and validation for VM networks where route settings are currently IPv4-specific.
 - Support IPv6-aware host network configuration on management and custom cluster networks.
 - Support SLAAC mode for host VLAN sub-interfaces as the IPv6-native dynamic addressing mechanism.
+- Accept IPv6 DNS nameserver addresses in the install config for IPv6-only and dual-stack management interface setup; write them into the generated NetworkManager connection profile so name resolution is available from first boot. Document RDNSS/DNSSL (RFC 6106) from Router Advertisements as the alternative DNS mechanism for SLAAC environments that do not supply static nameservers.
+- Disable IPv6 Privacy Extensions (RFC 8981) on all Harvester NetworkManager connection profiles that carry IPv6. Set `ipv6.ip6-privacy=0` on both static and SLAAC profiles to prevent transient temporary addresses from appearing alongside the configured address. For SLAAC profiles, additionally set `ipv6.addr-gen-mode=eui64` to ensure the RA-derived address is stable and MAC-based rather than a rotating random token. Without these settings, SLE Micro's default Privacy Extensions behavior would cause SLAAC-configured VLAN sub-interfaces (migration network, storage network) to rotate their addresses approximately every 24 hours, breaking Whereabouts IP allocations, KubeVirt migration bindings, and Longhorn storage network connectivity.
 - Preserve backward compatibility for IPv4-only clusters.
 - Provide explicit upgrade and rollback guidance for IPv6-related configuration changes.
 - Configure kube-vip to advertise an IPv6 VIP via NDP for IPv6-only and dual-stack management networks, so the management URL is reachable over IPv6.
@@ -111,7 +116,8 @@ Harvester management and host networking can be configured in three IP family mo
 
 This enhancement covers:
 
-- Installer and host network configuration accept and validate IPv6 management settings. Management interfaces use static addressing; stable addresses are required for cluster control-plane stability.
+- Installer and host network configuration accept and validate IPv6 management settings. Management interfaces use static addressing; stable addresses are required for cluster control-plane stability. The installer sets `net.ipv6.conf.all.disable_ipv6=0` in a persistent sysctl drop-in before activating any IPv6 NetworkManager profile; the network controller verifies this setting on running nodes before reconciling IPv6 config.
+- IPv6 DNS nameserver configuration at install time: the installer accepts nameserver addresses for IPv6-only and dual-stack management interface setup and writes them into the generated NetworkManager profile. Environments where the upstream router sends RDNSS options in RAs are documented explicitly as an alternative.
 - VM network route settings allow IPv6 CIDR and gateway where applicable.
 - Host network config APIs and controllers support IPv6 addresses for L3 interface configuration, covering both static and SLAAC modes.
 - SLAAC is the dynamic addressing mode for IPv6, equivalent in role to DHCPv4 for IPv4: it allows nodes to self-configure addresses from Router Advertisement prefixes without requiring manual per-node assignment or server infrastructure.
@@ -181,6 +187,7 @@ TODO: detail
 - Existing install flow is extended with IPv6 fields where management settings are provided. Management interfaces always use static addressing, since stable predictable addresses are required for cluster control-plane communication. This is installer and host-networking work, not only Kubernetes API work; see [install.management_interface](https://docs.harvesterhci.io/v1.8/install/harvester-configuration#installmanagement_interface) for the current management interface configuration schema.
 - Validation includes IPv6 address/prefix format, gateway format, and family consistency.
 - For dual-stack, at least one reachable route is required for cluster bootstrap.
+- IPv6-only and dual-stack installs require at least one DNS nameserver to be supplied in the install config unless the upstream router sends RDNSS options in Router Advertisements (RFC 6106). Without a valid nameserver source, DNS resolution fails on first boot and may impact etcd peer discovery. The installer emits a warning if no DNS source is provided but does not block installation; RDNSS-capable routers satisfy this requirement automatically.
 
 #### Cluster Network and Host Network Configuration
 
@@ -346,6 +353,9 @@ stack-preference: dual  # controls loopback address for internal health probes (
 - Generate RKE2 config (`90-harvester-server.yaml`) with appropriate node-ip, cluster-cidr, service-cidr (dual-prefix for dual-stack), tls-san for all configured VIPs, and stack-preference (ipv4/ipv6/dual) to control the loopback address used for internal health probes.
 - Configure kube-vip with ARP (IPv4), NDP (IPv6), or both (dual-stack) based on the selected IP family.
 - For IPv6-only: ensure `/etc/hosts` contains `::1 localhost` on each node, as required by RKE2 etcd liveness checks.
+- For IPv6 and dual-stack: write `net.ipv6.conf.all.disable_ipv6=0` to `/etc/sysctl.d/99-harvester-ipv6.conf` and apply with `sysctl --system` before any NetworkManager IPv6 profile is activated. If IPv6 is still disabled at the kernel level when the NM profile is applied, address assignment silently fails with no error from NetworkManager.
+- For IPv6-only and dual-stack: if DNS nameserver addresses are provided in the install config, write them as `ipv6.dns` entries in the generated NetworkManager connection profile for the management interface. If no nameservers are supplied, omit `ipv6.dns` and document RDNSS from RA as the expected DNS source; NetworkManager processes RDNSS options automatically when received.
+- For all NetworkManager connection profiles generated at install time that carry IPv6 (both static management and any sub-interface profiles), set `ipv6.ip6-privacy=0` to prevent Privacy Extension temporary addresses (RFC 8981) from being generated alongside the configured address. For SLAAC-mode profiles, additionally set `ipv6.addr-gen-mode=eui64` to ensure the RA-derived address is MAC-derived and stable across reboots. SLE Micro enables Privacy Extensions by default; omitting these settings causes SLAAC address rotation approximately every 24 hours.
 
 2. harvester
 - Extend API validation/webhooks for IPv6 fields in relevant resources.
@@ -356,7 +366,9 @@ stack-preference: dual  # controls loopback address for internal health probes (
 
 3. network-controller-harvester
 - Extend host network config reconciliation for static and SLAAC modes.
-- For SLAAC, configure NetworkManager profiles with `ipv6.method=auto` and do not set a gateway field; the gateway is derived from Router Advertisements.
+- For SLAAC, configure NetworkManager profiles with `ipv6.method=auto`, `ipv6.addr-gen-mode=eui64`, and `ipv6.ip6-privacy=0`. Do not set a gateway field; the gateway is derived from Router Advertisements. The `addr-gen-mode=eui64` setting ensures the RA-derived address is stable and MAC-derived — without it, SLE Micro's default Privacy Extensions behavior would cause the address to rotate approximately every 24 hours, silently breaking Whereabouts IP allocations, KubeVirt migration bindings, and Longhorn storage network connectivity.
+- For static mode, set `ipv6.ip6-privacy=0` on generated NetworkManager profiles to prevent Privacy Extension temporary addresses from appearing alongside the statically configured address.
+- Before applying IPv6 config to a running node, verify `net.ipv6.conf.all.disable_ipv6=0`; if not set, emit a `KernelIPv6Disabled` node condition and block reconciliation. The operator must write the sysctl to `/etc/sysctl.d/99-harvester-ipv6.conf`, apply it with `sysctl --system`, and then either reload the affected NetworkManager connection (`nmcli connection up <name>`) or reboot the node. A reboot is the safest remediation if the interface was initialized with IPv6 disabled.
 - Add IPv6 route and reachability checks for VM network route configuration.
 - Surface per-node condition details for IPv6 failures.
 
@@ -385,6 +397,7 @@ stack-preference: dual  # controls loopback address for internal health probes (
 ### Validation Rules
 
 - CIDR and gateway must match selected family.
+- When IPv6 or dual-stack family is configured, `net.ipv6.conf.all.disable_ipv6` must be `0` on the target node. The installer enforces this before activating the interface profile; the network controller emits a `KernelIPv6Disabled` condition if the setting is absent on a running node.
 - For static mode, per-node assignment with `ipv6CIDR` is required for each targeted node.
 - For SLAAC mode, `ipv6CIDR` must not be set; the address is derived from the RA prefix.
 - Family mismatches (for example IPv6 gateway with IPv4 CIDR) are rejected.
@@ -392,11 +405,16 @@ stack-preference: dual  # controls loopback address for internal health probes (
 - SLAAC and static mode must not be mixed within the same HostNetworkConfig.
 - The `vipV6` installer field must be a valid IPv6 address (not a CIDR prefix) when present. An address with a prefix length is rejected at install validation time.
 - The `storage-network` setting value must be a valid IPv4 CIDR, IPv6 CIDR, or comma-separated dual-stack CIDR pair. A bare address without prefix length is rejected. The CIDR must match the address family configured in the referenced `NetworkAttachmentDefinition`.
+- For IPv6-only installs, the installer emits a warning if no DNS nameserver is supplied in the install config and RDNSS is not documented as available. The install is not blocked, but the operator must ensure either a nameserver is provided or the upstream router sends RDNSS options in Router Advertisements.
+- All IPv6 NetworkManager connection profiles generated or reconciled by Harvester must include `ipv6.ip6-privacy=0`. SLAAC profiles must additionally include `ipv6.addr-gen-mode=eui64`. The network controller verifies these settings are present when reconciling an existing profile on a running node; if absent, it emits an `IPv6PrivacyExtensionsEnabled` condition and rewrites the profile.
 
 ### Failure Modes and Reporting
 
 - Node-level condition for each apply step: vlan create, link up, address apply, route checks.
+- If `net.ipv6.conf.all.disable_ipv6=1` on a node when IPv6 config is applied, the network controller emits a `KernelIPv6Disabled` condition with remediation: write `net.ipv6.conf.all.disable_ipv6=0` to `/etc/sysctl.d/99-harvester-ipv6.conf`, run `sysctl --system`, then run `nmcli connection up <name>` for the affected interface. Reboot the node if the interface was already initialized with IPv6 disabled.
 - For SLAAC, an additional condition surfaces when no RA-derived address is observed within a timeout window (indicating the upstream router is not sending RAs on the segment).
+- If a SLAAC NetworkManager profile is applied without `ipv6.addr-gen-mode=eui64` and `ipv6.ip6-privacy=0`, the kernel may generate Privacy Extension temporary addresses and the primary SLAAC address will rotate after the temporary address lifetime expires (typically 24 hours on SLE Micro). This causes the node to bind new addresses, silently breaking components that registered the original address — including Whereabouts IP pool entries, KubeVirt migration server bindings, and Longhorn storage network NAD annotations — without any Kubernetes condition being raised. Diagnosis: run `ip -6 addr show <interface>` and look for addresses flagged `temporary`. Remediation: ensure `ipv6.addr-gen-mode=eui64` and `ipv6.ip6-privacy=0` are present in the NM profile, run `nmcli connection up <name>`, and verify only the stable EUI-64-derived address remains. This failure mode must be caught by Host Network Tests and documented in the troubleshooting guide.
+- In IPv6-only deployments, if no DNS nameserver was configured at install time and the upstream router does not send RDNSS options in RAs, `/etc/resolv.conf` will have no nameserver entries after boot. This is diagnosable via `resolvectl status` on the affected node. The installer emits a warning at install time; post-install diagnosis and remediation steps are documented in the troubleshooting guide.
 - Explicit reason codes for invalid config, interface unavailable, and external dependency failures.
 - Reconciliation retries are bounded and observable.
 - If the Ingress controller or console proxy is not correctly bound to IPv6, clients in IPv6-only environments receive a connection refusal at the socket level rather than an HTTP error. This failure mode is not surfaced as a Kubernetes condition; it must be caught by the E2E acceptance tests and documented in the troubleshooting guide.
@@ -416,15 +434,20 @@ stack-preference: dual  # controls loopback address for internal health probes (
 2. Install with dual-stack management interface, verify node registration and reboot stability.
 3. After IPv6-only install, verify the web UI is reachable at `https://[<vip-v6>]` from a client that has no IPv4 route to the cluster.
 4. Negative tests for malformed IPv6 addresses, invalid prefixes, invalid gateways, and `vipV6` supplied as a CIDR rather than a plain address.
+5. Verify `/etc/sysctl.d/99-harvester-ipv6.conf` contains `net.ipv6.conf.all.disable_ipv6=0` after IPv6-mode installation; verify `sysctl net.ipv6.conf.all.disable_ipv6` returns `0` on each node.
+6. Install with IPv6-only management interface and an explicit DNS nameserver; verify the nameserver appears in `resolvectl status` output on each node after first boot.
+7. Install with IPv6-only management interface and no DNS nameserver supplied; verify the installer emits a warning and that no `ipv6.dns` entry is written to the NM profile (relying on RDNSS from RA).
 
 #### Host Network Tests
 
 1. Create HostNetworkConfig with static IPv6 per node.
 2. Create HostNetworkConfig with SLAAC mode; verify RA-derived address appears in status.
 3. Verify SLAAC gateway is populated from RA and not from a user config field.
-4. Reboot nodes and verify persistence of static and SLAAC configurations.
-5. Add and remove nodes; verify reconciliation and status reporting.
-6. Negative test: SLAAC mode with no RA on segment surfaces clear condition/error.
+4. Verify the SLAAC-assigned address uses EUI-64 derivation: confirm it matches the expected format for the node's MAC address and that no address with the `temporary` flag appears on the interface (`ip -6 addr show <vlan-interface>`).
+5. Verify `ipv6.addr-gen-mode=eui64` and `ipv6.ip6-privacy=0` are present in the generated NetworkManager profile for SLAAC connections; verify `ipv6.ip6-privacy=0` is present in static connection profiles.
+6. Reboot nodes and verify persistence of static and SLAAC configurations.
+7. Add and remove nodes; verify reconciliation and status reporting.
+8. Negative test: SLAAC mode with no RA on segment surfaces clear condition/error.
 
 #### VM Network Tests
 
@@ -434,6 +457,14 @@ stack-preference: dual  # controls loopback address for internal health probes (
 4. Validate webhook rejection of mismatched family input.
 5. L2 VM-to-VM IPv6 ping on the same node over a VLAN network: attach two VMs to the same VLAN and verify ICMPv6 echo reply.
 6. L2 VM-to-VM IPv6 ping across nodes over a VLAN network: schedule two VMs on different nodes and verify ICMPv6 echo reply, confirming the overlay underlay carries IPv6 frames correctly.
+
+#### kube-ovn Overlay Tests
+
+1. Create a VM network backed by a kube-ovn subnet with an IPv6 `spec.cidrBlock` and `spec.gateway`; verify the subnet reaches `Ready` state and the provisioned `cidrBlock` matches the configured IPv6 value.
+2. Attach two VMs to the kube-ovn IPv6 subnet; verify each VM receives an IPv6 address from the subnet range, visible via VM network status.
+3. ICMPv6 echo between two VMs on the same kube-ovn subnet scheduled on the same node; verify echo reply received.
+4. ICMPv6 echo between two VMs on the same kube-ovn subnet scheduled on different nodes; verify echo reply received, confirming VXLAN/Geneve encapsulation carries IPv6 traffic correctly.
+5. Dual-stack kube-ovn subnet: configure `spec.cidrBlock` with both IPv4 and IPv6 prefixes; verify both families are provisioned and VMs receive addresses from each family.
 
 #### Migration Network Tests
 
@@ -494,7 +525,7 @@ Each component integrated in this HEP has documented first-class IPv6 support in
 | **Canal** (Calico v3.31.3 / Flannel v0.28.1) | Pod and cluster network CNI | Canal reads `cluster-cidr` and `service-cidr` from RKE2 config and auto-configures dual-stack IPAM — no separate HelmChartConfig needed; Calico `ipPools` supports IPv4-only, dual-stack, and IPv6-only; Flannel VXLAN dual-stack pre-dates v0.28.1 | https://docs.tigera.io/calico/3.31/networking/ipam/ipv6 · https://docs.rke2.io/networking/basic_network_options#dual-stack-configuration |
 | **RKE2** v1.35.2 | Kubernetes distribution | `cluster-cidr`, `service-cidr` accept comma-separated dual-stack prefixes; `node-ip` accepts comma-separated IPv4,IPv6 pair; `tls-san` lists both VIPs; `stack-preference` (ipv4/ipv6/dual) controls health-probe loopback; harvester-installer generates these into `90-harvester-server.yaml` | https://docs.rke2.io/networking/basic_network_options#dual-stack-configuration · https://ranchermanager.docs.rancher.com/reference-guides/cluster-configuration/rancher-server-configuration/rke2-cluster-configuration#networking |
 | **nginx Ingress Controller** v1.14.3 | Web UI, API, and console proxy exposure | Service `spec.ipFamilyPolicy: PreferDualStack` assigns both cluster IPs; nginx binds `[::]` natively; `tls-san` must include the IPv6 VIP; **Note**: ingress-nginx archived March 2026 — Harvester 1.8 ships v1.14.3; RKE2 v1.36+ defaults to Traefik | https://kubernetes.io/docs/concepts/services-networking/dual-stack/ |
-| **NetworkManager** 1.52.0 | Host interface IPv6 lifecycle | `ipv6.method=auto` (SLAAC — address derived from RA prefix, no gateway field required) or `ipv6.method=manual` (static, requires `ipv6.addresses` and `ipv6.gateway`); `ipv6.routes` for additional prefixes; network-controller-harvester writes these fields via `nmcli`/keyfile | https://networkmanager.dev/docs/api/latest/settings-ipv6.html |
+| **NetworkManager** 1.52.0 | Host interface IPv6 lifecycle | `ipv6.method=auto` (SLAAC — address derived from RA prefix, no gateway field required; must also set `ipv6.addr-gen-mode=eui64` to force stable MAC-based address and `ipv6.ip6-privacy=0` to disable Privacy Extension rotation) or `ipv6.method=manual` (static, requires `ipv6.addresses` and `ipv6.gateway`; must also set `ipv6.ip6-privacy=0` to suppress temporary addresses); `ipv6.routes` for additional prefixes; network-controller-harvester writes these fields via `nmcli`/keyfile | https://networkmanager.dev/docs/api/latest/settings-ipv6.html |
 | **KubeVirt** v1.7.0 | VM networking | VM `spec.template.spec.domain.devices.interfaces[].masquerade` binding; user guide covers both IPv4+IPv6 dual-stack masquerade and IPv6 single-stack masquerade; no code change required in KubeVirt itself | https://kubevirt.io/user-guide/network/interfaces_and_networks/#masquerade-ipv4-and-ipv6-dual-stack-support |
 | **Multus CNI** v4.2.3 | Secondary network attachment (VLAN NICs) | `NetworkAttachmentDefinition` `spec.config` carries the delegate CNI JSON (bridge, VLAN, host-device); Multus passes it to the delegate unmodified — IPv6 support is in the delegate config, not Multus itself | https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/quickstart.md |
 | **Longhorn** v1.11.1 | Persistent block storage and volume replication (storage network via Multus NAD) | `storage-network` setting accepts any Multus NAD; address family is determined by the NAD delegate config — no IPv4-only restriction exists in Longhorn itself; CI pipeline runs backup tests with `NETWORK_STACK=ipv6`; Harvester-side change required: extend `storage-network` setting schema and Whereabouts IP pool to accept IPv6 or dual-stack CIDR | https://longhorn.io/docs/1.11.0/advanced-resources/deploy/storage-network/ |
