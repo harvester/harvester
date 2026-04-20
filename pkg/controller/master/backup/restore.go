@@ -633,13 +633,81 @@ func (h *RestoreHandler) reconcileVM(
 	}
 	vmCpy.Annotations[lastRestoreAnnotation] = restoreID
 	vmCpy.Annotations[restoreNameAnnotation] = vmRestore.Name
-	delete(vmCpy.Annotations, util.AnnotationVolumeClaimTemplates)
+
+	// Build volumeClaimTemplates annotation from restored PVCs to enable storage migration
+	volumeClaimTemplatesStr, err := h.buildVolumeClaimTemplates(vmRestore)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build volumeClaimTemplates annotation: %w", err)
+	}
+	vmCpy.Annotations[util.AnnotationVolumeClaimTemplates] = volumeClaimTemplatesStr
 
 	if vm, err = h.vms.Update(vmCpy); err != nil {
 		return nil, err
 	}
 
 	return vm, nil
+}
+
+func sanitizeVolumeClaimTemplateSpec(pvc *corev1.PersistentVolumeClaim) corev1.PersistentVolumeClaimSpec {
+	spec := corev1.PersistentVolumeClaimSpec{
+		AccessModes:      append([]corev1.PersistentVolumeAccessMode(nil), pvc.Spec.AccessModes...),
+		StorageClassName: pvc.Spec.StorageClassName,
+		VolumeMode:       pvc.Spec.VolumeMode,
+	}
+
+	if len(pvc.Spec.Resources.Requests) > 0 || len(pvc.Spec.Resources.Limits) > 0 {
+		spec.Resources = corev1.VolumeResourceRequirements{}
+
+		if len(pvc.Spec.Resources.Requests) > 0 {
+			spec.Resources.Requests = pvc.Spec.Resources.Requests.DeepCopy()
+		}
+
+		if len(pvc.Spec.Resources.Limits) > 0 {
+			spec.Resources.Limits = pvc.Spec.Resources.Limits.DeepCopy()
+		}
+	}
+
+	return spec
+}
+
+func buildVolumeClaimTemplateAnnotations(pvc *corev1.PersistentVolumeClaim) map[string]string {
+	if val, ok := pvc.Annotations[util.AnnotationImageID]; ok {
+		return map[string]string{util.AnnotationImageID: val}
+	}
+	return nil
+}
+
+// buildVolumeClaimTemplates builds the volumeClaimTemplates annotation from restored PVCs
+// This is needed to enable storage migration and other PVC management features for restored VMs
+func (h *RestoreHandler) buildVolumeClaimTemplates(vmRestore *harvesterv1.VirtualMachineRestore) (string, error) {
+	entries := make([]util.VolumeClaimTemplateEntry, 0, len(vmRestore.Status.VolumeRestores))
+
+	for _, vr := range vmRestore.Status.VolumeRestores {
+		// Get the actual PVC to include latest annotations like imageID
+		pvc, err := h.pvcCache.Get(vmRestore.Namespace, vr.PersistentVolumeClaim.ObjectMeta.Name)
+		if err != nil {
+			return "", fmt.Errorf("failed to get restored PVC %s/%s: %w",
+				vmRestore.Namespace, vr.PersistentVolumeClaim.ObjectMeta.Name, err)
+		}
+
+		entry := util.VolumeClaimTemplateEntry{
+			PersistentVolumeClaim: corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        pvc.Name,
+					Annotations: buildVolumeClaimTemplateAnnotations(pvc),
+				},
+				Spec: sanitizeVolumeClaimTemplateSpec(pvc),
+			},
+		}
+		entries = append(entries, entry)
+	}
+
+	volumeClaimTemplatesStr, err := util.MarshalVolumeClaimTemplates(entries)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal volumeClaimTemplates: %w", err)
+	}
+
+	return volumeClaimTemplatesStr, nil
 }
 
 func (h *RestoreHandler) reconcileSecretBackups(
@@ -763,6 +831,13 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 		return nil, err
 	}
 	vm.Spec.Template.Spec.Volumes = newVolumes
+
+	// Build volumeClaimTemplates annotation from restored PVCs to enable storage migration
+	volumeClaimTemplatesStr, err := h.buildVolumeClaimTemplates(restore)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build volumeClaimTemplates annotation: %w", err)
+	}
+	vm.Annotations[util.AnnotationVolumeClaimTemplates] = volumeClaimTemplatesStr
 
 	if !restore.Spec.KeepMacAddress {
 		for i := range vm.Spec.Template.Spec.Domain.Devices.Interfaces {
