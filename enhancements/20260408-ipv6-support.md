@@ -7,7 +7,6 @@ The file name is lowercase and uses dashes, following HEP conventions.
 ## Table of Contents
 
 - [Summary](#summary)
-  - [References](#references)
 - [Terminology](#terminology)
 - [Motivation](#motivation)
   - [Goals](#goals)
@@ -90,8 +89,8 @@ The proposal aligns with Harvester v1.7+ networking architecture, which uses Net
 
 Harvester management and host networking can be configured in three IP family modes. The mode is chosen at install time and is immutable for the lifetime of the cluster. Changing the IP family mode post-install is not supported: doing so would invalidate the RKE2 `node-ip`, etcd peer URLs, `tls-san`, and kube-vip VIP configuration that were committed at install time. A webhook validation rule rejects any attempt to change the cluster-level IP family after the initial installation is complete. The mode determines how nodes, the management VIP, the Kubernetes control plane, and host interfaces are addressed.
 
-| IPv4-only | Dual-stack | IPv6-only |
-|---|---|---|
+| | IPv4-only | Dual-stack | IPv6-only |
+|---|---|---|---|
 | Management addresses | IPv4 | IPv4 + IPv6 | IPv6 |
 | Kubernetes cluster-cidr | IPv4 prefix | IPv4 + IPv6 prefixes | IPv6 prefix |
 | Kubernetes service-cidr | IPv4 prefix | IPv4 + IPv6 prefixes | IPv6 prefix |
