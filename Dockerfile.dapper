@@ -61,11 +61,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     docker-ce=5:20.10.* \
     && rm -rf /var/lib/apt/lists/*
 ## install golangci
-<<<<<<< HEAD
-RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
-=======
 COPY --from=golangci/golangci-lint:v2.8.0-alpine@sha256:1194f3bfcbaeeb92d8d159fdfbe2a79d18ec0a222d9d984b1438906bca416b51 /usr/bin/golangci-lint /usr/local/bin/golangci-lint
->>>>>>> e41a67fe (chore: validate the checksums of build dependency artifacts (#10337))
 
 ## install controller-gen
 RUN GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.1
@@ -76,14 +72,10 @@ RUN GO111MODULE=on go install github.com/onsi/ginkgo/v2/ginkgo@v2.1.4
 RUN  GO111MODULE=on go install k8s.io/code-generator/cmd/openapi-gen@v0.29.13
 
 # install kind
-<<<<<<< HEAD
-RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/v0.14.0/kind-linux-amd64 && chmod +x /usr/bin/kind
-=======
 RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-${ARCH} && \
   KIND_SHA256="KIND_SHA256_Linux_${ARCH}" && \
   echo "${!KIND_SHA256}  /usr/bin/kind" | sha256sum -c - && \
   chmod +x /usr/bin/kind
->>>>>>> e41a67fe (chore: validate the checksums of build dependency artifacts (#10337))
 
 # install codecov
 RUN curl -Lo /usr/bin/codecov https://uploader.codecov.io/${CODECOV_VERSION}/linux/codecov && \
