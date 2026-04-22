@@ -5,8 +5,8 @@ Harvester
 [![Releases](https://img.shields.io/github/release/harvester/harvester.svg)](https://github.com/harvester/harvester/releases)
 [![Slack](https://img.shields.io/badge/slack-join-brightgreen)](https://slack.rancher.io/)
 
-[Harvester](https://harvesterhci.io/) is a modern, open, interoperable, [hyperconverged infrastructure (HCI)](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) solution built on Kubernetes. 
-It is an open-source alternative designed for operators seeking a [cloud-native](https://about.gitlab.com/topics/cloud-native/) HCI solution. Harvester runs on bare metal servers and provides integrated virtualization and distributed storage capabilities. 
+[Harvester](https://harvesterhci.io/) is a modern, open, interoperable, [hyperconverged infrastructure (HCI)](https://en.wikipedia.org/wiki/Hyper-converged_infrastructure) solution built on Kubernetes.
+It is an open-source alternative designed for operators seeking a [cloud-native](https://about.gitlab.com/topics/cloud-native/) HCI solution. Harvester runs on bare metal servers and provides integrated virtualization and distributed storage capabilities.
 In addition to traditional virtual machines (VMs), Harvester supports containerized environments automatically through integration with [Rancher](https://ranchermanager.docs.rancher.com/integrations-in-rancher/harvester). It offers a solution that unifies legacy virtualized infrastructure while enabling the adoption of containers from core to edge locations.
 
 ![harvester-ui](./docs/assets/dashboard.png)
@@ -19,7 +19,7 @@ Harvester is an enterprise-ready, easy-to-use infrastructure platform that lever
 1. **VM live migration support:** Move a VM to a different host or node with zero downtime.
 1. **VM backup, snapshot, and restore:** Back up your VMs from NFS, S3 servers, or NAS devices. Use your backup to restore a failed VM or create a new VM on a different cluster.
 1. **Storage management:** Harvester supports distributed block storage and tiering. Volumes represent storage; you can easily create, edit, clone, or export a volume.
-1. **Network management:** Supports using a virtual IP (VIP) and multiple Network Interface Cards (NICs). If your VMs need to connect to the external network, create a VLAN or untagged network. 
+1. **Network management:** Supports using a virtual IP (VIP) and multiple Network Interface Cards (NICs). If your VMs need to connect to the external network, create a VLAN or untagged network.
 1. **Integration with [Rancher](https://ranchermanager.docs.rancher.com/integrations-in-rancher/harvester):** Access Harvester directly within Rancher through Rancher’s Virtualization Management page and manage your VM workloads alongside your Kubernetes clusters.
 
 The following diagram outlines a high-level architecture of Harvester:
@@ -71,7 +71,7 @@ During the installation, you can either choose to **create a new Harvester clust
    ![iso-choose-disks.png](./docs/assets/iso-choose-disks.png )
    - `Installation disk`: The disk to install the Harvester cluster on.
    - `Data disk`: The disk to store VM data on. Choosing a separate disk to store VM data is recommended.
-   - `Persistent size`: If you only have one disk or use the same disk for both OS and VM data, you need to configure persistent partition size to store system packages and container images. The default and minimum persistent partition size is 150 GiB. You can specify a size like 200Gi or 153600Mi. 
+   - `Persistent size`: If you only have one disk or use the same disk for both OS and VM data, you need to configure persistent partition size to store system packages and container images. The default and minimum persistent partition size is 150 GiB. You can specify a size like 200Gi or 153600Mi.
 1. Configure network interface(s) for the management network. By default, Harvester will create a bonded NIC named `mgmt-bo`, and the IP address can either be configured via DHCP or statically assigned.
 ![iso-config-network.png](./docs/assets/iso-config-network.png)
 1. (Optional) Configure cluster network. Leave blank to use the defaults.
@@ -103,6 +103,7 @@ https://github.com/harvester/harvester/releases
 
 | Release   | Version | Type           | Release Note (Changelog)                                         | Upgrade Note                                                |
 |-----------|---------|----------------|------------------------------------------------------------------|-------------------------------------------------------------|
+| **1.8***  | 1.8.0   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.8.0) | [🔗](https://docs.harvesterhci.io/v1.8/upgrade/v1-7-x-to-v1-8-x) |
 | **1.7***  | 1.7.1   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.7.1) | [🔗](https://docs.harvesterhci.io/v1.7/upgrade/v1-6-x-to-v1-7-x) |
 | **1.6***  | 1.6.1   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.6.1) | [🔗](https://docs.harvesterhci.io/v1.6/upgrade/v1-5-x-to-v1-6-x) |
 | **1.5***  | 1.5.2   | Stable         | [🔗](https://github.com/harvester/harvester/releases/tag/v1.5.2) | [🔗](https://docs.harvesterhci.io/v1.5/upgrade/v1-4-2-to-v1-5-2) |
