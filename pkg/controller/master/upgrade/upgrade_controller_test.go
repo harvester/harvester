@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	mgmtv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	upgradeapiv1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	"github.com/stretchr/testify/assert"
@@ -14,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -102,22 +105,68 @@ func newCluster(namespace, name string) *provisioningv1.Cluster {
 	}
 }
 
+func newKubeVirt(namespace, name string) *kubevirtv1.KubeVirt {
+	return &kubevirtv1.KubeVirt{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: kubevirtv1.KubeVirtSpec{
+			WorkloadUpdateStrategy: kubevirtv1.KubeVirtWorkloadUpdateStrategy{
+				WorkloadUpdateMethods: []kubevirtv1.WorkloadUpdateMethod{},
+			},
+		},
+	}
+}
+
+func newManagedChart(namespace, name string) *mgmtv3.ManagedChart {
+	return &mgmtv3.ManagedChart{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: mgmtv3.ManagedChartSpec{
+			Diff: &fleet.DiffOptions{
+				ComparePatches: []fleet.ComparePatch{},
+			},
+		},
+	}
+}
+
+func newManagedChartWithComparePatches(namespace, name string, patches []fleet.ComparePatch) *mgmtv3.ManagedChart {
+	return &mgmtv3.ManagedChart{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: mgmtv3.ManagedChartSpec{
+			Diff: &fleet.DiffOptions{
+				ComparePatches: patches,
+			},
+		},
+	}
+}
+
 func TestUpgradeHandler_OnChanged(t *testing.T) {
 	type input struct {
-		key        string
-		upgrade    *harvesterv1.Upgrade
-		version    *harvesterv1.Version
-		vmi        *harvesterv1.VirtualMachineImage
-		cluster    *provisioningv1.Cluster
-		lhsettings []*lhv1beta2.Setting
-		nodes      []*v1.Node
+		key          string
+		upgrade      *harvesterv1.Upgrade
+		version      *harvesterv1.Version
+		vmi          *harvesterv1.VirtualMachineImage
+		cluster      *provisioningv1.Cluster
+		kubevirt     *kubevirtv1.KubeVirt
+		managedChart *mgmtv3.ManagedChart
+		lhsettings   []*lhv1beta2.Setting
+		nodes        []*v1.Node
 	}
 	type output struct {
-		plan       *upgradeapiv1.Plan
-		upgrade    *harvesterv1.Upgrade
-		upgradeLog *harvesterv1.UpgradeLog
-		vmi        *harvesterv1.VirtualMachineImage
-		err        error
+		plan         *upgradeapiv1.Plan
+		upgrade      *harvesterv1.Upgrade
+		upgradeLog   *harvesterv1.UpgradeLog
+		vmi          *harvesterv1.VirtualMachineImage
+		kubevirt     *kubevirtv1.KubeVirt
+		managedChart *mgmtv3.ManagedChart
+		err          error
 	}
 	var testCases = []struct {
 		name     string
@@ -216,11 +265,14 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					ChartUpgradeStatus(v1.ConditionTrue, "", "").
 					NodesUpgradedCondition(v1.ConditionTrue, "", "").
 					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(skipManifestsRemovePlanCompletedAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(autoCleanupSystemGeneratedSnapshotAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(replicaReplenishmentAnnotation, strconv.Itoa(600)).Build(),
-				version: newVersionBuilder(testVersion).Build(),
-				vmi:     newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
-				cluster: newCluster(util.FleetLocalNamespaceName, util.LocalClusterName),
+				version:      newVersionBuilder(testVersion).Build(),
+				vmi:          newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
+				cluster:      newCluster(util.FleetLocalNamespaceName, util.LocalClusterName),
+				kubevirt:     newKubeVirt(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName),
+				managedChart: newManagedChart(util.FleetLocalNamespaceName, util.HarvesterManagedChart),
 				lhsettings: []*lhv1beta2.Setting{
 					newLonghornSetting(replicaReplenishmentWaitIntervalSetting, strconv.Itoa(1200)),
 					newLonghornSetting(autoCleanupSystemGeneratedSnapshotSetting, strconv.FormatBool(false)),
@@ -241,10 +293,118 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					ChartUpgradeStatus(v1.ConditionTrue, "", "").
 					NodesUpgradedCondition(v1.ConditionTrue, "", "").
 					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(skipManifestsRemovePlanCompletedAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(longhornSettingsRestoredAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(autoCleanupSystemGeneratedSnapshotAnnotation, strconv.FormatBool(true)).
 					WithAnnotation(replicaReplenishmentAnnotation, strconv.Itoa(600)).
 					WithLabel(upgradeCleanupLabel, StateSucceeded).Build(),
+			},
+		},
+		{
+			name: "kubevirt comparePatches should be removed after cleanup",
+			given: input{
+				key: testUpgradeName,
+				upgrade: newTestUpgradeBuilder().
+					InitStatus().
+					LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").
+					ImageReadyCondition(v1.ConditionTrue, "", "").
+					RepoProvisionedCondition(v1.ConditionTrue, "", "").
+					NodesPreparedCondition(v1.ConditionTrue, "", "").
+					ChartUpgradeStatus(v1.ConditionTrue, "", "").
+					NodesUpgradedCondition(v1.ConditionTrue, "", "").
+					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).Build(),
+				version:  newVersionBuilder(testVersion).Build(),
+				vmi:      newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
+				cluster:  newCluster(util.FleetLocalNamespaceName, util.LocalClusterName),
+				kubevirt: newKubeVirt(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName),
+				managedChart: newManagedChartWithComparePatches(util.FleetLocalNamespaceName, util.HarvesterManagedChart, []fleet.ComparePatch{
+					{
+						APIVersion: "kubevirt.io/v1",
+						Kind:       "KubeVirt",
+						Name:       util.KubeVirtObjectName,
+						Namespace:  util.HarvesterSystemNamespaceName,
+						Operations: []fleet.Operation{
+							{
+								Op:    "replace",
+								Path:  "/spec/workloadUpdateStrategy/workloadUpdateMethods",
+								Value: "[]",
+							},
+							{
+								Op:    "replace",
+								Path:  "/spec/someOtherField",
+								Value: "test",
+							},
+						},
+						JsonPointers: []string{
+							"/spec/workloadUpdateStrategy/workloadUpdateMethods",
+							"/spec/someOtherField",
+						},
+					},
+				}),
+				nodes: []*v1.Node{
+					newNodeBuilder("node-1").Managed().ControlPlane().Build(),
+					newNodeBuilder("node-2").Managed().ControlPlane().Build(),
+					newNodeBuilder("node-3").Managed().ControlPlane().Build(),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					InitStatus().
+					LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").
+					ImageReadyCondition(v1.ConditionTrue, "", "").
+					RepoProvisionedCondition(v1.ConditionTrue, "", "").
+					NodesPreparedCondition(v1.ConditionTrue, "", "").
+					ChartUpgradeStatus(v1.ConditionTrue, "", "").
+					NodesUpgradedCondition(v1.ConditionTrue, "", "").
+					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(longhornSettingsRestoredAnnotation, strconv.FormatBool(true)).
+					WithLabel(upgradeCleanupLabel, StateSucceeded).Build(),
+				kubevirt: &kubevirtv1.KubeVirt{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: util.HarvesterSystemNamespaceName,
+						Name:      util.KubeVirtObjectName,
+					},
+					Spec: kubevirtv1.KubeVirtSpec{
+						WorkloadUpdateStrategy: kubevirtv1.KubeVirtWorkloadUpdateStrategy{
+							WorkloadUpdateMethods: []kubevirtv1.WorkloadUpdateMethod{
+								kubevirtv1.WorkloadUpdateMethodLiveMigrate,
+							},
+						},
+					},
+				},
+				managedChart: &mgmtv3.ManagedChart{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: util.FleetLocalNamespaceName,
+						Name:      util.HarvesterManagedChart,
+					},
+					Spec: mgmtv3.ManagedChartSpec{
+						Diff: &fleet.DiffOptions{
+							ComparePatches: []fleet.ComparePatch{
+								{
+									APIVersion: "kubevirt.io/v1",
+									Kind:       "KubeVirt",
+									Name:       util.KubeVirtObjectName,
+									Namespace:  util.HarvesterSystemNamespaceName,
+									Operations: []fleet.Operation{
+										{
+											Op:    "replace",
+											Path:  "/spec/workloadUpdateStrategy/workloadUpdateMethods",
+											Value: "[]",
+										},
+										{
+											Op:    "replace",
+											Path:  "/spec/someOtherField",
+											Value: "test",
+										},
+									},
+									JsonPointers: []string{
+										"/spec/someOtherField",
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -252,6 +412,12 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		var defaultObjs = []runtime.Object{tc.given.upgrade, tc.given.version, tc.given.vmi, tc.given.cluster}
 		objs := make([]runtime.Object, 0, len(defaultObjs)+len(tc.given.lhsettings)+len(tc.given.nodes))
 		objs = append(objs, defaultObjs...)
+		if tc.given.kubevirt != nil {
+			objs = append(objs, tc.given.kubevirt)
+		}
+		if tc.given.managedChart != nil {
+			objs = append(objs, tc.given.managedChart)
+		}
 		for _, setting := range tc.given.lhsettings {
 			objs = append(objs, setting)
 		}
@@ -261,28 +427,33 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		var clientset = fake.NewSimpleClientset(objs...)
 
 		var handler = &upgradeHandler{
-			namespace:         harvesterSystemNamespace,
-			nodeCache:         fakeclients.NodeCache(clientset.CoreV1().Nodes),
-			planClient:        fakeclients.PlanClient(clientset.UpgradeV1().Plans),
-			planCache:         fakeclients.PlanCache(clientset.UpgradeV1().Plans),
-			upgradeClient:     fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
-			upgradeCache:      fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
-			upgradeLogClient:  fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
-			versionCache:      fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
-			vmClient:          fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
-			vmImageClient:     fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
-			vmImageCache:      fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
-			vmCache:           fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
-			serviceClient:     fakeclients.ServiceClient(clientset.CoreV1().Services),
-			lhSettingCache:    fakeclients.LonghornSettingCache(clientset.LonghornV1beta2().Settings),
-			lhSettingClient:   fakeclients.LonghornSettingClient(clientset.LonghornV1beta2().Settings),
-			managedChartCache: fakeclients.ManagedChartCache(clientset.ManagementV3().ManagedCharts),
-			clusterClient:     fakeclients.ClusterClient(clientset.ProvisioningV1().Clusters),
-			clusterCache:      fakeclients.ClusterCache(clientset.ProvisioningV1().Clusters),
-			deploymentClient:  fakeclients.DeploymentClient(clientset.AppsV1().Deployments),
-			deploymentCache:   fakeclients.DeploymentCache(clientset.AppsV1().Deployments),
-			scClient:          fakeclients.StorageClassClient(clientset.StorageV1().StorageClasses),
-			scCache:           fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+			namespace:          harvesterSystemNamespace,
+			nodeCache:          fakeclients.NodeCache(clientset.CoreV1().Nodes),
+			planClient:         fakeclients.PlanClient(clientset.UpgradeV1().Plans),
+			planCache:          fakeclients.PlanCache(clientset.UpgradeV1().Plans),
+			upgradeClient:      fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+			upgradeCache:       fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+			upgradeLogClient:   fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
+			versionCache:       fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
+			vmClient:           fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+			vmImageClient:      fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			vmImageCache:       fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			vmCache:            fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+			jobClient:          fakeclients.JobClient(clientset.BatchV1().Jobs),
+			jobCache:           fakeclients.JobCache(clientset.BatchV1().Jobs),
+			kubevirtClient:     fakeclients.KubeVirtClient(clientset.KubevirtV1().KubeVirts),
+			kubevirtCache:      fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
+			serviceClient:      fakeclients.ServiceClient(clientset.CoreV1().Services),
+			lhSettingCache:     fakeclients.LonghornSettingCache(clientset.LonghornV1beta2().Settings),
+			lhSettingClient:    fakeclients.LonghornSettingClient(clientset.LonghornV1beta2().Settings),
+			managedChartCache:  fakeclients.ManagedChartCache(clientset.ManagementV3().ManagedCharts),
+			managedChartClient: fakeclients.ManagedChartClient(clientset.ManagementV3().ManagedCharts),
+			clusterClient:      fakeclients.ClusterClient(clientset.ProvisioningV1().Clusters),
+			clusterCache:       fakeclients.ClusterCache(clientset.ProvisioningV1().Clusters),
+			deploymentClient:   fakeclients.DeploymentClient(clientset.AppsV1().Deployments),
+			deploymentCache:    fakeclients.DeploymentCache(clientset.AppsV1().Deployments),
+			scClient:           fakeclients.StorageClassClient(clientset.StorageV1().StorageClasses),
+			scCache:            fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
 		}
 		var actual output
 		actual.upgrade, actual.err = handler.OnChanged(tc.given.key, tc.given.upgrade)
@@ -327,6 +498,20 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			assert.Nil(t, err)
 
 			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
+		}
+
+		if tc.expected.kubevirt != nil {
+			var err error
+			actual.kubevirt, err = handler.kubevirtClient.Get(tc.expected.kubevirt.Namespace, tc.expected.kubevirt.Name, metav1.GetOptions{})
+			assert.Nil(t, err)
+			assert.Equal(t, tc.expected.kubevirt.Spec, actual.kubevirt.Spec, "case %q: kubevirt spec mismatch", tc.name)
+		}
+
+		if tc.expected.managedChart != nil {
+			var err error
+			actual.managedChart, err = handler.managedChartClient.Get(tc.expected.managedChart.Namespace, tc.expected.managedChart.Name, metav1.GetOptions{})
+			assert.Nil(t, err)
+			assert.Equal(t, tc.expected.managedChart.Spec.Diff.ComparePatches, actual.managedChart.Spec.Diff.ComparePatches, "case %q: managedChart comparePatches mismatch", tc.name)
 		}
 	}
 }

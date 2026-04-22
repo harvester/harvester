@@ -1,0 +1,25 @@
+name: "PR Management Auto Assign Collect Data"
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Save PR data to artifact
+        run: |
+          {
+            echo "PR_NUMBER=${{ github.event.pull_request.number }}"
+            echo "PR_AUTHOR=${{ github.event.pull_request.user.login }}"
+          } > pr-auto-assign-data.env
+
+      - name: Upload PR data artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pr-auto-assign-data
+          path: pr-auto-assign-data.env

@@ -1,16 +1,33 @@
-name: "[PR Management] Auto Assign"
+name: "PR Management Auto Assign"
 
 on:
-  pull_request_target:
-    types: [opened, ready_for_review]
-
-permissions:
-  pull-requests: write
+  workflow_run:
+    workflows:
+      - "PR Management Auto Assign Collect Data"
+    types: [completed]
 
 jobs:
   auto-assign:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      actions: read
+      pull-requests: write
     steps:
-      - uses: rancher/gh-issue-mgr/auto-assign-action@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
+      - name: Download PR data artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          configuration-path: .github/auto-assign-config.yaml
+          name: pr-auto-assign-data
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Load PR data
+        run: |
+          cat pr-auto-assign-data.env >> $GITHUB_ENV
+
+      - name: Auto assign PR author
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Assigning PR author: $PR_AUTHOR"
+          gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --add-assignee "$PR_AUTHOR"

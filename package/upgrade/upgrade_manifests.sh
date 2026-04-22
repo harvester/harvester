@@ -5,12 +5,77 @@ UPGRADE_TMP_DIR="/tmp/upgrade"
 
 source $SCRIPT_DIR/lib.sh
 
+# The default RKE2 failurePolicy is `reinstall`.
+# Recreating the NAD CRD can cause all VM networking to be lost.
+patch_rke2_multus_config() {
+  echo "Check and patch rke2-multus failurePolicy to abort, to avoid a reinstall of the chart and recreation of the NAD CRD."
+
+  local name="rke2-multus"
+  local namespace="kube-system"
+  local manifest="$UPGRADE_TMP_DIR/rke2-multus-helmchartconfig.yaml"
+
+  mkdir -p "$UPGRADE_TMP_DIR"
+
+  # 1. Prepare Manifest
+  cat > "$manifest" <<EOF
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: $name
+  namespace: $namespace
+spec:
+  failurePolicy: abort
+EOF
+
+  # 2. Check if the resource exists
+  local EXIT_CODE=0
+  # Using a global variable to ensure EXIT_CODE is captured correctly under 'set -e'
+  rke2_multus_chart_config_output=$(kubectl get helmchartconfig "$name" -n "$namespace" 2>&1) || EXIT_CODE=$?
+
+  if [[ $EXIT_CODE -ne 0 ]]; then
+    if [[ "$rke2_multus_chart_config_output" == *"NotFound"* || "$rke2_multus_chart_config_output" == *"not found"* ]]; then
+      echo "Resource '$name' not found. Creating..."
+      kubectl apply -f "$manifest"
+      echo "Waiting 10s for RKE2 controller to sync new config..."
+      sleep 10
+      # When 'kubectl apply' is successful, we don't check helm-install job;
+      # RKE2 controller ensures the HelmChartConfig is used.
+      return 0
+    else
+      # Catch critical errors (RBAC, API timeouts, etc.)
+      echo "CRITICAL ERROR: kubectl check failed with: $rke2_multus_chart_config_output EXIT_CODE:$EXIT_CODE"
+      return 1
+    fi
+  fi
+
+  # 3. Resource exists, check current policy
+  local current_policy
+  current_policy=$(kubectl get helmchartconfig "$name" -n "$namespace" -o jsonpath='{.spec.failurePolicy}' 2>/dev/null || echo "unset")
+
+  if [[ "$current_policy" != "abort" ]]; then
+    echo "Current policy is '$current_policy'. Patching to 'abort'..."
+    kubectl patch helmchartconfig "$name" -n "$namespace" \
+      --type merge -p '{"spec":{"failurePolicy":"abort"}}'
+    echo "Waiting 10s for RKE2 controller to sync patch..."
+    sleep 10
+    # When 'kubectl patch' is successful, we don't check helm-install job;
+    # RKE2 controller ensures the HelmChartConfig is used.
+  else
+    echo "Verified: failurePolicy is already 'abort'. No action required."
+  fi
+}
+
 pre_upgrade_manifest() {
   if [ -e "/usr/local/share/migrations/upgrade_manifests/${UPGRADE_PREVIOUS_VERSION}/pre-hook.sh" ]; then
     echo "Executing ${UPGRADE_PREVIOUS_VERSION} pre-hook..."
     # Use source to pass current shell's variables to target script
     source "/usr/local/share/migrations/upgrade_manifests/${UPGRADE_PREVIOUS_VERSION}/pre-hook.sh"
   fi
+
+  # Safety Gate: Ensure rke2-multus helmchart failurePolicy is 'abort' before proceeding.
+  # Since 'set -e' is active, any failure here will safely halt the upgrade
+  # to prevent potential NAD CRD deletion and VM networking loss.
+  patch_rke2_multus_config
 }
 
 # Preserve the current overcommit-config value before upgrade.
@@ -924,6 +989,50 @@ patch_longhorn_settings() {
   yq -e '.spec.values.longhorn' $target || echo "fail to get info .spec.values.longhorn"
 }
 
+patch_kubevirt_compare_patches() {
+  local target=$1
+  local json_pointer="/spec/workloadUpdateStrategy/workloadUpdateMethods"
+  # patch diff compare patches to avoid complaining kubevirt resource is modified
+
+  # Check if the kubevirt comparePatches entry already exists
+  local EXIT_CODE=0
+  yq -e '.spec.diff.comparePatches[] | select(.apiVersion == "kubevirt.io/v1" and .kind == "KubeVirt" and .name == "kubevirt")' $target > /dev/null 2>&1 || EXIT_CODE=$?
+
+  if [ $EXIT_CODE != 0 ]; then
+    echo "Adding kubevirt comparePatches entry to $target"
+    # Ensure spec.diff.comparePatches exists as an array
+    yq -i '.spec.diff.comparePatches = .spec.diff.comparePatches // []' $target
+    # Add the kubevirt entry
+    JSON_POINTER=$json_pointer yq -i '.spec.diff.comparePatches += [{"apiVersion": "kubevirt.io/v1", "kind": "KubeVirt", "name": "kubevirt", "jsonPointers": [strenv(JSON_POINTER)]}]' $target
+  else
+    # Entry exists, check if the specific jsonPointer is already in the array
+    local POINTER_EXISTS=0
+    JSON_POINTER=$json_pointer yq -e '.spec.diff.comparePatches[] | select(.apiVersion == "kubevirt.io/v1" and .kind == "KubeVirt" and .name == "kubevirt") | .jsonPointers[] | select(. == strenv(JSON_POINTER))' $target > /dev/null 2>&1 || POINTER_EXISTS=$?
+
+    if [ $POINTER_EXISTS != 0 ]; then
+      echo "kubevirt comparePatches entry exists but jsonPointer $json_pointer not found, adding it"
+      # Find the index of the kubevirt entry and append the jsonPointer
+      JSON_POINTER=$json_pointer yq -i '(.spec.diff.comparePatches[] | select(.apiVersion == "kubevirt.io/v1" and .kind == "KubeVirt" and .name == "kubevirt") | .jsonPointers) += [strenv(JSON_POINTER)]' $target
+    else
+      echo "kubevirt comparePatches entry with jsonPointer $json_pointer already exists in $target, skip adding"
+    fi
+  fi
+}
+
+disable_kubevirt_live_migrate_workload_update() {
+  echo "Setting kubevirt workloadUpdateMethods to empty array"
+
+  local kubevirt_patch_file="kubevirt-workload-update-patch.yaml"
+  cat > ${kubevirt_patch_file} <<EOF
+spec:
+  workloadUpdateStrategy:
+    workloadUpdateMethods: []
+EOF
+
+  kubectl patch kubevirts.kubevirt.io kubevirt -n harvester-system --patch-file ${kubevirt_patch_file} --type merge
+  rm -f ${kubevirt_patch_file}
+}
+
 upgrade_managedchart_harvester_crd() {
   echo "Upgrading Harvester CRD managedchart fleet-local/harvester-crd"
 
@@ -961,6 +1070,8 @@ metadata:
   namespace: fleet-local
 EOF
 
+  disable_kubevirt_live_migrate_workload_update
+
   kubectl get managedcharts.management.cattle.io -n fleet-local harvester -o yaml | yq e '{"spec": .spec}' - >>${hpatch}
   pre_generation_harvester=$(kubectl get managedcharts.management.cattle.io harvester -n fleet-local -o=jsonpath='{.status.observedGeneration}')
 
@@ -973,6 +1084,7 @@ EOF
   fi
 
   patch_longhorn_settings ${hpatch}
+  patch_kubevirt_compare_patches ${hpatch}
 
   update_managedchart_patch_file_annotations ${hpatch} $REPO_HARVESTER_CHART_VERSION
   update_managedchart_patch_file_unpause ${hpatch}

@@ -12,6 +12,7 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
 func TestIsBelongToUpgradeImage(t *testing.T) {
@@ -323,6 +324,84 @@ func TestCreate(t *testing.T) {
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains, tc.name)
 				}
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func Test_PVCDeletion(t *testing.T) {
+	deletingVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "deleting-vm",
+			Namespace:         "default",
+			DeletionTimestamp: ptr.To(metav1.Now()),
+		},
+	}
+
+	nonDeletingVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "non-deleting-vm",
+			Namespace: "default",
+		},
+	}
+
+	for _, tc := range []struct {
+		name        string
+		pvc         *corev1.PersistentVolumeClaim
+		expectError bool
+	}{
+		{
+			name: "PVC owned by deleting VM",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: "default",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "kubevirt.io/v1",
+							Kind:       "VirtualMachine",
+							Name:       deletingVM.Name,
+							UID:        "test-uid",
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "PVC owned by non-deleting VM",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: "default",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "kubevirt.io/v1",
+							Kind:       "VirtualMachine",
+							Name:       nonDeletingVM.Name,
+							UID:        "test-uid",
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset(deletingVM, nonDeletingVM, tc.pvc)
+
+			validator := &pvcValidator{
+				vmCache:    fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+				pvcCache:   fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
+				imageCache: fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			}
+
+			err := validator.validateOwnerReferences(tc.pvc)
+
+			if tc.expectError {
+				assert.NotNil(t, err, tc.name)
 			} else {
 				assert.Nil(t, err, tc.name)
 			}
