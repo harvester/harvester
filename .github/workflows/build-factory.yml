@@ -99,7 +99,7 @@ jobs:
         cp -r ./bin/upgrade-helper ./package/upgrade/
 
     - name: Read Secrets
-      uses: rancher-eio/read-vault-secrets@main
+      uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # main
       with:
         secrets: |
           secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
@@ -172,7 +172,7 @@ jobs:
       uses: docker/setup-buildx-action@v3
 
     - name: Read Secrets
-      uses: rancher-eio/read-vault-secrets@main
+      uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # main
       with:
         secrets: |
           secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
@@ -267,7 +267,7 @@ jobs:
         DRONE_TAG: ${{ github.ref_name }}
 
     - name: Read Secrets
-      uses: rancher-eio/read-vault-secrets@main
+      uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # main
       with:
         secrets: |
           secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
@@ -337,7 +337,7 @@ jobs:
       uses: docker/setup-buildx-action@v3
 
     - name: Read Secrets
-      uses: rancher-eio/read-vault-secrets@main
+      uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # main
       with:
         secrets: |
           secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
