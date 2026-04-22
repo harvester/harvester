@@ -20,12 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       
     - name: Is Harvester Member
       id: is-harvester-member
       continue-on-error: true
-      uses: rancher/gh-issue-mgr/get-user-teams-membership@main
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
       with:
         username: ${{ github.actor }}
         organization: harvester
@@ -35,7 +35,7 @@ jobs:
         echo "is-harvester-member teams: ${{ steps.is-harvester-member.outputs.teams }}"
         echo "is-harvester-member outcome: ${{ steps.is-harvester-member.outcome }}"
 
-    - uses: rancher/gh-issue-mgr/project-fields@main
+    - uses: rancher/gh-issue-mgr/project-fields@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
       id: get-status-field
       continue-on-error: true
       if: steps.is-harvester-member.outcome == 'success'
@@ -50,7 +50,7 @@ jobs:
 
     - name: Add Issue to Community Sprint Project
       id: add-project
-      uses: actions/add-to-project@v1.0.2
+      uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
       if: ${{
         steps.is-harvester-member.outcome == 'success' &&
         steps.get-status-field.outcome == 'success'
@@ -130,7 +130,7 @@ jobs:
         steps.get-status-field.outcome == 'success' &&
         env.field-values != ''
         }}
-      uses: rancher/gh-issue-mgr/update-project-fields@main
+      uses: rancher/gh-issue-mgr/update-project-fields@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
       with:
         project-url: ${{ env.COMMUNITY_SPRINT_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
@@ -145,7 +145,7 @@ jobs:
         env.field-values != '' &&
         startsWith(env.field-values, 'Resolved')
         }}
-      uses: actions/add-to-project@v1.0.2
+      uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
       with:
         project-url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
