@@ -16,13 +16,13 @@ backport_label_pattern = r'^%s\/[\w0-9\.]+' % BACKPORT_LABEL_KEY
 class CreateBackport(LabelAction):
     def __init__(self):
         pass
-    
+
     def isMatched(self, request):
         for label in request['issue']['labels']:
             if re.match(backport_label_pattern, label['name']) is not None:
                 return True
         return False
-                    
+
     def action(self, request):
         normal_labels = []
         backport_labels = []
@@ -39,7 +39,7 @@ class CreateBackport(LabelAction):
         for backport_label in backport_labels:
             try:
                 logging.info(f"issue number {request['issue']['number']} start to create backport with labels {backport_label['name']}")
-                
+
                 bp = Backport(request['issue']['number'], normal_labels, backport_label)
                 bp.verify()
                 bp.create_issue_if_not_exist()
@@ -51,7 +51,7 @@ class CreateBackport(LabelAction):
                 logging.exception(f"Custom exception : {str(e)}")
             except Exception as e:
                 logging.exception(e)
-        
+
         return ",".join(msg)
 
 class Backport:
@@ -77,7 +77,7 @@ class Backport:
 
         if self.__ver == "":
             return
-        
+
         if not self.__ver.startswith("v"):
             self.__ver = "v" + self.__ver
 
@@ -110,17 +110,21 @@ class Backport:
         for comment in comments:
             if re.match(comment_pattern, comment.body):
                 raise ExistedBackportComment("exists backport comment with %s" % self.__ver)
-            
+
+        valid_assignees = [
+            a for a in self.__origin_issue.assignees
+            if repo.has_in_collaborators(a)
+        ]
         issue_data = {
             'title': title,
             'body': body,
             'labels': self.__labels,
-            'assignees': self.__origin_issue.assignees
+            'assignees': valid_assignees
         }
-        
+
         if self.__milestone is not None:
             issue_data['milestone'] = self.__milestone
-        
+
         self.__issue = repo.create_issue(**issue_data)
 
     def create_comment(self):
