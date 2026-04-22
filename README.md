@@ -67,7 +67,7 @@ During the installation, you can either choose to **create a new Harvester clust
    - `Create a new Harvester cluster`: Select this option to create an entirely new Harvester cluster.
    - `Join an existing Harvester cluster`: Select this option to join an existing Harvester cluster. You need the VIP and cluster token of the cluster you want to join.
    - `Install Harvester binaries only`: If you choose this option, additional setup is required after the first bootup.
-1. Choose the installation disk you want to install the Harvester cluster on and the data disk you want to store VM data on. By default, Harvester uses [GUID Partition Table (GPT)](https://en.wikipedia.org/wiki/GUID_Partition_Table) partitioning schema for both UEFI and BIOS. If you use the BIOS boot, then you will have the option to select [Master boot record (MBR)](https://en.wikipedia.org/wiki/Master_boot_record).
+1. Choose the installation disk you want to install the Harvester cluster on and the data disk you want to store VM data on. Harvester defaults to [GUID Partition Table (GPT)](https://en.wikipedia.org/wiki/GUID_Partition_Table) partitioning, as it is designed to run on UEFI-based systems.
    ![iso-choose-disks.png](./docs/assets/iso-choose-disks.png )
    - `Installation disk`: The disk to install the Harvester cluster on.
    - `Data disk`: The disk to store VM data on. Choosing a separate disk to store VM data is recommended.
