@@ -712,6 +712,8 @@ EOF
   if [ -n "$glibc_too_old" ]; then
     echo "GLIBC on host is too old for new elemental build; bind mounting /lib64 to fix"
     mount -o bind /lib64 $HOST_DIR/lib64
+    # /lib is also necessary for ARM
+    mount -o bind /lib $HOST_DIR/lib
   fi
   chroot $HOST_DIR /tmp/elemental upgrade \
     --logfile "$elemental_upgrade_log" \
@@ -720,6 +722,7 @@ EOF
     --debug || ret=$?
   if [ -n "$glibc_too_old" ]; then
     umount $HOST_DIR/lib64
+    umount $HOST_DIR/lib
   fi
   if [ "$ret" != 0 ]; then
     echo "elemental upgrade failed with return code: $ret"
