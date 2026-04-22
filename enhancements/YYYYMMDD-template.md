@@ -1,6 +1,6 @@
 # Title
 
-This is the title of the enhancement. Keep it simple and descriptive.
+This is the title of the enhancement. Keep it simple and descriptive!
 
 The file name should be lowercase and spaces/punctuation should be replaced with `-`.
 
