@@ -20,8 +20,10 @@ type BackupInput struct {
 }
 
 type RestoreInput struct {
-	Name       string `json:"name"`
-	BackupName string `json:"backupName"`
+	Name             string `json:"name"`
+	BackupName       string `json:"backupName"`
+	KeepMacAddress   bool   `json:"keepMacAddress,omitempty"`
+	HaltAfterRestore bool   `json:"haltAfterRestore,omitempty"`
 }
 
 type MigrateInput struct {

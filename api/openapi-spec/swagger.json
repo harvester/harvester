@@ -9231,6 +9231,9 @@
           "deletionPolicy": {
             "type": "string"
           },
+          "haltAfterRestore": {
+            "type": "boolean"
+          },
           "keepMacAddress": {
             "type": "boolean"
           },
