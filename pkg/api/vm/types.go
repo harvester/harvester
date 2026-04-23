@@ -20,8 +20,9 @@ type BackupInput struct {
 }
 
 type RestoreInput struct {
-	Name       string `json:"name"`
-	BackupName string `json:"backupName"`
+	Name        string `json:"name"`
+	BackupName  string `json:"backupName"`
+	RunStrategy string `json:"runStrategy,omitempty"`
 }
 
 type MigrateInput struct {

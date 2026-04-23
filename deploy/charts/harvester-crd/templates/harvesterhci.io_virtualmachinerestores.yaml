@@ -69,6 +69,10 @@ spec:
                 type: boolean
               newVM:
                 type: boolean
+              runStrategy:
+                description: VirtualMachineRunStrategy is a label for the requested
+                  VirtualMachineInstance Running State at the current time.
+                type: string
               target:
                 description: initially only VirtualMachine type supported
                 properties:

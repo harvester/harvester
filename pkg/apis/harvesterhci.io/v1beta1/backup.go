@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
 const (
@@ -211,6 +212,9 @@ type VirtualMachineRestoreSpec struct {
 	// KeepMacAddress only works when NewVM is true.
 	// For replacing original VM, the macaddress will be the same.
 	KeepMacAddress bool `json:"keepMacAddress,omitempty"`
+
+	// +optional
+	RunStrategy *kubevirtv1.VirtualMachineRunStrategy `json:"runStrategy,omitempty"`
 }
 
 // VirtualMachineRestoreStatus is the spec for a VirtualMachineRestore resource

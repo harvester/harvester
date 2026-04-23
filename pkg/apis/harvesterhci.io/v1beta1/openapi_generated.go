@@ -4647,6 +4647,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineRestoreSpec(ref common
 							Format:      "",
 						},
 					},
+					"runStrategy": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 				},
 				Required: []string{"target", "virtualMachineBackupName", "virtualMachineBackupNamespace"},
 			},

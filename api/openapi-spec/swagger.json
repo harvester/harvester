@@ -9237,6 +9237,9 @@
           "newVM": {
             "type": "boolean"
           },
+          "runStrategy": {
+            "type": "string"
+          },
           "target": {
             "default": {},
             "allOf": [

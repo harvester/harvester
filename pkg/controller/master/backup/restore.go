@@ -733,7 +733,9 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 	}
 
 	defaultRunStrategy := kubevirtv1.RunStrategyRerunOnFailure
-	if backup.Status.SourceSpec.Spec.RunStrategy != nil {
+	if restore.Spec.RunStrategy != nil {
+		defaultRunStrategy = *restore.Spec.RunStrategy
+	} else if backup.Status.SourceSpec.Spec.RunStrategy != nil {
 		defaultRunStrategy = *backup.Status.SourceSpec.Spec.RunStrategy
 	}
 
@@ -1132,7 +1134,7 @@ func (h *RestoreHandler) startVM(vm *kubevirtv1.VirtualMachine) error {
 		return err
 	}
 
-	logrus.Infof("starting the vm %s, current state running:%v", vm.Name, runStrategy)
+	logrus.Infof("starting the vm %s, current state running: %v", vm.Name, runStrategy)
 	switch runStrategy {
 	case kubevirtv1.RunStrategyAlways:
 		return nil
@@ -1265,22 +1267,31 @@ func (h *RestoreHandler) updateStatus(
 		return nil
 	}
 
-	// start VM before checking status
-	if err := h.startVM(vm); err != nil {
-		return h.updateStatusError(vmRestore, fmt.Errorf("failed to start vm, err:%s", err.Error()), false)
+	targetRunStrategy := kubevirtv1.RunStrategyRerunOnFailure
+	if vmRestore.Spec.RunStrategy != nil {
+		targetRunStrategy = *vmRestore.Spec.RunStrategy
+	} else if backup.Status.SourceSpec.Spec.RunStrategy != nil {
+		targetRunStrategy = *backup.Status.SourceSpec.Spec.RunStrategy
 	}
 
-	if !vm.Status.Ready {
-		h.recifyProgressBeforeVMStart(restoreCpy)
-		message := "Waiting for target vm to be ready"
-		setCondition(restoreCpy, harvesterv1.BackupConditionProgressing, true, "", message)
-		setCondition(restoreCpy, harvesterv1.BackupConditionReady, false, "", message)
-		if !reflect.DeepEqual(vmRestore, restoreCpy) {
-			if _, err := h.restores.Update(restoreCpy); err != nil {
-				return err
-			}
+	if targetRunStrategy != kubevirtv1.RunStrategyHalted {
+		// start VM before checking status
+		if err := h.startVM(vm); err != nil {
+			return h.updateStatusError(vmRestore, fmt.Errorf("failed to start vm, err:%s", err.Error()), false)
 		}
-		return nil
+
+		if !vm.Status.Ready {
+			h.recifyProgressBeforeVMStart(restoreCpy)
+			message := "Waiting for target vm to be ready"
+			setCondition(restoreCpy, harvesterv1.BackupConditionProgressing, true, "", message)
+			setCondition(restoreCpy, harvesterv1.BackupConditionReady, false, "", message)
+			if !reflect.DeepEqual(vmRestore, restoreCpy) {
+				if _, err := h.restores.Update(restoreCpy); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 	}
 
 	if err := h.deleteOldPVC(restoreCpy, vm); err != nil {

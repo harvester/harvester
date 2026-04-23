@@ -893,6 +893,11 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 			NewVM:                         false,
 		},
 	}
+
+	if input.RunStrategy != "" {
+		restore.Spec.RunStrategy = ptr.To(kubevirtv1.VirtualMachineRunStrategy(input.RunStrategy))
+	}
+
 	_, err := h.restoreClient.Create(restore)
 	if err != nil {
 		return fmt.Errorf("failed to create restore, error: %s", err.Error())
