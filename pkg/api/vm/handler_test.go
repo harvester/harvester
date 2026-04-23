@@ -16,12 +16,13 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
+	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/migration"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
-	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 )
 
 func TestMigrateAction(t *testing.T) {
@@ -1586,4 +1587,48 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 
 	_, err = pvcCache.Get(pvcNamespace, pvcName)
 	assert.True(t, apierrors.IsNotFound(err), "Should delete pvc")
+}
+
+func TestBuildVirtualMachineRestore(t *testing.T) {
+	tests := []struct {
+		name        string
+		vmName      string
+		vmNamespace string
+		input       RestoreInput
+	}{
+		{
+			name:        "builds restore with default flags",
+			vmName:      "vm-default",
+			vmNamespace: "ns-default",
+			input: RestoreInput{
+				Name:       "restore-default",
+				BackupName: "backup-default",
+			},
+		},
+		{
+			name:        "builds restore with keep mac and halt flags",
+			vmName:      "vm-flags",
+			vmNamespace: "ns-flags",
+			input: RestoreInput{
+				Name:             "restore-flags",
+				BackupName:       "backup-flags",
+				KeepMacAddress:   true,
+				HaltAfterRestore: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildVirtualMachineRestore(tt.vmName, tt.vmNamespace, tt.input)
+			assert.NotNil(t, got)
+			assert.Equal(t, tt.vmName, got.Spec.Target.Name)
+			assert.Equal(t, tt.vmNamespace, got.Namespace)
+			assert.Equal(t, tt.vmNamespace, got.Spec.VirtualMachineBackupNamespace)
+			assert.Equal(t, tt.input.Name, got.Name)
+			assert.Equal(t, tt.input.BackupName, got.Spec.VirtualMachineBackupName)
+			assert.Equal(t, tt.input.KeepMacAddress, got.Spec.KeepMacAddress)
+			assert.Equal(t, tt.input.HaltAfterRestore, got.Spec.HaltAfterRestore)
+		})
+	}
 }

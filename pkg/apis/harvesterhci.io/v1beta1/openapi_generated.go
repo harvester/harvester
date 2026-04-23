@@ -4647,6 +4647,13 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineRestoreSpec(ref common
 							Format:      "",
 						},
 					},
+					"haltAfterRestore": {
+						SchemaProps: spec.SchemaProps{
+							Description: "HaltAfterRestore defines whether the VM should remain halted after the restore is complete. If false (default), the VM will be started after a successful restore.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"target", "virtualMachineBackupName", "virtualMachineBackupNamespace"},
 			},
