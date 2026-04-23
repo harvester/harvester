@@ -1724,11 +1724,12 @@ func (v *settingValidator) checkVlanStatusReady(config *networkutil.Config) erro
 }
 
 func getMatchNodes(vc *networkv1.VlanConfig) ([]string, error) {
-	if vc.Annotations == nil || vc.Annotations[utils.KeyMatchedNodes] == "" {
-		return nil, fmt.Errorf("vlan config annotations is absent for matched nodes")
+	var matchedNodes []string
+	//skip not ready vlan configs because they will not be applied to any nodes, and if there is at least one ready vlan config spanning all nodes, the network will work fine
+	if vc.Annotations == nil || vc.Annotations[utils.KeyMatchedNodes] == "" || vc.Annotations[utils.KeyMatchedNodes] == "[]" {
+		return matchedNodes, nil
 	}
 
-	var matchedNodes []string
 	if err := json.Unmarshal([]byte(vc.Annotations[utils.KeyMatchedNodes]), &matchedNodes); err != nil {
 		return nil, err
 	}
@@ -1755,6 +1756,7 @@ func (v *settingValidator) checkVCSpansAllNodes(config *networkutil.Config) erro
 		return fmt.Errorf("vlan config not present for cluster network %s", config.ClusterNetwork)
 	}
 
+	//There will be atleast 1 vlanconfig with non-empty matched nodes, else it will be caught by checkVlanStatusReady (len(vsList) will be 0 if there is no vlanconfig)
 	for _, vc := range vcs {
 		vnodes, err := getMatchNodes(vc)
 		if err != nil {

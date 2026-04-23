@@ -12,6 +12,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester-network-controller/pkg/utils"
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -20,6 +22,12 @@ import (
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	networkutil "github.com/harvester/harvester/pkg/util/network"
 	whTypes "github.com/harvester/harvester/pkg/webhook/types"
+)
+
+const (
+	testCnName     = "test-cn"
+	testNewVCName  = "newVC"
+	testNewVC1Name = "newVC1"
 )
 
 func Test_validateOvercommitConfig(t *testing.T) {
@@ -1364,7 +1372,220 @@ func Test_validateStorageNetworkConfig(t *testing.T) {
 				assert.True(t, strings.Contains(err.Error(), tt.errMsg))
 			}
 		})
+	}
+}
 
+func Test_validateStorageNetworkVlanConfig(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      *v1beta1.Setting
+		currentCN *networkv1.ClusterNetwork
+		vc1       *networkv1.VlanConfig
+		vc2       *networkv1.VlanConfig
+		vs2       *networkv1.VlanStatus
+		vs1       *networkv1.VlanStatus
+		node1     *corev1.Node
+		node2     *corev1.Node
+		errMsg    string
+	}{
+		{
+			name:   "storage network with vlan config not spanning all nodes in the cluster network returns error",
+			errMsg: "vlanconfig does not span",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":51,"clusterNetwork":"` + testCnName + `","range":"192.168.50.0/24","exclude":["192.168.50.1/32","192.168.50.2/32"]}`,
+			},
+			currentCN: &networkv1.ClusterNetwork{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testCnName,
+					Annotations: map[string]string{"test": "test"},
+				},
+			},
+
+			vc1: &networkv1.VlanConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testNewVCName,
+					Annotations: map[string]string{"test": "test", utils.KeyMatchedNodes: ""},
+					Labels:      map[string]string{utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Spec: networkv1.VlanConfigSpec{
+					ClusterNetwork: testCnName,
+				},
+			},
+			vc2: &networkv1.VlanConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testNewVC1Name,
+					Annotations: map[string]string{"test": "test", utils.KeyMatchedNodes: "[\"node1\"]"},
+					Labels:      map[string]string{utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Spec: networkv1.VlanConfigSpec{
+					ClusterNetwork: testCnName,
+				},
+			},
+			vs2: &networkv1.VlanStatus{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        utils.Name("", testCnName, "node1"),
+					Annotations: map[string]string{"test": "test"},
+					Labels:      map[string]string{utils.KeyVlanConfigLabel: testNewVC1Name, utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Status: networkv1.VlStatus{
+					ClusterNetwork: testCnName,
+					VlanConfig:     testNewVC1Name,
+					Conditions: []networkv1.Condition{
+						{
+							Type:   networkv1.Ready,
+							Status: "True",
+						},
+					},
+				},
+			},
+			node1: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+				},
+			},
+			node2: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node2",
+				},
+			},
+		},
+		{
+			name:   "storage network with vlan config spanning all nodes in the cluster network and vlanconfig with empty matched nodes should be accepted",
+			errMsg: "",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":51,"clusterNetwork":"` + testCnName + `","range":"192.168.50.0/24","exclude":["192.168.50.1/32","192.168.50.2/32"]}`,
+			},
+			currentCN: &networkv1.ClusterNetwork{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testCnName,
+					Annotations: map[string]string{"test": "test"},
+				},
+			},
+
+			vc1: &networkv1.VlanConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testNewVCName,
+					Annotations: map[string]string{"test": "test", utils.KeyMatchedNodes: ""},
+					Labels:      map[string]string{utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Spec: networkv1.VlanConfigSpec{
+					ClusterNetwork: testCnName,
+				},
+			},
+			vc2: &networkv1.VlanConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testNewVC1Name,
+					Annotations: map[string]string{"test": "test", utils.KeyMatchedNodes: "[\"node1\",\"node2\"]"},
+					Labels:      map[string]string{utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Spec: networkv1.VlanConfigSpec{
+					ClusterNetwork: testCnName,
+				},
+			},
+			vs2: &networkv1.VlanStatus{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        utils.Name("", testCnName, "node1"),
+					Annotations: map[string]string{"test": "test"},
+					Labels:      map[string]string{utils.KeyVlanConfigLabel: testNewVC1Name, utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Status: networkv1.VlStatus{
+					ClusterNetwork: testCnName,
+					VlanConfig:     testNewVC1Name,
+					Conditions: []networkv1.Condition{
+						{
+							Type:   networkv1.Ready,
+							Status: "True",
+						},
+					},
+				},
+			},
+			vs1: &networkv1.VlanStatus{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        utils.Name("", testCnName, "node2"),
+					Annotations: map[string]string{"test": "test"},
+					Labels:      map[string]string{utils.KeyVlanConfigLabel: testNewVC1Name, utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Status: networkv1.VlStatus{
+					ClusterNetwork: testCnName,
+					VlanConfig:     testNewVC1Name,
+					Conditions: []networkv1.Condition{
+						{
+							Type:   networkv1.Ready,
+							Status: "True",
+						},
+					},
+				},
+			},
+			node1: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+				},
+			},
+			node2: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node2",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		nchclientset := fake.NewSimpleClientset()
+		nodeClient := fakeclients.NodeClient(nchclientset.CoreV1().Nodes)
+		vcClient := fakeclients.VlanConfigClient(nchclientset.NetworkV1beta1().VlanConfigs)
+		vsClient := fakeclients.VlanStatusClient(nchclientset.NetworkV1beta1().VlanStatuses)
+		cnClient := fakeclients.ClusterNetworkClient(nchclientset.NetworkV1beta1().ClusterNetworks)
+
+		nodeCache := fakeclients.NodeCache(nchclientset.CoreV1().Nodes)
+		vcCache := fakeclients.VlanConfigCache(nchclientset.NetworkV1beta1().VlanConfigs)
+		vsCache := fakeclients.VlanStatusCache(nchclientset.NetworkV1beta1().VlanStatuses)
+		lhNodeCache := fakeclients.LonghornNodeCache(nchclientset.LonghornV1beta2().Nodes)
+		cnCache := fakeclients.ClusterNetworkCache(nchclientset.NetworkV1beta1().ClusterNetworks)
+		vmCache := fakeclients.VirtualMachineCache(nchclientset.KubevirtV1().VirtualMachines)
+		vmiCache := fakeclients.VirtualMachineInstanceCache(nchclientset.KubevirtV1().VirtualMachineInstances)
+
+		clientset := fake.NewSimpleClientset()
+		v := NewValidator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings), nodeCache, nil, nil, nil, vmCache, vmiCache, nil, nil, fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims), cnCache, vcCache, vsCache, lhNodeCache, nil)
+
+		if tt.currentCN != nil {
+			_, err := cnClient.Create(tt.currentCN)
+			assert.NoError(t, err)
+		}
+
+		if tt.vc1 != nil {
+			_, err := vcClient.Create(tt.vc1)
+			assert.NoError(t, err)
+		}
+
+		if tt.vc2 != nil {
+			_, err := vcClient.Create(tt.vc2)
+			assert.NoError(t, err)
+		}
+
+		if tt.vs2 != nil {
+			_, err := vsClient.Create(tt.vs2)
+			assert.NoError(t, err)
+		}
+
+		if tt.node1 != nil {
+			_, err := nodeClient.Create(tt.node1)
+			assert.NoError(t, err)
+		}
+		if tt.node2 != nil {
+			_, err := nodeClient.Create(tt.node2)
+			assert.NoError(t, err)
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+			err := v.Create(nil, tt.args)
+			if err != nil {
+				assert.True(t, strings.Contains(err.Error(), tt.errMsg))
+			}
+		})
 	}
 }
 
