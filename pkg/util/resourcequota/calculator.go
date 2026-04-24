@@ -235,6 +235,11 @@ func GetVMIMResourcesFromRQAnnotation(rq *corev1.ResourceQuota) (cpu, mem, stora
 
 // Get Rancher NamespaceResourceQuota LimitsCPU and LimitsMemory
 func GetCPUMemoryLimitsFromRancherNamespaceResourceQuota(nrq *v3.NamespaceResourceQuota) (cpu, mem resource.Quantity, err error) {
+	if nrq == nil {
+		cpu = *resource.NewQuantity(0, resource.DecimalSI)
+		mem = *resource.NewQuantity(0, resource.BinarySI)
+		return
+	}
 	if nrq.Limit.LimitsCPU == "" {
 		cpu = *resource.NewQuantity(0, resource.DecimalSI)
 	} else {
@@ -243,6 +248,22 @@ func GetCPUMemoryLimitsFromRancherNamespaceResourceQuota(nrq *v3.NamespaceResour
 		}
 	}
 
+	if nrq.Limit.LimitsMemory == "" {
+		mem = *resource.NewQuantity(0, resource.BinarySI)
+	} else {
+		if mem, err = resource.ParseQuantity(nrq.Limit.LimitsMemory); err != nil {
+			return
+		}
+	}
+	return
+}
+
+// Get Rancher NamespaceResourceQuota LimitsMemory
+func GetMemoryLimitsFromRancherNamespaceResourceQuota(nrq *v3.NamespaceResourceQuota) (mem resource.Quantity, err error) {
+	if nrq == nil {
+		mem = *resource.NewQuantity(0, resource.BinarySI)
+		return
+	}
 	if nrq.Limit.LimitsMemory == "" {
 		mem = *resource.NewQuantity(0, resource.BinarySI)
 	} else {
@@ -413,7 +434,7 @@ func CalculateRestoreResourceQuotaWithVMI(
 }
 
 // If base is zero, delta is not added
-func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, memBase, cpuDelta, memDelta resource.Quantity) (*corev1.ResourceQuota, bool) {
+func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, memBase, cpuDelta, memDelta, memCompensation resource.Quantity) (*corev1.ResourceQuota, bool) {
 	needUpdate := false
 	if !cpuBase.IsZero() {
 		cpuBase.Add(cpuDelta)
@@ -424,6 +445,7 @@ func CalculateNewResourceQuotaFromBaseDelta(rq *corev1.ResourceQuota, cpuBase, m
 	}
 	if !memBase.IsZero() {
 		memBase.Add(memDelta)
+		memBase.Add(memCompensation)
 		if !rq.Spec.Hard[corev1.ResourceLimitsMemory].Equal(memBase) {
 			needUpdate = true
 			rq.Spec.Hard[corev1.ResourceLimitsMemory] = memBase
@@ -456,6 +478,17 @@ func isEmpty(rq *corev1.ResourceQuota) bool {
 	return false
 }
 
+func isMemoryLimitEmpty(rq *corev1.ResourceQuota) bool {
+	if rq == nil {
+		return true
+	}
+	hard := rq.Spec.Hard
+	if hard == nil || hard.Name(corev1.ResourceLimitsMemory, resource.BinarySI).IsZero() {
+		return true
+	}
+	return false
+}
+
 func IsEmptyResourceQuota(rq *corev1.ResourceQuota) bool {
 	return isEmpty(rq)
 }
@@ -478,4 +511,51 @@ func calculateVMStorageQuantity(vm *kubevirtv1.VirtualMachine) (resource.Quantit
 	}
 
 	return storage, nil
+}
+
+// Get ResourceQuota annotations about compensation, only memory is supported
+func GetCompensationFromResourceQuota(rq *corev1.ResourceQuota) (mem resource.Quantity, err error) {
+	mem = *resource.NewQuantity(0, resource.BinarySI)
+	rl, err := getResourceListOfMigratingCompensation(rq)
+	if err != nil {
+		return mem, err
+	}
+	if rl == nil {
+		return mem, nil
+	}
+
+	mem.Add(*rl.Name(corev1.ResourceLimitsMemory, resource.BinarySI))
+	return mem, nil
+}
+
+func CalculateCompensationResourceQuotaWithVMI(
+	rq *corev1.ResourceQuota,
+	vmi *kubevirtv1.VirtualMachineInstance,
+	ratio *string,
+) (needUpdate bool, rl corev1.ResourceList) {
+	if rq == nil || vmi == nil || ratio == nil {
+		return false, nil
+	}
+	vmiLimits := vmi.Spec.Domain.Resources.Limits
+	if isMemoryLimitEmpty(rq) || vmiLimits.Memory().IsZero() {
+		return false, nil
+	}
+
+	rl = corev1.ResourceList{}
+	mem := vmiLimits[corev1.ResourceMemory]
+	mem.Add(kubevirtservices.GetMemoryOverhead(vmi, runtime.GOARCH, ratio)) // add overhead
+
+	// hard limit, used
+	limitMem := rq.Spec.Hard.Name(corev1.ResourceLimitsMemory, resource.BinarySI)
+	usedMem := rq.Status.Used.Name(corev1.ResourceLimitsMemory, resource.BinarySI)
+	usedMem.Add(mem)
+	// used + migration target pod exceeds limit, compensate the delta
+	if usedMem.Cmp(*limitMem) == 1 {
+		usedMem.Sub(*limitMem)
+		usedMem.Add(*resource.NewQuantity(additionalCompensationMemory, resource.BinarySI))
+		rl[corev1.ResourceLimitsMemory] = *usedMem
+		return true, rl
+	}
+
+	return false, nil
 }
