@@ -630,3 +630,13 @@ promote:
   clusterPodCIDR: 10.52.0.0/16
   clusterServiceCIDR: 10.53.0.0/16
   clusterDNS: 10.53.0.10
+
+# Harvester related monitoring metrics, alerts ...
+monitoring:
+  prometheusrules:
+    namespaceOverride: cattle-monitoring-system
+    enabled: true
+    harvesterResourceQuotaAlerts:
+      labels:
+        app: rancher-monitoring
+        release: rancher-monitoring
