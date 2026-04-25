@@ -1,5 +1,8 @@
 ./.dapper
 ./.cache
 ./dist
+./bin
 .idea
 .DS_Store
+/Dockerfile*
+/Makefile
