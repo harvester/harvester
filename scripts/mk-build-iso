@@ -1,0 +1,32 @@
+#!/bin/bash
+set -e
+
+TOP_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+
+MK_REPO_ID="${MK_REPO_ID:?MK_REPO_ID is required}"
+
+CONTAINER_NAME="harvester-iso-builder-run-${MK_REPO_ID}"
+
+docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
+cleanup() { docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+
+set -x
+docker run --privileged \
+    --name ${CONTAINER_NAME} \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    ${HARVESTER_INSTALLER_REPO:+--env HARVESTER_INSTALLER_REPO="$HARVESTER_INSTALLER_REPO"} \
+    ${HARVESTER_INSTALLER_REF:+--env HARVESTER_INSTALLER_REF="$HARVESTER_INSTALLER_REF"} \
+    ${RKE2_IMAGE_REPO:+--env RKE2_IMAGE_REPO="$RKE2_IMAGE_REPO"} \
+    ${USE_LOCAL_IMAGES:+--env USE_LOCAL_IMAGES="$USE_LOCAL_IMAGES"} \
+    ${REPO:+--env REPO="$REPO"} \
+    ${MK_ISO_BUILDER_IMAGE} \
+    ./scripts/build-iso
+
+WORKDIR="/go/src/github.com/harvester/harvester/"
+mkdir -p "${TOP_DIR}/dist/artifacts"
+docker cp "${CONTAINER_NAME}:${WORKDIR}/dist/artifacts/." "${TOP_DIR}/dist/artifacts/"
+docker cp "${CONTAINER_NAME}:${WORKDIR}/dist/harvester-cluster-repo" "${TOP_DIR}/dist/"
+
+trap - EXIT
+docker rm "${CONTAINER_NAME}" >/dev/null

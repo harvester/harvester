@@ -1,0 +1,37 @@
+#!/bin/bash
+# pull addon repo to a docker image and generate addons manifests
+# addon source and manifests are copied to dist/prepare-addons
+set -e
+
+TOP_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+
+REMOTE_URL="https://github.com/harvester/addons.git"
+ADDONS_BRANCH="main"
+
+echo "Checking remote addons commit for branch '$ADDONS_BRANCH'..."
+REMOTE_SHA=$(git ls-remote "$REMOTE_URL" "refs/heads/$ADDONS_BRANCH" | cut -f1)
+REMOTE_SHA="${REMOTE_SHA}"
+echo "Remote commit sha: $REMOTE_SHA"
+
+docker build \
+    --progress="$MK_DOCKER_PROGRESS" \
+   	--build-arg MK_BUILDER_IMAGE \
+   	--build-arg MK_BUNDLE_BUILDER_IMAGE \
+   	--build-arg MK_REPO_ID \
+    --build-arg ADDONS_BRANCH="$ADDONS_BRANCH" \
+    --build-arg REMOTE_SHA="$REMOTE_SHA" \
+    --tag "$MK_ADDONS_IMAGE" \
+    --target prepare-addons \
+   	-f "$TOP_DIR/Dockerfile" "$TOP_DIR"
+
+echo "Extracting prepare-addons outputs..."
+id=$(docker create "${MK_ADDONS_IMAGE}")
+cleanup() { docker rm -f "${id}" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+
+mkdir -p "$TOP_DIR/dist"
+if [ -e "$TOP_DIR/dist/prepare-addons" ]; then
+    rm -rf "$TOP_DIR/dist/prepare-addons"
+fi
+
+docker cp "${id}:/dist/prepare-addons/" "${TOP_DIR}/dist/prepare-addons/"

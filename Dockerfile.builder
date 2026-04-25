@@ -3,8 +3,10 @@ FROM quay.io/costoolkit/releases-teal:grub2-efi-image-live-0.0.4-2 AS grub2-efi
 
 FROM golang:1.25.7-bookworm
 
-ARG DAPPER_HOST_ARCH
-ENV ARCH=$DAPPER_HOST_ARCH
+ARG CONTAINER_WORKDIR=/go/src/github.com/harvester/harvester
+
+ARG HOST_ARCH
+ENV ARCH=$HOST_ARCH
 ENV GOTOOLCHAIN=auto
 
 ARG HELM_VERSION=v3.20.0
@@ -88,20 +90,4 @@ COPY --from=grub2-mbr / /grub2-mbr
 RUN mkdir /grub2-efi
 COPY --from=grub2-efi / /grub2-efi
 
-# -- for make rules
-
-# -- for dapper
-ENV DAPPER_RUN_ARGS="--privileged --network host -v /run/containerd/containerd.sock:/run/containerd/containerd.sock"
-ENV GO111MODULE=off
-ENV DAPPER_ENV="REPO TAG DRONE_TAG DRONE_BRANCH CROSS GOPROXY PUSH RKE2_IMAGE_REPO USE_LOCAL_IMAGES CODECOV_TOKEN HARVESTER_INSTALLER_REPO HARVESTER_INSTALLER_REF HARVESTER_UI_VERSION HARVESTER_UI_PLUGIN_BUNDLED_VERSION HARVESTER_ADDONS_VERSION"
-ENV DAPPER_SOURCE=/go/src/github.com/harvester/harvester/
-ENV DAPPER_OUTPUT="./api ./bin ./deploy ./dist ./package ./pkg"
-ENV DAPPER_DOCKER_SOCKET=true
-ENV HOME=${DAPPER_SOURCE}
-# -- for dapper
-
-ENV GO111MODULE=on
-
-WORKDIR ${DAPPER_SOURCE}
-ENTRYPOINT ["./scripts/entry"]
-CMD ["ci"]
+ENV HOME=${CONTAINER_WORKDIR}

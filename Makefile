@@ -1,29 +1,173 @@
-TARGETS := $(shell ls --ignore=help --ignore='*.txt' scripts)
+ROOT              := $(realpath $(dir $(realpath $(firstword $(MAKEFILE_LIST)))))
+comma             := ,
 
-SHA512SUM_Linux_aarch64 := 781951b31e5ff018a04e755c6da7163b31a81edda61f1bed4def8d0e24229865c58a3d26aa0cc4184058d91ebcae300ead2cad16d3c46ccb1098419e3e41a016
-SHA512SUM_Linux_x86_64 := d2ec27ecf9362e2fafd27d76d85a5c5b92b53aefe07cffa76bf9887db6bee07b1023cca8fc32a2c9bdd2ecfadaee71397066b41bd37c9ebbbbce09913f0884d4
-SHA512SUM_Darwin_arm64 := 8a356c89ad32af1698ae8615a6e303773a8ac58b114368454d59965ec2aa8282e780d1e228d37c301ce6f87596f68bfe7f204eb5f4c019c386a58dd94153ddcf
-SHA512SUM_Darwin_x86_64 := dbab05de04dda26793f4ae7875d0fba96ee54b0228e192fd40c0b2116ed345b5444047fc2e0c90cb481f28cbe0e0452bcecb268c8d074cd8615eb2f5463c30b6
-SHA512SUM_Windows_x86_64 := 807aee2f68b6da35cb0885558f5cbc9a6c8747a56c7a200f0e1fcac9e2fd0da570cbb39e48b3192bd1a71805f2ab38fd19d77faebba97a89e5d9a8b430ee429e
+ifdef CI
+  BOLD  :=
+  CYAN  :=
+  RESET :=
+else
+  BOLD  := \033[1m
+  CYAN  := \033[36m
+  RESET := \033[0m
+endif
 
-help:
-	@./scripts/help "$(MAKEFILE_LIST)" $(TARGETS)
+BANNER = @printf "$(BOLD)$(CYAN)[target: $@]$(RESET)\n"
 
-.dapper:
-	@echo Downloading dapper
-	@curl -sSfL https://releases.rancher.com/dapper/v0.6.0/dapper-$$(uname -s)-$$(uname -m) > .dapper.tmp
-	@CHECKSUM=$$(shasum -a 512 .dapper.tmp | awk '{print $$1}'); \
-	if [ "$$CHECKSUM" != "$(SHA512SUM_$(shell uname -s)_$(shell uname -m))" ]; then \
-		echo "Checksum verification failed!"; \
-		exit 1; \
-	fi
-	@@chmod +x .dapper.tmp
-	@./.dapper.tmp -v
-	@mv .dapper.tmp .dapper
+# User might have several repos in a host. Distinguish each by using the abs path of the repo
+MK_REPO_ID               := $(shell echo -n "$(ROOT)$$(cat /etc/machine-id 2>/dev/null)" | sha256sum | cut -c1-8)
+MK_BUILDER_IMAGE         := harvester-builder:$(MK_REPO_ID)
+MK_ADDONS_IMAGE          := harvester-addons:$(MK_REPO_ID)
+MK_ISO_BUILDER_IMAGE     := harvester-iso-builder:$(MK_REPO_ID)
+MK_DOCKER_PROGRESS       ?= auto
 
-$(TARGETS): .dapper
-	./.dapper $@
+# Legacy dapper env variables
+CODECOV_TOKEN             ?=
+HARVESTER_ADDONS_VERSION  ?= main
+HARVESTER_INSTALLER_REPO  ?=
+HARVESTER_INSTALLER_REF   ?=
+HARVESTER_UI_VERSION      ?=
+HARVESTER_UI_PLUGIN_BUNDLED_VERSION ?=
+RKE2_IMAGE_REPO           ?=
+USE_LOCAL_IMAGES          ?=
+REPO                      ?=
+PUSH                      ?=
+
+export MK_DOCKER_PROGRESS MK_BUILDER_IMAGE MK_REPO_ID MK_ADDONS_IMAGE MK_ISO_BUILDER_IMAGE
+export HARVESTER_UI_VERSION HARVESTER_UI_PLUGIN_BUNDLED_VERSION
+export HARVESTER_INSTALLER_REPO HARVESTER_INSTALLER_REF RKE2_IMAGE_REPO USE_LOCAL_IMAGES REPO PUSH
+
+HOST_ARCH := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+
+DOCKER_BUILD = docker build \
+	--progress=$(MK_DOCKER_PROGRESS) \
+	--build-arg MK_BUILDER_IMAGE \
+	--build-arg MK_REPO_ID \
+	-f $(ROOT)/Dockerfile $(ROOT)
+
+.PHONY: builder-image build validate validate-ci test test-integration build-iso \
+	package-all package package-harvester-webhook package-harvester-upgrade \
+	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default
+
+
+# ---- Directories ----
+$(ROOT)/bin:
+	@mkdir -p $@
+
+
+# ---- Builder image ----
+builder-image:
+	$(BANNER)
+	docker build \
+	    --build-arg CONTAINER_WORKDIR=/go/src/github.com/harvester/harvester \
+	    --build-arg HOST_ARCH=$(HOST_ARCH) \
+	    -f $(ROOT)/Dockerfile.builder \
+	    -t $(MK_BUILDER_IMAGE) \
+	    $(ROOT)
+
+
+# ---- Compile harvester binaries ----
+build: builder-image | $(ROOT)/bin
+	$(BANNER)
+	$(DOCKER_BUILD) --target build-output --output type=local,dest=.
+
+
+# ---- Validate ----
+validate: builder-image
+	$(BANNER)
+	$(DOCKER_BUILD) --target validate
+
+
+# ---- Validate CI (dirty check after go generate + go mod tidy) ----
+validate-ci: builder-image
+	$(BANNER)
+	$(DOCKER_BUILD) --target validate-ci
+
+
+# ---- Test ----
+test: builder-image
+	$(BANNER)
+	$(DOCKER_BUILD) $(if $(CODECOV_TOKEN),--secret id=codecov_token$(comma)env=CODECOV_TOKEN --no-cache-filter=test) --target test
+
+
+# ---- Test integration ----
+test-integration: builder-image
+	$(BANNER)
+	$(DOCKER_BUILD) --target test-integration -t harvester-test-integration:$(MK_REPO_ID)
+	docker run --rm --privileged --network host \
+	    -v /var/run/docker.sock:/var/run/docker.sock \
+		-v harvester-test-integration-go-cache-${MK_REPO_ID}:/go/src/github.com/harvester/harvester/.cache/go-build \
+	    harvester-test-integration:$(MK_REPO_ID) \
+	    ./scripts/test-integration
+
+
+# ---- Package harvester image ----
+package: build
+	$(BANNER)
+	$(ROOT)/scripts/package
+
+
+# ---- Package harvester-webhook image ----
+package-harvester-webhook: build
+	$(BANNER)
+	$(ROOT)/scripts/package-webhook
+
+
+# ---- Package harvester-upgrade image ----
+package-harvester-upgrade: build prepare-addons
+	$(BANNER)
+	$(ROOT)/scripts/package-upgrade
+
+
+# ---- Package all images ----
+package-all: package package-harvester-webhook package-harvester-upgrade
+
+
+# ---- Generate CRD manifests ----
+generate-manifest: builder-image
+	$(BANNER)
+	$(DOCKER_BUILD) --target generate-manifest-output --output type=local,dest=$(ROOT)/deploy/charts/harvester-crd/
+
+
+# ---- Generate OpenAPI/Swagger spec ----
+generate-openapi: builder-image
+	$(BANNER)
+	$(DOCKER_BUILD) --target generate-openapi-output --output type=local,dest=$(ROOT)
+
+
+# ---- Cache addons repo and generate addons manifests ---
+prepare-addons: builder-image
+	$(BANNER)
+	$(ROOT)/scripts/prepare-addons
+	# $(DOCKER_BUILD) --target prepare-addons-output --output type=local,dest=.
+
+
+# ---- Build ISO ----
+build-iso: builder-image
+	$(BANNER)
+	$(DOCKER_BUILD) --target build-iso -t $(MK_ISO_BUILDER_IMAGE)
+	$(ROOT)/scripts/mk-build-iso
+
+
+# ---- Clean ----
+clean:
+	$(BANNER)
+	@rm -rf $(ROOT)/bin
+	@rm -f $(ROOT)/package/harvester $(ROOT)/package/harvester-webhook
+	@rm -f $(ROOT)/package/upgrade/upgrade-helper
+	@rm -rf $(ROOT)/package/upgrade/addons
+	@rm -rf $(ROOT)/dist/prepare-addons
+	@rm -rf $(ROOT)/dist/artifacts $(ROOT)/dist/harvester-cluster-repo
+
+clean-all: clean
+	$(BANNER)
+	@docker rmi -f $(MK_BUILDER_IMAGE) $(MK_ADDONS_IMAGE) || true
+	@docker rmi -f harvester-iso-builder:$(MK_REPO_ID) harvester-test-integration:$(MK_REPO_ID) || true
 
 .DEFAULT_GOAL := default
 
-.PHONY: $(TARGETS)
+default: build test package-all
+
+arm: build package-all
+
+ci: validate validate-ci build test package-harvester-webhook package-harvester-upgrade \
+	test-integration package
