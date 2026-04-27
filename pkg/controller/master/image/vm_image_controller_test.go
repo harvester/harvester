@@ -17,6 +17,7 @@ import (
 	"github.com/harvester/harvester/pkg/image/backend"
 	"github.com/harvester/harvester/pkg/image/cdi"
 	"github.com/harvester/harvester/pkg/image/common"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -49,6 +50,9 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testImageName,
 						Namespace: testNamespace,
+						Labels: map[string]string{
+							util.LabelImageDisplayName: "Test Upload Image",
+						},
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						DisplayName:            "Test Upload Image",
@@ -77,6 +81,9 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testImageName,
 						Namespace: testNamespace,
+						Labels: map[string]string{
+							util.LabelImageDisplayName: "Test Upload Image",
+						},
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						DisplayName:            "Test Upload Image",
