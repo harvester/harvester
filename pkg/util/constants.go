@@ -16,6 +16,7 @@ const (
 	AnnotationReservedMemory            = prefix + "/reservedMemory"
 	AnnotationHash                      = prefix + "/hash"
 	AnnotationRunStrategy               = prefix + "/vmRunStrategy"
+	AnnotationBackendStorageCloneStatus = prefix + "/clone-backend-storage-status"
 	AnnotationSnapshotFreezeFS          = prefix + "/snapshotFreezeFS"
 	AnnotationSnapshotRevise            = prefix + "/snapRevise"
 	AnnotationSVMBackupID               = prefix + "/svmbackupId"
