@@ -1,6 +1,10 @@
 ROOT              := $(realpath $(dir $(realpath $(firstword $(MAKEFILE_LIST)))))
 comma             := ,
 
+# some systems requires opt-in for buildx
+DOCKER_BUILDKIT   := 1
+export DOCKER_BUILDKIT
+
 ifdef CI
   BOLD  :=
   CYAN  :=
