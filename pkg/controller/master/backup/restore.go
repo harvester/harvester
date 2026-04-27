@@ -732,12 +732,7 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 		return nil, err
 	}
 
-	defaultRunStrategy := kubevirtv1.RunStrategyRerunOnFailure
-	if restore.Spec.RunStrategy != nil {
-		defaultRunStrategy = *restore.Spec.RunStrategy
-	} else if backup.Status.SourceSpec.Spec.RunStrategy != nil {
-		defaultRunStrategy = *backup.Status.SourceSpec.Spec.RunStrategy
-	}
+	defaultRunStrategy := resolveRunStrategyFromRestoreAndBackup(restore, backup)
 
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
@@ -746,7 +741,7 @@ func (h *RestoreHandler) createNewVM(restore *harvesterv1.VirtualMachineRestore,
 			Annotations: newVMAnnotations,
 		},
 		Spec: kubevirtv1.VirtualMachineSpec{
-			RunStrategy: &defaultRunStrategy,
+			RunStrategy: ptr.To(defaultRunStrategy),
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: newVMSpecAnnotations,
@@ -1134,7 +1129,7 @@ func (h *RestoreHandler) startVM(vm *kubevirtv1.VirtualMachine) error {
 		return err
 	}
 
-	logrus.Infof("starting the vm %s, current state running: %v", vm.Name, runStrategy)
+	logrus.Infof("starting the vm %s, current run strategy: %v", vm.Name, runStrategy)
 	switch runStrategy {
 	case kubevirtv1.RunStrategyAlways:
 		return nil
@@ -1267,14 +1262,7 @@ func (h *RestoreHandler) updateStatus(
 		return nil
 	}
 
-	targetRunStrategy := kubevirtv1.RunStrategyRerunOnFailure
-	if vmRestore.Spec.RunStrategy != nil {
-		targetRunStrategy = *vmRestore.Spec.RunStrategy
-	} else if backup.Status.SourceSpec.Spec.RunStrategy != nil {
-		targetRunStrategy = *backup.Status.SourceSpec.Spec.RunStrategy
-	}
-
-	if targetRunStrategy != kubevirtv1.RunStrategyHalted {
+	if !vmRestore.Spec.HaltAfterRestore {
 		// start VM before checking status
 		if err := h.startVM(vm); err != nil {
 			return h.updateStatusError(vmRestore, fmt.Errorf("failed to start vm, err:%s", err.Error()), false)
@@ -1348,4 +1336,14 @@ func (h *RestoreHandler) constructVolumeSnapshotContentName(restoreNamespace, re
 	// VolumeSnapshotContent is cluster-scoped resource,
 	// so adding restoreNamespace to its name to prevent conflict in different namespace with same restore name and backup
 	return name.SafeConcatName("restore", restoreNamespace, restoreName, volumeBackupName)
+}
+
+func resolveRunStrategyFromRestoreAndBackup(restore *harvesterv1.VirtualMachineRestore, backup *harvesterv1.VirtualMachineBackup) kubevirtv1.VirtualMachineRunStrategy {
+	defaultRunStrategy := kubevirtv1.RunStrategyRerunOnFailure
+	if restore != nil && restore.Spec.HaltAfterRestore {
+		defaultRunStrategy = kubevirtv1.RunStrategyHalted
+	} else if backup != nil && backup.Status.SourceSpec != nil && backup.Status.SourceSpec.Spec.RunStrategy != nil {
+		defaultRunStrategy = *backup.Status.SourceSpec.Spec.RunStrategy
+	}
+	return defaultRunStrategy
 }

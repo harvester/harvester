@@ -9231,14 +9231,14 @@
           "deletionPolicy": {
             "type": "string"
           },
+          "haltAfterRestore": {
+            "type": "boolean"
+          },
           "keepMacAddress": {
             "type": "boolean"
           },
           "newVM": {
             "type": "boolean"
-          },
-          "runStrategy": {
-            "type": "string"
           },
           "target": {
             "default": {},

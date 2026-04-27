@@ -876,7 +876,18 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 	if _, err := h.backupCache.Get(vmNamespace, input.BackupName); err != nil {
 		return err
 	}
-	apiGroup := kubevirtv1.SchemeGroupVersion.Group
+
+	restore := buildVirtualMachineRestore(vmName, vmNamespace, input)
+
+	_, err := h.restoreClient.Create(restore)
+	if err != nil {
+		return fmt.Errorf("failed to create restore, error: %s", err.Error())
+	}
+
+	return nil
+}
+
+func buildVirtualMachineRestore(vmName, vmNamespace string, input RestoreInput) *harvesterv1.VirtualMachineRestore {
 	restore := &harvesterv1.VirtualMachineRestore{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      input.Name,
@@ -884,7 +895,7 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 		},
 		Spec: harvesterv1.VirtualMachineRestoreSpec{
 			Target: corev1.TypedLocalObjectReference{
-				APIGroup: &apiGroup,
+				APIGroup: ptr.To(kubevirtv1.SchemeGroupVersion.Group),
 				Kind:     kubevirtv1.VirtualMachineGroupVersionKind.Kind,
 				Name:     vmName,
 			},
@@ -894,16 +905,15 @@ func (h *vmActionHandler) restoreBackup(vmName, vmNamespace string, input Restor
 		},
 	}
 
-	if input.RunStrategy != "" {
-		restore.Spec.RunStrategy = ptr.To(kubevirtv1.VirtualMachineRunStrategy(input.RunStrategy))
+	if input.KeepMacAddress {
+		restore.Spec.KeepMacAddress = true
 	}
 
-	_, err := h.restoreClient.Create(restore)
-	if err != nil {
-		return fmt.Errorf("failed to create restore, error: %s", err.Error())
+	if input.HaltAfterRestore {
+		restore.Spec.HaltAfterRestore = true
 	}
 
-	return nil
+	return restore
 }
 
 func (h *vmActionHandler) checkBackupTargetConfigured() error {
