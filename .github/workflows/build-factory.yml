@@ -54,6 +54,12 @@ jobs:
         name: binaries_${{ matrix.arch }}_artifact
         path: ./bin/*
 
+    - name: Upload add-ons manifests
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: addons_${{ matrix.arch }}_artifact
+        path: ./dist/prepare-addons/addons-manifests
+
   build-push-images:
     name: Build and push images
     runs-on: runs-on,runner=4cpu-linux-${{ matrix.arch }},run-id=${{ github.run_id }}
@@ -98,6 +104,16 @@ jobs:
         cp -r ./bin/harvester-webhook ./package/
         cp -r ./bin/upgrade-helper ./package/upgrade/
 
+    - name: Download add-ons manifests
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      with:
+          name: addons_${{ matrix.arch }}_artifact
+          path: ./dist/prepare-addons/addons-manifests
+
+    - name: Copy add-ons manifests to package/upgrade
+      run: |
+        cp -r ./dist/prepare-addons/addons-manifests ./package/upgrade/addons
+
     - name: Read Secrets
       uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # main
       with:
@@ -137,9 +153,6 @@ jobs:
           ARCH=${{ env.arch }}
           VERSION=${{ inputs.build_version }}
   
-    - name: generate addon manifests
-      run: make generate-addons
-
     # rancher/harvester-upgrade image
     - name: docker-publish-harvester-upgrade
       uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
