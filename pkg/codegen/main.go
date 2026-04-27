@@ -64,6 +64,14 @@ func main() {
 				GenerateTypes:   true,
 				GenerateClients: true,
 			},
+			capi.GroupVersion.Group: {
+				Types: []interface{}{
+					capi.Cluster{},
+					capi.Machine{},
+				},
+				GenerateTypes:   true,
+				GenerateClients: true,
+			},
 			loggingv1.GroupVersion.Group: {
 				Types: []interface{}{
 					loggingv1.Logging{},
