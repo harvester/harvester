@@ -13,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/validation"
 	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -85,7 +86,8 @@ func (v *vmiValidator) GetStatusSC(vmi *v1beta1.VirtualMachineImage) string {
 	return vmi.Status.StorageClassName
 }
 
-func (v *vmiValidator) CheckDisplayName(vmi *v1beta1.VirtualMachineImage) error {
+// commonCheckDisplayName performs several validations on the `DisplayName` field.
+func (v *vmiValidator) commonCheckDisplayName(vmi *v1beta1.VirtualMachineImage) error {
 	if vmi.Spec.DisplayName == "" {
 		return werror.NewInvalidError("displayName is required", fieldDisplayName)
 	}
@@ -106,11 +108,23 @@ func (v *vmiValidator) CheckDisplayName(vmi *v1beta1.VirtualMachineImage) error 
 	return nil
 }
 
+func (v *vmiValidator) CheckDisplayName(vmi *v1beta1.VirtualMachineImage) error {
+	// The `displayName` field is later used as a Kubernetes label value.
+	// This check in only performed on new `VirtualMachineImage` resources
+	// to do not break existing resources.
+	if errs := validation.IsValidLabelValue(vmi.Spec.DisplayName); len(errs) > 0 {
+		return werror.NewInvalidError(fmt.Sprintf("displayName is not a valid Kubernetes label value: %s", strings.Join(errs, "; ")), fieldDisplayName)
+	}
+
+	return v.commonCheckDisplayName(vmi)
+}
+
 func (v *vmiValidator) CheckUpdateDisplayName(oldVMI, newVMI *v1beta1.VirtualMachineImage) error {
 	if oldVMI.Spec.DisplayName != newVMI.Spec.DisplayName {
 		return werror.NewInvalidError("displayName cannot be modified", fieldDisplayName)
 	}
-	return v.CheckDisplayName(newVMI)
+
+	return v.commonCheckDisplayName(newVMI)
 }
 
 func (v *vmiValidator) CheckURL(vmi *v1beta1.VirtualMachineImage) error {
