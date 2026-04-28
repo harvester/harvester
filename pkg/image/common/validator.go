@@ -13,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/validation"
 	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -88,6 +89,11 @@ func (v *vmiValidator) GetStatusSC(vmi *v1beta1.VirtualMachineImage) string {
 func (v *vmiValidator) CheckDisplayName(vmi *v1beta1.VirtualMachineImage) error {
 	if vmi.Spec.DisplayName == "" {
 		return werror.NewInvalidError("displayName is required", fieldDisplayName)
+	}
+
+	// The `displayName` field is later used as a Kubernetes label value.
+	if errs := validation.IsValidLabelValue(vmi.Spec.DisplayName); len(errs) > 0 {
+		return werror.NewInvalidError(fmt.Sprintf("displayName is not a valid Kubernetes label value: %s", strings.Join(errs, "; ")), fieldDisplayName)
 	}
 
 	sameDisplayNameImages, err := v.vmiCache.List(vmi.Namespace, labels.SelectorFromSet(map[string]string{
