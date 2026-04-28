@@ -18,11 +18,11 @@ For developers who want to contribute to Harvester, please refer to our [Develop
 
 ### AI Guidance
 
-If you used AI tools to help compose your PR, you must disclose this in the description of your PR. As the author, you are responsible for understanding every change made in your PR, regardless of whether AI tools were used. All contributions must follow the contributions policies described in the [Developer Guide](./DEVELOPER_GUIDE.md).
+If you used AI tools to help compose your PR, you must disclose this in the description of your PR. As the author, you are responsible for understanding every change made in your PR, regardless of whether AI tools were used. All contributions must follow the contribution policy described in the [Developer Guide](./DEVELOPER_GUIDE.md#before-opening-a-pull-request).
 
-Large AI generated PRs and AI generated commit messages are not allowed.
+Large AI-generated PRs and AI-generated commit messages are not allowed.
 
-Maintainers will not start reviewing your PR until the first set of AI generated reviews are addressed. Where applicable, provide explanations on why you think the AI generated feedback are or are not applicable.
+Maintainers will not start reviewing your PR until the first set of AI-generated reviews are addressed. Where applicable, provide explanations on why you think the AI-generated feedback is or is not applicable.
 
 Reviewers may ask questions about your AI-assisted code, and if you cannot explain why a change was made, the PR will be closed.
 
