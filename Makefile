@@ -51,7 +51,8 @@ DOCKER_BUILD = docker build \
 
 .PHONY: builder-image build validate validate-ci test test-integration build-iso \
 	package-all package package-harvester-webhook package-harvester-upgrade \
-	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default
+	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default \
+	gen-version-env
 
 
 # ---- Directories ----
@@ -70,32 +71,39 @@ builder-image:
 	    $(ROOT)
 
 
+# ---- Pre-generate version env for container builds (no .git needed inside Docker) ----
+# Also handles git worktree checkouts where .git is a pointer file to an external directory.
+gen-version-env:
+	$(BANNER)
+	@bash $(ROOT)/scripts/version > /dev/null
+
+
 # ---- Compile harvester binaries ----
-build: builder-image | $(ROOT)/bin
+build: builder-image gen-version-env | $(ROOT)/bin
 	$(BANNER)
 	$(DOCKER_BUILD) --target build-output --output type=local,dest=.
 
 
 # ---- Validate ----
-validate: builder-image
+validate: builder-image gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target validate
 
 
 # ---- Validate CI (dirty check after go generate + go mod tidy) ----
-validate-ci: builder-image
+validate-ci: builder-image gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target validate-ci
 
 
 # ---- Test ----
-test: builder-image
+test: builder-image gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) $(if $(CODECOV_TOKEN),--secret id=codecov_token_$(MK_REPO_ID)$(comma)env=CODECOV_TOKEN --no-cache-filter=test) --target test
 
 
 # ---- Test integration ----
-test-integration: builder-image
+test-integration: builder-image gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target test-integration -t harvester-test-integration:$(MK_REPO_ID)
 	docker run --rm --privileged --network host \
@@ -128,13 +136,13 @@ package-all: package package-harvester-webhook package-harvester-upgrade
 
 
 # ---- Generate CRD manifests ----
-generate-manifest: builder-image
+generate-manifest: builder-image gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target generate-manifest-output --output type=local,dest=$(ROOT)/deploy/charts/harvester-crd/
 
 
 # ---- Generate OpenAPI/Swagger spec ----
-generate-openapi: builder-image
+generate-openapi: builder-image gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target generate-openapi-output --output type=local,dest=$(ROOT)
 
@@ -147,7 +155,7 @@ prepare-addons: builder-image
 
 
 # ---- Build ISO ----
-build-iso: builder-image
+build-iso: builder-image gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target build-iso -t $(MK_ISO_BUILDER_IMAGE)
 	$(ROOT)/scripts/mk-build-iso

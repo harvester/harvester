@@ -12,9 +12,9 @@ if [ "$(uname)" = "Linux" ]; then
 fi
 
 # add coverage flags if there is no tag and it's on master or a version branch like v1.3
-COMMIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-COMMIT_TAG=$(git tag --points-at HEAD | head -n 1)
-if [[ "$COMMIT_TAG" == "" ]] && [[ "$COMMIT_BRANCH" == master || "$COMMIT_BRANCH" =~ ^v[0-9]+\.[0-9]+$ ]]; then
+# COMMIT_BRANCH and GIT_TAG are already set by scripts/version above; avoid re-running git
+# so this works inside container builds where .git is not available.
+if [[ "$GIT_TAG" == "" ]] && [[ "$COMMIT_BRANCH" == master || "$COMMIT_BRANCH" =~ ^v[0-9]+\.[0-9]+$ ]]; then
     COVERPKG="-coverpkg=github.com/harvester/harvester/..."
     COVER_FLAGS="-cover $COVERPKG"
 fi
