@@ -34,6 +34,12 @@ RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
 FROM base AS validate-ci
 ARG MK_REPO_ID
 
+# Init a new git repo for copied files inside the container, the test script checks if files are
+# modified after running go generate
+RUN git config --global user.email "ci@example.com" && \
+    git config --global user.name "ci" && \
+    git init 2>/dev/null && git add . && git commit -q -m "commit for validate-ci"
+
 RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
     --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
     ./scripts/validate-ci
@@ -64,6 +70,10 @@ COPY --from=generate-manifest /go/src/github.com/harvester/harvester/deploy/char
 # ---- generate-openapi ----
 FROM base AS generate-openapi
 ARG MK_REPO_ID
+
+RUN git config --global user.email "ci@example.com" && \
+    git config --global user.name "ci" && \
+    git init 2>/dev/null && git add . && git commit -q -m "commit for validate-ci"
 
 RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
     --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
