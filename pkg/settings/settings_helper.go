@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/sirupsen/logrus"
 )
 
@@ -279,4 +280,24 @@ func ValidateAdditionalGuestMemoryOverheadRatioHelper(value string) error {
 
 type RancherClusterConfig struct {
 	RemoveUpstreamClusterWhenNamespaceIsDeleted bool `json:"removeUpstreamClusterWhenNamespaceIsDeleted"`
+}
+
+type ClusterRegistrationURLSetting struct {
+	URL                   string `json:"url"`
+	InsecureSkipTLSVerify bool   `json:"insecureSkipTLSVerify"`
+}
+
+func GetClusterRegistrationURLSetting(setting *harvesterv1.Setting) *ClusterRegistrationURLSetting {
+	reg := &ClusterRegistrationURLSetting{}
+	value := setting.Default
+	if setting.Value != "" {
+		value = setting.Value
+	}
+
+	if err := json.Unmarshal([]byte(value), reg); err != nil {
+		logrus.Warnf("%s. treating the registration URL value directly for backward compatibility", err.Error())
+		reg.URL = value
+		reg.InsecureSkipTLSVerify = true
+	}
+	return reg
 }
