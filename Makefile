@@ -22,7 +22,7 @@ MK_REPO_ID               := $(shell echo -n "$(ROOT)$$(cat /etc/machine-id 2>/de
 MK_BUILDER_IMAGE         := harvester-builder:$(MK_REPO_ID)
 MK_ADDONS_IMAGE          := harvester-addons:$(MK_REPO_ID)
 MK_ISO_BUILDER_IMAGE     := harvester-iso-builder:$(MK_REPO_ID)
-MK_DOCKER_PROGRESS       ?= auto
+MK_DOCKER_PROGRESS       ?= plain
 
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
