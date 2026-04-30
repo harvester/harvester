@@ -211,6 +211,11 @@ type VirtualMachineRestoreSpec struct {
 	// KeepMacAddress only works when NewVM is true.
 	// For replacing original VM, the macaddress will be the same.
 	KeepMacAddress bool `json:"keepMacAddress,omitempty"`
+
+	// +optional
+	// HaltAfterRestore defines whether the VM should remain halted after the restore is complete.
+	// If false (default), the VM will be started after a successful restore.
+	HaltAfterRestore bool `json:"haltAfterRestore,omitempty"`
 }
 
 // VirtualMachineRestoreStatus is the spec for a VirtualMachineRestore resource

@@ -62,6 +62,11 @@ spec:
                 description: DeletionPolicy defines that to do with resources when
                   VirtualMachineRestore is deleted
                 type: string
+              haltAfterRestore:
+                description: |-
+                  HaltAfterRestore defines whether the VM should remain halted after the restore is complete.
+                  If false (default), the VM will be started after a successful restore.
+                type: boolean
               keepMacAddress:
                 description: |-
                   KeepMacAddress only works when NewVM is true.
