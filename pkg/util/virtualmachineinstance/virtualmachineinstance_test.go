@@ -497,7 +497,12 @@ func Test_GetNonLiveMigratableVMIs(t *testing.T) {
 					Spec: kubevirtv1.VirtualMachineInstanceSpec{
 						Domain: kubevirtv1.DomainSpec{
 							Devices: kubevirtv1.Devices{
-								HostDevices: []kubevirtv1.HostDevice{},
+								HostDevices: []kubevirtv1.HostDevice{
+									{
+										Name:       "test",
+										DeviceName: "test",
+									},
+								},
 							},
 						},
 					},
