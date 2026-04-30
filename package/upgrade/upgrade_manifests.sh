@@ -5,12 +5,77 @@ UPGRADE_TMP_DIR="/tmp/upgrade"
 
 source $SCRIPT_DIR/lib.sh
 
+# The default RKE2 failurePolicy is `reinstall`.
+# Recreating the NAD CRD can cause all VM networking to be lost.
+patch_rke2_multus_config() {
+  echo "Check and patch rke2-multus failurePolicy to abort, to avoid a reinstall of the chart and recreation of the NAD CRD."
+
+  local name="rke2-multus"
+  local namespace="kube-system"
+  local manifest="$UPGRADE_TMP_DIR/rke2-multus-helmchartconfig.yaml"
+
+  mkdir -p "$UPGRADE_TMP_DIR"
+
+  # 1. Prepare Manifest
+  cat > "$manifest" <<EOF
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: $name
+  namespace: $namespace
+spec:
+  failurePolicy: abort
+EOF
+
+  # 2. Check if the resource exists
+  local EXIT_CODE=0
+  # Using a global variable to ensure EXIT_CODE is captured correctly under 'set -e'
+  rke2_multus_chart_config_output=$(kubectl get helmchartconfig "$name" -n "$namespace" 2>&1) || EXIT_CODE=$?
+
+  if [[ $EXIT_CODE -ne 0 ]]; then
+    if [[ "$rke2_multus_chart_config_output" == *"NotFound"* || "$rke2_multus_chart_config_output" == *"not found"* ]]; then
+      echo "Resource '$name' not found. Creating..."
+      kubectl apply -f "$manifest"
+      echo "Waiting 10s for RKE2 controller to sync new config..."
+      sleep 10
+      # When 'kubectl apply' is successful, we don't check helm-install job;
+      # RKE2 controller ensures the HelmChartConfig is used.
+      return 0
+    else
+      # Catch critical errors (RBAC, API timeouts, etc.)
+      echo "CRITICAL ERROR: kubectl check failed with: $rke2_multus_chart_config_output EXIT_CODE:$EXIT_CODE"
+      return 1
+    fi
+  fi
+
+  # 3. Resource exists, check current policy
+  local current_policy
+  current_policy=$(kubectl get helmchartconfig "$name" -n "$namespace" -o jsonpath='{.spec.failurePolicy}' 2>/dev/null || echo "unset")
+
+  if [[ "$current_policy" != "abort" ]]; then
+    echo "Current policy is '$current_policy'. Patching to 'abort'..."
+    kubectl patch helmchartconfig "$name" -n "$namespace" \
+      --type merge -p '{"spec":{"failurePolicy":"abort"}}'
+    echo "Waiting 10s for RKE2 controller to sync patch..."
+    sleep 10
+    # When 'kubectl patch' is successful, we don't check helm-install job;
+    # RKE2 controller ensures the HelmChartConfig is used.
+  else
+    echo "Verified: failurePolicy is already 'abort'. No action required."
+  fi
+}
+
 pre_upgrade_manifest() {
   if [ -e "/usr/local/share/migrations/upgrade_manifests/${UPGRADE_PREVIOUS_VERSION}/pre-hook.sh" ]; then
     echo "Executing ${UPGRADE_PREVIOUS_VERSION} pre-hook..."
     # Use source to pass current shell's variables to target script
     source "/usr/local/share/migrations/upgrade_manifests/${UPGRADE_PREVIOUS_VERSION}/pre-hook.sh"
   fi
+
+  # Safety Gate: Ensure rke2-multus helmchart failurePolicy is 'abort' before proceeding.
+  # Since 'set -e' is active, any failure here will safely halt the upgrade
+  # to prevent potential NAD CRD deletion and VM networking loss.
+  patch_rke2_multus_config
 }
 
 wait_managed_chart() {
