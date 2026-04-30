@@ -42,6 +42,7 @@ import (
 var (
 	upgradeControllerLock sync.Mutex
 	rke2DrainNodes        = true
+	manifestsToSkip       = []string{"rke2-multus.yaml"}
 )
 
 const (
@@ -73,10 +74,12 @@ const (
 	autoCleanupSystemGeneratedSnapshotSetting    = "auto-cleanup-system-generated-snapshot"
 	autoCleanupSystemGeneratedSnapshotAnnotation = "harvesterhci.io/" + autoCleanupSystemGeneratedSnapshotSetting
 
-	longhornSettingsRestoredAnnotation  = "harvesterhci.io/longhorn-settings-restored"
-	imageCleanupPlanCompletedAnnotation = "harvesterhci.io/image-cleanup-plan-completed"
-	skipVersionCheckAnnotation          = "harvesterhci.io/skip-version-check"
-	reenableDeschedulerAddonAnnotation  = "harvesterhci.io/reenable-descheduler-addon"
+	longhornSettingsRestoredAnnotation         = "harvesterhci.io/longhorn-settings-restored"
+	skipManifestsApplyPlanCompletedAnnotation  = "harvesterhci.io/apply-skip-rke2-manifests-plan-completed"
+	skipManifestsRemovePlanCompletedAnnotation = "harvesterhci.io/remove-skip-rke2-manifests-plan-completed"
+	imageCleanupPlanCompletedAnnotation        = "harvesterhci.io/image-cleanup-plan-completed"
+	skipVersionCheckAnnotation                 = "harvesterhci.io/skip-version-check"
+	reenableDeschedulerAddonAnnotation         = "harvesterhci.io/reenable-descheduler-addon"
 
 	defaultImagePreloadConcurrency = 1
 
@@ -224,6 +227,13 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 	// clean upgrade repo VMs and images if a upgrade succeeds.
 	if harvesterv1.UpgradeCompleted.IsTrue(upgrade) {
 		logrus.Infof("starting post-upgrade cleanup")
+
+		if _, exists := upgrade.Annotations[skipManifestsApplyPlanCompletedAnnotation]; exists {
+			if waiting, err := h.ensureSkipManifestPlanCompleted(upgrade, false); err != nil || waiting {
+				return upgrade, err
+			}
+		}
+
 		// try to clean up images before purging the repo VM
 		_, exists := upgrade.Annotations[imageCleanupPlanCompletedAnnotation]
 		if exists {
@@ -286,6 +296,13 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 	// upgrade failed
 	if harvesterv1.UpgradeCompleted.IsFalse(upgrade) {
 		logrus.Infof("upgrade failed... starting post-upgrade cleanup")
+
+		if _, exists := upgrade.Annotations[skipManifestsApplyPlanCompletedAnnotation]; exists {
+			if waiting, err := h.ensureSkipManifestPlanCompleted(upgrade, false); err != nil || waiting {
+				return upgrade, err
+			}
+		}
+
 		if upgrade.Labels[upgradeCleanupLabel] == StateSucceeded {
 			logrus.Infof("post-upgrade cleanup already completed")
 			return upgrade, nil
@@ -406,6 +423,10 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				return h.upgradeClient.Update(toUpdate)
 			}
 		} else {
+			if waiting, err := h.ensureSkipManifestPlanCompleted(upgrade, true); err != nil || waiting {
+				return upgrade, err
+			}
+
 			// save the original value of replica-replenishment-wait-interval setting and extend it with a longer value
 			// skip if the value is already larger than extendedReplicaReplenishmentWaitInterval
 			replicaReplenishmentWaitIntervalValue, err := h.getReplicaReplenishmentValue()
@@ -424,6 +445,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			if err := h.addUpgradeLabelToDeschedulerAddons(toUpdate); err != nil {
 				return nil, err
 			}
+
 			// go with RKE2 pre-drain/post-drain hooks
 			logrus.Infof("Start upgrading Kubernetes runtime to %s", info.Release.Kubernetes)
 			if err := h.upgradeKubernetes(info.Release.Kubernetes); err != nil {
@@ -445,8 +467,36 @@ func (h *upgradeHandler) OnRemove(_ string, upgrade *harvesterv1.Upgrade) (*harv
 		return nil, nil
 	}
 
+	if _, exists := upgrade.Annotations[skipManifestsApplyPlanCompletedAnnotation]; exists {
+		if waiting, err := h.ensureSkipManifestPlanCompleted(upgrade, false); err != nil || waiting {
+			return upgrade, err
+		}
+	}
+
 	logrus.Debugf("Deleting upgrade %s", upgrade.Name)
 	return h.cleanup(upgrade, true)
+}
+
+// ensureSkipManifestPlanCompleted creates a Plan to apply/remove .skip files
+// and returns (true, nil) if still waiting, or (false, nil) if done.
+func (h *upgradeHandler) ensureSkipManifestPlanCompleted(upgrade *harvesterv1.Upgrade, skip bool) (bool, error) {
+	annotation := skipManifestsRemovePlanCompletedAnnotation
+	component := skipManifestsRemoveComponent
+	if skip {
+		annotation = skipManifestsApplyPlanCompletedAnnotation
+		component = skipManifestsApplyComponent
+	}
+
+	if _, exists := upgrade.Annotations[annotation]; exists {
+		return false, nil
+	}
+
+	if _, err := h.planClient.Create(prepareSkipManifestPlan(upgrade, manifestsToSkip, skip)); err != nil && !apierrors.IsAlreadyExists(err) {
+		return false, err
+	}
+
+	logrus.Debugf("Waiting for %s plan to finish for upgrade %s", component, upgrade.Name)
+	return true, nil
 }
 
 func (h *upgradeHandler) cleanupImages(upgrade *harvesterv1.Upgrade, repo *Repo) error {

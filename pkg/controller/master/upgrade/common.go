@@ -18,9 +18,11 @@ import (
 )
 
 const (
-	nodeComponent     = "node"
-	manifestComponent = "manifest"
-	cleanupComponent  = "cleanup"
+	nodeComponent                = "node"
+	manifestComponent            = "manifest"
+	cleanupComponent             = "cleanup"
+	skipManifestsApplyComponent  = "apply-skip-rke2-manifests"
+	skipManifestsRemoveComponent = "remove-skip-rke2-manifests"
 
 	labelArch               = "kubernetes.io/arch"
 	labelCriticalAddonsOnly = "CriticalAddonsOnly"
@@ -29,7 +31,42 @@ const (
 	defaultTTLSecondsAfterFinished = 604800
 	// Give up to an hour for slower hardware to preload images.
 	defaultPrepareDeadlineSeconds = 3600
-	imageCleanupScript            = `
+	skipManifestScript            = `
+#!/usr/bin/env sh
+set -e
+
+HOST_DIR="${HOST_DIR:-/host}"
+MANIFESTS_DIR="$HOST_DIR/var/lib/rancher/rke2/server/manifests"
+
+if [ -z "$MANIFESTS" ]; then
+  echo "No manifests specified, nothing to do"
+  exit 0
+fi
+
+if [ ! -d "$MANIFESTS_DIR" ]; then
+  echo "Manifests directory $MANIFESTS_DIR does not exist, skipping"
+  exit 0
+fi
+
+for manifest in $MANIFESTS; do
+  skip_file="$MANIFESTS_DIR/${manifest}.skip"
+  case "$SKIP_ACTION" in
+    apply)
+      echo "Creating skip file: $skip_file"
+      touch "$skip_file"
+      ;;
+    remove)
+      echo "Removing skip file: $skip_file"
+      rm -vf "$skip_file"
+      ;;
+    *)
+      echo "Unknown SKIP_ACTION: $SKIP_ACTION (must be 'apply' or 'remove')"
+      exit 1
+      ;;
+  esac
+done
+`
+	imageCleanupScript = `
 #!/usr/bin/env sh
 set -e
 
@@ -198,6 +235,101 @@ func prepareUpgradeLog(upgrade *harvesterv1.Upgrade) *harvesterv1.UpgradeLog {
 		},
 		Spec: harvesterv1.UpgradeLogSpec{
 			UpgradeName: upgrade.Name,
+		},
+	}
+}
+
+func prepareSkipManifestPlan(upgrade *harvesterv1.Upgrade, manifests []string, skip bool) *upgradev1.Plan {
+	imageVersion := upgrade.Status.PreviousVersion
+
+	action, componentLabel := "remove", skipManifestsRemoveComponent
+	if skip {
+		action, componentLabel = "apply", skipManifestsApplyComponent
+	}
+
+	return &upgradev1.Plan{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-skip-manifests-%s", upgrade.Name, action),
+			Namespace: sucNamespace,
+			Labels: map[string]string{
+				harvesterUpgradeLabel:          upgrade.Name,
+				harvesterUpgradeComponentLabel: componentLabel,
+			},
+		},
+		Spec: upgradev1.PlanSpec{
+			Concurrency: int64(len(upgrade.Status.NodeStatuses)),
+			Version:     upgrade.Name,
+			NodeSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					harvesterManagedLabel: "true",
+				},
+			},
+			ServiceAccountName: upgradeServiceAccount,
+			Tolerations: []corev1.Toleration{
+				{
+					Key:      labelCriticalAddonsOnly,
+					Operator: corev1.TolerationOpExists,
+				},
+				{
+					Key:      "kubevirt.io/drain",
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
+				{
+					Key:      util.KubeControlPlaneNodeLabelKey,
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoExecute,
+				},
+				{
+					Key:      util.KubeEtcdNodeLabelKey,
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoExecute,
+				},
+				{
+					Key:      labelArch,
+					Operator: corev1.TolerationOpEqual,
+					Effect:   corev1.TaintEffectNoSchedule,
+					Value:    "amd64",
+				},
+				{
+					Key:      labelArch,
+					Operator: corev1.TolerationOpEqual,
+					Effect:   corev1.TaintEffectNoSchedule,
+					Value:    "arm64",
+				},
+				{
+					Key:      labelArch,
+					Operator: corev1.TolerationOpEqual,
+					Effect:   corev1.TaintEffectNoSchedule,
+					Value:    "arm",
+				},
+				{
+					Key:      corev1.TaintNodeNotReady,
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
+				{
+					Key:      corev1.TaintNodeNetworkUnavailable,
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
+			},
+			Upgrade: &upgradev1.ContainerSpec{
+				Image: upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
+				Command: []string{
+					"sh", "-c", skipManifestScript,
+				},
+				Env: []corev1.EnvVar{
+					{
+						Name:  "MANIFESTS",
+						Value: strings.Join(manifests, " "),
+					},
+					{
+						Name:  "SKIP_ACTION",
+						Value: action,
+					},
+				},
+			},
 		},
 	}
 }
