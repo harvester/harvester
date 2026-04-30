@@ -104,6 +104,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	vmImages := management.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
+	kubevirts := management.VirtFactory.Kubevirt().V1().KubeVirt()
 	services := management.CoreFactory.Core().V1().Service()
 	namespaces := management.CoreFactory.Core().V1().Namespace()
 	clusters := management.ProvisioningFactory.Provisioning().V1().Cluster()
@@ -146,6 +147,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		vmImageCache:       vmImages.Cache(),
 		vmClient:           vms,
 		vmCache:            vms.Cache(),
+		kubevirtClient:     kubevirts,
+		kubevirtCache:      kubevirts.Cache(),
 		serviceClient:      services,
 		pvcClient:          pvcs,
 		clusterClient:      clusters,
