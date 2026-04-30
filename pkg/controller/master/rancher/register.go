@@ -68,6 +68,9 @@ type Handler struct {
 	Namespace                string
 	RancherTokenController   rancherv3.TokenController
 	SettingCache             v1beta1.SettingCache
+	NamespaceCache           ctlcorev1.NamespaceCache
+	NamespaceController      ctlcorev1.NamespaceController
+	NamespaceClient          ctlcorev1.NamespaceClient
 }
 
 type VIPConfig struct {
@@ -110,6 +113,9 @@ func Register(ctx context.Context, management *config.Management, options config
 			Namespace:                options.Namespace,
 			Deployments:              deployments,
 			SettingCache:             settings.Cache(),
+			NamespaceCache:           namespaces.Cache(),
+			NamespaceClient:          namespaces,
+			NamespaceController:      namespaces,
 		}
 		nodes.OnChange(ctx, controllerRancherName, h.PodResourcesOnChanged)
 		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
@@ -117,6 +123,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		deployments.OnChange(ctx, controllerCAPIDeployment, h.PatchCAPIDeployment)
 		rancherTokens.OnChange(ctx, controllerRancherName, h.RancherTokenOnChange)
 		namespaces.OnRemove(ctx, controllerNamespaceName, h.onNamespaceRemoved)
+		namespaces.OnChange(ctx, controllerNamespaceName, h.onNamespaceChanged)
 
 		if err := h.registerExposeService(); err != nil {
 			return err
