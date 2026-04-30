@@ -208,7 +208,6 @@ func (h *Handler) OnStorageNetworkChange(_ string, setting *harvesterv1.Setting)
 	if updatedSetting, err = h.checkValueIsChanged(settingCopy); err != nil {
 		return updatedSetting, err
 	}
-
 	value, err = h.getLonghornStorageNetwork()
 	if err != nil {
 		return setting, err
