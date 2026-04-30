@@ -412,23 +412,31 @@ func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(vm *kubevirtv1.Virtual
 func (v *vmValidator) checkVolumeAnnotations(oldVM, newVM *kubevirtv1.VirtualMachine) ([]util.VolumeClaimTemplateEntry, error) {
 	oldAnn := oldVM.Annotations[util.AnnotationVolumeClaimTemplates]
 	newAnn := newVM.Annotations[util.AnnotationVolumeClaimTemplates]
-	if oldAnn == "" || newAnn == "" || oldAnn == newAnn {
+
+	if newAnn == "" || oldAnn == newAnn {
 		return nil, nil
 	}
 
 	fieldPath := fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates)
 
-	oldEntries, err := util.UnmarshalVolumeClaimTemplates(oldAnn)
-	if err != nil {
-		return nil, werror.NewInvalidError(
-			fmt.Sprintf("failed to unmarshal %s", oldAnn),
-			fieldPath,
-		)
-	}
 	newEntries, err := util.UnmarshalVolumeClaimTemplates(newAnn)
 	if err != nil {
 		return nil, werror.NewInvalidError(
 			fmt.Sprintf("failed to unmarshal %s", newAnn),
+			fieldPath,
+		)
+	}
+
+	// this means the annotation is being added for the first time and
+	// we need to validate the new entries exist and are correct
+	if oldAnn == "" {
+		return newEntries, v.checkStorageClassesExist(newEntries)
+	}
+
+	oldEntries, err := util.UnmarshalVolumeClaimTemplates(oldAnn)
+	if err != nil {
+		return nil, werror.NewInvalidError(
+			fmt.Sprintf("failed to unmarshal %s", oldAnn),
 			fieldPath,
 		)
 	}
@@ -449,6 +457,27 @@ func (v *vmValidator) checkVolumeAnnotations(oldVM, newVM *kubevirtv1.VirtualMac
 	}
 
 	return newEntries, v.checkPVCsStorageRequestsAndClass(oldPvcMap, newPvcMap)
+}
+
+func (v *vmValidator) checkStorageClassesExist(entries []util.VolumeClaimTemplateEntry) error {
+	for _, entry := range entries {
+		scName := entry.Spec.StorageClassName
+		if scName == nil || *scName == "" {
+			continue
+		}
+		_, err := v.scCache.Get(*scName)
+		if err == nil {
+			continue
+		}
+		if apierrors.IsNotFound(err) {
+			return werror.NewInvalidError(
+				fmt.Sprintf("storage class %s does not exist", *scName),
+				fmt.Sprintf("metadata.annotations.%s", util.AnnotationVolumeClaimTemplates),
+			)
+		}
+		return werror.NewInternalError(fmt.Sprintf("failed to get storage class %s: %v", *scName, err))
+	}
+	return nil
 }
 
 // checkPVCsStorageRequestsAndClass checks for storage request changes and storage class changes.
