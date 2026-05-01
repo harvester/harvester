@@ -39,8 +39,9 @@ func GetAllNonLiveMigratableVMINames(vmis []*kubevirtv1.VirtualMachineInstance, 
 		}
 
 		// PCIe devices
-		if vmi.Spec.Domain.Devices.HostDevices != nil {
-			logrus.Infof("%s considered non-live migratable due to pcie or usb devices", vmiNamespacedName)
+		// Starting from v1.8.0, vGPU is moved to HostDevices, so we only need to check HostDevices here
+		if vmi.Spec.Domain.Devices.HostDevices != nil && len(vmi.Spec.Domain.Devices.HostDevices) != 0 {
+			logrus.Infof("%s considered non-live migratable due to pcie, usb or vgpu devices", vmiNamespacedName)
 			nonLiveMigratableVMINames = append(nonLiveMigratableVMINames, vmiNamespacedName)
 			continue
 		}
