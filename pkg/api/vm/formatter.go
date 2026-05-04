@@ -9,11 +9,11 @@ import (
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	kubevirtv1 "kubevirt.io/api/core/v1"
-	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	apiutil "github.com/harvester/harvester/pkg/api/util"
 	"github.com/harvester/harvester/pkg/controller/master/migration"
@@ -327,7 +327,6 @@ func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv
 		return false
 	}
 
-	// additional check, we did not support backup with CDI volume
 	volumes := vm.Spec.Template.Spec.Volumes
 	for _, vol := range volumes {
 		if vol.PersistentVolumeClaim == nil {
@@ -341,7 +340,8 @@ func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv
 			logrus.Errorf("Can't get PVC %s/%s, err: %+v", vm.Namespace, vol.PersistentVolumeClaim.ClaimName, err)
 			return false
 		}
-		if _, find := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; find {
+		// backup is only available for volume with longhorn storage class
+		if !isLonghornPVC(pvc, vf.scCache) {
 			return false
 		}
 	}
@@ -360,6 +360,24 @@ func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv
 		return false
 	}
 	return true
+}
+
+func isLonghornPVC(pvc *corev1.PersistentVolumeClaim, scCache ctlstoragev1.StorageClassCache) bool {
+	sc := getSCForPVC(pvc, scCache)
+	return sc != nil && sc.Provisioner == util.CSIProvisionerLonghorn
+}
+
+func getSCForPVC(pvc *corev1.PersistentVolumeClaim, scCache ctlstoragev1.StorageClassCache) *storagev1.StorageClass {
+	// if PVC does not have storage class, it will use default storage class
+	if pvc.Spec.StorageClassName == nil {
+		return util.GetDefaultSC(scCache)
+	}
+	sc, err := scCache.Get(*pvc.Spec.StorageClassName)
+	if err != nil {
+		logrus.Errorf("Can't get StorageClass %s, err: %v", *pvc.Spec.StorageClassName, err)
+		return nil
+	}
+	return sc
 }
 
 func (vf *vmformatter) canDoSnapshot(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {
