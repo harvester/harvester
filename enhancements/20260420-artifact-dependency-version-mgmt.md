@@ -203,6 +203,7 @@ Success criteria:
 - PRs created with correct file updates (no missed files, no extra files)
 - No merge conflicts with concurrent development
 - CI passes on generated PRs
+- a workflow contains `make ci` succeeds (ensures `go build` and `go test` work after dependency bumps)
 - Manual review confirms version consistency across updated files
 
 **Rollout schedule**:
