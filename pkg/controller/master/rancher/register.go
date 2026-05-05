@@ -16,6 +16,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -76,6 +78,9 @@ type Handler struct {
 	NamespaceController      ctlcorev1.NamespaceController
 	NamespaceClient          ctlcorev1.NamespaceClient
 	SettingClient            v1beta1.SettingClient
+	DynamicClient            dynamic.Interface
+	ctx                      context.Context
+	RestConfig               *rest.Config
 }
 
 type VIPConfig struct {
@@ -102,6 +107,11 @@ func Register(ctx context.Context, management *config.Management, options config
 		deployments := management.AppsFactory.Apps().V1().Deployment()
 		settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 		daemonSets := management.AppsFactory.Apps().V1().DaemonSet()
+		dynamicClient, err := dynamic.NewForConfig(management.RestConfig)
+
+		if err != nil {
+			return fmt.Errorf("error generating dynamic client during rancher handler registration: %v", err)
+		}
 		h := Handler{
 			RancherSettings:          rancherSettings,
 			RancherSettingController: rancherSettings,
@@ -123,7 +133,11 @@ func Register(ctx context.Context, management *config.Management, options config
 			NamespaceClient:          namespaces,
 			NamespaceController:      namespaces,
 			SettingClient:            settings,
+			DynamicClient:            dynamicClient,
+			ctx:                      ctx,
+			RestConfig:               management.RestConfig,
 		}
+
 		nodes.OnChange(ctx, controllerRancherName, h.PodResourcesOnChanged)
 		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
 		secrets.OnChange(ctx, controllerRancherName, h.TLSSecretOnChange)
