@@ -6,7 +6,7 @@ set -e
 TOP_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 REMOTE_URL="https://github.com/harvester/addons.git"
-ADDONS_BRANCH="main"
+ADDONS_BRANCH=${HARVESTER_ADDONS_VERSION:-main}
 
 echo "Checking remote addons commit for branch '$ADDONS_BRANCH'..."
 REMOTE_SHA=$(git ls-remote "$REMOTE_URL" "refs/heads/$ADDONS_BRANCH" | cut -f1)

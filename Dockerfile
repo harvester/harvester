@@ -93,9 +93,9 @@ ARG REMOTE_SHA=unknown
 
 RUN mkdir -p /dist/prepare-addons
 # clone addons repo
-RUN git clone --branch ${ADDONS_BRANCH} --single-branch --depth 1 \
-    https://github.com/harvester/addons.git /dist/prepare-addons/addons && \
-    rm -rf /dist/prepare-addons/addons/.git
+RUN echo "REMOTE_SHA=${REMOTE_SHA}" && \
+    git clone --branch ${ADDONS_BRANCH} --single-branch --depth 1 \
+    https://github.com/harvester/addons.git /dist/prepare-addons/addons
     
 # generate addon manifests
 RUN mkdir -p /dist/prepare-addons/addons-manifests && \
