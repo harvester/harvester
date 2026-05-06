@@ -727,7 +727,7 @@ func (h *upgradeHandler) resetLatestUpgradeLabel(latestUpgradeName string) error
 func (h *upgradeHandler) upgradeKubernetes(kubernetesVersion string) error {
 	cluster, err := h.clusterCache.Get("fleet-local", "local")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get fleet-local/local cluster from cache: %w", err)
 	}
 
 	toUpdate := cluster.DeepCopy()
@@ -754,8 +754,10 @@ func (h *upgradeHandler) upgradeKubernetes(kubernetesVersion string) error {
 	updateDrainHooks(&toUpdate.Spec.RKEConfig.UpgradeStrategy.WorkerDrainOptions.PreDrainHooks, preDrainAnnotation)
 	updateDrainHooks(&toUpdate.Spec.RKEConfig.UpgradeStrategy.WorkerDrainOptions.PostDrainHooks, postDrainAnnotation)
 
-	_, err = h.clusterClient.Update(toUpdate)
-	return err
+	if _, err := h.clusterClient.Update(toUpdate); err != nil {
+		return fmt.Errorf("failed to update fleet-local/local cluster to kubernetes version %s: %w", kubernetesVersion, err)
+	}
+	return nil
 }
 
 func updateDrainHooks(hooks *[]rkev1.DrainHook, annotation string) {
