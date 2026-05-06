@@ -1108,6 +1108,7 @@ func (h *Handler) initRWXNetwork(setting *harvesterv1.Setting) (*harvesterv1.Set
 	}
 	setting.Annotations[util.RWXNetworkInitializedAnno] = "true"
 	if !isShare {
+		logrus.Info("Longhorn RWX endpoint and storage network are not shared, initializing rwx-network with share-storage-network=false")
 		return h.settings.Update(setting)
 	}
 
@@ -1117,6 +1118,7 @@ func (h *Handler) initRWXNetwork(setting *harvesterv1.Setting) (*harvesterv1.Set
 		return setting, fmt.Errorf("failed to marshal rwx-network config: %v", err)
 	}
 	setting.Value = string(shareConfigJSON)
+	logrus.Info("Longhorn RWX endpoint and storage network are shared, initializing rwx-network with share-storage-network=true")
 	newSetting, err := h.settings.Update(setting)
 	if err != nil {
 		logrus.Errorf("failed to update rwx-network setting during init: %v", err)
@@ -1128,15 +1130,20 @@ func (h *Handler) initRWXNetwork(setting *harvesterv1.Setting) (*harvesterv1.Set
 func (h *Handler) isLHRWXShareStorageNetwork() (bool, error) {
 	// don't use cache here since we want to reflect the latest LH setting values
 	lhStorageNetwork, err := h.longhornSettings.Get(util.LonghornSystemNamespaceName, longhornStorageNetworkName, metav1.GetOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
+	// do NOT swallow NotFound here. During upgrade, Harvester's initRWXNetwork may run before Longhorn's
+	// one-time migration creates the endpoint-network-for-rwx-volume CR. Silently returning false would
+	// mark rwx-network as initialized=true with share-storage-network=false, causing harvester to
+	// overwrite endpoint-network-for-rwx-volume with an empty value and poison existing RWX mounts.
+	// Returning an error forces a requeue until both settings exist. See https://github.com/harvester/harvester/issues/10532
+	if err != nil || lhStorageNetwork == nil {
 		return false, fmt.Errorf("failed to get longhorn %s setting: %v", longhornStorageNetworkName, err)
 	}
 	lhRWXEndpoint, err := h.longhornSettings.Get(util.LonghornSystemNamespaceName, longhornEndpointNetworkForRWXVolume, metav1.GetOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
+	if err != nil || lhRWXEndpoint == nil {
 		return false, fmt.Errorf("failed to get longhorn %s setting: %v", longhornEndpointNetworkForRWXVolume, err)
 	}
-	return lhStorageNetwork != nil && lhRWXEndpoint != nil &&
-		lhStorageNetwork.Value != "" && lhStorageNetwork.Value == lhRWXEndpoint.Value, nil
+	logrus.Debugf("Longhorn storage network: %v, RWX endpoint network: %v", lhStorageNetwork.Value, lhRWXEndpoint.Value)
+	return lhStorageNetwork.Value != "" && lhStorageNetwork.Value == lhRWXEndpoint.Value, nil
 }
 
 // getStorageNetworkNAD returns the NAD name currently in use by the storage-network setting.
