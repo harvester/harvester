@@ -8,9 +8,11 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
@@ -37,14 +39,29 @@ func (h *Handler) reconcileIngressResources(_ string, ds *appsv1.DaemonSet) (*ap
 			return ds, fmt.Errorf("error looking up ingress object %s: %w", util.RancherExposeIngressName, err)
 		}
 
+		var rerunExpose bool
 		// update ingressClassName to traefik if needed
 		if ingressObj.Spec.IngressClassName == nil || *ingressObj.Spec.IngressClassName != util.TraefikIngressClassName {
 			ingressObj.Spec.IngressClassName = ptr.To(util.TraefikIngressClassName)
 			if _, err := h.ingresses.Update(ingressObj); err != nil {
 				return ds, fmt.Errorf("error updating ingress class on rancher-expose ingress: %w", err)
 			}
+			rerunExpose = true
+		}
 
-			// re-run registerExposeService as its only run on boot of controller
+		// re-run registerExposeService may be needed since in HA nodes during upgrade traefik / nginx will be flapping until all controlplane nodes
+		// get the update as part of the OS update
+		svc, err := h.Services.Get(util.KubeSystemNamespace, traefikServiceName, v1.GetOptions{})
+		if err != nil {
+			return ds, fmt.Errorf("error fetching traefik service while attempting to update annotations: %w", err)
+		}
+
+		if doesTraefikServiceNeedUpdate(svc) {
+			logrus.Info("traefik service needs update for kubevip annotations")
+			rerunExpose = true
+		}
+
+		if rerunExpose {
 			if err := h.registerExposeService(); err != nil {
 				return ds, fmt.Errorf("error reconciling rancher expose service: %w", err)
 			}
@@ -105,4 +122,17 @@ func findGVR(gvk schema.GroupVersionKind, cfg *rest.Config) (*meta.RESTMapping, 
 		return nil, err
 	}
 	return newMapping, nil
+}
+
+func doesTraefikServiceNeedUpdate(svc *corev1.Service) bool {
+	if svc.Annotations == nil {
+		return true
+	}
+
+	val, ok := svc.Annotations[keyKubevipIgnoreServiceSecurity]
+	if !ok || val != trueStr {
+		return true
+	}
+
+	return false
 }
