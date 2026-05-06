@@ -449,11 +449,21 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				return nil, err
 			}
 
+			// Persist the in-memory annotations set above (replica-replenishment-wait-interval
+			// and reenable-descheduler-addon) before attempting upgradeKubernetes. Both are
+			// read later during cleanup; if upgradeKubernetes fails and we returned without
+			// persisting, the next reconcile would skip the save block (the live values are
+			// already mutated) and lose the original state we need to restore.
+			persisted, err := h.upgradeClient.Update(toUpdate)
+			if err != nil {
+				return nil, err
+			}
+			toUpdate = persisted.DeepCopy()
+
 			// go with RKE2 pre-drain/post-drain hooks
 			logrus.Infof("Start upgrading Kubernetes runtime to %s", info.Release.Kubernetes)
 			if err := h.upgradeKubernetes(info.Release.Kubernetes); err != nil {
-				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
-				return h.upgradeClient.Update(toUpdate)
+				return upgrade, err
 			}
 		}
 
