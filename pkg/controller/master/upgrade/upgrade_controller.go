@@ -387,8 +387,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		}
 
 		if _, err := h.jobClient.Create(applyManifestsJob(upgrade, repoInfo)); err != nil && !apierrors.IsAlreadyExists(err) {
-			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
-			return h.upgradeClient.Update(toUpdate)
+			return upgrade, fmt.Errorf("failed to create apply-manifests job: %w", err)
 		}
 		toUpdate.Labels[upgradeStateLabel] = StateUpgradingSystemServices
 		setHelmChartUpgradeStatus(toUpdate, corev1.ConditionUnknown, "", "")
@@ -422,8 +421,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 
 			logrus.Info("Start single node upgrade job")
 			if _, err = h.jobClient.Create(applyNodeJob(upgrade, info, singleNodeName, upgradeJobTypeSingleNodeUpgrade)); err != nil && !apierrors.IsAlreadyExists(err) {
-				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
-				return h.upgradeClient.Update(toUpdate)
+				return upgrade, fmt.Errorf("failed to create single-node upgrade job for node %s: %w", singleNodeName, err)
 			}
 		} else {
 			if waiting, err := h.ensureSkipManifestPlanCompleted(upgrade, true); err != nil || waiting {
