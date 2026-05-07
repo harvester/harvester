@@ -422,7 +422,7 @@ func (v *vmValidator) checkVolumeAnnotations(oldVM, newVM *kubevirtv1.VirtualMac
 	newEntries, err := util.UnmarshalVolumeClaimTemplates(newAnn)
 	if err != nil {
 		return nil, werror.NewInvalidError(
-			fmt.Sprintf("failed to unmarshal %s", newAnn),
+			fmt.Sprintf("failed to unmarshal %s: %v", newAnn, err.Error()),
 			fieldPath,
 		)
 	}
@@ -436,7 +436,7 @@ func (v *vmValidator) checkVolumeAnnotations(oldVM, newVM *kubevirtv1.VirtualMac
 	oldEntries, err := util.UnmarshalVolumeClaimTemplates(oldAnn)
 	if err != nil {
 		return nil, werror.NewInvalidError(
-			fmt.Sprintf("failed to unmarshal %s", oldAnn),
+			fmt.Sprintf("failed to unmarshal %s: %v", oldAnn, err.Error()),
 			fieldPath,
 		)
 	}
