@@ -1759,3 +1759,54 @@ func TestDetermineCloneAction(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateVMBackup(t *testing.T) {
+	vmName := "vm1"
+	vmNamespace := "default"
+
+	testCases := []struct {
+		name  string
+		input BackupInput
+	}{
+		{
+			name: "Create VM backup w/ FsFreezeDeadline (Infinite)",
+			input: BackupInput{
+				Name:             "backup1",
+				FsFreezeDeadline: ptr.To(metav1.Duration{Duration: 0 * time.Second}),
+			},
+		},
+		{
+			name: "Create VM backup w/ FsFreezeDeadline (5m)",
+			input: BackupInput{
+				Name:             "backup2",
+				FsFreezeDeadline: ptr.To(metav1.Duration{Duration: 5 * time.Minute}),
+			},
+		},
+		{
+			name: "Create VM backup w/o FsFreezeDeadline",
+			input: BackupInput{
+				Name: "backup3",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			handler := &vmActionHandler{
+				backupClient: fakeclients.VMBackupClient(clientset.HarvesterhciV1beta1().VirtualMachineBackups),
+			}
+
+			err := handler.createVMBackup(vmName, vmNamespace, tc.input)
+			assert.NoError(t, err)
+
+			backup, err := clientset.HarvesterhciV1beta1().VirtualMachineBackups(vmNamespace).Get(context.TODO(), tc.input.Name, metav1.GetOptions{})
+			assert.NoError(t, err)
+			assert.Equal(t, tc.input.Name, backup.Name)
+			assert.Equal(t, vmNamespace, backup.Namespace)
+			assert.Equal(t, vmName, backup.Spec.Source.Name)
+			assert.Equal(t, harvesterv1.Backup, backup.Spec.Type)
+			assert.Equal(t, tc.input.FsFreezeDeadline, backup.Spec.FsFreezeDeadline)
+		})
+	}
+}

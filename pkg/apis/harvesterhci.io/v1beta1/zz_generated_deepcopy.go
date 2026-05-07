@@ -22,6 +22,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	types "k8s.io/apimachinery/pkg/types"
 )
@@ -1286,6 +1287,11 @@ func (in *VirtualMachineBackupList) DeepCopyObject() runtime.Object {
 func (in *VirtualMachineBackupSpec) DeepCopyInto(out *VirtualMachineBackupSpec) {
 	*out = *in
 	in.Source.DeepCopyInto(&out.Source)
+	if in.FsFreezeDeadline != nil {
+		in, out := &in.FsFreezeDeadline, &out.FsFreezeDeadline
+		*out = new(v1.Duration)
+		**out = **in
+	}
 	return
 }
 
