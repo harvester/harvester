@@ -166,7 +166,10 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 		}
 
 		if input.Name == "" {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter backup name is required")
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
+		}
+		if input.FsFreezeDeadline != nil && input.FsFreezeDeadline.Duration < 0 {
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `fsFreezeDeadline` must not be negative")
 		}
 
 		if err := h.checkBackupTargetConfigured(); err != nil {
@@ -869,12 +872,15 @@ func (h *vmActionHandler) createVMBackup(vmName, vmNamespace string, input Backu
 				Kind:     kubevirtv1.VirtualMachineGroupVersionKind.Kind,
 				Name:     vmName,
 			},
-			Type: harvesterv1.Backup,
+			Type:             harvesterv1.Backup,
+			FsFreezeDeadline: input.FsFreezeDeadline,
 		},
 	}
+
 	if _, err := h.backupClient.Create(backup); err != nil {
 		return fmt.Errorf("failed to create VM backup, error: %s", err.Error())
 	}
+
 	return nil
 }
 

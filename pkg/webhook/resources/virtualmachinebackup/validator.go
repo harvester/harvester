@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	fieldSourceName = "spec.source.name"
-	fieldTypeName   = "spec.type"
+	fieldSourceName       = "spec.source.name"
+	fieldTypeName         = "spec.type"
+	fieldFsFreezeDeadline = "spec.fsFreezeDeadline"
 )
 
 func NewValidator(
@@ -89,6 +90,10 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 	sourceName := v.vmbr.GetSourceName(newVMBackup)
 	if sourceName == "" {
 		return werror.NewInvalidError("source VM name is empty", fieldSourceName)
+	}
+
+	if fsFreezeDeadline := v.vmbr.GetFsFreezeDeadline(newVMBackup); fsFreezeDeadline != nil && fsFreezeDeadline.Duration < 0 {
+		return werror.NewInvalidError("must not be negative", fieldFsFreezeDeadline)
 	}
 
 	validateFunc := v.validateStandardBackup
@@ -191,6 +196,12 @@ func (v *virtualMachineBackupValidator) checkBackupTarget() error {
 func (v *virtualMachineBackupValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	newVMBackup := newObj.(*v1beta1.VirtualMachineBackup)
 	oldVMBackup := oldObj.(*v1beta1.VirtualMachineBackup)
+
+	// It's actually pretty useless, since this value is only used during
+	// creation, but for the sake of consistency, we'll check it here anyway.
+	if fsFreezeDeadline := v.vmbr.GetFsFreezeDeadline(newVMBackup); fsFreezeDeadline != nil && fsFreezeDeadline.Duration < 0 {
+		return werror.NewInvalidError("must not be negative", fieldFsFreezeDeadline)
+	}
 
 	oldAnnotations := oldVMBackup.GetAnnotations()
 	newAnnotations := newVMBackup.GetAnnotations()

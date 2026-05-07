@@ -78,6 +78,12 @@ spec:
                 type: boolean
               vmbackup:
                 properties:
+                  fsFreezeDeadline:
+                    description: |-
+                      FsFreezeDeadline specifies how long the guest filesystem may remain frozen
+                      before it is automatically unfrozen during snapshot or backup creation.
+                      A value of 0 means there is no deadline.
+                    type: string
                   source:
                     description: |-
                       TypedLocalObjectReference contains enough information to let you locate the

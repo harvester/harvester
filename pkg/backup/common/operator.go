@@ -33,7 +33,7 @@ const (
 	backupBucketNameAnnotation   = "backup.harvesterhci.io/bucket-name"
 	backupBucketRegionAnnotation = "backup.harvesterhci.io/bucket-region"
 	volumeBackupNameFormat       = "%s-volume-%s"
-	defaultFreezeDuration        = 1 * time.Second
+	defaultFsFreezeDeadline      = 1 * time.Second
 	changeToNonReadyMessage      = "Change back to non-ready"
 	errVolumeBackupNil           = "volume backup is nil"
 	errVolumeBackupNameNil       = "volume backup name is nil"
@@ -158,6 +158,7 @@ type VMBackupReader interface {
 	GetCSIDriverVSCNames(vmb *harvesterv1.VirtualMachineBackup) map[string]string
 	GetType(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.BackupType
 	GetBackupTarget(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.BackupTarget
+	GetFsFreezeDeadline(vmb *harvesterv1.VirtualMachineBackup) *metav1.Duration
 }
 
 type vmbackupReader struct{}
@@ -407,6 +408,13 @@ func (a *vmbackupReader) GetType(vmb *harvesterv1.VirtualMachineBackup) harveste
 
 func (a *vmbackupReader) GetBackupTarget(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.BackupTarget {
 	return vmb.Status.BackupTarget
+}
+
+func (a *vmbackupReader) GetFsFreezeDeadline(vmb *harvesterv1.VirtualMachineBackup) *metav1.Duration {
+	if vmb == nil {
+		return nil
+	}
+	return vmb.Spec.FsFreezeDeadline
 }
 
 type vmbackupOperator struct {
@@ -1287,7 +1295,12 @@ func (vmbo *vmbackupOperator) TryFreezeFS(ctx context.Context, vmb *harvesterv1.
 		return nil
 	}
 
-	if err := vmbo.freezeFS(ctx, sourceVMI, defaultFreezeDuration); err != nil {
+	timeout := defaultFsFreezeDeadline
+	if updatedVMb.Spec.FsFreezeDeadline != nil {
+		timeout = updatedVMb.Spec.FsFreezeDeadline.Duration
+	}
+
+	if err := vmbo.freezeFS(ctx, sourceVMI, timeout); err != nil {
 		return fmt.Errorf("qemu-guest-agent failed to freeze filesystem for VM %s/%s: %w",
 			sourceVMI.Namespace, sourceVMI.Name, err)
 	}
