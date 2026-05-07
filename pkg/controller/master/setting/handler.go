@@ -195,18 +195,3 @@ func (h *Handler) redeployDeployment(namespace, name string) error {
 	_, err = h.deployments.Update(toUpdate)
 	return err
 }
-
-func (h *Handler) redeployDaemonset(namespace, name string) error {
-	daemonset, err := h.daemonsetCache.Get(namespace, name)
-	if err != nil {
-		return err
-	}
-	toUpdate := daemonset.DeepCopy()
-	if daemonset.Spec.Template.Annotations == nil {
-		toUpdate.Spec.Template.Annotations = make(map[string]string)
-	}
-	toUpdate.Spec.Template.Annotations[util.AnnotationTimestamp] = time.Now().Format(time.RFC3339)
-
-	_, err = h.daemonsets.Update(toUpdate)
-	return err
-}

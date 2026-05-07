@@ -353,7 +353,6 @@ func (h *Handler) patchTraefikServiceAnnotations() error {
 
 	if enabled && vip.ServiceType == corev1.ServiceTypeLoadBalancer {
 		svc.Spec.Type = vip.ServiceType
-		svc.Spec.LoadBalancerIP = vip.IP
 		if svc.Annotations == nil {
 			svc.Annotations = make(map[string]string)
 		}
