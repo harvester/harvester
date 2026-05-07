@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	responsewriter "github.com/rancher/apiserver/pkg/middleware"
 	"github.com/sirupsen/logrus"
@@ -17,6 +18,7 @@ import (
 
 var (
 	insecureClient = &http.Client{
+		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			TLSClientConfig: &tls.Config{
@@ -70,7 +72,7 @@ func (u *handler) canDownload(url string) bool {
 		if err := serveIndex(io.Discard, url); err == nil {
 			u.downloadSuccess = true
 		} else {
-			logrus.Errorf("Failed to download %s, falling back to packaged UI", url)
+			logrus.Errorf("Failed to download %s (error: %v), falling back to packaged UI", url, err)
 		}
 	})
 	return u.downloadSuccess
@@ -113,7 +115,10 @@ func (u *handler) IndexFileOnNotFound() http.Handler {
 func (u *handler) IndexFile() http.Handler {
 	return u.indexMiddleware(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if path, isURL := u.path(); isURL {
-			_ = serveIndex(rw, path)
+			err := serveIndex(rw, path)
+			if err != nil {
+				logrus.Errorf("Failed to serve index from %s (error: %v)", path, err)
+			}
 		} else {
 			http.ServeFile(rw, req, filepath.Join(path, "index.html"))
 		}
