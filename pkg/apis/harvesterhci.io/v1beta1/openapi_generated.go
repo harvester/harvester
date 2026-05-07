@@ -3856,12 +3856,18 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineBackupSpec(ref common.
 							Format: "",
 						},
 					},
+					"fsFreezeDeadline": {
+						SchemaProps: spec.SchemaProps{
+							Description: "FsFreezeDeadline specifies how long the guest filesystem may remain frozen before it is automatically unfrozen during snapshot or backup creation. A value of 0 means there is no deadline.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
+						},
+					},
 				},
 				Required: []string{"source"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.TypedLocalObjectReference"},
+			"k8s.io/api/core/v1.TypedLocalObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
 	}
 }
 

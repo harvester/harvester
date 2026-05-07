@@ -58,8 +58,8 @@ const (
 	backupBucketNameAnnotation   = "backup.harvesterhci.io/bucket-name"
 	backupBucketRegionAnnotation = "backup.harvesterhci.io/bucket-region"
 
-	defaultFreezeDuration = 1 * time.Second
-	snapRevise            = "-snap-revise"
+	defaultFsFreezeDeadline = 1 * time.Second
+	snapRevise              = "-snap-revise"
 )
 
 var vmBackupKind = harvesterv1.SchemeGroupVersion.WithKind(vmBackupKindName)
@@ -278,7 +278,11 @@ func (h *Handler) tryFreezeFS(backup *harvesterv1.VirtualMachineBackup) error {
 		return err
 	}
 
-	err = h.freezeFS(context.Background(), sourceVMI, defaultFreezeDuration)
+	timeout := defaultFsFreezeDeadline
+	if backup.Spec.FsFreezeDeadline != nil {
+		timeout = backup.Spec.FsFreezeDeadline.Duration
+	}
+	err = h.freezeFS(context.Background(), sourceVMI, timeout)
 	if err != nil {
 		logrus.WithError(err).Warn("qemu-guest-agent fs-freeze")
 		return errors.New("failed to freeze file system")
