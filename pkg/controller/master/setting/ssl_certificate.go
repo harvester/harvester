@@ -69,10 +69,6 @@ func (h *Handler) updateTraefikTLSStore(secretName string) error {
 }
 
 func (h *Handler) redeploySSLCertificateWorkload() error {
-	if err := h.redeployDaemonset(util.KubeSystemNamespace, util.Rke2TraefikAppName); err != nil {
-		return err
-	}
-
 	return h.redeployDeployment(util.CattleSystemNamespaceName, rancherDeploymentName)
 }
 

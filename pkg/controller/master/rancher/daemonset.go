@@ -12,7 +12,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
@@ -51,7 +50,7 @@ func (h *Handler) reconcileIngressResources(_ string, ds *appsv1.DaemonSet) (*ap
 
 		// re-run registerExposeService may be needed since in HA nodes during upgrade traefik / nginx will be flapping until all controlplane nodes
 		// get the update as part of the OS update
-		svc, err := h.Services.Get(util.KubeSystemNamespace, traefikServiceName, v1.GetOptions{})
+		svc, err := h.Services.Get(util.KubeSystemNamespace, traefikServiceName, metav1.GetOptions{})
 		if err != nil {
 			return ds, fmt.Errorf("error fetching traefik service while attempting to update annotations: %w", err)
 		}
