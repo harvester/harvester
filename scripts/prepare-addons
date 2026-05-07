@@ -15,8 +15,8 @@ echo "Remote commit sha: $REMOTE_SHA"
 
 docker build \
     --progress="$MK_DOCKER_PROGRESS" \
-   	--build-arg MK_BUILDER_IMAGE \
    	--build-arg MK_REPO_ID \
+    --build-arg MK_HOST_ARCH \
     --build-arg ADDONS_BRANCH="$ADDONS_BRANCH" \
     --build-arg REMOTE_SHA="$REMOTE_SHA" \
     --tag "$MK_ADDONS_IMAGE" \
