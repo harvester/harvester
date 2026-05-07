@@ -6,6 +6,7 @@ import (
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -946,13 +947,14 @@ func TestVmValidator_Update(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		oldVM         *kubevirtv1.VirtualMachine
-		newVM         *kubevirtv1.VirtualMachine
-		oldObjMeta    *metav1.ObjectMeta
-		newObjMeta    *metav1.ObjectMeta
-		newSpec       *kubevirtv1.VirtualMachineSpec
-		expectedError bool
+		name                    string
+		oldVM                   *kubevirtv1.VirtualMachine
+		newVM                   *kubevirtv1.VirtualMachine
+		scErr                   bool
+		oldObjMeta              *metav1.ObjectMeta
+		newObjMeta              *metav1.ObjectMeta
+		newSpec                 *kubevirtv1.VirtualMachineSpec
+		expectedValidationError bool
 	}{
 		{
 			name:  "Ensure that maintenance mode strategy is checked if there is no change to VM spec",
@@ -965,8 +967,8 @@ func TestVmValidator_Update(t *testing.T) {
 				}
 				return m
 			}(),
-			newSpec:       nil,
-			expectedError: true,
+			newSpec:                 nil,
+			expectedValidationError: true,
 		},
 		{
 			name:  "storage class name is changed which results in rejection",
@@ -982,8 +984,8 @@ func TestVmValidator_Update(t *testing.T) {
 						`,"volumeMode":"Block","storageClassName":"longhorn"}}]`,
 				},
 			},
-			newSpec:       nil,
-			expectedError: true,
+			newSpec:                 nil,
+			expectedValidationError: true,
 		},
 		{
 			name:  "annotation removed resulting in success",
@@ -993,8 +995,8 @@ func TestVmValidator_Update(t *testing.T) {
 				Name:      templateVM.Name,
 				Namespace: templateVM.Namespace,
 			},
-			newSpec:       nil,
-			expectedError: false,
+			newSpec:                 nil,
+			expectedValidationError: false,
 		},
 		{
 			name:  "annotation added resulting in success",
@@ -1013,8 +1015,8 @@ func TestVmValidator_Update(t *testing.T) {
 						`"Block","storageClassName":"longhorn"}}]`,
 				},
 			},
-			newSpec:       nil,
-			expectedError: false,
+			newSpec:                 nil,
+			expectedValidationError: false,
 		},
 		{
 			name:  "annotations with bad json are rejected",
@@ -1027,8 +1029,8 @@ func TestVmValidator_Update(t *testing.T) {
 					"harvesterhci.io/volumeClaimTemplates": `[{"]`,
 				},
 			},
-			newSpec:       nil,
-			expectedError: true,
+			newSpec:                 nil,
+			expectedValidationError: true,
 		},
 		{
 			name:  "empty annotation is allowed on both objects",
@@ -1048,8 +1050,8 @@ func TestVmValidator_Update(t *testing.T) {
 					"harvesterhci.io/volumeClaimTemplates": "",
 				},
 			},
-			newSpec:       nil,
-			expectedError: false,
+			newSpec:                 nil,
+			expectedValidationError: false,
 		},
 		{
 			name:  "nil storage class name is handled properly",
@@ -1068,8 +1070,115 @@ func TestVmValidator_Update(t *testing.T) {
 						`"Block"}}]`,
 				},
 			},
-			newSpec:       nil,
-			expectedError: false,
+			newSpec:                 nil,
+			expectedValidationError: false,
+		},
+		{
+			name:  "re-adding annotation after deletion with non-existing storage class is rejected",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			oldObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+			},
+			newObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"metadata":{"name":"test-disk-0",` +
+						`"annotations":{"harvesterhci.io/imageId":"default/image"}},` +
+						`"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}` +
+						`,"volumeMode":"Block","storageClassName":"non-existing-sc"}}]`,
+				},
+			},
+			expectedValidationError: true,
+		},
+		{
+			name:  "adding annotation for the first time with existing storage class is allowed",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			oldObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+			},
+			newObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"metadata":{"name":"test-disk-0",` +
+						`"annotations":{"harvesterhci.io/imageId":"default/image"}},` +
+						`"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}` +
+						`,"volumeMode":"Block","storageClassName":"longhorn-image"}}]`,
+				},
+			},
+			expectedValidationError: false,
+		},
+		{
+			name:  "adding annotation with invalid JSON when old annotation is absent is rejected",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			oldObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+			},
+			newObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"broken json`,
+				},
+			},
+			expectedValidationError: true,
+		},
+		{
+			name:                    "nil old VM is handled safely",
+			oldVM:                   nil,
+			newVM:                   templateVM.DeepCopy(),
+			expectedValidationError: false,
+		},
+		{
+			name:  "storage class cache internal error on first-time annotation add is surfaced",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			scErr: true,
+			oldObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+			},
+			newObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"metadata":{"name":"test-disk-0",` +
+						`"annotations":{"harvesterhci.io/imageId":"default/image"}},` +
+						`"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}` +
+						`,"volumeMode":"Block","storageClassName":"longhorn-image"}}]`,
+				},
+			},
+			expectedValidationError: true,
+		},
+		{
+			name:  "malformed old annotation with valid new annotation is rejected",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			oldObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"broken`,
+				},
+			},
+			newObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"metadata":{"name":"test-disk-0",` +
+						`"annotations":{"harvesterhci.io/imageId":"default/image"}},` +
+						`"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}` +
+						`,"volumeMode":"Block","storageClassName":"longhorn-image"}}]`,
+				},
+			},
+			expectedValidationError: true,
 		},
 	}
 
@@ -1079,7 +1188,15 @@ func TestVmValidator_Update(t *testing.T) {
 	}})
 	assert.NoError(t, err)
 	fakeNSCache := fakeclients.NamespaceCache(corefakeclientset.CoreV1().Namespaces)
-	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
+
+	harvesterFakeClientset := fake.NewSimpleClientset()
+	err = harvesterFakeClientset.Tracker().Add(&storagev1.StorageClass{ObjectMeta: metav1.ObjectMeta{
+		Name: "longhorn-image",
+	}})
+	assert.NoError(t, err)
+	fakeScCache := fakeclients.StorageClassCache(harvesterFakeClientset.StorageV1().StorageClasses)
+
+	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil).(*vmValidator)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1092,9 +1209,14 @@ func TestVmValidator_Update(t *testing.T) {
 			if test.newSpec != nil {
 				test.newVM.Spec = *test.newSpec
 			}
+			if test.scErr {
+				validator.scCache = fakeclients.ErroringStorageClassCache{}
+			} else {
+				validator.scCache = fakeScCache
+			}
 			err := validator.Update(nil, test.oldVM, test.newVM)
 
-			if test.expectedError {
+			if test.expectedValidationError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)

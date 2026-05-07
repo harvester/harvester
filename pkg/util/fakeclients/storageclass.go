@@ -2,6 +2,7 @@ package fakeclients
 
 import (
 	"context"
+	"fmt"
 
 	storagev1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/generic"
@@ -97,4 +98,21 @@ func (c StorageClassCache) GetByIndex(indexName, key string) ([]*storagev1.Stora
 	default:
 		return nil, nil
 	}
+}
+
+type ErroringStorageClassCache struct{}
+
+func (e ErroringStorageClassCache) Get(_ string) (*storagev1.StorageClass, error) {
+	return nil, fmt.Errorf("simulated internal cache error")
+}
+
+func (e ErroringStorageClassCache) List(_ labels.Selector) ([]*storagev1.StorageClass, error) {
+	return nil, nil
+}
+
+func (e ErroringStorageClassCache) AddIndexer(_ string, _ generic.Indexer[*storagev1.StorageClass]) {
+}
+
+func (e ErroringStorageClassCache) GetByIndex(_, _ string) ([]*storagev1.StorageClass, error) {
+	return nil, nil
 }
