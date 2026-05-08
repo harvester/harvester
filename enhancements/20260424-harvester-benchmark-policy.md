@@ -59,32 +59,43 @@ N/A
 
 ### Implementation Overview
 
-The benchmark policy is organized into four categories. Each defines scope, tooling, topology, methodology, and key metrics.
+The benchmark policy is organized into three categories. Each defines scope, tooling, topology, methodology, and key metrics.
 
 #### Category 1: Resource Footprint
 
-- **Scope**: CPU and memory consumption of each Harvester component (pods) at idle and under VMs load.
+- **Scope**: CPU and memory consumption of each Harvester component at idle and under maximum VM density.
 - **Tooling**:
-  - `kubectl top pods`, know the pod cpu, memory usages
-  - `grep -E 'MemTotal|MemFree|MemAvailable|SReclaimable' /proc/meminfo`, host memory allocation.
-  - `kubectl describe node | grep -A5 'Allocated resources'`, know the scheduler cpu/memory resource allocation.
+  - `kubectl top pods` — per-pod CPU/memory usage.
+  - `ps -C containerd,kubelet,rke2 -o rss=` — host-level process RSS.
+  - `grep -E 'MemTotal|MemFree|MemAvailable|SReclaimable' /proc/meminfo` — host memory allocation.
+  - `kubectl describe node | grep -A5 'Allocated resources'` — scheduler CPU/memory resource allocation.
+  - `etcdctl endpoint status` — etcd db size.
 - **Topology**:
   - Single-node: 1 control-plane node, no worker nodes.
   - Multi-node: 3-node cluster (1 control-plane, 2 workers).
 - **Methodology**:
   - [Harvester Resource Footprint gist](https://gist.github.com/Vicente-Cheng/ae8d5ce743f94c0c9a333574813bc777).
-  - Capture component-level CPU/memory at rest, then with increasing VM counts (e.g., 10 VMs, 20 VMs) to understand how resource consumption scales.
+  - Phase 1: Measure at idle (0 VMs running) to establish the platform baseline.
+  - Phase 2: Create VMs until the scheduler rejects — record the maximum VM count and which resource (CPU, memory, or other) is the bottleneck.
+  - Capture per-namespace breakdown (kube-system, harvester-system, longhorn-system, cattle-system) at each phase.
+  - Compare single-node vs multi-node to understand how platform overhead scales with node count.
 - **Key metrics**:
-  - CPU (millicores), memory RSS (MiB), per pod, per VM count.
-  - VMs can be created in a given environment before a component becomes the bottleneck.
+  - Platform idle cost: total CPU (millicores) and memory (MiB) with 0 VMs.
+  - Maximum VM count before scheduler rejects, and the bottleneck resource.
+  - Scheduler-reserved vs actual physical consumption ratio.
+  - etcd db size (MiB).
 
-#### Category 2: Performance Benchmark (I/O)
+#### Category 2: Performance Benchmark
+
+##### 2a: Storage and Network I/O
 
 - **Scope**: Storage throughput/latency and network throughput.
 - **Tooling**:
   - Storage: `fio` (sequential and random read/write, 4K and 128K block sizes)
   - Network: `iperf3` (TCP throughput, UDP jitter)
-- **Topology**: Multi-node cluster.
+- **Topology**:
+  - Single-node: 1 control-plane node, no worker nodes.
+  - Multi-node: 3-node cluster (1 control-plane, 2 workers).
 - **Methodology**: [Harvester Performance wiki](https://github.com/harvester/harvester/wiki/Harvester-Performance-Result).
   - Raw Device measure - fio / iperf3
   - VMs on Longhorn volumes for storage tests.
@@ -92,21 +103,51 @@ The benchmark policy is organized into four categories. Each defines scope, tool
     - Windows VM - fio
 - **Key metrics**: IOPS, throughput (MB/s), latency (ms), bandwidth (Gbps).
 
-#### Category 3: KubeVirt Scaling Comparison
+##### 2b: etcd
 
-- **Scope**: Measure the additional overhead Harvester introduce on top of vanilla KubeVirt.
+- **Scope**: etcd get, put, and watch latency and throughput at idle (0 VMs), to establish baseline performance for a given hardware configuration.
 - **Tooling**:
-  - `kubectl top pods` — per-component CPU/memory during and after VM creation.
+  - etcd [benchmark](https://github.com/etcd-io/etcd/tree/main/tools/benchmark) tool — build from `etcd/tools/benchmark` in the etcd repository.
 - **Topology**:
   - Single-node: 1 control-plane node, no worker nodes.
-  - Multi-node: 3-node cluster, from [kubevirt-presubmits-1.8.yaml](https://github.com/kubevirt/project-infra/blob/main/github/ci/prow-deploy/files/jobs/kubevirt/kubevirt/kubevirt-presubmits-1.8.yaml).
+  - Multi-node: 3-node cluster (1 control-plane, 2 workers).
 - **Methodology**:
-  - Follow [KubeVirt perf-scale-benchmarks](https://github.com/kubevirt/kubevirt/blob/main/docs/perf-scale-benchmarks.md).
-  - Create 100 VMs with 100ms interval, wait for all to reach Running state.
-  - Compare results between vanilla KubeVirt and Harvester on the same hardware, similar to Category 1: Resource Footprint
+  - Run at idle (0 VMs) to establish baseline.
+  - For each operation, run a single-client and a concurrent workload:
+    - **Put**:
+      - Single: 1 connection, 1 client, 10,000 requests, 256-byte value.
+      - Concurrent: 100 connections, 1,000 clients, 100,000 requests, 256-byte value.
+    - **Get** (seed keys before benchmarking):
+      - Single: 1 connection, 1 client, 10,000 requests.
+      - Concurrent: 100 connections, 1,000 clients, 100,000 requests.
+    - **Watch**:
+      - Single: 1 connection, 1 client, 10,000 watch events.
+      - Concurrent: 100 connections, 1,000 clients, 100,000 watch events.
 - **Key metrics**:
-  - vmiCreationToRunningSeconds P50/P95
-  - CPU/memory of virt-controller, harvester-controller during batch creation
+  - Requests per second (throughput).
+  - Latency: average, P50, P99.
+
+#### Category 3: KubeVirt Scaling Comparison
+
+- **Scope**: Measure the additional overhead Harvester introduces on top of vanilla KubeVirt, using the KubeVirt version bundled with the Harvester release under test.
+- **Tooling**:
+  - Prometheus (built-in to Harvester) — query KubeVirt metrics via PromQL.
+  - KubeVirt [perfscale-audit](https://github.com/kubevirt/kubevirt/tree/main/tools/perfscale-audit) tool — connects to Prometheus, runs predefined queries, dumps results to JSON.
+- **Topology**:
+  - Single-node: 1 control-plane node, no worker nodes.
+  - Multi-node: 3-node cluster (1 control-plane, 2 workers).
+- **Methodology**:
+  - Adopt measurement methodology from [KubeVirt perf-scale-benchmarks](https://github.com/kubevirt/kubevirt/blob/main/docs/perf-scale-benchmarks.md), not their cluster topology.
+  - Use local-path storage for VM volumes to isolate KubeVirt overhead from storage backend variance.
+  - Create 100 VMs with 100ms interval (minimal spec: Cirros, 100m CPU, 90Mi memory), wait for all to reach Running state.
+  - Collect metrics via Prometheus after waiting for scrape interval (30s default).
+  - Run the same test on vanilla KubeVirt (same version as bundled in Harvester) and Harvester on the same hardware.
+  - Ensure workloads are evenly distributed among workers to avoid skewed results.
+- **Phase 1 — Baseline** (establish the performance gap):
+  - vmiCreationToRunningSeconds P50/P95 (boot time tail latency).
+  - Total time for 100 VMs to reach Running (batch throughput).
+- **Phase 2 — Profiling** (identify where the gap comes from):
+  - **API operation counts**: PATCH-pods-count, PATCH-virtualmachineinstances-count, UPDATE-virtualmachineinstances-count per component — identifies the most expensive calls from the Harvester stack.
 
 ### Test plan
 
@@ -118,4 +159,7 @@ N/A
 
 ## Note [optional]
 
-- Future work: benchmark automation (scheduled runs, result diffing, automatic regression issue filing).  
+- Future work:
+  - Benchmark automation (scheduled runs, result diffing, automatic regression issue filing).
+  - etcd benchmark under VM load — run during VM creation to capture peak write pressure, and compare with steady-state after VMs are running.
+  - Disk topology comparison — measure etcd performance when etcd shares the root disk (e.g., LVM) vs. a dedicated disk, to quantify I/O contention impact on etcd latency.
