@@ -1,7 +1,0 @@
-apiVersion: v2
-appVersion: 1.62.0
-description: A Helm chart for Containerized Data Importer (CDI)
-icon: https://raw.githubusercontent.com/cncf/artwork/main/projects/kubevirt/icon/color/kubevirt-icon-color.svg
-name: cdi
-type: application
-version: 0.2.0

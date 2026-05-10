@@ -1,5 +1,0 @@
-Whereabouts is installed!!
-
-You can view the pods with the following command:
-
-kubectl get pods -n {{ .Release.Namespace }} -l app=whereabouts

@@ -1,8 +1,0 @@
-sudo: required
-dist: trusty
-language: go
-go:
-  - 1.5
-  - tip
-script:
-  - make test
