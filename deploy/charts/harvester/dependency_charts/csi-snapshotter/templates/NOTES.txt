@@ -1,1 +1,0 @@
-The CSI-snapshotter has been installed into the "kube-system" namespace.

@@ -1,6 +1,0 @@
-apiVersion: longhorn.io/v1beta1
-kind: Setting
-metadata:
-  name: default-data-path
-  namespace: longhorn-system
-value: /var/lib/harvester/defaultdisk
