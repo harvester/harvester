@@ -310,7 +310,7 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 				managementZones[zone] = true
 				managementOrHealthyHarvesterWorkerZones[zone] = true
 			}
-		} else if isHealthyNode(node) && isHarvesterNode(node) &&
+		} else if util.IsHealthyNode(node) && isHarvesterNode(node) &&
 			!isWorkerPreferredNode(node) && !isExtraWitnessNode(node, len(witnessPreferred), witnessPromoted) {
 			if zone != "" {
 				managementOrHealthyHarvesterWorkerZones[zone] = true
@@ -385,23 +385,6 @@ func isExtraWitnessNode(node *corev1.Node, numOfWitnessNode int, promotedWitness
 func isWorkerPreferredNode(node *corev1.Node) bool {
 	_, found := node.Labels[HarvesterWorkerNodeLabelKey]
 	return found
-}
-
-// isHealthyNode determine whether it's an healthy node
-func isHealthyNode(node *corev1.Node) bool {
-	for _, c := range node.Status.Conditions {
-		if c.Type == corev1.NodeReady && c.Status != corev1.ConditionTrue {
-			// skip unready nodes
-			return false
-		}
-
-		if c.Type != corev1.NodeReady && c.Status == corev1.ConditionTrue {
-			// skip node with conditions like nodeMemoryPressure, nodeDiskPressure, nodePIDPressure
-			// and nodeNetworkUnavailable equal to true
-			return false
-		}
-	}
-	return true
 }
 
 // isHarvesterNode determine whether it's an Harvester node based on the node's label

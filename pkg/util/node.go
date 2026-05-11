@@ -42,6 +42,23 @@ func IsPromoteStatusIn(node *corev1.Node, statuses ...string) bool {
 	return false
 }
 
+// IsHealthyNode determine whether it's an healthy node
+func IsHealthyNode(node *corev1.Node) bool {
+	for _, c := range node.Status.Conditions {
+		if c.Type == corev1.NodeReady && c.Status != corev1.ConditionTrue {
+			// skip unready nodes
+			return false
+		}
+
+		if c.Type != corev1.NodeReady && c.Status == corev1.ConditionTrue {
+			// skip node with conditions like nodeMemoryPressure, nodeDiskPressure, nodePIDPressure
+			// and nodeNetworkUnavailable equal to true
+			return false
+		}
+	}
+	return true
+}
+
 func IsWitnessNodeWithoutPromotionStatus(node *corev1.Node) bool {
 	val, found := node.Labels[HarvesterWitnessNodeLabelKey]
 	if found && val == "true" {
@@ -86,11 +103,12 @@ func IsManagementRole(node *corev1.Node) bool {
 }
 
 // count the number of nodes running instance manager pod
-func CountNonWitnessNodes(nodes []*corev1.Node) int {
+func CountNonWitnessHealthyNodes(nodes []*corev1.Node) int {
 	count := 0
 
 	for _, node := range nodes {
-		if !IsWitnessNodeWithoutPromotionStatus(node) {
+		// consider only non-wintess and healthy nodes, as witness nodes won't run LH pods and unhealthy nodes won't be scheduled with LH pods
+		if !IsWitnessNodeWithoutPromotionStatus(node) && IsHealthyNode(node) {
 			count++
 		}
 	}
