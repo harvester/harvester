@@ -476,7 +476,7 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 	//Formula - https://docs.harvesterhci.io/v1.4/advanced/storagenetwork/
 	//Dynamic parameters like number of images download/upload, backing-image-manager and backing-image-ds are skipped
 	//and only the number of nodes each running an instance-manager pod is used
-	MinAllocatableIPAddrs := util.CountNonWitnessNodes(nodes)
+	MinAllocatableIPAddrs := util.CountNonWitnessHealthyNodes(nodes)
 
 	var config network.Config
 
@@ -659,34 +659,6 @@ func (h *Handler) checkGrafanaStatusAndStart() error {
 	return nil
 }
 
-func (h *Handler) checkRancherMonitoringStatusAndStart() error {
-	// check managedchart fleet-local/rancher-monitoring paused
-	monitoring, err := h.managedChartCache.Get(util.FleetLocalNamespaceName, util.RancherMonitoring)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			logrus.Infof("rancher monitoring not found. skip")
-			return nil
-		}
-		return fmt.Errorf("rancher monitoring get error %v", err)
-	}
-
-	// check pause or not
-	if _, ok := monitoring.Annotations[util.PausedStorageNetworkAnnotation]; ok {
-		logrus.Infof("current Rancher Monitoring paused: %v", monitoring.Spec.Paused)
-		logrus.Infof("start rancher monitoring")
-		monitoringCopy := monitoring.DeepCopy()
-		monitoringCopy.Spec.Paused = false
-		delete(monitoringCopy.Annotations, util.PausedStorageNetworkAnnotation)
-
-		if _, err := h.managedCharts.Update(monitoringCopy); err != nil {
-			return fmt.Errorf("rancher monitoring error %v", err)
-		}
-		return nil
-	}
-
-	return nil
-}
-
 func (h *Handler) checkVMImportControllerStatusAndStart() error {
 	// check deployment harvester-system/harvester-harvester-vm-import-controller replica
 	vmImportControllerDeploy, err := h.deploymentCache.Get(util.HarvesterSystemNamespaceName, util.HarvesterVMImportController)
@@ -733,39 +705,7 @@ func (h *Handler) checkPodStatusAndStart() error {
 		return err
 	}
 
-	if err := h.checkRancherMonitoringStatusAndStart(); err != nil {
-		return err
-	}
-
 	return h.checkVMImportControllerStatusAndStart()
-}
-
-func (h *Handler) checkRancherMonitoringStatusAndStop() error {
-	// check managedchart fleet-local/rancher-monitoring paused
-	monitoring, err := h.managedChartCache.Get(util.FleetLocalNamespaceName, util.RancherMonitoring)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			logrus.Infof("rancher monitoring not found. skip")
-			return nil
-		}
-		return fmt.Errorf("rancher monitoring get error %v", err)
-	}
-
-	// check pause or not
-	if !monitoring.Spec.Paused {
-		logrus.Infof("current Rancher Monitoring paused: %v", monitoring.Spec.Paused)
-		logrus.Infof("stop rancher monitoring")
-		monitoringCopy := monitoring.DeepCopy()
-		monitoringCopy.Annotations[util.PausedStorageNetworkAnnotation] = "false"
-		monitoringCopy.Spec.Paused = true
-
-		if _, err := h.managedCharts.Update(monitoringCopy); err != nil {
-			return fmt.Errorf("rancher monitoring error %v", err)
-		}
-		return nil
-	}
-
-	return err
 }
 
 func (h *Handler) checkPrometheusStatusAndStop() error {
@@ -881,10 +821,6 @@ func (h *Handler) checkVMImportControllerStatusAndStop() error {
 
 // check Pod status, if all pods are stopped, return true
 func (h *Handler) checkPodStatusAndStop() error {
-	if err := h.checkRancherMonitoringStatusAndStop(); err != nil {
-		return err
-	}
-
 	if err := h.checkPrometheusStatusAndStop(); err != nil {
 		return err
 	}
