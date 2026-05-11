@@ -16,7 +16,6 @@ const (
 	AnnotationReservedMemory            = prefix + "/reservedMemory"
 	AnnotationHash                      = prefix + "/hash"
 	AnnotationRunStrategy               = prefix + "/vmRunStrategy"
-	AnnotationBackendStorageCloneStatus = prefix + "/clone-backend-storage-status"
 	AnnotationSnapshotFreezeFS          = prefix + "/snapshotFreezeFS"
 	AnnotationSnapshotRevise            = prefix + "/snapRevise"
 	AnnotationSVMBackupID               = prefix + "/svmbackupId"
@@ -90,6 +89,13 @@ const (
 	AnnotationNodeUpgradePauseMap = prefix + "/node-upgrade-pause-map"
 	NodePause                     = "pause"
 	NodeUnpause                   = "unpause"
+
+	// Annotation for backend storage clone status, the value can be "cloning" or "cloned"
+	AnnotationBackendStorageCloneStatus      = prefix + "/clone-backend-storage-status"
+	AnnotationBackendStorageCloneSourceVM    = prefix + "/clone-backend-storage-source-vm"
+	AnnotationBackendStorageCloneRunStrategy = prefix + "/clone-backend-storage-run-strategy"
+	CloneInProgress                          = "cloning"
+	CloneComplete                            = "cloned"
 
 	HarvesterManagedNodeLabelKey = prefix + "/managed"
 

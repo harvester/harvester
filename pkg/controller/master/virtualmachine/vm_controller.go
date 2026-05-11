@@ -6,18 +6,24 @@ import (
 	"strings"
 	"time"
 
+	"strconv"
+
+	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	kubevirt "kubevirt.io/api/core"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
@@ -30,12 +36,21 @@ import (
 	rqutils "github.com/harvester/harvester/pkg/util/resourcequota"
 )
 
+const (
+	efiRenameJobImage        = "registry.suse.com/bci/bci-base:16.0"
+	efiRenameJobTTL          = 300
+	efiRenameJobBackoffLimit = 3
+	efiRenameJobLabelKey     = "harvesterhci.io/efi-rename-vm"
+)
+
 // A list of labels that are always automatically synchronized with the
 // VMI in addition to the instance labels.
 var syncLabelsToVmi = []string{util.LabelMaintainModeStrategy}
 
 type VMController struct {
 	dataVolumeClient ctlcdiv1.DataVolumeClient
+	jobClient        ctlbatchv1.JobClient
+	jobCache         ctlbatchv1.JobCache
 	podClient        v1.PodClient
 	pvcClient        v1.PersistentVolumeClaimClient
 	pvcCache         v1.PersistentVolumeClaimCache
@@ -724,4 +739,229 @@ func (h *VMController) getPVCStorageClass(pvc *corev1.PersistentVolumeClaim) (*s
 		return nil, fmt.Errorf("failed to get StorageClass %s: %w", *pvc.Spec.StorageClassName, err)
 	}
 	return sc, nil
+}
+
+// ReconcileBackendStorageClone drives the backend storage (EFI/TPM) clone as an
+// idempotent state machine. Each reconcile advances one step:
+//
+//  1. Find or create the cloned PVC (via DataSource from the source VM's backend storage PVC, clone EFI/TPM content.)
+//  2. Wait for the cloned PVC to become Bound
+//  3. Create the EFI rename Job (rename NVRAM file from source VM name to target VM name)
+//  4. Wait for the Job to succeed
+//  5. Mark clone complete: set annotation to "cloned" and restore the desired RunStrategy
+func (h *VMController) ReconcileBackendStorageClone(_ string, vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	if vm == nil || vm.DeletionTimestamp != nil || vm.Spec.Template == nil {
+		return vm, nil
+	}
+
+	if vm.Annotations[util.AnnotationBackendStorageCloneStatus] != util.CloneInProgress {
+		return vm, nil
+	}
+
+	sourceVMName := vm.Annotations[util.AnnotationBackendStorageCloneSourceVM]
+	if sourceVMName == "" {
+		return vm, nil
+	}
+
+	clonedPVC, err := h.reconcileClonedBackendStoragePVC(vm, sourceVMName)
+	if err != nil {
+		return nil, fmt.Errorf("reconcile cloned backend storage PVC for VM %s/%s: %w", vm.Namespace, vm.Name, err)
+	}
+	if clonedPVC == nil {
+		h.recorder.Eventf(vm, corev1.EventTypeWarning, "ClonePVCNotFound",
+			"Source VM %s has no backend storage PVC, will retry", sourceVMName)
+		h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 5*time.Second)
+		return vm, nil
+	}
+	if clonedPVC.Status.Phase != corev1.ClaimBound {
+		if clonedPVC.Status.Phase == corev1.ClaimPending {
+			h.recorder.Eventf(vm, corev1.EventTypeWarning, "ClonePVCPending",
+				"Cloned backend storage PVC %s is pending, waiting for it to be bound", clonedPVC.Name)
+		}
+		h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 5*time.Second)
+		return vm, nil
+	}
+
+	job, err := h.reconcileEFIRenameJob(vm, sourceVMName, clonedPVC)
+	if err != nil {
+		return nil, fmt.Errorf("reconcile EFI rename job for VM %s/%s: %w", vm.Namespace, vm.Name, err)
+	}
+
+	finish, failed := getEFIRenameJobStatus(job)
+	if !finish {
+		h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 5*time.Second)
+		return vm, nil
+	}
+
+	if failed {
+		logrus.Warnf("EFI rename job %s/%s failed, deleting to retry", job.Namespace, job.Name)
+		h.recorder.Eventf(vm, corev1.EventTypeWarning, "CloneJobFailed",
+			"EFI rename job %s failed, will delete and retry", job.Name)
+		if err := h.jobClient.Delete(job.Namespace, job.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("delete failed EFI rename job %s/%s: %w", job.Namespace, job.Name, err)
+		}
+		h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 5*time.Second)
+		return vm, nil
+	}
+
+	return h.completeBackendStorageClone(vm)
+}
+
+func (h *VMController) reconcileClonedBackendStoragePVC(vm *kubevirtv1.VirtualMachine, sourceVMName string) (*corev1.PersistentVolumeClaim, error) {
+	clonedPVCName := fmt.Sprintf("%s-%s", backendstorage.PVCPrefix, vm.Name)
+	pvc, err := h.pvcCache.Get(vm.Namespace, clonedPVCName)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, err
+	}
+	if err == nil {
+		return pvc, nil
+	}
+
+	sourcePVCs, err := h.pvcClient.List(vm.Namespace, metav1.ListOptions{
+		LabelSelector: labels.Set{
+			backendstorage.PVCPrefix: sourceVMName,
+		}.String()})
+	if err != nil {
+		return nil, err
+	}
+	if len(sourcePVCs.Items) == 0 {
+		logrus.Warnf("no backend storage PVC found for source VM %s/%s, skipping clone", vm.Namespace, sourceVMName)
+		return nil, nil
+	}
+	if len(sourcePVCs.Items) != 1 {
+		return nil, fmt.Errorf("expect 1 backend storage PVC for source VM %s/%s, got %d", vm.Namespace, sourceVMName, len(sourcePVCs.Items))
+	}
+	sourcePVC := sourcePVCs.Items[0]
+
+	clonedPVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      clonedPVCName,
+			Namespace: vm.Namespace,
+			Labels: map[string]string{
+				backendstorage.PVCPrefix: vm.Name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(vm, kubevirtv1.VirtualMachineGroupVersionKind),
+			},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: sourcePVC.Spec.AccessModes,
+			DataSource: &corev1.TypedLocalObjectReference{
+				Kind: "PersistentVolumeClaim",
+				Name: sourcePVC.Name,
+			},
+			Resources:        sourcePVC.Spec.Resources,
+			StorageClassName: sourcePVC.Spec.StorageClassName,
+			VolumeMode:       sourcePVC.Spec.VolumeMode,
+		},
+	}
+
+	return h.pvcClient.Create(clonedPVC)
+}
+
+func (h *VMController) reconcileEFIRenameJob(vm *kubevirtv1.VirtualMachine, sourceVMName string, clonedPVC *corev1.PersistentVolumeClaim) (*batchv1.Job, error) {
+	efiRenameJobName := fmt.Sprintf("efi-rename-%s", vm.Name)
+	job, err := h.jobCache.Get(vm.Namespace, efiRenameJobName)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, err
+	}
+	if err == nil {
+		return job, nil
+	}
+
+	job = h.buildEFIRenameJob(vm, sourceVMName, clonedPVC, efiRenameJobName)
+	return h.jobClient.Create(job)
+}
+
+func (h *VMController) buildEFIRenameJob(vm *kubevirtv1.VirtualMachine, sourceVMName string, clonedPVC *corev1.PersistentVolumeClaim, efiRenameJobName string) *batchv1.Job {
+	srcFile := fmt.Sprintf("%s_VARS.fd", sourceVMName)
+	dstFile := fmt.Sprintf("%s_VARS.fd", vm.Name)
+	qemuUserID := strconv.Itoa(107)
+
+	script := strings.NewReplacer(
+		"{{.Src}}", srcFile,
+		"{{.Dst}}", dstFile,
+		"{{.UID}}", qemuUserID,
+	).Replace(`set -e
+src="/pvc/nvram/{{.Src}}"
+dst="/pvc/nvram/{{.Dst}}"
+[ -f "$src" ] && mv "$src" "$dst"
+[ -f "$dst" ] && chown {{.UID}}:{{.UID}} "$dst"
+[ -f "$dst" ] && chmod 600 "$dst"`)
+
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      efiRenameJobName,
+			Namespace: vm.Namespace,
+			Labels: map[string]string{
+				efiRenameJobLabelKey: vm.Name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(vm, kubevirtv1.VirtualMachineGroupVersionKind),
+			},
+		},
+		Spec: batchv1.JobSpec{
+			BackoffLimit:            ptr.To(int32(efiRenameJobBackoffLimit)),
+			TTLSecondsAfterFinished: ptr.To(int32(efiRenameJobTTL)),
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					RestartPolicy: corev1.RestartPolicyNever,
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsUser:  ptr.To(int64(0)),
+						RunAsGroup: ptr.To(int64(0)),
+					},
+					Containers: []corev1.Container{{
+						Name:    "efi-rename",
+						Image:   efiRenameJobImage,
+						Command: []string{"sh", "-c", script},
+						VolumeMounts: []corev1.VolumeMount{{
+							Name:      "pvc",
+							MountPath: "/pvc",
+						}},
+					}},
+					Volumes: []corev1.Volume{{
+						Name: "pvc",
+						VolumeSource: corev1.VolumeSource{
+							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+								ClaimName: clonedPVC.Name,
+							},
+						},
+					}},
+				},
+			},
+		},
+	}
+}
+
+func (h *VMController) completeBackendStorageClone(vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	vmCopy := vm.DeepCopy()
+
+	if rs, ok := vmCopy.Annotations[util.AnnotationBackendStorageCloneRunStrategy]; ok {
+		runStrategy := kubevirtv1.VirtualMachineRunStrategy(rs)
+		vmCopy.Spec.RunStrategy = &runStrategy
+		delete(vmCopy.Annotations, util.AnnotationBackendStorageCloneRunStrategy)
+	}
+
+	delete(vmCopy.Annotations, util.AnnotationBackendStorageCloneSourceVM)
+	vmCopy.Annotations[util.AnnotationBackendStorageCloneStatus] = util.CloneComplete
+
+	return h.vmClient.Update(vmCopy)
+}
+
+// getEFIRenameJobStatus returns whether the Job has reached a terminal state
+// and whether it failed terminally (backoffLimit exhausted).
+func getEFIRenameJobStatus(job *batchv1.Job) (finish bool, failed bool) {
+	for _, c := range job.Status.Conditions {
+		switch c.Type {
+		case batchv1.JobComplete:
+			if c.Status == corev1.ConditionTrue {
+				return true, false
+			}
+		case batchv1.JobFailed:
+			if c.Status == corev1.ConditionTrue {
+				return true, true
+			}
+		}
+	}
+	return false, false
 }
