@@ -121,19 +121,19 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	case insertCdRomVolume:
 		var input InsertCdRomVolumeActionInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		return nil, h.insertCdRomVolume(name, namespace, input)
 	case ejectCdRomVolume:
 		var input EjectCdRomVolumeActionInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		return nil, h.ejectCdRomVolume(r.Context(), name, namespace, input)
 	case migrate:
 		var input MigrateInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		return nil, h.migrate(r.Context(), namespace, name, input.NodeName)
 	case abortMigration:
@@ -156,7 +156,7 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	case backupVM:
 		var input BackupInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 
 		if input.Name == "" {
@@ -178,7 +178,7 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	case restoreVM:
 		var input RestoreInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 
 		if input.Name == "" || input.BackupName == "" {
@@ -196,7 +196,7 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	case createTemplate:
 		var input CreateTemplateInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 
 		if input.Name == "" {
@@ -206,7 +206,7 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	case addVolume:
 		var input AddVolumeInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		if input.DiskName == "" || input.VolumeSourceName == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `diskName` and `volumeName` are required")
@@ -215,7 +215,7 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	case removeVolume:
 		var input RemoveVolumeInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		if input.DiskName == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `volumeName` are required")
@@ -224,13 +224,13 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	case addNic:
 		var input AddNicInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		return nil, h.addNic(r.Context(), namespace, name, input)
 	case removeNic:
 		var input RemoveNicInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		return nil, h.removeNic(r.Context(), namespace, name, input)
 	case findHotunpluggableNics:
@@ -238,7 +238,7 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	case cloneVM:
 		var input CloneInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 
 		if input.TargetVM == "" {
@@ -295,13 +295,13 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 		}
 		var input CPUAndMemoryHotplugInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		return nil, h.cpuAndMemoryHotplug(namespace, name, input)
 	case storageMigration:
 		var input StorageMigrationInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		if input.SourceVolume == "" || input.TargetVolume == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `sourceVolume` and `targetVolume` are required")
