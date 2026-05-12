@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/backup/common"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -16,10 +17,14 @@ import (
 type BackupMutator struct {
 	types.DefaultMutator
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
+	vmbo          common.VMBackupOperator
 }
 
 func NewMutator(vmBackupCache ctlharvesterv1.VirtualMachineBackupCache) *BackupMutator {
-	return &BackupMutator{vmBackupCache: vmBackupCache}
+	return &BackupMutator{
+		vmBackupCache: vmBackupCache,
+		vmbo:          common.GetVMBackupOperator(nil, vmBackupCache, nil, nil, nil, nil, nil, nil, nil),
+	}
 }
 
 func (m *BackupMutator) Resource() types.Resource {
@@ -36,22 +41,26 @@ func (m *BackupMutator) Resource() types.Resource {
 }
 
 func (m *BackupMutator) Create(_ *types.Request, newObj runtime.Object) (types.PatchOps, error) {
-	newVMBackup := newObj.(*v1beta1.VirtualMachineBackup)
-	vmBackup, err := m.vmBackupCache.Get(newVMBackup.Namespace, newVMBackup.Name)
+	newVb := newObj.(*v1beta1.VirtualMachineBackup)
+	existingVb, err := m.vmBackupCache.Get(m.vmbo.GetNamespace(newVb), m.vmbo.GetName(newVb))
+	if apierrors.IsNotFound(err) {
+		return types.PatchOps{}, nil
+	}
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return types.PatchOps{}, nil
-		}
 		return types.PatchOps{}, err
 	}
-	if newVMBackup.Spec.Type == vmBackup.Spec.Type {
+
+	existingType := m.vmbo.GetType(existingVb)
+	newType := m.vmbo.GetType(newVb)
+	if existingType == newType {
 		return types.PatchOps{}, werror.NewBadRequest(
-			fmt.Sprintf("The %s %s is already existent. Please use another name for it.", vmBackup.Name, vmBackup.Spec.Type))
+			fmt.Sprintf("%s %q already exists", newType, m.vmbo.GetName(newVb)))
 	}
-	// https://github.com/harvester/harvester/issues/5855
-	// To better handle error message about duplicated vm backup and snapshot,
-	// we have to do it in mutator. After mutator, there is a schema check and
-	// we can't handle the error message in it.
+
+	// Backup and snapshot share the same CRD (VirtualMachineBackup), so names
+	// collide across types. Catch this here because the schema check after the
+	// mutator would surface a less helpful error.
+	// ref: https://github.com/harvester/harvester/issues/5855
 	return types.PatchOps{}, werror.NewBadRequest(
-		fmt.Sprintf("VM Backup and Snapshot use same CRD - VirtualMachineBackup. The %s %s is already existent. Please use another name for it.", vmBackup.Name, vmBackup.Spec.Type))
+		fmt.Sprintf("name %q is already used by a %s (backup and snapshot share names)", m.vmbo.GetName(newVb), existingType))
 }

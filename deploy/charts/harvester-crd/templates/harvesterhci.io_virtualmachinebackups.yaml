@@ -86,7 +86,12 @@ spec:
                 enum:
                 - backup
                 - snapshot
+                - restic
+                - kopia
                 type: string
+                x-kubernetes-validations:
+                - message: spec.type is immutable
+                  rule: self == oldSelf
             required:
             - source
             type: object

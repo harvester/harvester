@@ -20,6 +20,12 @@ const (
 
 	// BackupConditionMetadataReady is the "metadataReady" condition type
 	BackupConditionMetadataReady condition.Cond = "MetadataReady"
+
+	// RestoreConditionReady is the "ready" condition type for restore
+	RestoreConditionReady condition.Cond = "Ready"
+
+	// RestoreConditionProgressing is the "progressing" condition type for restore
+	RestoreConditionProgressing condition.Cond = "InProgress"
 )
 
 // DeletionPolicy defines that to do with resources when VirtualMachineRestore is deleted
@@ -39,7 +45,33 @@ type BackupType string
 const (
 	Backup   BackupType = "backup"
 	Snapshot BackupType = "snapshot"
+	Restic   BackupType = "restic"
+	Kopia    BackupType = "kopia"
 )
+
+// UsesRemoteBackupTarget reports whether this backup type persists data to the
+// configured remote BackupTarget. Snapshot stays in-cluster; Backup/Restic/Kopia
+// all push to S3 (via Longhorn-native, restic, or kopia respectively).
+func (b BackupType) UsesRemoteBackupTarget() bool {
+	switch b {
+	case Backup, Restic, Kopia:
+		return true
+	}
+	return false
+}
+
+// OwnsExternalState reports whether this backup type holds remote state that
+// no other controller will garbage-collect. Restic/Kopia push to S3 outside
+// of any K8s resource lifecycle, so the engine's ForceDelete must run on
+// every VMBackup removal to forget the remote snapshots. Native Backup is
+// excluded because Longhorn manages its own backup CRs and S3 data.
+func (b BackupType) OwnsExternalState() bool {
+	switch b {
+	case Restic, Kopia:
+		return true
+	}
+	return false
+}
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -63,8 +95,9 @@ type VirtualMachineBackupSpec struct {
 	Source corev1.TypedLocalObjectReference `json:"source"`
 
 	// +kubebuilder:default:="backup"
-	// +kubebuilder:validation:Enum=backup;snapshot
+	// +kubebuilder:validation:Enum=backup;snapshot;restic;kopia
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec.type is immutable"
 	Type BackupType `json:"type,omitempty" default:"backup"`
 }
 

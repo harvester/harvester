@@ -241,7 +241,7 @@ func TestCheckMaintenanceModeStrategyIsValid(t *testing.T) {
 		},
 	}
 
-	validator := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
+	validator := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
 
 	for _, tc := range testCases {
 		err := validator.checkMaintenanceModeStrategyIsValid(tc.newVM, tc.oldVM)
@@ -889,7 +889,7 @@ func Test_virtualMachineValidator_duplicateMacAddress(t *testing.T) {
 	fakeVMCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
 	fakeNadCache := fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions)
 
-	validator := NewValidator(nil, nil, nil, nil, nil, nil, fakeVMCache, nil, fakeNadCache, nil, nil, nil).(*vmValidator)
+	validator := NewValidator(nil, nil, nil, nil, nil, nil, fakeVMCache, nil, fakeNadCache, nil, nil, nil, nil).(*vmValidator)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1196,7 +1196,7 @@ func TestVmValidator_Update(t *testing.T) {
 	assert.NoError(t, err)
 	fakeScCache := fakeclients.StorageClassCache(harvesterFakeClientset.StorageV1().StorageClasses)
 
-	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil).(*vmValidator)
+	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, nil).(*vmValidator)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1365,7 +1365,7 @@ func TestCheckCdRomVolumeIsValid(t *testing.T) {
 		},
 	}
 
-	validator := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
+	validator := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1792,7 +1792,7 @@ func TestCheckTargetVolumes(t *testing.T) {
 				assert.NoError(t, err, "Mock resource should add into fake controller tracker")
 			}
 			pvcCache := fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims)
-			validator := NewValidator(nil, nil, pvcCache, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
+			validator := NewValidator(nil, nil, pvcCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
 
 			err := validator.checkTargetVolumes(nil, tc.vm)
 			if tc.expectError {

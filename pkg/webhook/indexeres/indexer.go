@@ -9,7 +9,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/controller/master/backup"
+	backupcommon "github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/clients"
@@ -94,7 +94,8 @@ func vmBackupSnapshotByPVCNamespaceAndName(obj *harvesterv1.VirtualMachineBackup
 }
 
 func vmBackupByIsProgressing(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
-	isProgressingStr := strconv.FormatBool(backup.IsBackupProgressing(obj))
+	vmbo := backupcommon.GetVMBackupOperator(nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	isProgressingStr := strconv.FormatBool(vmbo.IsProcessing(obj))
 	return []string{string(isProgressingStr)}, nil
 }
 

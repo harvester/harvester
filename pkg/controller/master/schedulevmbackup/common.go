@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/controller/master/backup"
+	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -87,7 +87,7 @@ func currentVMBackups(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBack
 	for _, vb := range vmbackups {
 		lastVMBackup = vb
 
-		if backup.IsBackupMissingStatus(vb) {
+		if h.vmbo.IsMissingStatus(vb) {
 			continue
 		}
 
@@ -173,12 +173,12 @@ func gcVMBackups(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup) e
 		return nil
 	}
 
-	if backup.IsBackupProgressing(lastVMBackup) {
+	if !h.vmbo.IsReady(lastVMBackup) && h.vmbo.GetStatus(lastVMBackup).Error == nil {
 		h.svmbackupController.EnqueueAfter(svmbackup.Namespace, svmbackup.Name, updateInterval)
 		return nil
 	}
 
-	if backup.GetVMBackupError(lastVMBackup) != nil {
+	if h.vmbo.GetStatus(lastVMBackup).Error != nil {
 		return nil
 	}
 
@@ -211,14 +211,15 @@ func gcVMBackups(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup) e
 
 // Record VM backup status and volume backups status in `.staus.vmbackupInfo`
 func convertVMBackupToInfo(vmbackup *harvesterv1.VirtualMachineBackup) harvesterv1.VMBackupInfo {
+	vmbo := common.GetVMBackupOperator(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	var vmBackupInfo harvesterv1.VMBackupInfo
 
-	vmBackupInfo.Name = vmbackup.Name
-	if backup.IsBackupMissingStatus(vmbackup) {
+	vmBackupInfo.Name = vmbo.GetName(vmbackup)
+	if vmbo.IsMissingStatus(vmbackup) {
 		return vmBackupInfo
 	}
 
-	status := vmbackup.Status
+	status := vmbo.GetStatus(vmbackup)
 	if status.ReadyToUse != nil {
 		vmBackupInfo.ReadyToUse = status.ReadyToUse
 	}
@@ -227,13 +228,14 @@ func convertVMBackupToInfo(vmbackup *harvesterv1.VirtualMachineBackup) harvester
 		vmBackupInfo.Error = status.Error
 	}
 
-	if len(status.VolumeBackups) == 0 {
+	volBackups := vmbo.GetVolBackups(vmbackup)
+	if len(volBackups) == 0 {
 		return vmBackupInfo
 	}
 
-	vmBackupInfo.VolumeBackupInfo = make([]harvesterv1.VolumeBackupInfo, len(status.VolumeBackups))
-	for i := 0; i < len(status.VolumeBackups); i++ {
-		vb := status.VolumeBackups[i]
+	vmBackupInfo.VolumeBackupInfo = make([]harvesterv1.VolumeBackupInfo, len(volBackups))
+	for i := 0; i < len(volBackups); i++ {
+		vb := &volBackups[i]
 		if vb.Name != nil {
 			vmBackupInfo.VolumeBackupInfo[i].Name = vb.Name
 		}
@@ -407,16 +409,17 @@ func lhBackupInFinalState(lhBackup *lhv1beta2.Backup) bool {
 // and make following snapshot and backup creation stuck. We should suspend the schedule and delete the LH backup
 // as soon as we find this situation
 func checkLHBackupUnexpectedProcessing(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup, vmbackup *harvesterv1.VirtualMachineBackup) error {
-	if vmbackup.Spec.Type == harvesterv1.Snapshot {
+	if h.vmbo.GetType(vmbackup) == harvesterv1.Snapshot {
 		return nil
 	}
 
-	if backup.IsBackupProgressing(vmbackup) {
+	if !h.vmbo.IsReady(vmbackup) && h.vmbo.GetStatus(vmbackup).Error == nil {
 		return nil
 	}
 
-	for i := range vmbackup.Status.VolumeBackups {
-		vb := &vmbackup.Status.VolumeBackups[i]
+	volBackups := h.vmbo.GetVolBackups(vmbackup)
+	for i := range volBackups {
+		vb := &volBackups[i]
 		if vb.LonghornBackupName == nil {
 			continue
 		}
@@ -436,7 +439,7 @@ func checkLHBackupUnexpectedProcessing(h *svmbackupHandler, svmbackup *harvester
 
 		msg := fmt.Sprintf("vmbackup %s/%s vb %s in error state but lhbackup %s still in processing,"+
 			" usually caused by backup target not reachable",
-			vmbackup.Namespace, vmbackup.Name, *vb.Name, lhBackup.Name)
+			h.vmbo.GetNamespace(vmbackup), h.vmbo.GetName(vmbackup), *vb.Name, lhBackup.Name)
 		return handleLHBackupNotSynced(h, svmbackup, msg)
 	}
 
@@ -463,7 +466,7 @@ func newVMBackups(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup, 
 		return nil, handleReachMaxFailure(h, svmbackup, msg)
 	}
 
-	if backup.IsBackupProgressing(lastVMBackup) {
+	if !h.vmbo.IsReady(lastVMBackup) && h.vmbo.GetStatus(lastVMBackup).Error == nil {
 		return nil, fmt.Errorf("lastest vm backup %v/%v in progress", lastVMBackup.Namespace, lastVMBackup.Name)
 	}
 

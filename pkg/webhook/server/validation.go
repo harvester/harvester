@@ -6,8 +6,14 @@ import (
 	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/webhook"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/client-go/rest"
+	kubevirtv1 "kubevirt.io/api/core/v1"
+	kubevirtscheme "kubevirt.io/client-go/kubevirt/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	backupcommon "github.com/harvester/harvester/pkg/backup/common"
 	ctlkubeovnv1 "github.com/harvester/harvester/pkg/generated/controllers/kubeovn.io/v1"
 	"github.com/harvester/harvester/pkg/volumeremotebackup/common"
 	"github.com/harvester/harvester/pkg/webhook/clients"
@@ -62,6 +68,31 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 		kubeovnSubnetCache = clients.KubeovnFactory.Kubeovn().V1().Subnet().Cache()
 	}
 
+	// Create REST client for KubeVirt subresources
+	virtSubresourceConfig := *clients.RESTConfig
+	virtSubresourceConfig.GroupVersion = &kubevirtv1.SubresourceStorageGroupVersion
+	virtSubresourceConfig.NegotiatedSerializer = serializer.WithoutConversionCodecFactory{CodecFactory: kubevirtscheme.Codecs}
+	virtSubresourceConfig.APIPath = "/apis"
+	virtSubresourceConfig.ContentType = runtime.ContentTypeJSON
+
+	virtSubresourceRestClient, err := rest.RESTClientFor(&virtSubresourceConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Create VMBackupOperator for use in validators
+	vmbo := backupcommon.GetVMBackupOperator(
+		clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup(),
+		clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
+		clients.SnapshotFactory.Snapshot().V1().VolumeSnapshotClass().Cache(),
+		clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
+		clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
+		clients.Core.PersistentVolumeClaim().Cache(),
+		clients.Core.PersistentVolume().Cache(),
+		clients.Core.Secret().Cache(),
+		virtSubresourceRestClient,
+	)
+
 	resources := []types.Resource{}
 	validators := []types.Validator{
 		node.NewValidator(
@@ -105,7 +136,8 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.CNIFactory.K8s().V1().NetworkAttachmentDefinition().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().KubeVirt().Cache(),
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
-			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
+			vmbo),
 		virtualmachineimage.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.Core.Pod().Cache(),
