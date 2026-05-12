@@ -42,7 +42,7 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 	case actionRestore:
 		var input RestoreSnapshotInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		if input.Name == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
