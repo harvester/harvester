@@ -19,7 +19,6 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -34,20 +33,15 @@ const (
 func RegisterBackupTarget(ctx context.Context, management *config.Management, _ config.Options) error {
 	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
 	secrets := management.CoreFactory.Core().V1().Secret()
-	longhornSettings := management.LonghornFactory.Longhorn().V1beta2().Setting()
-	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	lhBackupTargets := management.LonghornFactory.Longhorn().V1beta2().BackupTarget()
 
 	backupTargetController := &TargetHandler{
-		ctx:                  ctx,
-		longhornSettings:     longhornSettings,
-		longhornSettingCache: longhornSettings.Cache(),
-		secrets:              secrets,
-		secretCache:          secrets.Cache(),
-		vms:                  vms,
-		settings:             settings,
-		lhBackupTargets:      lhBackupTargets,
-		lhBackupTargetCache:  lhBackupTargets.Cache(),
+		ctx:                 ctx,
+		secrets:             secrets,
+		secretCache:         secrets.Cache(),
+		settings:            settings,
+		lhBackupTargets:     lhBackupTargets,
+		lhBackupTargetCache: lhBackupTargets.Cache(),
 	}
 
 	settings.OnChange(ctx, backupTargetControllerName, backupTargetController.OnBackupTargetChange)
@@ -55,15 +49,12 @@ func RegisterBackupTarget(ctx context.Context, management *config.Management, _ 
 }
 
 type TargetHandler struct {
-	ctx                  context.Context
-	longhornSettings     ctllonghornv1.SettingClient
-	longhornSettingCache ctllonghornv1.SettingCache
-	secrets              ctlcorev1.SecretClient
-	secretCache          ctlcorev1.SecretCache
-	vms                  ctlkubevirtv1.VirtualMachineController
-	settings             ctlharvesterv1.SettingClient
-	lhBackupTargets      ctllonghornv1.BackupTargetClient
-	lhBackupTargetCache  ctllonghornv1.BackupTargetCache
+	ctx                 context.Context
+	secrets             ctlcorev1.SecretClient
+	secretCache         ctlcorev1.SecretCache
+	settings            ctlharvesterv1.SettingClient
+	lhBackupTargets     ctllonghornv1.BackupTargetClient
+	lhBackupTargetCache ctllonghornv1.BackupTargetCache
 }
 
 // OnBackupTargetChange handles backupTarget setting object on change

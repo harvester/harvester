@@ -2,7 +2,6 @@ package schedulevmbackup
 
 import (
 	"reflect"
-	"strings"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -10,6 +9,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 )
 
 func (h *svmbackupHandler) resolveVolSnapshotRef(namespace string, controllerRef *metav1.OwnerReference) *harvesterv1.VirtualMachineBackup {
@@ -37,7 +37,7 @@ func (h *svmbackupHandler) OnLHBackupChanged(_ string, lhBackup *lhv1beta2.Backu
 		return nil, nil
 	}
 
-	snapshotContent, err := h.snapshotContentCache.Get(strings.Replace(lhBackup.Spec.SnapshotName, "snapshot", "snapcontent", 1))
+	snapshotContent, err := h.snapshotContentCache.Get(backuputil.LHSnapToVSCName(lhBackup.Spec.SnapshotName))
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return nil, err

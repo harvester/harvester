@@ -7,6 +7,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvbatchv1 "github.com/harvester/harvester/pkg/generated/controllers/batch/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -44,6 +45,7 @@ type svmbackupHandler struct {
 	lhbackupClient       ctllonghornv2.BackupClient
 	snapshotContentCache ctlsnapshotv1.VolumeSnapshotContentCache
 	clientset            kubernetes.Interface
+	vmbo                 common.VMBackupOperator
 }
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
@@ -76,6 +78,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		lhbackupClient:       lhbackups,
 		snapshotContentCache: snapshotContents.Cache(),
 		clientset:            management.ClientSet,
+		vmbo:                 common.GetVMBackupOperator(nil, nil, nil, nil, nil, nil, nil, nil, nil),
 	}
 
 	svmbackups.OnChange(ctx, scheduleVMBackupControllerName, svmbackupHandler.OnChanged)
