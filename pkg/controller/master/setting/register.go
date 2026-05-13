@@ -36,6 +36,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 	kubevirt := management.VirtFactory.Kubevirt().V1().KubeVirt()
 	namespaces := management.CoreFactory.Core().V1().Namespace()
+	jobs := management.BatchFactory.Batch().V1().Job()
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -73,6 +74,9 @@ func Register(ctx context.Context, management *config.Management, options config
 		kubeVirtConfigCache:  kubevirt.Cache(),
 		namespaces:           namespaces,
 		namespacesCache:      namespaces.Cache(),
+		jobs:                 jobs,
+		jobCache:             jobs.Cache(),
+		clientset:            management.ClientSet,
 
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
@@ -112,6 +116,7 @@ func Register(ctx context.Context, management *config.Management, options config
 
 	settings.OnChange(ctx, controllerName, controller.settingOnChanged)
 	node.OnChange(ctx, controllerName, controller.nodeOnChanged)
+	jobs.OnChange(ctx, controllerName, controller.rotationJobOnChanged)
 	relatedresource.WatchClusterScoped(ctx, watchNamespaceChanges, controller.watchNamespaceChanges, settings, namespaces)
 	return nil
 }

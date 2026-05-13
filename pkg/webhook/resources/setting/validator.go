@@ -58,6 +58,7 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
+	"github.com/harvester/harvester/pkg/util/certrotation"
 	networkutil "github.com/harvester/harvester/pkg/util/network"
 	tlsutil "github.com/harvester/harvester/pkg/util/tls"
 	vmUtil "github.com/harvester/harvester/pkg/util/virtualmachine"
@@ -212,6 +213,8 @@ func NewValidator(
 
 	validateSettingUpdateFuncs[settings.LHIMResourcesSettingName] = validator.validateUpdateLHIMResources
 	validateSettingDeleteFuncs[settings.LHIMResourcesSettingName] = validator.validateDeleteLHIMResources
+
+	validateSettingDeleteFuncs[settings.AutoRotateRKE2CertsSettingName] = validator.validateDeleteAutoRotateRKE2Certs
 
 	return validator
 }
@@ -2080,8 +2083,55 @@ func validateAutoRotateRKE2Certs(setting *v1beta1.Setting) error {
 	return nil
 }
 
-func validateUpdateAutoRotateRKE2Certs(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
-	return validateAutoRotateRKE2Certs(newSetting)
+func validateUpdateAutoRotateRKE2Certs(_ *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	if err := validateAutoRotateRKE2Certs(newSetting); err != nil {
+		return err
+	}
+
+	// Allow no-op updates regardless of rotation state. This covers the common
+	// case of updating annotations / labels on the Setting object without
+	// touching the value (e.g. the orchestrator itself stamping the rotation
+	// state annotation).
+	if oldSetting.Value == newSetting.Value {
+		return nil
+	}
+
+	if isRKE2CertRotationInProgress(oldSetting) {
+		return werror.NewBadRequest(rke2CertRotationInProgressMessage(oldSetting))
+	}
+
+	return nil
+}
+
+func (v *settingValidator) validateDeleteAutoRotateRKE2Certs(setting *v1beta1.Setting) error {
+	if isRKE2CertRotationInProgress(setting) {
+		return werror.NewBadRequest(rke2CertRotationInProgressMessage(setting))
+	}
+	return nil
+}
+
+func isRKE2CertRotationInProgress(setting *v1beta1.Setting) bool {
+	state, err := certrotation.LoadClusterStateFromAnnotations(setting.Annotations)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"setting":    setting.Name,
+			"annotation": certrotation.AnnotationRKE2CertRotationState,
+		}).WithError(err).Warn("malformed rke2-cert-rotation-state annotation; treating as not in progress")
+		return false
+	}
+	return certrotation.IsRotationInProgress(state.Phase)
+}
+
+func rke2CertRotationInProgressMessage(setting *v1beta1.Setting) string {
+	state, _ := certrotation.LoadClusterStateFromAnnotations(setting.Annotations)
+	return fmt.Sprintf(
+		"cannot modify or delete setting %q while RKE2 certificate rotation is in progress "+
+			"(phase=%s, generation=%d, currentNode=%q). "+
+			"Wait for rotation to complete, or if it is genuinely stuck, clear the rotation "+
+			"state by running: kubectl annotate setting %s %s-",
+		setting.Name, state.Phase, state.Generation, state.CurrentNode,
+		setting.Name, certrotation.AnnotationRKE2CertRotationState,
+	)
 }
 
 func validateKubeConfigTTLSettingHelper(value string) error {
