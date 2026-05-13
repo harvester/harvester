@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -39,6 +40,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kubevirtmultus "kubevirt.io/kubevirt/pkg/network/multus"
 	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
+	"kubevirt.io/kubevirt/pkg/tpm"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
 	apiutil "github.com/harvester/harvester/pkg/api/util"
@@ -1275,6 +1277,9 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 			newVM.Annotations[util.AnnotationBackendStorageCloneRunStrategy] = string(*newVM.Spec.RunStrategy)
 		}
 		newVM.Annotations[util.AnnotationBackendStorageCloneSourceVM] = vm.Name
+		newVM.Annotations[util.AnnotationBackendStorageCloneActions] = h.determineCloneAction(newVM)
+		newVM.Annotations[util.AnnotationBackendStorageCloneStartTime] = time.Now().Format(time.RFC3339)
+
 		halted := kubevirtv1.RunStrategyHalted
 		newVM.Spec.RunStrategy = &halted
 		newVM.Annotations[util.AnnotationBackendStorageCloneStatus] = util.CloneInProgress
@@ -1383,6 +1388,32 @@ func cloneSecretVolume(volume *kubevirtv1.Volume, secretNameMap map[string]strin
 		secretNameMap[volume.Secret.SecretName] = names.SimpleNameGenerator.GenerateName("clone-")
 	}
 	volume.Secret.SecretName = secretNameMap[volume.Secret.SecretName]
+}
+
+// determineCloneAction determines what post-clone action is needed based on the
+// clone VM's desired backend storage configuration (EFI/TPM).
+// The backend storage PVC is always cloned entirely from the source, but the clone VM
+// spec may differ (e.g., user disables EFI or TPM in the clone), requiring cleanup.
+//
+// [Cases]
+// Clone both: needs to rename EFI NVRAM file from source VM.
+// Clone TPM only: needs to delete EFI files from cloned PVC.
+// Clone EFI only: needs to delete TPM state from cloned PVC.
+func (h *vmActionHandler) determineCloneAction(cloneVm *kubevirtv1.VirtualMachine) string {
+	cloneHasEFI := backendstorage.HasPersistentEFI(&cloneVm.Spec.Template.Spec)
+	cloneHasTPM := tpm.HasPersistentDevice(&cloneVm.Spec.Template.Spec)
+
+	switch {
+	case cloneHasEFI && cloneHasTPM:
+		return util.CloneActionRenameEFI
+	case cloneHasEFI:
+		return util.CloneActionDeleteTPM
+	case cloneHasTPM:
+		return util.CloneActionDeleteEFI
+	default:
+		// Default to clone both.
+		return util.CloneActionRenameEFI
+	}
 }
 
 func (h *vmActionHandler) dismissInsufficientResourceQuota(name, namespace string) error {

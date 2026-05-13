@@ -81,6 +81,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		snapshotCache:    snapshotCache,
 		scClient:         scClient,
 		scCache:          scCache,
+		clientset:        management.ClientSet,
 		settingCache:     settingCache,
 		recorder:         recorder,
 
@@ -94,8 +95,10 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	virtualMachineClient.OnChange(ctx, vmControllerRemoveDeprecatedFinalizerControllerName, vmCtrl.removeDeprecatedFinalizer)
 	virtualMachineClient.OnChange(ctx, vmControllerSetTargetVolumeStrategyControllerName, vmCtrl.SetTargetVolumeStrategy)
 	virtualMachineClient.OnChange(ctx, vmControllerCleanupTargetVolumeAnnotationControllerName, vmCtrl.CleanupTargetVolumeAnnotation)
-	virtualMachineClient.OnChange(ctx, vmControllerReconcileBackendStorageCloneControllerName, vmCtrl.ReconcileBackendStorageClone)
 	virtualMachineClient.OnRemove(ctx, vmControllerCleanupPVCAndSnapshotFinalizerName, vmCtrl.cleanupPVCAndSnapshot)
+
+	virtualMachineClient.OnChange(ctx, vmControllerReconcileBackendStorageCloneControllerName, vmCtrl.ReconcileBackendStorageClone)
+	virtualMachineClient.OnRemove(ctx, vmControllerReconcileBackendStorageCloneControllerName, vmCtrl.CleanUpBackendStorageClone)
 
 	// registers the vmi controller
 	virtualMachineCache := virtualMachineClient.Cache()

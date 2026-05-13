@@ -390,6 +390,28 @@ func newTestVM(namespace, name string, annotations map[string]string) *kubevirtv
 	}
 }
 
+func newTestVMWithPersistentEFI(namespace, name string, annotations map[string]string) *kubevirtv1.VirtualMachine {
+	vm := newTestVM(namespace, name, annotations)
+	persistent := true
+	vm.Spec.Template.Spec.Domain.Firmware = &kubevirtv1.Firmware{
+		Bootloader: &kubevirtv1.Bootloader{
+			EFI: &kubevirtv1.EFI{
+				Persistent: &persistent,
+			},
+		},
+	}
+	return vm
+}
+
+func newTestVMWithPersistentTPM(namespace, name string, annotations map[string]string) *kubevirtv1.VirtualMachine {
+	vm := newTestVM(namespace, name, annotations)
+	persistent := true
+	vm.Spec.Template.Spec.Domain.Devices.TPM = &kubevirtv1.TPMDevice{
+		Persistent: &persistent,
+	}
+	return vm
+}
+
 func newTestSourcePVC(namespace, sourceVMName, storageClassName string, volumeMode corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -420,10 +442,16 @@ func newTestClonedPVC(namespace, targetVMName string, phase corev1.PersistentVol
 }
 
 func newTestCloneInProgressAnnotations(sourceVMName string) map[string]string {
+	return newTestCloneInProgressAnnotationsWithAction(sourceVMName, util.CloneActionRenameEFI)
+}
+
+func newTestCloneInProgressAnnotationsWithAction(sourceVMName, cloneAction string) map[string]string {
 	return map[string]string{
 		util.AnnotationBackendStorageCloneStatus:      util.CloneInProgress,
 		util.AnnotationBackendStorageCloneSourceVM:    sourceVMName,
 		util.AnnotationBackendStorageCloneRunStrategy: string(kubevirtv1.RunStrategyRerunOnFailure),
+		util.AnnotationBackendStorageCloneActions:     cloneAction,
+		util.AnnotationBackendStorageCloneStartTime:   time.Now().UTC().Format(time.RFC3339),
 	}
 }
 

@@ -2,6 +2,7 @@ package virtualmachine
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/record"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
@@ -1139,7 +1141,7 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 			name: "bound cloned PVC exists but rename job does not - create job and enqueue retry",
 			given: input{
 				key:  namespace + "/" + targetVMName,
-				vm:   newTestVM(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+				vm:   newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
 				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
 			},
 			expected: output{
@@ -1147,25 +1149,56 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
 				createdJob:  true,
 				enqueue:     true,
-				job: (&VMController{}).buildEFIRenameJob(
-					newTestVM(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+				job: (&VMController{
+					clientset: k8sfake.NewSimpleClientset(),
+				}).buildBackendStorageJob(
+					newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
 					sourceVMName,
 					newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
-					"efi-rename-"+targetVMName,
+					"backend-storage-"+targetVMName,
+					util.CloneActionRenameEFI,
 				),
+			},
+		},
+		{
+			name: "bound cloned PVC exists and VM has persistent TPM only - mark clone complete without backend storage job",
+			given: input{
+				key:  namespace + "/" + targetVMName,
+				vm:   newTestVMWithPersistentTPM(namespace, targetVMName, newTestCloneInProgressAnnotationsWithAction(sourceVMName, "")),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+			},
+			expected: output{
+				cloneStatus: util.CloneComplete,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyRerunOnFailure),
+			},
+		},
+		{
+			name: "clone exceeded timeout - mark clone failed and keep VM halted",
+			given: input{
+				key: namespace + "/" + targetVMName,
+				vm: func() *kubevirtv1.VirtualMachine {
+					annotations := newTestCloneInProgressAnnotations(sourceVMName)
+					annotations[util.AnnotationBackendStorageCloneStartTime] = time.Now().Add(-backendStorageCloneTimeout - time.Minute).UTC().Format(time.RFC3339)
+					return newTestVMWithPersistentEFI(namespace, targetVMName, annotations)
+				}(),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+			},
+			expected: output{
+				cloneStatus: util.CloneFailed,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
 			},
 		},
 		{
 			name: "bound cloned PVC and running rename job exist - no create and enqueue retry",
 			given: input{
 				key:  namespace + "/" + targetVMName,
-				vm:   newTestVM(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+				vm:   newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
 				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
 				jobs: []*batchv1.Job{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Namespace: namespace,
-							Name:      "efi-rename-" + targetVMName,
+							Name:      "backend-storage-" + targetVMName,
 						},
 						Status: batchv1.JobStatus{
 							Active: 1,
@@ -1180,16 +1213,47 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 			},
 		},
 		{
+			name: "job failed with max retries reached - mark clone failed and keep VM halted",
+			given: input{
+				key: namespace + "/" + targetVMName,
+				vm: func() *kubevirtv1.VirtualMachine {
+					annotations := newTestCloneInProgressAnnotations(sourceVMName)
+					annotations[util.AnnotationBackendStorageCloneRetries] = strconv.Itoa(maxBackendStorageCloneRetries)
+					return newTestVMWithPersistentEFI(namespace, targetVMName, annotations)
+				}(),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+				jobs: []*batchv1.Job{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: namespace,
+							Name:      "backend-storage-" + targetVMName,
+						},
+						Status: batchv1.JobStatus{
+							Failed: 1,
+							Conditions: []batchv1.JobCondition{{
+								Type:   batchv1.JobFailed,
+								Status: corev1.ConditionTrue,
+							}},
+						},
+					},
+				},
+			},
+			expected: output{
+				cloneStatus: util.CloneFailed,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
+			},
+		},
+		{
 			name: "job completed - mark clone complete and restore RunStrategy",
 			given: input{
 				key:  namespace + "/" + targetVMName,
-				vm:   newTestVM(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+				vm:   newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
 				pvcs: []*corev1.PersistentVolumeClaim{newTestSourcePVC(namespace, sourceVMName, storageClassName, volumeMode), newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
 				jobs: []*batchv1.Job{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Namespace: namespace,
-							Name:      "efi-rename-" + targetVMName,
+							Name:      "backend-storage-" + targetVMName,
 						},
 						Status: batchv1.JobStatus{
 							Succeeded: 1,
@@ -1216,6 +1280,7 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 				require.NoError(t, err, "mock VM should add into fake tracker")
 			}
 
+			k8sClientset := k8sfake.NewSimpleClientset()
 			recorder := record.NewFakeRecorder(10)
 			pvcClient := newFakePVCClient(tc.given.pvcs...)
 			jobClient := newFakeJobClient(tc.given.jobs...)
@@ -1231,6 +1296,7 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 				jobClient:    jobClient,
 				pvcCache:     newFakePVCCache(tc.given.pvcs...),
 				jobCache:     newFakeJobCache(tc.given.jobs...),
+				clientset:    k8sClientset,
 			}
 
 			result, err := ctrl.ReconcileBackendStorageClone(tc.given.key, tc.given.vm)
@@ -1275,4 +1341,27 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildBackendStorageJobUsesConfiguredImage(t *testing.T) {
+	namespace := "default"
+	sourceVMName := "source-vm"
+	targetVMName := "target-vm"
+
+	ctrl := &VMController{
+		clientset: k8sfake.NewSimpleClientset(),
+	}
+
+	job := ctrl.buildBackendStorageJob(
+		newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+		sourceVMName,
+		newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
+		"backend-storage-"+targetVMName,
+		util.CloneActionRenameEFI,
+	)
+
+	require.Len(t, job.Spec.Template.Spec.Containers, 1)
+	// Without Helm values configured, should use default image
+	assert.Equal(t, DefaultJobImage, job.Spec.Template.Spec.Containers[0].Image)
+	assert.Equal(t, corev1.PullIfNotPresent, job.Spec.Template.Spec.Containers[0].ImagePullPolicy)
 }
