@@ -33,20 +33,38 @@ const (
 	errorMessageReservedStorageClass = "storage class %s is reserved by Harvester and can't be deleted"
 )
 
+type secretPair struct {
+	nameKey, namespaceKey string
+	required              bool
+}
+
+// optionalEncryptionSecretKeys are CSI key pairs whose absence is tolerated by the validator.
+var optionalEncryptionSecretKeys = map[string]bool{
+	util.CSINodeExpandSecretNameKey: true,
+}
+
 var (
 	availableCiphers  = []string{"aes-xts-plain", "aes-xts-plain64", "aes-cbc-plain", "aes-cbc-plain64", "aes-cbc-essiv:sha256"}
 	availablePBKDFs   = []string{"argon2i", "argon2id", "pbkdf2"}
 	availableHash     = []string{"sha256", "sha384", "sha512"}
 	availableKeySizes = []string{"256", "384", "512"}
 
-	pairs = [][2]string{
-		{util.CSIProvisionerSecretNameKey, util.CSIProvisionerSecretNamespaceKey},
-		{util.CSINodeStageSecretNameKey, util.CSINodeStageSecretNamespaceKey},
-		{util.CSINodePublishSecretNameKey, util.CSINodePublishSecretNamespaceKey},
-	}
+	encryptionPairs = buildEncryptionPairs()
 
 	allCDICloneStrategies = []string{string(cdiv1.CloneStrategyHostAssisted), string(cdiv1.CloneStrategySnapshot), string(cdiv1.CloneStrategyCsiClone)}
 )
+
+func buildEncryptionPairs() []secretPair {
+	pairs := make([]secretPair, 0, len(util.CSIEncryptionSecretKeyPairs))
+	for _, p := range util.CSIEncryptionSecretKeyPairs {
+		pairs = append(pairs, secretPair{
+			nameKey:      p.NameKey,
+			namespaceKey: p.NamespaceKey,
+			required:     !optionalEncryptionSecretKeys[p.NameKey],
+		})
+	}
+	return pairs
+}
 
 func NewValidator(
 	storageClassCache ctlstoragev1.StorageClassCache,
@@ -207,18 +225,16 @@ func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error 
 		return nil
 	}
 
-	err = v.validateEncryptionParams(newSC)
+	secretName, secretNamespace, err := v.validateEncryptionParams(newSC)
 	if err != nil {
 		return err
 	}
 
-	secretName, secretNamespace := newSC.Parameters[pairs[0][0]], newSC.Parameters[pairs[0][1]]
-
 	secret, err := v.secretCache.Get(secretNamespace, secretName)
+	if errors.IsNotFound(err) {
+		return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
+	}
 	if err != nil {
-		if errors.IsNotFound(err) {
-			return werror.NewInvalidError(fmt.Sprintf("secret %s/%s not found", secretNamespace, secretName), "")
-		}
 		return werror.NewInvalidError(err.Error(), "")
 	}
 
@@ -269,49 +285,49 @@ func (v *storageClassValidator) validateEncryptionSecret(secret *corev1.Secret, 
 	return nil
 }
 
-func (v *storageClassValidator) validateEncryptionParams(newSC *storagev1.StorageClass) error {
-	var (
-		secretName      string
-		secretNamespace string
-		missingParams   []string
-	)
+func (v *storageClassValidator) validateEncryptionParams(newSC *storagev1.StorageClass) (string, string, error) {
+	var wantName, wantNS string
+	var missing []string
 
-	for _, pair := range pairs {
-		name, nameExists := newSC.Parameters[pair[0]]
-		namespace, namespaceExists := newSC.Parameters[pair[1]]
+	for _, p := range encryptionPairs {
+		name, hasName := newSC.Parameters[p.nameKey]
+		ns, hasNS := newSC.Parameters[p.namespaceKey]
 
-		if !nameExists {
-			missingParams = append(missingParams, pair[0])
+		if !hasName && !hasNS {
+			if p.required {
+				missing = append(missing, p.nameKey, p.namespaceKey)
+			}
+			continue
 		}
-
-		if !namespaceExists {
-			missingParams = append(missingParams, pair[1])
+		if !hasName {
+			missing = append(missing, p.nameKey)
+			continue
 		}
-
-		if !nameExists || !namespaceExists {
+		if !hasNS {
+			missing = append(missing, p.namespaceKey)
 			continue
 		}
 
-		if secretName == "" && secretNamespace == "" {
-			secretName = name
-			secretNamespace = namespace
+		if wantName == "" {
+			wantName, wantNS = name, ns
 			continue
 		}
-
-		if secretName != name || secretNamespace != namespace {
-			return werror.NewInvalidError(fmt.Sprintf("secret names and namespaces in %s and %s are different from others", pair[0], pair[1]), "")
+		if name != wantName || ns != wantNS {
+			return "", "", werror.NewInvalidError(
+				fmt.Sprintf("secret names and namespaces in %s and %s are different from others",
+					p.nameKey, p.namespaceKey), "")
 		}
 	}
 
-	if len(missingParams) != 0 {
-		return werror.NewInvalidError(fmt.Sprintf("storage class must contain %s", strings.Join(missingParams, ", ")), "spec.parameters")
+	if len(missing) > 0 {
+		return "", "", werror.NewInvalidError(
+			fmt.Sprintf("storage class must contain %s", strings.Join(missing, ", ")),
+			"spec.parameters")
 	}
-
-	if secretName == "" || secretNamespace == "" {
-		return werror.NewInvalidError("storage class must contain secret name and namespace", "spec.parameters")
+	if wantName == "" {
+		return "", "", werror.NewInvalidError("storage class must contain secret name and namespace", "spec.parameters")
 	}
-
-	return nil
+	return wantName, wantNS, nil
 }
 
 func (v *storageClassValidator) validateVMImageUsage(sc *storagev1.StorageClass) error {
