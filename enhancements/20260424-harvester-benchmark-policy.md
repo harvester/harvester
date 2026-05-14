@@ -94,13 +94,17 @@ The benchmark policy is organized into three categories. Each defines scope, too
   - Storage: `fio` (sequential and random read/write, 4K and 128K block sizes)
   - Network: `iperf3` (TCP throughput, UDP jitter)
 - **Topology**:
-  - Single-node: 1 control-plane node, no worker nodes.
   - Multi-node: 3-node cluster (1 control-plane, 2 workers).
+  - **Storage network**: 10GbE dedicated NIC for Longhorn replication traffic, isolated from management and VM networks.
+  - **Inter-node bandwidth**: Measured via iperf3 before benchmark runs to confirm line rate (record actual observed bandwidth).
 - **Methodology**: [Harvester Performance wiki](https://github.com/harvester/harvester/wiki/Harvester-Performance-Result).
-  - Raw Device measure - fio / iperf3
-  - VMs on Longhorn volumes for storage tests.
-    - Linux VM - fio
-    - Windows VM - fio
+  - **Storage overhead**:
+    - Layer 0 (Raw Device): fio directly on host block device
+    - Layer 1 (Longhorn volume, host): fio on Longhorn PVC mounted to a pod on the host
+    - Layer 2 (guest VM): fio inside Linux/Windows VM backed by Longhorn volume
+  - **Network overhead**:
+    - Layer 0 (Raw Device): confirm inter-node line rate via iperf3
+    - VM network: iperf3 between two VMs to measure guest network throughput.
 - **Key metrics**: IOPS, throughput (MB/s), latency (ms), bandwidth (Gbps).
 
 ##### 2b: etcd
