@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester-network-controller/pkg/utils"
@@ -22,12 +23,19 @@ import (
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	networkutil "github.com/harvester/harvester/pkg/util/network"
 	whTypes "github.com/harvester/harvester/pkg/webhook/types"
+	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 )
 
 const (
-	testCnName     = "test-cn"
-	testNewVCName  = "newVC"
-	testNewVC1Name = "newVC1"
+	testCnName           = "test-cn"
+	testNewVCName        = "newVC"
+	testNewVC1Name       = "newVC1"
+	testNadConfig1       = "{\"cniVersion\":\"0.3.1\",\"name\":\"net1-vlan\",\"type\":\"bridge\",\"bridge\":\"test-cn1-br\",\"promiscMode\":true,\"vlan\":300,\"ipam\":{}}"
+	testNadName          = "net1-vlan"
+	testNamespace        = "test"
+	testKubeOVNNadName   = "vswitch1"
+	testKubeOVNNamespace = "default"
+	testKubeOVNNadConfig = "{\"cniVersion\":\"0.3.1\",\"name\":\"vswitch1\",\"type\":\"kube-ovn\",\"server_socket\":\"/run/openvswitch/kube-ovn-daemon.sock\", \"provider\": \"vswitch1.default.ovn\"}"
 )
 
 func Test_validateOvercommitConfig(t *testing.T) {
@@ -1286,9 +1294,16 @@ func Test_validateAdditionalGuestMemoryOverheadRatio(t *testing.T) {
 
 func Test_validateStorageNetworkConfig(t *testing.T) {
 	tests := []struct {
-		name   string
-		args   *v1beta1.Setting
-		errMsg string
+		name      string
+		args      *v1beta1.Setting
+		errMsg    string
+		oldNAD    *cniv1.NetworkAttachmentDefinition
+		currentCN *networkv1.ClusterNetwork
+		vc2       *networkv1.VlanConfig
+		vs2       *networkv1.VlanStatus
+		vs1       *networkv1.VlanStatus
+		node1     *corev1.Node
+		node2     *corev1.Node
 	}{
 		{
 			name: "ok to create storge-network with none values",
@@ -1359,13 +1374,220 @@ func Test_validateStorageNetworkConfig(t *testing.T) {
 			},
 			errMsg: "not allowed on",
 		},
-		// more tests are depending on a bunch of fake objects
+		{
+			name: "fail to create storage-network with same vlan-id as VM Network when exclusive vlan is enabled",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":300, "clusterNetwork":"test-cn","exclusiveVlan": true,"range":"192.168.201.0/24"}`,
+			},
+			errMsg: "storage network cannot use the same vlan",
+			currentCN: &networkv1.ClusterNetwork{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testCnName,
+					Annotations: map[string]string{"test": "test"},
+				},
+			},
+			oldNAD: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testNadName,
+					Namespace:   testNamespace,
+					Annotations: map[string]string{"test": "test"},
+					Labels:      map[string]string{utils.KeyClusterNetworkLabel: "test-cn1"},
+				},
+				Spec: cniv1.NetworkAttachmentDefinitionSpec{
+					Config: testNadConfig1,
+				},
+			},
+			vc2: &networkv1.VlanConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testNewVC1Name,
+					Annotations: map[string]string{"test": "test", utils.KeyMatchedNodes: "[\"node1\",\"node2\"]"},
+					Labels:      map[string]string{utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Spec: networkv1.VlanConfigSpec{
+					ClusterNetwork: testCnName,
+				},
+			},
+			vs2: &networkv1.VlanStatus{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        utils.Name("", testCnName, "node1"),
+					Annotations: map[string]string{"test": "test"},
+					Labels:      map[string]string{utils.KeyVlanConfigLabel: testNewVC1Name, utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Status: networkv1.VlStatus{
+					ClusterNetwork: testCnName,
+					VlanConfig:     testNewVC1Name,
+					Conditions: []networkv1.Condition{
+						{
+							Type:   networkv1.Ready,
+							Status: "True",
+						},
+					},
+				},
+			},
+			vs1: &networkv1.VlanStatus{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        utils.Name("", testCnName, "node2"),
+					Annotations: map[string]string{"test": "test"},
+					Labels:      map[string]string{utils.KeyVlanConfigLabel: testNewVC1Name, utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Status: networkv1.VlStatus{
+					ClusterNetwork: testCnName,
+					VlanConfig:     testNewVC1Name,
+					Conditions: []networkv1.Condition{
+						{
+							Type:   networkv1.Ready,
+							Status: "True",
+						},
+					},
+				},
+			},
+			node1: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+				},
+			},
+			node2: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node2",
+				},
+			},
+		},
+		{
+			name: "untagged storage network with exclusive vlan enabled should be created successfully when overlay NAD exists",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":0, "clusterNetwork":"test-cn","exclusiveVlan": true,"range":"192.168.201.0/24"}`,
+			},
+			errMsg: "",
+			oldNAD: &cniv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testKubeOVNNadName,
+					Namespace:   testKubeOVNNamespace,
+					Annotations: map[string]string{"test": "test"},
+					Labels:      map[string]string{util.KeyNetworkType: util.OverlayNetwork},
+				},
+				Spec: cniv1.NetworkAttachmentDefinitionSpec{
+					Config: testKubeOVNNadConfig,
+				},
+			},
+			currentCN: &networkv1.ClusterNetwork{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testCnName,
+					Annotations: map[string]string{"test": "test"},
+				},
+			},
+			vc2: &networkv1.VlanConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testNewVC1Name,
+					Annotations: map[string]string{"test": "test", utils.KeyMatchedNodes: "[\"node1\",\"node2\"]"},
+					Labels:      map[string]string{utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Spec: networkv1.VlanConfigSpec{
+					ClusterNetwork: testCnName,
+				},
+			},
+			vs2: &networkv1.VlanStatus{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        utils.Name("", testCnName, "node1"),
+					Annotations: map[string]string{"test": "test"},
+					Labels:      map[string]string{utils.KeyVlanConfigLabel: testNewVC1Name, utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Status: networkv1.VlStatus{
+					ClusterNetwork: testCnName,
+					VlanConfig:     testNewVC1Name,
+					Conditions: []networkv1.Condition{
+						{
+							Type:   networkv1.Ready,
+							Status: "True",
+						},
+					},
+				},
+			},
+			vs1: &networkv1.VlanStatus{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        utils.Name("", testCnName, "node2"),
+					Annotations: map[string]string{"test": "test"},
+					Labels:      map[string]string{utils.KeyVlanConfigLabel: testNewVC1Name, utils.KeyClusterNetworkLabel: testCnName},
+				},
+				Status: networkv1.VlStatus{
+					ClusterNetwork: testCnName,
+					VlanConfig:     testNewVC1Name,
+					Conditions: []networkv1.Condition{
+						{
+							Type:   networkv1.Ready,
+							Status: "True",
+						},
+					},
+				},
+			},
+			node1: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node1",
+				},
+			},
+			node2: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node2",
+				},
+			},
+		},
 	}
 
-	clientset := fake.NewSimpleClientset()
-	v := NewValidator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-
 	for _, tt := range tests {
+		clientset := fake.NewSimpleClientset()
+		nodeClient := fakeclients.NodeClient(clientset.CoreV1().Nodes)
+		vcClient := fakeclients.VlanConfigClient(clientset.NetworkV1beta1().VlanConfigs)
+		vsClient := fakeclients.VlanStatusClient(clientset.NetworkV1beta1().VlanStatuses)
+		nadCache := fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions)
+		cnClient := fakeclients.ClusterNetworkClient(clientset.NetworkV1beta1().ClusterNetworks)
+		cnCache := fakeclients.ClusterNetworkCache(clientset.NetworkV1beta1().ClusterNetworks)
+		nodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
+		vcCache := fakeclients.VlanConfigCache(clientset.NetworkV1beta1().VlanConfigs)
+		vsCache := fakeclients.VlanStatusCache(clientset.NetworkV1beta1().VlanStatuses)
+		vmCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
+		vmiCache := fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances)
+		lhNodeCache := fakeclients.LonghornNodeCache(clientset.LonghornV1beta2().Nodes)
+
+		v := NewValidator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings), nodeCache, nil, nil, nil, vmCache, vmiCache, nil, nil, fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims), cnCache, vcCache, vsCache, lhNodeCache, nil, nadCache)
+
+		nadGvr := schema.GroupVersionResource{
+			Group:    "k8s.cni.cncf.io",
+			Version:  "v1",
+			Resource: "network-attachment-definitions",
+		}
+
+		if tt.currentCN != nil {
+			_, err := cnClient.Create(tt.currentCN)
+			assert.NoError(t, err)
+		}
+
+		if tt.oldNAD != nil {
+			if err := clientset.Tracker().Create(nadGvr, tt.oldNAD.DeepCopy(), tt.oldNAD.Namespace); err != nil {
+				t.Fatalf("failed to add nad %+v", tt.oldNAD)
+			}
+		}
+
+		if tt.vc2 != nil {
+			_, err := vcClient.Create(tt.vc2)
+			assert.NoError(t, err)
+		}
+
+		if tt.vs2 != nil {
+			_, err := vsClient.Create(tt.vs2)
+			assert.NoError(t, err)
+		}
+
+		if tt.node1 != nil {
+			_, err := nodeClient.Create(tt.node1)
+			assert.NoError(t, err)
+		}
+		if tt.node2 != nil {
+			_, err := nodeClient.Create(tt.node2)
+			assert.NoError(t, err)
+		}
 		t.Run(tt.name, func(t *testing.T) {
 			err := v.Create(nil, tt.args)
 			if tt.errMsg != "" {
@@ -1548,8 +1770,7 @@ func Test_validateStorageNetworkVlanConfig(t *testing.T) {
 		vmCache := fakeclients.VirtualMachineCache(nchclientset.KubevirtV1().VirtualMachines)
 		vmiCache := fakeclients.VirtualMachineInstanceCache(nchclientset.KubevirtV1().VirtualMachineInstances)
 
-		clientset := fake.NewSimpleClientset()
-		v := NewValidator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings), nodeCache, nil, nil, nil, vmCache, vmiCache, nil, nil, fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims), cnCache, vcCache, vsCache, lhNodeCache, nil)
+		v := NewValidator(fakeclients.HarvesterSettingCache(nchclientset.HarvesterhciV1beta1().Settings), nodeCache, nil, nil, nil, vmCache, vmiCache, nil, nil, fakeclients.LonghornVolumeCache(nchclientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(nchclientset.CoreV1().PersistentVolumeClaims), cnCache, vcCache, vsCache, lhNodeCache, nil, nil)
 
 		if tt.currentCN != nil {
 			_, err := cnClient.Create(tt.currentCN)
@@ -1696,7 +1917,7 @@ func Test_validateMaxHotplugRatio(t *testing.T) {
 		},
 	}
 
-	v := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	v := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1711,7 +1932,7 @@ func Test_validateMaxHotplugRatio(t *testing.T) {
 
 func Test_validateStorageNetwork_Update_InProgress(t *testing.T) {
 	clientset := fake.NewSimpleClientset()
-	v := NewValidator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings), nil, nil, nil, nil, fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines), nil, nil, nil, fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims), nil, nil, nil, fakeclients.LonghornNodeCache(clientset.LonghornV1beta2().Nodes), nil)
+	v := NewValidator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings), nil, nil, nil, nil, fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines), nil, nil, nil, fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims), nil, nil, nil, fakeclients.LonghornNodeCache(clientset.LonghornV1beta2().Nodes), nil, nil)
 
 	t.Run("reject update when 'In Progress'", func(t *testing.T) {
 		oldSetting := &v1beta1.Setting{
@@ -1913,7 +2134,7 @@ func Test_validateLHIMResources(t *testing.T) {
 		},
 	}
 
-	v := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	v := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2501,6 +2722,200 @@ func Test_checkRWXNetworkRangeValid(t *testing.T) {
 			}
 			err := v.checkRWXNetworkRangeValid(tt.config)
 			assert.Equal(t, tt.expectedErr, err != nil, err)
+		})
+	}
+}
+func Test_checkExclusiveVlan(t *testing.T) {
+	type nadConfig struct {
+		name      string
+		namespace string
+		vlan      int
+		isStorage bool
+	}
+	tests := []struct {
+		name        string
+		config      *networkutil.Config
+		nads        []nadConfig
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "exclusiveVlan=false, should not error",
+			config: &networkutil.Config{
+				ExclusiveVlan: false,
+				Vlan:          100,
+			},
+			nads:        []nadConfig{{name: "nad1", vlan: 100, isStorage: false}},
+			expectError: false,
+		},
+		{
+			name: "exclusiveVlan=true, no NADs, should not error",
+			config: &networkutil.Config{
+				ExclusiveVlan: true,
+				Vlan:          200,
+			},
+			nads:        nil,
+			expectError: false,
+		},
+		{
+			name: "exclusiveVlan=true, NAD with different vlan, should not error",
+			config: &networkutil.Config{
+				ExclusiveVlan: true,
+				Vlan:          300,
+			},
+			nads: []nadConfig{
+				{name: "nad1", vlan: 301, isStorage: false},
+			},
+			expectError: false,
+		},
+		{
+			name: "exclusiveVlan=true, NAD with same vlan, should error",
+			config: &networkutil.Config{
+				ExclusiveVlan: true,
+				Vlan:          400,
+			},
+			nads: []nadConfig{
+				{name: "nad1", vlan: 400, isStorage: false},
+			},
+			expectError: true,
+			errorMsg:    "storage network cannot use the same vlan 400 as VM Network vlan as exclusive vlan is enabled",
+		},
+		{
+			name: "exclusiveVlan=true, NAD with same vlan but is storage NAD, should not error",
+			config: &networkutil.Config{
+				ExclusiveVlan: true,
+				Vlan:          500,
+			},
+			nads: []nadConfig{
+				{name: "nad1", vlan: 500, isStorage: true},
+			},
+			expectError: false,
+		},
+		{
+			name: "exclusiveVlan=true, multiple NADs, one matches vlan, should error",
+			config: &networkutil.Config{
+				ExclusiveVlan: true,
+				Vlan:          600,
+			},
+			nads: []nadConfig{
+				{name: "nad1", vlan: 601, isStorage: false},
+				{name: "nad2", vlan: 600, isStorage: false},
+			},
+			expectError: true,
+			errorMsg:    "storage network cannot use the same vlan 600 as VM Network vlan as exclusive vlan is enabled",
+		},
+		{
+			name: "exclusiveVlan=true, NAD with trunk VLANs including storage VLAN, should error",
+			config: &networkutil.Config{
+				ExclusiveVlan: true,
+				Vlan:          16,
+			},
+			nads: []nadConfig{
+				{
+					name:      "nad-trunk",
+					isStorage: false,
+				},
+			},
+			expectError: true,
+			errorMsg:    "storage network cannot use the same vlan 16 as VM Network vlan as exclusive vlan is enabled",
+		},
+		{
+			name: "exclusiveVlan=true, NAD with trunk VLANs not including storage VLAN, should not error",
+			config: &networkutil.Config{
+				ExclusiveVlan: true,
+				Vlan:          26,
+			},
+			nads: []nadConfig{
+				{
+					name:      "nad-trunk",
+					isStorage: false,
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "exclusiveVlan=true, cannot be enabled on vlan 0",
+			config: &networkutil.Config{
+				ExclusiveVlan: true,
+				Vlan:          0,
+			},
+			nads: []nadConfig{
+				{
+					name:      "nad-trunk",
+					isStorage: false,
+				},
+			},
+			expectError: true,
+			errorMsg:    "exclusive vlan cannot be enabled for vlan 0",
+		},
+		{
+			name: "exclusiveVlan=true, cannot be enabled on vlan 1",
+			config: &networkutil.Config{
+				ExclusiveVlan: true,
+				Vlan:          1,
+			},
+			nads: []nadConfig{
+				{
+					name:      "nad-trunk",
+					isStorage: false,
+				},
+			},
+			expectError: true,
+			errorMsg:    "exclusive vlan cannot be enabled for vlan 1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var clientset = fake.NewSimpleClientset()
+
+			nadGvr := schema.GroupVersionResource{
+				Group:    "k8s.cni.cncf.io",
+				Version:  "v1",
+				Resource: "network-attachment-definitions",
+			}
+
+			for _, nad := range tt.nads {
+				nadObj := &cniv1.NetworkAttachmentDefinition{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      nad.name,
+						Namespace: nad.namespace,
+					},
+				}
+				// Simulate util.IsStorageNetworkNad
+				if nad.isStorage {
+					if nadObj.Annotations == nil {
+						nadObj.Annotations = map[string]string{}
+					}
+					nadObj.Annotations[util.StorageNetworkAnnotation] = "true"
+				}
+				// Simulate util.DecodeNadConfigToNetConf
+				if strings.Contains(nad.name, "nad-trunk") {
+					// Simulate a trunk VLAN range in the config
+					nadObj.Spec.Config = `{"vlan":0,"ipam":{},"vlanTrunk":[{"minID":5,"maxID":10},{"minID":15,"maxID":20},{"minID":25,"maxID":25}]}`
+				} else {
+					nadObj.Spec.Config = fmt.Sprintf(`{"vlan":%d}`, nad.vlan)
+				}
+				if err := clientset.Tracker().Create(nadGvr, nadObj.DeepCopy(), nadObj.Namespace); err != nil {
+					t.Fatalf("failed to add nad %+v", nadObj)
+				}
+			}
+
+			fakeNadCache := fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions)
+
+			validator := &settingValidator{
+				nadCache: fakeNadCache,
+			}
+
+			err := validator.checkExclusiveVlan(tt.config)
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }

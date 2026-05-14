@@ -51,6 +51,7 @@ import (
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1b2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlnetworkv1 "github.com/harvester/harvester/pkg/generated/controllers/network.harvesterhci.io/v1beta1"
@@ -157,6 +158,7 @@ func NewValidator(
 	vsCache ctlnetworkv1.VlanStatusCache,
 	lhNodeCache ctllhv1b2.NodeCache,
 	secretCache ctlcorev1.SecretCache,
+	nadCache ctlcniv1.NetworkAttachmentDefinitionCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
@@ -175,6 +177,7 @@ func NewValidator(
 		vsCache:            vsCache,
 		lhNodeCache:        lhNodeCache,
 		secretCache:        secretCache,
+		nadCache:           nadCache,
 	}
 
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
@@ -235,6 +238,7 @@ type settingValidator struct {
 	vsCache            ctlnetworkv1.VlanStatusCache
 	lhNodeCache        ctllhv1b2.NodeCache
 	secretCache        ctlcorev1.SecretCache
+	nadCache           ctlcniv1.NetworkAttachmentDefinitionCache
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -1116,33 +1120,41 @@ func (v *settingValidator) validateNetworkHelper(name, value string) (*networkut
 		return nil, fmt.Errorf("failed to unmarshal the setting value %v, %w", value, err)
 	}
 
-	if err := v.checkNetworkVlanValid(&config); err != nil {
-		return nil, err
+	commonValidators := []func(*networkutil.Config) error{
+		v.checkNetworkVlanValid,
+		v.checkNetworkRangeValid,
+		v.checkVlanStatusReady,
+		v.checkVCSpansAllNodes,
 	}
 
-	if err := v.checkNetworkRangeValid(&config); err != nil {
-		return nil, err
-	}
-
-	if err := v.checkVlanStatusReady(&config); err != nil {
-		return nil, err
-	}
-
-	if err := v.checkVCSpansAllNodes(&config); err != nil {
-		return nil, err
-	}
-
-	// Add a map of setting names to their specific network range validation callbacks
-	networkRangeValidators := map[string]func(*networkutil.Config) error{
-		settings.StorageNetworkName:            v.checkStorageNetworkRangeValid,
-		settings.VMMigrationNetworkSettingName: v.checkVMMigrationNetworkRangeValid,
-		settings.RWXNetworkSettingName:         v.checkRWXNetworkRangeValid,
-	}
-	if validator, ok := networkRangeValidators[name]; ok {
-		if err := validator(&config); err != nil {
+	for _, validate := range commonValidators {
+		if err := validate(&config); err != nil {
 			return nil, err
 		}
 	}
+
+	// validators specific to a setting
+	settingValidators := map[string][]func(*networkutil.Config) error{
+		settings.StorageNetworkName: {
+			v.checkExclusiveVlan,
+			v.checkStorageNetworkRangeValid,
+		},
+		settings.VMMigrationNetworkSettingName: {
+			v.checkVMMigrationNetworkRangeValid,
+		},
+		settings.RWXNetworkSettingName: {
+			v.checkRWXNetworkRangeValid,
+		},
+	}
+
+	if validators, ok := settingValidators[name]; ok {
+		for _, validate := range validators {
+			if err := validate(&config); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return &config, nil
 }
 
@@ -1779,6 +1791,40 @@ func (v *settingValidator) checkVCSpansAllNodes(config *networkutil.Config) erro
 
 		if !matchedNodes.Contains(node.Name) {
 			return fmt.Errorf("vlanconfig does not span %s", node.Name)
+		}
+	}
+
+	return nil
+}
+
+func (v *settingValidator) checkExclusiveVlan(storageConfig *networkutil.Config) error {
+	if !storageConfig.ExclusiveVlan {
+		return nil
+	}
+
+	//exclusive vlan cannot be untagged or default vlan.
+	if storageConfig.ExclusiveVlan && (storageConfig.Vlan == util.UntaggedVlan || storageConfig.Vlan == util.DefaultVlan) {
+		return fmt.Errorf("exclusive vlan cannot be enabled for vlan %d", storageConfig.Vlan)
+	}
+
+	nads, err := v.nadCache.List(corev1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	for _, nad := range nads {
+		//skip storage network or overlay NADs
+		if util.IsStorageNetworkNad(nad) || util.IsNetworkTypeOverlay(nad) {
+			continue
+		}
+
+		nadConf, err := util.DecodeNadConfigToNetConf(nad)
+		if err != nil {
+			return err
+		}
+
+		if nadConf.HasTrunkVlanID(storageConfig.Vlan) || nadConf.IsVMNetworkVlan(storageConfig.Vlan) {
+			return fmt.Errorf("storage network cannot use the same vlan %d as VM Network vlan as exclusive vlan is enabled", storageConfig.Vlan)
 		}
 	}
 

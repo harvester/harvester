@@ -101,7 +101,7 @@ func (v *vmValidator) getClusterNetworkForNad(nwName string) (clusterNetwork str
 	if err != nil {
 		return clusterNetwork, err
 	}
-	clusterNetwork, ok := nad.Labels[keyClusterNetwork]
+	clusterNetwork, ok := nad.Labels[util.KeyClusterNetwork]
 	if !ok {
 		return clusterNetwork, err
 	}

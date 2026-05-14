@@ -348,8 +348,13 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 	nad.Annotations = map[string]string{
 		keys.nadAnno: "true",
 	}
+
 	nad.Labels = map[string]string{
 		keys.nadHashLabel: h.sha1(hashInput),
+	}
+
+	if config.ExclusiveVlan {
+		nad.Labels[util.ExclusiveVlanStorageNetworkLabel] = "true"
 	}
 	nad.Spec.Config = string(nadConfig)
 
@@ -360,6 +365,18 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 	}
 
 	return nadResult, nil
+}
+
+func (h *Handler) updateExclusiveVlanLabel(nad *nadv1.NetworkAttachmentDefinition, exclusiveVlan bool) (*nadv1.NetworkAttachmentDefinition, error) {
+	if exclusiveVlan {
+		if nad.Labels == nil {
+			nad.Labels = make(map[string]string)
+		}
+		nad.Labels[util.ExclusiveVlanStorageNetworkLabel] = "true"
+	} else {
+		delete(nad.Labels, util.ExclusiveVlanStorageNetworkLabel)
+	}
+	return h.networkAttachmentDefinitions.Update(nad)
 }
 
 func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachmentDefinition, error) {
@@ -389,7 +406,18 @@ func (h *Handler) findOrCreateNad(setting *harvesterv1.Setting) (*nadv1.NetworkA
 		}).Info("Found more than one match nad")
 	}
 
-	return &nads.Items[0], nil
+	config, err := h.getNetworkConfig(setting)
+	if err != nil {
+		return nil, err
+	}
+
+	nadCopy := nads.Items[0].DeepCopy()
+	nad, err := h.updateExclusiveVlanLabel(nadCopy, config.ExclusiveVlan)
+	if err != nil {
+		return nil, err
+	}
+
+	return nad, nil
 }
 
 func (h *Handler) checkValueIsChanged(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
