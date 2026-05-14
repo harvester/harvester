@@ -72,7 +72,7 @@ DOCKER_BUILD = docker build $(MK_DOCKER_PULL) \
 .PHONY: build validate validate-ci test test-integration build-iso \
 	package-all package package-harvester-webhook package-harvester-upgrade \
 	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default \
-	gen-version-env gen-version-env-debug
+	gen-version-env gen-version-env-debug build-installer
 
 
 # ---- Directories ----
@@ -96,7 +96,7 @@ gen-version-env-debug:
 # ---- Compile harvester binaries ----
 build: gen-version-env | $(ROOT)/bin
 	$(BANNER)
-	$(DOCKER_BUILD) --target build-output --output type=local,dest=.
+	$(DOCKER_BUILD) --target build-output --output type=local,dest=$(ROOT)
 
 
 # ---- Validate ----
@@ -112,7 +112,7 @@ validate-ci: gen-version-env
 
 
 # ---- Test ----
-test: gen-version-env
+test: gen-version-env prepare-addons
 	$(BANNER)
 	$(DOCKER_BUILD) $(if $(CODECOV_TOKEN),--secret id=codecov_token_$(MK_REPO_ID)$(comma)env=CODECOV_TOKEN --no-cache-filter=test) --target test
 
@@ -127,6 +127,13 @@ test-integration: gen-version-env package-harvester-webhook
 	    $(MK_TEST_INTEGRATION_IMAGE) \
 	    ./scripts/test-integration
 
+
+# ---- Compile harvester-installer binary ----
+build-installer: prepare-addons | $(ROOT)/bin
+	$(BANNER)
+	$(DOCKER_BUILD) --target build-installer-output \
+	    --build-arg HARVESTER_ADDONS_VERSION=$(HARVESTER_ADDONS_VERSION) \
+	    --output type=local,dest=$(ROOT)
 
 # ---- Package harvester image ----
 package: build
@@ -196,5 +203,5 @@ default: build test package-all
 
 arm: build package-all
 
-ci: validate validate-ci build test package-harvester-webhook package-harvester-upgrade \
+ci: validate validate-ci build build-installer test package-harvester-webhook package-harvester-upgrade \
 	package
