@@ -143,7 +143,8 @@ ARG MK_REPO_ID
 
 RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
     --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
-    --mount=type=secret,id=codecov_token_${MK_REPO_ID},env=CODECOV_TOKEN \
+    --mount=type=secret,id=codecov_token_${MK_REPO_ID} \
+    CODECOV_TOKEN=$(cat /run/secrets/codecov_token_${MK_REPO_ID} 2>/dev/null || true) \
     ./scripts/test
 
 
