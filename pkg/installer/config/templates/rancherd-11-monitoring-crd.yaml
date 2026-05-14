@@ -1,0 +1,19 @@
+resources:
+- apiVersion: management.cattle.io/v3
+  kind: ManagedChart
+  metadata:
+    name: rancher-monitoring-crd
+    namespace: fleet-local
+  spec:
+    chart: rancher-monitoring-crd
+    releaseName: rancher-monitoring-crd
+    version: {{ .MonitoringChartVersion }}
+    defaultNamespace: cattle-monitoring-system
+    repoName: harvester-charts
+    timeoutSeconds: 600
+    targets:
+    - clusterName: local
+      clusterSelector:
+        matchExpressions:
+        - key: provisioning.cattle.io/unmanaged-system-agent
+          operator: DoesNotExist

@@ -1,0 +1,235 @@
+resources:
+# create the cattle-monitoring-system namespace and SA upfront, so that kubevirt monitoring-operator integration can find it
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: cattle-monitoring-system
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: cattle-logging-system
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: rancher-monitoring
+      meta.helm.sh/release-namespace: cattle-monitoring-system
+    labels:
+      app: rancher-monitoring-operator
+      app.kubernetes.io/component: prometheus-operator
+      app.kubernetes.io/instance: rancher-monitoring
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: rancher-monitoring-prometheus-operator
+      heritage: Helm
+      release: rancher-monitoring
+    name: rancher-monitoring-operator
+    namespace: cattle-monitoring-system
+- apiVersion: helm.cattle.io/v1
+  kind: HelmChartConfig
+  metadata:
+    name: rke2-ingress-nginx
+    namespace: kube-system
+  spec:
+    valuesContent: |-
+      controller:
+        config:
+          proxy-body-size: "0"
+          proxy-request-buffering: "off"
+        admissionWebhooks:
+          port: 8444
+        publishService:
+          pathOverride: kube-system/ingress-expose
+        extraArgs:
+          default-ssl-certificate: cattle-system/tls-rancher-internal
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: tls-ingress
+    namespace: cattle-system
+  type: Opaque
+  data:
+    tls.crt: Cg==
+    tls.key: Cg==
+- apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: rancher-expose
+    namespace: cattle-system
+  spec:
+    rules:
+    - http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: rancher
+              port:
+                number: 80
+- apiVersion: management.cattle.io/v3
+  kind: ManagedChart
+  metadata:
+    name: harvester
+    namespace: fleet-local
+  spec:
+    chart: harvester
+    releaseName: harvester
+    version: {{ .HarvesterChartVersion }}
+    defaultNamespace: harvester-system
+    timeoutSeconds: 600
+    diff:
+      comparePatches:
+      - apiVersion: storage.k8s.io/v1
+        jsonPointers:
+        - /metadata/annotations
+        kind: StorageClass
+        name: harvester-longhorn
+      - apiVersion: apiextensions.k8s.io/v1
+        jsonPointers:
+        - /status/acceptedNames
+        - /status/conditions
+        - /status/storedVersions
+        kind: CustomResourceDefinition
+        name: engineimages.longhorn.io
+      - apiVersion: apiextensions.k8s.io/v1
+        jsonPointers:
+        - /status/acceptedNames
+        - /status/conditions
+        - /status/storedVersions
+        kind: CustomResourceDefinition
+        name: nodes.longhorn.io
+      - apiVersion: apiextensions.k8s.io/v1
+        jsonPointers:
+        - /status/acceptedNames
+        - /status/conditions
+        - /status/storedVersions
+        kind: CustomResourceDefinition
+        name: volumes.longhorn.io
+      - apiVersion: apiextensions.k8s.io/v1
+        jsonPointers:
+        - /status/acceptedNames
+        - /status/conditions
+        - /status/storedVersions
+        kind: CustomResourceDefinition
+        name: settings.longhorn.io
+      - apiVersion: apiextensions.k8s.io/v1
+        jsonPointers:
+        - /status/acceptedNames
+        - /status/conditions
+        - /status/storedVersions
+        kind: CustomResourceDefinition
+        name: replicas.longhorn.io
+      - apiVersion: apiextensions.k8s.io/v1
+        jsonPointers:
+        - /status/acceptedNames
+        - /status/conditions
+        - /status/storedVersions
+        kind: CustomResourceDefinition
+        name: instancemanagers.longhorn.io
+      - apiVersion: apiextensions.k8s.io/v1
+        jsonPointers:
+        - /status/acceptedNames
+        - /status/conditions
+        - /status/storedVersions
+        kind: CustomResourceDefinition
+        name: engines.longhorn.io
+    repoName: harvester-charts
+    targets:
+    - clusterName: local
+      clusterSelector:
+        matchExpressions:
+        - key: provisioning.cattle.io/unmanaged-system-agent
+          operator: DoesNotExist
+    values:
+      {{- if .Vip }}
+      service:
+        vip:
+          enabled: true
+          mode: "{{ .VipMode }}"
+          ip: "{{ .Vip }}"
+          hwAddress: "{{ .VipHwAddr }}"
+      {{- end }}
+      {{- if .Harvester.StorageClass.ReplicaCount }}
+      storageClass:
+        replicaCount: {{ .Harvester.StorageClass.ReplicaCount }}
+      {{- end }}
+      {{- if .Harvester.EnableGoCoverDir }}
+      enableGoCoverDir: true
+      {{- end }}
+      kubevirt:
+        spec:
+          monitorAccount: rancher-monitoring-operator
+          monitorNamespace: cattle-monitoring-system
+      containers:
+        apiserver:
+          image:
+            imagePullPolicy: "IfNotPresent"
+          hciMode: true
+      multus:
+        enabled: false
+      longhorn:
+        enabled: true
+        defaultSettings:
+          taintToleration: "kubevirt.io/drain:NoSchedule"
+          defaultDataPath: "/var/lib/harvester/defaultdisk"
+          {{- if .Harvester.Longhorn.DefaultSettings.GuaranteedInstanceManagerCPU }}
+          guaranteedInstanceManagerCPU: {{ .Harvester.Longhorn.DefaultSettings.GuaranteedInstanceManagerCPU }}
+          {{- end }}
+          {{- if .Harvester.Longhorn.DefaultSettings.StorageReservedPercentageForDefaultDisk }}
+          storageReservedPercentageForDefaultDisk: "{{ .Harvester.Longhorn.DefaultSettings.StorageReservedPercentageForDefaultDisk }}"
+          {{- end }}
+          detachManuallyAttachedVolumesWhenCordoned: true
+          nodeDrainPolicy: "allow-if-replica-is-stopped"
+      harvester-network-controller:
+        enabled: true
+        vipEnabled: true
+        image:
+          pullPolicy: "IfNotPresent"
+      harvester-networkfs-manager:
+        enabled: true
+        image:
+          pullPolicy: "IfNotPresent"
+      harvester-node-disk-manager:
+        enabled: true
+        image:
+          pullPolicy: "IfNotPresent"
+        labelFilter:
+          - "COS_*"
+          - "HARV_*"
+      rancherEmbedded: true
+      webhook:
+        image:
+          imagePullPolicy: "IfNotPresent"
+      harvester-load-balancer:
+        enabled: true
+      kube-vip:
+        enabled: true
+      kube-vip-cloud-provider:
+        enabled: true
+      promote:
+        clusterPodCIDR: {{ or .ClusterPodCIDR "10.52.0.0/16" }}
+        clusterServiceCIDR: {{ or .ClusterServiceCIDR "10.53.0.0/16" }}
+        clusterDNS: {{ or .ClusterDNS "10.53.0.10" }}
+- apiVersion: management.cattle.io/v3
+  kind: ManagedChart
+  metadata:
+    name: harvester-crd
+    namespace: fleet-local
+  spec:
+    chart: harvester-crd
+    releaseName: harvester-crd
+    version: {{ .HarvesterChartVersion }}
+    defaultNamespace: harvester-system
+    repoName: harvester-charts
+    timeoutSeconds: 600
+    # takeOwnership will force apply this chart without checking ownership in labels and annotations.
+    # https://github.com/rancher/fleet/blob/ce9c0d6c0a455d61e87c0f19df79d0ee11a89eeb/pkg/helmdeployer/deployer.go#L323
+    # https://github.com/rancher/helm/blob/ee91a121e0aa301fcef2bfbc7184f96edd4b50f5/pkg/action/validate.go#L71-L76
+    takeOwnership: true
+    targets:
+    - clusterName: local
+      clusterSelector:
+        matchExpressions:
+        - key: provisioning.cattle.io/unmanaged-system-agent
+          operator: DoesNotExist
+    values: {}
