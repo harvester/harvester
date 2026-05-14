@@ -1,0 +1,24 @@
+blacklist {
+{{- range $wwid := .BlacklistWwids }}
+    wwid "{{ $wwid }}"
+{{- end }}
+{{- range $val := .Blacklist }}
+    device {
+        vendor "{{ $val.Vendor }}"
+        product "{{ $val.Product }}"
+    }
+{{- end }}
+}
+{{- if or .BlacklistExceptions .BlacklistExceptionWwids }}
+blacklist_exceptions {
+{{- range $wwid := .BlacklistExceptionWwids }}
+    wwid "{{ $wwid }}"
+{{- end }}
+{{- range $val := .BlacklistExceptions }}
+    device {
+        vendor "{{ $val.Vendor }}"
+        product "{{ $val.Product }}"
+    }
+{{- end }}
+}
+{{- end }}

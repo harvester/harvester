@@ -1,0 +1,6 @@
+[connection]
+id=bond-slave-{{ .Iface.Name }}
+type=ethernet
+interface-name={{ .Iface.Name }}
+master={{ .BondName }}
+slave-type=bond

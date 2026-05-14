@@ -1,0 +1,9 @@
+resources: {{ if not .SystemSettings -}} [] {{- else }}
+{{- range $name, $value := .SystemSettings }}
+- apiVersion: harvesterhci.io/v1beta1
+  kind: Setting
+  metadata:
+    name: {{ printf "%q" $name }}
+  value: {{ printf "%q" $value }}
+{{- end }}
+{{- end -}}

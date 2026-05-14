@@ -1,0 +1,2 @@
+# handle the permission issue of Longhorn for CDI
+"nonroot-devices": true

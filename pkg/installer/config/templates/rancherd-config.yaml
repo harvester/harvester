@@ -1,0 +1,18 @@
+{{if .ServerURL -}}
+server: {{ .ServerURL }}
+role: agent
+{{- else -}}
+role: cluster-init
+{{- end }}
+nodeName: {{ .Hostname }}
+token: {{ printf "%q" .Token }}
+kubernetesVersion: {{ .RuntimeVersion }}
+rancherVersion: {{ .RancherVersion }}
+rancherInstallerImage: rancher/system-agent-installer-rancher:{{ .RancherVersion }}
+labels:
+ - harvesterhci.io/managed=true
+extraConfig:
+  disable:
+  - rke2-snapshot-controller
+  - rke2-snapshot-controller-crd
+  - rke2-snapshot-validation-webhook

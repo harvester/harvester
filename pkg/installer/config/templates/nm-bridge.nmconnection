@@ -1,0 +1,36 @@
+[connection]
+id=bridge-mgmt
+type=bridge
+interface-name={{ .BridgeName }}
+
+[ethernet]
+{{ if gt .Bridge.MTU 0 -}}
+mtu={{ .Bridge.MTU }}
+{{- end }}
+
+[bridge]
+forward-delay=0
+stp=false
+vlan-filtering=true
+vlan-default-pvid=1
+{{ if gt .Bridge.VlanID 1 -}}
+vlans={{ .Bridge.VlanID }}
+{{- end }}
+
+[ipv4]
+{{ if ne .DNSServers "" -}}
+dns={{ .DNSServers }}
+{{- end }}
+{{ if eq .Bridge.Method "none" -}}
+method=disabled
+{{- end }}
+{{ if eq .Bridge.Method "dhcp" -}}
+method=auto
+{{- end }}
+{{ if eq .Bridge.Method "static" -}}
+method=manual
+address1={{ .Bridge.IP }}/{{ .Bridge.SubnetMask }},{{ .Bridge.Gateway }}
+{{- end }}
+
+[ipv6]
+method=disabled
