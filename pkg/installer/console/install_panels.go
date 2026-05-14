@@ -487,7 +487,9 @@ func addDiskPanel(c *Console) error {
 
 		if c.config.Install.Role == config.RoleWitness {
 			c.config.Install.DataDisk = ""
-			dataDiskV.SetData("")
+			if err := dataDiskV.SetData(""); err != nil {
+				return err
+			}
 		} else {
 			// Make sure the persistent partition size is in the correct size.
 			// Do NOT allow proceeding to next field.
@@ -1431,6 +1433,7 @@ func ParseMask(mask string) (IPMask, error) {
 			return nil, &ParseError{Type: fmt.Sprintf("number out of range in position %d: %d", i+1, num), Text: mask}
 		}
 
+		// #nosec G602
 		result[i] = byte(num)
 	}
 

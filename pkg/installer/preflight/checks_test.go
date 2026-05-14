@@ -83,6 +83,7 @@ var (
 // test, passing through that key...
 func fakeExecCommand(command string) *exec.Cmd {
 	cs := []string{"-test.run=TestHelperProcess", "--", command}
+	// #nosec G204 G702 -- this is only used in tests
 	cmd := exec.Command(os.Args[0], cs...)
 	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
 	return cmd
