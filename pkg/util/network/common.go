@@ -17,6 +17,7 @@ const (
 type Config struct {
 	ClusterNetwork string   `json:"clusterNetwork,omitempty"`
 	Vlan           uint16   `json:"vlan,omitempty"`
+	ExclusiveVlan  bool     `json:"exclusiveVlan,omitempty"`
 	Range          string   `json:"range,omitempty"`
 	Exclude        []string `json:"exclude,omitempty"`
 }

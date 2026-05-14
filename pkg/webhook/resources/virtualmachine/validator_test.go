@@ -681,16 +681,16 @@ func Test_virtualMachineValidator_duplicateMacAddress(t *testing.T) {
 	}
 
 	label1 := make(map[string]string)
-	label1[keyClusterNetwork] = "cluster-1"
+	label1[util.KeyClusterNetwork] = "cluster-1"
 
 	label2 := make(map[string]string)
-	label2[keyClusterNetwork] = "cluster-2"
+	label2[util.KeyClusterNetwork] = "cluster-2"
 
 	label3 := make(map[string]string)
-	label3[keyClusterNetwork] = "cluster-3"
+	label3[util.KeyClusterNetwork] = "cluster-3"
 
 	label4 := make(map[string]string)
-	label4[keyClusterNetwork] = "cluster-1"
+	label4[util.KeyClusterNetwork] = "cluster-1"
 
 	existingNADs := []*cniv1.NetworkAttachmentDefinition{
 		{

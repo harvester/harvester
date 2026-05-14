@@ -31,11 +31,6 @@ import (
 )
 
 const (
-	networkGroup      = "network.harvesterhci.io"
-	keyClusterNetwork = networkGroup + "/clusternetwork"
-	overlayNetwork    = "OverlayNetwork"
-	keyNetworkType    = networkGroup + "/type"
-
 	memory10M    = 10485760
 	memory100M   = 104857600
 	memory256M   = 268435456
@@ -506,13 +501,13 @@ func (m *vmMutator) getNodeSelectorRequirementFromNetwork(defaultNamespace strin
 	if err != nil {
 		return nil, err
 	}
-	clusterNetwork, ok := nad.Labels[keyClusterNetwork]
+	clusterNetwork, ok := nad.Labels[util.KeyClusterNetwork]
 	if !ok {
 		return nil, nil
 	}
 
 	return &v1.NodeSelectorRequirement{
-		Key:      fmt.Sprintf("%s/%s", networkGroup, clusterNetwork),
+		Key:      fmt.Sprintf("%s/%s", util.NetworkGroup, clusterNetwork),
 		Operator: v1.NodeSelectorOpIn,
 		Values:   []string{"true"},
 	}, nil
@@ -545,7 +540,7 @@ func makeAffinityFromVMTemplate(template *kubevirtv1.VirtualMachineInstanceTempl
 	for _, term := range affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
 		expressions := make([]v1.NodeSelectorRequirement, 0, len(term.MatchExpressions))
 		for _, expression := range term.MatchExpressions {
-			if !strings.HasPrefix(expression.Key, networkGroup) && (expression.Key != kubevirtv1.CPUManager) {
+			if !strings.HasPrefix(expression.Key, util.NetworkGroup) && (expression.Key != kubevirtv1.CPUManager) {
 				expressions = append(expressions, expression)
 			}
 		}
@@ -772,7 +767,7 @@ func (m *vmMutator) getNadAndDHCPOption(networkName string, vm *kubevirtv1.Virtu
 		return false, err
 	}
 
-	if !strings.EqualFold(nad.Labels[keyNetworkType], overlayNetwork) {
+	if !util.IsNetworkTypeOverlay(nad) {
 		return false, nil
 	}
 

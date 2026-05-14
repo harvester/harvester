@@ -878,7 +878,7 @@ func TestPatchAffinity(t *testing.T) {
 									{
 										MatchExpressions: []v1.NodeSelectorRequirement{
 											{
-												Key:      fmt.Sprintf("%s/%s", networkGroup, "mgmt"),
+												Key:      fmt.Sprintf("%s/%s", util.NetworkGroup, "mgmt"),
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"true"},
 											},
@@ -1042,7 +1042,7 @@ func TestPatchAffinity(t *testing.T) {
 						{
 							MatchExpressions: []v1.NodeSelectorRequirement{
 								{
-									Key:      fmt.Sprintf("%s/%s", networkGroup, "mgmt"),
+									Key:      fmt.Sprintf("%s/%s", util.NetworkGroup, "mgmt"),
 									Operator: v1.NodeSelectorOpIn,
 									Values:   []string{"true"},
 								},
@@ -1062,7 +1062,7 @@ func TestPatchAffinity(t *testing.T) {
 						{
 							MatchExpressions: []v1.NodeSelectorRequirement{
 								{
-									Key:      fmt.Sprintf("%s/%s", networkGroup, "mgmt"),
+									Key:      fmt.Sprintf("%s/%s", util.NetworkGroup, "mgmt"),
 									Operator: v1.NodeSelectorOpIn,
 									Values:   []string{"true"},
 								},
@@ -1087,7 +1087,7 @@ func TestPatchAffinity(t *testing.T) {
 									Values:   []string{"true"},
 								},
 								{
-									Key:      fmt.Sprintf("%s/%s", networkGroup, "mgmt"),
+									Key:      fmt.Sprintf("%s/%s", util.NetworkGroup, "mgmt"),
 									Operator: v1.NodeSelectorOpIn,
 									Values:   []string{"true"},
 								},
@@ -1117,7 +1117,7 @@ func TestPatchAffinity(t *testing.T) {
 									Values:   []string{"true"},
 								},
 								{
-									Key:      fmt.Sprintf("%s/%s", networkGroup, "mgmt"),
+									Key:      fmt.Sprintf("%s/%s", util.NetworkGroup, "mgmt"),
 									Operator: v1.NodeSelectorOpIn,
 									Values:   []string{"true"},
 								},
@@ -1428,7 +1428,7 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Name:      "test-nad1",
 					Namespace: "default",
 					Labels: map[string]string{
-						"network.harvesterhci.io/type": overlayNetwork,
+						"network.harvesterhci.io/type": util.OverlayNetwork,
 					},
 				},
 			},
@@ -1541,7 +1541,7 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Name:      "test-nad1",
 					Namespace: "default",
 					Labels: map[string]string{
-						"network.harvesterhci.io/type": overlayNetwork,
+						"network.harvesterhci.io/type": util.OverlayNetwork,
 					},
 				},
 			},
@@ -1572,7 +1572,7 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Name:      "test-nad1",
 					Namespace: "default",
 					Labels: map[string]string{
-						"network.harvesterhci.io/type": overlayNetwork,
+						"network.harvesterhci.io/type": util.OverlayNetwork,
 					},
 				},
 			},
@@ -1621,7 +1621,7 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Name:      "test-nad1",
 					Namespace: "default",
 					Labels: map[string]string{
-						"network.harvesterhci.io/type": overlayNetwork,
+						"network.harvesterhci.io/type": util.OverlayNetwork,
 					},
 				},
 			},
@@ -1662,7 +1662,7 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Name:      "test-nad1",
 					Namespace: "default",
 					Labels: map[string]string{
-						"network.harvesterhci.io/type": overlayNetwork,
+						"network.harvesterhci.io/type": util.OverlayNetwork,
 					},
 				},
 			},
@@ -1708,7 +1708,7 @@ func TestPatchManagedTapBinding(t *testing.T) {
 					Name:      "test-nad1",
 					Namespace: "default",
 					Labels: map[string]string{
-						"network.harvesterhci.io/type": overlayNetwork,
+						"network.harvesterhci.io/type": util.OverlayNetwork,
 					},
 				},
 			},
@@ -1991,14 +1991,14 @@ func TestMutatorUpdate(t *testing.T) {
 			request: newMutatorUserRequest("harvester"),
 			oldVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
 				MatchExpressions: []v1.NodeSelectorRequirement{{
-					Key:      networkGroup + "/mgmt",
+					Key:      util.NetworkGroup + "/mgmt",
 					Operator: v1.NodeSelectorOpIn,
 					Values:   []string{"true"},
 				}},
 			})),
 			newVM: createTestVM(kubevirtv1.ResourceRequirements{}, nil, nil, "default", "test-vm", affinityForTerm(&v1.NodeSelectorTerm{
 				MatchExpressions: []v1.NodeSelectorRequirement{{
-					Key:      networkGroup + "/vlan100",
+					Key:      util.NetworkGroup + "/vlan100",
 					Operator: v1.NodeSelectorOpIn,
 					Values:   []string{"true"},
 				}},
