@@ -425,7 +425,16 @@ func (h *ActionHandler) snapshot(_ context.Context, pvcNamespace, pvcName, snaps
 		return err
 	}
 
+	storageClassName := util.GetPVCStorageClassName(pvc, h.scCache)
 	provisioner := util.GetProvisionedPVCProvisioner(pvc, h.scCache)
+	if provisioner == "" && storageClassName != "" {
+		storageClass, err := h.scCache.Get(storageClassName)
+		if err != nil {
+			return err
+		}
+		provisioner = storageClass.Provisioner
+	}
+
 	volumeSnapshotClassName := util.GetPVCStorageClassSnapshotClassName(pvc, h.scCache)
 	if volumeSnapshotClassName == "" {
 		csiDriverInfo, err := settings.GetCSIDriverInfo(provisioner)
@@ -440,7 +449,6 @@ func (h *ActionHandler) snapshot(_ context.Context, pvcNamespace, pvcName, snaps
 			Name:      snapshotName,
 			Namespace: pvcNamespace,
 			Annotations: map[string]string{
-				util.AnnotationStorageClassName:   *pvc.Spec.StorageClassName,
 				util.AnnotationStorageProvisioner: provisioner,
 			},
 			OwnerReferences: []metav1.OwnerReference{
@@ -458,6 +466,10 @@ func (h *ActionHandler) snapshot(_ context.Context, pvcNamespace, pvcName, snaps
 			},
 			VolumeSnapshotClassName: &volumeSnapshotClassName,
 		},
+	}
+
+	if storageClassName != "" {
+		snapshot.Annotations[util.AnnotationStorageClassName] = storageClassName
 	}
 
 	if imageID := pvc.Annotations[util.AnnotationImageID]; imageID != "" {
