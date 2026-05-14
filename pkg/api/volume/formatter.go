@@ -50,8 +50,7 @@ func (f *volFormatter) Formatter(request *types.APIRequest, resource *types.RawR
 
 	resource.AddAction(request, actionClone)
 
-	provisioner := util.GetProvisionedPVCProvisioner(pvc, f.scCache)
-	if find := util.GetCSIProvisionerSnapshotCapability(provisioner); find {
+	if find := util.GetPVCSnapshotCapability(pvc, f.scCache); find {
 		resource.AddAction(request, actionSnapshot)
 	}
 

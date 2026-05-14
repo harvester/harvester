@@ -406,8 +406,7 @@ func (vf *vmformatter) canDoSnapshot(vm *kubevirtv1.VirtualMachine, vmi *kubevir
 			logrus.Errorf("Can't get PVC %s/%s, err: %+v", vm.Namespace, vol.PersistentVolumeClaim.ClaimName, err)
 			return false
 		}
-		provisioner := util.GetProvisionedPVCProvisioner(pvc, vf.scCache)
-		if find := util.GetCSIProvisionerSnapshotCapability(provisioner); !find {
+		if find := util.GetPVCSnapshotCapability(pvc, vf.scCache); !find {
 			return false
 		}
 	}

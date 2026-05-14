@@ -426,12 +426,14 @@ func (h *ActionHandler) snapshot(_ context.Context, pvcNamespace, pvcName, snaps
 	}
 
 	provisioner := util.GetProvisionedPVCProvisioner(pvc, h.scCache)
-	csiDriverInfo, err := settings.GetCSIDriverInfo(provisioner)
-	if err != nil {
-		return err
+	volumeSnapshotClassName := util.GetPVCStorageClassSnapshotClassName(pvc, h.scCache)
+	if volumeSnapshotClassName == "" {
+		csiDriverInfo, err := settings.GetCSIDriverInfo(provisioner)
+		if err != nil {
+			return err
+		}
+		volumeSnapshotClassName = csiDriverInfo.VolumeSnapshotClassName
 	}
-
-	volumeSnapshotClassName := csiDriverInfo.VolumeSnapshotClassName
 	pvcAPIVersion, pvcKind := util.PersistentVolumeClaimsKind.ToAPIVersionAndKind()
 	snapshot := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
