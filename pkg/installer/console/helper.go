@@ -144,6 +144,7 @@ func applyPassword(username, passwordHash string) ([]byte, error) {
 		return nil, err
 	}
 
+	// #nosec G204
 	cmd := exec.Command("/usr/bin/yip", "-s", "live", liveFile.Name())
 	cmd.Env = os.Environ()
 	return cmd.CombinedOutput()

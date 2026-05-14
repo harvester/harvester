@@ -1120,56 +1120,56 @@ func Test_getAllValidDiskOptions(t *testing.T) {
 		expectedAllValidDiskOptions []widgets.Option
 	}{
 		{
-			name: "Disks with serial number",
+			name:                   "Disks with serial number",
 			mockedRunCommandOutput: []byte(sampleSerialDiskOutput),
 			expectedAllValidDiskOptions: []widgets.Option{
 				{
 					Value: "/dev/sda",
-					Text: "sda 250G",
+					Text:  "sda 250G",
 				},
 			},
 		},
 		{
-			name: "Disks with existing data",
+			name:                   "Disks with existing data",
 			mockedRunCommandOutput: []byte(reinstallDisks),
 			expectedAllValidDiskOptions: []widgets.Option{
 				{
 					Value: "/dev/sda",
-					Text: "sda 10G",
+					Text:  "sda 10G",
 				},
 				{
 					Value: "/dev/vda",
-					Text: "vda 250G",
+					Text:  "vda 250G",
 				},
 			},
 		},
 		{
-			name: "Disks on existing installs",
+			name:                   "Disks on existing installs",
 			mockedRunCommandOutput: []byte(preInstalledMultiPath),
 			expectedAllValidDiskOptions: []widgets.Option{
 				{
 					Value: "/dev/sda",
-					Text: "sda 250G",
+					Text:  "sda 250G",
 				},
 			},
 		},
 		{
-			name: "RAID disks",
+			name:                   "RAID disks",
 			mockedRunCommandOutput: []byte(raidDisks),
 			expectedAllValidDiskOptions: []widgets.Option{
 				{
 					Value: "/dev/sda",
-					Text: "sda 447.1G",
+					Text:  "sda 447.1G",
 				},
 				{
 					Value: "/dev/sdb",
-					Text: "sdb 447.1G",
+					Text:  "sdb 447.1G",
 				},
 			},
 		},
 		{
-			name: "No Valid Disks",
-			mockedRunCommandOutput: []byte(noValidDisks),
+			name:                        "No Valid Disks",
+			mockedRunCommandOutput:      []byte(noValidDisks),
 			expectedAllValidDiskOptions: []widgets.Option(nil),
 		},
 	}
@@ -1209,21 +1209,21 @@ func Test_getDataDisksOptions(t *testing.T) {
 	hvstConfig.Install.Device = doc.getAllValidDiskOptions()[0].Value
 	assert.Equal(
 		[]widgets.Option{
-			widgets.Option{Value: "/dev/sda", Text: "Use the installation disk (sda 447.1G)"},
-			widgets.Option{Value: "/dev/sdb", Text: "sdb 447.1G"},
+			{Value: "/dev/sda", Text: "Use the installation disk (sda 447.1G)"},
+			{Value: "/dev/sdb", Text: "sdb 447.1G"},
 		},
 		doc.getDataDiskOptions(hvstConfig),
-		)
+	)
 
 	// Change the installation disk to the second disk option
 	hvstConfig.Install.Device = doc.getAllValidDiskOptions()[1].Value
 	assert.Equal(
 		[]widgets.Option{
-			widgets.Option{Value: "/dev/sdb", Text: "Use the installation disk (sdb 447.1G)"},
-			widgets.Option{Value: "/dev/sda", Text: "sda 447.1G"},
+			{Value: "/dev/sdb", Text: "Use the installation disk (sdb 447.1G)"},
+			{Value: "/dev/sda", Text: "sda 447.1G"},
 		},
 		doc.getDataDiskOptions(hvstConfig),
-		)
+	)
 }
 
 func Test_getWipeDisksOptions(t *testing.T) {
@@ -1241,10 +1241,10 @@ func Test_getWipeDisksOptions(t *testing.T) {
 	hvstConfig := config.NewHarvesterConfig()
 	assert.Equal(
 		[]widgets.Option{
-			widgets.Option{Value: "/dev/sdc", Text: "sdc 250G"},
+			{Value: "/dev/sdc", Text: "sdc 250G"},
 		},
 		doc.getWipeDisksOptions(hvstConfig),
-		)
+	)
 
 	hvstConfig.Install.Device = "/dev/sdc"
 	hvstConfig.Install.DataDisk = ""
