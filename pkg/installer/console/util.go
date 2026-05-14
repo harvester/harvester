@@ -240,6 +240,7 @@ func diskExceedsMBRLimit(blockDevPath string) (bool, error) {
 	// MBR partition table uses 32-bit values to describe the starting offset and length of a
 	// partition. Due to this size limit, MBR allows a maximum disk size of
 	// (2^32 - 1) = 4,294,967,295 sectors, which is 2,199,023,255,040 bytes (512 bytes per sector)
+	// #nosec G204
 	output, err := exec.Command("/bin/sh", "-c", fmt.Sprintf(`lsblk %s -n -b -d -r -o SIZE`, blockDevPath)).CombinedOutput()
 	if err != nil {
 		return false, err
