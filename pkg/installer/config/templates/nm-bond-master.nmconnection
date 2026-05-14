@@ -1,0 +1,19 @@
+[connection]
+id=bond-mgmt
+type=bond
+interface-name={{ .BondName }}
+master={{ .BridgeName }}
+slave-type=bridge
+
+[ethernet]
+{{ if gt .Bond.MTU 0 -}}
+mtu={{ .Bond.MTU }}
+{{- end }}
+
+[bond]
+{{ range $key, $value := .Bond.BondOptions }}
+{{ $key }}={{ $value }}
+{{ end }}
+
+[bridge-port]
+vlans=1 pvid untagged{{ if gt .Bond.VlanID 1 -}},{{ .Bond.VlanID }}{{- end }}

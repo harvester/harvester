@@ -1,0 +1,3 @@
+kubelet-arg+:
+- {{ printf "%q" .GetSystemReserved }}
+- {{ printf "%q" .GetKubeReserved }}

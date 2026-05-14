@@ -1,0 +1,28 @@
+[connection]
+id=vlan-mgmt
+type=vlan
+
+[ethernet]
+{{ if gt .Vlan.MTU 0 -}}
+mtu={{ .Vlan.MTU }}
+{{- end }}
+
+[vlan]
+flags=1
+id={{ .Vlan.VlanID }}
+parent={{ .BridgeName }}
+
+[ipv4]
+{{ if ne .DNSServers "" -}}
+dns={{ .DNSServers }}
+{{- end }}
+{{ if eq .Vlan.Method "dhcp" -}}
+method=auto
+{{- end }}
+{{ if eq .Vlan.Method "static" -}}
+method=manual
+address1={{ .Vlan.IP }}/{{ .Vlan.SubnetMask }},{{ .Vlan.Gateway }}
+{{- end }}
+
+[ipv6]
+method=disabled

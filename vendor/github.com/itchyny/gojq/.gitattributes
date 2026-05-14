@@ -1,0 +1,3 @@
+**/testdata/** binary
+/builtin.go    eol=lf linguist-generated=true
+/parser.go     eol=lf linguist-generated=true
