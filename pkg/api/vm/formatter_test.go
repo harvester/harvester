@@ -8,7 +8,6 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -118,80 +117,6 @@ func TestCanDoBackup(t *testing.T) {
 	}
 }
 
-func TestCanDoSnapshot(t *testing.T) {
-	const (
-		cephSC          = "fast-ceph"
-		cephProvisioner = "rbd.csi.ceph.com"
-	)
-
-	tests := []struct {
-		name           string
-		pvcNames       []string
-		pvcs           []*corev1.PersistentVolumeClaim
-		storageClasses []*storagev1.StorageClass
-		expected       bool
-	}{
-		{
-			name:     "storage class snapshot class enables snapshot for external CSI",
-			pvcNames: []string{"pvc1"},
-			pvcs:     []*corev1.PersistentVolumeClaim{newTestPVC("pvc1", ptr.To(cephSC))},
-			storageClasses: []*storagev1.StorageClass{
-				newTestStorageClassWithAnnotations(cephSC, cephProvisioner, false, map[string]string{
-					util.AnnotationStorageProfileSnapshotClass: "fast-ceph-snapclass",
-				}),
-			},
-			expected: true,
-		},
-		{
-			name:     "external CSI without snapshot class stays disabled",
-			pvcNames: []string{"pvc1"},
-			pvcs:     []*corev1.PersistentVolumeClaim{newTestPVC("pvc1", ptr.To(cephSC))},
-			storageClasses: []*storagev1.StorageClass{
-				newTestStorageClass(cephSC, cephProvisioner, false),
-			},
-			expected: false,
-		},
-		{
-			name:     "mixed volumes block snapshot when one PVC has no snapshot class",
-			pvcNames: []string{"pvc1", "pvc2"},
-			pvcs: []*corev1.PersistentVolumeClaim{
-				newTestPVC("pvc1", ptr.To(cephSC)),
-				newTestPVC("pvc2", ptr.To("standard-ceph")),
-			},
-			storageClasses: []*storagev1.StorageClass{
-				newTestStorageClassWithAnnotations(cephSC, cephProvisioner, false, map[string]string{
-					util.AnnotationStorageProfileSnapshotClass: "fast-ceph-snapclass",
-				}),
-				newTestStorageClass("standard-ceph", cephProvisioner, false),
-			},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			objs := make([]runtime.Object, 0, len(tt.pvcs)+len(tt.storageClasses))
-			for _, pvc := range tt.pvcs {
-				objs = append(objs, pvc)
-			}
-			for _, sc := range tt.storageClasses {
-				objs = append(objs, sc)
-			}
-
-			clientset := fake.NewSimpleClientset(objs...)
-			vf := &vmformatter{
-				pvcCache: fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
-				scCache:  fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
-			}
-
-			vm := newTestVM(tt.pvcNames...)
-			vmi := newTestVMI()
-			result := vf.canDoSnapshot(vm, vmi)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 // Test helpers
 func newTestVM(pvcNames ...string) *kubevirtv1.VirtualMachine {
 	volumes := make([]kubevirtv1.Volume, 0, len(pvcNames))
@@ -232,19 +157,12 @@ func newTestPVC(name string, scName *string) *corev1.PersistentVolumeClaim {
 }
 
 func newTestStorageClass(name, provisioner string, isDefault bool) *storagev1.StorageClass {
-	return newTestStorageClassWithAnnotations(name, provisioner, isDefault, nil)
-}
-
-func newTestStorageClassWithAnnotations(name, provisioner string, isDefault bool, annotations map[string]string) *storagev1.StorageClass {
 	sc := &storagev1.StorageClass{
-		ObjectMeta:  metav1.ObjectMeta{Name: name, Annotations: annotations},
+		ObjectMeta:  metav1.ObjectMeta{Name: name},
 		Provisioner: provisioner,
 	}
 	if isDefault {
-		if sc.Annotations == nil {
-			sc.Annotations = map[string]string{}
-		}
-		sc.Annotations[util.AnnotationIsDefaultStorageClassName] = "true"
+		sc.Annotations = map[string]string{util.AnnotationIsDefaultStorageClassName: "true"}
 	}
 	return sc
 }

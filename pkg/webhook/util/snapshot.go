@@ -187,10 +187,6 @@ func ValidateProvisionerAndConfig(pvc *corev1.PersistentVolumeClaim,
 		return fmt.Errorf("provisioner %s is not supported for type %s", provisioner, bt)
 	}
 
-	if bt == v1beta1.Snapshot && util.GetPVCStorageClassSnapshotClassName(pvc, scCache) != "" {
-		return nil
-	}
-
 	// Get origin provisioner and the CSI configuration
 	provisioner = util.GetProvisionedPVCProvisioner(pvc, scCache)
 	c, ok := cdc[provisioner]

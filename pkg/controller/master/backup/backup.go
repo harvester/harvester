@@ -170,12 +170,13 @@ func (h *Handler) OnBackupChange(_ string, vmBackup *harvesterv1.VirtualMachineB
 
 	// TODO, make sure status is initialized, and "Lock" the source VM by adding a finalizer and setting snapshotInProgress in status
 
-	if _, _, err := h.getCSIDriverMap(vmBackup); err != nil {
+	_, csiDriverVolumeSnapshotClassMap, err := h.getCSIDriverMap(vmBackup)
+	if err != nil {
 		return nil, h.setStatusError(vmBackup, err)
 	}
 
 	// create volume snapshots if not exist
-	if err := h.reconcileVolumeSnapshots(vmBackup); err != nil {
+	if err := h.reconcileVolumeSnapshots(vmBackup, csiDriverVolumeSnapshotClassMap); err != nil {
 		return nil, h.setStatusError(vmBackup, err)
 	}
 
@@ -385,33 +386,21 @@ func (h *Handler) getVolumeBackups(backup *harvesterv1.VirtualMachineBackup, vm 
 	return volumeBackups, nil
 }
 
-func loadCSIDriverConfig() (map[string]settings.CSIDriverInfo, error) {
+// getCSIDriverMap retrieves VolumeSnapshotClassName for each csi driver
+func (h *Handler) getCSIDriverMap(backup *harvesterv1.VirtualMachineBackup) (map[string]string, map[string]snapshotv1.VolumeSnapshotClass, error) {
 	csiDriverConfig := map[string]settings.CSIDriverInfo{}
 	if err := json.Unmarshal([]byte(settings.CSIDriverConfig.GetDefault()), &csiDriverConfig); err != nil {
-		return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, settings.CSIDriverConfig.GetDefault())
+		return nil, nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, settings.CSIDriverConfig.GetDefault())
 	}
 	tmpDriverConfig := map[string]settings.CSIDriverInfo{}
 	if err := json.Unmarshal([]byte(settings.CSIDriverConfig.Get()), &tmpDriverConfig); err != nil {
-		return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, settings.CSIDriverConfig.Get())
+		return nil, nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, settings.CSIDriverConfig.Get())
 	}
 
 	for key, val := range tmpDriverConfig {
 		if _, ok := csiDriverConfig[key]; !ok {
 			csiDriverConfig[key] = val
 		}
-	}
-
-	return csiDriverConfig, nil
-}
-
-// getCSIDriverMap retrieves VolumeSnapshotClassName for each csi driver.
-// It is kept for backward-compatible status fields. Snapshot creation resolves
-// the VolumeSnapshotClass per volume because a single CSI driver can serve
-// multiple storage classes with different snapshot classes.
-func (h *Handler) getCSIDriverMap(backup *harvesterv1.VirtualMachineBackup) (map[string]string, map[string]snapshotv1.VolumeSnapshotClass, error) {
-	csiDriverConfig, err := loadCSIDriverConfig()
-	if err != nil {
-		return nil, nil, err
 	}
 
 	csiDriverVolumeSnapshotClassNameMap := map[string]string{}
@@ -422,51 +411,26 @@ func (h *Handler) getCSIDriverMap(backup *harvesterv1.VirtualMachineBackup) (map
 			continue
 		}
 
-		volumeSnapshotClass, err := h.resolveVolumeSnapshotClass(backup.Spec.Type, volumeBackup, csiDriverConfig)
-		if err != nil {
-			return nil, nil, err
-		}
-		csiDriverVolumeSnapshotClassNameMap[csiDriverName] = volumeSnapshotClass.Name
-		csiDriverVolumeSnapshotClassMap[csiDriverName] = *volumeSnapshotClass
-	}
-
-	return csiDriverVolumeSnapshotClassNameMap, csiDriverVolumeSnapshotClassMap, nil
-}
-
-func (h *Handler) resolveVolumeSnapshotClass(backupType harvesterv1.BackupType, volumeBackup harvesterv1.VolumeBackup, csiDriverConfig map[string]settings.CSIDriverInfo) (*snapshotv1.VolumeSnapshotClass, error) {
-	csiDriverName := volumeBackup.CSIDriverName
-	volumeSnapshotClassName := ""
-
-	if backupType == harvesterv1.Snapshot {
-		volumeSnapshotClassName = h.storageClassSnapshotClassName(volumeBackup)
-	}
-
-	if volumeSnapshotClassName == "" {
 		driverInfo, ok := csiDriverConfig[csiDriverName]
 		if !ok {
-			return nil, fmt.Errorf("can't find CSI driver %s in setting CSIDriverInfo", csiDriverName)
+			return nil, nil, fmt.Errorf("can't find CSI driver %s in setting CSIDriverInfo", csiDriverName)
 		}
-
-		switch backupType {
+		volumeSnapshotClassName := ""
+		switch backup.Spec.Type {
 		case harvesterv1.Backup:
 			volumeSnapshotClassName = driverInfo.BackupVolumeSnapshotClassName
 		case harvesterv1.Snapshot:
 			volumeSnapshotClassName = driverInfo.VolumeSnapshotClassName
 		}
+		volumeSnapshotClass, err := h.snapshotClassCache.Get(volumeSnapshotClassName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("can't find volumeSnapshotClass %s for CSI driver %s", volumeSnapshotClassName, csiDriverName)
+		}
+		csiDriverVolumeSnapshotClassNameMap[csiDriverName] = volumeSnapshotClassName
+		csiDriverVolumeSnapshotClassMap[csiDriverName] = *volumeSnapshotClass
 	}
 
-	volumeSnapshotClass, err := h.snapshotClassCache.Get(volumeSnapshotClassName)
-	if err != nil {
-		return nil, fmt.Errorf("can't find volumeSnapshotClass %s for CSI driver %s", volumeSnapshotClassName, csiDriverName)
-	}
-
-	return volumeSnapshotClass, nil
-}
-
-func (h *Handler) storageClassSnapshotClassName(volumeBackup harvesterv1.VolumeBackup) string {
-	return util.GetPVCStorageClassSnapshotClassName(&corev1.PersistentVolumeClaim{
-		Spec: volumeBackup.PersistentVolumeClaim.Spec,
-	}, h.storageClassCache)
+	return csiDriverVolumeSnapshotClassNameMap, csiDriverVolumeSnapshotClassMap, nil
 }
 
 // getSecretBackups helps to build a list of SecretBackup upon the secrets used by the backup VM
@@ -612,12 +576,7 @@ func (h *Handler) freezeFsIfNeeded(vmBackup *harvesterv1.VirtualMachineBackup, v
 // reconcileVolumeSnapshots create volume snapshot if not exist.
 // For vm backup from a existent VM, we create volume snapshot from pvc.
 // For vm backup from syncing vm backup metadata, we create volume snapshot from volume snapshot content.
-func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineBackup) error {
-	csiDriverConfig, err := loadCSIDriverConfig()
-	if err != nil {
-		return err
-	}
-
+func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineBackup, csiDriverVolumeSnapshotClassMap map[string]snapshotv1.VolumeSnapshotClass) error {
 	vmBackupCpy := vmBackup.DeepCopy()
 	for i, volumeBackup := range vmBackupCpy.Status.VolumeBackups {
 		if volumeBackup.Name == nil {
@@ -646,11 +605,8 @@ func (h *Handler) reconcileVolumeSnapshots(vmBackup *harvesterv1.VirtualMachineB
 				return err
 			}
 
-			volumeSnapshotClass, err := h.resolveVolumeSnapshotClass(vmBackupCpy.Spec.Type, volumeBackup, csiDriverConfig)
-			if err != nil {
-				return err
-			}
-			volumeSnapshot, err = h.createVolumeSnapshot(vmBackupCpy, volumeBackup, volumeSnapshotClass)
+			volumeSnapshotClass := csiDriverVolumeSnapshotClassMap[volumeBackup.CSIDriverName]
+			volumeSnapshot, err = h.createVolumeSnapshot(vmBackupCpy, volumeBackup, &volumeSnapshotClass)
 			if err != nil {
 				logrus.Debugf("create volumeSnapshot %s/%s error: %v", vmBackupCpy.Namespace, snapshotName, err)
 				return err
