@@ -21,6 +21,7 @@ BANNER = @printf "$(BOLD)$(CYAN)[target: $@]$(RESET)\n"
 MK_REPO_ID               := $(shell echo -n "$(ROOT)$$(cat /etc/machine-id 2>/dev/null)" | sha256sum | cut -c1-8)
 MK_ADDONS_IMAGE          := harvester-addons:$(MK_REPO_ID)
 MK_ISO_BUILDER_IMAGE     := harvester-iso-builder:$(MK_REPO_ID)
+MK_TEST_INTEGRATION_IMAGE       := harvester-test-integration:$(MK_REPO_ID)
 MK_DOCKER_PROGRESS       ?= plain
 
 # Legacy dapper env variables
@@ -94,11 +95,11 @@ test: gen-version-env
 # ---- Test integration ----
 test-integration: gen-version-env
 	$(BANNER)
-	$(DOCKER_BUILD) --target test-integration -t harvester-test-integration:$(MK_REPO_ID)
+	$(DOCKER_BUILD) --target test-integration -t $(MK_TEST_INTEGRATION_IMAGE)
 	docker run --rm --privileged --network host \
 	    -v /var/run/docker.sock:/var/run/docker.sock \
-		-v harvester-test-integration-go-cache-${MK_REPO_ID}:/go/src/github.com/harvester/harvester/.cache/go-build \
-	    harvester-test-integration:$(MK_REPO_ID) \
+	    -v harvester-test-integration-go-cache-${MK_REPO_ID}:/go/src/github.com/harvester/harvester/.cache/go-build \
+	    $(MK_TEST_INTEGRATION_IMAGE) \
 	    ./scripts/test-integration
 
 
@@ -140,7 +141,6 @@ generate-openapi: gen-version-env
 prepare-addons:
 	$(BANNER)
 	$(ROOT)/scripts/prepare-addons
-	# $(DOCKER_BUILD) --target prepare-addons-output --output type=local,dest=.
 
 
 # ---- Build ISO ----
@@ -163,7 +163,7 @@ clean:
 clean-all: clean
 	$(BANNER)
 	@docker rmi -f $(MK_ADDONS_IMAGE) || true
-	@docker rmi -f harvester-iso-builder:$(MK_REPO_ID) harvester-test-integration:$(MK_REPO_ID) || true
+	@docker rmi -f $(MK_ISO_BUILDER_IMAGE) $(MK_TEST_INTEGRATION_IMAGE) || true
 
 .DEFAULT_GOAL := default
 
