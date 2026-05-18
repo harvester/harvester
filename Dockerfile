@@ -178,10 +178,10 @@ COPY --from=generate-openapi /go/src/github.com/harvester/harvester/scripts/know
 
 # ---- prepare-addons ----
 FROM builder AS prepare-addons
-ARG ADDONS_BRANCH=main
+ARG ADDONS_BRANCH
 
 # re-pull when remote sha changed
-ARG REMOTE_SHA=unknown
+ARG REMOTE_SHA
 
 RUN mkdir -p /dist/prepare-addons
 # clone addons repo
