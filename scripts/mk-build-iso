@@ -12,7 +12,7 @@ cleanup() { docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 set -x
-docker run --privileged \
+docker run --privileged ${MK_DOCKER_RUN_OPTS_TTY} \
     --name ${CONTAINER_NAME} \
     -v /var/run/docker.sock:/var/run/docker.sock \
     ${HARVESTER_INSTALLER_REPO:+--env HARVESTER_INSTALLER_REPO="$HARVESTER_INSTALLER_REPO"} \

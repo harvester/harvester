@@ -17,6 +17,10 @@ endif
 
 BANNER = @printf "$(BOLD)$(CYAN)[target: $@]$(RESET)\n"
 
+# Allocate a TTY in dev (for ctrl+c) but not in CI
+MK_DOCKER_RUN_OPTS_TTY := $(if $(CI),,-it)
+export MK_DOCKER_RUN_OPTS_TTY
+
 # User might have several repos in a host. Distinguish each by using the abs path of the repo
 MK_REPO_ID               := $(shell echo -n "$(ROOT)$$(cat /etc/machine-id 2>/dev/null)" | sha256sum | cut -c1-8)
 MK_ADDONS_IMAGE          := harvester-addons:$(MK_REPO_ID)
@@ -96,7 +100,7 @@ test: gen-version-env
 test-integration: gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target test-integration -t $(MK_TEST_INTEGRATION_IMAGE)
-	docker run --rm --privileged --network host \
+	docker run $(MK_DOCKER_RUN_OPTS_TTY) --rm --privileged --network host \
 	    -v /var/run/docker.sock:/var/run/docker.sock \
 	    -v harvester-test-integration-go-cache-${MK_REPO_ID}:/go/src/github.com/harvester/harvester/.cache/go-build \
 	    $(MK_TEST_INTEGRATION_IMAGE) \
