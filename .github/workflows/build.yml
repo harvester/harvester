@@ -33,3 +33,6 @@ jobs:
       image_tag: ${{ needs.configure_input_vars.outputs.branch }}-head
       build_version: ${{ needs.configure_input_vars.outputs.branch }}-${{ needs.configure_input_vars.outputs.sha_short }}-head
       iso_folder: ${{ needs.configure_input_vars.outputs.branch }}
+
+  calling-test-integration:
+    uses: ./.github/workflows/test-integration.yml
