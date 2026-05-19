@@ -58,6 +58,43 @@ export CODECOV_TOKEN HARVESTER_ADDONS_VERSION
 MK_HOST_ARCH := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 export MK_HOST_ARCH
 
+# Helpers for make generate, make generate-openapi and make generate-manifest
+#
+# Check if we are running inside an actual functional Git workspace on the host
+IS_GIT_REPO := $(shell git rev-parse --is-inside-work-tree 2>/dev/null)
+
+ifeq ($(IS_GIT_REPO),true)
+    REAL_GIT_DIR := $(shell git rev-parse --absolute-git-dir)
+
+    # ---- Git Workspace Context Resolution ----
+    # Read from environment override, otherwise default to a standard .git path layout.
+    # 
+    # MULTI-WORKSPACE / GIT WORKTREE NOTE:
+    # If you are working out of a secondary Git worktree workspace, the local '.git'
+    # file is just a pointer text file and does not contain the actual Git databases.
+    # This will cause build-time tracking scripts inside the container to fail.
+    #
+    # To fix this, locate your primary repository storage folder (usually found under
+    # <main-repo-dir>/.git/worktrees/<this-worktree-name>/) or point directly to the
+    # central object database directory. You can override this variable at runtime:
+    #   REAL_GIT_COMMON=/path/to/main-harvester-repo/.git make generate
+    REAL_GIT_COMMON ?= $(ROOT)/.git
+else
+    # Fallback placeholders if the host has no Git tracking data (e.g., bare CI runner)
+    REAL_GIT_DIR    := $(ROOT)
+    REAL_GIT_COMMON := $(ROOT)
+endif
+
+define assert_clean_workspace
+	@if [ "$(IS_GIT_REPO)" = "true" ]; then \
+		if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \
+			echo "❌ ERROR: Your working directory has uncommitted changes to tracked files."; \
+			echo "Please commit or stash them before running this target to prevent data loss."; \
+			exit 1; \
+		fi \
+	fi
+endef
+
 DOCKER_BUILD = docker build \
 	--progress=$(MK_DOCKER_PROGRESS) \
 	--build-arg MK_REPO_ID \
@@ -139,48 +176,34 @@ package-harvester-upgrade: build prepare-addons
 package-all: package package-harvester-webhook package-harvester-upgrade
 
 
-# ---- Generate Go Code & APIs ----
-# Runs code generation identical to a local 'go generate', but inside a
-# container to guarantee the Go compiler version matches project expectations.
-# The fresh api/ and generated/ definitions are exported back to the host.
-#
-# NOTE ON SAFETY CHECKS:
-# Unlike normal build targets, 'make generate' runs internal scripts (like
-# scripts/generate-openapi) that execute destructive commands ('git checkout --').
-# Because the host .git folder is bind-mounted read-write into the container,
-# any uncommitted modifications on the host could be silently deleted by the
-# container. We strictly require a clean tracked working tree to prevent data loss.
+# ---- Generate All Assets (Go Code, APIs, CRD Manifests, and OpenAPI Specs) ----
 generate: gen-version-env
 	$(BANNER)
-	@if ! command -v git >/dev/null 2>&1; then \
-		echo "❌ ERROR: 'git' command not found. Please install git first."; \
-		exit 1; \
-	fi
-	@if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
-		echo "❌ ERROR: This directory is not a git repository."; \
-		exit 1; \
-	fi
-	@if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \
-		echo "❌ ERROR: Your working directory has uncommitted changes to tracked files."; \
-		echo "Please commit, stash, or discard them before running 'make generate' to protect your work."; \
-		exit 1; \
-	fi
-	$(eval REAL_GIT_DIR=$(shell git rev-parse --absolute-git-dir))
+	$(call assert_clean_workspace)
 	$(DOCKER_BUILD) --build-context git-dir=$(REAL_GIT_DIR) \
-					--target generate-output \
-					--output type=local,dest=$(ROOT)/pkg/
+	                --build-context git-common=$(REAL_GIT_COMMON) \
+	                --target generate-output \
+	                --output type=local,dest=$(ROOT)/
 
 
 # ---- Generate CRD manifests ----
 generate-manifest: gen-version-env
 	$(BANNER)
-	$(DOCKER_BUILD) --target generate-manifest-output --output type=local,dest=$(ROOT)/deploy/charts/harvester-crd/
+	$(call assert_clean_workspace)
+	$(DOCKER_BUILD) --build-context git-dir=$(REAL_GIT_DIR) \
+	                --build-context git-common=$(REAL_GIT_COMMON) \
+	                --target generate-manifest-output \
+	                --output type=local,dest=$(ROOT)/
 
 
 # ---- Generate OpenAPI/Swagger spec ----
 generate-openapi: gen-version-env
 	$(BANNER)
-	$(DOCKER_BUILD) --target generate-openapi-output --output type=local,dest=$(ROOT)
+	$(call assert_clean_workspace)
+	$(DOCKER_BUILD) --build-context git-dir=$(REAL_GIT_DIR) \
+	                --build-context git-common=$(REAL_GIT_COMMON) \
+	                --target generate-openapi-output \
+	                --output type=local,dest=$(ROOT)/
 
 
 # ---- Cache addons repo and generate addons manifests ---

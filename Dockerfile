@@ -152,39 +152,68 @@ RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
 FROM base AS test-integration
 
 
-# ---- generate-stage ----
-FROM base AS generate-stage
-# Bind mount the host's git directory from our custom named context
-RUN --mount=type=bind,from=git-dir,target=.git,rw ./scripts/generate
+# ---- git-setup-stage ----
+# Handles caching and dynamically configures the Git environment for both local and CI builds.
+# Worktree-aware: Mirrors both worktree-specific configurations and shared common object directories.
+FROM base AS git-setup-stage
+ARG MK_REPO_ID
+RUN --mount=type=bind,from=git-dir,target=/tmp/host-git \
+--mount=type=bind,from=git-common,target=/tmp/host-git-common \
+--mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
+--mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
+if [ -d /tmp/host-git/objects ]; then \
+    echo "✅ Authentic Git repository detected from host. Mirroring configurations..."; \
+    mkdir -p /go/src/github.com/harvester/harvester/.git; \
+    cp -r /tmp/host-git/* /go/src/github.com/harvester/harvester/.git/ 2>/dev/null || true; \
+elif [ -d /tmp/host-git-common/objects ]; then \
+    echo "✅ Git worktree workspace detected. Mirroring configs and linking shared core objects..."; \
+    mkdir -p /go/src/github.com/harvester/harvester/.git; \
+    cp -r /tmp/host-git/* /go/src/github.com/harvester/harvester/.git/ 2>/dev/null || true; \
+    rm -rf /go/src/github.com/harvester/harvester/.git/objects; \
+    ln -s /tmp/host-git-common/objects /go/src/github.com/harvester/harvester/.git/objects; \
+else \
+    echo "⚠️ No host Git data found (Fresh CI Environment). Initializing self-healing fake Git layer..."; \
+    git config --global user.email "ci@example.com" && \
+    git config --global user.name "ci" && \
+    git init 2>/dev/null && \
+    git add . && \
+    git commit -q -m "automated commit for validate-ci"; \
+fi
 
-
-# ---- generate-output ----
-FROM scratch AS generate-output
-# Export only the core API definitions and their generated code assets
-COPY --from=generate-stage /go/src/github.com/harvester/harvester/pkg/apis/      /apis/
-COPY --from=generate-stage /go/src/github.com/harvester/harvester/pkg/generated/ /generated/
+# ---- generate-stage (`go generate`) ----
+# Runs full go generate (which automatically triggers manifests and openapi via go:generate directives)
+FROM git-setup-stage AS generate-stage
+RUN ./scripts/generate
 
 
 # ---- generate-manifest ----
-FROM base AS generate-manifest
+# Standalone target branch: Runs only manifest generation from a clean git environment
+FROM git-setup-stage AS generate-manifest
 RUN ./scripts/generate-manifest
-
-FROM scratch AS generate-manifest-output
-COPY --from=generate-manifest /go/src/github.com/harvester/harvester/deploy/charts/harvester-crd/templates/ /templates/
 
 
 # ---- generate-openapi ----
-FROM base AS generate-openapi
-ARG MK_REPO_ID
+# Standalone target branch: Runs only openapi generation from a clean git environment
+FROM git-setup-stage AS generate-openapi
+RUN ./scripts/generate-openapi
 
-RUN git config --global user.email "ci@example.com" && \
-    git config --global user.name "ci" && \
-    git init 2>/dev/null && git add . && git commit -q -m "commit for validate-ci"
 
-RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
-    --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
-    ./scripts/generate-openapi
+# ---- generate-output ----
+# Since generate-stage already ran EVERYTHING via go generate, we pull all assets straight from it!
+FROM scratch AS generate-output
+COPY --from=generate-stage /go/src/github.com/harvester/harvester/pkg/apis/ /pkg/apis/
+COPY --from=generate-stage /go/src/github.com/harvester/harvester/pkg/generated/ /pkg/generated/
+COPY --from=generate-stage /go/src/github.com/harvester/harvester/deploy/charts/harvester-crd/templates/ /deploy/charts/harvester-crd/templates/
+COPY --from=generate-stage /go/src/github.com/harvester/harvester/api/openapi-spec/swagger.json /api/openapi-spec/swagger.json
+COPY --from=generate-stage /go/src/github.com/harvester/harvester/scripts/known-api-rule-violations.txt /scripts/known-api-rule-violations.txt
 
+
+# ---- generate-manifest-output ----
+FROM scratch AS generate-manifest-output
+COPY --from=generate-manifest /go/src/github.com/harvester/harvester/deploy/charts/harvester-crd/templates/ /deploy/charts/harvester-crd/templates/
+
+
+# ---- generate-openapi-output ----
 FROM scratch AS generate-openapi-output
 COPY --from=generate-openapi /go/src/github.com/harvester/harvester/api/openapi-spec/swagger.json /api/openapi-spec/swagger.json
 COPY --from=generate-openapi /go/src/github.com/harvester/harvester/scripts/known-api-rule-violations.txt /scripts/known-api-rule-violations.txt
