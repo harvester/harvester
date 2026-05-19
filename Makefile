@@ -21,22 +21,12 @@ BANNER = @printf "$(BOLD)$(CYAN)[target: $@]$(RESET)\n"
 MK_DOCKER_RUN_OPTS_TTY := $(if $(CI),,-it)
 export MK_DOCKER_RUN_OPTS_TTY
 
-# Safely detect a unique system identifier into a variable
-MK_SYSTEM_ID := $(strip $(shell \
-    if [ -s /etc/machine-id ]; then \
-        cat /etc/machine-id 2>/dev/null; \
-    elif command -v hostname >/dev/null 2>&1; then \
-        hostname 2>/dev/null; \
-    else \
-        echo -n "unknown"; \
-    fi))
-
 # User might have several repos in a host. Distinguish each by using the abs path of the repo
-MK_REPO_ID                := $(shell echo -n "$(ROOT)$(MK_SYSTEM_ID)" | sha256sum | cut -c1-8)
-MK_ADDONS_IMAGE           := harvester-addons:$(MK_REPO_ID)
-MK_ISO_BUILDER_IMAGE      := harvester-iso-builder:$(MK_REPO_ID)
-MK_TEST_INTEGRATION_IMAGE := harvester-test-integration:$(MK_REPO_ID)
-MK_DOCKER_PROGRESS        ?= plain
+MK_REPO_ID               := $(shell echo -n "$(ROOT)$$(cat /etc/machine-id 2>/dev/null)" | sha256sum | cut -c1-8)
+MK_ADDONS_IMAGE          := harvester-addons:$(MK_REPO_ID)
+MK_ISO_BUILDER_IMAGE     := harvester-iso-builder:$(MK_REPO_ID)
+MK_TEST_INTEGRATION_IMAGE       := harvester-test-integration:$(MK_REPO_ID)
+MK_DOCKER_PROGRESS       ?= plain
 
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
@@ -128,19 +118,19 @@ build: gen-version-env | $(ROOT)/bin
 # ---- Validate ----
 validate: gen-version-env
 	$(BANNER)
-	$(DOCKER_BUILD) --target validate -t harvester-image-builder-validate-cache:$(MK_REPO_ID)
+	$(DOCKER_BUILD) --target validate
 
 
 # ---- Validate CI (dirty check after go generate + go mod tidy) ----
 validate-ci: gen-version-env
 	$(BANNER)
-	$(DOCKER_BUILD) --target validate-ci -t harvester-image-builder-validate-ci-cache:$(MK_REPO_ID)
+	$(DOCKER_BUILD) --target validate-ci
 
 
 # ---- Test ----
 test: gen-version-env
 	$(BANNER)
-	$(DOCKER_BUILD) $(if $(CODECOV_TOKEN),--secret id=codecov_token_$(MK_REPO_ID)$(comma)env=CODECOV_TOKEN --no-cache-filter=test) --target test -t harvester-image-builder-test-cache:$(MK_REPO_ID)
+	$(DOCKER_BUILD) $(if $(CODECOV_TOKEN),--secret id=codecov_token_$(MK_REPO_ID)$(comma)env=CODECOV_TOKEN --no-cache-filter=test) --target test
 
 
 # ---- Test integration ----
@@ -233,6 +223,7 @@ clean-all: clean
 	$(BANNER)
 	@docker rmi -f $(MK_ADDONS_IMAGE) || true
 	@docker rmi -f $(MK_ISO_BUILDER_IMAGE) $(MK_TEST_INTEGRATION_IMAGE) || true
+
 
 .DEFAULT_GOAL := default
 
