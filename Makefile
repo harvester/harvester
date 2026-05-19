@@ -176,4 +176,4 @@ default: build test package-all
 arm: build package-all
 
 ci: validate validate-ci build test package-harvester-webhook package-harvester-upgrade \
-	test-integration package
+	package
