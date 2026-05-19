@@ -35,7 +35,6 @@ const (
 	LabelHarvesterUpgrade               = prefix + "/upgrade"
 	LabelHarvesterUpgradeState          = prefix + "/upgradeState"
 	LabelHarvesterUpgradeComponent      = prefix + "/upgradeComponent"
-	LabelInjectError                    = prefix + "/injectError"
 	AnnotationStorageClassName          = prefix + "/storageClassName"
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
@@ -191,6 +190,13 @@ const (
 	APIServerCAKey                           = "apiServerCA"
 
 	RKEControlPlaneRoleLabel = "rke.cattle.io/control-plane-role"
+
+	DrainAnnotation       = prefix + "/drain-requested"
+	ForcedDrainAnnotation = prefix + "/drain-forced"
+
+	MaintainStatusAnnotation = prefix + "/maintain-status"
+	MaintainStatusComplete   = "completed"
+	MaintainStatusRunning    = "running"
 
 	LabelMaintainModeStrategy              = prefix + "/maintain-mode-strategy"
 	AnnotationMaintainModeStrategyNodeName = prefix + "/maintain-mode-strategy-node-name"

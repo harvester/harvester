@@ -120,6 +120,8 @@ func SetNodeStatusCondition(node *corev1.Node, condType corev1.NodeConditionType
 	}
 
 	if cond.Status != status {
+		// Per Kubernetes convention, `LastTransitionTime` only changes
+		// when `Status` flips.
 		cond.Status = status
 		cond.LastTransitionTime = now
 	}
@@ -167,4 +169,10 @@ func RemoveNodeStatusCondition(node *corev1.Node, condType corev1.NodeConditionT
 	node.Status.Conditions = newConditions
 
 	return numConditions != len(newConditions)
+}
+
+func RemoveMaintenanceModeAnnotations(node *corev1.Node) {
+	delete(node.Annotations, MaintainStatusAnnotation)
+	delete(node.Annotations, DrainAnnotation)
+	delete(node.Annotations, ForcedDrainAnnotation)
 }

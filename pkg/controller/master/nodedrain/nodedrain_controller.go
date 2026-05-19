@@ -19,7 +19,6 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/config"
-	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
@@ -78,12 +77,20 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		return node, nil
 	}
 
-	_, ok := node.Annotations[drainhelper.DrainAnnotation]
+	nodeCopy := node.DeepCopy()
+
+	_, ok := node.Annotations[util.DrainAnnotation]
 	if !ok {
+		// We are done in this handler. Exit.
 		return node, nil
 	}
 
-	_, forced := node.Annotations[drainhelper.ForcedDrain]
+	// Remove an existing status condition.
+	if util.RemoveNodeStatusCondition(nodeCopy, util.NodeConditionTypeMaintenanceMode) {
+		return ndc.nodes.UpdateStatus(nodeCopy)
+	}
+
+	_, forced := node.Annotations[util.ForcedDrainAnnotation]
 
 	logrus.WithFields(logrus.Fields{
 		"node_name": node.Name,
@@ -97,7 +104,7 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		if errors.Is(err, drainhelper.ErrNodeDrainNotPossible) {
 			logrus.WithFields(logrus.Fields{
 				"node_name": node.Name,
-			}).Errorf("Draining is not possible: %v", err)
+			}).Errorf("draining is not possible: %v", err)
 
 			nodeUpdate, errNodeUpdate := ndc.cleanupMaintenanceModeAnnotations(node)
 			if errNodeUpdate != nil {
@@ -241,14 +248,12 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		"node_name": node.Name,
 	}).Info("Starting to drain the node...")
 
-	nodeCopy := node.DeepCopy()
-
 	// run node drain
 	err = drainhelper.DrainNode(ndc.context, ndc.restConfig, nodeCopy)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"node_name": node.Name,
-		}).Errorf("Failed to drain the node: %v", err)
+		}).Errorf("failed to drain the node: %v", err)
 
 		util.SetNodeStatusCondition(nodeCopy, util.NodeConditionTypeMaintenanceMode, corev1.ConditionTrue, util.NodeConditionReasonError, err.Error())
 
@@ -260,18 +265,10 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		return nodeCopy, err
 	}
 
-	nodeCopy.Annotations[ctlnode.MaintainStatusAnnotationKey] = ctlnode.MaintainStatusRunning
-	delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
-	delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
+	util.RemoveMaintenanceModeAnnotations(nodeCopy)
+	nodeCopy.Annotations[util.MaintainStatusAnnotation] = util.MaintainStatusRunning
 
-	nodeCopy, err = ndc.nodes.Update(nodeCopy)
-	if err != nil {
-		return node, err
-	}
-
-	util.SetNodeStatusCondition(nodeCopy, util.NodeConditionTypeMaintenanceMode, corev1.ConditionTrue, util.NodeConditionReasonRunning, "Draining the node")
-
-	return ndc.nodes.UpdateStatus(nodeCopy)
+	return ndc.nodes.Update(nodeCopy)
 }
 
 // findAndStopVM is a wrapper function to identify the owner VM for a VMI, and patch the run strategy
@@ -576,9 +573,7 @@ func (ndc *ControllerHandler) listVMILabelMaintainModeStrategy(node *corev1.Node
 
 func (ndc *ControllerHandler) cleanupMaintenanceModeAnnotations(node *corev1.Node) (*corev1.Node, error) {
 	nodeCopy := node.DeepCopy()
-	delete(nodeCopy.Annotations, ctlnode.MaintainStatusAnnotationKey)
-	delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
-	delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
+	util.RemoveMaintenanceModeAnnotations(nodeCopy)
 	nodeUpdate, err := ndc.nodes.Update(nodeCopy)
 	if err != nil {
 		return node, fmt.Errorf("failed to clean up maintenance mode annotations: %w", err)

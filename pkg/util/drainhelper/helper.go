@@ -17,7 +17,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/drain"
 
-	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -31,8 +30,6 @@ const (
 	defaultSkipPodLabels      = "app!=csi-attacher,app!=csi-provisioner,kubevirt.io!=hotplug-disk"
 	defaultGracePeriodSeconds = 180
 	defaultTimeOut            = 240 * time.Second
-	DrainAnnotation           = "harvesterhci.io/drain-requested"
-	ForcedDrain               = "harvesterhci.io/drain-forced"
 	defaultSingleCPCount      = 1
 	defaultHACPCount          = 3
 )
@@ -60,7 +57,7 @@ func defaultDrainHelper(ctx context.Context, cfg *rest.Config) (*drain.Helper, e
 		Out:                 logger.Writer(),
 		ErrOut:              logger.Writer(),
 		Timeout:             defaultTimeOut,
-		AdditionalFilters:   []drain.PodFilter{maintainModeStrategyFilter, injectErrorFilter},
+		AdditionalFilters:   []drain.PodFilter{maintainModeStrategyFilter},
 	}, nil
 }
 
@@ -132,7 +129,7 @@ func DrainPossible(nodeCache ctlcorev1.NodeCache, node *corev1.Node) error {
 
 	var availableNodes int
 	for _, v := range nodeMap {
-		_, ok := v.Annotations[ctlnode.MaintainStatusAnnotationKey]
+		_, ok := v.Annotations[util.MaintainStatusAnnotation]
 		logrus.Debugf("nodeName: %s,  annotation present: %v", v.Name, ok)
 		if !ok {
 			availableNodes++
@@ -165,13 +162,6 @@ func maintainModeStrategyFilter(pod corev1.Pod) drain.PodDeleteStatus {
 				vmName, util.LabelMaintainModeStrategy, value)
 			return drain.MakePodDeleteStatusSkip()
 		}
-	}
-	return drain.MakePodDeleteStatusOkay()
-}
-
-func injectErrorFilter(pod corev1.Pod) drain.PodDeleteStatus {
-	if _, ok := pod.Labels[util.LabelInjectError]; ok {
-		return drain.MakePodDeleteStatusWithError(fmt.Sprintf("Pods with label %q (Note, this is for testing purposes only)", util.LabelInjectError))
 	}
 	return drain.MakePodDeleteStatusOkay()
 }

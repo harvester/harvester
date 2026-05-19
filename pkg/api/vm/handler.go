@@ -43,7 +43,6 @@ import (
 	volumeapi "github.com/harvester/harvester/pkg/api/volume"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/builder"
-	nodecontroller "github.com/harvester/harvester/pkg/controller/master/node"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -51,7 +50,6 @@ import (
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
-	"github.com/harvester/harvester/pkg/util/drainhelper"
 	"github.com/harvester/harvester/pkg/util/virtualmachine"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 )
@@ -716,10 +714,10 @@ func (h *vmActionHandler) findMigratableNodesByVMI(vmi *kubevirtv1.VirtualMachin
 }
 
 func isDrained(node *corev1.Node) bool {
-	if _, ok := node.Annotations[nodecontroller.MaintainStatusAnnotationKey]; ok {
+	if _, ok := node.Annotations[util.MaintainStatusAnnotation]; ok {
 		return ok
 	}
-	if _, ok := node.Annotations[drainhelper.DrainAnnotation]; ok {
+	if _, ok := node.Annotations[util.DrainAnnotation]; ok {
 		return ok
 	}
 	if node.Spec.Unschedulable {
