@@ -143,12 +143,26 @@ ARG MK_REPO_ID
 
 RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
     --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
-    --mount=type=secret,id=codecov_token_${MK_REPO_ID},env=CODECOV_TOKEN \
+    --mount=type=secret,id=codecov_token_${MK_REPO_ID} \
+    CODECOV_TOKEN=$(cat /run/secrets/codecov_token_${MK_REPO_ID} 2>/dev/null || true) \
     ./scripts/test
 
 
 # ---- test-integration ----
 FROM base AS test-integration
+
+
+# ---- generate-stage ----
+FROM base AS generate-stage
+# Bind mount the host's git directory from our custom named context
+RUN --mount=type=bind,from=git-dir,target=.git,rw ./scripts/generate
+
+
+# ---- generate-output ----
+FROM scratch AS generate-output
+# Export only the core API definitions and their generated code assets
+COPY --from=generate-stage /go/src/github.com/harvester/harvester/pkg/apis/      /apis/
+COPY --from=generate-stage /go/src/github.com/harvester/harvester/pkg/generated/ /generated/
 
 
 # ---- generate-manifest ----

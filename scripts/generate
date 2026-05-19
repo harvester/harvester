@@ -1,0 +1,7 @@
+#!/bin/bash
+# DESC: Runs `go generate`
+set -e
+
+cd $(dirname $0)/..
+
+go generate
