@@ -46,7 +46,7 @@ jobs:
       run: make ci
     - name: Run make arm
       if: ${{ matrix.arch == 'arm64' }}
-      run: make arm
+      run: make build prepare-addons
 
     - name: Upload binaries
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
