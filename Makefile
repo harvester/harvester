@@ -28,6 +28,10 @@ MK_ISO_BUILDER_IMAGE     := harvester-iso-builder:$(MK_REPO_ID)
 MK_TEST_INTEGRATION_IMAGE       := harvester-test-integration:$(MK_REPO_ID)
 MK_DOCKER_PROGRESS       ?= plain
 
+MK_VALIDATE_CACHE_IMAGE    := harvester-image-builder-validate-cache:$(MK_REPO_ID)
+MK_VALIDATE_CI_CACHE_IMAGE := harvester-image-builder-validate-ci-cache:$(MK_REPO_ID)
+MK_TEST_CACHE_IMAGE        := harvester-image-builder-test-cache:$(MK_REPO_ID)
+
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
 HARVESTER_ADDONS_VERSION  ?= main
@@ -81,19 +85,19 @@ build: gen-version-env | $(ROOT)/bin
 # ---- Validate ----
 validate: gen-version-env
 	$(BANNER)
-	$(DOCKER_BUILD) --target validate
+	$(DOCKER_BUILD) --target validate -t $(MK_VALIDATE_CACHE_IMAGE)
 
 
 # ---- Validate CI (dirty check after go generate + go mod tidy) ----
 validate-ci: gen-version-env
 	$(BANNER)
-	$(DOCKER_BUILD) --target validate-ci
+	$(DOCKER_BUILD) --target validate-ci -t $(MK_VALIDATE_CI_CACHE_IMAGE)
 
 
 # ---- Test ----
 test: gen-version-env
 	$(BANNER)
-	$(DOCKER_BUILD) $(if $(CODECOV_TOKEN),--secret id=codecov_token_$(MK_REPO_ID)$(comma)env=CODECOV_TOKEN --no-cache-filter=test) --target test
+	$(DOCKER_BUILD) $(if $(CODECOV_TOKEN),--secret id=codecov_token_$(MK_REPO_ID)$(comma)env=CODECOV_TOKEN --no-cache-filter=test) --target test -t $(MK_TEST_CACHE_IMAGE)
 
 
 # ---- Test integration ----
@@ -168,6 +172,7 @@ clean-all: clean
 	$(BANNER)
 	@docker rmi -f $(MK_ADDONS_IMAGE) || true
 	@docker rmi -f $(MK_ISO_BUILDER_IMAGE) $(MK_TEST_INTEGRATION_IMAGE) || true
+	@docker rmi -f $(MK_VALIDATE_CACHE_IMAGE) $(MK_VALIDATE_CI_CACHE_IMAGE) $(MK_TEST_CACHE_IMAGE) || true
 
 .DEFAULT_GOAL := default
 
