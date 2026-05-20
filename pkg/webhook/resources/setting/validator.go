@@ -113,6 +113,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateAdditionalGuestMemoryOverheadRatio,
 	settings.MaxHotplugRatioSettingName:                        validateMaxHotplugRatio,
 	settings.LHIMResourcesSettingName:                          validateLHIMResources,
+	settings.LonghornV2DataEngineMemorySizeSettingName:         validateLonghornV2DataEngineMemorySize,
 }
 
 type validateSettingUpdateFunc func(request *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -135,6 +136,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateUpdateAdditionalGuestMemoryOverheadRatio,
 	settings.MaxHotplugRatioSettingName:                        validateUpdateMaxHotplugRatio,
+	settings.LonghornV2DataEngineMemorySizeSettingName:         validateUpdateLonghornV2DataEngineMemorySize,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -2523,4 +2525,30 @@ func (v *settingValidator) validateUpdateKubeVirtMigration(_ *types.Request, _ *
 
 func (v *settingValidator) validateDeleteClusterPodSecurityStandard(_ *v1beta1.Setting) error {
 	return werror.NewMethodNotAllowed(fmt.Sprintf("Disallow delete setting name %s", settings.ClusterPodSecurityStandardSettingName))
+}
+
+func validateLonghornV2DataEngineMemorySize(newSetting *v1beta1.Setting) error {
+	if newSetting.Value == "" {
+		return nil
+	}
+
+	num, err := webhookUtil.StrictAtoi(newSetting.Value)
+	if err != nil {
+		return err
+	}
+
+	if num <= 0 {
+		return werror.NewInvalidError(fmt.Sprintf("%s must be greater than zero", newSetting.Name), settings.KeywordValue)
+	}
+
+	if num%2 != 0 {
+		// Hugepages are allocated in 2MiB chunks
+		return werror.NewInvalidError(fmt.Sprintf("%s must be evenly divisible by two", newSetting.Name), settings.KeywordValue)
+	}
+
+	return nil
+}
+
+func validateUpdateLonghornV2DataEngineMemorySize(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateLonghornV2DataEngineMemorySize(newSetting)
 }
