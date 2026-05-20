@@ -57,7 +57,7 @@ DOCKER_BUILD = docker build \
 .PHONY: build validate validate-ci test test-integration build-iso \
 	package-all package package-harvester-webhook package-harvester-upgrade \
 	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default \
-	gen-version-env
+	gen-version-env gen-version-env-debug
 
 
 # ---- Directories ----
@@ -70,6 +70,12 @@ $(ROOT)/bin:
 gen-version-env:
 	$(BANNER)
 	@bash $(ROOT)/scripts/version > /dev/null
+
+
+# ---- Generate and show the version env for debugging ----
+gen-version-env-debug:
+	$(BANNER)
+	bash $(ROOT)/scripts/version debug
 
 
 # ---- Compile harvester binaries ----
