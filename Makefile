@@ -107,7 +107,7 @@ test: gen-version-env
 
 
 # ---- Test integration ----
-test-integration: gen-version-env
+test-integration: gen-version-env package-harvester-webhook
 	$(BANNER)
 	$(DOCKER_BUILD) --target test-integration -t $(MK_TEST_INTEGRATION_IMAGE)
 	docker run $(MK_DOCKER_RUN_OPTS_TTY) --rm --privileged --network host \
