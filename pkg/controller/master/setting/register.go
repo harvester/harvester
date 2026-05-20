@@ -98,6 +98,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		harvSettings.ContainerdRegistrySettingName:               controller.syncContainerdRegistry,
 		harvSettings.NTPServersSettingName:                       controller.syncNodeConfig,
 		harvSettings.LonghornV2DataEngineSettingName:             controller.syncNodeConfig,
+		harvSettings.LonghornV2DataEngineHugepageSettingName:     controller.syncNodeConfig,
+		harvSettings.LonghornV2DataEngineMemorySizeSettingName:   controller.syncNodeConfig,
 		harvSettings.LHIMResourcesSettingName:                    controller.syncLHIMResources,
 		harvSettings.AutoRotateRKE2CertsSettingName:              controller.syncAutoRotateRKE2Certs,
 		harvSettings.KubeconfigDefaultTokenTTLMinutesSettingName: controller.syncKubeconfigTTL,
