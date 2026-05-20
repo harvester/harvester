@@ -21,12 +21,22 @@ BANNER = @printf "$(BOLD)$(CYAN)[target: $@]$(RESET)\n"
 MK_DOCKER_RUN_OPTS_TTY := $(if $(CI),,-it)
 export MK_DOCKER_RUN_OPTS_TTY
 
+# Safely detect a unique system identifier into a variable
+MK_SYSTEM_ID := $(strip $(shell \
+    if [ -s /etc/machine-id ]; then \
+        cat /etc/machine-id 2>/dev/null; \
+    elif command -v hostname >/dev/null 2>&1; then \
+        hostname 2>/dev/null; \
+    else \
+        echo -n "unknown"; \
+    fi))
+
 # User might have several repos in a host. Distinguish each by using the abs path of the repo
-MK_REPO_ID               := $(shell echo -n "$(ROOT)$$(cat /etc/machine-id 2>/dev/null)" | sha256sum | cut -c1-8)
-MK_ADDONS_IMAGE          := harvester-addons:$(MK_REPO_ID)
-MK_ISO_BUILDER_IMAGE     := harvester-iso-builder:$(MK_REPO_ID)
-MK_TEST_INTEGRATION_IMAGE       := harvester-test-integration:$(MK_REPO_ID)
-MK_DOCKER_PROGRESS       ?= plain
+MK_REPO_ID                := $(shell printf '%s' "$(ROOT)$(MK_SYSTEM_ID)" | sha256sum | cut -c1-8)
+MK_ADDONS_IMAGE           := harvester-addons:$(MK_REPO_ID)
+MK_ISO_BUILDER_IMAGE      := harvester-iso-builder:$(MK_REPO_ID)
+MK_TEST_INTEGRATION_IMAGE := harvester-test-integration:$(MK_REPO_ID)
+MK_DOCKER_PROGRESS        ?= plain
 
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
