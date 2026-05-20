@@ -55,6 +55,8 @@ var (
 	AutoRotateRKE2CertsSet                 = NewSetting(AutoRotateRKE2CertsSettingName, InitAutoRotateRKE2Certs())
 	KubeconfigTTL                          = NewSetting(KubeconfigDefaultTokenTTLMinutesSettingName, "0") // "0" is default value to ensure token does not expire
 	LonghornV2DataEngineEnabled            = NewSetting(LonghornV2DataEngineSettingName, "false")
+	LonghornV2DataEngineHugepageEnabled    = NewSetting(LonghornV2DataEngineHugepageSettingName, "true")
+	LonghornV2DataEngineMemorySize         = NewSetting(LonghornV2DataEngineMemorySizeSettingName, "2048")
 	LHIMResources                          = NewSetting(LHIMResourcesSettingName, `{"cpu":{}}`)
 	AdditionalGuestMemoryOverheadRatio     = NewSetting(AdditionalGuestMemoryOverheadRatioName, AdditionalGuestMemoryOverheadRatioDefault)
 	RancherCluster                         = NewSetting(RancherClusterSettingName, "{}")
@@ -103,6 +105,8 @@ const (
 	SupportBundleFileNameSettingName                  = "support-bundle-file-name"
 	UpgradeConfigSettingName                          = "upgrade-config"
 	LonghornV2DataEngineSettingName                   = "longhorn-v2-data-engine-enabled"
+	LonghornV2DataEngineHugepageSettingName           = "longhorn-v2-data-engine-hugepage-enabled"
+	LonghornV2DataEngineMemorySizeSettingName         = "longhorn-v2-data-engine-memory-size"
 	LHIMResourcesSettingName                          = "instance-manager-resources"
 	LogLevelSettingName                               = "log-level"
 	AdditionalGuestMemoryOverheadRatioName            = "additional-guest-memory-overhead-ratio"

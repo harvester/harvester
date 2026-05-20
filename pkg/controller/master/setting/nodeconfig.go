@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 
 	nodev1 "github.com/harvester/node-manager/pkg/apis/node.harvesterhci.io/v1beta1"
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
@@ -18,8 +19,9 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 )
 
-// syncNodeConfig handles changes to "longhorn-v2-data-engine-enabled" and
-// "ntp-servers" settings, as both of these need to be pushed out to all nodes
+// syncNodeConfig handles changes to "longhorn-v2-data-engine-enabled",
+// "longhorn-v2-data-engine-hugepage-enabled", "longhorn-v2-data-engine-memory-size"
+// and "ntp-servers" settings, as all of these need to be pushed out to all nodes
 // via each node's nodeconfig CR.
 func (h *Handler) syncNodeConfig(setting *harvesterv1.Setting) error {
 	logrus.WithFields(logrus.Fields{
@@ -39,32 +41,55 @@ func (h *Handler) syncNodeConfig(setting *harvesterv1.Setting) error {
 	}
 
 	// Enabling (or disabling) the Longhorn v2 data engine means we also need
-	// to set lhs/v2-data-engine, so Loghorn can pick up the change.
-	if setting.Name == harvSettings.LonghornV2DataEngineSettingName {
-		enableV2DataEngine := setting.Value == "true"
-		lhsV2DataEngine, err := h.longhornSettingCache.Get(util.LonghornSystemNamespaceName, string(longhorntypes.SettingNameV2DataEngine))
-		if err != nil {
-			return err
+	// to set lhs/v2-data-engine, so Longhorn can pick up the change.
+	// This will not work immediately if there's not enough hugepages,
+	// on each node, but because we return failure later when the
+	// setting doesn't apply, the change is continually requeued, so it
+	// will eventually go through once either the kubelets are restarted
+	// and pick up the new number of hugepages, or the nodes are rebooted
+	// and the allocation succeeds.
+	// The other longhorn settings below (data-engine-hugepage-enabled and
+	// data-engine-memory-size) should always succeed, but in case they do
+	// fail for whatever reason, they'll be requeued in the same way.
+	var lhSettingName longhorntypes.SettingName
+	var lhSettingValue string
+
+	switch setting.Name {
+	case harvSettings.LonghornV2DataEngineSettingName:
+		lhSettingName = longhorntypes.SettingNameV2DataEngine
+		lhSettingValue = "false" // default to false if not explicitly set otherwise
+		if setting.Value == "true" {
+			lhSettingValue = "true"
 		}
-		lhsV2DataEngineCpy := lhsV2DataEngine.DeepCopy()
-		if enableV2DataEngine {
-			lhsV2DataEngineCpy.Value = "true"
-		} else {
-			lhsV2DataEngineCpy.Value = "false"
+	case harvSettings.LonghornV2DataEngineHugepageSettingName:
+		lhSettingName = longhorntypes.SettingNameDataEngineHugepageEnabled
+		lhSettingValue = `{"v2":"true"}` // default to true if not explicitly set otherwise
+		if setting.Value == "false" {
+			lhSettingValue = `{"v2":"false"}`
 		}
-		if !reflect.DeepEqual(lhsV2DataEngine, lhsV2DataEngineCpy) {
-			// This will not work immediately if there's not enough hugepages,
-			// on each node, but because we return failure here when the
-			// setting doesn't apply, the change is continually requeued, so it
-			// will eventually go through once either the kubelets are restarted
-			// and pick up the new number of hugepages, or the nodes are rebooted
-			// and the allocation succeeds.
-			if _, err := h.longhornSettings.Update(lhsV2DataEngineCpy); err != nil {
-				return err
-			}
+	case harvSettings.LonghornV2DataEngineMemorySizeSettingName:
+		lhSettingName = longhorntypes.SettingNameDataEngineMemorySize
+		lhSettingValue = `{"v2":"2048"}` // default to 2048 if not explicitly set otherwise
+		if setting.Value != "" {
+			lhSettingValue = `{"v2":"` + setting.Value + `"}`
 		}
+	default:
+		// Not a longhorn setting, bail out
+		return nil
 	}
 
+	// Reconcile whichever longhorn setting we're dealing with
+	lhSetting, err := h.longhornSettingCache.Get(util.LonghornSystemNamespaceName, string(lhSettingName))
+	if err != nil {
+		return err
+	}
+	lhSettingCpy := lhSetting.DeepCopy()
+	lhSettingCpy.Value = lhSettingValue
+	if !reflect.DeepEqual(lhSetting, lhSettingCpy) {
+		if _, err := h.longhornSettings.Update(lhSettingCpy); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -101,6 +126,33 @@ func (h *Handler) nodeOnChanged(_ string, node *corev1.Node) (*corev1.Node, erro
 		enableV2DataEngine = false
 	}
 
+	// Data engine memory size defaults to 2048 if not specified
+	dataEngineMemorySizeSetting, err := h.settingCache.Get(harvSettings.LonghornV2DataEngineMemorySizeSettingName)
+	if err != nil {
+		return nil, err
+	}
+	dataEngineMemorySize, err := strconv.Atoi(dataEngineMemorySizeSetting.Value)
+	if err != nil {
+		// Strictly speaking we should be pulling this from dataEngineMemorySizeSetting.Default,
+		// but then we'd have to do another strconv.Atoi on _that_ and handle the possible error
+		// and provide yet another fallback value, which honestly is just getting ridiculous.
+		dataEngineMemorySize = 2048
+	}
+
+	var hugepagesToAllocate uint
+
+	// Data engine enable hugepages defaults to true if not explicitly set to false
+	dataEngineHugepageSetting, err := h.settingCache.Get(harvSettings.LonghornV2DataEngineHugepageSettingName)
+	if err != nil {
+		return nil, err
+	}
+	if !enableV2DataEngine || dataEngineHugepageSetting.Value == "false" {
+		hugepagesToAllocate = 0
+	} else {
+		// the webhook guarantees that dataEngineMemorySize is a positive integer, safe to skip gosec G115
+		hugepagesToAllocate = uint(dataEngineMemorySize) / 2 //nolint:gosec
+	}
+
 	// Create new node config if it doesn't exist (think: new node added to cluster)
 	nodeConfig, err := h.nodeConfigs.Get(util.HarvesterSystemNamespaceName, node.Name, metav1.GetOptions{})
 	if err != nil {
@@ -121,7 +173,8 @@ func (h *Handler) nodeOnChanged(_ string, node *corev1.Node) (*corev1.Node, erro
 					NTPServers: ntpServers,
 				},
 				LonghornConfig: &nodev1.LonghornConfig{
-					EnableV2DataEngine: enableV2DataEngine,
+					EnableV2DataEngine:  enableV2DataEngine,
+					HugepagesToAllocate: hugepagesToAllocate,
 				},
 			},
 		})
@@ -145,6 +198,7 @@ func (h *Handler) nodeOnChanged(_ string, node *corev1.Node) (*corev1.Node, erro
 		nodeConfigCpy.Spec.LonghornConfig = &nodev1.LonghornConfig{}
 	}
 	nodeConfigCpy.Spec.LonghornConfig.EnableV2DataEngine = enableV2DataEngine
+	nodeConfigCpy.Spec.LonghornConfig.HugepagesToAllocate = hugepagesToAllocate
 	if !reflect.DeepEqual(nodeConfig, nodeConfigCpy) {
 		if _, err := h.nodeConfigs.Update(nodeConfigCpy); err != nil {
 			logrus.WithFields(logrus.Fields{
