@@ -41,6 +41,9 @@ const (
 	// Specify Webhook image name. Use the value in the helm chart if not specified.
 	envWebhookImage = "WEBHOOK_IMAGE_NAME"
 
+	// Specify Harvester image name. Use the value in the helm chart if not specified.
+	envHarvesterImage = "HARVESTER_IMAGE_NAME"
+
 	// In summary, default is:
 	// 1. Create a new local cluster
 	// 2. Deploy runtime
@@ -116,7 +119,17 @@ func GetPreloadingImages() []string {
 
 // GetWebhookImage returns webhook image name and tag
 func GetWebhookImage() (string, string) {
-	image := os.Getenv(envWebhookImage)
+	return GetImageFromEnv(envWebhookImage)
+}
+
+// GetHarvesterImage returns harvester image name and tag
+func GetHarvesterImage() (string, string) {
+	return GetImageFromEnv(envHarvesterImage)
+}
+
+// GetImageFromEnv returns the env based image name and tag
+func GetImageFromEnv(env string) (string, string) {
+	image := os.Getenv(env)
 	if image == "" {
 		return "", ""
 	}

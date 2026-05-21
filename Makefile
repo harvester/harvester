@@ -113,7 +113,8 @@ test: gen-version-env
 
 
 # ---- Test integration ----
-test-integration: gen-version-env package-harvester-webhook
+# It ensures the test runs against the current-tag Harvester and Harvester-webhook images
+test-integration: gen-version-env package package-harvester-webhook
 	$(BANNER)
 	$(DOCKER_BUILD) --target test-integration -t $(MK_TEST_INTEGRATION_IMAGE)
 	docker run $(MK_DOCKER_RUN_OPTS_TTY) --rm --privileged --network host \

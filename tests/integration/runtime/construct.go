@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
+
 	restclient "k8s.io/client-go/rest"
 
 	"github.com/harvester/harvester/tests/framework/client"
@@ -60,6 +62,15 @@ func installHarvesterChart(ctx context.Context, kubeConfig *restclient.Config) e
 		patches["webhook.debug"] = true
 	}
 
+	// if not aligned with local image tag, it is always `master-head` of main repo
+	// not testing the locally developed image
+	repo, tag = env.GetHarvesterImage()
+	if repo != "" {
+		patches["containers.apiserver.image.repository"] = repo
+		patches["containers.apiserver.image.tag"] = tag
+		patches["containers.apiserver.image.imagePullPolicy"] = "IfNotPresent"
+	}
+
 	if !env.IsE2ETestsEnabled() {
 		patches["longhorn.enabled"] = "false"
 	}
@@ -67,6 +78,13 @@ func installHarvesterChart(ctx context.Context, kubeConfig *restclient.Config) e
 	if env.IsUsingEmulation() {
 		patches["kubevirt.spec.configuration.developerConfiguration.useEmulation"] = "true"
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"release":   testChartReleaseName,
+		"namespace": testHarvesterNamespace,
+		"chartDir":  testChartDir,
+		"patches":   patches,
+	}).Info("Preparing to install Harvester chart for test")
 
 	// install crd chart
 	_, err := helm.InstallChart(testCRDChartReleaseName, testHarvesterNamespace, testCRDChartDir, nil)
