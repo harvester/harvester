@@ -68,7 +68,7 @@ COPY --from=golangci/golangci-lint:v2.8.0-alpine@sha256:1194f3bfcbaeeb92d8d159fd
 ## install controller-gen
 RUN GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.1
 ## install ginkgo
-RUN GO111MODULE=on go install github.com/onsi/ginkgo/v2/ginkgo@v2.23.4
+RUN GO111MODULE=on go install github.com/onsi/ginkgo/v2/ginkgo@v2.29.0
 
 # install openapi-gen
 RUN  GO111MODULE=on go install k8s.io/code-generator/cmd/openapi-gen@v0.29.13
