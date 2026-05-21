@@ -87,6 +87,9 @@ var _ = ginkgo.BeforeSuite(func() {
 	err = applyObj(crds)
 	dsl.MustNotError(err)
 
+	ginkgo.By("wait 5 seconds for crds to be applied")
+	time.Sleep(time.Second * 5)
+
 	err = helmv1.AddToScheme(scheme)
 	dsl.MustNotError(err)
 
