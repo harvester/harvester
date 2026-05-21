@@ -16,5 +16,7 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - name: Build harvester-webhook image
+      run: make build && make package-webhook
     - name: Run test integration
       run: make test-integration
