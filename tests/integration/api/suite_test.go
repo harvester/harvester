@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -38,10 +39,6 @@ var (
 	testVMBackupLabels = map[string]string{
 		"harvester.test.io/type": "vm-backup",
 	}
-)
-
-const (
-	harvesterStartTimeOut = 20
 )
 
 // Declarations for Ginkgo DSL
@@ -100,7 +97,7 @@ func TestAPI(t *testing.T) {
 	RunSpecs(t, "api suite")
 }
 
-var _ = BeforeSuite(func() {
+var _ = BeforeSuite(ginkgo.NodeTimeout(10*time.Minute), func(ctx ginkgo.SpecContext) {
 	testCtx, testCtxCancel = context.WithCancel(context.Background())
 	var err error
 
@@ -132,22 +129,29 @@ var _ = BeforeSuite(func() {
 		testSuiteStartErrChan <- harvester.ListenAndServe(listenOpts, options)
 	}()
 
-	// NB(thxCode): since the start of all controllers is not synchronized,
-	// it cannot guarantee the controllers has been start,
-	// which means the cache(informer) has not ready,
-	// so we give a stupid time sleep to trigger the first list-watch,
-	// and please use the client interface instead of informer interface if you can.
-	select {
-	case <-time.After(harvesterStartTimeOut * time.Second):
-		MustFinallyBeTrue(func() bool {
+	// tune the timeout
+	harvesterAPITimeout := 5 * time.Minute
+	pollingInterval := 10 * time.Second
+
+	readyChan := make(chan struct{})
+	go func() {
+		Eventually(func() bool {
 			return validateAPIIsReady()
-		})
+		}, harvesterAPITimeout, pollingInterval).Should(BeTrue())
+		close(readyChan)
+	}()
+
+	select {
+	case <-readyChan:
+		By("harvester test cluster is ready")
 	case err := <-testSuiteStartErrChan:
-		MustNotError(err)
+		Fail(fmt.Sprintf("harvester test suite failed to start: %v", err))
+	case <-time.After(harvesterAPITimeout + pollingInterval):
+		Fail("timed out waiting for harvester API to be ready")
 	}
 })
 
-var _ = AfterSuite(func() {
+var _ = AfterSuite(ginkgo.NodeTimeout(5*time.Minute), func(ctx ginkgo.SpecContext) {
 	By("tearing down test cluster")
 	err := cluster.Stop(GinkgoWriter)
 	MustNotError(err)
