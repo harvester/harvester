@@ -56,6 +56,10 @@ spec:
                 jobImage:
                   nullable: true
                   type: string
+                backOffLimit:
+                  nullable: true
+                  type: integer
+                  format: int32
                 repo:
                   nullable: true
                   type: string
@@ -90,7 +94,6 @@ spec:
           type: object
       served: true
       storage: true
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
