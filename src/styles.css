@@ -2134,3 +2134,190 @@ select {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Final dark focus pass: keep every surface darker, reserve bright color for focused/active layers */
+:root {
+  --nexus-black: #00030a;
+  --nexus-ink: #010814;
+  --nexus-panel-dark: rgba(0, 8, 18, 0.94);
+  --nexus-panel-darker: rgba(0, 5, 12, 0.98);
+  --nexus-focus-white: #ffffff;
+}
+
+html,
+body,
+#root {
+  background: var(--nexus-black) !important;
+}
+
+body {
+  background:
+    radial-gradient(circle at 18% 14%, rgba(51, 247, 255, 0.08), transparent 22rem),
+    radial-gradient(circle at 86% 70%, rgba(117, 255, 106, 0.07), transparent 20rem),
+    linear-gradient(135deg, #000207 0%, #010814 45%, #000000 100%) !important;
+}
+
+.app-shell,
+.login-screen {
+  background:
+    linear-gradient(135deg, rgba(0, 2, 7, 0.98), rgba(1, 8, 18, 0.97)),
+    radial-gradient(circle at 50% 50%, rgba(51, 247, 255, 0.055), transparent 38rem) !important;
+  color: var(--nexus-focus-white);
+}
+
+.sidebar,
+.login-container,
+.wizard-shell,
+.wizard-panel,
+.manifest-panel,
+.yaml-editor,
+.storage-summary,
+.hud-dashboard,
+.cluster-console,
+.hud-panel,
+.cluster-step-card,
+.storage-option,
+.step-list button,
+.review-grid div {
+  background-color: var(--nexus-panel-dark) !important;
+  color: var(--nexus-focus-white);
+}
+
+.sidebar,
+.login-container,
+.hud-dashboard,
+.cluster-console,
+.manifest-panel,
+.wizard-panel {
+  border-color: rgba(51, 247, 255, 0.18) !important;
+  box-shadow:
+    0 0 0 1px rgba(51, 247, 255, 0.08),
+    0 28px 70px rgba(0, 0, 0, 0.56),
+    inset 0 0 46px rgba(0, 0, 0, 0.34) !important;
+}
+
+.hud-panel,
+.cluster-step-card,
+.storage-option,
+.step-list button,
+.review-grid div,
+.yaml-editor .cm-editor,
+input,
+select,
+textarea {
+  background: linear-gradient(145deg, rgba(0, 6, 14, 0.96), rgba(0, 13, 26, 0.88)) !important;
+  color: var(--nexus-focus-white) !important;
+  border-color: rgba(51, 247, 255, 0.18) !important;
+}
+
+.login-header h1,
+.login-header h2,
+.brand h1,
+.wizard-header h2,
+.panel-header h2,
+.hud-hero h2,
+.cluster-card-heading h3,
+.manifest-panel h2,
+.yaml-header h3,
+.storage-summary h2,
+.review-grid strong,
+label {
+  color: var(--nexus-focus-white) !important;
+}
+
+.login-header p,
+.brand p,
+.wizard-header p,
+.cluster-step-card p,
+.hud-hero p,
+.storage-summary p,
+.yaml-header .note,
+.review-grid p {
+  color: rgba(239, 253, 255, 0.72) !important;
+}
+
+.step-list button.active,
+.step-list button:focus-visible,
+.storage-option.active,
+.storage-option:focus-visible,
+.login-btn,
+.login-btn:focus-visible,
+.wizard-actions button:last-child,
+.wizard-actions button:focus-visible,
+.hud-segment-menu button.is-selected,
+.hud-segment-menu button:focus-visible,
+.hud-toggle.is-on,
+.banner-radio.is-active,
+.cluster-check.passed,
+.checkbox-label input[type='checkbox']:checked {
+  color: var(--nexus-focus-white) !important;
+  border-color: rgba(117, 255, 106, 0.86) !important;
+  box-shadow:
+    0 0 0 1px rgba(117, 255, 106, 0.36),
+    0 0 28px rgba(117, 255, 106, 0.28),
+    inset 0 0 22px rgba(117, 255, 106, 0.12) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.yaml-editor .cm-editor.cm-focused,
+.cm-focused,
+button:focus-visible {
+  outline: none !important;
+  color: var(--nexus-focus-white) !important;
+  border-color: rgba(51, 247, 255, 0.9) !important;
+  box-shadow:
+    0 0 0 1px rgba(51, 247, 255, 0.36),
+    0 0 30px rgba(51, 247, 255, 0.25),
+    inset 0 0 18px rgba(51, 247, 255, 0.08) !important;
+}
+
+.hud-status-pill,
+.csi-driver-pill,
+.cluster-command-ribbon span,
+.editor-capabilities span,
+.hud-data-ribbon span,
+.hud-metric-header strong,
+.hud-panel-title strong,
+.cluster-console-title strong,
+.banner-status-rail strong,
+.csi-template-list summary {
+  color: var(--hud-green) !important;
+  text-shadow: 0 0 14px rgba(117, 255, 106, 0.28);
+}
+
+.hud-kicker,
+.hud-panel-title span,
+.hud-metric-header span,
+.cluster-console-title span,
+.banner-status-rail span,
+.cluster-card-heading span,
+.yaml-editor .cm-gutters,
+.cm-lineNumbers {
+  color: var(--hud-cyan) !important;
+}
+
+select option {
+  color: var(--nexus-focus-white);
+  background: var(--nexus-black);
+}
+
+.login-error {
+  background: rgba(255, 92, 92, 0.08) !important;
+  border-color: rgba(255, 92, 92, 0.7) !important;
+  color: #ffffff !important;
+}
+
+.hud-dashboard::after,
+.cluster-console::after,
+.manifest-panel::after,
+.wizard-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.24));
+  border-radius: inherit;
+}
