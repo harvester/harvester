@@ -30,7 +30,7 @@ When reviewing code, use the conventions outlined below to ensure consistency an
 
 ## Security Checks
 
-- For Go code, see the `golang-sec-instructions.md` file for gosec and govulncheck check criteria
+- For Go code, see the `golang-sec-instructions.md` file for gosec check criteria
 - For shell scripts, see the `bash-sec-instructions.md` file for common shell script
 - Skip security checks for files that do not contain executable code (e.g., markdown, YAML, JSON, etc.) or files that are auto-generated or vendored
 
