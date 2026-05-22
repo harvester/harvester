@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { ApplicationConfig, defaultConfig, StorageType } from './types';
 import { generateManifest } from './lib/manifestGenerator';
+import { buildApplyTestRun, buildCsiTemplatePreview, buildLivePreview, buildVClusterPlan, validateKubernetesManifest } from './lib/clusterWorkflow';
 import { isDemoLogin } from './lib/auth';
+import { ClusterIntegrationPanel } from './components/ClusterIntegrationPanel';
 import { LoginScreen } from './components/LoginScreen';
 import { HudDashboard } from './components/HudDashboard';
 import { Wizard } from './components/Wizard';
@@ -29,6 +31,12 @@ function App() {
   const [editedYaml, setEditedYaml] = useState('');
 
   const manifest = useMemo(() => generateManifest(config), [config]);
+  const displayedManifest = editedYaml || manifest;
+  const validation = useMemo(() => validateKubernetesManifest(displayedManifest), [displayedManifest]);
+  const livePreview = useMemo(() => buildLivePreview(displayedManifest), [displayedManifest]);
+  const applyRun = useMemo(() => buildApplyTestRun(displayedManifest, config), [displayedManifest, config]);
+  const vclusterPlan = useMemo(() => buildVClusterPlan(config), [config]);
+  const csiPreview = useMemo(() => buildCsiTemplatePreview(config.storage), [config.storage]);
 
   if (!isAuthenticated) {
     return (
@@ -82,13 +90,21 @@ function App() {
       </aside>
       <main className="main-view">
         <HudDashboard />
+        <ClusterIntegrationPanel
+          validation={validation}
+          livePreview={livePreview}
+          applyRun={applyRun}
+          vclusterPlan={vclusterPlan}
+          csiPreview={csiPreview}
+          config={config}
+        />
         <Wizard currentStep={step} config={config} onChange={setConfig} onNext={() => setStep(Math.min(step + 1, 7))} onBack={() => setStep(Math.max(step - 1, 1))} />
         <section className="manifest-panel">
           <div className="panel-header">
             <h2>Generated manifest</h2>
             <span className="badge">Kubernetes 1.28+</span>
           </div>
-          <YamlEditor value={editedYaml || manifest} onChange={setEditedYaml} />
+          <YamlEditor value={displayedManifest} onChange={setEditedYaml} validationIssues={validation.issues.map((issue) => issue.message)} />
         </section>
       </main>
     </div>

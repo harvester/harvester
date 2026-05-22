@@ -1306,3 +1306,308 @@ textarea:focus {
     transition: none !important;
   }
 }
+
+
+/* README next-steps cluster integration console */
+.cluster-console {
+  z-index: 1;
+  padding: 1rem;
+  border-color: rgba(117, 255, 106, 0.28);
+  background:
+    radial-gradient(circle at 92% 12%, rgba(117, 255, 106, 0.12), transparent 18rem),
+    linear-gradient(145deg, rgba(3, 13, 26, 0.94), rgba(4, 24, 42, 0.78));
+}
+
+.cluster-console-title {
+  margin-bottom: 0.9rem;
+}
+
+.cluster-step-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.cluster-step-card {
+  position: relative;
+  grid-column: span 2;
+  min-height: 16rem;
+  overflow: hidden;
+  border: 1px solid rgba(51, 247, 255, 0.22);
+  border-radius: 20px;
+  padding: 0.9rem;
+  background: rgba(1, 11, 21, 0.72);
+  box-shadow: inset 0 0 30px rgba(51, 247, 255, 0.04);
+}
+
+.cluster-validation,
+.cluster-csi {
+  grid-column: span 3;
+}
+
+.cluster-step-card::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--hud-cyan), var(--hud-green), transparent);
+  animation: hud-sheen 5s ease-in-out infinite;
+}
+
+.cluster-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.cluster-card-heading span {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(117, 255, 106, 0.44);
+  border-radius: 50%;
+  color: var(--hud-green);
+  background: rgba(117, 255, 106, 0.08);
+  box-shadow: 0 0 18px rgba(117, 255, 106, 0.18);
+  font-weight: 800;
+}
+
+.cluster-card-heading h3 {
+  margin: 0;
+  color: var(--hud-white);
+  font-size: 0.95rem;
+}
+
+.cluster-score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  margin: 0.3rem 0;
+  color: var(--hud-white);
+  font-size: 2.25rem;
+  font-weight: 900;
+}
+
+.cluster-score span {
+  color: var(--hud-cyan);
+  font-size: 1rem;
+}
+
+.cluster-score.is-green {
+  text-shadow: 0 0 24px rgba(117, 255, 106, 0.32);
+}
+
+.cluster-step-card p,
+.cluster-check small {
+  color: var(--hud-muted);
+}
+
+.cluster-step-card ul,
+.cluster-issues {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cluster-step-card li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--hud-white);
+  font-size: 0.78rem;
+}
+
+.cluster-step-card li span,
+.cluster-check i {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--hud-green);
+  box-shadow: 0 0 14px rgba(117, 255, 106, 0.82);
+}
+
+.cluster-issues p {
+  border: 1px solid rgba(255, 221, 102, 0.28);
+  border-radius: 10px;
+  padding: 0.45rem;
+  color: var(--hud-warning);
+  background: rgba(255, 221, 102, 0.08);
+  font-size: 0.74rem;
+}
+
+.cluster-checks {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.cluster-check {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  border: 1px solid rgba(51, 247, 255, 0.16);
+  border-radius: 14px;
+  padding: 0.55rem;
+  background: rgba(51, 247, 255, 0.04);
+}
+
+.cluster-check strong {
+  display: block;
+  color: var(--hud-white);
+}
+
+.cluster-check.passed {
+  border-color: rgba(117, 255, 106, 0.28);
+}
+
+.cluster-step-card code {
+  display: block;
+  margin-top: 0.75rem;
+  border: 1px solid rgba(51, 247, 255, 0.15);
+  border-radius: 12px;
+  padding: 0.65rem;
+  color: var(--hud-cyan);
+  background: rgba(0, 5, 12, 0.76);
+  white-space: pre-wrap;
+  font-size: 0.72rem;
+}
+
+.vcluster-map {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin: 0.8rem 0;
+}
+
+.vcluster-node {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 7rem;
+  border: 1px solid rgba(117, 255, 106, 0.28);
+  border-radius: 16px;
+  padding: 0.7rem;
+  background: radial-gradient(circle at top, rgba(117, 255, 106, 0.14), rgba(51, 247, 255, 0.04));
+  animation: hud-feed-slide 3.5s ease-in-out infinite;
+}
+
+.vcluster-node span {
+  color: var(--hud-green);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.vcluster-node small {
+  color: var(--hud-muted);
+}
+
+.editor-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.9rem 0;
+}
+
+.editor-capabilities span,
+.csi-driver-pill,
+.cluster-command-ribbon span {
+  border: 1px solid rgba(51, 247, 255, 0.24);
+  border-radius: 999px;
+  padding: 0.42rem 0.6rem;
+  color: var(--hud-cyan);
+  background: rgba(51, 247, 255, 0.07);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.csi-driver-pill {
+  display: inline-flex;
+  margin-bottom: 0.75rem;
+  color: var(--hud-green);
+  border-color: rgba(117, 255, 106, 0.28);
+  background: rgba(117, 255, 106, 0.08);
+}
+
+.csi-template-list {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 18rem;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.csi-template-list details {
+  border: 1px solid rgba(51, 247, 255, 0.16);
+  border-radius: 14px;
+  background: rgba(0, 5, 12, 0.48);
+}
+
+.csi-template-list summary {
+  cursor: pointer;
+  padding: 0.6rem;
+  color: var(--hud-white);
+}
+
+.csi-template-list pre {
+  max-height: 10rem;
+  overflow: auto;
+  margin: 0;
+  border-top: 1px solid rgba(51, 247, 255, 0.12);
+  padding: 0.65rem;
+  color: var(--hud-cyan);
+  font-size: 0.7rem;
+  white-space: pre-wrap;
+}
+
+.cluster-command-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+}
+
+.yaml-editor .cm-editor {
+  border: 1px solid rgba(51, 247, 255, 0.24);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #020711;
+  box-shadow: inset 0 0 30px rgba(51, 247, 255, 0.06);
+}
+
+.yaml-editor .cm-gutters {
+  background: #051225;
+  border-right-color: rgba(51, 247, 255, 0.18);
+}
+
+.note-warning {
+  color: var(--hud-warning);
+}
+
+.yaml-validation-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0 0;
+  padding-left: 1rem;
+  color: var(--hud-warning);
+}
+
+@media (max-width: 1280px) {
+  .cluster-step-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cluster-step-card,
+  .cluster-validation,
+  .cluster-csi {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 860px) {
+  .cluster-step-grid {
+    grid-template-columns: 1fr;
+  }
+}
