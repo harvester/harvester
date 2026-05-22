@@ -12,6 +12,16 @@ export function HudDashboard() {
       <div className="hud-scanlines" />
       <div className="hud-orb hud-orb-left" />
       <div className="hud-orb hud-orb-right" />
+      <div className="banner-corner banner-corner-tl" />
+      <div className="banner-corner banner-corner-tr" />
+      <div className="banner-corner banner-corner-bl" />
+      <div className="banner-corner banner-corner-br" />
+      <div className="banner-lab-crosshair" />
+      <div className="banner-micro-labels" aria-hidden="true">
+        {telemetry.microLabels.map((label) => (
+          <span key={label}>{label}</span>
+        ))}
+      </div>
 
       <div className="hud-hero hud-panel">
         <div>
@@ -43,6 +53,33 @@ export function HudDashboard() {
             <option value="control-plane">control-plane</option>
           </select>
         </label>
+      </div>
+
+      <div className="banner-lab-strip hud-panel">
+        <div className="banner-status-rails">
+          {telemetry.statusRails.map((rail) => (
+            <div className="banner-status-rail" key={rail.label}>
+              <span>{rail.label}</span>
+              <i><b style={{ width: `${rail.value}%` }} /></i>
+              <strong>{rail.value}</strong>
+            </div>
+          ))}
+        </div>
+        <div className="banner-radio-matrix">
+          {telemetry.radioGroups.map((group) => (
+            <fieldset key={group.label}>
+              <legend>{group.label}</legend>
+              <div>
+                {group.options.map((option) => (
+                  <label className={option.active ? 'banner-radio is-active' : 'banner-radio'} key={option.label}>
+                    <input type="radio" checked={option.active} readOnly />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ))}
+        </div>
       </div>
 
       <div className="hud-metric-grid">
@@ -178,6 +215,30 @@ export function HudDashboard() {
               </li>
             ))}
           </ul>
+        </article>
+
+        <article className="hud-panel banner-scan-stack">
+          <div className="hud-panel-title">
+            <span>Scan windows</span>
+            <strong>lab feed</strong>
+          </div>
+          {telemetry.scanPanels.map((panel) => (
+            <div className="banner-scan-card" key={panel.label}>
+              <div className="banner-scan-visual">
+                <span />
+                <i />
+              </div>
+              <div>
+                <strong>{panel.label}</strong>
+                <code>{panel.value}</code>
+                <div className="banner-mini-bars">
+                  {panel.bars.map((bar, index) => (
+                    <b key={`${panel.label}-${bar}-${index}`} style={{ width: `${bar}%` }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
         </article>
       </div>
     </section>

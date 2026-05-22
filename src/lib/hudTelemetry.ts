@@ -24,6 +24,22 @@ export interface HudToggle {
   enabled: boolean;
 }
 
+export interface HudStatusRail {
+  label: string;
+  value: number;
+}
+
+export interface HudRadioGroup {
+  label: string;
+  options: { label: string; active: boolean }[];
+}
+
+export interface HudScanPanel {
+  label: string;
+  value: string;
+  bars: number[];
+}
+
 export interface HudTelemetry {
   metrics: HudMetric[];
   storageRings: HudRing[];
@@ -32,6 +48,10 @@ export interface HudTelemetry {
   lineSeries: number[];
   toggles: HudToggle[];
   menuModes: string[];
+  statusRails: HudStatusRail[];
+  radioGroups: HudRadioGroup[];
+  scanPanels: HudScanPanel[];
+  microLabels: string[];
   eventFeed: string[];
 }
 
@@ -65,6 +85,48 @@ export function buildHudTelemetry(): HudTelemetry {
       { label: 'Audit lock', enabled: true },
     ],
     menuModes: ['Overview', 'Validate', 'Deploy', 'Observe'],
+    statusRails: [
+      { label: 'RAD_CP', value: 82 },
+      { label: 'API_TX', value: 74 },
+      { label: 'CSI_IO', value: 91 },
+      { label: 'MESH_RT', value: 68 },
+      { label: 'VC_SYNC', value: 88 },
+      { label: 'AUDIT', value: 79 },
+    ],
+    radioGroups: [
+      {
+        label: 'Mode matrix',
+        options: [
+          { label: 'A1', active: true },
+          { label: 'A2', active: false },
+          { label: 'A3', active: true },
+          { label: 'A4', active: false },
+        ],
+      },
+      {
+        label: 'Routing',
+        options: [
+          { label: 'R1', active: false },
+          { label: 'R2', active: true },
+          { label: 'R3', active: true },
+          { label: 'R4', active: false },
+        ],
+      },
+      {
+        label: 'Apply gate',
+        options: [
+          { label: 'G1', active: true },
+          { label: 'G2', active: true },
+          { label: 'G3', active: false },
+          { label: 'G4', active: true },
+        ],
+      },
+    ],
+    scanPanels: [
+      { label: 'Volume scan', value: '92_002', bars: [62, 47, 80, 70, 88] },
+      { label: 'Mesh scan', value: 'TS_23.45', bars: [35, 76, 52, 91, 64] },
+    ],
+    microLabels: ['X_300.1', 'RAD_CP_02.2', 'AUTOMATION SECT 04', 'MEMBRANE_SECT10', 'TS_23.45'],
     eventFeed: [
       'control-plane accepted manifest dry-run',
       'ceph-csi provisioner heartbeat green',

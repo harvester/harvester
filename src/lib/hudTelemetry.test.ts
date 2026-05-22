@@ -11,6 +11,10 @@ describe('buildHudTelemetry', () => {
     expect(telemetry.lineSeries).toHaveLength(12);
     expect(telemetry.toggles.filter((toggle) => toggle.enabled).map((toggle) => toggle.label)).toContain('vCluster');
     expect(telemetry.menuModes).toEqual(['Overview', 'Validate', 'Deploy', 'Observe']);
+    expect(telemetry.statusRails).toHaveLength(6);
+    expect(telemetry.radioGroups.flatMap((group) => group.options)).toHaveLength(12);
+    expect(telemetry.scanPanels.map((panel) => panel.label)).toEqual(['Volume scan', 'Mesh scan']);
+    expect(telemetry.microLabels).toContain('X_300.1');
     expect(telemetry.eventFeed[0]).toContain('control-plane');
   });
 });

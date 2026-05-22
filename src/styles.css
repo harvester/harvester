@@ -1876,3 +1876,261 @@ select {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Avengers Banner Lab reference layer: lab rails, radio matrices, scan windows, crosshairs */
+.hud-dashboard {
+  background:
+    radial-gradient(circle at 42% 38%, rgba(51, 247, 255, 0.13), transparent 28rem),
+    radial-gradient(circle at 79% 72%, rgba(117, 255, 106, 0.16), transparent 18rem),
+    linear-gradient(90deg, rgba(51, 247, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(rgba(51, 247, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(145deg, rgba(0, 9, 17, 0.98), rgba(2, 24, 32, 0.9));
+  background-size: auto, auto, 56px 56px, 56px 56px, auto;
+}
+
+.banner-corner {
+  position: absolute;
+  z-index: 2;
+  width: 4.8rem;
+  height: 4.8rem;
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.banner-corner::before,
+.banner-corner::after {
+  content: '';
+  position: absolute;
+  background: linear-gradient(90deg, var(--hud-cyan), var(--hud-green));
+  box-shadow: 0 0 16px rgba(51, 247, 255, 0.28);
+}
+
+.banner-corner::before { width: 100%; height: 1px; }
+.banner-corner::after { width: 1px; height: 100%; }
+.banner-corner-tl { left: 0.65rem; top: 0.65rem; }
+.banner-corner-tr { right: 0.65rem; top: 0.65rem; transform: scaleX(-1); }
+.banner-corner-bl { left: 0.65rem; bottom: 0.65rem; transform: scaleY(-1); }
+.banner-corner-br { right: 0.65rem; bottom: 0.65rem; transform: scale(-1); }
+
+.banner-lab-crosshair {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent calc(50% - 1px), rgba(51, 247, 255, 0.18) 50%, transparent calc(50% + 1px)),
+    linear-gradient(transparent calc(49% - 1px), rgba(51, 247, 255, 0.12) 49%, transparent calc(49% + 1px));
+  mask-image: radial-gradient(circle, rgba(0, 0, 0, 0.88), transparent 72%);
+}
+
+.banner-micro-labels {
+  position: absolute;
+  z-index: 1;
+  inset: 1rem;
+  pointer-events: none;
+  color: rgba(239, 253, 255, 0.52);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.banner-micro-labels span {
+  position: absolute;
+}
+
+.banner-micro-labels span:nth-child(1) { left: 0.5rem; top: 0.35rem; }
+.banner-micro-labels span:nth-child(2) { left: 0.5rem; top: 43%; writing-mode: vertical-rl; }
+.banner-micro-labels span:nth-child(3) { right: 8rem; top: 0.7rem; }
+.banner-micro-labels span:nth-child(4) { right: 1rem; top: 38%; writing-mode: vertical-rl; }
+.banner-micro-labels span:nth-child(5) { left: 3rem; bottom: 0.55rem; }
+
+.banner-lab-strip {
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 0.8rem;
+  padding: 0.75rem;
+}
+
+.banner-status-rails {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.8rem;
+}
+
+.banner-status-rail {
+  display: grid;
+  grid-template-columns: 4.8rem 1fr 2.2rem;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--hud-muted);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+}
+
+.banner-status-rail span {
+  color: var(--hud-cyan);
+  text-transform: uppercase;
+}
+
+.banner-status-rail i {
+  display: block;
+  height: 0.35rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(51, 247, 255, 0.12);
+}
+
+.banner-status-rail b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--hud-cyan), var(--hud-green));
+  animation: hud-meter-breathe 2.4s ease-in-out infinite;
+}
+
+.banner-status-rail strong {
+  color: var(--hud-green);
+  font-size: 0.7rem;
+}
+
+.banner-radio-matrix {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.banner-radio-matrix fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid rgba(51, 247, 255, 0.2);
+  border-radius: 14px;
+  padding: 0.5rem;
+  background: rgba(0, 7, 15, 0.48);
+}
+
+.banner-radio-matrix legend {
+  padding: 0 0.25rem;
+  color: var(--hud-cyan);
+  font-size: 0.58rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.banner-radio-matrix fieldset > div {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.35rem;
+}
+
+.banner-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--hud-muted);
+  font-size: 0.62rem;
+}
+
+.banner-radio input {
+  width: 0.8rem;
+  height: 0.8rem;
+  margin: 0;
+  appearance: none;
+  border: 1px solid rgba(51, 247, 255, 0.5);
+  border-radius: 50%;
+  background: rgba(51, 247, 255, 0.06);
+}
+
+.banner-radio.is-active {
+  color: var(--hud-white);
+}
+
+.banner-radio.is-active input {
+  border-color: var(--hud-green);
+  background: radial-gradient(circle, var(--hud-green) 0 38%, transparent 42%);
+  box-shadow: 0 0 12px rgba(117, 255, 106, 0.6);
+}
+
+.banner-scan-stack {
+  min-height: 14rem;
+  padding: 0.95rem;
+}
+
+.banner-scan-card {
+  display: grid;
+  grid-template-columns: 5.6rem 1fr;
+  gap: 0.7rem;
+  border: 1px solid rgba(51, 247, 255, 0.18);
+  border-radius: 16px;
+  margin-top: 0.7rem;
+  padding: 0.55rem;
+  background: rgba(0, 7, 15, 0.56);
+}
+
+.banner-scan-visual {
+  position: relative;
+  min-height: 4.5rem;
+  overflow: hidden;
+  border: 1px solid rgba(51, 247, 255, 0.2);
+  border-radius: 12px;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(51, 247, 255, 0.3), transparent 45%),
+    linear-gradient(rgba(117, 255, 106, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(51, 247, 255, 0.08) 1px, transparent 1px),
+    #020711;
+  background-size: auto, 10px 10px, 10px 10px, auto;
+}
+
+.banner-scan-visual span {
+  position: absolute;
+  inset: 22% 12%;
+  border: 1px solid rgba(117, 255, 106, 0.45);
+  border-radius: 48% 52% 45% 55%;
+  animation: hud-spin 16s linear infinite;
+}
+
+.banner-scan-visual i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 42%;
+  height: 1px;
+  background: var(--hud-green);
+  box-shadow: 0 0 12px rgba(117, 255, 106, 0.8);
+  animation: hud-scan 2.8s linear infinite;
+}
+
+.banner-scan-card strong {
+  display: block;
+  color: var(--hud-white);
+  font-size: 0.76rem;
+}
+
+.banner-scan-card code {
+  display: inline-block;
+  margin: 0.25rem 0 0.45rem;
+  color: var(--hud-green);
+  font-size: 0.65rem;
+}
+
+.banner-mini-bars {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.banner-mini-bars b {
+  display: block;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--hud-green), var(--hud-cyan));
+  animation: hud-meter-breathe 2s ease-in-out infinite;
+}
+
+@media (max-width: 1280px) {
+  .banner-lab-strip,
+  .banner-status-rails,
+  .banner-radio-matrix {
+    grid-template-columns: 1fr;
+  }
+}
