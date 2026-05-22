@@ -19,11 +19,19 @@ export interface HudNode {
   status: 'online' | 'syncing' | 'watching';
 }
 
+export interface HudToggle {
+  label: string;
+  enabled: boolean;
+}
+
 export interface HudTelemetry {
   metrics: HudMetric[];
   storageRings: HudRing[];
   nodes: HudNode[];
   throughputBars: number[];
+  lineSeries: number[];
+  toggles: HudToggle[];
+  menuModes: string[];
   eventFeed: string[];
 }
 
@@ -47,6 +55,16 @@ export function buildHudTelemetry(): HudTelemetry {
       { id: 'n4', label: 'vcluster', x: 50, y: 82, status: 'online' },
     ],
     throughputBars: [38, 74, 48, 89, 64, 93, 58, 81, 44, 72, 96, 69],
+    lineSeries: [32, 44, 41, 68, 54, 72, 61, 88, 77, 94, 82, 97],
+    toggles: [
+      { label: 'Dry-run', enabled: true },
+      { label: 'vCluster', enabled: true },
+      { label: 'CSI', enabled: true },
+      { label: 'Mesh', enabled: true },
+      { label: 'Auto apply', enabled: false },
+      { label: 'Audit lock', enabled: true },
+    ],
+    menuModes: ['Overview', 'Validate', 'Deploy', 'Observe'],
     eventFeed: [
       'control-plane accepted manifest dry-run',
       'ceph-csi provisioner heartbeat green',

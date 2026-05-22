@@ -8,6 +8,9 @@ describe('buildHudTelemetry', () => {
     expect(telemetry.metrics).toHaveLength(4);
     expect(telemetry.metrics.every((metric) => metric.value >= 0 && metric.value <= 100)).toBe(true);
     expect(telemetry.storageRings.map((ring) => ring.label)).toEqual(['Ceph', 'Longhorn', 'NVMe-oF']);
+    expect(telemetry.lineSeries).toHaveLength(12);
+    expect(telemetry.toggles.filter((toggle) => toggle.enabled).map((toggle) => toggle.label)).toContain('vCluster');
+    expect(telemetry.menuModes).toEqual(['Overview', 'Validate', 'Deploy', 'Observe']);
     expect(telemetry.eventFeed[0]).toContain('control-plane');
   });
 });

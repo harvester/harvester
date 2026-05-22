@@ -1611,3 +1611,268 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Reference-modeled HUD refinements: segmented menus, toggles, dropdown shells, waveform widgets */
+.hud-dashboard::before,
+.cluster-console::before {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  pointer-events: none;
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, var(--hud-cyan) 0 18px, transparent 18px) top left / 80px 80px no-repeat,
+    linear-gradient(225deg, var(--hud-green) 0 18px, transparent 18px) top right / 80px 80px no-repeat,
+    linear-gradient(45deg, var(--hud-cyan) 0 18px, transparent 18px) bottom left / 80px 80px no-repeat,
+    linear-gradient(315deg, var(--hud-green) 0 18px, transparent 18px) bottom right / 80px 80px no-repeat;
+  opacity: 0.22;
+}
+
+.hud-panel,
+.cluster-step-card,
+.wizard-panel,
+.manifest-panel,
+.login-container {
+  clip-path: polygon(0 14px, 14px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 18px 100%, 0 calc(100% - 18px));
+}
+
+.hud-reference-controls {
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.65rem;
+}
+
+.hud-segment-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.hud-segment-menu button,
+.hud-select-shell select {
+  border: 1px solid rgba(51, 247, 255, 0.25);
+  border-radius: 999px;
+  color: var(--hud-cyan);
+  background: linear-gradient(180deg, rgba(51, 247, 255, 0.08), rgba(1, 9, 18, 0.88));
+  padding: 0.5rem 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.hud-segment-menu button.is-selected,
+.hud-segment-menu button:hover {
+  color: #02110d;
+  border-color: rgba(117, 255, 106, 0.88);
+  background: linear-gradient(90deg, var(--hud-green), var(--hud-cyan));
+  box-shadow: 0 0 22px rgba(117, 255, 106, 0.32);
+}
+
+.hud-select-shell {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--hud-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.hud-select-shell select {
+  min-width: 13rem;
+  color: var(--hud-white);
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--hud-green) 50%), linear-gradient(135deg, var(--hud-green) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 54%, calc(100% - 12px) 54%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+select,
+input,
+textarea {
+  color-scheme: dark;
+}
+
+select {
+  border: 1px solid rgba(51, 247, 255, 0.22);
+  border-radius: 12px;
+  color: var(--hud-white);
+  background: #061426;
+}
+
+.checkbox-label input[type='checkbox'] {
+  width: 2.35rem;
+  height: 1.2rem;
+  margin-right: 0.5rem;
+  appearance: none;
+  border: 1px solid rgba(51, 247, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(51, 247, 255, 0.08);
+  vertical-align: middle;
+  position: relative;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.checkbox-label input[type='checkbox']::after {
+  content: '';
+  position: absolute;
+  top: 0.16rem;
+  left: 0.16rem;
+  width: 0.78rem;
+  height: 0.78rem;
+  border-radius: 50%;
+  background: var(--hud-muted);
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.checkbox-label input[type='checkbox']:checked {
+  border-color: rgba(117, 255, 106, 0.82);
+  background: rgba(117, 255, 106, 0.18);
+  box-shadow: 0 0 18px rgba(117, 255, 106, 0.2);
+}
+
+.checkbox-label input[type='checkbox']:checked::after {
+  transform: translateX(1.1rem);
+  background: var(--hud-green);
+  box-shadow: 0 0 12px rgba(117, 255, 106, 0.8);
+}
+
+.hud-waveform,
+.hud-toggle-bank {
+  min-height: 14rem;
+  padding: 0.95rem;
+}
+
+.hud-waveform svg {
+  width: 100%;
+  height: 10.7rem;
+  margin-top: 0.85rem;
+  overflow: visible;
+  border-radius: 16px;
+  background:
+    linear-gradient(rgba(51, 247, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(51, 247, 255, 0.08) 1px, transparent 1px),
+    rgba(0, 7, 15, 0.62);
+  background-size: 22px 22px;
+}
+
+.hud-waveform polyline {
+  fill: none;
+  stroke: url(#hudWaveGradient);
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 8px rgba(51, 247, 255, 0.7));
+  stroke-dasharray: 180;
+  animation: hud-wave-draw 3.2s ease-in-out infinite alternate;
+}
+
+.hud-waveform circle {
+  fill: var(--hud-green);
+  filter: drop-shadow(0 0 7px rgba(117, 255, 106, 0.85));
+  animation: hud-pulse 1.8s ease-in-out infinite;
+}
+
+.hud-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.9rem;
+}
+
+.hud-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid rgba(51, 247, 255, 0.18);
+  border-radius: 999px;
+  padding: 0.5rem 0.55rem 0.5rem 0.75rem;
+  color: var(--hud-muted);
+  background: rgba(0, 7, 15, 0.64);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.hud-toggle i {
+  position: relative;
+  width: 2.6rem;
+  height: 1.25rem;
+  border: 1px solid rgba(51, 247, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(51, 247, 255, 0.08);
+}
+
+.hud-toggle i::after {
+  content: '';
+  position: absolute;
+  top: 0.17rem;
+  left: 0.18rem;
+  width: 0.78rem;
+  height: 0.78rem;
+  border-radius: 50%;
+  background: var(--hud-muted);
+}
+
+.hud-toggle.is-on {
+  color: var(--hud-white);
+  border-color: rgba(117, 255, 106, 0.28);
+}
+
+.hud-toggle.is-on i {
+  border-color: rgba(117, 255, 106, 0.68);
+  background: rgba(117, 255, 106, 0.16);
+  box-shadow: inset 0 0 12px rgba(117, 255, 106, 0.12);
+}
+
+.hud-toggle.is-on i::after {
+  transform: translateX(1.34rem);
+  background: var(--hud-green);
+  box-shadow: 0 0 14px rgba(117, 255, 106, 0.84);
+}
+
+.sidebar::after {
+  content: 'NEXUS NAVIGATION / SYSTEM MENU';
+  position: absolute;
+  left: 1.45rem;
+  bottom: 1rem;
+  color: rgba(51, 247, 255, 0.32);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  writing-mode: vertical-rl;
+}
+
+.step-list button {
+  position: relative;
+  overflow: hidden;
+}
+
+.step-list button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 35%;
+  background: linear-gradient(90deg, transparent, rgba(51, 247, 255, 0.16), transparent);
+  transform: skewX(-18deg);
+  animation: hud-sheen 5.5s ease-in-out infinite;
+}
+
+@keyframes hud-wave-draw {
+  from { stroke-dashoffset: 95; }
+  to { stroke-dashoffset: 0; }
+}
+
+@media (max-width: 860px) {
+  .hud-reference-controls,
+  .hud-toggle-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}

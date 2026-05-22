@@ -2,6 +2,9 @@ import type { CSSProperties } from 'react';
 import { buildHudTelemetry } from '../lib/hudTelemetry';
 
 const telemetry = buildHudTelemetry();
+const linePoints = telemetry.lineSeries
+  .map((value, index) => `${(index / (telemetry.lineSeries.length - 1)) * 100},${100 - value}`)
+  .join(' ');
 
 export function HudDashboard() {
   return (
@@ -22,6 +25,24 @@ export function HudDashboard() {
           <span className="hud-live-dot" />
           DEMO STREAM ACTIVE
         </div>
+      </div>
+
+      <div className="hud-reference-controls hud-panel">
+        <nav className="hud-segment-menu" aria-label="HUD dashboard menu modes">
+          {telemetry.menuModes.map((mode, index) => (
+            <button className={index === 0 ? 'is-selected' : ''} key={mode} type="button">
+              {mode}
+            </button>
+          ))}
+        </nav>
+        <label className="hud-select-shell">
+          <span>Target cluster</span>
+          <select value="edge-a-vcluster" onChange={() => undefined}>
+            <option value="edge-a-vcluster">edge-a / vcluster</option>
+            <option value="edge-b-vcluster">edge-b / vcluster</option>
+            <option value="control-plane">control-plane</option>
+          </select>
+        </label>
       </div>
 
       <div className="hud-metric-grid">
@@ -101,6 +122,46 @@ export function HudDashboard() {
             <span>dry-run</span>
             <span>diff</span>
             <span>apply</span>
+          </div>
+        </article>
+
+        <article className="hud-panel hud-waveform">
+          <div className="hud-panel-title">
+            <span>Resource waveform</span>
+            <strong>sync trace</strong>
+          </div>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="hudWaveGradient" x1="0%" x2="100%">
+                <stop offset="0%" stopColor="#33f7ff" />
+                <stop offset="100%" stopColor="#75ff6a" />
+              </linearGradient>
+            </defs>
+            <polyline points={linePoints} />
+            {telemetry.lineSeries.map((value, index) => (
+              <circle
+                key={`${value}-${index}`}
+                cx={(index / (telemetry.lineSeries.length - 1)) * 100}
+                cy={100 - value}
+                r="1.7"
+                style={{ animationDelay: `${index * 120}ms` }}
+              />
+            ))}
+          </svg>
+        </article>
+
+        <article className="hud-panel hud-toggle-bank">
+          <div className="hud-panel-title">
+            <span>Control toggles</span>
+            <strong>armed</strong>
+          </div>
+          <div className="hud-toggle-grid">
+            {telemetry.toggles.map((toggle) => (
+              <div className={toggle.enabled ? 'hud-toggle is-on' : 'hud-toggle'} key={toggle.label}>
+                <span>{toggle.label}</span>
+                <i />
+              </div>
+            ))}
           </div>
         </article>
 
