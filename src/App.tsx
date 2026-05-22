@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { ApplicationConfig, defaultConfig, StorageType } from './types';
 import { generateManifest } from './lib/manifestGenerator';
+import { isDemoLogin } from './lib/auth';
+import { LoginScreen } from './components/LoginScreen';
 import { Wizard } from './components/Wizard';
 import { YamlEditor } from './components/YamlEditor';
 
@@ -20,11 +22,24 @@ const STORAGE_TEMPLATES: Record<StorageType, string> = {
 };
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [config, setConfig] = useState<ApplicationConfig>(defaultConfig);
   const [step, setStep] = useState(1);
   const [editedYaml, setEditedYaml] = useState('');
 
   const manifest = useMemo(() => generateManifest(config), [config]);
+
+  if (!isAuthenticated) {
+    return (
+      <LoginScreen
+        onLogin={(username, password) => {
+          const loginAccepted = isDemoLogin(username, password);
+          setIsAuthenticated(loginAccepted);
+          return loginAccepted;
+        }}
+      />
+    );
+  }
 
   return (
     <div className="app-shell">

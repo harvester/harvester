@@ -330,6 +330,16 @@ label {
   color: #e2e8f0;
 }
 
+
+.login-error {
+  border: 1px solid rgba(255, 92, 92, 0.55);
+  border-radius: 10px;
+  background: rgba(255, 92, 92, 0.12);
+  color: #ffb3b3;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.9rem;
+}
+
 .login-btn {
   width: 100%;
   padding: 1rem;

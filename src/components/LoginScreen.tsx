@@ -1,21 +1,26 @@
 import { useState } from 'react';
 
 interface LoginScreenProps {
-  onLogin: (username: string, password: string) => void;
+  onLogin: (username: string, password: string) => boolean;
 }
 
 export function LoginScreen({ onLogin }: LoginScreenProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError('');
 
     // Simulate login delay for demo
     setTimeout(() => {
-      onLogin(username, password);
+      const loginAccepted = onLogin(username, password);
+      if (!loginAccepted) {
+        setError('Use the demo credentials: admin / demo');
+      }
       setIsLoading(false);
     }, 1000);
   };
@@ -39,7 +44,10 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
               id="username"
               type="text"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                setError('');
+              }}
               placeholder="Enter your username"
               required
             />
@@ -51,11 +59,16 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError('');
+              }}
               placeholder="Enter your password"
               required
             />
           </div>
+
+          {error && <div className="login-error" role="alert">{error}</div>}
 
           <button
             type="submit"
