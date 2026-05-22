@@ -40,6 +40,8 @@ func RegisterFakeControllers(ctx context.Context, management *config.Management,
 		helm: hc,
 	}
 
+	logrus.Infof("fake helmchart-controller is registered")
+
 	hc.OnChange(ctx, "fake-helmchart-controller", h.OnHelmChartChange)
 	hc.OnRemove(ctx, "fake-helmchart-controller-deletion", h.OnHelmChartDelete)
 	return nil
@@ -75,7 +77,7 @@ func (h *handler) OnHelmChartChange(_ string, hc *helmv1.HelmChart) (*helmv1.Hel
 		return hc, nil
 	}
 
-	logrus.Infof("Linking job %s to helmChart %s/%s with hash %s", jobName, hcCopy.Namespace, hcCopy.Name, currentHash)
+	logrus.Infof("Linking job %s to helmChart %s/%s with hash %s, hash changed: %v", jobName, hcCopy.Namespace, hcCopy.Name, currentHash, changed)
 	hcCopy.Status.JobName = jobName
 	return h.helm.Update(hcCopy)
 }
@@ -196,7 +198,7 @@ func (h *handler) createJobIfNotFound(namespace, name, hash string, override boo
 		},
 	}
 	_, err = h.job.Create(job)
-	logrus.Infof("new job %s is created with result %+v", job.Name, err)
+	logrus.Infof("new job %s is created, error result: %+v", job.Name, err)
 	return err
 }
 
