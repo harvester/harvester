@@ -13,7 +13,7 @@ if ! git -C "${TOP_DIR}" rev-parse HEAD &>/dev/null 2>&1; then
     if [[ -f "${_VERSION_ENV}" ]]; then
         # shellcheck source=/dev/null
         source "${_VERSION_ENV}"
-        if [ "$1" = "debug" ]; then
+        if [ "${1:-}" = "debug" ]; then
             echo "The envs from the pre-generated file:"
             echo ""
             tail -n +3 "${_VERSION_ENV}" || echo "ERROR: failed to run tail" >&2
@@ -111,7 +111,7 @@ TAG="${TAG}"
 REPO="${REPO}"
 __EOF__
 
-if [ "$1" = "debug" ]; then
+if [ "${1:-}" = "debug" ]; then
     echo "The newly generated envs:"
     echo ""
     tail -n +3 "${_VERSION_ENV}" || echo "ERROR: failed to run tail" >&2
