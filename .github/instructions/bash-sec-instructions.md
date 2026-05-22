@@ -1,5 +1,5 @@
 ---
-applyTo: "package/**/*.sh, scripts/**/*.sh, **/*.sh"
+applyTo: "**/*.sh"
 ---
 
 # Bash Security Review Instructions

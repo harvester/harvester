@@ -1,5 +1,5 @@
 ---
-applyTo: "pkg/**/*.go, cmd/**/*.go, test/**/*.go, **/*.go, go.mod, go.sum"
+applyTo: "**/*.go, go.mod, go.sum"
 ---
 
 # Golang Security Review Instructions
