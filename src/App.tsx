@@ -3,6 +3,7 @@ import { ApplicationConfig, defaultConfig, StorageType } from './types';
 import { generateManifest } from './lib/manifestGenerator';
 import { isDemoLogin } from './lib/auth';
 import { LoginScreen } from './components/LoginScreen';
+import { HudDashboard } from './components/HudDashboard';
 import { Wizard } from './components/Wizard';
 import { YamlEditor } from './components/YamlEditor';
 
@@ -80,6 +81,7 @@ function App() {
         </div>
       </aside>
       <main className="main-view">
+        <HudDashboard />
         <Wizard currentStep={step} config={config} onChange={setConfig} onNext={() => setStep(Math.min(step + 1, 7))} onBack={() => setStep(Math.max(step - 1, 1))} />
         <section className="manifest-panel">
           <div className="panel-header">
