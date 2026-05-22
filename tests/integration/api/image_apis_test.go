@@ -356,7 +356,7 @@ var _ = Describe("verify image APIs", func() {
 			var (
 				imageName        = fuzz.String(5)
 				imageDisplayName = fuzz.String(5)
-				cirrosURL        = "https://download.cirros-cloud.net/0.5.1/cirros-0.5.1-x86_64-disk.img"
+				cirrosURL        = "https://download.cirros-cloud.net/0.6.3/cirros-0.6.3-x86_64-disk.img"
 				image            = harvesterv1.VirtualMachineImage{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      imageName,
