@@ -81,6 +81,14 @@ clean_up_tmp_files()
     umount $tmp_rootfs_mount || echo "Umount $tmp_rootfs_mount failed with return code: $?"
   fi
   echo "Clean up tmp files..."
+  if [ -n "$tmp_rootfs_dir" ]; then
+    echo "Try to remove $tmp_rootfs_dir..."
+    rm -rf "$tmp_rootfs_dir"
+  fi
+  if [ -n "$tmp_rootfs_mount" ]; then
+    echo "Try to remove $tmp_rootfs_mount..."
+    rm -rf "$tmp_rootfs_mount"
+  fi
   if [ -n "$NEW_OS_SQUASHFS_IMAGE_FILE" ]; then
     echo "Try to remove $NEW_OS_SQUASHFS_IMAGE_FILE..."
     rm -vf "$NEW_OS_SQUASHFS_IMAGE_FILE"
@@ -678,6 +686,18 @@ upgrade_os() {
 
   tmp_rootfs_mount=$(mktemp -d -p $HOST_DIR/tmp)
   mount $tmp_rootfs_squashfs $tmp_rootfs_mount
+  tmp_rootfs_dir=$(mktemp -d -p $HOST_DIR/tmp)
+  cp -a "$tmp_rootfs_mount/." "$tmp_rootfs_dir/"
+
+  case "$(uname -m)" in
+    aarch64|arm64)
+      sed -i 's|kernel=/boot/vmlinuz|kernel=/boot/Image|g' "$tmp_rootfs_dir/etc/cos/bootargs.cfg"
+      if ! grep -q '^set kernel=/boot/Image$' "$tmp_rootfs_dir/etc/cos/bootargs.cfg"; then
+        echo "Failed to patch ARM kernel path in rootfs bootargs.cfg"
+        exit 1
+      fi
+      ;;
+  esac
 
   tmp_elemental_config_dir=$(mktemp -d -p $HOST_DIR/tmp)
   # adjust new active.img size
@@ -717,7 +737,7 @@ EOF
   fi
   chroot $HOST_DIR /tmp/elemental upgrade \
     --logfile "$elemental_upgrade_log" \
-    --directory ${tmp_rootfs_mount#"$HOST_DIR"} \
+    --directory ${tmp_rootfs_dir#"$HOST_DIR"} \
     --config-dir ${tmp_elemental_config_dir#"$HOST_DIR"} \
     --debug || ret=$?
   if [ -n "$glibc_too_old" ]; then
@@ -797,6 +817,10 @@ EOF
   set_nic_names_by_mac_address
 
   umount $tmp_rootfs_mount
+  rm -rf "$tmp_rootfs_mount"
+  rm -rf "$tmp_rootfs_dir"
+  tmp_rootfs_mount=
+  tmp_rootfs_dir=
   rm -rf $tmp_rootfs_squashfs
 
   reboot_if_job_succeed
