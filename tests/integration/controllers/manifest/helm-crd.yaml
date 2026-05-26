@@ -36,61 +36,88 @@ spec:
       name: v1
       schema:
         openAPIV3Schema:
+          type: object
           properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
             spec:
+              type: object
               properties:
-                bootstrap:
+                targetNamespace:
+                  type: string
+                createNamespace:
                   type: boolean
                 chart:
-                  nullable: true
-                  type: string
-                chartContent:
-                  nullable: true
-                  type: string
-                failurePolicy:
-                  nullable: true
-                  type: string
-                helmVersion:
-                  nullable: true
-                  type: string
-                jobImage:
-                  nullable: true
-                  type: string
-                repo:
-                  nullable: true
-                  type: string
-                repoCA:
-                  nullable: true
-                  type: string
-                set:
-                  additionalProperties:
-                    nullable: true
-                    type: string
-                  nullable: true
-                  type: object
-                targetNamespace:
-                  nullable: true
-                  type: string
-                timeout:
-                  nullable: true
-                  type: string
-                valuesContent:
-                  nullable: true
                   type: string
                 version:
-                  nullable: true
                   type: string
-              type: object
+                repo:
+                  type: string
+                repoCA:
+                  type: string
+                repoCAConfigMap:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                  description: "LocalObjectReference to the repo CA ConfigMap"
+                set:
+                  type: object
+                  additionalProperties:
+                    x-kubernetes-int-or-string: true
+                  description: "Map of IntOrString values"
+                valuesContent:
+                  type: string
+                helmVersion:
+                  type: string
+                bootstrap:
+                  type: boolean
+                chartContent:
+                  type: string
+                jobImage:
+                  type: string
+                backOffLimit:
+                  type: integer
+                  format: int32
+                timeout:
+                  type: string
+                  pattern: '^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$'
+                  description: "metav1.Duration string format (e.g. 1h30m)"
+                failurePolicy:
+                  type: string
+                authSecret:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                  description: "LocalObjectReference to the auth Secret"
+                authPassCredentials:
+                  type: boolean
+                dockerRegistrySecret:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                  description: "LocalObjectReference to the docker registry Secret"
+                podSecurityContext:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                  description: "corev1.PodSecurityContext definition"
+                securityContext:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                  description: "corev1.SecurityContext definition"
             status:
+              type: object
               properties:
                 jobName:
-                  nullable: true
                   type: string
-              type: object
-          type: object
       served: true
       storage: true
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -108,16 +135,20 @@ spec:
     - name: v1
       schema:
         openAPIV3Schema:
+          type: object
           properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
             spec:
+              type: object
               properties:
                 failurePolicy:
-                  nullable: true
                   type: string
                 valuesContent:
-                  nullable: true
                   type: string
-              type: object
-          type: object
       served: true
       storage: true
