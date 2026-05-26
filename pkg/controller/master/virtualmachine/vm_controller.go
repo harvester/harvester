@@ -805,14 +805,17 @@ func (h *VMController) ReconcileBackendStorageClone(_ string, vm *kubevirtv1.Vir
 
 	startTime, err := time.Parse(time.RFC3339, startTimeStr)
 	if err != nil {
-		logrus.Warnf("Failed to parse clone start time for VM %s/%s: %v", vm.Namespace, vm.Name, err)
+		return nil, fmt.Errorf("failed to parse clone start time for VM %s/%s: %w", vm.Namespace, vm.Name, err)
 	} else if time.Since(startTime) > backendStorageCloneTimeout {
-		return h.failBackendStorageClone(vm, "Clone operation exceeded timeout of 30 minutes")
+		return h.failBackendStorageClone(vm, fmt.Sprintf("Clone operation exceeded timeout of %v", backendStorageCloneTimeout))
 	}
 
-	clonedPVC, err := h.reconcileClonedBackendStoragePVC(vm, sourceVMName)
+	clonedPVC, skipClone, err := h.reconcileClonedBackendStoragePVC(vm, sourceVMName)
 	if err != nil {
 		return nil, fmt.Errorf("reconcile cloned backend storage PVC for VM %s/%s: %w", vm.Namespace, vm.Name, err)
+	}
+	if skipClone {
+		return h.failBackendStorageClone(vm, fmt.Sprintf("Source VM %s has no backend storage PVC", sourceVMName))
 	}
 	if clonedPVC == nil {
 		h.recorder.Eventf(vm, corev1.EventTypeWarning, "ClonePVCNotFound",
@@ -838,12 +841,12 @@ func (h *VMController) ReconcileBackendStorageClone(_ string, vm *kubevirtv1.Vir
 		return h.completeBackendStorageClone(vm)
 	}
 
-	job, err := h.reconcileBackendStorageJob(vm, sourceVMName, clonedPVC, cloneAction)
+	job, waitForDeletion, err := h.reconcileBackendStorageJob(vm, sourceVMName, clonedPVC, cloneAction)
 	if err != nil {
 		return nil, fmt.Errorf("reconcile backend storage job for VM %s/%s: %w", vm.Namespace, vm.Name, err)
 	}
 	// Wait for job deletion GC.
-	if job == nil {
+	if waitForDeletion {
 		h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 5*time.Second)
 		return vm, nil
 	}
@@ -896,14 +899,14 @@ func (h *VMController) ReconcileBackendStorageClone(_ string, vm *kubevirtv1.Vir
 	return vm, nil
 }
 
-func (h *VMController) reconcileClonedBackendStoragePVC(vm *kubevirtv1.VirtualMachine, sourceVMName string) (*corev1.PersistentVolumeClaim, error) {
+func (h *VMController) reconcileClonedBackendStoragePVC(vm *kubevirtv1.VirtualMachine, sourceVMName string) (*corev1.PersistentVolumeClaim, bool, error) {
 	clonedPVCName := wranglername.SafeConcatName(backendstorage.PVCPrefix, vm.Name)
 	pvc, err := h.pvcCache.Get(vm.Namespace, clonedPVCName)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return nil, err
+		return nil, false, err
 	}
 	if err == nil {
-		return pvc, nil
+		return pvc, false, nil
 	}
 
 	sourcePVCs, err := h.pvcClient.List(vm.Namespace, metav1.ListOptions{
@@ -911,14 +914,14 @@ func (h *VMController) reconcileClonedBackendStoragePVC(vm *kubevirtv1.VirtualMa
 			backendstorage.PVCPrefix: sourceVMName,
 		}.String()})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if len(sourcePVCs.Items) == 0 {
 		logrus.Warnf("no backend storage PVC found for source VM %s/%s, skipping clone", vm.Namespace, sourceVMName)
-		return nil, nil
+		return nil, true, nil
 	}
 	if len(sourcePVCs.Items) != 1 {
-		return nil, fmt.Errorf("expect 1 backend storage PVC for source VM %s/%s, got %d", vm.Namespace, sourceVMName, len(sourcePVCs.Items))
+		return nil, false, fmt.Errorf("expect 1 backend storage PVC for source VM %s/%s, got %d", vm.Namespace, sourceVMName, len(sourcePVCs.Items))
 	}
 	sourcePVC := sourcePVCs.Items[0]
 
@@ -949,29 +952,30 @@ func (h *VMController) reconcileClonedBackendStoragePVC(vm *kubevirtv1.VirtualMa
 	if err != nil {
 		if apierrors.IsAlreadyExists(err) {
 			// To prevent multiple PVCs created by concurrent reconciles, if the PVC already exists.
-			return h.pvcCache.Get(vm.Namespace, clonedPVCName)
+			pvc, err := h.pvcCache.Get(vm.Namespace, clonedPVCName)
+			return pvc, false, err
 		}
-		return nil, err
+		return nil, false, err
 	}
-	return created, nil
+	return created, false, nil
 }
 
-func (h *VMController) reconcileBackendStorageJob(vm *kubevirtv1.VirtualMachine, sourceVMName string, clonedPVC *corev1.PersistentVolumeClaim, cloneAction string) (*batchv1.Job, error) {
+func (h *VMController) reconcileBackendStorageJob(vm *kubevirtv1.VirtualMachine, sourceVMName string, clonedPVC *corev1.PersistentVolumeClaim, cloneAction string) (*batchv1.Job, bool, error) {
 	jobName := wranglername.SafeConcatName(util.BackendStorageJobPrefix, vm.Name)
 	job, waitForDeletion, err := h.getCurrentBackendStorageJob(vm, jobName)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if waitForDeletion {
-		return nil, nil
+		return nil, true, nil
 	}
 	if job != nil {
-		return job, nil
+		return job, false, nil
 	}
 
 	job, err = h.buildBackendStorageJob(vm, sourceVMName, clonedPVC, jobName, cloneAction)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	created, err := h.jobClient.Create(job)
 
@@ -980,16 +984,16 @@ func (h *VMController) reconcileBackendStorageJob(vm *kubevirtv1.VirtualMachine,
 		if apierrors.IsAlreadyExists(err) {
 			job, waitForDeletion, err := h.getCurrentBackendStorageJob(vm, jobName)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			if waitForDeletion {
-				return nil, nil
+				return nil, true, nil
 			}
-			return job, nil
+			return job, false, nil
 		}
-		return nil, err
+		return nil, false, err
 	}
-	return created, nil
+	return created, false, nil
 }
 
 func (h *VMController) buildBackendStorageJob(vm *kubevirtv1.VirtualMachine, sourceVMName string, clonedPVC *corev1.PersistentVolumeClaim, jobName string, cloneAction string) (*batchv1.Job, error) {
