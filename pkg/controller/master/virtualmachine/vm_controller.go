@@ -40,13 +40,14 @@ import (
 )
 
 const (
-	DefaultJobImage               = "docker.io/rancher/shell:v0.7.0"
 	backendStorageJobTTL          = 300
 	backendStorageJobBackoffLimit = 3
 	backendStorageJobLabelKey     = "harvesterhci.io/efi-rename-vm"
 	maxBackendStorageCloneRetries = 5
 	backendStorageCloneTimeout    = 30 * time.Minute
 )
+
+var fetchImageFromHelmValues = utilHelm.FetchImageFromHelmValues
 
 // A list of labels that are always automatically synchronized with the
 // VMI in addition to the instance labels.
@@ -760,7 +761,8 @@ func (h *VMController) CleanUpBackendStorageClone(_ string, vm *kubevirtv1.Virtu
 
 	jobName := wranglername.SafeConcatName(util.BackendStorageJobPrefix, vm.Name)
 	if err := h.jobClient.Delete(vm.Namespace, jobName, foregroundDeleteOptions()); err != nil && !apierrors.IsNotFound(err) {
-		logrus.Warnf("Failed to delete backend storage job %s/%s during VM deletion: %v", vm.Namespace, jobName, err)
+		err = fmt.Errorf("failed to delete backend storage job %s/%s during VM deletion: %w", vm.Namespace, jobName, err)
+		logrus.Warn(err.Error())
 		return vm, err
 	}
 
@@ -829,6 +831,9 @@ func (h *VMController) ReconcileBackendStorageClone(_ string, vm *kubevirtv1.Vir
 
 	// Check the clone action annotation to determine what post-clone processing is needed
 	cloneAction := vm.Annotations[util.AnnotationBackendStorageCloneActions]
+	if vm.Annotations[util.AnnotationBackendStorageCloneStage] == util.CloneStagePreCompleted {
+		return h.finalizeBackendStorageClone(vm)
+	}
 	if cloneAction == "" {
 		return h.completeBackendStorageClone(vm)
 	}
@@ -836,6 +841,11 @@ func (h *VMController) ReconcileBackendStorageClone(_ string, vm *kubevirtv1.Vir
 	job, err := h.reconcileBackendStorageJob(vm, sourceVMName, clonedPVC, cloneAction)
 	if err != nil {
 		return nil, fmt.Errorf("reconcile backend storage job for VM %s/%s: %w", vm.Namespace, vm.Name, err)
+	}
+	// Wait for job deletion GC.
+	if job == nil {
+		h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 5*time.Second)
+		return vm, nil
 	}
 
 	finish, failed := getBackendStorageJobStatus(job)
@@ -872,12 +882,18 @@ func (h *VMController) ReconcileBackendStorageClone(_ string, vm *kubevirtv1.Vir
 		return vm, nil
 	}
 
-	logrus.Infof("Backend storage job %s/%s succeeded, deleting job", job.Namespace, job.Name)
-	if err := h.jobClient.Delete(job.Namespace, job.Name, foregroundDeleteOptions()); err != nil && !apierrors.IsNotFound(err) {
-		logrus.Warnf("Failed to delete succeeded backend storage job %s/%s: %v", job.Namespace, job.Name, err)
+	vm, err = h.markBackendStorageClonePreCompleted(vm)
+	if err != nil {
+		return nil, fmt.Errorf("mark backend storage clone pre-completed for VM %s/%s: %w", vm.Namespace, vm.Name, err)
 	}
 
-	return h.completeBackendStorageClone(vm)
+	logrus.Infof("Backend storage job %s/%s succeeded, deleting job", job.Namespace, job.Name)
+	if err := h.jobClient.Delete(job.Namespace, job.Name, foregroundDeleteOptions()); err != nil && !apierrors.IsNotFound(err) {
+		return nil, fmt.Errorf("delete succeeded backend storage job %s/%s: %w", job.Namespace, job.Name, err)
+	}
+
+	h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 5*time.Second)
+	return vm, nil
 }
 
 func (h *VMController) reconcileClonedBackendStoragePVC(vm *kubevirtv1.VirtualMachine, sourceVMName string) (*corev1.PersistentVolumeClaim, error) {
@@ -942,46 +958,59 @@ func (h *VMController) reconcileClonedBackendStoragePVC(vm *kubevirtv1.VirtualMa
 
 func (h *VMController) reconcileBackendStorageJob(vm *kubevirtv1.VirtualMachine, sourceVMName string, clonedPVC *corev1.PersistentVolumeClaim, cloneAction string) (*batchv1.Job, error) {
 	jobName := wranglername.SafeConcatName(util.BackendStorageJobPrefix, vm.Name)
-	job, err := h.jobCache.Get(vm.Namespace, jobName)
-	if err == nil {
-		return job, nil
-	}
-	if !apierrors.IsNotFound(err) {
+	job, waitForDeletion, err := h.getCurrentBackendStorageJob(vm, jobName)
+	if err != nil {
 		return nil, err
 	}
+	if waitForDeletion {
+		return nil, nil
+	}
+	if job != nil {
+		return job, nil
+	}
 
-	job = h.buildBackendStorageJob(vm, sourceVMName, clonedPVC, jobName, cloneAction)
+	job, err = h.buildBackendStorageJob(vm, sourceVMName, clonedPVC, jobName, cloneAction)
+	if err != nil {
+		return nil, err
+	}
 	created, err := h.jobClient.Create(job)
 
 	if err != nil {
 		// To prevent multiple Jobs created by concurrent reconciles, if the Job already exists.
 		if apierrors.IsAlreadyExists(err) {
-			return h.jobCache.Get(vm.Namespace, jobName)
+			job, waitForDeletion, err := h.getCurrentBackendStorageJob(vm, jobName)
+			if err != nil {
+				return nil, err
+			}
+			if waitForDeletion {
+				return nil, nil
+			}
+			return job, nil
 		}
 		return nil, err
 	}
 	return created, nil
 }
 
-func (h *VMController) buildBackendStorageJob(vm *kubevirtv1.VirtualMachine, sourceVMName string, clonedPVC *corev1.PersistentVolumeClaim, jobName string, cloneAction string) *batchv1.Job {
+func (h *VMController) buildBackendStorageJob(vm *kubevirtv1.VirtualMachine, sourceVMName string, clonedPVC *corev1.PersistentVolumeClaim, jobName string, cloneAction string) (*batchv1.Job, error) {
 	script := h.buildBackendStorageScript(sourceVMName, vm.Name, cloneAction)
-	jobImage := DefaultJobImage
-	imagePullPolicy := corev1.PullIfNotPresent
-
-	if image, err := utilHelm.FetchImageFromHelmValues(
+	image, err := fetchImageFromHelmValues(
 		h.clientset,
 		util.FleetLocalNamespaceName,
 		util.HarvesterChartReleaseName,
 		[]string{"generalJob", "image"},
-	); err == nil {
-		jobImage = image.ImageName()
-		imagePullPolicy = image.GetImagePullPolicy()
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get generalJob image for backend storage job %s/%s: %w", vm.Namespace, jobName, err)
 	}
 
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      jobName,
 			Namespace: vm.Namespace,
+			Annotations: map[string]string{
+				util.AnnotationBackendStorageCloneStartTime: vm.Annotations[util.AnnotationBackendStorageCloneStartTime],
+			},
 			Labels: map[string]string{
 				backendStorageJobLabelKey: vm.Name,
 			},
@@ -1006,8 +1035,8 @@ func (h *VMController) buildBackendStorageJob(vm *kubevirtv1.VirtualMachine, sou
 					},
 					Containers: []corev1.Container{{
 						Name:            "backend-storage",
-						Image:           jobImage,
-						ImagePullPolicy: imagePullPolicy,
+						Image:           image.ImageName(),
+						ImagePullPolicy: image.GetImagePullPolicy(),
 						Command:         []string{"sh", "-c", script},
 						SecurityContext: &corev1.SecurityContext{
 							RunAsNonRoot:             ptr.To(true),
@@ -1032,7 +1061,7 @@ func (h *VMController) buildBackendStorageJob(vm *kubevirtv1.VirtualMachine, sou
 				},
 			},
 		},
-	}
+	}, nil
 }
 
 // buildBackendStorageScript generates the shell script for post-clone processing.
@@ -1090,6 +1119,7 @@ func (h *VMController) completeBackendStorageClone(vm *kubevirtv1.VirtualMachine
 	delete(vmCopy.Annotations, util.AnnotationBackendStorageCloneActions)
 	delete(vmCopy.Annotations, util.AnnotationBackendStorageCloneStartTime)
 	delete(vmCopy.Annotations, util.AnnotationBackendStorageCloneRetries)
+	delete(vmCopy.Annotations, util.AnnotationBackendStorageCloneStage)
 	vmCopy.Annotations[util.AnnotationBackendStorageCloneStatus] = util.CloneComplete
 
 	return h.vmClient.Update(vmCopy)
@@ -1100,7 +1130,7 @@ func (h *VMController) failBackendStorageClone(vm *kubevirtv1.VirtualMachine, re
 
 	jobName := wranglername.SafeConcatName(util.BackendStorageJobPrefix, vm.Name)
 	if err := h.jobClient.Delete(vm.Namespace, jobName, foregroundDeleteOptions()); err != nil && !apierrors.IsNotFound(err) {
-		logrus.Warnf("Failed to delete backend storage job %s/%s during clone failure: %v", vm.Namespace, jobName, err)
+		logrus.WithError(err).Warnf("Failed to delete backend storage job %s/%s during clone failure", vm.Namespace, jobName)
 	}
 
 	delete(vmCopy.Annotations, util.AnnotationBackendStorageCloneRunStrategy)
@@ -1108,12 +1138,68 @@ func (h *VMController) failBackendStorageClone(vm *kubevirtv1.VirtualMachine, re
 	delete(vmCopy.Annotations, util.AnnotationBackendStorageCloneActions)
 	delete(vmCopy.Annotations, util.AnnotationBackendStorageCloneRetries)
 	delete(vmCopy.Annotations, util.AnnotationBackendStorageCloneStartTime)
+	delete(vmCopy.Annotations, util.AnnotationBackendStorageCloneStage)
 	vmCopy.Annotations[util.AnnotationBackendStorageCloneStatus] = util.CloneFailed
 
 	h.recorder.Eventf(vm, corev1.EventTypeWarning, "CloneFailed", "Clone operation failed: %s", reason)
 	logrus.Warnf("Clone failed for VM %s/%s: %s", vm.Namespace, vm.Name, reason)
 
 	return h.vmClient.Update(vmCopy)
+}
+
+func (h *VMController) markBackendStorageClonePreCompleted(vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	vmCopy := vm.DeepCopy()
+	if vmCopy.Annotations == nil {
+		vmCopy.Annotations = map[string]string{}
+	}
+	vmCopy.Annotations[util.AnnotationBackendStorageCloneStage] = util.CloneStagePreCompleted
+	return h.vmClient.Update(vmCopy)
+}
+
+func (h *VMController) finalizeBackendStorageClone(vm *kubevirtv1.VirtualMachine) (*kubevirtv1.VirtualMachine, error) {
+	jobName := wranglername.SafeConcatName(util.BackendStorageJobPrefix, vm.Name)
+	job, err := h.jobCache.Get(vm.Namespace, jobName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return h.completeBackendStorageClone(vm)
+		}
+		return nil, fmt.Errorf("get backend storage job %s/%s while finalizing clone: %w", vm.Namespace, jobName, err)
+	}
+
+	if job.DeletionTimestamp == nil {
+		if err := h.jobClient.Delete(job.Namespace, job.Name, foregroundDeleteOptions()); err != nil && !apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("delete backend storage job %s/%s while finalizing clone: %w", job.Namespace, job.Name, err)
+		}
+	}
+
+	h.vmController.EnqueueAfter(vm.Namespace, vm.Name, 5*time.Second)
+	return vm, nil
+}
+
+// getCurrentBackendStorageJob returns the current backend storage job if it exists and is valid for the current clone operation.
+// Use AnnotationBackendStorageCloneStartTime as the unique identifier for the clone operation to determine whether an existing job is stale.
+func (h *VMController) getCurrentBackendStorageJob(vm *kubevirtv1.VirtualMachine, jobName string) (*batchv1.Job, bool, error) {
+	job, err := h.jobCache.Get(vm.Namespace, jobName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+
+	if job.DeletionTimestamp != nil {
+		return nil, true, nil
+	}
+
+	if job.Annotations[util.AnnotationBackendStorageCloneStartTime] == vm.Annotations[util.AnnotationBackendStorageCloneStartTime] {
+		return job, false, nil
+	}
+
+	if err := h.jobClient.Delete(job.Namespace, job.Name, foregroundDeleteOptions()); err != nil && !apierrors.IsNotFound(err) {
+		return nil, false, fmt.Errorf("delete stale backend storage job %s/%s: %w", job.Namespace, job.Name, err)
+	}
+
+	return nil, true, nil
 }
 
 func foregroundDeleteOptions() *metav1.DeleteOptions {

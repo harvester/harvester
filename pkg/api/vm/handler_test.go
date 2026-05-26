@@ -1718,6 +1718,37 @@ func TestDetermineCloneAction(t *testing.T) {
 			},
 			expected: util.CloneActionDeleteEFI,
 		},
+		{
+			name: "clone has neither EFI nor TPM - should not create post-clone job",
+			cloneVM: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "clone-without-efi-and-tpm",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{},
+				},
+			},
+			expected: "",
+		},
+		{
+			name: "clone has CBT only - should not create post-clone job",
+			cloneVM: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "clone-with-cbt-only",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{},
+				},
+				Status: kubevirtv1.VirtualMachineStatus{
+					ChangedBlockTracking: &kubevirtv1.ChangedBlockTrackingStatus{
+						State: kubevirtv1.ChangedBlockTrackingEnabled,
+					},
+				},
+			},
+			expected: "",
+		},
 	}
 
 	for _, tt := range tests {

@@ -256,6 +256,7 @@ func (c *fakePVCClient) Cache() generic.CacheInterface[*corev1.PersistentVolumeC
 type fakeJobClient struct {
 	jobs    map[string]*batchv1.Job // "namespace/name" -> Job
 	created []*batchv1.Job
+	deleted []*batchv1.Job
 }
 
 func newFakeJobClient(jobs ...*batchv1.Job) *fakeJobClient {
@@ -266,7 +267,7 @@ func newFakeJobClient(jobs ...*batchv1.Job) *fakeJobClient {
 		}
 		m[job.Namespace+"/"+job.Name] = job
 	}
-	return &fakeJobClient{jobs: m, created: []*batchv1.Job{}}
+	return &fakeJobClient{jobs: m, created: []*batchv1.Job{}, deleted: []*batchv1.Job{}}
 }
 
 func (c *fakeJobClient) Get(namespace, name string, _ metav1.GetOptions) (*batchv1.Job, error) {
@@ -312,6 +313,9 @@ func (c *fakeJobClient) UpdateStatus(_ *batchv1.Job) (*batchv1.Job, error) {
 }
 
 func (c *fakeJobClient) Delete(namespace, name string, _ *metav1.DeleteOptions) error {
+	if job, ok := c.jobs[namespace+"/"+name]; ok {
+		c.deleted = append(c.deleted, job)
+	}
 	delete(c.jobs, namespace+"/"+name)
 	return nil
 }
@@ -439,6 +443,25 @@ func newTestClonedPVC(namespace, targetVMName string, phase corev1.PersistentVol
 			Phase: phase,
 		},
 	}
+}
+
+func mustBuildBackendStorageJob(t *testing.T, ctrl *VMController, vm *kubevirtv1.VirtualMachine, sourceVMName string, clonedPVC *corev1.PersistentVolumeClaim, jobName string, cloneAction string) *batchv1.Job {
+	t.Helper()
+	job, err := ctrl.buildBackendStorageJob(vm, sourceVMName, clonedPVC, jobName, cloneAction)
+	require.NoError(t, err)
+	return job
+}
+
+func newTestBackendStorageJob(job *batchv1.Job, mutate func(*batchv1.Job)) *batchv1.Job {
+	if job == nil {
+		return nil
+	}
+
+	jobCopy := job.DeepCopy()
+	if mutate != nil {
+		mutate(jobCopy)
+	}
+	return jobCopy
 }
 
 func newTestCloneInProgressAnnotations(sourceVMName string) map[string]string {

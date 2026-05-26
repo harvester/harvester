@@ -1269,7 +1269,7 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 	}
 	newPVCsString, err := util.MarshalVolumeClaimTemplates(newEntries)
 	if err != nil {
-		return fmt.Errorf("cannot marshal value %+v, err: %w", newPVCs, err)
+		return fmt.Errorf("cannot marshal value %+v, err: %w", newEntries, err)
 	}
 
 	if backendstorage.IsBackendStorageNeeded(newVM) {
@@ -1277,7 +1277,9 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 			newVM.Annotations[util.AnnotationBackendStorageCloneRunStrategy] = string(*newVM.Spec.RunStrategy)
 		}
 		newVM.Annotations[util.AnnotationBackendStorageCloneSourceVM] = vm.Name
-		newVM.Annotations[util.AnnotationBackendStorageCloneActions] = h.determineCloneAction(newVM)
+		if cloneAction := h.determineCloneAction(newVM); cloneAction != "" {
+			newVM.Annotations[util.AnnotationBackendStorageCloneActions] = cloneAction
+		}
 		newVM.Annotations[util.AnnotationBackendStorageCloneStartTime] = time.Now().Format(time.RFC3339)
 
 		halted := kubevirtv1.RunStrategyHalted
@@ -1399,7 +1401,12 @@ func cloneSecretVolume(volume *kubevirtv1.Volume, secretNameMap map[string]strin
 // Clone both: needs to rename EFI NVRAM file from source VM.
 // Clone TPM only: needs to delete EFI files from cloned PVC.
 // Clone EFI only: needs to delete TPM state from cloned PVC.
+// Clone CBT only (or no EFI/TPM): no post-clone Job is needed.
 func (h *vmActionHandler) determineCloneAction(cloneVm *kubevirtv1.VirtualMachine) string {
+	if cloneVm == nil || cloneVm.Spec.Template == nil {
+		return ""
+	}
+
 	cloneHasEFI := backendstorage.HasPersistentEFI(&cloneVm.Spec.Template.Spec)
 	cloneHasTPM := tpm.HasPersistentDevice(&cloneVm.Spec.Template.Spec)
 
@@ -1411,8 +1418,7 @@ func (h *vmActionHandler) determineCloneAction(cloneVm *kubevirtv1.VirtualMachin
 	case cloneHasTPM:
 		return util.CloneActionDeleteEFI
 	default:
-		// Default to clone both.
-		return util.CloneActionRenameEFI
+		return ""
 	}
 }
 
