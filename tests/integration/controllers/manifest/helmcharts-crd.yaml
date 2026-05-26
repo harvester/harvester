@@ -118,37 +118,3 @@ spec:
                   type: string
       served: true
       storage: true
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  name: helmchartconfigs.helm.cattle.io
-spec:
-  group: helm.cattle.io
-  names:
-    kind: HelmChartConfig
-    plural: helmchartconfigs
-    singular: helmchartconfig
-  preserveUnknownFields: false
-  scope: Namespaced
-  versions:
-    - name: v1
-      schema:
-        openAPIV3Schema:
-          type: object
-          properties:
-            apiVersion:
-              type: string
-            kind:
-              type: string
-            metadata:
-              type: object
-            spec:
-              type: object
-              properties:
-                failurePolicy:
-                  type: string
-                valuesContent:
-                  type: string
-      served: true
-      storage: true
