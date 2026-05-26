@@ -69,7 +69,7 @@ func TestAPI(t *testing.T) {
 	ginkgo.RunSpecs(t, "api suite")
 }
 
-var _ = ginkgo.BeforeSuite(func() {
+var _ = ginkgo.BeforeSuite(ginkgo.NodeTimeout(5*time.Minute), func(ctx ginkgo.SpecContext) {
 	testCtx, testCtxCancel = context.WithCancel(context.Background())
 	var err error
 
@@ -136,7 +136,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 })
 
-var _ = ginkgo.AfterSuite(func() {
+var _ = ginkgo.AfterSuite(ginkgo.NodeTimeout(5*time.Minute), func(ctx ginkgo.SpecContext) {
 
 	testCtx.Done()
 	ginkgo.By("tearing down test cluster")
