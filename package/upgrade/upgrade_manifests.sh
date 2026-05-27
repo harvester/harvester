@@ -539,15 +539,15 @@ wait_capi_cluster() {
   namespace=$1
   name=$2
 
-  local required_stable=6   # ~30s of stability at 5s poll interval
-  local stable=0
+  local required_stable_seconds=30
+  local stable_since=""
 
   while [ true ]; do
     unset localcluster
     local localcluster=$(kubectl get clusters.cluster.x-k8s.io $name -n $namespace -o yaml)
     if [[ -z ${localcluster} ]]; then
       echo "failed to get CAPI cluster $namespace/$name, retry..."
-      stable=0
+      stable_since=""
       sleep 5
       continue
     fi
@@ -557,19 +557,22 @@ wait_capi_cluster() {
     local current_phase=$(echo "$localcluster" | yq e '.status.phase' -)
 
     if [ "$current_observed_generation" = "$current_metadata_generation" ] && [ "$current_phase" = "Provisioned" ]; then
-      stable=$((stable + 1))
-      if [ "$stable" -ge "$required_stable" ]; then
-        echo "CAPI cluster $namespace/$name is provisioned and stable (current generation: $current_metadata_generation)."
+      if [ -z "$stable_since" ]; then
+        stable_since=$(date +%s)
+      fi
+      local elapsed=$(( $(date +%s) - stable_since ))
+      if [ "$elapsed" -ge "$required_stable_seconds" ]; then
+        echo "CAPI cluster $namespace/$name is provisioned and stable for ${elapsed}s (current generation: $current_metadata_generation)."
         break
       fi
-      echo "CAPI cluster $namespace/$name appears ready (phase=$current_phase, generation=$current_metadata_generation), stability $stable/$required_stable..."
+      echo "CAPI cluster $namespace/$name appears ready (phase=$current_phase, generation=$current_metadata_generation), stability ${elapsed}s/${required_stable_seconds}s..."
     else
-      if [ "$stable" -ne 0 ]; then
-        echo "CAPI cluster $namespace/$name reconcile in progress (phase=$current_phase, observed=$current_observed_generation, metadata=$current_metadata_generation), resetting stability counter."
+      if [ -n "$stable_since" ]; then
+        echo "CAPI cluster $namespace/$name reconcile in progress (phase=$current_phase, observed=$current_observed_generation, metadata=$current_metadata_generation), resetting stability timer."
       else
         echo "Waiting for CAPI cluster $namespace/$name to be provisioned (phase=$current_phase, observed=$current_observed_generation, metadata=$current_metadata_generation)..."
       fi
-      stable=0
+      stable_since=""
     fi
 
     sleep 5
