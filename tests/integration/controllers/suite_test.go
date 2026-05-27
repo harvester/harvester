@@ -237,14 +237,17 @@ func startControllers(ctx context.Context, restConfig *rest.Config, opts *ctlhar
 		return err
 	}
 
-	logrus.Infof("sync status of batch informer: %v", batch.Batch().V1().Job().Informer().HasSynced())
+	logrus.Infof("Sync status of batch informer: %v", batch.Batch().V1().Job().Informer().HasSynced())
 	if err = start.All(ctx, 10, harvesterFactory, core, batch, helm, catalog, rancher); err != nil {
 		return err
 	}
 
 	for !batch.Batch().V1().Job().Informer().HasSynced() {
+		logrus.Infof("The job informer is not ready yet, keep waiting")
 		time.Sleep(5 * time.Second)
 	}
+
+	logrus.Infof("All controllers are stared, test cases could be run")
 
 	return nil
 }
