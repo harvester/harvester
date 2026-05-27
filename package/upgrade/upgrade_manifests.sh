@@ -543,7 +543,6 @@ wait_capi_cluster() {
   local stable_since=""
 
   while [ true ]; do
-    unset localcluster
     local localcluster=$(kubectl get clusters.cluster.x-k8s.io $name -n $namespace -o yaml)
     if [[ -z ${localcluster} ]]; then
       echo "failed to get CAPI cluster $namespace/$name, retry..."
