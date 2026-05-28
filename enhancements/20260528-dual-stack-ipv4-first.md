@@ -70,7 +70,7 @@ a fully dual-stack deployment.
   IPv4,IPv6 CIDR pair (e.g. `10.0.1.5/24,2001:db8::5/64`), with IPv4 as the primary address.
   Enforce IPv4-first ordering at admission via a CEL validation rule.
 - Allow the Harvester installer to configure RKE2 with IPv4-first dual-stack: `cluster-cidr`,
-  `service-cidr`, and `cluster-dns` ordered IPv4-first; kube-vip configured in ARP mode for a
+  `service-cidr`, and `cluster-dns` ordered IPv4-first; kube-vip configured in ARP mode for an
   IPv4 primary VIP; installer console validators accepting comma-separated dual-stack inputs
   and enforcing IPv4-first order.
 - Fix the kube-vip configuration injection path bug: advertisement flags (`vip_arp`,
@@ -115,7 +115,7 @@ a fully dual-stack deployment.
 ### Non-goals
 
 - **IPv6-first or IPv6-only ordering (`[IPv6, IPv4]` or `[IPv6]`).** This proposal covers
-  exclusively the first step of a three-phase IPv6 adoption path:
+  exclusively the first step of a multi-phase IPv6 adoption path:
   1. **This HEP:** IPv4-first dual-stack — the default family stays IPv4; IPv6 is additive.
   2. **Future HEP (IPv6-first):** IPv6 as the primary family, IPv4 secondary.
   3. **Future HEP (IPv6-only):** No IPv4 at all.
@@ -539,9 +539,9 @@ already-present `ip` npm package v2.0.1 (`ip.isV6Format`). Fix NTP validator, VM
 formatter, node internal IP getter (IPv4-first), and storage/RWX/vm-migration CIDR validators.
 Add `Dual` to `NETWORK_PROTOCOL` once E6 is confirmed. Update localization strings.
 
-### Test Plan
+## Test Plan
 
-#### Scope for this HEP
+### Scope for this HEP
 
 This HEP's test obligations are limited to two categories that require no new infrastructure:
 
@@ -562,7 +562,7 @@ IPv6-first ordering, which needs full dual-stack validation, is being delivered 
 duplicating the investment prematurely for a feature that is opt-in and already protected
 by IPv4 regression.
 
-#### Unit Tests
+### Unit Tests
 
 Unit tests have no infrastructure dependency and run on any standard CI runner. No dual-stack
 network or cluster is required.
@@ -585,7 +585,7 @@ Each repository adds unit tests covering:
 - **CEL validation rule** (network-controller-harvester): IPv4-only, dual-stack IPv4-first,
   dual-stack IPv6-first (rejected), single IPv6 (rejected) inputs.
 
-#### Integration Tests (deferred — for reference only)
+### Integration Tests (deferred — for reference only)
 
 > **These tests are out of scope for this HEP.** They require a dual-stack cluster with RKE2
 > configured IPv4-first. Execution is deferred to the IPv6-first HEP when a dual-stack lab
@@ -607,7 +607,7 @@ Each repository adds unit tests covering:
 - **harvester core:** Create a storage-network setting with a comma-separated IPv4+IPv6 CIDR;
   verify Whereabouts `IPPool` objects are created for both families.
 
-#### End-to-End Tests (deferred — for reference only)
+### End-to-End Tests (deferred — for reference only)
 
 > **These tests are out of scope for this HEP.** They require a full dual-stack Harvester
 > deployment. The vm-dhcp-controller lease test is additionally blocked on E7 and E8. All
@@ -621,7 +621,7 @@ Each repository adds unit tests covering:
   verify node IP is IPv4 and `GetIPv6()` populates a secondary IPv6 address.
 - Create a `LoadBalancer`; verify both VIPs respond to traffic.
 
-#### Test Infrastructure (deferred to IPv6-first HEP)
+### Test Infrastructure (deferred to IPv6-first HEP)
 
 The table below documents what a full dual-stack test environment requires. Provisioning
 this environment is out of scope for this HEP and is deferred to the IPv6-first HEP, which
@@ -635,7 +635,7 @@ integration and E2E test cases above can be run against it with no rework.
 | Dual-stack integration | Dual-stack lab cluster (RKE2 IPv4-first, kube-vip ≥ v0.5.12) | **Deferred to IPv6-first HEP.** Not in current CI pipeline. |
 | Dual-stack E2E | Full dual-stack Harvester install | **Deferred to IPv6-first HEP.** Requires dual-stack lab network, DHCPv6-capable guest images (E7), CNI multicast forwarding verified (E8). |
 
-### Upgrade Strategy
+## Upgrade Strategy
 
 Dual-stack is entirely opt-in. No existing field defaults change. On upgrade from an
 IPv4-only Harvester version:
