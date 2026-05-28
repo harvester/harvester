@@ -71,28 +71,171 @@ for manifest in $MANIFESTS; do
   esac
 done
 `
+
+	// imageCleanupScript houses a best-effort shell automation workflow executed on
+	// cluster hosts during system upgrades. It addresses critical disk reclamation
+	// requirements by targeting specific version diffs and host-level dangling assets.
+	//
+	// CONCERNS & EDGE CASES HANDLED:
+	// 1. Decoupled Registry Overrides: Upstream controllers track canonical image targets
+	//    (e.g., "rancher/harvester-abc:v0.5.0"), but nodes might pull from private, air-gapped,
+	//    or customized registries (e.g., "example.local/rancher/harvester-abc:v0.5.0").
+	//    A strict string match would miss these, leaving stale data on disk.
+	// 2. Orphaned "Ghost" Images: Leftover, untagged, or broken layers (<none>:<none>)
+	//    frequently accumulate during layered cluster shifts and require active pruning.
+	// 3. Controller Fault Tolerance: Variable injection from the controller can
+	//    occasionally yield empty lists or whitespace-only arrays. The script must fail
+	//    safely without crashing or creating evaluation syntax errors.
+	// 4. "Try-Best" Over "Fail-Fast": If one image is locked by a terminating or stubborn
+	//    pod, standard batch calls fail entirely. The workflow must gracefully skip locked
+	//    assets and continue reclaiming space from the remaining targets.
+	// 5. Environment Resiliency: On non-standard hosts where the runtime binary paths
+	//    deviate or are unavailable, the automation logs a clear troubleshooting manual
+	//    action notice instead of breaking the broader execution sequence.
+
 	imageCleanupScript = `
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 set -e
 
+# --- Configuration Layer ---
+# Read from environment parameter if present; default to "false" if unset or empty for silent execution.
+DEBUG_MODE="${DEBUG_MODE:-false}"
+
+# For Host Testing: Leave HOST_DIR empty.
+# For Container Execution: Set HOST_DIR to your host root mount (e.g., /host).
 HOST_DIR="${HOST_DIR:-/host}"
+
+# Target configurations to pass into the cleanup function
+# IMAGES="any/vmdp:1.0.0 any/alpine:latest temporary-worker:latest hello-world:latest"
+
+REAL_RKE2_CONFIG="$HOST_DIR/var/lib/rancher/rke2/agent/etc/crictl.yaml"
 
 export CONTAINER_RUNTIME_ENDPOINT=unix:///$HOST_DIR/run/k3s/containerd/containerd.sock
 export CONTAINERD_ADDRESS=$HOST_DIR/run/k3s/containerd/containerd.sock
 
+if [ -f "$REAL_RKE2_CONFIG" ]; then
+  export CRI_CONFIG_FILE="$REAL_RKE2_CONFIG"
+else
+  export CRI_CONFIG_FILE="/dev/null"
+  export CONTAINER_RUNTIME_ENDPOINT=unix:///$HOST_DIR/run/k3s/containerd/containerd.sock
+  export CONTAINERD_ADDRESS=$HOST_DIR/run/k3s/containerd/containerd.sock
+fi
+
+cleanup_images() {
+  local to_purge_images_list="$1"
+  echo "Prepare to purge images $to_purge_images_list"
+
+  # Skip VMDP data images; they may be needed by stopped or suspended
+  # VMs, and removing them risks breaking future VM restoration.
+  # 1. Pre-process the input target list
+  local short_targets=()
+  local img
+  for img in $to_purge_images_list; do
+    local short_name="${img##*/}"
+    if [[ "$short_name" == vmdp:* ]]; then
+      echo "[INFO] Skipping system data image target: $img"
+      continue
+    fi
+    short_targets+=("$short_name")
+  done
+
+  # Safely convert Bash array targets into a native JSON array
+  local targets_json
+  targets_json=$(printf '%s\n' "${short_targets[@]}" | jq -R . | jq -s -c .)
+
+  # Target isolation: Branched dynamically by the DEBUG_MODE toggle
+  local targets_to_kill
+
+  if [[ "$DEBUG_MODE" == "true" ]]; then
+    echo "[DEBUG] DEBUG_MODE=true. Streaming live JQ evaluations to stderr..."
+    targets_to_kill=$("$CRICTL" images -o json 2>/dev/null | jq -r --argjson targets "${targets_json:-[]}" '
+      .images[]? | select(.pinned != true) | . as $img |
+      if ($img.repoTags == null or ($img.repoTags | length == 0) or $img.repoTags[0] == "<none>:<none>") then
+        ("[DEBUG] Dangling: " + $img.id) | debug | $img.id
+      else
+        $img.repoTags[] | . as $tag | ("[DEBUG] Tag: " + $tag) | debug |
+        if ($targets | any(. == $tag or . == ($tag | split("/")[-1]))) then
+          ("[DEBUG] -> MATCHED: " + $tag) | debug | $tag
+        else
+          empty
+        end
+      end
+    ' || true)
+  else
+    # Standard Production Run: Silences internal logs and discards execution noise
+    targets_to_kill=$("$CRICTL" images -o json 2>/dev/null | jq -r --argjson targets "${targets_json:-[]}" '
+      .images[]? | select(.pinned != true) | . as $img |
+      if ($img.repoTags == null or ($img.repoTags | length == 0) or $img.repoTags[0] == "<none>:<none>") then
+        $img.id
+      else
+        $img.repoTags[] | . as $tag |
+        if ($targets | any(. == $tag or . == ($tag | split("/")[-1]))) then
+          $tag
+        else
+          empty
+        end
+      end
+    ' 2>/dev/null || true)
+  fi
+
+  # Convert newline-separated targets into a Bash array
+  local -a kill_array=()
+  if [[ -n "$targets_to_kill" ]]; then
+    mapfile -t kill_array <<< "$targets_to_kill"
+  fi
+
+  if [[ "$DEBUG_MODE" == "true" ]]; then
+    echo "[DEBUG] Content of kill_array:"
+    declare -p kill_array
+  fi
+
+  # Purge sequentially to maximize successful deletions. Bulk execution
+  #    via crictl aborts entirely if a single image is locked (e.g., actively
+  #    referenced by a newly spawned dynamic workload). Deleting one-by-one
+  #    adds minimal overhead; even with 100+ images, modern CPU execution
+  #    times remain completely insignificant.
+  if [[ ${#kill_array[@]} -gt 0 ]]; then
+    echo "[ACTION] Found ${#kill_array[@]} target items to clear. Starting ..."
+
+    local success_count=0
+    local fail_count=0
+    local target
+    local rmi_err
+    local exit_code=0
+
+    for target in "${kill_array[@]}"; do
+      exit_code=0
+      echo "Purge image $target"
+      "$CRICTL" rmi "$target" || exit_code=$?
+      if [[ $exit_code -eq 0 ]]; then
+        echo "  [SUCCESS]"
+        success_count=$((success_count + 1))
+      else
+        fail_count=$((fail_count + 1))
+        echo "  [WARN] Failed."
+      fi
+    done
+
+    # Final Execution Summary
+    echo "[INFO] Purge sequence complete."
+    echo "       Successfully removed: $success_count"
+    if [[ $fail_count -gt 0 ]]; then
+      echo "       Skipped/Failed      : $fail_count"
+    fi
+  else
+    echo "[INFO] Nothing to do, no matching or dangling images found."
+  fi
+}
+
+# Resolve and assign the binary path dynamically
 CRICTL="$HOST_DIR/$(readlink $HOST_DIR/var/lib/rancher/rke2/bin)/crictl"
 if [ -z "$CRICTL" ];then
-	echo "Fail to get host crictl binary."
+	echo "[ERROR] Fail to get host crictl binary."
 	exit 0
 fi
 
-ret=0
-"$CRICTL" rmi $IMAGES || ret=$?
-
-if [ "$ret" -ne 0 ]; then
-	echo "Fail to remove images"
-	exit 0
-fi
+# Fire execution sequence using the configuration target list
+cleanup_images "$IMAGES"
 `
 )
 
