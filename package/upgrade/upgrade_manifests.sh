@@ -1035,50 +1035,6 @@ patch_longhorn_settings() {
   yq -e '.spec.values.longhorn' $target || echo "fail to get info .spec.values.longhorn"
 }
 
-patch_kubevirt_compare_patches() {
-  local target=$1
-  local json_pointer="/spec/workloadUpdateStrategy/workloadUpdateMethods"
-  # patch diff compare patches to avoid complaining kubevirt resource is modified
-
-  # Check if the kubevirt comparePatches entry already exists
-  local EXIT_CODE=0
-  yq -e '.spec.diff.comparePatches[] | select(.apiVersion == "kubevirt.io/v1" and .kind == "KubeVirt" and .name == "kubevirt")' $target > /dev/null 2>&1 || EXIT_CODE=$?
-
-  if [ $EXIT_CODE != 0 ]; then
-    echo "Adding kubevirt comparePatches entry to $target"
-    # Ensure spec.diff.comparePatches exists as an array
-    yq -i '.spec.diff.comparePatches = .spec.diff.comparePatches // []' $target
-    # Add the kubevirt entry
-    JSON_POINTER=$json_pointer yq -i '.spec.diff.comparePatches += [{"apiVersion": "kubevirt.io/v1", "kind": "KubeVirt", "name": "kubevirt", "jsonPointers": [strenv(JSON_POINTER)]}]' $target
-  else
-    # Entry exists, check if the specific jsonPointer is already in the array
-    local POINTER_EXISTS=0
-    JSON_POINTER=$json_pointer yq -e '.spec.diff.comparePatches[] | select(.apiVersion == "kubevirt.io/v1" and .kind == "KubeVirt" and .name == "kubevirt") | .jsonPointers[] | select(. == strenv(JSON_POINTER))' $target > /dev/null 2>&1 || POINTER_EXISTS=$?
-
-    if [ $POINTER_EXISTS != 0 ]; then
-      echo "kubevirt comparePatches entry exists but jsonPointer $json_pointer not found, adding it"
-      # Find the index of the kubevirt entry and append the jsonPointer
-      JSON_POINTER=$json_pointer yq -i '(.spec.diff.comparePatches[] | select(.apiVersion == "kubevirt.io/v1" and .kind == "KubeVirt" and .name == "kubevirt") | .jsonPointers) += [strenv(JSON_POINTER)]' $target
-    else
-      echo "kubevirt comparePatches entry with jsonPointer $json_pointer already exists in $target, skip adding"
-    fi
-  fi
-}
-
-disable_kubevirt_live_migrate_workload_update() {
-  echo "Setting kubevirt workloadUpdateMethods to empty array"
-
-  local kubevirt_patch_file="kubevirt-workload-update-patch.yaml"
-  cat > ${kubevirt_patch_file} <<EOF
-spec:
-  workloadUpdateStrategy:
-    workloadUpdateMethods: []
-EOF
-
-  kubectl patch kubevirts.kubevirt.io kubevirt -n harvester-system --patch-file ${kubevirt_patch_file} --type merge
-  rm -f ${kubevirt_patch_file}
-}
-
 upgrade_managedchart_harvester_crd() {
   echo "Upgrading Harvester CRD managedchart fleet-local/harvester-crd"
 
@@ -1104,6 +1060,66 @@ EOF
   wait_managed_chart fleet-local harvester-crd $REPO_HARVESTER_CHART_VERSION $pre_generation_harvester_crd ready
 }
 
+# update values to disable workload live migration. The managedchart is unpaused to propogate the change.
+# pause the managedchart again for real harvester managedchart upgrade later.
+disable_kubevirt_workload_live_migration() {
+  echo "Checking KubeVirt workload live migration settings"
+
+  local chart_yaml
+  chart_yaml=$(kubectl get managedcharts.management.cattle.io harvester -n fleet-local -o yaml)
+
+  # Use tojson to get a clean JSON representation: "null" if key absent, "[]" if empty, or the actual value
+  local methods_json
+  methods_json=$(echo "$chart_yaml" | yq e '.spec.values.kubevirt.spec.workloadUpdateStrategy.workloadUpdateMethods | tojson' -)
+
+  # Backup original value to the upgrade annotation (only write once for idempotency)
+  local annotation_key="harvesterhci.io/kubevirt-workload-update-methods"
+  local existing_backup
+  existing_backup=$(kubectl get upgrades.harvesterhci.io "$HARVESTER_UPGRADE_NAME" -n harvester-system -o yaml | \
+    yq e ".metadata.annotations[\"$annotation_key\"]" -)
+  if [ "$existing_backup" = "null" ]; then
+    echo "Backing up workloadUpdateMethods value '$methods_json' to upgrade annotation"
+    kubectl annotate upgrades.harvesterhci.io "$HARVESTER_UPGRADE_NAME" -n harvester-system \
+      "${annotation_key}=${methods_json}"
+  fi
+
+  if [ "$methods_json" = "[]" ]; then
+    echo "KubeVirt workloadUpdateMethods is already empty. No patching needed."
+    return 0
+  fi
+
+  echo "KubeVirt workloadUpdateMethods is '$methods_json'. Patching to []..."
+
+  local pre_generation
+  pre_generation=$(echo "$chart_yaml" | yq e '.status.observedGeneration' -)
+
+  local current_version
+  current_version=$(echo "$chart_yaml" | yq e '.spec.version' -)
+
+  local hpatch=harvester-kubevirt-wum.yaml
+  cat >${hpatch} <<EOF
+spec:
+  values:
+    kubevirt:
+      spec:
+        workloadUpdateStrategy:
+          workloadUpdateMethods: []
+EOF
+
+  update_managedchart_patch_file_annotations ${hpatch} ${current_version}
+  update_managedchart_patch_file_unpause ${hpatch}
+  update_managedchart_patch_file_timeoutseconds ${hpatch} fleet-local harvester
+  echo "The final content of harvester kubevirt workload update methods patch file"
+  cat ${hpatch}
+
+  echo "Patching..."
+  kubectl patch managedcharts.management.cattle.io harvester -n fleet-local --patch-file ./${hpatch} --type merge
+  wait_managed_chart fleet-local harvester "$current_version" "$pre_generation" ready
+
+  echo "Pause the harvester managedchart for later upgrade"
+  pause_managed_chart harvester "true"
+}
+
 upgrade_managedchart_harvester() {
   echo "Upgrading Harvester managedchart fleet-local/harvester"
 
@@ -1115,8 +1131,6 @@ metadata:
   name: harvester
   namespace: fleet-local
 EOF
-
-  disable_kubevirt_live_migrate_workload_update
 
   kubectl get managedcharts.management.cattle.io -n fleet-local harvester -o yaml | yq e '{"spec": .spec}' - >>${hpatch}
   pre_generation_harvester=$(kubectl get managedcharts.management.cattle.io harvester -n fleet-local -o=jsonpath='{.status.observedGeneration}')
@@ -1130,7 +1144,6 @@ EOF
   fi
 
   patch_longhorn_settings ${hpatch}
-  patch_kubevirt_compare_patches ${hpatch}
 
   update_managedchart_patch_file_annotations ${hpatch} $REPO_HARVESTER_CHART_VERSION
   update_managedchart_patch_file_unpause ${hpatch}
@@ -1151,7 +1164,6 @@ upgrade_harvester() {
   cd $UPGRADE_TMP_DIR/harvester
 
   upgrade_managedchart_harvester_crd
-
   upgrade_managedchart_harvester
 }
 
@@ -1575,6 +1587,7 @@ pre_upgrade_manifest
 preserve_overcommit_config
 pause_all_charts
 skip_restart_rancher_system_agent
+disable_kubevirt_workload_live_migration
 upgrade_rancher
 patch_local_cluster_details
 update_local_rke_state_secret
