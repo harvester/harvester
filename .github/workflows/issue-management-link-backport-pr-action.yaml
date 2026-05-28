@@ -24,8 +24,26 @@ jobs:
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
     - name: Load PR data
+      shell: bash
       run: |
-        cat pr-data.env >> $GITHUB_ENV
+        set -euo pipefail
+        while IFS='=' read -r key value; do
+          [[ -z "$key" ]] && continue
+          value="${value//$'\r'/}"
+          if [[ "$value" == *$'\n'* ]]; then
+            echo "Invalid multiline value for $key" >&2
+            exit 1
+          fi
+          case "$key" in
+            BACKPORT|BRANCH|ORIGINAL_ISSUE_NUMBER|HTML_URL|PR_NUMBER)
+              echo "$key=$value" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "Unexpected key in pr-data.env: $key" >&2
+              exit 1
+              ;;
+          esac
+        done < pr-data.env
 
     - name: Link the PR with the backport issue
       if: ${{ env.BACKPORT == 'true' && env.ORIGINAL_ISSUE_NUMBER != '' }}
