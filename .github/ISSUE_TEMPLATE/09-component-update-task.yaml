@@ -18,6 +18,7 @@ body:
     value: |
       Components to be updated for Harvester version vX.Y.Z:
 
+      - [ ] SLES OS bump to the latest 16.x for the Harvester April release
       - System Components
         - [ ] OBS Projects @tserong
         - [ ] OS2 @tserong
