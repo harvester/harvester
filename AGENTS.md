@@ -5,7 +5,7 @@ Harvester is an open-source bare-metal Hyperconverged Infrastructure (HCI) platf
 ## Repository Structure
 
 ```
-harvester/
+./                                     # Project root
 ├── main.go                            # Entry point; CLI setup; go:generate directives
 ├── Makefile                           # All build targets
 ├── Dockerfile                         # Multi-stage: builder → validate → test → package → ISO
