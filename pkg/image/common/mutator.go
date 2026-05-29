@@ -40,14 +40,16 @@ func mergeStorageClassParams(vmi *harvesterv1.VirtualMachineImage, sc *storagev1
 	} else if vmi.Spec.StorageClassParameters != nil {
 		mergeParams = vmi.Spec.StorageClassParameters
 	}
-	var allowPatchParams = []string{
+	baseParams := []string{
 		longhorntypes.OptionNodeSelector, longhorntypes.OptionDiskSelector,
 		longhorntypes.OptionNumberOfReplicas, longhorntypes.OptionStaleReplicaTimeout,
 		util.LonghornDataLocality,
 		util.LonghornOptionEncrypted,
-		util.CSIProvisionerSecretNameKey, util.CSIProvisionerSecretNamespaceKey,
-		util.CSINodeStageSecretNameKey, util.CSINodeStageSecretNamespaceKey,
-		util.CSINodePublishSecretNameKey, util.CSINodePublishSecretNamespaceKey,
+	}
+	allowPatchParams := make([]string, 0, len(baseParams)+2*len(util.CSIEncryptionSecretKeyPairs))
+	allowPatchParams = append(allowPatchParams, baseParams...)
+	for _, p := range util.CSIEncryptionSecretKeyPairs {
+		allowPatchParams = append(allowPatchParams, p.NameKey, p.NamespaceKey)
 	}
 
 	for k, v := range mergeParams {

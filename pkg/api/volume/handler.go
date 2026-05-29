@@ -62,7 +62,7 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 	case actionExport:
 		var input ExportVolumeInput
 		if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		if input.DisplayName == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `displayName` is required")
@@ -79,7 +79,7 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 	case actionClone:
 		var input CloneVolumeInput
 		if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		if input.Name == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
@@ -88,7 +88,7 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 	case actionSnapshot:
 		var input SnapshotVolumeInput
 		if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		if input.Name == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `name` is required")
@@ -97,7 +97,7 @@ func (h *ActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBo
 	case actionDataMigration:
 		var input DataMigrationInput
 		if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
-			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Failed to decode request body: %v "+err.Error())
+			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
 		if input.TargetVolumeName == "" {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, "Parameter `targetVolumeName` is required")

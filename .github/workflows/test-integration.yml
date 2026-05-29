@@ -1,0 +1,20 @@
+name: Test Integration
+
+on:
+  workflow_call:
+
+concurrency:
+  group: ${{ github.workflow }}-test-integration-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && !startsWith(github.ref, 'refs/heads/v') && !startsWith(github.ref, 'refs/tags/v') }}
+jobs:
+  test-integration:
+    name: Test integration
+    runs-on: runs-on,runner=4cpu-linux-${{ matrix.arch }},hdd=50,run-id=${{ github.run_id }}
+    strategy:
+      matrix:
+        arch: [x64]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - name: Run test integration
+      run: make test-integration

@@ -19,6 +19,8 @@ body:
       Components to be updated for Harvester version vX.Y.Z:
       For patch releases, not all components may need updates. Please only check those that require patch version updates.
 
+      - OS
+        - [ ] SLES OS bump to the latest patch release within the current minor version @tserong
       - Main Components
         - [ ] Embedded Rancher @wheatdog
         - [ ] RKE2 @wheatdog

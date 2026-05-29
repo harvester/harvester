@@ -149,6 +149,8 @@ const (
 	CSINodePublishSecretNamespaceKey = "csi.storage.k8s.io/node-publish-secret-namespace"
 	CSINodeStageSecretNameKey        = "csi.storage.k8s.io/node-stage-secret-name"
 	CSINodeStageSecretNamespaceKey   = "csi.storage.k8s.io/node-stage-secret-namespace"
+	CSINodeExpandSecretNameKey       = "csi.storage.k8s.io/node-expand-secret-name"
+	CSINodeExpandSecretNamespaceKey  = "csi.storage.k8s.io/node-expand-secret-namespace"
 
 	LabelUpgradeReadMessage          = prefix + "/read-message"
 	LabelUpgradeState                = prefix + "/upgradeState"
@@ -310,3 +312,18 @@ const (
 
 	GoArchArm64 = "arm64"
 )
+
+// CSISecretKeyPair groups a CSI secret-name parameter key with its matching namespace key.
+type CSISecretKeyPair struct {
+	NameKey      string
+	NamespaceKey string
+}
+
+// CSIEncryptionSecretKeyPairs lists the CSI parameter key pairs used to reference
+// the encryption secret for a StorageClass, in the order CSI expects them.
+var CSIEncryptionSecretKeyPairs = []CSISecretKeyPair{
+	{CSIProvisionerSecretNameKey, CSIProvisionerSecretNamespaceKey},
+	{CSINodeStageSecretNameKey, CSINodeStageSecretNamespaceKey},
+	{CSINodePublishSecretNameKey, CSINodePublishSecretNamespaceKey},
+	{CSINodeExpandSecretNameKey, CSINodeExpandSecretNamespaceKey},
+}

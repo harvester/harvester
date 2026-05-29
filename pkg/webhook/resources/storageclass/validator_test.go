@@ -37,6 +37,8 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 			util.CSINodeStageSecretNamespaceKey:   "default",
 			util.CSINodePublishSecretNameKey:      "test-secret",
 			util.CSINodePublishSecretNamespaceKey: "default",
+			util.CSINodeExpandSecretNameKey:       "test-secret",
+			util.CSINodeExpandSecretNamespaceKey:  "default",
 		},
 	}
 	emptySecretSc := storagev1.StorageClass{
@@ -51,6 +53,8 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 			util.CSINodeStageSecretNamespaceKey:   "",
 			util.CSINodePublishSecretNameKey:      "",
 			util.CSINodePublishSecretNamespaceKey: "",
+			util.CSINodeExpandSecretNameKey:       "",
+			util.CSINodeExpandSecretNamespaceKey:  "",
 		},
 	}
 
@@ -334,6 +338,8 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 					util.CSINodeStageSecretNamespaceKey:   "default",
 					util.CSINodePublishSecretNameKey:      "non-existent-secret",
 					util.CSINodePublishSecretNamespaceKey: "default",
+					util.CSINodeExpandSecretNameKey:       "non-existent-secret",
+					util.CSINodeExpandSecretNamespaceKey:  "default",
 				},
 			},
 			expectError: true,
@@ -371,6 +377,92 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 				Parameters: map[string]string{
 					util.LonghornOptionEncrypted:     "true",
 					util.CSIProvisionerSecretNameKey: "non-existent-secret",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "optional node-expand secret omitted is allowed",
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte("test-value"),
+				},
+			},
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "sc6",
+				},
+				Parameters: map[string]string{
+					util.LonghornOptionEncrypted:          "true",
+					util.CSIProvisionerSecretNameKey:      "test-secret",
+					util.CSIProvisionerSecretNamespaceKey: "default",
+					util.CSINodeStageSecretNameKey:        "test-secret",
+					util.CSINodeStageSecretNamespaceKey:   "default",
+					util.CSINodePublishSecretNameKey:      "test-secret",
+					util.CSINodePublishSecretNamespaceKey: "default",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "optional node-expand secret partially set is rejected",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "sc7",
+				},
+				Parameters: map[string]string{
+					util.LonghornOptionEncrypted:          "true",
+					util.CSIProvisionerSecretNameKey:      "test-secret",
+					util.CSIProvisionerSecretNamespaceKey: "default",
+					util.CSINodeStageSecretNameKey:        "test-secret",
+					util.CSINodeStageSecretNamespaceKey:   "default",
+					util.CSINodePublishSecretNameKey:      "test-secret",
+					util.CSINodePublishSecretNamespaceKey: "default",
+					util.CSINodeExpandSecretNameKey:       "test-secret",
+					// namespace deliberately omitted
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "optional node-expand secret pointing to a different secret is rejected",
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					lhtypes.CryptoKeyHash:     []byte(lhcrypto.CryptoKeyDefaultHash),
+					lhtypes.CryptoKeyCipher:   []byte(lhcrypto.CryptoKeyDefaultCipher),
+					lhtypes.CryptoKeySize:     []byte(lhcrypto.CryptoKeyDefaultSize),
+					lhtypes.CryptoPBKDF:       []byte(lhcrypto.CryptoDefaultPBKDF),
+					lhtypes.CryptoKeyProvider: []byte("secret"),
+					lhtypes.CryptoKeyValue:    []byte("test-value"),
+				},
+			},
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "sc8",
+				},
+				Parameters: map[string]string{
+					util.LonghornOptionEncrypted:          "true",
+					util.CSIProvisionerSecretNameKey:      "test-secret",
+					util.CSIProvisionerSecretNamespaceKey: "default",
+					util.CSINodeStageSecretNameKey:        "test-secret",
+					util.CSINodeStageSecretNamespaceKey:   "default",
+					util.CSINodePublishSecretNameKey:      "test-secret",
+					util.CSINodePublishSecretNamespaceKey: "default",
+					util.CSINodeExpandSecretNameKey:       "other-secret",
+					util.CSINodeExpandSecretNamespaceKey:  "other-ns",
 				},
 			},
 			expectError: true,

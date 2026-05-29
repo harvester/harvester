@@ -3,6 +3,8 @@ package rancher
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -14,6 +16,11 @@ import (
 
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+)
+
+const (
+	projectAnnotationKey   = "field.cattle.io/projectId"
+	defaultRecheckInterval = 300 * time.Second
 )
 
 func (h *Handler) onNamespaceRemoved(_ string, namespace *corev1.Namespace) (*corev1.Namespace, error) {
@@ -105,4 +112,86 @@ func (h *Handler) onNamespaceRemoved(_ string, namespace *corev1.Namespace) (*co
 		}
 	}
 	return namespace, nil
+}
+
+// onNamespaceChanged watches changes to kube-system namespace which indicate if the namespace has been moved to a project
+// and based on the project annotation, it will add/remove the projectId label to the harvester system namesapces.
+func (h *Handler) onNamespaceChanged(key string, namespace *corev1.Namespace) (*corev1.Namespace, error) {
+	if namespace == nil || namespace.DeletionTimestamp != nil || namespace.Name != util.KubeSystemNamespace {
+		return namespace, nil
+	}
+	projectID, hasProjectAnnotation := namespace.Annotations[projectAnnotationKey]
+	if hasProjectAnnotation {
+		if err := h.addProjectIDToHarvesterSystemNamespaces(projectID); err != nil {
+			return namespace, err
+		}
+	} else {
+		if err := h.removeProjectIDFromHarvesterSystemNamespaces(); err != nil {
+			return namespace, err
+		}
+	}
+
+	h.NamespaceController.EnqueueAfter(key, defaultRecheckInterval)
+	return namespace, nil
+}
+
+// addProjectIDToHarvesterSystemNamespaces adds the projectID to the harvester system namespaces if the kube-system namespace is added to a project.
+func (h *Handler) addProjectIDToHarvesterSystemNamespaces(projectID string) error {
+	for _, ns := range util.DefaultHarvesterNamespaceWhiteList {
+		namespace, err := h.NamespaceCache.Get(ns)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return fmt.Errorf("error getting namespace %s: %w", ns, err)
+		}
+
+		// namespace is being deleted, skip it
+		if namespace.DeletionTimestamp != nil {
+			continue
+		}
+
+		namespaceCopy := namespace.DeepCopy()
+		if namespaceCopy.Annotations == nil {
+			namespaceCopy.Annotations = make(map[string]string)
+		}
+		namespaceCopy.Annotations[projectAnnotationKey] = projectID
+		if !reflect.DeepEqual(namespace, namespaceCopy) {
+			_, err = h.NamespaceClient.Update(namespaceCopy)
+			if err != nil {
+				return fmt.Errorf("error updating namespace %s: %w", ns, err)
+			}
+		}
+	}
+	return nil
+}
+
+// removeProjectIDFromHarvesterSystemNamespaces removes the projectID from the harvester system namespaces if the kube-system namespace is removed from a project.
+func (h *Handler) removeProjectIDFromHarvesterSystemNamespaces() error {
+	for _, ns := range util.DefaultHarvesterNamespaceWhiteList {
+		namespace, err := h.NamespaceCache.Get(ns)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return fmt.Errorf("error getting namespace %s: %w", ns, err)
+		}
+
+		// namespace is being deleted, skip it
+		if namespace.DeletionTimestamp != nil {
+			continue
+		}
+
+		namespaceCopy := namespace.DeepCopy()
+		if namespaceCopy.Annotations != nil {
+			delete(namespaceCopy.Annotations, projectAnnotationKey)
+		}
+		if !reflect.DeepEqual(namespace, namespaceCopy) {
+			_, err = h.NamespaceClient.Update(namespaceCopy)
+			if err != nil {
+				return fmt.Errorf("error updating namespace %s: %w", ns, err)
+			}
+		}
+	}
+	return nil
 }

@@ -12,3 +12,5 @@ jobs:
       image_tag: ${{ github.ref_name }}
       build_version: ${{ github.ref_name }}
       iso_folder: ${{ github.ref_name }}
+  calling-test-integration:
+    uses: ./.github/workflows/test-integration.yml
