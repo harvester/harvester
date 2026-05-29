@@ -166,6 +166,9 @@ cdi:
     config:
       featureGates:
         - HonorWaitForFirstConsumer
+      podResourceRequirements:
+        limits:
+          memory: 2G
     imagePullPolicy: "IfNotPresent"
     infra:
       nodeSelector:
