@@ -69,7 +69,7 @@ DOCKER_BUILD = docker build \
 .PHONY: build validate validate-ci test test-integration build-iso \
 	package-all package package-harvester-webhook package-harvester-upgrade \
 	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default \
-	gen-version-env gen-version-env-debug
+	gen-version-env gen-version-env-debug integration-check
 
 
 # ---- Directories ----
@@ -123,6 +123,16 @@ test-integration: gen-version-env package-harvester-webhook
 	    -v harvester-test-integration-go-cache-${MK_REPO_ID}:/go/src/github.com/harvester/harvester/.cache/go-build \
 	    $(MK_TEST_INTEGRATION_IMAGE) \
 	    ./scripts/test-integration
+
+
+# ---- Integration check ----
+integration-check: build
+	$(BANNER)
+	$(DOCKER_BUILD) --target test-integration -t $(MK_TEST_INTEGRATION_IMAGE)
+	docker run $(MK_DOCKER_RUN_OPTS_TTY) --rm \
+	    -v harvester-integration-check-go-cache-${MK_REPO_ID}:/go/src/github.com/harvester/harvester/.cache/go-build \
+	    $(MK_TEST_INTEGRATION_IMAGE) \
+	    ./scripts/integration-check
 
 
 # ---- Package harvester image ----
