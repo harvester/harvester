@@ -19,7 +19,6 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/config"
-	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
@@ -78,12 +77,20 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		return node, nil
 	}
 
-	_, ok := node.Annotations[drainhelper.DrainAnnotation]
+	nodeCopy := node.DeepCopy()
+
+	_, ok := node.Annotations[util.DrainAnnotation]
 	if !ok {
+		// We are done in this handler. Exit.
 		return node, nil
 	}
 
-	_, forced := node.Annotations[drainhelper.ForcedDrain]
+	// Remove an existing status condition.
+	if util.RemoveNodeStatusCondition(nodeCopy, util.NodeConditionTypeMaintenanceMode) {
+		return ndc.nodes.UpdateStatus(nodeCopy)
+	}
+
+	_, forced := node.Annotations[util.ForcedDrainAnnotation]
 
 	logrus.WithFields(logrus.Fields{
 		"node_name": node.Name,
@@ -95,11 +102,23 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 	err := drainhelper.DrainPossible(ndc.nodeCache, node)
 	if err != nil {
 		if errors.Is(err, drainhelper.ErrNodeDrainNotPossible) {
-			nodeUpdate, errUpdate := ndc.cleanupMaintenanceModeAnnotations(node)
-			if errUpdate != nil {
-				return node, errors.Join(err, errUpdate)
+			logrus.WithFields(logrus.Fields{
+				"node_name": node.Name,
+			}).Errorf("draining is not possible: %v", err)
+
+			nodeUpdate, errNodeUpdate := ndc.cleanupMaintenanceModeAnnotations(node)
+			if errNodeUpdate != nil {
+				return node, errors.Join(err, errNodeUpdate)
 			}
-			return nodeUpdate, fmt.Errorf("enabling maintenance mode is impossible: %w", err)
+
+			util.SetNodeStatusCondition(nodeUpdate, util.NodeConditionTypeMaintenanceMode, corev1.ConditionTrue, util.NodeConditionReasonError, err.Error())
+
+			nodeUpdate, errNodeUpdate = ndc.nodes.UpdateStatus(nodeUpdate)
+			if errNodeUpdate != nil {
+				return node, errors.Join(err, fmt.Errorf("failed to set condition %s: %w", util.NodeConditionTypeMaintenanceMode, errNodeUpdate))
+			}
+
+			return nodeUpdate, err
 		}
 
 		return node, err
@@ -131,8 +150,16 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 				reasons = append(reasons, fmt.Sprintf("%s cannot be migrated due to %s", strings.Join(vms, ","), condition))
 			}
 
-			return nodeUpdate, fmt.Errorf("enabling maintenance mode is impossible. Non-migratable VMs found: %s. Use 'force drain' to perform a collective shutdown",
-				strings.Join(reasons, "; "))
+			err = fmt.Errorf("enabling maintenance mode is impossible. Non-migratable VMs found: %s. Use 'force drain' to perform a collective shutdown", strings.Join(reasons, "; "))
+
+			util.SetNodeStatusCondition(nodeUpdate, util.NodeConditionTypeMaintenanceMode, corev1.ConditionTrue, util.NodeConditionReasonError, err.Error())
+
+			nodeUpdate, errNodeUpdate := ndc.nodes.UpdateStatus(nodeUpdate)
+			if errNodeUpdate != nil {
+				return node, errors.Join(err, fmt.Errorf("failed to set condition %s: %w", util.NodeConditionTypeMaintenanceMode, errNodeUpdate))
+			}
+
+			return nodeUpdate, err
 		}
 
 		// Get the list of VMs that are labeled to forcibly shut down
@@ -217,17 +244,29 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		}).Info("force stopping VM")
 	}
 
-	nodeCopy := node.DeepCopy()
+	logrus.WithFields(logrus.Fields{
+		"node_name": node.Name,
+	}).Info("Starting to drain the node...")
 
 	// run node drain
 	err = drainhelper.DrainNode(ndc.context, ndc.restConfig, nodeCopy)
 	if err != nil {
-		return node, err
+		logrus.WithFields(logrus.Fields{
+			"node_name": node.Name,
+		}).Errorf("failed to drain the node: %v", err)
+
+		util.SetNodeStatusCondition(nodeCopy, util.NodeConditionTypeMaintenanceMode, corev1.ConditionTrue, util.NodeConditionReasonError, err.Error())
+
+		nodeCopy, errUpdate := ndc.nodes.UpdateStatus(nodeCopy)
+		if errUpdate != nil {
+			return node, errors.Join(err, fmt.Errorf("failed to set condition %s: %w", util.NodeConditionTypeMaintenanceMode, errUpdate))
+		}
+
+		return nodeCopy, err
 	}
 
-	nodeCopy.Annotations[ctlnode.MaintainStatusAnnotationKey] = ctlnode.MaintainStatusRunning
-	delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
-	delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
+	util.RemoveMaintenanceModeAnnotations(nodeCopy)
+	nodeCopy.Annotations[util.MaintainStatusAnnotation] = util.MaintainStatusRunning
 
 	return ndc.nodes.Update(nodeCopy)
 }
@@ -534,9 +573,7 @@ func (ndc *ControllerHandler) listVMILabelMaintainModeStrategy(node *corev1.Node
 
 func (ndc *ControllerHandler) cleanupMaintenanceModeAnnotations(node *corev1.Node) (*corev1.Node, error) {
 	nodeCopy := node.DeepCopy()
-	delete(nodeCopy.Annotations, ctlnode.MaintainStatusAnnotationKey)
-	delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
-	delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
+	util.RemoveMaintenanceModeAnnotations(nodeCopy)
 	nodeUpdate, err := ndc.nodes.Update(nodeCopy)
 	if err != nil {
 		return node, fmt.Errorf("failed to clean up maintenance mode annotations: %w", err)

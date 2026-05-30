@@ -74,11 +74,11 @@ func (v *nodeValidator) Update(_ *types.Request, oldObj runtime.Object, newObj r
 func validateCordonAndMaintenanceMode(oldNode, newNode *corev1.Node, nodeList []*corev1.Node) error {
 	// if old node already have "maintain-status" annotation or Unscheduleable=true,
 	// it has already been enabled, so we skip it
-	if _, ok := oldNode.Annotations[ctlnode.MaintainStatusAnnotationKey]; ok || oldNode.Spec.Unschedulable {
+	if _, ok := oldNode.Annotations[util.MaintainStatusAnnotation]; ok || oldNode.Spec.Unschedulable {
 		return nil
 	}
 	// if new node doesn't have "maintain-status" annotation and Unscheduleable=false, we skip it
-	if _, ok := newNode.Annotations[ctlnode.MaintainStatusAnnotationKey]; !ok && !newNode.Spec.Unschedulable {
+	if _, ok := newNode.Annotations[util.MaintainStatusAnnotation]; !ok && !newNode.Spec.Unschedulable {
 		return nil
 	}
 
@@ -88,7 +88,7 @@ func validateCordonAndMaintenanceMode(oldNode, newNode *corev1.Node, nodeList []
 		}
 
 		// Return when we find another available node
-		if _, ok := node.Annotations[ctlnode.MaintainStatusAnnotationKey]; !ok && !node.Spec.Unschedulable {
+		if _, ok := node.Annotations[util.MaintainStatusAnnotation]; !ok && !node.Spec.Unschedulable {
 			return nil
 		}
 	}

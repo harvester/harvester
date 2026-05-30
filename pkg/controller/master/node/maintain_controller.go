@@ -17,14 +17,11 @@ import (
 )
 
 const (
-	maintainNodeControllerName  = "maintain-node-controller"
-	MaintainStatusAnnotationKey = "harvesterhci.io/maintain-status"
-	MaintainStatusComplete      = "completed"
-	MaintainStatusRunning       = "running"
+	maintainNodeControllerName = "maintain-node-controller"
 )
 
-// maintainNodeHandler updates maintenance status of a node in its annotations, so that we can tell whether the node is
-// entering maintenance mode(migrating VMs on it) or in maintenance mode(VMs migrated).
+// maintainNodeHandler updates the maintenance status of a node in its annotations, so that we can tell whether the node is
+// entering maintenance mode (migrating VMs on it) or in maintenance mode(VMs migrated).
 type maintainNodeHandler struct {
 	nodes                       ctlcorev1.NodeClient
 	nodeCache                   ctlcorev1.NodeCache
@@ -57,7 +54,40 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 	if node == nil || node.DeletionTimestamp != nil {
 		return node, nil
 	}
-	if maintenanceStatus, ok := node.Annotations[MaintainStatusAnnotationKey]; !ok || maintenanceStatus != MaintainStatusRunning {
+
+	nodeCopy := node.DeepCopy()
+
+	maintenanceStatus, ok := node.Annotations[util.MaintainStatusAnnotation]
+	if !ok {
+		// We ended up here because maintenance mode was probably disabled
+		// in the UI.
+		cond := util.FindNodeStatusCondition(node.Status.Conditions, util.NodeConditionTypeMaintenanceMode)
+		// Cleanup the status condition only if we are not in an error condition.
+		if cond != nil && cond.Reason != util.NodeConditionReasonError {
+			if util.RemoveNodeStatusCondition(nodeCopy, util.NodeConditionTypeMaintenanceMode) {
+				return h.nodes.UpdateStatus(nodeCopy)
+			}
+		}
+		// Finally we are done in this handler. Exit.
+		return node, nil
+	}
+
+	// Make sure the status is in sync with the annotation.
+	switch maintenanceStatus {
+	case util.MaintainStatusRunning:
+		cond := util.FindNodeStatusCondition(node.Status.Conditions, util.NodeConditionTypeMaintenanceMode)
+		if cond == nil || cond.Reason != util.NodeConditionReasonRunning {
+			util.SetNodeStatusCondition(nodeCopy, util.NodeConditionTypeMaintenanceMode, corev1.ConditionTrue, util.NodeConditionReasonRunning, "Draining the node")
+			return h.nodes.UpdateStatus(nodeCopy)
+		}
+		// Continue with this handler.
+	case util.MaintainStatusComplete:
+		cond := util.FindNodeStatusCondition(node.Status.Conditions, util.NodeConditionTypeMaintenanceMode)
+		if cond == nil || cond.Reason != util.NodeConditionReasonCompleted {
+			util.SetNodeStatusCondition(nodeCopy, util.NodeConditionTypeMaintenanceMode, corev1.ConditionTrue, util.NodeConditionReasonCompleted, "Maintenance mode enabled")
+			return h.nodes.UpdateStatus(nodeCopy)
+		}
+		// The handler has already been successfully executed. Exit.
 		return node, nil
 	}
 
@@ -70,48 +100,13 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 		return node, nil
 	}
 
-	// Restart those VMs that have been labeled to be shut down before
-	// maintenance mode and that should be restarted when the node has
-	// successfully switched into maintenance mode.
-	selector := labels.Set{util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdownAndRestartAfterEnable}.AsSelector()
-	vmList, err := h.virtualMachineCache.List(node.Namespace, selector)
-	if err != nil {
-		return node, fmt.Errorf("failed to list VMs with labels %s: %w", selector.String(), err)
-	}
-	for _, vm := range vmList {
-		// Make sure that this VM was shut down as part of the maintenance
-		// mode of the given node.
-		if vm.Annotations[util.AnnotationMaintainModeStrategyNodeName] != node.Name {
-			continue
-		}
-
-		logrus.WithFields(logrus.Fields{
-			"namespace":           vm.Namespace,
-			"virtualmachine_name": vm.Name,
-		}).Info("restarting the VM that was temporary shut down for maintenance mode")
-
-		// Update the run strategy of the VM to start it and remove the
-		// annotation that was previously set when the node went into
-		// maintenance mode.
-		// Get the running strategy that is stored in the annotation of the
-		// VM when it is shut down. Note, in general this is automatically
-		// patched by the VM mutator in general.
-		runStrategy := kubevirtv1.VirtualMachineRunStrategy(vm.Annotations[util.AnnotationRunStrategy])
-		if runStrategy == "" {
-			runStrategy = kubevirtv1.RunStrategyRerunOnFailure
-		}
-		vmCopy := vm.DeepCopy()
-		vmCopy.Spec.RunStrategy = &[]kubevirtv1.VirtualMachineRunStrategy{runStrategy}[0]
-		delete(vmCopy.Annotations, util.AnnotationMaintainModeStrategyNodeName)
-		_, err = h.virtualMachineClient.Update(vmCopy)
-		if err != nil {
-			return node, fmt.Errorf("failed to start VM %s/%s: %w", vm.Namespace, vm.Name, err)
-		}
+	// Restart VMs that were shut down for maintenance and should be restarted.
+	if err = h.restartShutdownVMs(node); err != nil {
+		return node, err
 	}
 
-	toUpdate := node.DeepCopy()
-	toUpdate.Annotations[MaintainStatusAnnotationKey] = MaintainStatusComplete
-	return h.nodes.Update(toUpdate)
+	nodeCopy.Annotations[util.MaintainStatusAnnotation] = util.MaintainStatusComplete
+	return h.nodes.Update(nodeCopy)
 }
 
 // OnNodeRemoved Ensure that all "harvesterhci.io/maintain-mode-strategy-node-name"
@@ -121,7 +116,7 @@ func (h *maintainNodeHandler) OnNodeRemoved(_ string, node *corev1.Node) (*corev
 		return node, nil
 	}
 
-	if _, ok := node.Annotations[MaintainStatusAnnotationKey]; !ok {
+	if _, ok := node.Annotations[util.MaintainStatusAnnotation]; !ok {
 		return node, nil
 	}
 
@@ -143,4 +138,50 @@ func (h *maintainNodeHandler) OnNodeRemoved(_ string, node *corev1.Node) (*corev
 	}
 
 	return node, nil
+}
+
+// restartShutdownVMs restarts those VMs that have been labeled to be shut down
+// before maintenance mode, and that should be restarted when the node has
+// successfully switched into maintenance mode.
+func (h *maintainNodeHandler) restartShutdownVMs(node *corev1.Node) error {
+	selector := labels.Set{util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdownAndRestartAfterEnable}.AsSelector()
+	vmList, err := h.virtualMachineCache.List(node.Namespace, selector)
+	if err != nil {
+		return fmt.Errorf("failed to list VMs with labels %s: %w", selector.String(), err)
+	}
+
+	for _, vm := range vmList {
+		// Make sure that this VM was shut down as part of the maintenance
+		// mode of the given node.
+		if vm.Annotations == nil || vm.Annotations[util.AnnotationMaintainModeStrategyNodeName] != node.Name {
+			continue
+		}
+
+		logrus.WithFields(logrus.Fields{
+			"namespace":           vm.Namespace,
+			"virtualmachine_name": vm.Name,
+		}).Info("restarting the VM that was temporarily shut down for maintenance mode")
+
+		// Update the run strategy of the VM to start it and remove the
+		// annotation that was previously set when the node went into
+		// maintenance mode.
+		// Get the running strategy that is stored in the annotation of the
+		// VM when it is shut down. Note, in general this is automatically
+		// patched by the VM mutator in general.
+		runStrategy := kubevirtv1.VirtualMachineRunStrategy(vm.Annotations[util.AnnotationRunStrategy])
+		if runStrategy == "" {
+			runStrategy = kubevirtv1.RunStrategyRerunOnFailure
+		}
+
+		vmCopy := vm.DeepCopy()
+		vmCopy.Spec.RunStrategy = &[]kubevirtv1.VirtualMachineRunStrategy{runStrategy}[0]
+		delete(vmCopy.Annotations, util.AnnotationMaintainModeStrategyNodeName)
+
+		_, err = h.virtualMachineClient.Update(vmCopy)
+		if err != nil {
+			return fmt.Errorf("failed to start VM %s/%s: %w", vm.Namespace, vm.Name, err)
+		}
+	}
+
+	return nil
 }

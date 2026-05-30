@@ -1,5 +1,7 @@
 package util
 
+import corev1 "k8s.io/api/core/v1"
+
 const (
 	prefix                              = "harvesterhci.io"
 	RemovedPVCsAnnotationKey            = prefix + "/removedPersistentVolumeClaims"
@@ -189,6 +191,13 @@ const (
 
 	RKEControlPlaneRoleLabel = "rke.cattle.io/control-plane-role"
 
+	DrainAnnotation       = prefix + "/drain-requested"
+	ForcedDrainAnnotation = prefix + "/drain-forced"
+
+	MaintainStatusAnnotation = prefix + "/maintain-status"
+	MaintainStatusComplete   = "completed"
+	MaintainStatusRunning    = "running"
+
 	LabelMaintainModeStrategy              = prefix + "/maintain-mode-strategy"
 	AnnotationMaintainModeStrategyNodeName = prefix + "/maintain-mode-strategy-node-name"
 
@@ -216,6 +225,13 @@ var (
 	}
 
 	DefaultHarvesterNamespaceWhiteList = []string{"calico-apiserver", "calico-system", "cattle-alerting", "cattle-csp-adapter-system", "cattle-elemental-system", "cattle-epinio-system", "cattle-externalip-system", "cattle-fleet-local-system", "cattle-fleet-system", "cattle-gatekeeper-system", "cattle-global-data", "cattle-global-nt", "cattle-impersonation-system", "cattle-istio", "cattle-istio-system", "cattle-logging", "cattle-logging-system", "cattle-monitoring-system", "cattle-neuvector-system", "cattle-prometheus", "cattle-provisioning-capi-system", "cattle-resources-system", "cattle-sriov-system", "cattle-system", "cattle-ui-plugin-system", "cattle-windows-gmsa-system", "cert-manager", "cis-operator-system", "fleet-default", "ingress-nginx", "istio-system", "kube-node-lease", "kube-public", "kube-system", "longhorn-system", "rancher-alerting-drivers", "security-scan", "tigera-operator", "harvester-system", "harvester-public", "rancher-vcluster", "cattle-dashboards", "fleet-local", "local", "forklift"}
+)
+
+const (
+	NodeConditionTypeMaintenanceMode corev1.NodeConditionType = "MaintenanceMode"
+	NodeConditionReasonRunning       string                   = "Running"
+	NodeConditionReasonCompleted     string                   = "Completed"
+	NodeConditionReasonError         string                   = "Error"
 )
 
 const (

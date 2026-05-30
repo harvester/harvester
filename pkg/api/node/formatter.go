@@ -71,7 +71,7 @@ func Formatter(request *types.APIRequest, resource *types.RawResource) {
 		return
 	}
 
-	if resource.APIObject.Data().String("metadata", "annotations", ctlnode.MaintainStatusAnnotationKey) != "" {
+	if resource.APIObject.Data().String("metadata", "annotations", util.MaintainStatusAnnotation) != "" {
 		resource.AddAction(request, disableMaintenanceModeAction)
 		resource.AddAction(request, powerAction)
 	} else {
@@ -206,9 +206,9 @@ func (h ActionHandler) enableMaintenanceMode(req *http.Request, node *corev1.Nod
 		if nodeObj.Annotations == nil {
 			nodeObj.Annotations = make(map[string]string)
 		}
-		nodeObj.Annotations[drainhelper.DrainAnnotation] = "true"
+		nodeObj.Annotations[util.DrainAnnotation] = "true"
 		if maintenanceInput.Force == "true" {
-			nodeObj.Annotations[drainhelper.ForcedDrain] = "true"
+			nodeObj.Annotations[util.ForcedDrainAnnotation] = "true"
 		}
 		_, err = h.nodeClient.Update(nodeObj)
 		return err
@@ -218,7 +218,7 @@ func (h ActionHandler) enableMaintenanceMode(req *http.Request, node *corev1.Nod
 type maintenanceModeUpdateFunc func(node *corev1.Node)
 
 func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
-	disableMaintaenanceModeFunc := func(node *corev1.Node) {
+	disableMaintenanceModeFunc := func(node *corev1.Node) {
 		node.Spec.Unschedulable = false
 		for i, taint := range node.Spec.Taints {
 			if taint.Key == drainKey {
@@ -226,12 +226,10 @@ func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
 				break
 			}
 		}
-		delete(node.Annotations, drainhelper.DrainAnnotation)
-		delete(node.Annotations, drainhelper.ForcedDrain)
-		delete(node.Annotations, ctlnode.MaintainStatusAnnotationKey)
+		util.RemoveMaintenanceModeAnnotations(node)
 	}
 
-	err := h.retryMaintenanceModeUpdate(nodeName, disableMaintaenanceModeFunc, "disable")
+	err := h.retryMaintenanceModeUpdate(nodeName, disableMaintenanceModeFunc, "disable")
 	if err != nil {
 		return err
 	}

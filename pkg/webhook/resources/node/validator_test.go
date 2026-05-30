@@ -65,7 +65,7 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node1",
 					Annotations: map[string]string{
-						ctlnode.MaintainStatusAnnotationKey: ctlnode.MaintainStatusRunning,
+						util.MaintainStatusAnnotation: util.MaintainStatusRunning,
 					},
 				},
 			},
@@ -108,7 +108,7 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "node2",
 						Annotations: map[string]string{
-							ctlnode.MaintainStatusAnnotationKey: ctlnode.MaintainStatusComplete,
+							util.MaintainStatusAnnotation: util.MaintainStatusComplete,
 						},
 					},
 				},
@@ -158,7 +158,7 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node1",
 					Annotations: map[string]string{
-						ctlnode.MaintainStatusAnnotationKey: ctlnode.MaintainStatusRunning,
+						util.MaintainStatusAnnotation: util.MaintainStatusRunning,
 					},
 				},
 			},
@@ -172,7 +172,7 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "node2",
 						Annotations: map[string]string{
-							ctlnode.MaintainStatusAnnotationKey: ctlnode.MaintainStatusRunning,
+							util.MaintainStatusAnnotation: util.MaintainStatusRunning,
 						},
 					},
 				},
@@ -190,7 +190,7 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node1",
 					Annotations: map[string]string{
-						ctlnode.MaintainStatusAnnotationKey: ctlnode.MaintainStatusRunning,
+						util.MaintainStatusAnnotation: util.MaintainStatusRunning,
 					},
 				},
 			},

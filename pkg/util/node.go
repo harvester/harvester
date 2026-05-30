@@ -85,7 +85,7 @@ func IsManagementRole(node *corev1.Node) bool {
 	return false
 }
 
-// count the number of nodes running instance manager pod
+// CountNonWitnessNodes count the number of nodes running instance manager pod
 func CountNonWitnessNodes(nodes []*corev1.Node) int {
 	count := 0
 
@@ -120,6 +120,8 @@ func SetNodeStatusCondition(node *corev1.Node, condType corev1.NodeConditionType
 	}
 
 	if cond.Status != status {
+		// Per Kubernetes convention, `LastTransitionTime` only changes
+		// when `Status` flips.
 		cond.Status = status
 		cond.LastTransitionTime = now
 	}
@@ -146,4 +148,31 @@ func FindNodeStatusCondition(conditions []corev1.NodeCondition, conditionType co
 		}
 	}
 	return nil
+}
+
+// RemoveNodeStatusCondition removes the condition of the node based on the condition type.
+// It returns true if the condition is removed, otherwise false.
+func RemoveNodeStatusCondition(node *corev1.Node, condType corev1.NodeConditionType) bool {
+	numConditions := len(node.Status.Conditions)
+	if numConditions == 0 {
+		return false
+	}
+
+	newConditions := make([]corev1.NodeCondition, 0, numConditions)
+
+	for _, c := range node.Status.Conditions {
+		if c.Type != condType {
+			newConditions = append(newConditions, c)
+		}
+	}
+
+	node.Status.Conditions = newConditions
+
+	return numConditions != len(newConditions)
+}
+
+func RemoveMaintenanceModeAnnotations(node *corev1.Node) {
+	delete(node.Annotations, MaintainStatusAnnotation)
+	delete(node.Annotations, DrainAnnotation)
+	delete(node.Annotations, ForcedDrainAnnotation)
 }
