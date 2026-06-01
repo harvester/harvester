@@ -73,10 +73,6 @@ func (h *Handler) nodeOnChanged(_ string, node *corev1.Node) (*corev1.Node, erro
 		return node, nil
 	}
 
-	// Wake the auto-rotate-rke2-certs orchestrator so it can react promptly
-	// to changes in the per-node rke2-certs annotations
-	h.settingController.Enqueue(harvSettings.AutoRotateRKE2CertsSettingName)
-
 	// Get NTP Server settings
 	ntpServersSetting, err := h.settingCache.Get(harvSettings.NTPServersSettingName)
 	if err != nil {
