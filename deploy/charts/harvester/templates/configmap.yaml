@@ -247,6 +247,7 @@ data:
 
     wait_for_label "$NODE_NAME" "$EXPECT_LABEL_VALUE"
   rke2-cert-check.sh: |-
+    set -x
     echo "Start rke2 certificate check..."
     KUBECTL="$HOST_DIR/$(readlink $HOST_DIR/var/lib/rancher/rke2/bin)/kubectl"
     ANNOTATION_KEY="harvesterhci.io/rke2-cert-info"
@@ -277,6 +278,7 @@ data:
     echo "Annotating $NODE_NAME with $ANNOTATION_KEY=$ANNOTATION_VALUE"
     $KUBECTL annotate node "$NODE_NAME" "$ANNOTATION_KEY=$ANNOTATION_VALUE" --overwrite
   rke2-cert-rotate.sh: |-
+    set -x
     function wait_for_ready() {
       local unit="$1"
       local interval=5
