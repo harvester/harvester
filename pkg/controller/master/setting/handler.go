@@ -15,9 +15,11 @@ import (
 	ctlrkev1 "github.com/rancher/rancher/pkg/generated/controllers/rke.cattle.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/apply"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
+	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/slice"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/kubernetes"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -89,6 +91,9 @@ type Handler struct {
 	kubeVirtConfigCache  kubevirtv1.KubeVirtCache
 	namespaces           ctlcorev1.NamespaceClient
 	namespacesCache      ctlcorev1.NamespaceCache
+	jobs                 ctlbatchv1.JobClient
+	jobCache             ctlbatchv1.JobCache
+	clientset            kubernetes.Interface
 }
 
 func (h *Handler) settingOnChanged(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {

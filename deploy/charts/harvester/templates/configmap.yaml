@@ -246,3 +246,103 @@ data:
     fi
 
     wait_for_label "$NODE_NAME" "$EXPECT_LABEL_VALUE"
+  rke2-cert-check.sh: |-
+    set -x
+    echo "Start rke2 certificate check..."
+    KUBECTL="$HOST_DIR/$(readlink $HOST_DIR/var/lib/rancher/rke2/bin)/kubectl"
+    ANNOTATION_KEY="harvesterhci.io/rke2-cert-info"
+    NODE_NAME="$1"
+
+    TEMP_DIR_HOST=$(mktemp -d -p "$HOST_DIR/tmp" rke2-cert-check.XXXXXX)
+    TEMP_DIR_CHROOT="/tmp/${TEMP_DIR_HOST##*/}"
+    OUTPUT_FILE="annotation_value"
+
+    trap 'rm -rf "$TEMP_DIR_HOST"' EXIT
+
+    chroot $HOST_DIR /bin/sh <<EOF
+      JSON_DATA=\$(/opt/rke2/bin/rke2 certificate check -o json | tee /dev/stderr)
+
+      CLOSEST_EXPIRY=\$(echo "\$JSON_DATA" | jq -r '
+        [ .Certificates[] |
+          select(.Usages | contains(["CertSign"]) | not)
+        ] | sort_by(.ExpiryTime) | .[0].ExpiryTime
+      ')
+
+      jq -n \
+        --arg expiry "\$CLOSEST_EXPIRY" \
+        --arg now "\$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '{closestExpiryTime: \$expiry, updatedAt: \$now}' | jq -c . > "$TEMP_DIR_CHROOT/$OUTPUT_FILE"
+    EOF
+
+    ANNOTATION_VALUE=$(cat "$TEMP_DIR_HOST/$OUTPUT_FILE")
+    echo "Annotating $NODE_NAME with $ANNOTATION_KEY=$ANNOTATION_VALUE"
+    $KUBECTL annotate node "$NODE_NAME" "$ANNOTATION_KEY=$ANNOTATION_VALUE" --overwrite
+  rke2-cert-rotate.sh: |-
+    set -x
+    function wait_for_ready() {
+      local unit="$1"
+      local interval=5
+      local timeout=${WAIT_READY_TIMEOUT:-300}
+      local start_time=$(date +%s)
+
+      while true; do
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
+
+        if [ $elapsed -ge $timeout ]; then
+          echo "Error: timeout, elapsed ${elapsed}s"
+          exit 31
+        fi
+
+        if chroot $HOST_DIR curl -fsS -m 5 http://127.0.0.1:10248/healthz >/dev/null 2>&1; then
+          echo "${unit} is ready"
+          return 0
+        fi
+
+        echo "${unit} is not ready yet, wait ${interval}s..."
+        sleep $interval
+      done
+    }
+
+    echo "Start rke2 certificate rotate..."
+    NODE_NAME="$1"
+    ROLE="$2"
+
+    if [ "$ROLE" != "server" ] && [ "$ROLE" != "agent" ]; then
+      echo "Error: ROLE must be 'server' or 'agent', got '$ROLE'"
+      exit 1
+    fi
+
+    UNIT="rke2-${ROLE}"
+    if ! chroot $HOST_DIR systemctl is-active --quiet $UNIT; then
+      echo "Error: $UNIT is not active on this host."
+      exit 2
+    fi
+
+    echo "Stopping $UNIT."
+    if ! chroot $HOST_DIR systemctl stop $UNIT; then
+      echo "Error: failed to stop $UNIT."
+      exit 11
+    fi
+    echo "Stopped $UNIT."
+
+    echo "Rotating certificates."
+    if ! chroot $HOST_DIR /opt/rke2/bin/rke2 certificate rotate; then
+      echo "Error: 'rke2 certificate rotate' failed."
+      if ! chroot $HOST_DIR systemctl start $UNIT; then
+        echo "Error: failed to start $UNIT after rotation failed."
+        exit 21
+      fi
+      exit 22
+    fi
+    echo "Rotated certificates."
+
+    echo "Starting $UNIT."
+    if ! chroot $HOST_DIR systemctl start $UNIT; then
+      echo "Error: failed to start $UNIT."
+      exit 12
+    fi
+    echo "Started $UNIT."
+
+    wait_for_ready "$UNIT"
+    echo "End rke2 certificate rotate for $NODE_NAME"

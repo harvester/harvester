@@ -17,6 +17,10 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 )
 
+func GetKeyNamesGeneralJobImage() []string {
+	return []string{"generalJob", "image"}
+}
+
 // FetchImageFromHelmValues fetches image information from helm chart values, the name points to a chart e.g. harvester
 func FetchImageFromHelmValues(clientSet kubernetes.Interface, namespace, name string, keyNames []string) (settings.Image, error) {
 	var image settings.Image

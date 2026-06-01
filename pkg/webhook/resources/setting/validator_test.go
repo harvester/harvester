@@ -19,6 +19,7 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/certrotation"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	networkutil "github.com/harvester/harvester/pkg/util/network"
 	whTypes "github.com/harvester/harvester/pkg/webhook/types"
@@ -2501,6 +2502,219 @@ func Test_checkRWXNetworkRangeValid(t *testing.T) {
 			}
 			err := v.checkRWXNetworkRangeValid(tt.config)
 			assert.Equal(t, tt.expectedErr, err != nil, err)
+		})
+	}
+}
+
+func rotationStateAnnotation(payload string) map[string]string {
+	if payload == "" {
+		return nil
+	}
+	return map[string]string{
+		certrotation.AnnotationRKE2CertRotationState: payload,
+	}
+}
+
+func rotationStateJSON(t *testing.T, phase string, generation int64) string {
+	t.Helper()
+	raw, err := certrotation.MarshalClusterState(certrotation.ClusterRotationState{
+		Generation: generation,
+		Phase:      phase,
+	})
+	assert.NoError(t, err)
+	return raw
+}
+
+func Test_validateUpdateAutoRotateRKE2Certs(t *testing.T) {
+	const (
+		validValue   = `{"enable":true,"expiringInHours":240}`
+		disabledVal  = `{"enable":false,"expiringInHours":240}`
+		differentExp = `{"enable":true,"expiringInHours":120}`
+		invalidVal   = `{"enable":true,"expiringInHours":-1}`
+	)
+
+	tests := []struct {
+		name        string
+		oldAnnots   map[string]string
+		oldValue    string
+		newValue    string
+		expectError bool
+		errContains string
+	}{
+		{
+			name:        "no-op update is always allowed (no annotation)",
+			oldAnnots:   nil,
+			oldValue:    validValue,
+			newValue:    validValue,
+			expectError: false,
+		},
+		{
+			name:        "no-op update is allowed even mid-rotation",
+			oldAnnots:   rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseCPRotation, 3)),
+			oldValue:    validValue,
+			newValue:    validValue,
+			expectError: false,
+		},
+		{
+			name:        "disable allowed when annotation absent",
+			oldAnnots:   nil,
+			oldValue:    validValue,
+			newValue:    disabledVal,
+			expectError: false,
+		},
+		{
+			name:        "disable allowed when phase is idle",
+			oldAnnots:   rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseIdle, 0)),
+			oldValue:    validValue,
+			newValue:    disabledVal,
+			expectError: false,
+		},
+		{
+			name:        "disable allowed when phase is completed",
+			oldAnnots:   rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseCompleted, 5)),
+			oldValue:    validValue,
+			newValue:    disabledVal,
+			expectError: false,
+		},
+		{
+			name:        "disable allowed when phase is failed (terminal)",
+			oldAnnots:   rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseFailed, 5)),
+			oldValue:    validValue,
+			newValue:    disabledVal,
+			expectError: false,
+		},
+		{
+			name:        "disable rejected when phase is cp-rotation",
+			oldAnnots:   rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseCPRotation, 3)),
+			oldValue:    validValue,
+			newValue:    disabledVal,
+			expectError: true,
+			errContains: "rotation is in progress",
+		},
+		{
+			name:        "disable rejected when phase is worker-rotation",
+			oldAnnots:   rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseWorkerRotation, 3)),
+			oldValue:    validValue,
+			newValue:    disabledVal,
+			expectError: true,
+			errContains: "rotation is in progress",
+		},
+		{
+			name:        "ExpiringInHours mutation rejected mid-rotation",
+			oldAnnots:   rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseCPRotation, 3)),
+			oldValue:    validValue,
+			newValue:    differentExp,
+			expectError: true,
+			errContains: "rotation is in progress",
+		},
+		{
+			name:        "malformed annotation falls open (does not block)",
+			oldAnnots:   rotationStateAnnotation("{not valid json"),
+			oldValue:    validValue,
+			newValue:    disabledVal,
+			expectError: false,
+		},
+		{
+			name:        "schema validation runs even mid-rotation (rejects invalid value)",
+			oldAnnots:   rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseCPRotation, 3)),
+			oldValue:    validValue,
+			newValue:    invalidVal,
+			expectError: true,
+			errContains: "expiringInHours",
+		},
+	}
+
+	v := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldSetting := &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        settings.AutoRotateRKE2CertsSettingName,
+					Annotations: tt.oldAnnots,
+				},
+				Value: tt.oldValue,
+			}
+			newSetting := oldSetting.DeepCopy()
+			newSetting.Value = tt.newValue
+
+			err := v.Update(nil, oldSetting, newSetting)
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.ErrorContains(t, err, tt.errContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func Test_validateDeleteAutoRotateRKE2Certs(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expectError bool
+		errContains string
+	}{
+		{
+			name:        "delete allowed when annotation absent",
+			annotations: nil,
+			expectError: false,
+		},
+		{
+			name:        "delete allowed when phase is idle",
+			annotations: rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseIdle, 0)),
+			expectError: false,
+		},
+		{
+			name:        "delete allowed when phase is completed",
+			annotations: rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseCompleted, 5)),
+			expectError: false,
+		},
+		{
+			name:        "delete allowed when phase is failed (terminal)",
+			annotations: rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseFailed, 5)),
+			expectError: false,
+		},
+		{
+			name:        "delete rejected when phase is cp-rotation",
+			annotations: rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseCPRotation, 3)),
+			expectError: true,
+			errContains: "rotation is in progress",
+		},
+		{
+			name:        "delete rejected when phase is worker-rotation",
+			annotations: rotationStateAnnotation(rotationStateJSON(t, certrotation.PhaseWorkerRotation, 3)),
+			expectError: true,
+			errContains: "rotation is in progress",
+		},
+		{
+			name:        "malformed annotation falls open (does not block)",
+			annotations: rotationStateAnnotation("garbage"),
+			expectError: false,
+		},
+	}
+
+	v := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldSetting := &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        settings.AutoRotateRKE2CertsSettingName,
+					Annotations: tt.annotations,
+				},
+				Value: `{"enable":true,"expiringInHours":240}`,
+			}
+			err := v.Delete(nil, oldSetting)
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.ErrorContains(t, err, tt.errContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
