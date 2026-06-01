@@ -121,7 +121,10 @@ get_url()
 
 check_iso(){
     if [ -n "$HARVESTER_ISO_URL" ]; then
-        echo "Checking ISO URL.."
+        if [ "$HARVESTER_ISO_URL" = "local" ]; then
+            return
+        fi
+        echo "Checking ISO URL..."
         check_url "$HARVESTER_ISO_URL"
     fi
 }
@@ -129,11 +132,24 @@ check_iso(){
 get_iso()
 {
     if [ -n "$HARVESTER_ISO_URL" ]; then
-        echo "Downloading ISO.."
         ISOMNT=$(mktemp -d -p /tmp cos.XXXXXXXX.isomnt)
-        ISOTEMP=$(mktemp -p ${TARGET}/usr/local cos.XXXXXXXX.iso)
-        get_url ${HARVESTER_ISO_URL} ${ISOTEMP}
-        ISO_DEVICE=$(losetup --show -f $ISOTEMP)
+        if [ "$HARVESTER_ISO_URL" = "local" ]; then
+            echo "Using local ISO..."
+            ISO_DEVICE=$(findmnt -n -o SOURCE /run/initramfs/live 2>/dev/null || true)
+            if [ -z "$ISO_DEVICE" ]; then
+                ISO_DEVICE=$(blkid -L COS_LIVE || true)
+            fi
+            if [ -z "$ISO_DEVICE" ]; then
+                echo "ERROR: cannot locate Harvester ISO device (no COS_LIVE label found)" >&2
+                exit 1
+            fi
+            echo "Found local ISO device: $ISO_DEVICE"
+        else
+            echo "Downloading ISO..."
+            ISOTEMP=$(mktemp -p ${TARGET}/usr/local cos.XXXXXXXX.iso)
+            get_url ${HARVESTER_ISO_URL} ${ISOTEMP}
+            ISO_DEVICE=$(losetup --show -f $ISOTEMP)
+        fi
         mount -o ro ${ISO_DEVICE} ${ISOMNT}
     fi
 }
