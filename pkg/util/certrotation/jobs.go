@@ -304,14 +304,20 @@ func PruneJobs(
 
 	// Sort newest-first so we keep the head and prune the tail.
 	sort.Slice(successful, func(i, j int) bool {
-		iCompletionTime := successful[i].Status.CompletionTime.Time
-		jCompletionTime := successful[j].Status.CompletionTime.Time
-		return iCompletionTime.After(jCompletionTime)
+		iTime := successfulJobTime(successful[i])
+		jTime := successfulJobTime(successful[j])
+		if iTime.Equal(jTime) {
+			return failed[i].Name > failed[j].Name // Stable tie-breaker
+		}
+		return iTime.After(jTime)
 	})
 	sort.Slice(failed, func(i, j int) bool {
-		iFailedTime := failedJobTime(failed[i])
-		jFailedTime := failedJobTime(failed[j])
-		return iFailedTime.After(jFailedTime)
+		iTime := failedJobTime(failed[i])
+		jTime := failedJobTime(failed[j])
+		if iTime.Equal(jTime) {
+			return failed[i].Name > failed[j].Name // Stable tie-breaker
+		}
+		return iTime.After(jTime)
 	})
 
 	prune := func(category string, jobs []*batchv1.Job, limit int) {
@@ -351,5 +357,20 @@ func failedJobTime(job *batchv1.Job) time.Time {
 			return c.LastTransitionTime.Time
 		}
 	}
-	return time.Time{}
+	// Fallback to job created time
+	return job.CreationTimestamp.Time
+}
+
+func successfulJobTime(job *batchv1.Job) time.Time {
+	if job.Status.CompletionTime != nil {
+		return job.Status.CompletionTime.Time
+	}
+	// Fallback: If CompletionTime isn't populated yet, look for the condition timestamp
+	for _, c := range job.Status.Conditions {
+		if c.Type == batchv1.JobComplete && c.Status == corev1.ConditionTrue {
+			return c.LastTransitionTime.Time
+		}
+	}
+	// Fallback to job created time
+	return job.CreationTimestamp.Time
 }
