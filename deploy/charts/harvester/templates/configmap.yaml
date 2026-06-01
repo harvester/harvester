@@ -329,8 +329,11 @@ data:
     echo "Rotating certificates."
     if ! chroot $HOST_DIR /opt/rke2/bin/rke2 certificate rotate; then
       echo "Error: 'rke2 certificate rotate' failed."
-      chroot $HOST_DIR systemctl start $UNIT || true
-      exit 21
+      if ! chroot $HOST_DIR systemctl start $UNIT; then
+        echo "Error: failed to start $UNIT after rotation failed."
+        exit 21
+      fi
+      exit 22
     fi
     echo "Rotated certificates."
 
