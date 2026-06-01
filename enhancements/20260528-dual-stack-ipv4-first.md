@@ -73,8 +73,10 @@ a fully dual-stack deployment.
   `service-cidr`, and `cluster-dns` ordered IPv4-first; kube-vip configured in ARP mode for an
   IPv4 primary VIP; installer console validators accepting comma-separated dual-stack inputs
   and enforcing IPv4-first order.
-- Fix the kube-vip configuration injection path bug: advertisement flags (`vip_arp`,
-  `vip_leaderelection`) must be written under the `env:` key in the chart values, not `config:`.
+- Add kube-vip ARP advertisement configuration: add `vip_arp: "true"` and
+  `vip_leaderelection: "true"` under the `env:` key in the chart values to enable ARP-based
+  VIP advertisement for an IPv4 primary VIP. The master branch baseline is `kube-vip: enabled: true`
+  with no advertisement flags set; this is a net-new addition, not a bugfix.
 - Fix the hardcoded VIP literal in `rancherd-10-harvester.yaml`: replace the compile-time
   constant `fd00:cafe:4::167` with the `{{ .Vip }}` template variable so every deployment
   uses the operator-supplied VIP address.
@@ -411,7 +413,7 @@ require investigation or lab testing rather than code changes in Harvester.
 |---|---------|---------|--------|--------------------------------------|
 | E1 | Confirm kube-vip ≥ v0.5.12 in `harvester/harvester-manifests` | load-balancer-harvester, charts | Check kube-vip DaemonSet image tag | Controller sets the `kube-vip.io/loadbalancerIPs` annotation with both VIPs but kube-vip silently ignores the second. Only the IPv4 VIP is advertised. No error event, no status condition — the LB appears configured but the IPv6 VIP is never reachable. **Mitigation:** add a controller startup check that emits a warning status condition when `spec.ipv6Pool` is set but kube-vip version is below v0.5.12. |
 | E2 | Decide DHCPv6 mode: stateful IA_NA vs. stateless INFORMATION-REQUEST | network-controller-harvester Track B | **Deferred — Track B is out of scope for this HEP** (see Non-goals: DHCPv6 for host interfaces). This decision is tracked by the broader IPv6 Support HEP. Track A is unaffected and has no dependency on this blocker. | N/A for this HEP. |
-| E3 | Verify `-iptables` kube-vip image supports `vip_ndp` env var | harvester-installer | `docker run --rm rancher/mirrored-kube-vip-kube-vip-iptables:v1.0.4 manager --help 2>&1 \| grep -i ndp` | If NDP is unsupported, omit `vip_ndp` from the `env:` block entirely — it would be a no-op anyway. The kube-vip `config:` → `env:` bug fix and the hardcoded VIP fix are unconditional and ship regardless of this result. |
+| E3 | Verify `-iptables` kube-vip image supports `vip_ndp` env var | harvester-installer | `docker run --rm rancher/mirrored-kube-vip-kube-vip-iptables:v1.0.4 manager --help 2>&1 \| grep -i ndp` | If NDP is unsupported, omit `vip_ndp` from the `env:` block entirely — it would be a no-op anyway. The kube-vip ARP advertisement addition (`vip_arp`/`vip_leaderelection` under `env:`) and the hardcoded VIP fix (Sub-task 1.1) are unconditional and ship regardless of this result. |
 | E4 | Verify `harvester-cluster-repo` Service gets IPv4 ClusterIP naturally on IPv4-first cluster | harvester-installer | Test on live IPv4-first dual-stack cluster | If the Service gets an IPv6 ClusterIP, the force-recreation step in the post-install systemd service must be kept. If confirmed IPv4, that step is removed. Either outcome is handled by the conditional in the implementation; the installer ships either way. |
 | E5 | Confirm Whereabouts v0.9.3 pool naming for IPv6 CIDRs | harvester (core) | Inspect `pkg/storage/*.go` in Whereabouts v0.9.3 source | If Whereabouts derives pool names directly from the CIDR string (containing `:`) without sanitisation, the `IPPool` objects for IPv6 CIDRs will fail to create with an `Invalid object name` admission error. This is the only blocker that could require architectural rework (switching from `ipRanges` list to a different approach). **Must be resolved before coding the `Range6`/`IPRanges` extension.** The bug fixes in `harvester` core (`ValidateCIDRs`, `net.JoinHostPort`) are unconditional and ship regardless. |
 | E6 | Confirm KubeOVN `subnet.spec.protocol` includes `"Dual"` on target Harvester version | harvester-ui-extension | `kubectl get crd subnets.kubeovn.io -o yaml \| grep -A5 protocol` | If `"Dual"` is absent from the CRD enum, the `Dual` protocol option is not added to the UI subnet form. All other UI changes (IPv6 address display, NTP validator, CIDR validators) are independent and ship regardless. |
@@ -468,18 +470,21 @@ This component is split into two sequenced sub-tasks to ensure bug fixes ship in
 
 > **Sub-task 1.1 — Bug fixes (unconditional, no blockers, ship first):**
 > These fixes are wrong regardless of dual-stack and must land before any dual-stack work:
-> - Fix kube-vip configuration injection path: move `vip_arp` and `vip_leaderelection` from `config:` to `env:` in `rancherd-10-harvester.yaml`. Without this, all kube-vip advertisement flags are silently ignored on every deployment.
 > - Fix hardcoded VIP literal: replace `fd00:cafe:4::167` with `{{ .Vip }}` template variable.
 > - Fix hardcoded TLS SAN and server-url in `pkg/config/cos.go`: read the VIP dynamically from the `harvester-system/vip` ConfigMap.
 >
-> These three changes can be reviewed and merged as a standalone PR with no dependency on any blocker.
+> These two changes can be reviewed and merged as a standalone PR with no dependency on any blocker.
 
-> **Sub-task 1.2 — Dual-stack IPv4-first extension (opt-in, requires E3/E4):**
+> **Sub-task 1.2 — Dual-stack IPv4-first extension (opt-in, requires E3):**
+> - Add kube-vip ARP advertisement flags (`vip_arp: "true"`, `vip_leaderelection: "true"`) under
+>   `env:` in `rancherd-10-harvester.yaml`. The `master` baseline is `kube-vip: enabled: true`
+>   with no advertisement flags set — this is a net-new addition, not a bugfix. The kube-vip
+>   DaemonSet template iterates `Values.env.*` to inject container env vars; `Values.config` is
+>   not mapped to env vars and must not be used for advertisement flags.
 > - Update console validators to accept comma-separated dual-stack CIDR input and enforce
 >   IPv4-first ordering. Single IPv4 CIDR inputs continue to work unchanged.
 > - Update `clusterNetworkNote` help text to document the optional dual-stack format.
 > - Set `ipv6.method=auto` in the VLAN NM template.
-> - Make post-install systemd service VIP-agnostic (conditional on E4 for force-recreation removal).
 >
 > **Template defaults remain IPv4-only.** The CIDR fields in both
 > `rke2-90-harvester-server.yaml` and `rancherd-10-harvester.yaml` keep their existing
@@ -642,9 +647,9 @@ IPv4-only Harvester version:
 
 1. New optional fields (`IPv6Config`, `IPv6Pool`, `Range6`, etc.) are absent from existing
    resources; all components continue to operate in single-stack IPv4 mode.
-2. The three `harvester-installer` bug fixes (kube-vip `config:` → `env:` injection path,
-   hardcoded VIP literal, hardcoded TLS SAN/server-url) apply only to new installations.
-   Existing clusters retain their current installer-configured behavior until reinstalled.
+2. The two `harvester-installer` bug fixes (hardcoded VIP literal, hardcoded TLS SAN/server-url)
+   apply only to new installations. Existing clusters retain their current installer-configured
+   behavior until reinstalled.
 3. The `kubeovn-operator` chart gains new values with safe IPv4-only defaults; existing
    deployments inherit `netStack: ipv4` (the default) with no kubeovn config change.
 4. The webhook `.As4()` bug fixes in `vm-dhcp-controller` are purely correctness fixes for
