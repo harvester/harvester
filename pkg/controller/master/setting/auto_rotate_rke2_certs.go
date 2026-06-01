@@ -481,7 +481,7 @@ func (h *Handler) pruneJobs(nodeName string, isRotateJob bool) {
 }
 
 func (h *Handler) dispatchRotateJob(node *corev1.Node, generation int64, role string) (*batchv1.Job, error) {
-	image, err := utilHelm.FetchImageFromHelmValues(h.clientset, h.namespace, "harvester", []string{"generalJob", "image"})
+	image, err := utilHelm.FetchImageFromHelmValues(h.clientset, h.namespace, "harvester", utilHelm.GetKeyNamesGeneralJobImage())
 	if err != nil {
 		return nil, fmt.Errorf("get harvester generalJob image: %w", err)
 	}
@@ -518,7 +518,7 @@ func (h *Handler) runningRotationJobsForNode(nodeName string) ([]*batchv1.Job, e
 }
 
 func (h *Handler) dispatchVerifyJob(node *corev1.Node, generation int64) (*batchv1.Job, error) {
-	image, err := utilHelm.FetchImageFromHelmValues(h.clientset, h.namespace, util.HarvesterChartReleaseName, []string{"generalJob", "image"})
+	image, err := utilHelm.FetchImageFromHelmValues(h.clientset, h.namespace, util.HarvesterChartReleaseName, utilHelm.GetKeyNamesGeneralJobImage())
 	if err != nil {
 		return nil, fmt.Errorf("get harvester generalJob image: %w", err)
 	}

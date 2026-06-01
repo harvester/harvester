@@ -192,7 +192,7 @@ func (h *certCheckNodeHandler) OnJobChanged(_ string, job *batchv1.Job) (*batchv
 }
 
 func (h *certCheckNodeHandler) dispatchCheckJob(node *corev1.Node) (*batchv1.Job, error) {
-	image, err := utilHelm.FetchImageFromHelmValues(h.clientset, h.namespace, util.HarvesterChartReleaseName, []string{"generalJob", "image"})
+	image, err := utilHelm.FetchImageFromHelmValues(h.clientset, h.namespace, util.HarvesterChartReleaseName, utilHelm.GetKeyNamesGeneralJobImage())
 	if err != nil {
 		return nil, fmt.Errorf("get harvester generalJob image: %w", err)
 	}

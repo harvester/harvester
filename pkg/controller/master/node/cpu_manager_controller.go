@@ -394,7 +394,7 @@ func (h *cpuManagerNodeHandler) getJob(policy CPUManagerPolicy, node *corev1.Nod
 }
 
 func (h *cpuManagerNodeHandler) submitJob(updateStatus *CPUManagerUpdateStatus, node *corev1.Node) (*batchv1.Job, error) {
-	image, err := utilHelm.FetchImageFromHelmValues(h.clientset, h.namespace, releaseAppHarvesterName, []string{"generalJob", "image"})
+	image, err := utilHelm.FetchImageFromHelmValues(h.clientset, h.namespace, releaseAppHarvesterName, utilHelm.GetKeyNamesGeneralJobImage())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get harvester image (%s): %v", image.ImageName(), err)
 	}

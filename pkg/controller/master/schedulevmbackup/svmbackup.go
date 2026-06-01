@@ -38,7 +38,7 @@ func deleteCronJob(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup)
 func createCronJob(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup) (*batchv1.CronJob, error) {
 	backoffLimit := int32(cronJobBackoffLimit)
 	jobImage, err := utilHelm.FetchImageFromHelmValues(h.clientset, h.namespace,
-		releaseAppHarvesterName, []string{"generalJob", "image"})
+		releaseAppHarvesterName, utilHelm.GetKeyNamesGeneralJobImage())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get harvester image (%s): %v", jobImage.ImageName(), err)
 	}
