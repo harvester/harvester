@@ -97,7 +97,6 @@ done
 #!/usr/bin/env bash
 set -e
 
-# --- Configuration Layer ---
 # Read from environment parameter if present; default to "false" if unset or empty for silent execution.
 DEBUG_MODE="${DEBUG_MODE:-false}"
 
@@ -106,6 +105,7 @@ DEBUG_MODE="${DEBUG_MODE:-false}"
 HOST_DIR="${HOST_DIR:-/host}"
 
 # Target configurations to pass into the cleanup function
+# Following example is for local test
 # IMAGES="any/vmdp:1.0.0 any/alpine:latest temporary-worker:latest hello-world:latest"
 
 REAL_RKE2_CONFIG="$HOST_DIR/var/lib/rancher/rke2/agent/etc/crictl.yaml"
@@ -200,7 +200,6 @@ cleanup_images() {
     local success_count=0
     local fail_count=0
     local target
-    local rmi_err
     local exit_code=0
 
     for target in "${kill_array[@]}"; do
@@ -229,9 +228,9 @@ cleanup_images() {
 
 # Resolve and assign the binary path dynamically
 CRICTL="$HOST_DIR/$(readlink $HOST_DIR/var/lib/rancher/rke2/bin)/crictl"
-if [ -z "$CRICTL" ];then
-	echo "[ERROR] Fail to get host crictl binary."
-	exit 0
+if [ ! -x "$CRICTL" ]; then
+  echo "[ERROR] Host crictl binary not found/executable at: $CRICTL"
+  exit 0
 fi
 
 # Fire execution sequence using the configuration target list
@@ -547,7 +546,7 @@ func prepareCleanupPlan(upgrade *harvesterv1.Upgrade, imageList []string) *upgra
 			Upgrade: &upgradev1.ContainerSpec{
 				Image: upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
 				Command: []string{
-					"sh", "-c", imageCleanupScript,
+					"bash", "-c", imageCleanupScript,
 				},
 				Env: []corev1.EnvVar{
 					{
