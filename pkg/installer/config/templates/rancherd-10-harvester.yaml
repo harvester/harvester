@@ -77,6 +77,7 @@ resources:
     version: {{ .HarvesterChartVersion }}
     defaultNamespace: harvester-system
     timeoutSeconds: 600
+    maxHistory: 10
     diff:
       comparePatches:
       - apiVersion: storage.k8s.io/v1
@@ -222,6 +223,7 @@ resources:
     defaultNamespace: harvester-system
     repoName: harvester-charts
     timeoutSeconds: 600
+    maxHistory: 10
     # takeOwnership will force apply this chart without checking ownership in labels and annotations.
     # https://github.com/rancher/fleet/blob/ce9c0d6c0a455d61e87c0f19df79d0ee11a89eeb/pkg/helmdeployer/deployer.go#L323
     # https://github.com/rancher/helm/blob/ee91a121e0aa301fcef2bfbc7184f96edd4b50f5/pkg/action/validate.go#L71-L76
