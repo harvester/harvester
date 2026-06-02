@@ -99,6 +99,28 @@ a fully dual-stack deployment.
   by removing the `ip.To4() == nil` rejection in `ValidateCIDRs`.
 - Fix the IPv6 VIP URL construction bug: use `net.JoinHostPort(vip, port)` for RFC 3986
   compliant bracket notation when building kubeconfig server URLs from an IPv6 VIP.
+- Enable IPv6 at the kernel level during the live installer session: override the Harvester OS
+  default `/etc/sysctl.d/ipv6.conf` (`net.ipv6.conf.*.disable_ipv6 = 1`) before any
+  NetworkManager profile is applied. Without this, all NM profiles with `[ipv6] method=auto`
+  are silently ignored regardless of template content.
+- Persist kernel IPv6 enablement on the installed node: drop
+  `/etc/sysctl.d/99-harvester-ipv6.conf` during post-install configuration and apply
+  immediately, so nodes do not revert to IPv6-disabled on reboot. Both sysctl changes are
+  unconditional and ship in Sub-task 1.1 (no blockers) as prerequisites for the NM template
+  changes in Sub-task 1.2.
+- Set `ipv6.method=auto` on the management bridge NM template (`pkg/config/templates/nm-bridge.nmconnection`)
+  so the management interface (`mgmt-br`) acquires a SLAAC-derived IPv6 address from the
+  upstream router on dual-stack clusters. This change is in Sub-task 1.2 and is gated on the
+  sysctl prerequisite above being in place.
+- Extend the `validateKubeOVNAddonUpdate` webhook guard in `harvester` core
+  (`pkg/webhook/resources/addon/validator.go`) to check `V6UsingIPs != 0` alongside
+  `V4UsingIPs != 0`, preventing disruptive KubeOVN addon disable operations on dual-stack
+  Subnets where only IPv6 allocations are active. The `V6UsingIPs float64` field is already
+  present in the vendored KubeOVN `SubnetStatus` type — no vendor change needed.
+- Extend the KubeOVN Subnet `Update` webhook guard in `network-controller-harvester`
+  (`pkg/webhook/subnet/validator.go`) to check both `V4UsingIPs` and `V6UsingIPs`, preventing
+  disruptive provider/VPC changes on dual-stack Subnets with active IPv6 allocations. This is
+  a standalone two-line fix with no prerequisites.
 - Allow the Harvester UI to display IPv6 addresses for VMs, nodes, and subnets; accept IPv6
   CIDRs in settings forms; provide a `Dual` protocol option in the KubeOVN subnet form
   (pending E6 CRD verification).
@@ -112,6 +134,13 @@ a fully dual-stack deployment.
 - Add `ipFamilyPolicy: PreferDualStack` and `ipFamilies: [IPv4, IPv6]` to `kind: Service`
   resources across Harvester Helm charts so internal services are dual-stack aware in
   dual-stack clusters while degrading gracefully to single-stack IPv4 in IPv4-only clusters.
+- Enable dual-stack VM Networks (KubeOVN overlay) by exposing `netStack` as a configurable
+  Helm value in the `kubeovn-operator` chart. Setting `netStack: dual_stack` is the **only**
+  change required to allow VM NICs to receive IPv6 addresses from KubeOVN. The
+  `subnets.kubeovn.io` CRD already supports `spec.protocol: Dual`, the `ProtocolDual`
+  constant, and a comma-separated `spec.cidrBlock`. No Harvester CRD or controller changes
+  are needed for VM Networks; subnet lifecycle (creating a dual-stack `VM Network`) is
+  user-managed via the Harvester UI or kubectl.
 - Preserve all existing IPv4-only behavior without any configuration change required.
 
 ### Non-goals
@@ -128,11 +157,13 @@ a fully dual-stack deployment.
 - **IPv6-only mode.** Running Harvester on a management network with no IPv4 connectivity is
   out of scope; it is covered by the future IPv6 Support HEP.
 
-- **DHCPv6 for host interfaces.** Assigning IPv6 addresses to host VLAN interfaces via any
-  dynamic mechanism (SLAAC or stateful DHCPv6 IA_NA) is out of scope for this HEP and is
-  handled by the broader IPv6 Support HEP. The only stateful DHCPv6 IA_NA in this proposal
-  is for VM guests managed by `vm-dhcp-controller`, where per-MAC address assignment is a
-  hard requirement that SLAAC cannot satisfy.
+- **DHCPv6 for host interfaces.** Assigning IPv6 addresses to **host VLAN interfaces** via
+  a dynamic DHCPv6 client (Track B of `network-controller-harvester`) is out of scope for
+  this HEP and is handled by the broader IPv6 Support HEP alongside the E2 architecture
+  decision. Track A (all other `network-controller-harvester` host-network changes) merges
+  fully under this HEP. Note: DHCPv6 **for VM guests** via `vm-dhcp-controller` is **in
+  scope** — the controller runs an embedded `dhcpv6/server6` inside the cluster; this is
+  distinct from DHCPv6 for host interfaces and requires no external DHCPv6 infrastructure.
 
 - **In-place IP family migration.** Converting a running IPv4-only cluster to dual-stack
   without reinstalling is not supported; cluster IP family is baked into RKE2 config, etcd
@@ -269,6 +300,49 @@ settings accept IPv6 server addresses. Storage/RWX/VM-migration network forms ac
 CIDRs and exclude lists. The KubeOVN subnet form exposes a `Dual` protocol option. Error
 messages and placeholder text are updated to be family-agnostic.
 
+#### Story 7 — Operator creates a dual-stack VM Network (KubeOVN overlay)
+
+**Before:** All VM Networks backed by KubeOVN operate in IPv4-only mode. The
+`kubeovn-operator` chart hardcodes `netStack: ipv4`, which prevents KubeOVN from entering
+dual-stack mode even though the `subnets.kubeovn.io` CRD already defines `spec.protocol:
+Dual`, the `ProtocolDual` constant, and a comma-separated `spec.cidrBlock` field. There is no
+way to create a VM Network that assigns both IPv4 and IPv6 addresses to VM NICs on the overlay
+network.
+
+**Why this matters:** Operators running dual-stack infrastructure need VMs connected to the
+KubeOVN overlay to be reachable on both address families. Without dual-stack Subnet support,
+those VMs can only communicate over IPv4 regardless of the host or cluster configuration.
+
+**After:** An operator sets `netStack: dual_stack` in the `kubeovn-operator` Helm values. They
+then create a VM Network with `spec.cidrBlock: "10.0.0.0/16,fd00::/112"` and `spec.protocol:
+Dual` via the Harvester VM Networks UI or kubectl. VMs on that network receive both IPv4 and
+IPv6 addresses from KubeOVN's built-in IPAM. The Harvester UI displays the `Dual` protocol
+option in the subnet form (gated on E6 CRD verification). No Harvester-owned CRD, controller,
+or NAD changes are required — this is a single chart value change exposing what KubeOVN
+already supports. Operators who keep `netStack: ipv4` (the default) see no change.
+
+#### Story 8 — Operator configures storage, RWX, and VM-migration networks with dual-stack CIDRs
+
+**Before:** The `storage-network`, `rwx-network`, and `vm-migration-network` Harvester settings
+accept only a single IPv4 CIDR for the Whereabouts IPAM range. The webhook validators enforce
+an IPv4-only minimum prefix length (`/16`), and the IP utility functions (`incrementIP`,
+`getBroadcastAddress`) fail silently on IPv6 inputs. There is no way to provision storage or
+live-migration traffic over IPv6 CIDRs, and entering an IPv6 CIDR is rejected at the settings
+webhook with a misleading validation error.
+
+**Why this matters:** Storage replication, RWX (ReadWriteMany) volume traffic, and VM live
+migration are latency-sensitive workloads that must be routable on the same network fabric as
+other dual-stack traffic. Operators who have segmented their storage and migration networks
+onto IPv6-routable segments cannot use those segments with Harvester today.
+
+**After:** Each setting accepts an optional comma-separated IPv4-first CIDR pair (e.g.
+`10.52.0.0/24,fd52::/120`). The `networkutil.Config` struct gains `Range6`/`Exclude6` fields;
+`IPAMConfig` emits the Whereabouts `ipRanges` dual-stack list format when both are present.
+The webhook validators call an IPv6-appropriate minimum prefix length check (`/112`) for the
+IPv6 part. The IPPool name derivation sanitises the IPv6 CIDR so it produces a valid
+Kubernetes object name (colons replaced). Operators who supply only an IPv4 CIDR (the
+existing format) see no change in behavior.
+
 ### User Experience In Detail
 
 #### Installing a dual-stack Harvester cluster
@@ -392,6 +466,9 @@ Storage-network range fields accept `fd00::/64` as a valid CIDR input.
   `configurationSpec.ipv6.*` and `configurationSpec.dualStack.*` CIDR section.
 - `templates/configuration.yaml` and `templates/configmap.yaml`: `netStack` and CIDR blocks
   templated from values. `dualStack.*` fields require comma-separated `IPv4,IPv6` pairs.
+- **VM Network enabling path:** exposing `netStack` as a value is the single gating change
+  for dual-stack VM Networks. No Harvester CRD, controller, or NAD changes are needed;
+  KubeOVN already supports `spec.protocol: Dual` in the Subnet CRD.
 
 ---
 
@@ -435,13 +512,21 @@ This component is split into two sequenced sub-tasks.
 > fully working IPv4-only state and does not depend on any blocker.
 
 > **Sub-task — Dual-stack IPv6 extension (requires E7, E8):**
+> **Architecture:** `vm-dhcp-controller` IS the embedded DHCPv6 server for VM NICs. It runs
+> `dhcpv6/server6` from `insomniacslk/dhcp` (already in `go.mod`; only import-driven vendoring
+> is missing) inside the cluster and responds directly to DHCPv6 Solicits from VM guests over
+> the overlay network. No external DHCP server, switch-level DHCPv6 relay, or upstream
+> network infrastructure change is required. The only external dependencies are guest OS
+> (E7: must send DHCPv6 Solicits) and CNI forwarding (E8: Canal must forward `ff02::1:2`
+> port 547 to the agent pod).
+>
 > Extend API types with `IPv6Config` and `IPv6Status`; extend the IPAM, cache, and DHCP layers
 > with independently-keepable IPv6 instances; implement stateful DHCPv6 (IA_NA) by vendoring
-> `dhcpv6/server6` from the already-pinned `insomniacslk/dhcp` module. IPv4-first allocation
-> semantics and the pool range size limit (≤ 65535 IPv6 addresses) are enforced at the webhook.
-> Generate updated CRD YAMLs for consumption by `harvester/charts`. If E7 or E8 have negative
-> results, this PR can still merge — see the `If blocked` notes for E7/E8 above for the
-> observable (non-breaking) failure mode.
+> `dhcpv6/server6`. IPv4-first allocation semantics and the pool range size limit
+> (≤ 65535 IPv6 addresses) are enforced at the webhook. Generate updated CRD YAMLs for
+> consumption by `harvester/charts`. If E7 or E8 have negative results, this PR can still
+> merge — see the `If blocked` notes for E7/E8 above for the observable (non-breaking) failure
+> mode.
 
 **`harvester/harvester` (core)** (MEDIUM risk)
 
@@ -454,6 +539,13 @@ This component is split into two sequenced sub-tasks.
 >   compliant bracket notation when the VIP is an IPv6 address. Without this, an IPv6 VIP
 >   produces a malformed server URL in the generated kubeconfig.
 > - Fix `incrementIP` and `getBroadcastAddress` for IPv6 family-awareness.
+> - Extend the `validateKubeOVNAddonUpdate` webhook guard
+>   (`pkg/webhook/resources/addon/validator.go`) to check
+>   `V4UsingIPs != 0 || V6UsingIPs != 0` instead of `V4UsingIPs != 0` only. On a dual-stack
+>   KubeOVN Subnet, VMs may hold only IPv6 allocations while `V4UsingIPs == 0` — the current
+>   guard allows the addon to be disabled while IPv6 workloads are still running. The
+>   `V6UsingIPs float64` field is already present in the vendored KubeOVN `SubnetStatus`
+>   type; no vendor change is needed.
 >
 > These fixes are self-contained and leave the core in a fully working IPv4-only state.
 
@@ -472,8 +564,17 @@ This component is split into two sequenced sub-tasks to ensure bug fixes ship in
 > These fixes are wrong regardless of dual-stack and must land before any dual-stack work:
 > - Fix hardcoded VIP literal: replace `fd00:cafe:4::167` with `{{ .Vip }}` template variable.
 > - Fix hardcoded TLS SAN and server-url in `pkg/config/cos.go`: read the VIP dynamically from the `harvester-system/vip` ConfigMap.
+> - Enable IPv6 at the kernel level before NM profile apply (`pkg/console/network.go`): at
+>   the top of `applyNetworks()`, write three `sysctl -w` overrides (`net.ipv6.conf.all.disable_ipv6=0`,
+>   `net.ipv6.conf.default.disable_ipv6=0`, `net.ipv6.conf.lo.disable_ipv6=0`). Without this,
+>   the Harvester OS default sysctl (`net.ipv6.conf.*.disable_ipv6 = 1`) silently prevents NM
+>   from acting on any `[ipv6] method=auto` profile, making Sub-task 1.2 NM template changes
+>   invisible.
+> - Persist IPv6 enabled on the installed node (`pkg/config/cos.go`): drop
+>   `/etc/sysctl.d/99-harvester-ipv6.conf` with the same three `disable_ipv6=0` values and
+>   apply immediately via `sysctl -p`, so the node does not revert to IPv6-disabled on reboot.
 >
-> These two changes can be reviewed and merged as a standalone PR with no dependency on any blocker.
+> All four changes can be reviewed and merged as a standalone PR with no dependency on any blocker.
 
 > **Sub-task 1.2 — Dual-stack IPv4-first extension (opt-in, requires E3):**
 > - Add kube-vip ARP advertisement flags (`vip_arp: "true"`, `vip_leaderelection: "true"`) under
@@ -484,7 +585,11 @@ This component is split into two sequenced sub-tasks to ensure bug fixes ship in
 > - Update console validators to accept comma-separated dual-stack CIDR input and enforce
 >   IPv4-first ordering. Single IPv4 CIDR inputs continue to work unchanged.
 > - Update `clusterNetworkNote` help text to document the optional dual-stack format.
-> - Set `ipv6.method=auto` in the VLAN NM template.
+> - Set `ipv6.method=auto` in the VLAN NM template (`nm-vlan.nmconnection`).
+> - Set `ipv6.method=auto` in the management bridge NM template (`nm-bridge.nmconnection`) so
+>   `mgmt-br` acquires a SLAAC-derived IPv6 address from the upstream router. This change
+>   depends on Sub-task 1.1 sysctl items being merged first — without kernel IPv6 enabled,
+>   the template setting is silently ignored.
 >
 > **Template defaults remain IPv4-only.** The CIDR fields in both
 > `rke2-90-harvester-server.yaml` and `rancherd-10-harvester.yaml` keep their existing
@@ -507,11 +612,13 @@ cloud-init validation to recognize `dhcp6`/`static6` subnet types.
 **`harvester/charts`** (MEDIUM risk)
 
 Template `netStack`, `dualStack`, and `ipv6` CIDR blocks in both `kubeovn-operator` templates.
-Refresh vm-dhcp-controller CRD files from the regenerated upstream output. Update
-`serviceCIDR` to accept comma-separated dual-stack list. Add `ipFamilyPolicy: PreferDualStack`
-and `ipFamilies: [IPv4, IPv6]` to all `kind: Service` resources (13 files). Update
-`harvester-cloud-provider` `vip_subnet` documentation for dual-stack. Add IPv6 egress to
-`vcluster` NetworkPolicy.
+Setting `netStack: dual_stack` is the **only** change required to enable dual-stack VM Networks
+(KubeOVN overlay) — KubeOVN already supports `spec.protocol: Dual` in the Subnet CRD; no
+Harvester controller or NAD changes are needed. Refresh vm-dhcp-controller CRD files from the
+regenerated upstream output. Update `serviceCIDR` to accept comma-separated dual-stack list.
+Add `ipFamilyPolicy: PreferDualStack` and `ipFamilies: [IPv4, IPv6]` to all `kind: Service`
+resources (13 files). Update `harvester-cloud-provider` `vip_subnet` documentation for
+dual-stack. Add IPv6 egress to `vcluster` NetworkPolicy.
 
 **`harvester/load-balancer-harvester`** (MEDIUM risk)
 
@@ -526,7 +633,20 @@ with `Addresses []string`.
 Track A (no DHCP dependency, can merge independently): extend `IPAddr` CEL rule and
 `MaxLength`; update `SetIPAddress` to loop over a `[]string` slice and clean up all families
 via `FAMILY_ALL`; add IPv6 route management; fix `addrExists` to use `FAMILY_ALL`; add
-`ip6tables` rules and IPv6 sysctl; extend `Layer3NetworkConf` with `CIDR6`/`Gateway6`.
+`ip6tables` rules and IPv6 sysctl; extend `Layer3NetworkConf` with `CIDR6`/`Gateway6`; fix
+the KubeOVN Subnet `Update` webhook guard
+(`pkg/webhook/subnet/validator.go`) to check
+`V4UsingIPs != 0 || V6UsingIPs != 0` instead of `V4UsingIPs != 0` only, preventing
+disruptive provider/VPC changes on Subnets with active IPv6 allocations. The Subnet webhook
+guard is a standalone two-line fix — it requires no other Track A items and can ship in its
+own early PR as a correctness fix ahead of the broader Track A work.
+
+**VM Network scope clarification:** This repository manages **host bridge-VLAN interfaces
+only** and does not manage the KubeOVN overlay network used by VM NICs. No controller in
+this repo creates or patches KubeOVN `Subnet` objects. The NAD manager explicitly skips
+overlay NADs (`isOverlayNad()` guard). For dual-stack VM Networks, the only change needed is
+`netStack: dual_stack` in `harvester/charts`. The one webhook touch in this repo that
+affects the VM Network path is the Subnet webhook guard fix (Track A item above).
 
 Track B (deferred — out of scope for this HEP): Adding a DHCPv6 client lease manager to
 assign IPv6 addresses to host VLAN interfaces dynamically is DHCPv6 for host interfaces,
