@@ -1,6 +1,3 @@
-FROM quay.io/costoolkit/releases-teal:grub2-live-0.0.4-2 AS grub2-mbr
-FROM quay.io/costoolkit/releases-teal:grub2-efi-image-live-0.0.4-2 AS grub2-efi
-
 FROM golang:1.25.7-bookworm AS builder
 
 ARG CONTAINER_WORKDIR=/go/src/github.com/harvester/harvester
@@ -84,11 +81,6 @@ RUN curl -Lo /usr/bin/codecov https://uploader.codecov.io/${CODECOV_VERSION}/lin
     echo "${CODECOV_SHA256_Linux}  /usr/bin/codecov" | sha256sum -c - && \
     chmod +x /usr/bin/codecov
 
-# copy bootloaders
-RUN mkdir /grub2-mbr
-COPY --from=grub2-mbr / /grub2-mbr
-RUN mkdir /grub2-efi
-COPY --from=grub2-efi / /grub2-efi
 
 ENV HOME=/go/src/github.com/harvester/harvester
 
