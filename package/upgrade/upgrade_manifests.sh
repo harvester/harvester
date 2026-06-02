@@ -94,12 +94,13 @@ wait_managed_chart() {
     current_observed_generation=$(echo "$current_chart" | yq e '.status.observedGeneration' -)
     current_state=$(echo "$current_chart" | yq e '.status.display.state' -)
     current_ready_clusters=$(echo "$current_chart" | yq e '.status.display.readyClusters' -)
-    echo "Current version: $current_version, Current ready clusters: $current_ready_clusters, Current state: $current_state, Current generation: $current_observed_generation"
+    current_unavailable=$(echo "$current_chart" | yq e '.status.unavailable' -)
+    echo "Current version: $current_version, Current ready clusters: $current_ready_clusters, Current state: $current_state, Current generation: $current_observed_generation, Current unavailable: $current_unavailable"
 
     if [ "$current_version" = "$version" ]; then
       if [ "$current_observed_generation" -gt "$generation" ]; then
         summary_state=$(echo "$current_chart" | yq e ".status.summary.$state" -)
-        if [ "$summary_state" = "1" ]; then
+        if [ "$summary_state" = "1" -a "$current_unavailable" = "0" ]; then
           break
         fi
       fi
