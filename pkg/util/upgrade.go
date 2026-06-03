@@ -22,3 +22,12 @@ func GetUpgradeImage(upgradeImage string, vmImageCache ctlharvesterv1.VirtualMac
 	}
 	return image, nil
 }
+
+// IsUpgradeInProgress reports whether the upgrade is active.
+// An upgrade is considered in progress when UpgradeCompleted is neither True nor False.
+func IsUpgradeInProgress(upgrade *harvesterv1.Upgrade) bool {
+	if upgrade == nil {
+		return false
+	}
+	return !harvesterv1.UpgradeCompleted.IsTrue(upgrade) && !harvesterv1.UpgradeCompleted.IsFalse(upgrade)
+}
