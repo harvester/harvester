@@ -624,13 +624,56 @@ get_running_rancher_version() {
 
 get_cluster_repo_index_download_time() {
   local output_type=$1
-  local iso_time=$(kubectl get clusterrepos.catalog.cattle.io harvester-charts -ojsonpath='{.status.downloadTime}')
+  local repo_name=${2:-harvester-charts}
+  local iso_time=$(kubectl get clusterrepos.catalog.cattle.io "$repo_name" -ojsonpath='{.status.downloadTime}')
 
   if [ "$output_type" = "epoch" ]; then
     date -d"${iso_time}" +%s
   else
     echo $iso_time
   fi
+}
+
+# Force refresh a clusterrepo catalog index by setting forceUpdate to a past timestamp
+# See https://github.com/rancher/rancher/blob/47c22388c5451c74f55e162d1e60b4e6dcfd0800/pkg/controllers/dashboard/helm/repo.go#L290-L294
+# for why this would trigger a force upgrade
+force_refresh_clusterrepo() {
+  local repo_name=$1
+  echo "Force refreshing clusterrepo $repo_name catalog index..."
+
+  # ensure the clusterrepo exists
+  until kubectl get clusterrepos.catalog.cattle.io "$repo_name" &>/dev/null; do
+    echo "Waiting for clusterrepo $repo_name to exist..."
+    sleep 5
+  done
+
+  # ensure .status.downloadTime is not empty
+  local last_repo_download_time
+  while true; do
+    last_repo_download_time=$(get_cluster_repo_index_download_time "" "$repo_name")
+    [[ -n "$last_repo_download_time" ]] && break
+    echo "Waiting for clusterrepo $repo_name to have a downloadTime..."
+    sleep 5
+  done
+
+  local force_update_time=$(date -d"${last_repo_download_time} + 1 seconds" --iso-8601=seconds)
+  # Sleep 1 sec to ensure force_update_time is always in the past
+  sleep 1
+
+  kubectl patch clusterrepos.catalog.cattle.io "$repo_name" --type merge -p "{\"spec\":{\"forceUpdate\":\"$force_update_time\"}}"
+
+  local force_update_epoch=$(date -d"${force_update_time}" +%s)
+  while true; do
+    local current_epoch
+    current_epoch=$(get_cluster_repo_index_download_time epoch "$repo_name")
+    echo "Current clusterrepo $repo_name catalog index download time: $current_epoch  force update time: $force_update_epoch"
+    if [[ -n "$current_epoch" ]] && [[ "$current_epoch" -ge "$force_update_epoch" ]]; then
+      break
+    fi
+    echo "Waiting for clusterrepo $repo_name catalog index update..."
+    sleep 5
+  done
+  echo "Clusterrepo $repo_name catalog index updated."
 }
 
 upgrade_rancher() {
@@ -697,6 +740,9 @@ upgrade_rancher() {
     echo "Wait for Rancher to be upgraded to $REPO_RANCHER_VERSION..."
     sleep 5
   done
+
+  echo "Force refresh rancher-charts clusterrepo..."
+  force_refresh_clusterrepo rancher-charts
 
   echo "Wait for Rancher dependencies helm releases..."
   wait_helm_release cattle-fleet-system fleet fleet-$REPO_FLEET_CHART_VERSION $REPO_FLEET_APP_VERSION deployed
@@ -795,24 +841,7 @@ EOF
     sleep 5
   done
 
-  # Force update cluster repo catalog index
-  last_repo_download_time=$(get_cluster_repo_index_download_time)
-  # See https://github.com/rancher/rancher/blob/47c22388c5451c74f55e162d1e60b4e6dcfd0800/pkg/controllers/dashboard/helm/repo.go#L290-L294
-  # for why this would trigger a force upgrade
-  force_update_time=$(date -d"${last_repo_download_time} + 1 seconds" --iso-8601=seconds)
-  # Sleep 1 sec to ensure force_update_time is always in the past
-  sleep 1
-
-  cat >catalog_cluster_repo.yaml <<EOF
-spec:
-  forceUpdate: "$force_update_time"
-EOF
-  kubectl patch clusterrepos.catalog.cattle.io harvester-charts --patch-file ./catalog_cluster_repo.yaml --type merge
-
-  until [ $(get_cluster_repo_index_download_time epoch) -ge $(date -d"${force_update_time}" +%s) ]; do
-    echo "Waiting for cluster repo catalog index update..."
-    sleep 5
-  done
+  force_refresh_clusterrepo harvester-charts
 }
 
 ensure_ingress_class_name() {
