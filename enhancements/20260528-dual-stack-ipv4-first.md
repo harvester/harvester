@@ -474,6 +474,116 @@ Storage-network range fields accept `fd00::/64` as a valid CIDR input.
 
 ## Design
 
+```mermaid
+flowchart LR
+    %% Main Priority alignment chain (forces horizontal linearity)
+    SP0 ---> SP1 ---> SP2
+
+    subgraph SP0["Priority/0 - Foundation"]
+        subgraph SDHCP["vm-dhcp-controller"]
+            SD11["1.1 Bug Fix: Fix As4 webhook comparisons"]
+            SD12["1.2 Dual-stack: IPv6Config CRD + DHCPv6 server + dual IPAM"]
+            SD11 --> SD12
+        end
+
+        subgraph SHARV["harvester core"]
+            SH11["1.1 Bug Fix: IP utils + VIP pool validator + URL brackets + addon webhook"]
+            SH12["1.2 Dual-stack: Range6 + Whereabouts ipRanges + storage pool naming"]
+            SH11 --> SH12
+        end
+
+        subgraph SINST["harvester-installer"]
+            SI11["1.1 Bug Fix: Hardcoded VIP + TLS SAN + IPv6 sysctl enable"]
+            SI12["1.2 Dual-stack: kube-vip ARP flags + console CIDR validators + NM templates"]
+            SI11 --> SI12
+        end
+
+        subgraph SDMD["docker-machine-driver-harvester"]
+            SDMD1["Single PR: GetIP family selection + ip-families flag + cloud-init dhcp6"]
+        end
+    end
+
+    subgraph SP1["Priority/1 - Integration Layer"]
+        subgraph SCHARTS["charts - single PR, multiple P0 adoptions"]
+            SCA["Adoption 1: kubeovn-operator - expose netStack + CIDR blocks as Helm values"]
+            SCB["Adoption 2: vm-dhcp-controller CRD refresh - drop in regenerated ippools.yaml"]
+            SCC["Adoption 3: vm-dhcp-controller serviceCIDR - document dual-stack comma list"]
+            SCD["Adoption 4: All Services - ipFamilyPolicy PreferDualStack on 13 files"]
+            SCE["Adoption 5: harvester-cloud-provider - document vip_subnet 32,128"]
+            SCF["Adoption 6: vcluster NetworkPolicy - add ::/0 egress ipBlock"]
+        end
+
+        subgraph SLB["load-balancer-harvester"]
+            SLB1["CRD extension: IPv6Pool + IPFamilyPolicy + Addresses slice<br/>(LB-own IPPool CRD, standalone)"]
+            SLB2["Controller + manager: dual-pool alloc + kube-vip annotation + IPv6 EndpointSlice"]
+            SLB1 --> SLB2
+        end
+
+        subgraph SNC["network-controller-harvester"]
+            SNCA["Track A: IPAddr dual CIDR + SetIPAddress + routes + iptables + NAD + subnet webhook"]
+            SNCB["Track B: DHCPv6 vendor + lease manager + stateful IA_NA client"]
+            SNCA --> SNCB
+        end
+    end
+
+    subgraph SP2["Priority/2 - UI"]
+        subgraph SUI["harvester-ui-extension"]
+            SU_UTIL["Foundation: IP utility functions - isValidIPv4 / isValidIPv6 / isValidCIDR"]
+            SU_DHCP["vm-dhcp-controller section: IPv6 fields in IPPool + VMNetCfg forms"]
+            SU_HARV["harvester-core section: NTP validator + CIDR validators + VIP pool + node IP"]
+            SU_NC["network-controller section: CIDR6/Gateway6 fields + Phase 2 KubeOVN Dual form"]
+            SU_LB["load-balancer section: IPv6Pool selector + Addresses display"]
+            SU_P2["Phase 2: KubeOVN Dual subnet form + dualStackIPv4First feature flag"]
+
+            SU_UTIL --> SU_DHCP
+            SU_UTIL --> SU_HARV
+            SU_UTIL --> SU_NC
+            SU_UTIL --> SU_LB
+        end
+    end
+
+    %% Actual cross-subgraph logic links
+    SD12 -- "CRD YAML output" --> SCB
+    SI12 -- "kube-vip ARP flags merged" --> SCE
+    SH11 -- "IPv6 validators merged" --> SCD
+
+    SD12 -- "IPv6 pool API stable" --> SU_DHCP
+    SH11 -- "validator fixes merged" --> SU_HARV
+    SH12 -- "Range6 API stable" --> SU_HARV
+    SNCA -- "cidrV6 field added" --> SU_NC
+    SLB2 -- "IPv6Pool API merged" --> SU_LB
+
+    classDef ext     fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef p0fix   fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a,font-weight:bold
+    classDef p0ext   fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a
+    classDef charts  fill:#d1fae5,stroke:#059669,color:#064e3b
+    classDef p1      fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef p2      fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    classDef uifound fill:#f5f3ff,stroke:#8b5cf6,color:#4c1d95
+
+    class SD11,SH11,SI11 p0fix
+    class SD12,SH12,SI12,SDMD1 p0ext
+    class SCA,SCB,SCC,SCD,SCE,SCF charts
+    class SLB1,SLB2,SNCA,SNCB p1
+    class SU_UTIL uifound
+    class SU_DHCP,SU_HARV,SU_NC,SU_LB,SU_P2 p2
+
+    %% Style the structural priority chain to be clean/invisible
+    linkStyle 0,1 stroke:#cccccc,stroke-width:2px,stroke-dasharray: 5 5
+
+    %% P0 internal: blue links (Offsetted due to top-level structural links)
+    linkStyle 2,3,4,5,6 stroke:#1d4ed8,stroke-width:2px
+
+    %% UI fan-out: purple links
+    linkStyle 7,8,9,10 stroke:#7c3aed,stroke-width:2px
+
+    %% P0 -> P1 promotions: green links
+    linkStyle 11,12,13 stroke:#059669,stroke-width:3px
+
+    %% P0/P1 -> P2 long-range: pink links
+    linkStyle 14,15,16,17,18 stroke:#db2777,stroke-width:3px
+```
+
 ### Implementation Overview
 
 The implementation follows the dependency order in the delivery plan. All changes are additive
