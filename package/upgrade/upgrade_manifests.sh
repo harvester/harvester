@@ -532,31 +532,48 @@ EOF
 }
 
 wait_capi_cluster() {
-  # Wait for cluster to settle down
+  # Wait for the CAPI cluster to be Provisioned and fully reconciled
+  # (status.observedGeneration == metadata.generation), held stable for
+  # several consecutive observations to allow controllers like Rancher
+  # Turtles to complete a takeover/reconcile burst
   namespace=$1
   name=$2
-  generation=$3
+
+  local required_stable_seconds=30
+  local stable_since=""
 
   while [ true ]; do
-    unset localcluster
     local localcluster=$(kubectl get clusters.cluster.x-k8s.io $name -n $namespace -o yaml)
     if [[ -z ${localcluster} ]]; then
       echo "failed to get CAPI cluster $namespace/$name, retry..."
+      stable_since=""
       sleep 5
       continue
     fi
 
-    current_generation=$(echo "$localcluster" | yq e '.status.observedGeneration' -)
-    current_phase=$(echo "$localcluster" | yq e '.status.phase' -)
+    local current_metadata_generation=$(echo "$localcluster" | yq e '.metadata.generation' -)
+    local current_observed_generation=$(echo "$localcluster" | yq e '.status.observedGeneration' -)
+    local current_phase=$(echo "$localcluster" | yq e '.status.phase' -)
 
-    if [ "$current_generation" -gt "$generation" ]; then
-      if [ "$current_phase" = "Provisioned" ]; then
-        echo "CAPI cluster $namespace/$name is provisioned (current generation: $current_generation)."
+    if [ "$current_observed_generation" = "$current_metadata_generation" ] && [ "$current_phase" = "Provisioned" ]; then
+      if [ -z "$stable_since" ]; then
+        stable_since=$(date +%s)
+      fi
+      local elapsed=$(( $(date +%s) - stable_since ))
+      if [ "$elapsed" -ge "$required_stable_seconds" ]; then
+        echo "CAPI cluster $namespace/$name is provisioned and stable for ${elapsed}s (current generation: $current_metadata_generation)."
         break
       fi
+      echo "CAPI cluster $namespace/$name appears ready (phase=$current_phase, generation=$current_metadata_generation), stability ${elapsed}s/${required_stable_seconds}s..."
+    else
+      if [ -n "$stable_since" ]; then
+        echo "CAPI cluster $namespace/$name reconcile in progress (phase=$current_phase, observed=$current_observed_generation, metadata=$current_metadata_generation), resetting stability timer."
+      else
+        echo "Waiting for CAPI cluster $namespace/$name to be provisioned (phase=$current_phase, observed=$current_observed_generation, metadata=$current_metadata_generation)..."
+      fi
+      stable_since=""
     fi
 
-    echo "Waiting for CAPI cluster $namespace/$name to be provisioned (current phase: $current_phase, current generation: $current_generation)..."
     sleep 5
   done
 }
@@ -765,8 +782,7 @@ upgrade_rancher() {
   fi
 
   # Wait for Rancher to settle down before start upgrading, just in case
-  wait_capi_cluster fleet-local local 0
-  pre_generation=$(kubectl get clusters.cluster.x-k8s.io local -n fleet-local -o=jsonpath="{.status.observedGeneration}")
+  wait_capi_cluster fleet-local local
 
   # XXX Workaround for https://github.com/rancher/rancher/issues/36914
   # Delete all rancher's clusterrepos so they will be updated by the new version rancher pods
@@ -830,7 +846,7 @@ upgrade_rancher() {
   # v0.10.1: https://github.com/rancher/fleet/blob/62de718a20e1377d5a8702876077762ed9a37f27/internal/cmd/controller/agentmanagement/agent/manifest.go#L152-L161
   wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
   echo "Wait for cluster settling down..."
-  wait_capi_cluster fleet-local local $pre_generation
+  wait_capi_cluster fleet-local local
 
   # Following patch is not enough
   wait_rollout_with_loop cattle-fleet-local-system deployment fleet-agent
