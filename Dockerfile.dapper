@@ -1,7 +1,7 @@
 FROM quay.io/costoolkit/releases-teal:grub2-live-0.0.4-2 AS grub2-mbr
 FROM quay.io/costoolkit/releases-teal:grub2-efi-image-live-0.0.4-2 AS grub2-efi
 
-FROM golang:1.25.7-bookworm
+FROM golang:1.26-bookworm
 
 ARG DAPPER_HOST_ARCH
 ENV ARCH=$DAPPER_HOST_ARCH
@@ -61,7 +61,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     docker-ce=5:20.10.* \
     && rm -rf /var/lib/apt/lists/*
 ## install golangci
-COPY --from=golangci/golangci-lint:v2.8.0-alpine@sha256:1194f3bfcbaeeb92d8d159fdfbe2a79d18ec0a222d9d984b1438906bca416b51 /usr/bin/golangci-lint /usr/local/bin/golangci-lint
+COPY --from=golangci/golangci-lint:v2.12.2-alpine@sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60 /usr/bin/golangci-lint /usr/local/bin/golangci-lint
 
 ## install controller-gen
 RUN GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.1
