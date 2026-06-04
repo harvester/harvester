@@ -1,6 +1,10 @@
 module github.com/harvester/harvester
 
+<<<<<<< HEAD
 go 1.25
+=======
+go 1.26
+>>>>>>> 5744fb1f (chore: bump golang 1.26)
 
 replace (
 	// k8s.io/code-generator still remains v0.31.5 due to kubevirt v1.6.0.
