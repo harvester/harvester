@@ -15,8 +15,8 @@ Currently, benchmark runs are ad-hoc: different engineers use different tools, r
 
 ### Goals
 
-- **Define Benchmark Categories**: Establish canonical categories covering Harvester's performance surface — Resource Footprint, I/O Performance, and KubeVirt Scaling.
-- **Standardize Tooling and Methodology**: Specify tools and procedures for each category so results are reproducible by any team member.
+- **Define Benchmark Categories**: Establish canonical categories covering Harvester's performance surface — Resource Footprint (including VM creation latency) and I/O Performance.
+- **Standardize Tooling and Methodology**: Specify tools and procedures for each category so results are reproducible by any team member and users can run benchmarks in their own environments.
 - **Maintain a Shared Baseline**: Publish benchmark results to the Harvester wiki each release and compare against the previous baseline.
 
 ### Non-goals
@@ -59,99 +59,145 @@ N/A
 
 ### Implementation Overview
 
-The benchmark policy is organized into three categories. Each defines scope, tooling, topology, methodology, and key metrics.
+The benchmark policy is organized into two categories. Each defines scope, tooling, topology, methodology, and key metrics.
+
+#### Prerequisites
+
+##### Infrastructure Configuration Consistency
+
+**Standardize configurations** to ensure results are comparable across releases:
+- **Hardware**: Document CPU model, RAM, disk type (SSD/NVMe/HDD), network interfaces. Use same hardware across releases or annotate changes.
+- **Network**: Kube-OVN is enabled.
+- **Storage**: Specify Longhorn replica count, LVM config, disk partitioning, filesystem type.
+- **Harvester config**: Document non-default settings (kernel params, resource reservations, addons).
+
+##### Monitoring Stack Setup
+
+**All benchmark categories require the Harvester monitoring stack to be enabled** to collect detailed metrics during test execution.
+
+- **Installation**: Enable the `rancher-monitoring` chart in Harvester settings before running any benchmark.
+- **Purpose**: 
+  - Collect component-level metrics (CPU, memory, API latency) via Prometheus during benchmark runs, rather than just a peak value
+  - Capture P50/P99/tail latency metrics for VM creation.
 
 #### Category 1: Resource Footprint
 
-- **Scope**: CPU and memory consumption of each Harvester component at idle and under maximum VM density.
+- **Scope**: CPU and memory consumption of each Harvester component at idle and under maximum VM density, including VM creation latency metrics.
 - **Tooling**:
   - `kubectl top pods` — per-pod CPU/memory usage.
   - `ps -C containerd,kubelet,rke2 -o rss=` — host-level process RSS.
   - `grep -E 'MemTotal|MemFree|MemAvailable|SReclaimable' /proc/meminfo` — host memory allocation.
   - `kubectl describe node | grep -A5 'Allocated resources'` — scheduler CPU/memory resource allocation.
   - `etcdctl endpoint status` — etcd db size.
+  - Prometheus (enabled via monitoring stack) — query `kubevirt_vmi_phase_transition_time_from_creation_seconds` and component metrics.
+  - KubeVirt [perfscale-audit](https://github.com/kubevirt/kubevirt/tree/main/tools/perfscale-audit) tool — connects to Prometheus for VM creation latency queries.
 - **Topology**:
   - Single-node: 1 control-plane node, no worker nodes.
   - Multi-node: 3-node cluster (1 control-plane, 2 workers).
 - **Methodology**:
   - [Harvester Resource Footprint gist](https://gist.github.com/Vicente-Cheng/ae8d5ce743f94c0c9a333574813bc777).
-  - Phase 1: Measure at idle (0 VMs running) to establish the platform baseline.
-  - Phase 2: Create VMs until the scheduler rejects — record the maximum VM count and which resource (CPU, memory, or other) is the bottleneck.
-  - Capture per-namespace breakdown (kube-system, harvester-system, longhorn-system, cattle-system) at each phase.
+  - Adopt VM creation latency measurement from [KubeVirt perf-scale-benchmarks](https://github.com/kubevirt/kubevirt/blob/main/docs/perf-scale-benchmarks.md) (PromQL queries).
+  - **Phase 1: Idle baseline**
+    - Ensure monitoring stack is running and all pods are Ready.
+    - Measure resource consumption with 0 VMs to establish platform baseline.
+    - Capture per-namespace breakdown: `kube-system`, `harvester-system`, `longhorn-system`, `cattle-system`, `cattle-monitoring-system`.
+  - **Phase 2: VM creation and scaling**
+    - Create VMs incrementally with 100ms interval (minimal spec: Cirros or Alpine, 100m CPU, 128Mi memory) until the scheduler rejects new VMs.
+    - **During VM creation**, capture VM creation latency via Prometheus:
+      - `kubevirt_vmi_phase_transition_time_from_creation_seconds` (histogram) — P50, P95, P99.
+      - Total time from first VM creation to last VM reaching Running (batch throughput).
+    - Record the maximum VM count and identify the bottleneck resource (CPU, memory).
+    - Capture per-component resource consumption at max VM density (same metrics as Phase 1).
+    - Ensure workloads are evenly distributed among workers to avoid skewed results.
   - Compare single-node vs multi-node to understand how platform overhead scales with node count.
+  - **User-reproducible script**: Provide a standalone script with VM manifest templates and PromQL queries so users can run in their own environment to validate expected resource footprint and VM creation performance.
 - **Key metrics**:
-  - Platform idle cost: total CPU (millicores) and memory (MiB) with 0 VMs.
-  - Maximum VM count before scheduler rejects, and the bottleneck resource.
-  - Scheduler-reserved vs actual physical consumption ratio.
-  - etcd db size (MiB).
-
+  - **Resource consumption**:
+    - Platform idle cost: total CPU (millicores) and memory (MiB) with 0 VMs, broken down by namespace.
+    - Monitoring stack overhead: CPU/memory of `cattle-monitoring-system`, Prometheus TSDB size (MiB).
+    - Maximum VM count before scheduler rejects, and the bottleneck resource.
+    - Scheduler-reserved vs actual physical consumption ratio.
+    - etcd db size (MiB).
+  - **VM creation latency** (captured during Phase 2):
+    - P50, P95, P99 (seconds from VMI creation to Running state).
+    - Tail latency: max creation time in the batch.
+    - Batch throughput: total time for all VMs to reach Running.
 #### Category 2: Performance Benchmark
 
 ##### 2a: Storage and Network I/O
 
-- **Scope**: Storage throughput/latency and network throughput.
+- **Scope**: Storage throughput/latency and network throughput, with Prometheus monitoring of system-level resource impact during I/O tests.
 - **Tooling**:
-  - Storage: `fio` (sequential and random read/write, 4K and 128K block sizes)
-  - Network: `iperf3` (TCP throughput, UDP jitter)
+  - **Storage**: 
+    - `fio` (sequential and random read/write, 4K and 128K block sizes)
+    - **Version pinning**: Use the same fio version across all Harvester releases for result consistency (e.g., fio-3.36 from official container image or built into test VM image).
+  - **Network**: 
+    - `iperf3` (TCP throughput, UDP jitter)
+    - **Packaged image**: Provide a pre-built container image with iperf3 for reproducibility (e.g., `harbor.example.com/harvester/iperf3:3.15`).
+  - **Monitoring**:
+    - Prometheus (enabled via monitoring stack) — track node-level disk I/O, network bandwidth, and CPU iowait during tests.
 - **Topology**:
-  - Multi-node: 3-node cluster (1 control-plane, 2 workers).
-  - **Storage network**: 10GbE dedicated NIC for Longhorn replication traffic, isolated from management and VM networks.
+  - **Multi-node (3-node cluster)**: For cluster-level storage/network tests.
+    - All three nodes: 1 control-plane, 2 workers.
+    - **Storage network**: 10GbE dedicated NIC for Longhorn replication traffic, isolated from management and VM networks.
+    - **Kube-OVN enabled**: Test with Kube-OVN networking to measure its impact on VM network performance (compare against default Canal/Multus).
+    - **Longhorn replica count > 1**: Set Longhorn volume replicas to 2 or 3 to measure replication overhead on storage throughput.
   - **Inter-node bandwidth**: Measured via iperf3 before benchmark runs to confirm line rate (record actual observed bandwidth).
 - **Methodology**: [Harvester Performance wiki](https://github.com/harvester/harvester/wiki/Harvester-Performance-Result).
-  - **Storage overhead**:
-    - Layer 0 (Raw Device): fio directly on host block device
-    - Layer 1 (Longhorn volume, host): fio on Longhorn PVC mounted to a pod on the host
-    - Layer 2 (guest VM): fio inside Linux/Windows VM backed by Longhorn volume
-  - **Network overhead**:
-    - Layer 0 (Raw Device): confirm inter-node line rate via iperf3
-    - VM network: iperf3 between two VMs to measure guest network throughput.
-- **Key metrics**: IOPS, throughput (MB/s), latency (ms), bandwidth (Gbps).
+  - **Storage overhead (layered testing)**:
+    - **Layer 0 (Raw Device)**: fio directly on host block device (multi-node host controller node).
+    - **Layer 1 (Longhorn volume, host)**: fio on Longhorn PVC mounted to a pod on the host (multi-node, with replica count ≥ 2).
+    - **Layer 2 (guest VM)**: fio inside Linux/Windows VM backed by Longhorn volume (multi-node, with Kube-OVN enabled/disabled comparison).
+  - **Network overhead (layered testing)**:
+    - **Layer 0 (Raw Device)**: Confirm inter-node line rate via iperf3 between bare metal nodes or host pods.
+    - **Layer 1 (VM network)**: iperf3 between two VMs on different nodes to measure guest network throughput.
+  - **Prometheus monitoring during tests**:
+    - Capture time-series data during the entire fio/iperf3 run.
+    - Track node-level metrics to identify bottlenecks (see Prometheus metrics section).
+  - **User-reproducible script**: Provide a standalone script with:
+    - Pre-built fio/iperf3 container images.
+    - VM manifest templates with fio/iperf3 pre-installed.
+    - PromQL queries to validate results.
+- **Key metrics**:
+  - **Storage**:
+    - IOPS (4K random read/write).
+    - Throughput (MB/s, 128K sequential read/write).
+    - Latency (ms, P50/P95/P99).
+  - **Network**:
+    - Bandwidth (Gbps, TCP throughput).
+    - Latency (ms, UDP jitter).
 
 ##### 2b: etcd
 
-- **Scope**: etcd get, put, and watch latency and throughput at idle (0 VMs), to establish baseline performance for a given hardware configuration.
+- **Scope**: etcd get, put, and watch latency and throughput at idle (0 VMs), with Prometheus monitoring to identify disk-level bottlenecks.
 - **Tooling**:
-  - etcd [benchmark](https://github.com/etcd-io/etcd/tree/main/tools/benchmark) tool — build from `etcd/tools/benchmark` in the etcd repository.
+  - **etcd benchmark**: etcd [benchmark](https://github.com/etcd-io/etcd/tree/main/tools/benchmark) tool — build from `etcd/tools/benchmark` in the etcd repository.
+  - **Prometheus metrics**: Monitor etcd disk performance via `etcd_disk_wal_fsync_duration_seconds` and `etcd_disk_backend_commit_duration_seconds`, [reference](https://etcd.io/docs/v3.6/metrics/).
 - **Topology**:
   - Single-node: 1 control-plane node, no worker nodes.
   - Multi-node: 3-node cluster (1 control-plane, 2 workers).
 - **Methodology**:
   - Run at idle (0 VMs) to establish baseline.
-  - For each operation, run a single-client and a concurrent workload:
-    - **Put**:
-      - Single: 1 connection, 1 client, 10,000 requests, 256-byte value.
-      - Concurrent: 100 connections, 1,000 clients, 100,000 requests, 256-byte value.
-    - **Get** (seed keys before benchmarking):
-      - Single: 1 connection, 1 client, 10,000 requests.
-      - Concurrent: 100 connections, 1,000 clients, 100,000 requests.
-    - **Watch**:
-      - Single: 1 connection, 1 client, 10,000 watch events.
-      - Concurrent: 100 connections, 1,000 clients, 100,000 watch events.
+  - **etcd API benchmark**:
+    - For each operation, run a single-client and a concurrent workload:
+      - **Put**:
+        - Single: 1 connection, 1 client, 10,000 requests, 256-byte value.
+        - Concurrent: 100 connections, 1,000 clients, 100,000 requests, 256-byte value.
+      - **Get** (seed keys before benchmarking):
+        - Single: 1 connection, 1 client, 10,000 requests.
+        - Concurrent: 100 connections, 1,000 clients, 100,000 requests.
+      - **Watch**:
+        - Single: 1 connection, 1 client, 10,000 watch events.
+        - Concurrent: 100 connections, 1,000 clients, 100,000 watch events.
+
 - **Key metrics**:
-  - Requests per second (throughput).
-  - Latency: average, P50, P99.
-
-#### Category 3: KubeVirt Scaling Comparison
-
-- **Scope**: Measure the additional overhead Harvester introduces on top of vanilla KubeVirt, using the KubeVirt version bundled with the Harvester release under test.
-- **Tooling**:
-  - Prometheus (built-in to Harvester) — query KubeVirt metrics via PromQL.
-  - KubeVirt [perfscale-audit](https://github.com/kubevirt/kubevirt/tree/main/tools/perfscale-audit) tool — connects to Prometheus, runs predefined queries, dumps results to JSON.
-- **Topology**:
-  - Single-node: 1 control-plane node, no worker nodes.
-  - Multi-node: 3-node cluster (1 control-plane, 2 workers).
-- **Methodology**:
-  - Adopt measurement methodology from [KubeVirt perf-scale-benchmarks](https://github.com/kubevirt/kubevirt/blob/main/docs/perf-scale-benchmarks.md), not their cluster topology.
-  - Use local-path storage for VM volumes to isolate KubeVirt overhead from storage backend variance.
-  - Create 100 VMs with 100ms interval (minimal spec: Cirros, 100m CPU, 90Mi memory), wait for all to reach Running state.
-  - Collect metrics via Prometheus after waiting for scrape interval (30s default).
-  - Run the same test on vanilla KubeVirt (same version as bundled in Harvester) and Harvester on the same hardware.
-  - Ensure workloads are evenly distributed among workers to avoid skewed results.
-- **Phase 1 — Baseline** (establish the performance gap):
-  - vmiCreationToRunningSeconds P50/P95 (boot time tail latency).
-  - Total time for 100 VMs to reach Running (batch throughput).
-- **Phase 2 — Profiling** (identify where the gap comes from):
-  - **API operation counts**: PATCH-pods-count, PATCH-virtualmachineinstances-count, UPDATE-virtualmachineinstances-count per component — identifies the most expensive calls from the Harvester stack.
+  - **etcd API performance (from etcd benchmark)**:
+    - Requests per second (throughput).
+    - Latency: average, P50, P99.
+  - **Prometheus monitoring during tests**:
+    - Capture etcd disk performance metrics during the benchmark:
+      - `etcd_disk_wal_fsync_duration_seconds` — WAL (Write-Ahead Log) fsync latency (how long it takes to persist each write to disk).
+      - `etcd_disk_backend_commit_duration_seconds` — boltdb snapshot commit latency (how long it takes to commit batched changes to disk).
 
 ### Test plan
 
@@ -163,7 +209,15 @@ N/A
 
 ## Note [optional]
 
-- Future work:
-  - Benchmark automation (scheduled runs, result diffing, automatic regression issue filing).
-  - etcd benchmark under VM load — run during VM creation to capture peak write pressure, and compare with steady-state after VMs are running.
-  - Disk topology comparison — measure etcd performance when etcd shares the root disk (e.g., LVM) vs. a dedicated disk, to quantify I/O contention impact on etcd latency.
+### User-Reproducible Benchmark Scripts
+
+All benchmark categories will include standalone scripts that users can run in their own Harvester environments to:
+- Validate that their hardware meets expected performance baselines.
+- Debug performance issues by comparing local results against published benchmarks.
+- Reproduce benchmark results for support cases.
+
+### Future Work
+
+- Benchmark automation (scheduled runs, result diffing, automatic regression issue filing).
+- etcd benchmark under VM load — run during VM creation to capture peak write pressure, and compare with steady-state after VMs are running.
+- Disk topology comparison — measure etcd performance when etcd shares the root disk (e.g., LVM) vs. a dedicated disk, to quantify I/O contention impact on etcd latency.
