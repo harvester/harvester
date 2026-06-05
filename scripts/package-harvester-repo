@@ -1,0 +1,40 @@
+#!/bin/bash -e
+
+TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+SCRIPTS_DIR="${TOP_DIR}/scripts"
+DIST_REPO_DIR="${TOP_DIR}/dist/harvester-cluster-repo"
+PACKAGE_HARVESTER_OS_DIR="${TOP_DIR}/package/harvester-os"
+PACKAGE_HARVESTER_REPO_DIR="${TOP_DIR}/package/harvester-repo"
+BUNDLE_DIR="${PACKAGE_HARVESTER_OS_DIR}/iso/bundle"
+IMAGES_DIR="${BUNDLE_DIR}/harvester/images"
+IMAGES_LISTS_DIR="${BUNDLE_DIR}/harvester/images-lists"
+
+mkdir -p ${IMAGES_DIR}
+mkdir -p ${IMAGES_LISTS_DIR}
+source ${SCRIPTS_DIR}/version
+source ${SCRIPTS_DIR}/lib/image
+
+# for image publish in CI
+rm -rf ${DIST_REPO_DIR} && mkdir -p ${DIST_REPO_DIR}
+cp -r ${PACKAGE_HARVESTER_REPO_DIR}/* ${DIST_REPO_DIR}
+
+cd ${PACKAGE_HARVESTER_REPO_DIR}
+
+CLUSTER_REPO_IMAGE=rancher/harvester-cluster-repo:${VERSION}
+docker build -t ${CLUSTER_REPO_IMAGE} .
+
+repo_image_list_file="${IMAGES_LISTS_DIR}/harvester-repo-images-${VERSION}.txt"
+repo_image_archive="${IMAGES_DIR}/harvester-repo-images-${VERSION}.tar"
+
+# Save the image
+cat << EOF > $repo_image_list_file
+docker.io/${CLUSTER_REPO_IMAGE}
+EOF
+docker image save -o $repo_image_archive $(<$repo_image_list_file)
+zstd --rm $repo_image_archive -o "${repo_image_archive}.zst"
+add_image_list_to_metadata "common" $BUNDLE_DIR $repo_image_list_file "${repo_image_archive}.zst"
+
+# Update image name in Rancherd bootstrap resources
+sed "s,\$CLUSTER_REPO_IMAGE,${CLUSTER_REPO_IMAGE}," \
+  ${PACKAGE_HARVESTER_OS_DIR}/templates/91-harvester-bootstrap-repo.yaml > \
+  ${PACKAGE_HARVESTER_OS_DIR}/files/usr/share/rancher/rancherd/config.yaml.d/91-harvester-bootstrap-repo.yaml

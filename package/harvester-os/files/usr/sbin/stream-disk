@@ -1,0 +1,51 @@
+#!/bin/bash
+
+set -e
+
+TARGET=/run/cos/target
+DATA_DISK_FSLABEL="HARV_LH_DEFAULT"
+DEFAULT_LH_PARTITION="6"
+
+update_boot_args()
+{
+      if [ -z "${HARVESTER_TTY}" ]; then
+          TTY=$(tty | sed 's!/dev/!!')
+      else
+          TTY=$HARVESTER_TTY
+      fi
+
+      if [ -e "/dev/${TTY%,*}" ] && [ "$TTY" != tty1 ] && [ "$TTY" != console ] && [ -n "$TTY" ]; then
+          sed -i "1s/.*/console_params=\"console=${TTY} console=tty1\"/g" ${TARGET}/etc/cos/bootargs.cfg
+      fi
+}
+
+echo "writing image to disk"
+curl --retry 5 --no-buffer -k ${HARVESTER_RAW_DISK_IMAGE_PATH} | zstd -d -T4 | dd of=${HARVESTER_DEVICE} bs=1M iflag=fullblock oflag=direct
+echo -e "w" | fdisk ${HARVESTER_DEVICE}
+partprobe ${HARVESTER_DEVICE}
+
+# if config_url is set then stream this to userdata.yaml as installer will load it on next boot
+echo "checking and writing userdata"
+sleep 30
+if [ -n "${HARVESTER_STREAMDISK_CLOUDINIT_URL}" ]
+then
+  oem_partition=$(blkid -L COS_OEM)
+  mount -t ext4 ${oem_partition} /oem
+  curl -k -o /oem/userdata.yaml ${HARVESTER_STREAMDISK_CLOUDINIT_URL}
+  cp ${HARVESTER_CONFIG} /oem/harvester.config
+  umount /oem
+fi
+
+echo "patching console"
+persistent_partition=$(blkid -L COS_STATE)
+mkdir -p $TARGET
+mount -t ext4 ${persistent_partition} /mnt
+mount /mnt/cOS/active.img ${TARGET}
+
+update_boot_args
+
+# resize HARV_LH_DEFAULT
+echo "resizing default data disk"
+parted ${HARVESTER_DEVICE} resizepart ${DEFAULT_LH_PARTITION} 100%
+mkfs -t ext4 ${HARVESTER_DEVICE}${DEFAULT_LH_PARTITION}
+e2label ${HARVESTER_DEVICE}${DEFAULT_LH_PARTITION} ${DATA_DISK_FSLABEL}

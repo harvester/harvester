@@ -1,0 +1,3 @@
+iso:
+  bootloader-in-rootfs: true
+  label: "COS_LIVE"

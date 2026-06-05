@@ -1,0 +1,175 @@
+#!/bin/bash
+set -e
+
+TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+SCRIPTS_DIR="${TOP_DIR}/scripts"
+# get the defined rancher version
+source ${SCRIPTS_DIR}/version-rancher
+cd ${TOP_DIR}
+
+duplicated_image_check() {
+  local fname=$1
+  local image=$2
+  # 1. Count total lines for these specific images
+  local COUNT=$(grep -c "${image}:" "${fname}")
+
+  # 2. Check for missing or duplicate lines
+  if [[ "$COUNT" -ne 1 ]]; then
+    echo "Error: Duplicate or missing records found."
+    echo "${image} count: ${COUNT} (Expected 1)"
+    exit 1
+  fi
+}
+
+# check a single image to ensure it exists, if a tag is given then check it matches
+check_image_tag() {
+  local fname=$1
+  local image=$2
+  local targettag=$3
+
+  if [[ -z $fname ]]; then
+    echo "Error: target file is not given"
+    exit 1
+  fi
+
+  if [[ -z $image ]]; then
+    echo "Error: image name is not given"
+    exit 1
+  fi
+
+  if [[ ! -f ${fname} ]]; then
+    echo "Error: target file ${fname} does not exist"
+    exit 1
+  fi
+
+  local TAG_IMAGE=$(grep "${image}:" "${fname}" | sed 's/.*://')
+  if [[ -z "${TAG_IMAGE}" ]]; then
+      echo "Error: ${image} is missing from ${fname}."
+      exit 1
+  fi
+
+  if [[ -z ${targettag} ]]; then
+    echo "Success: ${image} is present with tag ${TAG_IMAGE}"
+    return
+  fi
+
+  if [[ ! -z ${targettag} && ! ${TAG_IMAGE} == ${targettag} ]]; then
+      echo "Error: ${image} has tag ${TAG_IMAGE}, but expects ${targettag}"
+      exit 1
+  fi
+
+  echo "Success: ${image} is present with tag ${TAG_IMAGE}"
+}
+
+# check two images which are paired with same tag
+check_image_pair_tag() {
+  local fname=$1
+  local image=$2
+  local fnamepair=$3
+  local imagepair=$4
+
+  if [[ -z ${fname} ]]; then
+    echo "Error: image file is not given"
+    exit 1
+  fi
+
+  if [[ -z ${image} ]]; then
+    echo "Error: image name is not given"
+    exit 1
+  fi
+
+  if [[ -z ${fnamepair} ]]; then
+    echo "Error: pair(agent) file is not given"
+    exit 1
+  fi
+
+  if [[ -z ${imagepair} ]]; then
+    echo "Error: pair(agent) image name is not given"
+    exit 1
+  fi
+
+  if [[ ! -f ${fname} ]]; then
+    echo "Error: image file ${fname} does not exist"
+    exit 1
+  fi
+
+  if [[ ! -f ${fnamepair} ]]; then
+    echo "Error: pair(agent) file ${fnamepair} does not exist"
+    exit 1
+  fi
+
+
+  duplicated_image_check ${fname} ${image}
+  duplicated_image_check ${fnamepair} ${imagepair}
+
+  # 1. Extract the tags using sed (everything after the last colon)
+  local TAG_IMAGE=$(grep "${image}:" "${fname}" | sed 's/.*://')
+  local TAG_PAIR=$(grep "${imagepair}:" "${fnamepair}" | sed 's/.*://')
+
+  # 2. Check if both images were actually found
+  if [[ -z "$TAG_IMAGE"  ]]; then
+      echo "Error: ${image} is missing from ${fname}."
+      exit 1
+  fi
+
+  if [[ -z "$TAG_PAIR" ]]; then
+      echo "Error: ${imagepair} is missing from ${fnamepair}."
+      exit 1
+  fi
+
+  # 3. Compare the tags
+  if [ "$TAG_IMAGE" == "$TAG_PAIR" ]; then
+      echo "Success: both ${image} and ${imagepair} are present with tag $TAG_IMAGE"
+  else
+      echo "Error: ${image} is [$TAG_IMAGE] but ${imagepair} is [$TAG_PAIR]"
+      exit 1
+  fi
+}
+
+check_rancher_version() {
+  local fname=${SCRIPTS_DIR}/images/rancher-images.txt
+
+  if [[ -z ${RANCHER_VERSION} ]]; then
+    echo "Error: Rancher version is not defined"
+    exit 1
+  fi
+
+  echo "Rancher main image tag ${RANCHER_VERSION}"
+  check_image_tag ${fname} "rancher/rancher" ${RANCHER_VERSION}
+}
+
+check_rancher_images() {
+  local fname=${SCRIPTS_DIR}/images/rancher-images.txt
+  local francherbootstrap=${SCRIPTS_DIR}/images/rancherd-bootstrap-images.txt
+  echo "File ${fname} ${francherbootstrap}"
+
+  # must be paired ones
+  check_image_pair_tag ${fname} "rancher/rancher" ${fname} "rancher/rancher-agent"
+  check_image_pair_tag ${fname} "rancher/fleet" ${fname} "rancher/fleet-agent"
+
+  check_image_pair_tag ${fname} "rancher/rancher" ${francherbootstrap} "rancher/system-agent-installer-rancher"
+
+  # must be existing
+  check_image_tag ${fname} "rancher/system-agent"
+  check_image_tag ${fname} "rancher/system-upgrade-controller"
+  check_image_tag ${fname} "rancher/turtles"
+  check_image_tag ${fname} "rancher/cluster-api-controller"
+}
+
+check_rancher_bootstrap_images() {
+  local fname=${SCRIPTS_DIR}/images/rancherd-bootstrap-images.txt
+  echo "File ${fname}"
+
+  # must be existing
+  check_image_tag ${fname} "rancher/system-agent-installer-rancher"
+}
+
+echo "Check images to ensure they are aligned"
+
+check_rancher_version
+
+check_rancher_images
+
+check_rancher_bootstrap_images
+
+echo "All pass"

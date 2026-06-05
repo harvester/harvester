@@ -1,0 +1,10 @@
+name: "Network configuration"
+stages:
+  network:
+    - name: Bring up interfaces
+      commands:
+      - |
+        for i in /sys/class/net/{eth*,en*,ib*}; do
+          [ -e $i ] || continue
+          ip link set $(basename $i) up;
+        done

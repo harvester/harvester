@@ -1,0 +1,12 @@
+name: "Kernel crash dump"
+stages:
+  initramfs:
+    - name: "enable kdump"
+      if: 'grep -q root=LABEL=COS_STATE /proc/cmdline && [ -n "$(blkid -L COS_STATE)" ]'
+      commands:
+        - |
+          if grep -q "crashkernel=" /proc/cmdline; then
+            systemctl enable kdump
+          else
+            systemctl disable kdump
+          fi

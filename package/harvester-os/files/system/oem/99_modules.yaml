@@ -1,0 +1,6 @@
+name: "load kernel modules"
+stages:
+  boot:
+  - name: "load dm_crypt"
+    commands:
+    - modprobe dm_crypt

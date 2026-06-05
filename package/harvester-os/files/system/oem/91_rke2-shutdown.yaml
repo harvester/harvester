@@ -1,0 +1,7 @@
+name: "Enable RKE2 shutdown service"
+stages:
+  initramfs:
+    - name: "enable rke2-shutdown.service"
+      if: 'grep -q root=LABEL=COS_STATE /proc/cmdline && [ -n "$(blkid -L COS_STATE)" ]'
+      commands:
+        - systemctl enable rke2-shutdown.service
