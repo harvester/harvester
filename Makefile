@@ -42,16 +42,15 @@ MK_DOCKER_PULL            ?= --pull
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
 HARVESTER_ADDONS_VERSION  ?= main
-HARVESTER_INSTALLER_REPO  ?=
-HARVESTER_INSTALLER_REF   ?=
 HARVESTER_UI_VERSION      ?=
 HARVESTER_UI_PLUGIN_BUNDLED_VERSION ?=
-RKE2_IMAGE_REPO           ?=
+RKE2_IMAGE_REPO           ?= https://github.com/rancher/rke2/releases/download/
 USE_LOCAL_IMAGES          ?=
 REPO                      ?=
 PUSH                      ?=
 DRONE_BRANCH              ?=
 DRONE_TAG                 ?=
+DISABLE_BUILD_NET_INSTALL_ISO ?=
 
 # you can use a fixed name to share cache across repos. however there is no locking mechanism.
 MK_IMAGE_CACHE_VOLUME     ?= harvester-image-cache-$(MK_REPO_ID)
@@ -67,8 +66,9 @@ MK_IMAGE_CACHE_VERIFY     ?=
 
 export MK_DOCKER_PROGRESS MK_DOCKER_PULL MK_REPO_ID MK_ADDONS_IMAGE MK_ISO_BUILDER_IMAGE
 export HARVESTER_UI_VERSION HARVESTER_UI_PLUGIN_BUNDLED_VERSION
-export HARVESTER_INSTALLER_REPO HARVESTER_INSTALLER_REF RKE2_IMAGE_REPO USE_LOCAL_IMAGES REPO PUSH DRONE_BRANCH DRONE_TAG
+export RKE2_IMAGE_REPO USE_LOCAL_IMAGES REPO PUSH DRONE_BRANCH DRONE_TAG
 export CODECOV_TOKEN HARVESTER_ADDONS_VERSION
+export DISABLE_BUILD_NET_INSTALL_ISO
 export MK_IMAGE_CACHE_VOLUME MK_IMAGE_CACHE_BYPASS MK_IMAGE_CACHE_MAX_ITEMS MK_IMAGE_CACHE_VERIFY
 
 MK_HOST_ARCH ?= $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
@@ -198,7 +198,7 @@ prepare-addons:
 
 
 # ---- Build ISO ----
-build-iso: gen-version-env
+build-iso: gen-version-env build-installer check-images
 	$(BANNER)
 	$(DOCKER_BUILD) --target build-iso -t $(MK_ISO_BUILDER_IMAGE)
 	$(ROOT)/scripts/mk-build-iso
