@@ -1,0 +1,6 @@
+exclude:
+  repos:
+    - docker.io/rancher/harvester
+    - docker.io/rancher/harvester-webhook
+    - docker.io/rancher/harvester-upgrade
+  tags: []

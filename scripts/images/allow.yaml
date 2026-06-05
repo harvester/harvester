@@ -1,0 +1,32 @@
+rke2-images-multus:
+  - docker.io/rancher/hardened-multus-cni
+  - docker.io/rancher/hardened-cni-plugins
+rancher:
+  - docker.io/rancher/rancher
+  - docker.io/rancher/system-agent
+  - docker.io/rancher/shell
+  - docker.io/rancher/rancher-webhook
+  - docker.io/rancher/gitjob
+  - docker.io/rancher/fleet
+  - docker.io/rancher/fleet-agent
+  - docker.io/rancher/system-upgrade-controller
+  - docker.io/rancher/kubectl
+  - docker.io/rancher/mirrored-prometheus-adapter-prometheus-adapter
+  - docker.io/rancher/appco-node-exporter
+  - docker.io/rancher/mirrored-prometheus-operator-prometheus-config-reloader
+  - docker.io/rancher/mirrored-prometheus-operator-prometheus-operator
+  - docker.io/rancher/prom-prometheus
+  - docker.io/rancher/appco-alertmanager
+  - docker.io/rancher/appco-k8s-sidecar
+  - docker.io/rancher/mirrored-library-busybox
+  - docker.io/rancher/appco-grafana
+  - docker.io/rancher/mirrored-library-nginx
+  - docker.io/rancher/appco-kube-state-metrics
+  - docker.io/rancher/mirrored-ingress-nginx-kube-webhook-certgen
+  - docker.io/rancher/mirrored-banzaicloud-fluentd
+  - docker.io/rancher/mirrored-banzaicloud-logging-operator
+  - docker.io/rancher/mirrored-fluent-fluent-bit
+  - docker.io/rancher/mirrored-jimmidyson-configmap-reload
+  - docker.io/rancher/kuberlr-kubectl
+  - docker.io/rancher/turtles
+  - docker.io/rancher/cluster-api-controller
