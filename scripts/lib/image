@@ -1,0 +1,176 @@
+#!/bin/bash
+
+# Prefix registry to images
+# rancher -> docker.io/library/rancher
+# rancher/rancher -> docker.io/rancher/rancher
+# test.com/rancher/rancher -> test.com/rancher/rancher
+normalize_image()
+{
+  echo $1 | awk -F '/' '{if(NF>=3){print $0} else if(NF==2){print "docker.io/"$0}else if(NF==1){print "docker.io/library/"$0}}'
+}
+
+save_image_list()
+{
+  local app=$1
+  local in_file=$2
+  local out_file=$3
+  local images
+  local image
+
+  case $in_file in
+    http*)
+      images=$(curl -sfL $in_file)
+      ;;
+    *)
+      images=$(<$in_file)
+      ;;
+  esac
+
+  local repository
+  local want
+
+  for image in $images; do
+    repository=${image%:*}
+
+    # Add docker.io prefix if there is no prefixed registry URL
+    repository=$(normalize_image $repository)
+
+    if yq -e e ".${app}[] | select(. == \"${repository}\")" ${SCRIPTS_DIR}/images/allow.yaml &>/dev/null; then
+      want+="$(normalize_image $image)"$'\n'
+    fi
+  done
+
+  echo -n "$want" | sort | uniq > $out_file
+}
+
+pull_images() {
+  local image_list=$1
+  local image_cache_db=${SCRIPTS_DIR}/images/cache.yaml
+  local repository
+
+  if [ -z "$USE_LOCAL_IMAGES" ]; then
+    echo "Pulling images..."
+    for image in $(cat $image_list); do
+      docker image pull --quiet $image
+    done
+    return
+  fi
+
+  # If a tag is specified via the ENV USE_LOCAL_IMAGES, then directly check this image and continue.
+  # For example: export USE_LOCAL_IMAGES=fix6486-head
+  # This will let `make build-iso` from Harvester local development much easier.
+
+  # If an image is in the exlcude list or its tag ends with "-head", we always pull it.
+  # Otherwise, we check if the image exists on the system. If yes, we do nothing.
+  for image in $(cat $image_list); do
+    repository=$(echo $image | awk -F ':' '{print $1}')
+    tag=$(echo $image | awk -F ':' '{print $2}')
+
+    if [[ $USE_LOCAL_IMAGES == $tag ]]; then
+      echo "[ImageCache] $image meets the specified tag from USE_LOCAL_IMAGES."
+      if docker image inspect $image &>/dev/null; then
+        echo "[ImageCache] $image exists."
+        continue
+      fi
+    fi
+
+    if yq -e e ".exclude.repos[] | select(. == \"${repository}\")" $image_cache_db &>/dev/null; then
+      echo "[ImageCache] $image is in the exclude.repos list."
+    elif [[ $tag == *"-head" ]]; then
+      echo "[ImageCache] $image has \"-head\" suffix."
+    elif yq -e e ".exclude.tags[] | select(. == \"${tag}\")" $image_cache_db &>/dev/null; then
+      echo "[ImageCache] $image is in the exclude.tags list."
+    else
+      if docker image inspect $image &>/dev/null; then
+        echo "[ImageCache] $image exists."
+        continue
+      fi
+    fi
+
+    echo "[ImageCache] $image: pulling..."
+    docker pull $image
+  done
+}
+
+# is_cache_excluded IMAGE
+# Returns 0 (true) if IMAGE should bypass the volume cache and always be pulled
+# from the registry. Checks: hard-coded volatile tags, then scripts/images/cache.yaml
+# .exclude.tags[] and .exclude.repos[].
+# SCRIPTS_DIR must be set by the caller.
+_IMAGE_VOLATILE_TAGS="master master-head main main-head dev dev-head"
+
+is_cache_excluded() {
+  local image="$1"
+  local repo="${image%:*}"
+  local tag="${image##*:}"
+
+  local volatile_tag
+  for volatile_tag in ${_IMAGE_VOLATILE_TAGS}; do
+    [[ "${tag}" == "${volatile_tag}" ]] && return 0
+  done
+
+  local cache_yaml="${SCRIPTS_DIR}/images/cache.yaml"
+  if [[ -f "${cache_yaml}" ]]; then
+    if yq -e ".exclude.tags[] | select(. == \"${tag}\")" "${cache_yaml}" &>/dev/null 2>&1; then
+      return 0
+    fi
+    if yq -e ".exclude.repos[] | select(. == \"${repo}\")" "${cache_yaml}" &>/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+save_image()
+{
+  local image_type=$1
+  local bundle_dir=$2
+  local image_list=$3
+  local save_dir=$4
+
+  local archive_name="$(basename ${image_list%.txt}).tar"
+  local archive_file="${save_dir}/${archive_name}"
+  pull_images $image_list
+  docker image save $(<${image_list}) | zstd -o "${archive_file}.zst"
+
+  add_image_list_to_metadata $image_type $bundle_dir $image_list "${archive_file}.zst"
+}
+
+# Add image list to bundle metadata
+add_image_list_to_metadata() {
+  local image_type=$1
+  local bundle_dir=$2
+  local image_list=$3
+  local image_archive=$4
+
+  local metadata="$bundle_dir/metadata.yaml"
+  local rel_image_list
+  local rel_image_archive
+
+  rel_image_list="${image_list#"$bundle_dir"}"
+
+  if [ "$rel_image_list" = "$image_list" ]; then
+    echo "Image list file $image_list is not in $bundle_dir"
+    exit 1
+  fi
+
+  rel_image_archive="${image_archive#"$bundle_dir"}"
+  if [ "$rel_image_archive" = "$image_archive" ]; then
+    echo "Image archive $image_archive is not in $bundle_dir"
+    exit 1
+  fi
+
+  if [ ! -e  $metadata ]; then
+    cat > $metadata <<'EOF'
+images:
+  common: []
+  rke2: []
+  agent: []
+EOF
+  fi
+
+  IMAGE_LIST="$rel_image_list" \
+    IMAGE_ARCHIVE="$rel_image_archive" \
+    yq -e --prettyPrint e ".images.$image_type += [{\"list\": strenv(IMAGE_LIST), \"archive\": strenv(IMAGE_ARCHIVE)}]" $metadata -i
+}

@@ -52,10 +52,23 @@ PUSH                      ?=
 DRONE_BRANCH              ?=
 DRONE_TAG                 ?=
 
+# you can use a fixed name to share cache across repos. however there is no locking mechanism.
+MK_IMAGE_CACHE_VOLUME     ?= harvester-image-cache-$(MK_REPO_ID)
+
+# non-empty: skip cache reads/writes entirely, always pull fresh
+MK_IMAGE_CACHE_BYPASS     ?=
+
+# max cached entries per category; oldest pruned when exceeded (default: 5)
+MK_IMAGE_CACHE_MAX_ITEMS  ?= 5
+
+# set to 0 to skip sha256 integrity check before using cached tarball (default: 1)
+MK_IMAGE_CACHE_VERIFY     ?=
+
 export MK_DOCKER_PROGRESS MK_REPO_ID MK_ADDONS_IMAGE MK_ISO_BUILDER_IMAGE
 export HARVESTER_UI_VERSION HARVESTER_UI_PLUGIN_BUNDLED_VERSION
 export HARVESTER_INSTALLER_REPO HARVESTER_INSTALLER_REF RKE2_IMAGE_REPO USE_LOCAL_IMAGES REPO PUSH DRONE_BRANCH DRONE_TAG
 export CODECOV_TOKEN HARVESTER_ADDONS_VERSION
+export MK_IMAGE_CACHE_VOLUME MK_IMAGE_CACHE_BYPASS MK_IMAGE_CACHE_MAX_ITEMS MK_IMAGE_CACHE_VERIFY
 
 MK_HOST_ARCH := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 export MK_HOST_ARCH
@@ -69,7 +82,8 @@ DOCKER_BUILD = docker build \
 .PHONY: build validate validate-ci test test-integration build-iso \
 	package-all package package-harvester-webhook package-harvester-upgrade \
 	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default \
-	gen-version-env gen-version-env-debug build-installer
+	image-cache-clean image-cache-show image-cache-debug \
+	gen-version-env gen-version-env-debug build-installer \
 
 
 # ---- Directories ----
@@ -193,6 +207,25 @@ clean-all: clean
 	$(BANNER)
 	@docker rmi -f $(MK_ADDONS_IMAGE) || true
 	@docker rmi -f $(MK_ISO_BUILDER_IMAGE) $(MK_TEST_INTEGRATION_IMAGE) || true
+
+# ---- Image cache management ----
+image-cache-clean:
+	$(BANNER)
+	docker volume rm $(MK_IMAGE_CACHE_VOLUME) || true
+
+image-cache-show:
+	$(BANNER)
+	docker run --rm \
+	    -v $(MK_IMAGE_CACHE_VOLUME):/image-caches:ro \
+	    -v $(ROOT)/scripts/image-cache:/bin/image-cache:ro \
+	    alpine image-cache show
+
+image-cache-debug:
+	$(BANNER)
+	docker run --rm -it \
+	    -v $(MK_IMAGE_CACHE_VOLUME):/image-caches:rw \
+	    -v $(ROOT)/scripts/image-cache:/bin/image-cache:ro \
+	    alpine sh
 
 .DEFAULT_GOAL := default
 
