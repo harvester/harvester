@@ -68,7 +68,7 @@ RUN GO111MODULE=on go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0
 RUN GO111MODULE=on go install github.com/onsi/ginkgo/v2/ginkgo@v2.29.0
 
 # install openapi-gen
-RUN  GO111MODULE=on go install k8s.io/code-generator/cmd/openapi-gen@v0.29.13
+RUN GO111MODULE=on go install k8s.io/code-generator/cmd/openapi-gen@v0.29.13
 
 # install kind
 RUN curl -Lo /usr/bin/kind https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-${ARCH} && \
@@ -248,4 +248,16 @@ RUN bash scripts/check-images
 
 
 # ---- build-iso ----
-FROM base AS build-iso
+FROM builder AS build-iso
+
+WORKDIR /go/src/github.com/harvester/harvester
+
+COPY --from=build-installer /go/src/github.com/harvester/harvester/bin/harvester-installer package/harvester-os/files/usr/bin/
+COPY --from=prepare-addons /dist/prepare-addons/addons/ /go/src/github.com/harvester/addons/
+COPY --from=prepare-harvester-charts /go/src/github.com/harvester/harvester/deploy/charts/ /go/src/github.com/harvester/harvester/deploy/charts/
+COPY --from=prepare-harvester-charts /dist/chart-tarballs/* /go/src/github.com/harvester/harvester/package/harvester-repo/charts/
+COPY --from=prepare-addons-charts /dist/charts/*.tgz /go/src/github.com/harvester/harvester/package/harvester-repo/charts/
+
+COPY scripts/ scripts/
+COPY package/harvester-os/ package/harvester-os/
+COPY package/harvester-repo/ package/harvester-repo/
