@@ -84,6 +84,7 @@ DOCKER_BUILD = docker build \
 	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default \
 	image-cache-clean image-cache-show image-cache-debug \
 	gen-version-env gen-version-env-debug build-installer \
+	check-images
 
 
 # ---- Directories ----
@@ -145,6 +146,13 @@ build-installer: prepare-addons | $(ROOT)/bin
 	$(DOCKER_BUILD) --target build-installer-output \
 	    --build-arg HARVESTER_ADDONS_VERSION=$(HARVESTER_ADDONS_VERSION) \
 	    --output type=local,dest=$(ROOT)
+
+
+# ---- Validate image list consistency ----
+check-images: prepare-addons gen-version-env
+	$(BANNER)
+	$(DOCKER_BUILD) --target check-images
+
 
 # ---- Package harvester image ----
 package: build
