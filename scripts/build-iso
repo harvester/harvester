@@ -2,28 +2,167 @@
 # DESC: Build the Harvester ISO
 set -e
 
-source $(dirname $0)/version
+TOP_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." &> /dev/null && pwd)
+SCRIPTS_DIR="${TOP_DIR}/scripts"
+source "${SCRIPTS_DIR}/lib/image"
+source "${SCRIPTS_DIR}/lib/cache"
+source "${SCRIPTS_DIR}/lib/http"
+source "${SCRIPTS_DIR}/lib/addon"
+source "${SCRIPTS_DIR}/lib/harvester-image-list"
 
-cd $(dirname $0)/..
+source ${SCRIPTS_DIR}/version
+source ${SCRIPTS_DIR}/version-rancher
+source ${SCRIPTS_DIR}/version-rke2
+
+RKE2_VERSION_NORMALIZED=$(echo "${RKE2_VERSION}" | tr '+' '-')
+
+harvester_chart_path="${TOP_DIR}/deploy/charts/harvester"
+
+
+prepare_helm_repo() {
+    echo "Creating Helm repo index for charts..."
+    local charts_dir="${TOP_DIR}/package/harvester-repo/charts"
+    find "${charts_dir}"
+    helm repo index "${charts_dir}"
+}
+
+prepare_rancherd_bundle() {
+    echo "Preparing rancherd bootstrap images..."
+    local list_file="${BUNDLE_DIR}/rancherd/images/rancherd-bootstrap-images-${VERSION}.txt"
+    local archive="${BUNDLE_DIR}/rancherd/images/rancherd-bootstrap-images-${VERSION}.tar.zst"
+
+    sed "s,\$RKE2_VERSION,${RKE2_VERSION_NORMALIZED}," \
+        "${SCRIPTS_DIR}/images/rancherd-bootstrap-images.txt" > "${list_file}"
+
+    local key
+    key=$(cache_hash "${list_file}")
+    cache_pull_and_save "rancherd-bootstrap" "${key}" "${list_file}" "${archive}"
+
+    add_image_list_to_metadata "agent" "${BUNDLE_DIR}" "${list_file}" "${archive}"
+}
+
+prepare_rancher_bundle() {
+    echo "Preparing Rancher images..."
+    local list_file="${BUNDLE_DIR}/harvester/images-lists/rancher-images-${RANCHER_VERSION}.txt"
+    local archive="${BUNDLE_DIR}/harvester/images/rancher-images-${RANCHER_VERSION}.tar.zst"
+
+    cp "${SCRIPTS_DIR}/images/rancher-images.txt" "${list_file}"
+
+    local key
+    key=$(cache_hash "${list_file}")
+    cache_pull_and_save "rancher" "${key}" "${list_file}" "${archive}"
+
+    add_image_list_to_metadata "common" "${BUNDLE_DIR}" "${list_file}" "${archive}"
+}
+
+prepare_rke2_tarball_bundle() {
+    # Download pre-built RKE2 core tarball from GitHub release and cache it.
+    # Not using cache_pull_and_save — the upstream provides a ready-made tarball.
+    # Cache path: ${IMAGE_CACHE_ROOT}/rke2/${rke2_ver}/
+    local rke2_ver="$1" rke2_url="$2" rke2_list="$3" rke2_archive="$4"
+
+    local rke2_cache_dir="${IMAGE_CACHE_ROOT}/rke2/${rke2_ver}"
+    if [[ -z "${MK_IMAGE_CACHE_BYPASS:-}" ]] \
+        && [[ -f "${rke2_cache_dir}/images.tar.zst" ]] \
+        && [[ -f "${rke2_cache_dir}/images.txt" ]]; then
+        echo "[cache] HIT: rke2/${rke2_ver}"
+        cp "${rke2_cache_dir}/images.txt"     "${rke2_list}"
+        cp "${rke2_cache_dir}/images.tar.zst" "${rke2_archive}"
+    else
+        echo "[cache] MISS: rke2/${rke2_ver} — downloading"
+        get_url "${rke2_url}/rke2-images.linux-${ARCH}.txt"     "${rke2_list}"
+        get_url "${rke2_url}/rke2-images.linux-${ARCH}.tar.zst" "${rke2_archive}"
+        if [[ -z "${MK_IMAGE_CACHE_BYPASS:-}" ]]; then
+            mkdir -p "${rke2_cache_dir}"
+            cp "${rke2_list}"    "${rke2_cache_dir}/images.txt"
+            cp "${rke2_archive}" "${rke2_cache_dir}/images.tar.zst"
+        fi
+    fi
+}
+
+prepare_rke2_multus_bundle() {
+    # Filter upstream Multus image list, then docker pull + save via cache.
+    local rke2_ver="$1" rke2_url="$2" multus_list="$3" multus_archive="$4"
+
+    save_image_list "rke2-images-multus" \
+        "${rke2_url}/rke2-images-multus.linux-${ARCH}.txt" \
+        "${multus_list}"
+    local key
+    key=$(cache_hash "${multus_list}")
+    cache_pull_and_save "multus" "${key}" "${multus_list}" "${multus_archive}"
+}
+
+prepare_rke2_bundle() {
+    echo "Preparing RKE2 images..."
+    local rke2_ver="${RKE2_VERSION_NORMALIZED}"
+    local rke2_url="${RKE2_IMAGE_REPO}${RKE2_VERSION}"
+    local rke2_list="${BUNDLE_DIR}/harvester/images-lists/rke2-images.linux-${ARCH}-${rke2_ver}.txt"
+    local rke2_archive="${BUNDLE_DIR}/harvester/images/rke2-images.linux-${ARCH}-${rke2_ver}.tar.zst"
+    local multus_list="${BUNDLE_DIR}/harvester/images-lists/rke2-images-multus.linux-amd64-${rke2_ver}.txt"
+    local multus_archive="${BUNDLE_DIR}/harvester/images/rke2-images-multus.linux-amd64-${rke2_ver}.tar.zst"
+
+    prepare_rke2_tarball_bundle "${rke2_ver}" "${rke2_url}" "${rke2_list}" "${rke2_archive}"
+    prepare_rke2_multus_bundle  "${rke2_ver}" "${rke2_url}" "${multus_list}" "${multus_archive}"
+
+    add_image_list_to_metadata "rke2" "${BUNDLE_DIR}" "${rke2_list}"   "${rke2_archive}"
+    add_image_list_to_metadata "rke2" "${BUNDLE_DIR}" "${multus_list}" "${multus_archive}"
+}
+
+prepare_harvester_bundle() {
+    echo "Preparing Harvester images..."
+    local all_images cacheable_list non_cacheable_list cacheable_archive
+    all_images="${BUNDLE_DIR}/harvester/images-lists/.harvester-all-images.txt"
+    cacheable_list="${BUNDLE_DIR}/harvester/images-lists/harvester-images-${VERSION}.txt"
+    non_cacheable_list="${BUNDLE_DIR}/harvester/images-lists/harvester-non-cacheable-images-${VERSION}.txt"
+    cacheable_archive="${BUNDLE_DIR}/harvester/images/harvester-images-${VERSION}.tar.zst"
+
+    load_addon_env "${TOP_DIR}/../addons"
+
+    collect_harvester_image_list "${all_images}"
+    split_harvester_image_list "${all_images}" "${cacheable_list}" "${non_cacheable_list}"
+
+    echo "=== Cacheable Harvester images ==="
+    cat "${cacheable_list}"
+
+    local key
+    key=$(cache_hash "${cacheable_list}")
+    cache_pull_and_save "harvester-images" "${key}" "${cacheable_list}" "${cacheable_archive}"
+
+    add_image_list_to_metadata "common" "${BUNDLE_DIR}" "${cacheable_list}" "${cacheable_archive}"
+
+    if [[ -s "${non_cacheable_list}" ]]; then
+        echo "=== Non-cacheable Harvester images ==="
+        cat "${non_cacheable_list}"
+        save_image "common" "${BUNDLE_DIR}" \
+            "${non_cacheable_list}" \
+            "${BUNDLE_DIR}/harvester/images/"
+    fi
+}
+
+
+prepare_helm_repo
+
+BUNDLE_DIR="${TOP_DIR}/package/harvester-os/iso/bundle"
+rm -rf $BUNDLE_DIR # in case left over passed from host
+
+# Build bundle directory structure
+mkdir -p "${BUNDLE_DIR}/rancherd/images"
+mkdir -p "${BUNDLE_DIR}/harvester/images" "${BUNDLE_DIR}/harvester/images-lists"
+
+prepare_rancherd_bundle
+prepare_rancher_bundle
+prepare_rke2_bundle
+prepare_harvester_bundle
+
+
+# ensure output dir
+mkdir -p "${TOP_DIR}/dist/artifacts"
+mkdir -p "${TOP_DIR}/dist/harvester-cluster-repo"
 
 echo "Start building ISO image"
+${SCRIPTS_DIR}/package-harvester-repo
 
-HARVESTER_INSTALLER_REPO="${HARVESTER_INSTALLER_REPO:-https://github.com/harvester/harvester-installer.git}"
-HARVESTER_INSTALLER_REF="${HARVESTER_INSTALLER_REF:-master}"
+cat ${BUNDLE_DIR}/metadata.yaml
+find ${BUNDLE_DIR}
 
-echo "Installer repository: ${HARVESTER_INSTALLER_REPO}"
-echo "Installer ref: ${HARVESTER_INSTALLER_REF}"
-
-git clone --branch ${HARVESTER_INSTALLER_REF} --single-branch --depth 1 ${HARVESTER_INSTALLER_REPO} ../harvester-installer
-
-cd ../harvester-installer/scripts
-
-./ci
-
-cd ..
-HARVESTER_DIR=../harvester
-
-mkdir -p ${HARVESTER_DIR}/dist/artifacts
-cp dist/artifacts/* ${HARVESTER_DIR}/dist/artifacts
-cp -r dist/harvester-cluster-repo  ${HARVESTER_DIR}/dist
-
+${SCRIPTS_DIR}/package-harvester-os

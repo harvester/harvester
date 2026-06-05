@@ -1,0 +1,100 @@
+#!/bin/bash
+# Shared functions for building and splitting the Harvester image list.
+# Source this file; do not execute it directly.
+#
+# Requirements (must be set/sourced by the caller):
+#   SCRIPTS_DIR          — path to the scripts/ directory
+#   harvester_chart_path — path to deploy/charts/harvester
+#   REPO, IMAGE_PUSH_TAG — set by scripts/version (for is_push_repo_image)
+#   is_cache_excluded()  — from scripts/lib/image
+#   normalize_image()    — from scripts/lib/image
+#   load_addon_env()     — from scripts/lib/addon (addons path loaded before sourcing)
+
+# is_push_repo_image IMAGE
+# Returns 0 (true) if IMAGE belongs to the current build's own push repo.
+# These images are built by this CI run and must always be pulled fresh.
+is_push_repo_image() {
+    local image="$1"
+    local repo="${image%:*}"
+    local tag="${image##*:}"
+    [[ "${repo}" == *"${REPO}/"* ]] && [[ "${tag}" == "${IMAGE_PUSH_TAG}" ]]
+}
+
+# collect_harvester_image_list OUT_FILE
+# Assembles the full Harvester image list from:
+#   - chart values.yaml (repository+tag pairs)
+#   - addon environment variables (loaded via load_addon_env)
+#   - scripts/images/harvester-additional-images.txt
+#   - longhorn-images.txt from the upstream Longhorn GitHub release
+# Normalises registry prefixes, fills in missing :latest tags, deduplicates,
+# and filters out images not needed by Harvester (openshift-oauth-proxy, multus, etc.).
+collect_harvester_image_list() {
+    local out_file="$1"
+    local values_file="${harvester_chart_path}/values.yaml"
+    : > "${out_file}"
+
+    local repositories tags
+    repositories=( $(yq eval 'explode(.) | .. | select(has("repository")) | select(has("tag")) | .repository' "${values_file}") )
+    tags=(         $(yq eval 'explode(.) | .. | select(has("repository")) | select(has("tag")) | .tag'        "${values_file}") )
+    if [[ ${#repositories[@]} -ne ${#tags[@]} ]]; then
+        echo "ERROR: repository/tag count mismatch in values.yaml"
+        exit 1
+    fi
+    for i in "${!repositories[@]}"; do
+        echo "${repositories[$i]}:${tags[$i]}" >> "${out_file}"
+    done
+
+    echo "${VM_IMPORT_CONTROLLER_IMAGE}"     >> "${out_file}"
+    echo "${PCIDEVICES_CONTROLLER_IMAGE}"    >> "${out_file}"
+    echo "${HARVESTER_SEEDER_IMAGE}"         >> "${out_file}"
+    echo "${HARVESTER_EVENTROUTER_FULL_TAG}" >> "${out_file}"
+    echo "${KUBEOVN_OPERATOR_IMAGE}"         >> "${out_file}"
+    echo "${DESCHEDULER_IMAGE}"              >> "${out_file}"
+
+    cat "${SCRIPTS_DIR}/images/harvester-additional-images.txt" >> "${out_file}"
+
+    local longhorn_version
+    longhorn_version=v$(ls "${harvester_chart_path}/charts" | grep longhorn | sed -e "s/^longhorn-//" -e "s/.tgz$//")
+    curl -sfL "https://raw.githubusercontent.com/longhorn/longhorn/${longhorn_version}/deploy/longhorn-images.txt" >> "${out_file}"
+    # longhornio/openshift-origin-oauth-proxy has no multi-arch images and Harvester doesn't need it
+    # ref: https://github.com/longhorn/longhorn/issues/8329#issuecomment-2046043895
+    sed -i '/longhornio\/openshift-origin-oauth-proxy/d' "${out_file}"
+
+    awk -F ':' '{if($2==""){print $1":latest"}else{print $0}}' "${out_file}" > "${out_file}.tmp"
+    mv "${out_file}.tmp" "${out_file}"
+    awk -F '/' '{
+        if(NF>=3) { print $0 }
+        else if(NF==2) { print "docker.io/"$0 }
+        else if(NF==1) { print "docker.io/library/"$0 }
+    }' "${out_file}" > "${out_file}.tmp"
+    mv "${out_file}.tmp" "${out_file}"
+
+    sort -u "${out_file}" | \
+        grep -Ev "local-path-provisioner|library-traefik|klipper-lb|multus" > "${out_file}.tmp"
+    mv "${out_file}.tmp" "${out_file}"
+}
+
+# split_harvester_image_list IN_FILE CACHEABLE_FILE NON_CACHEABLE_FILE
+# Routes each image to CACHEABLE_FILE or NON_CACHEABLE_FILE:
+#   - own push-repo images (is_push_repo_image)   → non-cacheable
+#   - volatile/excluded images (is_cache_excluded) → non-cacheable
+#   - everything else                              → cacheable
+split_harvester_image_list() {
+    local in_file="$1"
+    local cacheable_file="$2"
+    local non_cacheable_file="$3"
+
+    : > "${cacheable_file}"
+    : > "${non_cacheable_file}"
+
+    while IFS= read -r image; do
+        [[ -z "${image}" ]] && continue
+        if is_push_repo_image "${image}"; then
+            echo "${image}" >> "${non_cacheable_file}"
+        elif is_cache_excluded "${image}"; then
+            echo "${image}" >> "${non_cacheable_file}"
+        else
+            echo "${image}" >> "${cacheable_file}"
+        fi
+    done < "${in_file}"
+}
