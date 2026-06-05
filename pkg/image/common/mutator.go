@@ -86,7 +86,7 @@ func (m *vmiMutator) getSC(scName string) (*storagev1.StorageClass, error) {
 }
 
 func (m *vmiMutator) PatchImageSCParams(vmi *harvesterv1.VirtualMachineImage) ([]string, error) {
-	var patchOps types.PatchOps
+	patchOps := make(types.PatchOps, 0, 1)
 
 	scName := vmi.Annotations[util.AnnotationStorageClassName]
 	sc, err := m.getSC(scName)
