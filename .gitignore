@@ -13,6 +13,7 @@ package/harvester
 package/harvester-webhook
 package/upgrade/upgrade-helper
 package/upgrade/addons
+package/upgrade/harvester-installer
 scripts/.version_env
 
 # port from installer

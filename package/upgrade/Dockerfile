@@ -1,6 +1,4 @@
-ARG HARVESTER_INSTALLER_REF=master-head
 FROM registry.opensuse.org/isv/rancher/harvester/os/dev/main/baseos:latest as baseos
-FROM rancher/harvester-installer:${HARVESTER_INSTALLER_REF} as installer
 FROM registry.suse.com/bci/bci-base:16.0
 
 ARG ARCH=amd64
@@ -47,7 +45,7 @@ RUN KUBECTL_SHA256=KUBECTL_SHA256_${ARCH} && \
 # Copy elemental binary to be used for upgrades
 COPY --from=baseos /usr/bin/elemental /usr/local/bin/elemental
 # Copy harvester-installer binary to be used to generate networkmanager config
-COPY --from=installer /usr/bin/harvester-installer /usr/local/bin/harvester-installer
+COPY harvester-installer /usr/local/bin/harvester-installer
 COPY do_upgrade_node.sh /usr/local/bin/
 COPY upgrade_node.sh /usr/local/bin/
 COPY upgrade_manifests.sh /usr/local/bin/
