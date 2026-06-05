@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -eu
 
 TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 ARTIFACTS_DIR="${TOP_DIR}/dist/artifacts"
@@ -15,7 +15,7 @@ fi
 
 source ${SCRIPTS_DIR}/lib/addon
 addons_path=${TOP_DIR}/../addons
-load_and_source_addon ${addons_path} https://github.com/harvester/addons.git main
+load_addon_env ${addons_path}
 
 MONITORING_VERSION=${RANCHER_MONITORING_CHART_VERSION}
 LOGGING_VERSION=${RANCHER_LOGGING_CHART_VERSION}
@@ -28,8 +28,12 @@ mkdir -p ${ARTIFACTS_DIR}
 source ${SCRIPTS_DIR}/version
 source ${SCRIPTS_DIR}/version-rke2
 source ${SCRIPTS_DIR}/version-rancher
-source ${SCRIPTS_DIR}/version-harvester ${TOP_DIR}/../harvester
 source ${SCRIPTS_DIR}/lib/iso
+
+HARVESTER_VERSION=${VERSION}
+HARVESTER_CHART_VERSION=${CHART_VERSION}
+HARVESTER_KUBEVIRT_VERSION=$(yq e '.kubevirt-operator.containers.operator.image.tag' ${TOP_DIR}/deploy/charts/harvester/values.yaml)
+HARVESTER_MIN_UPGRADABLE_VERSION=${MIN_UPGRADABLE_VERSION}
 
 BASE_OS_IMAGE="rancher/harvester-os:sle-micro-head"
 HARVESTER_OS_IMAGE=rancher/harvester-os:$VERSION
@@ -180,7 +184,7 @@ fi
 # Cleanup
 rm -rf "${unpack_base}"
 
-if [ "${BUILD_QCOW}" == "true" ]; then
+if [ "${BUILD_QCOW:-false}" == "true" ]; then
   echo "generating harvester install mode qcow"
   qemu-img create -f raw -o size=250G ${ARTIFACTS_DIR}/${PROJECT_PREFIX}-amd64.raw
   qemu-system-x86_64 --enable-kvm -nographic -cpu host -smp cores=2,threads=2,sockets=1 -m 8192 -serial mon:stdio \
@@ -209,7 +213,7 @@ if [ -z "$ISO_CHECKSUM" ]; then
 fi
 
 # Write version.yaml
-if [[ -n "${DRONE_TAG}" ]]; then
+if [[ -n "${DRONE_TAG-}" ]]; then
 	RELEASE_DATE=$(date +'%Y%m%d')
 	cat > ${VERSION_FILE} <<EOF
 apiVersion: harvesterhci.io/v1beta1
