@@ -238,6 +238,13 @@ COPY scripts/version scripts/.version_env scripts/
 RUN bash scripts/prepare-harvester-charts
 
 
+# ---- check-images ----
+FROM bundle-builder AS check-images
+
+COPY scripts/check-images scripts/check-images
+COPY scripts/version-rancher scripts/version-rancher
+COPY scripts/images/rancher-images.txt scripts/images/rancherd-bootstrap-images.txt scripts/images/
+RUN bash scripts/check-images
 
 
 # ---- build-iso ----
