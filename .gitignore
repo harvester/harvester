@@ -14,3 +14,9 @@ package/harvester-webhook
 package/upgrade/upgrade-helper
 package/upgrade/addons
 scripts/.version_env
+
+# port from installer
+.vagrant
+/package/harvester-os/iso/boot/grub2/harvester.cfg
+/package/harvester-os/harvester-release.yaml
+/.backup
