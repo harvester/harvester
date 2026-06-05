@@ -135,7 +135,8 @@ func (h Handler) downloadArchive(rw http.ResponseWriter, req *http.Request) erro
 	// Crafting download request
 	archiveFileName := fmt.Sprintf("%s%s", archiveName, archiveSuffix)
 	downloadURL := fmt.Sprintf("http://%s.%s/%s", upgradeLog.Name, util.HarvesterSystemNamespaceName, archiveFileName)
-	downloadReq, err := http.NewRequestWithContext(req.Context(), http.MethodGet, downloadURL, nil)
+	// downloadURL is composed from the in-cluster UpgradeLog resource name and a fixed system namespace, not from user input.
+	downloadReq, err := http.NewRequestWithContext(req.Context(), http.MethodGet, downloadURL, nil) //nolint:gosec // not user-controlled, see comment above
 	if err != nil {
 		return fmt.Errorf("failed to create the download request for the archive (%s): %w", archiveName, err)
 	}
@@ -227,7 +228,8 @@ func (h Handler) doRetry(req *http.Request) (*http.Response, error) {
 	)
 
 	for i := 0; i < retry; i++ {
-		resp, err = h.httpClient.Do(req)
+		// req targets the in-cluster log downloader URL built in downloadArchive, not a user-controlled host.
+		resp, err = h.httpClient.Do(req) //nolint:gosec // not user-controlled, see comment above
 		if err == nil {
 			return resp, nil
 		}
