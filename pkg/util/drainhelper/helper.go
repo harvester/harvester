@@ -159,7 +159,7 @@ func maintainModeStrategyFilter(pod corev1.Pod) drain.PodDeleteStatus {
 		// Ignore Pods of VMs that should not be migrated in maintenance mode. These
 		// VMs are forcibly shut down when maintenance mode is activated.
 		value, ok := pod.Labels[util.LabelMaintainModeStrategy]
-		if ok && slices.Contains(util.MaintainModeStrategyShutdownValues, value) {
+		if ok && slices.Contains(util.MaintainModeStrategyShutdownValues, value) { //nolint:govet // inline analyzer: slices.Contains cannot be inlined yet (generic type inference), not actionable
 			logrus.WithFields(logrus.Fields{
 				"kind":                         "pod",
 				"namespace":                    pod.Namespace,

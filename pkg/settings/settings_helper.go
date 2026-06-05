@@ -305,10 +305,9 @@ const (
 	AdditionalGuestMemoryOverheadRatioDefault = "1.5" // After kubevirt computes the overhead, it will further multiple with this factor
 )
 
-// nolint:govet
 type AdditionalGuestMemoryOverheadRatioConfig struct {
-	value string  `json:"value"`
-	ratio float64 `json:"ratio"` // converted from configured string
+	value string
+	ratio float64 // converted from configured string
 }
 
 func NewAdditionalGuestMemoryOverheadRatioConfig(value string) (*AdditionalGuestMemoryOverheadRatioConfig, error) {

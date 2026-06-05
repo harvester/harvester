@@ -652,7 +652,7 @@ func (v *vmValidator) checkMaintenanceModeStrategyIsValid(newVM, oldVM *kubevirt
 	if oldVM != nil {
 		oldLabels := oldVM.ObjectMeta.Labels
 		oldStrategy, oldOk := oldLabels[util.LabelMaintainModeStrategy]
-		if oldOk && newOk && oldStrategy == newStrategy && !slices.Contains(util.MaintenanceModeStrategyValidValues, oldStrategy) {
+		if oldOk && newOk && oldStrategy == newStrategy && !slices.Contains(util.MaintenanceModeStrategyValidValues, oldStrategy) { //nolint:govet // inline analyzer: slices.Contains cannot be inlined yet (generic type inference), not actionable
 			// Maintenance mode strategy was invalid and was not updted. Emit log
 			// message, but return ok
 			logrus.WithFields(logrus.Fields{
@@ -667,7 +667,7 @@ func (v *vmValidator) checkMaintenanceModeStrategyIsValid(newVM, oldVM *kubevirt
 	}
 
 	// New maintenance mode strategy is invalid, not ok
-	if newOk && !slices.Contains(util.MaintenanceModeStrategyValidValues, newStrategy) {
+	if newOk && !slices.Contains(util.MaintenanceModeStrategyValidValues, newStrategy) { //nolint:govet // inline analyzer: slices.Contains cannot be inlined yet (generic type inference), not actionable
 		return werror.NewInvalidError(
 			fmt.Sprintf("invalid maintenance mode strategy: %v", newStrategy),
 			fmt.Sprintf("metadata.labels[%v]", util.LabelMaintainModeStrategy),
