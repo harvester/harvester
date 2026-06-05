@@ -1,0 +1,133 @@
+#!/bin/bash
+set -eu
+
+TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+SCRIPTS_DIR="${TOP_DIR}/scripts"
+DIST_CHARTS_DIR="/dist/charts"
+
+cd ${TOP_DIR}
+
+source ${SCRIPTS_DIR}/lib/addon
+ADDONS_PATH=${TOP_DIR}/../addons
+ADDONS_TEMPLATES_PATH=${TOP_DIR}/../addons-templates
+load_addon_env ${ADDONS_PATH}
+
+MONITORING_VERSION=${RANCHER_MONITORING_CHART_VERSION}
+LOGGING_VERSION=${RANCHER_LOGGING_CHART_VERSION}
+echo "Rancher monitoring version: ${MONITORING_VERSION}"
+echo "Rancher logging version: ${LOGGING_VERSION}"
+
+mkdir -p ${DIST_CHARTS_DIR}
+
+# Prepare monitoring chart
+helm pull https://charts.rancher.io/assets/rancher-monitoring-crd/rancher-monitoring-crd-${MONITORING_VERSION}.tgz -d ${DIST_CHARTS_DIR}
+helm pull https://charts.rancher.io/assets/rancher-monitoring/rancher-monitoring-${MONITORING_VERSION}.tgz -d ${DIST_CHARTS_DIR}
+
+# patch rancher-monitoring chart to fix issues
+PKG_PATCH_MONITORING_PATH="${ADDONS_PATH}/pkg/config/templates/patch/rancher-monitoring"
+patch_rancher_monitoring_chart ${DIST_CHARTS_DIR} ${MONITORING_VERSION} ${PKG_PATCH_MONITORING_PATH}
+
+# patch rancher-monitoring-crd chart to fix issues
+PKG_PATCH_MONITORING_CRD_PATH="${ADDONS_PATH}/pkg/config/templates/patch/rancher-monitoring-crd"
+patch_rancher_monitoring_crd_chart ${DIST_CHARTS_DIR} ${MONITORING_VERSION} ${PKG_PATCH_MONITORING_CRD_PATH}
+
+# make chart sanity check
+tar zxvf ${DIST_CHARTS_DIR}/rancher-monitoring-crd-${MONITORING_VERSION}.tgz >/dev/null --warning=no-timestamp
+tar zxvf ${DIST_CHARTS_DIR}/rancher-monitoring-${MONITORING_VERSION}.tgz >/dev/null --warning=no-timestamp
+
+# Prepare logging chart
+helm pull https://charts.rancher.io/assets/rancher-logging-crd/rancher-logging-crd-${LOGGING_VERSION}.tgz -d ${DIST_CHARTS_DIR}
+helm pull https://charts.rancher.io/assets/rancher-logging/rancher-logging-${LOGGING_VERSION}.tgz -d ${DIST_CHARTS_DIR}
+
+# make chart sanity check
+tar zxvf ${DIST_CHARTS_DIR}/rancher-logging-crd-${LOGGING_VERSION}.tgz >/dev/null --warning=no-timestamp
+tar zxvf ${DIST_CHARTS_DIR}/rancher-logging-${LOGGING_VERSION}.tgz >/dev/null --warning=no-timestamp
+
+# patch rancher-logging chart to collect more logs
+PKG_PATCH_LOGGING_PATH="${ADDONS_PATH}/pkg/config/templates/patch/rancher-logging"
+patch_rancher_logging_chart ${DIST_CHARTS_DIR} ${LOGGING_VERSION} ${PKG_PATCH_LOGGING_PATH}
+
+# make chart sanity check again after patch
+tar zxvf ${DIST_CHARTS_DIR}/rancher-logging-${LOGGING_VERSION}.tgz >/dev/null --warning=no-timestamp
+
+# Prepare vm-import-controller chart
+echo "pull harvester-vm-import-controller: $VM_IMPORT_CONTROLLER_CHART_VERSION"
+helm pull https://github.com/harvester/charts/releases/download/harvester-vm-import-controller-${VM_IMPORT_CONTROLLER_CHART_VERSION}/harvester-vm-import-controller-${VM_IMPORT_CONTROLLER_CHART_VERSION}.tgz -d ${DIST_CHARTS_DIR}
+# make chart sanity check
+tar zxvf ${DIST_CHARTS_DIR}/harvester-vm-import-controller-${VM_IMPORT_CONTROLLER_CHART_VERSION}.tgz >/dev/null --warning=no-timestamp
+
+# Prepare pcidevices chart
+echo "pull harvester-pcidevices-controller: $PCIDEVICES_CONTROLLER_CHART_VERSION"
+helm pull https://github.com/harvester/charts/releases/download/harvester-pcidevices-controller-${PCIDEVICES_CONTROLLER_CHART_VERSION}/harvester-pcidevices-controller-${PCIDEVICES_CONTROLLER_CHART_VERSION}.tgz -d ${DIST_CHARTS_DIR}
+# make chart sanity check
+tar zxvf ${DIST_CHARTS_DIR}/harvester-pcidevices-controller-${PCIDEVICES_CONTROLLER_CHART_VERSION}.tgz >/dev/null --warning=no-timestamp
+
+# Prepare harvester-seeder chart
+echo "pull harvester-seeder: $HARVESTER_SEEDER_CHART_VERSION"
+helm pull https://github.com/harvester/charts/releases/download/harvester-seeder-${HARVESTER_SEEDER_CHART_VERSION}/harvester-seeder-${HARVESTER_SEEDER_CHART_VERSION}.tgz -d ${DIST_CHARTS_DIR}
+# make chart sanity check
+tar zxvf ${DIST_CHARTS_DIR}/harvester-seeder-${HARVESTER_SEEDER_CHART_VERSION}.tgz >/dev/null --warning=no-timestamp
+
+# Prepare nvidia-driver-toolkit chart
+helm pull https://github.com/harvester/charts/releases/download/nvidia-driver-runtime-${NVIDIA_DRIVER_RUNTIME_CHART_VERSION}/nvidia-driver-runtime-${NVIDIA_DRIVER_RUNTIME_CHART_VERSION}.tgz -d ${DIST_CHARTS_DIR}
+# make chart sanity check
+tar zxvf ${DIST_CHARTS_DIR}/nvidia-driver-runtime-${NVIDIA_DRIVER_RUNTIME_CHART_VERSION}.tgz >/dev/null --warning=no-timestamp
+
+# Prepare kubeovn-operator-crd chart
+helm pull https://github.com/harvester/charts/releases/download/kubeovn-operator-crd-${KUBEOVN_OPERATOR_CHART_VERSION}/kubeovn-operator-crd-${KUBEOVN_OPERATOR_CHART_VERSION}.tgz -d ${DIST_CHARTS_DIR}
+# make chart sanity check
+tar zxvf ${DIST_CHARTS_DIR}/kubeovn-operator-crd-${KUBEOVN_OPERATOR_CHART_VERSION}.tgz >/dev/null --warning=no-timestamp
+
+# Prepare kubeovn-operator chart
+helm pull https://github.com/harvester/charts/releases/download/kubeovn-operator-${KUBEOVN_OPERATOR_CHART_VERSION}/kubeovn-operator-${KUBEOVN_OPERATOR_CHART_VERSION}.tgz -d ${DIST_CHARTS_DIR}
+# make chart sanity check
+tar zxvf ${DIST_CHARTS_DIR}/kubeovn-operator-${KUBEOVN_OPERATOR_CHART_VERSION}.tgz >/dev/null --warning=no-timestamp
+
+# Prepare descheduler chart
+echo "pull descheduler: $DESCHEDULER_CHART_VERSION"
+helm pull https://github.com/kubernetes-sigs/descheduler/releases/download/descheduler-helm-chart-${DESCHEDULER_CHART_VERSION}/descheduler-${DESCHEDULER_CHART_VERSION}.tgz -d ${DIST_CHARTS_DIR}
+# make chart sanity check
+tar zxvf ${DIST_CHARTS_DIR}/descheduler-${DESCHEDULER_CHART_VERSION}.tgz >/dev/null --warning=no-timestamp
+
+# index here for the following check function
+helm repo index ${DIST_CHARTS_DIR}
+
+# Check the matching of addon chart version and repo chart version
+# The function check rancherd templates like `rancherd-22-addons.yaml`, which defines the addon resources with specific chart version, and check if the chart with the same version is packed into repo (check index.yaml in ${DIST_CHARTS_DIR})
+check_addon_chart_version_matching() {
+  echo "charts packed in Harvester repo"
+  ls -alht ${DIST_CHARTS_DIR}
+
+  echo "addon template files"
+  ls -alht ${ADDONS_TEMPLATES_PATH}
+
+  for filename in ${ADDONS_TEMPLATES_PATH}/*.yaml; do
+    local tmpfile=/tmp/$(basename ${filename})
+    grep -v "{{" ${filename} > ${tmpfile}
+    local cnt=$(yq '.resources | length' ${tmpfile})
+
+    local i=0
+    while [[ $i -lt $cnt ]] ; do
+      local chart=$(idx=$i yq '.resources[env(idx)].spec.chart' ${tmpfile})
+      local version=$(idx=$i yq '.resources[env(idx)].spec.version' ${tmpfile})
+      echo addon: "$chart" version: $version
+      local EXIT_CODE=0
+      local repover=$(chart=$chart yq '.entries[strenv(chart)][0].version' < ${DIST_CHARTS_DIR}/index.yaml) || EXIT_CODE=$?
+      if [ $EXIT_CODE != 0 ]; then
+        echo WARNING: addon $chart is defined, but the chart is not packed into repo / repo struct is changed
+        continue
+      fi
+
+      # some charts are not packed into arm64 ISO, the above yq will return `null`
+      if [[ $repover == "null" ]] && [[ ${ARCH} == "arm64" ]]; then
+        echo  WARNING: addon "$chart" is defined with version "$version" but the chart is not packed into repo in ${ARCH}
+      elif [[ $repover != $version ]]; then
+        echo  addon "$chart" has version mis-matching: in repo is "$repover" but in addon is "$version"
+        return 1
+      fi
+      (( i += 1 ))
+    done
+  done
+}
+
+check_addon_chart_version_matching
