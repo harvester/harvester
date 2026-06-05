@@ -3,8 +3,6 @@ set -eu
 
 TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 SCRIPTS_DIR="${TOP_DIR}/scripts"
-PACKAGE_HARVESTER_OS_DIR="${TOP_DIR}/package/harvester-os"
-PACKAGE_HARVESTER_INSTALLER_DIR="${TOP_DIR}/package/harvester-installer"
 
 cd ${TOP_DIR}
 
@@ -60,9 +58,3 @@ go run . -generateTemplates -path ${TOP_DIR}/pkg/installer/config/templates
 cd ${TOP_DIR}
 
 CGO_ENABLED=0 go build -gcflags "${OTHER_COMPILERFLAGS}" -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/harvester-installer ./cmd/installer
-
-# TODO: we probably don't need these, can copy files between stage
-# Copy to harvester package folder
-mkdir -p ${PACKAGE_HARVESTER_OS_DIR}/files/usr/bin
-install bin/harvester-installer ${PACKAGE_HARVESTER_OS_DIR}/files/usr/bin/
-install bin/harvester-installer ${PACKAGE_HARVESTER_INSTALLER_DIR}/
