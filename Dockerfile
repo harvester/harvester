@@ -209,5 +209,36 @@ FROM scratch AS build-installer-output
 COPY --from=build-installer /go/src/github.com/harvester/harvester/bin/harvester-installer /bin/
 
 
+# ---- bundle-builder ----
+FROM builder AS bundle-builder
+
+WORKDIR /go/src/github.com/harvester/harvester
+
+COPY scripts/images/*.yaml scripts/images/
+COPY scripts/lib/ scripts/lib/
+
+
+# ---- prepare-addons-charts ----
+FROM bundle-builder AS prepare-addons-charts
+
+COPY --from=prepare-addons /dist/prepare-addons/addons/ /go/src/github.com/harvester/addons/
+COPY --from=prepare-addons /dist/prepare-addons/addons-templates/ /go/src/github.com/harvester/addons-templates/
+
+COPY scripts/prepare-addons-charts scripts/prepare-addons-charts
+RUN bash scripts/prepare-addons-charts
+
+
+# ---- prepare-harvester-charts ----
+FROM bundle-builder AS prepare-harvester-charts
+
+COPY deploy/ deploy/
+COPY scripts/prepare-harvester-charts scripts/prepare-harvester-charts
+COPY scripts/patch-harvester scripts/patch-harvester
+COPY scripts/version scripts/.version_env scripts/
+RUN bash scripts/prepare-harvester-charts
+
+
+
+
 # ---- build-iso ----
 FROM base AS build-iso

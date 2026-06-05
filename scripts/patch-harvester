@@ -1,0 +1,39 @@
+#!/bin/bash
+
+cd "${1}" || exit
+source ./scripts/version
+
+replace_image_repo()
+{
+  local chart_value_file_path=$1
+  local image_repo_yq_path=$2
+  local image_new_repo=$3
+  local old_repo
+  old_repo=$(yq e "${image_repo_yq_path}" "${chart_value_file_path}")
+  local new_repo
+  new_repo=${image_new_repo}/$(echo "${old_repo}" | awk -F '/' '{print $NF}')
+  yq e -i "${image_repo_yq_path}"' = "'"${new_repo}"'"' "${chart_value_file_path}"
+}
+
+replace_harvester_image_repo()
+{
+  replace_image_repo ./deploy/charts/harvester/values.yaml "$1" "${REPO}"
+}
+
+echo "Replace the Harvester chart version to ${CHART_VERSION}"
+yq e -i '.version = "'"${CHART_VERSION}"'"' ./deploy/charts/harvester/Chart.yaml
+yq e -i '.version = "'"${CHART_VERSION}"'"' ./deploy/charts/harvester-crd/Chart.yaml
+
+echo "Replace the Harvester appVersion to ${APP_VERSION}"
+yq e -i '.appVersion = "'"${APP_VERSION}"'"' ./deploy/charts/harvester/Chart.yaml
+yq e -i '.appVersion = "'"${APP_VERSION}"'"' ./deploy/charts/harvester-crd/Chart.yaml
+
+echo "Replace the Harvester image tag to ${IMAGE_PUSH_TAG}"
+yq e -i '.containers.apiserver.image.tag = "'"${IMAGE_PUSH_TAG}"'"' ./deploy/charts/harvester/values.yaml
+yq e -i '.webhook.image.tag = "'"${IMAGE_PUSH_TAG}"'"' ./deploy/charts/harvester/values.yaml
+yq e -i '.upgrade.image.tag = "'"${IMAGE_PUSH_TAG}"'"' ./deploy/charts/harvester/values.yaml
+
+echo "Replace the Harvester image repo to ${REPO}"
+replace_harvester_image_repo '.containers.apiserver.image.repository'
+replace_harvester_image_repo '.webhook.image.repository'
+replace_harvester_image_repo '.upgrade.image.repository'
