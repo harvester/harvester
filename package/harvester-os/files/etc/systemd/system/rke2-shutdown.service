@@ -1,0 +1,13 @@
+[Unit]
+Description=Kill RKE2 Containers
+DefaultDependencies=no
+RefuseManualStart=yes
+Before=reboot.target halt.target shutdown.target poweroff.target
+
+[Install]
+RequiredBy=reboot.target halt.target shutdown.target poweroff.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/rke2-kill-containers.sh

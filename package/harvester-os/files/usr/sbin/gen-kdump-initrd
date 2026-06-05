@@ -1,0 +1,51 @@
+#!/bin/bash -ex
+
+KERNEL_VERSION=$(uname -r)
+INITRD_KDUMP_NAME="initrd-$KERNEL_VERSION-kdump"
+INITRD_CACHE_DIR="/usr/local/cache/kdump"
+
+if [ -e /boot/$INITRD_KDUMP_NAME ]; then
+  echo /boot/$INITRD_KDUMP_NAME exists. Skip generating a new one.
+  exit 0
+fi
+
+if [ -e $INITRD_CACHE_DIR/$INITRD_KDUMP_NAME ]; then
+  echo "Using cache: $INITRD_CACHE_DIR/$INITRD_KDUMP_NAME"
+  cp $INITRD_CACHE_DIR/$INITRD_KDUMP_NAME /boot/$INITRD_KDUMP_NAME
+  exit 0
+fi
+
+mkdir -p $INITRD_CACHE_DIR
+
+TMP_DIR=$(mktemp -d)
+trap "rm -rf $TMP_DIR" exit
+
+TMP_INITRD=$TMP_DIR/initrd
+INITRD_EXTRACTED_DIR=$TMP_DIR/extracted
+DRACUT_CONFDIR=$TMP_DIR/dracut.conf.d
+
+mkdir -p $INITRD_EXTRACTED_DIR
+mkdir -p $DRACUT_CONFDIR
+
+# specify a new dracut config dir to avoid including cOS configs in /etc/dracut.conf.d
+cat > $DRACUT_CONFDIR/99-tmp.conf <<EOF
+early_microcode="no"
+host_only="yes"
+EOF
+/usr/bin/dracut --xz --confdir $DRACUT_CONFDIR --force --omit "plymouth resume usrmount" --add kdump $TMP_INITRD $KERNEL_VERSION
+
+# extract initrd and replace fstab and kdump config
+cd $INITRD_EXTRACTED_DIR
+xzcat $TMP_INITRD | cpio -idm
+
+PERSISTENT_PARTITION=$(lsblk -n -o UUID /dev/disk/by-label/COS_PERSISTENT)
+cat > etc/fstab <<EOF
+UUID=$PERSISTENT_PARTITION /kdump/mnt0 auto defaults 0 0
+EOF
+
+sed -i 's,KDUMP_SAVEDIR.*,KDUMP_SAVEDIR="file:///mnt0/.state/var-crash.bind",' etc/sysconfig/kdump
+
+# pack initrd again
+find . -print0| sort -z | cpio --null -H newc --quiet -o > $TMP_DIR/initramfs.img 
+cat $TMP_DIR/initramfs.img | xz -0 --check=crc32 --memlimit-compress=50% >> $INITRD_CACHE_DIR/$INITRD_KDUMP_NAME
+cp $INITRD_CACHE_DIR/$INITRD_KDUMP_NAME /boot/$INITRD_KDUMP_NAME
