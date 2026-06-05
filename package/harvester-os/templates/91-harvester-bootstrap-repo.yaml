@@ -1,0 +1,45 @@
+resources:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: harvester-cluster-repo
+    namespace: cattle-system
+  spec:
+    selector:
+      matchLabels:
+        app: harvester-cluster-repo
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          app: harvester-cluster-repo
+      spec:
+        containers:
+        - name: httpd
+          image: $CLUSTER_REPO_IMAGE
+          ports:
+          - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /charts/index.yaml
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: harvester-cluster-repo
+    namespace: cattle-system
+  spec:
+    selector:
+      app: harvester-cluster-repo
+    ports:
+      - protocol: TCP
+        port: 80
+        targetPort: 80
+- apiVersion: catalog.cattle.io/v1
+  kind: ClusterRepo
+  metadata:
+    name: harvester-charts
+  spec:
+    url: http://harvester-cluster-repo.cattle-system/charts

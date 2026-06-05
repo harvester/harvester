@@ -1,0 +1,41 @@
+#!/bin/bash -ex
+
+HARVESTER_CONFIG_FILE=/oem/harvester.config
+RKE2_VIP_CONFIG_FILE=/etc/rancher/rke2/config.yaml.d/90-harvester-vip.yaml
+
+
+update_agent_conf()
+{
+  server_url=$(yq -e e .serverurl $HARVESTER_CONFIG_FILE)
+
+  if [ -z "$server_url" ]; then
+    echo "[Error] fail to get server URL in Harvester config."
+    exit 1
+  fi
+
+  if ! echo $server_url | grep -E '^https://(.*):(8443|443)'; then
+    echo "[Error] server port is not 8443 or 443."
+    exit 1
+  fi
+
+  export RKE2_SERVER_URL="$(echo $server_url | sed -E 's,^https://(.*):(8443|443),https://\1:9345,')"
+
+  if [ -e $RKE2_VIP_CONFIG_FILE ]; then
+    yq -e e '.server = strenv(RKE2_SERVER_URL)' $RKE2_VIP_CONFIG_FILE -i
+  else
+    yq -n e '.server = strenv(RKE2_SERVER_URL)' > $RKE2_VIP_CONFIG_FILE
+  fi
+}
+
+case $1 in
+  server)
+    rm -f $RKE2_VIP_CONFIG_FILE
+    ;;
+  agent)
+    update_agent_conf
+    ;;
+  *)
+    echo "[Error] role must in server or agent."
+    exit 1
+    ;;
+esac

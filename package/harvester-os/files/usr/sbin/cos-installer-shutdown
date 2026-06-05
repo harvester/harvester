@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+if [ "$HARVESTER_POWER_OFF" = true ] || grep -q 'cos.install.power_off=true' /proc/cmdline; then
+    poweroff -f
+else
+    echo " * Rebooting system in 5 seconds (CTRL+C to cancel)"
+    sleep 5
+    reboot -f
+fi

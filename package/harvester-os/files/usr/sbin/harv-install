@@ -1,0 +1,569 @@
+#!/bin/bash -e
+
+ISOTEMP=""
+ISOMNT=/run/initramfs/live
+TARGET=/run/cos/target
+DATA_DISK_FSLABEL="HARV_LH_DEFAULT"
+declare -a CLEAR_FSLABELS=(
+  "$DATA_DISK_FSLABEL"
+  "COS_OEM"
+  "COS_STATE"
+  "COS_PERSISTENT"
+  "COS_RECOVERY"
+)
+
+clear_disk_label()
+{
+    # For internal automation environments we need to be able to wipe all disks on the node
+    # to ensure that host does not boot off partitions from another disk in the host
+    # lsblk produces the following json output, which we filter using jq to identify disks
+    # which we will be wiping
+    # lsblk -d -n -J -o NAME,TYPE
+    # {
+    #  "blockdevices": [
+    #  {
+    #     "name": "loop0",
+    #     "type": "loop"
+    #  },{
+    #     "name": "sr0",
+    #     "type": "rom"
+    #  },{
+    #     "name": "vda",
+    #     "type": "disk"
+    #     }
+    #   ]
+    # }
+    # Clear the label of partitions that has $CLEAR_FSLABELS to prevent misidentification
+    # Also, while yip is partitioning the disk, if it sees the LABEL to be used exists,
+    # it won't create the partition. So it's necessary to clear the label
+    echo "Assessing labels on data disk $HARVESTER_DATA_DISK partitions."
+    for part in $(lsblk $HARVESTER_DATA_DISK -npr -oname,type | grep part | cut -d' ' -f1); do
+        partition_label=$(blkid -s LABEL -o value $part)
+        for label in "${CLEAR_FSLABELS[@]}"; do
+            if [ "$partition_label" == "$label" ] ; then
+                echo "Removing filesystem label $label from $part"
+                # Run this tune2fs twice because sometimes the first run would show "Recovering journal"
+                # and label is not modified
+                tune2fs -L "" $part > /dev/null || tune2fs -L "" $part > /dev/null
+            fi
+        done
+    done
+    udevadm settle
+}
+
+umount_target() {
+    sync
+    umount ${TARGET}/oem
+    umount ${TARGET}/usr/local
+    umount ${TARGET}/boot/efi || true
+    umount ${TARGET}
+    if [ -n "$LOOP" ]; then
+        losetup -d $LOOP
+    fi
+}
+
+cleanup2()
+{
+    sync
+    [ -n "$HARVESTER_ISO_URL" ] && umount "$ISOMNT" || true
+    [ -n "$ISOTEMP" ] && rm -f "$ISOTEMP"
+    umount_target || true
+    umount ${STATEDIR}
+}
+
+cleanup()
+{
+    EXIT=$?
+    cleanup2 2>/dev/null || true
+    return $EXIT
+}
+
+check_url()
+{
+    local url=$1
+    case $url in
+        tftp*)
+            # There's no way verify whether the URL exists on TFTP server without
+            # actually download the file. Always pass the check.
+            echo "WARNING: Unable check TFTP URL. Assumed file exists"
+            ;;
+        ftp*|http*)
+            # Don't show anything if file exists, but show error messasge when it's not
+            curl -I -fL --progress-bar ${url} > /dev/null
+            ;;
+        *)
+            test -f $url
+            ;;
+    esac
+}
+
+get_url()
+{
+    FROM=$1
+    TO=$2
+    case $FROM in
+        ftp*|http*|tftp*)
+            n=0
+            attempts=5
+            until [ "$n" -ge "$attempts" ]
+            do
+                curl -o $TO -fL ${FROM} && break
+                n=$((n+1))
+                echo "Failed to download, retry attempt ${n} out of ${attempts}"
+                sleep 2
+            done
+            ;;
+        *)
+            cp -f $FROM $TO
+            ;;
+    esac
+}
+
+check_iso(){
+    if [ -n "$HARVESTER_ISO_URL" ]; then
+        echo "Checking ISO URL.."
+        check_url "$HARVESTER_ISO_URL"
+    fi
+}
+
+get_iso()
+{
+    if [ -n "$HARVESTER_ISO_URL" ]; then
+        echo "Downloading ISO.."
+        ISOMNT=$(mktemp -d -p /tmp cos.XXXXXXXX.isomnt)
+        ISOTEMP=$(mktemp -p ${TARGET}/usr/local cos.XXXXXXXX.iso)
+        get_url ${HARVESTER_ISO_URL} ${ISOTEMP}
+        ISO_DEVICE=$(losetup --show -f $ISOTEMP)
+        mount -o ro ${ISO_DEVICE} ${ISOMNT}
+    fi
+}
+
+do_detect()
+{
+    echo "Detecting drives.."
+
+    OEM=$(blkid -L COS_OEM || true)
+    STATE=$(blkid -L COS_STATE || true)
+    PERSISTENT=$(blkid -L COS_PERSISTENT || true)
+}
+
+do_mount()
+{
+    echo "Mounting critical endpoints.."
+
+    mkdir -p ${TARGET}
+
+    STATEDIR=/tmp/mnt/STATE
+    mkdir -p $STATEDIR || true
+    mount ${STATE} $STATEDIR
+
+    LOOP=$(losetup --show -f ${STATEDIR}/cOS/active.img)
+    mount -t ext2 $LOOP $TARGET
+
+    mkdir -p ${TARGET}/oem
+    mount ${OEM} ${TARGET}/oem
+    mkdir -p ${TARGET}/usr/local
+    mount ${PERSISTENT} ${TARGET}/usr/local
+}
+
+sparsify_passive_img()
+{
+    # See https://github.com/harvester/harvester/issues/7518
+    echo "Ensuring passive.img is sparse..."
+    echo "  was: $(du -h ${STATEDIR}/cOS/passive.img)"
+    fallocate --dig-holes ${STATEDIR}/cOS/passive.img
+    echo "  now: $(du -h ${STATEDIR}/cOS/passive.img)"
+}
+
+preload_rke2_images()
+{
+    preload=$(ls ${ISOMNT}/bundle/harvester/images/*.tar.zst 2>/dev/null || true)
+    if [ -z "$preload" ]; then
+        return
+    fi
+
+    # Use HARVESTER_ISO_URL to determine if this is an ISO-based installation
+    if [ -n "$HARVESTER_ISO_URL" ]; then
+        INSTALL_MODE="PXE"
+    else
+        INSTALL_MODE="ISO"
+    fi
+
+    readonly RKE2_IMAGES_DIR="/var/lib/rancher/rke2/agent/images"
+    readonly TMP_IMAGES_DIR="/var/lib/rancher/tmp/images"
+    readonly IMAGES_LISTS_DIR="/tmp/images-lists"
+    mkdir -p $TARGET/$RKE2_IMAGES_DIR
+    mkdir -p $TARGET/$TMP_IMAGES_DIR
+    mkdir -p $TARGET/$IMAGES_LISTS_DIR
+
+    # If the installation mode is ISO, use rsync instead of bind-mount to mitigate the potential installation failure due to slow media
+    # Otherwise (PXE), use bind-mount directly to speed up the process
+    if [ "$INSTALL_MODE" = "ISO" ]; then
+        echo "Copying RKE2 images to the target location..."
+        rsync -ahv --progress ${ISOMNT}/bundle/harvester/images/rke2-images.*.tar.zst $TARGET/$RKE2_IMAGES_DIR
+        echo "Copying remaining images temporary location..."
+        rsync -ahv --progress ${ISOMNT}/bundle/harvester/images/ $TARGET/$TMP_IMAGES_DIR
+        rsync -ahv --progress ${ISOMNT}/bundle/harvester/images-lists/ $TARGET/$IMAGES_LISTS_DIR
+    else
+        echo "Bind-mount images directory to the target location..."
+        mount --bind ${ISOMNT}/bundle/harvester/images $TARGET/$RKE2_IMAGES_DIR
+        mount --bind ${ISOMNT}/bundle/harvester/images-lists $TARGET/$IMAGES_LISTS_DIR
+    fi
+
+    cd $TARGET
+    mount --bind /dev dev
+    mount --bind /proc proc
+    mount --rbind /sys sys
+
+    echo "Loading images. This may take a few minutes..."
+    install_mode="$INSTALL_MODE" tmp_images_dir="$TMP_IMAGES_DIR" images_lists_dir="$IMAGES_LISTS_DIR" chroot . /bin/bash <<"EOF"
+      set -e
+
+      wait_for_containerd_ready()
+      {
+        until ctr --connect-timeout 1s version&>/dev/null
+        do
+            sleep 1
+        done
+      }
+
+      inst_tmp=$(mktemp -d -p /usr/local)
+      trap "rm -rf $inst_tmp" exit
+
+      # extract RKE2 tarball from image
+      image_list=$(ls /var/lib/rancher/agent/images/rancherd-bootstrap-images-*.txt | head -n 1)
+      if [ -z "$image_list" ]; then
+        echo "[ERROR] Fail to get rancherd bootstrap images list."
+        exit 1
+      fi
+      rke2_image=$(grep 'docker.io/rancher/system-agent-installer-rke2:' $image_list)
+      wharfie --images-dir /var/lib/rancher/agent/images/ $rke2_image $inst_tmp
+
+      # extract RKE2 binary
+      rke2_tmp="$inst_tmp/rke2"
+      if [ ${HOSTTYPE} = "aarch64" ]
+      then
+        mkdir -p $rke2_tmp && tar xf $inst_tmp/rke2.linux-arm64.tar.gz -C $rke2_tmp
+      else
+        mkdir -p $rke2_tmp && tar xf $inst_tmp/rke2.linux-amd64.tar.gz -C $rke2_tmp
+      fi
+
+      $rke2_tmp/bin/rke2 server &> /rke2.log &
+
+      export PATH=/var/lib/rancher/rke2/bin:$PATH
+      export CONTAINERD_ADDRESS=/run/k3s/containerd/containerd.sock
+
+      wait_for_containerd_ready
+
+      if [ "$install_mode" = "ISO" ]; then
+        echo "Stop RKE2 and remove temporary RKE2 files..."
+        pkill rke2
+        rm -f /rke2.log
+        rm -f /etc/rancher/rke2/rke2.yaml
+        rm -rf /var/lib/rancher/rke2/server
+        rm -rf /var/lib/rancher/rke2/agent/pod-manifests/*
+
+        echo "Start containerd..."
+        containerd -c /var/lib/rancher/rke2/agent/etc/containerd/config.toml -a $CONTAINERD_ADDRESS --state /run/k3s/containerd --root /var/lib/rancher/rke2/agent/containerd &> /containerd.log &
+
+        wait_for_containerd_ready
+
+        # load images
+        for i in $tmp_images_dir/*.tar.zst; do
+            echo "Load images from $i"
+            zstd -d $i -o /usr/local/images.tar
+            ctr -n k8s.io images import --no-unpack /usr/local/images.tar
+            rm /usr/local/images.tar
+        done
+      fi
+
+      # make sure all preloading images are ready
+      for i in $images_lists_dir/*.txt; do
+        stdbuf -oL ctr-check-images.sh $i
+      done
+
+      # tearing down containerd/RKE2
+      if [ "$install_mode" = "ISO" ]; then
+        echo "Stop containerd..."
+        pkill containerd
+        rm -f /containerd.log
+      else
+        echo "Stop RKE2..."
+        pkill rke2
+        rm -f /rke2.log
+        rm -f /etc/rancher/rke2/rke2.yaml
+        rm -rf /var/lib/rancher/rke2/server
+        rm -rf /var/lib/rancher/rke2/agent/pod-manifests/*
+      fi
+EOF
+
+    until umount dev&>/dev/null
+    do
+        sleep 1
+    done
+    umount proc
+    cd - &> /dev/null
+    if [ "$INSTALL_MODE" = "ISO" ]; then
+        rm -rf ${TARGET}/${RKE2_IMAGES_DIR}/*
+        rm -rf ${TARGET}/${TMP_IMAGES_DIR}
+        rm -rf ${TARGET}/${IMAGES_LISTS_DIR}/*
+    else
+        umount ${TARGET}/${RKE2_IMAGES_DIR}
+        umount ${TARGET}/${IMAGES_LISTS_DIR}
+    fi
+}
+
+preload_rancherd_images()
+{
+    preload=$(ls ${ISOMNT}/bundle/rancherd/images/*.tar.zst 2>/dev/null || true)
+    if [ -z "$preload" ]; then
+        return
+    fi
+
+    mkdir -p $TARGET/var/lib/rancher/agent/images
+    cp ${ISOMNT}/bundle/rancherd/images/* $TARGET/var/lib/rancher/agent/images
+}
+
+defer_preload_images()
+{
+    echo "Save image tarball(s) to $TARGET/var/lib/rancher/rke2/agent/images"
+    mkdir -p $TARGET/var/lib/rancher/rke2/agent/images
+    cp ${ISOMNT}/bundle/harvester/images/*.tar.zst $TARGET/var/lib/rancher/rke2/agent/images
+}
+
+do_preload()
+{
+    # Bind mount persistent folder to preload images
+    BIND_MOUNTS=("var/lib/rancher")
+
+    for i in ${BIND_MOUNTS[@]}; do
+        state_dir="/usr/local/.state/${i//\//-}.bind"
+        mkdir -p $TARGET/$i
+        mkdir -p $TARGET/$state_dir
+        mount -o bind $TARGET/$state_dir $TARGET/$i
+    done
+
+    if [ -n "$HARVESTER_WITH_NET_IMAGES" ]; then
+        # Preload images after the installing node reboots and RKE2 starts
+        defer_preload_images
+    else
+        # Preload all images now
+        preload_rancherd_images
+        preload_rke2_images
+    fi
+
+    for i in ${BIND_MOUNTS[@]}; do
+        umount $TARGET/$i
+    done
+}
+
+get_crashkernel_params()
+{
+    local low=$(kdumptool calibrate | sed -n 's/^Low:\s\(.*\)/\1/p')
+    local high=$(kdumptool calibrate | sed -n 's/^High:\s\(.*\)/\1/p')
+
+    if [ -z "$low" ] || [ -z "$high" ]; then
+      return
+    fi
+
+    # https://doc.opensuse.org/documentation/leap/tuning/html/book-tuning/cha-tuning-kexec.html#sec-tuning-kexec-crashkernel
+    # Let's assume maximum 100 luns for now.
+    local size_low=$low
+    local size_high
+    let size_high=($high + 100/2)
+
+    echo "crashkernel=${size_high}M,high crashkernel=${size_low}M,low"
+}
+
+add_debug_grub_entry()
+{
+    cat > "${STATEDIR}/grubcustom" << "EOF"
+menuentry "${display_name} (debug)" --id debug {
+  search --no-floppy --set=root --label COS_STATE
+  set img=/cOS/active.img
+  set label=COS_ACTIVE
+  loopback loop0 /$img
+  set root=($root)
+  source (loop0)/etc/cos/bootargs.cfg
+  linux (loop0)$kernel $kernelcmd ${extra_cmdline} ${extra_passive_cmdline} ${crash_kernel_params}
+  initrd (loop0)$initramfs
+}
+EOF
+}
+
+update_grub_settings()
+{
+    if [ -z "${HARVESTER_TTY}" ]; then
+        TTY=$(tty | sed 's!/dev/!!')
+    else
+        TTY=$HARVESTER_TTY
+    fi
+
+    if [ -e "/dev/${TTY%,*}" ] && [ "$TTY" != tty1 ] && [ "$TTY" != console ] && [ -n "$TTY" ]; then
+        sed -i "s/console_params=\"console=tty1\"/console_params=\"console=${TTY} console=tty1\"/g" ${TARGET}/etc/cos/bootargs.cfg
+    fi
+
+    PLATFORM=$(uname -m)
+    if [ "${PLATFORM}" == "aarch64" ]
+    then
+        # patch kernel in bootargs.cfg to Image on arm nodes
+        sed -i "s/kernel=\/boot\/vmlinuz/kernel=\/boot\/Image/g" ${TARGET}/etc/cos/bootargs.cfg
+    fi
+
+    # calculate recommended crashkernel allocation size
+    CRASH_KERNEL_PARAMS=$(get_crashkernel_params || true)
+    if [ -n "$CRASH_KERNEL_PARAMS" ]; then
+        sed -i "s/^set crash_kernel_params=.*/crash_kernel_params=\"${CRASH_KERNEL_PARAMS}\"/" ${TARGET}/etc/cos/bootargs.cfg
+    fi
+
+    # PATCH: Adding '--no-floppy' option to search command
+    GRUB_CFG="${STATEDIR}/grub2/grub.cfg"
+    sed -i "s/search /search --no-floppy /" "$GRUB_CFG"
+    sed -i "s/search.fs_label /search --no-floppy --label /" "$GRUB_CFG"
+    sed -i "s/search.file /search --no-floppy --file /" "$GRUB_CFG"
+    sed -i "s/search.fs_uuid /search --no-floppy --fs-uuid /" "$GRUB_CFG"
+    sed -i -E 's/^(\s*search\b)(.*)root$/\1 --set=root\2/' "$GRUB_CFG"
+
+    # For some firmware (e.g., Dell BOSS adapter 3022), users may get
+    # stuck on the grub file search for about 30 minutes, this can be
+    # mitigated by adding the `grubenv` file.
+    #
+    # We need to patch grubenv, grubcustom
+    oem_dir=${TARGET}/oem
+
+    # PATCH1: add /oem/grubenv if it does not exist
+    # grubenv use load_env to load, so we use grub2-editenv
+    TARGET_FILE="${oem_dir}/grubenv"
+    if ! [ -f ${TARGET_FILE} ]; then
+        grub2-editenv ${TARGET_FILE} create
+    fi
+    # PATCH2: add /oem/grubcustom if it does not exist
+    # grubcustom use source to load, so we can use touch directly
+    TARGET_FILE="${oem_dir}/grubcustom"
+    if ! [ -f ${TARGET_FILE} ]; then
+        touch ${TARGET_FILE}
+    fi
+    # /etc/cos/bootargs.cfg appends a new variable $third_party_kernel_args
+    # if harvester config has os.externalStorageConfig.additionalKernelArguments specified
+    # then these will be mapped to HARVESTER_ADDITIONAL_KERNEL_ARGUMENTS
+    # and will be added to /oem/grubenv file
+    TARGET_FILE="${oem_dir}/grubenv"
+    if [ -n "${HARVESTER_ADDITIONAL_KERNEL_ARGUMENTS}" ]; then
+        grub2-editenv ${TARGET_FILE} set third_party_kernel_args="${HARVESTER_ADDITIONAL_KERNEL_ARGUMENTS}"
+    fi
+
+    add_debug_grub_entry
+}
+
+save_configs()
+{
+    save_dir=${TARGET}/oem
+
+    # When saving files to /oem, do not use yaml as the extension name because cos-setup will load them.
+    if [ -e "$HARVESTER_CONFIG" ]; then
+        # harvester.config has to be stored in /oem/, it will be use by the harv-update-rke2-server-url script
+        cp $HARVESTER_CONFIG $save_dir/harvester.config
+    fi
+
+    if [ -e "$ELEMENTAL_CONFIG" ]; then
+        cp $ELEMENTAL_CONFIG $save_dir/elemental.config
+    fi
+}
+
+save_installation_log()
+{
+    save_dir=${TARGET}/oem/install
+    mkdir -p $save_dir
+
+    if [ -e "$HARVESTER_INSTALLATION_LOG" ]; then
+        fsync $HARVESTER_INSTALLATION_LOG
+        cp $HARVESTER_INSTALLATION_LOG $save_dir
+    fi
+}
+
+save_nm_state()
+{
+    # Networking is not setup in install mode only
+    # so we can skip this step
+    if [ "$HARVESTER_MODE" = "install" ]; then
+        echo "installer running in install mode only, no network manager persistence required"
+        return
+    fi
+
+    # Save NetworkManager state [so we could keep the DHCP IP?!?]
+    local nm_state="${TARGET}/usr/local/.state/var-lib-NetworkManager.bind"
+    mkdir -p ${nm_state}
+    cp -r /var/lib/NetworkManager/. ${nm_state}
+
+    # Save NetworkManager connection profiles
+    local nm_conn="${TARGET}/usr/local/.state/etc-NetworkManager.bind/system-connections"
+    mkdir -p ${nm_conn}
+    cp -a /etc/NetworkManager/system-connections/* ${nm_conn}
+}
+
+do_data_disk_format()
+{
+    if [ -z $HARVESTER_DATA_DISK ]; then
+        return
+    fi
+
+    # Resolve link
+    local data_disk_device=$HARVESTER_DATA_DISK
+    if [ -L "$HARVESTER_DATA_DISK" ]; then
+      data_disk_device=$(readlink -f "$HARVESTER_DATA_DISK")
+    fi
+
+    # Create one EXT4 partition
+    echo "Formatting $HARVESTER_DATA_DISK as data disk..."
+    mkfs.ext4 -F -L "$DATA_DISK_FSLABEL" "$HARVESTER_DATA_DISK"
+}
+
+trap cleanup exit
+
+check_iso
+
+# When `lvm` is run (which happens inside `blkdeactivate` in our case),
+# it will complain of leaked file descriptors for /dev/tty1 (the console)
+# and a socket.  This is harmless, it just means those FDs weren't closed
+# by `harvester-installer` before invoking this script (they don't have
+# the FD_CLOEXEC flag set), so let's suppress these warnings to avoid
+# making a mess of the console output.
+export LVM_SUPPRESS_FD_WARNINGS=1
+
+# https://github.com/harvester/os2/pull/86 adds a global_filter to
+# /etc/lvm/lvm.conf to avoid activing LVM on the host.  Unfortunately,
+# dracut-initqueue runs _very_ early in the boot process (before any of
+# the elemental stages are run), so this filter isn't taken into account
+# on boot, and LVM volumes are still potentially activated.  Later, when
+# we try to run `blkdeactivate` here, it doesn't work, because the filter
+# _is_ active then, so it skips deactivation and then the subsequent
+# disk repartitioning fails.  We can work around this here by setting up
+# a temporary lvm config which has that global_filter stripped out.
+export LVM_SYSTEM_DIR=$(mktemp -d)
+lvmconfig | sed /global_filter/d > ${LVM_SYSTEM_DIR}/lvm.conf
+
+# Tear down LVM and MD devices on the system, if the installing device is occuipied, the
+# partitioning operation could fail later. Be forgiven here.
+blkdeactivate --lvmoptions wholevg,retry --dmoptions force,retry --errors || true
+
+clear_disk_label
+
+# Run elemental installer but do not let it fetch ISO and do not shutdown
+elemental install --config-dir ${ELEMENTAL_CONFIG_DIR} --debug
+
+# Format the data disk if needed
+do_data_disk_format
+
+# Preload images
+do_detect
+do_mount
+sparsify_passive_img
+get_iso  # For PXE Boot
+save_configs
+save_nm_state
+do_preload
+
+update_grub_settings
+
+# This needs to be the at the last because the log file captures the output of this script
+save_installation_log
