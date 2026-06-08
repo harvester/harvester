@@ -59,7 +59,7 @@ func TestGetDefaultRunStrategy(t *testing.T) {
 	}
 
 	h := &RestoreHandler{
-		vmro: restorecommon.GetVMRestoreOperator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil),
+		vmro: restorecommon.NewVMRestoreOperatorBuilder().Build(),
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

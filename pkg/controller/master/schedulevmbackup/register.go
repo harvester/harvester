@@ -45,7 +45,7 @@ type svmbackupHandler struct {
 	lhbackupClient       ctllonghornv2.BackupClient
 	snapshotContentCache ctlsnapshotv1.VolumeSnapshotContentCache
 	clientset            kubernetes.Interface
-	vmbo                 common.VMBackupOperator
+	vmbr                 common.VMBackupReader
 }
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
@@ -78,7 +78,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		lhbackupClient:       lhbackups,
 		snapshotContentCache: snapshotContents.Cache(),
 		clientset:            management.ClientSet,
-		vmbo:                 common.GetVMBackupOperator(nil, nil, nil, nil, nil, nil, nil, nil, nil),
+		vmbr:                 common.NewVMBackupReader(),
 	}
 
 	svmbackups.OnChange(ctx, scheduleVMBackupControllerName, svmbackupHandler.OnChanged)

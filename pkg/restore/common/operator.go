@@ -41,7 +41,6 @@ const (
 // Method Naming Conventions:
 // - Get*: Retrieve data from restore objects (read-only, in-memory)
 // - Set*: Modify in-memory objects without persisting to etcd
-// - Is*: Check status/conditions (read-only, in-memory)
 // - Update*: Persist changes to etcd
 // - Configure*: Initialize or update configuration with persistence
 // - Init*: Initialize restore components with persistence
@@ -51,48 +50,14 @@ const (
 //  2. Use Update* methods to persist changes to etcd
 
 type VMRestoreOperator interface {
-	// VolumeRestore accessors
-	GetVolRestores(vmr *harvesterv1.VirtualMachineRestore) []harvesterv1.VolumeRestore
-	GetVolRestore(vmr *harvesterv1.VirtualMachineRestore, index int) *harvesterv1.VolumeRestore
-	GetVolRestorePVCName(vr *harvesterv1.VolumeRestore) string
-	GetVolRestorePVCNamespace(vr *harvesterv1.VolumeRestore) string
-	GetVolRestoreVolumeName(vr *harvesterv1.VolumeRestore) string
-	GetVolRestoreVolumeBackupName(vr *harvesterv1.VolumeRestore) string
-	GetVolRestoreLHEngineName(vr *harvesterv1.VolumeRestore) *string
-	GetVolRestoreVolumeSize(vr *harvesterv1.VolumeRestore) int64
-	GetVolRestoreProgress(vr *harvesterv1.VolumeRestore) int
+	// Pure in-memory predicates + accessors. Callers that only need these
+	// should depend on VMRestoreReader directly instead of the full operator.
+	VMRestoreReader
 
 	// VolumeRestore mutators
 	SetVolRestoreLHEngineName(vr *harvesterv1.VolumeRestore, name string) error
 	SetVolRestoreVolumeSize(vr *harvesterv1.VolumeRestore, size int64) error
 	SetVolRestoreProgress(vr *harvesterv1.VolumeRestore, progress int) error
-
-	// VMRestore accessors
-	GetName(vmr *harvesterv1.VirtualMachineRestore) string
-	GetNamespace(vmr *harvesterv1.VirtualMachineRestore) string
-	GetUID(vmr *harvesterv1.VirtualMachineRestore) types.UID
-	GetRestoreID(vmr *harvesterv1.VirtualMachineRestore) string
-	GetDeletionTimestamp(vmr *harvesterv1.VirtualMachineRestore) *metav1.Time
-	GetTargetKind(vmr *harvesterv1.VirtualMachineRestore) string
-	GetTargetName(vmr *harvesterv1.VirtualMachineRestore) string
-	GetVMBackupName(vmr *harvesterv1.VirtualMachineRestore) string
-	GetVMBackupNamespace(vmr *harvesterv1.VirtualMachineRestore) string
-	GetDeletedVolumes(vmr *harvesterv1.VirtualMachineRestore) []string
-	GetTargetUID(vmr *harvesterv1.VirtualMachineRestore) *types.UID
-	GetRestoreTime(vmr *harvesterv1.VirtualMachineRestore) *metav1.Time
-	GetProgress(vmr *harvesterv1.VirtualMachineRestore) int
-
-	IsNewVM(vmr *harvesterv1.VirtualMachineRestore) bool
-	IsComplete(vmr *harvesterv1.VirtualMachineRestore) bool
-	IsProgressing(vmr *harvesterv1.VirtualMachineRestore) bool
-	IsRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool
-	IsKeepMacAddress(vmr *harvesterv1.VirtualMachineRestore) bool
-	IsKeepHaltedAfterRestore(vmr *harvesterv1.VirtualMachineRestore) bool
-	IsMissingVolumes(vmr *harvesterv1.VirtualMachineRestore) bool
-	IsDeleting(vmr *harvesterv1.VirtualMachineRestore) bool
-	HasStatus(vmr *harvesterv1.VirtualMachineRestore) bool
-	HasOwnerReference(vmr *harvesterv1.VirtualMachineRestore) bool
-	IsNewVMOrHasRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool
 
 	// VMRestore mutators
 	SetTargetUID(vmr *harvesterv1.VirtualMachineRestore, uid *types.UID) error
@@ -116,7 +81,9 @@ type VMRestoreOperator interface {
 	UpdateError(old *harvesterv1.VirtualMachineRestore, err error) error
 
 	// Target VM operations
-	GetTargetVM(vmr *harvesterv1.VirtualMachineRestore) (*kubevirtv1.VirtualMachine, error)
+	// ResolveTargetVM looks the target VM up via vmCache; not on
+	// VMRestoreReader because it needs that K8s dep.
+	ResolveTargetVM(vmr *harvesterv1.VirtualMachineRestore) (*kubevirtv1.VirtualMachine, error)
 	StartVM(ctx context.Context, vm *kubevirtv1.VirtualMachine) error
 
 	// Initialization operations
@@ -132,17 +99,17 @@ type VMRestoreOperator interface {
 
 	// Secret backup operations
 	RestoreSecrets(vmr *harvesterv1.VirtualMachineRestore, vmb *harvesterv1.VirtualMachineBackup, vm *kubevirtv1.VirtualMachine) error
-	GetSecretRefName(targetVMName, originalSecretName string) string
-	GetVMOwnerReferences(vm *kubevirtv1.VirtualMachine) []metav1.OwnerReference
+	BuildSecretRefName(targetVMName, originalSecretName string) string
+	BuildVMOwnerReferences(vm *kubevirtv1.VirtualMachine) []metav1.OwnerReference
 
 	// BuildOwnerReference creates an owner reference pointing at the VMRestore.
 	// Use this when creating namespaced child resources that should be GC'd
 	// when the VMRestore is deleted (e.g. VolumeSnapshot).
 	BuildOwnerReference(vmr *harvesterv1.VirtualMachineRestore) metav1.OwnerReference
 
-	// GetVMBackup retrieves and validates the VMBackup referenced in VMRestore
+	// ResolveVMBackup retrieves and validates the VMBackup referenced in VMRestore
 	// It ensures the backup is ready and has a valid source spec
-	GetVMBackup(vmr *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineBackup, error)
+	ResolveVMBackup(vmr *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineBackup, error)
 
 	// DeleteOldPVCs deletes old PVCs that are being replaced during restore
 	// It respects the NewVM and DeletionPolicy settings to determine if PVCs should be deleted
@@ -157,7 +124,220 @@ type VMRestoreOperator interface {
 	SanitizeVMSpec(vmr *harvesterv1.VirtualMachineRestore, spec kubevirtv1.VirtualMachineInstanceSpec) kubevirtv1.VirtualMachineInstanceSpec
 }
 
+// VMRestoreReader exposes pure in-memory operations on a VirtualMachineRestore /
+// VolumeRestore — no K8s caches, clients, or REST access required. Combines
+// boolean status predicates (Is*/Has*) and data accessors (Get*) into a
+// single narrow interface. Callers that only need pure reads should depend on
+// this instead of the full VMRestoreOperator.
+type VMRestoreReader interface {
+	IsNewVM(vmr *harvesterv1.VirtualMachineRestore) bool
+	IsComplete(vmr *harvesterv1.VirtualMachineRestore) bool
+	IsProgressing(vmr *harvesterv1.VirtualMachineRestore) bool
+	IsRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool
+	IsKeepMacAddress(vmr *harvesterv1.VirtualMachineRestore) bool
+	IsKeepHaltedAfterRestore(vmr *harvesterv1.VirtualMachineRestore) bool
+	IsMissingVolumes(vmr *harvesterv1.VirtualMachineRestore) bool
+	IsDeleting(vmr *harvesterv1.VirtualMachineRestore) bool
+	IsNewVMOrHasRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool
+	HasStatus(vmr *harvesterv1.VirtualMachineRestore) bool
+	HasOwnerReference(vmr *harvesterv1.VirtualMachineRestore) bool
+
+	// VolumeRestore accessors
+	GetVolRestores(vmr *harvesterv1.VirtualMachineRestore) []harvesterv1.VolumeRestore
+	GetVolRestore(vmr *harvesterv1.VirtualMachineRestore, index int) *harvesterv1.VolumeRestore
+	GetVolRestorePVCName(vr *harvesterv1.VolumeRestore) string
+	GetVolRestorePVCNamespace(vr *harvesterv1.VolumeRestore) string
+	GetVolRestoreVolumeName(vr *harvesterv1.VolumeRestore) string
+	GetVolRestoreVolumeBackupName(vr *harvesterv1.VolumeRestore) string
+	GetVolRestoreLHEngineName(vr *harvesterv1.VolumeRestore) *string
+	GetVolRestoreVolumeSize(vr *harvesterv1.VolumeRestore) int64
+	GetVolRestoreProgress(vr *harvesterv1.VolumeRestore) int
+
+	// VMRestore accessors
+	GetName(vmr *harvesterv1.VirtualMachineRestore) string
+	GetNamespace(vmr *harvesterv1.VirtualMachineRestore) string
+	GetUID(vmr *harvesterv1.VirtualMachineRestore) types.UID
+	GetRestoreID(vmr *harvesterv1.VirtualMachineRestore) string
+	GetDeletionTimestamp(vmr *harvesterv1.VirtualMachineRestore) *metav1.Time
+	GetTargetKind(vmr *harvesterv1.VirtualMachineRestore) string
+	GetTargetName(vmr *harvesterv1.VirtualMachineRestore) string
+	GetVMBackupName(vmr *harvesterv1.VirtualMachineRestore) string
+	GetVMBackupNamespace(vmr *harvesterv1.VirtualMachineRestore) string
+	GetDeletedVolumes(vmr *harvesterv1.VirtualMachineRestore) []string
+	GetTargetUID(vmr *harvesterv1.VirtualMachineRestore) *types.UID
+	GetRestoreTime(vmr *harvesterv1.VirtualMachineRestore) *metav1.Time
+	GetProgress(vmr *harvesterv1.VirtualMachineRestore) int
+}
+
+type vmrestoreReader struct{}
+
+// NewVMRestoreReader returns a zero-dep reader.
+func NewVMRestoreReader() VMRestoreReader {
+	return &vmrestoreReader{}
+}
+
+func (c *vmrestoreReader) IsNewVM(vmr *harvesterv1.VirtualMachineRestore) bool {
+	return vmr.Spec.NewVM
+}
+
+func (c *vmrestoreReader) IsComplete(vmr *harvesterv1.VirtualMachineRestore) bool {
+	return vmr.Status.Complete != nil && *vmr.Status.Complete
+}
+
+func (c *vmrestoreReader) IsProgressing(vmr *harvesterv1.VirtualMachineRestore) bool {
+	return vmr.Status.Complete == nil || !*vmr.Status.Complete
+}
+
+func (c *vmrestoreReader) IsRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool {
+	return vmr.Spec.DeletionPolicy == harvesterv1.VirtualMachineRestoreRetain
+}
+
+func (c *vmrestoreReader) IsKeepMacAddress(vmr *harvesterv1.VirtualMachineRestore) bool {
+	return vmr.Spec.KeepMacAddress
+}
+
+func (c *vmrestoreReader) IsKeepHaltedAfterRestore(vmr *harvesterv1.VirtualMachineRestore) bool {
+	return vmr.Spec.HaltAfterRestore
+}
+
+func (c *vmrestoreReader) IsMissingVolumes(vmr *harvesterv1.VirtualMachineRestore) bool {
+	return len(vmr.Status.VolumeRestores) == 0 ||
+		(!isNewVMOrHasRetainPolicy(vmr) && len(vmr.Status.DeletedVolumes) == 0)
+}
+
+func (c *vmrestoreReader) IsDeleting(vmr *harvesterv1.VirtualMachineRestore) bool {
+	return vmr.DeletionTimestamp != nil
+}
+
+func (c *vmrestoreReader) IsNewVMOrHasRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool {
+	return isNewVMOrHasRetainPolicy(vmr)
+}
+
+func (c *vmrestoreReader) HasStatus(vmr *harvesterv1.VirtualMachineRestore) bool {
+	return vmr.Status.Complete != nil
+}
+
+func (c *vmrestoreReader) HasOwnerReference(vmr *harvesterv1.VirtualMachineRestore) bool {
+	return len(vmr.OwnerReferences) > 0
+}
+
+func (a *vmrestoreReader) GetVolRestores(vmr *harvesterv1.VirtualMachineRestore) []harvesterv1.VolumeRestore {
+	return vmr.Status.VolumeRestores
+}
+
+func (a *vmrestoreReader) GetVolRestore(vmr *harvesterv1.VirtualMachineRestore, index int) *harvesterv1.VolumeRestore {
+	if index < 0 || index >= len(vmr.Status.VolumeRestores) {
+		return nil
+	}
+	return &vmr.Status.VolumeRestores[index]
+}
+
+func (a *vmrestoreReader) GetVolRestorePVCName(vr *harvesterv1.VolumeRestore) string {
+	if vr == nil {
+		return ""
+	}
+	return vr.PersistentVolumeClaim.ObjectMeta.Name
+}
+
+func (a *vmrestoreReader) GetVolRestorePVCNamespace(vr *harvesterv1.VolumeRestore) string {
+	if vr == nil {
+		return ""
+	}
+	return vr.PersistentVolumeClaim.ObjectMeta.Namespace
+}
+
+func (a *vmrestoreReader) GetVolRestoreVolumeName(vr *harvesterv1.VolumeRestore) string {
+	if vr == nil {
+		return ""
+	}
+	return vr.VolumeName
+}
+
+func (a *vmrestoreReader) GetVolRestoreVolumeBackupName(vr *harvesterv1.VolumeRestore) string {
+	if vr == nil {
+		return ""
+	}
+	return vr.VolumeBackupName
+}
+
+func (a *vmrestoreReader) GetVolRestoreLHEngineName(vr *harvesterv1.VolumeRestore) *string {
+	if vr == nil {
+		return nil
+	}
+	return vr.LonghornEngineName
+}
+
+func (a *vmrestoreReader) GetVolRestoreVolumeSize(vr *harvesterv1.VolumeRestore) int64 {
+	if vr == nil {
+		return 0
+	}
+	return vr.VolumeSize
+}
+
+func (a *vmrestoreReader) GetVolRestoreProgress(vr *harvesterv1.VolumeRestore) int {
+	if vr == nil {
+		return 0
+	}
+	return vr.Progress
+}
+
+func (a *vmrestoreReader) GetName(vmr *harvesterv1.VirtualMachineRestore) string {
+	return vmr.Name
+}
+
+func (a *vmrestoreReader) GetNamespace(vmr *harvesterv1.VirtualMachineRestore) string {
+	return vmr.Namespace
+}
+
+func (a *vmrestoreReader) GetUID(vmr *harvesterv1.VirtualMachineRestore) types.UID {
+	return vmr.UID
+}
+
+func (a *vmrestoreReader) GetRestoreID(vmr *harvesterv1.VirtualMachineRestore) string {
+	return fmt.Sprintf("%s-%s", vmr.Name, vmr.UID)
+}
+
+func (a *vmrestoreReader) GetDeletionTimestamp(vmr *harvesterv1.VirtualMachineRestore) *metav1.Time {
+	return vmr.DeletionTimestamp
+}
+
+func (a *vmrestoreReader) GetTargetKind(vmr *harvesterv1.VirtualMachineRestore) string {
+	return vmr.Spec.Target.Kind
+}
+
+func (a *vmrestoreReader) GetTargetName(vmr *harvesterv1.VirtualMachineRestore) string {
+	return vmr.Spec.Target.Name
+}
+
+func (a *vmrestoreReader) GetVMBackupName(vmr *harvesterv1.VirtualMachineRestore) string {
+	return vmr.Spec.VirtualMachineBackupName
+}
+
+func (a *vmrestoreReader) GetVMBackupNamespace(vmr *harvesterv1.VirtualMachineRestore) string {
+	return vmr.Spec.VirtualMachineBackupNamespace
+}
+
+func (a *vmrestoreReader) GetDeletedVolumes(vmr *harvesterv1.VirtualMachineRestore) []string {
+	return vmr.Status.DeletedVolumes
+}
+
+func (a *vmrestoreReader) GetTargetUID(vmr *harvesterv1.VirtualMachineRestore) *types.UID {
+	return vmr.Status.TargetUID
+}
+
+func (a *vmrestoreReader) GetRestoreTime(vmr *harvesterv1.VirtualMachineRestore) *metav1.Time {
+	return vmr.Status.RestoreTime
+}
+
+func (a *vmrestoreReader) GetProgress(vmr *harvesterv1.VirtualMachineRestore) int {
+	return vmr.Status.Progress
+}
+
 type vmrestoreOperator struct {
+	// Embedded so existing callers (which depend on the full VMRestoreOperator
+	// interface) get the Is*/Has*/Get* methods for free — no behaviour change.
+	VMRestoreReader
+
 	client    ctlharvesterv1.VirtualMachineRestoreClient
 	cache     ctlharvesterv1.VirtualMachineRestoreCache
 	vmCache   ctlkubevirtv1.VirtualMachineCache
@@ -174,94 +354,85 @@ type vmrestoreOperator struct {
 	virtSubresourceRestClient rest.Interface
 }
 
-func GetVMRestoreOperator(
-	client ctlharvesterv1.VirtualMachineRestoreClient,
-	cache ctlharvesterv1.VirtualMachineRestoreCache,
-	vmCache ctlkubevirtv1.VirtualMachineCache,
-	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
-	pvcClient ctlcorev1.PersistentVolumeClaimClient,
-	pvcCache ctlcorev1.PersistentVolumeClaimCache,
-	secretClient ctlcorev1.SecretClient,
-	secretCache ctlcorev1.SecretCache,
-	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
-	vmbo backupcommon.VMBackupOperator,
-	virtSubresourceRestClient rest.Interface,
-) VMRestoreOperator {
-	return &vmrestoreOperator{
-		client:                    client,
-		cache:                     cache,
-		vmCache:                   vmCache,
-		vmiCache:                  vmiCache,
-		pvcClient:                 pvcClient,
-		pvcCache:                  pvcCache,
-		secretClient:              secretClient,
-		secretCache:               secretCache,
-		vmBackupCache:             vmBackupCache,
-		vmbo:                      vmbo,
-		virtSubresourceRestClient: virtSubresourceRestClient,
+// VMRestoreOperatorBuilder lets callers wire only the dependencies they need
+// instead of passing nil for the rest.
+type VMRestoreOperatorBuilder struct {
+	op *vmrestoreOperator
+}
+
+func NewVMRestoreOperatorBuilder() *VMRestoreOperatorBuilder {
+	return &VMRestoreOperatorBuilder{
+		op: &vmrestoreOperator{VMRestoreReader: NewVMRestoreReader()},
 	}
 }
 
-// VolumeRestore accessors
-func (vmro *vmrestoreOperator) GetVolRestores(vmr *harvesterv1.VirtualMachineRestore) []harvesterv1.VolumeRestore {
-	return vmr.Status.VolumeRestores
+func (b *VMRestoreOperatorBuilder) WithClient(c ctlharvesterv1.VirtualMachineRestoreClient) *VMRestoreOperatorBuilder {
+	b.op.client = c
+	return b
 }
 
-func (vmro *vmrestoreOperator) GetVolRestore(vmr *harvesterv1.VirtualMachineRestore, index int) *harvesterv1.VolumeRestore {
-	if index < 0 || index >= len(vmr.Status.VolumeRestores) {
-		return nil
-	}
-	return &vmr.Status.VolumeRestores[index]
+func (b *VMRestoreOperatorBuilder) WithCache(c ctlharvesterv1.VirtualMachineRestoreCache) *VMRestoreOperatorBuilder {
+	b.op.cache = c
+	return b
 }
 
-func (vmro *vmrestoreOperator) GetVolRestorePVCName(vr *harvesterv1.VolumeRestore) string {
-	if vr == nil {
-		return ""
-	}
-	return vr.PersistentVolumeClaim.ObjectMeta.Name
+func (b *VMRestoreOperatorBuilder) WithVMCache(c ctlkubevirtv1.VirtualMachineCache) *VMRestoreOperatorBuilder {
+	b.op.vmCache = c
+	return b
 }
 
-func (vmro *vmrestoreOperator) GetVolRestorePVCNamespace(vr *harvesterv1.VolumeRestore) string {
-	if vr == nil {
-		return ""
-	}
-	return vr.PersistentVolumeClaim.ObjectMeta.Namespace
+func (b *VMRestoreOperatorBuilder) WithVMICache(c ctlkubevirtv1.VirtualMachineInstanceCache) *VMRestoreOperatorBuilder {
+	b.op.vmiCache = c
+	return b
 }
 
-func (vmro *vmrestoreOperator) GetVolRestoreVolumeName(vr *harvesterv1.VolumeRestore) string {
-	if vr == nil {
-		return ""
-	}
-	return vr.VolumeName
+func (b *VMRestoreOperatorBuilder) WithPVCClient(c ctlcorev1.PersistentVolumeClaimClient) *VMRestoreOperatorBuilder {
+	b.op.pvcClient = c
+	return b
 }
 
-func (vmro *vmrestoreOperator) GetVolRestoreVolumeBackupName(vr *harvesterv1.VolumeRestore) string {
-	if vr == nil {
-		return ""
-	}
-	return vr.VolumeBackupName
+func (b *VMRestoreOperatorBuilder) WithPVCCache(c ctlcorev1.PersistentVolumeClaimCache) *VMRestoreOperatorBuilder {
+	b.op.pvcCache = c
+	return b
 }
 
-func (vmro *vmrestoreOperator) GetVolRestoreLHEngineName(vr *harvesterv1.VolumeRestore) *string {
-	if vr == nil {
-		return nil
-	}
-	return vr.LonghornEngineName
+func (b *VMRestoreOperatorBuilder) WithSecretClient(c ctlcorev1.SecretClient) *VMRestoreOperatorBuilder {
+	b.op.secretClient = c
+	return b
 }
 
-func (vmro *vmrestoreOperator) GetVolRestoreVolumeSize(vr *harvesterv1.VolumeRestore) int64 {
-	if vr == nil {
-		return 0
-	}
-	return vr.VolumeSize
+func (b *VMRestoreOperatorBuilder) WithSecretCache(c ctlcorev1.SecretCache) *VMRestoreOperatorBuilder {
+	b.op.secretCache = c
+	return b
 }
 
-func (vmro *vmrestoreOperator) GetVolRestoreProgress(vr *harvesterv1.VolumeRestore) int {
-	if vr == nil {
-		return 0
-	}
-	return vr.Progress
+func (b *VMRestoreOperatorBuilder) WithVMBackupCache(c ctlharvesterv1.VirtualMachineBackupCache) *VMRestoreOperatorBuilder {
+	b.op.vmBackupCache = c
+	return b
 }
+
+func (b *VMRestoreOperatorBuilder) WithVMBackupOperator(vmbo backupcommon.VMBackupOperator) *VMRestoreOperatorBuilder {
+	b.op.vmbo = vmbo
+	return b
+}
+
+func (b *VMRestoreOperatorBuilder) WithVirtSubresourceRestClient(c rest.Interface) *VMRestoreOperatorBuilder {
+	b.op.virtSubresourceRestClient = c
+	return b
+}
+
+// WithReader overrides the default zero-dep reader. Useful in tests that
+// want to stub status predicates and/or accessors.
+func (b *VMRestoreOperatorBuilder) WithReader(r VMRestoreReader) *VMRestoreOperatorBuilder {
+	b.op.VMRestoreReader = r
+	return b
+}
+
+func (b *VMRestoreOperatorBuilder) Build() VMRestoreOperator {
+	return b.op
+}
+
+// VolumeRestore Get* methods are provided by the embedded VMRestoreReader.
 
 // VolumeRestore mutators
 func (vmro *vmrestoreOperator) SetVolRestoreLHEngineName(vr *harvesterv1.VolumeRestore, name string) error {
@@ -288,108 +459,7 @@ func (vmro *vmrestoreOperator) SetVolRestoreProgress(vr *harvesterv1.VolumeResto
 	return nil
 }
 
-// VMRestore accessors
-func (vmro *vmrestoreOperator) GetName(vmr *harvesterv1.VirtualMachineRestore) string {
-	return vmr.Name
-}
-
-func (vmro *vmrestoreOperator) GetNamespace(vmr *harvesterv1.VirtualMachineRestore) string {
-	return vmr.Namespace
-}
-
-func (vmro *vmrestoreOperator) GetUID(vmr *harvesterv1.VirtualMachineRestore) types.UID {
-	return vmr.UID
-}
-
-func (vmro *vmrestoreOperator) GetRestoreID(vmr *harvesterv1.VirtualMachineRestore) string {
-	return fmt.Sprintf("%s-%s", vmr.Name, vmr.UID)
-}
-
-func (vmro *vmrestoreOperator) GetDeletionTimestamp(vmr *harvesterv1.VirtualMachineRestore) *metav1.Time {
-	return vmr.DeletionTimestamp
-}
-
-func (vmro *vmrestoreOperator) GetTargetKind(vmr *harvesterv1.VirtualMachineRestore) string {
-	return vmr.Spec.Target.Kind
-}
-
-func (vmro *vmrestoreOperator) GetTargetName(vmr *harvesterv1.VirtualMachineRestore) string {
-	return vmr.Spec.Target.Name
-}
-
-func (vmro *vmrestoreOperator) GetVMBackupName(vmr *harvesterv1.VirtualMachineRestore) string {
-	return vmr.Spec.VirtualMachineBackupName
-}
-
-func (vmro *vmrestoreOperator) GetVMBackupNamespace(vmr *harvesterv1.VirtualMachineRestore) string {
-	return vmr.Spec.VirtualMachineBackupNamespace
-}
-
-func (vmro *vmrestoreOperator) GetDeletedVolumes(vmr *harvesterv1.VirtualMachineRestore) []string {
-	return vmr.Status.DeletedVolumes
-}
-
-func (vmro *vmrestoreOperator) GetTargetUID(vmr *harvesterv1.VirtualMachineRestore) *types.UID {
-	return vmr.Status.TargetUID
-}
-
-func (vmro *vmrestoreOperator) GetRestoreTime(vmr *harvesterv1.VirtualMachineRestore) *metav1.Time {
-	return vmr.Status.RestoreTime
-}
-
-func (vmro *vmrestoreOperator) GetProgress(vmr *harvesterv1.VirtualMachineRestore) int {
-	return vmr.Status.Progress
-}
-
-func (vmro *vmrestoreOperator) IsNewVM(vmr *harvesterv1.VirtualMachineRestore) bool {
-	return vmr.Spec.NewVM
-}
-
-func (vmro *vmrestoreOperator) IsComplete(vmr *harvesterv1.VirtualMachineRestore) bool {
-	return vmr.Status.Complete != nil && *vmr.Status.Complete
-}
-
-func (vmro *vmrestoreOperator) IsProgressing(vmr *harvesterv1.VirtualMachineRestore) bool {
-	return vmr.Status.Complete == nil || !*vmr.Status.Complete
-}
-
-func (vmro *vmrestoreOperator) IsRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool {
-	return vmr.Spec.DeletionPolicy == harvesterv1.VirtualMachineRestoreRetain
-}
-
-func (vmro *vmrestoreOperator) IsKeepMacAddress(vmr *harvesterv1.VirtualMachineRestore) bool {
-	return vmr.Spec.KeepMacAddress
-}
-
-func (vmro *vmrestoreOperator) IsKeepHaltedAfterRestore(vmr *harvesterv1.VirtualMachineRestore) bool {
-	return vmr.Spec.HaltAfterRestore
-}
-
-func (vmro *vmrestoreOperator) IsMissingVolumes(vmr *harvesterv1.VirtualMachineRestore) bool {
-	volRestores := vmro.GetVolRestores(vmr)
-	deletedVolumes := vmro.GetDeletedVolumes(vmr)
-
-	return len(volRestores) == 0 ||
-		(!isNewVMOrHasRetainPolicy(vmr) && len(deletedVolumes) == 0)
-}
-
-func (vmro *vmrestoreOperator) IsDeleting(vmr *harvesterv1.VirtualMachineRestore) bool {
-	return vmr.DeletionTimestamp != nil
-}
-
-// HasStatus returns true if the VirtualMachineRestore status has been initialized.
-// We use Complete != nil as the marker because InitVMRestore sets it to false.
-func (vmro *vmrestoreOperator) HasStatus(vmr *harvesterv1.VirtualMachineRestore) bool {
-	return vmr.Status.Complete != nil
-}
-
-func (vmro *vmrestoreOperator) HasOwnerReference(vmr *harvesterv1.VirtualMachineRestore) bool {
-	return len(vmr.OwnerReferences) > 0
-}
-
-func (vmro *vmrestoreOperator) IsNewVMOrHasRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool {
-	return vmr.Spec.NewVM || vmr.Spec.DeletionPolicy == harvesterv1.VirtualMachineRestoreRetain
-}
+// VMRestore Get* methods are provided by the embedded VMRestoreReader.
 
 // VMRestore mutators
 func (vmro *vmrestoreOperator) SetTargetUID(vmr *harvesterv1.VirtualMachineRestore, uid *types.UID) error {
@@ -445,7 +515,7 @@ func (vmro *vmrestoreOperator) UpdateOwnerRefAndTargetUID(vmr *harvesterv1.Virtu
 	}
 
 	targetUID := vmro.GetTargetUID(vmr)
-	ownerRefs := vmro.GetVMOwnerReferences(vm)
+	ownerRefs := vmro.BuildVMOwnerReferences(vm)
 
 	// Check if update is needed
 	needsUpdate := targetUID == nil || !reflect.DeepEqual(vmr.OwnerReferences, ownerRefs)
@@ -572,10 +642,10 @@ func (vmro *vmrestoreOperator) UpdateError(old *harvesterv1.VirtualMachineRestor
 
 // Target VM operations
 
-// GetTargetVM retrieves the target VM for the restore operation
+// ResolveTargetVM retrieves the target VM for the restore operation
 // Returns (nil, nil) if the VM does not exist (not an error condition)
 // Returns (nil, error) if there's an error retrieving the VM
-func (vmro *vmrestoreOperator) GetTargetVM(vmr *harvesterv1.VirtualMachineRestore) (*kubevirtv1.VirtualMachine, error) {
+func (vmro *vmrestoreOperator) ResolveTargetVM(vmr *harvesterv1.VirtualMachineRestore) (*kubevirtv1.VirtualMachine, error) {
 	if vmr == nil {
 		return nil, fmt.Errorf("VirtualMachineRestore cannot be nil")
 	}
@@ -860,7 +930,7 @@ func (vmro *vmrestoreOperator) RestoreSecrets(
 	vmb *harvesterv1.VirtualMachineBackup,
 	vm *kubevirtv1.VirtualMachine,
 ) error {
-	ownerRefs := vmro.GetVMOwnerReferences(vm)
+	ownerRefs := vmro.BuildVMOwnerReferences(vm)
 	isNewVM := vmro.IsNewVM(vmr)
 	targetName := vmro.GetTargetName(vmr)
 	namespace := vmro.GetNamespace(vmr)
@@ -877,7 +947,7 @@ func (vmro *vmrestoreOperator) RestoreSecrets(
 
 	// Create new secrets with renamed names for new VM
 	for _, secretBackup := range vmb.Status.SecretBackups {
-		newSecretName := vmro.GetSecretRefName(targetName, secretBackup.Name)
+		newSecretName := vmro.BuildSecretRefName(targetName, secretBackup.Name)
 		if err := vmro.buildAndApplySecret(namespace, newSecretName, secretBackup.Data, ownerRefs); err != nil {
 			return err
 		}
@@ -924,14 +994,14 @@ func (vmro *vmrestoreOperator) buildAndApplySecret(
 	return nil
 }
 
-// GetSecretRefName generates a new secret name for a restored VM
+// BuildSecretRefName generates a new secret name for a restored VM
 // Format: <targetVMName>-<originalSecretName>
-func (vmro *vmrestoreOperator) GetSecretRefName(targetVMName, originalSecretName string) string {
+func (vmro *vmrestoreOperator) BuildSecretRefName(targetVMName, originalSecretName string) string {
 	return fmt.Sprintf("%s-%s", targetVMName, originalSecretName)
 }
 
-// GetVMOwnerReferences returns owner references for a VM
-func (vmro *vmrestoreOperator) GetVMOwnerReferences(vm *kubevirtv1.VirtualMachine) []metav1.OwnerReference {
+// BuildVMOwnerReferences returns owner references for a VM
+func (vmro *vmrestoreOperator) BuildVMOwnerReferences(vm *kubevirtv1.VirtualMachine) []metav1.OwnerReference {
 	return []metav1.OwnerReference{
 		{
 			APIVersion:         kubevirtv1.SchemeGroupVersion.String(),
@@ -959,9 +1029,9 @@ func (vmro *vmrestoreOperator) BuildOwnerReference(vmr *harvesterv1.VirtualMachi
 	}
 }
 
-// GetVMBackup retrieves and validates the VMBackup referenced in VMRestore
+// ResolveVMBackup retrieves and validates the VMBackup referenced in VMRestore
 // It ensures the backup is ready and has a valid source spec
-func (vmro *vmrestoreOperator) GetVMBackup(vmr *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineBackup, error) {
+func (vmro *vmrestoreOperator) ResolveVMBackup(vmr *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineBackup, error) {
 	vmb, err := vmro.vmBackupCache.Get(vmr.Spec.VirtualMachineBackupNamespace, vmr.Spec.VirtualMachineBackupName)
 	if err != nil {
 		return nil, err
@@ -1043,7 +1113,7 @@ func (vmro *vmrestoreOperator) remapSecretNames(
 	result := make(map[string][]string, len(secretMapping))
 
 	for secretName, sshKeyNames := range secretMapping {
-		newSecretName := vmro.GetSecretRefName(targetName, secretName)
+		newSecretName := vmro.BuildSecretRefName(targetName, secretName)
 		result[newSecretName] = sshKeyNames
 	}
 
@@ -1076,7 +1146,7 @@ func (vmro *vmrestoreOperator) sanitizeSSHPublicKey(targetName string, credentia
 	}
 
 	originalName := credential.SSHPublicKey.Source.Secret.SecretName
-	credential.SSHPublicKey.Source.Secret.SecretName = vmro.GetSecretRefName(targetName, originalName)
+	credential.SSHPublicKey.Source.Secret.SecretName = vmro.BuildSecretRefName(targetName, originalName)
 }
 
 // sanitizeUserPassword updates user password secret reference
@@ -1086,7 +1156,7 @@ func (vmro *vmrestoreOperator) sanitizeUserPassword(targetName string, credentia
 	}
 
 	originalName := credential.UserPassword.Source.Secret.SecretName
-	credential.UserPassword.Source.Secret.SecretName = vmro.GetSecretRefName(targetName, originalName)
+	credential.UserPassword.Source.Secret.SecretName = vmro.BuildSecretRefName(targetName, originalName)
 }
 
 // sanitizeVolumes updates secret references in volumes
@@ -1104,11 +1174,11 @@ func (vmro *vmrestoreOperator) sanitizeCloudInitSecrets(targetName string, volum
 
 	if volume.CloudInitNoCloud.UserDataSecretRef != nil {
 		originalName := volume.CloudInitNoCloud.UserDataSecretRef.Name
-		volume.CloudInitNoCloud.UserDataSecretRef.Name = vmro.GetSecretRefName(targetName, originalName)
+		volume.CloudInitNoCloud.UserDataSecretRef.Name = vmro.BuildSecretRefName(targetName, originalName)
 	}
 
 	if volume.CloudInitNoCloud.NetworkDataSecretRef != nil {
 		originalName := volume.CloudInitNoCloud.NetworkDataSecretRef.Name
-		volume.CloudInitNoCloud.NetworkDataSecretRef.Name = vmro.GetSecretRefName(targetName, originalName)
+		volume.CloudInitNoCloud.NetworkDataSecretRef.Name = vmro.BuildSecretRefName(targetName, originalName)
 	}
 }

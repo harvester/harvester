@@ -142,17 +142,17 @@ func newBackupOperator(
 	controllers *backupControllerSet,
 	restClient *rest.RESTClient,
 ) common.VMBackupOperator {
-	return common.GetVMBackupOperator(
-		controllers.vmbs,
-		controllers.vmbs.Cache(),
-		controllers.vsClasses.Cache(),
-		controllers.vms.Cache(),
-		controllers.vmis.Cache(),
-		controllers.pvcs.Cache(),
-		controllers.pvs.Cache(),
-		controllers.secrets.Cache(),
-		restClient,
-	)
+	return common.NewVMBackupOperatorBuilder().
+		WithClient(controllers.vmbs).
+		WithCache(controllers.vmbs.Cache()).
+		WithVSClassCache(controllers.vsClasses.Cache()).
+		WithVMCache(controllers.vms.Cache()).
+		WithVMICache(controllers.vmis.Cache()).
+		WithPVCCache(controllers.pvcs.Cache()).
+		WithPVCache(controllers.pvs.Cache()).
+		WithSecretCache(controllers.secrets.Cache()).
+		WithVirtSubresourceRestClient(restClient).
+		Build()
 }
 
 // newBackupEngines creates backup engines for different backup types
@@ -240,7 +240,7 @@ func (h *Handler) OnBackupChange(_ string, vmb *harvesterv1.VirtualMachineBackup
 	if h.vmbo.IsMissingStatus(vmb) {
 		// We cannot get VM outside this block, because we also can sync VMBackup from remote target.
 		// A VMBackup without status is a new VMBackup, so it must have sourceVM.
-		sourceVM, err := h.vmbo.GetSourceVM(vmb)
+		sourceVM, err := h.vmbo.ResolveSourceVM(vmb)
 		if err != nil {
 			return nil, h.vmbo.UpdateError(vmb, err)
 		}
@@ -254,7 +254,7 @@ func (h *Handler) OnBackupChange(_ string, vmb *harvesterv1.VirtualMachineBackup
 
 	// TODO, make sure status is initialized, and "Lock" the source VM by adding a finalizer and setting snapshotInProgress in status
 
-	_, csiVSClassMap, err := h.vmbo.GetCSIDriverMap(vmb)
+	_, csiVSClassMap, err := h.vmbo.BuildCSIDriverMap(vmb)
 	if err != nil {
 		return nil, h.vmbo.UpdateError(vmb, err)
 	}

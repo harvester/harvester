@@ -155,31 +155,30 @@ func newRestoreOperators(
 	controllers *restoreControllerSet,
 	restClient *rest.RESTClient,
 ) (backupcommon.VMBackupOperator, restorecommon.VMRestoreOperator) {
-	vmbo := backupcommon.GetVMBackupOperator(
-		nil, // client not needed for restore operations
-		controllers.vmbs.Cache(),
-		controllers.vsClasses.Cache(),
-		controllers.vms.Cache(),
-		controllers.vmis.Cache(),
-		controllers.pvcs.Cache(),
-		controllers.pvs.Cache(),
-		controllers.secrets.Cache(),
-		nil, // virtSubresourceRestClient not needed
-	)
+	// client and virtSubresourceRestClient are not needed for restore ops.
+	vmbo := backupcommon.NewVMBackupOperatorBuilder().
+		WithCache(controllers.vmbs.Cache()).
+		WithVSClassCache(controllers.vsClasses.Cache()).
+		WithVMCache(controllers.vms.Cache()).
+		WithVMICache(controllers.vmis.Cache()).
+		WithPVCCache(controllers.pvcs.Cache()).
+		WithPVCache(controllers.pvs.Cache()).
+		WithSecretCache(controllers.secrets.Cache()).
+		Build()
 
-	vmro := restorecommon.GetVMRestoreOperator(
-		controllers.vmrs,
-		controllers.vmrs.Cache(),
-		controllers.vms.Cache(),
-		controllers.vmis.Cache(),
-		controllers.pvcs,
-		controllers.pvcs.Cache(),
-		controllers.secrets,
-		controllers.secrets.Cache(),
-		controllers.vmbs.Cache(),
-		vmbo,
-		restClient,
-	)
+	vmro := restorecommon.NewVMRestoreOperatorBuilder().
+		WithClient(controllers.vmrs).
+		WithCache(controllers.vmrs.Cache()).
+		WithVMCache(controllers.vms.Cache()).
+		WithVMICache(controllers.vmis.Cache()).
+		WithPVCClient(controllers.pvcs).
+		WithPVCCache(controllers.pvcs.Cache()).
+		WithSecretClient(controllers.secrets).
+		WithSecretCache(controllers.secrets.Cache()).
+		WithVMBackupCache(controllers.vmbs.Cache()).
+		WithVMBackupOperator(vmbo).
+		WithVirtSubresourceRestClient(restClient).
+		Build()
 
 	return vmbo, vmro
 }
@@ -275,7 +274,7 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, vmr *harvesterv1.VirtualMach
 		return nil, h.vmro.InitVMRestore(vmr)
 	}
 
-	vmb, err := h.vmro.GetVMBackup(vmr)
+	vmb, err := h.vmro.ResolveVMBackup(vmr)
 	if err != nil {
 		return nil, h.vmro.UpdateError(vmr, err)
 	}
@@ -341,7 +340,7 @@ func (h *RestoreHandler) RestoreOnRemove(_ string, vmr *harvesterv1.VirtualMachi
 // non-trivial cleanup (VolumeSnapshotContent is cluster-scoped, uses Retain
 // policy, so it can't be garbage-collected via owner references).
 func (h *RestoreHandler) resolveRestoreEngine(vmr *harvesterv1.VirtualMachineRestore) (engine.RestoreEngine, error) {
-	vmb, err := h.vmro.GetVMBackup(vmr)
+	vmb, err := h.vmro.ResolveVMBackup(vmr)
 	if apierrors.IsNotFound(err) {
 		return h.engines[harvesterv1.Backup], nil
 	}
@@ -514,7 +513,7 @@ func (h *RestoreHandler) reconcileVM(
 	vmr *harvesterv1.VirtualMachineRestore,
 	vmb *harvesterv1.VirtualMachineBackup,
 ) (*kubevirtv1.VirtualMachine, error) {
-	vm, err := h.vmro.GetTargetVM(vmr)
+	vm, err := h.vmro.ResolveTargetVM(vmr)
 	if err != nil {
 		return nil, err
 	}

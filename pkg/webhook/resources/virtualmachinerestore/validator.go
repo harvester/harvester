@@ -53,7 +53,6 @@ func NewValidator(
 	vscCache ctlsnapshotv1.VolumeSnapshotClassCache,
 	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache,
 ) types.Validator {
-	vmbo := common.GetVMBackupOperator(nil, vmBackup, vscCache, vms, nil, nil, nil, nil, nil)
 	return &restoreValidator{
 		vms:                               vms,
 		setting:                           setting,
@@ -64,8 +63,8 @@ func NewValidator(
 		networkAttachmentDefinitionsCache: networkAttachmentDefinitionsCache,
 
 		vmrCalculator: resourcequota.NewCalculator(nss, pods, rqs, vmims, setting),
-		vmbo:          vmbo,
-		vmro:          restorecommon.GetVMRestoreOperator(nil, vmRestore, vms, nil, nil, nil, nil, nil, vmBackup, vmbo, nil),
+		vmbr:          common.NewVMBackupReader(),
+		vmrr:          restorecommon.NewVMRestoreReader(),
 	}
 }
 
@@ -81,8 +80,8 @@ type restoreValidator struct {
 	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache
 
 	vmrCalculator *resourcequota.Calculator
-	vmbo          common.VMBackupOperator
-	vmro          restorecommon.VMRestoreOperator
+	vmbr          common.VMBackupReader
+	vmrr          restorecommon.VMRestoreReader
 }
 
 func (v *restoreValidator) Resource() types.Resource {
@@ -142,8 +141,8 @@ func (v *restoreValidator) Update(_ *types.Request, oldObj, newObj runtime.Objec
 }
 
 func (v *restoreValidator) checkNewVMField(vmr *v1beta1.VirtualMachineRestore, vmb *v1beta1.VirtualMachineBackup) error {
-	targetNamespace := v.vmro.GetNamespace(vmr)
-	targetName := v.vmro.GetTargetName(vmr)
+	targetNamespace := v.vmrr.GetNamespace(vmr)
+	targetName := v.vmrr.GetTargetName(vmr)
 
 	vm, err := v.vms.Get(targetNamespace, targetName)
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -152,7 +151,7 @@ func (v *restoreValidator) checkNewVMField(vmr *v1beta1.VirtualMachineRestore, v
 
 	vmExists := err == nil && vm != nil
 
-	if v.vmro.IsNewVM(vmr) {
+	if v.vmrr.IsNewVM(vmr) {
 		return v.validateNewVMRestore(vmExists, vm, vmr, vmb)
 	}
 
@@ -193,7 +192,7 @@ func (v *restoreValidator) validateVMNotRunning(vm *kubevirtv1.VirtualMachine) e
 }
 
 func (v *restoreValidator) validateNoInProgressRestore(vm *kubevirtv1.VirtualMachine) error {
-	hasInProgress, err := webhookutil.HasActiveRestore(v.vmRestore, v.vmro, vm.Namespace, vm.Name)
+	hasInProgress, err := webhookutil.HasActiveRestore(v.vmRestore, v.vmrr, vm.Namespace, vm.Name)
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("Failed to get the VM-related restores, err: %+v", err))
 	}
@@ -213,11 +212,11 @@ func (v *restoreValidator) validateResourceQuota(vm *kubevirtv1.VirtualMachine) 
 }
 
 func (v *restoreValidator) handleNewVM(vmr *v1beta1.VirtualMachineRestore, vmb *v1beta1.VirtualMachineBackup) error {
-	sourceSpec := v.vmbo.GetSourceSpec(vmb)
+	sourceSpec := v.vmbr.GetSourceSpec(vmb)
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: v.vmro.GetNamespace(vmr),
-			Name:      v.vmro.GetTargetName(vmr),
+			Namespace: v.vmrr.GetNamespace(vmr),
+			Name:      v.vmrr.GetTargetName(vmr),
 		},
 		Spec: sourceSpec.Spec,
 	}
@@ -229,32 +228,32 @@ func (v *restoreValidator) handleNewVM(vmr *v1beta1.VirtualMachineRestore, vmb *
 		return werror.NewInternalError(fmt.Sprintf("Failed to restore the new vm, err: %+v", err))
 	}
 
-	if !v.vmro.IsKeepMacAddress(vmr) {
+	if !v.vmrr.IsKeepMacAddress(vmr) {
 		return nil
 	}
 
 	// we don't have a global macaddress checker,
 	// so we just check the source vm name and vmrestores which using the same vmbackup.
 	// this can be removed after https://github.com/harvester/harvester/issues/4893
-	otherVMRestores, err := v.vmRestore.GetByIndex(indexeres.VMRestoreByVMBackupNamespaceAndName, fmt.Sprintf("%s-%s", v.vmro.GetVMBackupNamespace(vmr), v.vmro.GetVMBackupName(vmr)))
+	otherVMRestores, err := v.vmRestore.GetByIndex(indexeres.VMRestoreByVMBackupNamespaceAndName, fmt.Sprintf("%s-%s", v.vmrr.GetVMBackupNamespace(vmr), v.vmrr.GetVMBackupName(vmr)))
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("failed to get vmrestore by index %s, err: %+v", indexeres.VMRestoreByVMBackupNamespaceAndName, err))
 	}
 	for _, otherVMRestore := range otherVMRestores {
-		if v.vmro.IsNewVM(otherVMRestore) && v.vmro.IsKeepMacAddress(otherVMRestore) {
-			return werror.NewInvalidError(fmt.Sprintf("can't restore the new vm with the same macaddress as the vmrestore %s/%s", v.vmro.GetNamespace(otherVMRestore), v.vmro.GetName(otherVMRestore)), fieldKeepMacAddress)
+		if v.vmrr.IsNewVM(otherVMRestore) && v.vmrr.IsKeepMacAddress(otherVMRestore) {
+			return werror.NewInvalidError(fmt.Sprintf("can't restore the new vm with the same macaddress as the vmrestore %s/%s", v.vmrr.GetNamespace(otherVMRestore), v.vmrr.GetName(otherVMRestore)), fieldKeepMacAddress)
 		}
 	}
 
-	sourceVM, err := v.vms.Get(v.vmbo.GetNamespace(vmb), v.vmbo.GetSourceName(vmb))
+	sourceVM, err := v.vms.Get(v.vmbr.GetNamespace(vmb), v.vmbr.GetSourceName(vmb))
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
 	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("failed to get the VM %s/%s, err: %+v", v.vmbo.GetNamespace(vmb), v.vmbo.GetSourceName(vmb), err))
+		return werror.NewInternalError(fmt.Sprintf("failed to get the VM %s/%s, err: %+v", v.vmbr.GetNamespace(vmb), v.vmbr.GetSourceName(vmb), err))
 	}
 
-	status := v.vmbo.GetStatus(vmb)
+	status := v.vmbr.GetStatus(vmb)
 	if sourceVM != nil && status != nil && status.SourceUID != nil && sourceVM.UID == *status.SourceUID {
 		return werror.NewInvalidError("can't restore the new vm with the same macaddress because the source vm is still existent", fieldKeepMacAddress)
 	}
@@ -263,23 +262,32 @@ func (v *restoreValidator) handleNewVM(vmr *v1beta1.VirtualMachineRestore, vmb *
 }
 
 func (v *restoreValidator) getVMBackup(vmr *v1beta1.VirtualMachineRestore) (*v1beta1.VirtualMachineBackup, error) {
-	vmb, err := v.vmro.GetVMBackup(vmr)
+	// Inlined from VMRestoreOperator.ResolveVMBackup so this validator can
+	// hold a zero-dep VMRestoreReader instead of the full operator. All
+	// VMR/VMB field access goes through the readers — no direct vmr.Spec.
+	vmbNamespace := v.vmrr.GetVMBackupNamespace(vmr)
+	vmbName := v.vmrr.GetVMBackupName(vmr)
+	vmb, err := v.vmBackup.Get(vmbNamespace, vmbName)
 	if err != nil {
-		return nil, fmt.Errorf("can't get vmbackup %s/%s, err: %w", vmr.Spec.VirtualMachineBackupNamespace, vmr.Spec.VirtualMachineBackupName, err)
+		return nil, fmt.Errorf("can't get vmbackup %s/%s, err: %w", vmbNamespace, vmbName, err)
 	}
-
-	if v.vmbo.GetDeletionTimestap(vmb) != nil {
-		return nil, fmt.Errorf("vmbackup %s/%s is deleted", v.vmbo.GetNamespace(vmb), v.vmbo.GetName(vmb))
+	if !v.vmbr.IsReady(vmb) {
+		return nil, fmt.Errorf("VMBackup %s/%s is not ready", v.vmbr.GetNamespace(vmb), v.vmbr.GetName(vmb))
 	}
-
+	if v.vmbr.GetSourceKind(vmb) != kubevirtv1.VirtualMachineGroupVersionKind.Kind {
+		return nil, fmt.Errorf("unsupported backup source kind: %s", v.vmbr.GetSourceKind(vmb))
+	}
+	if v.vmbr.GetDeletionTimestap(vmb) != nil {
+		return nil, fmt.Errorf("vmbackup %s/%s is deleted", v.vmbr.GetNamespace(vmb), v.vmbr.GetName(vmb))
+	}
 	return vmb, nil
 }
 
 func (v *restoreValidator) checkSnapshot(vmr *v1beta1.VirtualMachineRestore, vmb *v1beta1.VirtualMachineBackup) error {
-	if v.vmro.GetNamespace(vmr) != v.vmbo.GetNamespace(vmb) {
+	if v.vmrr.GetNamespace(vmr) != v.vmbr.GetNamespace(vmb) {
 		return fmt.Errorf("restore to other namespace with backup type snapshot is not supported")
 	}
-	if !v.vmro.IsNewVM(vmr) && !v.vmro.IsRetainPolicy(vmr) {
+	if !v.vmrr.IsNewVM(vmr) && !v.vmrr.IsRetainPolicy(vmr) {
 		// We don't allow users to use "delete" policy for replacing a VM when the backup type is snapshot.
 		// This will also remove the VMBackup when VMRestore is finished.
 		return fmt.Errorf("delete policy with backup type snapshot for replacing VM is not supported")
@@ -288,7 +296,7 @@ func (v *restoreValidator) checkSnapshot(vmr *v1beta1.VirtualMachineRestore, vmb
 }
 
 func (v *restoreValidator) checkNetwork(vmBackup *v1beta1.VirtualMachineBackup) error {
-	sourceSpec := v.vmbo.GetSourceSpec(vmBackup)
+	sourceSpec := v.vmbr.GetSourceSpec(vmBackup)
 	for _, network := range sourceSpec.Spec.Template.Spec.Networks {
 		if network.Multus != nil {
 			namespace, name := ref.Parse(network.Multus.NetworkName)
@@ -303,14 +311,14 @@ func (v *restoreValidator) checkNetwork(vmBackup *v1beta1.VirtualMachineBackup) 
 
 func (v *restoreValidator) checkVMBackupType(vmr *v1beta1.VirtualMachineRestore, vmb *v1beta1.VirtualMachineBackup) error {
 	var err error
-	backupType := v.vmbo.GetType(vmb)
+	backupType := v.vmbr.GetType(vmb)
 	switch backupType {
 	case v1beta1.Backup:
 		err = v.checkBackup(vmr, vmb)
 		if err == nil {
 			// Because of the misleading items https://github.com/harvester/harvester/issues/7755#issue-2896409886,
 			// User may have VMBackups with non-LH source volume. We should prevent this VMBackup from restoring
-			err = webhookutil.IsLHBackupRelated(vmb, v.vmbo)
+			err = webhookutil.IsLHBackupRelated(vmb, v.vmbr)
 		}
 	case v1beta1.Snapshot:
 		err = v.checkSnapshot(vmr, vmb)
@@ -326,14 +334,14 @@ func (v *restoreValidator) checkBackup(vmr *v1beta1.VirtualMachineRestore, vmb *
 		return err
 	}
 
-	if v.vmro.IsNewVMOrHasRetainPolicy(vmr) {
+	if v.vmrr.IsNewVMOrHasRetainPolicy(vmr) {
 		return nil
 	}
 
 	// if deletion policy is delete, check whether there is snapshot using same pvc
-	vbs := v.vmbo.GetVolBackups(vmb)
+	vbs := v.vmbr.GetVolBackups(vmb)
 	for _, vb := range vbs {
-		pvcNamespaceAndName := fmt.Sprintf("%s/%s", v.vmbo.GetVolBackupPVCNameSpace(&vb), v.vmbo.GetVolBackupPVCName(&vb))
+		pvcNamespaceAndName := fmt.Sprintf("%s/%s", v.vmbr.GetVolBackupPVCNameSpace(&vb), v.vmbr.GetVolBackupPVCName(&vb))
 		vss, err := v.vmBackup.GetByIndex(indexeres.VMBackupSnapshotByPVCNamespaceAndName, pvcNamespaceAndName)
 		if err != nil {
 			return err
@@ -341,7 +349,7 @@ func (v *restoreValidator) checkBackup(vmr *v1beta1.VirtualMachineRestore, vmb *
 
 		var vsNames []string
 		for _, vs := range vss {
-			vsNames = append(vsNames, v.vmbo.GetName(vs))
+			vsNames = append(vsNames, v.vmbr.GetName(vs))
 		}
 
 		if len(vsNames) != 0 {
@@ -365,15 +373,15 @@ func (v *restoreValidator) checkBackupTarget(vmb *v1beta1.VirtualMachineBackup) 
 		return fmt.Errorf("backup target is not set")
 	}
 
-	if !backuputil.IsBackupTargetSame(v.vmbo.GetBackupTarget(vmb), backupTarget) {
-		return fmt.Errorf("backup target %+v is not matched in vmBackup %s/%s", backupTarget, v.vmbo.GetNamespace(vmb), v.vmbo.GetName(vmb))
+	if !backuputil.IsBackupTargetSame(v.vmbr.GetBackupTarget(vmb), backupTarget) {
+		return fmt.Errorf("backup target %+v is not matched in vmBackup %s/%s", backupTarget, v.vmbr.GetNamespace(vmb), v.vmbr.GetName(vmb))
 	}
 
 	return nil
 }
 
 func (v *restoreValidator) checkVolumeSnapshotClass(vmBackup *v1beta1.VirtualMachineBackup) error {
-	for csiDriverName, vscName := range v.vmbo.GetCSIDriverVSCNames(vmBackup) {
+	for csiDriverName, vscName := range v.vmbr.GetCSIDriverVSCNames(vmBackup) {
 		if _, err := v.vscCache.Get(vscName); err != nil {
 			return fmt.Errorf("can't get volumeSnapshotClass %s for driver %s", vscName, csiDriverName)
 		}

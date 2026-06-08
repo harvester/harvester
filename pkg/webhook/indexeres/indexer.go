@@ -93,10 +93,12 @@ func vmBackupSnapshotByPVCNamespaceAndName(obj *harvesterv1.VirtualMachineBackup
 	return result, nil
 }
 
+// vmBackupReader is a package-level singleton — the reader has no state or
+// K8s dependencies so a single instance is fine for all indexer invocations.
+var vmBackupReader = backupcommon.NewVMBackupReader()
+
 func vmBackupByIsProgressing(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
-	vmbo := backupcommon.GetVMBackupOperator(nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	isProgressingStr := strconv.FormatBool(vmbo.IsProcessing(obj))
-	return []string{string(isProgressingStr)}, nil
+	return []string{strconv.FormatBool(vmBackupReader.IsProcessing(obj))}, nil
 }
 
 func vmBackupByStorageClassName(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {

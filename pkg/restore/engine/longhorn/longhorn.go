@@ -314,6 +314,8 @@ func (lre *LonghornRestoreEngine) updateVolumeBackup(vmb *harvesterv1.VirtualMac
 		return common.ErrVolumeBackupNameNil
 	}
 
+	newName := *volBackupName + snapRevise
+
 	volBackups := lre.vmbo.GetVolBackups(vmb)
 	for i := range volBackups {
 		// Use vmbo to get the volume name for comparison
@@ -327,8 +329,6 @@ func (lre *LonghornRestoreEngine) updateVolumeBackup(vmb *harvesterv1.VirtualMac
 			continue
 		}
 
-		// Found the matching volume backup, update its name using the interface
-		newName := *volBackupName + snapRevise
 		if err := lre.vmbo.SetVolBackupName(currentVb, newName); err != nil {
 			return err
 		}
@@ -350,7 +350,6 @@ func (lre *LonghornRestoreEngine) createVolumeSnapshotForRestore(
 	vb *harvesterv1.VolumeBackup,
 ) (string, error) {
 	vsName := lre.constructVolumeSnapshotName(vmr, vb)
-	vscName := lre.constructVolumeSnapshotContentName(vmr, vb)
 
 	// Check if VolumeSnapshot already exists
 	vs, err := lre.vsCache.Get(lre.vmro.GetNamespace(vmr), vsName)
@@ -362,6 +361,8 @@ func (lre *LonghornRestoreEngine) createVolumeSnapshotForRestore(
 	}
 
 	// Create VolumeSnapshotContent first
+	vscName := lre.constructVolumeSnapshotContentName(vmr, vb)
+
 	vsc, err := lre.createVolumeSnapshotContent(vmr, vb, vscName, vsName)
 	if err != nil {
 		return "", err

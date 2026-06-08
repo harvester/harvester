@@ -44,7 +44,6 @@ func NewValidator(
 	kubevirtCache ctlkubevirtv1.KubeVirtCache,
 	scCache ctlstoragev1.StorageClassCache,
 	settingCache ctlharvesterv1.SettingCache,
-	vmbo backupcommon.VMBackupOperator,
 ) types.Validator {
 	return &vmValidator{
 		pvcCache:      pvcCache,
@@ -55,9 +54,8 @@ func NewValidator(
 		kubevirtCache: kubevirtCache,
 		scCache:       scCache,
 		settingCache:  settingCache,
-		vmbo:          vmbo,
-
-		rqCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
+		vmbr:          backupcommon.NewVMBackupReader(),
+		rqCalculator:  resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
 	}
 }
 
@@ -71,7 +69,7 @@ type vmValidator struct {
 	kubevirtCache ctlkubevirtv1.KubeVirtCache
 	scCache       ctlstoragev1.StorageClassCache
 	settingCache  ctlharvesterv1.SettingCache
-	vmbo          backupcommon.VMBackupOperator
+	vmbr          backupcommon.VMBackupReader
 	rqCalculator  *resourcequota.Calculator
 }
 
@@ -590,7 +588,7 @@ func (v *vmValidator) checkOccupiedPVCs(vm *kubevirtv1.VirtualMachine) error {
 }
 
 func (v *vmValidator) checkVMBackup(vm *kubevirtv1.VirtualMachine) error {
-	exist, err := webhookutil.HasActiveBackup(v.vmBackupCache, v.vmbo, string(vm.UID))
+	exist, err := webhookutil.HasActiveBackup(v.vmBackupCache, v.vmbr, string(vm.UID))
 	if err != nil {
 		return werror.NewInternalError(err.Error())
 	}
