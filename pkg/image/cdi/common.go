@@ -128,13 +128,14 @@ func generateDVTargetStorage(vmi *harvesterv1.VirtualMachineImage) (*cdiv1.Stora
 	return targetDVStorage, nil
 }
 
-func fetchImageSize(url string) (int64, error) {
+func fetchImageSize(url, additionalCA string) (int64, error) {
 	req, err := http.NewRequest(http.MethodHead, url, nil)
 	if err != nil {
 		return 0, err
 	}
 
-	rsp, err := http.DefaultClient.Do(req)
+	client := util.BuildHTTPClientWithCA(additionalCA)
+	rsp, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -163,14 +164,15 @@ func getContentLength(rsp *http.Response) (string, error) {
 	return "", ErrHeaderContentLengthNotFound
 }
 
-func fetchImageVirtualSize(url string) (int64, error) {
+func fetchImageVirtualSize(url, additionalCA string) (int64, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return 0, err
 	}
 	req.Header.Set("Range", "bytes=0-127")
 
-	rsp, err := http.DefaultClient.Do(req)
+	client := util.BuildHTTPClientWithCA(additionalCA)
+	rsp, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}

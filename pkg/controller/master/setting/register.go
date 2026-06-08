@@ -35,6 +35,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	rkeControlPlane := management.RKEFactory.Rke().V1().RKEControlPlane()
 	rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 	kubevirt := management.VirtFactory.Kubevirt().V1().KubeVirt()
+	cdi := management.CdiFactory.Cdi().V1beta1().CDI()
 	namespaces := management.CoreFactory.Core().V1().Namespace()
 	controller := &Handler{
 		namespace:            options.Namespace,
@@ -71,6 +72,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		rancherSettingsCache: rancherSettings.Cache(),
 		kubeVirtConfig:       kubevirt,
 		kubeVirtConfigCache:  kubevirt.Cache(),
+		cdiClient:            cdi,
+		cdiCache:             cdi.Cache(),
 		namespaces:           namespaces,
 		namespacesCache:      namespaces.Cache(),
 

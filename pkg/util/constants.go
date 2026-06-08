@@ -144,9 +144,10 @@ const (
 	AddonValuesAnnotation                    = "harvesterhci.io/addon-defaults"
 
 	// CDI constants
-	CSIProvisionerLVM      = "lvm.driver.harvesterhci.io"
-	CSIProvisionerLonghorn = "driver.longhorn.io"
-	LVMTopologyNodeKey     = "topology.lvm.csi/node"
+	CDIAdditionalCAConfigMapName = "harvester-additional-ca-cdi"
+	CSIProvisionerLVM            = "lvm.driver.harvesterhci.io"
+	CSIProvisionerLonghorn       = "driver.longhorn.io"
+	LVMTopologyNodeKey           = "topology.lvm.csi/node"
 
 	// CSI constants
 	CSIProvisionerSecretNameKey      = "csi.storage.k8s.io/provisioner-secret-name"
