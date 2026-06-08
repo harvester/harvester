@@ -49,7 +49,6 @@ var ErrVolumeBackupNameNil = errors.New(errVolumeBackupNameNil)
 // Method Naming Conventions:
 // - Get*: Retrieve data from backup objects (read-only, in-memory)
 // - Set*: Modify in-memory objects without persisting to etcd
-// - Is*: Check status/conditions (read-only, in-memory)
 // - Update*: Persist changes to etcd
 // - Configure*: Initialize or update configuration with persistence
 // - Init*: Initialize backup components with persistence
@@ -58,28 +57,9 @@ var ErrVolumeBackupNameNil = errors.New(errVolumeBackupNameNil)
 //  1. Use Get* methods to inspect current state
 //  2. Use Update* methods to persist changes to etcd
 type VMBackupOperator interface {
-	// VolumeBackup accessors
-	GetVolBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.VolumeBackup
-	GetVolBackup(vmb *harvesterv1.VirtualMachineBackup, index int) *harvesterv1.VolumeBackup
-	GetSanitizeVolBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.VolumeBackup
-	GetVolBackupName(vb *harvesterv1.VolumeBackup) *string
-	GetVolBackupPVCNameSpace(vb *harvesterv1.VolumeBackup) string
-	GetVolBackupPVCName(vb *harvesterv1.VolumeBackup) string
-	GetVolBackupPVCAnnotations(vb *harvesterv1.VolumeBackup) map[string]string
-	GetVolBackupPVCLabels(vb *harvesterv1.VolumeBackup) map[string]string
-	// GetVolBackupVolumeName returns vb.VolumeName — the disk name (e.g. "disk-0").
-	GetVolBackupVolumeName(vb *harvesterv1.VolumeBackup) string
-	// GetVolBackupPVName returns vb.PersistentVolumeClaim.Spec.VolumeName — the PV name
-	// (e.g. "pvc-a9579d88-..."), which is also the Longhorn volume name.
-	GetVolBackupPVName(vb *harvesterv1.VolumeBackup) string
-	GetVolBackupCSIDriver(vb *harvesterv1.VolumeBackup) string
-	GetVolBackupReadyToUse(vb *harvesterv1.VolumeBackup) bool
-	GetVolBackupSize(vb *harvesterv1.VolumeBackup) int64
-	GetVolBackupProgress(vb *harvesterv1.VolumeBackup) int
-	GetVolBackupLHBackupName(vb *harvesterv1.VolumeBackup) *string
-	GetVolBackupSCName(vb *harvesterv1.VolumeBackup) *string
-	GetVolBackupError(vb *harvesterv1.VolumeBackup) *harvesterv1.Error
-	GetVolBackupPVCSpec(vb *harvesterv1.VolumeBackup) corev1.PersistentVolumeClaimSpec
+	// Pure in-memory predicates + accessors. Callers that only need these
+	// should depend on VMBackupReader directly instead of the full operator.
+	VMBackupReader
 
 	// VolumeBackup mutators
 	SetVolBackupName(vb *harvesterv1.VolumeBackup, name string) error
@@ -89,34 +69,10 @@ type VMBackupOperator interface {
 	SetVolBackupProgress(vb *harvesterv1.VolumeBackup, p int) error
 	SetVolBackupLHBackupName(vb *harvesterv1.VolumeBackup, name string) error
 
-	// VMBackup accessors
-	IsReady(vmb *harvesterv1.VirtualMachineBackup) bool
-	IsMissingStatus(vmb *harvesterv1.VirtualMachineBackup) bool
-	IsProcessing(vmb *harvesterv1.VirtualMachineBackup) bool
-	IsErrMsgSynced(vmb *harvesterv1.VirtualMachineBackup, errMsg string) bool
-	IsTargetConsistent(vmb *harvesterv1.VirtualMachineBackup, target *settings.BackupTarget) bool
-	IsTransitToNonReady(vmb *harvesterv1.VirtualMachineBackup) bool
-
-	GetName(vmb *harvesterv1.VirtualMachineBackup) string
-	GetNamespace(vmb *harvesterv1.VirtualMachineBackup) string
-	GetKind(vmb *harvesterv1.VirtualMachineBackup) string
-	GetUID(vmb *harvesterv1.VirtualMachineBackup) types.UID
-	GetDeletionTimestap(vmb *harvesterv1.VirtualMachineBackup) *metav1.Time
-	GetSpec(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.VirtualMachineBackupSpec
-	// GetSourceSpec returns a deep copy of the source spec. Callers may mutate
-	// the returned value freely without corrupting the cached VMBackup.
-	GetSourceSpec(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineSourceSpec
-	GetStatus(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineBackupStatus
-	GetSecretBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.SecretBackup
-	GetSourceVM(vmb *harvesterv1.VirtualMachineBackup) (*kubevirtv1.VirtualMachine, error)
-	GetError(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.Error
-	GetSourceKind(vmb *harvesterv1.VirtualMachineBackup) string
-	GetSourceName(vmb *harvesterv1.VirtualMachineBackup) string
-	GetAnnotations(vmb *harvesterv1.VirtualMachineBackup) map[string]string
-	GetCSIDriverMap(vmb *harvesterv1.VirtualMachineBackup) (map[string]string, map[string]snapshotv1.VolumeSnapshotClass, error)
-	GetCSIDriverVSCNames(vmb *harvesterv1.VirtualMachineBackup) map[string]string
-	GetType(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.BackupType
-	GetBackupTarget(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.BackupTarget
+	// VMBackup operations that need K8s deps and so can't live on the
+	// dep-free VMBackupReader.
+	ResolveSourceVM(vmb *harvesterv1.VirtualMachineBackup) (*kubevirtv1.VirtualMachine, error)
+	BuildCSIDriverMap(vmb *harvesterv1.VirtualMachineBackup) (map[string]string, map[string]snapshotv1.VolumeSnapshotClass, error)
 
 	// VMBackup mutators
 	SetCreationTime(vmb *harvesterv1.VirtualMachineBackup, t *metav1.Time) error
@@ -150,7 +106,312 @@ type VMBackupOperator interface {
 	TryFreezeFS(ctx context.Context, vmb *harvesterv1.VirtualMachineBackup) error
 }
 
+// VMBackupReader exposes pure in-memory operations on a VirtualMachineBackup /
+// VolumeBackup — no K8s caches, clients, or REST access required. Combines
+// boolean status predicates (Is*) and data accessors (Get*) into a single
+// narrow interface. Callers that only need pure reads (e.g. webhook indexers,
+// validators that just classify state) should depend on this instead of the
+// full VMBackupOperator, which otherwise forces them to pass nil for every
+// unused dependency.
+type VMBackupReader interface {
+	IsReady(vmb *harvesterv1.VirtualMachineBackup) bool
+	IsMissingStatus(vmb *harvesterv1.VirtualMachineBackup) bool
+	IsProcessing(vmb *harvesterv1.VirtualMachineBackup) bool
+	IsErrMsgSynced(vmb *harvesterv1.VirtualMachineBackup, errMsg string) bool
+	IsTargetConsistent(vmb *harvesterv1.VirtualMachineBackup, target *settings.BackupTarget) bool
+	IsTransitToNonReady(vmb *harvesterv1.VirtualMachineBackup) bool
+
+	// VolumeBackup accessors
+	GetVolBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.VolumeBackup
+	GetVolBackup(vmb *harvesterv1.VirtualMachineBackup, index int) *harvesterv1.VolumeBackup
+	GetSanitizeVolBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.VolumeBackup
+	GetVolBackupName(vb *harvesterv1.VolumeBackup) *string
+	GetVolBackupPVCNameSpace(vb *harvesterv1.VolumeBackup) string
+	GetVolBackupPVCName(vb *harvesterv1.VolumeBackup) string
+	GetVolBackupPVCAnnotations(vb *harvesterv1.VolumeBackup) map[string]string
+	GetVolBackupPVCLabels(vb *harvesterv1.VolumeBackup) map[string]string
+	GetVolBackupVolumeName(vb *harvesterv1.VolumeBackup) string
+	GetVolBackupPVName(vb *harvesterv1.VolumeBackup) string
+	GetVolBackupCSIDriver(vb *harvesterv1.VolumeBackup) string
+	GetVolBackupReadyToUse(vb *harvesterv1.VolumeBackup) bool
+	GetVolBackupSize(vb *harvesterv1.VolumeBackup) int64
+	GetVolBackupProgress(vb *harvesterv1.VolumeBackup) int
+	GetVolBackupLHBackupName(vb *harvesterv1.VolumeBackup) *string
+	GetVolBackupSCName(vb *harvesterv1.VolumeBackup) *string
+	GetVolBackupError(vb *harvesterv1.VolumeBackup) *harvesterv1.Error
+	GetVolBackupPVCSpec(vb *harvesterv1.VolumeBackup) corev1.PersistentVolumeClaimSpec
+
+	// VMBackup accessors
+	GetName(vmb *harvesterv1.VirtualMachineBackup) string
+	GetNamespace(vmb *harvesterv1.VirtualMachineBackup) string
+	GetKind(vmb *harvesterv1.VirtualMachineBackup) string
+	GetUID(vmb *harvesterv1.VirtualMachineBackup) types.UID
+	GetDeletionTimestap(vmb *harvesterv1.VirtualMachineBackup) *metav1.Time
+	GetSpec(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.VirtualMachineBackupSpec
+	GetSourceSpec(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineSourceSpec
+	GetStatus(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineBackupStatus
+	GetSecretBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.SecretBackup
+	GetError(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.Error
+	GetSourceKind(vmb *harvesterv1.VirtualMachineBackup) string
+	GetSourceName(vmb *harvesterv1.VirtualMachineBackup) string
+	GetAnnotations(vmb *harvesterv1.VirtualMachineBackup) map[string]string
+	GetCSIDriverVSCNames(vmb *harvesterv1.VirtualMachineBackup) map[string]string
+	GetType(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.BackupType
+	GetBackupTarget(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.BackupTarget
+}
+
+type vmbackupReader struct{}
+
+// NewVMBackupReader returns a zero-dep reader.
+func NewVMBackupReader() VMBackupReader {
+	return &vmbackupReader{}
+}
+
+func (c *vmbackupReader) IsReady(vmb *harvesterv1.VirtualMachineBackup) bool {
+	return vmb.Status.ReadyToUse != nil && *vmb.Status.ReadyToUse
+}
+
+func (c *vmbackupReader) IsMissingStatus(vmb *harvesterv1.VirtualMachineBackup) bool {
+	return vmb.Status.SourceSpec == nil || vmb.Status.VolumeBackups == nil
+}
+
+func (c *vmbackupReader) IsProcessing(vmb *harvesterv1.VirtualMachineBackup) bool {
+	return vmb.Status.Error == nil &&
+		(vmb.Status.ReadyToUse == nil || !*vmb.Status.ReadyToUse)
+}
+
+func (c *vmbackupReader) IsErrMsgSynced(vmb *harvesterv1.VirtualMachineBackup, errMsg string) bool {
+	return vmb.Status.Error != nil && vmb.Status.Error.Message != nil && *vmb.Status.Error.Message == errMsg
+}
+
+func (c *vmbackupReader) IsTargetConsistent(vmb *harvesterv1.VirtualMachineBackup, target *settings.BackupTarget) bool {
+	bt := vmb.Status.BackupTarget
+
+	if bt == nil && target == nil {
+		return true
+	}
+	if bt == nil || target == nil {
+		return false
+	}
+	return bt.Endpoint == target.Endpoint && bt.BucketName == target.BucketName && bt.BucketRegion == target.BucketRegion
+}
+
+func (c *vmbackupReader) IsTransitToNonReady(vmb *harvesterv1.VirtualMachineBackup) bool {
+	for _, condition := range vmb.Status.Conditions {
+		if condition.Type != harvesterv1.BackupConditionReady {
+			continue
+		}
+		if condition.Message != changeToNonReadyMessage {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func (a *vmbackupReader) GetVolBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.VolumeBackup {
+	return vmb.Status.VolumeBackups
+}
+
+func (a *vmbackupReader) GetVolBackup(vmb *harvesterv1.VirtualMachineBackup, index int) *harvesterv1.VolumeBackup {
+	if index < 0 || index >= len(vmb.Status.VolumeBackups) {
+		return nil
+	}
+	return &vmb.Status.VolumeBackups[index]
+}
+
+func (a *vmbackupReader) GetSanitizeVolBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.VolumeBackup {
+	sanitizeVolBackups := vmb.Status.VolumeBackups
+	for i := range sanitizeVolBackups {
+		sanitizeVolBackups[i].ReadyToUse = nil
+		sanitizeVolBackups[i].CreationTime = nil
+		sanitizeVolBackups[i].Error = nil
+	}
+	return sanitizeVolBackups
+}
+
+func (a *vmbackupReader) GetVolBackupName(vb *harvesterv1.VolumeBackup) *string {
+	if vb == nil {
+		return nil
+	}
+	return vb.Name
+}
+
+func (a *vmbackupReader) GetVolBackupPVCNameSpace(vb *harvesterv1.VolumeBackup) string {
+	if vb == nil {
+		return ""
+	}
+	return vb.PersistentVolumeClaim.ObjectMeta.Namespace
+}
+
+func (a *vmbackupReader) GetVolBackupPVCName(vb *harvesterv1.VolumeBackup) string {
+	if vb == nil {
+		return ""
+	}
+	return vb.PersistentVolumeClaim.ObjectMeta.Name
+}
+
+func (a *vmbackupReader) GetVolBackupPVCAnnotations(vb *harvesterv1.VolumeBackup) map[string]string {
+	if vb == nil {
+		return nil
+	}
+	return vb.PersistentVolumeClaim.ObjectMeta.Annotations
+}
+
+func (a *vmbackupReader) GetVolBackupPVCLabels(vb *harvesterv1.VolumeBackup) map[string]string {
+	if vb == nil {
+		return nil
+	}
+	return vb.PersistentVolumeClaim.ObjectMeta.Labels
+}
+
+func (a *vmbackupReader) GetVolBackupVolumeName(vb *harvesterv1.VolumeBackup) string {
+	if vb == nil {
+		return ""
+	}
+	return vb.VolumeName
+}
+
+func (a *vmbackupReader) GetVolBackupPVName(vb *harvesterv1.VolumeBackup) string {
+	if vb == nil {
+		return ""
+	}
+	return vb.PersistentVolumeClaim.Spec.VolumeName
+}
+
+func (a *vmbackupReader) GetVolBackupCSIDriver(vb *harvesterv1.VolumeBackup) string {
+	if vb == nil {
+		return ""
+	}
+	return vb.CSIDriverName
+}
+
+func (a *vmbackupReader) GetVolBackupReadyToUse(vb *harvesterv1.VolumeBackup) bool {
+	if vb == nil || vb.ReadyToUse == nil || !*vb.ReadyToUse {
+		return false
+	}
+	return true
+}
+
+func (a *vmbackupReader) GetVolBackupSize(vb *harvesterv1.VolumeBackup) int64 {
+	if vb == nil {
+		return 0
+	}
+	return vb.VolumeSize
+}
+
+func (a *vmbackupReader) GetVolBackupProgress(vb *harvesterv1.VolumeBackup) int {
+	if vb == nil {
+		return 0
+	}
+	return vb.Progress
+}
+
+func (a *vmbackupReader) GetVolBackupLHBackupName(vb *harvesterv1.VolumeBackup) *string {
+	if vb == nil {
+		return nil
+	}
+	return vb.LonghornBackupName
+}
+
+func (a *vmbackupReader) GetVolBackupSCName(vb *harvesterv1.VolumeBackup) *string {
+	if vb == nil {
+		return nil
+	}
+	return vb.PersistentVolumeClaim.Spec.StorageClassName
+}
+
+func (a *vmbackupReader) GetVolBackupError(vb *harvesterv1.VolumeBackup) *harvesterv1.Error {
+	if vb == nil {
+		return nil
+	}
+	return vb.Error
+}
+
+func (a *vmbackupReader) GetVolBackupPVCSpec(vb *harvesterv1.VolumeBackup) corev1.PersistentVolumeClaimSpec {
+	if vb == nil {
+		return corev1.PersistentVolumeClaimSpec{}
+	}
+	return vb.PersistentVolumeClaim.Spec
+}
+
+func (a *vmbackupReader) GetName(vmb *harvesterv1.VirtualMachineBackup) string {
+	return vmb.Name
+}
+
+func (a *vmbackupReader) GetNamespace(vmb *harvesterv1.VirtualMachineBackup) string {
+	return vmb.Namespace
+}
+
+func (a *vmbackupReader) GetKind(vmb *harvesterv1.VirtualMachineBackup) string {
+	return vmb.Kind
+}
+
+func (a *vmbackupReader) GetUID(vmb *harvesterv1.VirtualMachineBackup) types.UID {
+	return vmb.UID
+}
+
+func (a *vmbackupReader) GetDeletionTimestap(vmb *harvesterv1.VirtualMachineBackup) *metav1.Time {
+	return vmb.DeletionTimestamp
+}
+
+func (a *vmbackupReader) GetSpec(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.VirtualMachineBackupSpec {
+	return vmb.Spec
+}
+
+func (a *vmbackupReader) GetSourceSpec(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineSourceSpec {
+	// Return a deep copy so callers can mutate freely without corrupting the
+	// cached VMBackup. The source spec contains pointer-typed fields (Template,
+	// Volumes[i].CloudInitNoCloud, …) that would otherwise alias the cache.
+	return vmb.Status.SourceSpec.DeepCopy()
+}
+
+func (a *vmbackupReader) GetStatus(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineBackupStatus {
+	return &vmb.Status
+}
+
+func (a *vmbackupReader) GetSecretBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.SecretBackup {
+	return vmb.Status.SecretBackups
+}
+
+func (a *vmbackupReader) GetError(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.Error {
+	return vmb.Status.Error
+}
+
+func (a *vmbackupReader) GetSourceKind(vmb *harvesterv1.VirtualMachineBackup) string {
+	return vmb.Spec.Source.Kind
+}
+
+func (a *vmbackupReader) GetSourceName(vmb *harvesterv1.VirtualMachineBackup) string {
+	return vmb.Spec.Source.Name
+}
+
+func (a *vmbackupReader) GetAnnotations(vmb *harvesterv1.VirtualMachineBackup) map[string]string {
+	return vmb.Annotations
+}
+
+// GetCSIDriverVSCNames returns the CSI-driver-to-VolumeSnapshotClass map that
+// was persisted on the VMBackup status when the backup was taken. Use this
+// instead of the operator's BuildCSIDriverMap when you only need the names that
+// were actually used and want to avoid re-reading the csi-driver-config
+// setting (which requires a settings provider, not wired up in every process).
+func (a *vmbackupReader) GetCSIDriverVSCNames(vmb *harvesterv1.VirtualMachineBackup) map[string]string {
+	return vmb.Status.CSIDriverVolumeSnapshotClassNames
+}
+
+func (a *vmbackupReader) GetType(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.BackupType {
+	return vmb.Spec.Type
+}
+
+func (a *vmbackupReader) GetBackupTarget(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.BackupTarget {
+	return vmb.Status.BackupTarget
+}
+
 type vmbackupOperator struct {
+	// Embedded so existing callers (which depend on the full VMBackupOperator
+	// interface) get the Is*/Get* methods for free — no behaviour change.
+	VMBackupReader
+
 	client       ctlharvesterv1.VirtualMachineBackupClient
 	cache        ctlharvesterv1.VirtualMachineBackupCache
 	vsClassCache ctlsnapshotv1.VolumeSnapshotClassCache
@@ -163,156 +424,78 @@ type vmbackupOperator struct {
 	virtSubresourceRestClient rest.Interface
 }
 
-func GetVMBackupOperator(
-	client ctlharvesterv1.VirtualMachineBackupClient,
-	cache ctlharvesterv1.VirtualMachineBackupCache,
-	vsClassCache ctlsnapshotv1.VolumeSnapshotClassCache,
-	vmCache ctlkubevirtv1.VirtualMachineCache,
-	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
-	pvcCache ctlcorev1.PersistentVolumeClaimCache,
-	pvCache ctlcorev1.PersistentVolumeCache,
-	secretCache ctlcorev1.SecretCache,
-	virtSubresourceRestClient rest.Interface,
-) VMBackupOperator {
-	return &vmbackupOperator{
-		client,
-		cache,
-		vsClassCache,
-		vmCache,
-		vmiCache,
-		pvcCache,
-		pvCache,
-		secretCache,
-		virtSubresourceRestClient,
+// VMBackupOperatorBuilder lets callers wire only the dependencies they need
+// instead of passing nil for the rest. The Build() result is the same
+// VMBackupOperator interface — methods that touch unset deps will of course
+// panic when called, but callers that scope their usage are now explicit
+// about what they actually depend on.
+type VMBackupOperatorBuilder struct {
+	op *vmbackupOperator
+}
+
+func NewVMBackupOperatorBuilder() *VMBackupOperatorBuilder {
+	return &VMBackupOperatorBuilder{
+		op: &vmbackupOperator{VMBackupReader: NewVMBackupReader()},
 	}
 }
 
-func (vmbo *vmbackupOperator) GetVolBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.VolumeBackup {
-	return vmb.Status.VolumeBackups
+func (b *VMBackupOperatorBuilder) WithClient(c ctlharvesterv1.VirtualMachineBackupClient) *VMBackupOperatorBuilder {
+	b.op.client = c
+	return b
 }
 
-func (vmbo *vmbackupOperator) GetVolBackup(vmb *harvesterv1.VirtualMachineBackup, index int) *harvesterv1.VolumeBackup {
-	if index < 0 || index >= len(vmb.Status.VolumeBackups) {
-		return nil
-	}
-	return &vmb.Status.VolumeBackups[index]
+func (b *VMBackupOperatorBuilder) WithCache(c ctlharvesterv1.VirtualMachineBackupCache) *VMBackupOperatorBuilder {
+	b.op.cache = c
+	return b
 }
 
-func (vmbo *vmbackupOperator) GetSanitizeVolBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.VolumeBackup {
-	sanitizeVolBackups := vmb.Status.VolumeBackups
-	for i := range sanitizeVolBackups {
-		sanitizeVolBackups[i].ReadyToUse = nil
-		sanitizeVolBackups[i].CreationTime = nil
-		sanitizeVolBackups[i].Error = nil
-	}
-
-	return sanitizeVolBackups
+func (b *VMBackupOperatorBuilder) WithVSClassCache(c ctlsnapshotv1.VolumeSnapshotClassCache) *VMBackupOperatorBuilder {
+	b.op.vsClassCache = c
+	return b
 }
 
-func (vmbo *vmbackupOperator) GetVolBackupName(vb *harvesterv1.VolumeBackup) *string {
-	if vb == nil {
-		return nil
-	}
-	return vb.Name
+func (b *VMBackupOperatorBuilder) WithVMCache(c ctlkubevirtv1.VirtualMachineCache) *VMBackupOperatorBuilder {
+	b.op.vmCache = c
+	return b
 }
 
-func (vmbo *vmbackupOperator) GetVolBackupPVCNameSpace(vb *harvesterv1.VolumeBackup) string {
-	if vb == nil {
-		return ""
-	}
-	return vb.PersistentVolumeClaim.ObjectMeta.Namespace
+func (b *VMBackupOperatorBuilder) WithVMICache(c ctlkubevirtv1.VirtualMachineInstanceCache) *VMBackupOperatorBuilder {
+	b.op.vmiCache = c
+	return b
 }
 
-func (vmbo *vmbackupOperator) GetVolBackupPVCName(vb *harvesterv1.VolumeBackup) string {
-	if vb == nil {
-		return ""
-	}
-	return vb.PersistentVolumeClaim.ObjectMeta.Name
+func (b *VMBackupOperatorBuilder) WithPVCCache(c ctlcorev1.PersistentVolumeClaimCache) *VMBackupOperatorBuilder {
+	b.op.pvcCache = c
+	return b
 }
 
-func (vmbo *vmbackupOperator) GetVolBackupPVCAnnotations(vb *harvesterv1.VolumeBackup) map[string]string {
-	if vb == nil {
-		return nil
-	}
-	return vb.PersistentVolumeClaim.ObjectMeta.Annotations
+func (b *VMBackupOperatorBuilder) WithPVCache(c ctlcorev1.PersistentVolumeCache) *VMBackupOperatorBuilder {
+	b.op.pvCache = c
+	return b
 }
 
-func (vmbo *vmbackupOperator) GetVolBackupPVCLabels(vb *harvesterv1.VolumeBackup) map[string]string {
-	if vb == nil {
-		return nil
-	}
-	return vb.PersistentVolumeClaim.ObjectMeta.Labels
+func (b *VMBackupOperatorBuilder) WithSecretCache(c ctlcorev1.SecretCache) *VMBackupOperatorBuilder {
+	b.op.secretCache = c
+	return b
 }
 
-func (vmbo *vmbackupOperator) GetVolBackupVolumeName(vb *harvesterv1.VolumeBackup) string {
-	if vb == nil {
-		return ""
-	}
-	return vb.VolumeName
+func (b *VMBackupOperatorBuilder) WithVirtSubresourceRestClient(c rest.Interface) *VMBackupOperatorBuilder {
+	b.op.virtSubresourceRestClient = c
+	return b
 }
 
-func (vmbo *vmbackupOperator) GetVolBackupPVName(vb *harvesterv1.VolumeBackup) string {
-	if vb == nil {
-		return ""
-	}
-	return vb.PersistentVolumeClaim.Spec.VolumeName
+// WithReader overrides the default zero-dep reader. Useful in tests that
+// want to stub status predicates and/or accessors.
+func (b *VMBackupOperatorBuilder) WithReader(r VMBackupReader) *VMBackupOperatorBuilder {
+	b.op.VMBackupReader = r
+	return b
 }
 
-func (vmbo *vmbackupOperator) GetVolBackupCSIDriver(vb *harvesterv1.VolumeBackup) string {
-	if vb == nil {
-		return ""
-	}
-	return vb.CSIDriverName
+func (b *VMBackupOperatorBuilder) Build() VMBackupOperator {
+	return b.op
 }
 
-func (vmbo *vmbackupOperator) GetVolBackupReadyToUse(vb *harvesterv1.VolumeBackup) bool {
-	if vb == nil || vb.ReadyToUse == nil || !*vb.ReadyToUse {
-		return false
-	}
-	return true
-}
-
-func (vmbo *vmbackupOperator) GetVolBackupSize(vb *harvesterv1.VolumeBackup) int64 {
-	if vb == nil {
-		return 0
-	}
-	return vb.VolumeSize
-}
-
-func (vmbo *vmbackupOperator) GetVolBackupProgress(vb *harvesterv1.VolumeBackup) int {
-	if vb == nil {
-		return 0
-	}
-	return vb.Progress
-}
-
-func (vmbo *vmbackupOperator) GetVolBackupLHBackupName(vb *harvesterv1.VolumeBackup) *string {
-	if vb == nil {
-		return nil
-	}
-	return vb.LonghornBackupName
-}
-
-func (vmbo *vmbackupOperator) GetVolBackupSCName(vb *harvesterv1.VolumeBackup) *string {
-	if vb == nil {
-		return nil
-	}
-	return vb.PersistentVolumeClaim.Spec.StorageClassName
-}
-
-func (vmbo *vmbackupOperator) GetVolBackupError(vb *harvesterv1.VolumeBackup) *harvesterv1.Error {
-	if vb == nil {
-		return nil
-	}
-	return vb.Error
-}
-
-func (vmbo *vmbackupOperator) GetVolBackupPVCSpec(vb *harvesterv1.VolumeBackup) corev1.PersistentVolumeClaimSpec {
-	if vb == nil {
-		return corev1.PersistentVolumeClaimSpec{}
-	}
-	return vb.PersistentVolumeClaim.Spec
-}
+// VolBackup Get* methods are provided by the embedded VMBackupReader.
 
 func (vmbo *vmbackupOperator) SetVolBackupName(vb *harvesterv1.VolumeBackup, name string) error {
 	if vb == nil {
@@ -389,90 +572,12 @@ func (vmbo *vmbackupOperator) UpdateByStatus(oldVMb, newVMb *harvesterv1.Virtual
 	return vmbo.client.Update(newVMb)
 }
 
-func (vmbo *vmbackupOperator) IsReady(vmb *harvesterv1.VirtualMachineBackup) bool {
-	return vmb.Status.ReadyToUse != nil && *vmb.Status.ReadyToUse
-}
+// Is* methods are provided by the embedded VMBackupReader.
 
-func (vmbo *vmbackupOperator) IsMissingStatus(vmb *harvesterv1.VirtualMachineBackup) bool {
-	return vmb.Status.SourceSpec == nil || vmb.Status.VolumeBackups == nil
-}
+// Pure VMBackup Get* methods are provided by the embedded VMBackupReader.
+// ResolveSourceVM stays on the operator because it needs vmCache.
 
-func (vmbo *vmbackupOperator) IsProcessing(vmb *harvesterv1.VirtualMachineBackup) bool {
-	return vmbo.GetError(vmb) == nil &&
-		(vmb.Status.ReadyToUse == nil || !*vmb.Status.ReadyToUse)
-}
-
-func (vmbo *vmbackupOperator) IsErrMsgSynced(vmb *harvesterv1.VirtualMachineBackup, errMsg string) bool {
-	return vmb.Status.Error != nil && vmb.Status.Error.Message != nil && *vmb.Status.Error.Message == errMsg
-}
-
-func (vmbo *vmbackupOperator) IsTargetConsistent(vmb *harvesterv1.VirtualMachineBackup, target *settings.BackupTarget) bool {
-	bt := vmb.Status.BackupTarget
-
-	if bt == nil && target == nil {
-		return true
-	}
-
-	if bt == nil || target == nil {
-		return false
-	}
-
-	return bt.Endpoint == target.Endpoint && bt.BucketName == target.BucketName && bt.BucketRegion == target.BucketRegion
-}
-
-func (vmbo *vmbackupOperator) IsTransitToNonReady(vmb *harvesterv1.VirtualMachineBackup) bool {
-	for _, condition := range vmb.Status.Conditions {
-		if condition.Type != harvesterv1.BackupConditionReady {
-			continue
-		}
-		if condition.Message != changeToNonReadyMessage {
-			continue
-		}
-		return true
-	}
-	return false
-}
-
-func (vmbo *vmbackupOperator) GetName(vmb *harvesterv1.VirtualMachineBackup) string {
-	return vmb.Name
-}
-
-func (vmbo *vmbackupOperator) GetNamespace(vmb *harvesterv1.VirtualMachineBackup) string {
-	return vmb.Namespace
-}
-
-func (vmbo *vmbackupOperator) GetKind(vmb *harvesterv1.VirtualMachineBackup) string {
-	return vmb.Kind
-}
-
-func (vmbo *vmbackupOperator) GetUID(vmb *harvesterv1.VirtualMachineBackup) types.UID {
-	return vmb.UID
-}
-
-func (vmbo *vmbackupOperator) GetDeletionTimestap(vmb *harvesterv1.VirtualMachineBackup) *metav1.Time {
-	return vmb.DeletionTimestamp
-}
-
-func (vmbo *vmbackupOperator) GetSpec(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.VirtualMachineBackupSpec {
-	return vmb.Spec
-}
-
-func (vmbo *vmbackupOperator) GetSourceSpec(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineSourceSpec {
-	// Return a deep copy so callers can mutate freely without corrupting the
-	// cached VMBackup. The source spec contains pointer-typed fields (Template,
-	// Volumes[i].CloudInitNoCloud, …) that would otherwise alias the cache.
-	return vmb.Status.SourceSpec.DeepCopy()
-}
-
-func (vmbo *vmbackupOperator) GetStatus(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineBackupStatus {
-	return &vmb.Status
-}
-
-func (vmbo *vmbackupOperator) GetSecretBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.SecretBackup {
-	return vmb.Status.SecretBackups
-}
-
-func (vmbo *vmbackupOperator) GetSourceVM(vmb *harvesterv1.VirtualMachineBackup) (*kubevirtv1.VirtualMachine, error) {
+func (vmbo *vmbackupOperator) ResolveSourceVM(vmb *harvesterv1.VirtualMachineBackup) (*kubevirtv1.VirtualMachine, error) {
 	var (
 		sourceVM *kubevirtv1.VirtualMachine
 		err      error
@@ -495,23 +600,7 @@ func (vmbo *vmbackupOperator) GetSourceVM(vmb *harvesterv1.VirtualMachineBackup)
 	return sourceVM, nil
 }
 
-func (vmbo *vmbackupOperator) GetError(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.Error {
-	return vmb.Status.Error
-}
-
-func (vmbo *vmbackupOperator) GetSourceKind(vmb *harvesterv1.VirtualMachineBackup) string {
-	return vmb.Spec.Source.Kind
-}
-
-func (vmbo *vmbackupOperator) GetSourceName(vmb *harvesterv1.VirtualMachineBackup) string {
-	return vmb.Spec.Source.Name
-}
-
-func (vmbo *vmbackupOperator) GetAnnotations(vmb *harvesterv1.VirtualMachineBackup) map[string]string {
-	return vmb.Annotations
-}
-
-func (vmbo *vmbackupOperator) GetCSIDriverMap(vmb *harvesterv1.VirtualMachineBackup) (map[string]string, map[string]snapshotv1.VolumeSnapshotClass, error) {
+func (vmbo *vmbackupOperator) BuildCSIDriverMap(vmb *harvesterv1.VirtualMachineBackup) (map[string]string, map[string]snapshotv1.VolumeSnapshotClass, error) {
 	// Early return if no volume backups to process
 	if len(vmb.Status.VolumeBackups) == 0 {
 		return map[string]string{}, map[string]snapshotv1.VolumeSnapshotClass{}, nil
@@ -548,23 +637,6 @@ func (vmbo *vmbackupOperator) GetCSIDriverMap(vmb *harvesterv1.VirtualMachineBac
 	}
 
 	return csiDriverSnapClassNameMap, csiDriverSnapClassMap, nil
-}
-
-// GetCSIDriverVSCNames returns the CSI-driver-to-VolumeSnapshotClass map that
-// was persisted on the VMBackup status when the backup was taken. Use this
-// instead of GetCSIDriverMap when you only need the names that were actually
-// used and want to avoid re-reading the csi-driver-config setting (which
-// requires a settings provider, not wired up in every process — e.g. webhook).
-func (vmbo *vmbackupOperator) GetCSIDriverVSCNames(vmb *harvesterv1.VirtualMachineBackup) map[string]string {
-	return vmb.Status.CSIDriverVolumeSnapshotClassNames
-}
-
-func (vmbo *vmbackupOperator) GetType(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.BackupType {
-	return vmb.Spec.Type
-}
-
-func (vmbo *vmbackupOperator) GetBackupTarget(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.BackupTarget {
-	return vmb.Status.BackupTarget
 }
 
 func (vmbo *vmbackupOperator) SetCreationTime(vmb *harvesterv1.VirtualMachineBackup, t *metav1.Time) error {
@@ -687,7 +759,7 @@ func (vmbo *vmbackupOperator) ConfigureCSISnapClasses(old *harvesterv1.VirtualMa
 	}
 
 	newVMb := old.DeepCopy()
-	csiDriverSnapClassNameMap, _, err := vmbo.GetCSIDriverMap(newVMb)
+	csiDriverSnapClassNameMap, _, err := vmbo.BuildCSIDriverMap(newVMb)
 	if err != nil {
 		return nil, err
 	}
@@ -1070,7 +1142,7 @@ func (vmbo *vmbackupOperator) initSecretBackups(vmb *harvesterv1.VirtualMachineB
 }
 
 func (vmbo *vmbackupOperator) initVSCNames(vmb *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
-	vscNames, _, err := vmbo.GetCSIDriverMap(vmb)
+	vscNames, _, err := vmbo.BuildCSIDriverMap(vmb)
 	if err != nil {
 		return nil, err
 	}

@@ -21,11 +21,11 @@ func (h *svmbackupHandler) OnVMBackupChange(_ string, vmBackup *harvesterv1.Virt
 		h.svmbackupController.Enqueue(svmbackup.Namespace, svmbackup.Name)
 	}
 
-	if h.vmbo.GetStatus(vmBackup).Error != nil {
+	if h.vmbr.GetStatus(vmBackup).Error != nil {
 		h.svmbackupController.Enqueue(svmbackup.Namespace, svmbackup.Name)
 	}
 
-	if h.vmbo.IsReady(vmBackup) {
+	if h.vmbr.IsReady(vmBackup) {
 		h.svmbackupController.Enqueue(svmbackup.Namespace, svmbackup.Name)
 	}
 

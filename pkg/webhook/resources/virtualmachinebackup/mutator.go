@@ -17,13 +17,13 @@ import (
 type BackupMutator struct {
 	types.DefaultMutator
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
-	vmbo          common.VMBackupOperator
+	vmbr          common.VMBackupReader
 }
 
 func NewMutator(vmBackupCache ctlharvesterv1.VirtualMachineBackupCache) *BackupMutator {
 	return &BackupMutator{
 		vmBackupCache: vmBackupCache,
-		vmbo:          common.GetVMBackupOperator(nil, vmBackupCache, nil, nil, nil, nil, nil, nil, nil),
+		vmbr:          common.NewVMBackupReader(),
 	}
 }
 
@@ -42,7 +42,7 @@ func (m *BackupMutator) Resource() types.Resource {
 
 func (m *BackupMutator) Create(_ *types.Request, newObj runtime.Object) (types.PatchOps, error) {
 	newVb := newObj.(*v1beta1.VirtualMachineBackup)
-	existingVb, err := m.vmBackupCache.Get(m.vmbo.GetNamespace(newVb), m.vmbo.GetName(newVb))
+	existingVb, err := m.vmBackupCache.Get(m.vmbr.GetNamespace(newVb), m.vmbr.GetName(newVb))
 	if apierrors.IsNotFound(err) {
 		return types.PatchOps{}, nil
 	}
@@ -50,11 +50,11 @@ func (m *BackupMutator) Create(_ *types.Request, newObj runtime.Object) (types.P
 		return types.PatchOps{}, err
 	}
 
-	existingType := m.vmbo.GetType(existingVb)
-	newType := m.vmbo.GetType(newVb)
+	existingType := m.vmbr.GetType(existingVb)
+	newType := m.vmbr.GetType(newVb)
 	if existingType == newType {
 		return types.PatchOps{}, werror.NewBadRequest(
-			fmt.Sprintf("%s %q already exists", newType, m.vmbo.GetName(newVb)))
+			fmt.Sprintf("%s %q already exists", newType, m.vmbr.GetName(newVb)))
 	}
 
 	// Backup and snapshot share the same CRD (VirtualMachineBackup), so names
@@ -62,5 +62,5 @@ func (m *BackupMutator) Create(_ *types.Request, newObj runtime.Object) (types.P
 	// mutator would surface a less helpful error.
 	// ref: https://github.com/harvester/harvester/issues/5855
 	return types.PatchOps{}, werror.NewBadRequest(
-		fmt.Sprintf("name %q is already used by a %s (backup and snapshot share names)", m.vmbo.GetName(newVb), existingType))
+		fmt.Sprintf("name %q is already used by a %s (backup and snapshot share names)", m.vmbr.GetName(newVb), existingType))
 }

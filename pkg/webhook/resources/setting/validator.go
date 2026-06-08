@@ -179,7 +179,7 @@ func NewValidator(
 		lhNodeCache:        lhNodeCache,
 		secretCache:        secretCache,
 		nadCache:           nadCache,
-		vmbo:               common.GetVMBackupOperator(nil, vmBackupCache, nil, vmCache, nil, pvcCache, nil, nil, nil),
+		vmbr:               common.NewVMBackupReader(),
 	}
 
 	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
@@ -241,7 +241,7 @@ type settingValidator struct {
 	lhNodeCache        ctllhv1b2.NodeCache
 	secretCache        ctlcorev1.SecretCache
 	nadCache           ctlcniv1.NetworkAttachmentDefinitionCache
-	vmbo               common.VMBackupOperator
+	vmbr               common.VMBackupReader
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -563,7 +563,7 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("Can't list VM backups, err: %+v", err.Error()))
 	}
-	if hasVMBackupInCreatingOrDeletingProgress(vmBackups, v.vmbo) {
+	if hasVMBackupInCreatingOrDeletingProgress(vmBackups, v.vmbr) {
 		return werror.NewBadRequest("There is VMBackup in creating or deleting progress")
 	}
 
@@ -993,9 +993,9 @@ func getSystemCerts() *x509.CertPool {
 	return certs
 }
 
-func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachineBackup, vmbo common.VMBackupOperator) bool {
+func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachineBackup, vmbr common.VMBackupReader) bool {
 	for _, vmBackup := range vmBackups {
-		if vmbo.GetDeletionTimestap(vmBackup) != nil || !vmbo.IsReady(vmBackup) {
+		if vmbr.GetDeletionTimestap(vmBackup) != nil || !vmbr.IsReady(vmBackup) {
 			return true
 		}
 	}

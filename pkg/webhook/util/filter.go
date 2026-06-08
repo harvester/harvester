@@ -13,7 +13,7 @@ import (
 
 func HasActiveBackup(
 	cache ctlharvesterv1.VirtualMachineBackupCache,
-	vmbo backupcommon.VMBackupOperator,
+	vmbr backupcommon.VMBackupReader,
 	sourceUID string,
 ) (bool, error) {
 	vmbs, err := cache.GetByIndex(indexeres.VMBackupBySourceUIDIndex, sourceUID)
@@ -21,7 +21,7 @@ func HasActiveBackup(
 		return false, err
 	}
 	for _, vmb := range vmbs {
-		if vmbo.IsProcessing(vmb) || vmbo.GetError(vmb) != nil {
+		if vmbr.IsProcessing(vmb) || vmbr.GetError(vmb) != nil {
 			return true, nil
 		}
 	}
@@ -30,7 +30,7 @@ func HasActiveBackup(
 
 func HasActiveRestore(
 	cache ctlharvesterv1.VirtualMachineRestoreCache,
-	vmro restorecommon.VMRestoreOperator,
+	vmrr restorecommon.VMRestoreReader,
 	targetNamespace,
 	targetName string,
 ) (bool, error) {
@@ -43,7 +43,7 @@ func HasActiveRestore(
 		if vmr == nil {
 			continue
 		}
-		if vmro.IsProgressing(vmr) {
+		if vmrr.IsProgressing(vmr) {
 			return true, nil
 		}
 	}

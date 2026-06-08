@@ -48,8 +48,8 @@ func NewValidator(
 		scCache:            scCache,
 		resourceQuotaCache: resourceQuotaCache,
 		vmimCache:          vmimCache,
-		vmbo:               common.GetVMBackupOperator(nil, nil, nil, vms, nil, pvcCache, nil, nil, nil),
-		vmro:               restorecommon.GetVMRestoreOperator(nil, vmrestores, vms, nil, nil, pvcCache, nil, nil, nil, nil, nil),
+		vmbr:               common.NewVMBackupReader(),
+		vmrr:               restorecommon.NewVMRestoreReader(),
 	}
 }
 
@@ -64,8 +64,8 @@ type virtualMachineBackupValidator struct {
 	scCache            ctlstoragev1.StorageClassCache
 	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache
 	vmimCache          ctlkubevirtv1.VirtualMachineInstanceMigrationCache
-	vmbo               common.VMBackupOperator
-	vmro               restorecommon.VMRestoreOperator
+	vmbr               common.VMBackupReader
+	vmrr               restorecommon.VMRestoreReader
 }
 
 func (v *virtualMachineBackupValidator) Resource() types.Resource {
@@ -86,13 +86,13 @@ func (v *virtualMachineBackupValidator) Resource() types.Resource {
 func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	newVMBackup := newObj.(*v1beta1.VirtualMachineBackup)
 
-	sourceName := v.vmbo.GetSourceName(newVMBackup)
+	sourceName := v.vmbr.GetSourceName(newVMBackup)
 	if sourceName == "" {
 		return werror.NewInvalidError("source VM name is empty", fieldSourceName)
 	}
 
 	validateFunc := v.validateStandardBackup
-	if !v.vmbo.IsMissingStatus(newVMBackup) {
+	if !v.vmbr.IsMissingStatus(newVMBackup) {
 		validateFunc = v.validateVMBackupRecover
 	}
 
@@ -101,7 +101,7 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 		return err
 	}
 
-	if v.vmbo.GetType(newVMBackup) == v1beta1.Snapshot {
+	if v.vmbr.GetType(newVMBackup) == v1beta1.Snapshot {
 		return nil
 	}
 
@@ -115,7 +115,7 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 
 func (v *virtualMachineBackupValidator) validateStandardBackup(vmb *v1beta1.VirtualMachineBackup) error {
 	// Retrieve the VM instance.
-	spec := v.vmbo.GetSpec(vmb)
+	spec := v.vmbr.GetSpec(vmb)
 	vm, err := v.vms.Get(vmb.Namespace, spec.Source.Name)
 	if err != nil {
 		return werror.NewInvalidError(err.Error(), fieldSourceName)
@@ -137,7 +137,7 @@ func (v *virtualMachineBackupValidator) validateStandardBackup(vmb *v1beta1.Virt
 
 func (v *virtualMachineBackupValidator) validateVMBackupRecover(vmb *v1beta1.VirtualMachineBackup) error {
 	// Perform LH backup specific validation.
-	return webhookutil.IsLHBackupRelated(vmb, v.vmbo)
+	return webhookutil.IsLHBackupRelated(vmb, v.vmbr)
 }
 
 // checkBackupVolumeSnapshotClass checks if the volumeSnapshotClassName is configured for the provisioner used by the PVCs in the VirtualMachine.
@@ -163,7 +163,7 @@ func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(vm *kubev
 			return fmt.Errorf("failed to get PVC %s/%s: %w", pvcNamespace, pvcName, err)
 		}
 
-		if err := webhookutil.ValidateProvisionerAndConfig(pvc, v.scCache, v.vmbo.GetType(newVMBackup), cdc); err != nil {
+		if err := webhookutil.ValidateProvisionerAndConfig(pvc, v.scCache, v.vmbr.GetType(newVMBackup), cdc); err != nil {
 			return err
 		}
 	}
@@ -204,7 +204,7 @@ func (v *virtualMachineBackupValidator) Update(_ *types.Request, oldObj runtime.
 
 func (v *virtualMachineBackupValidator) Delete(_ *types.Request, obj runtime.Object) error {
 	vb := obj.(*v1beta1.VirtualMachineBackup)
-	key := fmt.Sprintf("%s-%s", v.vmbo.GetNamespace(vb), v.vmbo.GetName(vb))
+	key := fmt.Sprintf("%s-%s", v.vmbr.GetNamespace(vb), v.vmbr.GetName(vb))
 
 	vmRestores, err := v.vmrestores.GetByIndex(indexeres.VMRestoreByVMBackupNamespaceAndName, key)
 	if err != nil {
@@ -212,13 +212,13 @@ func (v *virtualMachineBackupValidator) Delete(_ *types.Request, obj runtime.Obj
 	}
 
 	for _, vmRestore := range vmRestores {
-		if v.vmro.IsDeleting(vmRestore) || !v.vmro.HasStatus(vmRestore) {
+		if v.vmrr.IsDeleting(vmRestore) || !v.vmrr.HasStatus(vmRestore) {
 			continue
 		}
 
-		if v.vmro.IsProgressing(vmRestore) {
-			restoreName := v.vmro.GetName(vmRestore)
-			restoreNamespace := v.vmro.GetNamespace(vmRestore)
+		if v.vmrr.IsProgressing(vmRestore) {
+			restoreName := v.vmrr.GetName(vmRestore)
+			restoreNamespace := v.vmrr.GetNamespace(vmRestore)
 			return werror.NewBadRequest(fmt.Sprintf("vmrestore %s/%s is in progress", restoreNamespace, restoreName))
 		}
 	}

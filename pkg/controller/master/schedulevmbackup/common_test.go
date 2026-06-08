@@ -175,7 +175,7 @@ func Test_CurrentVMBackups(t *testing.T) {
 
 	h := &svmbackupHandler{
 		vmBackupCache: fakeclients.VMBackupCache(clientset.HarvesterhciV1beta1().VirtualMachineBackups),
-		vmbo:          common.GetVMBackupOperator(nil, nil, nil, nil, nil, nil, nil, nil, nil),
+		vmbr:          common.NewVMBackupReader(),
 	}
 
 	err := clientset.Tracker().Add(vmbackup1)
@@ -208,7 +208,7 @@ func Test_CreateVMBackup(t *testing.T) {
 func Test_ConvertVMBackupToInfo(t *testing.T) {
 	assert := require.New(t)
 
-	getVMBackupInfo := convertVMBackupToInfo(vmbackup1)
+	getVMBackupInfo := convertVMBackupToInfo(common.NewVMBackupReader(), vmbackup1)
 	assert.Equal(vmbackup1Info, &getVMBackupInfo, "vmbackup info not equals")
 }
 
@@ -220,7 +220,7 @@ func Test_ReconcileVMBackupList(t *testing.T) {
 		vmBackupCache:   fakeclients.VMBackupCache(clientset.HarvesterhciV1beta1().VirtualMachineBackups),
 		svmbackupClient: fakeclients.SVMBackupClient(clientset.HarvesterhciV1beta1().ScheduleVMBackups),
 		svmbackupCache:  fakeclients.SVMBackupCache(clientset.HarvesterhciV1beta1().ScheduleVMBackups),
-		vmbo:            common.GetVMBackupOperator(nil, nil, nil, nil, nil, nil, nil, nil, nil),
+		vmbr:            common.NewVMBackupReader(),
 	}
 
 	err := clientset.Tracker().Add(vmbackup1)
@@ -280,7 +280,7 @@ func Test_NewVMBackups(t *testing.T) {
 	h := &svmbackupHandler{
 		vmBackupClient: fakeclients.VMBackupClient(clientset.HarvesterhciV1beta1().VirtualMachineBackups),
 		vmBackupCache:  fakeclients.VMBackupCache(clientset.HarvesterhciV1beta1().VirtualMachineBackups),
-		vmbo:           common.GetVMBackupOperator(nil, nil, nil, nil, nil, nil, nil, nil, nil),
+		vmbr:           common.NewVMBackupReader(),
 	}
 
 	err := clientset.Tracker().Add(vmbackup1)

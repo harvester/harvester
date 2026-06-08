@@ -87,15 +87,12 @@ func RegisterBackupMetadata(ctx context.Context, management *config.Management, 
 	vms := management.VirtFactory.Kubevirt().V1().VirtualMachine()
 	storageClass := management.StorageFactory.Storage().V1().StorageClass()
 
-	vmbo := common.GetVMBackupOperator(vmBackups,
-		vmBackups.Cache(),
-		nil,
-		vms.Cache(),
-		nil,
-		nil,
-		nil,
-		secrets.Cache(),
-		nil)
+	vmbo := common.NewVMBackupOperatorBuilder().
+		WithClient(vmBackups).
+		WithCache(vmBackups.Cache()).
+		WithVMCache(vms.Cache()).
+		WithSecretCache(secrets.Cache()).
+		Build()
 
 	backupMetadataController := &MetadataHandler{
 		namespaces:                      namespaces,
