@@ -67,11 +67,11 @@ func (pu *ProgressUpdater) GetCurrentBytesNoLock() int64 {
 	return pu.totalBytes
 }
 
-func generateDVSource(vmImg *harvesterv1.VirtualMachineImage, sourceType harvesterv1.VirtualMachineImageSourceType) (*cdiv1.DataVolumeSource, error) {
+func generateDVSource(vmImg *harvesterv1.VirtualMachineImage, sourceType harvesterv1.VirtualMachineImageSourceType, certConfigMapName string) (*cdiv1.DataVolumeSource, error) {
 	dvSource := &cdiv1.DataVolumeSource{}
 	switch sourceType {
 	case harvesterv1.VirtualMachineImageSourceTypeDownload:
-		dvSourceHTTP := generateDVSourceHTTP(vmImg)
+		dvSourceHTTP := generateDVSourceHTTP(vmImg, certConfigMapName)
 		dvSource.HTTP = dvSourceHTTP
 		return dvSource, nil
 	case harvesterv1.VirtualMachineImageSourceTypeUpload:
@@ -89,10 +89,14 @@ func generateDVSource(vmImg *harvesterv1.VirtualMachineImage, sourceType harvest
 	}
 }
 
-func generateDVSourceHTTP(vmi *harvesterv1.VirtualMachineImage) *cdiv1.DataVolumeSourceHTTP {
-	return &cdiv1.DataVolumeSourceHTTP{
+func generateDVSourceHTTP(vmi *harvesterv1.VirtualMachineImage, certConfigMapName string) *cdiv1.DataVolumeSourceHTTP {
+	dvSourceHTTP := &cdiv1.DataVolumeSourceHTTP{
 		URL: vmi.Spec.URL,
 	}
+	if certConfigMapName != "" {
+		dvSourceHTTP.CertConfigMap = certConfigMapName
+	}
+	return dvSourceHTTP
 }
 
 func GenerateDVAnnotations(sc *storagev1.StorageClass) map[string]string {

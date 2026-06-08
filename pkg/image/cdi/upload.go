@@ -149,7 +149,7 @@ func (cu *Uploader) DoUpload(vmImg *harvesterv1.VirtualMachineImage, req *http.R
 	}
 
 	// generate DV source
-	dvSource, err := generateDVSource(vmImg, cu.vmio.GetSourceType(vmImg))
+	dvSource, err := generateDVSource(vmImg, cu.vmio.GetSourceType(vmImg), "")
 	if err != nil {
 		return fmt.Errorf("failed to generate DV source: %v", err)
 	}
