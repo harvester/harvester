@@ -1,6 +1,10 @@
 package setting
 
 import (
+	"fmt"
+
+	"k8s.io/apimachinery/pkg/labels"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +24,11 @@ func (h *Handler) syncAdditionalTrustedCAs(setting *harvesterv1.Setting) error {
 
 	// Distribute CA secrets to required system namespaces
 	if err := h.syncAdditionalCASecrets(setting); err != nil {
+		return err
+	}
+
+	// Update all existing CDI ConfigMaps across all namespaces.
+	if err := h.syncCDIAdditionalCAConfigMaps(setting); err != nil {
 		return err
 	}
 
@@ -59,5 +68,37 @@ func (h *Handler) syncAdditionalCASecrets(setting *harvesterv1.Setting) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// syncCDIAdditionalCAConfigMaps updates all existing 'harvester-additional-ca-cdi' ConfigMaps
+// across all namespaces when the 'additional-ca' setting changes.
+func (h *Handler) syncCDIAdditionalCAConfigMaps(setting *harvesterv1.Setting) error {
+	namespaces, err := h.namespacesCache.List(labels.Everything())
+	if err != nil {
+		return fmt.Errorf("failed to list namespaces: %w", err)
+	}
+
+	cmData := map[string]string{
+		util.CDIAdditionalCAConfigMapKey: setting.Value,
+	}
+
+	// Update 'ConfigMap' in each namespace where it exists.
+	for _, ns := range namespaces {
+		cm, err := h.configmapCache.Get(ns.Name, util.CDIAdditionalCAConfigMapName)
+		if errors.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+
+		// Update if data has changed.
+		_, err = util.UpdateConfigMapData(h.configmaps, cm, cmData)
+		if err != nil {
+			return fmt.Errorf("failed to update additional CA in ConfigMap %q: %w", util.GetNamespacedName(cm), err)
+		}
+	}
+
 	return nil
 }

@@ -9,14 +9,18 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/image/backend"
 	"github.com/harvester/harvester/pkg/image/common"
+	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 type Backend struct {
@@ -25,15 +29,19 @@ type Backend struct {
 	scClient         ctlstoragev1.StorageClassClient
 	pvcCache         ctlcorev1.PersistentVolumeClaimCache
 	vmio             common.VMIOperator
+	settingCache     ctlharvesterv1.SettingCache
+	configMaps       ctlcorev1.ConfigMapClient
 }
 
-func GetBackend(ctx context.Context, dataVolumeClient ctlcdiv1.DataVolumeClient, scClient ctlstoragev1.StorageClassClient, pvcCache ctlcorev1.PersistentVolumeClaimCache, vmio common.VMIOperator) backend.Backend {
+func GetBackend(ctx context.Context, dataVolumeClient ctlcdiv1.DataVolumeClient, scClient ctlstoragev1.StorageClassClient, pvcCache ctlcorev1.PersistentVolumeClaimCache, vmio common.VMIOperator, settingCache ctlharvesterv1.SettingCache, configMaps ctlcorev1.ConfigMapClient) backend.Backend {
 	return &Backend{
 		ctx:              ctx,
 		dataVolumeClient: dataVolumeClient,
 		scClient:         scClient,
 		pvcCache:         pvcCache,
 		vmio:             vmio,
+		settingCache:     settingCache,
+		configMaps:       configMaps,
 	}
 }
 
@@ -173,6 +181,12 @@ func (b *Backend) initializeDownload(vmImg *harvesterv1.VirtualMachineImage) (*h
 		vmImg = updatedVMImg
 	}
 
+	// Ensure additional CA ConfigMap exists in the VM image namespace.
+	certConfigMapName, err := b.ensureAdditionalCAConfigMap(vmImg.Namespace)
+	if err != nil {
+		return vmImg, fmt.Errorf("failed to read or create the additional CA ConfigMap: %w", err)
+	}
+
 	dvName := b.vmio.GetName(vmImg)
 	dvNamespace := b.vmio.GetNamespace(vmImg)
 
@@ -181,8 +195,8 @@ func (b *Backend) initializeDownload(vmImg *harvesterv1.VirtualMachineImage) (*h
 		return vmImg, fmt.Errorf("failed to get StorageClass %s: %v", vmImg.Spec.TargetStorageClassName, err)
 	}
 
-	// generate DV source
-	dvSource, err := generateDVSource(vmImg, b.vmio.GetSourceType(vmImg))
+	// generate DV source with certConfigMap
+	dvSource, err := generateDVSource(vmImg, b.vmio.GetSourceType(vmImg), certConfigMapName)
 	if err != nil {
 		return vmImg, fmt.Errorf("failed to generate DV source: %v", err)
 	}
@@ -220,6 +234,50 @@ func (b *Backend) initializeDownload(vmImg *harvesterv1.VirtualMachineImage) (*h
 	return vmImg, nil
 }
 
+// ensureAdditionalCAConfigMap ensures that an additional CA ConfigMap exists
+// in the given namespace. It returns the name of the ConfigMap.
+func (b *Backend) ensureAdditionalCAConfigMap(namespace string) (string, error) {
+	if b.settingCache == nil || b.configMaps == nil {
+		return "", nil
+	}
+
+	caSetting, err := b.settingCache.Get(settings.AdditionalCASettingName)
+	if err != nil || caSetting.Value == "" {
+		return "", err
+	}
+
+	cmData := map[string]string{
+		util.CDIAdditionalCAConfigMapKey: caSetting.Value,
+	}
+
+	cm, err := b.configMaps.Get(namespace, util.CDIAdditionalCAConfigMapName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		// Create a new ConfigMap if it doesn't exist.
+		return b.createCAConfigMap(namespace, cmData)
+	}
+	if err != nil {
+		return "", err
+	}
+
+	if _, err := util.UpdateConfigMapData(b.configMaps, cm, cmData); err != nil {
+		return "", err
+	}
+
+	return cm.Name, nil
+}
+
+func (b *Backend) createCAConfigMap(namespace string, data map[string]string) (string, error) {
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: util.CDIAdditionalCAConfigMapName, Namespace: namespace},
+		Data:       data,
+	}
+	_, err := b.configMaps.Create(cm)
+	if err != nil {
+		return "", err
+	}
+	return cm.Name, nil
+}
+
 func (b *Backend) initializeExportFromVolume(vmImg *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	// export from volume means we will create vm image from the raw volume
 	sourcePVC, err := b.pvcCache.Get(b.vmio.GetPVCNamespace(vmImg), b.vmio.GetPVCName(vmImg))
@@ -248,7 +306,7 @@ func (b *Backend) initializeExportFromVolume(vmImg *harvesterv1.VirtualMachineIm
 	}
 
 	// generate DV source
-	dvSource, err := generateDVSource(vmImg, b.vmio.GetSourceType(vmImg))
+	dvSource, err := generateDVSource(vmImg, b.vmio.GetSourceType(vmImg), "")
 	if err != nil {
 		return vmImg, fmt.Errorf("failed to generate DV source: %v", err)
 	}
