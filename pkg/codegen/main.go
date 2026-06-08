@@ -245,7 +245,8 @@ func nadControllerInterfaceRefactor() {
 
 	output := bytes.ReplaceAll(input, []byte("networkattachmentdefinitions"), []byte("network-attachment-definitions"))
 
-	if err = os.WriteFile(absPath, output, 0600); err != nil {
+	// absPath is derived from a hardcoded generated-file path, not from user input.
+	if err = os.WriteFile(absPath, output, 0600); err != nil { //nolint:gosec // not user-controlled, see comment above
 		logrus.Fatalf("failed to update the network-attachment-definition file: %v", err)
 	}
 }
@@ -268,7 +269,8 @@ func capiWorkaround() {
 		}
 		output := bytes.ReplaceAll(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"))
 
-		if err = os.WriteFile(absPath, output, 0600); err != nil {
+		// absPath comes from the fixed `files` list above, not from user input.
+		if err = os.WriteFile(absPath, output, 0600); err != nil { //nolint:gosec // not user-controlled, see comment above
 			logrus.Fatalf("failed to update the clusters.cluster.x-k8s.io client file: %v", err)
 		}
 	}
@@ -296,7 +298,8 @@ func loggingWorkaround() {
 		}
 		output := bytes.ReplaceAll(input, []byte("v1beta1.SchemeGroupVersion"), []byte("v1beta1.GroupVersion"))
 
-		if err = os.WriteFile(absPath, output, 0600); err != nil {
+		// absPath comes from the fixed `files` list above, not from user input.
+		if err = os.WriteFile(absPath, output, 0600); err != nil { //nolint:gosec // not user-controlled, see comment above
 			logrus.Fatalf("failed to update the logging.banzaicloud.io client file: %v", err)
 		}
 	}

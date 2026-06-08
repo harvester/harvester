@@ -101,7 +101,8 @@ func (u *handler) ServeAsset(subFolder string) http.Handler {
 func (u *handler) IndexFileOnNotFound() http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		req.URL.Path = strings.TrimPrefix(req.URL.Path, "/dashboard")
-		if _, err := os.Stat(filepath.Join(u.pathSetting(), req.URL.Path)); err == nil {
+		// The joined path is only used for an existence check; actual asset serving below is guarded by http.FileServer/http.Dir.
+		if _, err := os.Stat(filepath.Join(u.pathSetting(), req.URL.Path)); err == nil { //nolint:gosec // existence check only, see comment above
 			u.ServeAsset("").ServeHTTP(rw, req)
 		} else {
 			u.IndexFile().ServeHTTP(rw, req)

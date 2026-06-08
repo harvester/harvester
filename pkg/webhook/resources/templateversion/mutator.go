@@ -53,7 +53,7 @@ func (m *templateVersionMutator) Create(_ *types.Request, newObj runtime.Object)
 	}
 
 	// patch "metadata.generateName" with "{templateName}-"
-	var patchOps types.PatchOps
+	patchOps := make(types.PatchOps, 0, 1)
 	patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/metadata/generateName", "value": "%s"}`, templateName+"-"))
 	return patchOps, nil
 }

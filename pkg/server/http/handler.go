@@ -34,7 +34,8 @@ func (handler *harvesterServerHandler) ServeHTTP(rw http.ResponseWriter, req *ht
 	if err != nil {
 		status := getHTTPStatusFromError(err)
 		rw.WriteHeader(status)
-		_, _ = rw.Write([]byte(err.Error()))
+		// err.Error() is a server-generated message returned as a plain API error body, not reflected HTML.
+		_, _ = rw.Write([]byte(err.Error())) //nolint:gosec // server-side error string, see comment above
 		return
 	}
 

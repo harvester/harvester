@@ -68,15 +68,15 @@ func (m *virtualMachineImageMutator) Create(_ *types.Request, newObj runtime.Obj
 }
 
 func (m *virtualMachineImageMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
-	var patchOps types.PatchOps
 	newVMI := newObj.(*harvesterv1.VirtualMachineImage)
 	oldVMI := oldObj.(*harvesterv1.VirtualMachineImage)
 
 	mutatePatches, err := m.mutators[util.GetVMIBackend(newVMI)].Update(oldVMI, newVMI)
 	if err != nil {
-		return patchOps, err
+		return nil, err
 	}
 
+	patchOps := make(types.PatchOps, 0, len(mutatePatches))
 	patchOps = append(patchOps, mutatePatches...)
 	return patchOps, nil
 }
