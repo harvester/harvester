@@ -141,7 +141,9 @@ The benchmark policy is organized into two categories. Each defines scope, tooli
     - All three nodes: 1 control-plane, 2 workers.
     - **Storage network**: 10GbE dedicated NIC for Longhorn replication traffic, isolated from management and VM networks.
     - **Kube-OVN enabled**: Test with Kube-OVN networking to measure its impact on VM network performance (compare against default Canal/Multus).
-    - **Longhorn replica count > 1**: Set Longhorn volume replicas to 2 or 3 to measure replication overhead on storage throughput.
+    - **Longhorn storage profiles**:
+      - **Local-single-replica**: Set Longhorn volume replicas to 1 and place the workload on the node hosting that replica to measure stack overhead without Longhorn replication traffic.
+      - **Replicated**: Set Longhorn volume replicas to 2 to measure replication overhead on storage throughput.
   - **Inter-node bandwidth**: Measured via iperf3 before benchmark runs to confirm line rate (record actual observed bandwidth).
 - **Methodology**: [Harvester Performance wiki](https://github.com/harvester/harvester/wiki/Harvester-Performance-Result).
   - **Storage overhead (layered testing)**:
