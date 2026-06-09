@@ -64,12 +64,13 @@ func Formatter(request *types.APIRequest, resource *types.RawResource) {
 	resource.AddAction(request, listUnhealthyVM)
 	resource.AddAction(request, maintenancePossible)
 	resource.AddAction(request, powerActionPossible)
-	resource.AddAction(request, enableCPUManager)
-	resource.AddAction(request, disableCPUManager)
 
 	if request.AccessControl.CanUpdate(request, resource.APIObject, resource.Schema) != nil {
 		return
 	}
+
+	resource.AddAction(request, enableCPUManager)
+	resource.AddAction(request, disableCPUManager)
 
 	if resource.APIObject.Data().String("metadata", "annotations", ctlnode.MaintainStatusAnnotationKey) != "" {
 		resource.AddAction(request, disableMaintenanceModeAction)
