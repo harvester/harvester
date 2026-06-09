@@ -42,7 +42,7 @@ func Mutation(clients *clients.Clients, options *config.Options, crdExists bool)
 		templateversion.NewMutator(),
 		upgrade.NewMutator(nodeCache, settingCache),
 		virtualmachine.NewMutator(settingCache, nadCache, kubevirtCache, kubeovnSubnetCache),
-		virtualmachineinstance.NewMutator(vmCache),
+		virtualmachineinstance.NewMutator(vmCache, nadCache),
 		virtualmachineimage.NewMutator(storageClassCache),
 		virtualmachinebackup.NewMutator(vmBackupCache),
 		storageclass.NewMutator(),
