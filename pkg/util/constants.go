@@ -98,6 +98,8 @@ const (
 	AnnotationBSCloneRetries     = prefix + "/clone-backend-storage-retries"
 	AnnotationBSCloneStartTime   = prefix + "/clone-backend-storage-start-time"
 	AnnotationBSCloneStage       = prefix + "/clone-backend-storage-stage"
+	LabelGeneratedBy             = prefix + "/generated-by"
+	ValueGeneratedByHarvester    = "harvester"
 	BackendStorageJobPrefix      = "backend-storage"
 	CloneInProgress              = "cloning"
 	CloneComplete                = "cloned"

@@ -3,6 +3,7 @@ package virtualmachine
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/record"
 	kubevirtv1 "kubevirt.io/api/core/v1"
-	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
@@ -1126,30 +1126,10 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
 				createdPVC:  true,
 				enqueue:     true,
-				pvc: &corev1.PersistentVolumeClaim{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: namespace,
-						Name:      backendstorage.PVCPrefix + "-" + targetVMName,
-						Labels: map[string]string{
-							backendstorage.PVCPrefix: targetVMName,
-						},
-						OwnerReferences: []metav1.OwnerReference{
-							*metav1.NewControllerRef(
-								newTestVM(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
-								kubevirtv1.VirtualMachineGroupVersionKind,
-							),
-						},
-					},
-					Spec: corev1.PersistentVolumeClaimSpec{
-						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-						DataSource: &corev1.TypedLocalObjectReference{
-							Kind: "PersistentVolumeClaim",
-							Name: backendstorage.PVCPrefix + "-" + sourceVMName,
-						},
-						StorageClassName: &storageClassName,
-						VolumeMode:       &volumeMode,
-					},
-				},
+				pvc: buildClonedBackendStoragePVC(
+					newTestVM(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+					newTestSourcePVC(namespace, sourceVMName, storageClassName, volumeMode),
+				),
 			},
 		},
 		{
@@ -1166,7 +1146,6 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 							newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
 							sourceVMName,
 							newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
-							"backend-storage-"+targetVMName,
 							util.CloneActionRenameEFI,
 						),
 						func(job *batchv1.Job) {
@@ -1200,7 +1179,6 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 					newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
 					sourceVMName,
 					newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
-					"backend-storage-"+targetVMName,
 					util.CloneActionRenameEFI,
 				),
 			},
@@ -1247,7 +1225,6 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 							newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
 							sourceVMName,
 							newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
-							"backend-storage-"+targetVMName,
 							util.CloneActionRenameEFI,
 						),
 						func(job *batchv1.Job) {
@@ -1278,7 +1255,6 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 							newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
 							sourceVMName,
 							newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
-							"backend-storage-"+targetVMName,
 							util.CloneActionRenameEFI,
 						),
 						func(job *batchv1.Job) {
@@ -1312,7 +1288,6 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 							newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
 							sourceVMName,
 							newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
-							"backend-storage-"+targetVMName,
 							util.CloneActionRenameEFI,
 						),
 						func(job *batchv1.Job) {
@@ -1347,7 +1322,6 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 							newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
 							sourceVMName,
 							newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
-							"backend-storage-"+targetVMName,
 							util.CloneActionRenameEFI,
 						),
 						func(job *batchv1.Job) {
@@ -1451,7 +1425,7 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 			if tc.expected.deletedJob {
 				require.Len(t, jobClient.deleted, 1)
 				assert.Equal(t, namespace, jobClient.deleted[0].Namespace)
-				assert.Equal(t, "backend-storage-"+targetVMName, jobClient.deleted[0].Name)
+				assert.True(t, strings.HasPrefix(jobClient.deleted[0].Name, backendStorageCloneJobGenerateName(targetVMName)))
 			} else {
 				assert.Empty(t, jobClient.deleted)
 			}
@@ -1488,7 +1462,6 @@ func TestBuildBackendStorageJobRequiresConfiguredImage(t *testing.T) {
 		newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
 		sourceVMName,
 		newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
-		"backend-storage-"+targetVMName,
 		util.CloneActionRenameEFI,
 	)
 

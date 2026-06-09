@@ -3,6 +3,8 @@ package virtualmachine
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -177,6 +179,7 @@ func (c *fakeRequeueVMController) Cache() generic.CacheInterface[*kubevirtv1.Vir
 type fakePVCClient struct {
 	pvcs    map[string]*corev1.PersistentVolumeClaim // "namespace/name" -> PVC
 	created []*corev1.PersistentVolumeClaim
+	counter int
 }
 
 func newFakePVCClient(pvcs ...*corev1.PersistentVolumeClaim) *fakePVCClient {
@@ -198,7 +201,15 @@ func (c *fakePVCClient) Get(namespace, name string, _ metav1.GetOptions) (*corev
 }
 
 func (c *fakePVCClient) Create(pvc *corev1.PersistentVolumeClaim) (*corev1.PersistentVolumeClaim, error) {
+	if pvc.Name == "" && pvc.GenerateName != "" {
+		c.counter++
+		pvc = pvc.DeepCopy()
+		pvc.Name = fmt.Sprintf("%s%d", pvc.GenerateName, c.counter)
+	}
 	key := pvc.Namespace + "/" + pvc.Name
+	if _, ok := c.pvcs[key]; ok {
+		return nil, apierrors.NewAlreadyExists(schema.GroupResource{Group: "", Resource: "persistentvolumeclaims"}, pvc.Name)
+	}
 	c.pvcs[key] = pvc
 	c.created = append(c.created, pvc)
 	return pvc, nil
@@ -257,6 +268,7 @@ type fakeJobClient struct {
 	jobs    map[string]*batchv1.Job // "namespace/name" -> Job
 	created []*batchv1.Job
 	deleted []*batchv1.Job
+	counter int
 }
 
 func newFakeJobClient(jobs ...*batchv1.Job) *fakeJobClient {
@@ -278,7 +290,15 @@ func (c *fakeJobClient) Get(namespace, name string, _ metav1.GetOptions) (*batch
 }
 
 func (c *fakeJobClient) Create(job *batchv1.Job) (*batchv1.Job, error) {
+	if job.Name == "" && job.GenerateName != "" {
+		c.counter++
+		job = job.DeepCopy()
+		job.Name = fmt.Sprintf("%s%d", job.GenerateName, c.counter)
+	}
 	key := job.Namespace + "/" + job.Name
+	if _, ok := c.jobs[key]; ok {
+		return nil, apierrors.NewAlreadyExists(schema.GroupResource{Group: "batch", Resource: "jobs"}, job.Name)
+	}
 	c.jobs[key] = job
 	c.created = append(c.created, job)
 	return job, nil
@@ -437,7 +457,17 @@ func newTestClonedPVC(namespace, targetVMName string, phase corev1.PersistentVol
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      backendstorage.PVCPrefix + "-" + targetVMName,
+			Name:      backendStorageClonePVCGenerateName(targetVMName) + "existing",
+			Labels: map[string]string{
+				util.LabelKubeVirtPersistentState: targetVMName,
+				util.LabelGeneratedBy:             util.ValueGeneratedByHarvester,
+			},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: kubevirtv1.VirtualMachineGroupVersionKind.GroupVersion().String(),
+				Kind:       kubevirtv1.VirtualMachineGroupVersionKind.Kind,
+				UID:        "target-vm-uid",
+				Name:       targetVMName,
+			}},
 		},
 		Status: corev1.PersistentVolumeClaimStatus{
 			Phase: phase,
@@ -445,9 +475,9 @@ func newTestClonedPVC(namespace, targetVMName string, phase corev1.PersistentVol
 	}
 }
 
-func mustBuildBackendStorageJob(t *testing.T, ctrl *VMController, vm *kubevirtv1.VirtualMachine, sourceVMName string, clonedPVC *corev1.PersistentVolumeClaim, jobName string, cloneAction string) *batchv1.Job {
+func mustBuildBackendStorageJob(t *testing.T, ctrl *VMController, vm *kubevirtv1.VirtualMachine, sourceVMName string, clonedPVC *corev1.PersistentVolumeClaim, cloneAction string) *batchv1.Job {
 	t.Helper()
-	job, err := ctrl.buildBackendStorageJob(vm, sourceVMName, clonedPVC, jobName, cloneAction)
+	job, err := ctrl.buildBackendStorageJob(vm, sourceVMName, clonedPVC, cloneAction)
 	require.NoError(t, err)
 	return job
 }
@@ -458,6 +488,9 @@ func newTestBackendStorageJob(job *batchv1.Job, mutate func(*batchv1.Job)) *batc
 	}
 
 	jobCopy := job.DeepCopy()
+	if jobCopy.Name == "" && jobCopy.GenerateName != "" {
+		jobCopy.Name = jobCopy.GenerateName + "existing"
+	}
 	if mutate != nil {
 		mutate(jobCopy)
 	}
@@ -482,7 +515,12 @@ func assertCreatedTestPVC(t *testing.T, expected, actual *corev1.PersistentVolum
 	t.Helper()
 	require.NotNil(t, expected)
 	require.NotNil(t, actual)
-	assert.Equal(t, expected.Name, actual.Name)
+	assert.Equal(t, expected.GenerateName, actual.GenerateName)
+	if expected.Name != "" {
+		assert.Equal(t, expected.Name, actual.Name)
+	} else {
+		assert.True(t, strings.HasPrefix(actual.Name, expected.GenerateName))
+	}
 	assert.Equal(t, expected.Namespace, actual.Namespace)
 	assert.Equal(t, expected.Labels, actual.Labels)
 	assert.Equal(t, expected.OwnerReferences, actual.OwnerReferences)
@@ -493,7 +531,12 @@ func assertCreatedTestJob(t *testing.T, expected, actual *batchv1.Job) {
 	t.Helper()
 	require.NotNil(t, expected)
 	require.NotNil(t, actual)
-	assert.Equal(t, expected.Name, actual.Name)
+	assert.Equal(t, expected.GenerateName, actual.GenerateName)
+	if expected.Name != "" {
+		assert.Equal(t, expected.Name, actual.Name)
+	} else {
+		assert.True(t, strings.HasPrefix(actual.Name, expected.GenerateName))
+	}
 	assert.Equal(t, expected.Namespace, actual.Namespace)
 	assert.Equal(t, expected.Labels, actual.Labels)
 	assert.Equal(t, expected.OwnerReferences, actual.OwnerReferences)
