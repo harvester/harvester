@@ -997,7 +997,7 @@ func getSystemCerts() *x509.CertPool {
 
 func hasVMBackupInCreatingOrDeletingProgress(vmBackups []*v1beta1.VirtualMachineBackup, vmbr common.VMBackupReader) bool {
 	for _, vmBackup := range vmBackups {
-		if vmbr.GetDeletionTimestap(vmBackup) != nil || !vmbr.IsReady(vmBackup) {
+		if vmbr.GetDeletionTimestamp(vmBackup) != nil || !vmbr.IsReady(vmBackup) {
 			return true
 		}
 	}

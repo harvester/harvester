@@ -123,7 +123,15 @@ func (lre *LonghornRestoreEngine) Reconcile(
 	pvc, err := lre.pvcCache.Get(namespace, pvcName)
 	if apierrors.IsNotFound(err) {
 		vb := lre.vmbo.GetVolBackup(vmb, volIndex)
-		return lre.createPVCFromSnapshot(vmr, vmb, vr, vb)
+		if vb == nil {
+			return fmt.Errorf("volume backup at index %d not found", volIndex)
+		}
+
+		if err := lre.createPVCFromSnapshot(vmr, vmb, vr, vb); err != nil {
+			return err
+		}
+
+		return engine.ErrRetryLater
 	}
 
 	if err != nil {
@@ -514,6 +522,11 @@ func (lre *LonghornRestoreEngine) UpdateProgress(vr *harvesterv1.VolumeRestore) 
 	}
 
 	if len(lhEngine.Status.RestoreStatus) == 0 {
+		// RestoreStatus is cleared once the engine finishes restoring; without
+		// this fallback, progress regresses from 100 to 0 after completion.
+		if lhEngine.Status.LastRestoredBackup != "" {
+			return 100, nil
+		}
 		return 0, nil
 	}
 
@@ -527,7 +540,9 @@ func (lre *LonghornRestoreEngine) UpdateProgress(vr *harvesterv1.VolumeRestore) 
 
 		numReplica++
 
+		// A replica that's no longer restoring is done — contribute 100.
 		if !rs.IsRestoring {
+			replicaRestoreProgressSum += 100
 			continue
 		}
 
