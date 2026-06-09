@@ -350,13 +350,11 @@ func (le *LonghornEngine) Reconcile(
 		le.vmbo.GetNamespace(vmb), le.vmbo.GetName(vmb), volIndex)
 
 	vb := le.vmbo.GetVolBackup(vmb, volIndex)
-	vbName := le.vmbo.GetVolBackupName(vb)
-	if vbName == nil {
-		return fmt.Errorf("%w for VMBackup %s/%s at index %d",
-			common.ErrVolumeBackupNameNil, le.vmbo.GetNamespace(vmb), le.vmbo.GetName(vmb), volIndex)
+	if vb == nil {
+		return fmt.Errorf("volume backup at index %d not found", volIndex)
 	}
 
-	vsName := *vbName
+	vsName := *le.vmbo.GetVolBackupName(vb)
 	vs, err := le.vsHelper.GetVolumeSnapshot(le.vmbo.GetNamespace(vmb), vsName)
 	if err != nil {
 		return err
@@ -421,22 +419,26 @@ func (le *LonghornEngine) updateVolumeBackupFromSnapshot(
 }
 
 func (le *LonghornEngine) UpdateProgress(vb *harvesterv1.VolumeBackup) (int64, error) {
+	if vb == nil {
+		return 0, nil
+	}
+
+	volumeSize := le.vmbo.GetVolBackupSize(vb)
+
 	if le.vmbo.GetVolBackupReadyToUse(vb) {
-		vb.Progress = backupProgressComplete
-		return backupProgressComplete, nil
+		return volumeSize, le.vmbo.SetVolBackupProgress(vb, backupProgressComplete)
 	}
 
 	if le.vmbo.GetVolBackupLHBackupName(vb) == nil {
-		return 0, nil
+		return volumeSize, nil
 	}
 
 	lhBackup, err := le.lhbackupCache.Get(util.LonghornSystemNamespaceName, *le.vmbo.GetVolBackupLHBackupName(vb))
 	if err != nil {
-		return 0, err
+		return volumeSize, err
 	}
 
-	vb.Progress = lhBackup.Status.Progress
-	return int64(vb.Progress), nil
+	return volumeSize, le.vmbo.SetVolBackupProgress(vb, lhBackup.Status.Progress)
 }
 
 // ForceDelete removes the VolumeSnapshot and any VolumeSnapshotContent that

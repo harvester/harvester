@@ -33,6 +33,11 @@ const (
 
 	// RestoreProgressComplete is the terminal progress value once a restore finalizes.
 	RestoreProgressComplete = 100
+
+	// restoreReasonError is the Reason written on Progressing/Ready conditions
+	// by SetErrorCondition. IsFailed matches on the same string, so producer
+	// and predicate stay in sync.
+	restoreReasonError = "Error"
 )
 
 // VMRestoreOperator provides a unified interface for managing VirtualMachineRestore operations.
@@ -133,6 +138,7 @@ type VMRestoreReader interface {
 	IsNewVM(vmr *harvesterv1.VirtualMachineRestore) bool
 	IsComplete(vmr *harvesterv1.VirtualMachineRestore) bool
 	IsProgressing(vmr *harvesterv1.VirtualMachineRestore) bool
+	IsFailed(vmr *harvesterv1.VirtualMachineRestore) bool
 	IsRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool
 	IsKeepMacAddress(vmr *harvesterv1.VirtualMachineRestore) bool
 	IsKeepHaltedAfterRestore(vmr *harvesterv1.VirtualMachineRestore) bool
@@ -186,6 +192,25 @@ func (c *vmrestoreReader) IsComplete(vmr *harvesterv1.VirtualMachineRestore) boo
 
 func (c *vmrestoreReader) IsProgressing(vmr *harvesterv1.VirtualMachineRestore) bool {
 	return vmr.Status.Complete == nil || !*vmr.Status.Complete
+}
+
+// IsFailed reports whether the restore has reached a terminal failure state.
+// SetErrorCondition leaves Status.Complete unset, so IsProgressing alone
+// cannot distinguish "still running" from "failed". Callers gating destructive
+// operations (block VMBackup delete, block new VMRestore) should skip failures
+// to avoid wedging the resource forever.
+func (c *vmrestoreReader) IsFailed(vmr *harvesterv1.VirtualMachineRestore) bool {
+	if c.IsComplete(vmr) {
+		return false
+	}
+	for _, cond := range vmr.Status.Conditions {
+		if cond.Type == harvesterv1.RestoreConditionProgressing &&
+			cond.Status == corev1.ConditionFalse &&
+			cond.Reason == restoreReasonError {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *vmrestoreReader) IsRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool {
@@ -455,7 +480,11 @@ func (vmro *vmrestoreOperator) SetVolRestoreProgress(vr *harvesterv1.VolumeResto
 	if vr == nil {
 		return fmt.Errorf("volume restore is nil")
 	}
-	vr.Progress = progress
+	// Monotonic: Longhorn engine status can transiently report a lower value
+	// (e.g., replica reset during restore), but user-visible progress must not regress.
+	if progress > vr.Progress {
+		vr.Progress = progress
+	}
 	return nil
 }
 
@@ -473,7 +502,10 @@ func (vmro *vmrestoreOperator) SetRestoreTime(vmr *harvesterv1.VirtualMachineRes
 }
 
 func (vmro *vmrestoreOperator) SetProgress(vmr *harvesterv1.VirtualMachineRestore, progress int) error {
-	vmr.Status.Progress = progress
+	// Monotonic: same rationale as SetVolRestoreProgress — never let aggregate progress regress.
+	if progress > vmr.Status.Progress {
+		vmr.Status.Progress = progress
+	}
 	return nil
 }
 
@@ -621,8 +653,8 @@ func (vmro *vmrestoreOperator) SetCompleteCondition(vmr *harvesterv1.VirtualMach
 }
 
 func (vmro *vmrestoreOperator) SetErrorCondition(vmr *harvesterv1.VirtualMachineRestore, err error) *harvesterv1.VirtualMachineRestore {
-	vmr = vmro.applyCondition(vmr, newProgressingCondition(corev1.ConditionFalse, "Error", err.Error()))
-	vmr = vmro.applyCondition(vmr, newReadyCondition(corev1.ConditionFalse, "Error", err.Error()))
+	vmr = vmro.applyCondition(vmr, newProgressingCondition(corev1.ConditionFalse, restoreReasonError, err.Error()))
+	vmr = vmro.applyCondition(vmr, newReadyCondition(corev1.ConditionFalse, restoreReasonError, err.Error()))
 	return vmr
 }
 
@@ -782,11 +814,14 @@ func getRestorePVCName(vmr *harvesterv1.VirtualMachineRestore, volumeName string
 	return fmt.Sprintf("restore-%s-%s-%s", vmr.Spec.VirtualMachineBackupName, vmr.UID, volumeName)
 }
 
-// findExistingVolumeRestore searches for an existing VolumeRestore by volume name
-func (vmro *vmrestoreOperator) findExistingVolumeRestore(vmr *harvesterv1.VirtualMachineRestore, volumeName string) *harvesterv1.VolumeRestore {
-	for _, vr := range vmro.GetVolRestores(vmr) {
-		if volumeName == vr.VolumeName {
-			return &vr
+func (vmro *vmrestoreOperator) findExistingVolumeRestore(
+	vmr *harvesterv1.VirtualMachineRestore,
+	volumeName string,
+) *harvesterv1.VolumeRestore {
+	vrs := vmro.GetVolRestores(vmr)
+	for i := range vrs {
+		if volumeName == vrs[i].VolumeName {
+			return &vrs[i]
 		}
 	}
 	return nil

@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"context"
+	"fmt"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -45,8 +46,11 @@ func (se *SnapshotEngine) Reconcile(
 		se.vmbo.GetNamespace(vmb), se.vmbo.GetName(vmb), volIndex)
 
 	vb := se.vmbo.GetVolBackup(vmb, volIndex)
-	vsName := *se.vmbo.GetVolBackupName(vb)
+	if vb == nil {
+		return fmt.Errorf("volume backup at index %d not found", volIndex)
+	}
 
+	vsName := *se.vmbo.GetVolBackupName(vb)
 	vs, err := se.vsHelper.GetVolumeSnapshot(se.vmbo.GetNamespace(vmb), vsName)
 	if err != nil {
 		return err

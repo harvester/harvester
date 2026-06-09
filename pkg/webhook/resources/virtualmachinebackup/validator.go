@@ -215,6 +215,9 @@ func (v *virtualMachineBackupValidator) Delete(_ *types.Request, obj runtime.Obj
 		if v.vmrr.IsDeleting(vmRestore) || !v.vmrr.HasStatus(vmRestore) {
 			continue
 		}
+		if v.vmrr.IsFailed(vmRestore) {
+			continue
+		}
 
 		if v.vmrr.IsProgressing(vmRestore) {
 			restoreName := v.vmrr.GetName(vmRestore)

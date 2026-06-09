@@ -281,7 +281,7 @@ func (h *VMController) removeVMBackupSnapshot(vm *kubevirtv1.VirtualMachine) err
 
 	for _, vmBackup := range vmBackups {
 		// Only the in-cluster Snapshot type benefits from re-parenting the
-		// VolumeSnapshot to its PVC; remote-target types (Backup/Restic/Kopia)
+		// VolumeSnapshot to its PVC; remote-target types (currently Backup)
 		// manage their own external state and create only transient
 		// VolumeSnapshots that are cleaned up by the engine.
 		if vmBackup.Spec.Type.UsesRemoteBackupTarget() {

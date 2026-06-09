@@ -43,6 +43,9 @@ func HasActiveRestore(
 		if vmr == nil {
 			continue
 		}
+		if vmrr.IsFailed(vmr) {
+			continue
+		}
 		if vmrr.IsProgressing(vmr) {
 			return true, nil
 		}

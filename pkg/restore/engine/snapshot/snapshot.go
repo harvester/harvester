@@ -59,7 +59,15 @@ func (sre *SnapshotRestoreEngine) Reconcile(
 	if apierrors.IsNotFound(err) {
 		// Create PVC from VolumeSnapshot
 		vb := sre.vmbo.GetVolBackup(vmb, volIndex)
-		return sre.createPVCFromSnapshot(vmr, vr, vb)
+		if vb == nil {
+			return fmt.Errorf("volume backup at index %d not found", volIndex)
+		}
+
+		if err := sre.createPVCFromSnapshot(vmr, vr, vb); err != nil {
+			return err
+		}
+
+		return engine.ErrRetryLater
 	}
 
 	if err != nil {
