@@ -1250,7 +1250,7 @@ func (h *vmActionHandler) findHotunpluggableNics(rw http.ResponseWriter, namespa
 }
 
 // cloneVM creates a VM which uses volume cloning from the source VM.
-// AnnotationBackendStorageCloneStatus signals the clone progress to the UI.
+// AnnotationBSCloneStatus signals the clone progress to the UI.
 // "cloning" = in progress, "cloned" = done.
 func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
@@ -1273,18 +1273,7 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 	}
 
 	if backendstorage.IsBackendStorageNeeded(newVM) {
-		if newVM.Spec.RunStrategy != nil {
-			newVM.Annotations[util.AnnotationBackendStorageCloneRunStrategy] = string(*newVM.Spec.RunStrategy)
-		}
-		newVM.Annotations[util.AnnotationBackendStorageCloneSourceVM] = vm.Name
-		if cloneAction := h.determineCloneAction(newVM); cloneAction != "" {
-			newVM.Annotations[util.AnnotationBackendStorageCloneActions] = cloneAction
-		}
-		newVM.Annotations[util.AnnotationBackendStorageCloneStartTime] = time.Now().Format(time.RFC3339)
-
-		halted := kubevirtv1.RunStrategyHalted
-		newVM.Spec.RunStrategy = &halted
-		newVM.Annotations[util.AnnotationBackendStorageCloneStatus] = util.CloneInProgress
+		h.prepareBackendStorageClone(newVM, vm)
 	}
 
 	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(newPVCsString)
@@ -1390,6 +1379,21 @@ func cloneSecretVolume(volume *kubevirtv1.Volume, secretNameMap map[string]strin
 		secretNameMap[volume.Secret.SecretName] = names.SimpleNameGenerator.GenerateName("clone-")
 	}
 	volume.Secret.SecretName = secretNameMap[volume.Secret.SecretName]
+}
+
+func (h *vmActionHandler) prepareBackendStorageClone(newVM, sourceVM *kubevirtv1.VirtualMachine) {
+	if newVM.Spec.RunStrategy != nil {
+		newVM.Annotations[util.AnnotationBSCloneRunStrategy] = string(*newVM.Spec.RunStrategy)
+	}
+	newVM.Annotations[util.AnnotationBSCloneSourceVM] = sourceVM.Name
+	if cloneAction := h.determineCloneAction(newVM); cloneAction != "" {
+		newVM.Annotations[util.AnnotationBSCloneActions] = cloneAction
+	}
+	newVM.Annotations[util.AnnotationBSCloneStartTime] = time.Now().Format(time.RFC3339)
+
+	halted := kubevirtv1.RunStrategyHalted
+	newVM.Spec.RunStrategy = &halted
+	newVM.Annotations[util.AnnotationBSCloneStatus] = util.CloneInProgress
 }
 
 // determineCloneAction determines what post-clone action is needed based on the

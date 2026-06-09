@@ -21,7 +21,7 @@ const (
 	vmControllerCleanupTargetVolumeAnnotationControllerName      = "VMController.CleanupTargetVolumeAnnotation"
 	vmiControllerRemoveDeprecatedFinalizerControllerName         = "VMIController.RemoveDeprecatedFinalizer"
 	vmiControllerSetHaltIfOccurExceededQuotaControllerName       = "VMIController.StopVMIfExceededQuota"
-	vmControllerReconcileBackendStorageCloneControllerName       = "VMController.ReconcileBackendStorageClone"
+	vmControllerReconcileBSCloneControllerName                   = "VMController.ReconcileBackendStorageClone"
 	vmControllerCleanupPVCAndSnapshotFinalizerName               = "VMController.CleanupPVCAndSnapshot"
 
 	// this finalizer is special one which was added by our controller, not wrangler.
@@ -97,8 +97,8 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	virtualMachineClient.OnChange(ctx, vmControllerCleanupTargetVolumeAnnotationControllerName, vmCtrl.CleanupTargetVolumeAnnotation)
 	virtualMachineClient.OnRemove(ctx, vmControllerCleanupPVCAndSnapshotFinalizerName, vmCtrl.cleanupPVCAndSnapshot)
 
-	virtualMachineClient.OnChange(ctx, vmControllerReconcileBackendStorageCloneControllerName, vmCtrl.ReconcileBackendStorageClone)
-	virtualMachineClient.OnRemove(ctx, vmControllerReconcileBackendStorageCloneControllerName, vmCtrl.CleanUpBackendStorageClone)
+	virtualMachineClient.OnChange(ctx, vmControllerReconcileBSCloneControllerName, vmCtrl.ReconcileBackendStorageClone)
+	virtualMachineClient.OnRemove(ctx, vmControllerReconcileBSCloneControllerName, vmCtrl.CleanUpBackendStorageClone)
 
 	// registers the vmi controller
 	virtualMachineCache := virtualMachineClient.Cache()

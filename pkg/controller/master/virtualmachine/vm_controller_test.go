@@ -1107,7 +1107,7 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 			name: "ignore VM without clone annotations",
 			given: input{
 				key:  namespace + "/" + targetVMName,
-				vm:   newTestVM(namespace, targetVMName, map[string]string{util.AnnotationBackendStorageCloneSourceVM: sourceVMName, util.AnnotationBackendStorageCloneRunStrategy: string(kubevirtv1.RunStrategyRerunOnFailure)}),
+				vm:   newTestVM(namespace, targetVMName, map[string]string{util.AnnotationBSCloneSourceVM: sourceVMName, util.AnnotationBSCloneRunStrategy: string(kubevirtv1.RunStrategyRerunOnFailure)}),
 				pvcs: []*corev1.PersistentVolumeClaim{newTestSourcePVC(namespace, sourceVMName, storageClassName, volumeMode), newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
 			},
 			expected: output{
@@ -1170,7 +1170,7 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 							util.CloneActionRenameEFI,
 						),
 						func(job *batchv1.Job) {
-							job.Annotations[util.AnnotationBackendStorageCloneStartTime] = time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+							job.Annotations[util.AnnotationBSCloneStartTime] = time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
 						},
 					),
 				},
@@ -1223,7 +1223,7 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 				key: namespace + "/" + targetVMName,
 				vm: func() *kubevirtv1.VirtualMachine {
 					annotations := newTestCloneInProgressAnnotations(sourceVMName)
-					annotations[util.AnnotationBackendStorageCloneStartTime] = time.Now().Add(-backendStorageCloneTimeout - time.Minute).UTC().Format(time.RFC3339)
+					annotations[util.AnnotationBSCloneStartTime] = time.Now().Add(-backendStorageCloneTimeout - time.Minute).UTC().Format(time.RFC3339)
 					return newTestVMWithPersistentEFI(namespace, targetVMName, annotations)
 				}(),
 				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
@@ -1300,7 +1300,7 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 				key: namespace + "/" + targetVMName,
 				vm: func() *kubevirtv1.VirtualMachine {
 					annotations := newTestCloneInProgressAnnotations(sourceVMName)
-					annotations[util.AnnotationBackendStorageCloneRetries] = strconv.Itoa(maxBackendStorageCloneRetries)
+					annotations[util.AnnotationBSCloneRetries] = strconv.Itoa(maxBackendStorageCloneRetries)
 					return newTestVMWithPersistentEFI(namespace, targetVMName, annotations)
 				}(),
 				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
@@ -1376,7 +1376,7 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 				key: namespace + "/" + targetVMName,
 				vm: func() *kubevirtv1.VirtualMachine {
 					annotations := newTestCloneInProgressAnnotations(sourceVMName)
-					annotations[util.AnnotationBackendStorageCloneStage] = util.CloneStagePreCompleted
+					annotations[util.AnnotationBSCloneStage] = util.CloneStagePreCompleted
 					return newTestVMWithPersistentEFI(namespace, targetVMName, annotations)
 				}(),
 				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
@@ -1424,8 +1424,8 @@ func TestReconcileBackendStorageClone(t *testing.T) {
 			require.NoError(t, err)
 
 			if result != nil {
-				assert.Equal(t, tc.expected.cloneStatus, result.Annotations[util.AnnotationBackendStorageCloneStatus])
-				assert.Equal(t, tc.expected.cloneStage, result.Annotations[util.AnnotationBackendStorageCloneStage])
+				assert.Equal(t, tc.expected.cloneStatus, result.Annotations[util.AnnotationBSCloneStatus])
+				assert.Equal(t, tc.expected.cloneStage, result.Annotations[util.AnnotationBSCloneStage])
 				if tc.expected.runStrategy == nil {
 					assert.Nil(t, result.Spec.RunStrategy)
 				} else {

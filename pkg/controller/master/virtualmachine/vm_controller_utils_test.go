@@ -470,11 +470,11 @@ func newTestCloneInProgressAnnotations(sourceVMName string) map[string]string {
 
 func newTestCloneInProgressAnnotationsWithAction(sourceVMName, cloneAction string) map[string]string {
 	return map[string]string{
-		util.AnnotationBackendStorageCloneStatus:      util.CloneInProgress,
-		util.AnnotationBackendStorageCloneSourceVM:    sourceVMName,
-		util.AnnotationBackendStorageCloneRunStrategy: string(kubevirtv1.RunStrategyRerunOnFailure),
-		util.AnnotationBackendStorageCloneActions:     cloneAction,
-		util.AnnotationBackendStorageCloneStartTime:   time.Now().UTC().Format(time.RFC3339),
+		util.AnnotationBSCloneStatus:      util.CloneInProgress,
+		util.AnnotationBSCloneSourceVM:    sourceVMName,
+		util.AnnotationBSCloneRunStrategy: string(kubevirtv1.RunStrategyRerunOnFailure),
+		util.AnnotationBSCloneActions:     cloneAction,
+		util.AnnotationBSCloneStartTime:   time.Now().UTC().Format(time.RFC3339),
 	}
 }
 
