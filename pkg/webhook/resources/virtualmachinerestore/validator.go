@@ -277,7 +277,7 @@ func (v *restoreValidator) getVMBackup(vmr *v1beta1.VirtualMachineRestore) (*v1b
 	if v.vmbr.GetSourceKind(vmb) != kubevirtv1.VirtualMachineGroupVersionKind.Kind {
 		return nil, fmt.Errorf("unsupported backup source kind: %s", v.vmbr.GetSourceKind(vmb))
 	}
-	if v.vmbr.GetDeletionTimestap(vmb) != nil {
+	if v.vmbr.GetDeletionTimestamp(vmb) != nil {
 		return nil, fmt.Errorf("vmbackup %s/%s is deleted", v.vmbr.GetNamespace(vmb), v.vmbr.GetName(vmb))
 	}
 	return vmb, nil

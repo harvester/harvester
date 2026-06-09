@@ -146,7 +146,7 @@ type VMBackupReader interface {
 	GetNamespace(vmb *harvesterv1.VirtualMachineBackup) string
 	GetKind(vmb *harvesterv1.VirtualMachineBackup) string
 	GetUID(vmb *harvesterv1.VirtualMachineBackup) types.UID
-	GetDeletionTimestap(vmb *harvesterv1.VirtualMachineBackup) *metav1.Time
+	GetDeletionTimestamp(vmb *harvesterv1.VirtualMachineBackup) *metav1.Time
 	GetSpec(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.VirtualMachineBackupSpec
 	GetSourceSpec(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineSourceSpec
 	GetStatus(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineBackupStatus
@@ -221,6 +221,8 @@ func (a *vmbackupReader) GetVolBackup(vmb *harvesterv1.VirtualMachineBackup, ind
 }
 
 func (a *vmbackupReader) GetSanitizeVolBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.VolumeBackup {
+	// Intentionally reuse and mutate the status slice so backup metadata omits
+	// transient runtime fields that should not be restored from backup storage.
 	sanitizeVolBackups := vmb.Status.VolumeBackups
 	for i := range sanitizeVolBackups {
 		sanitizeVolBackups[i].ReadyToUse = nil
@@ -351,7 +353,7 @@ func (a *vmbackupReader) GetUID(vmb *harvesterv1.VirtualMachineBackup) types.UID
 	return vmb.UID
 }
 
-func (a *vmbackupReader) GetDeletionTimestap(vmb *harvesterv1.VirtualMachineBackup) *metav1.Time {
+func (a *vmbackupReader) GetDeletionTimestamp(vmb *harvesterv1.VirtualMachineBackup) *metav1.Time {
 	return vmb.DeletionTimestamp
 }
 
@@ -698,8 +700,6 @@ func getVSCName(backupType harvesterv1.BackupType, driverInfo settings.CSIDriver
 
 	switch {
 	case backupType.UsesRemoteBackupTarget():
-		// Restic/Kopia snapshot the source PVC then clone-and-read via a job,
-		// so they need the backup snapshot class just like native backup.
 		vscName = driverInfo.BackupVolumeSnapshotClassName
 	case backupType == harvesterv1.Snapshot:
 		vscName = driverInfo.VolumeSnapshotClassName

@@ -782,11 +782,14 @@ func getRestorePVCName(vmr *harvesterv1.VirtualMachineRestore, volumeName string
 	return fmt.Sprintf("restore-%s-%s-%s", vmr.Spec.VirtualMachineBackupName, vmr.UID, volumeName)
 }
 
-// findExistingVolumeRestore searches for an existing VolumeRestore by volume name
-func (vmro *vmrestoreOperator) findExistingVolumeRestore(vmr *harvesterv1.VirtualMachineRestore, volumeName string) *harvesterv1.VolumeRestore {
-	for _, vr := range vmro.GetVolRestores(vmr) {
-		if volumeName == vr.VolumeName {
-			return &vr
+func (vmro *vmrestoreOperator) findExistingVolumeRestore(
+	vmr *harvesterv1.VirtualMachineRestore,
+	volumeName string,
+) *harvesterv1.VolumeRestore {
+	vrs := vmro.GetVolRestores(vmr)
+	for i := range vrs {
+		if volumeName == vrs[i].VolumeName {
+			return &vrs[i]
 		}
 	}
 	return nil

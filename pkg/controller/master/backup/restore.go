@@ -686,14 +686,14 @@ func (h *RestoreHandler) buildVMFromRestore(
 		return nil, err
 	}
 
-	// Create the VM Halted so KubeVirt doesn't spawn a VMI that races our
-	// per-volume restore Jobs for still-being-populated PVCs. For fast restore
-	// types (snapshot/longhorn) this is a no-op, but engines that write the
-	// volume out of band (restic/kopia) need the VM to wait until their Jobs
-	// have finished and the PVC is released — otherwise VirtLauncher attaches
-	// the PVC while the restore is mid-flight and the guest boots from
-	// inconsistent data. ensureVMStartedAndReady starts the VM via the /start
-	// subresource once isVolumesReady becomes true.
+	// Create the VM Halted so KubeVirt doesn't spawn a VMI before per-volume
+	// restores finish. For the current snapshot/longhorn engines this is a
+	// no-op, but the framework is designed so future engines that populate
+	// PVCs out of band can rely on the VM staying off until their work is
+	// complete and the PVCs are released — otherwise VirtLauncher would
+	// attach mid-restore and boot from inconsistent data.
+	// ensureVMStartedAndReady starts the VM via the /start subresource once
+	// isVolumesReady becomes true.
 	initialRunStrategy := kubevirtv1.RunStrategyHalted
 
 	vm := &kubevirtv1.VirtualMachine{
@@ -813,7 +813,7 @@ func (h *RestoreHandler) updateStatus(
 		return err
 	}
 
-	// 4. Cleanup and complete
+	// Cleanup and complete
 	return h.finalizeRestore(vmr, vmrCpy, vm)
 }
 
@@ -874,13 +874,13 @@ func (h *RestoreHandler) ensureVMStartedAndReady(
 		return nil
 	}
 
+	if vm.Status.Ready {
+		return nil
+	}
+
 	// Start VM before checking status
 	if err := h.vmro.StartVM(h.context, vm); err != nil {
 		return h.vmro.UpdateError(vmr, fmt.Errorf("failed to start vm, err:%s", err.Error()))
-	}
-
-	if vm.Status.Ready {
-		return nil
 	}
 
 	// VM not ready yet: persist progressing condition and halt the pipeline so

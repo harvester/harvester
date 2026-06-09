@@ -227,7 +227,7 @@ func (h *Handler) getBackupEngine(vmb *harvesterv1.VirtualMachineBackup) engine.
 
 // OnBackupChange handles vm backup object on change and reconcile vm backup status
 func (h *Handler) OnBackupChange(_ string, vmb *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
-	if vmb == nil || h.vmbo.GetDeletionTimestap(vmb) != nil {
+	if vmb == nil || h.vmbo.GetDeletionTimestamp(vmb) != nil {
 		return nil, nil
 	}
 
@@ -296,10 +296,11 @@ func (h *Handler) OnBackupRemove(_ string, vmb *harvesterv1.VirtualMachineBackup
 	}
 
 	// Force-delete volume backups in two cases:
-	// 1) Target changed since creation — orphaned vol backups need cleanup
-	//    regardless of type (legacy behavior for native Backup).
-	// 2) The backup type owns remote state nothing else GCs for us (restic/
-	//    kopia), so the engine must always get a chance to forget remote data.
+	// 1) Target changed since creation — orphaned vol backups against the old
+	//    target need cleanup regardless of type.
+	// 2) The backup type owns remote state nothing else GCs for us — the
+	//    engine must always get a chance to clean up. Currently always false
+	//    for built-in types; reserved for future third-party engines.
 	if !h.vmbo.IsTargetConsistent(vmb, currentTarget) || h.vmbo.GetType(vmb).OwnsExternalState() {
 		if err := h.forceDeleteVolBackups(vmb); err != nil {
 			return nil, fmt.Errorf("failed to delete volume backups: %w", err)
