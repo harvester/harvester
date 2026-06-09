@@ -1,14 +1,14 @@
-# Automated Dependency Updates with Renovate + Updatecli
+# Automated Dependency Updates with Renovate
 
 ## Summary
 
-Current Renovate setup doesn't handle complex dependency updates well. Developers still do a lot of manual work for:
+Current Renovate setup doesn't handle dependency updates well. Developers still do a lot of manual work for:
 
 - K8s version bumps (need to coordinate multiple `k8s.io/*` modules), <https://github.com/harvester/harvester/issues/10110>.
 - Longhorn updates (spans Helm charts and Go modules), <https://github.com/harvester/harvester/pull/10193>.
-- Go version updates (need to touch `Dockerfile.dapper`, CI workflows, and `go.mod` together).
+- Go version updates (need to touch Dockerfile and `go.mod` together).
 
-This proposes using Renovate with better grouping rules + Updatecli for complex multi-file updates. Result: one PR per logical change instead of scattered manual updates.
+This proposes using Renovate with proper grouping rules and automated merge policies. Result: one PR per logical change with auto-merge for patches/security fixes.
 
 ### Related Issues
 
@@ -19,38 +19,39 @@ This proposes using Renovate with better grouping rules + Updatecli for complex 
 ### Goals
 
 - Group related dependencies into single PRs (all `k8s.io/*` modules together, not 15 separate PRs).
-- Handle multi-file updates that Renovate can't do (Go version in `Dockerfile.dapper` + CI + `go.mod`), e.g. <https://github.com/pohanhuang/harvester-installer/pull/28>.
-- Centralize update policies - write once, reuse across repos, <https://github.com/pohanhuang/harvester-updatecli-poc>.
+- Auto-merge patch and security updates after waiting period (2 weeks).
+- Require human review for minor updates.
+- Apply minor/patch/security updates to all active branches (master/main trunk + active release branches).
+- Restrict release branches to patch/security updates only.
+- Centralize update policies via shared Renovate config in `harvester/dependency-automation`.
 
 ### Non-goals
 
-- Disable auto-merge (still need human review).
+- Auto-merge minor updates (require human review).
+- Major version updates (disabled, require manual updates).
 
 ## Introduction
 
-**Updatecli** automates multi-file updates across different formats (Go modules, Dockerfiles, YAML) in a single atomic change.
+Use Renovate to automate dependency updates with proper grouping and auto-merge policies.
 
-**Policies** are reusable update configurations packaged as OCI artifacts (e.g., `ghcr.io/harvester/updatecli-policies:latest`). Write update logic once, reuse across repos.
+**Update policies**:
+- **Patch/security updates**: Auto-merge after 2-week waiting period if CI passes
+- **Minor updates**: Create PR, require human review
+- **Major updates**: Disabled (require manual updates)
 
-**Workflow**:
-
-1. Policy maintainers publish update logic to `ghcr.io/harvester/updatecli-policies/{policy}:v1.0.0`
-2. Each repo adds `updatecli/updatecli-compose.yaml` that references the policy and provides repo-specific values.
-3. GitHub Actions runs `updatecli compose apply` on schedule (e.g., weekly)
-4. Updatecli pulls the policy, detects version changes, and creates a PR updating all affected files together (e.g., `Dockerfile.dapper` + `go.mod` + CI workflows for Go bumps), e.g. <https://github.com/pohanhuang/harvester/pull/226>.
+**Shared config**: Write rules once in `harvester/dependency-automation`, reuse via `extends` in each repo.
 
 ## Proposal
 
-Use two tools to achieve artifact automation bumping:
-
-1. **Renovate** - for Go modules with better grouping.
-2. **Updatecli** - for multi-file or complex updates Renovate can't handle.
+1. **Grouping rules** - Group related dependencies (k8s.io/*, longhorn/*, golang toolchain) into single PRs
+2. **Auto-merge policies** - Patch/security updates auto-merge after 2 weeks; minor updates require human review
+3. **Shared configuration** - Centralize in `harvester/dependency-automation`, extend in each repo
 
 ### User Stories
 
 #### K8s Dependency Updates
 
-**Before**: K8s patch release → 15+ separate Renovate PRs for each `k8s.io/*` module → devs figure out how to manually group them (e.g., [issue #10110](https://github.com/harvester/harvester/issues/10110)) → manually verify compatibility → create grouped PR by hand.
+**Before**: K8s patch release → 15+ separate Renovate PRs for each `k8s.io/*` module due to incomplete Renovate settings → devs manually group them (e.g., [issue #10110](https://github.com/harvester/harvester/issues/10110)) → manually verify compatibility → create grouped PR by hand.
 
 **After**: One PR with all `k8s.io/*` modules grouped, e.g. <https://github.com/pohanhuang/harvester/pull/157>.
 
@@ -58,12 +59,11 @@ Use two tools to achieve artifact automation bumping:
 
 **Before**: Update Go 1.25.7 → 1.25.8 requires touching:
 
-- `Dockerfile.dapper`
-- .github/workflows/*.yml
+- `.github/workflows/*.yml`
 - `go.mod`
 - Easy to miss a file or have inconsistent versions.
 
-**After**: Updatecli does it in one PR. All files updated together, example PR e.g. <https://github.com/pohanhuang/harvester/pull/226>.
+**After**: Renovate's `go-version` datasource handles it in one PR. All files updated together using regex managers.
 
 #### Longhorn Go Module Updates
 
@@ -75,15 +75,14 @@ Use two tools to achieve artifact automation bumping:
 
 **Setup** (one-time per repo):
 
-- Add `updatecli/` config files.
-- Update `renovate.json` to extend the centralized config.
-- Add GitHub Actions workflow for Updatecli.
+- Update `renovate.json` to extend the shared config from `harvester/dependency-automation`.
+- Per-repo customizations can override shared settings as needed.
 
 **Daily usage**:
 
-- Review PRs as they come in
-- Titles like "chore: update k8s deps to v1.33.8"
-- Approve/merge after CI passes
+- Patch/security updates: Auto-merged after waiting period (e.g., 2 weeks) and CI passes.
+- Minor updates: Review PRs as they come in, titles like "chore: update k8s deps to v1.33.0".
+- Approve/merge after CI passes.
 
 No changes for contributors.
 
@@ -95,122 +94,48 @@ None.
 
 ### Implementation Overview
 
-**Phase 1: Fix Renovate grouping**
+**Phase 1: Create shared config in `harvester/dependency-automation`**
 
-Rename `harvester/renovate` → `harvester/dependency-automation` to reflect broader scope (Renovate + Updatecli).
+Repository `harvester/dependency-automation` (renamed from `harvester/renovate`) hosts shared config.
 
-Adopt grouping rules from [PR #5](https://github.com/harvester/renovate/pull/5), which groups related dependencies to reduce PR noise:
+**Dependency grouping**:
+- Golang toolchain (go.mod + Dockerfile) → 1 PR
+- K8s + Rancher (all k8s.io/* + rancher/rancher) → 1 PR
+- Longhorn (all longhorn/*) → 1 PR
+- SUSE BCI base images → 1 PR
 
-- **Group 1**: k8s + kubevirt + rancher (these share compatibility constraints and update together)
-- **Group 2**: longhorn (independent update cycle, needs separate k8s compatibility check)
+**Update policies**:
+- Major updates: Disabled for Go modules
+- Minor updates: PR created, require human review
+- Patch/security updates: Auto-merge after 2 weeks if CI passes
 
-This reduces 15+ separate PRs per k8s release → 2 PRs total.
+**Disabled dependencies** (require manual updates):
+- kubevirt (breaking changes need testing)
+- rancher/lasso (version pinned)
+- Helm charts (separate management)
 
-```json
-{
-  "packageRules": [
-    {
-      "description": "Group k8s, kubevirt and rancher packages",
-      "matchManagers": ["gomod"],
-      "matchPackagePatterns": [
-        "k8s\\.io/", 
-        "^kubevirt\\.io/",
-        "^github\\.com/rancher/rancher$"
-      ],
-      "groupName": "k8s + kubevirt + rancher dependencies",
-      "prBodyNotes": [
-        "⚠️ **Check longhorn compatibility before merging.**"
-      ]
-    },
-    {
-      "description": "Group longhorn packages",
-      "matchManagers": ["gomod"],
-      "matchPackagePatterns": ["^github\\.com/longhorn/"],
-      "groupName": "longhorn dependencies",
-      "prBodyNotes": [
-        "⚠️ **Check k8s compatibility before merging.**"
-      ]
-    }
-  ]
-}
-```
+**Phase 2: Apply to `harvester/harvester` (master → v1.x branches)**
 
-**Phase 2: Create Updatecli policies**
+Create PR to extend shared config in `harvester/harvester`:
+- Master branch adopts shared config first
+- Apply to active release branches (v1.x) for patch/security updates only
+- Monitor PR quality and tune grouping rules
 
-Develop policies in `harvester/dependency-automation/policies/` for multi-file updates Renovate can't handle:
+**Phase 3: Gradually migrate to other repos**
 
-- **Go version**: Updates `Dockerfile.dapper` + `.github/workflows/*.yml` + `go.mod` together (see [example PR](https://github.com/pohanhuang/harvester/pull/226))
-
-**Phase 3: Package and distribute policies**
-
-Publish policies as OCI artifacts to `ghcr.io/harvester/dependency-automation/{policy}:{version}` using GitHub Actions in the `dependency-automation` repo. Repos pull the latest policies at runtime, so updates to policy logic propagate automatically.
-
-**Phase 4: Enable in target repos**
-
-Each repo adds minimal configuration:
-
-```yaml
-# .github/workflows/updatecli.yml
-name: Updatecli
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: "0 8 * * *"
-
-jobs:
-  updatecli:
-    name: Bump golang version
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install Updatecli
-        uses: updatecli/updatecli-action@2cc8e6d8e356d76b0280cdd03766c36596a0614e # v3.0.0
-
-      - name: Diff (dry-run on PR)
-        if: github.ref != 'refs/heads/master'
-        env:
-          GITHUB_TOKEN: ${{ secrets.HARVESTER_TOKEN }}
-        run: |
-          updatecli compose diff --file updatecli/updatecli-compose.yaml
-
-      - name: Apply
-        if: github.ref == 'refs/heads/master'
-        env:
-          GITHUB_TOKEN: ${{ secrets.HARVESTER_TOKEN }} # Will replace this with Github Apps to autoroates the token.
-        run: |
-          updatecli compose apply --file updatecli/updatecli-compose.yaml
-```
+Gradually rollout to remaining repos:
+- Start with 1-2 repos per week
+- Each repo: `renovate.json` extends `github>harvester/dependency-automation`
+- Monitor PR quality and adjust shared config based on feedback
+- Repo-specific overrides allowed
 
 ### Test plan
 
-**Unit testing**:
-
-- Run `updatecli diff` on each policy before publishing to verify it detects updates correctly.
-- Test against sample repos to ensure file patterns match, see current result, e.g. <https://github.com/pohanhuang/harvester/pull/226>.
-
-**Integration testing**:
-
-Pilot repos: `harvester/harvester-installer`.
-
-Success criteria:
-
-- PRs created with correct file updates (no missed files, no extra files)
-- No merge conflicts with concurrent development
-- CI passes on generated PRs
-- a workflow contains `make ci` succeeds (ensures `go build` and `go test` work after dependency bumps)
-- Manual review confirms version consistency across updated files
-
-**Rollout schedule**:
-
-- **Week 1-2**: Enable on pilot repos, monitor PR quality
-- **Week 3-4**: Fix issues, tune grouping rules and policies based on feedback
-- **Week 5+**: Gradual rollout to remaining repos (1-2 repos per week)
+**Success criteria**:
+- Grouping: k8s.io/* in 1 PR, longhorn/* in 1 PR, golang toolchain in 1 PR
+- Auto-merge: Patch updates wait 14 days → auto-merge if CI passes
+- Manual review: Minor updates require approval
+- `make ci` passes after bumps
 
 ### Upgrade strategy
 
@@ -218,13 +143,11 @@ Dev infrastructure only—no end-user impact.
 
 **Migration per repo**:
 
-1. Add `updatecli/` directory with compose configuration
-2. Update `renovate.json` to extend `harvester/dependency-automation:default.json`
-3. Add `.github/workflows/updatecli.yml`
+1. Update `renovate.json` to extend `github>harvester/dependency-automation`
+2. Remove any local grouping rules that are now in shared config
+3. Add repo-specific overrides if needed
 4. Existing Renovate setup continues until new config is merged (no disruption)
 
 ## Note
 
-**Future enhancements**:
-
-- Automated backports to release branches (e.g., `v1.8`, `v1.7.1`)
+Renovate handles current requirements. Updatecli will be used if needed in the future.
