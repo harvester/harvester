@@ -158,9 +158,10 @@ const (
 	CSINodeExpandSecretNameKey       = "csi.storage.k8s.io/node-expand-secret-name"
 	CSINodeExpandSecretNamespaceKey  = "csi.storage.k8s.io/node-expand-secret-namespace"
 
-	LabelUpgradeReadMessage          = prefix + "/read-message"
-	LabelUpgradeState                = prefix + "/upgradeState"
-	UpgradeStateLoggingInfraPrepared = "LoggingInfraPrepared"
+	LabelUpgradeReadMessage           = prefix + "/read-message"
+	LabelUpgradeState                 = prefix + "/upgradeState"
+	UpgradeStatePreparingLoggingInfra = "PreparingLoggingInfra"
+	UpgradeStateLoggingInfraPrepared  = "LoggingInfraPrepared"
 
 	AnnotationArchiveName                 = prefix + "/archiveName"
 	LabelUpgradeLog                       = prefix + "/upgradeLog"

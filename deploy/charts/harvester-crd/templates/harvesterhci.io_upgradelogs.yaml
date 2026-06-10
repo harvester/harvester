@@ -43,6 +43,9 @@ spec:
             properties:
               upgradeName:
                 type: string
+                x-kubernetes-validations:
+                - message: spec.upgradeName is immutable
+                  rule: self == oldSelf
             required:
             - upgradeName
             type: object
