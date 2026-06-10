@@ -14,7 +14,7 @@ import (
 
 const (
 	defaultInterval = 3 * time.Second
-	defaultTimeout  = 10 * time.Minute
+	defaultTimeout  = 45 * time.Minute
 )
 
 var (
