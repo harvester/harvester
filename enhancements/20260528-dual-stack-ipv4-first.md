@@ -5,6 +5,33 @@ primary address family. Every component that currently hardcodes IPv4-only assum
 extended to carry, validate, and act on both address families while preserving full backward
 compatibility for existing IPv4-only deployments.
 
+---
+
+## Table of Contents
+
+- [Summary](#summary)
+  - [Related Issues](#related-issues)
+- [Motivation](#motivation)
+  - [Goals](#goals)
+  - [Non-goals](#non-goals)
+  - [Experimental Status](#experimental-status)
+- [Proposal](#proposal)
+  - [User Stories](#user-stories)
+  - [User Experience In Detail](#user-experience-in-detail)
+  - [API Changes](#api-changes)
+- [Design](#design)
+  - [Implementation Overview](#implementation-overview)
+- [Test Plan](#test-plan)
+  - [Scope for this HEP](#scope-for-this-hep)
+  - [Unit Tests](#unit-tests)
+  - [Integration Tests *(deferred)*](#integration-tests-deferred--for-reference-only)
+  - [End-to-End Tests *(deferred)*](#end-to-end-tests-deferred--for-reference-only)
+  - [Test Infrastructure *(deferred)*](#test-infrastructure-deferred-to-ipv6-first-hep)
+- [Upgrade Strategy](#upgrade-strategy)
+- [Note: Design Principle](#design-principle-opt-in-switch-off-by-default)
+
+---
+
 ## Summary
 
 Harvester's networking stack is currently end-to-end IPv4-only. Address fields, CRD validation
@@ -20,12 +47,15 @@ and `harvester-ui-extension`. IPv4 remains the primary address family at every l
 the secondary. Existing single-stack IPv4 clusters are unaffected — all changes are additive and
 backward-compatible.
 
-The work is organized into four delivery phases aligned with dependency order:
-- **Priority/0 (Foundation):** CRD types and low-level networking primitives — `vm-dhcp-controller`,
-  `harvester` (core), `harvester-installer`, `docker-machine-driver-harvester`
-- **Priority/1 (Integration):** Controllers that consume Priority/0 API contracts — `charts`,
-  `load-balancer-harvester`, `network-controller-harvester`
+The work is organized into delivery phases aligned with dependency order:
+- **Priority/0 (Foundation):** Cluster infrastructure and host networking — `harvester` (core),
+  `harvester-installer`, `network-controller-harvester`
+- **Priority/1 (Integration):** Charts and integrations that consume Priority/0 API contracts — `charts`
 - **Priority/2 (Polish & UI):** `harvester-ui-extension`
+- **Deprioritized:** Components constituting the Rancher Cloud Provider integration path —
+  `load-balancer-harvester`, `vm-dhcp-controller`, `docker-machine-driver-harvester`. Full
+  dual-stack Harvester Cloud Provider support (guest cluster provisioning) is deferred to a
+  follow-on iteration once the cluster infrastructure foundation is validated.
 
 **Release safety:** Every sub-task in this plan is structured so that Harvester remains in a
 fully working, releasable state after each individual merge. No combination of partial merges
@@ -39,15 +69,15 @@ IPv6 configuration enforcement.
 
 ### Related Issues
 
-- https://github.com/harvester/harvester/issues/10637 — primary tracking issue
-- [vm-dhcp-controller feature request](../../issues/v2/vm-dhcp-controller-feature-request.md) TODO: link once created
-- [network-controller-harvester feature request](../../issues/v2/network-controller-harvester-feature-request.md) TODO: link once created
-- [harvester core feature request](../../issues/v2/harvester-feature-request.md) TODO: link once created
-- [load-balancer-harvester feature request](../../issues/v2/load-balancer-harvester-feature-request.md) TODO: link once created
-- [harvester-installer feature request](../../issues/v2/harvester-installer-feature-request.md) TODO: link once created
-- [docker-machine-driver-harvester feature request](../../issues/v2/docker-machine-driver-harvester-feature-request.md) TODO: link once created
-- [charts feature request](../../issues/v2/charts-feature-request.md) TODO: link once created
-- [harvester-ui-extension feature request](../../issues/v2/harvester-ui-extension-feature-request.md) TODO: link once created
+- https://github.com/harvester/harvester/issues/10637 — primary tracking issue (Epic)
+- https://github.com/harvester/harvester/issues/10755 — harvester-installer
+- https://github.com/harvester/harvester/issues/10756 — harvester (core)
+- https://github.com/harvester/harvester/issues/10758 — docker-machine-driver-harvester *(deprioritized)*
+- https://github.com/harvester/harvester/issues/10759 — network-controller-harvester
+- https://github.com/harvester/harvester/issues/10767 — load-balancer-harvester *(deprioritized)*
+- https://github.com/harvester/harvester/issues/10768 — vm-dhcp-controller *(deprioritized)*
+- https://github.com/harvester/harvester/issues/10769 — charts
+- https://github.com/harvester/harvester/issues/10770 — harvester-ui-extension
 
 ---
 
@@ -57,91 +87,64 @@ We can roll out IPv6 support in stages. A dual-stack, IPv4-first setup means sup
 IPv4 and IPv6 in the same cluster where, by default, each service works with IPv4 addresses
 unless explicitly overridden.
 
-This approach is more flexible and forgiving, allowing for an easier transition. Operators can
+This approach is more flexible and forgiving, allowing for an easier transition. Administrators can
 enable IPv6 for individual components incrementally, work around unverified components by
 leaving them in single-stack mode, and validate end-to-end functionality before committing to
 a fully dual-stack deployment.
 
 ### Goals
 
-- Enable dual-stack (IPv4-first, i.e. `[IPv4, IPv6]`) networking for Harvester host and cluster
-  networking without requiring any change to existing IPv4-only deployments.
-- Allow host VLAN sub-interfaces managed by `HostNetworkConfig` to carry a comma-separated
-  IPv4,IPv6 CIDR pair (e.g. `10.0.1.5/24,2001:db8::5/64`), with IPv4 as the primary address.
-  Enforce IPv4-first ordering at admission via a CEL validation rule.
-- Allow the Harvester installer to configure RKE2 with IPv4-first dual-stack: `cluster-cidr`,
-  `service-cidr`, and `cluster-dns` ordered IPv4-first; kube-vip configured in ARP mode for an
-  IPv4 primary VIP; installer console validators accepting comma-separated dual-stack inputs
-  and enforcing IPv4-first order.
-- Add kube-vip ARP advertisement configuration: add `vip_arp: "true"` and
-  `vip_leaderelection: "true"` under the `env:` key in the chart values to enable ARP-based
-  VIP advertisement for an IPv4 primary VIP. The master branch baseline is `kube-vip: enabled: true`
-  with no advertisement flags set; this is a net-new addition, not a bugfix.
-- Fix the hardcoded VIP literal in `rancherd-10-harvester.yaml`: replace the compile-time
-  constant `fd00:cafe:4::167` with the `{{ .Vip }}` template variable so every deployment
-  uses the operator-supplied VIP address.
-- Fix hardcoded TLS SAN and server-url in `pkg/config/cos.go`: read the VIP dynamically
-  from the `harvester-system/vip` ConfigMap instead of a compile-time constant.
-- Allow the `docker-machine-driver-harvester` Rancher node driver to select the correct IP
-  for provisioning on dual-stack VM guests using an IPv4-first selection algorithm over the
-  VMI `.IPs []string` slice (the full address list) rather than the single `.IP` field.
-- Allow LoadBalancer resources to reference a secondary IPv6 pool (`spec.ipv6Pool`) and receive
-  both IPv4 and IPv6 external VIPs, assigned via the `kube-vip.io/loadbalancerIPs` annotation
-  (kube-vip ≥ v0.5.12 required), propagated through service construction and status.
-- Allow `vm-dhcp-controller` IP pools to carry an optional `IPv6Config`; VM guests assigned
-  to dual-stack pools receive both a stateful DHCPv4 and a stateful DHCPv6 (IA_NA) lease,
-  with IPv4 allocation always attempted first. Enforce a hard IPv6 pool range size limit
-  (≤ 65535 addresses) to prevent controller OOM from in-memory range expansion.
-- Allow the Harvester `storage-network`, `rwx-network`, and `vm-migration-network` settings to
-  accept an optional secondary IPv6 CIDR using the Whereabouts `ipRanges` dual-stack list
-  format (not a `range6` field, which does not exist in the schema).
-- Allow VIP pools in the `vip-pools` setting to contain IPv6 CIDRs and ranges alongside IPv4
-  by removing the `ip.To4() == nil` rejection in `ValidateCIDRs`.
-- Fix the IPv6 VIP URL construction bug: use `net.JoinHostPort(vip, port)` for RFC 3986
-  compliant bracket notation when building kubeconfig server URLs from an IPv6 VIP.
-- Enable IPv6 at the kernel level during the live installer session: override the Harvester OS
-  default `/etc/sysctl.d/ipv6.conf` (`net.ipv6.conf.*.disable_ipv6 = 1`) before any
-  NetworkManager profile is applied. Without this, all NM profiles with `[ipv6] method=auto`
-  are silently ignored regardless of template content.
-- Persist kernel IPv6 enablement on the installed node: drop
-  `/etc/sysctl.d/99-harvester-ipv6.conf` during post-install configuration and apply
-  immediately, so nodes do not revert to IPv6-disabled on reboot. Both sysctl changes are
-  unconditional and ship in Sub-task 1.1 (no blockers) as prerequisites for the NM template
-  changes in Sub-task 1.2.
-- Set `ipv6.method=auto` on the management bridge NM template (`pkg/config/templates/nm-bridge.nmconnection`)
-  so the management interface (`mgmt-br`) acquires a SLAAC-derived IPv6 address from the
-  upstream router on dual-stack clusters. This change is in Sub-task 1.2 and is gated on the
-  sysctl prerequisite above being in place.
-- Extend the `validateKubeOVNAddonUpdate` webhook guard in `harvester` core
-  (`pkg/webhook/resources/addon/validator.go`) to check `V6UsingIPs != 0` alongside
-  `V4UsingIPs != 0`, preventing disruptive KubeOVN addon disable operations on dual-stack
-  Subnets where only IPv6 allocations are active. The `V6UsingIPs float64` field is already
-  present in the vendored KubeOVN `SubnetStatus` type — no vendor change needed.
-- Extend the KubeOVN Subnet `Update` webhook guard in `network-controller-harvester`
-  (`pkg/webhook/subnet/validator.go`) to check both `V4UsingIPs` and `V6UsingIPs`, preventing
-  disruptive provider/VPC changes on dual-stack Subnets with active IPv6 allocations. This is
-  a standalone two-line fix with no prerequisites.
-- Allow the Harvester UI to display IPv6 addresses for VMs, nodes, and subnets; accept IPv6
-  CIDRs in settings forms; provide a `Dual` protocol option in the KubeOVN subnet form
-  (pending E6 CRD verification).
-- Expose `netStack`, `ipv6`, and `dualStack` CIDR values as configurable Helm values in the
-  `kubeovn-operator` chart. Both the `configuration.yaml` and `configmap.yaml` templates must
-  be templated identically — `dualStack.*` fields require comma-separated `IPv4,IPv6` pairs.
-  Note: the `ipv6.*` key names are inherited directly from KubeOVN's own configuration schema
-  and do not activate an IPv6-only mode. These values are only populated when
-  `netStack: dual_stack` is set; on the default `netStack: ipv4` they remain empty and have
-  no effect.
-- Add `ipFamilyPolicy: PreferDualStack` and `ipFamilies: [IPv4, IPv6]` to `kind: Service`
-  resources across Harvester Helm charts so internal services are dual-stack aware in
-  dual-stack clusters while degrading gracefully to single-stack IPv4 in IPv4-only clusters.
-- Enable dual-stack VM Networks (KubeOVN overlay) by exposing `netStack` as a configurable
-  Helm value in the `kubeovn-operator` chart. Setting `netStack: dual_stack` is the **only**
-  change required to allow VM NICs to receive IPv6 addresses from KubeOVN. The
-  `subnets.kubeovn.io` CRD already supports `spec.protocol: Dual`, the `ProtocolDual`
-  constant, and a comma-separated `spec.cidrBlock`. No Harvester CRD or controller changes
-  are needed for VM Networks; subnet lifecycle (creating a dual-stack `VM Network`) is
-  user-managed via the Harvester UI or kubectl.
-- Preserve all existing IPv4-only behavior without any configuration change required.
+- **Experimental:** All dual-stack configuration surfaces delivered in this iteration are
+  labeled experimental at every entry point — installer console warning, UI tooltip, and API
+  field description. Existing IPv4-only paths are completely unaffected and carry no warnings.
+
+- **Non-breaking upgrade:** Upgrading from an IPv4-only Harvester version leaves all
+  components in single-stack IPv4 mode. No existing resource, field default, or cluster
+  behavior changes; dual-stack is activated only by explicit administrator action.
+
+- **Additive only:** Every change introduces new optional fields or new accepted input formats.
+  Omitting a new field or supplying a single IPv4 CIDR (the existing format) leaves the
+  component behaving exactly as before.
+
+- **Bug fixes (unconditional — ship regardless of dual-stack adoption):** These correct wrong
+  behavior in all deployments, not just dual-stack ones:
+  - Fix hardcoded VIP literal, TLS SAN, and server-url in the installer so every deployment
+    uses the administrator-supplied VIP rather than compile-time constants.
+  - Fix IPv6 VIP URL construction to use RFC 3986 bracket notation in generated kubeconfigs.
+  - Fix IPv6 address rejection in the `vip-pools` validator.
+  - Fix webhook guards to check `V6UsingIPs` alongside `V4UsingIPs` so active IPv6
+    allocations are not silently ignored when disabling KubeOVN or changing Subnet topology.
+  - Enable IPv6 at the kernel level during the live installer session and persist it on the
+    installed node so NetworkManager profiles with `[ipv6] method=auto` take effect.
+
+- **Install time:** Accept comma-separated IPv4-first CIDR pairs for `cluster-cidr`,
+  `service-cidr`, and `cluster-dns`; enforce IPv4-first ordering at the installer console;
+  configure kube-vip in ARP mode for the IPv4 primary VIP.
+
+- **Host networking:** Allow VLAN interfaces (`HostNetworkConfig`) to carry a comma-separated
+  IPv4-first CIDR pair; extend bridge-VLAN management to assign, route, and clean up IPv6
+  addresses alongside IPv4, including `ip6tables` rules and IPv6 sysctl.
+
+- **VM overlay networking:** Expose `netStack` as a Helm value in `kubeovn-operator` so VM
+  Networks can be created with `spec.protocol: Dual` — the only change needed to let VM NICs
+  receive IPv6 addresses from KubeOVN's existing IPAM. Also expose `ipv6` and `dualStack`
+  CIDR blocks as chart values.
+
+- **Workload networks:** Allow `storage-network`, `rwx-network`, and `vm-migration-network`
+  to accept an optional secondary IPv6 CIDR alongside the existing IPv4 CIDR.
+
+- **Charts:** Add `ipFamilyPolicy: PreferDualStack` and `ipFamilies: [IPv4, IPv6]` to Helm
+  chart Services so they degrade gracefully on IPv4-only clusters.
+
+- **UI:** Display IPv6 addresses (IPv4-first), accept IPv6 CIDRs in settings forms, and
+  expose a `Dual` subnet protocol option (gated on E6 CRD verification).
+
+- **Deprioritized (Rancher Cloud Provider path — follow-on iteration):** The components below
+  enable guest cluster provisioning, VM DHCP assignment, and load balancer dual-stack exposure.
+  They will be picked up once the cluster infrastructure foundation above is validated:
+  - **`docker-machine-driver-harvester`** ([#10758](https://github.com/harvester/harvester/issues/10758)): IPv4-first IP selection for Rancher guest cluster node provisioning on dual-stack VMs.
+  - **`load-balancer-harvester`** ([#10767](https://github.com/harvester/harvester/issues/10767)): Dual-stack `LoadBalancer` with a secondary IPv6 pool and kube-vip dual-VIP annotation.
+  - **`vm-dhcp-controller`** ([#10768](https://github.com/harvester/harvester/issues/10768)): Stateful DHCPv6 (IA_NA) for VM NICs via embedded `dhcpv6/server6`.
 
 ### Non-goals
 
@@ -161,9 +164,9 @@ a fully dual-stack deployment.
   a dynamic DHCPv6 client (Track B of `network-controller-harvester`) is out of scope for
   this HEP and is handled by the broader IPv6 Support HEP alongside the E2 architecture
   decision. Track A (all other `network-controller-harvester` host-network changes) merges
-  fully under this HEP. Note: DHCPv6 **for VM guests** via `vm-dhcp-controller` is **in
-  scope** — the controller runs an embedded `dhcpv6/server6` inside the cluster; this is
-  distinct from DHCPv6 for host interfaces and requires no external DHCPv6 infrastructure.
+  fully under this HEP. Note: DHCPv6 **for VM guests** via `vm-dhcp-controller` is tracked
+  in [#10768](https://github.com/harvester/harvester/issues/10768) and is deprioritized for
+  this iteration.
 
 - **In-place IP family migration.** Converting a running IPv4-only cluster to dual-stack
   without reinstalling is not supported; cluster IP family is baked into RKE2 config, etcd
@@ -196,11 +199,36 @@ a fully dual-stack deployment.
 
 ---
 
+### Experimental Status
+
+All dual-stack **configuration surfaces** delivered in this iteration are considered
+**experimental**. IPv4-only operation is unaffected and remains fully supported.
+Experimental status applies until the integration and E2E test suite (deferred to the
+IPv6-first HEP) completes successfully and each surface is explicitly promoted to stable.
+
+| Surface | Where | Status |
+|---------|-------|--------|
+| Dual-stack CIDR input at install time (`cluster-cidr`, `service-cidr`, `cluster-dns`) | Installer console | **Experimental** — display a warning when a comma-separated pair is entered |
+| Dual-stack `HostNetworkConfig` CIDR pair | UI / kubectl | **Experimental** — gated by the same warning convention |
+| `storage-network`, `rwx-network`, `vm-migration-network` IPv6 CIDR | UI / settings API | **Experimental** |
+| `netStack: dual_stack` in `kubeovn-operator` chart values | Helm / UI VM Networks form | **Experimental** — `Dual` protocol subnet option gated on E6 verification |
+| IPv6 address display and input in all settings forms | UI | **Experimental** |
+| `vip-pools` IPv6 CIDR entries | UI / kubectl | **Experimental** |
+
+**What experimental means in practice:**
+- Each configuration surface produces a visible warning or annotation (console prompt, UI
+  tooltip, or API field description) indicating the feature is experimental.
+- Existing IPv4-only paths pass through without any warning or behavior change.
+- Dual-stack activation should not be used in production without thorough evaluation in the
+  target environment.
+
+---
+
 ## Proposal
 
 ### User Stories
 
-#### Story 1 — Operator configures a dual-stack Harvester cluster at install time
+#### Story 1 — Administrator configures a dual-stack Harvester cluster at install time *(experimental)*
 
 **Before:** The Harvester installer accepts only a single IPv4 CIDR for each of cluster-cidr,
 service-cidr, and cluster-dns. Any attempt to enter a comma-separated pair is rejected by the
@@ -218,26 +246,15 @@ inputs with a clear error message. RKE2 is configured with IPv4 as the primary f
 pod, service, and DNS allocation. kube-vip is correctly configured in ARP mode (IPv4 primary
 VIP) via the `env:` injection path that the bundled chart actually reads.
 
-#### Story 2 — VM guest receives both IPv4 and IPv6 addresses via DHCP
+#### Story 2 — VM guest receives both IPv4 and IPv6 addresses via DHCP *(deprioritized — [#10768](https://github.com/harvester/harvester/issues/10768))*
 
-**Before:** The vm-dhcp-controller IPPool only supports `IPv4Config`. VM NICs managed by this
-controller can receive a statically assigned IPv4 address, but IPv6 is entirely absent. There
-is no way to assign a specific IPv6 address to a VM NIC via DHCP on a Harvester cluster.
+Extending `vm-dhcp-controller` to serve stateful DHCPv6 (IA_NA) leases alongside DHCPv4 is
+deprioritized for this iteration. The full design — including an embedded `dhcpv6/server6`,
+IPv6Config API extension, and pool range limits — is captured in
+[#10768](https://github.com/harvester/harvester/issues/10768). IPv4 DHCP operation is
+completely unaffected by this deferral.
 
-**Why this matters:** Applications running inside VMs frequently need to be reachable on both
-address families (e.g. a database accepting connections from both IPv4 and IPv6 clients, or a
-web service that must bind both families to comply with platform requirements).
-
-**After:** When an `IPPool` has both `spec.ipv4Config` and the new `spec.ipv6Config` set, the
-controller assigns a stateful DHCPv4 lease and a stateful DHCPv6 (IA_NA) lease to each VM NIC.
-DHCPv6 is served by `dhcpv6/server6` from the `insomniacslk/dhcp` library that is already
-vendored for DHCPv4 — no external DHCPv6 infrastructure is required. IPv4 allocation always
-succeeds first; IPv6 is additive and its failure is non-fatal. IPPools without
-`spec.ipv6Config` continue to operate exactly as today. Operators configure the IPv6 pool
-with a subnet size ≤ /113 (≤ 65535 addresses) to stay within the controller's in-memory
-capacity.
-
-#### Story 3 — Rancher provisions workload-cluster nodes on a dual-stack Harvester cluster
+#### Story 3 — Rancher provisions guest cluster nodes on a dual-stack Harvester cluster *(deprioritized — [#10758](https://github.com/harvester/harvester/issues/10758))*
 
 **Before:** The `docker-machine-driver-harvester` reads only `vmi.Status.Interfaces[0].IP` (a
 single string), explicitly rejects any address where `ip.To4() == nil`, and times out when
@@ -245,7 +262,7 @@ the QEMU guest agent surfaces an IPv6 address first. Node provisioning fails on 
 where IPv6 is the first-reported address.
 
 **Why this matters:** Rancher customers using dual-stack Harvester infrastructure cannot
-provision downstream (workload) Kubernetes clusters because the node driver cannot resolve a
+provision downstream (guest) Kubernetes clusters because the node driver cannot resolve a
 usable IP for SSH and agent installation.
 
 **After:** The driver scans `vmi.Status.Interfaces[0].IPs []string` (the full address list)
@@ -254,23 +271,23 @@ using an IPv4-first selection algorithm driven by the new `--harvester-ip-famili
 provisioning. The driver also populates `BaseDriver.IPv6Address` from `GetIPv6()`, enabling
 dual-stack node certificates in environments where both families are required.
 
-#### Story 4 — LoadBalancer resource exposes a service on both IPv4 and IPv6
+#### Story 4 — LoadBalancer resource exposes a service on both IPv4 and IPv6 *(deprioritized — [#10767](https://github.com/harvester/harvester/issues/10767))*
 
 **Before:** A Harvester `LoadBalancer` resource references a single IPv4 IPPool. The resulting
 Kubernetes Service has only one LoadBalancer ingress (IPv4), and there is no mechanism to
 assign a second external IPv6 VIP to the same service.
 
-**Why this matters:** Operators serving traffic on dual-stack clusters need load balancers to
+**Why this matters:** Administrators serving traffic on dual-stack clusters need load balancers to
 be reachable on both families without requiring two separate services.
 
-**After:** The operator sets `spec.ipv6Pool` to an IPv6-family IPPool alongside the existing
+**After:** The administrator sets `spec.ipv6Pool` to an IPv6-family IPPool alongside the existing
 `spec.ipPool`. The controller creates a `PreferDualStack` Kubernetes Service annotated with
 `kube-vip.io/loadbalancerIPs: "<ipv4>,<ipv6>"`. kube-vip assigns both VIPs. The
 `LoadBalancerStatus.Addresses` field carries all assigned VIPs; the existing `Address` field
 retains the IPv4 VIP for backward compatibility. Omitting `spec.ipv6Pool` leaves the
 LoadBalancer in single-stack IPv4 mode unchanged.
 
-#### Story 5 — Host VLAN interfaces carry IPv4 and IPv6 addresses simultaneously
+#### Story 5 — Host VLAN interfaces carry IPv4 and IPv6 addresses simultaneously *(experimental)*
 
 **Before:** `HostNetworkConfig.Spec.IPs` accepts only a single IPv4 CIDR per interface. The
 corresponding VLAN link has only the IPv4 address configured. VM networking on that host cannot
@@ -286,13 +303,13 @@ rule enforces IPv4-first ordering at admission. The `SetIPAddress` implementatio
 addresses to the VLAN link and cleans up stale addresses for both families. Single IPv4 CIDRs
 continue to work without any configuration change.
 
-#### Story 6 — UI operator can display and configure IPv6 addresses
+#### Story 6 — UI user can display and configure IPv6 addresses *(experimental)*
 
 **Before:** IPv6 VM/VMI addresses are silently dropped from the IP display column (filtered by
 `isIpv4()`). IPv6 NTP server addresses are rejected by the settings validator. IPv6 CIDRs
 entered in the storage-network, RWX-network, or VM-migration-network forms are rejected.
 
-**Why this matters:** Operators managing dual-stack clusters need the UI to accurately reflect
+**Why this matters:** Administrators managing dual-stack clusters need the UI to accurately reflect
 the network state and accept valid IPv6 inputs rather than silently discarding or rejecting them.
 
 **After:** VM/VMI IPv6 addresses are displayed alongside IPv4 addresses (IPv4 first). NTP
@@ -300,7 +317,7 @@ settings accept IPv6 server addresses. Storage/RWX/VM-migration network forms ac
 CIDRs and exclude lists. The KubeOVN subnet form exposes a `Dual` protocol option. Error
 messages and placeholder text are updated to be family-agnostic.
 
-#### Story 7 — Operator creates a dual-stack VM Network (KubeOVN overlay)
+#### Story 7 — Administrator creates a dual-stack VM Network (KubeOVN overlay) *(experimental)*
 
 **Before:** All VM Networks backed by KubeOVN operate in IPv4-only mode. The
 `kubeovn-operator` chart hardcodes `netStack: ipv4`, which prevents KubeOVN from entering
@@ -309,19 +326,19 @@ Dual`, the `ProtocolDual` constant, and a comma-separated `spec.cidrBlock` field
 way to create a VM Network that assigns both IPv4 and IPv6 addresses to VM NICs on the overlay
 network.
 
-**Why this matters:** Operators running dual-stack infrastructure need VMs connected to the
+**Why this matters:** Administrators running dual-stack infrastructure need VMs connected to the
 KubeOVN overlay to be reachable on both address families. Without dual-stack Subnet support,
 those VMs can only communicate over IPv4 regardless of the host or cluster configuration.
 
-**After:** An operator sets `netStack: dual_stack` in the `kubeovn-operator` Helm values. They
+**After:** An administrator sets `netStack: dual_stack` in the `kubeovn-operator` Helm values. They
 then create a VM Network with `spec.cidrBlock: "10.0.0.0/16,fd00::/112"` and `spec.protocol:
 Dual` via the Harvester VM Networks UI or kubectl. VMs on that network receive both IPv4 and
 IPv6 addresses from KubeOVN's built-in IPAM. The Harvester UI displays the `Dual` protocol
 option in the subnet form (gated on E6 CRD verification). No Harvester-owned CRD, controller,
 or NAD changes are required — this is a single chart value change exposing what KubeOVN
-already supports. Operators who keep `netStack: ipv4` (the default) see no change.
+already supports. Administrators who keep `netStack: ipv4` (the default) see no change.
 
-#### Story 8 — Operator configures storage, RWX, and VM-migration networks with dual-stack CIDRs
+#### Story 8 — Administrator configures storage, RWX, and VM-migration networks with dual-stack CIDRs *(experimental)*
 
 **Before:** The `storage-network`, `rwx-network`, and `vm-migration-network` Harvester settings
 accept only a single IPv4 CIDR for the Whereabouts IPAM range. The webhook validators enforce
@@ -332,7 +349,7 @@ webhook with a misleading validation error.
 
 **Why this matters:** Storage replication, RWX (ReadWriteMany) volume traffic, and VM live
 migration are latency-sensitive workloads that must be routable on the same network fabric as
-other dual-stack traffic. Operators who have segmented their storage and migration networks
+other dual-stack traffic. Administrators who have segmented their storage and migration networks
 onto IPv6-routable segments cannot use those segments with Harvester today.
 
 **After:** Each setting accepts an optional comma-separated IPv4-first CIDR pair (e.g.
@@ -340,26 +357,26 @@ onto IPv6-routable segments cannot use those segments with Harvester today.
 `IPAMConfig` emits the Whereabouts `ipRanges` dual-stack list format when both are present.
 The webhook validators call an IPv6-appropriate minimum prefix length check (`/112`) for the
 IPv6 part. The IPPool name derivation sanitises the IPv6 CIDR so it produces a valid
-Kubernetes object name (colons replaced). Operators who supply only an IPv4 CIDR (the
+Kubernetes object name (colons replaced). Administrators who supply only an IPv4 CIDR (the
 existing format) see no change in behavior.
 
 ### User Experience In Detail
 
-#### Installing a dual-stack Harvester cluster
+#### Installing a dual-stack Harvester cluster *(experimental)*
 
-At the installer console, the operator enters cluster-cidr as `10.42.0.0/16,fd42::/48` and
+At the installer console, the administrator enters cluster-cidr as `10.42.0.0/16,fd42::/48` and
 service-cidr as `10.43.0.0/16,fd43::/112`. The console validates each part independently,
 checks that the first part is an IPv4 CIDR and the second is an IPv6 CIDR (IPv4-first
 enforcement), and accepts the input. The cluster boots with RKE2 allocating pod IPs from the
 IPv4 range first. kube-vip advertises the VIP (IPv4) via ARP.
 
-If the operator enters the pair in IPv6-first order (`fd42::/48,10.42.0.0/16`), the console
+If the administrator enters the pair in IPv6-first order (`fd42::/48,10.42.0.0/16`), the console
 immediately displays: *"Dual-stack CIDRs must be in IPv4-first order (e.g. 10.42.0.0/16,fd42::/48)"*
 and the field is not accepted.
 
-#### Configuring a dual-stack IPPool for VM DHCP
+#### Configuring a dual-stack IPPool for VM DHCP *(deprioritized — [#10768](https://github.com/harvester/harvester/issues/10768))*
 
-The operator creates an `IPPool` YAML:
+The administrator creates an `IPPool` YAML:
 
 ```yaml
 apiVersion: network.harvesterhci.io/v1alpha1
@@ -387,10 +404,10 @@ spec:
 The webhook validates that the IPv6 pool range does not exceed 65535 addresses (rejects a full
 `/64`). The controller assigns both a stateful DHCPv4 and a stateful DHCPv6 (IA_NA) lease to
 each VM NIC associated with this pool. VM guests must be configured to solicit DHCPv6 (e.g.
-via `cloud-init network-config v2: dhcp6: true`) — this is an operator prerequisite that the
+via `cloud-init network-config v2: dhcp6: true`) — this is an administrator prerequisite that the
 controller cannot enforce.
 
-#### Configuring a dual-stack LoadBalancer
+#### Configuring a dual-stack LoadBalancer *(deprioritized — [#10767](https://github.com/harvester/harvester/issues/10767))*
 
 ```yaml
 apiVersion: loadbalancer.harvesterhci.io/v1beta1
@@ -404,13 +421,13 @@ spec:
 ```
 
 Both `ipv4-pool` and `ipv6-pool` are pre-existing `loadbalancer.harvesterhci.io/v1beta1`
-`IPPool` objects that the operator must create beforehand with the appropriate address ranges;
+`IPPool` objects that the administrator must create beforehand with the appropriate address ranges;
 `spec.ipv6Pool` is simply a reference by name to one of these load-balancer IPPool objects.
 
 The controller allocates one IPv4 address from `ipv4-pool` and one IPv6 address from
 `ipv6-pool`. It creates a `PreferDualStack` Service annotated with
 `kube-vip.io/loadbalancerIPs: "10.52.1.5,fd52::5"`. kube-vip assigns both VIPs. The
-`LoadBalancerStatus.Addresses` field lists both. The operator can reach the service on either
+`LoadBalancerStatus.Addresses` field lists both. The administrator can reach the service on either
 family. Omitting `ipv6Pool` leaves the LoadBalancer operating exactly as before.
 
 #### Viewing dual-stack VM addresses in the UI
@@ -476,16 +493,12 @@ Storage-network range fields accept `fd00::/64` as a valid CIDR input.
 
 ```mermaid
 flowchart LR
-    %% Main Priority alignment chain (forces horizontal linearity)
-    SP0 ---> SP1 ---> SP2
+    %% Structural alignment: P0 and DEPRIO side-by-side, both feeding P1, then P2
+    SP0 ===> SP1
+    SDEPRIO ===> SP1
+    SP1 ===> SP2
 
-    subgraph SP0["Priority/0 - Foundation"]
-        subgraph SDHCP["vm-dhcp-controller"]
-            SD11["1.1 Bug Fix: Fix As4 webhook comparisons"]
-            SD12["1.2 Dual-stack: IPv6Config CRD + DHCPv6 server + dual IPAM"]
-            SD11 --> SD12
-        end
-
+    subgraph SP0["Priority/0 — Foundation"]
         subgraph SHARV["harvester core"]
             SH11["1.1 Bug Fix: IP utils + VIP pool validator + URL brackets + addon webhook"]
             SH12["1.2 Dual-stack: Range6 + Whereabouts ipRanges + storage pool naming"]
@@ -498,27 +511,6 @@ flowchart LR
             SI11 --> SI12
         end
 
-        subgraph SDMD["docker-machine-driver-harvester"]
-            SDMD1["Single PR: GetIP family selection + ip-families flag + cloud-init dhcp6"]
-        end
-    end
-
-    subgraph SP1["Priority/1 - Integration Layer"]
-        subgraph SCHARTS["charts - single PR, multiple P0 adoptions"]
-            SCA["Adoption 1: kubeovn-operator - expose netStack + CIDR blocks as Helm values"]
-            SCB["Adoption 2: vm-dhcp-controller CRD refresh - drop in regenerated ippools.yaml"]
-            SCC["Adoption 3: vm-dhcp-controller serviceCIDR - document dual-stack comma list"]
-            SCD["Adoption 4: All Services - ipFamilyPolicy PreferDualStack on 13 files"]
-            SCE["Adoption 5: harvester-cloud-provider - document vip_subnet 32,128"]
-            SCF["Adoption 6: vcluster NetworkPolicy - add ::/0 egress ipBlock"]
-        end
-
-        subgraph SLB["load-balancer-harvester"]
-            SLB1["CRD extension: IPv6Pool + IPFamilyPolicy + Addresses slice<br/>(LB-own IPPool CRD, standalone)"]
-            SLB2["Controller + manager: dual-pool alloc + kube-vip annotation + IPv6 EndpointSlice"]
-            SLB1 --> SLB2
-        end
-
         subgraph SNC["network-controller-harvester"]
             SNCA["Track A: IPAddr dual CIDR + SetIPAddress + routes + iptables + NAD + subnet webhook"]
             SNCB["Track B: DHCPv6 vendor + lease manager + stateful IA_NA client"]
@@ -526,70 +518,126 @@ flowchart LR
         end
     end
 
-    subgraph SP2["Priority/2 - UI"]
+    subgraph SDEPRIO["Deprioritized"]
+        subgraph SLB["load-balancer-harvester"]
+            SLB1["CRD extension: IPv6Pool + IPFamilyPolicy + Addresses slice"]
+            SLB2["Controller + manager: dual-pool alloc + kube-vip annotation + IPv6 EndpointSlice"]
+            SLB1 --> SLB2
+        end
+
+        subgraph SVMDHCP["vm-dhcp-controller"]
+            SDHCP1["Dual-stack DHCP: IPv6Config + IPv6Status + DHCPv6 server + IA_NA lease manager"]
+        end
+
+        subgraph SDMD["docker-machine-driver-harvester"]
+            SDMD1["Single PR: GetIP family selection + ip-families flag + cloud-init dhcp6"]
+        end
+    end
+
+    subgraph SP1["Priority/1 — Integration Layer"]
+        subgraph SCHARTS["charts — single PR, component adoptions"]
+            SCA["Adoption 1: kubeovn-operator - expose netStack + CIDR blocks as Helm values"]
+            SCD["Adoption 2: All Services - ipFamilyPolicy PreferDualStack on 13 files"]
+            SCE["Adoption 3: harvester-cloud-provider - document vip_subnet 32,128"]
+            SCF["Adoption 4: vcluster NetworkPolicy - add ::/0 egress ipBlock"]
+            SCG["Adoption 5: load-balancer-harvester CRD refresh - drop in regenerated loadbalancers.yaml"]
+            SCH["Adoption 6: network-controller-harvester CRD refresh - drop in regenerated hostnetworkconfigs.yaml"]
+            SCI["Adoption 7: vm-dhcp-controller CRD refresh - drop in regenerated ippools.yaml + vmnetcfgs.yaml"]
+        end
+    end
+
+    subgraph SP2["Priority/2 — UI"]
         subgraph SUI["harvester-ui-extension"]
             SU_UTIL["Foundation: IP utility functions - isValidIPv4 / isValidIPv6 / isValidCIDR"]
-            SU_DHCP["vm-dhcp-controller section: IPv6 fields in IPPool + VMNetCfg forms"]
             SU_HARV["harvester-core section: NTP validator + CIDR validators + VIP pool + node IP"]
             SU_NC["network-controller section: CIDR6/Gateway6 fields + Phase 2 KubeOVN Dual form"]
             SU_LB["load-balancer section: IPv6Pool selector + Addresses display"]
             SU_P2["Phase 2: KubeOVN Dual subnet form + dualStackIPv4First feature flag"]
 
-            SU_UTIL --> SU_DHCP
             SU_UTIL --> SU_HARV
             SU_UTIL --> SU_NC
             SU_UTIL --> SU_LB
         end
     end
 
-    %% Actual cross-subgraph logic links
-    SD12 -- "CRD YAML output" --> SCB
-    SI12 -- "kube-vip ARP flags merged" --> SCE
-    SH11 -- "IPv6 validators merged" --> SCD
+    %% Edge index map (in definition order):
+    %% P0 chains:           SH11→SH12(0), SI11→SI12(1), SNCA→SNCB(2)
+    %% Deprioritized chains: SLB1→SLB2(3)
+    %% UI fan-out:          SU_UTIL→SU_HARV(4), SU_UTIL→SU_NC(5), SU_UTIL→SU_LB(6)
+    %% Structural:          SP0===>SP1(7), SDEPRIO===>SP1(8), SP1===>SP2(9)
+    %% P0→P1 integrations: SH11→SCD(10), SI12→SCE(11), SNCA→SCH(12)
+    %% Deprioritized→P1:   SLB2→SCG(13), SDHCP1→SCI(14)
+    %% Long-range UI:       SH11→SU_HARV(15), SH12→SU_HARV(16), SNCA→SU_NC(17), SLB2→SU_LB(18)
 
-    SD12 -- "IPv6 pool API stable" --> SU_DHCP
+    %% P0 → P1: Priority/0 repos feed into charts
+    SH11 -- "IPv6 validators merged" --> SCD
+    SI12 -- "kube-vip ARP flags merged" --> SCE
+    SNCA -- "CRD YAML output" --> SCH
+
+    %% Deprioritized → P1: controller repos feed into charts
+    SLB2 -- "CRD YAML output" --> SCG
+    SDHCP1 -- "CRD YAML output" --> SCI
+
+    %% Long-range: backend API stable → UI section unblocked (before charts lands)
     SH11 -- "validator fixes merged" --> SU_HARV
     SH12 -- "Range6 API stable" --> SU_HARV
     SNCA -- "cidrV6 field added" --> SU_NC
     SLB2 -- "IPv6Pool API merged" --> SU_LB
 
-    classDef ext     fill:#fef3c7,stroke:#d97706,color:#78350f
     classDef p0fix   fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a,font-weight:bold
     classDef p0ext   fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a
+    classDef deprio  fill:#e5e7eb,stroke:#6b7280,color:#374151
     classDef charts  fill:#d1fae5,stroke:#059669,color:#064e3b
-    classDef p1      fill:#dcfce7,stroke:#16a34a,color:#14532d
     classDef p2      fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
     classDef uifound fill:#f5f3ff,stroke:#8b5cf6,color:#4c1d95
 
-    class SD11,SH11,SI11 p0fix
-    class SD12,SH12,SI12,SDMD1 p0ext
-    class SCA,SCB,SCC,SCD,SCE,SCF charts
-    class SLB1,SLB2,SNCA,SNCB p1
+    class SH11,SI11 p0fix
+    class SH12,SI12,SDMD1,SNCA,SNCB p0ext
+    class SLB1,SLB2,SDHCP1 deprio
+    class SCA,SCD,SCE,SCF,SCG,SCH,SCI charts
     class SU_UTIL uifound
-    class SU_DHCP,SU_HARV,SU_NC,SU_LB,SU_P2 p2
+    class SU_HARV,SU_NC,SU_LB,SU_P2 p2
 
-    %% Style the structural priority chain to be clean/invisible
-    linkStyle 0,1 stroke:#cccccc,stroke-width:2px,stroke-dasharray: 5 5
+    %% Structural (grey dashed)
+    linkStyle 7,8,9 stroke:#cccccc,stroke-width:2px,stroke-dasharray: 5 5
 
-    %% P0 internal: blue links (Offsetted due to top-level structural links)
-    linkStyle 2,3,4,5,6 stroke:#1d4ed8,stroke-width:2px
+    %% P0 internal: blue links (SH11→SH12, SI11→SI12, SNCA→SNCB)
+    linkStyle 0,1,2 stroke:#1d4ed8,stroke-width:2px
+
+    %% Deprioritized internal: blue links (SLB1→SLB2 only)
+    linkStyle 3 stroke:#1d4ed8,stroke-width:2px
 
     %% UI fan-out: purple links
-    linkStyle 7,8,9,10 stroke:#7c3aed,stroke-width:2px
+    linkStyle 4,5,6 stroke:#7c3aed,stroke-width:2px
 
-    %% P0 -> P1 promotions: green links
-    linkStyle 11,12,13 stroke:#059669,stroke-width:3px
+    %% All repos → charts: green links (P0: SH11→SCD, SI12→SCE, SNCA→SCH; DEPRIO: SLB2→SCG, SDHCP1→SCI)
+    linkStyle 10,11,12,13,14 stroke:#059669,stroke-width:3px
 
-    %% P0/P1 -> P2 long-range: pink links
-    linkStyle 14,15,16,17,18 stroke:#db2777,stroke-width:3px
+    %% Long-range UI: pink links
+    linkStyle 15,16,17,18 stroke:#db2777,stroke-width:3px
 ```
 
 ### Implementation Overview
 
 The implementation follows the dependency order in the delivery plan. All changes are additive
-and backward-compatible. Feature activation requires explicit operator action (setting new
+and backward-compatible. Feature activation requires explicit administrator action (setting new
 optional fields or providing comma-separated CIDR pairs); omitting new fields leaves all
 components in IPv4-only mode.
+
+#### Delivery Plan
+
+| Repository | Priority | Issue | Notes |
+|------------|----------|-------|-------|
+| `harvester` (core) | 0 — Foundation | [#10756](https://github.com/harvester/harvester/issues/10756) | Bug fixes unconditional; dual-stack extension requires E5 |
+| `harvester-installer` | 0 — Foundation | [#10755](https://github.com/harvester/harvester/issues/10755) | Sub-task 1.1 bug fixes unconditional; Sub-task 1.2 requires E3; dual-stack CIDR input is **experimental** |
+| `network-controller-harvester` | 0 — Foundation | [#10759](https://github.com/harvester/harvester/issues/10759) | Track A (static dual-stack) has no blockers; Track B (DHCPv6 for host interfaces) is out of scope for this HEP |
+| `charts` | 1 — Integration | [#10769](https://github.com/harvester/harvester/issues/10769) | Sub-task 1.1 has no blockers; Sub-task 1.2 waits on upstream CRD regeneration |
+| `harvester-ui-extension` | 2 — UI | [#10770](https://github.com/harvester/harvester/issues/10770) | IP utility foundations unblock per-area work; `Dual` subnet option gated on E6 |
+| `load-balancer-harvester` | Deprioritized | [#10767](https://github.com/harvester/harvester/issues/10767) | Cloud Provider path; kube-vip v0.9.8 confirmed; no external blockers |
+| `vm-dhcp-controller` | Deprioritized | [#10768](https://github.com/harvester/harvester/issues/10768) | Cloud Provider path; requires E7, E8 for DHCPv6 |
+| `docker-machine-driver-harvester` | Deprioritized | [#10758](https://github.com/harvester/harvester/issues/10758) | Cloud Provider path; self-contained; no external blockers |
+
+Full sub-task breakdowns, risk assessments, and implementation details are captured in each linked issue.
 
 #### External Blockers — Must Resolve Before Coding
 
@@ -598,181 +646,16 @@ require investigation or lab testing rather than code changes in Harvester.
 
 | # | Blocker | Affects | Action | If blocked: observable failure mode |
 |---|---------|---------|--------|--------------------------------------|
-| E1 | Confirm kube-vip ≥ v0.5.12 in `harvester/harvester-manifests` | load-balancer-harvester, charts | Check kube-vip DaemonSet image tag | Controller sets the `kube-vip.io/loadbalancerIPs` annotation with both VIPs but kube-vip silently ignores the second. Only the IPv4 VIP is advertised. No error event, no status condition — the LB appears configured but the IPv6 VIP is never reachable. **Mitigation:** add a controller startup check that emits a warning status condition when `spec.ipv6Pool` is set but kube-vip version is below v0.5.12. |
+| E1 | **Resolved:** kube-vip v0.9.8 confirmed in `harvester/harvester-manifests` | load-balancer-harvester *(deprioritized)*, charts | kube-vip v0.9.8 is confirmed deployed. The `kube-vip.io/loadbalancerIPs` annotation (available since v0.5.12) is supported. This blocker is resolved. |
 | E2 | Decide DHCPv6 mode: stateful IA_NA vs. stateless INFORMATION-REQUEST | network-controller-harvester Track B | **Deferred — Track B is out of scope for this HEP** (see Non-goals: DHCPv6 for host interfaces). This decision is tracked by the broader IPv6 Support HEP. Track A is unaffected and has no dependency on this blocker. | N/A for this HEP. |
 | E3 | Verify `-iptables` kube-vip image supports `vip_ndp` env var | harvester-installer | `docker run --rm rancher/mirrored-kube-vip-kube-vip-iptables:v1.0.4 manager --help 2>&1 \| grep -i ndp` | If NDP is unsupported, omit `vip_ndp` from the `env:` block entirely — it would be a no-op anyway. The kube-vip ARP advertisement addition (`vip_arp`/`vip_leaderelection` under `env:`) and the hardcoded VIP fix (Sub-task 1.1) are unconditional and ship regardless of this result. |
 | E4 | Verify `harvester-cluster-repo` Service gets IPv4 ClusterIP naturally on IPv4-first cluster | harvester-installer | Test on live IPv4-first dual-stack cluster | If the Service gets an IPv6 ClusterIP, the force-recreation step in the post-install systemd service must be kept. If confirmed IPv4, that step is removed. Either outcome is handled by the conditional in the implementation; the installer ships either way. |
 | E5 | Confirm Whereabouts v0.9.3 pool naming for IPv6 CIDRs | harvester (core) | Inspect `pkg/storage/*.go` in Whereabouts v0.9.3 source | If Whereabouts derives pool names directly from the CIDR string (containing `:`) without sanitisation, the `IPPool` objects for IPv6 CIDRs will fail to create with an `Invalid object name` admission error. This is the only blocker that could require architectural rework (switching from `ipRanges` list to a different approach). **Must be resolved before coding the `Range6`/`IPRanges` extension.** The bug fixes in `harvester` core (`ValidateCIDRs`, `net.JoinHostPort`) are unconditional and ship regardless. |
 | E6 | Confirm KubeOVN `subnet.spec.protocol` includes `"Dual"` on target Harvester version | harvester-ui-extension | `kubectl get crd subnets.kubeovn.io -o yaml \| grep -A5 protocol` | If `"Dual"` is absent from the CRD enum, the `Dual` protocol option is not added to the UI subnet form. All other UI changes (IPv6 address display, NTP validator, CIDR validators) are independent and ship regardless. |
-| E7 | Validate SLES 15 and Ubuntu 22.04 guests solicit DHCPv6 with `cloud-init dhcp6: true` | vm-dhcp-controller | Boot test VMs; verify DHCPv6 Solicit captured | If guests do not solicit DHCPv6, the embedded `dhcpv6/server6` instance runs and listens but leases are never collected by VMs. IPv4 DHCP is completely unaffected. The dual-stack IPPool feature can still be merged — operators who configure `spec.ipv6Config` will just not see IPv6 leases until the guest OS issue is resolved or documented as a prerequisite. |
-| E8 | Verify CNI (Canal) forwards DHCPv6 multicast `ff02::1:2` (port 547) to agent pod | vm-dhcp-controller | `tcpdump -i eth1 port 547` on agent pod in lab cluster | If Canal drops DHCPv6 multicast, Solicit messages from VM guests never reach the controller. Same silent failure as E7 — IPv4 unaffected, IPv6 leases not delivered. If confirmed blocked, a CNI policy exception or unicast DHCPv6 workaround must be evaluated before declaring vm-dhcp-controller dual-stack complete. |
+| E7 | Validate SLES 15 and Ubuntu 22.04 guests solicit DHCPv6 with `cloud-init dhcp6: true` | vm-dhcp-controller *(deprioritized)* | Boot test VMs; verify DHCPv6 Solicit captured | If guests do not solicit DHCPv6, the embedded `dhcpv6/server6` instance runs and listens but leases are never collected by VMs. IPv4 DHCP is completely unaffected. The dual-stack IPPool feature can still be merged — administrators who configure `spec.ipv6Config` will just not see IPv6 leases until the guest OS issue is resolved or documented as a prerequisite. |
+| E8 | Verify CNI (Canal) forwards DHCPv6 multicast `ff02::1:2` (port 547) to agent pod | vm-dhcp-controller *(deprioritized)* | `tcpdump -i eth1 port 547` on agent pod in lab cluster | If Canal drops DHCPv6 multicast, Solicit messages from VM guests never reach the controller. Same silent failure as E7 — IPv4 unaffected, IPv6 leases not delivered. If confirmed blocked, a CNI policy exception or unicast DHCPv6 workaround must be evaluated before declaring vm-dhcp-controller dual-stack complete. |
 
-#### Priority/0 — Foundation (all four can start in parallel)
 
-**`harvester/vm-dhcp-controller`** (HIGH risk, highest priority)
-
-This component is split into two sequenced sub-tasks.
-
-> **Sub-task — Bug fix (unconditional, ship first, no blockers):**
-> Fix `.As4()` bugs in `pkg/webhook/ippool/validator.go` and `pkg/webhook/ippool/mutator.go`.
-> `netip.Addr.As4()` returns `[4]byte{}` for IPv6 addresses, making all IPv6 addresses compare
-> equal to each other and to the network address — a silent wrong-result bug in admission that
-> affects correctness regardless of whether IPv6 is being used. Replace with direct
-> `netip.Addr ==` comparison throughout. Merging this PR alone leaves the controller in a
-> fully working IPv4-only state and does not depend on any blocker.
-
-> **Sub-task — Dual-stack IPv6 extension (requires E7, E8):**
-> **Architecture:** `vm-dhcp-controller` IS the embedded DHCPv6 server for VM NICs. It runs
-> `dhcpv6/server6` from `insomniacslk/dhcp` (already in `go.mod`; only import-driven vendoring
-> is missing) inside the cluster and responds directly to DHCPv6 Solicits from VM guests over
-> the overlay network. No external DHCP server, switch-level DHCPv6 relay, or upstream
-> network infrastructure change is required. The only external dependencies are guest OS
-> (E7: must send DHCPv6 Solicits) and CNI forwarding (E8: Canal must forward `ff02::1:2`
-> port 547 to the agent pod).
->
-> Extend API types with `IPv6Config` and `IPv6Status`; extend the IPAM, cache, and DHCP layers
-> with independently-keepable IPv6 instances; implement stateful DHCPv6 (IA_NA) by vendoring
-> `dhcpv6/server6`. IPv4-first allocation semantics and the pool range size limit
-> (≤ 65535 IPv6 addresses) are enforced at the webhook. Generate updated CRD YAMLs for
-> consumption by `harvester/charts`. If E7 or E8 have negative results, this PR can still
-> merge — see the `If blocked` notes for E7/E8 above for the observable (non-breaking) failure
-> mode.
-
-**`harvester/harvester` (core)** (MEDIUM risk)
-
-This component is split into two sequenced sub-tasks.
-
-> **Sub-task — Bug fixes (unconditional, ship first, no blockers):**
-> - Remove the `ip.To4() == nil` rejection from `ValidateCIDRs` in VIP pool validation — this
->   incorrectly rejects any IPv6 CIDR even in non-dual-stack contexts.
-> - Fix the kubeconfig URL construction bug: use `net.JoinHostPort(vip, port)` for RFC 3986
->   compliant bracket notation when the VIP is an IPv6 address. Without this, an IPv6 VIP
->   produces a malformed server URL in the generated kubeconfig.
-> - Fix `incrementIP` and `getBroadcastAddress` for IPv6 family-awareness.
-> - Extend the `validateKubeOVNAddonUpdate` webhook guard
->   (`pkg/webhook/resources/addon/validator.go`) to check
->   `V4UsingIPs != 0 || V6UsingIPs != 0` instead of `V4UsingIPs != 0` only. On a dual-stack
->   KubeOVN Subnet, VMs may hold only IPv6 allocations while `V4UsingIPs == 0` — the current
->   guard allows the addon to be disabled while IPv6 workloads are still running. The
->   `V6UsingIPs float64` field is already present in the vendored KubeOVN `SubnetStatus`
->   type; no vendor change is needed.
->
-> These fixes are self-contained and leave the core in a fully working IPv4-only state.
-
-> **Sub-task — Dual-stack IPv4-first extension (requires E5):**
-> Extend `networkutil.Config` with `Range6`/`Exclude6`; update `IPAMConfig` to emit the
-> Whereabouts `ipRanges` dual-stack list format. Update the storage-network IPPool name
-> derivation to produce valid Kubernetes object names for IPv6 CIDRs. **Do not start this
-> sub-task until E5 is resolved** — a negative E5 result may require a different API approach
-> for Whereabouts dual-stack and would require rework if coded prematurely.
-
-**`harvester/harvester-installer`** (MEDIUM risk)
-
-This component is split into two sequenced sub-tasks to ensure bug fixes ship independently of dual-stack features and cannot block a release.
-
-> **Sub-task 1.1 — Bug fixes (unconditional, no blockers, ship first):**
-> These fixes are wrong regardless of dual-stack and must land before any dual-stack work:
-> - Fix hardcoded VIP literal: replace `fd00:cafe:4::167` with `{{ .Vip }}` template variable.
-> - Fix hardcoded TLS SAN and server-url in `pkg/config/cos.go`: read the VIP dynamically from the `harvester-system/vip` ConfigMap.
-> - Enable IPv6 at the kernel level before NM profile apply (`pkg/console/network.go`): at
->   the top of `applyNetworks()`, write three `sysctl -w` overrides (`net.ipv6.conf.all.disable_ipv6=0`,
->   `net.ipv6.conf.default.disable_ipv6=0`, `net.ipv6.conf.lo.disable_ipv6=0`). Without this,
->   the Harvester OS default sysctl (`net.ipv6.conf.*.disable_ipv6 = 1`) silently prevents NM
->   from acting on any `[ipv6] method=auto` profile, making Sub-task 1.2 NM template changes
->   invisible.
-> - Persist IPv6 enabled on the installed node (`pkg/config/cos.go`): drop
->   `/etc/sysctl.d/99-harvester-ipv6.conf` with the same three `disable_ipv6=0` values and
->   apply immediately via `sysctl -p`, so the node does not revert to IPv6-disabled on reboot.
->
-> All four changes can be reviewed and merged as a standalone PR with no dependency on any blocker.
-
-> **Sub-task 1.2 — Dual-stack IPv4-first extension (opt-in, requires E3):**
-> - Add kube-vip ARP advertisement flags (`vip_arp: "true"`, `vip_leaderelection: "true"`) under
->   `env:` in `rancherd-10-harvester.yaml`. The `master` baseline is `kube-vip: enabled: true`
->   with no advertisement flags set — this is a net-new addition, not a bugfix. The kube-vip
->   DaemonSet template iterates `Values.env.*` to inject container env vars; `Values.config` is
->   not mapped to env vars and must not be used for advertisement flags.
-> - Update console validators to accept comma-separated dual-stack CIDR input and enforce
->   IPv4-first ordering. Single IPv4 CIDR inputs continue to work unchanged.
-> - Update `clusterNetworkNote` help text to document the optional dual-stack format.
-> - Set `ipv6.method=auto` in the VLAN NM template (`nm-vlan.nmconnection`).
-> - Set `ipv6.method=auto` in the management bridge NM template (`nm-bridge.nmconnection`) so
->   `mgmt-br` acquires a SLAAC-derived IPv6 address from the upstream router. This change
->   depends on Sub-task 1.1 sysctl items being merged first — without kernel IPv6 enabled,
->   the template setting is silently ignored.
->
-> **Template defaults remain IPv4-only.** The CIDR fields in both
-> `rke2-90-harvester-server.yaml` and `rancherd-10-harvester.yaml` keep their existing
-> single-stack IPv4 defaults (`10.42.0.0/16`, `10.43.0.0/16`, `10.43.0.10`). Dual-stack
-> is activated only when the operator explicitly types a comma-separated pair at the console
-> (e.g. `10.42.0.0/16,fd42::/48`). The updated validator accepts that input and enforces
-> IPv4-first ordering; an operator who accepts the default gets an identical IPv4-only cluster.
->
-> This PR depends on Sub-task 1.1 being merged. If E3 or E4 are unresolved at merge time,
-> the conditional steps are handled by the `If blocked` notes in the External Blockers table above.
-
-**`harvester/docker-machine-driver-harvester`** (LOW-MED risk, self-contained)
-
-Rewrite `GetIP()` to scan `iface.IPs []string` with family-ordered preference. Implement
-`GetIPv6()` backed by the same `selectIP` helper. Add `--harvester-ip-families` flag. Extend
-cloud-init validation to recognize `dhcp6`/`static6` subnet types.
-
-#### Priority/1 — Integration (after Priority/0 API contracts are agreed)
-
-**`harvester/charts`** (MEDIUM risk)
-
-Template `netStack`, `dualStack`, and `ipv6` CIDR blocks in both `kubeovn-operator` templates.
-Setting `netStack: dual_stack` is the **only** change required to enable dual-stack VM Networks
-(KubeOVN overlay) — KubeOVN already supports `spec.protocol: Dual` in the Subnet CRD; no
-Harvester controller or NAD changes are needed. Refresh vm-dhcp-controller CRD files from the
-regenerated upstream output. Update `serviceCIDR` to accept comma-separated dual-stack list.
-Add `ipFamilyPolicy: PreferDualStack` and `ipFamilies: [IPv4, IPv6]` to all `kind: Service`
-resources (13 files). Update `harvester-cloud-provider` `vip_subnet` documentation for
-dual-stack. Add IPv6 egress to `vcluster` NetworkPolicy.
-
-**`harvester/load-balancer-harvester`** (MEDIUM risk)
-
-Extend CRD API with `IPv6Pool` and `IPFamilyPolicy`. Update backend server to scan
-`iface.IPs []string` for dual-stack addresses. Update `constructService()` to set
-`ipFamilyPolicy`/`ipFamilies` and the `kube-vip.io/loadbalancerIPs` annotation on dual-stack
-LBs. Create a second `AddressTypeIPv6` EndpointSlice for dual-stack backends. Extend status
-with `Addresses []string`.
-
-**`harvester/network-controller-harvester`** (HIGH risk)
-
-Track A (no DHCP dependency, can merge independently): extend `IPAddr` CEL rule and
-`MaxLength`; update `SetIPAddress` to loop over a `[]string` slice and clean up all families
-via `FAMILY_ALL`; add IPv6 route management; fix `addrExists` to use `FAMILY_ALL`; add
-`ip6tables` rules and IPv6 sysctl; extend `Layer3NetworkConf` with `CIDR6`/`Gateway6`; fix
-the KubeOVN Subnet `Update` webhook guard
-(`pkg/webhook/subnet/validator.go`) to check
-`V4UsingIPs != 0 || V6UsingIPs != 0` instead of `V4UsingIPs != 0` only, preventing
-disruptive provider/VPC changes on Subnets with active IPv6 allocations. The Subnet webhook
-guard is a standalone two-line fix — it requires no other Track A items and can ship in its
-own early PR as a correctness fix ahead of the broader Track A work.
-
-**VM Network scope clarification:** This repository manages **host bridge-VLAN interfaces
-only** and does not manage the KubeOVN overlay network used by VM NICs. No controller in
-this repo creates or patches KubeOVN `Subnet` objects. The NAD manager explicitly skips
-overlay NADs (`isOverlayNad()` guard). For dual-stack VM Networks, the only change needed is
-`netStack: dual_stack` in `harvester/charts`. The one webhook touch in this repo that
-affects the VM Network path is the Subnet webhook guard fix (Track A item above).
-
-Track B (deferred — out of scope for this HEP): Adding a DHCPv6 client lease manager to
-assign IPv6 addresses to host VLAN interfaces dynamically is DHCPv6 for host interfaces,
-which is explicitly called out as a non-goal. Track B is tracked by the broader IPv6 Support
-HEP alongside the E2 architecture decision. Track A merges fully and independently under
-this HEP; the host interface remains dual-stack capable via static configuration (operator
-supplied `IPAddr` CIDR pair) without any DHCPv6 client.
-
-#### Priority/2 — Polish & UI
-
-**`harvester/harvester-ui-extension`** (LOW-MED risk)
-
-Add `isValidIPv6`, `isValidCIDR`, and related helpers to `utils/regular.js` using the
-already-present `ip` npm package v2.0.1 (`ip.isV6Format`). Fix NTP validator, VM/VMI IP
-formatter, node internal IP getter (IPv4-first), and storage/RWX/vm-migration CIDR validators.
-Add `Dual` to `NETWORK_PROTOCOL` once E6 is confirmed. Update localization strings.
 
 ## Test Plan
 
