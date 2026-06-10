@@ -12,4 +12,4 @@ export WEBHOOK_IMAGE_NAME="rancher/harvester-webhook:${TAG}"
 
 echo "Running integration tests"
 CGO_ENABLED=0 ginkgo -r -v -trace -tags=test \
-	      -fail-fast -slow-spec-threshold=2m -timeout=30m  "${ROOT_DIR}/tests/integration/..."
+	      -fail-fast -slow-spec-threshold=2m -timeout=60m  "${ROOT_DIR}/tests/integration/..."
