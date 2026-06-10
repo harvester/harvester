@@ -8,7 +8,7 @@ Current Renovate setup doesn't handle dependency updates well. Developers still 
 - Longhorn updates (spans Helm charts and Go modules), <https://github.com/harvester/harvester/pull/10193>.
 - Go version updates (need to touch Dockerfile and `go.mod` together).
 
-This proposes using Renovate with proper grouping rules and automated merge policies. Result: one PR per logical change with auto-merge for patches/security fixes.
+This proposes using Renovate with proper grouping rules and automated merge policies for the initial set of supported dependencies. Result: one PR per logical change with auto-merge for patches/security fixes. Longhorn remains manually managed for now.
 
 ### Related Issues
 
@@ -18,7 +18,7 @@ This proposes using Renovate with proper grouping rules and automated merge poli
 
 ### Goals
 
-- Group related dependencies into single PRs (all `k8s.io/*` modules together, not 15 separate PRs).
+- Group related dependencies into single PRs (for example, all `k8s.io/*` modules together instead of 15 separate PRs).
 - Auto-merge patch and security updates after waiting period (2 weeks).
 - Require human review for minor updates.
 - Apply minor/patch/security updates to all active branches (master/main trunk + active release branches).
@@ -29,6 +29,7 @@ This proposes using Renovate with proper grouping rules and automated merge poli
 
 - Auto-merge minor updates (require human review).
 - Major version updates (disabled, require manual updates).
+- Automate Longhorn dependency updates in the initial rollout.
 
 ## Introduction
 
@@ -43,7 +44,7 @@ Use Renovate to automate dependency updates with proper grouping and auto-merge 
 
 ## Proposal
 
-1. **Grouping rules** - Group related dependencies (k8s.io/*, longhorn/*, golang toolchain) into single PRs
+1. **Grouping rules** - Group related dependencies (k8s.io/*, golang toolchain) into single PRs
 2. **Auto-merge policies** - Patch/security updates auto-merge after 2 weeks; minor updates require human review
 3. **Shared configuration** - Centralize in `harvester/dependency-automation`, extend in each repo
 
@@ -65,11 +66,11 @@ Use Renovate to automate dependency updates with proper grouping and auto-merge 
 
 **After**: Renovate's `go-version` datasource handles it in one PR. All files updated together using regex managers.
 
-#### Longhorn Go Module Updates
+#### Longhorn Dependency Updates
 
 **Before**: Longhorn release → manually update multiple Go modules (e.g., [fork PR #209](https://github.com/pohanhuang/harvester/pull/209) touching `longhorn-manager`, `longhorn-instance-manager`, etc.) → manual version verification across modules.
 
-**After**: One PR with all Longhorn Go modules grouped and updated together.
+**After**: No change in the initial rollout. Longhorn updates remain manual until we have validated a safe grouping and update strategy across Go modules and charts.
 
 ### User Experience In Detail
 
@@ -101,7 +102,6 @@ Repository `harvester/dependency-automation` (renamed from `harvester/renovate`)
 **Dependency grouping**:
 - Golang toolchain (go.mod + Dockerfile) → 1 PR
 - K8s + Rancher (all k8s.io/* + rancher/rancher) → 1 PR
-- Longhorn (all longhorn/*) → 1 PR
 - SUSE BCI base images → 1 PR
 
 **Update policies**:
@@ -110,6 +110,7 @@ Repository `harvester/dependency-automation` (renamed from `harvester/renovate`)
 - Patch/security updates: Auto-merge after 2 weeks if CI passes
 
 **Disabled dependencies** (require manual updates):
+- Longhorn (deferred for now; spans Go modules and Helm charts)
 - kubevirt (breaking changes need testing)
 - rancher/lasso (version pinned)
 - Helm charts (separate management)
@@ -132,7 +133,7 @@ Gradually rollout to remaining repos:
 ### Test plan
 
 **Success criteria**:
-- Grouping: k8s.io/* in 1 PR, longhorn/* in 1 PR, golang toolchain in 1 PR
+- Grouping: k8s.io/* in 1 PR, golang toolchain in 1 PR
 - Auto-merge: Patch updates wait 14 days → auto-merge if CI passes
 - Manual review: Minor updates require approval
 - `make ci` passes after bumps
