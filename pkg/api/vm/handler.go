@@ -1273,7 +1273,9 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 	}
 
 	if backendstorage.IsBackendStorageNeeded(newVM) {
-		h.prepareBackendStorageClone(newVM, vm)
+		if err := h.prepareBackendStorageClone(newVM, vm); err != nil {
+			return fmt.Errorf("prepare backend storage clone error for new vm %s/%s, err %w", newVM.Namespace, newVM.Name, err)
+		}
 	}
 
 	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(newPVCsString)
@@ -1381,10 +1383,13 @@ func cloneSecretVolume(volume *kubevirtv1.Volume, secretNameMap map[string]strin
 	volume.Secret.SecretName = secretNameMap[volume.Secret.SecretName]
 }
 
-func (h *vmActionHandler) prepareBackendStorageClone(newVM, sourceVM *kubevirtv1.VirtualMachine) {
-	if newVM.Spec.RunStrategy != nil {
-		newVM.Annotations[util.AnnotationBSCloneRunStrategy] = string(*newVM.Spec.RunStrategy)
+func (h *vmActionHandler) prepareBackendStorageClone(newVM, sourceVM *kubevirtv1.VirtualMachine) error {
+	runStrategy, err := newVM.RunStrategy()
+	if err != nil {
+		return err
 	}
+
+	newVM.Annotations[util.AnnotationBSCloneRunStrategy] = string(runStrategy)
 	newVM.Annotations[util.AnnotationBSCloneSourceVM] = sourceVM.Name
 	if cloneAction := h.determineCloneAction(newVM); cloneAction != "" {
 		newVM.Annotations[util.AnnotationBSCloneActions] = cloneAction
@@ -1394,6 +1399,7 @@ func (h *vmActionHandler) prepareBackendStorageClone(newVM, sourceVM *kubevirtv1
 	halted := kubevirtv1.RunStrategyHalted
 	newVM.Spec.RunStrategy = &halted
 	newVM.Annotations[util.AnnotationBSCloneStatus] = util.CloneInProgress
+	return nil
 }
 
 // determineCloneAction determines what post-clone action is needed based on the
