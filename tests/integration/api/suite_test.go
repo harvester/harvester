@@ -145,9 +145,9 @@ var _ = BeforeSuite(ginkgo.NodeTimeout(10*time.Minute), func(ctx ginkgo.SpecCont
 	case <-readyChan:
 		By("harvester test cluster is ready")
 	case err := <-testSuiteStartErrChan:
-		Fail(fmt.Sprintf("Harvester test suite failed to start: %v", err))
+		Fail(fmt.Sprintf("harvester test suite failed to start: %v", err))
 	case <-time.After(harvesterAPITimeout + pollingInterval):
-		Fail("Timed out waiting for Harvester API to be ready")
+		Fail("timed out waiting for harvester API to be ready")
 	}
 })
 

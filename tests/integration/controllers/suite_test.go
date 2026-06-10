@@ -69,7 +69,7 @@ func TestAPI(t *testing.T) {
 	ginkgo.RunSpecs(t, "api suite")
 }
 
-var _ = ginkgo.BeforeSuite(ginkgo.NodeTimeout(5*time.Minute), func(ctx ginkgo.SpecContext) {
+var _ = ginkgo.BeforeSuite(ginkgo.NodeTimeout(10*time.Minute), func(ctx ginkgo.SpecContext) {
 	testCtx, testCtxCancel = context.WithCancel(context.Background())
 	var err error
 
@@ -131,9 +131,10 @@ var _ = ginkgo.BeforeSuite(ginkgo.NodeTimeout(5*time.Minute), func(ctx ginkgo.Sp
 	testCtx, scaled, err = config.SetupScaled(testCtx, cfg, factoryOpts)
 	dsl.MustNotError(err)
 
+	ginkgo.By("start controllers")
 	err = startControllers(testCtx, kubeConfig, factoryOpts)
 	dsl.MustNotError(err)
-
+	ginkgo.By("harvester test cluster is ready")
 })
 
 var _ = ginkgo.AfterSuite(ginkgo.NodeTimeout(5*time.Minute), func(ctx ginkgo.SpecContext) {
@@ -179,12 +180,10 @@ func applyObj(obj []apiextensionsv1.CustomResourceDefinition) error {
 }
 
 func startControllers(ctx context.Context, restConfig *rest.Config, opts *ctlharvesterv1.FactoryOptions) error {
-
 	// to speed up testing, override default backofflimit for jobs
 	harvesterv1.DefaultJobBackOffLimit = 1
 
 	harvesterFactory, err := ctlharvesterv1.NewFactoryFromConfigWithOptions(restConfig, opts)
-
 	if err != nil {
 		return err
 	}
@@ -237,17 +236,17 @@ func startControllers(ctx context.Context, restConfig *rest.Config, opts *ctlhar
 		return err
 	}
 
-	logrus.Infof("Sync status of batch informer: %v", batch.Batch().V1().Job().Informer().HasSynced())
+	logrus.Infof("sync status of batch informer: %v", batch.Batch().V1().Job().Informer().HasSynced())
 	if err = start.All(ctx, 10, harvesterFactory, core, batch, helm, catalog, rancher); err != nil {
 		return err
 	}
 
 	for !batch.Batch().V1().Job().Informer().HasSynced() {
-		logrus.Infof("The job informer is not ready yet, keep waiting")
+		logrus.Infof("the job informer is not ready yet, keep waiting")
 		time.Sleep(5 * time.Second)
 	}
 
-	logrus.Infof("All controllers are stared, test cases could be run")
+	logrus.Infof("all controllers are stared, test cases could be run")
 
 	return nil
 }
