@@ -742,6 +742,15 @@ func TestUpgradeHandler_prepareNodesForUpgrade(t *testing.T) {
 		var actual output
 		actual.upgrade, actual.err = handler.prepareNodesForUpgrade(tc.given.upgrade, "")
 		assert.Equal(t, tc.expected.err, actual.err, "case %q", tc.name)
+
+		// Skip comparing the time in conditions since it's unpredictable.
+		if actual.upgrade != nil {
+			emptyConditionsTime(actual.upgrade.Status.Conditions)
+		}
+		if tc.expected.upgrade != nil {
+			emptyConditionsTime(tc.expected.upgrade.Status.Conditions)
+		}
+
 		assert.Equal(t, tc.expected.upgrade, actual.upgrade, "case %q", tc.name)
 
 		if tc.expected.plan != nil {

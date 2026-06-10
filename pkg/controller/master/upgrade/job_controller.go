@@ -25,8 +25,8 @@ import (
 
 const (
 	StateUpgrading               = "Upgrading"
-	StatePreparingLoggingInfra   = "PreparingLoggingInfra"
-	StateLoggingInfraPrepared    = "LoggingInfraPrepared"
+	StatePreparingLoggingInfra   = util.UpgradeStatePreparingLoggingInfra
+	StateLoggingInfraPrepared    = util.UpgradeStateLoggingInfraPrepared
 	StateCreatingUpgradeImage    = "CreatingUpgradeImage"
 	StatePreparingRepo           = "PreparingRepo"
 	StateRepoPrepared            = "RepoPrepared"

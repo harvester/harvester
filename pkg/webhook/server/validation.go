@@ -31,6 +31,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/supportbundle"
 	"github.com/harvester/harvester/pkg/webhook/resources/templateversion"
 	"github.com/harvester/harvester/pkg/webhook/resources/upgrade"
+	"github.com/harvester/harvester/pkg/webhook/resources/upgradelog"
 	"github.com/harvester/harvester/pkg/webhook/resources/version"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinebackup"
@@ -133,6 +134,10 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 				Timeout:   time.Second * 20,
 			},
 			string(bearToken),
+		),
+		upgradelog.NewValidator(
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().UpgradeLog().Cache(),
 		),
 		virtualmachinebackup.NewValidator(
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),

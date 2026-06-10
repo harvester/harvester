@@ -28,6 +28,7 @@ type UpgradeLog struct {
 
 type UpgradeLogSpec struct {
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec.upgradeName is immutable"
 	UpgradeName string `json:"upgradeName,omitempty"`
 }
 
