@@ -132,7 +132,7 @@ kubevirt:
 cdi:
   enabled: true
   containers:
-    version: &cdiVersion 1.62.0-150700.9.3.1
+    version: &cdiVersion 1.64.0-150700.9.6.1
     operator:
       image:
         repository: registry.suse.com/suse/sles/15.7/cdi-operator
