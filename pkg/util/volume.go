@@ -89,6 +89,42 @@ func GetCSIProvisionerSnapshotCapability(provisioner string) bool {
 	return false
 }
 
+func GetPVCSnapshotCapability(pvc *corev1.PersistentVolumeClaim, scCache ctlstoragev1.StorageClassCache) bool {
+	if GetPVCStorageClassSnapshotClassName(pvc, scCache) != "" {
+		return true
+	}
+
+	provisioner := GetProvisionedPVCProvisioner(pvc, scCache)
+	return GetCSIProvisionerSnapshotCapability(provisioner)
+}
+
+func GetPVCStorageClassSnapshotClassName(pvc *corev1.PersistentVolumeClaim, scCache ctlstoragev1.StorageClassCache) string {
+	storageClassName := GetPVCStorageClassName(pvc, scCache)
+	if storageClassName == "" {
+		return ""
+	}
+
+	storageClass, err := scCache.Get(storageClassName)
+	if err != nil {
+		logrus.Warnf("failed to get storage class %s, %v", storageClassName, err)
+		return ""
+	}
+
+	return storageClass.Annotations[AnnotationStorageProfileSnapshotClass]
+}
+
+func GetPVCStorageClassName(pvc *corev1.PersistentVolumeClaim, scCache ctlstoragev1.StorageClassCache) string {
+	if pvc.Spec.StorageClassName != nil {
+		return *pvc.Spec.StorageClassName
+	}
+
+	storageClass := GetDefaultSC(scCache)
+	if storageClass == nil {
+		return ""
+	}
+	return storageClass.Name
+}
+
 // GetProvisionedPVCProvisioner do not use this function when the PVC is just created
 func GetProvisionedPVCProvisioner(pvc *corev1.PersistentVolumeClaim, scCache ctlstoragev1.StorageClassCache) string {
 	provisioner, ok := pvc.Annotations[AnnBetaStorageProvisioner]
