@@ -1,0 +1,131 @@
+#!/bin/bash
+# Volume-backed image cache for build-iso.
+# Images are pulled via docker pull + docker image save, then stored in a named
+# Docker volume mounted at IMAGE_CACHE_ROOT.
+#
+# Cache layout per entry:
+#   /image-caches/<component>/<key>/   (component must not be "rke2" — reserved for tarball downloads)
+#     images.txt             — the image list that produced this tarball
+#     images.tar.zst         — docker-saved + zstd-compressed tarball
+#     images.tar.zst.sha256  — sha256 of images.tar.zst, written at store time
+#
+# Environment variables (all optional with defaults):
+#   IMAGE_CACHE_ROOT         — volume mount point (default: /image-caches)
+#   MK_IMAGE_CACHE_BYPASS    — non-empty: skip cache entirely; always pull fresh
+#   MK_IMAGE_CACHE_MAX_ITEMS — max cached entries per component (default: 5)
+#   MK_IMAGE_CACHE_VERIFY    — 1 (default): verify sha256 before serving from cache
+
+IMAGE_CACHE_ROOT="${IMAGE_CACHE_ROOT:-/image-caches}"
+MK_IMAGE_CACHE_MAX_ITEMS="${MK_IMAGE_CACHE_MAX_ITEMS:-5}"
+MK_IMAGE_CACHE_VERIFY="${MK_IMAGE_CACHE_VERIFY:-1}"
+
+# cache_hash IMAGE_LIST_FILE
+# Prints a 16-char SHA256 prefix of the file content. Used as a cache key.
+cache_hash() {
+    sha256sum "$1" | cut -c1-16
+}
+
+# _cache_dir COMPONENT KEY
+# Prints the absolute path of the cache entry directory.
+_cache_dir() {
+    echo "${IMAGE_CACHE_ROOT}/$1/$2"
+}
+
+# _cache_valid CACHE_DIR LIST_FILE
+# Returns 0 (hit) when all three files exist, images.txt matches LIST_FILE,
+# and (if MK_IMAGE_CACHE_VERIFY=1) the stored sha256 matches the tarball.
+# Returns 1 otherwise; a checksum mismatch also prints a warning.
+_cache_valid() {
+    local cache_dir="$1"
+    local list_file="$2"
+
+    [[ -f "${cache_dir}/images.tar.zst" ]] || return 1
+    [[ -f "${cache_dir}/images.tar.zst.sha256" ]] || return 1
+    [[ -f "${cache_dir}/images.txt" ]] || return 1
+
+    diff -q "${cache_dir}/images.txt" "${list_file}" >/dev/null 2>&1 || return 1
+
+    if [[ "${MK_IMAGE_CACHE_VERIFY:-1}" == "1" ]]; then
+        local stored_sum actual_sum
+        stored_sum=$(cat "${cache_dir}/images.tar.zst.sha256")
+        actual_sum=$(sha256sum "${cache_dir}/images.tar.zst" | awk '{print $1}')
+        if [[ "${stored_sum}" != "${actual_sum}" ]]; then
+            echo "[cache] WARN: checksum mismatch for ${cache_dir} — treating as miss"
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
+# cache_prune COMPONENT
+# Deletes the oldest entry in the component directory if the count exceeds
+# MK_IMAGE_CACHE_MAX_ITEMS. Repeats until within limit.
+cache_prune() {
+    local component_dir="${IMAGE_CACHE_ROOT}/$1"
+    local max="${MK_IMAGE_CACHE_MAX_ITEMS:-5}"
+    local count oldest
+
+    count=$(find "${component_dir}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+    while (( count > max )); do
+        oldest=$(ls -dt "${component_dir}"/*/ 2>/dev/null | tail -1)
+        [[ -z "${oldest}" ]] && break
+        echo "[cache] PRUNE ($1 has ${count} entries, max ${max}): ${oldest}"
+        rm -rf "${oldest}"
+        (( count-- ))
+    done
+}
+
+# docker_pull_and_save IMAGE_LIST_FILE OUTPUT_ARCHIVE
+# Pulls every image in IMAGE_LIST_FILE then saves them all to OUTPUT_ARCHIVE
+# (.tar.zst, Docker format). Respects USE_LOCAL_IMAGES via pull_images().
+# Requires pull_images() from scripts/lib/image to be sourced by the caller.
+docker_pull_and_save() {
+    local image_list="$1"
+    local output_archive="$2"
+
+    pull_images "${image_list}"
+    docker image save $(<"${image_list}") | zstd -o "${output_archive}"
+}
+
+# cache_pull_and_save COMPONENT KEY LIST_FILE OUTPUT_ARCHIVE
+# High-level entry point.
+#   MK_IMAGE_CACHE_BYPASS set → bypass; call docker_pull_and_save directly.
+#   Cache hit  → copy tar.zst from cache to OUTPUT_ARCHIVE.
+#   Cache miss → docker_pull_and_save, write {tar.zst, sha256, txt} to cache, prune oldest cache entry if needed.
+cache_pull_and_save() {
+    local component="$1"
+    local key="$2"
+    local list_file="$3"
+    local output_archive="$4"
+
+    if [[ "${component}" == "rke2" ]]; then
+        echo "[cache] ERROR: 'rke2' is a reserved component name; use prepare_rke2_tarball_bundle() for RKE2 core tarballs" >&2
+        return 1
+    fi
+
+    if [[ -n "${MK_IMAGE_CACHE_BYPASS:-}" ]]; then
+        echo "[cache] BYPASS (MK_IMAGE_CACHE_BYPASS set): ${component}/${key}"
+        docker_pull_and_save "${list_file}" "${output_archive}"
+        return
+    fi
+
+    local cache_dir
+    cache_dir=$(_cache_dir "${component}" "${key}")
+
+    if _cache_valid "${cache_dir}" "${list_file}"; then
+        echo "[cache] HIT: ${component}/${key}"
+        cp "${cache_dir}/images.tar.zst" "${output_archive}"
+        return
+    fi
+
+    echo "[cache] MISS: ${component}/${key} — pulling from registry"
+    docker_pull_and_save "${list_file}" "${output_archive}"
+
+    mkdir -p "${cache_dir}"
+    cp "${list_file}"       "${cache_dir}/images.txt"
+    cp "${output_archive}"  "${cache_dir}/images.tar.zst"
+    sha256sum "${output_archive}" | awk '{print $1}' > "${cache_dir}/images.tar.zst.sha256"
+
+    cache_prune "${component}"
+}

@@ -1,0 +1,39 @@
+# yip stage to overwrite rootfs layout
+if: '[ ! -f "/run/cos/recovery_mode" ]'
+name: "Rootfs layout overwrite"
+environment_file: /run/cos/cos-layout.env
+environment:
+  VOLUMES: "LABEL=COS_OEM:/oem LABEL=COS_PERSISTENT:/usr/local{{ if .ShouldMountDataPartition }} LABEL=HARV_LH_DEFAULT:/var/lib/harvester/defaultdisk{{ end }}"
+  OVERLAY: "tmpfs:25%"
+  RW_PATHS: "/var /etc /srv /boot /lib/firmware"
+  PERSISTENT_STATE_PATHS: >-
+    /etc/NetworkManager
+    /etc/systemd
+    /etc/rancher
+    /etc/ssh
+    /etc/iscsi
+    /etc/nvme
+    /etc/cni
+    /etc/pki/trust/anchors
+    /home
+    /opt
+    /root
+    /usr/libexec
+    /var/log
+    /var/lib/rancher
+    /var/lib/kubelet
+    /var/lib/wicked
+    /var/lib/NetworkManager
+    /var/lib/cni
+    /var/lib/third-party
+    /var/crash
+    /var/lib/longhorn
+    {{- if .OS.PersistentStatePaths }}
+    {{- range $path := .OS.PersistentStatePaths }}
+    {{ $path }}
+    {{- end }}
+    {{- end }}
+    {{- if not .ShouldMountDataPartition }}
+    /var/lib/harvester/defaultdisk
+    {{- end }}
+  PERSISTENT_STATE_BIND: "true"

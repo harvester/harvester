@@ -1,0 +1,19 @@
+#cloud-config
+token: token
+os:
+  ssh_authorized_keys:
+    - ssh-rsa ...        # replace with your public key
+  password: p@ssword   # replace with a your password
+  ntp_servers:
+    - 0.suse.pool.ntp.org
+    - 1.suse.pool.ntp.org
+install:
+  mode: create
+  automatic: true
+  networks:
+  management_interface:
+    interfaces:
+      - name: ens0
+      - name: ens3
+    method: dhcp
+  vipMode: dhcp

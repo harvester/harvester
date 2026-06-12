@@ -1,0 +1,9 @@
+# yip stage to overwrite after-install-chroot layout
+if: '[ ! -f "/run/cos/recovery_mode" ]'
+name: "Run after-install-chroot commands"
+commands:
+    {{- if .OS.AfterInstallChrootCommands }}
+    {{- range $cmd := .OS.AfterInstallChrootCommands }}
+    - {{ printf "%q" $cmd }}
+    {{- end }}
+    {{- end }}

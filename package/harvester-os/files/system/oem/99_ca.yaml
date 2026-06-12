@@ -1,0 +1,6 @@
+name: "Update system CA certificates"
+stages:
+  boot:
+  - name: "Run update-ca-certificates to apply addition-ca in /etc/pki/trust/anchors"
+    commands:
+    - update-ca-certificates -v

@@ -1,0 +1,248 @@
+#!/bin/bash -eu
+
+TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+ARTIFACTS_DIR="${TOP_DIR}/dist/artifacts"
+SCRIPTS_DIR="${TOP_DIR}/scripts"
+PACKAGE_HARVESTER_OS_DIR="${TOP_DIR}/package/harvester-os"
+BUNDLE_DIR="${PACKAGE_HARVESTER_OS_DIR}/iso/bundle"
+IMAGES_LISTS_DIR="${BUNDLE_DIR}/harvester/images-lists"
+RANCHERD_IMAGES_DIR="${BUNDLE_DIR}/rancherd/images"
+VERSION_FILE="version.yaml"
+if [ "${ARCH}" == "arm64" ]
+then
+  VERSION_FILE="version-arm64.yaml"
+fi
+
+source ${SCRIPTS_DIR}/lib/addon
+addons_path=${TOP_DIR}/../addons
+load_addon_env ${addons_path}
+
+MONITORING_VERSION=${RANCHER_MONITORING_CHART_VERSION}
+LOGGING_VERSION=${RANCHER_LOGGING_CHART_VERSION}
+echo "Rancher monitoring version: ${MONITORING_VERSION}"
+echo "Rancher logging version: ${LOGGING_VERSION}"
+echo "Harvester eventrouter image tag: ${HARVESTER_EVENTROUTER_FULL_TAG}"
+
+mkdir -p ${ARTIFACTS_DIR}
+
+source ${SCRIPTS_DIR}/version
+source ${SCRIPTS_DIR}/version-rke2
+source ${SCRIPTS_DIR}/version-rancher
+source ${SCRIPTS_DIR}/lib/iso
+
+HARVESTER_VERSION=${VERSION}
+HARVESTER_CHART_VERSION=${CHART_VERSION}
+HARVESTER_KUBEVIRT_VERSION=$(yq e '.kubevirt-operator.containers.operator.image.tag' ${TOP_DIR}/deploy/charts/harvester/values.yaml)
+HARVESTER_MIN_UPGRADABLE_VERSION=${MIN_UPGRADABLE_VERSION}
+
+BASE_OS_IMAGE="rancher/harvester-os:sle-micro-head"
+HARVESTER_OS_IMAGE=rancher/harvester-os:$VERSION
+
+cd ${PACKAGE_HARVESTER_OS_DIR}
+
+PRETTY_NAME="Harvester ${VERSION}"
+
+cat > harvester-release.yaml <<EOF
+harvester: ${HARVESTER_VERSION}
+harvesterChart: ${HARVESTER_CHART_VERSION}
+installer: ${COMMIT}
+os: ${PRETTY_NAME}
+kubernetes: ${RKE2_VERSION}
+rancher: ${RANCHER_VERSION}
+monitoringChart: ${MONITORING_VERSION}
+loggingChart: ${LOGGING_VERSION}
+loggingChartHarvesterEventRouter: ${HARVESTER_EVENTROUTER_FULL_TAG}
+kubevirt: ${HARVESTER_KUBEVIRT_VERSION}
+minUpgradableVersion: '${HARVESTER_MIN_UPGRADABLE_VERSION}'
+EOF
+
+# Collect all the previous versions' image lists
+${SCRIPTS_DIR}/archive-images-lists.sh "${TOP_DIR}/../harvester/package/upgrade-matrix.yaml" "${IMAGES_LISTS_DIR}" "${RANCHERD_IMAGES_DIR}" "${BUNDLE_DIR}/harvester/images-lists-archive" "${ARCH}"
+
+# Collect dependencies' versions
+${SCRIPTS_DIR}/collect-deps.sh harvester-release.yaml
+
+echo "The harvester-release info is"
+cat ./harvester-release.yaml
+
+docker build --pull \
+	--build-arg BASE_OS_IMAGE="${BASE_OS_IMAGE}" \
+	--build-arg HARVESTER_PRETTY_NAME="${PRETTY_NAME}" \
+  --build-arg ARCH="${ARCH}" \
+	-t ${HARVESTER_OS_IMAGE} .
+
+PROJECT_PREFIX="harvester"
+if [ -n "$VERSION" ];
+then
+  PROJECT_PREFIX+="-${VERSION}"
+else
+  PROJECT_PREFIX+="-master"
+fi
+
+# Copy kernel, initrd out for PXE boot
+if [ ${ARCH} == "amd64" ]
+then
+  KERNEL=$(docker run --rm ${HARVESTER_OS_IMAGE} readlink -f /boot/vmlinuz)
+fi
+# arm images have `Image` softlink for kernel
+if [ ${ARCH} == "arm64" ]
+then
+  KERNEL=$(docker run --rm ${HARVESTER_OS_IMAGE} readlink -f /boot/Image)
+fi
+
+INITRD=$(docker run --rm ${HARVESTER_OS_IMAGE} readlink -f /boot/initrd)
+# we need to add entrypoint or the docker create failed in newer version
+docker create --cidfile=os-img-container ${HARVESTER_OS_IMAGE} -- tail -f /dev/null
+docker cp $(<os-img-container):${KERNEL} ${ARTIFACTS_DIR}/${PROJECT_PREFIX}-vmlinuz-${ARCH}
+docker cp $(<os-img-container):${INITRD} ${ARTIFACTS_DIR}/${PROJECT_PREFIX}-initrd-${ARCH}
+docker cp $(<os-img-container):/usr/bin/elemental /usr/bin/elemental
+chmod +r ${ARTIFACTS_DIR}/${PROJECT_PREFIX}-initrd-${ARCH}
+docker rm $(<os-img-container) && rm -f os-img-container
+
+# Make sure files under bundle dir can be read by nginx
+find $BUNDLE_DIR -type f -exec chmod +r {} +
+
+# build ISO
+ISO_PREFIX="${PROJECT_PREFIX}-${ARCH}"
+cp harvester-release.yaml iso
+echo "set harvester_version=${VERSION}" > iso/boot/grub2/harvester.cfg
+
+# Elemental platform expects amd64 or aarch64
+PLATFORM=$(uname -m)
+
+CONFIG_DIR="$(pwd)"
+if [ "${ARCH}" == "arm64" ]
+then
+  cp $(pwd)/arm/grub.cfg iso/boot/grub2/grub.cfg
+fi
+
+
+elemental build-iso --config-dir "${CONFIG_DIR}" --debug "docker:${HARVESTER_OS_IMAGE}" \
+          --local \
+          -n "${ISO_PREFIX}" \
+          -o "${ARTIFACTS_DIR}" \
+          --overlay-iso "$(pwd)/iso" \
+          -x "-comp xz" \
+          --platform "linux/${PLATFORM}"
+
+rm -f ${ARTIFACTS_DIR}/${ISO_PREFIX}.iso.sha256
+
+
+# Unpack ISO to extract squashfs and create net-install ISO
+unpack_base=$(mktemp -d)
+extract_dir=${unpack_base}/iso
+mkdir ${extract_dir}
+xorriso -osirrox on -indev ${ARTIFACTS_DIR}/${ISO_PREFIX}.iso -extract / "${extract_dir}"
+
+# Reset permissions, directories 0755 and files 0644
+# otherwise if you happen to loopback mount the ISO, it's only readable by root
+chmod -R a=r,u+w,a+X "${extract_dir}"
+
+# Copy squashfs image for PXE boot
+cp "${extract_dir}/rootfs.squashfs" "${ARTIFACTS_DIR}/${PROJECT_PREFIX}-rootfs-${ARCH}.squashfs"
+
+# Currently only building Net-install ISO for amd64 builds.
+if [ "${ARCH}" == "amd64" ] && [ "${DISABLE_BUILD_NET_INSTALL_ISO:-false}" != "true" ]
+then
+# Use dd to create empty image, create an empty FAT32 filesystem
+# and copy EFI files to it to make it UEFI bootable
+# We need to put the uefi image outside the iso directory, or it also ends up
+# being written to a subdirectory of the ISO, which is weird and wrong.
+uefi_img="${unpack_base}/uefi.img"
+dd if=/dev/zero of="${uefi_img}" bs=1k count=4096 status=progress
+mkfs.vfat "${uefi_img}" -n COS_GRUB
+mcopy -s -i "${uefi_img}" "${extract_dir}/EFI" ::
+
+iso_vol_id="$(yq '.iso.label' manifest.yaml)"
+
+# Net-install ISO
+echo "set extra_iso_cmdline=harvester.install.with_net_images=true" >> ${extract_dir}/boot/grub2/harvester.cfg
+
+# bundle the harvester-cluster-repo image for net-install ISO
+mkdir ${extract_dir}/bundle.new
+yq '.images.common[] | select(.list == "*harvester-repo-images-*.txt") | {"images": {"common": [.]}}' \
+  ${extract_dir}/bundle/metadata.yaml > ${extract_dir}/bundle.new/metadata.yaml
+cluster_repo_image_list=$(yq '.images.common[0].list' ${extract_dir}/bundle.new/metadata.yaml)
+cluster_repo_image_list_dir=${extract_dir}/bundle.new/$(dirname $cluster_repo_image_list)
+cluster_repo_image_archive=$(yq '.images.common[0].archive' ${extract_dir}/bundle.new/metadata.yaml)
+cluster_repo_image_archive_dir=${extract_dir}/bundle.new/$(dirname $cluster_repo_image_archive)
+mkdir -p $cluster_repo_image_list_dir && cp ${extract_dir}/bundle/$cluster_repo_image_list $cluster_repo_image_list_dir
+mkdir -p $cluster_repo_image_archive_dir && cp ${extract_dir}/bundle/$cluster_repo_image_archive $cluster_repo_image_archive_dir
+rm -rf ${extract_dir}/bundle
+mv ${extract_dir}/bundle.new ${extract_dir}/bundle
+chmod -R a=r,u+w,a+X "${extract_dir}/bundle"
+
+pack_iso "${extract_dir}" "${uefi_img}" "$iso_vol_id" "${ARTIFACTS_DIR}/${ISO_PREFIX}-net-install.iso"
+
+fi
+
+if [ "${ARCH}" == "amd64" ] && [ "${DISABLE_BUILD_NET_INSTALL_ISO:-false}" == "true" ]
+then
+  echo "Skipping ${ISO_PREFIX}-net-install.iso generation..."
+fi
+
+# Cleanup
+rm -rf "${unpack_base}"
+
+if [ "${BUILD_QCOW:-false}" == "true" ]; then
+  echo "generating harvester install mode qcow"
+  qemu-img create -f raw -o size=250G ${ARTIFACTS_DIR}/${PROJECT_PREFIX}-amd64.raw
+  qemu-system-x86_64 --enable-kvm -nographic -cpu host -smp cores=2,threads=2,sockets=1 -m 8192 -serial mon:stdio \
+  -serial file:harvester-installer.log  -nic none \
+  -drive file=${ARTIFACTS_DIR}/${PROJECT_PREFIX}-amd64.raw,if=virtio,cache=writeback,discard=ignore,format=raw \
+  -boot d -cdrom ${ARTIFACTS_DIR}/${PROJECT_PREFIX}-amd64.iso -kernel ${ARTIFACTS_DIR}/${PROJECT_PREFIX}-vmlinuz-amd64 \
+  -append "cdroot root=live:CDLABEL=COS_LIVE rd.live.dir=/ rd.live.ram=1 rd.live.squashimg=rootfs.squashfs \
+  console=ttyS1 rd.cos.disable net.ifnames=1 harvester.install.mode=install harvester.install.device=/dev/vda \
+  harvester.install.automatic=true harvester.install.powerOff=true harvester.os.password=rancher \
+  harvester.scheme_version=1 harvester.install.persistentPartitionSize=150Gi harvester.install.skipchecks=true" \
+  -initrd ${ARTIFACTS_DIR}/${PROJECT_PREFIX}-initrd-amd64 -boot once=d
+  tail -100 harvester-installer.log
+  echo "compressing raw image"
+  zstd -T4 --rm ${ARTIFACTS_DIR}/${PROJECT_PREFIX}-amd64.raw
+fi
+
+# Write checksum
+cd ${ARTIFACTS_DIR}
+CHECKSUM_FILE=${ISO_PREFIX}.sha512
+sha512sum ${PROJECT_PREFIX}* > $CHECKSUM_FILE
+
+ISO_CHECKSUM=$(awk -viso_name="${ISO_PREFIX}.iso" '$2~iso_name{print $1}' $CHECKSUM_FILE)
+if [ -z "$ISO_CHECKSUM" ]; then
+  echo "Fail to find Harvester ISO file checksum."
+  exit 1
+fi
+
+# Write version.yaml
+if [[ -n "${DRONE_TAG-}" ]]; then
+	RELEASE_DATE=$(date +'%Y%m%d')
+	cat > ${VERSION_FILE} <<EOF
+apiVersion: harvesterhci.io/v1beta1
+kind: Version
+metadata:
+  name: ${VERSION}
+  namespace: harvester-system
+spec:
+  isoChecksum: '${ISO_CHECKSUM}'
+  isoURL: https://releases.rancher.com/harvester/${VERSION}/${ISO_PREFIX}.iso
+  releaseDate: '${RELEASE_DATE}'
+EOF
+fi
+
+# Collect image lists
+OUTPUT_DIR="$TOP_DIR/dist/artifacts/image-lists"
+mkdir -p $OUTPUT_DIR
+find $IMAGES_LISTS_DIR -name "*.txt" -exec cp {} $OUTPUT_DIR \;
+find $RANCHERD_IMAGES_DIR -name "*.txt" -exec cp {} $OUTPUT_DIR \;
+
+# Write all images into one file for user convenience
+IMAGE_ALL=$TOP_DIR/dist/artifacts/harvester-images-list-${ARCH}.txt
+rm -f ${IMAGE_ALL}
+echo "# All images in the Harvester ISO built @ " $(date) $'\n' > ${IMAGE_ALL}
+for filename in $OUTPUT_DIR/*.txt; do
+  echo "# In" $(basename ${filename}) >> ${IMAGE_ALL}
+  cat $filename >> ${IMAGE_ALL}
+  echo "" >> ${IMAGE_ALL}
+done
+
+# Write image lists to a tarball "image-lists.tar.gz"
+tar zcvf $TOP_DIR/dist/artifacts/image-lists-${ARCH}.tar.gz -C $TOP_DIR/dist/artifacts image-lists && rm -rf $OUTPUT_DIR

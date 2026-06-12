@@ -1,0 +1,12 @@
+resources:
+- apiVersion: helm.cattle.io/v1
+  kind: HelmChartConfig
+  metadata:
+    name: rke2-multus
+    namespace: kube-system
+  spec:
+    valuesContent: |-
+      labels:
+        nodeSelector: 
+          kubernetes.io/os: linux
+          kubernetes.io/arch: arm64

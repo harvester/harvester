@@ -1,0 +1,6 @@
+{{- with $args :=  .GetKubeletArgs }}
+kubelet-arg:
+{{- range $arg := $args }}
+- {{ printf "%q" $arg }}
+{{- end }}
+{{- end }}

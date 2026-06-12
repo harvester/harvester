@@ -13,7 +13,7 @@ if ! git -C "${TOP_DIR}" rev-parse HEAD &>/dev/null 2>&1; then
     if [[ -f "${_VERSION_ENV}" ]]; then
         # shellcheck source=/dev/null
         source "${_VERSION_ENV}"
-        if [ "$1" = "debug" ]; then
+        if [ "${1:-}" = "debug" ]; then
             echo "The envs from the pre-generated file:"
             echo ""
             tail -n +3 "${_VERSION_ENV}" || echo "ERROR: failed to run tail" >&2
@@ -26,7 +26,7 @@ if ! git -C "${TOP_DIR}" rev-parse HEAD &>/dev/null 2>&1; then
     return 1 2>/dev/null || exit 1
 fi
 
-unset DIRTY
+DIRTY=""
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     echo "Warning: there are uncommitted files; the build result might not be as expected" >&2
     DIRTY="-dirty"
@@ -36,6 +36,7 @@ COMMIT=$(git rev-parse --short=8 HEAD)
 COMMIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 COMMIT_BRANCH_FORMATTED=$(echo "${COMMIT_BRANCH}" | sed -E 's/[^a-zA-Z0-9.]+/-/g')
 GIT_TAG=$(git tag -l --contains HEAD | head -n 1)
+SPRINT_RELEASE=""
 if [[ "$GIT_TAG" == *"-dev-"* ]]; then
     SPRINT_RELEASE="-dev-"
 fi
@@ -75,7 +76,7 @@ if [ "$CHART_VERSION_LEN" -gt "50" ]; then
     exit 1
 fi
 
-if [ -z "$ARCH" ]; then
+if [ -z "${ARCH:-}" ]; then
     ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 fi
 
@@ -111,7 +112,7 @@ TAG="${TAG}"
 REPO="${REPO}"
 __EOF__
 
-if [ "$1" = "debug" ]; then
+if [ "${1:-}" = "debug" ]; then
     echo "The newly generated envs:"
     echo ""
     tail -n +3 "${_VERSION_ENV}" || echo "ERROR: failed to run tail" >&2

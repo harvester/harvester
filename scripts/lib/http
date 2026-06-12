@@ -1,0 +1,10 @@
+#!/bin/bash
+
+get_url()
+{
+  local from=$1
+  local save_to=$2
+
+  echo "Download ${from} to ${save_to}..."
+  curl -sfL $from -o $save_to
+}

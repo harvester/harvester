@@ -1,0 +1,20 @@
+pack_iso() {
+    local extract_dir=$1
+    local uefi_img=$2
+    local vol_id=$3
+    local iso_file=$4
+
+    echo "Creating ISO ${iso_file} from ${extract_dir} with uefi partition ${uefi_img}, vol_id: ${vol_id}..."
+
+    xorriso -volid "$vol_id" \
+        -joliet on -padding 0 \
+        -outdev "$iso_file" \
+        -map "${extract_dir}" / -chmod 0755 -- \
+        -append_partition 2 0xef "${uefi_img}" \
+        -boot_image any cat_path="boot/boot.catalog" \
+        -boot_image any cat_hidden=on \
+        -boot_image any efi_path=--interval:appended_partition_2:all:: \
+        -boot_image any platform_id=0xef \
+        -boot_image any appended_part_as=gpt \
+        -boot_image any partition_offset=16
+}

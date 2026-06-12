@@ -1,0 +1,37 @@
+token: TOKEN_VALUE
+os:
+  ssh_authorized_keys:
+  - ssh-rsa AAAAB3NzaC1yc2EAAAADAQAB...
+  - github:username
+  write_files:
+  - encoding: b64
+    content: CiMgVGhpcyBmaWxlIGNvbnRyb2xzIHRoZSBzdGF0ZSBvZiBTRUxpbnV4...
+    owner: root
+    path: /etc/abc.txt
+    permissions: '0755'
+  hostname: myhost
+  modules:
+  - kvm
+  - nvme
+  sysctl:
+    kernel.printk: "4 4 1 7"
+    kernel.kptr_restrict: "1"
+  dns_nameservers:
+  - 8.8.8.8
+  - 1.1.1.1
+  ntp_servers:
+  - 0.us.pool.ntp.org
+  - 1.us.pool.ntp.org
+  password: rancher
+install:
+  mode: create
+  mgmtInterface: eth0
+  force_efi: true
+  device: /dev/vda
+  silent: true
+  iso_url: http://myserver/test.iso
+  poweroff: true
+  no_format: true
+  debug: true
+  tty: ttyS0
+

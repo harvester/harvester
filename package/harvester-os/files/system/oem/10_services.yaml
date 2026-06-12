@@ -1,0 +1,6 @@
+name: "Service related operations"
+stages:
+  initramfs:
+    - name: "disable avahi-daemon"
+      systemctl:
+        disable: [avahi-daemon]

@@ -1,0 +1,10 @@
+#!/bin/bash -ex
+
+if ip route show | grep -q '^default'; then
+    exit 0
+fi
+
+ip link add type dummy
+ip addr add 192.168.1.100/255.255.255.0 dev dummy0
+ip link set dummy0 up
+ip route add default via 192.168.1.100

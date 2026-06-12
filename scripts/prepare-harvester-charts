@@ -1,0 +1,15 @@
+#!/bin/bash
+set -eu
+
+TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+SCRIPTS_DIR="${TOP_DIR}/scripts"
+DIST_CHARTS_DIR="/dist/chart-tarballs"
+
+cd ${TOP_DIR}
+
+mkdir -p ${DIST_CHARTS_DIR}
+
+source ${SCRIPTS_DIR}/version
+${SCRIPTS_DIR}/patch-harvester ${TOP_DIR}
+helm package ${TOP_DIR}/deploy/charts/harvester -d ${DIST_CHARTS_DIR}
+helm package ${TOP_DIR}/deploy/charts/harvester-crd -d ${DIST_CHARTS_DIR}

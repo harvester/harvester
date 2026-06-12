@@ -1,0 +1,2 @@
+node-taint:
+- "node-role.kubernetes.io/etcd=true:NoExecute"

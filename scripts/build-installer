@@ -1,0 +1,60 @@
+#!/bin/bash
+set -eu
+
+TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+SCRIPTS_DIR="${TOP_DIR}/scripts"
+
+cd ${TOP_DIR}
+
+source ${SCRIPTS_DIR}/lib/addon
+ADDONS_PATH=${TOP_DIR}/../addons
+load_addon_env ${ADDONS_PATH}
+
+MONITORING_VERSION=${RANCHER_MONITORING_CHART_VERSION}
+LOGGING_VERSION=${RANCHER_LOGGING_CHART_VERSION}
+echo "HARVESTER_EVENTROUTER_FULL_TAG: $HARVESTER_EVENTROUTER_FULL_TAG"
+
+source ${SCRIPTS_DIR}/version
+source ${SCRIPTS_DIR}/version-rke2
+source ${SCRIPTS_DIR}/version-rancher
+
+echo "Installer version: ${VERSION}"
+echo "Harvester version: ${VERSION}"
+echo "Harvester chart version: ${CHART_VERSION}"
+echo "Rancher version: ${RANCHER_VERSION}"
+echo "Rancher monitoring version: ${MONITORING_VERSION}"
+echo "Rancher logging version: ${LOGGING_VERSION}"
+echo "Kubeovn operator version: ${KUBEOVN_OPERATOR_CHART_VERSION}"
+echo "The ARCH is: ${ARCH}"
+
+mkdir -p bin
+
+LINKFLAGS="-X github.com/harvester/harvester/pkg/installer/config.RKE2Version=$RKE2_VERSION
+           -X github.com/harvester/harvester/pkg/installer/config.RancherVersion=$RANCHER_VERSION
+           -X github.com/harvester/harvester/pkg/installer/version.Version=$VERSION
+           -X github.com/harvester/harvester/pkg/installer/version.GitCommit=$COMMIT
+           -X github.com/harvester/harvester/pkg/installer/version.HarvesterVersion=$VERSION
+           -X github.com/harvester/harvester/pkg/installer/config.HarvesterChartVersion=$CHART_VERSION
+           -X github.com/harvester/harvester/pkg/installer/config.MonitoringChartVersion=$MONITORING_VERSION
+           -X github.com/harvester/harvester/pkg/installer/config.LoggingChartVersion=$LOGGING_VERSION
+           -X github.com/harvester/harvester/pkg/installer/config.KubeovnOperatorChartVersion=$KUBEOVN_OPERATOR_CHART_VERSION"
+
+OTHER_COMPILERFLAGS=""
+OTHER_LINKFLAGS=""
+if [ "$(uname)" = "Linux" ]; then
+    if [ -n "${REMOTE_DEBUG:-}" ]; then
+        OTHER_COMPILERFLAGS="all=-N -l"
+        OTHER_LINKFLAGS="-extldflags -static"
+    else
+        OTHER_LINKFLAGS="-extldflags -static -s"
+    fi
+fi
+
+
+# render template files
+cd ${ADDONS_PATH}
+go run . -generateTemplates -path ${TOP_DIR}/pkg/installer/config/templates
+
+cd ${TOP_DIR}
+
+CGO_ENABLED=0 go build -gcflags "${OTHER_COMPILERFLAGS}" -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/harvester-installer ./cmd/installer

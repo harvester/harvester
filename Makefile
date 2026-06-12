@@ -41,21 +41,34 @@ MK_DOCKER_PROGRESS        ?= plain
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
 HARVESTER_ADDONS_VERSION  ?= main
-HARVESTER_INSTALLER_REPO  ?=
-HARVESTER_INSTALLER_REF   ?=
 HARVESTER_UI_VERSION      ?=
 HARVESTER_UI_PLUGIN_BUNDLED_VERSION ?=
-RKE2_IMAGE_REPO           ?=
+RKE2_IMAGE_REPO           ?= https://github.com/rancher/rke2/releases/download/
 USE_LOCAL_IMAGES          ?=
 REPO                      ?=
 PUSH                      ?=
 DRONE_BRANCH              ?=
 DRONE_TAG                 ?=
+DISABLE_BUILD_NET_INSTALL_ISO ?=
+
+# you can use a fixed name to share cache across repos. however there is no locking mechanism.
+MK_IMAGE_CACHE_VOLUME     ?= harvester-image-cache-$(MK_REPO_ID)
+
+# non-empty: skip cache reads/writes entirely, always pull fresh
+MK_IMAGE_CACHE_BYPASS     ?=
+
+# max cached entries per category; oldest pruned when exceeded (default: 5)
+MK_IMAGE_CACHE_MAX_ITEMS  ?= 5
+
+# set to 0 to skip sha256 integrity check before using cached tarball (default: 1)
+MK_IMAGE_CACHE_VERIFY     ?=
 
 export MK_DOCKER_PROGRESS MK_REPO_ID MK_ADDONS_IMAGE MK_ISO_BUILDER_IMAGE
 export HARVESTER_UI_VERSION HARVESTER_UI_PLUGIN_BUNDLED_VERSION
-export HARVESTER_INSTALLER_REPO HARVESTER_INSTALLER_REF RKE2_IMAGE_REPO USE_LOCAL_IMAGES REPO PUSH DRONE_BRANCH DRONE_TAG
+export RKE2_IMAGE_REPO USE_LOCAL_IMAGES REPO PUSH DRONE_BRANCH DRONE_TAG
 export CODECOV_TOKEN HARVESTER_ADDONS_VERSION
+export DISABLE_BUILD_NET_INSTALL_ISO
+export MK_IMAGE_CACHE_VOLUME MK_IMAGE_CACHE_BYPASS MK_IMAGE_CACHE_MAX_ITEMS MK_IMAGE_CACHE_VERIFY
 
 MK_HOST_ARCH := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 export MK_HOST_ARCH
@@ -69,7 +82,9 @@ DOCKER_BUILD = docker build \
 .PHONY: build validate validate-ci test test-integration build-iso \
 	package-all package package-harvester-webhook package-harvester-upgrade \
 	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default \
-	gen-version-env gen-version-env-debug
+	image-cache-clean image-cache-show image-cache-debug \
+	gen-version-env gen-version-env-debug build-installer \
+	check-images
 
 
 # ---- Directories ----
@@ -93,7 +108,7 @@ gen-version-env-debug:
 # ---- Compile harvester binaries ----
 build: gen-version-env | $(ROOT)/bin
 	$(BANNER)
-	$(DOCKER_BUILD) --target build-output --output type=local,dest=.
+	$(DOCKER_BUILD) --target build-output --output type=local,dest=$(ROOT)
 
 
 # ---- Validate ----
@@ -109,7 +124,7 @@ validate-ci: gen-version-env
 
 
 # ---- Test ----
-test: gen-version-env
+test: gen-version-env prepare-addons
 	$(BANNER)
 	$(DOCKER_BUILD) $(if $(CODECOV_TOKEN),--secret id=codecov_token_$(MK_REPO_ID)$(comma)env=CODECOV_TOKEN --no-cache-filter=test) --target test
 
@@ -125,6 +140,20 @@ test-integration: gen-version-env package-harvester-webhook
 	    ./scripts/test-integration
 
 
+# ---- Compile harvester-installer binary ----
+build-installer: prepare-addons | $(ROOT)/bin
+	$(BANNER)
+	$(DOCKER_BUILD) --target build-installer-output \
+	    --build-arg HARVESTER_ADDONS_VERSION=$(HARVESTER_ADDONS_VERSION) \
+	    --output type=local,dest=$(ROOT)
+
+
+# ---- Validate image list consistency ----
+check-images: prepare-addons gen-version-env
+	$(BANNER)
+	$(DOCKER_BUILD) --target check-images
+
+
 # ---- Package harvester image ----
 package: build
 	$(BANNER)
@@ -138,7 +167,7 @@ package-harvester-webhook: build
 
 
 # ---- Package harvester-upgrade image ----
-package-harvester-upgrade: build prepare-addons
+package-harvester-upgrade: build prepare-addons build-installer
 	$(BANNER)
 	$(ROOT)/scripts/package-upgrade
 
@@ -166,7 +195,7 @@ prepare-addons:
 
 
 # ---- Build ISO ----
-build-iso: gen-version-env
+build-iso: gen-version-env build-installer check-images
 	$(BANNER)
 	$(DOCKER_BUILD) --target build-iso -t $(MK_ISO_BUILDER_IMAGE)
 	$(ROOT)/scripts/mk-build-iso
@@ -177,7 +206,7 @@ clean:
 	$(BANNER)
 	@rm -rf $(ROOT)/bin
 	@rm -f $(ROOT)/package/harvester $(ROOT)/package/harvester-webhook
-	@rm -f $(ROOT)/package/upgrade/upgrade-helper
+	@rm -f $(ROOT)/package/upgrade/upgrade-helper $(ROOT)/package/upgrade/harvester-installer
 	@rm -rf $(ROOT)/package/upgrade/addons
 	@rm -rf $(ROOT)/dist/prepare-addons
 	@rm -rf $(ROOT)/dist/artifacts $(ROOT)/dist/harvester-cluster-repo
@@ -187,11 +216,30 @@ clean-all: clean
 	@docker rmi -f $(MK_ADDONS_IMAGE) || true
 	@docker rmi -f $(MK_ISO_BUILDER_IMAGE) $(MK_TEST_INTEGRATION_IMAGE) || true
 
+# ---- Image cache management ----
+image-cache-clean:
+	$(BANNER)
+	docker volume rm $(MK_IMAGE_CACHE_VOLUME) || true
+
+image-cache-show:
+	$(BANNER)
+	docker run --rm \
+	    -v $(MK_IMAGE_CACHE_VOLUME):/image-caches:ro \
+	    -v $(ROOT)/scripts/image-cache:/bin/image-cache:ro \
+	    alpine image-cache show
+
+image-cache-debug:
+	$(BANNER)
+	docker run --rm -it \
+	    -v $(MK_IMAGE_CACHE_VOLUME):/image-caches:rw \
+	    -v $(ROOT)/scripts/image-cache:/bin/image-cache:ro \
+	    alpine sh
+
 .DEFAULT_GOAL := default
 
 default: build test package-all
 
 arm: build package-all
 
-ci: validate validate-ci build test package-harvester-webhook package-harvester-upgrade \
+ci: validate validate-ci build build-installer test package-harvester-webhook package-harvester-upgrade \
 	package

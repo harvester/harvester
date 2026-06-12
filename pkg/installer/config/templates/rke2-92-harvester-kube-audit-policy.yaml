@@ -1,0 +1,14 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages:
+  - "ResponseStarted"
+  - "ResponseComplete"
+rules:
+  # Any include/exclude rules are added here
+
+  # A catch-all rule to log all other (create/delete/patch) requests at the Metadata level
+  - level: Metadata
+    verbs: ["create", "delete", "patch"]
+    omitStages:
+      - "ResponseStarted"
+      - "ResponseComplete"

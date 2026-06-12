@@ -1,0 +1,3 @@
+#!/bin/bash -ex
+systemctl restart --no-block rancherd
+systemctl restart getty@tty1.service

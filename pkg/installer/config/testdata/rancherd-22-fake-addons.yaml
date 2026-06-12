@@ -1,0 +1,20 @@
+resources:
+  - apiVersion: harvesterhci.io/v1beta1
+    kind: Addon
+    metadata:
+      name: vm-import-controller
+      namespace: harvester-system
+    spec:
+      repo: http://harvester-cluster-repo.cattle-system.svc/charts
+      version: "1.5.1-rc4"
+      chart: harvester-vm-import-controller
+      # invalid file content
+      {{- if and .Addons .Addons.harvester_vm_import_controller 
+      enabled: {{ .Addons.harvester_vm_import_controller.Enabled }}
+      {{- else }}
+      enabled: false
+      {{- end }}
+      valuesContent: |
+        image:
+          tag: "rancher/harvester-vm-import-controller:v1.5.1-rc4"
+        fullnameOverride: harvester-vm-import-controller

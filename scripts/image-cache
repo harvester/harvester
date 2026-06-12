@@ -1,0 +1,167 @@
+#!/bin/sh
+# Manage the image cache volume mounted at /image-caches.
+# Runs inside an alpine container (POSIX sh only, no bash-isms).
+
+CACHE_ROOT="${IMAGE_CACHE_ROOT:-/image-caches}"
+_verbose=0
+
+usage() {
+    cat <<EOF
+Usage: image-cache [COMMAND] [ARGS...]
+
+Commands:
+  show [-v]                    List all image caches; -v also prints image lists
+  delete rke2 <version>        Remove a cached RKE2 tarball
+  delete <component> <key>     Remove a specific component cache entry
+  --help, -h                   Show this help message
+
+Environment:
+  IMAGE_CACHE_ROOT   Override cache root (default: /image-caches)
+
+Examples:
+  image-cache
+  image-cache show
+  image-cache show -v
+  image-cache delete rke2 v1.26.0-rke2r1
+  image-cache delete multus a1b2c3d4e5f60123
+  image-cache delete rancherd-bootstrap a1b2c3d4e5f60123
+  image-cache --help
+EOF
+}
+
+# print_files KEY_DIR INDENT
+# Prints the size of each cache file (images.txt, tar.zst, sha256) in KEY_DIR.
+print_files() {
+    local key_dir="$1"
+    local indent="$2"
+    for f in images.txt images.tar.zst images.tar.zst.sha256; do
+        fpath="${key_dir}/${f}"
+        if [ -f "${fpath}" ]; then
+            size=$(ls -lh "${fpath}" | awk '{print $5}')
+            printf "%s%-30s %s\n" "${indent}" "${f}" "${size}"
+        fi
+    done
+}
+
+# print_key KEY_DIR INDENT
+# Prints key name, date, and files for a single cache entry directory.
+print_key() {
+    local key_dir="$1"
+    local indent="$2"
+    local key date
+    key=$(basename "${key_dir}")
+    date=$(stat -c '%y' "${key_dir}" 2>/dev/null | cut -c1-19)
+    printf "%sKey: %-20s  Date: %s\n" "${indent}" "${key}" "${date}"
+    print_files "${key_dir}" "${indent}  "
+    if [ "${_verbose}" -eq 1 ] && [ -f "${key_dir}/images.txt" ]; then
+        printf "%s  Images:\n" "${indent}"
+        awk -v p="${indent}    " '{print p $0}' "${key_dir}/images.txt"
+    fi
+}
+
+cmd_show() {
+    if [ "$1" = "-v" ]; then
+        _verbose=1
+        shift
+    fi
+
+    local any_found=0
+
+    # ── RKE2 tarballs section ─────────────────────────────────────────────────
+    local rke2_dir="${CACHE_ROOT}/rke2"
+
+    echo "RKE2 Tarballs (${rke2_dir})"
+    echo "────────────────────────────────────────"
+
+    if [ -d "${rke2_dir}" ]; then
+        local rke2_found=0
+        for key_dir in "${rke2_dir}"/*/; do
+            [ -d "${key_dir}" ] || continue
+            rke2_found=1
+            any_found=1
+            print_key "${key_dir}" "  "
+        done
+        [ "${rke2_found}" -eq 0 ] && echo "  (empty)"
+    else
+        echo "  (no cache directory)"
+    fi
+
+    echo ""
+
+    # ── Components section ────────────────────────────────────────────────────
+    local comp_root="${CACHE_ROOT}"
+
+    echo "Components (${comp_root})"
+    echo "────────────────────────────────────────"
+
+    if [ -d "${comp_root}" ]; then
+        local comp_found=0
+        for comp_dir in "${comp_root}"/*/; do
+            [ -d "${comp_dir}" ] || continue
+            comp=$(basename "${comp_dir}")
+            [ "${comp}" = "rke2" ] && continue
+            comp_found=1
+            any_found=1
+            echo "  Component: ${comp}"
+            for key_dir in "${comp_dir}"/*/; do
+                [ -d "${key_dir}" ] || continue
+                print_key "${key_dir}" "    "
+            done
+        done
+        [ "${comp_found}" -eq 0 ] && echo "  (empty)"
+    else
+        echo "  (no cache directory)"
+    fi
+
+    echo ""
+
+    if [ "${any_found}" -eq 0 ]; then
+        echo "Cache is empty."
+    fi
+}
+
+cmd_delete() {
+    local first="$1"
+    local target
+
+    if [ "${first}" = "rke2" ]; then
+        local version="$2"
+        if [ -z "${version}" ]; then
+            echo "Error: missing version" >&2
+            usage >&2
+            exit 1
+        fi
+        target="${CACHE_ROOT}/rke2/${version}"
+    else
+        local component="${first}"
+        local key="$2"
+        if [ -z "${component}" ]; then
+            echo "Error: missing component" >&2
+            usage >&2
+            exit 1
+        fi
+        if [ -z "${key}" ]; then
+            echo "Error: missing key" >&2
+            usage >&2
+            exit 1
+        fi
+        target="${CACHE_ROOT}/${component}/${key}"
+    fi
+
+    if [ ! -d "${target}" ]; then
+        echo "Error: cache directory not found: ${target}" >&2
+        exit 1
+    fi
+
+    echo "Deleting: ${target}"
+    rm -rf "${target}"
+    echo "Done."
+}
+
+case "$1" in
+    show)      shift; cmd_show "$@" ;;
+    "")        cmd_show ;;
+    delete)    shift; cmd_delete "$@" ;;
+    --help|-h) usage; exit 0 ;;
+    *)         echo "Error: unknown command '$1'" >&2; usage >&2; exit 1 ;;
+esac

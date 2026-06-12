@@ -1,0 +1,14 @@
+
+load_addon_env() {
+  local addon_path=$1
+  
+  if [ ! -d "${addon_path}" ]; then
+    echo "[ERROR] addon path ${addon_path} doesn't exist."
+    exit 1
+  fi
+  
+  source ${addon_path}/version_info
+  source ${addon_path}/scripts/hack/patch-rancher-monitoring
+  source ${addon_path}/scripts/hack/patch-rancher-logging
+  source ${addon_path}/scripts/hack/patch-rancher-monitoring-crd
+}
