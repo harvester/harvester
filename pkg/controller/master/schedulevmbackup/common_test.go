@@ -10,6 +10,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
@@ -174,6 +175,7 @@ func Test_CurrentVMBackups(t *testing.T) {
 
 	h := &svmbackupHandler{
 		vmBackupCache: fakeclients.VMBackupCache(clientset.HarvesterhciV1beta1().VirtualMachineBackups),
+		vmbr:          common.NewVMBackupReader(),
 	}
 
 	err := clientset.Tracker().Add(vmbackup1)
@@ -206,7 +208,7 @@ func Test_CreateVMBackup(t *testing.T) {
 func Test_ConvertVMBackupToInfo(t *testing.T) {
 	assert := require.New(t)
 
-	getVMBackupInfo := convertVMBackupToInfo(vmbackup1)
+	getVMBackupInfo := convertVMBackupToInfo(common.NewVMBackupReader(), vmbackup1)
 	assert.Equal(vmbackup1Info, &getVMBackupInfo, "vmbackup info not equals")
 }
 
@@ -218,6 +220,7 @@ func Test_ReconcileVMBackupList(t *testing.T) {
 		vmBackupCache:   fakeclients.VMBackupCache(clientset.HarvesterhciV1beta1().VirtualMachineBackups),
 		svmbackupClient: fakeclients.SVMBackupClient(clientset.HarvesterhciV1beta1().ScheduleVMBackups),
 		svmbackupCache:  fakeclients.SVMBackupCache(clientset.HarvesterhciV1beta1().ScheduleVMBackups),
+		vmbr:            common.NewVMBackupReader(),
 	}
 
 	err := clientset.Tracker().Add(vmbackup1)
@@ -277,6 +280,7 @@ func Test_NewVMBackups(t *testing.T) {
 	h := &svmbackupHandler{
 		vmBackupClient: fakeclients.VMBackupClient(clientset.HarvesterhciV1beta1().VirtualMachineBackups),
 		vmBackupCache:  fakeclients.VMBackupCache(clientset.HarvesterhciV1beta1().VirtualMachineBackups),
+		vmbr:           common.NewVMBackupReader(),
 	}
 
 	err := clientset.Tracker().Add(vmbackup1)

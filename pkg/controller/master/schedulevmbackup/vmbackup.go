@@ -4,7 +4,6 @@ import (
 	"time"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/controller/master/backup"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -22,11 +21,11 @@ func (h *svmbackupHandler) OnVMBackupChange(_ string, vmBackup *harvesterv1.Virt
 		h.svmbackupController.Enqueue(svmbackup.Namespace, svmbackup.Name)
 	}
 
-	if backup.GetVMBackupError(vmBackup) != nil {
+	if h.vmbr.GetStatus(vmBackup).Error != nil {
 		h.svmbackupController.Enqueue(svmbackup.Namespace, svmbackup.Name)
 	}
 
-	if backup.IsBackupReady(vmBackup) {
+	if h.vmbr.IsReady(vmBackup) {
 		h.svmbackupController.Enqueue(svmbackup.Namespace, svmbackup.Name)
 	}
 

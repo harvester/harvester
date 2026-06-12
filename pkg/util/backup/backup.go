@@ -70,3 +70,7 @@ func IsBackupTargetSame(statusBackupTarget *harvesterv1.BackupTarget, target *se
 func GetVMImageMetadataFilePath(vmImageNamespace, vmImageName string) string {
 	return filepath.Join(VMImageMetadataFolderPath, vmImageNamespace, fmt.Sprintf("%s.cfg", vmImageName))
 }
+
+func LHSnapToVSCName(lhSnapshotName string) string {
+	return strings.Replace(lhSnapshotName, "snapshot", "snapcontent", 1)
+}

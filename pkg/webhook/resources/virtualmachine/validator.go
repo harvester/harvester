@@ -17,6 +17,7 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	backupcommon "github.com/harvester/harvester/pkg/backup/common"
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
@@ -53,8 +54,8 @@ func NewValidator(
 		kubevirtCache: kubevirtCache,
 		scCache:       scCache,
 		settingCache:  settingCache,
-
-		rqCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
+		vmbr:          backupcommon.NewVMBackupReader(),
+		rqCalculator:  resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
 	}
 }
 
@@ -68,6 +69,7 @@ type vmValidator struct {
 	kubevirtCache ctlkubevirtv1.KubeVirtCache
 	scCache       ctlstoragev1.StorageClassCache
 	settingCache  ctlharvesterv1.SettingCache
+	vmbr          backupcommon.VMBackupReader
 	rqCalculator  *resourcequota.Calculator
 }
 
@@ -586,11 +588,15 @@ func (v *vmValidator) checkOccupiedPVCs(vm *kubevirtv1.VirtualMachine) error {
 }
 
 func (v *vmValidator) checkVMBackup(vm *kubevirtv1.VirtualMachine) error {
-	if exist, err := webhookutil.HasInProgressingVMBackupBySourceUID(v.vmBackupCache, string(vm.UID)); err != nil {
+	exist, err := webhookutil.HasActiveBackup(v.vmBackupCache, v.vmbr, string(vm.UID))
+	if err != nil {
 		return werror.NewInternalError(err.Error())
-	} else if exist {
-		return werror.NewBadRequest(fmt.Sprintf("there is vmbackup in progress for vm %s/%s, please wait for the vmbackup or remove it before stop/restart the vm", vm.Namespace, vm.Name))
 	}
+
+	if exist {
+		return werror.NewBadRequest(fmt.Sprintf("vm %s/%s has a backup in progress; wait for it to finish or delete it before stopping/restarting", vm.Namespace, vm.Name))
+	}
+
 	return nil
 }
 

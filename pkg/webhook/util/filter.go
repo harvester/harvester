@@ -5,36 +5,45 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	ctlbackup "github.com/harvester/harvester/pkg/controller/master/backup"
+	backupcommon "github.com/harvester/harvester/pkg/backup/common"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
 )
 
-func HasInProgressingVMBackupBySourceUID(cache ctlharvesterv1.VirtualMachineBackupCache, sourceUID string) (bool, error) {
-	vmBackups, err := cache.GetByIndex(indexeres.VMBackupBySourceUIDIndex, sourceUID)
+func HasActiveBackup(
+	cache ctlharvesterv1.VirtualMachineBackupCache,
+	vmbr backupcommon.VMBackupReader,
+	sourceUID string,
+) (bool, error) {
+	vmbs, err := cache.GetByIndex(indexeres.VMBackupBySourceUIDIndex, sourceUID)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return false, err
 	}
-	for _, vmBackup := range vmBackups {
-		if ctlbackup.IsBackupProgressing(vmBackup) || ctlbackup.GetVMBackupError(vmBackup) != nil {
+	for _, vmb := range vmbs {
+		if vmbr.IsProcessing(vmb) || vmbr.GetError(vmb) != nil {
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-func HasInProgressingVMRestoreOnSameTarget(cache ctlharvesterv1.VirtualMachineRestoreCache, targetNamespace, targetName string) (bool, error) {
-	vmRestores, err := cache.GetByIndex(indexeres.VMRestoreByTargetNamespaceAndName, fmt.Sprintf("%s-%s", targetNamespace, targetName))
+func HasActiveRestore(
+	cache ctlharvesterv1.VirtualMachineRestoreCache,
+	vmrr restorecommon.VMRestoreReader,
+	targetNamespace,
+	targetName string,
+) (bool, error) {
+	vmrs, err := cache.GetByIndex(indexeres.VMRestoreByTargetNamespaceAndName, fmt.Sprintf("%s-%s", targetNamespace, targetName))
 	if err != nil && !apierrors.IsNotFound(err) {
 		return false, err
 	}
 
-	for _, vmRestore := range vmRestores {
-		if vmRestore == nil {
+	for _, vmr := range vmrs {
+		if vmr == nil {
 			continue
 		}
-		if harvesterv1.BackupConditionProgressing.IsTrue(vmRestore) {
+		if vmrr.IsProgressing(vmr) {
 			return true, nil
 		}
 	}

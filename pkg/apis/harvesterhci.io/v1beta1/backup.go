@@ -20,6 +20,12 @@ const (
 
 	// BackupConditionMetadataReady is the "metadataReady" condition type
 	BackupConditionMetadataReady condition.Cond = "MetadataReady"
+
+	// RestoreConditionReady is the "ready" condition type for restore
+	RestoreConditionReady condition.Cond = "Ready"
+
+	// RestoreConditionProgressing is the "progressing" condition type for restore
+	RestoreConditionProgressing condition.Cond = "InProgress"
 )
 
 // DeletionPolicy defines that to do with resources when VirtualMachineRestore is deleted
@@ -40,6 +46,28 @@ const (
 	Backup   BackupType = "backup"
 	Snapshot BackupType = "snapshot"
 )
+
+// UsesRemoteBackupTarget reports whether this backup type persists data to the
+// configured remote BackupTarget. Snapshot stays in-cluster; Backup pushes to
+// S3 via the Longhorn-native engine. Kept as a predicate so third-party engines
+// can be plugged in later without rewriting call sites.
+func (b BackupType) UsesRemoteBackupTarget() bool {
+	switch b {
+	case Backup:
+		return true
+	}
+	return false
+}
+
+// OwnsExternalState reports whether this backup type holds remote state that
+// no other controller will garbage-collect, requiring the engine's ForceDelete
+// to run on every VMBackup removal. The built-in types don't qualify (native
+// Backup defers to Longhorn's own backup CRs), so this currently always
+// returns false. Kept as an extension point for third-party engines that push
+// to storage outside of any K8s resource lifecycle.
+func (b BackupType) OwnsExternalState() bool {
+	return false
+}
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -65,6 +93,7 @@ type VirtualMachineBackupSpec struct {
 	// +kubebuilder:default:="backup"
 	// +kubebuilder:validation:Enum=backup;snapshot
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec.type is immutable"
 	Type BackupType `json:"type,omitempty" default:"backup"`
 }
 

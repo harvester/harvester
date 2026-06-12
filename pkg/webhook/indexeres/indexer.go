@@ -9,7 +9,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/controller/master/backup"
+	backupcommon "github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/clients"
@@ -93,9 +93,12 @@ func vmBackupSnapshotByPVCNamespaceAndName(obj *harvesterv1.VirtualMachineBackup
 	return result, nil
 }
 
+// vmBackupReader is a package-level singleton — the reader has no state or
+// K8s dependencies so a single instance is fine for all indexer invocations.
+var vmBackupReader = backupcommon.NewVMBackupReader()
+
 func vmBackupByIsProgressing(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {
-	isProgressingStr := strconv.FormatBool(backup.IsBackupProgressing(obj))
-	return []string{string(isProgressingStr)}, nil
+	return []string{strconv.FormatBool(vmBackupReader.IsProcessing(obj))}, nil
 }
 
 func vmBackupByStorageClassName(obj *harvesterv1.VirtualMachineBackup) ([]string, error) {

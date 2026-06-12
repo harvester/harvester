@@ -106,6 +106,9 @@ spec:
                     - backup
                     - snapshot
                     type: string
+                    x-kubernetes-validations:
+                    - message: spec.type is immutable
+                      rule: self == oldSelf
                 required:
                 - source
                 type: object
