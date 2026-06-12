@@ -24,6 +24,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	pvcs := management.CoreFactory.Core().V1().PersistentVolumeClaim()
 	secrets := management.CoreFactory.Core().V1().Secret()
 	ctlcdi := management.CdiFactory.Cdi().V1beta1().DataVolume()
+	settingCache := management.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
 
 	vmio, err := common.GetVMIOperator(vmi, vmi.Cache(), sc.Cache(), http.Client{Timeout: 15 * time.Second})
 	if err != nil {
@@ -36,7 +37,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 			pvcs.Cache(), secrets.Cache(),
 			vmi, vmi.Cache(), vmio,
 		),
-		harvesterv1.VMIBackendCDI: cdi.GetBackend(ctx, ctlcdi, sc, pvcs.Cache(), vmio),
+		harvesterv1.VMIBackendCDI: cdi.GetBackend(ctx, ctlcdi, sc, pvcs.Cache(), vmio, settingCache),
 	}
 
 	vmImageHandler := &vmImageHandler{

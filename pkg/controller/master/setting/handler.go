@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -87,6 +88,8 @@ type Handler struct {
 	rancherSettingsCache ctlmgmtv3.SettingCache
 	kubeVirtConfig       kubevirtv1.KubeVirtClient
 	kubeVirtConfigCache  kubevirtv1.KubeVirtCache
+	cdiClient            ctlcdiv1.CDIClient
+	cdiCache             ctlcdiv1.CDICache
 	namespaces           ctlcorev1.NamespaceClient
 	namespacesCache      ctlcorev1.NamespaceCache
 }

@@ -153,6 +153,7 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 				fakeclients.StorageClassClient(clientset.StorageV1().StorageClasses),
 				fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
 				vmio,
+				fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
 			)
 
 			// Create backends map

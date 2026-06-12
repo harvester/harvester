@@ -15,8 +15,10 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/image/backend"
 	"github.com/harvester/harvester/pkg/image/common"
+	"github.com/harvester/harvester/pkg/settings"
 )
 
 type Backend struct {
@@ -25,15 +27,17 @@ type Backend struct {
 	scClient         ctlstoragev1.StorageClassClient
 	pvcCache         ctlcorev1.PersistentVolumeClaimCache
 	vmio             common.VMIOperator
+	settingCache     ctlharvesterv1.SettingCache
 }
 
-func GetBackend(ctx context.Context, dataVolumeClient ctlcdiv1.DataVolumeClient, scClient ctlstoragev1.StorageClassClient, pvcCache ctlcorev1.PersistentVolumeClaimCache, vmio common.VMIOperator) backend.Backend {
+func GetBackend(ctx context.Context, dataVolumeClient ctlcdiv1.DataVolumeClient, scClient ctlstoragev1.StorageClassClient, pvcCache ctlcorev1.PersistentVolumeClaimCache, vmio common.VMIOperator, settingCache ctlharvesterv1.SettingCache) backend.Backend {
 	return &Backend{
 		ctx:              ctx,
 		dataVolumeClient: dataVolumeClient,
 		scClient:         scClient,
 		pvcCache:         pvcCache,
 		vmio:             vmio,
+		settingCache:     settingCache,
 	}
 }
 
@@ -148,12 +152,24 @@ func (b *Backend) isDataVolumeCreated(vmImg *harvesterv1.VirtualMachineImage) (b
 }
 
 func (b *Backend) initializeDownload(vmImg *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
-	virtualSize, err := fetchImageVirtualSize(b.vmio.GetURL(vmImg))
+	// Read the additional CA setting so that HTTPS servers signed by private CAs
+	// are reachable during the pre-download size-probing requests.
+	additionalCA := ""
+	if b.settingCache != nil {
+		if caSetting, err := b.settingCache.Get(settings.AdditionalCASettingName); err == nil {
+			additionalCA = caSetting.Value
+		} else {
+			logrus.Warnf("failed to get %q setting while initializing download: %v",
+				settings.AdditionalCASettingName, err)
+		}
+	}
+
+	virtualSize, err := fetchImageVirtualSize(b.vmio.GetURL(vmImg), additionalCA)
 	if err != nil {
 		return vmImg, fmt.Errorf("failed to fetch image virtual size: %v", err)
 	}
 
-	size, err := fetchImageSize(b.vmio.GetURL(vmImg))
+	size, err := fetchImageSize(b.vmio.GetURL(vmImg), additionalCA)
 	if err != nil {
 		return vmImg, fmt.Errorf("failed to fetch image size: %v", err)
 	}
