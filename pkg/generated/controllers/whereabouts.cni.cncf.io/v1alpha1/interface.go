@@ -32,6 +32,7 @@ func init() {
 
 type Interface interface {
 	IPPool() IPPoolController
+	OverlappingRangeIPReservation() OverlappingRangeIPReservationController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -46,4 +47,8 @@ type version struct {
 
 func (v *version) IPPool() IPPoolController {
 	return generic.NewController[*v1alpha1.IPPool, *v1alpha1.IPPoolList](schema.GroupVersionKind{Group: "whereabouts.cni.cncf.io", Version: "v1alpha1", Kind: "IPPool"}, "ippools", true, v.controllerFactory)
+}
+
+func (v *version) OverlappingRangeIPReservation() OverlappingRangeIPReservationController {
+	return generic.NewController[*v1alpha1.OverlappingRangeIPReservation, *v1alpha1.OverlappingRangeIPReservationList](schema.GroupVersionKind{Group: "whereabouts.cni.cncf.io", Version: "v1alpha1", Kind: "OverlappingRangeIPReservation"}, "overlappingrangeipreservations", true, v.controllerFactory)
 }
