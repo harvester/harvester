@@ -32,8 +32,39 @@ var _ = ginkgo.Describe("verify node drain apis", func() {
 		}).ShouldNot(gomega.HaveOccurred())
 	})
 
+	ginkgo.AfterEach(func() {
+		ginkgo.By(fmt.Sprintf("restoring the node %s back to schedulable state", node.Name), func() {
+			gomega.Eventually(func() error {
+				// Reusing node.Name from the scoped variable to fetch its current live state
+				nodeObj, err := scaled.CoreFactory.Core().V1().Node().Get(node.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+
+				if !nodeObj.Spec.Unschedulable && len(nodeObj.Spec.Taints) == 0 {
+					return nil
+				}
+
+				// Reset the Unschedulable spec flag
+				nodeObj.Spec.Unschedulable = false
+
+				// Filter out the unschedulable taint
+				var newTaints []corev1.Taint
+				for _, taint := range nodeObj.Spec.Taints {
+					if taint.Key != "node.kubernetes.io/unschedulable" {
+						newTaints = append(newTaints, taint)
+					}
+				}
+				nodeObj.Spec.Taints = newTaints
+
+				_, err = scaled.CoreFactory.Core().V1().Node().Update(nodeObj)
+				return err
+			}, "15s", "2s").ShouldNot(gomega.HaveOccurred())
+		})
+	})
+
 	ginkgo.It("drain node using drainhelper", func() {
-		ginkgo.By("draining nodes", func() {
+		ginkgo.By(fmt.Sprintf("draining node: %s", node.Name), func() {
 			err := drainhelper.DrainNode(testCtx, cfg, &node)
 			dsl.MustNotError(err)
 		})
