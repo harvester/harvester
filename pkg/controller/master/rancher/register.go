@@ -3,6 +3,7 @@ package rancher
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
+
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -34,6 +38,7 @@ const (
 	internalCACertsSetting   = "internal-cacerts"
 	rancherExposeServiceName = "rancher-expose"
 	ingressExposeServiceName = "ingress-expose"
+	traefikServiceName       = "rke2-traefik"
 	systemNamespacesSetting  = "system-namespaces"
 	tlsCNPrefix              = "listener.cattle.io/cn-"
 
@@ -49,6 +54,7 @@ const (
 	controllerCAPIDeployment          = "harvester-capi-controller"
 	capiControllerDeploymentName      = "capi-controller-manager"
 	capiControllerDeploymentNamespace = "cattle-capi-system"
+	daemonSetsController              = "daemonset-controller"
 )
 
 type Handler struct {
@@ -71,6 +77,10 @@ type Handler struct {
 	NamespaceCache           ctlcorev1.NamespaceCache
 	NamespaceController      ctlcorev1.NamespaceController
 	NamespaceClient          ctlcorev1.NamespaceClient
+	SettingClient            v1beta1.SettingClient
+	DynamicClient            dynamic.Interface
+	ctx                      context.Context
+	RestConfig               *rest.Config
 }
 
 type VIPConfig struct {
@@ -96,6 +106,12 @@ func Register(ctx context.Context, management *config.Management, options config
 		namespaces := management.CoreFactory.Core().V1().Namespace()
 		deployments := management.AppsFactory.Apps().V1().Deployment()
 		settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
+		daemonSets := management.AppsFactory.Apps().V1().DaemonSet()
+		dynamicClient, err := dynamic.NewForConfig(management.RestConfig)
+
+		if err != nil {
+			return fmt.Errorf("error generating dynamic client during rancher handler registration: %v", err)
+		}
 		h := Handler{
 			RancherSettings:          rancherSettings,
 			RancherSettingController: rancherSettings,
@@ -116,7 +132,12 @@ func Register(ctx context.Context, management *config.Management, options config
 			NamespaceCache:           namespaces.Cache(),
 			NamespaceClient:          namespaces,
 			NamespaceController:      namespaces,
+			SettingClient:            settings,
+			DynamicClient:            dynamicClient,
+			ctx:                      ctx,
+			RestConfig:               management.RestConfig,
 		}
+
 		nodes.OnChange(ctx, controllerRancherName, h.PodResourcesOnChanged)
 		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
 		secrets.OnChange(ctx, controllerRancherName, h.TLSSecretOnChange)
@@ -124,6 +145,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		rancherTokens.OnChange(ctx, controllerRancherName, h.RancherTokenOnChange)
 		namespaces.OnRemove(ctx, controllerNamespaceName, h.onNamespaceRemoved)
 		namespaces.OnChange(ctx, controllerNamespaceName, h.onNamespaceChanged)
+		daemonSets.OnChange(ctx, daemonSetsController, h.reconcileIngressResources)
 
 		if err := h.registerExposeService(); err != nil {
 			return err
@@ -139,19 +161,33 @@ func Register(ctx context.Context, management *config.Management, options config
 // registerExposeService help to create ingress-expose svc in the kube-system namespace,
 // by default it is nodePort, if the VIP is enabled it will be set to LoadBalancer type service.
 func (h *Handler) registerExposeService() error {
-	svc, err := h.Services.Get(util.KubeSystemNamespace, ingressExposeServiceName, v1.GetOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
+	// verify if traefik exists
+	traefikExists, err := h.doesTraefikExist()
+	if err != nil {
 		return err
 	}
-	if apierrors.IsNotFound(err) {
-		return h.createIngressExposeService()
-	}
-	// Update annotations of the ingress-expose service created before Harvester v1.2.0
-	if svc.Annotations == nil || svc.Annotations[keyKubevipIgnoreServiceSecurity] != trueStr {
-		return h.updateIngressExposeService(svc)
+
+	// if traefik does not exist yet, then we continue working
+	// as normal operation and using ingress
+	if !traefikExists {
+		_, err := h.Services.Get(util.KubeSystemNamespace, ingressExposeServiceName, v1.GetOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		if apierrors.IsNotFound(err) {
+			return h.createIngressExposeService()
+		}
+		return nil
 	}
 
-	return nil
+	// clean up old nginx service as it is no longer needed
+	if err := h.cleanupIngressExpose(); err != nil {
+		return fmt.Errorf("error cleaning up ingress expose service: %w", err)
+	}
+	// traefik exists post rke2 upgrade
+	// and we can just traefik service annotations
+	return h.patchTraefikServiceAnnotations()
+
 }
 
 func (h *Handler) createIngressExposeService() error {
@@ -209,25 +245,6 @@ func (h *Handler) createIngressExposeService() error {
 
 	if _, err := h.Services.Create(svc); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func (h *Handler) updateIngressExposeService(svc *corev1.Service) error {
-	svcCopy := svc.DeepCopy()
-	if svc.Annotations == nil {
-		svcCopy.Annotations = make(map[string]string)
-	}
-	svcCopy.Annotations[keyKubevipIgnoreServiceSecurity] = trueStr
-	if _, ok := svcCopy.Annotations[keyKubevipLoadBalancerIPs]; !ok {
-		svcCopy.Annotations[keyKubevipLoadBalancerIPs] = svc.Spec.LoadBalancerIP
-	}
-	if _, err := h.Services.Update(svcCopy); err != nil {
-		return err
-	}
-	if err := h.restartKubevipPods(); err != nil {
-		return fmt.Errorf("failed to restart kube-vip pods: %w", err)
 	}
 
 	return nil
@@ -297,4 +314,75 @@ func (h *Handler) RancherTokenOnChange(_ string, token *v3.Token) (*v3.Token, er
 	}
 
 	return token, nil
+}
+
+// checks if rke2-traefik service already exists
+// which means underlying rke2 has been swapped out to using traefik as
+// ingress controller
+func (h *Handler) doesTraefikExist() (bool, error) {
+	_, err := h.Services.Get(util.KubeSystemNamespace, traefikServiceName, v1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// patchTraefikServiceAnnotations will update the traefik service with kubevip annotations
+// if needed
+func (h *Handler) patchTraefikServiceAnnotations() error {
+	svc, err := h.Services.Get(util.KubeSystemNamespace, traefikServiceName, v1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("error fetching traefik service while attempting to update annotations: %w", err)
+	}
+
+	vip, err := h.getVipConfig()
+	if err != nil {
+		return fmt.Errorf("error fetching vip configuration while attempt to update traefik service annotations: %w", err)
+	}
+
+	// set vip loadBalancer type and ip
+	enabled, err := strconv.ParseBool(vip.Enabled)
+	if err != nil {
+		return err
+	}
+
+	svcCopy := svc.DeepCopy()
+
+	if enabled && vip.ServiceType == corev1.ServiceTypeLoadBalancer {
+		svc.Spec.Type = vip.ServiceType
+		if svc.Annotations == nil {
+			svc.Annotations = make(map[string]string)
+		}
+		svc.Annotations[keyKubevipIgnoreServiceSecurity] = trueStr
+		// After kube-vip v0.5.2, it uses annotation kube-vip.io/loadbalancerIPs to set the loadBalancerIP
+		if strings.ToLower(vip.Mode) == vipDHCPMode {
+			svc.Annotations[keyKubevipRequestIP] = vip.IP
+			svc.Annotations[keyKubevipHwaddr] = vip.HwAddress
+			svc.Annotations[keyKubevipLoadBalancerIPs] = vipDHCPLoadBalancerIP
+		} else {
+			svc.Annotations[keyKubevipLoadBalancerIPs] = vip.IP
+		}
+	}
+	if !reflect.DeepEqual(svc, svcCopy) {
+		if _, err = h.Services.Update(svc); err != nil {
+			return fmt.Errorf("error updating %s svc: %w", svc.Name, err)
+		}
+
+		// svc got updated, restart kubevip to ensure changes take effect
+		return h.restartKubevipPods()
+	}
+
+	return err
+}
+
+// remove nginx ingress expose service
+func (h *Handler) cleanupIngressExpose() error {
+	err := h.Services.Delete(util.KubeSystemNamespace, ingressExposeServiceName, &v1.DeleteOptions{})
+	if !apierrors.IsNotFound(err) {
+		return err
+	}
+	return nil
 }

@@ -1,5 +1,7 @@
 package util
 
+import "k8s.io/apimachinery/pkg/runtime/schema"
+
 const (
 	prefix                              = "harvesterhci.io"
 	RemovedPVCsAnnotationKey            = prefix + "/removedPersistentVolumeClaims"
@@ -98,34 +100,39 @@ const (
 	ContainerdRegistrySecretName = "harvester-containerd-registry"
 	ContainerdRegistryFileName   = "registries.yaml"
 
-	BackupTargetSecretName              = "harvester-backup-target-secret"
-	InternalTLSSecretName               = "tls-rancher-internal"
-	Rke2IngressNginxAppName             = "rke2-ingress-nginx"
-	Rke2IngressNginxControllerName      = "rke2-ingress-nginx-controller"
-	CattleSystemNamespaceName           = "cattle-system"
-	CattleMonitoringSystemNamespace     = "cattle-monitoring-system"
-	LonghornSystemNamespaceName         = "longhorn-system"
-	LonghornDefaultManagerURL           = "http://longhorn-backend.longhorn-system:9500/v1"
-	KubeSystemNamespace                 = "kube-system"
-	FleetLocalNamespaceName             = "fleet-local"
-	LocalClusterName                    = "local"
-	HarvesterSystemNamespaceName        = "harvester-system"
-	RancherLoggingName                  = "rancher-logging"
-	DeschedulerName                     = "descheduler"
-	PCIDevicesControllerName            = "pcidevices-controller"
-	NvidiaDriverToolkitName             = "nvidia-driver-toolkit"
-	RancherMonitoringPrometheus         = "rancher-monitoring-prometheus"
-	RancherMonitoringAlertmanager       = "rancher-monitoring-alertmanager"
-	RancherMonitoring                   = "rancher-monitoring"
-	RancherMonitoringGrafana            = "rancher-monitoring-grafana"
-	RancherClusterConfigSecretName      = "rancher-cluster-config"
-	CattleLoggingSystemNamespaceName    = "cattle-logging-system"
-	HarvesterUpgradeImageRepository     = "rancher/harvester-upgrade"
-	GrafanaPVCName                      = "rancher-monitoring-grafana"
-	RancherMonitoringName               = "rancher-monitoring"
-	CattleMonitoringSystemNamespaceName = "cattle-monitoring-system"
-	HarvesterVMImportController         = "vm-import-controller-harvester-vm-import-controller"
-	KubeOVNOperatorName                 = "kubeovn-operator"
+	BackupTargetSecretName                = "harvester-backup-target-secret"
+	InternalTLSSecretName                 = "tls-rancher-internal"
+	Rke2IngressNginxAppName               = "rke2-ingress-nginx"
+	Rke2TraefikAppName                    = "rke2-traefik"
+	RancherExposeIngressName              = "rancher-expose"
+	TraefikIngressClassName               = "traefik"
+	DefaultTraefikTLSStoreName            = "default"
+	AnnotationRancherControllerReconciled = prefix + "/rancher-controller-reconciled"
+	NginxIngressClass                     = "nginx"
+	CattleSystemNamespaceName             = "cattle-system"
+	CattleMonitoringSystemNamespace       = "cattle-monitoring-system"
+	LonghornSystemNamespaceName           = "longhorn-system"
+	LonghornDefaultManagerURL             = "http://longhorn-backend.longhorn-system:9500/v1"
+	KubeSystemNamespace                   = "kube-system"
+	FleetLocalNamespaceName               = "fleet-local"
+	LocalClusterName                      = "local"
+	HarvesterSystemNamespaceName          = "harvester-system"
+	RancherLoggingName                    = "rancher-logging"
+	DeschedulerName                       = "descheduler"
+	PCIDevicesControllerName              = "pcidevices-controller"
+	NvidiaDriverToolkitName               = "nvidia-driver-toolkit"
+	RancherMonitoringPrometheus           = "rancher-monitoring-prometheus"
+	RancherMonitoringAlertmanager         = "rancher-monitoring-alertmanager"
+	RancherMonitoring                     = "rancher-monitoring"
+	RancherMonitoringGrafana              = "rancher-monitoring-grafana"
+	RancherClusterConfigSecretName        = "rancher-cluster-config"
+	CattleLoggingSystemNamespaceName      = "cattle-logging-system"
+	HarvesterUpgradeImageRepository       = "rancher/harvester-upgrade"
+	GrafanaPVCName                        = "rancher-monitoring-grafana"
+	RancherMonitoringName                 = "rancher-monitoring"
+	CattleMonitoringSystemNamespaceName   = "cattle-monitoring-system"
+	HarvesterVMImportController           = "vm-import-controller-harvester-vm-import-controller"
+	KubeOVNOperatorName                   = "kubeovn-operator"
 	// kubevirt create a CRD object automatically: type kubevirt, name kubevirt, namespace: harvester-system
 	// this object stores all kubevirt related configuration
 	KubeVirtObjectName = "kubevirt"
@@ -223,6 +230,8 @@ var (
 	}
 
 	DefaultHarvesterNamespaceWhiteList = []string{"calico-apiserver", "calico-system", "cattle-alerting", "cattle-csp-adapter-system", "cattle-elemental-system", "cattle-epinio-system", "cattle-externalip-system", "cattle-fleet-local-system", "cattle-fleet-system", "cattle-gatekeeper-system", "cattle-global-data", "cattle-global-nt", "cattle-impersonation-system", "cattle-istio", "cattle-istio-system", "cattle-logging", "cattle-logging-system", "cattle-monitoring-system", "cattle-neuvector-system", "cattle-prometheus", "cattle-provisioning-capi-system", "cattle-resources-system", "cattle-sriov-system", "cattle-system", "cattle-ui-plugin-system", "cattle-windows-gmsa-system", "cert-manager", "cis-operator-system", "fleet-default", "ingress-nginx", "istio-system", "kube-node-lease", "kube-public", "kube-system", "longhorn-system", "rancher-alerting-drivers", "security-scan", "tigera-operator", "harvester-system", "harvester-public", "rancher-vcluster", "cattle-dashboards", "fleet-local", "local", "forklift"}
+
+	TraefikTLSStoreGVK = schema.GroupVersionKind{Group: "traefik.io", Version: "v1alpha1", Kind: "TLSStore"}
 )
 
 const (
