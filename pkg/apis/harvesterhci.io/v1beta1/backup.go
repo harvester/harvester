@@ -66,6 +66,12 @@ type VirtualMachineBackupSpec struct {
 	// +kubebuilder:validation:Enum=backup;snapshot
 	// +kubebuilder:validation:Optional
 	Type BackupType `json:"type,omitempty" default:"backup"`
+
+	// +optional
+	// FsFreezeDeadline specifies how long the guest filesystem may remain frozen
+	// before it is automatically unfrozen during snapshot or backup creation.
+	// A value of 0 means there is no deadline.
+	FsFreezeDeadline *metav1.Duration `json:"fsFreezeDeadline,omitempty"`
 }
 
 // VirtualMachineBackupStatus is the status for a VirtualMachineBackup resource

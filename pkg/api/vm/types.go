@@ -1,6 +1,10 @@
 package vm
 
-import "github.com/rancher/wrangler/v3/pkg/condition"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/rancher/wrangler/v3/pkg/condition"
+)
 
 var (
 	vmiPaused condition.Cond = "Paused"
@@ -16,7 +20,8 @@ type EjectCdRomVolumeActionInput struct {
 }
 
 type BackupInput struct {
-	Name string `json:"name"`
+	Name             string           `json:"name"`
+	FsFreezeDeadline *metav1.Duration `json:"fsFreezeDeadline,omitempty"`
 }
 
 type RestoreInput struct {

@@ -8849,6 +8849,9 @@
           "source"
         ],
         "properties": {
+          "fsFreezeDeadline": {
+            "$ref": "#/components/schemas/k8s.io.v1.Duration"
+          },
           "source": {
             "default": {},
             "allOf": [
@@ -9809,6 +9812,9 @@
             "$ref": "#/components/schemas/k8s.io.v1.ResourceFieldSelector"
           }
         }
+      },
+      "k8s.io.v1.Duration": {
+        "type": "string"
       },
       "k8s.io.v1.ExecAction": {
         "type": "object",
