@@ -6,14 +6,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rancher/wrangler/v3/pkg/patch"
-	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubevirtv1 "kubevirt.io/api/core/v1"
-
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/webhook/types"
+	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	"github.com/rancher/wrangler/v3/pkg/patch"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
 func TestPatchMacAddress(t *testing.T) {
@@ -226,7 +229,7 @@ func TestPatchMacAddress(t *testing.T) {
 
 	for _, tc := range tests {
 		clientSet := fake.NewSimpleClientset()
-		mutator := NewMutator(fakeclients.VirtualMachineCache(clientSet.KubevirtV1().VirtualMachines))
+		mutator := NewMutator(fakeclients.VirtualMachineCache(clientSet.KubevirtV1().VirtualMachines), nil)
 		patchOps, err := mutator.(*vmiMutator).patchMacAddress(tc.vm, tc.vmi)
 		assert.Nil(t, err, tc.name)
 		assert.Equal(t, tc.patches, patchOps, tc.name)
@@ -249,7 +252,7 @@ func TestCreateWithoutVM(t *testing.T) {
 	}
 	req := &types.Request{}
 	clientSet := fake.NewSimpleClientset()
-	mutator := NewMutator(fakeclients.VirtualMachineCache(clientSet.KubevirtV1().VirtualMachines))
+	mutator := NewMutator(fakeclients.VirtualMachineCache(clientSet.KubevirtV1().VirtualMachines), nil)
 	patchOps, err := mutator.Create(req, vmi)
 	assert.Nil(t, err)
 	assert.Nil(t, patchOps)
@@ -799,4 +802,347 @@ func generateVMI(input []byte) (*kubevirtv1.VirtualMachineInstance, error) {
 	vmi := &kubevirtv1.VirtualMachineInstance{}
 	err := json.Unmarshal(input, vmi)
 	return vmi, err
+}
+
+func Test_kubeovnStaticIPAnnotations(t *testing.T) {
+	workloadNetwork := &cniv1.NetworkAttachmentDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "workload",
+			Namespace: "default",
+			Labels: map[string]string{
+				util.KeyNetworkType: util.OverlayNetwork,
+			},
+		},
+	}
+
+	workloadNetwork2 := &cniv1.NetworkAttachmentDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "workload2",
+			Namespace: "default",
+			Labels: map[string]string{
+				util.KeyNetworkType: util.OverlayNetwork,
+			},
+		},
+	}
+
+	vmNetwork := &cniv1.NetworkAttachmentDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vm-network",
+			Namespace: "default",
+		},
+	}
+
+	clientSet := fake.NewSimpleClientset()
+	nadGvr := schema.GroupVersionResource{
+		Group:    "k8s.cni.cncf.io",
+		Version:  "v1",
+		Resource: "network-attachment-definitions",
+	}
+	if err := clientSet.Tracker().Create(nadGvr, workloadNetwork, workloadNetwork.Namespace); err != nil {
+		t.Fatalf("failed to add net1 %+v", workloadNetwork)
+	}
+	if err := clientSet.Tracker().Create(nadGvr, workloadNetwork2, workloadNetwork2.Namespace); err != nil {
+		t.Fatalf("failed to add net2 %+v", workloadNetwork2)
+	}
+	if err := clientSet.Tracker().Create(nadGvr, vmNetwork, vmNetwork.Namespace); err != nil {
+		t.Fatalf("failed to add vmNetwork %+v", vmNetwork)
+	}
+
+	nadCache := fakeclients.NetworkAttachmentDefinitionCache(clientSet.K8sCniCncfIoV1().NetworkAttachmentDefinitions)
+
+	var testCases = []struct {
+		Name          string
+		VMI           *kubevirtv1.VirtualMachineInstance
+		VM            *kubevirtv1.VirtualMachine
+		ErrorExpected bool
+		PatchExpected bool
+		PatchLength   int
+	}{
+		{
+			Name: "static ip annotation with single interface and overlay network",
+			VM: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "static-ip-ovn-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"static-ip.harvesterhci.io/default": "192.168.0.12",
+					},
+				},
+			},
+			VMI: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "static-ip-ovn-vmi",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Devices: kubevirtv1.Devices{
+							Interfaces: []kubevirtv1.Interface{
+								{
+									Name: "default",
+									Binding: &kubevirtv1.PluginBinding{
+										Name: util.ManagedTapBindingName,
+									},
+								},
+							},
+						},
+					},
+					Networks: []kubevirtv1.Network{
+						{
+							Name: "default",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Multus: &kubevirtv1.MultusNetwork{
+									NetworkName: "default/workload",
+								}},
+						},
+					},
+				},
+			},
+			ErrorExpected: false,
+			PatchExpected: true,
+			PatchLength:   3, // 1 for annotation itself and 2 for static ip patch for interface
+		},
+		{
+			Name: "static ip annotation with multiple interface and overlay network",
+			VM: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "static-ip-ovn-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"static-ip.harvesterhci.io/default": "192.168.0.12",
+						"static-ip.harvesterhci.io/nic-1":   "192.168.0.13",
+					},
+				},
+			},
+			VMI: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "static-ip-ovn-vmi",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Devices: kubevirtv1.Devices{
+							Interfaces: []kubevirtv1.Interface{
+								{
+									Name: "default",
+									Binding: &kubevirtv1.PluginBinding{
+										Name: util.ManagedTapBindingName,
+									},
+								},
+								{
+									Name: "nic-1",
+									Binding: &kubevirtv1.PluginBinding{
+										Name: util.ManagedTapBindingName,
+									},
+								},
+							},
+						},
+					},
+					Networks: []kubevirtv1.Network{
+						{
+							Name: "default",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Multus: &kubevirtv1.MultusNetwork{
+									NetworkName: "default/workload",
+								}},
+						},
+						{
+							Name: "nic-1",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Multus: &kubevirtv1.MultusNetwork{
+									NetworkName: "default/workload",
+								}},
+						},
+					},
+				},
+			},
+			ErrorExpected: false,
+			PatchExpected: true,
+			PatchLength:   5, // 1 for annotation itself and 2 for static ip patch for each interface
+		},
+		{
+			Name: "static ip annotation with multiple interface from different overlay networks",
+			VM: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "static-ip-ovn-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"static-ip.harvesterhci.io/default": "192.168.0.12",
+						"static-ip.harvesterhci.io/nic-1":   "172.19.0.10",
+					},
+				},
+			},
+			VMI: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "static-ip-ovn-vmi",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Devices: kubevirtv1.Devices{
+							Interfaces: []kubevirtv1.Interface{
+								{
+									Name: "default",
+									Binding: &kubevirtv1.PluginBinding{
+										Name: util.ManagedTapBindingName,
+									},
+								},
+								{
+									Name: "nic-1",
+									Binding: &kubevirtv1.PluginBinding{
+										Name: util.ManagedTapBindingName,
+									},
+								},
+							},
+						},
+					},
+					Networks: []kubevirtv1.Network{
+						{
+							Name: "default",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Multus: &kubevirtv1.MultusNetwork{
+									NetworkName: "default/workload",
+								}},
+						},
+						{
+							Name: "nic-1",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Multus: &kubevirtv1.MultusNetwork{
+									NetworkName: "default/workload2",
+								}},
+						},
+					},
+				},
+			},
+			ErrorExpected: false,
+			PatchExpected: true,
+			PatchLength:   5, // 1 for annotation itself and 2 for static ip patch for each interface
+		},
+		{
+			Name: "static ip annotation with bridge interfaces and overlay network",
+			VM: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "static-ip-ovn-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"static-ip.harvesterhci.io/default": "192.168.0.12",
+						"static-ip.harvesterhci.io/nic-1":   "172.19.0.10",
+					},
+				},
+			},
+			VMI: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "static-ip-ovn-vmi",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Devices: kubevirtv1.Devices{
+							Interfaces: []kubevirtv1.Interface{
+								{
+									Name: "default",
+									InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+										Bridge: &kubevirtv1.InterfaceBridge{},
+									},
+								},
+							},
+						},
+					},
+					Networks: []kubevirtv1.Network{
+						{
+							Name: "default",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Multus: &kubevirtv1.MultusNetwork{
+									NetworkName: "default/workload",
+								}},
+						},
+					},
+				},
+			},
+			ErrorExpected: false,
+			PatchExpected: true,
+			PatchLength:   3,
+		},
+		{
+			Name: "static ip annotation with bridge interfaces and vm network",
+			VM: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "static-ip-vm-vm",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"static-ip.harvesterhci.io/default": "192.168.0.12",
+						"static-ip.harvesterhci.io/nic-1":   "172.19.0.10",
+					},
+				},
+			},
+			VMI: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "static-ip-vm-vmi",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Devices: kubevirtv1.Devices{
+							Interfaces: []kubevirtv1.Interface{
+								{
+									Name: "default",
+									InterfaceBindingMethod: kubevirtv1.InterfaceBindingMethod{
+										Bridge: &kubevirtv1.InterfaceBridge{},
+									},
+								},
+							},
+						},
+					},
+					Networks: []kubevirtv1.Network{
+						{
+							Name: "default",
+							NetworkSource: kubevirtv1.NetworkSource{
+								Multus: &kubevirtv1.MultusNetwork{
+									NetworkName: "default/vm-network",
+								}},
+						},
+					},
+				},
+			},
+			ErrorExpected: false,
+			PatchExpected: false,
+			PatchLength:   0,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			assert := require.New(t)
+			annotations, err := generateKubeOVNAnnotations(tc.VM, tc.VMI, nadCache)
+			if tc.ErrorExpected {
+				assert.Error(err, "expected error but got none")
+			} else {
+				assert.NoError(err, "unexpected error")
+			}
+			patchOps, _ := generateKubeOVNStaticIPPatch(tc.VM, tc.VMI, nadCache)
+			if tc.PatchExpected {
+				assert.NotEmpty(patchOps, "expected patch operations but got none")
+			} else {
+				assert.Empty(patchOps, "expected no patch operations but got some")
+			}
+
+			assert.Len(patchOps, tc.PatchLength, "expected patch operations length to be %d but got %d", tc.PatchLength, len(patchOps))
+			// patch VMI with generated patchOps and validate annotations are added correctly
+			vmiJson, err := json.Marshal(tc.VMI)
+			assert.NoError(err, "should marshal vmi object without error")
+			patchData := fmt.Sprintf("[%s]", strings.Join(patchOps, ","))
+			patchedVMIBytes, err := patch.Apply(vmiJson, []byte(patchData))
+			assert.NoError(err, "should apply patch without error")
+			patchedVMI := &kubevirtv1.VirtualMachineInstance{}
+			err = json.Unmarshal(patchedVMIBytes, patchedVMI)
+			assert.NoError(err, "should unmarshal patched vmi without error")
+
+			// verify expected annotations are found on vm object
+			for key, value := range annotations {
+				patchedValue, exists := patchedVMI.Annotations[key]
+				assert.True(exists, "expected annotation key %s not found on patched VMI", key)
+				assert.Equal(value, patchedValue, "expected annotation value for key %s to be %s but got %s", key, value, patchedValue)
+			}
+		})
+
+	}
 }
