@@ -3,18 +3,25 @@ package node
 import (
 	"testing"
 
+	"github.com/rancher/wrangler/v3/pkg/webhook"
 	"github.com/stretchr/testify/assert"
+	admissionv1 "k8s.io/api/admission/v1"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	batchv1 "k8s.io/api/batch/v1"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
+	"github.com/harvester/harvester/pkg/webhook/types"
+
+	"github.com/harvester/harvester/pkg/webhook/config"
 )
 
 func TestValidateCordonAndMaintenanceMode(t *testing.T) {
@@ -753,6 +760,274 @@ func Test_validateWitnessRoleChange(t *testing.T) {
 				assert.NotNil(t, err, tt.name)
 			} else {
 				assert.Nil(t, err, tt.name)
+			}
+		})
+	}
+}
+
+func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
+	type testCase struct {
+		name          string
+		node          *corev1.Node
+		upgrades      []*harvesterv1.Upgrade
+		isController  bool
+		expectedError bool
+		errorContains string
+	}
+
+	testCases := []testCase{
+		{
+			name: "allow node creation when no upgrade is active",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "new-node",
+				},
+			},
+			upgrades:      []*harvesterv1.Upgrade{},
+			isController:  false,
+			expectedError: false,
+		},
+		{
+			name: "allow node creation when upgrade is completed (True)",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "new-node",
+				},
+			},
+			upgrades: []*harvesterv1.Upgrade{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "True",
+							},
+						},
+					},
+				},
+			},
+			isController:  false,
+			expectedError: false,
+		},
+		{
+			name: "allow node creation when upgrade failed (False)",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "new-node",
+				},
+			},
+			upgrades: []*harvesterv1.Upgrade{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "False",
+							},
+						},
+					},
+				},
+			},
+			isController:  false,
+			expectedError: false,
+		},
+		{
+			name: "block node creation when upgrade is active (Unknown status)",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "new-node",
+				},
+			},
+			upgrades: []*harvesterv1.Upgrade{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "Unknown",
+							},
+						},
+					},
+				},
+			},
+			isController:  false,
+			expectedError: true,
+			errorContains: "because the upgrade \"harvester-system/test-upgrade\" is currently in progress.",
+		},
+		{
+			name: "allow node creation when upgrade is active but override annotation is set",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "new-node",
+				},
+			},
+			upgrades: []*harvesterv1.Upgrade{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+						Annotations: map[string]string{
+							util.AnnotationAllowNodeJoin: "true",
+						},
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "Unknown",
+							},
+						},
+					},
+				},
+			},
+			isController:  false,
+			expectedError: false,
+		},
+		{
+			name: "allow node creation when override annotation is set to TRUE (uppercase)",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "new-node",
+				},
+			},
+			upgrades: []*harvesterv1.Upgrade{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+						Annotations: map[string]string{
+							util.AnnotationAllowNodeJoin: "TRUE",
+						},
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "Unknown",
+							},
+						},
+					},
+				},
+			},
+			isController:  false,
+			expectedError: false,
+		},
+		{
+			name: "block node creation when override annotation is set to false",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "new-node",
+				},
+			},
+			upgrades: []*harvesterv1.Upgrade{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+						Annotations: map[string]string{
+							util.AnnotationAllowNodeJoin: "false",
+						},
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "Unknown",
+							},
+						},
+					},
+				},
+			},
+			isController:  false,
+			expectedError: true,
+			errorContains: "because the upgrade \"harvester-system/test-upgrade\" is currently in progress.",
+		},
+		{
+			name: "allow node creation from controller during active upgrade",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "new-node",
+				},
+			},
+			upgrades: []*harvesterv1.Upgrade{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "Unknown",
+							},
+						},
+					},
+				},
+			},
+			isController:  true,
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+
+			for _, upgrade := range tc.upgrades {
+				err := clientset.Tracker().Add(upgrade)
+				assert.Nil(t, err)
+			}
+
+			validator := &nodeValidator{
+				upgradeCache: fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+			}
+
+			var req *types.Request
+			if tc.isController {
+				req = types.NewRequest(
+					&webhook.Request{
+						AdmissionRequest: admissionv1.AdmissionRequest{
+							UserInfo: authenticationv1.UserInfo{
+								Username: "system:serviceaccount:harvester-system:harvester",
+							},
+						},
+					},
+					&config.Options{
+						HarvesterControllerUsername: "system:serviceaccount:harvester-system:harvester",
+					},
+				)
+			} else {
+				req = &types.Request{
+					Request: &webhook.Request{},
+				}
+			}
+
+			err := validator.Create(req, tc.node)
+
+			if tc.expectedError {
+				assert.NotNil(t, err, "expected error but got nil")
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+				var admitErr werror.AdmitError
+				if assert.ErrorAs(t, err, &admitErr) {
+					assert.Equal(t, metav1.StatusReasonConflict, admitErr.AsResult().Reason)
+				}
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

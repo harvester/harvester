@@ -39,6 +39,7 @@ const (
 	AnnotationLastRefreshTime           = prefix + "/lastRefreshTime"
 	AnnotationMacAddressName            = prefix + "/mac-address"
 	AnnotationEnableCPUAndMemoryHotplug = prefix + "/enableCPUAndMemoryHotplug"
+	AnnotationAllowNodeJoin             = prefix + "/allow-node-join"
 
 	AnnotationSkipRancherLoggingAddonWebhookCheck       = prefix + "/skipRancherLoggingAddonWebhookCheck"
 	AnnotationSkipDeschedulerAddonWebhookCheck          = prefix + "/skipDeschedulerAddonWebhookCheck"

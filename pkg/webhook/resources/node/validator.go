@@ -7,6 +7,7 @@ import (
 
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -15,6 +16,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
@@ -22,19 +24,21 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func NewValidator(nodeCache v1.NodeCache, jobCache ctlbatchv1.JobCache, vmiCache ctlkubevirtv1.VirtualMachineInstanceCache) types.Validator {
+func NewValidator(nodeCache v1.NodeCache, jobCache ctlbatchv1.JobCache, vmiCache ctlkubevirtv1.VirtualMachineInstanceCache, upgradeCache ctlharvesterv1.UpgradeCache) types.Validator {
 	return &nodeValidator{
-		nodeCache: nodeCache,
-		jobCache:  jobCache,
-		vmiCache:  vmiCache,
+		nodeCache:    nodeCache,
+		jobCache:     jobCache,
+		vmiCache:     vmiCache,
+		upgradeCache: upgradeCache,
 	}
 }
 
 type nodeValidator struct {
 	types.DefaultValidator
-	nodeCache v1.NodeCache
-	jobCache  ctlbatchv1.JobCache
-	vmiCache  ctlkubevirtv1.VirtualMachineInstanceCache
+	nodeCache    v1.NodeCache
+	jobCache     ctlbatchv1.JobCache
+	vmiCache     ctlkubevirtv1.VirtualMachineInstanceCache
+	upgradeCache ctlharvesterv1.UpgradeCache
 }
 
 func (v *nodeValidator) Resource() types.Resource {
@@ -45,9 +49,46 @@ func (v *nodeValidator) Resource() types.Resource {
 		APIVersion: corev1.SchemeGroupVersion.Version,
 		ObjectType: &corev1.Node{},
 		OperationTypes: []admissionregv1.OperationType{
+			admissionregv1.Create,
 			admissionregv1.Update,
 		},
 	}
+}
+
+func (v *nodeValidator) Create(req *types.Request, newObj runtime.Object) error {
+	// Allow controller-initiated node creation (e.g., during cluster bootstrap).
+	if req.IsFromController() {
+		return nil
+	}
+
+	node := newObj.(*corev1.Node)
+
+	upgrades, err := v.upgradeCache.List(util.HarvesterSystemNamespaceName, labels.NewSelector())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to list upgrades: %v", err))
+	}
+
+	for _, upgrade := range upgrades {
+		if util.IsUpgradeInProgress(upgrade) {
+			// Allow node join only if the explicit override annotation is present.
+			if value, ok := upgrade.Annotations[util.AnnotationAllowNodeJoin]; ok && strings.EqualFold(value, "true") {
+				logrus.Warnf("Node %q join allowed during upgrade %q via override annotation",
+					node.Name, util.GetNamespacedName(upgrade))
+				return nil
+			}
+
+			logrus.Infof("Blocked node %q join while upgrade %q is in progress",
+				node.Name, util.GetNamespacedName(upgrade))
+			return werror.NewConflict(fmt.Sprintf(
+				"cannot add node %q to the cluster because the upgrade %q is currently in progress. "+
+					"Adding nodes during an upgrade can cause unexpected behavior and is not recommended. "+
+					"If you must add this node now, run: kubectl annotate upgrade -n %s %s %s=true",
+				node.Name, util.GetNamespacedName(upgrade), upgrade.Namespace,
+				upgrade.Name, util.AnnotationAllowNodeJoin))
+		}
+	}
+
+	return nil
 }
 
 func (v *nodeValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
