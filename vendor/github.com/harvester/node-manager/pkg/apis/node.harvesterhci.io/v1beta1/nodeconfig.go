@@ -32,6 +32,8 @@ type NTPConfig struct {
 
 type LonghornConfig struct {
 	EnableV2DataEngine bool `json:"enableV2DataEngine,omitempty"`
+	// Below manually patched in from node-manager
+	HugepagesToAllocate uint `json:"hugepagesToAllocate,omitempty"`
 }
 
 type NodeConfigStatus struct {
