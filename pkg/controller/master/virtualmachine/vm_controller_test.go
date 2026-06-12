@@ -2,125 +2,26 @@ package virtualmachine
 
 import (
 	"encoding/json"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
-	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/rest"
+	"k8s.io/client-go/kubernetes"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/record"
 	kubevirtv1 "kubevirt.io/api/core/v1"
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
-
-// fakeDataVolumeClient implements ctlcdiv1.DataVolumeClient for testing.
-type fakeDataVolumeClient struct {
-	dvs map[string]*cdiv1.DataVolume // "namespace/name" -> DataVolume
-}
-
-func newFakeDataVolumeClient(dvs ...*cdiv1.DataVolume) *fakeDataVolumeClient {
-	m := make(map[string]*cdiv1.DataVolume)
-	for _, dv := range dvs {
-		m[dv.Namespace+"/"+dv.Name] = dv
-	}
-	return &fakeDataVolumeClient{dvs: m}
-}
-
-func (c *fakeDataVolumeClient) Get(namespace, name string, _ metav1.GetOptions) (*cdiv1.DataVolume, error) {
-	if dv, ok := c.dvs[namespace+"/"+name]; ok {
-		return dv, nil
-	}
-	return nil, apierrors.NewNotFound(schema.GroupResource{Group: "cdi.kubevirt.io", Resource: "datavolumes"}, name)
-}
-
-func (c *fakeDataVolumeClient) Create(_ *cdiv1.DataVolume) (*cdiv1.DataVolume, error) {
-	panic("not implemented")
-}
-
-func (c *fakeDataVolumeClient) Update(_ *cdiv1.DataVolume) (*cdiv1.DataVolume, error) {
-	panic("not implemented")
-}
-
-func (c *fakeDataVolumeClient) UpdateStatus(_ *cdiv1.DataVolume) (*cdiv1.DataVolume, error) {
-	panic("not implemented")
-}
-
-func (c *fakeDataVolumeClient) Delete(_, _ string, _ *metav1.DeleteOptions) error {
-	panic("not implemented")
-}
-
-func (c *fakeDataVolumeClient) List(_ string, _ metav1.ListOptions) (*cdiv1.DataVolumeList, error) {
-	panic("not implemented")
-}
-
-func (c *fakeDataVolumeClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
-	panic("not implemented")
-}
-
-func (c *fakeDataVolumeClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (*cdiv1.DataVolume, error) {
-	panic("not implemented")
-}
-
-func (c *fakeDataVolumeClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*cdiv1.DataVolume, *cdiv1.DataVolumeList], error) {
-	panic("not implemented")
-}
-
-// fakePVCCache implements v1.PersistentVolumeClaimCache for testing.
-type fakePVCCache struct {
-	pvcs map[string]*corev1.PersistentVolumeClaim // "namespace/name" -> PVC
-}
-
-func newFakePVCCache(pvcs ...*corev1.PersistentVolumeClaim) *fakePVCCache {
-	m := make(map[string]*corev1.PersistentVolumeClaim)
-	for _, pvc := range pvcs {
-		m[pvc.Namespace+"/"+pvc.Name] = pvc
-	}
-	return &fakePVCCache{pvcs: m}
-}
-
-func (c *fakePVCCache) Get(namespace, name string) (*corev1.PersistentVolumeClaim, error) {
-	if pvc, ok := c.pvcs[namespace+"/"+name]; ok {
-		return pvc, nil
-	}
-	return nil, apierrors.NewNotFound(schema.GroupResource{Group: "", Resource: "persistentvolumeclaims"}, name)
-}
-
-func (c *fakePVCCache) List(_ string, _ labels.Selector) ([]*corev1.PersistentVolumeClaim, error) {
-	panic("not implemented")
-}
-
-func (c *fakePVCCache) AddIndexer(_ string, _ generic.Indexer[*corev1.PersistentVolumeClaim]) {
-	panic("not implemented")
-}
-
-func (c *fakePVCCache) GetByIndex(_, _ string) ([]*corev1.PersistentVolumeClaim, error) {
-	panic("not implemented")
-}
-
-// mustMarshalEntries is a test helper that marshals VolumeClaimTemplateEntry slice to JSON string.
-func mustMarshalEntries(entries []util.VolumeClaimTemplateEntry) string {
-	data, err := json.Marshal(entries)
-	if err != nil {
-		panic(err)
-	}
-	return string(data)
-}
-
-// newFakeVMClient creates a fakeVMClient from a fake clientset.
-// Reuses the fakeVMClient type defined in vmi_network_controller_test.go.
-func newFakeVMClient(clientset *fake.Clientset) fakeVMClient {
-	return fakeVMClient(clientset.KubevirtV1().VirtualMachines)
-}
 
 func TestSetTargetVolumeStrategy(t *testing.T) {
 	type input struct {
@@ -1149,4 +1050,421 @@ func TestCleanupTargetVolumeAnnotation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReconcileBackendStorageClone(t *testing.T) {
+	targetVMName := "target-vm"
+	sourceVMName := "source-vm"
+	namespace := "default"
+	storageClassName := "longhorn"
+	volumeMode := corev1.PersistentVolumeFilesystem
+	origFetchImageFromHelmValues := fetchImageFromHelmValues
+	fetchImageFromHelmValues = func(_ kubernetes.Interface, _, _ string, _ []string) (settings.Image, error) {
+		return settings.Image{
+			Repository:      "rancher/shell",
+			Tag:             "v0.7.0",
+			ImagePullPolicy: corev1.PullIfNotPresent,
+		}, nil
+	}
+	t.Cleanup(func() {
+		fetchImageFromHelmValues = origFetchImageFromHelmValues
+	})
+
+	type input struct {
+		key  string
+		vm   *kubevirtv1.VirtualMachine
+		pvcs []*corev1.PersistentVolumeClaim
+		jobs []*batchv1.Job
+	}
+
+	type output struct {
+		err         bool
+		cloneStatus string
+		cloneStage  string
+		runStrategy *kubevirtv1.VirtualMachineRunStrategy
+		createdPVC  bool
+		createdJob  bool
+		deletedJob  bool
+		enqueue     bool
+		pvc         *corev1.PersistentVolumeClaim
+		job         *batchv1.Job
+	}
+
+	var testCases = []struct {
+		name     string
+		given    input
+		expected output
+	}{
+		{
+			name: "ignore nil VM",
+			given: input{
+				key: "",
+				vm:  nil,
+			},
+			expected: output{},
+		},
+		{
+			name: "ignore VM without clone annotations",
+			given: input{
+				key:  namespace + "/" + targetVMName,
+				vm:   newTestVM(namespace, targetVMName, map[string]string{util.AnnotationBSCloneSourceVM: sourceVMName, util.AnnotationBSCloneRunStrategy: string(kubevirtv1.RunStrategyRerunOnFailure)}),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestSourcePVC(namespace, sourceVMName, storageClassName, volumeMode), newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+			},
+			expected: output{
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
+			},
+		},
+		{
+			name: "source PVC exists but cloned PVC does not - create PVC and enqueue retry",
+			given: input{
+				key:  namespace + "/" + targetVMName,
+				vm:   newTestVM(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestSourcePVC(namespace, sourceVMName, storageClassName, volumeMode)},
+			},
+			expected: output{
+				cloneStatus: util.CloneInProgress,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
+				createdPVC:  true,
+				enqueue:     true,
+				pvc: buildClonedBackendStoragePVC(
+					newTestVM(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+					newTestSourcePVC(namespace, sourceVMName, storageClassName, volumeMode),
+				),
+			},
+		},
+		{
+			name: "bound cloned PVC exists and stale job start time mismatch - delete stale job and enqueue retry",
+			given: input{
+				key:  namespace + "/" + targetVMName,
+				vm:   newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+				jobs: []*batchv1.Job{
+					newTestBackendStorageJob(
+						mustBuildBackendStorageJob(t, &VMController{
+							clientset: k8sfake.NewSimpleClientset(),
+						},
+							newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+							sourceVMName,
+							newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
+							util.CloneActionRenameEFI,
+						),
+						func(job *batchv1.Job) {
+							job.Annotations[util.AnnotationBSCloneStartTime] = time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+						},
+					),
+				},
+			},
+			expected: output{
+				cloneStatus: util.CloneInProgress,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
+				deletedJob:  true,
+				enqueue:     true,
+			},
+		},
+		{
+			name: "bound cloned PVC exists but rename job does not - create job and enqueue retry",
+			given: input{
+				key:  namespace + "/" + targetVMName,
+				vm:   newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+			},
+			expected: output{
+				cloneStatus: util.CloneInProgress,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
+				createdJob:  true,
+				enqueue:     true,
+				job: mustBuildBackendStorageJob(t, &VMController{
+					clientset: k8sfake.NewSimpleClientset(),
+				},
+					newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+					sourceVMName,
+					newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
+					util.CloneActionRenameEFI,
+				),
+			},
+		},
+		{
+			name: "bound cloned PVC exists and VM has persistent TPM only - mark clone complete without backend storage job",
+			given: input{
+				key:  namespace + "/" + targetVMName,
+				vm:   newTestVMWithPersistentTPM(namespace, targetVMName, newTestCloneInProgressAnnotationsWithAction(sourceVMName, "")),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+			},
+			expected: output{
+				cloneStatus: util.CloneComplete,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyRerunOnFailure),
+			},
+		},
+		{
+			name: "clone exceeded timeout - mark clone failed and keep VM halted",
+			given: input{
+				key: namespace + "/" + targetVMName,
+				vm: func() *kubevirtv1.VirtualMachine {
+					annotations := newTestCloneInProgressAnnotations(sourceVMName)
+					annotations[util.AnnotationBSCloneStartTime] = time.Now().Add(-backendStorageCloneTimeout - time.Minute).UTC().Format(time.RFC3339)
+					return newTestVMWithPersistentEFI(namespace, targetVMName, annotations)
+				}(),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+			},
+			expected: output{
+				cloneStatus: util.CloneFailed,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
+			},
+		},
+		{
+			name: "bound cloned PVC and running rename job exist - no create and enqueue retry",
+			given: input{
+				key:  namespace + "/" + targetVMName,
+				vm:   newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+				jobs: []*batchv1.Job{
+					newTestBackendStorageJob(
+						mustBuildBackendStorageJob(t, &VMController{
+							clientset: k8sfake.NewSimpleClientset(),
+						},
+							newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+							sourceVMName,
+							newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
+							util.CloneActionRenameEFI,
+						),
+						func(job *batchv1.Job) {
+							job.Status = batchv1.JobStatus{
+								Active: 1,
+							}
+						},
+					),
+				},
+			},
+			expected: output{
+				cloneStatus: util.CloneInProgress,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
+				enqueue:     true,
+			},
+		},
+		{
+			name: "bound cloned PVC and deleting rename job exist - wait for deletion and enqueue retry",
+			given: input{
+				key:  namespace + "/" + targetVMName,
+				vm:   newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+				jobs: []*batchv1.Job{
+					newTestBackendStorageJob(
+						mustBuildBackendStorageJob(t, &VMController{
+							clientset: k8sfake.NewSimpleClientset(),
+						},
+							newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+							sourceVMName,
+							newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
+							util.CloneActionRenameEFI,
+						),
+						func(job *batchv1.Job) {
+							now := metav1.NewTime(time.Now().UTC())
+							job.DeletionTimestamp = &now
+						},
+					),
+				},
+			},
+			expected: output{
+				cloneStatus: util.CloneInProgress,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
+				enqueue:     true,
+			},
+		},
+		{
+			name: "job failed with max retries reached - mark clone failed and keep VM halted",
+			given: input{
+				key: namespace + "/" + targetVMName,
+				vm: func() *kubevirtv1.VirtualMachine {
+					annotations := newTestCloneInProgressAnnotations(sourceVMName)
+					annotations[util.AnnotationBSCloneRetries] = strconv.Itoa(maxBackendStorageCloneRetries)
+					return newTestVMWithPersistentEFI(namespace, targetVMName, annotations)
+				}(),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+				jobs: []*batchv1.Job{
+					newTestBackendStorageJob(
+						mustBuildBackendStorageJob(t, &VMController{
+							clientset: k8sfake.NewSimpleClientset(),
+						},
+							newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+							sourceVMName,
+							newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
+							util.CloneActionRenameEFI,
+						),
+						func(job *batchv1.Job) {
+							job.Status = batchv1.JobStatus{
+								Failed: 1,
+								Conditions: []batchv1.JobCondition{{
+									Type:   batchv1.JobFailed,
+									Status: corev1.ConditionTrue,
+								}},
+							}
+						},
+					),
+				},
+			},
+			expected: output{
+				cloneStatus: util.CloneFailed,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
+				deletedJob:  true,
+			},
+		},
+		{
+			name: "job completed - mark clone pre-completed and enqueue retry",
+			given: input{
+				key:  namespace + "/" + targetVMName,
+				vm:   newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestSourcePVC(namespace, sourceVMName, storageClassName, volumeMode), newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+				jobs: []*batchv1.Job{
+					newTestBackendStorageJob(
+						mustBuildBackendStorageJob(t, &VMController{
+							clientset: k8sfake.NewSimpleClientset(),
+						},
+							newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+							sourceVMName,
+							newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
+							util.CloneActionRenameEFI,
+						),
+						func(job *batchv1.Job) {
+							job.Status = batchv1.JobStatus{
+								Succeeded: 1,
+								Conditions: []batchv1.JobCondition{{
+									Type:   batchv1.JobComplete,
+									Status: corev1.ConditionTrue,
+								}},
+							}
+						},
+					),
+				},
+			},
+			expected: output{
+				cloneStatus: util.CloneInProgress,
+				cloneStage:  util.CloneStagePreCompleted,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyHalted),
+				deletedJob:  true,
+				enqueue:     true,
+			},
+		},
+		{
+			name: "pre-completed clone without job - mark clone complete and restore RunStrategy",
+			given: input{
+				key: namespace + "/" + targetVMName,
+				vm: func() *kubevirtv1.VirtualMachine {
+					annotations := newTestCloneInProgressAnnotations(sourceVMName)
+					annotations[util.AnnotationBSCloneStage] = util.CloneStagePreCompleted
+					return newTestVMWithPersistentEFI(namespace, targetVMName, annotations)
+				}(),
+				pvcs: []*corev1.PersistentVolumeClaim{newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound)},
+			},
+			expected: output{
+				cloneStatus: util.CloneComplete,
+				runStrategy: ptrRunStrategy(kubevirtv1.RunStrategyRerunOnFailure),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			if tc.given.vm != nil {
+				err := clientset.Tracker().Add(tc.given.vm)
+				require.NoError(t, err, "mock VM should add into fake tracker")
+			}
+
+			k8sClientset := k8sfake.NewSimpleClientset()
+			recorder := record.NewFakeRecorder(10)
+			pvcClient := newFakePVCClient(tc.given.pvcs...)
+			jobClient := newFakeJobClient(tc.given.jobs...)
+			vmController := &fakeRequeueVMController{
+				fakeVMClient: newFakeVMClient(clientset),
+			}
+
+			ctrl := &VMController{
+				vmClient:     newFakeVMClient(clientset),
+				vmController: vmController,
+				recorder:     recorder,
+				pvcClient:    pvcClient,
+				jobClient:    jobClient,
+				pvcCache:     newFakePVCCache(tc.given.pvcs...),
+				jobCache:     newFakeJobCache(tc.given.jobs...),
+				clientset:    k8sClientset,
+			}
+
+			result, err := ctrl.ReconcileBackendStorageClone(tc.given.key, tc.given.vm)
+			if tc.expected.err {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			if result != nil {
+				assert.Equal(t, tc.expected.cloneStatus, result.Annotations[util.AnnotationBSCloneStatus])
+				assert.Equal(t, tc.expected.cloneStage, result.Annotations[util.AnnotationBSCloneStage])
+				if tc.expected.runStrategy == nil {
+					assert.Nil(t, result.Spec.RunStrategy)
+				} else {
+					require.NotNil(t, result.Spec.RunStrategy)
+					assert.Equal(t, *tc.expected.runStrategy, *result.Spec.RunStrategy)
+				}
+			}
+
+			if tc.expected.createdPVC {
+				require.Len(t, pvcClient.created, 1)
+				assertCreatedTestPVC(t, tc.expected.pvc, pvcClient.created[0])
+			} else {
+				assert.Empty(t, pvcClient.created)
+			}
+
+			if tc.expected.createdJob {
+				require.Len(t, jobClient.created, 1)
+				assertCreatedTestJob(t, tc.expected.job, jobClient.created[0])
+			} else {
+				assert.Empty(t, jobClient.created)
+			}
+
+			if tc.expected.deletedJob {
+				require.Len(t, jobClient.deleted, 1)
+				assert.Equal(t, namespace, jobClient.deleted[0].Namespace)
+				assert.True(t, strings.HasPrefix(jobClient.deleted[0].Name, backendStorageCloneJobGenerateName(targetVMName)))
+			} else {
+				assert.Empty(t, jobClient.deleted)
+			}
+
+			if tc.expected.enqueue {
+				require.Len(t, vmController.enqueues, 1)
+				assert.Equal(t, namespace, vmController.enqueues[0].namespace)
+				assert.Equal(t, targetVMName, vmController.enqueues[0].name)
+				assert.Equal(t, 5*time.Second, vmController.enqueues[0].after)
+			} else {
+				assert.Empty(t, vmController.enqueues)
+			}
+		})
+	}
+}
+
+func TestBuildBackendStorageJobRequiresConfiguredImage(t *testing.T) {
+	namespace := "default"
+	sourceVMName := "source-vm"
+	targetVMName := "target-vm"
+	origFetchImageFromHelmValues := fetchImageFromHelmValues
+	fetchImageFromHelmValues = func(_ kubernetes.Interface, _, _ string, _ []string) (settings.Image, error) {
+		return settings.Image{}, assert.AnError
+	}
+	t.Cleanup(func() {
+		fetchImageFromHelmValues = origFetchImageFromHelmValues
+	})
+
+	ctrl := &VMController{
+		clientset: k8sfake.NewSimpleClientset(),
+	}
+
+	job, err := ctrl.buildBackendStorageJob(
+		newTestVMWithPersistentEFI(namespace, targetVMName, newTestCloneInProgressAnnotations(sourceVMName)),
+		sourceVMName,
+		newTestClonedPVC(namespace, targetVMName, corev1.ClaimBound),
+		util.CloneActionRenameEFI,
+	)
+
+	require.Error(t, err)
+	assert.Nil(t, job)
 }

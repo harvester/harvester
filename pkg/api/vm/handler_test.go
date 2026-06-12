@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
@@ -1629,6 +1630,132 @@ func TestBuildVirtualMachineRestore(t *testing.T) {
 			assert.Equal(t, tt.input.BackupName, got.Spec.VirtualMachineBackupName)
 			assert.Equal(t, tt.input.KeepMacAddress, got.Spec.KeepMacAddress)
 			assert.Equal(t, tt.input.HaltAfterRestore, got.Spec.HaltAfterRestore)
+		})
+	}
+}
+
+func TestDetermineCloneAction(t *testing.T) {
+	tests := []struct {
+		name     string
+		cloneVM  *kubevirtv1.VirtualMachine
+		expected string
+	}{
+		{
+			name: "clone has both EFI and TPM - should rename EFI",
+			cloneVM: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "clone-with-efi-and-tpm",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Firmware: &kubevirtv1.Firmware{
+									Bootloader: &kubevirtv1.Bootloader{
+										EFI: &kubevirtv1.EFI{
+											Persistent: ptr.To(true),
+										},
+									},
+								},
+								Devices: kubevirtv1.Devices{
+									TPM: &kubevirtv1.TPMDevice{
+										Persistent: ptr.To(true),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: util.CloneActionRenameEFI,
+		},
+		{
+			name: "clone has EFI only (no TPM) - should delete TPM from cloned PVC",
+			cloneVM: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "clone-with-efi-only",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Firmware: &kubevirtv1.Firmware{
+									Bootloader: &kubevirtv1.Bootloader{
+										EFI: &kubevirtv1.EFI{
+											Persistent: ptr.To(true),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: util.CloneActionDeleteTPM,
+		},
+		{
+			name: "clone has TPM only (no EFI) - should delete EFI from cloned PVC",
+			cloneVM: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "clone-with-tpm-only",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									TPM: &kubevirtv1.TPMDevice{
+										Persistent: ptr.To(true),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: util.CloneActionDeleteEFI,
+		},
+		{
+			name: "clone has neither EFI nor TPM - should not create post-clone job",
+			cloneVM: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "clone-without-efi-and-tpm",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{},
+				},
+			},
+			expected: "",
+		},
+		{
+			name: "clone has CBT only - should not create post-clone job",
+			cloneVM: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "clone-with-cbt-only",
+					Namespace: "default",
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{},
+				},
+				Status: kubevirtv1.VirtualMachineStatus{
+					ChangedBlockTracking: &kubevirtv1.ChangedBlockTrackingStatus{
+						State: kubevirtv1.ChangedBlockTrackingEnabled,
+					},
+				},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &vmActionHandler{}
+			got := handler.determineCloneAction(tt.cloneVM)
+			assert.Equal(t, tt.expected, got, "case %q", tt.name)
 		})
 	}
 }

@@ -62,6 +62,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	storageClasses := scaled.StorageFactory.Storage().V1().StorageClass()
 	nads := scaled.CniFactory.K8s().V1().NetworkAttachmentDefinition()
 	resourceQuotas := scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota()
+	jobs := scaled.Management.BatchFactory.Batch().V1().Job()
 
 	vmiOperator, err := common.GetVMIOperator(vmImages, vmImages.Cache(), storageClasses.Cache(), http.Client{})
 	if err != nil {
@@ -98,6 +99,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		vmTemplateVersionClient: vmtv,
 		vmiClient:               vmis,
 		vmimClient:              vmims,
+		jobClient:               jobs,
 
 		backupCache:       backups.Cache(),
 		kubevirtCache:     kubevirtCache,
@@ -113,6 +115,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		vmImageCache:      vmImages.Cache(),
 		vmiCache:          vmis.Cache(),
 		vmimCache:         vmims.Cache(),
+		jobCache:          jobs.Cache(),
 	})
 
 	vmformatter := vmformatter{

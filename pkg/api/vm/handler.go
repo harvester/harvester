@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -14,6 +15,7 @@ import (
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
+	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	wranglername "github.com/rancher/wrangler/v3/pkg/name"
@@ -37,6 +39,8 @@ import (
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kubevirtmultus "kubevirt.io/kubevirt/pkg/network/multus"
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
+	"kubevirt.io/kubevirt/pkg/tpm"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
 
 	apiutil "github.com/harvester/harvester/pkg/api/util"
@@ -87,6 +91,7 @@ type vmActionHandler struct {
 	vmTemplateVersionClient ctlharvesterv1.VirtualMachineTemplateVersionClient
 	vmiClient               ctlkubevirtv1.VirtualMachineInstanceClient
 	vmimClient              ctlkubevirtv1.VirtualMachineInstanceMigrationClient
+	jobClient               ctlbatchv1.JobClient
 
 	backupCache       ctlharvesterv1.VirtualMachineBackupCache
 	kubevirtCache     ctlkubevirtv1.KubeVirtCache
@@ -102,6 +107,7 @@ type vmActionHandler struct {
 	vmImageCache      ctlharvesterv1.VirtualMachineImageCache
 	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
 	vmimCache         ctlkubevirtv1.VirtualMachineInstanceMigrationCache
+	jobCache          ctlbatchv1.JobCache
 }
 
 func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, error) {
@@ -1244,6 +1250,8 @@ func (h *vmActionHandler) findHotunpluggableNics(rw http.ResponseWriter, namespa
 }
 
 // cloneVM creates a VM which uses volume cloning from the source VM.
+// AnnotationBSCloneStatus signals the clone progress to the UI.
+// "cloning" = in progress, "cloned" = done.
 func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
@@ -1264,7 +1272,13 @@ func (h *vmActionHandler) cloneVM(name string, namespace string, input CloneInpu
 		return fmt.Errorf("cannot marshal value %+v, err: %w", newEntries, err)
 	}
 
-	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = newPVCsString
+	if backendstorage.IsBackendStorageNeeded(newVM) {
+		if err := h.prepareBackendStorageClone(newVM, vm); err != nil {
+			return fmt.Errorf("prepare backend storage clone error for new vm %s/%s, err %w", newVM.Namespace, newVM.Name, err)
+		}
+	}
+
+	newVM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates] = string(newPVCsString)
 	if newVM, err = h.vmClient.Create(newVM); err != nil {
 		return fmt.Errorf("cannot create new VM %s/%s, err: %w", newVM.Namespace, newVM.Name, err)
 	}
@@ -1367,6 +1381,55 @@ func cloneSecretVolume(volume *kubevirtv1.Volume, secretNameMap map[string]strin
 		secretNameMap[volume.Secret.SecretName] = names.SimpleNameGenerator.GenerateName("clone-")
 	}
 	volume.Secret.SecretName = secretNameMap[volume.Secret.SecretName]
+}
+
+func (h *vmActionHandler) prepareBackendStorageClone(newVM, sourceVM *kubevirtv1.VirtualMachine) error {
+	runStrategy, err := newVM.RunStrategy()
+	if err != nil {
+		return err
+	}
+
+	newVM.Annotations[util.AnnotationBSCloneRunStrategy] = string(runStrategy)
+	newVM.Annotations[util.AnnotationBSCloneSourceVM] = sourceVM.Name
+	if cloneAction := h.determineCloneAction(newVM); cloneAction != "" {
+		newVM.Annotations[util.AnnotationBSCloneActions] = cloneAction
+	}
+	newVM.Annotations[util.AnnotationBSCloneStartTime] = time.Now().Format(time.RFC3339)
+
+	halted := kubevirtv1.RunStrategyHalted
+	newVM.Spec.RunStrategy = &halted
+	newVM.Annotations[util.AnnotationBSCloneStatus] = util.CloneInProgress
+	return nil
+}
+
+// determineCloneAction determines what post-clone action is needed based on the
+// clone VM's desired backend storage configuration (EFI/TPM).
+// The backend storage PVC is always cloned entirely from the source, but the clone VM
+// spec may differ (e.g., user disables EFI or TPM in the clone), requiring cleanup.
+//
+// [Cases]
+// Clone both: needs to rename EFI NVRAM file from source VM.
+// Clone TPM only: needs to delete EFI files from cloned PVC.
+// Clone EFI only: needs to delete TPM state from cloned PVC.
+// Clone CBT only (or no EFI/TPM): no post-clone Job is needed.
+func (h *vmActionHandler) determineCloneAction(cloneVm *kubevirtv1.VirtualMachine) string {
+	if cloneVm == nil || cloneVm.Spec.Template == nil {
+		return ""
+	}
+
+	cloneHasEFI := backendstorage.HasPersistentEFI(&cloneVm.Spec.Template.Spec)
+	cloneHasTPM := tpm.HasPersistentDevice(&cloneVm.Spec.Template.Spec)
+
+	switch {
+	case cloneHasEFI && cloneHasTPM:
+		return util.CloneActionRenameEFI
+	case cloneHasEFI:
+		return util.CloneActionDeleteTPM
+	case cloneHasTPM:
+		return util.CloneActionDeleteEFI
+	default:
+		return ""
+	}
 }
 
 func (h *vmActionHandler) dismissInsufficientResourceQuota(name, namespace string) error {
