@@ -1,6 +1,6 @@
 Everett==1.0.2
 MarkupSafe>=2.1.1
-PyGitHub==1.51
+PyGitHub==1.59.1
 Flask==2.3.2
 
 Werkzeug>=2.3.3
