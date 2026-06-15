@@ -402,8 +402,8 @@ github.com/k3s-io/helm-controller v0.16.1 h1:4sdJSYdAeTvMjjq3Pt1ZcyenRTJIAvKojTW
 github.com/k3s-io/helm-controller v0.16.1/go.mod h1:AcSxEhOIUgeVvBTnJOAwcezBZXtYew/RhKwO5xp3RlM=
 github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7 h1:z4P744DR+PIpkjwXSEc6TvN3L6LVzmUquFgmNm8wSUc=
 github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7/go.mod h1:CM7HAH5PNuIsqjMN0fGc1ydM74Uj+0VZFhob620nklw=
-github.com/k8snetworkplumbingwg/whereabouts v0.9.3 h1:DbI2Xyst/FTZONuZ/O5EjHw/DaddrzSW2g/jmMXxWdQ=
-github.com/k8snetworkplumbingwg/whereabouts v0.9.3/go.mod h1:AmftIOLGlWE/HjRnPIAPAw8B+Pk/jSCNbUogB6i1AVQ=
+github.com/k8snetworkplumbingwg/whereabouts v0.9.4 h1:P45pLCyZ7iXLPBtlczbzSYV+AQCPCa9j7qfULKJ4ARM=
+github.com/k8snetworkplumbingwg/whereabouts v0.9.4/go.mod h1:AmftIOLGlWE/HjRnPIAPAw8B+Pk/jSCNbUogB6i1AVQ=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/klauspost/compress v1.18.0 h1:c/Cqfb0r+Yi+JtIEq73FWXVkRonBlf0CRNYc8Zttxdo=
