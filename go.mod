@@ -71,7 +71,7 @@ require (
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
 	github.com/k8snetworkplumbingwg/whereabouts v0.9.3
 	github.com/kube-logging/logging-operator/pkg/sdk v0.12.0
-	github.com/kubeovn/kube-ovn v1.14.10
+	github.com/kubeovn/kube-ovn v1.16.2
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/kubernetes/dashboard v1.10.1
 	github.com/longhorn/backupstore v0.0.0-20250804022317-794abf817297
