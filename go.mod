@@ -17,7 +17,7 @@ replace (
 	github.com/rancher/rancher/pkg/apis => github.com/rancher/rancher/pkg/apis v0.0.0-20250828140533-07a90f09a491
 	github.com/rancher/rancher/pkg/client => github.com/rancher/rancher/pkg/client v0.0.0-20250828140533-07a90f09a491
 	// handle rancher dependenices
-	go.qase.io/client => github.com/rancher/qase-go/client v0.0.0-20231114201952-65195ec001fa
+	go.qase.io/client => github.com/rancher/qase-go/client v0.0.0-20250627195016-142ff3dfec16
 
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.15.1-rancher2
 	k8s.io/api => k8s.io/api v0.33.7
