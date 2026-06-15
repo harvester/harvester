@@ -1,5 +1,23 @@
 name: "Network configuration"
 stages:
+  rootfs:
+    - name: Preserve ifname= settings from initramfs (1)
+      # We can't write directly to /sysroot as it's RO at this point so have to stage in /run
+      commands:
+      - |
+        if [ -e /etc/udev/rules.d/80-ifname.rules ]; then
+          echo "Copying /etc/udev/rules.d/80-ifname.rules from initramfs to /run"
+          cp /etc/udev/rules.d/80-ifname.rules /run/
+        fi
+  initramfs:
+    - name: Preserve ifname= settings from initramfs (2)
+      commands:
+      # /run from rootfs makes it through to initramfs, where /etc is writable
+      - |
+        if [ -e /run/80-ifname.rules ]; then
+          echo "Moving /run/80-ifname.rules to /etc/udev/rules.d/"
+          mv /run/80-ifname.rules /etc/udev/rules.d/
+        fi
   network:
     - name: Bring up interfaces
       commands:
