@@ -62,6 +62,7 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	// Those routes should be above /v1/harvester/{type}, otherwise, the response status code would be 404
 	kcGenerateHandler := harvesterServer.NewHandler(kubeconfig.NewGenerateHandler(r.scaled, r.options))
 	m.Path("/v1/harvester/kubeconfig").Methods("POST").Handler(verifyAuthMiddleware(kcGenerateHandler))
+	m.Path("/v1/harvester/kubeconfig").Methods("GET").Handler(verifyAuthMiddleware(kcGenerateHandler))
 
 	uiInfoHandler := harvesterServer.NewHandler(uiinfo.NewUIInfoHandler(r.scaled, r.options))
 	m.Path("/v1/harvester/ui-info").Methods("GET").Handler(uiInfoHandler)
