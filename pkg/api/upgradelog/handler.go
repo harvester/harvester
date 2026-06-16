@@ -88,7 +88,7 @@ func (h Handler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, err
 	vars := util.EncodeVars(mux.Vars(req))
 
 	if req.Method == http.MethodGet {
-		return nil, h.doGet(vars["link"], rw, req)
+		return nil, h.doGet(ctx, vars["link"], rw, req)
 	} else if req.Method == http.MethodPost {
 		return nil, h.doPost(vars["action"], rw, req)
 	}
@@ -96,10 +96,10 @@ func (h Handler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, err
 	return nil, apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported method %s", req.Method))
 }
 
-func (h Handler) doGet(link string, rw http.ResponseWriter, req *http.Request) error {
+func (h Handler) doGet(ctx *harvesterServer.Ctx, link string, rw http.ResponseWriter, req *http.Request) error {
 	switch link {
 	case downloadArchiveLink:
-		return h.downloadArchive(rw, req)
+		return h.downloadArchive(ctx, rw, req)
 	default:
 		return apierror.NewAPIError(validation.InvalidAction, fmt.Sprintf("Unsupported GET action %s", link))
 	}
@@ -114,7 +114,7 @@ func (h Handler) doPost(action string, rw http.ResponseWriter, req *http.Request
 	}
 }
 
-func (h Handler) downloadArchive(rw http.ResponseWriter, req *http.Request) error {
+func (h Handler) downloadArchive(ctx *harvesterServer.Ctx, rw http.ResponseWriter, req *http.Request) error {
 	vars := util.EncodeVars(mux.Vars(req))
 	upgradeLogName := vars["name"]
 	upgradeLogNamespace := vars["namespace"]
@@ -152,6 +152,11 @@ func (h Handler) downloadArchive(rw http.ResponseWriter, req *http.Request) erro
 		return fmt.Errorf("failed with unexpected http status code %d", downloadResp.StatusCode)
 	}
 
+	// Instruct the framework to skip its automatic response handling to avoid
+	// "superfluous response.WriteHeader" warnings, as this upgradelog
+	// download function writes data directly to the ResponseWriter.
+	ctx.SkipAutoResponse()
+
 	// TODO: set Content-Length with archive size
 	rw.Header().Set("Content-Disposition", "attachment; filename="+archiveFileName)
 	contentType := downloadResp.Header.Get("Content-Type")
@@ -159,8 +164,13 @@ func (h Handler) downloadArchive(rw http.ResponseWriter, req *http.Request) erro
 		rw.Header().Set("Content-Type", contentType)
 	}
 
+	// Lock in headers and status code before beginning the stream
+	rw.WriteHeader(http.StatusOK)
+
 	if _, err := io.Copy(rw, downloadResp.Body); err != nil {
-		return fmt.Errorf("failed to copy the downloaded content to the target (%s), err: %w", archiveFileName, err)
+		err := fmt.Errorf("failed to copy the downloaded content to the target (%s), err: %w", archiveFileName, err)
+		logrus.Warnf("%s", err.Error())
+		return err
 	}
 
 	return nil

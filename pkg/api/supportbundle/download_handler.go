@@ -96,6 +96,11 @@ func (h *DownloadHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 		return nil, apierror.NewAPIError(validation.ServerError, msg)
 	}
 
+	// Instruct the framework to skip its automatic response handling to avoid
+	// "superfluous response.WriteHeader" warnings, as this support bundle
+	// download function writes data directly to the ResponseWriter.
+	ctx.SkipAutoResponse()
+
 	rw.Header().Set("Content-Length", fmt.Sprint(sb.Status.Filesize))
 	rw.Header().Set("Content-Disposition", "attachment; filename="+sb.Status.Filename)
 	contentType := resp.Header.Get("Content-Type")
@@ -103,18 +108,24 @@ func (h *DownloadHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 		rw.Header().Set("Content-Type", contentType)
 	}
 
+	// Lock in headers and status code before beginning the stream
+	rw.WriteHeader(http.StatusOK)
+
 	if _, err := io.Copy(rw, resp.Body); err != nil {
-		return nil, apierror.NewAPIError(validation.ServerError, errors.Wrap(err, "fail to copy response body to response writer").Error())
+		err := apierror.NewAPIError(validation.ServerError, errors.Wrap(err, "support bundle download failed midway during stream copy").Error())
+		logrus.Warnf("%s", err.Error())
+		return nil, err
 	}
 
 	if retainSb {
+		logrus.Infof("support bundle %s is retained for download reuse", sb.Name)
 		return nil, nil
 	}
 
 	logrus.Infof("delete support bundle %s", sb.Name)
 	err = h.supportBundles.Delete(sb.Namespace, sb.Name, &metav1.DeleteOptions{})
 	if err != nil {
-		logrus.Errorf("fail to delete support bundle %s: %s", sb.Name, err)
+		logrus.Errorf("fail to delete support bundle %s: %s", sb.Name, err.Error())
 	}
 	return nil, nil
 }
