@@ -476,8 +476,8 @@ github.com/guonaihong/gout/encode
 github.com/guonaihong/gout/export
 github.com/guonaihong/gout/filter
 github.com/guonaihong/gout/interface
-# github.com/harvester/go-common v0.0.0-20260119194217-0f17176ce67e
-## explicit; go 1.25
+# github.com/harvester/go-common v0.0.0-20260609110837-30467f751774
+## explicit; go 1.25.7
 github.com/harvester/go-common/common
 github.com/harvester/go-common/ds
 github.com/harvester/go-common/version
