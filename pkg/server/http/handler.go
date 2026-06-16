@@ -31,7 +31,14 @@ func NewHandler(httpHandler HarvesterServerHandler) http.Handler {
 func (handler *harvesterServerHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	ctx := newDefaultHarvesterServerCtx(rw, req)
 	resp, err := handler.httpHandler.Do(ctx)
+
+	// If the app layer explicitly took over the response, framework doesn't process the return result twice.
+	if ctx.IsAutoResponseSkipped() {
+		return
+	}
+
 	if err != nil {
+
 		status := getHTTPStatusFromError(err)
 		rw.WriteHeader(status)
 		// err.Error() is a server-generated message returned as a plain API error body, not reflected HTML.
