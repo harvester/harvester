@@ -15,6 +15,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/harvester/harvester/pkg/api/backuptarget"
+	"github.com/harvester/harvester/pkg/api/forkliftproxy"
 	"github.com/harvester/harvester/pkg/api/kubeconfig"
 	"github.com/harvester/harvester/pkg/api/proxy"
 	"github.com/harvester/harvester/pkg/api/readyz"
@@ -58,6 +59,10 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	m.Path("/").HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		http.Redirect(rw, req, "/dashboard/", http.StatusFound)
 	})
+
+	// add a prefix based handler for forklift
+	forkliftProxyHandler := forkliftproxy.NewForkliftProxyHandler(r.restConfig)
+	m.Path("/v1/harvester/providers/vsphere/{providerId}/{object}").Methods("GET").Handler(forkliftProxyHandler)
 
 	// Those routes should be above /v1/harvester/{type}, otherwise, the response status code would be 404
 	kcGenerateHandler := harvesterServer.NewHandler(kubeconfig.NewGenerateHandler(r.scaled, r.options))
