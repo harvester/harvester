@@ -1,5 +1,5 @@
 /*
-Copyright 2025 Rancher Labs, Inc.
+Copyright 2026 SUSE, LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ func init() {
 
 type Interface interface {
 	CloudInit() CloudInitController
+	Hugepage() HugepageController
 	Ksmtuned() KsmtunedController
 	NodeConfig() NodeConfigController
 }
@@ -48,6 +49,10 @@ type version struct {
 
 func (v *version) CloudInit() CloudInitController {
 	return generic.NewNonNamespacedController[*v1beta1.CloudInit, *v1beta1.CloudInitList](schema.GroupVersionKind{Group: "node.harvesterhci.io", Version: "v1beta1", Kind: "CloudInit"}, "cloudinits", v.controllerFactory)
+}
+
+func (v *version) Hugepage() HugepageController {
+	return generic.NewNonNamespacedController[*v1beta1.Hugepage, *v1beta1.HugepageList](schema.GroupVersionKind{Group: "node.harvesterhci.io", Version: "v1beta1", Kind: "Hugepage"}, "hugepages", v.controllerFactory)
 }
 
 func (v *version) Ksmtuned() KsmtunedController {

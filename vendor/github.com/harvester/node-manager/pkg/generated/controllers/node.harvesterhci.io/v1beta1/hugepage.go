@@ -34,31 +34,31 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// KsmtunedController interface for managing Ksmtuned resources.
-type KsmtunedController interface {
-	generic.NonNamespacedControllerInterface[*v1beta1.Ksmtuned, *v1beta1.KsmtunedList]
+// HugepageController interface for managing Hugepage resources.
+type HugepageController interface {
+	generic.NonNamespacedControllerInterface[*v1beta1.Hugepage, *v1beta1.HugepageList]
 }
 
-// KsmtunedClient interface for managing Ksmtuned resources in Kubernetes.
-type KsmtunedClient interface {
-	generic.NonNamespacedClientInterface[*v1beta1.Ksmtuned, *v1beta1.KsmtunedList]
+// HugepageClient interface for managing Hugepage resources in Kubernetes.
+type HugepageClient interface {
+	generic.NonNamespacedClientInterface[*v1beta1.Hugepage, *v1beta1.HugepageList]
 }
 
-// KsmtunedCache interface for retrieving Ksmtuned resources in memory.
-type KsmtunedCache interface {
-	generic.NonNamespacedCacheInterface[*v1beta1.Ksmtuned]
+// HugepageCache interface for retrieving Hugepage resources in memory.
+type HugepageCache interface {
+	generic.NonNamespacedCacheInterface[*v1beta1.Hugepage]
 }
 
-// KsmtunedStatusHandler is executed for every added or modified Ksmtuned. Should return the new status to be updated
-type KsmtunedStatusHandler func(obj *v1beta1.Ksmtuned, status v1beta1.KsmtunedStatus) (v1beta1.KsmtunedStatus, error)
+// HugepageStatusHandler is executed for every added or modified Hugepage. Should return the new status to be updated
+type HugepageStatusHandler func(obj *v1beta1.Hugepage, status v1beta1.HugepageStatus) (v1beta1.HugepageStatus, error)
 
-// KsmtunedGeneratingHandler is the top-level handler that is executed for every Ksmtuned event. It extends KsmtunedStatusHandler by a returning a slice of child objects to be passed to apply.Apply
-type KsmtunedGeneratingHandler func(obj *v1beta1.Ksmtuned, status v1beta1.KsmtunedStatus) ([]runtime.Object, v1beta1.KsmtunedStatus, error)
+// HugepageGeneratingHandler is the top-level handler that is executed for every Hugepage event. It extends HugepageStatusHandler by a returning a slice of child objects to be passed to apply.Apply
+type HugepageGeneratingHandler func(obj *v1beta1.Hugepage, status v1beta1.HugepageStatus) ([]runtime.Object, v1beta1.HugepageStatus, error)
 
-// RegisterKsmtunedStatusHandler configures a KsmtunedController to execute a KsmtunedStatusHandler for every events observed.
+// RegisterHugepageStatusHandler configures a HugepageController to execute a HugepageStatusHandler for every events observed.
 // If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
-func RegisterKsmtunedStatusHandler(ctx context.Context, controller KsmtunedController, condition condition.Cond, name string, handler KsmtunedStatusHandler) {
-	statusHandler := &ksmtunedStatusHandler{
+func RegisterHugepageStatusHandler(ctx context.Context, controller HugepageController, condition condition.Cond, name string, handler HugepageStatusHandler) {
+	statusHandler := &hugepageStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
@@ -66,12 +66,12 @@ func RegisterKsmtunedStatusHandler(ctx context.Context, controller KsmtunedContr
 	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
-// RegisterKsmtunedGeneratingHandler configures a KsmtunedController to execute a KsmtunedGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// RegisterHugepageGeneratingHandler configures a HugepageController to execute a HugepageGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
 // If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
-func RegisterKsmtunedGeneratingHandler(ctx context.Context, controller KsmtunedController, apply apply.Apply,
-	condition condition.Cond, name string, handler KsmtunedGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
-	statusHandler := &ksmtunedGeneratingHandler{
-		KsmtunedGeneratingHandler: handler,
+func RegisterHugepageGeneratingHandler(ctx context.Context, controller HugepageController, apply apply.Apply,
+	condition condition.Cond, name string, handler HugepageGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &hugepageGeneratingHandler{
+		HugepageGeneratingHandler: handler,
 		apply:                     apply,
 		name:                      name,
 		gvk:                       controller.GroupVersionKind(),
@@ -80,17 +80,17 @@ func RegisterKsmtunedGeneratingHandler(ctx context.Context, controller KsmtunedC
 		statusHandler.opts = *opts
 	}
 	controller.OnChange(ctx, name, statusHandler.Remove)
-	RegisterKsmtunedStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+	RegisterHugepageStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
 }
 
-type ksmtunedStatusHandler struct {
-	client    KsmtunedClient
+type hugepageStatusHandler struct {
+	client    HugepageClient
 	condition condition.Cond
-	handler   KsmtunedStatusHandler
+	handler   HugepageStatusHandler
 }
 
 // sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
-func (a *ksmtunedStatusHandler) sync(key string, obj *v1beta1.Ksmtuned) (*v1beta1.Ksmtuned, error) {
+func (a *hugepageStatusHandler) sync(key string, obj *v1beta1.Hugepage) (*v1beta1.Hugepage, error) {
 	if obj == nil {
 		return obj, nil
 	}
@@ -129,8 +129,8 @@ func (a *ksmtunedStatusHandler) sync(key string, obj *v1beta1.Ksmtuned) (*v1beta
 	return obj, err
 }
 
-type ksmtunedGeneratingHandler struct {
-	KsmtunedGeneratingHandler
+type hugepageGeneratingHandler struct {
+	HugepageGeneratingHandler
 	apply apply.Apply
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
@@ -139,12 +139,12 @@ type ksmtunedGeneratingHandler struct {
 }
 
 // Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
-func (a *ksmtunedGeneratingHandler) Remove(key string, obj *v1beta1.Ksmtuned) (*v1beta1.Ksmtuned, error) {
+func (a *hugepageGeneratingHandler) Remove(key string, obj *v1beta1.Hugepage) (*v1beta1.Hugepage, error) {
 	if obj != nil {
 		return obj, nil
 	}
 
-	obj = &v1beta1.Ksmtuned{}
+	obj = &v1beta1.Hugepage{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
@@ -158,13 +158,13 @@ func (a *ksmtunedGeneratingHandler) Remove(key string, obj *v1beta1.Ksmtuned) (*
 		ApplyObjects()
 }
 
-// Handle executes the configured KsmtunedGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
-func (a *ksmtunedGeneratingHandler) Handle(obj *v1beta1.Ksmtuned, status v1beta1.KsmtunedStatus) (v1beta1.KsmtunedStatus, error) {
+// Handle executes the configured HugepageGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
+func (a *hugepageGeneratingHandler) Handle(obj *v1beta1.Hugepage, status v1beta1.HugepageStatus) (v1beta1.HugepageStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
 	}
 
-	objs, newStatus, err := a.KsmtunedGeneratingHandler(obj, status)
+	objs, newStatus, err := a.HugepageGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
 	}
@@ -185,7 +185,7 @@ func (a *ksmtunedGeneratingHandler) Handle(obj *v1beta1.Ksmtuned, status v1beta1
 
 // isNewResourceVersion detects if a specific resource version was already successfully processed.
 // Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *ksmtunedGeneratingHandler) isNewResourceVersion(obj *v1beta1.Ksmtuned) bool {
+func (a *hugepageGeneratingHandler) isNewResourceVersion(obj *v1beta1.Hugepage) bool {
 	if !a.opts.UniqueApplyForResourceVersion {
 		return true
 	}
@@ -198,7 +198,7 @@ func (a *ksmtunedGeneratingHandler) isNewResourceVersion(obj *v1beta1.Ksmtuned) 
 
 // storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
 // Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *ksmtunedGeneratingHandler) storeResourceVersion(obj *v1beta1.Ksmtuned) {
+func (a *hugepageGeneratingHandler) storeResourceVersion(obj *v1beta1.Hugepage) {
 	if !a.opts.UniqueApplyForResourceVersion {
 		return
 	}
