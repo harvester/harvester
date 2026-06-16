@@ -68,7 +68,8 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 		node.NewValidator(
 			clients.Core.Node().Cache(),
 			clients.Batch.Job().Cache(),
-			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache()),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache()),
 		persistentvolumeclaim.NewValidator(
 			clients.Core.PersistentVolumeClaim().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),

@@ -7,6 +7,7 @@ import (
 
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -14,7 +15,9 @@ import (
 
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
@@ -22,19 +25,21 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func NewValidator(nodeCache v1.NodeCache, jobCache ctlbatchv1.JobCache, vmiCache ctlkubevirtv1.VirtualMachineInstanceCache) types.Validator {
+func NewValidator(nodeCache v1.NodeCache, jobCache ctlbatchv1.JobCache, vmiCache ctlkubevirtv1.VirtualMachineInstanceCache, upgradeCache ctlharvesterv1.UpgradeCache) types.Validator {
 	return &nodeValidator{
-		nodeCache: nodeCache,
-		jobCache:  jobCache,
-		vmiCache:  vmiCache,
+		nodeCache:    nodeCache,
+		jobCache:     jobCache,
+		vmiCache:     vmiCache,
+		upgradeCache: upgradeCache,
 	}
 }
 
 type nodeValidator struct {
 	types.DefaultValidator
-	nodeCache v1.NodeCache
-	jobCache  ctlbatchv1.JobCache
-	vmiCache  ctlkubevirtv1.VirtualMachineInstanceCache
+	nodeCache    v1.NodeCache
+	jobCache     ctlbatchv1.JobCache
+	vmiCache     ctlkubevirtv1.VirtualMachineInstanceCache
+	upgradeCache ctlharvesterv1.UpgradeCache
 }
 
 func (v *nodeValidator) Resource() types.Resource {
@@ -45,9 +50,66 @@ func (v *nodeValidator) Resource() types.Resource {
 		APIVersion: corev1.SchemeGroupVersion.Version,
 		ObjectType: &corev1.Node{},
 		OperationTypes: []admissionregv1.OperationType{
+			admissionregv1.Create,
 			admissionregv1.Update,
 		},
 	}
+}
+
+func (v *nodeValidator) Create(req *types.Request, newObj runtime.Object) error {
+	if req.IsFromController() {
+		return nil
+	}
+
+	node := newObj.(*corev1.Node)
+
+	upgrades, err := v.upgradeCache.List(util.HarvesterSystemNamespaceName, labels.NewSelector())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to list upgrades: %v", err))
+	}
+
+	// Collect all in-progress upgrades first.
+	var inProgressUpgrades []*harvesterv1.Upgrade
+	var inProgressUpgradeNames []string
+	for _, upgrade := range upgrades {
+		if util.IsUpgradeInProgress(upgrade) {
+			inProgressUpgrades = append(inProgressUpgrades, upgrade)
+			inProgressUpgradeNames = append(inProgressUpgradeNames, util.GetNamespacedName(upgrade))
+		}
+	}
+
+	if len(inProgressUpgrades) == 0 {
+		return nil
+	}
+
+	// Log warning if multiple upgrades are running (should not happen in
+	// normal operation).
+	if len(inProgressUpgrades) > 1 {
+		logrus.Warnf("Multiple upgrades in progress: %s", strings.Join(inProgressUpgradeNames, ", "))
+	}
+
+	// Check if ALL in-progress upgrades have the override annotation set to
+	// true. This ensures that when multiple upgrades are running, all must
+	// explicitly allow node join.
+	for _, upgrade := range inProgressUpgrades {
+		value, ok := upgrade.Annotations[util.AnnotationAllowNodeJoin]
+		if !ok {
+			return nodeJoinBlockedByUpgrade(node, upgrade, false)
+		}
+		allow, err := strconv.ParseBool(value)
+		if err != nil {
+			return invalidAllowNodeJoinAnnotation(node, upgrade, value, err)
+		}
+		if !allow {
+			return nodeJoinBlockedByUpgrade(node, upgrade, true)
+		}
+	}
+
+	// All upgrades have the override annotation set to true -> allow with warning.
+	logrus.Warnf("Node %q join allowed during %d active upgrade(s) via override annotation: %s",
+		node.Name, len(inProgressUpgrades), strings.Join(inProgressUpgradeNames, ", "))
+
+	return nil
 }
 
 func (v *nodeValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
@@ -260,4 +322,45 @@ func getCPUManagerRunningJobNamesOnNodes(jobCache ctlbatchv1.JobCache, nodeNames
 		jobNames[i] = job.Name
 	}
 	return jobNames, nil
+}
+
+// invalidAllowNodeJoinAnnotation returns a validation error to indicate that
+// a node join is blocked because the upgrade in progress has an invalid value
+// for the "allow-node-join" annotation.
+func invalidAllowNodeJoinAnnotation(node *corev1.Node, upgrade *harvesterv1.Upgrade, value string, err error) error {
+	upgradeName := util.GetNamespacedName(upgrade)
+	logrus.Warnf("Node %q join blocked: annotation %s has invalid boolean value %q on upgrade %q: %v",
+		node.Name, util.AnnotationAllowNodeJoin, value, upgradeName, err)
+	return werror.NewConflict(fmt.Sprintf(
+		"cannot add node %q to the cluster because the upgrade %q is currently in progress "+
+			"and has an invalid value %q for annotation %s. "+
+			"If you must add this node now, run: %s",
+		node.Name, upgradeName, value, util.AnnotationAllowNodeJoin, getAllowNodeJoinAnnotationCommand(upgrade, false)))
+}
+
+// nodeJoinBlockedByUpgrade returns a validation error to indicate that a node
+// join is blocked because an upgrade is in progress.
+func nodeJoinBlockedByUpgrade(node *corev1.Node, upgrade *harvesterv1.Upgrade, overwrite bool) error {
+	upgradeName := util.GetNamespacedName(upgrade)
+	msg := fmt.Sprintf("Blocked node %q join while upgrade %q is in progress", node.Name, upgradeName)
+	if overwrite {
+		msg += fmt.Sprintf(" (annotation explicitly set to %q)", strconv.FormatBool(false))
+	}
+	logrus.Info(msg)
+	return werror.NewConflict(fmt.Sprintf(
+		"cannot add node %q to the cluster because the upgrade %q is currently in progress. "+
+			"Adding nodes during an upgrade can cause unexpected behavior and is not recommended. "+
+			"If you must add this node now, run: %s",
+		node.Name, upgradeName, getAllowNodeJoinAnnotationCommand(upgrade, overwrite)))
+}
+
+// getAllowNodeJoinAnnotationCommand returns the kubectl command to annotate an
+// upgrade resource to allow node joining.
+func getAllowNodeJoinAnnotationCommand(upgrade *harvesterv1.Upgrade, overwrite bool) string {
+	command := fmt.Sprintf("kubectl annotate upgrade -n %s %s %s=true",
+		upgrade.Namespace, upgrade.Name, util.AnnotationAllowNodeJoin)
+	if overwrite {
+		command += " --overwrite"
+	}
+	return command
 }

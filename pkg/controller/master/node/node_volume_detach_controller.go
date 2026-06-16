@@ -12,7 +12,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -117,7 +116,7 @@ func (c *nodeVolumeDetachController) isInUpgradePreDraining(node *corev1.Node) (
 		return false, err
 	}
 	for _, upgrade := range upgrades {
-		if !harvesterv1.UpgradeCompleted.IsTrue(upgrade) && !harvesterv1.UpgradeCompleted.IsFalse(upgrade) {
+		if util.IsUpgradeInProgress(upgrade) {
 			return true, nil
 		}
 	}
