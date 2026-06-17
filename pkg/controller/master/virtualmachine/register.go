@@ -21,8 +21,9 @@ const (
 	vmControllerCleanupTargetVolumeAnnotationControllerName      = "VMController.CleanupTargetVolumeAnnotation"
 	vmiControllerRemoveDeprecatedFinalizerControllerName         = "VMIController.RemoveDeprecatedFinalizer"
 	vmiControllerSetHaltIfOccurExceededQuotaControllerName       = "VMIController.StopVMIfExceededQuota"
+	vmControllerReconcileBSCloneControllerName                   = "VMController.ReconcileBackendStorageClone"
+	vmControllerCleanupPVCAndSnapshotFinalizerName               = "VMController.CleanupPVCAndSnapshot"
 
-	vmControllerCleanupPVCAndSnapshotFinalizerName = "VMController.CleanupPVCAndSnapshot"
 	// this finalizer is special one which was added by our controller, not wrangler.
 	// https://github.com/harvester/harvester/blob/78b0f20abb118b5d0fba564e18867b90a1d3c0ee/pkg/controller/master/virtualmachine/vm_controller.go#L97-L101
 	deprecatedHarvesterUnsetOwnerOfPVCsFinalizer = "harvesterhci.io/VMController.UnsetOwnerOfPVCs"
@@ -52,6 +53,8 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		snapshotClient   = management.SnapshotFactory.Snapshot().V1().VolumeSnapshot()
 		vmimCache        = management.VirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache()
 		snapshotCache    = snapshotClient.Cache()
+		jobClient        = management.BatchFactory.Batch().V1().Job()
+		jobCache         = jobClient.Cache()
 		scClient         = management.StorageFactory.Storage().V1().StorageClass()
 		scCache          = scClient.Cache()
 		settingCache     = management.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
@@ -59,8 +62,10 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	)
 
 	// registers the vm controller
-	var vmCtrl = &VMController{
+	vmCtrl := &VMController{
 		dataVolumeClient: dataVolumeClient,
+		jobClient:        jobClient,
+		jobCache:         jobCache,
 		podClient:        podClient,
 		pvcClient:        pvcClient,
 		pvcCache:         pvcCache,
@@ -76,27 +81,29 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		snapshotCache:    snapshotCache,
 		scClient:         scClient,
 		scCache:          scCache,
+		clientset:        management.ClientSet,
 		settingCache:     settingCache,
 		recorder:         recorder,
 
 		vmrCalculator: resourcequota.NewCalculator(nsCache, podCache, rqCache, vmimCache, settingCache),
 	}
-	var virtualMachineClient = management.VirtFactory.Kubevirt().V1().VirtualMachine()
-	virtualMachineClient.OnChange(ctx, vmControllerCreatePVCsFromAnnotationControllerName, vmCtrl.createPVCsFromAnnotation)
-	virtualMachineClient.OnChange(ctx, vmControllerStoreRunStrategyControllerName, vmCtrl.StoreRunStrategy)
-	virtualMachineClient.OnChange(ctx, vmControllerSyncLabelsToVmi, vmCtrl.SyncLabelsToVmi)
-	virtualMachineClient.OnChange(ctx, vmControllerSetHaltIfInsufficientResourceQuotaControllerName, vmCtrl.SetHaltIfInsufficientResourceQuota)
-	virtualMachineClient.OnChange(ctx, vmControllerRemoveDeprecatedFinalizerControllerName, vmCtrl.removeDeprecatedFinalizer)
-	virtualMachineClient.OnChange(ctx, vmControllerSetTargetVolumeStrategyControllerName, vmCtrl.SetTargetVolumeStrategy)
-	virtualMachineClient.OnChange(ctx, vmControllerCleanupTargetVolumeAnnotationControllerName, vmCtrl.CleanupTargetVolumeAnnotation)
-	virtualMachineClient.OnRemove(ctx, vmControllerCleanupPVCAndSnapshotFinalizerName, vmCtrl.cleanupPVCAndSnapshot)
+	vmClient.OnChange(ctx, vmControllerCreatePVCsFromAnnotationControllerName, vmCtrl.createPVCsFromAnnotation)
+	vmClient.OnChange(ctx, vmControllerStoreRunStrategyControllerName, vmCtrl.StoreRunStrategy)
+	vmClient.OnChange(ctx, vmControllerSyncLabelsToVmi, vmCtrl.SyncLabelsToVmi)
+	vmClient.OnChange(ctx, vmControllerSetHaltIfInsufficientResourceQuotaControllerName, vmCtrl.SetHaltIfInsufficientResourceQuota)
+	vmClient.OnChange(ctx, vmControllerRemoveDeprecatedFinalizerControllerName, vmCtrl.removeDeprecatedFinalizer)
+	vmClient.OnChange(ctx, vmControllerSetTargetVolumeStrategyControllerName, vmCtrl.SetTargetVolumeStrategy)
+	vmClient.OnChange(ctx, vmControllerCleanupTargetVolumeAnnotationControllerName, vmCtrl.CleanupTargetVolumeAnnotation)
+	vmClient.OnRemove(ctx, vmControllerCleanupPVCAndSnapshotFinalizerName, vmCtrl.cleanupPVCAndSnapshot)
+
+	vmClient.OnChange(ctx, vmControllerReconcileBSCloneControllerName, vmCtrl.ReconcileBackendStorageClone)
+	vmClient.OnRemove(ctx, vmControllerReconcileBSCloneControllerName, vmCtrl.CleanUpBackendStorageClone)
 
 	// registers the vmi controller
-	var virtualMachineCache = virtualMachineClient.Cache()
-	var virtualMachineInstanceClient = management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
-	var vmiCtrl = &VMIController{
+	virtualMachineInstanceClient := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
+	vmiCtrl := &VMIController{
 		vmClient:            vmClient,
-		virtualMachineCache: virtualMachineCache,
+		virtualMachineCache: vmCache,
 		vmiClient:           virtualMachineInstanceClient,
 		nodeCache:           nodeCache,
 		pvcClient:           pvcClient,
@@ -107,7 +114,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	virtualMachineInstanceClient.OnChange(ctx, vmiControllerRemoveDeprecatedFinalizerControllerName, vmiCtrl.removeDeprecatedFinalizer)
 
 	// register the vm network controller upon the VMI changes
-	var vmNetworkCtl = &VMNetworkController{
+	vmNetworkCtl := &VMNetworkController{
 		vmClient:  vmClient,
 		vmCache:   vmCache,
 		vmiClient: virtualMachineInstanceClient,
@@ -115,7 +122,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	virtualMachineInstanceClient.OnChange(ctx, vmControllerSetDefaultManagementNetworkMac, vmNetworkCtl.SetDefaultNetworkMacAddress)
 	virtualMachineInstanceClient.OnRemove(ctx, vmControllerBackfillObservedNetworkMac, vmNetworkCtl.BackfillObservedNetworkMacAddress)
 
-	var vmiDeschedulerCtrl = &VMIDeschedulerController{
+	vmiDeschedulerCtrl := &VMIDeschedulerController{
 		vmClient: vmClient,
 		vmCache:  vmCache,
 	}

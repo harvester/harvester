@@ -90,6 +90,25 @@ const (
 	NodePause                     = "pause"
 	NodeUnpause                   = "unpause"
 
+	// Annotation for backend storage clone.
+	AnnotationBSCloneStatus       = prefix + "/clone-backend-storage-status"
+	AnnotationBSCloneSourceVM     = prefix + "/clone-backend-storage-source-vm"
+	AnnotationBSCloneRunStrategy  = prefix + "/clone-backend-storage-run-strategy"
+	AnnotationBSCloneActions      = prefix + "/clone-backend-storage-actions"
+	AnnotationBSCloneRetries      = prefix + "/clone-backend-storage-retries"
+	AnnotationBSCloneStartTime    = prefix + "/clone-backend-storage-start-time"
+	AnnotationBSCloneStage        = prefix + "/clone-backend-storage-stage"
+	LabelGeneratedBy              = prefix + "/generated-by"
+	ValueGeneratedByHarvester     = "harvester"
+	BackendStorageJobPrefix       = "backend-storage"
+	CloneInProgress               = "cloning"
+	CloneComplete                 = "cloned"
+	CloneFailed                   = "failed"
+	CloneStagePreCompleted        = "pre-completed"
+	CloneActionRenameEFI          = "rename-efi"
+	CloneActionDeleteEFI          = "delete-efi"
+	CloneActionDeleteTPMRenameEFI = "delete-tpm-and-rename-efi"
+
 	HarvesterManagedNodeLabelKey = prefix + "/managed"
 
 	HarvesterPromoteNodeLabelKey        = prefix + "/promote-node"
