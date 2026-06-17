@@ -35,6 +35,14 @@ const (
 
 	// SecretTypeBundleValues is the secret type used to store the helm values
 	SecretTypeBundleValues = "fleet.cattle.io/bundle-values/v1alpha1"
+
+	// SecretTypeOCIStorage is the secret type used internally to store bundle resources in an OCI registry instead
+	// of etcd.
+	SecretTypeOCIStorage = "fleet.cattle.io/bundle-oci-storage/v1alpha1"
+
+	// InternalSecretLabel is a label added to any secret created by Fleet to propagate Bundle or
+	// BundleDeployment secrets storing credential details for OCI storage or HelmOps.
+	InternalSecretLabel = "fleet.cattle.io/bundle-internal-secret"
 )
 
 var (
@@ -119,11 +127,11 @@ type BundleSpec struct {
 	// +nullable
 	ContentsID string `json:"contentsId,omitempty"`
 
-	// HelmAppOptions stores the options relative to HelmApp resources
-	// Non-nil HelmAppOptions indicate that the source of resources is a Helm chart,
+	// HelmOpOptions stores the options relative to HelmOp resources
+	// Non-nil HelmOpOptions indicate that the source of resources is a Helm chart,
 	// not a git repository.
 	// +nullable
-	HelmAppOptions *BundleHelmOptions `json:"helmAppOptions,omitempty"`
+	HelmOpOptions *BundleHelmOptions `json:"helmOpOptions,omitempty"`
 
 	// ValuesHash is the hash of the values used to render the Helm chart.
 	// It changes when any values from fleet.yaml, values from ValuesFiles or values from target
@@ -138,6 +146,13 @@ type BundleRef struct {
 	// Selector matching bundle's labels.
 	// +nullable
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+	// AcceptedStates is a list of BundleDeployment state that are considered acceptable for this dependency.
+	// If the dependency is in one of these states, it will not block the deployment of the dependent bundle.
+	// Valid Values should match the StateRank keys.
+	// If not specified, default to ["Ready"]: only fully ready dependencies are accepted
+	// Example: ["Ready", "Modified"] will accept dependencies that are either ready or have drifted from their desired state.
+	// +nullable
+	AcceptedStates []BundleState `json:"acceptedStates,omitempty"`
 }
 
 // BundleResource represents the content of a single resource from the bundle, like a YAML manifest.
@@ -153,7 +168,13 @@ type BundleResource struct {
 	Encoding string `json:"encoding,omitempty"`
 }
 
-// RolloverStrategy controls the rollout of the bundle across clusters.
+type OverwrittenResource struct {
+	Name      string `json:"name,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	Kind      string `json:"kind,omitempty"`
+}
+
+// RolloutStrategy controls the rollout of the bundle across clusters.
 type RolloutStrategy struct {
 	// A number or percentage of clusters that can be unavailable during an update
 	// of a bundle. This follows the same basic approach as a deployment rollout
@@ -172,6 +193,13 @@ type RolloutStrategy struct {
 	// default: 25%
 	// +nullable
 	AutoPartitionSize *intstr.IntOrString `json:"autoPartitionSize,omitempty"`
+	// AutoPartitionThreshold is the minimum number of clusters that need to be
+	// present before auto-partitioning is enabled. If the number of target
+	// clusters is less than this value, all clusters will be placed in a single
+	// partition.
+	// default: 200
+	// +nullable
+	AutoPartitionThreshold *int `json:"autoPartitionThreshold,omitempty"`
 	// A list of definitions of partitions.  If any target clusters do not match
 	// the configuration they are added to partitions at the end following the
 	// autoPartitionSize.
@@ -365,7 +393,7 @@ type BundleStatus struct {
 	Display BundleDisplay `json:"display,omitempty"`
 	// ResourceKey lists resources, which will likely be deployed. The
 	// actual list of resources on a cluster might differ, depending on the
-	// helm chart, value templating, etc..
+	// helm chart, value templating, etc.. (deprecated to reduce bundle size)
 	// +nullable
 	ResourceKey []ResourceKey `json:"resourceKey,omitempty"`
 	// OCIReference is the OCI reference used to store contents, this is
@@ -424,9 +452,9 @@ type PartitionStatus struct {
 
 type BundleHelmOptions struct {
 	// SecretName stores the secret name for storing credentials when accessing
-	// a remote helm repository defined in a HelmApp resource
-	SecretName string `json:"helmAppSecretName,omitempty"`
+	// a remote helm repository defined in a HelmOp resource
+	SecretName string `json:"helmOpSecretName,omitempty"`
 
 	// InsecureSkipTLSverify will use insecure HTTPS to clone the helm app resource.
-	InsecureSkipTLSverify bool `json:"helmAppInsecureSkipTLSVerify,omitempty"`
+	InsecureSkipTLSverify bool `json:"helmOpInsecureSkipTLSVerify,omitempty"`
 }

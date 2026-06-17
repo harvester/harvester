@@ -42,7 +42,7 @@ var (
 	}
 	rls                     = map[string]flowcontrol.RateLimiter{}
 	rlsLock                 sync.Mutex
-	indexerAlreadyExistsErr = errors.New("an indexer with the same already exists")
+	errIndexerAlreadyExists = errors.New("an indexer with the same already exists")
 )
 
 func (o *desiredSet) getRateLimit(labelHash string) flowcontrol.RateLimiter {
@@ -55,7 +55,7 @@ func (o *desiredSet) getRateLimit(labelHash string) flowcontrol.RateLimiter {
 	} else {
 		rl = rls[labelHash]
 		if rl == nil {
-			rl = flowcontrol.NewTokenBucketRateLimiter(o.ratelimitingQps, 10)
+			rl = flowcontrol.NewTokenBucketRateLimiter(o.ratelimitingQPS, 10)
 			rls[labelHash] = rl
 		}
 	}

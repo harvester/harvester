@@ -8,14 +8,13 @@ func init() {
 	InternalSchemeBuilder.Register(&GitRepo{}, &GitRepoList{})
 }
 
-var (
+const (
 	CommitLabel          = "fleet.cattle.io/commit"
 	RepoLabel            = "fleet.cattle.io/repo-name"
 	BundleLabel          = "fleet.cattle.io/bundle-name"
 	BundleNamespaceLabel = "fleet.cattle.io/bundle-namespace"
-)
+	CreatedByUserIDLabel = "fleet.cattle.io/created-by-user-id"
 
-const (
 	GitRepoAcceptedCondition = "Accepted"
 )
 
@@ -51,7 +50,8 @@ type GitRepoList struct {
 
 type GitRepoSpec struct {
 	// Repo is a URL to a git repo to clone and index.
-	// +nullable
+	// +required
+	// +kubebuilder:validation:MinLength=1
 	Repo string `json:"repo,omitempty"`
 
 	// Branch The git branch to follow.
@@ -81,8 +81,8 @@ type GitRepoSpec struct {
 	// +nullable
 	HelmSecretNameForPaths string `json:"helmSecretNameForPaths,omitempty"`
 
-	// HelmRepoURLRegex Helm credentials will be used if the helm repo matches this regex
-	// Credentials will always be used if this is empty or not provided.
+	// HelmRepoURLRegex Helm credentials will be used if the helm repo matches this regex.
+	// Credentials will not be used if this is empty or not provided.
 	// +nullable
 	HelmRepoURLRegex string `json:"helmRepoURLRegex,omitempty"`
 
@@ -135,8 +135,23 @@ type GitRepoSpec struct {
 	// Disables git polling. When enabled only webhooks will be used.
 	DisablePolling bool `json:"disablePolling,omitempty"`
 
-	// OCIRegistry specifies the OCI registry related parameters
-	OCIRegistry *OCIRegistrySpec `json:"ociRegistry,omitempty"`
+	// OCIRegistrySecret contains the name of the secret to be used for retrieving the OCI registry connection details.
+	OCIRegistrySecret string `json:"ociRegistrySecret,omitempty"`
+
+	// WebhookSecret contains the name of the secret to use for webhook parsing
+	WebhookSecret string `json:"webhookSecret,omitempty"`
+
+	// Bundles defines the paths of bundles to be read.
+	// This drives the fleet resource scanner that simply loads the specified folders
+	Bundles []BundlePath `json:"bundles,omitempty"`
+}
+
+type BundlePath struct {
+	// Base is the base path for the bundle resources
+	Base string `json:"base,omitempty"`
+	// Options is the path (relative to path above) that defines a fleet.yaml file to configure the bundle
+	// +nullable
+	Options string `json:"options,omitempty"`
 }
 
 // GitTarget is a cluster or cluster group to deploy to.
@@ -172,6 +187,9 @@ type GitRepoStatus struct {
 	// WebhookCommit is the latest Git commit hash received from a webhook
 	// +optional
 	WebhookCommit string `json:"webhookCommit,omitempty"`
+	// PollingCommit is the latest Git commit hash received from polling
+	// +optional
+	PollingCommit string `json:"pollingCommit,omitempty"`
 	// GitJobStatus is the status of the last Git job run, e.g. "Current" if there was no error.
 	GitJobStatus string `json:"gitJobStatus,omitempty"`
 	// LastSyncedImageScanTime is the time of the last image scan.
@@ -214,23 +232,4 @@ type CorrectDrift struct {
 	Force bool `json:"force,omitempty"`
 	// KeepFailHistory keeps track of failed rollbacks in the helm history.
 	KeepFailHistory bool `json:"keepFailHistory,omitempty"`
-}
-
-type OCIRegistrySpec struct {
-	// Reference of the OCI Registry
-	Reference string `json:"reference,omitempty"`
-
-	// AuthSecretName contains the auth secret where the OCI registry credentials are stored.
-	// +nullable
-	AuthSecretName string `json:"authSecretName,omitempty"`
-
-	// BasicHTTP uses HTTP connections to the OCI registry when enabled.
-	// +optional
-	// +nullable
-	BasicHTTP bool `json:"basicHTTP,omitempty"`
-
-	// InsecureSkipTLS allows connections to OCI registry without certs when enabled.
-	// +optional
-	// +nullable
-	InsecureSkipTLS bool `json:"insecureSkipTLS,omitempty"`
 }

@@ -30,7 +30,15 @@ type Content struct {
 	Content []byte `json:"content,omitempty"`
 
 	// SHA256Sum of the Content field
-	SHA256Sum string `json:"sha256sum,omitempty"`
+	SHA256Sum string        `json:"sha256sum,omitempty"` // SHA256Sum of the Content field
+	Status    ContentStatus `json:"status,omitempty"`    // +optional
+}
+
+// ContentStatus defines the observed state of Content
+type ContentStatus struct {
+	// ReferenceCount is the number of BundleDeployments that currently reference this Content resource.
+	// +optional
+	ReferenceCount int `json:"referenceCount,omitempty"`
 }
 
 // +kubebuilder:object:root=true

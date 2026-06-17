@@ -41,9 +41,17 @@ type GitRepoRestriction struct {
 
 	// AllowedTargetNamespaces restricts TargetNamespace to the given
 	// namespaces. If AllowedTargetNamespaces is set, TargetNamespace must
-	// be set.
+	// be set. A target namespace is allowed if it is listed here or if it
+	// matches AllowedTargetNamespaceSelector (OR semantics).
 	// +nullable
 	AllowedTargetNamespaces []string `json:"allowedTargetNamespaces,omitempty"`
+
+	// AllowedTargetNamespaceSelector is a label selector to match labels defined on the downstream
+	// cluster's namespaces. When labels defined on the namespace resources match the selector labels,
+	// the namespace on the downstream cluster will be a target namespace that bundles can be deployed to.
+	// A namespace is allowed if it either matches this selector or is listed in AllowedTargetNamespaces (OR semantics).
+	// +nullable
+	AllowedTargetNamespaceSelector *metav1.LabelSelector `json:"allowedTargetNamespaceSelector,omitempty"`
 }
 
 // +kubebuilder:object:root=true

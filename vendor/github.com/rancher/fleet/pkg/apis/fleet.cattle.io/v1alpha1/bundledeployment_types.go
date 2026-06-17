@@ -25,6 +25,9 @@ const (
 
 	// SecretTypeBundleDeploymentOptions is the type of the secret that stores the deployment values options.
 	SecretTypeBundleDeploymentOptions = "fleet.cattle.io/bundle-deployment/v1alpha1"
+
+	BundleDeploymentOwnershipLabel = "fleet.cattle.io/bundledeployment"
+	ContentNameLabel               = "fleet.cattle.io/content-name"
 )
 
 const IgnoreOp = "ignore"
@@ -61,6 +64,8 @@ type BundleDeploymentList struct {
 }
 
 type BundleDeploymentOptions struct {
+	GitOpsBundleDeploymentOptions `json:",inline"`
+
 	// DefaultNamespace is the namespace to use for resources that do not
 	// specify a namespace. This field is not used to enforce or lock down
 	// the deployment to a specific namespace.
@@ -73,11 +78,6 @@ type BundleDeploymentOptions struct {
 	// +nullable
 	TargetNamespace string `json:"namespace,omitempty"`
 
-	// Kustomize options for the deployment, like the dir containing the
-	// kustomization.yaml file.
-	// +nullable
-	Kustomize *KustomizeOptions `json:"kustomize,omitempty"`
-
 	// Helm options for the deployment, like the chart name, repo and values.
 	// +optional
 	Helm *HelmOptions `json:"helm,omitempty"`
@@ -88,11 +88,6 @@ type BundleDeploymentOptions struct {
 
 	// ForceSyncGeneration is used to force a redeployment
 	ForceSyncGeneration int64 `json:"forceSyncGeneration,omitempty"`
-
-	// YAML options, if using raw YAML these are names that map to
-	// overlays/{name} files that will be used to replace or patch a resource.
-	// +nullable
-	YAML *YAMLOptions `json:"yaml,omitempty"`
 
 	// Diff can be used to ignore the modified state of objects which are amended at runtime.
 	// +nullable
@@ -105,8 +100,8 @@ type BundleDeploymentOptions struct {
 	DeleteNamespace bool `json:"deleteNamespace,omitempty"`
 
 	//IgnoreOptions can be used to ignore fields when monitoring the bundle.
-	// +optional
-	IgnoreOptions `json:"ignore,omitempty"`
+	// +nullable
+	IgnoreOptions *IgnoreOptions `json:"ignore,omitempty"`
 
 	// CorrectDrift specifies how drift correction should work.
 	CorrectDrift *CorrectDrift `json:"correctDrift,omitempty"`
@@ -121,6 +116,32 @@ type BundleDeploymentOptions struct {
 
 	// DeleteCRDResources deletes CRDs. Warning! this will also delete all your Custom Resources.
 	DeleteCRDResources bool `json:"deleteCRDResources,omitempty"`
+
+	// DownstreamResources points to resources to be copied into downstream clusters, from the bundle's
+	// namespace.
+	DownstreamResources []DownstreamResource `json:"downstreamResources,omitempty"`
+
+	// Overwrites indicates which resources, if any, come from this bundle and overwrite another existing bundle.
+	// This flag is set internally by Fleet, and should not be altered by users.
+	Overwrites []OverwrittenResource `json:"overwrites,omitempty"`
+
+	// AllowedTargetNamespaceSelector restricts deployments to namespaces matching this selector.
+	// Propagated from GitRepoRestriction and validated by the agent on the downstream cluster.
+	// +nullable
+	AllowedTargetNamespaceSelector *metav1.LabelSelector `json:"allowedTargetNamespaceSelector,omitempty"`
+}
+
+// GitOpsBundleDeploymentOptions contains options which only make sense for GitOps
+type GitOpsBundleDeploymentOptions struct {
+	// YAML options, if using raw YAML these are names that map to
+	// overlays/{name} files that will be used to replace or patch a resource.
+	// +nullable
+	YAML *YAMLOptions `json:"yaml,omitempty"`
+
+	// Kustomize options for the deployment, like the dir containing the
+	// kustomization.yaml file.
+	// +nullable
+	Kustomize *KustomizeOptions `json:"kustomize,omitempty"`
 }
 
 type DiffOptions struct {
@@ -131,24 +152,24 @@ type DiffOptions struct {
 
 // ComparePatch matches a resource and removes fields from the check for modifications.
 type ComparePatch struct {
-	// Kind is the kind of the resource to match.
-	// +nullable
-	Kind string `json:"kind,omitempty"`
 	// APIVersion is the apiVersion of the resource to match.
 	// +nullable
 	APIVersion string `json:"apiVersion,omitempty"`
-	// Namespace is the namespace of the resource to match.
+	// Kind is the kind of the resource to match.
 	// +nullable
-	Namespace string `json:"namespace,omitempty"`
+	Kind string `json:"kind,omitempty"`
 	// Name is the name of the resource to match.
 	// +nullable
 	Name string `json:"name,omitempty"`
-	// Operations remove a JSON path from the resource.
+	// Namespace is the namespace of the resource to match.
 	// +nullable
-	Operations []Operation `json:"operations,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
 	// JSONPointers ignore diffs at a certain JSON path.
 	// +nullable
 	JsonPointers []string `json:"jsonPointers,omitempty"`
+	// Operations remove a JSON path from the resource.
+	// +nullable
+	Operations []Operation `json:"operations,omitempty"`
 }
 
 // Operation of a ComparePatch, usually:
@@ -190,6 +211,8 @@ type KustomizeOptions struct {
 // used, otherwise some options are ignored. For example ReleaseName works with
 // all bundle types.
 type HelmOptions struct {
+	GitOpsHelmOptions `json:",inline"`
+
 	// Chart can refer to any go-getter URL or OCI registry based helm
 	// chart URL. The chart will be downloaded.
 	// +nullable
@@ -241,10 +264,6 @@ type HelmOptions struct {
 	// MaxHistory limits the maximum number of revisions saved per release by Helm.
 	MaxHistory int `json:"maxHistory,omitempty"`
 
-	// ValuesFiles is a list of files to load values from.
-	// +nullable
-	ValuesFiles []string `json:"valuesFiles,omitempty"`
-
 	// WaitForJobs if set and timeoutSeconds provided, will wait until all
 	// Jobs have been completed before marking the GitRepo as ready. It
 	// will wait for as long as timeoutSeconds
@@ -264,6 +283,13 @@ type HelmOptions struct {
 
 	// DisableDependencyUpdate allows skipping chart dependencies update
 	DisableDependencyUpdate bool `json:"disableDependencyUpdate,omitempty"`
+}
+
+// GitOpsHelmOptions contains Helm options which only make sense for GitOps.
+type GitOpsHelmOptions struct {
+	// ValuesFiles is a list of files to load values from.
+	// +nullable
+	ValuesFiles []string `json:"valuesFiles,omitempty"`
 }
 
 // IgnoreOptions defines conditions to be ignored when monitoring the Bundle.
@@ -341,6 +367,21 @@ type BundleDeploymentSpec struct {
 	// ValuesHash is the hash of the values used to deploy the bundle.
 	// +nullable
 	ValuesHash string `json:"valuesHash,omitempty"`
+	// DownstreamResourcesGeneration is used to track changes to DownstreamResources.
+	// It is incremented every time DownstreamResources are modified.
+	DownstreamResourcesGeneration int64 `json:"downstreamResourcesGeneration,omitempty"`
+	// OffSchedule specifies if the BundleDeployment can be updated.
+	// If set to true, will stop any BundleDeployments from being
+	// updated.
+	// If true, BundleDeployments will be marked as out of sync
+	// when changes are detected.
+	OffSchedule bool `json:"offSchedule,omitempty"`
+	// WaitingForValues is set to true by the bundle controller when the
+	// options secret for this BundleDeployment could not be found (e.g.
+	// due to transient API server pressure). While true, the agent skips
+	// reconciliation to avoid deploying with missing Helm values. The
+	// controller clears this flag once the secret is successfully loaded.
+	WaitingForValues bool `json:"waitingForValues,omitempty"`
 }
 
 // BundleDeploymentResource contains the metadata of a deployed resource.
@@ -355,6 +396,13 @@ type BundleDeploymentResource struct {
 	Name string `json:"name,omitempty"`
 	// +nullable
 	CreatedAt metav1.Time `json:"createdAt,omitempty"`
+}
+
+// DownstreamResource contains identifiers for a resource to be copied from the parent bundle's namespace to each
+// downstream cluster.
+type DownstreamResource struct {
+	Kind string `json:"kind,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 type BundleDeploymentStatus struct {
@@ -383,6 +431,10 @@ type BundleDeploymentStatus struct {
 	Resources []BundleDeploymentResource `json:"resources,omitempty"`
 	// ResourceCounts contains the number of resources in each state.
 	ResourceCounts ResourceCounts `json:"resourceCounts,omitempty"`
+	// DownstreamResourcesGeneration is used to track changes to DownstreamResources.
+	// It is incremented every time DownstreamResources are modified and reflects the value in the spec
+	// after it has been processed.
+	DownstreamResourcesGeneration int64 `json:"downstreamResourcesGeneration,omitempty"`
 }
 
 type BundleDeploymentDisplay struct {

@@ -42,6 +42,9 @@ var (
 	// ClusterLabel is used on a bundledeployment to refer to the targeted
 	// cluster
 	ClusterLabel = "fleet.cattle.io/cluster"
+
+	// ClusterManagementLabel can be used to specify a custom cluster manager
+	ClusterManagementLabel = "fleet.cattle.io/cluster-management"
 )
 
 // +genclient
@@ -71,6 +74,21 @@ type ClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Cluster `json:"items"`
+}
+
+type AgentSchedulingCustomization struct {
+	PriorityClass       *PriorityClassSpec       `json:"priorityClass,omitempty"`
+	PodDisruptionBudget *PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
+}
+
+type PriorityClassSpec struct {
+	Value            int                      `json:"value,omitempty"`
+	PreemptionPolicy *corev1.PreemptionPolicy `json:"preemptionPolicy,omitempty"`
+}
+
+type PodDisruptionBudgetSpec struct {
+	MinAvailable   string `json:"minAvailable,omitempty"`
+	MaxUnavailable string `json:"maxUnavailable,omitempty"`
 }
 
 type ClusterSpec struct {
@@ -131,6 +149,10 @@ type ClusterSpec struct {
 	// HostNetwork sets the agent Deployment to use hostNetwork: true setting.
 	// Allows for provisioning of network related bundles (CNI configuration).
 	HostNetwork *bool `json:"hostNetwork,omitempty"`
+
+	// +nullable
+	// +optional
+	AgentSchedulingCustomization *AgentSchedulingCustomization `json:"agentSchedulingCustomization,omitempty"`
 }
 
 type ClusterStatus struct {
@@ -145,13 +167,24 @@ type ClusterStatus struct {
 	Summary BundleSummary `json:"summary,omitempty"`
 	// ResourceCounts is an aggregate over the ResourceCounts.
 	ResourceCounts ResourceCounts `json:"resourceCounts,omitempty"`
+
 	// ReadyGitRepos is the number of gitrepos for this cluster that are ready.
 	// +optional
 	ReadyGitRepos int `json:"readyGitRepos"`
+
 	// DesiredReadyGitRepos is the number of gitrepos for this cluster that
 	// are desired to be ready.
 	// +optional
 	DesiredReadyGitRepos int `json:"desiredReadyGitRepos"`
+
+	// ReadyHelmOps is the number of helmop resources for this cluster that are ready.
+	// +optional
+	ReadyHelmOps int `json:"readyHelmOps"`
+
+	// DesiredReadyHelmOps is the number of helmop resources for this cluster that
+	// are desired to be ready.
+	// +optional
+	DesiredReadyHelmOps int `json:"desiredReadyHelmOps"`
 
 	// AgentEnvVarsHash is a hash of the agent's env vars, used to detect changes.
 	// +nullable
@@ -216,6 +249,18 @@ type ClusterStatus struct {
 
 	// GarbageCollectionInterval determines how often agents clean up obsolete Helm releases.
 	GarbageCollectionInterval *metav1.Duration `json:"garbageCollectionInterval,omitempty"`
+
+	AgentSchedulingCustomizationHash string `json:"agentSchedulingCustomizationHash,omitempty"`
+
+	// Scheduled specifies if the cluster has been added to any Schedule.
+	// When set to true ActiveSchedule is taken into account to check if the deployment
+	// can be deployed.
+	Scheduled bool `json:"scheduled,omitempty"`
+
+	// ActiveSchedule specifies if the cluster is in schedule, which means BundleDeployments can
+	// be updated and deployed. If ActiveSchedule is set to false and Scheduled is set to true
+	// BundleDeployments are not updated nor deployed.
+	ActiveSchedule bool `json:"activeSchedule,omitempty"`
 }
 
 type ClusterDisplay struct {

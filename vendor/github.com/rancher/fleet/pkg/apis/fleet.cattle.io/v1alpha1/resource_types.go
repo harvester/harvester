@@ -1,10 +1,5 @@
 package v1alpha1
 
-import (
-	"bytes"
-	"encoding/json"
-)
-
 // Resource contains metadata about the resources of a bundle.
 type Resource struct {
 	// APIVersion is the API version of the resource.
@@ -60,24 +55,6 @@ type PerClusterState struct {
 	Unknown []string `json:"unknown,omitempty"`
 	// NotReady is a list of cluster IDs for which this a resource is in NotReady state
 	NotReady []string `json:"notReady,omitempty"`
-}
-
-type perClusterStateAlias PerClusterState
-
-// UnmarshalJSON implements the json.Unmarshaler interface, to which the yaml decoders delegate to
-// PerClusterState used to be a slice instead of a struct, which breaks backwards compatibility with existing data during upgrade
-// Simply ignoring non-object inputs solves the problem, since the following reconciliations will update the resources to the correct payload
-// To be removed for Fleet >= 0.13
-func (in *PerClusterState) UnmarshalJSON(data []byte) error {
-	if !bytes.HasPrefix(data, []byte("{")) {
-		return nil
-	}
-	var aux perClusterStateAlias
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-	*in = PerClusterState(aux)
-	return nil
 }
 
 // ResourceCounts contains the number of resources in each state.
