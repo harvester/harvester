@@ -47,8 +47,8 @@ type JobClient func(string) batchv1type.JobInterface
 func (c JobClient) Update(job *batchv1.Job) (*batchv1.Job, error) {
 	return c(job.Namespace).Update(context.TODO(), job, metav1.UpdateOptions{})
 }
-func (c JobClient) Get(_, _ string, _ metav1.GetOptions) (*batchv1.Job, error) {
-	panic("implement me")
+func (c JobClient) Get(namespace, name string, options metav1.GetOptions) (*batchv1.Job, error) {
+	return c(namespace).Get(context.TODO(), name, options)
 }
 func (c JobClient) Create(job *batchv1.Job) (*batchv1.Job, error) {
 	return c(job.Namespace).Create(context.TODO(), job, metav1.CreateOptions{})
