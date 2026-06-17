@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rancher/dynamiclistener/cert"
 	"github.com/sirupsen/logrus"
 )
 
@@ -24,13 +25,13 @@ const (
 )
 
 func NewSelfSignedCACert(key crypto.Signer, cn string, org ...string) (*x509.Certificate, error) {
-	now := time.Now()
+	notBefore := cert.CalculateNotBefore(nil)
 	tmpl := x509.Certificate{
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		NotAfter:              now.Add(time.Hour * 24 * 365 * 10).UTC(),
-		NotBefore:             now.UTC(),
+		NotBefore:             notBefore,
+		NotAfter:              notBefore.Add(time.Hour * 24 * 365 * 10),
 		SerialNumber:          new(big.Int).SetInt64(0),
 		Subject: pkix.Name{
 			CommonName:   cn,
@@ -55,11 +56,12 @@ func NewSignedClientCert(signer crypto.Signer, caCert *x509.Certificate, caKey c
 		return nil, err
 	}
 
+	notBefore := cert.CalculateNotBefore(caCert)
 	parent := x509.Certificate{
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		NotAfter:     time.Now().Add(time.Hour * 24 * 365).UTC(),
-		NotBefore:    caCert.NotBefore,
+		NotBefore:    notBefore,
+		NotAfter:     notBefore.Add(time.Hour * 24 * 365),
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			CommonName: cn,
@@ -98,13 +100,14 @@ func NewSignedCert(signer crypto.Signer, caCert *x509.Certificate, caKey crypto.
 		}
 	}
 
+	notBefore := cert.CalculateNotBefore(caCert)
 	parent := x509.Certificate{
 		DNSNames:     domains,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		IPAddresses:  ips,
 		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		NotAfter:     time.Now().Add(time.Hour * 24 * time.Duration(expirationDays)).UTC(),
-		NotBefore:    caCert.NotBefore,
+		NotBefore:    notBefore,
+		NotAfter:     notBefore.Add(time.Hour * 24 * time.Duration(expirationDays)),
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			CommonName:   cn,

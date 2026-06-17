@@ -34,11 +34,13 @@ type Interface interface {
 	ConfigMap() ConfigMapController
 	Endpoints() EndpointsController
 	Event() EventController
+	LimitRange() LimitRangeController
 	Namespace() NamespaceController
 	Node() NodeController
 	PersistentVolume() PersistentVolumeController
 	PersistentVolumeClaim() PersistentVolumeClaimController
 	Pod() PodController
+	ResourceQuota() ResourceQuotaController
 	Secret() SecretController
 	Service() ServiceController
 	ServiceAccount() ServiceAccountController
@@ -66,6 +68,10 @@ func (v *version) Event() EventController {
 	return generic.NewController[*v1.Event, *v1.EventList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Event"}, "events", true, v.controllerFactory)
 }
 
+func (v *version) LimitRange() LimitRangeController {
+	return generic.NewController[*v1.LimitRange, *v1.LimitRangeList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "LimitRange"}, "limitranges", true, v.controllerFactory)
+}
+
 func (v *version) Namespace() NamespaceController {
 	return generic.NewNonNamespacedController[*v1.Namespace, *v1.NamespaceList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Namespace"}, "namespaces", v.controllerFactory)
 }
@@ -84,6 +90,10 @@ func (v *version) PersistentVolumeClaim() PersistentVolumeClaimController {
 
 func (v *version) Pod() PodController {
 	return generic.NewController[*v1.Pod, *v1.PodList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}, "pods", true, v.controllerFactory)
+}
+
+func (v *version) ResourceQuota() ResourceQuotaController {
+	return generic.NewController[*v1.ResourceQuota, *v1.ResourceQuotaList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ResourceQuota"}, "resourcequotas", true, v.controllerFactory)
 }
 
 func (v *version) Secret() SecretController {

@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"strings"
+	"sync"
 
 	jsonpatch "github.com/evanphx/json-patch"
-	"github.com/pkg/errors"
 	data2 "github.com/rancher/wrangler/v3/pkg/data"
 	"github.com/rancher/wrangler/v3/pkg/data/convert"
 	"github.com/rancher/wrangler/v3/pkg/objectset"
@@ -42,6 +44,21 @@ var (
 		"port":          true,
 		"topologyKey":   true,
 		"type":          true,
+	}
+
+	// Pools used by gzip writers
+
+	buffersPool = sync.Pool{
+		New: func() interface{} {
+			return new(bytes.Buffer)
+		},
+	}
+	gzipWritersPool = sync.Pool{
+		New: func() interface{} {
+			// Initialize a new writer with discarding destination
+			// It should be reconfigured prior usage with an actual buffer using Reset()
+			return gzip.NewWriter(io.Discard)
+		},
 	}
 )
 
@@ -191,7 +208,7 @@ func applyPatch(gvk schema.GroupVersionKind, reconciler Reconciler, patcher Patc
 
 	patchType, patch, err := doPatch(gvk, original, modified, current, diffPatches)
 	if err != nil {
-		return false, errors.Wrap(err, "patch generation")
+		return false, fmt.Errorf("patch generation: %w", err)
 	}
 
 	if string(patch) == "{}" {
@@ -387,8 +404,18 @@ func serializeApplied(obj runtime.Object) ([]byte, error) {
 }
 
 func appliedToAnnotation(b []byte) string {
-	buf := &bytes.Buffer{}
-	w := gzip.NewWriter(buf)
+	return compressAndEncode(b)
+}
+
+func compressAndEncode(b []byte) string {
+	buf := buffersPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer buffersPool.Put(buf)
+
+	w := gzipWritersPool.Get().(*gzip.Writer)
+	w.Reset(buf)
+	defer gzipWritersPool.Put(w)
+
 	if _, err := w.Write(b); err != nil {
 		return string(b)
 	}

@@ -3,6 +3,7 @@ package apply
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -11,7 +12,6 @@ import (
 
 	gvk2 "github.com/rancher/wrangler/v3/pkg/gvk"
 
-	"github.com/pkg/errors"
 	"github.com/rancher/wrangler/v3/pkg/apply/injectors"
 	"github.com/rancher/wrangler/v3/pkg/objectset"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -42,7 +42,7 @@ var (
 	}
 	rls                     = map[string]flowcontrol.RateLimiter{}
 	rlsLock                 sync.Mutex
-	indexerAlreadyExistsErr = errors.New("an indexer with the same already exists")
+	errIndexerAlreadyExists = errors.New("an indexer with the same already exists")
 )
 
 func (o *desiredSet) getRateLimit(labelHash string) flowcontrol.RateLimiter {
@@ -55,7 +55,7 @@ func (o *desiredSet) getRateLimit(labelHash string) flowcontrol.RateLimiter {
 	} else {
 		rl = rls[labelHash]
 		if rl == nil {
-			rl = flowcontrol.NewTokenBucketRateLimiter(o.ratelimitingQps, 10)
+			rl = flowcontrol.NewTokenBucketRateLimiter(o.ratelimitingQPS, 10)
 			rls[labelHash] = rl
 		}
 	}
@@ -236,7 +236,7 @@ func (o *desiredSet) injectLabelsAndAnnotations(labels, annotations map[string]s
 			obj = obj.DeepCopyObject()
 			meta, err := meta.Accessor(obj)
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to get metadata for %s", key)
+				return nil, fmt.Errorf("failed to get metadata for %s: %w", key, err)
 			}
 
 			setLabels(meta, labels)

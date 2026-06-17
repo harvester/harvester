@@ -5,13 +5,13 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
 	"strings"
 
 	"github.com/ghodss/yaml"
-	"github.com/pkg/errors"
 	"github.com/rancher/wrangler/v3/pkg/data/convert"
 	"github.com/rancher/wrangler/v3/pkg/gvk"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -153,7 +153,7 @@ func Export(objects ...runtime.Object) ([]byte, error) {
 
 		bytes, err := yaml.Marshal(obj)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to encode %s", obj.GetObjectKind().GroupVersionKind())
+			return nil, fmt.Errorf("failed to encode %s: %w", obj.GetObjectKind().GroupVersionKind(), err)
 		}
 		buffer.Write(bytes)
 	}
@@ -167,7 +167,7 @@ func CleanObjectForExport(obj runtime.Object) (runtime.Object, error) {
 		if gvk, err := gvk.Get(obj); err == nil {
 			obj.GetObjectKind().SetGroupVersionKind(gvk)
 		} else if err != nil {
-			return nil, errors.Wrapf(err, "kind and/or apiVersion is not set on input object: %v", obj)
+			return nil, fmt.Errorf("kind and/or apiVersion is not set on input object: %v: %w", obj, err)
 		}
 	}
 
@@ -267,7 +267,7 @@ func ToBytes(objects []runtime.Object) ([]byte, error) {
 
 		bytes, err := yaml.Marshal(obj)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to encode %s", obj.GetObjectKind().GroupVersionKind())
+			return nil, fmt.Errorf("failed to encode %s: %w", obj.GetObjectKind().GroupVersionKind(), err)
 		}
 		buffer.Write(bytes)
 	}

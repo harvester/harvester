@@ -2,11 +2,11 @@ package apply
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
 
-	"github.com/pkg/errors"
 	gvk2 "github.com/rancher/wrangler/v3/pkg/gvk"
 	"github.com/rancher/wrangler/v3/pkg/merr"
 	"github.com/rancher/wrangler/v3/pkg/objectset"
@@ -45,7 +45,7 @@ func (o *desiredSet) getControllerAndClient(debugID string, gvk schema.GroupVers
 	if informer == nil && o.informerFactory != nil {
 		newInformer, err := o.informerFactory.Get(gvk, o.a.clients.gvr(gvk))
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "failed to construct informer for %v for %s", gvk, debugID)
+			return nil, nil, fmt.Errorf("failed to construct informer for %v for %s: %w", gvk, debugID, err)
 		}
 		informer = newInformer
 	}
@@ -253,7 +253,7 @@ func (o *desiredSet) process(debugID string, set labels.Selector, gvk schema.Gro
 
 	existing, err := o.list(nsed, controller, client, set, objs)
 	if err != nil {
-		o.err(errors.Wrapf(err, "failed to list %s for %s", gvk, debugID))
+		o.err(fmt.Errorf("failed to list %s for %s: %w", gvk, debugID, err))
 		return
 	}
 
@@ -286,7 +286,7 @@ func (o *desiredSet) process(debugID string, set labels.Selector, gvk schema.Gro
 		obj := objs[k]
 		obj, err := prepareObjectForCreate(gvk, obj)
 		if err != nil {
-			o.err(errors.Wrapf(err, "failed to prepare create %s %s for %s", k, gvk, debugID))
+			o.err(fmt.Errorf("failed to prepare create %s %s for %s: %w", k, gvk, debugID, err))
 			return
 		}
 
@@ -301,7 +301,7 @@ func (o *desiredSet) process(debugID string, set labels.Selector, gvk schema.Gro
 			}
 		}
 		if err != nil {
-			o.err(errors.Wrapf(err, "failed to create %s %s for %s", k, gvk, debugID))
+			o.err(fmt.Errorf("failed to create %s %s for %s: %w", k, gvk, debugID, err))
 			return
 		}
 		logrus.Debugf("DesiredSet - Created %s %s for %s", gvk, k, debugID)
@@ -309,7 +309,7 @@ func (o *desiredSet) process(debugID string, set labels.Selector, gvk schema.Gro
 
 	deleteF := func(k objectset.ObjectKey, force bool) {
 		if err := o.delete(nsed, k.Namespace, k.Name, client, force, gvk); err != nil {
-			o.err(errors.Wrapf(err, "failed to delete %s %s for %s", k, gvk, debugID))
+			o.err(fmt.Errorf("failed to delete %s %s for %s: %w", k, gvk, debugID, err))
 			return
 		}
 		logrus.Debugf("DesiredSet - Delete %s %s for %s", gvk, k, debugID)
@@ -321,7 +321,7 @@ func (o *desiredSet) process(debugID string, set labels.Selector, gvk schema.Gro
 			deleteF(k, true)
 			o.err(fmt.Errorf("DesiredSet - Replace Wait %s %s for %s", gvk, k, debugID))
 		} else if err != nil {
-			o.err(errors.Wrapf(err, "failed to update %s %s for %s", k, gvk, debugID))
+			o.err(fmt.Errorf("failed to update %s %s for %s: %w", k, gvk, debugID, err))
 		}
 	}
 
