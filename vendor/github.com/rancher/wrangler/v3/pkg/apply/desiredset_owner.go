@@ -1,6 +1,7 @@
 package apply
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -8,7 +9,6 @@ import (
 
 	"github.com/rancher/wrangler/v3/pkg/kv"
 
-	"github.com/pkg/errors"
 	namer "github.com/rancher/wrangler/v3/pkg/name"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -141,9 +141,8 @@ func (o desiredSet) PurgeOrphan(obj runtime.Object) error {
 		}
 		if meta.GetNamespace() == "" {
 			return client.Delete(o.ctx, meta.GetName(), metav1.DeleteOptions{})
-		} else {
-			return client.Namespace(meta.GetNamespace()).Delete(o.ctx, meta.GetName(), metav1.DeleteOptions{})
 		}
+		return client.Namespace(meta.GetNamespace()).Delete(o.ctx, meta.GetName(), metav1.DeleteOptions{})
 	} else if err == ErrOwnerNotFound {
 		return nil
 	} else if err != nil {
