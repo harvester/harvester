@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"emperror.dev/errors"
 	"github.com/go-logr/logr"
@@ -31,26 +32,26 @@ var Log = NewLogger("", os.Stderr, os.Stderr, 0)
 func NewLogger(name string, out, err io.Writer, level int) logr.Logger {
 	sink := &logSink{
 		name:   name,
-		values: make([]interface{}, 0),
+		values: make([]any, 0),
 		out:    out,
 		err:    err,
 	}
 	return logr.New(sink).V(level)
 }
 
-func joinAndSeparatePairs(values []interface{}) string {
-	joined := ""
+func joinAndSeparatePairs(values []any) string {
+	var joined strings.Builder
 	for i, v := range values {
-		joined += cast.ToString(v)
+		joined.WriteString(cast.ToString(v))
 		if i%2 == 0 {
-			joined += ": "
+			joined.WriteString(": ")
 		} else {
 			if i < len(values)-1 {
-				joined += ", "
+				joined.WriteString(", ")
 			}
 		}
 	}
-	return joined
+	return joined.String()
 }
 
 func getDetailedErr(err error) string {
@@ -63,7 +64,7 @@ func getDetailedErr(err error) string {
 
 type logSink struct {
 	name   string
-	values []interface{}
+	values []any
 	out    io.Writer
 	err    io.Writer
 }
@@ -74,7 +75,7 @@ func (s logSink) Enabled(level int) bool {
 	return GlobalLogLevel >= level
 }
 
-func (s logSink) Info(level int, msg string, keysAndValues ...interface{}) {
+func (s logSink) Info(level int, msg string, keysAndValues ...any) {
 	if !s.Enabled(level) {
 		return
 	}
@@ -86,7 +87,7 @@ func (s logSink) Info(level int, msg string, keysAndValues ...interface{}) {
 	}
 }
 
-func (s logSink) Error(err error, msg string, keysAndValues ...interface{}) {
+func (s logSink) Error(err error, msg string, keysAndValues ...any) {
 	s.values = append(s.values, keysAndValues...)
 	if len(s.values) == 0 {
 		_, _ = fmt.Fprintf(s.err, "%s> %s %s\n", s.name, msg, getDetailedErr(err))
@@ -95,7 +96,7 @@ func (s logSink) Error(err error, msg string, keysAndValues ...interface{}) {
 	}
 }
 
-func (s logSink) WithValues(keysAndValues ...interface{}) logr.LogSink {
+func (s logSink) WithValues(keysAndValues ...any) logr.LogSink {
 	l := len(s.values)
 	s.values = append(s.values[:l:l], keysAndValues...)
 	return s

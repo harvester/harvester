@@ -141,7 +141,7 @@ func (e *enqueueRequestsFromMapFunc[object, request]) mapAndEnqueue(
 		if !ok {
 			if lowPriority {
 				q.(priorityqueue.PriorityQueue[request]).AddWithOpts(priorityqueue.AddOpts{
-					Priority: LowPriority,
+					Priority: new(LowPriority),
 				}, req)
 			} else {
 				q.Add(req)

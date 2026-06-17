@@ -18,23 +18,25 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-//nolint:unused,deadcode
 // +docName:"Secret abstraction"
 // Provides an abstraction to refer to secrets from other types
 // SecretLoader facilitates loading the secrets from an operator.
 // Leverages core types from kubernetes/api/core/v1
-type _docSecret interface{}
-
+//
 //nolint:unused,deadcode
+type _docSecret any
+
 // +name:"Secret"
 // +description:"Secret referencing abstraction"
-type _metaSecret interface{}
+//
+//nolint:unused,deadcode
+type _metaSecret any
 
 // +kubebuilder:object:generate=true
 
 type Secret struct {
 	// Refers to a non-secret value
-	Value     string     `json:"value,omitempty"`
+	Value string `json:"value,omitempty"`
 	// Refers to a secret value to be used directly
 	ValueFrom *ValueFrom `json:"valueFrom,omitempty"`
 	// Refers to a secret value to be used through a volume mount

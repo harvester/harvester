@@ -28,13 +28,13 @@ import (
 // Leverages core types from kubernetes/api/core/v1
 //
 //nolint:unused,deadcode
-type _docKubernetesVolume interface{}
+type _docKubernetesVolume any
 
 // +name:"KubernetesVolume"
 // +description:"Kubernetes volume abstraction"
 //
 //nolint:unused,deadcode
-type _metaKubernetesVolume interface{}
+type _metaKubernetesVolume any
 
 // +kubebuilder:object:generate=true
 

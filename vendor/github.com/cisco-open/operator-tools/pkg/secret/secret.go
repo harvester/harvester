@@ -75,7 +75,8 @@ func (k *secretLoader) Load(secret *Secret) (string, error) {
 		secretItem := &corev1.Secret{}
 		err := k.client.Get(context.TODO(), types.NamespacedName{
 			Name:      secret.MountFrom.SecretKeyRef.Name,
-			Namespace: k.namespace}, secretItem)
+			Namespace: k.namespace,
+		}, secretItem)
 		if err != nil {
 			return "", errors.WrapIfWithDetails(
 				err, "failed to load secret", "secret", secret.MountFrom.SecretKeyRef.Name, "namespace", k.namespace)
@@ -88,7 +89,8 @@ func (k *secretLoader) Load(secret *Secret) (string, error) {
 		k8sSecret := &corev1.Secret{}
 		err := k.client.Get(context.TODO(), types.NamespacedName{
 			Name:      secret.ValueFrom.SecretKeyRef.Name,
-			Namespace: k.namespace}, k8sSecret)
+			Namespace: k.namespace,
+		}, k8sSecret)
 		if err != nil {
 			return "", errors.WrapIff(err, "failed to get kubernetes secret %s:%s",
 				k.namespace,

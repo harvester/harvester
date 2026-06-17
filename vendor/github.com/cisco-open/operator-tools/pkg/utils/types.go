@@ -17,6 +17,8 @@ package utils
 import (
 	"fmt"
 	"hash/fnv"
+	"maps"
+	"slices"
 	"sort"
 
 	"emperror.dev/errors"
@@ -29,71 +31,21 @@ import (
 func MergeLabels(labelGroups ...map[string]string) map[string]string {
 	mergedLabels := make(map[string]string)
 	for _, labels := range labelGroups {
-		for k, v := range labels {
-			mergedLabels[k] = v
-		}
+		maps.Copy(mergedLabels, labels)
 	}
 	return mergedLabels
 }
 
-func PointerToBool(b *bool) bool {
-	if b == nil {
-		return false
+// DerefOrZero returns the value referenced by p, or the zero-value of the type
+func DerefOrZero[T any](p *T) T {
+	return DerefOr(p, *new(T))
+}
+
+func DerefOr[T any](p *T, defVal T) T {
+	if p == nil {
+		return defVal
 	}
-
-	return *b
-}
-
-func PointerToUint(i *uint) uint {
-	if i == nil {
-		return 0
-	}
-
-	return *i
-}
-
-func PointerToInt(i *int) int {
-	if i == nil {
-		return 0
-	}
-
-	return *i
-}
-
-func PointerToInt32(i *int32) int32 {
-	if i == nil {
-		return 0
-	}
-
-	return *i
-}
-
-func PointerToString(s *string) string {
-	if s == nil {
-		return ""
-	}
-
-	return *s
-}
-
-// IntPointer converts int32 to *int32
-func IntPointer(i int32) *int32 {
-	return &i
-}
-
-// IntPointer converts int64 to *int64
-func IntPointer64(i int64) *int64 {
-	return &i
-}
-
-// BoolPointer converts bool to *bool
-func BoolPointer(b bool) *bool {
-	return &b
-}
-
-// StringPointer converts string to *string
-func StringPointer(s string) *string {
-	return &s
+	return *p
 }
 
 // OrderedStringMap
@@ -108,12 +60,7 @@ func OrderedStringMap(original map[string]string) *orderedmap.OrderedMap {
 
 // Contains check if a string item exists in []string
 func Contains(s []string, e string) bool {
-	for _, i := range s {
-		if i == e {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s, e)
 }
 
 // Hash32 calculate for string

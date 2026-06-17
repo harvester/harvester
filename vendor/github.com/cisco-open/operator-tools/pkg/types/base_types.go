@@ -15,6 +15,8 @@
 package types
 
 import (
+	"maps"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -87,7 +89,7 @@ func AggregatedState(componentStatuses []ReconcileStatus) ReconcileStatus {
 		if cs != "" {
 			statusMap[cs] = true
 		}
-		if !(cs == "" || cs.Stable()) {
+		if cs != "" && !cs.Stable() {
 			hasUnstable = true
 		}
 	}
@@ -120,7 +122,7 @@ func (ec EnabledComponent) IsDisabled() bool {
 
 // IsEnabled returns true iff the component is explicitly enabled
 func (ec EnabledComponent) IsEnabled() bool {
-	return utils.PointerToBool(ec.Enabled)
+	return utils.DerefOrZero(ec.Enabled)
 }
 
 // IsSkipped returns true iff the component is neither enabled nor disabled explicitly
@@ -145,17 +147,13 @@ func (base *MetaBase) Merge(meta metav1.ObjectMeta) metav1.ObjectMeta {
 		if meta.Annotations == nil {
 			meta.Annotations = make(map[string]string)
 		}
-		for key, val := range base.Annotations {
-			meta.Annotations[key] = val
-		}
+		maps.Copy(meta.Annotations, base.Annotations)
 	}
 	if len(base.Labels) > 0 {
 		if meta.Labels == nil {
 			meta.Labels = make(map[string]string)
 		}
-		for key, val := range base.Labels {
-			meta.Labels[key] = val
-		}
+		maps.Copy(meta.Labels, base.Labels)
 	}
 	return meta
 }
@@ -312,7 +310,7 @@ func (base *DeploymentBase) Override(deployment appsv1.Deployment) appsv1.Deploy
 		return deployment
 	}
 	if base.MetaBase != nil {
-		deployment.ObjectMeta = base.MetaBase.Merge(deployment.ObjectMeta)
+		deployment.ObjectMeta = base.Merge(deployment.ObjectMeta)
 	}
 	if base.Spec != nil {
 		deployment.Spec = base.Spec.Override(deployment.Spec)
@@ -362,7 +360,7 @@ func (base *StatefulSetBase) Override(statefulSet appsv1.StatefulSet) appsv1.Sta
 		return statefulSet
 	}
 	if base.MetaBase != nil {
-		statefulSet.ObjectMeta = base.MetaBase.Merge(statefulSet.ObjectMeta)
+		statefulSet.ObjectMeta = base.Merge(statefulSet.ObjectMeta)
 	}
 	if base.Spec != nil {
 		statefulSet.Spec = base.Spec.Override(statefulSet.Spec)
@@ -416,7 +414,7 @@ func (base *DaemonSetBase) Override(daemonset appsv1.DaemonSet) appsv1.DaemonSet
 		return daemonset
 	}
 	if base.MetaBase != nil {
-		daemonset.ObjectMeta = base.MetaBase.Merge(daemonset.ObjectMeta)
+		daemonset.ObjectMeta = base.Merge(daemonset.ObjectMeta)
 	}
 	if base.Spec != nil {
 		daemonset.Spec = base.Spec.Override(daemonset.Spec)
@@ -468,9 +466,7 @@ func mergeSelectors(base, spec *metav1.LabelSelector) *metav1.LabelSelector {
 		if spec.MatchLabels == nil {
 			spec.MatchLabels = make(map[string]string)
 		}
-		for k, v := range base.MatchLabels {
-			spec.MatchLabels[k] = v
-		}
+		maps.Copy(spec.MatchLabels, base.MatchLabels)
 	}
 	if base.MatchExpressions != nil {
 		spec.MatchExpressions = append(spec.MatchExpressions, base.MatchExpressions...)

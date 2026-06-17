@@ -21,9 +21,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-type RuntimeObjects []runtime.Object
-type ResourceOrder string
-type ResourceScoreFunc func(o runtime.Object) int
+type (
+	RuntimeObjects    []runtime.Object
+	ResourceOrder     string
+	ResourceScoreFunc func(o runtime.Object) int
+)
 
 const (
 	InstallResourceOrder   ResourceOrder = "Install"
@@ -68,7 +70,7 @@ func (os RuntimeObjects) Sort(order ResourceOrder) {
 }
 
 func InstallObjectOrder() func(o runtime.Object) int {
-	var Order = []string{
+	Order := []string{
 		"CustomResourceDefinition",
 		"Namespace",
 		"ResourceQuota",
@@ -118,7 +120,7 @@ func InstallObjectOrder() func(o runtime.Object) int {
 }
 
 func UninstallObjectOrder() func(o runtime.Object) int {
-	var Order = []string{
+	Order := []string{
 		"MutatingWebhookConfiguration",
 		"ValidatingWebhookConfiguration",
 		"APIService",

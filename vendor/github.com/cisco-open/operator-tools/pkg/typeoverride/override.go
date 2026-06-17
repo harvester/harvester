@@ -15,6 +15,8 @@
 package typeoverride
 
 import (
+	"maps"
+
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
@@ -47,17 +49,13 @@ func (override *ObjectMeta) Merge(meta metav1.ObjectMeta) metav1.ObjectMeta {
 		if meta.Annotations == nil {
 			meta.Annotations = make(map[string]string)
 		}
-		for key, val := range override.Annotations {
-			meta.Annotations[key] = val
-		}
+		maps.Copy(meta.Annotations, override.Annotations)
 	}
 	if len(override.Labels) > 0 {
 		if meta.Labels == nil {
 			meta.Labels = make(map[string]string)
 		}
-		for key, val := range override.Labels {
-			meta.Labels[key] = val
-		}
+		maps.Copy(meta.Labels, override.Labels)
 	}
 	return meta
 }
