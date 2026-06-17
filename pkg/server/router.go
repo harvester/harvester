@@ -30,6 +30,7 @@ import (
 const (
 	localRKEStateSecretName = "local-rke-state"
 	serverTokenKey          = "serverToken"
+	defaultAdminUsername    = "admin"
 )
 
 type Router struct {
@@ -60,7 +61,7 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 
 	// Those routes should be above /v1/harvester/{type}, otherwise, the response status code would be 404
 	kcGenerateHandler := harvesterServer.NewHandler(kubeconfig.NewGenerateHandler(r.scaled, r.options))
-	m.Path("/v1/harvester/kubeconfig").Methods("POST").Handler(kcGenerateHandler)
+	m.Path("/v1/harvester/kubeconfig").Methods("POST").Handler(verifyAuthMiddleware(kcGenerateHandler))
 
 	uiInfoHandler := harvesterServer.NewHandler(uiinfo.NewUIInfoHandler(r.scaled, r.options))
 	m.Path("/v1/harvester/ui-info").Methods("GET").Handler(uiInfoHandler)
@@ -78,11 +79,6 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	m.Path("/v1/harvester/readyz").Methods("GET").Handler(authMiddleware(r.scaled.CoreFactory.Core().V1().Secret().Cache(), readyzHandlerv1))
 
 	// --- END of preposition routes ---
-
-	// This is for manually testing the recovery handler below
-	m.HandleFunc("/v1/harvester/dont-panic", func(_ http.ResponseWriter, _ *http.Request) {
-		panic("Do you know where your towel is?")
-	})
 
 	// adds collection action support
 	m.Path("/v1/{type}").Queries("action", "{action}").Handler(h.K8sResource)
@@ -215,4 +211,19 @@ func parseRancherServerURL(endpoint string) (string, string, error) {
 	}
 
 	return u.Host, u.Scheme, nil
+}
+
+func verifyAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// limit access to admin user
+		extraUsername := r.Header.Get("Impersonate-Extra-Username")
+		logrus.Infof("Impersonate-Extra-Username: %s", extraUsername)
+		if extraUsername != defaultAdminUsername {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("Unauthorized")) // nolint: errcheck
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
