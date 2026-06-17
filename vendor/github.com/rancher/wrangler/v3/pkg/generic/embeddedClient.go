@@ -22,4 +22,5 @@ type embeddedClient interface {
 	UpdateStatus(ctx context.Context, namespace string, obj runtime.Object, result runtime.Object, opts metav1.UpdateOptions) (err error)
 	Watch(ctx context.Context, namespace string, opts metav1.ListOptions) (watch.Interface, error)
 	WithImpersonation(impersonate rest.ImpersonationConfig) (*client.Client, error)
+	DeleteCollection(ctx context.Context, namespace string, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
 }

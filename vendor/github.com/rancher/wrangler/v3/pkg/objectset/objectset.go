@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/pkg/errors"
 	"github.com/rancher/wrangler/v3/pkg/gvk"
 	"github.com/rancher/wrangler/v3/pkg/stringset"
 
@@ -113,13 +112,13 @@ func (o *ObjectSet) add(obj runtime.Object) {
 
 	gvk, err := o.objects.Add(obj)
 	if err != nil {
-		o.err(errors.Wrapf(err, "failed to add %T", obj))
+		o.err(fmt.Errorf("failed to add %T: %w", obj, err))
 		return
 	}
 
 	_, err = o.objectsByGK.Add(obj)
 	if err != nil {
-		o.err(errors.Wrapf(err, "failed to add %T", obj))
+		o.err(fmt.Errorf("failed to add %T: %w", obj, err))
 		return
 	}
 
