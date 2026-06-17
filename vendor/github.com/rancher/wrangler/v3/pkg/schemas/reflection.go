@@ -49,7 +49,7 @@ func (s *Schemas) AddMapperForType(obj interface{}, mapper ...Mapper) *Schemas {
 }
 
 func (s *Schemas) MustImport(obj interface{}, externalOverrides ...interface{}) *Schemas {
-	if reflect.ValueOf(obj).Kind() == reflect.Ptr {
+	if reflect.ValueOf(obj).Kind() == reflect.Pointer {
 		panic(fmt.Errorf("obj cannot be a pointer"))
 	}
 
@@ -70,7 +70,7 @@ func getType(obj interface{}) reflect.Type {
 	}
 
 	t := reflect.TypeOf(obj)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	return t
@@ -231,7 +231,7 @@ func (s *Schemas) readFields(schema *Schema, t reflect.Type) error {
 
 		if field.Anonymous && jsonName == "" {
 			t := field.Type
-			if t.Kind() == reflect.Ptr {
+			if t.Kind() == reflect.Pointer {
 				t = t.Elem()
 			}
 			if t.Kind() == reflect.Struct {
@@ -264,7 +264,7 @@ func (s *Schemas) readFields(schema *Schema, t reflect.Type) error {
 		}
 
 		fieldType := field.Type
-		if fieldType.Kind() == reflect.Ptr {
+		if fieldType.Kind() == reflect.Pointer {
 			schemaField.Nullable = true
 			fieldType = fieldType.Elem()
 		} else if fieldType.Kind() == reflect.Bool {
@@ -458,7 +458,7 @@ func getKeyValue(input string) (string, string) {
 }
 
 func deRef(p reflect.Type) reflect.Type {
-	if p.Kind() == reflect.Ptr {
+	if p.Kind() == reflect.Pointer {
 		return p.Elem()
 	}
 	return p
