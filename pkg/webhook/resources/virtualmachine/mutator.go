@@ -389,7 +389,11 @@ func generateMemoryPatch(
 	// patch maxSockets, only when CPU and Memory hotplug is disabled and architecture is not ARM
 	// note that maxSockets is not supported on ARM architecture
 	if !enableCPUAndMemoryHotplug && !isARM {
-		patchOps = append(patchOps, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`)
+		var sockets uint32 = 1
+		if vm.Spec.Template.Spec.Domain.CPU != nil && vm.Spec.Template.Spec.Domain.CPU.Sockets != 0 {
+			sockets = vm.Spec.Template.Spec.Domain.CPU.Sockets
+		}
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": %d}`, sockets))
 	}
 
 	return patchOps, nil
