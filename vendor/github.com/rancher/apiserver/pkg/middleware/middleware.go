@@ -2,11 +2,9 @@ package middleware
 
 import (
 	"net/http"
-
-	"github.com/gorilla/mux"
 )
 
-type Chain []mux.MiddlewareFunc
+type Chain []func(http.Handler) http.Handler
 
 func (m Chain) Handler(handler http.Handler) http.Handler {
 	rtn := handler

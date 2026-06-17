@@ -3,11 +3,9 @@ package middleware
 import (
 	"net/http"
 	"strings"
-
-	"github.com/gorilla/mux"
 )
 
-func CacheMiddleware(suffixes ...string) mux.MiddlewareFunc {
+func CacheMiddleware(suffixes ...string) func(http.Handler) http.Handler {
 	return func(handler http.Handler) http.Handler {
 		return Cache(handler, suffixes...)
 	}

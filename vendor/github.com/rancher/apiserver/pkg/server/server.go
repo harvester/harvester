@@ -64,7 +64,7 @@ func DefaultAPIServer() *Server {
 		},
 		AccessControl: &SchemaBasedAccess{},
 		Parser:        parse.Parse,
-		URLParser:     parse.MuxURLParser,
+		URLParser:     parse.StandardURLParser,
 	}
 
 	subscribe.Register(s.Schemas, subscribe.DefaultGetter, os.Getenv("SERVER_VERSION"))
@@ -106,7 +106,7 @@ func (s *Server) handle(apiOp *types.APIRequest, parser parse.Parser) {
 		apiOp.Schemas = s.Schemas
 	}
 
-	if err := parser(apiOp, parse.MuxURLParser); err != nil {
+	if err := parser(apiOp, parse.StandardURLParser); err != nil {
 		// ensure defaults set so writer is assigned
 		s.setDefaults(apiOp)
 		apiOp.WriteError(err)
