@@ -82,6 +82,8 @@ func ConnectToProxyWithDialer(rootCtx context.Context, proxyURL string, headers 
 		result <- err
 	}()
 
+	logrus.WithField("url", proxyURL).Info("Connected to proxy")
+
 	select {
 	case <-ctx.Done():
 		logrus.WithField("url", proxyURL).WithField("err", ctx.Err()).Info("Proxy done")

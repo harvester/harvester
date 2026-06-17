@@ -85,7 +85,7 @@ func (s *Store) List(apiOp *types.APIRequest, schema *types.APISchema) (types.AP
 
 	store := s.Partitioner.Store()
 
-	list, total, continueToken, err := store.ListByPartitions(apiOp, schema, partitions)
+	list, total, summary, continueToken, err := store.ListByPartitions(apiOp, schema, partitions)
 	if err != nil {
 		return result, err
 	}
@@ -98,6 +98,11 @@ func (s *Store) List(apiOp *types.APIRequest, schema *types.APISchema) (types.AP
 		result.Objects = append(result.Objects, partition.ToAPI(schema, item, nil, s.sqlReservedFields))
 	}
 
+	if summary == nil {
+		result.Summary = types.APISummary{}
+	} else {
+		result.Summary = *summary
+	}
 	result.Revision = ""
 	result.Continue = continueToken
 	result.Revision = list.GetResourceVersion()

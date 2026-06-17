@@ -67,7 +67,7 @@ func toVersionType(obj interface{}) (string, *types.Name) {
 	}
 
 	t := reflect.TypeOf(obj)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	pkg := imports.VendorlessPath(t.PkgPath())

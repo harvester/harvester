@@ -81,9 +81,10 @@ func (q *QueryCondition) ToCondition() Condition {
 	cond := Condition{
 		Modifier: q.conditionType.Name,
 	}
-	if q.conditionType.Args == 1 {
+	switch q.conditionType.Args {
+	case 1:
 		cond.Value = q.Value
-	} else if q.conditionType.Args == -1 {
+	case -1:
 		stringValues := []string{}
 		for val := range q.Values {
 			stringValues = append(stringValues, val)

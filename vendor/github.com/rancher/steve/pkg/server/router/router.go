@@ -2,8 +2,8 @@ package router
 
 import (
 	"net/http"
+	"strings"
 
-	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/urlbuilder"
 )
 
@@ -20,33 +20,44 @@ type Handlers struct {
 }
 
 func Routes(h Handlers) http.Handler {
-	m := mux.NewRouter()
-	m.UseEncodedPath()
-	m.StrictSlash(true)
-	m.Use(urlbuilder.RedirectRewrite)
+	mux := http.NewServeMux()
 
-	m.Path("/").Handler(h.APIRoot).HeadersRegexp("Accept", ".*json.*")
-	m.Path("/{name:v1}").Handler(h.APIRoot)
+	mux.HandleFunc("/{$}", func(rw http.ResponseWriter, req *http.Request) {
+		if strings.Contains(req.Header.Get("Accept"), "json") {
+			h.APIRoot.ServeHTTP(rw, req)
+		} else {
+			h.Next.ServeHTTP(rw, req)
+		}
+	})
+	mux.Handle("/v1", h.APIRoot)
+	mux.Handle("/v1/{$}", h.APIRoot)
 
 	if h.ExtensionAPIServer != nil {
-		m.Path("/ext").Handler(http.StripPrefix("/ext", h.ExtensionAPIServer))
-		m.PathPrefix("/ext/").Handler(http.StripPrefix("/ext", h.ExtensionAPIServer))
+		mux.Handle("/ext", http.StripPrefix("/ext", h.ExtensionAPIServer))
+		mux.Handle("/ext/", http.StripPrefix("/ext", h.ExtensionAPIServer))
 	}
 
-	m.Path("/v1/{type}").Handler(h.K8sResource)
-	m.Path("/v1/{type}/{nameorns}").Queries("link", "{link}").Handler(h.K8sResource)
-	m.Path("/v1/{type}/{nameorns}").Queries("action", "{action}").Handler(h.K8sResource)
-	m.Path("/v1/{type}/{nameorns}").Handler(h.K8sResource)
-	m.Path("/v1/{type}/{namespace}/{name}").Queries("action", "{action}").Handler(h.K8sResource)
-	m.Path("/v1/{type}/{namespace}/{name}").Queries("link", "{link}").Handler(h.K8sResource)
-	m.Path("/v1/{type}/{namespace}/{name}").Handler(h.K8sResource)
-	m.Path("/v1/{type}/{namespace}/{name}/{link}").Handler(h.K8sResource)
-	m.Path("/api").Handler(h.K8sProxy) // Can't just prefix this as UI needs /apikeys path
-	m.PathPrefix("/api/").Handler(h.K8sProxy)
-	m.PathPrefix("/apis").Handler(h.K8sProxy)
-	m.PathPrefix("/openapi").Handler(h.K8sProxy)
-	m.PathPrefix("/version").Handler(h.K8sProxy)
-	m.NotFoundHandler = h.Next
+	// K8s Resources
+	mux.Handle("/v1/{type}", h.K8sResource)
+	mux.Handle("/v1/{type}/{$}", h.K8sResource)
+	mux.Handle("/v1/{type}/{nameorns}", h.K8sResource)
+	mux.Handle("/v1/{type}/{nameorns}/{$}", h.K8sResource)
+	mux.Handle("/v1/{type}/{namespace}/{name}", h.K8sResource)
+	mux.Handle("/v1/{type}/{namespace}/{name}/{$}", h.K8sResource)
+	mux.Handle("/v1/{type}/{namespace}/{name}/{link}", h.K8sResource)
+	mux.Handle("/v1/{type}/{namespace}/{name}/{link}/{$}", h.K8sResource)
 
-	return m
+	// K8s Proxies
+	mux.Handle("/api", h.K8sProxy)
+	mux.Handle("/api/", h.K8sProxy)
+	mux.Handle("/apis", h.K8sProxy)
+	mux.Handle("/apis/", h.K8sProxy)
+	mux.Handle("/openapi", h.K8sProxy)
+	mux.Handle("/openapi/", h.K8sProxy)
+	mux.Handle("/version", h.K8sProxy)
+	mux.Handle("/version/", h.K8sProxy)
+
+	mux.Handle("/", h.Next)
+
+	return urlbuilder.RedirectRewrite(mux)
 }

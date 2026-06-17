@@ -2,7 +2,6 @@ package userpreferences
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -36,7 +35,7 @@ func set(data map[string]interface{}) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(confFile(), bytes, 0600)
+	return os.WriteFile(confFile(), bytes, 0600)
 }
 
 func get() (map[string]string, error) {

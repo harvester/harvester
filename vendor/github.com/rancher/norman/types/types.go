@@ -115,6 +115,7 @@ type Schema struct {
 	DynamicSchemaVersion string            `json:"dynamicSchemaVersion,omitempty"`
 	Scope                TypeScope         `json:"-"`
 	Enabled              func() bool       `json:"-"`
+	Status               bool              `json:"-"`
 
 	InternalSchema      *Schema             `json:"-"`
 	Mapper              Mapper              `json:"-"`

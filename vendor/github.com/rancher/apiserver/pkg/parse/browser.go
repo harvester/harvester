@@ -3,8 +3,6 @@ package parse
 import (
 	"net/http"
 	"strings"
-
-	"github.com/gorilla/mux"
 )
 
 func IsBrowser(req *http.Request, checkAccepts bool) bool {
@@ -19,10 +17,10 @@ func IsBrowser(req *http.Request, checkAccepts bool) bool {
 	return strings.Contains(userAgent, "mozilla") && strings.Contains(accepts, "*/*")
 }
 
-func MatchNotBrowser(req *http.Request, match *mux.RouteMatch) bool {
-	return !MatchBrowser(req, match)
+func MatchNotBrowser(req *http.Request) bool {
+	return !MatchBrowser(req)
 }
 
-func MatchBrowser(req *http.Request, _ *mux.RouteMatch) bool {
+func MatchBrowser(req *http.Request) bool {
 	return IsBrowser(req, true)
 }

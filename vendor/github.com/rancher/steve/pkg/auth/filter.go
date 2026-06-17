@@ -1,8 +1,8 @@
 package auth
 
 import (
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -74,7 +74,7 @@ func WebhookConfigForURL(url string) (string, error) {
 		CurrentContext: "Default",
 	}
 
-	tmpFile, err := ioutil.TempFile("", "webhook-config")
+	tmpFile, err := os.CreateTemp("", "webhook-config")
 	if err != nil {
 		return "", err
 	}

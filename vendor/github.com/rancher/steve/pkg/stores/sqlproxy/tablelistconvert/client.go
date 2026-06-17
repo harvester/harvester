@@ -6,6 +6,7 @@ package tablelistconvert
 
 import (
 	"context"
+	"sync"
 
 	"github.com/rancher/wrangler/v3/pkg/data"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +25,7 @@ type tableConvertWatch struct {
 	done   chan struct{}
 	events chan k8sWatch.Event
 	k8sWatch.Interface
+	stopOnce sync.Once
 }
 
 // List will return an *UnstructuredList that contains Items instead of just using the Object field to store a table as
@@ -76,8 +78,10 @@ func (w *tableConvertWatch) ResultChan() <-chan k8sWatch.Event {
 }
 
 func (w *tableConvertWatch) Stop() {
-	close(w.done)
-	w.Interface.Stop()
+	w.stopOnce.Do(func() {
+		close(w.done)
+		w.Interface.Stop()
+	})
 }
 
 func rowToObject(obj *unstructured.Unstructured) {
@@ -104,6 +108,15 @@ func tableToList(obj *unstructured.UnstructuredList) {
 	}
 
 	obj.Items = tableToObjects(obj.Object)
+
+	// client-go v0.36+ reflectors reject lists whose top-level GVK is Table; rewrite to the resource's list GVK.
+	if len(obj.Items) > 0 {
+		obj.Object["kind"] = obj.Items[0].GetKind() + "List"
+		obj.Object["apiVersion"] = obj.Items[0].GetAPIVersion()
+	} else {
+		delete(obj.Object, "kind")
+		delete(obj.Object, "apiVersion")
+	}
 }
 
 func tableToObjects(obj map[string]interface{}) []unstructured.Unstructured {

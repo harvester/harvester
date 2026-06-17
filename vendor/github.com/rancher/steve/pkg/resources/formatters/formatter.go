@@ -5,7 +5,9 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
+	"slices"
 
 	// helm v2 is long since deprecated
 	// Unlike helm v3, it uses Protobuf encoding, so we can't use generic decoding without the message descriptors.
@@ -65,6 +67,26 @@ func Pod(_ *types.APIRequest, resource *types.RawResource) {
 	fields := data.StringSlice("metadata", "fields")
 	if len(fields) > 2 {
 		data.SetNested(convert.LowerTitle(fields[2]), "metadata", "state", "name")
+	}
+}
+
+var ReadOnlySettings = []string{
+	"cacerts",
+}
+
+// Setting is the default formatter for management.cattle.io.setting resources. This formatter removes the update link from resources which are read-only or cannot be updated by the user.
+func Setting(request *types.APIRequest, resource *types.RawResource) {
+	data := resource.APIObject.Data()
+	if data.String("value") == "" {
+		data.Set("value", data.String("default"))
+	}
+
+	if data.String("source") == "env" || slices.Contains(ReadOnlySettings, resource.ID) {
+		delete(resource.Links, "update")
+	} else {
+		if err := request.AccessControl.CanDo(request, fmt.Sprintf("%s/%s", "management.cattle.io", "settings"), "update", resource.APIObject.Namespace(), resource.APIObject.Name()); err != nil {
+			delete(resource.Links, "update")
+		}
 	}
 }
 

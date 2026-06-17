@@ -3,30 +3,39 @@ package listprocessor
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/sqlcache/partition"
 	"github.com/rancher/steve/pkg/sqlcache/sqltypes"
 	"github.com/rancher/steve/pkg/stores/queryhelper"
 	"github.com/rancher/steve/pkg/stores/sqlpartition/queryparser"
 	"github.com/rancher/steve/pkg/stores/sqlpartition/selection"
+	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
-	defaultLimit            = 100000
-	filterParam             = "filter"
-	sortParam               = "sort"
-	pageSizeParam           = "pagesize"
-	pageParam               = "page"
-	revisionParam           = "revision"
-	projectsOrNamespacesVar = "projectsornamespaces"
-	projectIDFieldLabel     = "field.cattle.io/projectId"
+	defaultLimit               = 100000
+	filterParam                = "filter"
+	includeAssociatedDataParam = "includeAssociatedData"
+	sortParam                  = "sort"
+	pageSizeParam              = "pagesize"
+	pageParam                  = "page"
+	revisionParam              = "revision"
+	summaryParam               = "summary"
+	summaryOnlyParam           = "summaryonly"
+	summaryNamespacedParam     = "summarynamespaced"
+	projectsOrNamespacesVar    = "projectsornamespaces"
+	projectIDFieldLabel        = "field.cattle.io/projectId"
 
 	orOp  = ","
 	notOp = "!"
@@ -39,6 +48,8 @@ var mapK8sOpToRancherOp = map[selection.Operator]sqltypes.Op{
 	selection.PartialEquals:    sqltypes.Eq,
 	selection.NotEquals:        sqltypes.NotEq,
 	selection.NotPartialEquals: sqltypes.NotEq,
+	selection.Contains:         sqltypes.Contains,
+	selection.NotContains:      sqltypes.NotContains,
 	selection.In:               sqltypes.In,
 	selection.NotIn:            sqltypes.NotIn,
 	selection.Exists:           sqltypes.Exists,
@@ -52,9 +63,10 @@ type Cache interface {
 	// Specifically:
 	//   - an unstructured list of resources belonging to any of the specified partitions
 	//   - the total number of resources (returned list might be a subset depending on pagination options in lo)
+	//   - a summary object, containing the possible values for each field specified in a summary= subquery
 	//   - a continue token, if there are more pages after the returned one
 	//   - an error instead of all of the above if anything went wrong
-	ListByOptions(ctx context.Context, lo *sqltypes.ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, string, error)
+	ListByOptions(ctx context.Context, lo *sqltypes.ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, *types.APISummary, string, error)
 }
 
 func k8sOpToRancherOp(k8sOp selection.Operator) (sqltypes.Op, bool, error) {
@@ -103,11 +115,17 @@ func ParseQuery(apiOp *types.APIRequest, gvKind string) (sqltypes.ListOptions, e
 	opts.Filters = filterOpts
 
 	sortKeys := q.Get(sortParam)
+	callsIPFunctionRegex := regexp.MustCompile(`^ip\(.+\)$`)
 	if sortKeys != "" {
 		sortList := *sqltypes.NewSortList()
 		sortParts := strings.Split(sortKeys, ",")
 		for _, sortPart := range sortParts {
 			field := sortPart
+			sortAsIP := false
+			if callsIPFunctionRegex.MatchString(sortPart) {
+				field = sortPart[3 : len(sortPart)-1]
+				sortAsIP = true
+			}
 			if len(field) > 0 {
 				sortOrder := sqltypes.ASC
 				if field[0] == '-' {
@@ -116,8 +134,9 @@ func ParseQuery(apiOp *types.APIRequest, gvKind string) (sqltypes.ListOptions, e
 				}
 				if len(field) > 0 {
 					sortDirective := sqltypes.Sort{
-						Fields: queryhelper.SafeSplit(field),
-						Order:  sortOrder,
+						Fields:   queryhelper.SafeSplit(field),
+						Order:    sortOrder,
+						SortAsIP: sortAsIP,
 					}
 					sortList.SortDirectives = append(sortList.SortDirectives, sortDirective)
 				}
@@ -166,7 +185,88 @@ func ParseQuery(apiOp *types.APIRequest, gvKind string) (sqltypes.ListOptions, e
 		}
 	}
 
+	revision := q.Get(revisionParam)
+	if revision != "" {
+		if _, err := strconv.ParseInt(revision, 10, 64); err != nil {
+			return opts, apierror.NewAPIError(validation.ErrorCode{Code: "invalid revision query param", Status: http.StatusBadRequest},
+				fmt.Sprintf("value %s for revision query param is not valid", revision))
+		}
+		opts.Revision = revision
+	}
+	summaryParams := q[summaryParam]
+	if len(summaryParams) > 1 {
+		return opts, fmt.Errorf("got %d summary parameters, at most 1 is allowed", len(summaryParams))
+	}
+	if len(summaryParams) == 1 {
+		// This works because the concrete syntax of kubernetes labels doesn't allow commas
+		summaries := strings.Split(summaryParams[0], ",")
+		fieldLists := sqltypes.SummaryFieldList{}
+		for _, summary := range summaries {
+			if len(summary) == 0 {
+				return opts, fmt.Errorf("unable to parse requirement: empty summary parameter doesn't make sense")
+			}
+			fieldLists = append(fieldLists, queryhelper.SafeSplit(summary))
+		}
+		if len(fieldLists) == 0 {
+			return opts, fmt.Errorf("unable to parse requirement: summary parameter given with no fields to summarize")
+		}
+		opts.SummaryFieldList = fieldLists
+	} else if q.Has(summaryParam) {
+		return opts, errors.New("unable to parse requirement: summary parameter given with no fields to summarize")
+	}
+	summaryonlyParams := q[summaryOnlyParam]
+	// go with the last
+	if len(summaryonlyParams) > 0 {
+		if len(summaryParams) == 0 {
+			return opts, errors.New("got a summaryonly parameter but no summary fields")
+		}
+		finalValue := summaryonlyParams[len(summaryonlyParams)-1]
+		switch finalValue {
+		case "true":
+			opts.SummaryOnly = true
+		case "false":
+			opts.SummaryOnly = false
+		case "":
+			opts.SummaryOnly = true
+		default:
+			return opts, fmt.Errorf("unexpected value for summaryonly parameter: %q, expected true, false, or empty string", finalValue)
+		}
+	}
+
+	err = handleBooleanParam(q, summaryNamespacedParam, &opts.SummaryNamespaced)
+	if err != nil {
+		return opts, err
+	}
+	if opts.SummaryNamespaced && len(opts.SummaryFieldList) == 0 {
+		return opts, fmt.Errorf("got a %s parameter but no summary fields", summaryNamespacedParam)
+	}
+
+	assocDataParams := q[includeAssociatedDataParam]
+	if len(assocDataParams) > 0 {
+		lastParam := assocDataParams[len(assocDataParams)-1]
+		opts.IncludeAssociatedData = strings.ToLower(lastParam) == "true"
+	}
 	return opts, nil
+}
+
+func handleBooleanParam(q url.Values, param string, value *bool) error {
+	values := q[param]
+	if len(values) > 0 {
+		finalValue := values[len(values)-1]
+		switch finalValue {
+		case "true":
+			*value = true
+		case "false":
+			*value = false
+		case "":
+			*value = true
+		default:
+			return fmt.Errorf("unexpected value for parameter %q: expected true, false, or empty string; got %q", param, finalValue)
+		}
+	} else if q.Has(param) {
+		*value = true
+	}
+	return nil
 }
 
 // splitQuery takes a single-string k8s object accessor and returns its separate fields in a slice.

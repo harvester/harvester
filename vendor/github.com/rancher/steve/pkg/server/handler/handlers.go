@@ -1,14 +1,19 @@
 package handler
 
 import (
-	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/attributes"
 	"github.com/rancher/steve/pkg/schema"
 )
 
 func k8sAPI(sf schema.Factory, apiOp *types.APIRequest) {
-	vars := mux.Vars(apiOp.Request)
+	vars := map[string]string{
+		"name":      apiOp.Request.PathValue("name"),
+		"type":      apiOp.Request.PathValue("type"),
+		"nameorns":  apiOp.Request.PathValue("nameorns"),
+		"namespace": apiOp.Request.PathValue("namespace"),
+	}
+
 	apiOp.Name = vars["name"]
 	apiOp.Type = vars["type"]
 
@@ -16,9 +21,9 @@ func k8sAPI(sf schema.Factory, apiOp *types.APIRequest) {
 	if nOrN != "" {
 		schema := apiOp.Schemas.LookupSchema(apiOp.Type)
 		if attributes.Namespaced(schema) {
-			vars["namespace"] = nOrN
+			apiOp.Namespace = nOrN
 		} else {
-			vars["name"] = nOrN
+			apiOp.Name = nOrN
 		}
 	}
 

@@ -47,6 +47,13 @@ func (j *EncodingResponseWriter) convertList(apiOp *types.APIRequest, input type
 	if apiOp.Schema.CollectionFormatter != nil {
 		apiOp.Schema.CollectionFormatter(apiOp, collection)
 	}
+	collection.Summary = make([]types.SummaryEntry, len(input.Summary.SummaryItems))
+	for i, val := range input.Summary.SummaryItems {
+		collection.Summary[i] = types.SummaryEntry{
+			Property: val.Property,
+			Counts:   val.Counts,
+		}
+	}
 
 	if collection.Data == nil {
 		collection.Data = []*types.RawResource{}

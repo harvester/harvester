@@ -13,7 +13,9 @@ import (
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiregistration.k8s.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/schemas"
 	"github.com/sirupsen/logrus"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/discovery"
+	apiregv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
 const (
@@ -83,21 +85,21 @@ func Register(ctx context.Context,
 		ByIDHandler: handler.byIDHandler,
 	})
 
-	debounce := debounce.DebounceableRefresher{
-		Refreshable: handler,
-	}
-	crdDebounce := getDurationEnvVarOrDefault(delayEnvVar, defaultDelay, delayUnit)
-	refHandler := refreshHandler{
-		debounceRef:      &debounce,
-		debounceDuration: crdDebounce,
-	}
-	crd.OnChange(ctx, handlerKey, refHandler.onChangeCRD)
-	apiService.OnChange(ctx, handlerKey, refHandler.onChangeAPIService)
-	refreshFrequency := getDurationEnvVarOrDefault(refreshEnvVar, defaultRefresh, refreshUnit)
 	// there's a delay between when a CRD is created and when it is available in the openapi/v2 endpoint
 	// the crd/apiservice controllers use a delay of 2 seconds to account for this, but it's possible that this isn't
 	// enough in certain environments, so we also use an infrequent background refresh to eventually correct any misses
-	refHandler.startBackgroundRefresh(ctx, refreshFrequency)
+	refreshFrequency := getDurationEnvVarOrDefault(refreshEnvVar, defaultRefresh, refreshUnit)
+	debounceDelay := getDurationEnvVarOrDefault(delayEnvVar, defaultDelay, delayUnit)
+
+	debouncer := debounce.NewDebounceableRefresher(ctx, handler, refreshFrequency)
+	crd.OnChange(ctx, handlerKey, func(_ string, obj *apiextv1.CustomResourceDefinition) (*apiextv1.CustomResourceDefinition, error) {
+		debouncer.Schedule(debounceDelay)
+		return obj, nil
+	})
+	apiService.OnChange(ctx, handlerKey, func(_ string, obj *apiregv1.APIService) (*apiregv1.APIService, error) {
+		debouncer.Schedule(debounceDelay)
+		return obj, nil
+	})
 }
 
 // getDurationEnvVarOrDefault gets the duration value for a given envVar. If not found, it returns the provided default.

@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/rancher/apiserver/pkg/types"
+	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/sqlcache/db"
 	"github.com/rancher/steve/pkg/sqlcache/partition"
 	"github.com/rancher/steve/pkg/sqlcache/sqltypes"
@@ -46,11 +48,29 @@ type WatchFilter struct {
 	Namespace string
 }
 
+func (f *WatchFilter) matches(obj metav1.Object) bool {
+	if obj == nil {
+		return false
+	}
+	if f.ID != "" && f.ID != obj.GetName() {
+		return false
+	}
+	if f.Namespace != "" && f.Namespace != obj.GetNamespace() {
+		return false
+	}
+	if f.Selector != nil {
+		if !f.Selector.Matches(labels.Set(obj.GetLabels())) {
+			return false
+		}
+	}
+	return true
+}
+
 type ByOptionsLister interface {
-	ListByOptions(ctx context.Context, lo *sqltypes.ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, string, error)
+	AugmentList(ctx context.Context, list *unstructured.UnstructuredList, childGVK schema.GroupVersionKind, childSchemaName string, useSelectors bool, accessList accesscontrol.AccessListByVerb) error
+	ListByOptions(ctx context.Context, lo *sqltypes.ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, *types.APISummary, string, error)
 	Watch(ctx context.Context, options WatchOptions, eventsCh chan<- watch.Event) error
 	GetLatestResourceVersion() []string
-	RunGC(context.Context)
 	DropAll(context.Context) error
 }
 
@@ -59,14 +79,15 @@ var newInformer = cache.NewSharedIndexInformer
 
 // NewInformer returns a new SQLite-backed Informer for the type specified by schema in unstructured.Unstructured form
 // using the specified client
-func NewInformer(ctx context.Context, client dynamic.ResourceInterface, fields [][]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, transform cache.TransformFunc, gvk schema.GroupVersionKind, db db.Client, shouldEncrypt bool, namespaced bool, watchable bool, gcInterval time.Duration, gcKeepCount int) (*Informer, error) {
+func NewInformer(ctx context.Context, client dynamic.ResourceInterface, fields map[string]IndexedField, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, transform cache.TransformFunc, gvk schema.GroupVersionKind, db db.Client, shouldEncrypt bool,
+	namespaced bool, watchable bool, gcKeepCount int) (*Informer, error) {
 	watchFunc := func(options metav1.ListOptions) (watch.Interface, error) {
 		return client.Watch(ctx, options)
 	}
 	if !watchable {
 		watchFunc = func(options metav1.ListOptions) (watch.Interface, error) {
 			ctx, cancel := context.WithCancel(ctx)
-			return newSyntheticWatcher(ctx, cancel).watch(client, options, defaultRefreshTime)
+			return newSyntheticWatcher(ctx, cancel, gvk).watch(client, options, defaultRefreshTime)
 		}
 	}
 	listWatcher := &cache.ListWatch{
@@ -126,7 +147,6 @@ func NewInformer(ctx context.Context, client dynamic.ResourceInterface, fields [
 	opts := ListOptionIndexerOptions{
 		Fields:       fields,
 		IsNamespaced: namespaced,
-		GCInterval:   gcInterval,
 		GCKeepCount:  gcKeepCount,
 	}
 	loi, err := NewListOptionIndexer(ctx, s, opts)
@@ -147,7 +167,6 @@ func NewInformer(ctx context.Context, client dynamic.ResourceInterface, fields [
 func (i *Informer) Run(stopCh <-chan struct{}) {
 	var wg wait.Group
 	wg.StartWithChannel(stopCh, i.SharedIndexInformer.Run)
-	wg.StartWithContext(wait.ContextForChannel(stopCh), i.ByOptionsLister.RunGC)
 	wg.Wait()
 }
 
@@ -155,17 +174,21 @@ func (i *Informer) Run(stopCh <-chan struct{}) {
 func (i *Informer) RunWithContext(ctx context.Context) {
 	var wg wait.Group
 	wg.StartWithContext(ctx, i.SharedIndexInformer.RunWithContext)
-	wg.StartWithContext(ctx, i.ByOptionsLister.RunGC)
 	wg.Wait()
+}
+
+func (i *Informer) AugmentList(ctx context.Context, list *unstructured.UnstructuredList, childGVK schema.GroupVersionKind, childSchemaName string, useSelectors bool, accessList accesscontrol.AccessListByVerb) error {
+	return i.ByOptionsLister.AugmentList(ctx, list, childGVK, childSchemaName, useSelectors, accessList)
 }
 
 // ListByOptions returns objects according to the specified list options and partitions.
 // Specifically:
 //   - an unstructured list of resources belonging to any of the specified partitions
 //   - the total number of resources (returned list might be a subset depending on pagination options in lo)
+//   - a summary object, containing the possible values for each field specified in a summary= subquery
 //   - a continue token, if there are more pages after the returned one
 //   - an error instead of all of the above if anything went wrong
-func (i *Informer) ListByOptions(ctx context.Context, lo *sqltypes.ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, string, error) {
+func (i *Informer) ListByOptions(ctx context.Context, lo *sqltypes.ListOptions, partitions []partition.Partition, namespace string) (*unstructured.UnstructuredList, int, *types.APISummary, string, error) {
 	return i.ByOptionsLister.ListByOptions(ctx, lo, partitions, namespace)
 }
 

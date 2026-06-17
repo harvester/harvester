@@ -27,7 +27,7 @@ func (g gzipResponseWriter) Write(b []byte) (int, error) {
 // Close uses gzip to write gzip footer if message is gzip encoded
 func (g gzipResponseWriter) Close(writer *gzip.Writer) {
 	if g.Header().Get("Content-Encoding") == "gzip" {
-		writer.Close()
+		_ = writer.Close()
 	}
 }
 
@@ -60,5 +60,5 @@ func (g *gzipResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if hijacker, ok := g.ResponseWriter.(http.Hijacker); ok {
 		return hijacker.Hijack()
 	}
-	return nil, nil, fmt.Errorf("Upstream ResponseWriter of type %v does not implement http.Hijacker", reflect.TypeOf(g.ResponseWriter))
+	return nil, nil, fmt.Errorf("upstream ResponseWriter of type %v does not implement http.Hijacker", reflect.TypeOf(g.ResponseWriter))
 }
