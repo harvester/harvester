@@ -20,17 +20,10 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/server/ui"
-<<<<<<< HEAD
-=======
-	"github.com/harvester/harvester/pkg/util"
-	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 )
 
 const (
-	localRKEStateSecretName = "local-rke-state"
-	serverTokenKey          = "serverToken"
-	defaultAdminUsername    = "admin"
->>>>>>> ec8efa9e (fix unwanted endpoints)
+	defaultAdminUsername = "admin"
 )
 
 type Router struct {
