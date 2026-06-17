@@ -3,15 +3,20 @@ package dataflow
 import (
 	"context"
 	"errors"
-	"fmt"
-	"github.com/guonaihong/gout/decode"
-	"github.com/guonaihong/gout/encode"
-	api "github.com/guonaihong/gout/interface"
-	"golang.org/x/net/proxy"
-	"net"
 	"net/http"
 	"net/url"
+	"strings"
+	"text/template"
 	"time"
+
+	"github.com/guonaihong/gout/debug"
+	"github.com/guonaihong/gout/decode"
+	"github.com/guonaihong/gout/encode"
+	"github.com/guonaihong/gout/enjson"
+	"github.com/guonaihong/gout/hcutil"
+	"github.com/guonaihong/gout/middler"
+	"github.com/guonaihong/gout/middleware/rsp/autodecodebody"
+	"github.com/guonaihong/gout/setting"
 )
 
 const (
@@ -32,44 +37,50 @@ type DataFlow struct {
 }
 
 // GET send HTTP GET method
-func (df *DataFlow) GET(url string) *DataFlow {
-	df.Req = reqDef(get, joinPaths("", url), df.out)
+func (df *DataFlow) GET(url string, urlStruct ...interface{}) *DataFlow {
+	df.Req, df.Err = reqDef(get, cleanPaths(url), df.out, urlStruct...)
 	return df
 }
 
 // POST send HTTP POST method
-func (df *DataFlow) POST(url string) *DataFlow {
-	df.Req = reqDef(post, joinPaths("", url), df.out)
+func (df *DataFlow) POST(url string, urlStruct ...interface{}) *DataFlow {
+	df.Req, df.Err = reqDef(post, cleanPaths(url), df.out, urlStruct...)
 	return df
 }
 
 // PUT send HTTP PUT method
-func (df *DataFlow) PUT(url string) *DataFlow {
-	df.Req = reqDef(put, joinPaths("", url), df.out)
+func (df *DataFlow) PUT(url string, urlStruct ...interface{}) *DataFlow {
+	df.Req, df.Err = reqDef(put, cleanPaths(url), df.out, urlStruct...)
 	return df
 }
 
 // DELETE send HTTP DELETE method
-func (df *DataFlow) DELETE(url string) *DataFlow {
-	df.Req = reqDef(delete2, joinPaths("", url), df.out)
+func (df *DataFlow) DELETE(url string, urlStruct ...interface{}) *DataFlow {
+	df.Req, df.Err = reqDef(delete2, cleanPaths(url), df.out, urlStruct...)
 	return df
 }
 
 // PATCH send HTTP PATCH method
-func (df *DataFlow) PATCH(url string) *DataFlow {
-	df.Req = reqDef(patch, joinPaths("", url), df.out)
+func (df *DataFlow) PATCH(url string, urlStruct ...interface{}) *DataFlow {
+	df.Req, df.Err = reqDef(patch, cleanPaths(url), df.out, urlStruct...)
 	return df
 }
 
 // HEAD send HTTP HEAD method
-func (df *DataFlow) HEAD(url string) *DataFlow {
-	df.Req = reqDef(head, joinPaths("", url), df.out)
+func (df *DataFlow) HEAD(url string, urlStruct ...interface{}) *DataFlow {
+	df.Req, df.Err = reqDef(head, cleanPaths(url), df.out, urlStruct...)
 	return df
 }
 
 // OPTIONS send HTTP OPTIONS method
-func (df *DataFlow) OPTIONS(url string) *DataFlow {
-	df.Req = reqDef(options, joinPaths("", url), df.out)
+func (df *DataFlow) OPTIONS(url string, urlStruct ...interface{}) *DataFlow {
+	df.Req, df.Err = reqDef(options, cleanPaths(url), df.out, urlStruct...)
+	return df
+}
+
+// SetSetting
+func (df *DataFlow) SetSetting(s setting.Setting) *DataFlow {
+	df.Req.Setting = s
 	return df
 }
 
@@ -118,18 +129,23 @@ func (df *DataFlow) SetMethod(method string) *DataFlow {
 }
 
 // SetURL set url
-func (df *DataFlow) SetURL(url string) *DataFlow {
+func (df *DataFlow) SetURL(url string, urlStruct ...interface{}) *DataFlow {
 	if df.Err != nil {
 		return df
 	}
 
-	if df.Req.url == "" && df.Req.req == nil && df.Req.method == "" {
-		df.Req = reqDef("", joinPaths("", url), df.out)
-		return df
+	if len(urlStruct) > 0 {
+		var out strings.Builder
+		tpl := template.Must(template.New(url).Parse(url))
+		err := tpl.Execute(&out, urlStruct[0])
+		if err != nil {
+			df.Err = err
+			return df
+		}
+		url = out.String()
 	}
 
-	df.Req.url = modifyURL(joinPaths("", url))
-
+	df.Req.url = modifyURL(cleanPaths(url))
 	return df
 }
 
@@ -140,10 +156,6 @@ func (df *DataFlow) SetRequest(req *http.Request) *DataFlow {
 
 // SetBody set the data to the http body, Support string/bytes/io.Reader
 func (df *DataFlow) SetBody(obj interface{}) *DataFlow {
-	if obj == nil {
-		df.Err = errors.New("SetBody:the parameter is a nil pointer")
-	}
-
 	df.Req.bodyEncoder = encode.NewBodyEncode(obj)
 	return df
 }
@@ -172,97 +184,72 @@ func (df *DataFlow) SetHeader(obj ...interface{}) *DataFlow {
 	return df
 }
 
+// SetHeader send http header, Support struct/map/slice types
+func (df *DataFlow) SetHeaderRaw(obj ...interface{}) *DataFlow {
+	df.Req.headerEncode = append([]interface{}{}, obj...)
+	df.Req.rawHeader = true
+	return df
+}
+
 // SetJSON send json to the http body, Support raw json(string, []byte)/struct/map types
 func (df *DataFlow) SetJSON(obj interface{}) *DataFlow {
-	df.out.opt.ReqBodyType = "json"
-	df.Req.bodyEncoder = encode.NewJSONEncode(obj)
+	df.ReqBodyType = "json"
+	df.EscapeHTML = true
+	df.Req.bodyEncoder = enjson.NewJSONEncode(obj, true)
+	return df
+}
+
+// SetJSON send json to the http body, Support raw json(string, []byte)/struct/map types
+// 与SetJSON的区一区别就是不转义HTML里面的标签
+func (df *DataFlow) SetJSONNotEscape(obj interface{}) *DataFlow {
+	df.ReqBodyType = "json"
+	df.Req.bodyEncoder = enjson.NewJSONEncode(obj, false)
 	return df
 }
 
 // SetXML send xml to the http body
 func (df *DataFlow) SetXML(obj interface{}) *DataFlow {
-	df.out.opt.ReqBodyType = "xml"
+	df.ReqBodyType = "xml"
 	df.Req.bodyEncoder = encode.NewXMLEncode(obj)
 	return df
 }
 
 // SetYAML send yaml to the http body, Support struct,map types
 func (df *DataFlow) SetYAML(obj interface{}) *DataFlow {
-	df.out.opt.ReqBodyType = "yaml"
+	df.ReqBodyType = "yaml"
 	df.Req.bodyEncoder = encode.NewYAMLEncode(obj)
 	return df
 }
 
-func (df *DataFlow) initTransport() {
-	if df.out.Client.Transport == nil {
-		df.out.Client.Transport = &http.Transport{}
-	}
-}
-
-func (df *DataFlow) getTransport() (*http.Transport, bool) {
-	// 直接return df.out.Client.Transport.(*http.Transport) 等于下面的写法
-	// ts := df.out.Client.Transport.(*http.Transport)
-	// return ts 编译会报错
-	ts, ok := df.out.Client.Transport.(*http.Transport)
-	return ts, ok
+// SetProtoBuf send yaml to the http body, Support struct types
+// obj必须是结构体指针或者[]byte类型
+func (df *DataFlow) SetProtoBuf(obj interface{}) *DataFlow {
+	df.ReqBodyType = "protobuf"
+	df.Req.bodyEncoder = encode.NewProtoBufEncode(obj)
+	return df
 }
 
 // UnixSocket 函数会修改Transport, 请像对待全局变量一样对待UnixSocket
+// 对于全局变量的解释可看下面的链接
+// https://github.com/guonaihong/gout/issues/373
 func (df *DataFlow) UnixSocket(path string) *DataFlow {
-
-	df.initTransport()
-
-	transport, ok := df.getTransport()
-	if !ok {
-		df.Req.Err = fmt.Errorf("UnixSocket:not found http.transport:%T", df.out.Client.Transport)
-		return df
-	}
-
-	transport.Dial = func(proto, addr string) (conn net.Conn, err error) {
-		return net.Dial("unix", path)
-	}
-
+	df.Err = hcutil.UnixSocket(df.out.Client, path)
 	return df
 }
 
 // SetProxy 函数会修改Transport，请像对待全局变量一样对待SetProxy
+// 对于全局变量的解释可看下面的链接
+// https://github.com/guonaihong/gout/issues/373
 func (df *DataFlow) SetProxy(proxyURL string) *DataFlow {
-	proxy, err := url.Parse(modifyURL(proxyURL))
-	if err != nil {
-		df.Req.Err = err
-		return df
-	}
-
-	df.initTransport()
-
-	transport, ok := df.getTransport()
-	if !ok {
-		df.Req.Err = fmt.Errorf("SetProxy:not found http.transport:%T", df.out.Client.Transport)
-		return df
-	}
-
-	transport.Proxy = http.ProxyURL(proxy)
-
+	df.Err = hcutil.SetProxy(df.out.Client, proxyURL)
 	return df
 }
 
 // SetSOCKS5 函数会修改Transport,请像对待全局变量一样对待SetSOCKS5
+// 对于全局变量的解释可看下面的链接
+// https://github.com/guonaihong/gout/issues/373
 func (df *DataFlow) SetSOCKS5(addr string) *DataFlow {
-	dialer, err := proxy.SOCKS5("tcp", addr, nil, proxy.Direct)
-	if err != nil {
-		df.Req.Err = err
-		return df
-	}
-
-	df.initTransport()
-
-	transport, ok := df.getTransport()
-	if !ok {
-		df.Req.Err = fmt.Errorf("SetSOCKS5:not found http.transport:%T", df.out.Client.Transport)
-		return df
-	}
-
-	transport.Dial = dialer.Dial
+	df.Err = hcutil.SetSOCKS5(df.out.Client, addr)
 	return df
 }
 
@@ -284,34 +271,48 @@ func (df *DataFlow) BindHeader(obj interface{}) *DataFlow {
 // obj must be a pointer variable
 func (df *DataFlow) BindBody(obj interface{}) *DataFlow {
 	if obj == nil {
-		df.Err = errors.New("BindBody:the parameter is a nil pointer")
+		return df
 	}
-
-	df.Req.bodyDecoder = decode.NewBodyDecode(obj)
+	df.Req.bodyDecoder = append(df.Req.bodyDecoder, decode.NewBodyDecode(obj))
 	return df
 }
 
 // BindJSON parse the json string in http body to obj.
 // obj must be a pointer variable
 func (df *DataFlow) BindJSON(obj interface{}) *DataFlow {
-	df.out.opt.RspBodyType = "json"
-	df.Req.bodyDecoder = decode.NewJSONDecode(obj)
+	if obj == nil {
+		return df
+	}
+	df.out.RspBodyType = "json"
+	df.Req.bodyDecoder = append(df.Req.bodyDecoder, decode.NewJSONDecode(obj))
 	return df
 }
 
 // BindYAML parse the yaml string in http body to obj.
 // obj must be a pointer variable
 func (df *DataFlow) BindYAML(obj interface{}) *DataFlow {
-	df.out.opt.RspBodyType = "yaml"
-	df.Req.bodyDecoder = decode.NewYAMLDecode(obj)
+	if obj == nil {
+		return df
+	}
+	df.RspBodyType = "yaml"
+	df.Req.bodyDecoder = append(df.Req.bodyDecoder, decode.NewYAMLDecode(obj))
 	return df
 }
 
 // BindXML parse the xml string in http body to obj.
 // obj must be a pointer variable
 func (df *DataFlow) BindXML(obj interface{}) *DataFlow {
-	df.out.opt.RspBodyType = "xml"
-	df.Req.bodyDecoder = decode.NewXMLDecode(obj)
+	if obj == nil {
+		return df
+	}
+	df.RspBodyType = "xml"
+	df.Req.bodyDecoder = append(df.Req.bodyDecoder, decode.NewXMLDecode(obj))
+	return df
+}
+
+// BindDecoder allow user parse data by their own decoder
+func (df *DataFlow) BindDecoder(decode decode.Decoder) *DataFlow {
+	df.Req.bodyDecoder = append(df.Req.bodyDecoder, decode)
 	return df
 }
 
@@ -327,26 +328,43 @@ func (df *DataFlow) Callback(cb func(*Context) error) *DataFlow {
 	return df
 }
 
+// Chunked
+func (df *DataFlow) Chunked() *DataFlow {
+	df.Req.Chunked()
+	return df
+}
+
 // SetTimeout set timeout, and WithContext are mutually exclusive functions
 func (df *DataFlow) SetTimeout(d time.Duration) *DataFlow {
-	df.Req.index++
-	df.Req.timeoutIndex = df.Req.index
-	df.Req.timeout = d
+	df.Req.SetTimeout(d)
 	return df
 }
 
 // WithContext set context, and SetTimeout are mutually exclusive functions
 func (df *DataFlow) WithContext(c context.Context) *DataFlow {
-	df.Req.index++
-	df.Req.ctxIndex = df.Req.index
 	df.Req.c = c
 	return df
 }
 
+// SetBasicAuth
+func (df *DataFlow) SetBasicAuth(username, password string) *DataFlow {
+	df.Req.userName = &username
+	df.Req.password = &password
+	return df
+}
+
 // Request middleware
-func (df *DataFlow) RequestUse(reqModify ...api.RequestMiddler) *DataFlow {
+func (df *DataFlow) RequestUse(reqModify ...middler.RequestMiddler) *DataFlow {
 	if len(reqModify) > 0 {
 		df.reqModify = append(df.reqModify, reqModify...)
+	}
+	return df
+}
+
+// Response middleware
+func (df *DataFlow) ResponseUse(responseModify ...middler.ResponseMiddler) *DataFlow {
+	if len(responseModify) > 0 {
+		df.responseModify = append(df.responseModify, responseModify...)
 	}
 	return df
 }
@@ -357,18 +375,35 @@ func (df *DataFlow) Debug(d ...interface{}) *DataFlow {
 		switch opt := v.(type) {
 		case bool:
 			if opt {
-				defaultDebug(&df.out.opt)
+				debug.DefaultDebug(&df.Setting.Options)
 			}
-		case DebugOpt:
-			opt.Apply(&df.out.opt)
+		case debug.Apply:
+			opt.Apply(&df.Setting.Options)
 		}
 	}
 
 	return df
 }
 
+// https://github.com/guonaihong/gout/issues/264
+// When calling SetWWWForm(), the Content-Type header will be added automatically,
+// and calling NoAutoContentType() will not add an HTTP header
+//
+// SetWWWForm "Content-Type", "application/x-www-form-urlencoded"
+// SetJSON "Content-Type", "application/json"
+func (df *DataFlow) NoAutoContentType() *DataFlow {
+	df.Req.NoAutoContentType = true
+	return df
+}
+
+// https://github.com/guonaihong/gout/issues/343
+// content-encoding会指定response body的压缩方法，支持常用的压缩，gzip, deflate, br等
+func (df *DataFlow) AutoDecodeBody() *DataFlow {
+	return df.ResponseUse(middler.WithResponseMiddlerFunc(autodecodebody.AutoDecodeBody))
+}
+
 func (df *DataFlow) IsDebug() bool {
-	return df.out.opt.Debug
+	return df.Setting.Debug
 }
 
 // Do send function

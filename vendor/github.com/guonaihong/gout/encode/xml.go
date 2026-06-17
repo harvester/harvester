@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/xml"
 	"errors"
-	"github.com/guonaihong/gout/core"
 	"io"
+
+	"github.com/guonaihong/gout/core"
+	"github.com/guonaihong/gout/encoder"
 )
 
 var ErrNotXML = errors.New("Not xml data")
@@ -16,7 +18,7 @@ type XMLEncode struct {
 }
 
 // NewXMLEncode create a new xml encoder
-func NewXMLEncode(obj interface{}) *XMLEncode {
+func NewXMLEncode(obj interface{}) encoder.Encoder {
 	if obj == nil {
 		return nil
 	}

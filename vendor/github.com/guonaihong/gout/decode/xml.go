@@ -11,7 +11,7 @@ type XMLDecode struct {
 }
 
 // NewXMLDecode create a new xml decoder
-func NewXMLDecode(obj interface{}) *XMLDecode {
+func NewXMLDecode(obj interface{}) Decoder {
 	if obj == nil {
 		return nil
 	}
@@ -22,6 +22,11 @@ func NewXMLDecode(obj interface{}) *XMLDecode {
 func (x *XMLDecode) Decode(r io.Reader) error {
 	decode := xml.NewDecoder(r)
 	return decode.Decode(x.obj)
+}
+
+// Decode object
+func (x *XMLDecode) Value() interface{} {
+	return x.obj
 }
 
 // XML xml decoder

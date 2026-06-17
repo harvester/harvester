@@ -2,7 +2,6 @@ package export
 
 import (
 	"fmt"
-	"github.com/guonaihong/gout/core"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
@@ -11,6 +10,8 @@ import (
 	"path"
 	"sort"
 	"strings"
+
+	"github.com/guonaihong/gout/core"
 )
 
 type curl struct {
@@ -26,10 +27,7 @@ const boundary = "boundary="
 
 func isExists(path string) bool {
 	_, err := os.Stat(path)
-	if err == nil {
-		return true
-	}
-	return false
+	return err == nil
 }
 
 func getFileName(fName string) string {
@@ -48,7 +46,7 @@ func getFileName(fName string) string {
 
 func (c *curl) formData(req *http.Request) error {
 	contentType := req.Header.Get("Content-Type")
-	if strings.Index(contentType, "multipart/form-data") == -1 {
+	if !strings.Contains(contentType, "multipart/form-data") {
 		return nil
 	}
 	req.Header.Del("Content-Type")
@@ -85,20 +83,26 @@ func (c *curl) formData(req *http.Request) error {
 
 		if p.FileName() != "" {
 
-			fileName := getFileName(p.FileName())
-			fileName = path.Base(fileName)
+			fileName := path.Base(p.FileName())
+			fileName = getFileName(fileName)
 			fd, err := os.Create(fileName)
 			if err != nil {
 				return err
 			}
-			io.Copy(fd, p)
+			if _, err = io.Copy(fd, p); err != nil {
+				return err
+			}
 
 			buf.WriteString("@./")
 			buf.WriteString(fileName)
 
-			fd.Close()
+			if err = fd.Close(); err != nil {
+				return err
+			}
 		} else {
-			io.Copy(&buf, p)
+			if _, err = io.Copy(&buf, p); err != nil {
+				return err
+			}
 		}
 
 		c.FormData = append(c.FormData, fmt.Sprintf("%q", buf.String()))
@@ -144,7 +148,10 @@ func GenCurl(req *http.Request, long bool, w io.Writer) error {
 	if len(all) > 0 {
 		c.Data = fmt.Sprintf(`%q`, core.BytesToString(all))
 	}
-	c.formData(req)
+	if err = c.formData(req); err != nil {
+		return err
+	}
+
 	c.header(req)
 	tp := newTemplate(long)
 	return tp.Execute(w, c)

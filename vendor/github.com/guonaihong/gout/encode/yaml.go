@@ -2,9 +2,11 @@ package encode
 
 import (
 	"errors"
-	"github.com/guonaihong/gout/core"
-	"gopkg.in/yaml.v2"
 	"io"
+
+	"github.com/guonaihong/gout/core"
+	"github.com/guonaihong/gout/encoder"
+	"gopkg.in/yaml.v2"
 )
 
 var ErrNotYAML = errors.New("Not yaml data")
@@ -15,7 +17,7 @@ type YAMLEncode struct {
 }
 
 // NewYAMLEncode create a new yaml encoder
-func NewYAMLEncode(obj interface{}) *YAMLEncode {
+func NewYAMLEncode(obj interface{}) encoder.Encoder {
 	if obj == nil {
 		return nil
 	}
@@ -45,9 +47,5 @@ func YAMLValid(b []byte) bool {
 	var m map[string]interface{}
 
 	err := yaml.Unmarshal(b, &m)
-	if err != nil {
-		return false
-	}
-
-	return true
+	return err == nil
 }

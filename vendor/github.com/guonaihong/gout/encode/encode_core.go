@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+
+	"github.com/guonaihong/gout/core"
 )
 
 // ErrUnsupported Unsupported type error returned
@@ -41,10 +43,12 @@ func Encode(in interface{}, a Adder) error {
 	case reflect.Map:
 		iter := v.MapRange()
 		for iter.Next() {
-			if err := a.Add(valToStr(iter.Key(), emptyField), iter.Value(), emptyField); err != nil {
+			keyName := valToStr(iter.Key(), emptyField)
+			if err := setMoreTypes(iter.Value(), emptyField, a, keyName); err != nil {
 				return err
 			}
 		}
+
 		return nil
 
 	case reflect.Struct:
@@ -64,7 +68,8 @@ func Encode(in interface{}, a Adder) error {
 
 		for i, l := 0, v.Len(); i < l; i += 2 {
 
-			if err := a.Add(valToStr(v.Index(i), emptyField), v.Index(i+1), emptyField); err != nil {
+			keyName := valToStr(v.Index(i), emptyField)
+			if err := setMoreTypes(v.Index(i+1), emptyField, a, keyName); err != nil {
 				return err
 			}
 		}
@@ -120,15 +125,40 @@ func valToStr(v reflect.Value, sf reflect.StructField) string {
 		return timeToStr(v, sf)
 	}
 
-	if v.IsZero() {
-		return ""
-	}
+	// 看:
+	// https://github.com/guonaihong/gout/issues/322
+	/*
+		if v.IsZero() {
+			return ""
+		}
+	*/
 
 	if b, ok := v.Interface().([]byte); ok {
 		return *(*string)(unsafe.Pointer(&b))
 	}
 
 	return fmt.Sprint(v.Interface())
+}
+
+func setMoreTypes(val reflect.Value, sf reflect.StructField, a Adder, tagName string) error {
+	switch val.Interface().(type) {
+	case string, []byte, core.FormMem, core.FormFile:
+	default:
+		if val.Kind() == reflect.Interface {
+			val = val.Elem()
+		}
+
+		switch val.Kind() {
+		case reflect.Slice, reflect.Array:
+			for i, l := 0, val.Len(); i < l; i++ {
+				if err := a.Add(tagName, val.Index(i), sf); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}
+	return a.Add(tagName, val, sf)
 }
 
 func parseTagAndSet(val reflect.Value, sf reflect.StructField, a Adder) error {
@@ -148,7 +178,7 @@ func parseTagAndSet(val reflect.Value, sf reflect.StructField, a Adder) error {
 		return nil
 	}
 
-	return a.Add(tagName, val, sf)
+	return setMoreTypes(val, sf, a, tagName)
 }
 
 func encode(val reflect.Value, sf reflect.StructField, a Adder) error {

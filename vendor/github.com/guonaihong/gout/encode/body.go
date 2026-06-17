@@ -2,9 +2,11 @@ package encode
 
 import (
 	"fmt"
-	"github.com/guonaihong/gout/core"
 	"io"
 	"reflect"
+
+	"github.com/guonaihong/gout/core"
+	"github.com/guonaihong/gout/encoder"
 )
 
 // BodyEncode body encoder structure
@@ -13,7 +15,7 @@ type BodyEncode struct {
 }
 
 // NewBodyEncode create a new body encoder
-func NewBodyEncode(obj interface{}) *BodyEncode {
+func NewBodyEncode(obj interface{}) encoder.Encoder {
 	if obj == nil {
 		return nil
 	}

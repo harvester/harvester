@@ -3,39 +3,45 @@ package dataflow
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
-	"github.com/guonaihong/gout/core"
-	"github.com/guonaihong/gout/decode"
-	"github.com/guonaihong/gout/encode"
-	api "github.com/guonaihong/gout/interface"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"reflect"
 	"strings"
-	"time"
-)
+	"text/template"
 
-type Do interface {
-	Do(*http.Request) (*http.Response, error)
-}
+	"github.com/guonaihong/gout/core"
+	"github.com/guonaihong/gout/debug"
+	"github.com/guonaihong/gout/decode"
+	"github.com/guonaihong/gout/encode"
+	"github.com/guonaihong/gout/encoder"
+	"github.com/guonaihong/gout/middler"
+	"github.com/guonaihong/gout/setting"
+)
 
 // Req controls core data structure of http request
 type Req struct {
-	method string
-	url    string
-	host   string
+	method   string
+	url      string
+	host     string
+	userName *string
+	password *string
 
 	form    []interface{}
 	wwwForm []interface{}
 
 	// http body
-	bodyEncoder encode.Encoder
-	bodyDecoder decode.Decoder
+	bodyEncoder encoder.Encoder
+	bodyDecoder []decode.Decoder
 
 	// http header
 	headerEncode []interface{}
+	// raw header
+	rawHeader bool
+
 	headerDecode interface{}
 
 	// query
@@ -46,22 +52,24 @@ type Req struct {
 
 	callback func(*Context) error
 
-	//cookie
+	// cookie
 	cookies []*http.Cookie
 
-	timeout time.Duration
-
-	//自增id，主要给互斥API定优先级
-	//对于互斥api，后面的会覆盖前面的
-	index        int
-	timeoutIndex int
-	ctxIndex     int
+	ctxIndex int
 
 	c   context.Context
 	Err error
 
-	reqModify []api.RequestMiddler
-	req       *http.Request
+	reqModify []middler.RequestMiddler
+
+	responseModify []middler.ResponseMiddler
+
+	req *http.Request
+
+	// 内嵌字段
+	setting.Setting
+
+	cancel context.CancelFunc
 }
 
 // Reset 重置 Req结构体
@@ -70,7 +78,10 @@ type Req struct {
 // headerDecode只有一个可能，就定义为具体类型。这里他们的decode实现也不一样
 // 有没有必要，归一化成一种??? TODO:
 func (r *Req) Reset() {
-	r.index = 0
+	if r.cancel != nil {
+		r.cancel()
+	}
+	r.Setting.Reset()
 	r.Err = nil
 	r.cookies = nil
 	r.form = nil
@@ -94,35 +105,35 @@ func isAndGetString(x interface{}) (string, bool) {
 	}
 
 	if s, ok := core.GetString(p.Interface()); ok {
-		if strings.HasPrefix(s, "?") {
-			s = s[1:]
-		}
-		return s, true
+		return strings.TrimPrefix(s, "?"), true
 	}
 	return "", false
 }
 
 func (r *Req) addDefDebug() {
 	if r.bodyEncoder != nil {
-		switch bodyType := r.bodyEncoder.(encode.Encoder); bodyType.Name() {
+		switch bodyType := r.bodyEncoder; bodyType.Name() {
 		case "json":
-			r.g.opt.ReqBodyType = "json"
+			r.ReqBodyType = "json"
 		case "xml":
-			r.g.opt.ReqBodyType = "xml"
+			r.ReqBodyType = "xml"
 		case "yaml":
-			r.g.opt.ReqBodyType = "yaml"
+			r.ReqBodyType = "yaml"
 		}
 	}
-
 }
 
 func (r *Req) addContextType(req *http.Request) {
+	if req.Header.Get("Content-Type") != "" {
+		return
+	}
+
 	if r.wwwForm != nil {
 		req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	}
 
 	if r.bodyEncoder != nil {
-		switch bodyType := r.bodyEncoder.(encode.Encoder); bodyType.Name() {
+		switch bodyType := r.bodyEncoder; bodyType.Name() {
 		case "json":
 			req.Header.Add("Content-Type", "application/json")
 		case "xml":
@@ -131,7 +142,6 @@ func (r *Req) addContextType(req *http.Request) {
 			req.Header.Add("Content-Type", "application/x-yaml")
 		}
 	}
-
 }
 
 func (r *Req) selectRequest(body *bytes.Buffer) (req *http.Request, err error) {
@@ -156,7 +166,7 @@ func (r *Req) selectRequest(body *bytes.Buffer) (req *http.Request, err error) {
 		}
 
 		if len(r.host) > 0 {
-			urlStr := modifyURL(joinPaths("", r.host))
+			urlStr := modifyURL(cleanPaths(r.host))
 			URL, err := url.Parse(urlStr)
 			if err != nil {
 				r.Err = err
@@ -184,9 +194,13 @@ func (r *Req) selectRequest(body *bytes.Buffer) (req *http.Request, err error) {
 
 func (r *Req) encodeQuery() error {
 	var query string
-	q := encode.NewQueryEncode(nil)
+	q := encode.NewQueryEncode(r.Setting)
 
 	for _, queryEncode := range r.queryEncode {
+		if queryEncode == nil {
+			continue
+		}
+
 		if qStr, ok := isAndGetString(queryEncode); ok {
 			joiner := "&"
 			if len(query) == 0 {
@@ -218,6 +232,10 @@ func (r *Req) encodeQuery() error {
 
 func (r *Req) encodeForm(body *bytes.Buffer, f *encode.FormEncode) error {
 	for _, body := range r.form {
+		if body == nil {
+			continue
+		}
+
 		if err := encode.Encode(body, f); err != nil {
 			return err
 		}
@@ -227,8 +245,11 @@ func (r *Req) encodeForm(body *bytes.Buffer, f *encode.FormEncode) error {
 }
 
 func (r *Req) encodeWWWForm(body *bytes.Buffer) error {
-	enc := encode.NewWWWFormEncode()
+	enc := encode.NewWWWFormEncode(r.Setting)
 	for _, formData := range r.wwwForm {
+		if formData == nil {
+			continue
+		}
 		if err := enc.Encode(formData); err != nil {
 			return err
 		}
@@ -298,7 +319,7 @@ func (r *Req) Request() (req *http.Request, err error) {
 		req.AddCookie(c)
 	}
 
-	if r.form != nil {
+	if r.form != nil && req.Header.Get("Content-Type") == "" {
 		req.Header.Add("Content-Type", f.FormDataContentType())
 	}
 
@@ -311,8 +332,14 @@ func (r *Req) Request() (req *http.Request, err error) {
 	}
 
 	r.addDefDebug()
-	r.addContextType(req)
-	//运行请求中间件
+	if !r.NoAutoContentType {
+		r.addContextType(req)
+	}
+
+	if r.userName != nil && r.password != nil {
+		req.SetBasicAuth(*r.userName, *r.password)
+	}
+	// 运行请求中间件
 	for _, reqModify := range r.reqModify {
 		if err = reqModify.ModifyRequest(req); err != nil {
 			return nil, err
@@ -328,7 +355,7 @@ func (r *Req) encodeHeader(req *http.Request) (err error) {
 			continue
 		}
 
-		err = encode.Encode(h, encode.NewHeaderEncode(req))
+		err = encode.Encode(h, encode.NewHeaderEncode(req, r.rawHeader))
 		if err != nil {
 			return err
 		}
@@ -343,11 +370,45 @@ func clearHeader(header http.Header) {
 	}
 }
 
+// retry模块需要context.Context，所以这里也返回context.Context
 func (r *Req) GetContext() context.Context {
-	if r.timeout > 0 && r.timeoutIndex > r.ctxIndex {
-		r.c, _ = context.WithTimeout(context.Background(), r.timeout)
+	if r.Timeout > 0 {
+		if r.c == nil {
+			r.c = context.TODO()
+		}
+		r.c, r.cancel = context.WithTimeout(r.c, r.Timeout)
 	}
 	return r.c
+}
+
+// TODO 优化代码，每个decode都有自己的指针偏移直接指向流，减少大body的内存使用
+func (r *Req) decodeBody(req *http.Request, resp *http.Response) (err error) {
+	if r.bodyDecoder != nil {
+		// 当只有一个解码器时，直接在流上操作，避免读取整个响应体
+		if len(r.bodyDecoder) == 1 {
+			defer resp.Body.Close() // 确保在读取完成后关闭body
+			return r.bodyDecoder[0].Decode(resp.Body)
+		}
+
+		// 当有多个解码器需要处理响应体时，才读取整个响应体到内存中
+		all, err := ReadAll(resp)
+		if err != nil {
+			return err
+		}
+		resp.Body.Close() // 已经取走数据，直接关闭body
+
+		for _, bodyDecoder := range r.bodyDecoder {
+			if len(all) > 0 {
+				resp.Body = ioutil.NopCloser(bytes.NewReader(all))
+			}
+
+			if err = bodyDecoder.Decode(resp.Body); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (r *Req) decode(req *http.Request, resp *http.Response, openDebug bool) (err error) {
@@ -362,8 +423,11 @@ func (r *Req) decode(req *http.Request, resp *http.Response, openDebug bool) (er
 	}
 
 	if r.headerDecode != nil {
-		err = decode.Header.Decode(resp, r.headerDecode)
-		if err != nil {
+		if err = decode.Header.Decode(resp, r.headerDecode); err != nil {
+			return err
+		}
+
+		if err = valid.ValidateStruct(r.headerDecode); err != nil {
 			return err
 		}
 	}
@@ -372,18 +436,19 @@ func (r *Req) decode(req *http.Request, resp *http.Response, openDebug bool) (er
 		// This is code(output debug info) be placed here
 		// all, err := ioutil.ReadAll(resp.Body)
 		// respBody  = bytes.NewReader(all)
-		if err = r.g.opt.resetBodyAndPrint(req, resp); err != nil {
+		if err = r.ResetBodyAndPrint(req, resp); err != nil {
+			return err
+		}
+	}
+	// 运行响应中间件。放到debug打印后面，避免混淆请求返回内容
+	for _, modify := range r.responseModify {
+		err = modify.ModifyResponse(resp)
+		if err != nil {
 			return err
 		}
 	}
 
-	if r.bodyDecoder != nil {
-		if err = r.bodyDecoder.Decode(resp.Body); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return r.decodeBody(req, resp)
 }
 
 func (r *Req) getDataFlow() *DataFlow {
@@ -404,8 +469,7 @@ func clearBody(resp *http.Response) error {
 }
 
 func (r *Req) Bind(req *http.Request, resp *http.Response) (err error) {
-
-	if err = r.decode(req, resp, r.g.opt.Debug); err != nil {
+	if err = r.decode(req, resp, r.Setting.Debug); err != nil {
 		return err
 	}
 
@@ -428,7 +492,6 @@ func (r *Req) Bind(req *http.Request, resp *http.Response) (err error) {
 	}
 
 	return nil
-
 }
 
 func (r *Req) Client() *http.Client {
@@ -439,8 +502,8 @@ func (r *Req) Client() *http.Client {
 	return r.g.Client
 }
 
-func (r *Req) getDebugOpt() *DebugOption {
-	return &r.g.opt
+func (r *Req) getDebugOpt() *debug.Options {
+	return &r.Setting.Options
 }
 
 func (r *Req) canTrace() bool {
@@ -448,32 +511,68 @@ func (r *Req) canTrace() bool {
 	return opt.Trace
 }
 
-// Do Send function
-func (r *Req) Do() (err error) {
+// 使用chunked方式
+func (r *Req) maybeUseChunked(req *http.Request) {
+	if r.UseChunked {
+		req.ContentLength = -1
+	}
+}
+
+// getReqAndRsp 内部函数获取req和resp
+func (r *Req) getReqAndRsp() (req *http.Request, rsp *http.Response, err error) {
 	if r.Err != nil {
-		return r.Err
+		return nil, nil, r.Err
 	}
 
-	// reset  Req
-	defer r.Reset()
-
-	req, err := r.Request()
+	req, err = r.Request()
 	if err != nil {
-		return err
+		return
 	}
 
 	opt := r.getDebugOpt()
 
-	//resp, err := r.Client().Do(req)
-	//TODO r.Client() 返回Do接口
-	resp, err := opt.startTrace(opt, r.canTrace(), req, r.Client())
+	// 如果调用Chunked()接口, 就使用chunked的数据包
+	r.maybeUseChunked(req)
+
+	// resp, err := r.Client().Do(req)
+	// TODO r.Client() 返回Do接口
+	rsp, err = opt.StartTrace(opt, r.canTrace(), req, r.Client())
+	return
+}
+
+// Response 获取原始http.Response数据结构
+func (r *Req) Response() (rsp *http.Response, err error) {
+	_, rsp, err = r.getReqAndRsp()
+	defer r.Reset()
+	return
+}
+
+// Do Send function
+func (r *Req) Do() (err error) {
+	req, resp, err := r.getReqAndRsp()
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	// reset  Req
+	defer r.Reset()
+
 	if err != nil {
 		return err
 	}
 
-	defer resp.Body.Close()
+	if err := r.Bind(req, resp); err != nil {
+		return err
+	}
 
-	return r.Bind(req, resp)
+	if r.bodyDecoder != nil {
+		for _, bodyDecoder := range r.bodyDecoder {
+			if err := valid.ValidateStruct(bodyDecoder.Value()); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func modifyURL(url string) string {
@@ -492,6 +591,54 @@ func modifyURL(url string) string {
 	return fmt.Sprintf("http://%s", url)
 }
 
-func reqDef(method string, url string, g *Gout) Req {
-	return Req{method: method, url: modifyURL(url), g: g}
+func reqDef(method string, url string, g *Gout, urlStruct ...interface{}) (Req, error) {
+	if len(urlStruct) > 0 {
+		var out strings.Builder
+		tpl := template.Must(template.New(url).Parse(url))
+		err := tpl.Execute(&out, urlStruct[0])
+		if err != nil {
+			return Req{}, err
+		}
+		url = out.String()
+	}
+
+	r := Req{method: method, url: modifyURL(url), g: g}
+
+	r.Setting = GlobalSetting
+
+	return r, nil
+}
+
+// ReadAll returns the whole response body as bytes.
+// This is an optimized version of `io.ReadAll`.
+func ReadAll(resp *http.Response) ([]byte, error) {
+	if resp == nil {
+		return nil, errors.New("response cannot be nil")
+	}
+	switch {
+	case resp.ContentLength == 0:
+		return []byte{}, nil
+	// if we know the body length we can allocate the buffer only once
+	case resp.ContentLength >= 0:
+		body := make([]byte, resp.ContentLength)
+		_, err := io.ReadFull(resp.Body, body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read the response body with a known length %d: %w", resp.ContentLength, err)
+		}
+		return body, nil
+
+	default:
+		// using `bytes.NewBuffer` + `io.Copy` is much faster than `io.ReadAll`
+		// see https://github.com/elastic/beats/issues/36151#issuecomment-1931696767
+		buf := bytes.NewBuffer(nil)
+		_, err := io.Copy(buf, resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read the response body with unknown length: %w", err)
+		}
+		body := buf.Bytes()
+		if body == nil {
+			body = []byte{}
+		}
+		return body, nil
+	}
 }

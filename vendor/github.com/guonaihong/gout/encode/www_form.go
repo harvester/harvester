@@ -2,6 +2,7 @@ package encode
 
 import (
 	"github.com/guonaihong/gout/core"
+	"github.com/guonaihong/gout/setting"
 	"io"
 	"net/url"
 	"reflect"
@@ -12,12 +13,13 @@ var _ Adder = (*WWWFormEncode)(nil)
 // WWWFormEncode x-www-form-urlencoded encoder structure
 type WWWFormEncode struct {
 	values url.Values
+	setting.Setting
 }
 
 // NewWWWFormEncode create a new x-www-form-urlencoded encoder
-func NewWWWFormEncode() *WWWFormEncode {
+func NewWWWFormEncode(s setting.Setting) *WWWFormEncode {
 
-	return &WWWFormEncode{values: make(url.Values)}
+	return &WWWFormEncode{values: make(url.Values), Setting: s}
 }
 
 // Encode x-www-form-urlencoded encoder
@@ -31,7 +33,7 @@ func (we *WWWFormEncode) Encode(obj interface{}) (err error) {
 // reflect.StructField主要是可以在Add函数里面获取tag相关信息
 func (we *WWWFormEncode) Add(key string, v reflect.Value, sf reflect.StructField) error {
 	val := valToStr(v, sf)
-	if len(val) == 0 {
+	if !we.NotIgnoreEmpty && len(val) == 0 {
 		return nil
 	}
 	we.values.Add(key, val)

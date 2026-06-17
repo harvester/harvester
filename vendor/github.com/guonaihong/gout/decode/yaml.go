@@ -1,8 +1,9 @@
 package decode
 
 import (
-	"gopkg.in/yaml.v2"
 	"io"
+
+	"gopkg.in/yaml.v2"
 )
 
 // YAMLDecode yaml decoder core data structure
@@ -11,7 +12,7 @@ type YAMLDecode struct {
 }
 
 // NewYAMLDecode create a new yaml decoder
-func NewYAMLDecode(obj interface{}) *YAMLDecode {
+func NewYAMLDecode(obj interface{}) Decoder {
 	if obj == nil {
 		return nil
 	}
@@ -19,9 +20,14 @@ func NewYAMLDecode(obj interface{}) *YAMLDecode {
 }
 
 // Decode yaml decoder
-func (x *YAMLDecode) Decode(r io.Reader) error {
+func (y *YAMLDecode) Decode(r io.Reader) error {
 	decode := yaml.NewDecoder(r)
-	return decode.Decode(x.obj)
+	return decode.Decode(y.obj)
+}
+
+// Decode obj
+func (y *YAMLDecode) Value() interface{} {
+	return y.obj
 }
 
 // YAML yaml decoder
