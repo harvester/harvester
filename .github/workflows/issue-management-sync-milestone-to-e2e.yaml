@@ -13,7 +13,7 @@ jobs:
       E2E_TITLE: "[e2e] ${{ github.event.issue.title }}"
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
     
     - name: Sync Milestone to E2E Issue
       run: |
