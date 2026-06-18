@@ -1,0 +1,36 @@
+name: E2E Tests
+on:
+  push:
+    branches:
+    - master
+    - release-*
+    - v*
+  pull_request:
+  schedule:
+    - cron: "10 1 * * *"
+  workflow_dispatch:
+
+jobs:
+  configure_input_vars:
+    runs-on: ubuntu-latest
+    outputs:
+      sha_short: ${{ steps.set_vars.outputs.sha_short }}
+      branch: ${{ steps.set_vars.outputs.branch }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+    - name: Declare branch and sha_short
+      id: set_vars
+      run: |
+        echo "sha_short=$(git rev-parse --short=8 "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+        echo "branch=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_OUTPUT"
+
+  calling-e2e-tests:
+    needs: configure_input_vars
+    uses: ./.github/workflows/e2e-tests-factory.yml
+    with:
+      build_version: ${{ needs.configure_input_vars.outputs.branch }}-${{ needs.configure_input_vars.outputs.sha_short }}-head
+      registry: 172.17.0.1:5000
+      insecure_registry: true
+      registry_as_mirror: true

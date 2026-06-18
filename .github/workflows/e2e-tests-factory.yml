@@ -1,0 +1,244 @@
+name: E2E Tests Factory
+
+on:
+    workflow_call:
+      inputs:
+        build_version:
+          required: true
+          type: string
+        registry:
+          required: false
+          default: "docker.io"
+          type: string
+        registry_as_mirror:
+          required: false
+          default: false
+          type: boolean
+        insecure_registry:
+          required: false
+          default: false
+          type: boolean
+        artifact_server_url:
+          required: false
+          default: "http://172.17.0.1:8787"
+          type: string
+        harvester_tests_repo:
+          required: false
+          default: "https://github.com/harvester/tests"
+          type: string
+        test_tags:
+          required: false
+          default: "pr-baseline"
+          type: string
+
+concurrency:
+  group: ${{ github.workflow }}-e2e-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && !startsWith(github.ref, 'refs/heads/v') && !startsWith(github.ref, 'refs/tags/v') }}
+jobs:
+  build-push-images:
+    name: Build and push images
+    runs-on:
+      group: e2e-ci
+    strategy:
+      matrix:
+        arch: [x64]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+    - name: Set Build Environment Variables
+      run: |
+        if [ ! -e "Dockerfile.dapper" ]; then
+          echo "BUILDX_BUILD=true" >> $GITHUB_ENV
+        else
+          echo "BUILDX_BUILD=false" >> $GITHUB_ENV
+        fi
+
+    # Build binaries
+    - name: Run make build
+      run: make build
+    
+    - name: Run make build-installer
+      if: ${{ env.BUILDX_BUILD == 'true' }}
+      run: |
+        make build-installer
+
+    # Build manifests
+    - name: Run make prepare-addons
+      if: ${{ env.BUILDX_BUILD == 'true' }}
+      run: make prepare-addons
+
+    - name: Copy bins to package
+      run: |
+        cp -r ./bin/harvester ./package/
+        cp -r ./bin/harvester-webhook ./package/
+        cp -r ./bin/upgrade-helper ./package/upgrade/
+
+    - name: Copy installer to package
+      if: ${{ env.BUILDX_BUILD == 'true' }}
+      run: |
+        cp -r ./bin/harvester-installer ./package/upgrade/
+
+    - name: Copy add-ons manifests to package/upgrade
+      if: ${{ env.BUILDX_BUILD == 'true' }}
+      run: |
+        cp -r ./dist/prepare-addons/addons-manifests ./package/upgrade/addons
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+    - name: Configure arch to amd64/arm64
+      run: |
+        if [ "${{ matrix.arch }}" == "x64" ]; then
+          echo "arch=amd64" >> "$GITHUB_ENV"
+        else
+          echo "arch=arm64" >> "$GITHUB_ENV"
+        fi
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      if: ${{ inputs.insecure_registry == true || inputs.insecure_registry == 'true' }}
+      with:
+        buildkitd-config-inline: |
+          [registry."${{ inputs.registry }}"]
+            http = true
+            insecure = true
+
+    # rancher/harvester image
+    - name: docker-publish-harvester
+      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      with:
+        context: package/
+        push: true
+        platforms: linux/${{ env.arch }}
+        tags: ${{ inputs.registry }}/rancher/harvester:${{ inputs.build_version }}-${{ env.arch }}
+        file: package/Dockerfile
+        build-args: |
+          ARCH=${{ env.arch }}
+          VERSION=${{ inputs.build_version }}
+        cache-from: type=registry,ref=${{ inputs.registry }}/package-cache/harvester,mode=max
+        cache-to: type=registry,ref=${{ inputs.registry }}/package-cache/harvester,mode=max
+  
+    # rancher/harvester-webhook image
+    - name: docker-publish-harvester-webhook
+      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      with:
+        context: package/
+        push: true
+        platforms: linux/${{ env.arch }}
+        tags: ${{ inputs.registry }}/rancher/harvester-webhook:${{ inputs.build_version }}-${{ env.arch }}
+        file: package/Dockerfile.webhook
+        build-args: |
+          ARCH=${{ env.arch }}
+          VERSION=${{ inputs.build_version }}
+        cache-from: type=registry,ref=${{ inputs.registry }}/package-cache/harvester-webhook,mode=max
+        cache-to: type=registry,ref=${{ inputs.registry }}/package-cache/harvester-webhook,mode=max
+  
+    # rancher/harvester-upgrade image
+    - name: docker-publish-harvester-upgrade
+      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      with:
+        context: package/upgrade
+        push: true
+        platforms: linux/${{ env.arch }}
+        tags: ${{ inputs.registry }}/rancher/harvester-upgrade:${{ inputs.build_version }}-${{ env.arch }}
+        file: package/upgrade/Dockerfile
+        build-args: |
+          ARCH=${{ env.arch }}
+          VERSION=${{ inputs.build_version }}
+        cache-from: type=registry,ref=${{ inputs.registry }}/package-cache/harvester-upgrade,mode=max
+        cache-to: type=registry,ref=${{ inputs.registry }}/package-cache/harvester-upgrade,mode=max
+
+  run-e2e-tests:
+    name: Run E2E tests
+    runs-on:
+      group: e2e-ci
+    needs: build-push-images
+    strategy:
+      matrix:
+        arch: [x64]
+    steps:
+    - name: Configure envs
+      run: |
+        if [ "${{ matrix.arch }}" == "x64" ]; then
+          echo "arch=amd64" >> "$GITHUB_ENV"
+        else
+          echo "arch=arm64" >> "$GITHUB_ENV"
+        fi
+
+        if [ -n "${{ github.base_ref }}" ]; then
+          # pull request
+          echo "target_branch=${{ github.base_ref }}" >> "$GITHUB_ENV"
+        else
+          # direct push
+          echo "target_branch=${{ github.ref_name }}" >> "$GITHUB_ENV"
+        fi
+
+        echo "test_results_dir=$(pwd)/e2e-results-${{ github.run_number }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
+
+    - name: Create testing cluster
+      run: |
+        cd $HOME/harvester-dev
+        # ./scripts/golden-prepare.sh "${{ inputs.artifact_server_url }}/isos/golden" "${{ env.target_branch }}"
+        ./scripts/golden-prepare.sh "${{ inputs.artifact_server_url }}/isos/golden" master
+      env:
+        LIBVIRT_DEFAULT_URI: "qemu:///system"
+
+    - name: Configure containerd mirror
+      if: ${{ inputs.registry_as_mirror == true || inputs.registry_as_mirror == 'true' }}
+      run: |
+        cd $HOME/harvester-dev
+
+        protocol="https"
+        if [ "${{ inputs.insecure_registry }}" = "true" ]; then protocol="http"; fi
+        yq -i ".harvester.registry_mirrors = [{\"registry\": \"docker.io\", \"endpoint\": \"${protocol}://${{ inputs.registry }}\"}]" config.yaml
+
+        task op:harvester-configure-registries
+
+        # After configuring registry mirrors, RKE2 on each nodes are restarted. Sleep for a while
+        # and call test-cluster-ready test to wait for nodes to be ready.
+        sleep 5
+        task op:test-cluster-ready
+
+    - name: Patch Harvester images
+      run: |
+        cd $HOME/harvester-dev
+
+        repo="rancher"
+
+        image_as_mirror="${{ inputs.registry_as_mirror }}"
+        if [ "$image_as_mirror" = "false" ]; then
+          repo="${{ inputs.registry }}/rancher"
+        fi
+
+        echo "Patching Harvester images to use repo $repo with tag ${{ inputs.build_version}}-${{ env.arch }}"
+        task op:harvester-patch-images -- $repo ${{inputs.build_version }}-${{ env.arch }}
+
+    - name: Run tests
+      run: |
+        echo "Running E2E tests"
+
+        git clone "${{ inputs.harvester_tests_repo }}" qa-tests
+        cd qa-tests/harvester_robot_tests/
+
+        cat > .env <<EOF
+        HARVESTER_OPERATION_STRATEGY="crd"
+        HARVESTER_ENDPOINT="https://$(yq -e '.vip' $HOME/harvester-dev/config.yaml)"
+        HARVESTER_USERNAME="admin"
+        HARVESTER_PASSWORD="$(yq -e '.harvester.admin_password' $HOME/harvester-dev/config.yaml)"
+
+        OPENSUSE_IMAGE_URL="${{ inputs.artifact_server_url }}/images/openSUSE-Leap-15.6.x86_64-NoCloud.qcow2"
+        EOF
+
+        ./docker-run.sh --kubeconfig "$HOME/harvester-dev/kubeconfig" --output "${{ env.test_results_dir }}" -- -p 8 -i ${{ inputs.test_tags }}
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: test_results_${{ github.run_number }}-${{ github.run_attempt }}
+        path: ${{ env.test_results_dir }}
+        if-no-files-found: warn
