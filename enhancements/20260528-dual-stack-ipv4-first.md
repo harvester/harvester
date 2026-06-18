@@ -512,8 +512,8 @@ flowchart LR
         end
 
         subgraph SNC["network-controller-harvester"]
-            SNCA["Track A: IPAddr dual CIDR + SetIPAddress + routes + iptables + NAD + subnet webhook"]
-            SNCB["Track B: DHCPv6 vendor + lease manager + stateful IA_NA client"]
+            SNCA["1.1 Bug Fix: KubeOVN Subnet webhook + Management interface detection "]
+            SNCB["1.2 Dual-stack: API type & CRD + webhook + route + controller + system (+1.3 DHCPv6 lease manager?)"]
             SNCA --> SNCB
         end
     end
