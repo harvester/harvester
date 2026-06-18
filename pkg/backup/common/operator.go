@@ -657,7 +657,10 @@ func (vmbo *vmbackupOperator) SetReadyToUse(vmb *harvesterv1.VirtualMachineBacku
 }
 
 func (vmbo *vmbackupOperator) SetProgress(vmb *harvesterv1.VirtualMachineBackup, p int) error {
-	vmb.Status.Progress = p
+	// Monotonic: never let aggregate progress regress.
+	if p > vmb.Status.Progress {
+		vmb.Status.Progress = p
+	}
 	return nil
 }
 

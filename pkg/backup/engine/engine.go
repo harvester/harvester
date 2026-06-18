@@ -17,6 +17,8 @@ type BackupEngine interface {
 	// Reconcile ensures the per-volume backup at volIndex matches desired state:
 	// it creates the volume snapshot if missing, otherwise refreshes status. Idempotent.
 	Reconcile(vmb *harvesterv1.VirtualMachineBackup, volIndex int, vsClassMap map[string]snapshotv1.VolumeSnapshotClass) error
+	// UpdateProgress returns the per-volume backup progress percentage, bounded
+	// between 0 and 100.
 	UpdateProgress(*harvesterv1.VolumeBackup) (int64, error)
 	ForceDelete(vmb *harvesterv1.VirtualMachineBackup, volIndex int) error
 	// RegisterWatchers gives the engine an opportunity to register its own
