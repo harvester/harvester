@@ -129,7 +129,7 @@ jobs:
 
     # rancher/harvester image
     - name: docker-publish-harvester
-      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
       with:
         context: package/
         push: true
@@ -142,7 +142,7 @@ jobs:
   
     # rancher/harvester-webhook image
     - name: docker-publish-harvester-webhook
-      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
       with:
         context: package/
         push: true
@@ -155,7 +155,7 @@ jobs:
   
     # rancher/harvester-upgrade image
     - name: docker-publish-harvester-upgrade
-      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
       with:
         context: package/upgrade
         push: true
@@ -295,7 +295,7 @@ jobs:
 
     # rancher/harvester-cluster-repo image
     - name: docker-publish-harvester-cluster-repo
-      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
       with:
         context: dist/harvester-cluster-repo
         push: true
