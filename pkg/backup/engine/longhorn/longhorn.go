@@ -423,22 +423,20 @@ func (le *LonghornEngine) UpdateProgress(vb *harvesterv1.VolumeBackup) (int64, e
 		return 0, nil
 	}
 
-	volumeSize := le.vmbo.GetVolBackupSize(vb)
-
 	if le.vmbo.GetVolBackupReadyToUse(vb) {
-		return volumeSize, le.vmbo.SetVolBackupProgress(vb, backupProgressComplete)
+		return backupProgressComplete, nil
 	}
 
 	if le.vmbo.GetVolBackupLHBackupName(vb) == nil {
-		return volumeSize, nil
+		return int64(le.vmbo.GetVolBackupProgress(vb)), nil
 	}
 
 	lhBackup, err := le.lhbackupCache.Get(util.LonghornSystemNamespaceName, *le.vmbo.GetVolBackupLHBackupName(vb))
 	if err != nil {
-		return volumeSize, err
+		return 0, err
 	}
 
-	return volumeSize, le.vmbo.SetVolBackupProgress(vb, lhBackup.Status.Progress)
+	return int64(lhBackup.Status.Progress), nil
 }
 
 // ForceDelete removes the VolumeSnapshot and any VolumeSnapshotContent that

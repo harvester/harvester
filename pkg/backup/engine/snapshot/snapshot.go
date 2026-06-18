@@ -84,7 +84,10 @@ func (se *SnapshotEngine) ensureVolumeSnapshotExists(
 	return se.vsHelper.CreateVolumeSnapshotFromPVC(vmb, vb, &vsClass, ownerRef)
 }
 
-func (se *SnapshotEngine) UpdateProgress(*harvesterv1.VolumeBackup) (int64, error) {
+func (se *SnapshotEngine) UpdateProgress(vb *harvesterv1.VolumeBackup) (int64, error) {
+	if se.vmbo.GetVolBackupReadyToUse(vb) {
+		return 100, nil
+	}
 	return 0, nil
 }
 

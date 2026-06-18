@@ -27,13 +27,17 @@ func (h *Handler) updateConditions(vmb *harvesterv1.VirtualMachineBackup) error 
 			ready = false
 		}
 
-		volumeSize, err := backupEngine.UpdateProgress(vb)
+		progress, err := backupEngine.UpdateProgress(vb)
 		if err != nil {
 			return err
 		}
+		if err := h.vmbo.SetVolBackupProgress(vb, int(progress)); err != nil {
+			return err
+		}
 
+		volumeSize := h.vmbo.GetVolBackupSize(vb)
 		volumeSizeSum += volumeSize
-		progressWeightSum += int64(h.vmbo.GetVolBackupProgress(vb)) * volumeSize
+		progressWeightSum += progress * volumeSize
 
 		if h.vmbo.GetVolBackupError(vb) != nil {
 			volBackupErr = fmt.Errorf("VolumeSnapshot %s in error state", *h.vmbo.GetVolBackupName(vb))
