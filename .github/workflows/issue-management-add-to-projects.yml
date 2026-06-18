@@ -61,7 +61,7 @@ jobs:
         steps.is-suse-member.outputs.isOrganization == 'true' &&
         steps.is-harvester-member.outputs.isOrganization == 'false'
         }}
-      uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
+      uses: actions/add-to-project@5afcf98fcd03f1c2f92c3c83f58ae24323cc57fd # v2.0.0
       with:
         project-url: ${{ env.PRODUCT_BACKLOG_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
@@ -83,7 +83,7 @@ jobs:
 
     - name: Add Issue to Harvester Sprint Project
       if: steps.is-harvester-member.outputs.isOrganization == 'true'
-      uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
+      uses: actions/add-to-project@5afcf98fcd03f1c2f92c3c83f58ae24323cc57fd # v2.0.0
       with:
         project-url: ${{ env.HARVESTER_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
@@ -155,7 +155,7 @@ jobs:
         steps.is-harvester-member.outcome == 'success' &&
         steps.is-harvester-member.outputs.isOrganization == 'false' && 
         steps.is-suse-member.outputs.isOrganization == 'false'
-      uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
+      uses: actions/add-to-project@5afcf98fcd03f1c2f92c3c83f58ae24323cc57fd # v2.0.0
       with:
         project-url: ${{ env.COMMUNITY_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
