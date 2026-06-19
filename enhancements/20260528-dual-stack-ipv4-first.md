@@ -290,12 +290,16 @@ LoadBalancer in single-stack IPv4 mode unchanged.
 #### Story 5 — Host VLAN interfaces carry IPv4 and IPv6 addresses simultaneously *(experimental)*
 
 **Before:** `HostNetworkConfig.Spec.IPs` accepts only a single IPv4 CIDR per interface. The
-corresponding VLAN link has only the IPv4 address configured. VM networking on that host cannot
-forward IPv6 traffic.
+corresponding VLAN link has only the IPv4 address configured. Host-level workloads that depend
+on this interface — storage replication, live migration, and KubeOVN VTEP tunnels — are
+constrained to IPv4 only.
 
-**Why this matters:** On a dual-stack cluster, the host interface bridging VM traffic must
-itself have both address families configured so that both IPv4 and IPv6 packets can be
-forwarded and routed correctly.
+**Why this matters:** `HostNetworkConfig` manages the host's own L3 presence on VLAN
+interfaces — used for storage, migration, and (for KubeOVN overlay) as the VTEP underlay
+endpoint. Dual-stack CIDR support lets administrators configure both address families for these
+host-level use cases. VM traffic address family (for L2 bridge networks) is independent of
+these host addresses; for KubeOVN overlay, the VTEP underlay address family is independent of
+the overlay VM address family.
 
 **After:** The `IPAddr` CRD type accepts either a single IPv4 CIDR (existing behavior) or a
 comma-separated IPv4-first pair (e.g. `"10.0.1.5/24,2001:db8::5/64"`). The CEL validation
