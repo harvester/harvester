@@ -69,7 +69,7 @@ require (
 	github.com/iancoleman/strcase v0.2.0
 	github.com/k3s-io/helm-controller v0.16.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
-	github.com/k8snetworkplumbingwg/whereabouts v0.9.3
+	github.com/k8snetworkplumbingwg/whereabouts v0.9.4
 	github.com/kube-logging/logging-operator/pkg/sdk v0.12.0
 	github.com/kubeovn/kube-ovn v1.14.10
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
