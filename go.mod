@@ -1,6 +1,6 @@
 module github.com/harvester/harvester
 
-go 1.26
+go 1.26.4
 
 replace (
 	// k8s.io/code-generator still remains v0.31.5 due to kubevirt v1.6.0.
