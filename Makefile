@@ -147,7 +147,7 @@ test-integration: gen-version-env package-harvester-webhook
 build-installer: prepare-addons | $(ROOT)/bin
 	$(BANNER)
 	$(DOCKER_BUILD) --target build-installer-output \
-	    --build-arg HARVESTER_ADDONS_VERSION=$(HARVESTER_ADDONS_VERSION) \
+	    --build-arg ADDONS_BRANCH=$(HARVESTER_ADDONS_VERSION) \
 	    --output type=local,dest=$(ROOT)
 
 
