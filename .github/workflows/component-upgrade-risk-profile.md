@@ -81,7 +81,6 @@ These are the list of components and their images that we don't care about:
 * harvester-load-balancer
 * support-bundle-kit
 * generalJob
-* harvester-node-disk-manager
 
 Longhorn is managed differently. See the "Longhorn version upgrade" section for details.
 
@@ -178,9 +177,9 @@ gh api repos/kubevirt/kubevirt/compare/v1.7.0...v1.7.4 --jq '.commits[] | "\(.sh
 gh api repos/kubevirt/kubevirt/compare/v1.6.3...v1.6.6 --jq '.commits[] | "\(.sha[0:7]) \(.commit.message | split("\n")[0])"'
 ```
 
-Do not include current version's commits in the changelog. For example, when upgrading from version 1.7.0 to 1.7.4, do not include the commits of 1.7.0.  
+Do not include current version's commits in the changelog. For example, when upgrading from version 1.7.0 to 1.7.4, do not include the commits of 1.7.0.
 
-Also, use the `WebFetch` tool to fetch the release notes for each version and curate summaries of notable changes, which  complemented the raw commit list.
+Also, use the `web-fetch` tool to fetch the release notes for each version and curate summaries of notable changes, which  complement the raw commit list.
 
 If you cannot find the changelog or release notes for the component, report "Unknown" risk profile, explain the challenges you faced, and notify the maintainers to manually review the upgrade.
 
@@ -196,7 +195,7 @@ If you cannot find the changelog or release notes for the component, report "Unk
 
 ## Report Risk Profile
 
-Use the template defined in the "Rist Profile Template" section below to report the risk profile of the component upgrade.
+Use the template defined in the "Risk Profile Template" section below to report the risk profile of the component upgrade.
 
 Due to the character limit of each pull request comment, report the risk profile of each component upgrade in a separate pull request comment. For example, if a pull request contains version bumps for both KubeVirt and CDI, create two pull request comments, one for KubeVirt and one for CDI, and report the risk profile separately.
 
@@ -235,7 +234,7 @@ Critical/high priority bug fixes are those that address critical issues such as 
 
 ### Medium Priority
 
-Medium priority bug fixes are those that address important issues that may not be critical but can still impact the user experience, such as performance degradation, minor feature breakages, or non-critical bugs. The bugs usually have a workaround or do not affect core functionalities. Workflow interruption, incorrect metrics/observability, feature degration in specific scenarios etc. can be categorized as medium priority.
+Medium priority bug fixes are those that address important issues that may not be critical but can still impact the user experience, such as performance degradation, minor feature breakages, or non-critical bugs. The bugs usually have a workaround or do not affect core functionalities. Workflow interruption, incorrect metrics/observability, feature degradation in specific scenarios etc. can be categorized as medium priority.
 
 ### Low Priority
 
@@ -253,11 +252,11 @@ For each CVE, provide a link to the CVE details and a brief description of the v
 
 ## Recommendation
 
-This section should make a recommendation on whether or not  to proceed with upgrade, and provide justification for the recommendation.
+This section should make a recommendation on whether or not to proceed with upgrade, and provide justification for the recommendation.
 
 Provide a list of important things for maintainers to validate before/after upgrade.
 ```
 
 ## Maintenance
 
-If a pull request adds a new component that is not in the list of components we care about notify the maintainers to update the table in the `.github/workflows/component-upgrade-risk.profile.md` file.
+If a pull request adds a new component that is not in the list of components we care about notify the maintainers to update the table in the `.github/workflows/component-upgrade-risk-profile.md` file.
