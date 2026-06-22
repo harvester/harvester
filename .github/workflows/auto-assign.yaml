@@ -11,6 +11,6 @@ jobs:
   auto-assign:
     runs-on: ubuntu-latest
     steps:
-      - uses: rancher/gh-issue-mgr/auto-assign-action@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
+      - uses: rancher/gh-issue-mgr/auto-assign-action@c72f2122968cc46f60773cef4b6dcf2983348777 # main
         with:
           configuration-path: .github/auto-assign-config.yaml

@@ -39,7 +39,7 @@ jobs:
     
     - name: Is Harvester Member
       id: is-harvester-member
-      uses: rancher/gh-issue-mgr/get-user-teams-membership@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@c72f2122968cc46f60773cef4b6dcf2983348777 # main
       with:
         username: ${{ github.event.issue.user.login }}
         organization: harvester
@@ -75,7 +75,7 @@ jobs:
 
     - name: Is Harvester Member
       id: is-harvester-member
-      uses: rancher/gh-issue-mgr/get-user-teams-membership@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@c72f2122968cc46f60773cef4b6dcf2983348777 # main
       with:
         username: ${{ github.event.issue.user.login }}
         organization: harvester
@@ -134,7 +134,7 @@ jobs:
     - name: Is Harvester Member
       id: is-harvester-member
       continue-on-error: true
-      uses: rancher/gh-issue-mgr/get-user-teams-membership@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@c72f2122968cc46f60773cef4b6dcf2983348777 # main
       with:
         username: ${{ github.event.issue.user.login }}
         organization: harvester
@@ -142,7 +142,7 @@ jobs:
 
     - name: Get Issue
       if: steps.is-harvester-member.outcome == 'success'
-      uses: rancher/gh-issue-mgr/request-action@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
+      uses: rancher/gh-issue-mgr/request-action@c72f2122968cc46f60773cef4b6dcf2983348777 # main
       id: issue
       with:
         route: GET /repos/${{ github.repository }}/issues/${{ github.event.issue.number }}
@@ -166,7 +166,7 @@ jobs:
         steps.is-harvester-member.outputs.isOrganization == 'false' && 
         steps.is-suse-member.outputs.isOrganization == 'false' &&
         steps.add-project.outputs.itemId != ''
-      uses: rancher/gh-issue-mgr/update-project-fields@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
+      uses: rancher/gh-issue-mgr/update-project-fields@c72f2122968cc46f60773cef4b6dcf2983348777 # main
       with:
         project-url: ${{ env.COMMUNITY_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}

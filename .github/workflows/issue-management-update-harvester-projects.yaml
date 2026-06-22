@@ -22,7 +22,7 @@ jobs:
     - name: Is Harvester Member
       id: is-harvester-member
       continue-on-error: true
-      uses: rancher/gh-issue-mgr/get-user-teams-membership@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
+      uses: rancher/gh-issue-mgr/get-user-teams-membership@c72f2122968cc46f60773cef4b6dcf2983348777 # main
       with:
         username: ${{ github.actor }}
         organization: harvester
@@ -32,7 +32,7 @@ jobs:
         echo "is-harvester-member teams: ${{ steps.is-harvester-member.outputs.teams }}"
         echo "is-harvester-member outcome: ${{ steps.is-harvester-member.outcome }}"
 
-    - uses: rancher/gh-issue-mgr/project-fields@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
+    - uses: rancher/gh-issue-mgr/project-fields@c72f2122968cc46f60773cef4b6dcf2983348777 # main
       id: get-status-field
       continue-on-error: true
       if: steps.is-harvester-member.outcome == 'success'
@@ -102,7 +102,7 @@ jobs:
         steps.get-status-field.outcome == 'success' &&
         env.field-values != ''
         }}
-      uses: rancher/gh-issue-mgr/update-project-fields@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
+      uses: rancher/gh-issue-mgr/update-project-fields@c72f2122968cc46f60773cef4b6dcf2983348777 # main
       with:
         project-url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
