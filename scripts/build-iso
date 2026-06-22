@@ -139,6 +139,35 @@ prepare_harvester_bundle() {
     fi
 }
 
+prepare_extra_bundle() {
+    echo "Preparing extra images bundle..."
+    local values_file="${harvester_chart_path}/values.yaml"
+    local upgrade_image_repo
+    local upgrade_image_tag
+    upgrade_image_repo=$(yq -e e '.upgrade.image.repository' "${values_file}")
+    upgrade_image_tag=$(yq -e e '.upgrade.image.tag' "${values_file}")
+
+    # Tag harvester-upgrade:<tag> to harvester-upgrade:<version> and save to an archive.
+    # This makes it possible to upgrade a cluster with a non-release ISO.
+    # Also tag harvester-upgrade:<tag> to harvester-upgrade:<app-version>-head so that
+    # upgrading from one non-release build to another is possible.
+    if [ "${upgrade_image_tag}" != "${VERSION}" ]; then
+        echo "Tagging ${upgrade_image_repo}:${upgrade_image_tag} to rancher/harvester-upgrade:${VERSION} and rancher/harvester-upgrade:${APP_VERSION}-head"
+        docker tag "${upgrade_image_repo}:${upgrade_image_tag}" "rancher/harvester-upgrade:${VERSION}"
+        docker tag "${upgrade_image_repo}:${upgrade_image_tag}" "rancher/harvester-upgrade:${APP_VERSION}-head"
+
+        local list_file="${BUNDLE_DIR}/harvester/images-lists/harvester-extra-${VERSION}.txt"
+        local archive="${BUNDLE_DIR}/harvester/images/harvester-extra-${VERSION}.tar"
+
+        echo "docker.io/rancher/harvester-upgrade:${VERSION}" > "${list_file}"
+        echo "docker.io/rancher/harvester-upgrade:${APP_VERSION}-head" >> "${list_file}"
+
+        echo "Saving extra images to archive ${archive}.zst"
+        docker image save $(<${list_file}) | zstd -o "${archive}.zst"
+        add_image_list_to_metadata "common" "${BUNDLE_DIR}" "${list_file}" "${archive}.zst"
+    fi
+}
+
 
 prepare_helm_repo
 
@@ -153,6 +182,7 @@ prepare_rancherd_bundle
 prepare_rancher_bundle
 prepare_rke2_bundle
 prepare_harvester_bundle
+prepare_extra_bundle
 
 
 # ensure output dir
