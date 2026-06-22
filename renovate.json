@@ -6,19 +6,5 @@
     "master",
     "v1.8",
     "v1.7"
-  ],
-  "packageRules": [
-    {
-      "description": "Release branches: only patch and security",
-      "matchBaseBranches": [
-        "v1.8",
-        "v1.7"
-      ],
-      "matchUpdateTypes": [
-        "major",
-        "minor"
-      ],
-      "enabled": false
-    }
   ]
 }
