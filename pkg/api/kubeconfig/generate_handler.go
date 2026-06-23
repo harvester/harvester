@@ -188,7 +188,7 @@ func (h *GenerateHandler) getServerURL() (string, error) {
 		return "", fmt.Errorf("invalid vip %s", vip)
 	}
 
-	return "https://" + vip + ":" + port, nil
+	return "https://" + net.JoinHostPort(vip, port), nil
 }
 
 func (h *GenerateHandler) createRoleBindingIfNotExists(sa *corev1.ServiceAccount) (*rbacv1.RoleBinding, error) {

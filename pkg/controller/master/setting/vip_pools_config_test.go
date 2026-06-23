@@ -123,7 +123,7 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 			},
 			expected: output{
 				pools: nil,
-				err:   errors.New("invalid IP value 172.16.4.10-::ac10:0401 of bar"),
+				err:   errors.New("invalid IP Range value 172.16.4.10-::ac10:0401 of bar: cannot mix IPv4 and IPv6 addresses"),
 			},
 		},
 		{
@@ -172,6 +172,114 @@ func TestSyncVipPoolsConfig(t *testing.T) {
 			expected: output{
 				pools: nil,
 				err:   errors.New("invalid Pool value 172.16.4.10-172.16.4.1,172.16.1.0/24 of bar, error: IP Range and CIDR cannot be used together"),
+			},
+		},
+		{
+			name: "pure ipv6 ip range, should pass",
+			given: input{
+				key: vipPools,
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: vipPools,
+					},
+					Value: `{"default": "2001:db8::1-2001:db8::ff"}`,
+				},
+			},
+			expected: output{
+				pools: map[string]string{
+					"range-default": "2001:db8::1-2001:db8::ff",
+				},
+				err: nil,
+			},
+		},
+		{
+			name: "pure ipv6 cidr, should pass",
+			given: input{
+				key: vipPools,
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: vipPools,
+					},
+					Value: `{"default": "2001:db8::/120"}`,
+				},
+			},
+			expected: output{
+				pools: map[string]string{
+					"cidr-default": "2001:db8::/120",
+				},
+				err: nil,
+			},
+		},
+		{
+			name: "dual-stack cidr comma-separated ipv4 first, should pass",
+			given: input{
+				key: vipPools,
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: vipPools,
+					},
+					Value: `{"default": "192.168.1.0/24,2001:db8::/120"}`,
+				},
+			},
+			expected: output{
+				pools: map[string]string{
+					"cidr-default": "192.168.1.0/24,2001:db8::/120",
+				},
+				err: nil,
+			},
+		},
+		{
+			name: "dual-stack range comma-separated ipv4 first, should pass",
+			given: input{
+				key: vipPools,
+				setting: &harvesterv1.Setting{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: vipPools,
+					},
+					Value: `{"default": "192.168.1.1-192.168.1.10,2001:db8::1-2001:db8::ff"}`,
+				},
+			},
+			expected: output{
+				pools: map[string]string{
+					"range-default": "192.168.1.1-192.168.1.10,2001:db8::1-2001:db8::ff",
+				},
+				err: nil,
+			},
+		},
+		{
+			name: "dual-stack range comma-separated ipv6 first, should fail",
+			given: input{
+				setting: &harvesterv1.Setting{
+					Value: `{"default": "2001:db8::1-2001:db8::ff,192.168.1.1-192.168.1.10"}`,
+				},
+			},
+			expected: output{
+				pools: nil,
+				err:   errors.New("invalid Pool value 2001:db8::1-2001:db8::ff,192.168.1.1-192.168.1.10 of default: IPv4 entries must precede IPv6 entries"),
+			},
+		},
+		{
+			name: "dual-stack cidr comma-separated ipv6 first, should fail",
+			given: input{
+				setting: &harvesterv1.Setting{
+					Value: `{"default": "2001:db8::/120,192.168.1.0/24"}`,
+				},
+			},
+			expected: output{
+				pools: nil,
+				err:   errors.New("invalid Pool value 2001:db8::/120,192.168.1.0/24 of default: IPv4 entries must precede IPv6 entries"),
+			},
+		},
+		{
+			name: "mixed ipv6-first single range, should fail",
+			given: input{
+				setting: &harvesterv1.Setting{
+					Value: `{"bar": "2001:db8::1-172.16.4.10"}`,
+				},
+			},
+			expected: output{
+				pools: nil,
+				err:   errors.New("invalid IP Range value 2001:db8::1-172.16.4.10 of bar: cannot mix IPv4 and IPv6 addresses"),
 			},
 		},
 	}

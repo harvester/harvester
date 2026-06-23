@@ -442,9 +442,10 @@ func (v *addonValidator) validateKubeOVNAddonUpdate(newAddon, oldAddon *v1beta1.
 		return werror.NewInternalError(fmt.Sprintf("failed to retrieve subnets err=%v", err))
 	}
 
-	//V4UsingIPs will be non-zero both when the VM is in running and moved to stopped state.
+	// V4UsingIPs and V6UsingIPs will be non-zero both when the VM is running and
+	// when it is stopped, as long as it is still attached to an overlay network.
 	for _, subnet := range subnets {
-		if subnet.Status.V4UsingIPs != 0 {
+		if subnet.Status.V4UsingIPs != 0 || subnet.Status.V6UsingIPs != 0 {
 			return werror.NewBadRequest(fmt.Sprintf("kubeovn-operator addon cannot be disabled as VMs attached to overlay network %s in subnet %s are still in use, delete the VMs before disabling the addon", subnet.Spec.Provider, subnet.Name))
 		}
 	}

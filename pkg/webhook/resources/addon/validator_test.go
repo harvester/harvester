@@ -2254,6 +2254,38 @@ func Test_validateKubeOVNOperatorAddon(t *testing.T) {
 			},
 			expectedError: false,
 		},
+		{
+			name: "VMs using only IPv6 addresses on dual-stack subnet should block disable",
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subnet-dual",
+				},
+				Spec: kubeovnapiv1.SubnetSpec{
+					Provider: "test-nad.default.ovn",
+				},
+				Status: kubeovnapiv1.SubnetStatus{
+					V4UsingIPs: 0,
+					V6UsingIPs: 3,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: false,
+				},
+			},
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: true,
+				},
+			},
+			expectedError: true,
+		},
 	}
 
 	for _, tc := range testCases {
