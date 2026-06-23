@@ -1,20 +1,32 @@
 package util
 
 import (
+	"fmt"
 	"net"
 )
 
-// incrementIP increments the IP address by 1
+// maxSubnetHostBits is the maximum number of host bits allowed in a subnet.
+// It caps enumeration at 2^16 = 65536 addresses, preventing a large CIDR
+const maxSubnetHostBits = 16
+
+// subnetExceedsLimit reports whether the subnet contains more addresses than
+// this package is willing to enumerate (more than 2^maxSubnetHostBits).
+func subnetExceedsLimit(network *net.IPNet) bool {
+	ones, bits := network.Mask.Size()
+	return bits-ones > maxSubnetHostBits
+}
+
+// incrementIP increments the IP address by 1.
+// To16 allocates a new slice, so the original is not mutated.
 func incrementIP(ip net.IP) net.IP {
-	result := make(net.IP, len(ip))
-	copy(result, ip)
-	for j := len(result) - 1; j >= 0; j-- {
-		result[j]++
-		if result[j] != 0 {
+	ip = ip.To16()
+	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
+		if ip[j] != 0 {
 			break
 		}
 	}
-	return result
+	return ip
 }
 
 func GetUsableIPAddresses(includeRange string, excludeRange []string) (map[string]struct{}, error) {
@@ -75,6 +87,10 @@ func getIPAddressesFromSubnet(ipNetSubnets []string, include bool) (ipAddrList m
 		ip, network, err := net.ParseCIDR(ipNetSubnet)
 		if err != nil {
 			return ipAddrList, err
+		}
+
+		if subnetExceedsLimit(network) {
+			return nil, fmt.Errorf("subnet %s is too large: at most %d addresses are supported", ipNetSubnet, 1<<maxSubnetHostBits)
 		}
 
 		lastAddr := getLastAddress(network)
