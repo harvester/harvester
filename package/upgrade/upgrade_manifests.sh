@@ -951,12 +951,15 @@ disable_kubevirt_workload_live_migration() {
   local methods_json
   methods_json=$(echo "$chart_yaml" | yq e '.spec.values.kubevirt.spec.workloadUpdateStrategy.workloadUpdateMethods | tojson' -)
 
-  # Backup original value to the upgrade annotation (only write once for idempotency)
+  # Backup original value to the upgrade annotation (only write once for idempotency).
+  # Must check key existence rather than the value, because a legitimate backup value of "null"
+  # (meaning the key was absent before the upgrade) is indistinguishable from a missing annotation
+  # when using plain yq value extraction (both produce the string "null").
   local annotation_key="harvesterhci.io/kubevirt-workload-update-methods"
-  local existing_backup
-  existing_backup=$(kubectl get upgrades.harvesterhci.io "$HARVESTER_UPGRADE_NAME" -n harvester-system -o yaml | \
-    yq e ".metadata.annotations[\"$annotation_key\"]" -)
-  if [ "$existing_backup" = "null" ]; then
+  local annotation_exists
+  annotation_exists=$(kubectl get upgrades.harvesterhci.io "$HARVESTER_UPGRADE_NAME" -n harvester-system -o yaml | \
+    yq e "(.metadata.annotations // {}) | has(\"$annotation_key\")" -)
+  if [ "$annotation_exists" != "true" ]; then
     echo "Backing up workloadUpdateMethods value '$methods_json' to upgrade annotation"
     kubectl annotate upgrades.harvesterhci.io "$HARVESTER_UPGRADE_NAME" -n harvester-system \
       "${annotation_key}=${methods_json}"
