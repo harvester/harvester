@@ -255,8 +255,8 @@ func registerRestoreEventHandlers(ctx context.Context, controllers *restoreContr
 
 // getRestoreEngine selects the appropriate restore engine based on backup type
 func (h *RestoreHandler) getRestoreEngine(backup *harvesterv1.VirtualMachineBackup) engine.RestoreEngine {
-	if engine, exists := h.engines[backup.Spec.Type]; exists {
-		return engine
+	if restoreEngine, exists := h.engines[backup.Spec.Type]; exists {
+		return restoreEngine
 	}
 	return nil
 }

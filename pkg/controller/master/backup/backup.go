@@ -219,8 +219,8 @@ type Handler struct {
 
 // getBackupEngine selects the appropriate backup engine based on backup type
 func (h *Handler) getBackupEngine(vmb *harvesterv1.VirtualMachineBackup) engine.BackupEngine {
-	if engine, exists := h.engines[h.vmbo.GetType(vmb)]; exists {
-		return engine
+	if backupEngine, exists := h.engines[h.vmbo.GetType(vmb)]; exists {
+		return backupEngine
 	}
 	return nil
 }
