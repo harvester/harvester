@@ -14,10 +14,11 @@ permissions:
   copilot-requests: write
   issues: read
   pull-requests: read
+  security-events: read
 
 tools:
   github:
-    toolsets: [default]
+    toolsets: [default, code_security, security_advisories]
   web-fetch:
 
 network:
