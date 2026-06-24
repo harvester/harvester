@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 
+	"github.com/rancher/wrangler/v3/pkg/schemas"
 	"github.com/rancher/wrangler/v3/pkg/summary"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -21,14 +22,30 @@ func NewForDynamicClient(client dynamic.Interface) Interface {
 	return &summaryClient{client: client}
 }
 
+func NewForExtendedDynamicClient(client dynamic.Interface) ExtendedInterface {
+	return &summaryClient{client: client}
+}
+
 type summaryResourceClient struct {
 	client    dynamic.Interface
 	namespace string
 	resource  schema.GroupVersionResource
+	options   Options
 }
 
 func (c *summaryClient) Resource(resource schema.GroupVersionResource) NamespaceableResourceInterface {
-	return &summaryResourceClient{client: c.client, resource: resource}
+	return c.ResourceWithOptions(resource, nil)
+}
+
+func (c *summaryClient) ResourceWithOptions(resource schema.GroupVersionResource, opts *Options) NamespaceableResourceInterface {
+	if opts == nil {
+		opts = &Options{}
+	}
+	return &summaryResourceClient{
+		client:   c.client,
+		resource: resource,
+		options:  *opts,
+	}
 }
 
 func (c *summaryResourceClient) Namespace(ns string) ResourceInterface {
@@ -65,7 +82,7 @@ func (c *summaryResourceClient) List(ctx context.Context, opts metav1.ListOption
 	}
 
 	for _, obj := range u.Items {
-		list.Items = append(list.Items, *summary.Summarized(&obj))
+		list.Items = append(list.Items, *summary.SummarizedWithOptions(&obj, generateSummarizeOpts(c.options.Schema)))
 	}
 
 	return list, nil
@@ -77,6 +94,7 @@ func (c *summaryResourceClient) Watch(ctx context.Context, opts metav1.ListOptio
 		err  error
 	)
 
+	ctx, cancel := context.WithCancel(ctx)
 	eventChan := make(chan watch.Event)
 
 	if c.namespace == "" {
@@ -85,31 +103,60 @@ func (c *summaryResourceClient) Watch(ctx context.Context, opts metav1.ListOptio
 		resp, err = c.client.Resource(c.resource).Namespace(c.namespace).Watch(ctx, opts)
 	}
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
 	go func() {
 		defer close(eventChan)
+		defer cancel()
 		for event := range resp.ResultChan() {
 			// don't encode status objects
 			if _, ok := event.Object.(*metav1.Status); !ok {
-				event.Object = summary.Summarized(event.Object)
+				event.Object = summary.SummarizedWithOptions(event.Object, generateSummarizeOpts(c.options.Schema))
 			}
-			eventChan <- event
+			select {
+			case eventChan <- event:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
 	return &watcher{
 		Interface: resp,
+		cancel:    cancel,
 		eventChan: eventChan,
 	}, nil
 }
 
 type watcher struct {
 	watch.Interface
+	cancel    context.CancelFunc
 	eventChan chan watch.Event
 }
 
 func (w watcher) ResultChan() <-chan watch.Event {
 	return w.eventChan
+}
+
+func (w watcher) Stop() {
+	w.cancel()
+	w.Interface.Stop()
+}
+
+func generateSummarizeOpts(schema *schemas.Schema) *summary.SummarizeOptions {
+	hasObservedGeneration := false
+	if schema != nil && schema.Attributes != nil {
+		if v, ok := schema.Attributes["hasObservedGeneration"]; ok {
+			if b, ok := v.(bool); ok {
+				hasObservedGeneration = b
+			}
+		}
+	}
+	summaryOpts := &summary.SummarizeOptions{
+		HasObservedGeneration: hasObservedGeneration,
+	}
+
+	return summaryOpts
 }

@@ -94,7 +94,7 @@ func getType(obj interface{}) reflect.Type {
 	}
 
 	t := reflect.TypeOf(obj)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	return t
@@ -204,7 +204,7 @@ func readCustomColumns(t reflect.Type, path string) (result []apiextv1.CustomRes
 		}
 
 		t := f.Type
-		if t.Kind() == reflect.Ptr {
+		if t.Kind() == reflect.Pointer {
 			t = t.Elem()
 		}
 		if kind, format := openAPISchema(t); kind != reflect.Invalid {

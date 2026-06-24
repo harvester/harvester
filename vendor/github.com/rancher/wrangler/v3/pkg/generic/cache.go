@@ -1,6 +1,8 @@
 package generic
 
 import (
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -44,6 +46,22 @@ type NonNamespacedCacheInterface[T runtime.Object] interface {
 	GetByIndex(indexName, key string) ([]T, error)
 }
 
+func NewCache[T runtime.Object](indexer cache.Indexer, resource schema.GroupResource) *Cache[T] {
+	return &Cache[T]{
+		indexer:  indexer,
+		resource: resource,
+	}
+}
+
+func NewNonNamespacedCache[T runtime.Object](indexer cache.Indexer, resource schema.GroupResource) *NonNamespacedCache[T] {
+	return &NonNamespacedCache[T]{
+		CacheInterface: &Cache[T]{
+			indexer:  indexer,
+			resource: resource,
+		},
+	}
+}
+
 // Cache is a object cache stored in memory for objects of type T.
 type Cache[T runtime.Object] struct {
 	indexer  cache.Indexer
@@ -69,7 +87,11 @@ func (c *Cache[T]) Get(namespace, name string) (T, error) {
 	if !exists {
 		return nilObj, errors.NewNotFound(c.resource, name)
 	}
-	return obj.(T), nil
+	ret, ok := obj.(T)
+	if !ok {
+		return ret, fmt.Errorf("could not convert cache item to %T", *new(T))
+	}
+	return ret, nil
 }
 
 // List will attempt to find resources in the given namespace from the Cache.
@@ -100,7 +122,11 @@ func (c *Cache[T]) GetByIndex(indexName, key string) (result []T, err error) {
 	}
 	result = make([]T, 0, len(objs))
 	for _, obj := range objs {
-		result = append(result, obj.(T))
+		ret, ok := obj.(T)
+		if !ok {
+			return nil, fmt.Errorf("could not convert cache item to %T", *new(T))
+		}
+		result = append(result, ret)
 	}
 	return result, nil
 }

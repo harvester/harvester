@@ -1,5 +1,9 @@
 package schemas
 
+import (
+	"github.com/rancher/wrangler/v3/pkg/data/convert"
+)
+
 type Schema struct {
 	ID                  string                 `json:"-"`
 	Description         string                 `json:"description,omitempty"`
@@ -74,6 +78,23 @@ func (s *Schema) DeepCopy() *Schema {
 	}
 
 	return &r
+}
+
+func SetHasObservedGeneration(s *Schema, value bool) {
+	if s == nil {
+		return
+	}
+	if s.Attributes == nil {
+		s.Attributes = map[string]interface{}{}
+	}
+	s.Attributes["hasObservedGeneration"] = value
+}
+
+func HasObservedGeneration(s *Schema) bool {
+	if s == nil || s.Attributes == nil {
+		return false
+	}
+	return convert.ToBool(s.Attributes["hasObservedGeneration"])
 }
 
 type Field struct {

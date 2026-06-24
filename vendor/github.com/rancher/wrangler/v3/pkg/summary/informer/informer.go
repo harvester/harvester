@@ -116,25 +116,60 @@ func (f *summarySharedInformerFactory) WaitForCacheSync(stopCh <-chan struct{}) 
 	return res
 }
 
-// NewFilteredSummaryInformer constructs a new informer for a summary type.
-func NewFilteredSummaryInformer(client client.Interface, gvr schema.GroupVersionResource, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions TweakListOptionsFunc) informers.GenericInformer {
+func NewFilteredSummaryInformerWithOptions(
+	client client.ExtendedInterface,
+	gvr schema.GroupVersionResource,
+	opts *client.Options,
+	namespace string,
+	resyncPeriod time.Duration,
+	indexers cache.Indexers,
+	tweakListOptions TweakListOptionsFunc,
+) informers.GenericInformer {
+	lw := &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			if tweakListOptions != nil {
+				tweakListOptions(&options)
+			}
+			return client.ResourceWithOptions(gvr, opts).Namespace(namespace).List(context.TODO(), options)
+		},
+		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			if tweakListOptions != nil {
+				tweakListOptions(&options)
+			}
+			return client.ResourceWithOptions(gvr, opts).Namespace(namespace).Watch(context.TODO(), options)
+		},
+	}
 	return &summaryInformer{
 		gvr: gvr,
 		informer: cache.NewSharedIndexInformer(
-			&cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					if tweakListOptions != nil {
-						tweakListOptions(&options)
-					}
-					return client.Resource(gvr).Namespace(namespace).List(context.TODO(), options)
-				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					if tweakListOptions != nil {
-						tweakListOptions(&options)
-					}
-					return client.Resource(gvr).Namespace(namespace).Watch(context.TODO(), options)
-				},
-			},
+			toListWatcherWithWatchListSemantics(lw, client),
+			&summary.SummarizedObject{},
+			resyncPeriod,
+			indexers,
+		),
+	}
+}
+
+// NewFilteredSummaryInformer constructs a new informer for a summary type.
+func NewFilteredSummaryInformer(client client.Interface, gvr schema.GroupVersionResource, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions TweakListOptionsFunc) informers.GenericInformer {
+	lw := &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			if tweakListOptions != nil {
+				tweakListOptions(&options)
+			}
+			return client.Resource(gvr).Namespace(namespace).List(context.TODO(), options)
+		},
+		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			if tweakListOptions != nil {
+				tweakListOptions(&options)
+			}
+			return client.Resource(gvr).Namespace(namespace).Watch(context.TODO(), options)
+		},
+	}
+	return &summaryInformer{
+		gvr: gvr,
+		informer: cache.NewSharedIndexInformer(
+			toListWatcherWithWatchListSemantics(lw, client),
 			&summary.SummarizedObject{},
 			resyncPeriod,
 			indexers,

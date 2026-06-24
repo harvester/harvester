@@ -2,7 +2,9 @@ package summary
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -25,6 +27,10 @@ const (
 )
 
 var (
+	// stepCounterMessagePattern matches "X of Y completed" messages from CAPI infrastructure providers.
+	// These are from the deprecated v1beta1 conditions merge strategy and are not useful to end users.
+	stepCounterMessagePattern = regexp.MustCompile(`^\d+ of \d+ completed$`)
+
 	// True ==
 	// False == error
 	// Unknown == transitioning
@@ -53,7 +59,7 @@ var (
 		"Pending":                     "pending",
 		"PodScheduled":                "scheduling",
 		"Provisioned":                 "provisioning",
-		"Reconciled":                  "reconciling",
+		"Reconciled":                  "reconciling", // CAPI Machine, RKEControlPlane
 		"Refreshed":                   "refreshed",
 		"Registered":                  "registering",
 		"Removed":                     "removing",
@@ -67,6 +73,8 @@ var (
 		"AbleToScale":                 "pending",
 		"RunCompleted":                "running",
 		"Processed":                   "processed",
+		"NodeHealthy":                 reason, // CAPI Machine
+		"NodeReady":                   reason, // CAPI Machine
 	}
 
 	// For given GVK, This condition Type and this Status, indicates an error or not
@@ -105,12 +113,12 @@ var (
 	// False == transitioning
 	// Unknown == error
 	TransitioningFalse = map[string]string{
-		"Completed":           "activating",
-		"Ready":               "unavailable",
-		"Available":           "updating",
-		"BootstrapReady":      reason,
-		"InfrastructureReady": reason,
-		"NodeHealthy":         reason,
+		"Completed":            "activating",
+		"Ready":                "unavailable",
+		"Available":            "updating",
+		"BootstrapConfigReady": reason,     // CAPI Machine
+		"InfrastructureReady":  reason,     // CAPI Machine
+		"MachinesReady":        "updating", // CAPI MachineDeployment, MachineSet
 	}
 
 	// True == transitioning
@@ -118,6 +126,10 @@ var (
 	// Unknown == error
 	TransitioningTrue = map[string]string{
 		"Reconciling": "reconciling",
+		"ScalingUp":   reason, // CAPI Cluster, MachineDeployment, MachineSet
+		"ScalingDown": reason, // CAPI Cluster, MachineDeployment, MachineSet
+		"Deleting":    reason, // CAPI Cluster, MachineDeployment, MachineSet, Machine
+		"Paused":      reason, // CAPI Cluster, MachineDeployment, MachineSet, Machine
 	}
 
 	Summarizers          []Summarizer
@@ -129,7 +141,7 @@ type Summarizer func(obj data.Object, conditions []Condition, summary Summary) S
 func init() {
 	ConditionSummarizers = []Summarizer{
 		checkErrors,
-		checkTransitioning,
+		checkGenericTransitioning,
 		checkRemoving,
 		checkCattleReady,
 	}
@@ -150,6 +162,7 @@ func init() {
 		checkOwner,
 		checkApplyOwned,
 		checkCattleTypes,
+		checkGeneration,
 	}
 
 	initializeCheckErrors()
@@ -202,6 +215,34 @@ func initializeCheckErrors() {
 		return
 	}
 	logrus.Debugf("GVK Error Mapping not provided, using predefined values")
+}
+
+func checkGeneration(obj data.Object, _ []Condition, summary Summary) Summary {
+	if summary.State != "" {
+		return summary
+	}
+
+	if summary.HasObservedGeneration {
+		metadataGeneration, metadataFound, errMetadata := unstructured.NestedInt64(obj, "metadata", "generation")
+		if errMetadata != nil {
+			return summary
+		}
+		if !metadataFound {
+			return summary
+		}
+
+		observedGeneration, _, errObserved := unstructured.NestedInt64(obj, "status", "observedGeneration")
+		if errObserved != nil {
+			return summary
+		}
+
+		if observedGeneration != metadataGeneration {
+			summary.State = "in-progress"
+			summary.Transitioning = true
+		}
+	}
+
+	return summary
 }
 
 func checkOwner(obj data.Object, conditions []Condition, summary Summary) Summary {
@@ -323,11 +364,391 @@ func checkErrors(data data.Object, conditions []Condition, summary Summary) Summ
 	return summary
 }
 
-func checkTransitioning(_ data.Object, conditions []Condition, summary Summary) Summary {
+func checkTransitioning(obj data.Object, conditions []Condition, summary Summary) Summary {
+	if isCAPIMachine(obj) {
+		return checkCAPIMachineTransitioning(conditions, summary)
+	}
+	if isCAPIMachineSet(obj) || isCAPIMachineDeployment(obj) {
+		return checkCAPIMachineSetAndDeploymentTransitioning(obj, conditions, summary)
+	}
+	if isCAPICluster(obj) {
+		return checkCAPIClusterTransitioning(obj, conditions, summary)
+	}
+	return checkGenericTransitioning(obj, conditions, summary)
+}
+
+// checkCAPIMachineTransitioning computes summary state for CAPI Machine objects
+// using the Ready (aggregate) and Reconciled conditions from v1beta2.
+//
+// The Ready condition is a composite condition whose message aggregates
+// sub-condition issues as bullet points (e.g., "* InfrastructureReady: <detail>").
+// The Reconciled condition is a Rancher-specific condition that indicates
+// whether the machine's desired state has been fully applied.
+//
+// Priority order (first match wins):
+//  1. Deleting=True -> state="deleting", transitioning=true
+//  2. Paused=True   -> state="paused", transitioning=true
+//  3. Reconciled present and NOT True -> state="reconciling",
+//     message=Reconciled.message(if has message), transitioning=true(if status=Unknown), error=true(if status=False)
+//  4. Ready=False (NotReady) — parse first bullet of Ready.message:
+//     a. First bullet starts with "* BootstrapConfigReady:" -> state="waitingforinfrastructure"
+//     b. First bullet starts with "* InfrastructureReady:"  -> state="waitingfornoderef"
+//     c. Otherwise -> pass through (no state set)
+//     Message is the stripped detail text from the first bullet.
+//  5. Ready=Unknown -> state="reconciling", message=stripped detail from first
+//     bullet of Ready.message, transitioning=true
+//  6. Ready=True (or any other case) -> pass through, no state set
+func checkCAPIMachineTransitioning(conditions []Condition, summary Summary) Summary {
+	var reconciled *Condition
+	var ready *Condition
+
+	for i := range conditions {
+		c := conditions[i]
+		typ := c.Type()
+
+		// Check Deleting and Paused first — these take absolute priority.
+		if typ == "Deleting" && c.Status() == "True" {
+			summary.State = "deleting"
+			summary.Transitioning = true
+			if msg := c.Message(); msg != "" {
+				if strings.HasPrefix(msg, "Drain not completed yet") {
+					msg = "Draining node"
+				}
+				summary.Message = append(summary.Message, msg)
+			}
+			return summary
+		}
+		if typ == "Paused" && c.Status() == "True" {
+			summary.State = "paused"
+			summary.Transitioning = true
+			return summary
+		}
+
+		// Collect key conditions for priority evaluation below.
+		switch typ {
+		case "Reconciled":
+			reconciled = &conditions[i]
+		case "Ready":
+			ready = &conditions[i]
+		}
+	}
+
+	// Priority 3: Reconciled condition (when present and not True).
+	if reconciled != nil && reconciled.Status() != "True" {
+		switch reconciled.Status() {
+		case "Unknown":
+			summary.Transitioning = true
+			summary.State = "reconciling"
+		case "False":
+			summary.Error = true
+			summary.State = "reconciling"
+		}
+		if msg := reconciled.Message(); msg != "" {
+			summary.Message = append(summary.Message, msg)
+		}
+		return summary
+	}
+
+	// Priority 4 & 5: Ready condition.
+	if ready != nil {
+		switch ready.Status() {
+		case "False":
+			// Parse the first bullet line to determine the state.
+			detail, prefix := parseMessage(ready.Message())
+			switch prefix {
+			case "BootstrapConfigReady":
+				summary.Transitioning = true
+				summary.State = "waitingforinfrastructure"
+				if strings.HasSuffix(detail, "status.initialization.dataSecretCreated is false") {
+					detail = ""
+				}
+				if detail != "" {
+					summary.Message = append(summary.Message, detail)
+				}
+			case "InfrastructureReady":
+				summary.Transitioning = true
+				summary.State = "waitingfornoderef"
+				if strings.HasSuffix(detail, "status.initialization.provisioned is false") {
+					detail = ""
+				}
+				if stepCounterMessagePattern.MatchString(detail) {
+					detail = ""
+				}
+				if detail != "" {
+					summary.Message = append(summary.Message, detail)
+				}
+			}
+			// If the first bullet doesn't match known patterns, pass through.
+			return summary
+
+		case "Unknown":
+			summary.Transitioning = true
+			summary.State = "reconciling"
+			detail, prefix := parseMessage(ready.Message())
+			if prefix == "NodeHealthy" {
+				if strings.HasSuffix(detail, "to report spec.providerID") {
+					detail = ""
+				}
+			}
+			if detail != "" {
+				summary.Message = append(summary.Message, detail)
+			}
+			return summary
+		}
+		// Ready=True: pass through, let downstream summarizers handle it.
+	}
+
+	return summary
+}
+
+// checkCAPIMachineSetAndDeploymentTransitioning computes summary state for CAPI MachineSet
+// and MachineDeployment objects using v1beta2 conditions and replica counts.
+//
+// The function reads spec.replicas, status.replicas, and status.readyReplicas
+// to detect scaling operations, even when the controller hasn't yet updated
+// the ScalingUp/ScalingDown conditions (stale observedGeneration).
+//
+// Priority order (first match wins):
+//  1. Deleting=True                                          -> state="deleting", transitioning=true
+//  2. Paused=True                                            -> state="paused", transitioning=true
+//  3. RollingOut=True                                        -> state="rollingout", transitioning=true
+//  4. ScalingDown=True OR status.replicas > spec.replicas    -> state="scalingdown", transitioning=true
+//  5. ScalingUp=True OR spec.replicas > status.readyReplicas -> state="scalingup", transitioning=true
+//  6. Otherwise                                              -> pass through (no state set)
+func checkCAPIMachineSetAndDeploymentTransitioning(obj data.Object, conditions []Condition, summary Summary) Summary {
+	// Read replica counts from the object. We use nestedInt64 instead of
+	// unstructured.NestedInt64 because YAML/JSON decoders store numbers as
+	// float64, not int64.
+	specReplicas, specFound, _ := nestedInt64(obj, "spec", "replicas")
+	statusReplicas, statusFound, _ := nestedInt64(obj, "status", "replicas")
+	readyReplicas, readyFound, _ := nestedInt64(obj, "status", "readyReplicas")
+	upToDateReplicas, upToDateFound, _ := nestedInt64(obj, "status", "upToDateReplicas")
+
+	var scalingUp *Condition
+	var scalingDown *Condition
+	var rollingOut *Condition
+
+	for i := range conditions {
+		c := conditions[i]
+		typ := c.Type()
+
+		// Priority 1 & 2: Deleting and Paused take absolute priority.
+		if typ == "Deleting" && c.Status() == "True" {
+			summary.State = "deleting"
+			summary.Transitioning = true
+			if msg := c.Message(); msg != "" {
+				summary.Message = append(summary.Message, msg)
+			}
+			return summary
+		}
+		if typ == "Paused" && c.Status() == "True" {
+			summary.State = "paused"
+			summary.Transitioning = true
+			return summary
+		}
+
+		switch typ {
+		case "ScalingUp":
+			scalingUp = &conditions[i]
+		case "ScalingDown":
+			scalingDown = &conditions[i]
+		case "RollingOut":
+			rollingOut = &conditions[i]
+		}
+	}
+
+	// Priority 3: Rolling out — RollingOut=True indicates a rolling upgrade
+	// is in progress. This takes priority over ScalingDown/ScalingUp because
+	// those are side effects of the rollout strategy (maxSurge creates extra
+	// machines, then old ones are deleted). Only MachineDeployments have
+	// rolling upgrades; MachineSets do not set this condition.
+	if rollingOut != nil && rollingOut.Status() == "True" {
+		summary.State = "rollingout"
+		summary.Transitioning = true
+		if statusFound && upToDateFound {
+			notUpToDate := statusReplicas - upToDateReplicas
+			summary.Message = append(summary.Message,
+				fmt.Sprintf("rolling out %d not up-to-date replicas", notUpToDate))
+		}
+		return summary
+	}
+
+	// Priority 4: Scaling down — detected by condition OR replica count mismatch.
+	scalingDownByCondition := scalingDown != nil && scalingDown.Status() == "True"
+	scalingDownByReplicas := specFound && statusFound && statusReplicas > specReplicas
+	if scalingDownByCondition || scalingDownByReplicas {
+		summary.State = "scalingdown"
+		summary.Transitioning = true
+		if specFound && statusFound {
+			summary.Message = append(summary.Message,
+				fmt.Sprintf("Scaling down from %d to %d replicas, waiting for machines to be deleted", statusReplicas, specReplicas))
+		}
+		return summary
+	}
+
+	// Priority 5: Scaling up — detected by spec.replicas > status.readyReplicas.
+	// This catches both the transient ScalingUp=True period and the long tail
+	// where ScalingUp has already gone False but the new machine isn't ready yet.
+	scalingUpByReplicas := specFound && readyFound && specReplicas > readyReplicas
+	scalingUpByCondition := scalingUp != nil && scalingUp.Status() == "True"
+	if scalingUpByReplicas || scalingUpByCondition {
+		summary.State = "scalingup"
+		summary.Transitioning = true
+		if specFound && readyFound {
+			summary.Message = append(summary.Message,
+				fmt.Sprintf("Scaling up from %d to %d replicas, waiting for machines to be ready", readyReplicas, specReplicas))
+		}
+		return summary
+	}
+
+	return summary
+}
+
+// checkCAPIClusterTransitioning computes summary state for CAPI Cluster objects
+// using v1beta2 conditions and worker replica counts.
+//
+// The Cluster object has conditions like Available, ScalingUp, ScalingDown,
+// Deleting, Paused, WorkersAvailable, WorkerMachinesReady, ControlPlaneAvailable,
+// ControlPlaneInitialized, etc. Worker replica counts are under status.workers.*.
+//
+// Priority order (first match wins):
+//  1. Deleting=True                                                                    -> state="deleting", transitioning=true
+//  2. Paused=True                                                                      -> state="paused", transitioning=true
+//  3. RollingOut=True                                                                  -> state="rollingout", transitioning=true
+//  4. ScalingDown=True OR status.workers.replicas > status.workers.desiredReplicas     -> state="updating", transitioning=true
+//  5. ScalingUp=True OR status.workers.desiredReplicas > status.workers.readyReplicas  -> state="updating", transitioning=true
+//  6. Available=False                                                                  -> state="updating", transitioning=true
+//  7. Available=True (or any other case)                                               -> pass through (no state set)
+func checkCAPIClusterTransitioning(obj data.Object, conditions []Condition, summary Summary) Summary {
+	// Read worker replica counts from status.workers.*.
+	desiredReplicas, desiredFound, _ := nestedInt64(obj, "status", "workers", "desiredReplicas")
+	workersReplicas, workersFound, _ := nestedInt64(obj, "status", "workers", "replicas")
+	readyReplicas, readyFound, _ := nestedInt64(obj, "status", "workers", "readyReplicas")
+	upToDateReplicas, upToDateFound, _ := nestedInt64(obj, "status", "workers", "upToDateReplicas")
+
+	var scalingUp *Condition
+	var scalingDown *Condition
+	var available *Condition
+	var rollingOut *Condition
+
+	for i := range conditions {
+		c := conditions[i]
+		typ := c.Type()
+
+		// Priority 1 & 2: Deleting and Paused take absolute priority.
+		if typ == "Deleting" && c.Status() == "True" {
+			summary.State = "deleting"
+			summary.Transitioning = true
+			if msg := c.Message(); msg != "" {
+				if strings.HasPrefix(msg, "* MachineDeployments") {
+					msg = "waiting for workers deletion"
+				}
+				summary.Message = append(summary.Message, msg)
+			}
+			return summary
+		}
+		if typ == "Paused" && c.Status() == "True" {
+			summary.State = "paused"
+			summary.Transitioning = true
+			return summary
+		}
+
+		switch typ {
+		case "ScalingUp":
+			scalingUp = &conditions[i]
+		case "ScalingDown":
+			scalingDown = &conditions[i]
+		case "Available":
+			available = &conditions[i]
+		case "RollingOut":
+			rollingOut = &conditions[i]
+		}
+	}
+
+	// Priority 3: Rolling out — RollingOut=True indicates one or more
+	// MachineDeployments are performing a rolling upgrade. This takes
+	// priority over ScalingDown/ScalingUp because those are side effects
+	// of the rollout strategy.
+	if rollingOut != nil && rollingOut.Status() == "True" {
+		summary.State = "rollingout"
+		summary.Transitioning = true
+		if workersFound && upToDateFound {
+			notUpToDate := workersReplicas - upToDateReplicas
+			summary.Message = append(summary.Message,
+				fmt.Sprintf("rolling out %d not up-to-date replicas", notUpToDate))
+		}
+		return summary
+	}
+
+	// Priority 4: Scaling down — detected by condition OR replica count mismatch.
+	scalingDownByCondition := scalingDown != nil && scalingDown.Status() == "True"
+	scalingDownByReplicas := desiredFound && workersFound && workersReplicas > desiredReplicas
+	if scalingDownByCondition || scalingDownByReplicas {
+		summary.State = "updating"
+		summary.Transitioning = true
+		if desiredFound && workersFound {
+			summary.Message = append(summary.Message,
+				fmt.Sprintf("Scaling down from %d to %d machines", workersReplicas, desiredReplicas))
+		}
+		return summary
+	}
+
+	// Priority 5: Scaling up — Scaling up — detected by condition OR desired > readyReplicas.
+	scalingUpByCondition := scalingUp != nil && scalingUp.Status() == "True"
+	scalingUpByReplicas := desiredFound && readyFound && desiredReplicas > readyReplicas
+	if scalingUpByCondition || scalingUpByReplicas {
+		summary.State = "updating"
+		summary.Transitioning = true
+		if desiredFound && readyFound {
+			summary.Message = append(summary.Message,
+				fmt.Sprintf("Scaling up from %d to %d machines", readyReplicas, desiredReplicas))
+		}
+		return summary
+	}
+
+	// Priority 5: Available=False — the cluster is not yet available.
+	if available != nil {
+		switch available.Status() {
+		case "False":
+			summary.Transitioning = true
+			summary.State = "updating"
+			// Parse the first bullet line to determine the state.
+			detail, prefix := parseMessage(available.Message())
+			switch prefix {
+			case "RemoteConnectionProbe":
+				summary.Message = append(summary.Message, "establishing connection to control plane")
+			case "ControlPlaneAvailable":
+				summary.Message = append(summary.Message, "Waiting for control plane to be available")
+			case "MachineDeployment":
+				summary.Message = append(summary.Message, "Waiting for workers to be available")
+			default:
+				// If the first bullet doesn't match known patterns, pass through.
+				if detail != "" {
+					summary.Message = append(summary.Message, detail)
+				}
+			}
+
+		case "Unknown":
+			summary.Error = true
+			summary.State = "unavailable"
+			summary.Message = append(summary.Message, available.Message())
+		}
+		// Ready=True: pass through, let downstream summarizers handle it.
+	}
+
+	// Priority 6: Available=True or no conditions — pass through.
+	return summary
+}
+
+func checkGenericTransitioning(_ data.Object, conditions []Condition, summary Summary) Summary {
 	for _, c := range conditions {
 		newState, ok := TransitioningUnknown[c.Type()]
 		if !ok {
 			continue
+		}
+
+		if newState == reason {
+			newState = c.Reason()
 		}
 
 		if c.Status() == "False" {
@@ -349,6 +770,11 @@ func checkTransitioning(_ data.Object, conditions []Condition, summary Summary) 
 		if !ok {
 			continue
 		}
+
+		if newState == reason {
+			newState = c.Reason()
+		}
+
 		if c.Status() == "True" {
 			summary.Transitioning = true
 			summary.State = newState
@@ -366,6 +792,12 @@ func checkTransitioning(_ data.Object, conditions []Condition, summary Summary) 
 		if c.Type() == "Ready" && c.Status() == "False" {
 			ready = false
 			readyMessage = c.Message()
+
+			// ignore the message that is in the form of "x of y completed",
+			// seen on AWSMachine.infrastructure.cluster.x-k8s.io/v1beta2
+			if stepCounterMessagePattern.MatchString(c.Message()) {
+				readyMessage = ""
+			}
 			continue
 		}
 		newState, ok := TransitioningFalse[c.Type()]
@@ -557,4 +989,111 @@ func checkApplyOwned(obj data.Object, conditions []Condition, summary Summary) S
 	summary.Relationships = append(summary.Relationships, rel)
 
 	return summary
+}
+
+// isCAPIMachine returns true if the object is a CAPI Machine (cluster.x-k8s.io/*/Machine).
+func isCAPIMachine(obj data.Object) bool {
+	return strings.HasPrefix(obj.String("apiVersion"), "cluster.x-k8s.io/") &&
+		obj.String("kind") == "Machine"
+}
+
+// isCAPIMachineSet returns true if the object is a CAPI MachineSet (cluster.x-k8s.io/*/MachineSet).
+func isCAPIMachineSet(obj data.Object) bool {
+	return strings.HasPrefix(obj.String("apiVersion"), "cluster.x-k8s.io/") &&
+		obj.String("kind") == "MachineSet"
+}
+
+// isCAPIMachineDeployment returns true if the object is a CAPI MachineDeployment (cluster.x-k8s.io/*/MachineDeployment).
+func isCAPIMachineDeployment(obj data.Object) bool {
+	return strings.HasPrefix(obj.String("apiVersion"), "cluster.x-k8s.io/") &&
+		obj.String("kind") == "MachineDeployment"
+}
+
+// isCAPICluster returns true if the object is a CAPI Cluster (cluster.x-k8s.io/*/Cluster).
+func isCAPICluster(obj data.Object) bool {
+	return strings.HasPrefix(obj.String("apiVersion"), "cluster.x-k8s.io/") &&
+		obj.String("kind") == "Cluster"
+}
+
+// parseMessage parses the first bullet line from a condition message.
+// The condition message format is:
+//
+//	\* <ConditionType>: <detail message>
+//	\* <ConditionType>: <detail message>
+//
+// or with nested sub-bullets when the top-level detail is empty:
+//
+//	\* <ConditionType>:
+//	  \* <SubCondition>: <detail message>
+//
+// Multiple lines are separated by newlines. This function returns:
+//   - detail: the stripped detail text (without "* ConditionType: " prefix).
+//     When the top-level bullet has no inline detail, the detail from
+//     the first indented sub-bullet is returned instead.
+//   - prefix: the condition type name from the top-level bullet.
+func parseMessage(message string) (detail, prefix string) {
+	if message == "" {
+		return "", ""
+	}
+
+	lines := strings.Split(message, "\n")
+
+	// Parse the first line.
+	firstLine := strings.TrimPrefix(lines[0], "* ")
+
+	// Split on ": " to separate condition type from detail.
+	colonIdx := strings.Index(firstLine, ": ")
+	if colonIdx < 0 {
+		// No ": " separator. Check if the line ends with ":" (empty detail
+		// with sub-bullets on subsequent lines).
+		if strings.HasSuffix(firstLine, ":") {
+			prefix = strings.TrimSuffix(firstLine, ":")
+		} else {
+			return firstLine, ""
+		}
+	} else {
+		prefix = firstLine[:colonIdx]
+		detail = firstLine[colonIdx+2:]
+	}
+
+	// If the top-level bullet has inline detail, return it.
+	if detail != "" {
+		return detail, prefix
+	}
+
+	// The top-level bullet has no inline detail (e.g., "* NodeHealthy:").
+	// Look for indented sub-bullets to extract the detail from.
+	for _, line := range lines[1:] {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "* ") {
+			continue
+		}
+		// Found a sub-bullet: "* SubCondition: detail message"
+		subContent := strings.TrimPrefix(trimmed, "* ")
+		subColonIdx := strings.Index(subContent, ": ")
+		if subColonIdx >= 0 {
+			detail = subContent[subColonIdx+2:]
+		} else {
+			detail = subContent
+		}
+		break // Only use the first sub-bullet.
+	}
+
+	return detail, prefix
+}
+
+// nestedInt64 retrieves a nested numeric field from an unstructured object and
+// returns it as int64. Unlike unstructured.NestedInt64, which requires the value
+// to be exactly int64, this function also handles float64 (produced by JSON/YAML
+// decoders), json.Number, and string representations of integers.
+func nestedInt64(obj data.Object, fields ...string) (int64, bool, error) {
+	val, found, err := unstructured.NestedFieldNoCopy(obj, fields...)
+	if !found || err != nil {
+		return 0, found, err
+	}
+	n, err := convert.ToNumber(val)
+	if err != nil {
+		return 0, false, err
+	}
+	return n, true, nil
 }
