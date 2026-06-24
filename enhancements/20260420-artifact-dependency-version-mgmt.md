@@ -18,12 +18,11 @@ This proposes using Renovate with proper grouping rules and automated merge poli
 
 ### Goals
 
-- Group related dependencies into single PRs (for example, all `k8s.io/*` modules together instead of 15 separate PRs).
-- Auto-merge patch and security updates after waiting period (2 weeks).
-- Require human review for minor updates.
-- Apply minor/patch/security updates to all active branches (master/main trunk + active release branches).
-- Restrict release branches to patch/security updates only.
-- Centralize update policies via shared Renovate config in `harvester/dependency-automation`.
+- Centralize Renovate policy in `harvester/dependency-automation` so Harvester repositories share the same defaults.
+- Enable security-focused dependency updates using Renovate's vulnerability alert support.
+- Group related dependency updates into a single PR when a security fix is needed.
+- Keep risky or operationally sensitive dependency families under manual control.
+- Allow repositories to opt into additional branch coverage or local overrides when needed.
 
 ### Non-goals
 
@@ -33,44 +32,62 @@ This proposes using Renovate with proper grouping rules and automated merge poli
 
 ## Introduction
 
-Use Renovate to automate dependency updates with proper grouping and auto-merge policies.
+Harvester now consumes a shared Renovate configuration from `harvester/dependency-automation` through:
+
+```json
+{
+  "extends": [
+    "github>harvester/dependency-automation:renovate"
+  ]
+}
+```
+
+The shared configuration is security-oriented rather than upgrade-oriented.
 
 **Update policies**:
-- **Patch/security updates**: Auto-merge after 2-week waiting period if CI passes
-- **Minor updates**: Create PR, require human review
-- **Major updates**: Disabled (require manual updates)
 
-**Shared config**: Write rules once in `harvester/dependency-automation`, reuse via `extends` in each repo.
+- **Security updates**: enabled by default and require manual review.
+- **Non-security patch/minor/major updates**: disabled by default.
+- **Major Go updates**: explicitly disabled.
+
+**Shared config defaults**:
+
+- `osvVulnerabilityAlerts` enabled.
+- Group related dependencies such as Golang toolchain, SUSE BCI base images, and K8s plus Rancher dependencies.
+- Exclude risky or manually managed updates such as Longhorn, KubeVirt, Helm, and selected pinned dependencies.
+
+**Branch policy**:
+
+- `main` and `master`: normal shared policy applies.
+- Release branches matching `v*`: not scanned by default.
+- A repository can opt release branches in with `baseBranchPatterns`; when it does, only patch and security updates are allowed there.
 
 ## Proposal
 
-1. **Grouping rules** - Group related dependencies (k8s.io/*, golang toolchain) into single PRs
-2. **Auto-merge policies** - Patch/security updates auto-merge after 2 weeks; minor updates require human review
-3. **Shared configuration** - Centralize in `harvester/dependency-automation`, extend in each repo
+1. **Shared configuration**: keep Renovate rules centralized in `harvester/dependency-automation` and extend them from each repository.
+2. **Security-first update policy**: create PRs only for known vulnerable dependencies by default.
+3. **Dependency grouping**: reduce review overhead by grouping logically related updates into one PR.
+4. **Manual handling for sensitive dependencies**: keep excluded ecosystems under explicit human control.
 
 ### User Stories
 
 #### K8s Dependency Updates
 
-**Before**: K8s patch release → 15+ separate Renovate PRs for each `k8s.io/*` module due to incomplete Renovate settings → devs manually group them (e.g., [issue #10110](https://github.com/harvester/harvester/issues/10110)) → manually verify compatibility → create grouped PR by hand.
+**Before**: A vulnerable K8s dependency requires developers to identify all affected `k8s.io/*` modules, update them consistently, and verify compatibility manually.
 
-**After**: One PR with all `k8s.io/*` modules grouped, e.g. <https://github.com/pohanhuang/harvester/pull/157>.
+**After**: Renovate opens one grouped PR for the affected K8s and related dependencies when a vulnerability-backed update is available.
 
-#### Go Version Updates
+#### Go Toolchain Updates
 
-**Before**: Update Go 1.25.7 → 1.25.8 requires touching:
+**Before**: Updating Go often means touching `go.mod`, workflow files, and container build files separately, with a risk of inconsistent versions.
 
-- `.github/workflows/*.yml`
-- `go.mod`
-- Easy to miss a file or have inconsistent versions.
-
-**After**: Renovate's `go-version` datasource handles it in one PR. All files updated together using regex managers.
+**After**: When the shared configuration allows a relevant security-driven update, Renovate can group the matching Go-related file changes into one PR.
 
 #### Longhorn Dependency Updates
 
-**Before**: Longhorn release → manually update multiple Go modules (e.g., [fork PR #209](https://github.com/pohanhuang/harvester/pull/209) touching `longhorn-manager`, `longhorn-instance-manager`, etc.) → manual version verification across modules.
+**Before**: Longhorn releases require coordinated updates across several modules and charts with manual compatibility verification.
 
-**After**: No change in the initial rollout. Longhorn updates remain manual until we have validated a safe grouping and update strategy across Go modules and charts.
+**After**: No change in the shared default policy. Longhorn remains manually managed until a safer update strategy is defined.
 
 ### User Experience In Detail
 
@@ -81,11 +98,11 @@ Use Renovate to automate dependency updates with proper grouping and auto-merge 
 
 **Daily usage**:
 
-- Patch/security updates: Auto-merged after waiting period (e.g., 2 weeks) and CI passes.
-- Minor updates: Review PRs as they come in, titles like "chore: update k8s deps to v1.33.0".
-- Approve/merge after CI passes.
+- Most repositories receive no routine version bump PRs.
+- Vulnerability-backed updates appear as grouped Renovate PRs for manual review.
+- Maintainers continue to handle excluded dependencies manually.
 
-No changes for contributors.
+No contributor workflow changes are required outside normal PR review.
 
 ### API changes
 
@@ -95,60 +112,63 @@ None.
 
 ### Implementation Overview
 
-**Phase 1: Create shared config in `harvester/dependency-automation`**
+**Shared config repository**
 
-Repository `harvester/dependency-automation` (renamed from `harvester/renovate`) hosts shared config.
+`harvester/dependency-automation` is the single source of truth for shared Renovate policy.
 
-**Dependency grouping**:
-- Golang toolchain (go.mod + Dockerfile) → 1 PR
-- K8s + Rancher (all k8s.io/* + rancher/rancher) → 1 PR
-- SUSE BCI base images → 1 PR
+**Supported managers**:
 
-**Update policies**:
-- Major updates: Disabled for Go modules
-- Minor updates: PR created, require human review
-- Patch/security updates: Auto-merge after 2 weeks if CI passes
+- `gomod`
+- `dockerfile`
+- `github-actions`
+- `pip_requirements`
 
-**Disabled dependencies** (require manual updates):
-- Longhorn (deferred for now; spans Go modules and Helm charts)
-- kubevirt (breaking changes need testing)
-- rancher/lasso (version pinned)
-- Helm charts (separate management)
+**Grouping rules**:
 
-**Phase 2: Apply to `harvester/harvester` (master → v1.x branches)**
+- Golang toolchain related updates
+- SUSE BCI base images
+- K8s plus Rancher dependencies
 
-Create PR to extend shared config in `harvester/harvester`:
-- Master branch adopts shared config first
-- Apply to active release branches (v1.x) for patch/security updates only
-- Monitor PR quality and tune grouping rules
+**Default update policies**:
 
-**Phase 3: Gradually migrate to other repos**
+- Security updates only
+- Non-security patch updates disabled
+- Non-security minor updates disabled
+- Non-security major updates disabled
 
-Gradually rollout to remaining repos:
-- Start with 1-2 repos per week
-- Each repo: `renovate.json` extends `github>harvester/dependency-automation`
-- Monitor PR quality and adjust shared config based on feedback
-- Repo-specific overrides allowed
+**Disabled or manually managed dependency areas**:
+
+- Longhorn
+- KubeVirt
+- Helm-related updates
+- Go major version bumps
+- Other pinned or operationally sensitive dependencies defined in the shared config
+
+**Harvester repository adoption**
+
+`harvester/harvester` consumes the shared config through its root `renovate.json`. Release branches can opt in separately if patch and security coverage is required there.
 
 ### Test plan
 
 **Success criteria**:
-- Grouping: k8s.io/* in 1 PR, golang toolchain in 1 PR
-- Auto-merge: Patch updates wait 14 days → auto-merge if CI passes
-- Manual review: Minor updates require approval
-- `make ci` passes after bumps
+
+- Shared configuration can be consumed from `harvester/dependency-automation`.
+- Vulnerability-backed dependency updates are grouped into coherent PRs.
+- Non-security update noise is eliminated by default.
+- Excluded dependency families do not generate unintended Renovate PRs.
+- Harvester CI still validates the resulting dependency change PRs.
 
 ### Upgrade strategy
 
-Dev infrastructure only—no end-user impact.
+This affects developer workflow only and has no direct end-user impact.
 
-**Migration per repo**:
+**Migration per repository**:
 
-1. Update `renovate.json` to extend `github>harvester/dependency-automation`
-2. Remove any local grouping rules that are now in shared config
-3. Add repo-specific overrides if needed
-4. Existing Renovate setup continues until new config is merged (no disruption)
+1. Add or update `renovate.json` to extend `github>harvester/dependency-automation:renovate`.
+2. Remove local rules that duplicate shared behavior.
+3. Add repository-specific overrides only where justified.
+4. Optionally opt release branches in with `baseBranchPatterns` if patch and security coverage is needed there.
 
 ## Note
 
-Renovate handles current requirements. Updatecli will be used if needed in the future.
+Renovate covers the current security-focused dependency automation requirements. Other tooling such as Updatecli can be evaluated later if Harvester needs broader artifact management workflows.
