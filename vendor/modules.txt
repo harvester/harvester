@@ -1141,8 +1141,8 @@ github.com/shirou/gopsutil/v3/internal/common
 # github.com/shopspring/decimal v1.4.0
 ## explicit; go 1.10
 github.com/shopspring/decimal
-# github.com/sirupsen/logrus v1.9.3
-## explicit; go 1.13
+# github.com/sirupsen/logrus v1.9.4
+## explicit; go 1.17
 github.com/sirupsen/logrus
 # github.com/slok/goresilience v0.2.0
 ## explicit
