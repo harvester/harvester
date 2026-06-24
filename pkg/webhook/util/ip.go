@@ -59,27 +59,6 @@ func GetUsableIPAddressesCount(includeRange string, excludeRange []string) (int,
 	return len(usableIPAddrMap), nil
 }
 
-// GetUsableIPAddressesCountDualStack returns the total usable IP count across
-// an IPv4 range and an IPv6 range. Either range may be empty.
-func GetUsableIPAddressesCountDualStack(v4Range string, v6Range string, v4Exclude []string, v6Exclude []string) (int, error) {
-	total := 0
-	if v4Range != "" {
-		count, err := GetUsableIPAddressesCount(v4Range, v4Exclude)
-		if err != nil {
-			return 0, err
-		}
-		total += count
-	}
-	if v6Range != "" {
-		count, err := GetUsableIPAddressesCount(v6Range, v6Exclude)
-		if err != nil {
-			return 0, err
-		}
-		total += count
-	}
-	return total, nil
-}
-
 func getIPAddressesFromSubnet(ipNetSubnets []string, include bool) (ipAddrList map[string]struct{}, err error) {
 	ipAddrList = make(map[string]struct{})
 

@@ -183,6 +183,9 @@ func (h *GenerateHandler) getServerURL() (string, error) {
 		return "", err
 	}
 
+	// vipConfig.IP holds the single management VIP set by the installer.
+	// For IPv4-only or dual-stack (IPv4-first) clusters this is an IPv4 address
+	// For IPv6-only or dual-stack (IPv6-first) clusters this is an IPv6 address
 	vip := vipConfig.IP
 	if ip := net.ParseIP(vip); ip == nil {
 		return "", fmt.Errorf("invalid vip %s", vip)
