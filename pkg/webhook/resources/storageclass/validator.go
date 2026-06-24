@@ -329,10 +329,10 @@ func (v *storageClassValidator) validateEncryptionParams(newSC *storagev1.Storag
 	if len(missing) > 0 {
 		return "", "", werror.NewInvalidError(
 			fmt.Sprintf("storage class must contain %s", strings.Join(missing, ", ")),
-			"spec.parameters")
+			"parameters.encrypted")
 	}
 	if wantName == "" {
-		return "", "", werror.NewInvalidError("storage class must contain secret name and namespace", "spec.parameters")
+		return "", "", werror.NewInvalidError("storage class must contain secret name and namespace", "parameters.encrypted")
 	}
 	return wantName, wantNS, nil
 }
