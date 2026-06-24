@@ -134,7 +134,7 @@ github.com/cisco-open/operator-tools/pkg/typeoverride
 github.com/cisco-open/operator-tools/pkg/types
 github.com/cisco-open/operator-tools/pkg/utils
 github.com/cisco-open/operator-tools/pkg/volume
-# github.com/containerd/containerd v1.7.24 => github.com/containerd/containerd v1.7.33
+# github.com/containerd/containerd v1.7.33 => github.com/containerd/containerd v1.7.33
 ## explicit; go 1.24.0
 github.com/containerd/containerd/archive/compression
 github.com/containerd/containerd/content
