@@ -48,7 +48,7 @@ type desiredSet struct {
 	objs                     *objectset.ObjectSet
 	owner                    runtime.Object
 	injectors                []injectors.ConfigInjector
-	ratelimitingQps          float32
+	ratelimitingQPS          float32
 	injectorNames            []string
 	errs                     []error
 
@@ -170,7 +170,7 @@ func (o desiredSet) WithCacheTypes(igs ...InformerGetter) Apply {
 		informer := ig.Informer()
 		if err := addIndexerByHash(informer.GetIndexer()); err != nil {
 			// Ignore repeatedly adding the same indexer for different types
-			if !errors.Is(err, indexerAlreadyExistsErr) {
+			if !errors.Is(err, errIndexerAlreadyExists) {
 				logrus.Warnf("Problem adding hash indexer to informer [%s]: %v", ig.GroupVersionKind().Kind, err)
 			}
 		}
@@ -184,7 +184,7 @@ func (o desiredSet) WithCacheTypes(igs ...InformerGetter) Apply {
 // addIndexerByHash an Informer to index objects by the hash annotation value
 func addIndexerByHash(indexer cache.Indexer) error {
 	if _, alreadyAdded := indexer.GetIndexers()[byHash]; alreadyAdded {
-		return fmt.Errorf("adding indexer %q: %w", byHash, indexerAlreadyExistsErr)
+		return fmt.Errorf("adding indexer %q: %w", byHash, errIndexerAlreadyExists)
 	}
 	return indexer.AddIndexers(map[string]cache.IndexFunc{
 		byHash: func(obj interface{}) ([]string, error) {
@@ -249,8 +249,8 @@ func (o desiredSet) WithListerNamespace(ns string) Apply {
 	return o
 }
 
-func (o desiredSet) WithRateLimiting(ratelimitingQps float32) Apply {
-	o.ratelimitingQps = ratelimitingQps
+func (o desiredSet) WithRateLimiting(ratelimitingQPS float32) Apply {
+	o.ratelimitingQPS = ratelimitingQPS
 	return o
 }
 

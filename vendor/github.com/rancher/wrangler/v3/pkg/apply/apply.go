@@ -75,7 +75,7 @@ type Apply interface {
 	WithRestrictClusterScoped() Apply
 	WithDefaultNamespace(ns string) Apply
 	WithListerNamespace(ns string) Apply
-	WithRateLimiting(ratelimitingQps float32) Apply
+	WithRateLimiting(ratelimitingQPS float32) Apply
 	WithNoDelete() Apply
 	WithNoDeleteGVK(gvks ...schema.GroupVersionKind) Apply
 	WithGVK(gvks ...schema.GroupVersionKind) Apply
@@ -192,7 +192,7 @@ func (a *apply) newDesiredSet() desiredSet {
 		a:                a,
 		defaultNamespace: defaultNamespace,
 		ctx:              context.Background(),
-		ratelimitingQps:  1,
+		ratelimitingQPS:  1,
 		reconcilers:      defaultReconcilers,
 		strictCaching:    true,
 	}
@@ -272,8 +272,8 @@ func (a *apply) WithListerNamespace(ns string) Apply {
 	return a.newDesiredSet().WithListerNamespace(ns)
 }
 
-func (a *apply) WithRateLimiting(ratelimitingQps float32) Apply {
-	return a.newDesiredSet().WithRateLimiting(ratelimitingQps)
+func (a *apply) WithRateLimiting(ratelimitingQPS float32) Apply {
+	return a.newDesiredSet().WithRateLimiting(ratelimitingQPS)
 }
 
 func (a *apply) WithNoDelete() Apply {

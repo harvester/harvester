@@ -14,14 +14,38 @@ func GetUnstructuredConditions(obj map[string]interface{}) []Condition {
 }
 
 func getRawConditions(obj data.Object) []data.Object {
-	statusAnn := obj.String("metadata", "annotations", "cattle.io/status")
-	if statusAnn != "" {
-		status := data.Object{}
-		if err := json.Unmarshal([]byte(statusAnn), &status); err == nil {
-			return append(obj.Slice("status", "conditions"), status.Slice("conditions")...)
-		}
+	result := make([]data.Object, 0)
+	conditions := obj.Slice("status", "conditions")
+	if len(conditions) != 0 {
+		result = append(result, conditions...)
 	}
-	return obj.Slice("status", "conditions")
+
+	annoConditions := getAnnotationConditions(obj)
+	if len(annoConditions) != 0 {
+		result = append(result, annoConditions...)
+	}
+
+	return result
+}
+
+// getAnnotationConditions extracts conditions from the cattle.io/status annotation.
+// Returns an empty slice if the annotation doesn't exist or cannot be parsed.
+func getAnnotationConditions(obj data.Object) []data.Object {
+	statusAnn := obj.String("metadata", "annotations", "cattle.io/status")
+	if statusAnn == "" {
+		return []data.Object{}
+	}
+
+	var status data.Object
+	if err := json.Unmarshal([]byte(statusAnn), &status); err != nil {
+		return []data.Object{}
+	}
+
+	conditions := status.Slice("conditions")
+	if conditions == nil {
+		return []data.Object{}
+	}
+	return conditions
 }
 
 func getConditions(obj data.Object) (result []Condition) {
@@ -70,18 +94,25 @@ func (c Condition) Equals(other Condition) bool {
 }
 
 func NormalizeConditions(runtimeObj runtime.Object) {
-	var (
-		obj           data.Object
-		newConditions []map[string]interface{}
-	)
+	if runtimeObj == nil {
+		return
+	}
 
 	unstr, ok := runtimeObj.(*unstructured.Unstructured)
 	if !ok {
 		return
 	}
 
-	obj = unstr.Object
-	for _, condition := range obj.Slice("status", "conditions") {
+	obj := data.Object(unstr.Object)
+
+	if conditions := obj.Slice("status", "conditions"); len(conditions) > 0 {
+		normalizeAndSetConditions(obj, conditions, "status", "conditions")
+	}
+}
+
+func normalizeAndSetConditions(obj data.Object, conditions []data.Object, path ...string) {
+	var newConditions []interface{}
+	for _, condition := range conditions {
 		var summary Summary
 		for _, summarizer := range ConditionSummarizers {
 			summary = summarizer(obj, []Condition{{Object: condition}}, summary)
@@ -92,11 +123,10 @@ func NormalizeConditions(runtimeObj runtime.Object) {
 		if condition.String("lastUpdateTime") == "" {
 			condition.Set("lastUpdateTime", condition.String("lastTransitionTime"))
 		}
-		newConditions = append(newConditions, condition)
+		newConditions = append(newConditions, map[string]interface{}(condition))
 	}
 
 	if len(newConditions) > 0 {
-		obj.SetNested(newConditions, "status", "conditions")
+		obj.SetNested(newConditions, path...)
 	}
-
 }
