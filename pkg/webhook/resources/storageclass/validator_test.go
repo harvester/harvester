@@ -59,10 +59,11 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		secret       *corev1.Secret
-		storageClass *storagev1.StorageClass
-		expectError  bool
+		name          string
+		secret        *corev1.Secret
+		storageClass  *storagev1.StorageClass
+		expectError   bool
+		errorContains string
 	}{
 		{
 			name: "valid encryption parameters",
@@ -345,6 +346,21 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 			expectError: true,
 		},
 		{
+			name: "Longhorn V2 encryption is temporarily disabled",
+			storageClass: &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "longhorn-v2-encrypted",
+				},
+				Provisioner: util.CSIProvisionerLonghorn,
+				Parameters: map[string]string{
+					util.ParamDataEngine:         string(longhornv1.DataEngineTypeV2),
+					util.LonghornOptionEncrypted: "true",
+				},
+			},
+			expectError:   true,
+			errorContains: "temporarily disabled due to a known volume size issue",
+		},
+		{
 			name: "encryption disabled",
 			storageClass: &storagev1.StorageClass{
 				ObjectMeta: metav1.ObjectMeta{
@@ -486,6 +502,9 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 			err := validator.validateEncryption(tc.storageClass)
 			if tc.expectError {
 				assert.NotNil(t, err, tc.name)
+				if tc.errorContains != "" {
+					assert.ErrorContains(t, err, tc.errorContains)
+				}
 			} else {
 				assert.Nil(t, err, tc.name)
 			}

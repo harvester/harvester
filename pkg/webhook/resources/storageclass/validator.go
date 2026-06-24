@@ -225,6 +225,13 @@ func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error 
 		return nil
 	}
 
+	if newSC.Provisioner == util.CSIProvisionerLonghorn &&
+		util.GetLonghornDataEngineType(newSC) == longhorn.DataEngineTypeV2 {
+		// Encrypted V2 volumes are supported, but their actual size is currently smaller than requested.
+		// See https://github.com/longhorn/longhorn/issues/13163.
+		return werror.NewInvalidError("encrypted Longhorn V2 volumes are temporarily disabled due to a known volume size issue", "parameters.encrypted")
+	}
+
 	secretName, secretNamespace, err := v.validateEncryptionParams(newSC)
 	if err != nil {
 		return err
