@@ -94,6 +94,7 @@ func (c *summaryResourceClient) Watch(ctx context.Context, opts metav1.ListOptio
 		err  error
 	)
 
+	ctx, cancel := context.WithCancel(ctx)
 	eventChan := make(chan watch.Event)
 
 	if c.namespace == "" {
@@ -102,33 +103,46 @@ func (c *summaryResourceClient) Watch(ctx context.Context, opts metav1.ListOptio
 		resp, err = c.client.Resource(c.resource).Namespace(c.namespace).Watch(ctx, opts)
 	}
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
 	go func() {
 		defer close(eventChan)
+		defer cancel()
 		for event := range resp.ResultChan() {
 			// don't encode status objects
 			if _, ok := event.Object.(*metav1.Status); !ok {
 				event.Object = summary.SummarizedWithOptions(event.Object, generateSummarizeOpts(c.options.Schema))
 			}
-			eventChan <- event
+			select {
+			case eventChan <- event:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
 	return &watcher{
 		Interface: resp,
+		cancel:    cancel,
 		eventChan: eventChan,
 	}, nil
 }
 
 type watcher struct {
 	watch.Interface
+	cancel    context.CancelFunc
 	eventChan chan watch.Event
 }
 
 func (w watcher) ResultChan() <-chan watch.Event {
 	return w.eventChan
+}
+
+func (w watcher) Stop() {
+	w.cancel()
+	w.Interface.Stop()
 }
 
 func generateSummarizeOpts(schema *schemas.Schema) *summary.SummarizeOptions {
