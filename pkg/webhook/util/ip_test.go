@@ -1,7 +1,6 @@
 package util
 
 import (
-	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -102,31 +101,6 @@ func Test_ipAddressRange(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			count, _ := GetUsableIPAddressesCount(tt.config.Range, tt.config.Exclude)
 			assert.Equal(t, tt.expectedErr, count < 16)
-		})
-	}
-}
-
-func Test_subnetExceedsLimit(t *testing.T) {
-	tests := []struct {
-		name    string
-		cidr    string
-		exceeds bool
-	}{
-		{name: "IPv4 /24 (8 host bits)  — within limit", cidr: "10.0.0.0/24", exceeds: false},
-		{name: "IPv4 /16 (16 host bits, at boundary) — within limit", cidr: "10.0.0.0/16", exceeds: false},
-		{name: "IPv4 /15 (17 host bits) — over limit", cidr: "10.0.0.0/15", exceeds: true},
-		{name: "IPv4 /8 (24 host bits) — over limit", cidr: "10.0.0.0/8", exceeds: true},
-		{name: "IPv6 /120 (8 host bits) — within limit", cidr: "2001:db8::/120", exceeds: false},
-		{name: "IPv6 /112 (16 host bits, at boundary) — within limit", cidr: "2001:db8::/112", exceeds: false},
-		{name: "IPv6 /111 (17 host bits) — over limit", cidr: "2001:db8::/111", exceeds: true},
-		{name: "IPv6 /64 (64 host bits) — over limit", cidr: "2001:db8::/64", exceeds: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, network, err := net.ParseCIDR(tt.cidr)
-			assert.NoError(t, err)
-			assert.Equal(t, tt.exceeds, subnetExceedsLimit(network))
 		})
 	}
 }
