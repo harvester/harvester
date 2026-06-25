@@ -45,7 +45,6 @@ Create chart name and version as used by the chart label.
 Common labels
 */}}
 {{- define "whereabouts.labels" -}}
-app: whereabouts
 helm.sh/chart: {{ include "whereabouts.chart" . }}
 {{ include "whereabouts.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
