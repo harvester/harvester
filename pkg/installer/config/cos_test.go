@@ -231,3 +231,78 @@ func containsFile(files []yipSchema.File, fileName string) bool {
 	}
 	return false
 }
+
+func containsDirectory(dirs []yipSchema.Directory, path string) bool {
+	for _, d := range dirs {
+		if d.Path == path {
+			return true
+		}
+	}
+	return false
+}
+
+func TestConvertToCOS_EnableIPv6(t *testing.T) {
+	testCases := []struct {
+		name  string
+		check func(t *testing.T, initramfs yipSchema.Stage)
+	}{
+		{
+			name: "sysctl directory present",
+			check: func(t *testing.T, initramfs yipSchema.Stage) {
+				assert.True(t, containsDirectory(initramfs.Directories, "/etc/sysctl.d"),
+					"initramfs.Directories should contain /etc/sysctl.d")
+			},
+		},
+		{
+			name: "drop-in file present",
+			check: func(t *testing.T, initramfs yipSchema.Stage) {
+				assert.True(t, containsFile(initramfs.Files, "/etc/sysctl.d/zz-harvester-enable-ipv6.conf"),
+					"initramfs.Files should contain /etc/sysctl.d/zz-harvester-enable-ipv6.conf")
+			},
+		},
+		{
+			name: "drop-in file content",
+			check: func(t *testing.T, initramfs yipSchema.Stage) {
+				for _, f := range initramfs.Files {
+					if f.Path == "/etc/sysctl.d/zz-harvester-enable-ipv6.conf" {
+						assert.Contains(t, f.Content, SysctlDisableIPv6All+" = 0")
+						assert.Contains(t, f.Content, SysctlDisableIPv6Default+" = 0")
+						assert.Contains(t, f.Content, SysctlDisableIPv6Lo+" = 0")
+						assert.Equal(t, uint32(0644), f.Permissions)
+						return
+					}
+				}
+				t.Error("drop-in file not found")
+			},
+		},
+		{
+			name: "sysctl map not nil",
+			check: func(t *testing.T, initramfs yipSchema.Stage) {
+				assert.NotNil(t, initramfs.Sysctl)
+			},
+		},
+		{
+			name: "sysctl map keys",
+			check: func(t *testing.T, initramfs yipSchema.Stage) {
+				assert.Equal(t, "0", initramfs.Sysctl[SysctlDisableIPv6All])
+				assert.Equal(t, "0", initramfs.Sysctl[SysctlDisableIPv6Default])
+				assert.Equal(t, "0", initramfs.Sysctl[SysctlDisableIPv6Lo])
+			},
+		},
+	}
+
+	conf, err := LoadHarvesterConfig(util.LoadFixture(t, "harvester-config.yaml"))
+	assert.NoError(t, err)
+	conf.Mode = ModeInstall
+
+	yipConfig, err := ConvertToCOS(conf)
+	assert.NoError(t, err)
+
+	initramfs := yipConfig.Stages["initramfs"][0]
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.check(t, initramfs)
+		})
+	}
+}

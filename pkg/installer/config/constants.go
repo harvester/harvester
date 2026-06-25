@@ -26,4 +26,8 @@ const (
 
 	DefaultPersistentPercentageNum = 0.3
 	PersistentSizeMinGiB           = 150
+
+	SysctlDisableIPv6All     = "net.ipv6.conf.all.disable_ipv6"
+	SysctlDisableIPv6Default = "net.ipv6.conf.default.disable_ipv6"
+	SysctlDisableIPv6Lo      = "net.ipv6.conf.lo.disable_ipv6"
 )
