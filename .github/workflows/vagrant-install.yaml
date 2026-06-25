@@ -1,0 +1,119 @@
+name: Vagrant install
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - 'ci/**'
+      - 'cmd/installer/**'
+      - 'pkg/installer/**'
+      - 'vendor/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'scripts/**'
+      - '!scripts/*.txt'
+      - '!scripts/build'
+      - '!scripts/generate-*'
+      - '!scripts/package-*'
+      - '!scripts/test-*'
+      - '!scripts/validate-*'
+  push:
+    branches:
+      - master
+      - 'v**'
+  schedule:
+    - cron: '30 19 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && !startsWith(github.ref, 'refs/heads/v') && !startsWith(github.ref, 'refs/tags/v') }}
+
+env:
+  LIBVIRT_DEFAULT_URI: "qemu:///system"
+  KEEP_ENV_WHEN_FAILURE: ${{ secrets.KEEP_CI_FAILURE }}
+  REGISTRY: "172.17.0.1:5000"
+
+jobs:
+  main:
+    name: Build and deploy
+    runs-on:
+      group: vagrant
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Build Harvester artifacts
+        env:
+          DISABLE_BUILD_NET_INSTALL_ISO: "true"
+          REPO: ${{ env.REGISTRY }}/rancher
+          PUSH: "true"
+        run: |
+          # image tags are determined from the branch name
+          git checkout -b vagrant-run${{ github.run_number }}-${{ github.run_attempt }}
+          make package-all
+          make build-iso
+      - name: Clone and checkout ipxe-examples
+        id: ipxe
+        run: |
+          cd $HOME
+          if [ ! -d ipxe-examples ]; then
+            git clone https://github.com/harvester/ipxe-examples.git
+          fi
+
+          cd ipxe-examples
+          git reset && git checkout .
+          git clean -fd
+          git pull
+          echo "VAGRANT_HOME=$HOME/ipxe-examples/vagrant-pxe-harvester" >> $GITHUB_OUTPUT
+      - name: Clean up previous vagrant deployment
+        working-directory: ${{ steps.ipxe.outputs.VAGRANT_HOME }}
+        run: |
+          vagrant destroy -f
+      - name: Generate SSH keys
+        run: |
+          ssh-keygen -t rsa -q -N "" -f ./ci/terraform/tmp-ssh-key
+      - name: Set SSH key in ipxe-examples settings
+        run: |
+          export PUB_KEY=$(cat ./ci/terraform/tmp-ssh-key.pub)
+          yq e -i ".harvester_config.ssh_authorized_keys += [ strenv(PUB_KEY) ]" ${{ steps.ipxe.outputs.VAGRANT_HOME }}/settings.yml
+      - name: Set artifacts in ipxe-examples settings
+        run: |
+          source ./scripts/version
+          yq e -i ".harvester_iso_url = \"file://${{ github.workspace }}/dist/artifacts/harvester-${VERSION}-amd64.iso\"" ${{ steps.ipxe.outputs.VAGRANT_HOME }}/settings.yml
+          yq e -i ".harvester_kernel_url = \"file://${{ github.workspace }}/dist/artifacts/harvester-${VERSION}-vmlinuz-amd64\"" ${{ steps.ipxe.outputs.VAGRANT_HOME }}/settings.yml
+          yq e -i ".harvester_ramdisk_url = \"file://${{ github.workspace }}/dist/artifacts/harvester-${VERSION}-initrd-amd64\"" ${{ steps.ipxe.outputs.VAGRANT_HOME }}/settings.yml
+          yq e -i ".harvester_rootfs_url = \"file://${{ github.workspace }}/dist/artifacts/harvester-${VERSION}-rootfs-amd64.squashfs\"" ${{ steps.ipxe.outputs.VAGRANT_HOME }}/settings.yml
+      - name: Setup cluster
+        working-directory: ${{ steps.ipxe.outputs.VAGRANT_HOME }}
+        run: |
+          ./setup_harvester.sh
+      - name: Clean the previous temp files
+        working-directory: ./ci/terraform
+        run: |
+          ./cleanup_test_files.sh
+      - name: Testing existing files
+        working-directory: ./ci/terraform
+        run: |
+          ./check_files.sh ${{ steps.ipxe.outputs.VAGRANT_HOME }}/settings.yml
+      - name: Testing services status
+        working-directory: ./ci/terraform
+        run: |
+          ./check_services_status.sh ${{ steps.ipxe.outputs.VAGRANT_HOME }}/settings.yml
+      - name: Testing basic operations with terraform
+        working-directory: ./ci/terraform
+        run: |
+          TERRAFORM_VERSION="1.14.8"
+          TERRAFORM_SUM_amd64="56a5d12f47cbc1c6bedb8f5426ae7d5df984d1929572c24b56f4c82e9f9bf709"
+          curl https://releases.hashicorp.com/terraform/$TERRAFORM_VERSION/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o terraform_bin.zip
+          echo "$TERRAFORM_SUM_amd64  terraform_bin.zip" | sha256sum -c -
+          unzip -o terraform_bin.zip
+          ./get_kubeconfig.sh ${{ steps.ipxe.outputs.VAGRANT_HOME }}/settings.yml
+          ./terraform init -no-color
+          ./terraform apply -auto-approve -no-color
+      - name: Test network on the VMs
+        working-directory: ./ci/terraform
+        run: |
+          ./test_terraform_vm.sh ${{ steps.ipxe.outputs.VAGRANT_HOME }}/settings.yml
+      - name: Clean up vagrant cluster
+        working-directory: ${{ steps.ipxe.outputs.VAGRANT_HOME }}
+        if: ${{ env.KEEP_ENV_WHEN_FAILURE != 'true' }}
+        run: |
+          vagrant destroy -f
