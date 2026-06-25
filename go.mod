@@ -127,7 +127,7 @@ require (
 	kubevirt.io/client-go v1.7.0
 	kubevirt.io/containerized-data-importer v1.64.0
 	kubevirt.io/containerized-data-importer-api v1.64.0
-	kubevirt.io/kubevirt v1.7.0
+	kubevirt.io/kubevirt v1.8.2
 	sigs.k8s.io/cluster-api v1.9.5
 	sigs.k8s.io/controller-runtime v0.21.0
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8
