@@ -37,7 +37,6 @@ jobs:
         TAG_NAME="${{ inputs.tag }}"
         echo "HARVESTER_UI_VERSION=$TAG_NAME" >> $GITHUB_ENV
         echo "HARVESTER_UI_PLUGIN_BUNDLED_VERSION=$TAG_NAME" >> $GITHUB_ENV
-        echo "HARVESTER_INSTALLER_REF=$TAG_NAME" >> $GITHUB_ENV
         echo "HARVESTER_ADDONS_VERSION=$TAG_NAME" >> $GITHUB_ENV
 
     # Build binaries
@@ -165,7 +164,6 @@ jobs:
         build-args: |
           ARCH=${{ env.arch }}
           VERSION=${{ inputs.build_version }}
-          HARVESTER_INSTALLER_REF=${{ inputs.image_tag }}
   
   manifest-images:
     name: Manifest images
@@ -259,7 +257,6 @@ jobs:
         TAG_NAME="${{ inputs.tag }}"
         echo "HARVESTER_UI_VERSION=$TAG_NAME" >> $GITHUB_ENV
         echo "HARVESTER_UI_PLUGIN_BUNDLED_VERSION=$TAG_NAME" >> $GITHUB_ENV
-        echo "HARVESTER_INSTALLER_REF=$TAG_NAME" >> $GITHUB_ENV
         echo "HARVESTER_ADDONS_VERSION=$TAG_NAME" >> $GITHUB_ENV
 
     - name: build-iso
@@ -268,7 +265,6 @@ jobs:
         make build-iso
       env:
         REPO: rancher
-        DRONE_BRANCH: ${{ env.branch }}
 
     - name: build-tag-iso
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -276,8 +272,6 @@ jobs:
         make build-iso
       env:
         REPO: rancher
-        DRONE_BRANCH: ${{ github.ref_name }}
-        DRONE_TAG: ${{ github.ref_name }}
 
     - name: Read Secrets
       uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # main

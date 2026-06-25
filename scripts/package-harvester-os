@@ -213,7 +213,7 @@ if [ -z "$ISO_CHECKSUM" ]; then
 fi
 
 # Write version.yaml
-if [[ -n "${DRONE_TAG-}" ]]; then
+if [[ -n "${GIT_TAG-}" ]]; then
 	RELEASE_DATE=$(date +'%Y%m%d')
 	cat > ${VERSION_FILE} <<EOF
 apiVersion: harvesterhci.io/v1beta1
