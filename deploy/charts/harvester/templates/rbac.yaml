@@ -114,6 +114,14 @@ metadata:
   name: harvesterhci.io:cloudprovider
 rules:
   - apiGroups:
+    - loadbalancer.harvesterhci.io
+    resources:
+    - ippools
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
       - loadbalancer.harvesterhci.io
     resources:
       - loadbalancers
