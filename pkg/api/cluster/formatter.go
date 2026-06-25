@@ -29,6 +29,11 @@ func (h Handler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBody, err
 	vars := util.EncodeVars(mux.Vars(req))
 	link := vars["link"]
 
+	extraUserName := req.Header.Get("Impersonate-Extra-Username")
+	if extraUserName == "" {
+		return nil, fmt.Errorf("unauthorized: missing authentication headers")
+	}
+
 	switch link {
 	case deviceCapacity:
 		return h.generateDeviceAvailabilityResponse()
