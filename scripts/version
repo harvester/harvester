@@ -41,12 +41,15 @@ if [[ "$GIT_TAG" == *"-dev-"* ]]; then
     SPRINT_RELEASE="-dev-"
 fi
 
-if [[ -z "$DIRTY" && -n "$GIT_TAG" && -z "$SPRINT_RELEASE" ]]; then
-    echo "Checking minimum upgradable version, if no minimum upgradeable version, will fail with \`Error: no matches found\`"
+if [[ -z "$DIRTY" && -n "$GIT_TAG" ]]; then
     VERSION=$GIT_TAG
-    # Search for minimum upgradable version.
-    # If the release does not come with a corresponding minimum upgradable version, the build will error out.
-    MIN_UPGRADABLE_VERSION=$(yq -e e ".versions | map(select(.name == \"$VERSION\")) | .[0].minUpgradableVersion" "${PACKAGE_DIR}"/upgrade-matrix.yaml)
+
+    if [[ -z "$SPRINT_RELEASE" ]]; then
+        echo "Checking minimum upgradable version, if no minimum upgradeable version, will fail with \`Error: no matches found\`"
+        # Search for minimum upgradable version.
+        # If the release does not come with a corresponding minimum upgradable version, the build will error out.
+        MIN_UPGRADABLE_VERSION=$(yq -e e ".versions | map(select(.name == \"$VERSION\")) | .[0].minUpgradableVersion" "${PACKAGE_DIR}"/upgrade-matrix.yaml)
+    fi
 else
     VERSION="${COMMIT}${DIRTY}"
     # Dev builds do not come with this restriction.
