@@ -119,6 +119,7 @@ func applyNetworks(network config.Network, hostname string) error {
 		config.SysctlDisableIPv6Default,
 		config.SysctlDisableIPv6Lo,
 	} {
+		// #nosec G204
 		if out, execErr := exec.Command("sysctl", "-w", fmt.Sprintf("%s=0", param)).CombinedOutput(); execErr != nil {
 			logrus.Warnf("Failed to enable IPv6 sysctl %s: %v (%s)", param, execErr, string(out))
 		}
