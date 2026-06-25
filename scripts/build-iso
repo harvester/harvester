@@ -119,7 +119,16 @@ prepare_harvester_bundle() {
     load_addon_env "${TOP_DIR}/../addons"
 
     collect_harvester_image_list "${all_images}"
-    split_harvester_image_list "${all_images}" "${cacheable_list}" "${non_cacheable_list}"
+
+    if [[ -n "${GIT_TAG}" ]]; then
+        # release path: all images are "cacheable", since images are supposed to be in formal versions.
+        # In fact, the runners are not supposed to have any previous cache to be re-used in current env.
+        cp "${all_images}" "${cacheable_list}"
+    else
+        # dev path: split the image list into cacheable and non-cacheable images according to the cache.yaml file.
+        # images with master-head and developer-pushed images are considered non-cacheable.
+        split_harvester_image_list "${all_images}" "${cacheable_list}" "${non_cacheable_list}"
+    fi
 
     echo "=== Cacheable Harvester images ==="
     cat "${cacheable_list}"
@@ -137,6 +146,8 @@ prepare_harvester_bundle() {
             "${non_cacheable_list}" \
             "${BUNDLE_DIR}/harvester/images/"
     fi
+
+    rm -f "${all_images}"
 }
 
 prepare_extra_bundle() {
