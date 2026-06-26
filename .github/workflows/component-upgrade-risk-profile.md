@@ -7,7 +7,11 @@ description: |
   about whether to proceed with the upgrade.
 
 on:
-  pull_request
+  slash_command:
+    name: assess-upgrade
+    events: [pull_request_comment, pull_request_review_comment]
+  roles: [admin, maintainer]
+  reaction: eyes
 
 permissions:
   contents: read
@@ -30,6 +34,7 @@ safe-outputs:
   add-comment:
     max: 5
   noop:
+    report-as-issue: false
 
 engine:
   id: copilot
@@ -39,14 +44,18 @@ timeout-minutes: 10
 ---
 # Component Upgrade Risk Profile
 
+Perform an upgrade risk assessment review on a pull request when a maintainer invokes `/assess-upgrade` in a PR conversation comment or inline review comment. This is a manually triggered workflow, and it is not automatically triggered on PR open or update. It does not respond to `/assess-upgrade` placed in the PR description body. Because it is triggered via comment events on the base repository, it runs in the base-repo context with full secrets and write access, so it works on PRs from forks as well as same-repo PRs.
+
+If you decide no review action is appropriate, call the `noop` tool with a message explaining why.
+
 ## Goals
 
 Helps maintainers make informed decisions about whether to proceed with a component upgrade. When a pull request is opened to upgrade a key component, generate a risk profile of the upgrade by categorizing the commits in the component's changelog and release notes.
 
 ## Steps
 
-1. If a pull request does not change the `deploy/charts/harvester/values.yaml` or `deploy/charts/harvester/Chart.yaml` files, skip risk assessment and stop.
-1. If a pull request changes the `deploy/charts/harvester/values.yaml` or `deploy/charts/harvester/Chart.yaml` files, check if it bumps the version of any key component following instructions in the "About components upgrade" section. If not, skip risk assessment and stop.
+1. If a pull request does not change the `deploy/charts/harvester/values.yaml` or `deploy/charts/harvester/Chart.yaml` files, skip risk assessment and call the `noop` tool with a message explaining why.
+1. If a pull request changes the `deploy/charts/harvester/values.yaml` or `deploy/charts/harvester/Chart.yaml` files, check if it bumps the version of any key component following instructions in the "About components upgrade" section. If not, skip risk assessment and call the `noop` tool with a message explaining why.
 1. If a pull request bumps the version of any key component, check the list of commits between the old version and the new version. See the "Determining change logs" section for instructions on how to determine the changelog.
 1. Categorize the commits into three categories: new features, bug fixes, and build/test/docs changes. Then report the risk profile based on the rules provided in the "Risk profile assessment rules" section.
 1. Report the risk profile in the pull request comment. See the "Report Risk Profile" section for the report template.
@@ -200,7 +209,7 @@ Use the template defined in the "Risk Profile Template" section below to report 
 
 Due to the character limit of each pull request comment, report the risk profile of each component upgrade in a separate pull request comment. For example, if a pull request contains version bumps for both KubeVirt and CDI, create two pull request comments, one for KubeVirt and one for CDI, and report the risk profile separately.
 
-Limit the usage of hyperlinks in the risk profile to no more than 50 links due to GitHub limitation on the number of links in a comment. A good usage of hyperlinks is to link to upstream pull requests and issues.
+Limit the usage of hyperlinks in the risk profile to only high-risk items, critical/high priority bug fixes and security advisories. Ensures there are  no more than 50 links in the risk profile, due to GitHub limitation on the number of links in a comment. A good usage of hyperlinks is to link to upstream pull requests and issues.
 
 For fun, add some emojis to make the report more visually appealing and easier to scan. For example, you can use 🚨 for high-risk items, 🐛 for bug fixes, and 📚 for build/test/docs changes.
 
