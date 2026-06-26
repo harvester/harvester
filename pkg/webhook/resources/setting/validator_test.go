@@ -1455,13 +1455,13 @@ func Test_validateStorageNetworkConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "untagged storage network with exclusive vlan enabled should be created successfully when overlay NAD exists",
+			name: "Enabling exclusive vlan on storage network with untagged or vlan 1 should return error",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
 				Default:    "",
 				Value:      `{"vlan":0, "clusterNetwork":"test-cn","exclusiveVlan": true,"range":"192.168.201.0/24"}`,
 			},
-			errMsg: "",
+			errMsg: "exclusive vlan cannot be enabled for vlan",
 			oldNAD: &cniv1.NetworkAttachmentDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        testKubeOVNNadName,
