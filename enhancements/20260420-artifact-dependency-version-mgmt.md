@@ -53,7 +53,7 @@ The shared configuration is security-oriented rather than upgrade-oriented.
 **Shared config defaults**:
 
 - `osvVulnerabilityAlerts` enabled.
-- Group related dependencies such as Golang toolchain, SUSE BCI base images, and K8s plus Rancher dependencies.
+- Group related dependencies such as Golang toolchain, and K8s plus Rancher dependencies.
 - Exclude risky or manually managed updates such as Longhorn, KubeVirt, Helm, and selected pinned dependencies.
 
 **Branch policy**:
@@ -126,7 +126,6 @@ None.
 **Grouping rules**:
 
 - Golang toolchain related updates
-- SUSE BCI base images
 - K8s plus Rancher dependencies
 
 **Default update policies**:
@@ -142,6 +141,7 @@ None.
 - KubeVirt
 - Helm-related updates
 - Go major version bumps
+- SUSE BCI base images
 - Other pinned or operationally sensitive dependencies defined in the shared config
 
 **Harvester repository adoption**
