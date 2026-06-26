@@ -1924,6 +1924,10 @@ func (v *settingValidator) checkNetworkRangeValid(config *networkutil.Config) er
 		return fmt.Errorf("range should be subnet CIDR %v", network)
 	}
 
+	if network.IP.To4() == nil {
+		return fmt.Errorf("IPv6 ranges are not supported for network settings")
+	}
+
 	prefixLen, _ := network.Mask.Size()
 	if prefixLen < minSNPrefixLength {
 		return fmt.Errorf("min supported prefix length for network is %d, include Range PrefixLen received %d", minSNPrefixLength, prefixLen)
