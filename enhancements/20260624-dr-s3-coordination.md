@@ -8,7 +8,7 @@ The coordination plane uses atomic compare-and-swap semantics on a per-VM `owner
 
 ### Related Issues
 
-- TBD
+- https://github.com/harvester/harvester/issues/1850
 
 ## Motivation
 
