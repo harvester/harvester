@@ -774,6 +774,7 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 	type testCase struct {
 		name          string
 		node          *corev1.Node
+		existingNodes []*corev1.Node
 		upgrades      []*harvesterv1.Upgrade
 		isController  bool
 		expectedError bool
@@ -1074,6 +1075,39 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 			expectedError: false,
 		},
 		{
+			name: "allow create on already-registered node during active upgrade",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "existing-node",
+				},
+			},
+			existingNodes: []*corev1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "existing-node",
+					},
+				},
+			},
+			upgrades: []*harvesterv1.Upgrade{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "Unknown",
+							},
+						},
+					},
+				},
+			},
+			isController:  false,
+			expectedError: false,
+		},
+		{
 			name: "block node creation when multiple upgrades active and not all have override",
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1217,12 +1251,18 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			clientset := fake.NewSimpleClientset()
 
+			for _, node := range tc.existingNodes {
+				err := clientset.Tracker().Add(node)
+				assert.Nil(t, err)
+			}
+
 			for _, upgrade := range tc.upgrades {
 				err := clientset.Tracker().Add(upgrade)
 				assert.Nil(t, err)
 			}
 
 			validator := &nodeValidator{
+				nodeCache:    fakeclients.NodeCache(clientset.CoreV1().Nodes),
 				upgradeCache: fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 			}
 
@@ -1272,6 +1312,7 @@ func TestValidateNodeCreateDuringUpgradeCacheError(t *testing.T) {
 	})
 
 	validator := &nodeValidator{
+		nodeCache:    fakeclients.NodeCache(clientset.CoreV1().Nodes),
 		upgradeCache: fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 	}
 
