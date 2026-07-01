@@ -4,10 +4,10 @@ import (
 	"net"
 )
 
-// incrementIP increments the IP address by 1
+// incrementIP increments the IP address by 1.
+// To16 allocates a new slice, so the original is not mutated.
 func incrementIP(ip net.IP) net.IP {
-	// Convert the IP to a byte slice and increment the last byte
-	ip = ip.To4()
+	ip = ip.To16()
 	for j := len(ip) - 1; j >= 0; j-- {
 		ip[j]++
 		if ip[j] != 0 {
@@ -56,13 +56,15 @@ func getIPAddressesFromSubnet(ipNetSubnets []string, include bool) (ipAddrList m
 			return ipAddrList, err
 		}
 
-		// Get broadcast address (last address in the subnet)
-		broadcast := getBroadcastAddress(network)
+		lastAddr := getLastAddress(network)
+		isIPv4 := network.IP.To4() != nil
 
-		// Iterate through all the IP addresses in the subnet
-		for ; network.Contains(ip); incrementIP(ip) {
-			if include && (ip.Equal(network.IP) || ip.Equal(broadcast)) {
-				continue
+		for ; network.Contains(ip); ip = incrementIP(ip) {
+			if include && ip.Equal(network.IP) {
+				continue // skip network address for both families
+			}
+			if include && isIPv4 && ip.Equal(lastAddr) {
+				continue // skip broadcast address for IPv4 only
 			}
 			ipAddrList[ip.String()] = struct{}{}
 		}
@@ -71,14 +73,15 @@ func getIPAddressesFromSubnet(ipNetSubnets []string, include bool) (ipAddrList m
 	return ipAddrList, nil
 }
 
-// getBroadcastAddress calculates the broadcast address of a subnet
-func getBroadcastAddress(ipNet *net.IPNet) net.IP {
-	// Use the mask to calculate the broadcast address
-	ip := ipNet.IP.To4()
+// getLastAddress returns the last address in the subnet (broadcast for IPv4;
+// last unicast address for IPv6 — but callers must not exclude it for IPv6).
+// net.ParseCIDR guarantees len(ipNet.IP) == len(ipNet.Mask), so no padding is needed.
+func getLastAddress(ipNet *net.IPNet) net.IP {
+	ip := ipNet.IP
 	mask := ipNet.Mask
-	broadcast := make(net.IP, len(ip))
-	for i := 0; i < len(ip); i++ {
-		broadcast[i] = ip[i] | (^mask[i])
+	last := make(net.IP, len(ip))
+	for i := range ip {
+		last[i] = ip[i] | (^mask[i])
 	}
-	return broadcast
+	return last
 }

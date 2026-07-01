@@ -71,6 +71,30 @@ func Test_ipAddressRange(t *testing.T) {
 			},
 			expectedErr: true,
 		},
+		{
+			name: "IPv6 /120 subnet returns > 16 usable addresses",
+			config: &networkutil.Config{
+				Range:   "2001:db8::/120",
+				Exclude: []string{},
+			},
+			expectedErr: false, // 255 usable addresses (256 total, minus network address; no broadcast exclusion for IPv6)
+		},
+		{
+			name: "IPv6 /128 subnet returns 0 usable addresses",
+			config: &networkutil.Config{
+				Range:   "2001:db8::1/128",
+				Exclude: []string{},
+			},
+			expectedErr: true,
+		},
+		{
+			name: "IPv6 /120 with full exclusion returns 0 usable addresses",
+			config: &networkutil.Config{
+				Range:   "2001:db8::/120",
+				Exclude: []string{"2001:db8::/120"},
+			},
+			expectedErr: true,
+		},
 	}
 
 	for _, tt := range tests {
