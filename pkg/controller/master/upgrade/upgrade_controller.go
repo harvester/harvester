@@ -54,7 +54,7 @@ const (
 	harvesterSystemNamespace       = util.HarvesterSystemNamespaceName
 	harvesterUpgradeLabel          = util.LabelHarvesterUpgrade
 	harvesterManagedLabel          = util.HarvesterManagedNodeLabelKey
-	harvesterLatestUpgradeLabel    = "harvesterhci.io/latestUpgrade"
+	harvesterLatestUpgradeLabel    = util.LabelHarvesterLatestUpgrade
 	harvesterUpgradeComponentLabel = util.LabelHarvesterUpgradeComponent
 	harvesterNodeLabel             = "harvesterhci.io/node"
 
