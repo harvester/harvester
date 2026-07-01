@@ -63,51 +63,47 @@ func (v *nodeValidator) Create(req *types.Request, newObj runtime.Object) error 
 
 	node := newObj.(*corev1.Node)
 
-	upgrades, err := v.upgradeCache.List(util.HarvesterSystemNamespaceName, labels.NewSelector())
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("failed to list upgrades: %v", err))
-	}
-
-	// Collect all in-progress upgrades first.
-	var inProgressUpgrades []*harvesterv1.Upgrade
-	var inProgressUpgradeNames []string
-	for _, upgrade := range upgrades {
-		if util.IsUpgradeInProgress(upgrade) {
-			inProgressUpgrades = append(inProgressUpgrades, upgrade)
-			inProgressUpgradeNames = append(inProgressUpgradeNames, util.GetNamespacedName(upgrade))
-		}
-	}
-
-	if len(inProgressUpgrades) == 0 {
+	// Allow idempotent create attempts for already-registered nodes. During
+	// upgrades, components may call `Create` first (receive `AlreadyExists`)
+	// and then reconcile updates.
+	existingNode, err := v.nodeCache.Get(node.Name)
+	if err == nil && existingNode != nil {
 		return nil
 	}
 
-	// Log warning if multiple upgrades are running (should not happen in
-	// normal operation).
-	if len(inProgressUpgrades) > 1 {
-		logrus.Warnf("Multiple upgrades in progress: %s", strings.Join(inProgressUpgradeNames, ", "))
+	upgrades, err := v.upgradeCache.List(util.HarvesterSystemNamespaceName, labels.SelectorFromSet(labels.Set{
+		util.LabelHarvesterLatestUpgrade: "true",
+	}))
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to list upgrades: %v", err))
+	}
+	if len(upgrades) == 0 {
+		return nil
 	}
 
-	// Check if ALL in-progress upgrades have the override annotation set to
-	// true. This ensures that when multiple upgrades are running, all must
-	// explicitly allow node join.
-	for _, upgrade := range inProgressUpgrades {
-		value, ok := upgrade.Annotations[util.AnnotationAllowNodeJoin]
-		if !ok {
-			return nodeJoinBlockedByUpgrade(node, upgrade, false)
-		}
-		allow, err := strconv.ParseBool(value)
-		if err != nil {
-			return invalidAllowNodeJoinAnnotation(node, upgrade, value, err)
-		}
-		if !allow {
-			return nodeJoinBlockedByUpgrade(node, upgrade, true)
-		}
+	// Intentionally evaluate only the first latest-labeled upgrade.
+	// The upgrade controller keeps at most one valid "latest" upgrade; if multiple
+	// exist, that is an upstream inconsistency and this webhook stays scoped to the
+	// expected single-latest path.
+	latestUpgrade := upgrades[0]
+	if !util.IsUpgradeInProgress(latestUpgrade) {
+		return nil
 	}
 
-	// All upgrades have the override annotation set to true -> allow with warning.
-	logrus.Warnf("Node %q join allowed during %d active upgrade(s) via override annotation: %s",
-		node.Name, len(inProgressUpgrades), strings.Join(inProgressUpgradeNames, ", "))
+	value, ok := latestUpgrade.Annotations[util.AnnotationAllowNodeJoin]
+	if !ok {
+		return nodeJoinBlockedByUpgrade(node, latestUpgrade, false)
+	}
+	allow, err := strconv.ParseBool(value)
+	if err != nil {
+		return invalidAllowNodeJoinAnnotation(node, latestUpgrade, value, err)
+	}
+	if !allow {
+		return nodeJoinBlockedByUpgrade(node, latestUpgrade, true)
+	}
+
+	logrus.Warnf("Node %q join allowed during active upgrade %q via override annotation",
+		node.Name, util.GetNamespacedName(latestUpgrade))
 
 	return nil
 }
