@@ -35,6 +35,7 @@ const (
 	LabelHarvesterUpgrade               = prefix + "/upgrade"
 	LabelHarvesterUpgradeState          = prefix + "/upgradeState"
 	LabelHarvesterUpgradeComponent      = prefix + "/upgradeComponent"
+	LabelHarvesterLatestUpgrade         = prefix + "/latestUpgrade"
 	AnnotationStorageClassName          = prefix + "/storageClassName"
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
