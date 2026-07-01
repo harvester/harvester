@@ -40,6 +40,7 @@ env:
 jobs:
   main:
     name: Build and deploy
+    if: ${{ !(github.actor == 'renovate[bot]' && github.event_name == 'pull_request') }}
     runs-on:
       group: vagrant
     steps:
