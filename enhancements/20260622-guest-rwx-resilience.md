@@ -285,11 +285,11 @@ Options:
 The feature is additive.
 
 - Existing clusters without `rwx-network` configured continue to behave as before.
+  - The guest volume will need to be reattached to trigger the full CSI flow and apply this improvement.
 - Existing guest RWX volumes continue using their current endpoint until reconciled by the new controller.
 - When `rwx-network` is configured after upgrade, Harvester creates the managed host network configuration, reserves addresses, and begins publishing stable Service IPs for new or reconciled guest RWX volumes.
 - Existing NAD `exclude` entries must be preserved. Harvester should add only its managed reservations.
 
-Rollback should leave guest mounts using any already-published endpoint until the old controller path reconciles them. The rollback process should document whether administrators need to remove Harvester-managed `exclude` entries and VIP resources manually.
 
 ## Limitations and Implementation
 
