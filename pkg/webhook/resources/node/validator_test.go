@@ -774,6 +774,7 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 	type testCase struct {
 		name          string
 		node          *corev1.Node
+		existingNodes []*corev1.Node
 		upgrades      []*harvesterv1.Upgrade
 		isController  bool
 		expectedError bool
@@ -781,6 +782,107 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 	}
 
 	testCases := []testCase{
+		{
+			name: "allow node creation when in-progress upgrade has no latest label",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "new-node",
+				},
+			},
+			upgrades: []*harvesterv1.Upgrade{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "Unknown",
+							},
+						},
+					},
+				},
+			},
+			isController:  false,
+			expectedError: false,
+		},
+		{
+			name: "allow node creation when in-progress upgrade latest label is false",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "new-node",
+				},
+			},
+			upgrades: []*harvesterv1.Upgrade{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "false",
+						},
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "Unknown",
+							},
+						},
+					},
+				},
+			},
+			isController:  false,
+			expectedError: false,
+		},
+		{
+			name: "allow node creation when latest upgrade override is true and non-latest has no override",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "new-node",
+				},
+			},
+			upgrades: []*harvesterv1.Upgrade{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "latest-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
+						Annotations: map[string]string{
+							util.AnnotationAllowNodeJoin: "true",
+						},
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "Unknown",
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "old-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "Unknown",
+							},
+						},
+					},
+				},
+			},
+			isController:  false,
+			expectedError: false,
+		},
 		{
 			name: "allow node creation when no upgrade is active",
 			node: &corev1.Node{
@@ -804,6 +906,9 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-upgrade",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 					},
 					Status: harvesterv1.UpgradeStatus{
 						Conditions: []harvesterv1.Condition{
@@ -856,6 +961,9 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-upgrade",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 					},
 					Status: harvesterv1.UpgradeStatus{
 						Conditions: []harvesterv1.Condition{
@@ -883,6 +991,9 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-upgrade",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 						Annotations: map[string]string{
 							util.AnnotationAllowNodeJoin: "true",
 						},
@@ -912,6 +1023,9 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-upgrade",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 						Annotations: map[string]string{
 							util.AnnotationAllowNodeJoin: "TRUE",
 						},
@@ -941,6 +1055,9 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-upgrade",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 						Annotations: map[string]string{
 							util.AnnotationAllowNodeJoin: "1",
 						},
@@ -970,6 +1087,9 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-upgrade",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 						Annotations: map[string]string{
 							util.AnnotationAllowNodeJoin: "t",
 						},
@@ -999,6 +1119,9 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-upgrade",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 						Annotations: map[string]string{
 							util.AnnotationAllowNodeJoin: "false",
 						},
@@ -1029,6 +1152,9 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-upgrade",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 						Annotations: map[string]string{
 							util.AnnotationAllowNodeJoin: "invalid",
 						},
@@ -1059,6 +1185,9 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-upgrade",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 					},
 					Status: harvesterv1.UpgradeStatus{
 						Conditions: []harvesterv1.Condition{
@@ -1074,7 +1203,43 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "block node creation when multiple upgrades active and not all have override",
+			name: "allow create on already-registered node during active upgrade",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "existing-node",
+				},
+			},
+			existingNodes: []*corev1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "existing-node",
+					},
+				},
+			},
+			upgrades: []*harvesterv1.Upgrade{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-upgrade",
+						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
+					},
+					Status: harvesterv1.UpgradeStatus{
+						Conditions: []harvesterv1.Condition{
+							{
+								Type:   "Completed",
+								Status: "Unknown",
+							},
+						},
+					},
+				},
+			},
+			isController:  false,
+			expectedError: false,
+		},
+		{
+			name: "allow node creation when multiple latest upgrades exist and first allows override",
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "new-node",
@@ -1085,6 +1250,9 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "upgrade-1",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 						Annotations: map[string]string{
 							util.AnnotationAllowNodeJoin: "true",
 						},
@@ -1115,11 +1283,10 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 				},
 			},
 			isController:  false,
-			expectedError: true,
-			errorContains: "because the upgrade \"harvester-system/upgrade-2\" is currently in progress.",
+			expectedError: false,
 		},
 		{
-			name: "allow node creation when multiple upgrades active and all have override",
+			name: "allow node creation when multiple upgrades active and first has allow override",
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "new-node",
@@ -1130,6 +1297,9 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "upgrade-1",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 						Annotations: map[string]string{
 							util.AnnotationAllowNodeJoin: "true",
 						},
@@ -1147,6 +1317,9 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "upgrade-2",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 						Annotations: map[string]string{
 							util.AnnotationAllowNodeJoin: "1",
 						},
@@ -1165,7 +1338,7 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "block node creation when multiple upgrades and one has false override",
+			name: "block node creation when multiple latest upgrades exist and first denies override",
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "new-node",
@@ -1176,8 +1349,11 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "upgrade-1",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 						Annotations: map[string]string{
-							util.AnnotationAllowNodeJoin: "true",
+							util.AnnotationAllowNodeJoin: "false",
 						},
 					},
 					Status: harvesterv1.UpgradeStatus{
@@ -1193,8 +1369,11 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "upgrade-2",
 						Namespace: util.HarvesterSystemNamespaceName,
+						Labels: map[string]string{
+							util.LabelHarvesterLatestUpgrade: "true",
+						},
 						Annotations: map[string]string{
-							util.AnnotationAllowNodeJoin: "false",
+							util.AnnotationAllowNodeJoin: "true",
 						},
 					},
 					Status: harvesterv1.UpgradeStatus{
@@ -1209,7 +1388,7 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 			},
 			isController:  false,
 			expectedError: true,
-			errorContains: "because the upgrade \"harvester-system/upgrade-2\" is currently in progress.",
+			errorContains: "because the upgrade \"harvester-system/upgrade-1\" is currently in progress.",
 		},
 	}
 
@@ -1217,12 +1396,18 @@ func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			clientset := fake.NewSimpleClientset()
 
+			for _, node := range tc.existingNodes {
+				err := clientset.Tracker().Add(node)
+				assert.Nil(t, err)
+			}
+
 			for _, upgrade := range tc.upgrades {
 				err := clientset.Tracker().Add(upgrade)
 				assert.Nil(t, err)
 			}
 
 			validator := &nodeValidator{
+				nodeCache:    fakeclients.NodeCache(clientset.CoreV1().Nodes),
 				upgradeCache: fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 			}
 
@@ -1272,6 +1457,7 @@ func TestValidateNodeCreateDuringUpgradeCacheError(t *testing.T) {
 	})
 
 	validator := &nodeValidator{
+		nodeCache:    fakeclients.NodeCache(clientset.CoreV1().Nodes),
 		upgradeCache: fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 	}
 
