@@ -45,7 +45,7 @@ PRETTY_NAME="Harvester ${VERSION}"
 cat > harvester-release.yaml <<EOF
 harvester: ${HARVESTER_VERSION}
 harvesterChart: ${HARVESTER_CHART_VERSION}
-installer: ${COMMIT}
+installer: ${HARVESTER_VERSION}
 os: ${PRETTY_NAME}
 kubernetes: ${RKE2_VERSION}
 rancher: ${RANCHER_VERSION}
@@ -72,8 +72,11 @@ docker build --pull \
 	-t ${HARVESTER_OS_IMAGE} .
 
 PROJECT_PREFIX="harvester"
-if [ -n "$VERSION" ];
-then
+if [ -n "${DRONE_TAG:-}" ]; then
+  PROJECT_PREFIX+="-${DRONE_TAG}"
+elif [ -n "${DRONE_BRANCH:-}" ]; then
+  PROJECT_PREFIX+="-${DRONE_BRANCH}"
+elif [ -n "$VERSION" ]; then
   PROJECT_PREFIX+="-${VERSION}"
 else
   PROJECT_PREFIX+="-master"
@@ -213,7 +216,7 @@ if [ -z "$ISO_CHECKSUM" ]; then
 fi
 
 # Write version.yaml
-if [[ -n "${GIT_TAG-}" ]]; then
+if [[ -n "${DRONE_TAG-}" ]]; then
 	RELEASE_DATE=$(date +'%Y%m%d')
 	cat > ${VERSION_FILE} <<EOF
 apiVersion: harvesterhci.io/v1beta1
