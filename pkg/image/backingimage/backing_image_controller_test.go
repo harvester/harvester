@@ -41,6 +41,9 @@ func TestBackingImageHandler_OnChanged_RetryLimitExceeded(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testImageName,
 					Namespace: testNamespace,
+					Labels: map[string]string{
+						util.LabelImageDisplayName: "Test Upload Image",
+					},
 				},
 				Spec: harvesterv1.VirtualMachineImageSpec{
 					DisplayName:            "Test Upload Image",
@@ -86,6 +89,9 @@ func TestBackingImageHandler_OnChanged_RetryLimitExceeded(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testImageName,
 					Namespace: testNamespace,
+					Labels: map[string]string{
+						util.LabelImageDisplayName: "Test Upload Image",
+					},
 				},
 				Spec: harvesterv1.VirtualMachineImageSpec{
 					DisplayName:            "Test Upload Image",
