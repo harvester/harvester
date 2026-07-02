@@ -3,9 +3,11 @@ package util
 import (
 	"fmt"
 	"slices"
+	"strconv"
 
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kvirtfeatures "kubevirt.io/kubevirt/pkg/virt-config/featuregate"
 
@@ -74,11 +76,64 @@ func isKubevirtExpandEnabled(kubevirt *kubevirtv1.KubeVirt) bool {
 	return slices.Contains(featureGates, kvirtfeatures.ExpandDisksGate)
 }
 
+func checkLonghornV2EncryptedExpand(
+	pvc *corev1.PersistentVolumeClaim,
+	scCache ctlstoragev1.StorageClassCache) error {
+
+	sc, err := getStorageClassForPVC(pvc, scCache)
+	if err != nil {
+		return err
+	}
+	if sc == nil || sc.Provisioner != util.CSIProvisionerLonghorn {
+		return nil
+	}
+
+	encrypted, err := strconv.ParseBool(sc.Parameters[util.LonghornOptionEncrypted])
+	if err != nil && sc.Parameters[util.LonghornOptionEncrypted] != "" {
+		return fmt.Errorf("failed to parse storage class %s parameter %q: %w", sc.Name, util.LonghornOptionEncrypted, err)
+	}
+
+	if sc.Parameters[util.ParamDataEngine] == "v2" && encrypted {
+		return werror.NewInvalidError(
+			fmt.Sprintf(
+				util.PVCExpandErrorPrefix+": expansion of Longhorn V2 encrypted PVC %s/%s is temporarily not supported",
+				pvc.Namespace,
+				pvc.Name,
+			),
+			"",
+		)
+	}
+
+	return nil
+}
+
+func getStorageClassForPVC(pvc *corev1.PersistentVolumeClaim, scCache ctlstoragev1.StorageClassCache) (*storagev1.StorageClass, error) {
+	if pvc.Spec.StorageClassName == nil {
+		return util.GetDefaultSC(scCache), nil
+	}
+	// An explicit empty storageClassName opts out of default StorageClass assignment and requests a PV with no class.
+	if *pvc.Spec.StorageClassName == "" {
+		return nil, nil
+	}
+
+	sc, err := scCache.Get(*pvc.Spec.StorageClassName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get storage class %s for PVC %s/%s: %w", *pvc.Spec.StorageClassName, pvc.Namespace, pvc.Name, err)
+	}
+	return sc, nil
+}
+
 func CheckExpand(pvc *corev1.PersistentVolumeClaim,
 	vmCache ctlkv1.VirtualMachineCache,
 	kubevirtCache ctlkv1.KubeVirtCache,
 	scCache ctlstoragev1.StorageClassCache,
 	settingCache ctlharvesterv1.SettingCache) error {
+
+	// Longhorn V2 encrypted PVC expansion is temporarily blocked.
+	// See https://github.com/harvester/harvester/issues/10715 for details.
+	if err := checkLonghornV2EncryptedExpand(pvc, scCache); err != nil {
+		return err
+	}
 
 	// Check if online expand is needed first
 	onlineExpand, err := isOnlineExpandNeeded(pvc, vmCache)
