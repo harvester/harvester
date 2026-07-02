@@ -181,6 +181,7 @@ type Install struct {
 	WithNetImages bool     `json:"withNetImages,omitempty"`
 	WipeAllDisks  bool     `json:"wipeAllDisks,omitempty"`
 	WipeDisksList []string `json:"wipeDisksList,omitempty"`
+	Cordoned      bool     `json:"cordoned,omitempty"`
 
 	// Following options are not cOS installer flag
 	ForceMBR bool   `json:"forceMbr,omitempty"`
