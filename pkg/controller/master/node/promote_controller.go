@@ -110,6 +110,20 @@ func (h *PromoteHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev1.Nod
 		return nil, err
 	}
 
+	// The code in the installer adds `harvesterhci.io/install-cordoned=true`
+	// to the labels in `/etc/rancher/rancherd/config.yaml`, and then when
+	// rancherd deploys rke2, rancherd in turn adds that label to the config
+	// in /etc/rancher/rke2/config.yaml.d/40-rancherd.yaml.  This means that
+	// every time rke2-server or rke2-agent starts on a given node, it will
+	// add that label to the node, so we know that the user wants it to be
+	// initially cordoned right after install.  In order to ensure we only
+	// do the cordoning once, we later add `harvesterhci.io/install-cordoned=true`
+	// to the node's annotations.  If that annotation is present, we know the
+	// cordon has been processed and we shouldn't try to cordon that node again.
+	if installCordoned, cordonDone := node.Labels[util.HarvesterInstallCordonedKey], node.Annotations[util.HarvesterInstallCordonedKey]; installCordoned == "true" && cordonDone != "true" {
+		return h.reconcileInstallCordonedNode(node, nodeList)
+	}
+
 	// early return if the node number not enough
 	if len(nodeList) < defaultSpecManagementNumber {
 		return node, nil
@@ -133,6 +147,29 @@ func (h *PromoteHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev1.Nod
 	}
 
 	return node, nil
+}
+
+func (h *PromoteHandler) reconcileInstallCordonedNode(node *corev1.Node, nodeList []*corev1.Node) (*corev1.Node, error) {
+	toUpdate := node.DeepCopy()
+	if !toUpdate.Spec.Unschedulable {
+		// Set the node to unschedulable if it's not the last available.
+		if util.IsOtherNodeAvailable(toUpdate.Name, nodeList) {
+			logrus.WithFields(logrus.Fields{
+				"node": toUpdate.Name,
+			}).Info("Node labelled to be cordoned at install, setting it unschedulable")
+			toUpdate.Spec.Unschedulable = true
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"node": toUpdate.Name,
+			}).Info("Node labelled to be cordoned at install, but no other nodes are available - node will remain schedulable")
+		}
+	}
+	// Set an annotation to indicate we've processed the cordon once, and don't want to try this again
+	if toUpdate.Annotations == nil {
+		toUpdate.Annotations = make(map[string]string)
+	}
+	toUpdate.Annotations[util.HarvesterInstallCordonedKey] = "true"
+	return h.nodes.Update(toUpdate)
 }
 
 // OnJobChanged

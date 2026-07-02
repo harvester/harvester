@@ -245,6 +245,8 @@ const (
 	HarvesterReportedConditionKey                      = prefix + "/condition"
 	HarvesterReportedConditionMessageKey               = prefix + "/condition-message"
 	ManagedTapBindingName                              = "managedtap"
+
+	HarvesterInstallCordonedKey = prefix + "/install-cordoned"
 )
 
 var (
