@@ -63,6 +63,16 @@ func (v *nodeValidator) Create(req *types.Request, newObj runtime.Object) error 
 
 	node := newObj.(*corev1.Node)
 
+	// Allow idempotent create attempts for already-registered nodes. During
+	// upgrades, components may call `Create` first (receive `AlreadyExists`)
+	// and then reconcile updates.
+	if v.nodeCache != nil {
+		existingNode, err := v.nodeCache.Get(node.Name)
+		if err == nil && existingNode != nil {
+			return nil
+		}
+	}
+
 	upgrades, err := v.upgradeCache.List(util.HarvesterSystemNamespaceName, labels.NewSelector())
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("failed to list upgrades: %v", err))
