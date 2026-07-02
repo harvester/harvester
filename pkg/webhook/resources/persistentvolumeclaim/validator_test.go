@@ -3,9 +3,12 @@ package persistentvolumeclaim
 import (
 	"testing"
 
+	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -187,6 +190,60 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
+	const (
+		longhornV1EncryptedStorageClass = "longhorn-v1-encrypted"
+		longhornV2StorageClass          = "longhorn-v2"
+		longhornV2EncryptedStorageClass = "longhorn-v2-encrypted"
+		longhornV2EncryptedAltBoolClass = "longhorn-v2-encrypted-alt-bool"
+		nonLonghornV2EncryptedClass     = "non-longhorn-v2-encrypted"
+	)
+
+	storageClasses := []runtime.Object{
+		&storagev1.StorageClass{
+			ObjectMeta:  metav1.ObjectMeta{Name: util.StorageClassHarvesterLonghorn},
+			Provisioner: util.CSIProvisionerLonghorn,
+		},
+		&storagev1.StorageClass{
+			ObjectMeta:  metav1.ObjectMeta{Name: longhornV1EncryptedStorageClass},
+			Provisioner: util.CSIProvisionerLonghorn,
+			Parameters: map[string]string{
+				util.ParamDataEngine:         string(longhornv1.DataEngineTypeV1),
+				util.LonghornOptionEncrypted: "true",
+			},
+		},
+		&storagev1.StorageClass{
+			ObjectMeta:  metav1.ObjectMeta{Name: longhornV2StorageClass},
+			Provisioner: util.CSIProvisionerLonghorn,
+			Parameters: map[string]string{
+				util.ParamDataEngine: string(longhornv1.DataEngineTypeV2),
+			},
+		},
+		&storagev1.StorageClass{
+			ObjectMeta:  metav1.ObjectMeta{Name: longhornV2EncryptedStorageClass},
+			Provisioner: util.CSIProvisionerLonghorn,
+			Parameters: map[string]string{
+				util.ParamDataEngine:         string(longhornv1.DataEngineTypeV2),
+				util.LonghornOptionEncrypted: "true",
+			},
+		},
+		&storagev1.StorageClass{
+			ObjectMeta:  metav1.ObjectMeta{Name: longhornV2EncryptedAltBoolClass},
+			Provisioner: util.CSIProvisionerLonghorn,
+			Parameters: map[string]string{
+				util.ParamDataEngine:         string(longhornv1.DataEngineTypeV2),
+				util.LonghornOptionEncrypted: "TRUE",
+			},
+		},
+		&storagev1.StorageClass{
+			ObjectMeta:  metav1.ObjectMeta{Name: nonLonghornV2EncryptedClass},
+			Provisioner: "example.csi.io",
+			Parameters: map[string]string{
+				util.ParamDataEngine:         string(longhornv1.DataEngineTypeV2),
+				util.LonghornOptionEncrypted: "true",
+			},
+		},
+	}
+
 	tests := []struct {
 		name          string
 		pvc           *corev1.PersistentVolumeClaim
@@ -214,6 +271,62 @@ func TestCreate(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{},
+			},
+			expectError: false,
+		},
+		{
+			name: "create PVC with encrypted Longhorn V1 storage class",
+			pvc: &corev1.PersistentVolumeClaim{
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To(longhornV1EncryptedStorageClass),
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "create PVC with unencrypted Longhorn V2 storage class",
+			pvc: &corev1.PersistentVolumeClaim{
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To(longhornV2StorageClass),
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "create PVC with encrypted Longhorn V2 storage class",
+			pvc: &corev1.PersistentVolumeClaim{
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To(longhornV2EncryptedStorageClass),
+				},
+			},
+			expectError:   true,
+			errorContains: "Longhorn V2 encrypted storage class",
+		},
+		{
+			name: "create PVC with encrypted Longhorn V2 storage class using alternative boolean value",
+			pvc: &corev1.PersistentVolumeClaim{
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To(longhornV2EncryptedAltBoolClass),
+				},
+			},
+			expectError:   true,
+			errorContains: "Longhorn V2 encrypted storage class",
+		},
+		{
+			name: "create PVC with non-Longhorn encrypted V2 storage class",
+			pvc: &corev1.PersistentVolumeClaim{
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To(nonLonghornV2EncryptedClass),
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "create PVC with storage class that does not exist yet",
+			pvc: &corev1.PersistentVolumeClaim{
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To("not-found"),
+				},
 			},
 			expectError: false,
 		},
@@ -315,7 +428,10 @@ func TestCreate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			validator := &pvcValidator{}
+			clientset := fake.NewSimpleClientset(storageClasses...)
+			validator := &pvcValidator{
+				scCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+			}
 
 			err := validator.Create(nil, tc.pvc)
 

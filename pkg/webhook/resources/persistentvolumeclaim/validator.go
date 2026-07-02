@@ -2,8 +2,10 @@ package persistentvolumeclaim
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
+	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -144,7 +146,42 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 
 func (v *pvcValidator) Create(request *types.Request, newObj runtime.Object) error {
 	newPVC := newObj.(*corev1.PersistentVolumeClaim)
-	return v.validateInternalUsage(newPVC)
+	if err := v.validateInternalUsage(newPVC); err != nil {
+		return err
+	}
+
+	return v.validateLonghornV2Encryption(newPVC)
+}
+
+// Encrypted V2 volumes are supported, but their actual size is currently smaller than requested.
+// See https://github.com/longhorn/longhorn/issues/13163.
+func (v *pvcValidator) validateLonghornV2Encryption(pvc *corev1.PersistentVolumeClaim) error {
+	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName == "" {
+		return nil
+	}
+
+	scName := *pvc.Spec.StorageClassName
+	sc, err := v.scCache.Get(scName)
+	if err != nil {
+		// A PVC is allowed to reference a StorageClass that does not exist yet.
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return werror.NewInternalError(fmt.Sprintf("failed to get storage class %s: %v", scName, err))
+	}
+
+	if sc.Provisioner != util.CSIProvisionerLonghorn ||
+		util.GetLonghornDataEngineType(sc) != longhornv1.DataEngineTypeV2 {
+		return nil
+	}
+
+	encrypted, err := strconv.ParseBool(sc.Parameters[util.LonghornOptionEncrypted])
+	if err != nil || !encrypted {
+		return nil
+	}
+
+	message := fmt.Sprintf("can not create volume with Longhorn V2 encrypted storage class %s", scName)
+	return werror.NewInvalidError(message, "spec.storageClassName")
 }
 
 func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) error {

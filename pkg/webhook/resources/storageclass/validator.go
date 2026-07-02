@@ -225,6 +225,13 @@ func (v *storageClassValidator) validateEncryption(newObj runtime.Object) error 
 		return nil
 	}
 
+	if newSC.Provisioner == util.CSIProvisionerLonghorn &&
+		util.GetLonghornDataEngineType(newSC) == longhorn.DataEngineTypeV2 {
+		// Encrypted V2 volumes are supported, but their actual size is currently smaller than requested.
+		// See https://github.com/longhorn/longhorn/issues/13163.
+		return werror.NewInvalidError("encrypted Longhorn V2 volumes are temporarily disabled due to a known volume size issue", "parameters.encrypted")
+	}
+
 	secretName, secretNamespace, err := v.validateEncryptionParams(newSC)
 	if err != nil {
 		return err
@@ -322,10 +329,10 @@ func (v *storageClassValidator) validateEncryptionParams(newSC *storagev1.Storag
 	if len(missing) > 0 {
 		return "", "", werror.NewInvalidError(
 			fmt.Sprintf("storage class must contain %s", strings.Join(missing, ", ")),
-			"spec.parameters")
+			"parameters.encrypted")
 	}
 	if wantName == "" {
-		return "", "", werror.NewInvalidError("storage class must contain secret name and namespace", "spec.parameters")
+		return "", "", werror.NewInvalidError("storage class must contain secret name and namespace", "parameters.encrypted")
 	}
 	return wantName, wantNS, nil
 }
