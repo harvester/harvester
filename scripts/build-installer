@@ -58,3 +58,25 @@ go run . -generateTemplates -path ${TOP_DIR}/pkg/installer/config/templates
 cd ${TOP_DIR}
 
 CGO_ENABLED=0 go build -gcflags "${OTHER_COMPILERFLAGS}" -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/harvester-installer ./cmd/installer
+
+
+check_monitoring_logging_addon_image_matching_debug() {
+  if [[ -n "${MONITORING_LOGGING_ADDON_IMAGE_VALIDATION_FUNC}" ]]; then
+    # The Harvester and Addons are two separate repos.
+    # The images exist on ${SCRIPTS_DIR}/images/rancher-images.txt (maintained by contributors manually)
+    # are pulled and packed into ISO by the ISO builder.
+    # The rancher-monitoring and rancher-logging chart images are extracted from the chart files (Addon repo) and stored in ${MONITORING_LOGGING_ADDON_IMAGE_FILE},
+    #  even complex, a few images are shared by the addons and the embedded `Rancher`.
+    # From time to time, some images are accidentally removed or overwritten from ${SCRIPTS_DIR}/images/rancher-images.txt.
+    # For example, bump `Rancher` changes one image tag, but it was actually still used by the addons.
+
+    # The following function ensures the images claimed by the addons are all included in the ISO builder image list, and that the versions match.
+    echo "check addon chart images matching"
+    # function is defined on addons/scripts/hack/check-monitoring-logging-chart-images, which is loaded by load_addon_env
+    ${MONITORING_LOGGING_ADDON_IMAGE_VALIDATION_FUNC} "${MONITORING_LOGGING_ADDON_IMAGE_FILE}" "${SCRIPTS_DIR}/images/rancher-images.txt"
+  else
+    echo "Warning: skip check monitoring and logging addon chart images matching as the check-chart-images script or chart-images-list.txt is not found in the addon repo"
+  fi
+}
+
+check_monitoring_logging_addon_image_matching_debug

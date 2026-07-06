@@ -41,7 +41,13 @@ MK_DOCKER_PULL            ?= --pull
 
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
-HARVESTER_ADDONS_VERSION  ?= main
+
+#HARVESTER_ADDONS_VERSION  ?= main
+#HARVESTER_ADDONS_REPO     ?= https://github.com/harvester/addons.git
+
+HARVESTER_ADDONS_VERSION  ?= bump-monitoring
+HARVESTER_ADDONS_REPO     ?= https://github.com/w13915984028/addons.git
+
 HARVESTER_UI_VERSION      ?=
 HARVESTER_UI_PLUGIN_BUNDLED_VERSION ?=
 RKE2_IMAGE_REPO           ?= https://github.com/rancher/rke2/releases/download/
@@ -147,7 +153,8 @@ test-integration: gen-version-env package-harvester-webhook
 build-installer: prepare-addons | $(ROOT)/bin
 	$(BANNER)
 	$(DOCKER_BUILD) --target build-installer-output \
-	    --build-arg ADDONS_BRANCH=$(HARVESTER_ADDONS_VERSION) \
+		--build-arg ADDONS_REPO=$(HARVESTER_ADDONS_REPO) \
+		--build-arg ADDONS_BRANCH=$(HARVESTER_ADDONS_VERSION) \
 	    --output type=local,dest=$(ROOT)
 
 

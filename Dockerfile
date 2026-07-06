@@ -107,6 +107,7 @@ COPY --from=build /go/src/github.com/harvester/harvester/bin/ /bin/
 
 # ---- prepare-addons ----
 FROM builder AS prepare-addons
+ARG ADDONS_REPO=https://github.com/harvester/addons.git
 ARG ADDONS_BRANCH=main
 
 # re-pull when remote sha changed
@@ -115,7 +116,7 @@ ARG REMOTE_SHA=unknown
 RUN mkdir -p /dist/prepare-addon
 # clone addons repo
 RUN git clone --branch ${ADDONS_BRANCH} --single-branch --depth 1 \
-    https://github.com/harvester/addons.git /dist/prepare-addons/addons && \
+    ${ADDONS_REPO} /dist/prepare-addons/addons && \
     rm -rf /dist/prepare-addons/addons/.git
     
 # generate addon manifests

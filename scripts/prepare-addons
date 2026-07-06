@@ -5,11 +5,15 @@ set -e
 
 TOP_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
-REMOTE_URL="https://github.com/harvester/addons.git"
-ADDONS_BRANCH=${HARVESTER_ADDONS_VERSION:-main}
 
-echo "Checking remote addons commit for branch '$ADDONS_BRANCH'..."
-REMOTE_SHA=$(git ls-remote "$REMOTE_URL" "refs/heads/$ADDONS_BRANCH" | cut -f1)
+#REMOTE_URL="https://github.com/harvester/addons.git"
+#ADDONS_BRANCH=${HARVESTER_ADDONS_VERSION:-main}
+
+ADDONS_REPO="${ADDONS_REPO:-https://github.com/harvester/addons.git}"
+ADDONS_BRANCH="${ADDONS_BRANCH:-main}"
+
+echo "Checking remote addons commit for ${ADDONS_REPO} branch '$ADDONS_BRANCH'..."
+REMOTE_SHA=$(git ls-remote "$ADDONS_REPO" "refs/heads/$ADDONS_BRANCH" | cut -f1)
 REMOTE_SHA="${REMOTE_SHA}"
 echo "Remote commit sha: $REMOTE_SHA"
 
@@ -17,6 +21,7 @@ docker build \
     --progress="$MK_DOCKER_PROGRESS" \
    	--build-arg MK_REPO_ID \
     --build-arg MK_HOST_ARCH \
+    --build-arg ADDONS_REPO="$ADDONS_REPO" \
     --build-arg ADDONS_BRANCH="$ADDONS_BRANCH" \
     --build-arg REMOTE_SHA="$REMOTE_SHA" \
     --tag "$MK_ADDONS_IMAGE" \
