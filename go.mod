@@ -275,7 +275,7 @@ require (
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.1.0 // indirect
+	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/openshift/client-go v3.9.0+incompatible // indirect
 	github.com/openshift/custom-resource-status v1.1.2 // indirect
 	github.com/openshift/library-go v0.0.0-20240621150525-4bb4238aef81 // indirect
@@ -363,7 +363,6 @@ require (
 	modernc.org/memory v1.8.2 // indirect
 	modernc.org/sqlite v1.36.0 // indirect
 	oras.land/oras-go v1.2.5 // indirect
-	oras.land/oras-go/v2 v2.4.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.32.1 // indirect
 	sigs.k8s.io/cli-utils v0.37.2 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
