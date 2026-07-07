@@ -66,7 +66,6 @@ func NewValidator(
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	endpointCache v1.EndpointsCache,
 	httpClient *http.Client,
-	bearToken string,
 ) types.Validator {
 	return &upgradeValidator{
 		upgrades:          upgrades,
@@ -83,7 +82,6 @@ func NewValidator(
 		endpointCache:     endpointCache,
 		settingCache:      settingCache,
 		httpClient:        httpClient,
-		bearToken:         bearToken,
 	}
 }
 
@@ -104,7 +102,6 @@ type upgradeValidator struct {
 	endpointCache     v1.EndpointsCache
 	settingCache      ctlharvesterv1.SettingCache
 	httpClient        *http.Client
-	bearToken         string
 }
 
 func (v *upgradeValidator) Resource() types.Resource {
@@ -665,7 +662,6 @@ func (v *upgradeValidator) getKubeletConfigz(nodeName, kubeletURL string) (*kube
 	if err != nil {
 		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't make http.NewRequest to get %s, err: %+v", nodeName, url, err))
 	}
-	req.Header.Set("Authorization", "Bearer "+v.bearToken)
 
 	resp, err := v.httpClient.Do(req)
 	if err != nil {
@@ -694,7 +690,6 @@ func (v *upgradeValidator) getKubeletStatsSummary(nodeName, kubeletURL string) (
 	if err != nil {
 		return nil, werror.NewInternalError(fmt.Sprintf("node %s, can't make http.NewRequest to get %s, err: %+v", nodeName, url, err))
 	}
-	req.Header.Set("Authorization", "Bearer "+v.bearToken)
 
 	resp, err := v.httpClient.Do(req)
 	if err != nil {
