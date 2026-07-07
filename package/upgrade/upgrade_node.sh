@@ -596,11 +596,11 @@ generate_hostname_persistance() {
   # NetworkManager is new in Harvester v1.7.0
   # nodes installed via v1.5.x or lower which may have used fqdn hostnames
   # only render short hostname in the k8s node name however the
-  # harvester.config and /oem/90_custom.yaml set hostname to fqdn 
+  # harvester.config and /oem/90_custom.yaml set hostname to fqdn
   # the /oem/90_custom.yaml sets hostname to fqdn as part which was ignored
   # we need to ensure the hostname does not change after bump to NetworkManager
-  # as this will cause the node to be re-registered with apiserver using 
-  # the fqdn hostname which will cause upgrade to break as the node never 
+  # as this will cause the node to be re-registered with apiserver using
+  # the fqdn hostname which will cause upgrade to break as the node never
   # completes the upgrade
   if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.6\.[0-9]$ ]]; then
     echo "version: $UPGRADE_PREVIOUS_VERSION does not require generating Hostname override"
@@ -629,6 +629,62 @@ stages:
    network:
      - hostname: $CURRENT_HOSTNAME
 EOF
+}
+
+generate_rke2_harvester_managed_env() {
+  if [ -z "$UPGRADE_PREVIOUS_VERSION" ]; then
+    detect_upgrade
+  fi
+
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.8\.[0-9]$ ]]; then
+    echo "version: $UPGRADE_PREVIOUS_VERSION does not require generating rke2 harvester-managed.env"
+    return
+  fi
+
+  local rke2_harvester_managed_env="${HOST_DIR}/etc/rancher/rke2/harvester-managed.env"
+  if [[ -f "$rke2_harvester_managed_env" ]]; then
+    echo "skipping rke2 harvester-managed.env generation as the file already exists"
+    return
+  fi
+
+  echo "Generating rke2 harvester-managed.env"
+  cat > ${rke2_harvester_managed_env} <<EOF
+CATTLE_NEW_SIGNED_CERT_EXPIRATION_DAYS=1000
+EOF
+
+  echo "Updating rke2-server.service.d/override.conf"
+  cat >> ${HOST_DIR}/etc/systemd/system/rke2-server.service.d/override.conf <<EOF
+EnvironmentFile=-/etc/rancher/rke2/harvester-managed.env
+EOF
+
+  echo "Updating rke2-agent.service.d/override.conf"
+  cat >> ${HOST_DIR}/etc/systemd/system/rke2-agent.service.d/override.conf <<EOF
+EnvironmentFile=-/etc/rancher/rke2/harvester-managed.env
+EOF
+
+  echo "Reloading systemd manager configuration"
+  chroot $HOST_DIR systemctl daemon-reload
+}
+
+rke2_certificate_rotate_for_role() {
+  local service=$1
+
+  echo "Stopping ${service}."
+  chroot $HOST_DIR systemctl stop $service
+
+  echo "Rotating certificates."
+  chroot $HOST_DIR /opt/rke2/bin/rke2 certificate rotate
+
+  echo "Starting ${service}."
+  chroot $HOST_DIR systemctl start $service
+}
+
+rke2_certificate_rotate() {
+  if chroot $HOST_DIR systemctl is-active --quiet rke2-server; then
+    rke2_certificate_rotate_for_role "rke2-server"
+  elif chroot $HOST_DIR systemctl is-active --quiet rke2-agent; then
+    rke2_certificate_rotate_for_role "rke2-agent"
+  fi
 }
 
 set_nic_names_by_mac_address() {
@@ -832,6 +888,9 @@ command_post_drain() {
 
   generate_hostname_persistance
 
+  generate_rke2_harvester_managed_env
+  rke2_certificate_rotate
+
   upgrade_os
 }
 
@@ -872,6 +931,10 @@ command_single_node_upgrade() {
   generate_networkmanager_config
 
   generate_hostname_persistance
+
+  generate_rke2_harvester_managed_env
+  rke2_certificate_rotate
+
   # Upgrade OS
   upgrade_os
 }

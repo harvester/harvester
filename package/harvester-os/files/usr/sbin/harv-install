@@ -517,6 +517,16 @@ save_nm_state()
     cp -a /etc/NetworkManager/system-connections/* ${nm_conn}
 }
 
+save_rke2_harvester_managed_env()
+{
+    save_dir=${TARGET}/etc/rancher/rke2
+    mkdir -p ${save_dir}
+
+    cat > ${save_dir}/harvester-managed.env <<EOF
+CATTLE_NEW_SIGNED_CERT_EXPIRATION_DAYS=1000
+EOF
+}
+
 do_data_disk_format()
 {
     if [ -z $HARVESTER_DATA_DISK ]; then
@@ -577,6 +587,7 @@ sparsify_passive_img
 get_iso  # For PXE Boot
 save_configs
 save_nm_state
+save_rke2_harvester_managed_env
 do_preload
 
 update_grub_settings
