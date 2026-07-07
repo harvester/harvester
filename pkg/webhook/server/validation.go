@@ -2,10 +2,10 @@ package server
 
 import (
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/webhook"
+	"k8s.io/client-go/transport"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ctlkubeovnv1 "github.com/harvester/harvester/pkg/generated/controllers/kubeovn.io/v1"
@@ -44,11 +44,21 @@ import (
 )
 
 func Validation(clients *clients.Clients, options *config.Options, crdExists bool) (http.Handler, []types.Resource, error) {
-	bearToken, err := os.ReadFile(clients.RESTConfig.BearerTokenFile)
+	baseTransport, err := util.GetHTTPTransportWithCertificates(clients.RESTConfig)
 	if err != nil {
 		return nil, nil, err
 	}
-	transport, err := util.GetHTTPTransportWithCertificates(clients.RESTConfig)
+
+	// Wrap the transport so the service account token is periodically re-read
+	// from disk and injected as the bearer token. Under RKE2's CIS profile the
+	// projected SA token is bound with a short lifetime and rotated on disk, so
+	// a token read once at startup would expire (~1h) and cause kubelet calls
+	// to fail with HTTP 401.
+	kubeletTransport, err := transport.NewBearerAuthWithRefreshRoundTripper(
+		clients.RESTConfig.BearerToken,
+		clients.RESTConfig.BearerTokenFile,
+		baseTransport,
+	)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -131,10 +141,9 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
 			clients.Core.Endpoints().Cache(),
 			&http.Client{
-				Transport: transport,
+				Transport: kubeletTransport,
 				Timeout:   time.Second * 20,
 			},
-			string(bearToken),
 		),
 		upgradelog.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
