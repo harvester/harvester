@@ -634,7 +634,7 @@ func Test_validateAddons(t *testing.T) {
 		clientset := fake.NewSimpleClientset()
 		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
 
-		validator := NewValidator(nil, fakeAddonCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, "").(*upgradeValidator)
+		validator := NewValidator(nil, fakeAddonCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*upgradeValidator)
 		addon := getTestAddon(tc.enabled)
 		if tc.addonState != "" {
 			setAddonState(addon, tc.addonState)
