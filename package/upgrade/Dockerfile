@@ -1,4 +1,4 @@
-FROM registry.opensuse.org/isv/rancher/harvester/os/dev/main/baseos:latest as baseos
+FROM registry.opensuse.org/isv/rancher/harvester/os/v1.9/main/baseos:v1.9 as baseos
 FROM registry.suse.com/bci/bci-base:16.0
 
 ARG ARCH=amd64
