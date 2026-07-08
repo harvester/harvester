@@ -17,6 +17,12 @@ ARG KIND_SHA256_Linux_arm64=8e1014e87c34901cc422a1445866835d1e666f2a61301c27e722
 ARG CODECOV_VERSION=v0.8.0
 ARG CODECOV_SHA256_Linux=b37359013b48fbc3b0790d59fc474a52a260fb96e28e1b2c2ae001dc9b9cc996
 
+ARG ADDONS_REPO=https://github.com/harvester/addons.git
+ARG ADDONS_BRANCH=main
+
+# For common usage, as this path occurs many times in this file
+ARG ADDONS_PREPARE_DIR=/dist/prepare-addons
+
 SHELL ["/bin/bash", "-c"]
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     xz-utils \
@@ -107,26 +113,31 @@ COPY --from=build /go/src/github.com/harvester/harvester/bin/ /bin/
 
 # ---- prepare-addons ----
 FROM builder AS prepare-addons
-ARG ADDONS_BRANCH=main
+# Re-declare them here so this specific stage inherits global ARGs at the top of the Dockerfile, and can be used in this stage.
+ARG ADDONS_REPO
+ARG ADDONS_BRANCH
+
+ARG ADDONS_PREPARE_DIR
+ENV ADDONS_PREPARE_DIR=${ADDONS_PREPARE_DIR}
 
 # re-pull when remote sha changed
 ARG REMOTE_SHA=unknown
 
-RUN mkdir -p /dist/prepare-addon
+RUN mkdir -p "${ADDONS_PREPARE_DIR}"
 # clone addons repo
-RUN git clone --branch ${ADDONS_BRANCH} --single-branch --depth 1 \
-    https://github.com/harvester/addons.git /dist/prepare-addons/addons && \
-    rm -rf /dist/prepare-addons/addons/.git
+RUN git clone --branch "${ADDONS_BRANCH}" --single-branch --depth 1 \
+    "${ADDONS_REPO}" "${ADDONS_PREPARE_DIR}/addons" && \
+    rm -rf "${ADDONS_PREPARE_DIR}/addons/.git"
     
 # generate addon manifests
-RUN mkdir -p /dist/prepare-addons/addons-manifests && \ 
-    cd /dist/prepare-addons/addons && \
-    go run . -generateAddons -path /dist/prepare-addons/addons-manifests
+RUN mkdir -p "${ADDONS_PREPARE_DIR}/addons-manifests" && \
+    cd "${ADDONS_PREPARE_DIR}/addons" && \
+    go run . -generateAddons -path "${ADDONS_PREPARE_DIR}/addons-manifests"
 
-# genereate addon templates (for rancherd)
-RUN mkdir -p /dist/prepare-addons/addons-templates && \ 
-    cd /dist/prepare-addons/addons && \
-    go run . -generateTemplates -path /dist/prepare-addons/addons-templates
+# generate addon templates (for rancherd)
+RUN mkdir -p "${ADDONS_PREPARE_DIR}/addons-templates" && \
+    cd "${ADDONS_PREPARE_DIR}/addons" && \
+    go run . -generateTemplates -path "${ADDONS_PREPARE_DIR}/addons-templates"
 
 
 # ---- validate ----
@@ -157,7 +168,10 @@ RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
 FROM base AS test
 ARG MK_REPO_ID
 
-COPY --from=prepare-addons /dist/prepare-addons/addons-templates/rancherd-22-addons.yaml \
+ARG ADDONS_PREPARE_DIR
+ENV ADDONS_PREPARE_DIR=${ADDONS_PREPARE_DIR}
+
+COPY --from=prepare-addons "${ADDONS_PREPARE_DIR}"/addons-templates/rancherd-22-addons.yaml \
      /go/src/github.com/harvester/harvester/pkg/installer/config/templates/rancherd-22-addons.yaml
 RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
     --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
@@ -198,8 +212,18 @@ COPY --from=generate-openapi /go/src/github.com/harvester/harvester/scripts/know
 # ---- build-installer ----
 FROM base AS build-installer
 ARG MK_REPO_ID
+# 1. Re-declare them here so this specific stage inherits global ARGs at the top of the Dockerfile, and can be used in this stage.
+ARG ADDONS_REPO
+ARG ADDONS_BRANCH
 
-COPY --from=prepare-addons /dist/prepare-addons/addons/ /go/src/github.com/harvester/addons/
+ARG ADDONS_PREPARE_DIR
+ENV ADDONS_PREPARE_DIR=${ADDONS_PREPARE_DIR}
+
+# 2. Convert the ARGs into ENVs so that the build-installer script can access them natively
+ENV ADDONS_REPO=${ADDONS_REPO}
+ENV ADDONS_BRANCH=${ADDONS_BRANCH}
+
+COPY --from=prepare-addons "${ADDONS_PREPARE_DIR}/addons/" /go/src/github.com/harvester/addons/
 
 RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
     --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
@@ -221,8 +245,11 @@ COPY scripts/lib/ scripts/lib/
 # ---- prepare-addons-charts ----
 FROM bundle-builder AS prepare-addons-charts
 
-COPY --from=prepare-addons /dist/prepare-addons/addons/ /go/src/github.com/harvester/addons/
-COPY --from=prepare-addons /dist/prepare-addons/addons-templates/ /go/src/github.com/harvester/addons-templates/
+ARG ADDONS_PREPARE_DIR
+ENV ADDONS_PREPARE_DIR=${ADDONS_PREPARE_DIR}
+
+COPY --from=prepare-addons "${ADDONS_PREPARE_DIR}/addons/" /go/src/github.com/harvester/addons/
+COPY --from=prepare-addons "${ADDONS_PREPARE_DIR}/addons-templates/" /go/src/github.com/harvester/addons-templates/
 
 COPY scripts/prepare-addons-charts scripts/prepare-addons-charts
 RUN bash scripts/prepare-addons-charts
@@ -250,10 +277,13 @@ RUN bash scripts/check-images
 # ---- build-iso ----
 FROM builder AS build-iso
 
+ARG ADDONS_PREPARE_DIR
+ENV ADDONS_PREPARE_DIR=${ADDONS_PREPARE_DIR}
+
 WORKDIR /go/src/github.com/harvester/harvester
 
 COPY --from=build-installer /go/src/github.com/harvester/harvester/bin/harvester-installer package/harvester-os/files/usr/bin/
-COPY --from=prepare-addons /dist/prepare-addons/addons/ /go/src/github.com/harvester/addons/
+COPY --from=prepare-addons "${ADDONS_PREPARE_DIR}/addons/" /go/src/github.com/harvester/addons/
 COPY --from=prepare-harvester-charts /go/src/github.com/harvester/harvester/deploy/charts/ /go/src/github.com/harvester/harvester/deploy/charts/
 COPY --from=prepare-harvester-charts /dist/chart-tarballs/* /go/src/github.com/harvester/harvester/package/harvester-repo/charts/
 COPY --from=prepare-addons-charts /dist/charts/*.tgz /go/src/github.com/harvester/harvester/package/harvester-repo/charts/

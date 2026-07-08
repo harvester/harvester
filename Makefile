@@ -41,6 +41,8 @@ MK_DOCKER_PULL            ?= --pull
 
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
+# HARVESTER_ADDONS_VERSION is indeed the branch name, as addons repo does not release versioned tags.
+# keep it for backward compatibility
 HARVESTER_ADDONS_VERSION  ?= main
 HARVESTER_UI_VERSION      ?=
 HARVESTER_UI_PLUGIN_BUNDLED_VERSION ?=
@@ -51,6 +53,25 @@ PUSH                      ?=
 DRONE_BRANCH              ?=
 DRONE_TAG                 ?=
 DISABLE_BUILD_NET_INSTALL_ISO ?=
+
+# New env variables
+# HARVESTER_ADDONS_REPO pairs with HARVESTER_ADDONS_VERSION to allow testing against a different branch or fork of the addons repo.
+# e.g.
+# export HARVESTER_ADDONS_REPO=your-repo
+# export HARVESTER_ADDONS_VERSION=your-branch
+# make build-iso
+HARVESTER_ADDONS_REPO     ?= https://github.com/harvester/addons.git
+
+# Inside the docker based build, those two envs are converted to internal env variables and passed to the docker build command.
+# It allows the build to be reproducible and independent of the host environment.
+
+# 1. First, check if the legacy variable was passed, and use it to populate the new variable
+ADDONS_BRANCH ?= $(HARVESTER_ADDONS_VERSION)
+ADDONS_REPO   ?= $(HARVESTER_ADDONS_REPO)
+
+# 2. If neither the new nor the legacy variables were set, apply the ultimate defaults
+ADDONS_BRANCH ?= main
+ADDONS_REPO   ?= https://github.com/harvester/addons.git
 
 # you can use a fixed name to share cache across repos. however there is no locking mechanism.
 MK_IMAGE_CACHE_VOLUME     ?= harvester-image-cache-$(MK_REPO_ID)
@@ -67,7 +88,7 @@ MK_IMAGE_CACHE_VERIFY     ?=
 export MK_DOCKER_PROGRESS MK_DOCKER_PULL MK_REPO_ID MK_ADDONS_IMAGE MK_ISO_BUILDER_IMAGE
 export HARVESTER_UI_VERSION HARVESTER_UI_PLUGIN_BUNDLED_VERSION
 export RKE2_IMAGE_REPO USE_LOCAL_IMAGES REPO PUSH DRONE_BRANCH DRONE_TAG
-export CODECOV_TOKEN HARVESTER_ADDONS_VERSION
+export CODECOV_TOKEN HARVESTER_ADDONS_VERSION ADDONS_BRANCH ADDONS_REPO
 export DISABLE_BUILD_NET_INSTALL_ISO
 export MK_IMAGE_CACHE_VOLUME MK_IMAGE_CACHE_BYPASS MK_IMAGE_CACHE_MAX_ITEMS MK_IMAGE_CACHE_VERIFY
 
@@ -147,7 +168,8 @@ test-integration: gen-version-env package-harvester-webhook
 build-installer: prepare-addons | $(ROOT)/bin
 	$(BANNER)
 	$(DOCKER_BUILD) --target build-installer-output \
-	    --build-arg ADDONS_BRANCH=$(HARVESTER_ADDONS_VERSION) \
+	    --build-arg ADDONS_REPO=$(ADDONS_REPO) \
+	    --build-arg ADDONS_BRANCH=$(ADDONS_BRANCH) \
 	    --output type=local,dest=$(ROOT)
 
 
