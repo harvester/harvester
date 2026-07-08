@@ -69,7 +69,6 @@ import (
 )
 
 const (
-	minSNPrefixLength                 = 16
 	mcmFeature                        = "multi-cluster-management"
 	labelAppNameKey                   = "app.kubernetes.io/name"
 	labelAppNameValuePrometheus       = "prometheus"
@@ -1880,9 +1879,6 @@ func validateIncludeExcludeRanges(config *networkutil.Config, includePrefixLen i
 		}
 
 		excludePrefixLen, _ := network.Mask.Size()
-		if excludePrefixLen < minSNPrefixLength {
-			return fmt.Errorf("min supported prefix length for network is %d, exclude Range PrefixLen received %d", minSNPrefixLength, excludePrefixLen)
-		}
 
 		//validate if include and exclude overlap
 		overlap, err := isOverlap(config.Range, excludeIP)
@@ -1929,9 +1925,6 @@ func (v *settingValidator) checkNetworkRangeValid(config *networkutil.Config) er
 	}
 
 	prefixLen, _ := network.Mask.Size()
-	if prefixLen < minSNPrefixLength {
-		return fmt.Errorf("min supported prefix length for network is %d, include Range PrefixLen received %d", minSNPrefixLength, prefixLen)
-	}
 
 	if err = validateIncludeExcludeRanges(config, prefixLen); err != nil {
 		return err
@@ -2042,32 +2035,62 @@ func (v *settingValidator) countNonWitnessNodes() (int, error) {
 
 // checkNetworkOverlap checks that the c1 config does not have overlapping usable IP addresses
 // with any config in the c2 map. Nil configs are skipped, so if a peer setting does not
-// exist yet (e.g. during fresh install), its overlap check is safely bypassed.
+// exist yet (e.g. during fresh install), its overlap check is safely bypassed. Overlap
+// detection uses netip arithmetic — safe for any prefix length including large IPv6 subnets.
 func checkNetworkOverlap(c1Name string, c1 *networkutil.Config, c2 map[string]*networkutil.Config) error {
 	if c1 == nil {
 		return nil
 	}
 
-	c1UsableIPs, err := webhookUtil.GetUsableIPAddresses(c1.Range, c1.Exclude)
+	c1Prefix, err := netip.ParsePrefix(c1.Range)
 	if err != nil {
 		return err
+	}
+	c1Prefix = c1Prefix.Masked()
+
+	c1Excludes := make([]netip.Prefix, 0, len(c1.Exclude))
+	for _, exStr := range c1.Exclude {
+		ex, err := netip.ParsePrefix(exStr)
+		if err != nil {
+			return err
+		}
+		c1Excludes = append(c1Excludes, ex.Masked())
 	}
 
 	for name, config := range c2 {
 		if config == nil {
 			continue
 		}
-		ips, err := webhookUtil.GetUsableIPAddresses(config.Range, config.Exclude)
+		c2Prefix, err := netip.ParsePrefix(config.Range)
 		if err != nil {
 			return err
 		}
-		for ip := range c1UsableIPs {
-			if _, ok := ips[ip]; ok {
-				return fmt.Errorf("%s: the network configuration is overlapped with %s", c1Name, name)
-			}
+		c2Prefix = c2Prefix.Masked()
+
+		if !c1Prefix.Overlaps(c2Prefix) {
+			continue
 		}
+
+		intersection := c1Prefix
+		if c2Prefix.Bits() > c1Prefix.Bits() {
+			intersection = c2Prefix
+		}
+		if isIntersectionCoveredByExcludes(intersection, c1Excludes) {
+			continue
+		}
+
+		return fmt.Errorf("%s: the network configuration is overlapped with %s", c1Name, name)
 	}
 	return nil
+}
+
+func isIntersectionCoveredByExcludes(intersection netip.Prefix, excludes []netip.Prefix) bool {
+	for _, ex := range excludes {
+		if ex.Bits() <= intersection.Bits() && ex.Contains(intersection.Addr()) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateDefaultVMTerminationGracePeriodSecondsHelper(value string) error {

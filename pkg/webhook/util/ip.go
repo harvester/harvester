@@ -1,7 +1,9 @@
 package util
 
 import (
+	"math"
 	"net"
+	"net/netip"
 )
 
 // incrementIP increments the IP address by 1.
@@ -39,12 +41,64 @@ func GetUsableIPAddresses(includeRange string, excludeRange []string) (map[strin
 	return includeIPAddrMap, nil
 }
 
+// GetUsableIPAddressesCount returns the number of usable IP addresses in
+// includeRange after subtracting addresses covered by excludeRange CIDRs.
+// It uses arithmetic rather than enumeration, making it safe for any prefix
+// length including large IPv6 subnets up to integer limit.
 func GetUsableIPAddressesCount(includeRange string, excludeRange []string) (int, error) {
-	usableIPAddrMap, err := GetUsableIPAddresses(includeRange, excludeRange)
+	netPrefix, err := netip.ParsePrefix(includeRange)
 	if err != nil {
 		return 0, err
 	}
-	return len(usableIPAddrMap), nil
+	netPrefix = netPrefix.Masked()
+
+	maxBits := 32
+	if netPrefix.Addr().Is6() {
+		maxBits = 128
+	}
+	hostBits := maxBits - netPrefix.Bits()
+
+	// 1<<63 (2^63) overflows int64 so directly return MaxInt
+	// which trivially has enough IPs for any cluster
+	if hostBits >= 63 {
+		return math.MaxInt, nil
+	}
+
+	total := int(1 << uint(hostBits))
+
+	if netPrefix.Addr().Is4() {
+		// subtract network address and broadcast required by IPv4
+		if total >= 2 {
+			total -= 2
+		} else {
+			total = 0
+		}
+	} else {
+		// subtract network address only there is no broadcast address for IPv6
+		if total >= 1 {
+			total--
+		}
+	}
+
+	for _, exStr := range excludeRange {
+		exPrefix, err := netip.ParsePrefix(exStr)
+		if err != nil {
+			return 0, err
+		}
+		exPrefix = exPrefix.Masked()
+
+		// only subtract if the exclude range is fully contained within the include range
+		if netPrefix.Bits() <= exPrefix.Bits() && netPrefix.Contains(exPrefix.Addr()) {
+			exHostBits := maxBits - exPrefix.Bits()
+			total -= int(1 << uint(exHostBits))
+		}
+	}
+
+	if total < 0 {
+		total = 0
+	}
+
+	return total, nil
 }
 
 func getIPAddressesFromSubnet(ipNetSubnets []string, include bool) (ipAddrList map[string]struct{}, err error) {

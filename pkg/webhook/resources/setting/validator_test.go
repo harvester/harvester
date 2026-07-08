@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/rancher/wrangler/v3/pkg/webhook"
@@ -1376,7 +1375,7 @@ func Test_validateStorageNetworkConfig(t *testing.T) {
 			errMsg: "not allowed on",
 		},
 		{
-			name: "IPv6 /120 range rejected by To4() guard (minSNPrefixLength=16 alone would not protect: 120>=16)",
+			name: "IPv6 /120 range rejected — only IPv4 ranges are supported",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
 				Default:    "",
@@ -1385,13 +1384,22 @@ func Test_validateStorageNetworkConfig(t *testing.T) {
 			errMsg: "IPv6 ranges are not supported",
 		},
 		{
-			name: "IPv6 /64 range rejected by To4() guard (minSNPrefixLength=16 alone would not protect: 64>=16)",
+			name: "IPv6 /64 range rejected — only IPv4 ranges are supported",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
 				Default:    "",
 				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "range":"fd00::/64"}`,
 			},
 			errMsg: "IPv6 ranges are not supported",
+		},
+		{
+			name: "IPv4 /0 full address space accepted",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "range":"0.0.0.0/0"}`,
+			},
+			errMsg: "",
 		},
 		{
 			name: "fail to create storage-network with same vlan-id as VM Network when exclusive vlan is enabled",
@@ -2639,8 +2647,37 @@ func Test_checkNetworkOverlap(t *testing.T) {
 				Range:   "192.168.1.0/30",
 				Exclude: []string{"192.168.1.1/32", "192.168.1.2/32"},
 			},
-			c2:      map[string]*networkutil.Config{"vm-migration-network": {Range: "192.168.1.1/32"}},
+			c2: map[string]*networkutil.Config{
+				"vm-migration-network": {Range: "192.168.1.1/32"},
+				"rwx-network":          {Range: "192.168.1.2/32"},
+			},
 			wantErr: false,
+		},
+		{
+			name:   "c1 wide /22 excludes carve out large ranges for two c2 networks, no error",
+			c1Name: "storage-network",
+			c1: &networkutil.Config{
+				Range:   "10.0.0.0/16",                          // ~65k IPs
+				Exclude: []string{"10.0.4.0/22", "10.0.8.0/22"}, // 1022 IPs each, reserved
+			},
+			c2: map[string]*networkutil.Config{
+				"vm-migration-network": {Range: "10.0.4.0/22"}, // 1022 usable IPs
+				"rwx-network":          {Range: "10.0.8.0/22"}, // 1022 usable IPs
+			},
+			wantErr: false,
+		},
+		{
+			name:   "c1 excludes only one /22, second c2 /22 is not excluded, returns error",
+			c1Name: "storage-network",
+			c1: &networkutil.Config{
+				Range:   "10.0.0.0/16",
+				Exclude: []string{"10.0.4.0/22"},
+			},
+			c2: map[string]*networkutil.Config{
+				"rwx-network": {Range: "10.0.8.0/22"},
+			},
+			wantErr: true,
+			errMsg:  "storage-network: the network configuration is overlapped with rwx-network",
 		},
 		{
 			name:    "invalid CIDR in c1, return error",
@@ -2937,78 +2974,5 @@ func Test_checkExclusiveVlan(t *testing.T) {
 				assert.NoError(t, err)
 			}
 		})
-	}
-}
-
-// Test_validateUpdateVMMigrationNetwork_IPv6OOM demonstrates that submitting an
-// IPv6 /64 range through the full webhook Update path (v.Update) hangs the
-// process when the To4() guard in checkNetworkRangeValid is removed.
-//
-// Why minSNPrefixLength = 16 is not enough:
-//
-//	IPv4 /16: prefixLen=16, 16 < 16 = false → passes → 2^16 = 65,534 hosts → enumerable in ms
-//	IPv6 /64: prefixLen=64, 64 < 16 = false → passes → 2^64 ≈ 1.8×10¹⁹ hosts → never enumerates
-//
-// The same "prefix length must be ≥ 16" boundary that is safe for IPv4 (32-bit
-// address space) is catastrophic for IPv6 (128-bit address space). The constant
-// was designed for IPv4 and provides zero protection against large IPv6 subnets.
-//
-// Full call chain that hangs:
-//
-//	v.Update
-//	  └─ validateUpdateVMMigrationNetwork
-//	       └─ validateNetworkHelper
-//	            ├─ checkNetworkRangeValid  ← guard commented out; 64 >= 16 passes
-//	            └─ checkVMMigrationNetworkRangeValid
-//	                 └─ GetUsableIPAddressesCount("2001:db8::/64")
-//	                      └─ incrementIP loop  ← 2^64 iterations, never returns
-func Test_validateUpdateVMMigrationNetwork_IPv6OOM(t *testing.T) {
-	clientset := fake.NewSimpleClientset()
-	v := NewValidator(
-		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-		fakeclients.NodeCache(clientset.CoreV1().Nodes),
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil,
-	)
-
-	oldSetting := &v1beta1.Setting{
-		ObjectMeta: metav1.ObjectMeta{Name: settings.VMMigrationNetworkSettingName},
-		Value:      `{"vlan":100,"clusterNetwork":"mgmt","range":"192.168.50.0/24"}`,
-	}
-	// Updating to an IPv6 /64 range.
-	// With the To4() guard commented out, 64 < minSNPrefixLength(16) = false,
-	// so checkNetworkRangeValid passes and execution reaches
-	// GetUsableIPAddressesCount which tries to enumerate 2^64 host addresses.
-	newSetting := &v1beta1.Setting{
-		ObjectMeta: metav1.ObjectMeta{Name: settings.VMMigrationNetworkSettingName},
-		Value:      `{"vlan":100,"clusterNetwork":"mgmt","range":"2001:db8::/64"}`,
-	}
-
-	done := make(chan error, 1)
-	go func() {
-		done <- v.Update(nil, oldSetting, newSetting)
-	}()
-
-	select {
-	case err := <-done:
-		// If the To4() guard in checkNetworkRangeValid is active it rejects IPv6
-		// immediately — that is the correct protected behaviour, so the test passes.
-		if err != nil && strings.Contains(err.Error(), "IPv6") {
-			t.Logf("PROTECTED: v.Update rejected IPv6 /64 immediately: %v", err)
-			return
-		}
-		// Any other return (nil or unrelated error) means the guard is gone AND
-		// the enumeration somehow finished — that should never happen for /64.
-		t.Fatalf("v.Update returned unexpectedly (err=%v) for IPv6 /64 — "+
-			"expected either an IPv6 rejection error (guard present) or a hang (guard absent). "+
-			"minSNPrefixLength=16 checks prefixLen<16; 64>=16, so without the guard "+
-			"GetUsableIPAddressesCount must enumerate 2^64 addresses. "+
-			"Compare: IPv4 /16 = 65,534 hosts (safe); IPv6 /64 = 2^64 hosts (catastrophic).", err)
-	case <-time.After(10 * time.Second):
-		// Guard is absent: v.Update is still looping inside GetUsableIPAddressesCount
-		// after 10 seconds — 2^64 iterations cannot complete on any hardware.
-		// This confirms the OOM/DoS risk when the To4() guard is removed.
-		// The leaked goroutine exits with the test process.
-		t.Log("UNPROTECTED (guard absent): v.Update hung as expected — OOM/DoS risk confirmed")
 	}
 }
