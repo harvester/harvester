@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctldiscoveryv1 "github.com/harvester/harvester/pkg/generated/controllers/discovery.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	kubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
@@ -73,7 +74,7 @@ type Handler struct {
 	longhornVolumeCache  ctllhv1.VolumeCache
 	configmaps           ctlcorev1.ConfigMapClient
 	configmapCache       ctlcorev1.ConfigMapCache
-	endpointCache        ctlcorev1.EndpointsCache
+	endpointSliceCache   ctldiscoveryv1.EndpointSliceCache
 	managedCharts        ctlmgmtv3.ManagedChartClient
 	managedChartCache    ctlmgmtv3.ManagedChartCache
 	helmChartConfigs     ctlhelmv1.HelmChartConfigClient
