@@ -32,6 +32,7 @@ import (
 	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io"
 	cluster "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
 	ctlharvcorev1 "github.com/harvester/harvester/pkg/generated/controllers/core"
+	ctldiscoveryv1 "github.com/harvester/harvester/pkg/generated/controllers/discovery.k8s.io"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io"
 	cniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io"
 	"github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io"
@@ -101,6 +102,7 @@ type Management struct {
 	HarvesterStorageFactory   *ctlharvstoragev1.Factory
 	LoggingFactory            *loggingv1.Factory
 	CoreFactory               *corev1.Factory
+	DiscoveryFactory          *ctldiscoveryv1.Factory
 	CniFactory                *cniv1.Factory
 	WhereaboutsCNIFactory     *whereaboutcniv1.Factory
 	AppsFactory               *appsv1.Factory
@@ -320,6 +322,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.CoreFactory = core
 	management.starters = append(management.starters, core)
+
+	discovery, err := ctldiscoveryv1.NewFactoryFromConfigWithOptions(restConfig, opts)
+	if err != nil {
+		return nil, err
+	}
+	management.DiscoveryFactory = discovery
+	management.starters = append(management.starters, discovery)
 
 	cni, err := cniv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {

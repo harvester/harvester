@@ -24,7 +24,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	daemonsets := management.AppsFactory.Apps().V1().DaemonSet()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
-	endpoints := management.CoreFactory.Core().V1().Endpoints()
+	endpointSlices := management.DiscoveryFactory.Discovery().V1().EndpointSlice()
 	lhs := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	lhVolumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
@@ -57,7 +57,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		longhornVolumeCache:  lhVolumes.Cache(),
 		configmaps:           configmaps,
 		configmapCache:       configmaps.Cache(),
-		endpointCache:        endpoints.Cache(),
+		endpointSliceCache:   endpointSlices.Cache(),
 		managedCharts:        managedCharts,
 		managedChartCache:    managedCharts.Cache(),
 		helmChartConfigs:     helmChartConfigs,

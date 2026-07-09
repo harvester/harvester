@@ -139,7 +139,7 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
-			clients.Core.Endpoints().Cache(),
+			clients.DiscoveryFactory.Discovery().V1().EndpointSlice().Cache(),
 			&http.Client{
 				Transport: kubeletTransport,
 				Timeout:   time.Second * 20,
