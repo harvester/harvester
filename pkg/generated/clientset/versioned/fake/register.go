@@ -35,6 +35,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,6 +59,7 @@ var localSchemeBuilder = runtime.SchemeBuilder{
 	catalogv1.AddToScheme,
 	cdiv1beta1.AddToScheme,
 	clusterv1beta1.AddToScheme,
+	discoveryv1.AddToScheme,
 	harvesterhciv1beta1.AddToScheme,
 	k8scnicncfiov1.AddToScheme,
 	kubeovnv1.AddToScheme,

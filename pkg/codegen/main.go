@@ -23,6 +23,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -168,6 +169,13 @@ func main() {
 			batchv1.GroupName: {
 				Types: []interface{}{
 					batchv1.CronJob{},
+				},
+				GenerateTypes:   false,
+				GenerateClients: true,
+			},
+			discoveryv1.GroupName: {
+				Types: []interface{}{
+					discoveryv1.EndpointSlice{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,
