@@ -6,6 +6,23 @@ on:
     - release-*
     - v*
   pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - '.github/workflows/e2e-tests.yml'
+      - '.github/workflows/e2e-tests-factory.yml'
+      - 'cmd/**'
+      - 'pkg/**'
+      - 'vendor/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile'
+      - 'Makefile'
+      - 'scripts/build'
+      - 'package/**'
+      - '!cmd/installer/**'
+      - '!pkg/installer/**'
+      - '!package/harvester-repo/**'
+      - '!package/harvester-os/**'
   schedule:
     - cron: "10 1 * * *"
   workflow_dispatch:
