@@ -2037,6 +2037,9 @@ func (v *settingValidator) countNonWitnessNodes() (int, error) {
 // with any config in the c2 map. Nil configs are skipped, so if a peer setting does not
 // exist yet (e.g. during fresh install), its overlap check is safely bypassed. Overlap
 // detection uses netip arithmetic — safe for any prefix length including large IPv6 subnets.
+//
+// An overlap is permitted when the intersection of c1 and c2 is completely covered by the
+// union of their exclude ranges: no IP in the intersection is usable by both networks simultaneously.
 func checkNetworkOverlap(c1Name string, c1 *networkutil.Config, c2 map[string]*networkutil.Config) error {
 	if c1 == nil {
 		return nil
@@ -2075,7 +2078,18 @@ func checkNetworkOverlap(c1Name string, c1 *networkutil.Config, c2 map[string]*n
 		if c2Prefix.Bits() > c1Prefix.Bits() {
 			intersection = c2Prefix
 		}
-		if isIntersectionCoveredByExcludes(intersection, c1Excludes) {
+
+		allExcludes := make([]netip.Prefix, 0, len(c1Excludes)+len(config.Exclude))
+		allExcludes = append(allExcludes, c1Excludes...)
+		for _, exStr := range config.Exclude {
+			ex, err := netip.ParsePrefix(exStr)
+			if err != nil {
+				return err
+			}
+			allExcludes = append(allExcludes, ex.Masked())
+		}
+
+		if isCoveredByPrefixes(intersection, allExcludes) {
 			continue
 		}
 
@@ -2084,13 +2098,48 @@ func checkNetworkOverlap(c1Name string, c1 *networkutil.Config, c2 map[string]*n
 	return nil
 }
 
-func isIntersectionCoveredByExcludes(intersection netip.Prefix, excludes []netip.Prefix) bool {
+func rightHalfPrefix(p netip.Prefix) netip.Prefix {
+	a16 := p.Addr().As16()
+
+	bitPos := p.Bits()
+	if p.Addr().Is4() {
+		bitPos += 96
+	}
+	byteIdx := bitPos / 8
+	a16[byteIdx] |= 1 << uint(7-bitPos%8)
+	addr := netip.AddrFrom16(a16)
+	if p.Addr().Is4() {
+		addr = addr.Unmap()
+	}
+	return netip.PrefixFrom(addr, p.Bits()+1).Masked()
+}
+
+func subtractPrefix(target, ex netip.Prefix) []netip.Prefix {
+	if !ex.Overlaps(target) {
+		return []netip.Prefix{target}
+	}
+	if ex.Bits() <= target.Bits() && ex.Contains(target.Addr()) {
+		return nil
+	}
+	left := netip.PrefixFrom(target.Addr(), target.Bits()+1).Masked()
+	right := rightHalfPrefix(target)
+	result := subtractPrefix(left, ex)
+	return append(result, subtractPrefix(right, ex)...)
+}
+
+func isCoveredByPrefixes(target netip.Prefix, excludes []netip.Prefix) bool {
+	remaining := []netip.Prefix{target}
 	for _, ex := range excludes {
-		if ex.Bits() <= intersection.Bits() && ex.Contains(intersection.Addr()) {
+		if len(remaining) == 0 {
 			return true
 		}
+		var next []netip.Prefix
+		for _, r := range remaining {
+			next = append(next, subtractPrefix(r, ex)...)
+		}
+		remaining = next
 	}
-	return false
+	return len(remaining) == 0
 }
 
 func validateDefaultVMTerminationGracePeriodSecondsHelper(value string) error {

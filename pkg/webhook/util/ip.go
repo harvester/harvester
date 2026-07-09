@@ -58,9 +58,18 @@ func GetUsableIPAddressesCount(includeRange string, excludeRange []string) (int,
 	}
 	hostBits := maxBits - netPrefix.Bits()
 
-	// 1<<63 (2^63) overflows int64 so directly return MaxInt
-	// which trivially has enough IPs for any cluster
+	// 1<<63 (2^63) overflows int64 so return MaxInt - but first check if a single
+	// exclude wipes out the entire include range (identical prefix -> 0 usable).
 	if hostBits >= 63 {
+		for _, exStr := range excludeRange {
+			exPrefix, exErr := netip.ParsePrefix(exStr)
+			if exErr != nil {
+				return 0, exErr
+			}
+			if exPrefix.Masked() == netPrefix {
+				return 0, nil
+			}
+		}
 		return math.MaxInt, nil
 	}
 
@@ -74,10 +83,25 @@ func GetUsableIPAddressesCount(includeRange string, excludeRange []string) (int,
 			total = 0
 		}
 	} else {
-		// subtract network address only there is no broadcast address for IPv6
+		// subtract network address only - there is no broadcast address for IPv6
 		if total >= 1 {
 			total--
 		}
+	}
+
+	// Precompute the include's reserved addresses so we can avoid
+	// double-subtracting them when an exclude CIDR spans them.
+	reservedNet := netPrefix.Addr()
+	hasBroadcast := netPrefix.Addr().Is4()
+	var reservedBroadcast netip.Addr
+	if hasBroadcast {
+		n := netPrefix.Addr().As4()
+		m := net.CIDRMask(netPrefix.Bits(), 32)
+		var b [4]byte
+		for i := range b {
+			b[i] = n[i] | ^m[i]
+		}
+		reservedBroadcast = netip.AddrFrom4(b)
 	}
 
 	for _, exStr := range excludeRange {
@@ -90,7 +114,20 @@ func GetUsableIPAddressesCount(includeRange string, excludeRange []string) (int,
 		// only subtract if the exclude range is fully contained within the include range
 		if netPrefix.Bits() <= exPrefix.Bits() && netPrefix.Contains(exPrefix.Addr()) {
 			exHostBits := maxBits - exPrefix.Bits()
-			total -= int(1 << uint(exHostBits))
+			exCount := int(1 << uint(exHostBits))
+
+			// The reserved network address and IPv4 broadcast were already removed
+			// from total above. If the exclude CIDR spans them, subtract only the
+			// genuinely usable addresses the exclude covers (avoid double-counting).
+			if exPrefix.Contains(reservedNet) {
+				exCount--
+			}
+			if hasBroadcast && exPrefix.Contains(reservedBroadcast) {
+				exCount--
+			}
+			if exCount > 0 {
+				total -= exCount
+			}
 		}
 	}
 

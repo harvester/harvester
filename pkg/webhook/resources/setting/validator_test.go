@@ -2680,6 +2680,35 @@ func Test_checkNetworkOverlap(t *testing.T) {
 			errMsg:  "storage-network: the network configuration is overlapped with rwx-network",
 		},
 		{
+			// Two /25 excludes together cover the full /24 intersection (union coverage).
+			// The old single-exclude check would have flagged this as a conflict.
+			name:   "union of two c1 /25 excludes covers c2 /24 intersection, no error",
+			c1Name: "storage-network",
+			c1: &networkutil.Config{
+				Range:   "10.0.0.0/16",
+				Exclude: []string{"10.0.4.0/25", "10.0.4.128/25"}, // together cover 10.0.4.0/24
+			},
+			c2: map[string]*networkutil.Config{
+				"vm-migration-network": {Range: "10.0.4.0/24"},
+			},
+			wantErr: false,
+		},
+		{
+			// c2 explicitly excludes the sub-range that overlaps c1 from its own side.
+			name:   "c2 excludes its overlapping portion, no error",
+			c1Name: "storage-network",
+			c1: &networkutil.Config{
+				Range: "10.0.4.0/24",
+			},
+			c2: map[string]*networkutil.Config{
+				"vm-migration-network": {
+					Range:   "10.0.4.0/23",           // covers 10.0.4.0/24 (overlaps c1) + 10.0.5.0/24
+					Exclude: []string{"10.0.4.0/24"}, // excludes the portion overlapping c1
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name:    "invalid CIDR in c1, return error",
 			c1Name:  "storage-network",
 			c1:      &networkutil.Config{Range: "not-a-cidr"},

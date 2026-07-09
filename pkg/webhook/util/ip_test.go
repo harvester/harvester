@@ -22,7 +22,7 @@ func Test_ipAddressRange(t *testing.T) {
 				Range:   "192.168.2.0/24",
 				Exclude: []string{"192.168.2.1/30"},
 			},
-			expectedCount: 250,
+			expectedCount: 251, // /30 masks to .0/30 covering .0-.3; .0 already removed as network addr
 		},
 		{
 			name: "IPv4 /24 exclude /28 subset",
@@ -30,7 +30,7 @@ func Test_ipAddressRange(t *testing.T) {
 				Range:   "192.168.2.0/24",
 				Exclude: []string{"192.168.2.1/28"},
 			},
-			expectedCount: 238,
+			expectedCount: 239, // /28 masks to .0/28 covering .0-.15; .0 already removed as network addr
 		},
 		{
 			name: "IPv4 /27 no excludes",
