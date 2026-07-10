@@ -190,6 +190,38 @@ metadata:
   namespace: {{ .Namespace }}
 spec:
   description: Template for booting the Windows virtual machine from an ISO image
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineTemplate
+metadata:
+  name: windows-iso-small-template
+  namespace: {{ .Namespace }}
+spec:
+  description: Small Windows Server VM (2 vCPU, 4 GiB RAM, 64 GiB rootdisk). Boots from an uploaded Windows ISO with the VMDP virtio-driver container attached. Enables balanced Hyper-V enlightenments and a virtio-scsi rootdisk. Sized for dev, test, and lightweight Windows Server 2019/2022/2025 workloads.
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineTemplate
+metadata:
+  name: windows-iso-medium-template
+  namespace: {{ .Namespace }}
+spec:
+  description: Medium Windows Server VM (4 vCPU, 16 GiB RAM, 64 GiB rootdisk). Boots from an uploaded Windows ISO with the VMDP virtio-driver container attached. Enables balanced Hyper-V enlightenments and a virtio-scsi rootdisk. Sized for general Windows Server workloads (IIS, small SQL, application servers).
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineTemplate
+metadata:
+  name: windows-iso-large-template
+  namespace: {{ .Namespace }}
+spec:
+  description: Large Windows Server VM (8 vCPU, 32 GiB RAM, 128 GiB rootdisk). Boots from an uploaded Windows ISO with the VMDP virtio-driver container attached. Enables balanced Hyper-V enlightenments and a virtio-scsi rootdisk. Sized for heavier Windows Server workloads (SQL Server, RDS, medium databases).
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineTemplate
+metadata:
+  name: windows-w11-iso-template
+  namespace: {{ .Namespace }}
+spec:
+  description: Windows 11 VM (4 vCPU, 8 GiB RAM, 64 GiB rootdisk). Boots from an uploaded Windows 11 ISO with the VMDP virtio-driver container attached. Enables UEFI + Secure Boot + vTPM (required by Windows 11 Setup), balanced Hyper-V enlightenments, and a virtio-scsi rootdisk.
 `
 
 	// windows default resource request refer to windows server docs https://docs.microsoft.com/en-us/windows-server/get-started-19/sys-reqs-19
@@ -390,12 +422,33 @@ spec:
             features:
               acpi:
                 enabled: true
+              apic:
+                enabled: true
+              smm:
+                enabled: true
+              hyperv:
+                relaxed: {enabled: true}
+                vapic: {enabled: true}
+                spinlocks: {enabled: true, spinlocks: 8191}
+                vpindex: {enabled: true}
+                synic: {enabled: true}
+                synictimer: {enabled: true}
+                ipi: {enabled: true}
+                runtime: {enabled: true}
+                reset: {enabled: true}
+            clock:
+              utc: {}
+              timer:
+                hpet: {present: false}
+                hyperv: {present: true}
+                pit: {tickPolicy: delay}
+                rtc: {tickPolicy: catchup}
             cpu:
               cores: 1
             devices:
               disks:
               - disk:
-                  bus: virtio
+                  bus: scsi
                 name: rootdisk
                 bootOrder: 1
               interfaces:
@@ -468,6 +521,27 @@ spec:
             features:
               acpi:
                 enabled: true
+              apic:
+                enabled: true
+              smm:
+                enabled: true
+              hyperv:
+                relaxed: {enabled: true}
+                vapic: {enabled: true}
+                spinlocks: {enabled: true, spinlocks: 8191}
+                vpindex: {enabled: true}
+                synic: {enabled: true}
+                synictimer: {enabled: true}
+                ipi: {enabled: true}
+                runtime: {enabled: true}
+                reset: {enabled: true}
+            clock:
+              utc: {}
+              timer:
+                hpet: {present: false}
+                hyperv: {present: true}
+                pit: {tickPolicy: delay}
+                rtc: {tickPolicy: catchup}
             cpu:
               cores: 1
             devices:
@@ -477,7 +551,7 @@ spec:
                 name: cdrom-disk
                 bootOrder: 1
               - disk:
-                  bus: virtio
+                  bus: scsi
                 name: rootdisk
                 bootOrder: 2
               - cdrom:
@@ -495,6 +569,467 @@ spec:
               limits:
                 memory: 2048Mi
                 cpu: 1
+          networks:
+          - name: default
+            pod: {}
+          volumes:
+          - persistentVolumeClaim:
+              claimName: pvc-cdrom-disk
+            name: cdrom-disk
+          - persistentVolumeClaim:
+              claimName: pvc-rootdisk
+            name: rootdisk
+          - containerDisk:
+              image: registry.suse.com/suse/vmdp/vmdp:2.5.5
+              imagePullPolicy: IfNotPresent
+            name: virtio-container-disk
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineTemplateVersion
+metadata:
+  name: windows-iso-small-version
+  namespace: {{ .Namespace }}
+spec:
+  templateId: {{ .Namespace }}/windows-iso-small-template
+  vm:
+    metadata:
+      labels:
+        harvesterhci.io/os: windows
+      annotations:
+        harvesterhci.io/reservedMemory: 256Mi
+        harvesterhci.io/volumeClaimTemplates: |-
+          [{
+            "metadata": {
+              "name": "pvc-cdrom-disk",
+              "annotations": {
+                "harvesterhci.io/imageId": ""
+              }
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "20Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          },
+          {
+            "metadata": {
+              "name": "pvc-rootdisk"
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "64Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          }]
+    spec:
+      runStrategy: RerunOnFailure
+      template:
+        spec:
+          evictionStrategy: LiveMigrateIfPossible
+          domain:
+            features:
+              acpi: {enabled: true}
+              apic: {enabled: true}
+              smm:  {enabled: true}
+              hyperv:
+                relaxed:    {enabled: true}
+                vapic:      {enabled: true}
+                spinlocks:  {enabled: true, spinlocks: 8191}
+                vpindex:    {enabled: true}
+                synic:      {enabled: true}
+                synictimer: {enabled: true}
+                ipi:        {enabled: true}
+                runtime:    {enabled: true}
+                reset:      {enabled: true}
+            clock:
+              utc: {}
+              timer:
+                hpet:   {present: false}
+                hyperv: {present: true}
+                pit:    {tickPolicy: delay}
+                rtc:    {tickPolicy: catchup}
+            cpu:
+              cores: 2
+            devices:
+              disks:
+              - cdrom:
+                  bus: sata
+                name: cdrom-disk
+                bootOrder: 1
+              - disk:
+                  bus: scsi
+                name: rootdisk
+                bootOrder: 2
+              - cdrom:
+                  bus: sata
+                name: virtio-container-disk
+              interfaces:
+              - name: default
+                model: e1000
+                masquerade: {}
+              inputs:
+              - bus: usb
+                name: tablet
+                type: tablet
+            resources:
+              limits:
+                memory: 4Gi
+                cpu: 2
+          networks:
+          - name: default
+            pod: {}
+          volumes:
+          - persistentVolumeClaim:
+              claimName: pvc-cdrom-disk
+            name: cdrom-disk
+          - persistentVolumeClaim:
+              claimName: pvc-rootdisk
+            name: rootdisk
+          - containerDisk:
+              image: registry.suse.com/suse/vmdp/vmdp:2.5.5
+              imagePullPolicy: IfNotPresent
+            name: virtio-container-disk
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineTemplateVersion
+metadata:
+  name: windows-iso-medium-version
+  namespace: {{ .Namespace }}
+spec:
+  templateId: {{ .Namespace }}/windows-iso-medium-template
+  vm:
+    metadata:
+      labels:
+        harvesterhci.io/os: windows
+      annotations:
+        harvesterhci.io/reservedMemory: 256Mi
+        harvesterhci.io/volumeClaimTemplates: |-
+          [{
+            "metadata": {
+              "name": "pvc-cdrom-disk",
+              "annotations": {
+                "harvesterhci.io/imageId": ""
+              }
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "20Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          },
+          {
+            "metadata": {
+              "name": "pvc-rootdisk"
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "64Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          }]
+    spec:
+      runStrategy: RerunOnFailure
+      template:
+        spec:
+          evictionStrategy: LiveMigrateIfPossible
+          domain:
+            features:
+              acpi: {enabled: true}
+              apic: {enabled: true}
+              smm:  {enabled: true}
+              hyperv:
+                relaxed:    {enabled: true}
+                vapic:      {enabled: true}
+                spinlocks:  {enabled: true, spinlocks: 8191}
+                vpindex:    {enabled: true}
+                synic:      {enabled: true}
+                synictimer: {enabled: true}
+                ipi:        {enabled: true}
+                runtime:    {enabled: true}
+                reset:      {enabled: true}
+            clock:
+              utc: {}
+              timer:
+                hpet:   {present: false}
+                hyperv: {present: true}
+                pit:    {tickPolicy: delay}
+                rtc:    {tickPolicy: catchup}
+            cpu:
+              cores: 4
+            devices:
+              disks:
+              - cdrom:
+                  bus: sata
+                name: cdrom-disk
+                bootOrder: 1
+              - disk:
+                  bus: scsi
+                name: rootdisk
+                bootOrder: 2
+              - cdrom:
+                  bus: sata
+                name: virtio-container-disk
+              interfaces:
+              - name: default
+                model: e1000
+                masquerade: {}
+              inputs:
+              - bus: usb
+                name: tablet
+                type: tablet
+            resources:
+              limits:
+                memory: 16Gi
+                cpu: 4
+          networks:
+          - name: default
+            pod: {}
+          volumes:
+          - persistentVolumeClaim:
+              claimName: pvc-cdrom-disk
+            name: cdrom-disk
+          - persistentVolumeClaim:
+              claimName: pvc-rootdisk
+            name: rootdisk
+          - containerDisk:
+              image: registry.suse.com/suse/vmdp/vmdp:2.5.5
+              imagePullPolicy: IfNotPresent
+            name: virtio-container-disk
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineTemplateVersion
+metadata:
+  name: windows-iso-large-version
+  namespace: {{ .Namespace }}
+spec:
+  templateId: {{ .Namespace }}/windows-iso-large-template
+  vm:
+    metadata:
+      labels:
+        harvesterhci.io/os: windows
+      annotations:
+        harvesterhci.io/reservedMemory: 256Mi
+        harvesterhci.io/volumeClaimTemplates: |-
+          [{
+            "metadata": {
+              "name": "pvc-cdrom-disk",
+              "annotations": {
+                "harvesterhci.io/imageId": ""
+              }
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "20Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          },
+          {
+            "metadata": {
+              "name": "pvc-rootdisk"
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "128Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          }]
+    spec:
+      runStrategy: RerunOnFailure
+      template:
+        spec:
+          evictionStrategy: LiveMigrateIfPossible
+          domain:
+            features:
+              acpi: {enabled: true}
+              apic: {enabled: true}
+              smm:  {enabled: true}
+              hyperv:
+                relaxed:    {enabled: true}
+                vapic:      {enabled: true}
+                spinlocks:  {enabled: true, spinlocks: 8191}
+                vpindex:    {enabled: true}
+                synic:      {enabled: true}
+                synictimer: {enabled: true}
+                ipi:        {enabled: true}
+                runtime:    {enabled: true}
+                reset:      {enabled: true}
+            clock:
+              utc: {}
+              timer:
+                hpet:   {present: false}
+                hyperv: {present: true}
+                pit:    {tickPolicy: delay}
+                rtc:    {tickPolicy: catchup}
+            cpu:
+              cores: 8
+            devices:
+              disks:
+              - cdrom:
+                  bus: sata
+                name: cdrom-disk
+                bootOrder: 1
+              - disk:
+                  bus: scsi
+                name: rootdisk
+                bootOrder: 2
+              - cdrom:
+                  bus: sata
+                name: virtio-container-disk
+              interfaces:
+              - name: default
+                model: e1000
+                masquerade: {}
+              inputs:
+              - bus: usb
+                name: tablet
+                type: tablet
+            resources:
+              limits:
+                memory: 32Gi
+                cpu: 8
+          networks:
+          - name: default
+            pod: {}
+          volumes:
+          - persistentVolumeClaim:
+              claimName: pvc-cdrom-disk
+            name: cdrom-disk
+          - persistentVolumeClaim:
+              claimName: pvc-rootdisk
+            name: rootdisk
+          - containerDisk:
+              image: registry.suse.com/suse/vmdp/vmdp:2.5.5
+              imagePullPolicy: IfNotPresent
+            name: virtio-container-disk
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineTemplateVersion
+metadata:
+  name: windows-w11-iso-version
+  namespace: {{ .Namespace }}
+spec:
+  templateId: {{ .Namespace }}/windows-w11-iso-template
+  vm:
+    metadata:
+      labels:
+        harvesterhci.io/os: windows
+      annotations:
+        harvesterhci.io/reservedMemory: 256Mi
+        harvesterhci.io/volumeClaimTemplates: |-
+          [{
+            "metadata": {
+              "name": "pvc-cdrom-disk",
+              "annotations": {
+                "harvesterhci.io/imageId": ""
+              }
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "20Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          },
+          {
+            "metadata": {
+              "name": "pvc-rootdisk"
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "64Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          }]
+    spec:
+      runStrategy: RerunOnFailure
+      template:
+        spec:
+          evictionStrategy: LiveMigrateIfPossible
+          domain:
+            firmware:
+              bootloader:
+                efi:
+                  secureBoot: true
+            features:
+              acpi: {enabled: true}
+              apic: {enabled: true}
+              smm:  {enabled: true}
+              hyperv:
+                relaxed:    {enabled: true}
+                vapic:      {enabled: true}
+                spinlocks:  {enabled: true, spinlocks: 8191}
+                vpindex:    {enabled: true}
+                synic:      {enabled: true}
+                synictimer: {enabled: true}
+                ipi:        {enabled: true}
+                runtime:    {enabled: true}
+                reset:      {enabled: true}
+            clock:
+              utc: {}
+              timer:
+                hpet:   {present: false}
+                hyperv: {present: true}
+                pit:    {tickPolicy: delay}
+                rtc:    {tickPolicy: catchup}
+            cpu:
+              cores: 4
+            devices:
+              tpm: {}
+              disks:
+              - cdrom:
+                  bus: sata
+                name: cdrom-disk
+                bootOrder: 1
+              - disk:
+                  bus: scsi
+                name: rootdisk
+                bootOrder: 2
+              - cdrom:
+                  bus: sata
+                name: virtio-container-disk
+              interfaces:
+              - name: default
+                model: e1000
+                masquerade: {}
+              inputs:
+              - bus: usb
+                name: tablet
+                type: tablet
+            resources:
+              limits:
+                memory: 8Gi
+                cpu: 4
           networks:
           - name: default
             pod: {}
