@@ -149,7 +149,7 @@ When a Share Manager is brought up for a guest RWX volume:
 5. Create or update an EndpointSlice, for example `share-manager-vip-slice`.
 6. Set the EndpointSlice endpoint address to the current Share Manager pod IP.
 7. Record ownership labels and owner references where possible so the Service IP can be released when the Share Manager is deleted.
-8. Publish the Service IP by updating `NetworkFilesystem.status.endpoint` through `harvester/networkfs-manager`.
+8. Locate the Service resource using label `harvesterhci.io/rwx-vol-service: <volume-id>` and publish the Service IP by updating `NetworkFilesystem.status.endpoint` through `harvester/networkfs-manager`.
 
 The Service name should be derived from the Longhorn volume or Share Manager identity rather than using one global Service name. This keeps multiple RWX volumes independent.
 
@@ -164,6 +164,8 @@ metadata:
   annotations:
     kube-vip.io/loadbalancerIPs: 172.16.0.250
     kube-vip.io/serviceInterface: auto
+  labels:
+    harvesterhci.io/rwx-vol-service: <volume-id>
 spec:
   type: LoadBalancer
   loadBalancerIP: 172.16.0.250
