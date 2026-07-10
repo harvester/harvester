@@ -311,6 +311,7 @@ func selectPromoteNode(nodeList []*corev1.Node) *corev1.Node {
 				managementOrHealthyHarvesterWorkerZones[zone] = true
 			}
 		} else if util.IsHealthyNode(node) && isHarvesterNode(node) &&
+			!node.Spec.Unschedulable &&
 			!isWorkerPreferredNode(node) && !isExtraWitnessNode(node, len(witnessPreferred), witnessPromoted) {
 			if zone != "" {
 				managementOrHealthyHarvesterWorkerZones[zone] = true

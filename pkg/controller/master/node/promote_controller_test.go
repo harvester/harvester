@@ -106,6 +106,11 @@ func (n *NodeBuilder) NotReady() *NodeBuilder {
 	return n
 }
 
+func (n *NodeBuilder) Cordoned() *NodeBuilder {
+	n.node.Spec.Unschedulable = true
+	return n
+}
+
 var (
 	// normal nodes
 	mu1 = NewDefaultNodeBuilder().Name("m-unmanaged-1").Management()
@@ -134,6 +139,9 @@ var (
 	w1 = NewDefaultNodeBuilder().Name("w-1").Harvester().Worker()
 	w2 = NewDefaultNodeBuilder().Name("w-2").Harvester().Worker()
 	w3 = NewDefaultNodeBuilder().Name("w-3").Harvester().Worker()
+
+	wo1 = NewDefaultNodeBuilder().Name("w-cordoned-1").Harvester().Cordoned().Worker()
+	wo2 = NewDefaultNodeBuilder().Name("w-cordoned-2").Harvester().Cordoned().Worker()
 
 	w1rm  = NewDefaultNodeBuilder().Name("w-1-r-mgmt").Harvester().RoleMgmt().Worker()
 	w1rwk = NewDefaultNodeBuilder().Name("w-1-r-worker").Harvester().RoleWorker().Worker()
@@ -196,6 +204,20 @@ func Test_selectPromoteNode(t *testing.T) {
 			name: "one management and two worker",
 			args: args{
 				nodeList: []*corev1.Node{m1, w1, w2},
+			},
+			want: w1,
+		},
+		{
+			name: "one management and two cordoned workers",
+			args: args{
+				nodeList: []*corev1.Node{m1, wo1, wo2},
+			},
+			want: nil,
+		},
+		{
+			name: "one management and two cordoned workers and two ready workers",
+			args: args{
+				nodeList: []*corev1.Node{m1, wo1, wo2, w1, w2},
 			},
 			want: w1,
 		},
