@@ -224,6 +224,7 @@ FROM bundle-builder AS prepare-addons-charts
 COPY --from=prepare-addons /dist/prepare-addons/addons/ /go/src/github.com/harvester/addons/
 COPY --from=prepare-addons /dist/prepare-addons/addons-templates/ /go/src/github.com/harvester/addons-templates/
 
+COPY scripts/images/rancher-images.txt scripts/images/rancher-images.txt
 COPY scripts/prepare-addons-charts scripts/prepare-addons-charts
 RUN bash scripts/prepare-addons-charts
 
