@@ -57,7 +57,7 @@ When the setting is valid, Harvester reconciles the source NAD and prepares the 
 
 When a guest RWX volume is created, Longhorn creates a Share Manager. Harvester then creates an additional LoadBalancer-type Service and EndpointSlice for that Share Manager:
 
-- The Service selects a reserved VIP from the source NAD CIDR.
+- The Service selects a reserved VIP from the source NAD's associated Whereabouts IPPool.
 - The EndpointSlice points to the current Share Manager pod IP.
 - `harvester/networkfs-manager` records the Service IP in `NetworkFilesystem.status.endpoint`, which the Harvester CSI driver consumes.
 - The Harvester CSI driver exposes the stable endpoint to the guest cluster.
