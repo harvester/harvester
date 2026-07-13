@@ -22,10 +22,6 @@ import (
 	"github.com/harvester/harvester/pkg/server/ui"
 )
 
-const (
-	defaultAdminUsername = "admin"
-)
-
 type Router struct {
 	scaled     *config.Scaled
 	restConfig *rest.Config
@@ -149,7 +145,7 @@ func verifyAuthMiddleware(next http.Handler) http.Handler {
 		// limit access to admin user
 		extraUsername := r.Header.Get("Impersonate-Extra-Username")
 		logrus.Infof("Impersonate-Extra-Username: %s", extraUsername)
-		if extraUsername != defaultAdminUsername {
+		if extraUsername == "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte("Unauthorized")) // nolint: errcheck
 			return
