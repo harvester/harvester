@@ -55,7 +55,7 @@ When the setting is valid, Harvester reconciles the source NAD and prepares the 
 - A host network configuration is created from the source NAD's cluster network and VLAN.
 - One address per Harvester node is reserved from the Whereabouts CIDR for the node-level Host IPs and the VIP component.
 
-When a guest RWX volume is created, Longhorn creates a Share Manager. Harvester then creates a stable Service and EndpointSlice for that Share Manager:
+When a guest RWX volume is created, Longhorn creates a Share Manager. Harvester then creates an additional LoadBalancer-type Service and EndpointSlice for that Share Manager:
 
 - The Service selects a reserved VIP from the source NAD CIDR.
 - The EndpointSlice points to the current Share Manager pod IP.
