@@ -210,7 +210,7 @@ When a Share Manager pod is recreated:
 All addresses owned by this feature must be represented in the source NAD `exclude` field:
 
 - IPs on the host network interfaces
-- Per-Share Manager Service IPs.
+- Per-Share Manager Service VIP.
 - Any future explicit RWX infrastructure VIP.
 - IPs used by downstream guest cluster network if configured in same VLAN as RWX or storage network VLAN.
 
@@ -289,14 +289,14 @@ The feature is additive.
 - Existing clusters without `rwx-network` configured continue to behave as before.
   - The guest volume will need to be reattached to trigger the full CSI flow and apply this improvement.
 - Existing guest RWX volumes continue using their current endpoint until reconciled by the new controller.
-- When `rwx-network` is configured after upgrade, Harvester creates the managed host network configuration, reserves addresses, and begins publishing stable Service IPs for new or reconciled guest RWX volumes.
+- When `rwx-network` is configured after upgrade, Harvester creates the managed host network configuration, reserves addresses, and begins publishing stable RWX Service VIPs for new or reconciled guest RWX volumes.
 - Existing NAD `exclude` entries must be preserved. Harvester should add only its managed reservations.
 
 
 ## Limitations and Implementation
 
 - The initial design depends on Whereabouts-backed RWX networking.
-- Host IPs and Share Manager Service IPs must be in the same subnet as the source RWX network.
+- Host IPs and RWX Service VIPs must be in the same subnet as the source RWX network.
 - The design does not change Longhorn Share Manager internals.
 - The design does not remove the need for enough free addresses in the RWX network CIDR.
 - Gratuitous ARP behavior may depend on the selected interface and network namespace used by the Share Manager path.
@@ -331,4 +331,4 @@ The feature is additive.
 
 - Upgrade a cluster with `rwx-network` unset and verify no RWX VIP resources are created.
 - Upgrade a cluster with `rwx-network` configured and verify Harvester creates managed RWX resources without removing existing NAD excludes.
-- Upgrade a cluster with existing guest RWX volumes and verify they reconcile to stable Service IPs.
+- Upgrade a cluster with existing guest RWX volumes and verify they reconcile to stable RWX Service VIPs.
