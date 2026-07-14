@@ -136,6 +136,7 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().ScheduleVMBackup().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
+			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
 			clients.Core.Endpoints().Cache(),
 			&http.Client{

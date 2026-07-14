@@ -17,12 +17,14 @@ import (
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
 	kubeletconfigv1 "k8s.io/kubelet/config/v1beta1"
 	kubeletstatsv1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -63,6 +65,7 @@ func NewValidator(
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
 	svmbackupCache ctlharvesterv1.ScheduleVMBackupCache,
 	settingCache ctlharvesterv1.SettingCache,
+	vmCache ctlkubevirtv1.VirtualMachineCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	endpointCache v1.EndpointsCache,
 	httpClient *http.Client,
@@ -78,6 +81,7 @@ func NewValidator(
 		versionCache:      versionCache,
 		vmBackupCache:     vmBackupCache,
 		svmbackupCache:    svmbackupCache,
+		vmCache:           vmCache,
 		vmiCache:          vmiCache,
 		endpointCache:     endpointCache,
 		settingCache:      settingCache,
@@ -98,6 +102,7 @@ type upgradeValidator struct {
 	versionCache      ctlharvesterv1.VersionCache
 	vmBackupCache     ctlharvesterv1.VirtualMachineBackupCache
 	svmbackupCache    ctlharvesterv1.ScheduleVMBackupCache
+	vmCache           ctlkubevirtv1.VirtualMachineCache
 	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
 	endpointCache     v1.EndpointsCache
 	settingCache      ctlharvesterv1.SettingCache
@@ -271,6 +276,10 @@ func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 	}
 	if !restoreVM {
 		if err := v.checkNonLiveMigratableVMs(); err != nil {
+			return err
+		}
+
+		if err := v.checkStaleHotplugVolumes(); err != nil {
 			return err
 		}
 	}
@@ -628,6 +637,103 @@ func (v *upgradeValidator) checkNonLiveMigratableVMs() error {
 	}
 
 	return nil
+}
+
+// checkStaleHotplugVolumes detects hotplug state left behind by the legacy
+// HotplugVolumes flow that breaks once the cluster runs with the
+// DeclarativeHotplugVolumes feature gate only:
+//   - a VM with pending status.volumeRequests never reconciles again because
+//     virt-controller keeps replaying the VMI-level AddVolume/RemoveVolume
+//     subresource call, which is rejected for VM-owned VMIs.
+//   - a hotpluggable volume that exists in a running VMI but not in the VM
+//     spec (ephemeral hotplug) is automatically hot-unplugged by the
+//     declarative hotplug handler.
+//
+// Both cases converge once the VM is stopped, so like
+// checkNonLiveMigratableVMs this check is skipped when all VMs are shut down
+// during the upgrade anyway (single-node cluster or restore-vm mode).
+func (v *upgradeValidator) checkStaleHotplugVolumes() error {
+	allNodes, err := v.nodes.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	// VMs will be shut down during the upgrade process, which resolves both
+	// kinds of stale hotplug state
+	if len(util.ExcludeWitnessNodes(allNodes)) == 1 {
+		return nil
+	}
+
+	vms, err := v.vmCache.List(corev1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	var pendingRequestVMs []string
+	for _, vm := range vms {
+		if len(vm.Status.VolumeRequests) > 0 {
+			pendingRequestVMs = append(pendingRequestVMs, fmt.Sprintf("%s/%s", vm.Namespace, vm.Name))
+		}
+	}
+	if len(pendingRequestVMs) > 0 {
+		return werror.NewInvalidError(
+			fmt.Sprintf("There are VMs with pending volume hotplug requests (status.volumeRequests) which are no longer processed with the DeclarativeHotplugVolumes feature gate and block the VM reconciliation. Stop and start these VMs before initiating the upgrade: %s", strings.Join(pendingRequestVMs, ", ")), "",
+		)
+	}
+
+	vmis, err := v.vmiCache.List(corev1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	var ephemeralHotplugVMIs []string
+	for _, vmi := range vmis {
+		if !vmi.IsRunning() {
+			continue
+		}
+
+		vm, err := v.vmCache.Get(vmi.Namespace, vmi.Name)
+		if apierrors.IsNotFound(err) {
+			// a standalone VMI is not reconciled by the declarative hotplug handler
+			continue
+		} else if err != nil {
+			return err
+		}
+
+		vmVolumes := make(map[string]struct{})
+		if vm.Spec.Template != nil {
+			for _, vol := range vm.Spec.Template.Spec.Volumes {
+				vmVolumes[vol.Name] = struct{}{}
+			}
+		}
+
+		for i := range vmi.Spec.Volumes {
+			vol := &vmi.Spec.Volumes[i]
+			if !isHotpluggableVolume(vol) {
+				continue
+			}
+			if _, ok := vmVolumes[vol.Name]; !ok {
+				ephemeralHotplugVMIs = append(ephemeralHotplugVMIs, fmt.Sprintf("%s/%s (volume %s)", vmi.Namespace, vmi.Name, vol.Name))
+			}
+		}
+	}
+	if len(ephemeralHotplugVMIs) > 0 {
+		return werror.NewInvalidError(
+			fmt.Sprintf("There are running VMs with hot-plugged volumes that exist in the VMI but not in the VM spec. Such volumes are hot-unplugged automatically with the DeclarativeHotplugVolumes feature gate. Remove the volumes or make them persistent before initiating the upgrade: %s", strings.Join(ephemeralHotplugVMIs, ", ")), "",
+		)
+	}
+
+	return nil
+}
+
+func isHotpluggableVolume(vol *kubevirtv1.Volume) bool {
+	if vol.PersistentVolumeClaim != nil && vol.PersistentVolumeClaim.Hotpluggable {
+		return true
+	}
+	if vol.DataVolume != nil && vol.DataVolume.Hotpluggable {
+		return true
+	}
+	return false
 }
 
 func (v *upgradeValidator) Delete(_ *types.Request, oldObj runtime.Object) error {
