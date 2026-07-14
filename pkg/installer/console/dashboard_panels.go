@@ -310,7 +310,7 @@ func getVIP() string {
 	if current.firstHost {
 		cmd = `kubectl get configmap -n harvester-system vip -o jsonpath='{.data.ip}'`
 	} else {
-		cmd = `kubectl get svc -n kube-system ingress-expose -o jsonpath='{.status.loadBalancer.ingress[*].ip}'`
+		cmd = `kubectl get svc -n kube-system rke2-traefik -o jsonpath='{.status.loadBalancer.ingress[*].ip}'`
 	}
 
 	out, err := exec.Command("/bin/sh", "-c", cmd).Output()
