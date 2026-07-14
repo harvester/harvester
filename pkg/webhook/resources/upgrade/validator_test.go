@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -634,7 +635,7 @@ func Test_validateAddons(t *testing.T) {
 		clientset := fake.NewSimpleClientset()
 		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
 
-		validator := NewValidator(nil, fakeAddonCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*upgradeValidator)
+		validator := NewValidator(nil, fakeAddonCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*upgradeValidator)
 		addon := getTestAddon(tc.enabled)
 		if tc.addonState != "" {
 			setAddonState(addon, tc.addonState)
@@ -648,5 +649,141 @@ func Test_validateAddons(t *testing.T) {
 		} else {
 			assert.Nil(t, err, tc.name)
 		}
+	}
+}
+
+func TestUpgradeValidator_checkStaleHotplugVolumes(t *testing.T) {
+	newNode := func(name string) *corev1.Node {
+		return &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: name}}
+	}
+	hotplugVolume := func(name, claimName string) kubevirtv1.Volume {
+		return kubevirtv1.Volume{
+			Name: name,
+			VolumeSource: kubevirtv1.VolumeSource{
+				PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+					PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: claimName,
+					},
+					Hotpluggable: true,
+				},
+			},
+		}
+	}
+	newVM := func(name string, volumeRequests []kubevirtv1.VirtualMachineVolumeRequest, volumes ...kubevirtv1.Volume) *kubevirtv1.VirtualMachine {
+		return &kubevirtv1.VirtualMachine{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			Spec: kubevirtv1.VirtualMachineSpec{
+				Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{Volumes: volumes},
+				},
+			},
+			Status: kubevirtv1.VirtualMachineStatus{VolumeRequests: volumeRequests},
+		}
+	}
+	newVMI := func(name string, phase kubevirtv1.VirtualMachineInstancePhase, volumes ...kubevirtv1.Volume) *kubevirtv1.VirtualMachineInstance {
+		return &kubevirtv1.VirtualMachineInstance{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			Spec:       kubevirtv1.VirtualMachineInstanceSpec{Volumes: volumes},
+			Status:     kubevirtv1.VirtualMachineInstanceStatus{Phase: phase},
+		}
+	}
+
+	testCases := []struct {
+		name        string
+		nodes       []*corev1.Node
+		vms         []*kubevirtv1.VirtualMachine
+		vmis        []*kubevirtv1.VirtualMachineInstance
+		expectError bool
+		errorKey    string
+	}{
+		{
+			name:  "no stale hotplug state",
+			nodes: []*corev1.Node{newNode(node1), newNode(node2)},
+			vms:   []*kubevirtv1.VirtualMachine{newVM("vm1", nil)},
+			vmis:  []*kubevirtv1.VirtualMachineInstance{newVMI("vm1", kubevirtv1.Running)},
+		},
+		{
+			name:  "VM with pending volumeRequests is rejected",
+			nodes: []*corev1.Node{newNode(node1), newNode(node2)},
+			vms: []*kubevirtv1.VirtualMachine{
+				newVM("vm1", []kubevirtv1.VirtualMachineVolumeRequest{
+					{AddVolumeOptions: &kubevirtv1.AddVolumeOptions{Name: "disk-1"}},
+				}),
+			},
+			expectError: true,
+			errorKey:    "pending volume hotplug requests",
+		},
+		{
+			name:  "single-node cluster skips the check",
+			nodes: []*corev1.Node{newNode(node1)},
+			vms: []*kubevirtv1.VirtualMachine{
+				newVM("vm1", []kubevirtv1.VirtualMachineVolumeRequest{
+					{AddVolumeOptions: &kubevirtv1.AddVolumeOptions{Name: "disk-1"}},
+				}),
+			},
+		},
+		{
+			name:  "running VMI with hotplug volume missing from VM spec is rejected",
+			nodes: []*corev1.Node{newNode(node1), newNode(node2)},
+			vms:   []*kubevirtv1.VirtualMachine{newVM("vm1", nil)},
+			vmis: []*kubevirtv1.VirtualMachineInstance{
+				newVMI("vm1", kubevirtv1.Running, hotplugVolume("disk-1", "pvc-1")),
+			},
+			expectError: true,
+			errorKey:    "exist in the VMI but not in the VM spec",
+		},
+		{
+			name:  "running VMI with hotplug volume present in VM spec is allowed",
+			nodes: []*corev1.Node{newNode(node1), newNode(node2)},
+			vms:   []*kubevirtv1.VirtualMachine{newVM("vm1", nil, hotplugVolume("disk-1", "pvc-1"))},
+			vmis: []*kubevirtv1.VirtualMachineInstance{
+				newVMI("vm1", kubevirtv1.Running, hotplugVolume("disk-1", "pvc-1")),
+			},
+		},
+		{
+			name:  "non-running VMI with stale hotplug volume is allowed",
+			nodes: []*corev1.Node{newNode(node1), newNode(node2)},
+			vms:   []*kubevirtv1.VirtualMachine{newVM("vm1", nil)},
+			vmis: []*kubevirtv1.VirtualMachineInstance{
+				newVMI("vm1", kubevirtv1.Succeeded, hotplugVolume("disk-1", "pvc-1")),
+			},
+		},
+		{
+			name:  "standalone VMI without a VM is ignored",
+			nodes: []*corev1.Node{newNode(node1), newNode(node2)},
+			vmis: []*kubevirtv1.VirtualMachineInstance{
+				newVMI("vmi-only", kubevirtv1.Running, hotplugVolume("disk-1", "pvc-1")),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			objs := make([]runtime.Object, 0, len(tc.nodes)+len(tc.vms)+len(tc.vmis))
+			for _, node := range tc.nodes {
+				objs = append(objs, node)
+			}
+			for _, vm := range tc.vms {
+				objs = append(objs, vm)
+			}
+			for _, vmi := range tc.vmis {
+				objs = append(objs, vmi)
+			}
+			clientset := fake.NewSimpleClientset(objs...)
+			validator := &upgradeValidator{
+				nodes:    fakeclients.NodeCache(clientset.CoreV1().Nodes),
+				vmCache:  fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+				vmiCache: fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+			}
+
+			err := validator.checkStaleHotplugVolumes()
+
+			if tc.expectError {
+				assert.NotNil(t, err, tc.name)
+				assert.Contains(t, err.Error(), tc.errorKey, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
 	}
 }
