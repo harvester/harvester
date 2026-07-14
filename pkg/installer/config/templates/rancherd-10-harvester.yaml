@@ -35,6 +35,12 @@ resources:
         config:
           proxy-body-size: "0"
           proxy-request-buffering: "off"
+          # Raise the default 60-second upstream timeouts to 30 minutes so
+          # image uploads that finish with a long qcow2 conversion tail do
+          # not fail with "context canceled". See harvester/harvester#9313
+          # for the documented failure mode.
+          proxy-read-timeout: "1800"
+          proxy-send-timeout: "1800"
         admissionWebhooks:
           port: 8444
         publishService:
