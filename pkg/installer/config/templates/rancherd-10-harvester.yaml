@@ -24,23 +24,6 @@ resources:
       release: rancher-monitoring
     name: rancher-monitoring-operator
     namespace: cattle-monitoring-system
-- apiVersion: helm.cattle.io/v1
-  kind: HelmChartConfig
-  metadata:
-    name: rke2-ingress-nginx
-    namespace: kube-system
-  spec:
-    valuesContent: |-
-      controller:
-        config:
-          proxy-body-size: "0"
-          proxy-request-buffering: "off"
-        admissionWebhooks:
-          port: 8444
-        publishService:
-          pathOverride: kube-system/ingress-expose
-        extraArgs:
-          default-ssl-certificate: cattle-system/tls-rancher-internal
 - apiVersion: v1
   kind: Secret
   metadata:
