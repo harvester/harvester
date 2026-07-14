@@ -342,6 +342,12 @@ func (v *vmValidator) checkVolumeReq(newVM *kubevirtv1.VirtualMachine) error {
 	// this case needs to be treated differently from a standard image scenario as user will boot directly from disk
 	imported := util.IsImportedByVMIC(newVM)
 
+	// status.volumeRequests is only populated by the KubeVirt hotplug
+	// subresource API when the HotplugVolumes feature gate is enabled. With
+	// the default DeclarativeHotplugVolumes-only configuration, virt-api
+	// patches the VM spec directly and this loop never sees any request; it
+	// is kept as a defense for clusters that manually re-enable the
+	// HotplugVolumes gate.
 	for _, volReq := range newVM.Status.VolumeRequests {
 		if volReq.AddVolumeOptions == nil {
 			continue
