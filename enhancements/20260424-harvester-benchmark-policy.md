@@ -42,7 +42,7 @@ I want profiling data so that I can identify bottlenecks, catch potential OOMs b
 - **Per-component resource profiling**: CPU/memory consumption of each pod as VM count grows, to understand which component becomes the bottleneck first (e.g., instance-manager at ~20 GiB per pod with 149 volumes).
 - **Memory pressure analysis**: Identify components at risk of OOM — comparing scheduler-reserved memory vs actual RSS, and flagging components where actual consumption grows disproportionately with VM count.
 - **Upgrade per-phase timing**: Break down upgrade duration into pre-drain, node drain, post-drain, and total, so we can pinpoint which phase is slow and whether optimizations reduce it (see [#10421](https://github.com/harvester/harvester/issues/10421)).
-- **VM migration profiling**: Duration and resource cost of live migration under varying VM sizes and storage backends, since migration involves both network and storage I/O.
+- **VM migration profiling**: Duration and resource cost of live migration under varying VM sizes and storage backends, since migration involves both network and storage I/O. Include VMs using overlay network (Kube-OVN) to measure the additional encapsulation overhead during migration.
 - **CSI driver throughput under load**: Whether the Harvester CSI driver can keep up during rapid guest node shutdown/recreation before Longhorn times out.
 
 ### User Experience In Detail
@@ -84,12 +84,13 @@ The benchmark policy is organized into two categories. Each defines scope, tooli
 
 - **Scope**: CPU and memory consumption of each Harvester component at idle and under maximum VM density, including VM creation latency metrics.
 - **Tooling**:
-  - `kubectl top pods` — per-pod CPU/memory usage.
-  - `ps -C containerd,kubelet,rke2 -o rss=` — host-level process RSS.
-  - `grep -E 'MemTotal|MemFree|MemAvailable|SReclaimable' /proc/meminfo` — host memory allocation.
-  - `kubectl describe node | grep -A5 'Allocated resources'` — scheduler CPU/memory resource allocation.
+  - Prometheus (enabled via monitoring stack) — primary source for time-series CPU/memory metrics during the entire benchmark run.
+    - Pod CPU usage: `sum(rate(container_cpu_usage_seconds_total{container!="", container!="POD"}[5m])) by (namespace, pod)`
+    - Pod memory working set: `sum(container_memory_working_set_bytes{container!="", container!="POD"}) by (namespace, pod)`
+    - CPU usage vs limit ratio: `sum(rate(container_cpu_usage_seconds_total{container!="", container!="POD"}[5m])) by (namespace, pod) / sum(kube_pod_container_resource_limits{resource="cpu"}) by (namespace, pod) * 100`
+    - Memory usage vs limit ratio: `sum(container_memory_working_set_bytes{container!="", container!="POD"}) by (namespace, pod) / sum(kube_pod_container_resource_limits{resource="memory"}) by (namespace, pod) * 100`
+  - Prometheus / kube-state-metrics — resource requests and limits per pod/namespace for reserved-vs-actual comparisons.
   - `etcdctl endpoint status` — etcd db size.
-  - Prometheus (enabled via monitoring stack) — query `kubevirt_vmi_phase_transition_time_from_creation_seconds` and component metrics.
   - KubeVirt [perfscale-audit](https://github.com/kubevirt/kubevirt/tree/main/tools/perfscale-audit) tool — connects to Prometheus for VM creation latency queries.
 - **Topology**:
   - Single-node: 1 control-plane node, no worker nodes.
@@ -99,24 +100,26 @@ The benchmark policy is organized into two categories. Each defines scope, tooli
   - Adopt VM creation latency measurement from [KubeVirt perf-scale-benchmarks](https://github.com/kubevirt/kubevirt/blob/main/docs/perf-scale-benchmarks.md) (PromQL queries).
   - **Phase 1: Idle baseline**
     - Ensure monitoring stack is running and all pods are Ready.
-    - Measure resource consumption with 0 VMs to establish platform baseline.
-    - Capture per-namespace breakdown: `kube-system`, `harvester-system`, `longhorn-system`, `cattle-system`, `cattle-monitoring-system`.
+    - Record Prometheus time-series for CPU and memory with 0 VMs to establish platform baseline; report min/avg/max over the observation window rather than a single point-in-time snapshot.
+    - Capture per-namespace and per-pod breakdown: `kube-system`, `harvester-system`, `longhorn-system`, `cattle-system`, `cattle-monitoring-system`.
   - **Phase 2: VM creation and scaling**
     - Create VMs incrementally with 100ms interval (minimal spec: Cirros or Alpine, 100m CPU, 128Mi memory) until the scheduler rejects new VMs.
-    - **During VM creation**, capture VM creation latency via Prometheus:
+    - **During VM creation**, capture VM creation latency and component resource usage via Prometheus:
       - `kubevirt_vmi_phase_transition_time_from_creation_seconds` (histogram) — P50, P95, P99.
+      - Per-pod CPU and memory time-series to identify transient spikes and bottlenecks during the run.
       - Total time from first VM creation to last VM reaching Running (batch throughput).
     - Record the maximum VM count and identify the bottleneck resource (CPU, memory).
-    - Capture per-component resource consumption at max VM density (same metrics as Phase 1).
+    - Capture per-component resource consumption at max VM density using the same Prometheus metrics as Phase 1, and report peak as well as average usage.
     - Ensure workloads are evenly distributed among workers to avoid skewed results.
   - Compare single-node vs multi-node to understand how platform overhead scales with node count.
   - **User-reproducible script**: Provide a standalone script with VM manifest templates and PromQL queries so users can run in their own environment to validate expected resource footprint and VM creation performance.
 - **Key metrics**:
   - **Resource consumption**:
-    - Platform idle cost: total CPU (millicores) and memory (MiB) with 0 VMs, broken down by namespace.
+    - Platform idle cost: total CPU (millicores) and memory (MiB) with 0 VMs, reported as min/avg/max and broken down by namespace.
     - Monitoring stack overhead: CPU/memory of `cattle-monitoring-system`, Prometheus TSDB size (MiB).
     - Maximum VM count before scheduler rejects, and the bottleneck resource.
-    - Scheduler-reserved vs actual physical consumption ratio.
+    - Scheduler-reserved vs actual consumption ratio.
+    - Peak per-pod CPU and memory working set during the scaling run.
     - etcd db size (MiB).
   - **VM creation latency** (captured during Phase 2):
     - P50, P95, P99 (seconds from VMI creation to Running state).
@@ -143,7 +146,7 @@ The benchmark policy is organized into two categories. Each defines scope, tooli
     - **Kube-OVN enabled**: Test with Kube-OVN networking to measure its impact on VM network performance (compare against default Canal/Multus).
     - **Longhorn storage profiles**:
       - **Local-single-replica**: Set Longhorn volume replicas to 1 and place the workload on the node hosting that replica to measure stack overhead without Longhorn replication traffic.
-      - **Replicated**: Set Longhorn volume replicas to 2 to measure replication overhead on storage throughput.
+      - **Replicated**: Set Longhorn volume replicas to 3 to measure replication overhead on storage throughput.
   - **Inter-node bandwidth**: Measured via iperf3 before benchmark runs to confirm line rate (record actual observed bandwidth).
 - **Methodology**: [Harvester Performance wiki](https://github.com/harvester/harvester/wiki/Harvester-Performance-Result).
   - **Storage overhead (layered testing)**:
@@ -153,6 +156,9 @@ The benchmark policy is organized into two categories. Each defines scope, tooli
   - **Network overhead (layered testing)**:
     - **Layer 0 (Raw Device)**: Confirm inter-node line rate via iperf3 between bare metal nodes or host pods.
     - **Layer 1 (VM network)**: iperf3 between two VMs on different nodes to measure guest network throughput.
+    - **Jumbo frames**: Test with MTU 9000 to verify fragmentation/reassembly overhead compared to standard MTU 1500.
+    - **Bond modes**: Benchmark different NIC bonding configurations (active-backup vs 802.3ad LACP) to measure throughput differences.
+    - **Hardware variation**: Test across different NIC vendors (BCM, Dell, etc.) where lab hardware is available, as driver performance can vary.
   - **Prometheus monitoring during tests**:
     - Capture time-series data during the entire fio/iperf3 run.
     - Track node-level metrics to identify bottlenecks (see Prometheus metrics section).
