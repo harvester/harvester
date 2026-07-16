@@ -427,22 +427,36 @@ spec:
               smm:
                 enabled: true
               hyperv:
-                relaxed: {enabled: true}
-                vapic: {enabled: true}
-                spinlocks: {enabled: true, spinlocks: 8191}
-                vpindex: {enabled: true}
-                synic: {enabled: true}
-                synictimer: {enabled: true}
-                ipi: {enabled: true}
-                runtime: {enabled: true}
-                reset: {enabled: true}
+                relaxed:
+                  enabled: true
+                vapic:
+                  enabled: true
+                spinlocks:
+                  enabled: true
+                  spinlocks: 8191
+                vpindex:
+                  enabled: true
+                synic:
+                  enabled: true
+                synictimer:
+                  enabled: true
+                ipi:
+                  enabled: true
+                runtime:
+                  enabled: true
+                reset:
+                  enabled: true
             clock:
               utc: {}
               timer:
-                hpet: {present: false}
-                hyperv: {present: true}
-                pit: {tickPolicy: delay}
-                rtc: {tickPolicy: catchup}
+                hpet:
+                  present: false
+                hyperv:
+                  present: true
+                pit:
+                  tickPolicy: delay
+                rtc:
+                  tickPolicy: catchup
             cpu:
               cores: 1
             devices:
@@ -526,22 +540,36 @@ spec:
               smm:
                 enabled: true
               hyperv:
-                relaxed: {enabled: true}
-                vapic: {enabled: true}
-                spinlocks: {enabled: true, spinlocks: 8191}
-                vpindex: {enabled: true}
-                synic: {enabled: true}
-                synictimer: {enabled: true}
-                ipi: {enabled: true}
-                runtime: {enabled: true}
-                reset: {enabled: true}
+                relaxed:
+                  enabled: true
+                vapic:
+                  enabled: true
+                spinlocks:
+                  enabled: true
+                  spinlocks: 8191
+                vpindex:
+                  enabled: true
+                synic:
+                  enabled: true
+                synictimer:
+                  enabled: true
+                ipi:
+                  enabled: true
+                runtime:
+                  enabled: true
+                reset:
+                  enabled: true
             clock:
               utc: {}
               timer:
-                hpet: {present: false}
-                hyperv: {present: true}
-                pit: {tickPolicy: delay}
-                rtc: {tickPolicy: catchup}
+                hpet:
+                  present: false
+                hyperv:
+                  present: true
+                pit:
+                  tickPolicy: delay
+                rtc:
+                  tickPolicy: catchup
             cpu:
               cores: 1
             devices:
@@ -636,26 +664,43 @@ spec:
           evictionStrategy: LiveMigrateIfPossible
           domain:
             features:
-              acpi: {enabled: true}
-              apic: {enabled: true}
-              smm:  {enabled: true}
+              acpi:
+                enabled: true
+              apic:
+                enabled: true
+              smm:
+                enabled: true
               hyperv:
-                relaxed:    {enabled: true}
-                vapic:      {enabled: true}
-                spinlocks:  {enabled: true, spinlocks: 8191}
-                vpindex:    {enabled: true}
-                synic:      {enabled: true}
-                synictimer: {enabled: true}
-                ipi:        {enabled: true}
-                runtime:    {enabled: true}
-                reset:      {enabled: true}
+                relaxed:
+                  enabled: true
+                vapic:
+                  enabled: true
+                spinlocks:
+                  enabled: true
+                  spinlocks: 8191
+                vpindex:
+                  enabled: true
+                synic:
+                  enabled: true
+                synictimer:
+                  enabled: true
+                ipi:
+                  enabled: true
+                runtime:
+                  enabled: true
+                reset:
+                  enabled: true
             clock:
               utc: {}
               timer:
-                hpet:   {present: false}
-                hyperv: {present: true}
-                pit:    {tickPolicy: delay}
-                rtc:    {tickPolicy: catchup}
+                hpet:
+                  present: false
+                hyperv:
+                  present: true
+                pit:
+                  tickPolicy: delay
+                rtc:
+                  tickPolicy: catchup
             cpu:
               cores: 2
             devices:
@@ -750,26 +795,43 @@ spec:
           evictionStrategy: LiveMigrateIfPossible
           domain:
             features:
-              acpi: {enabled: true}
-              apic: {enabled: true}
-              smm:  {enabled: true}
+              acpi:
+                enabled: true
+              apic:
+                enabled: true
+              smm:
+                enabled: true
               hyperv:
-                relaxed:    {enabled: true}
-                vapic:      {enabled: true}
-                spinlocks:  {enabled: true, spinlocks: 8191}
-                vpindex:    {enabled: true}
-                synic:      {enabled: true}
-                synictimer: {enabled: true}
-                ipi:        {enabled: true}
-                runtime:    {enabled: true}
-                reset:      {enabled: true}
+                relaxed:
+                  enabled: true
+                vapic:
+                  enabled: true
+                spinlocks:
+                  enabled: true
+                  spinlocks: 8191
+                vpindex:
+                  enabled: true
+                synic:
+                  enabled: true
+                synictimer:
+                  enabled: true
+                ipi:
+                  enabled: true
+                runtime:
+                  enabled: true
+                reset:
+                  enabled: true
             clock:
               utc: {}
               timer:
-                hpet:   {present: false}
-                hyperv: {present: true}
-                pit:    {tickPolicy: delay}
-                rtc:    {tickPolicy: catchup}
+                hpet:
+                  present: false
+                hyperv:
+                  present: true
+                pit:
+                  tickPolicy: delay
+                rtc:
+                  tickPolicy: catchup
             cpu:
               cores: 4
             devices:
@@ -864,26 +926,43 @@ spec:
           evictionStrategy: LiveMigrateIfPossible
           domain:
             features:
-              acpi: {enabled: true}
-              apic: {enabled: true}
-              smm:  {enabled: true}
+              acpi:
+                enabled: true
+              apic:
+                enabled: true
+              smm:
+                enabled: true
               hyperv:
-                relaxed:    {enabled: true}
-                vapic:      {enabled: true}
-                spinlocks:  {enabled: true, spinlocks: 8191}
-                vpindex:    {enabled: true}
-                synic:      {enabled: true}
-                synictimer: {enabled: true}
-                ipi:        {enabled: true}
-                runtime:    {enabled: true}
-                reset:      {enabled: true}
+                relaxed:
+                  enabled: true
+                vapic:
+                  enabled: true
+                spinlocks:
+                  enabled: true
+                  spinlocks: 8191
+                vpindex:
+                  enabled: true
+                synic:
+                  enabled: true
+                synictimer:
+                  enabled: true
+                ipi:
+                  enabled: true
+                runtime:
+                  enabled: true
+                reset:
+                  enabled: true
             clock:
               utc: {}
               timer:
-                hpet:   {present: false}
-                hyperv: {present: true}
-                pit:    {tickPolicy: delay}
-                rtc:    {tickPolicy: catchup}
+                hpet:
+                  present: false
+                hyperv:
+                  present: true
+                pit:
+                  tickPolicy: delay
+                rtc:
+                  tickPolicy: catchup
             cpu:
               cores: 8
             devices:
@@ -982,26 +1061,43 @@ spec:
                 efi:
                   secureBoot: true
             features:
-              acpi: {enabled: true}
-              apic: {enabled: true}
-              smm:  {enabled: true}
+              acpi:
+                enabled: true
+              apic:
+                enabled: true
+              smm:
+                enabled: true
               hyperv:
-                relaxed:    {enabled: true}
-                vapic:      {enabled: true}
-                spinlocks:  {enabled: true, spinlocks: 8191}
-                vpindex:    {enabled: true}
-                synic:      {enabled: true}
-                synictimer: {enabled: true}
-                ipi:        {enabled: true}
-                runtime:    {enabled: true}
-                reset:      {enabled: true}
+                relaxed:
+                  enabled: true
+                vapic:
+                  enabled: true
+                spinlocks:
+                  enabled: true
+                  spinlocks: 8191
+                vpindex:
+                  enabled: true
+                synic:
+                  enabled: true
+                synictimer:
+                  enabled: true
+                ipi:
+                  enabled: true
+                runtime:
+                  enabled: true
+                reset:
+                  enabled: true
             clock:
               utc: {}
               timer:
-                hpet:   {present: false}
-                hyperv: {present: true}
-                pit:    {tickPolicy: delay}
-                rtc:    {tickPolicy: catchup}
+                hpet:
+                  present: false
+                hyperv:
+                  present: true
+                pit:
+                  tickPolicy: delay
+                rtc:
+                  tickPolicy: catchup
             cpu:
               cores: 4
             devices:
