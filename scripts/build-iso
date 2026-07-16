@@ -31,7 +31,7 @@ prepare_rancherd_bundle() {
     local list_file="${BUNDLE_DIR}/rancherd/images/rancherd-bootstrap-images-${VERSION}.txt"
     local archive="${BUNDLE_DIR}/rancherd/images/rancherd-bootstrap-images-${VERSION}.tar.zst"
 
-    sed "s,\$RKE2_VERSION,${RKE2_VERSION_NORMALIZED}," \
+    sed "s,\$RKE2_VERSION,${RKE2_VERSION_NORMALIZED},g; s,\$RANCHER_VERSION,${RANCHER_VERSION},g" \
         "${SCRIPTS_DIR}/images/rancherd-bootstrap-images.txt" > "${list_file}"
 
     local key
