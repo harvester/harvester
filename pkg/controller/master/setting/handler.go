@@ -44,6 +44,7 @@ var (
 		settings.OvercommitConfigSettingName,
 		// always run this when Harvester POD starts
 		settings.AdditionalGuestMemoryOverheadRatioName,
+		settings.TraefikDefaultTLSOptionsSettingName,
 	}
 	skipHashCheckSettings = []string{
 		settings.AutoRotateRKE2CertsSettingName,
