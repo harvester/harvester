@@ -1,6 +1,8 @@
 rke2-images-multus:
   - docker.io/rancher/hardened-multus-cni
   - docker.io/rancher/hardened-cni-plugins
+rke2-images-traefik:
+  - docker.io/rancher/hardened-traefik
 rancher:
   - docker.io/rancher/rancher
   - docker.io/rancher/system-agent
