@@ -97,6 +97,77 @@ func TestGetStorageClassName(t *testing.T) {
 			},
 			ex: output{name: "lh-abcdefghi-jklmno-pqrstu-123456"},
 		},
+		{
+			desc: "Restore StorageClass from backingImage URL parameter when none exists",
+			in: input{
+				storageclasses: []*storagev1.StorageClass{},
+				vmi: &harvesterv1.VirtualMachineImage{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "image-foobar",
+						UID:  "abcdefghi-jklmno-pqrstu-123456",
+					},
+					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend:    harvesterv1.VMIBackendBackingImage,
+						SourceType: harvesterv1.VirtualMachineImageSourceTypeRestore,
+						URL:        "s3://mybucket@pcloud/?backingImage=vmi-06791a48-8d0d-4895-999b-28296f0e1c10",
+					},
+				},
+			},
+			ex: output{name: "lh-06791a48-8d0d-4895-999b-28296f0e1c10"},
+		},
+		{
+			desc: "Restore StorageClass uses existing legacy name",
+			in: input{
+				storageclasses: []*storagev1.StorageClass{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "longhorn-image-foobar",
+						},
+					},
+				},
+				vmi: &harvesterv1.VirtualMachineImage{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "image-foobar",
+						UID:  "abcdefghi-jklmno-pqrstu-123456",
+					},
+					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend:    harvesterv1.VMIBackendBackingImage,
+						SourceType: harvesterv1.VirtualMachineImageSourceTypeRestore,
+						URL:        "s3://mybucket@pcloud/?backingImage=vmi-06791a48-8d0d-4895-999b-28296f0e1c10",
+					},
+				},
+			},
+			ex: output{name: "longhorn-image-foobar"},
+		},
+		{
+			desc: "Restore StorageClass uses existing URL-derived name",
+			in: input{
+				storageclasses: []*storagev1.StorageClass{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "lh-06791a48-8d0d-4895-999b-28296f0e1c10",
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "longhorn-image-foobar",
+						},
+					},
+				},
+				vmi: &harvesterv1.VirtualMachineImage{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "image-foobar",
+						UID:  "abcdefghi-jklmno-pqrstu-123456",
+					},
+					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend:    harvesterv1.VMIBackendBackingImage,
+						SourceType: harvesterv1.VirtualMachineImageSourceTypeRestore,
+						URL:        "s3://mybucket@pcloud/?backingImage=vmi-06791a48-8d0d-4895-999b-28296f0e1c10",
+					},
+				},
+			},
+			ex: output{name: "lh-06791a48-8d0d-4895-999b-28296f0e1c10"},
+		},
 	}
 
 	for _, tc := range testcases {
