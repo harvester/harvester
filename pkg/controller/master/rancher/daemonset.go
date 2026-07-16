@@ -93,6 +93,10 @@ func (h *Handler) triggerTLSCertificateSettingUpdate() error {
 		return fmt.Errorf("error looking up ssl certificate setting: %w", err)
 	}
 
+	if tlsCertificateSetting.Annotations == nil {
+		tlsCertificateSetting.Annotations = make(map[string]string)
+	}
+
 	tlsCertificateSettingCopy := tlsCertificateSetting.DeepCopy()
 	// update the setting value with the same value to trigger the change handler
 	delete(tlsCertificateSettingCopy.Annotations, util.AnnotationHash)

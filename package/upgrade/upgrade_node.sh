@@ -379,6 +379,9 @@ command_pre_drain() {
 
   remove_rke2_canal_config
   disable_rke2_charts
+
+  # switch ingress
+  switch_ingress
 }
 
 get_node_rke2_version() {
@@ -839,7 +842,6 @@ command_post_drain() {
 
   generate_hostname_persistance
 
-  switch_ingress
   upgrade_os
 }
 
@@ -871,6 +873,9 @@ command_single_node_upgrade() {
   set_reserved_resource
   set_rke2_device_permissions
   set_oem_cleanup_kubelet
+
+  # switch ingress
+  switch_ingress
   # Upgarde RKE2
   upgrade_rke2
 
@@ -880,7 +885,7 @@ command_single_node_upgrade() {
   generate_networkmanager_config
 
   generate_hostname_persistance
-  switch_ingress
+  
   # Upgrade OS
   upgrade_os
 }
