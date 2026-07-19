@@ -323,6 +323,9 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 	if err := v.checkOccupiedPVCs(vm); err != nil {
 		return err
 	}
+	if err := v.checkShareableVolumes(vm); err != nil {
+		return err
+	}
 	if err := v.checkTerminationGracePeriodSeconds(vm); err != nil {
 		return err
 	}
@@ -375,6 +378,68 @@ func (v *vmValidator) checkVolumeReq(newVM *kubevirtv1.VirtualMachine) error {
 			if pvc.Annotations[util.AnnotationGoldenImage] == "true" {
 				return werror.NewInvalidError(fmt.Sprintf("PVC %s/%s is a golden image, it can't be used as a hotplug volume in VM", pvcNS, pvcName), "status.volumeRequests")
 			}
+		}
+	}
+	return nil
+}
+
+// checkShareableVolumes validates every disk with shareable enabled:
+//   - the backing volume must be a PVC that passes CheckShareableVolume
+//     (block-mode RWX from a provisioner other than Longhorn). KubeVirt has no
+//     admission validation on shareable at all, so this webhook is the only gate.
+//   - the disk cache must be unset or none; virt-launcher rejects other cache
+//     modes at VM start, we surface the error at admission instead.
+//   - the disk must not be the boot disk.
+func (v *vmValidator) checkShareableVolumes(vm *kubevirtv1.VirtualMachine) error {
+	if vm.Spec.Template == nil {
+		return nil
+	}
+
+	volumes := vm.Spec.Template.Spec.Volumes
+	volumesByName := make(map[string]*corev1.PersistentVolumeClaimVolumeSource, len(volumes))
+	for i := range volumes {
+		if volumes[i].PersistentVolumeClaim != nil {
+			volumesByName[volumes[i].Name] = &volumes[i].PersistentVolumeClaim.PersistentVolumeClaimVolumeSource
+		}
+	}
+
+	disks := vm.Spec.Template.Spec.Domain.Devices.Disks
+	anyBootOrder := false
+	for i := range disks {
+		if disks[i].BootOrder != nil {
+			anyBootOrder = true
+			break
+		}
+	}
+
+	for i := range disks {
+		disk := &disks[i]
+		if disk.Shareable == nil || !*disk.Shareable {
+			continue
+		}
+
+		// without any explicit bootOrder the first disk boots
+		if (disk.BootOrder != nil && *disk.BootOrder == 1) || (!anyBootOrder && i == 0) {
+			return werror.NewInvalidError(
+				fmt.Sprintf("disk %s cannot be shareable: a shareable disk cannot be used as the boot disk", disk.Name),
+				"spec.template.spec.domain.devices.disks")
+		}
+
+		if disk.Cache != "" && disk.Cache != kubevirtv1.CacheNone {
+			return werror.NewInvalidError(
+				fmt.Sprintf("disk %s cannot be shareable: a shareable disk requires cache mode none, got %s", disk.Name, disk.Cache),
+				"spec.template.spec.domain.devices.disks")
+		}
+
+		pvcSource, ok := volumesByName[disk.Name]
+		if !ok {
+			return werror.NewInvalidError(
+				fmt.Sprintf("disk %s cannot be shareable: a shareable disk must be backed by a persistent volume claim", disk.Name),
+				"spec.template.spec.volumes")
+		}
+
+		if err := vmutil.CheckShareableVolume(v.pvcCache, v.scCache, vm.Namespace, pvcSource.ClaimName); err != nil {
+			return werror.NewInvalidError(err.Error(), "spec.template.spec.volumes")
 		}
 	}
 	return nil
