@@ -1,0 +1,192 @@
+name: build hotfix images
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to push, must start with "hotfix" (e.g. hotfix-v1.8.2-issue1234)'
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.image_tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate-inputs:
+    name: Validate inputs
+    runs-on: ubuntu-latest
+    steps:
+    - name: Validate branch and image tag
+      env:
+        BRANCH: ${{ github.ref_name }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
+      run: |
+        if [[ ! "$BRANCH" =~ ^v[0-9]+\.[0-9]+$ ]]; then
+          echo "this workflow must be dispatched on a version branch like v1.8, got: $BRANCH"
+          exit 1
+        fi
+        if [[ ! "$IMAGE_TAG" =~ ^hotfix[a-zA-Z0-9._-]*$ ]]; then
+          echo "image_tag must start with \"hotfix\" and be a valid image tag, got: $IMAGE_TAG"
+          exit 1
+        fi
+
+  build-binaries:
+    name: Build binaries
+    runs-on: runs-on,runner=4cpu-linux-${{ matrix.arch }},hdd=50,run-id=${{ github.run_id }}
+    needs: validate-inputs
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+    # Build binaries
+    - name: Run make ci
+      if: ${{ matrix.arch == 'x64' }}
+      run: make ci
+    - name: Run make arm
+      if: ${{ matrix.arch == 'arm64' }}
+      run: make arm
+
+    - name: Upload binaries
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: binaries_${{ matrix.arch }}_artifact
+        path: ./bin/*
+
+  build-push-images:
+    name: Build and push images
+    runs-on: runs-on,runner=4cpu-linux-${{ matrix.arch }},run-id=${{ github.run_id }}
+    needs: build-binaries
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+    permissions:
+      contents: read
+      id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+    - name: Configure arch to amd64/arm64
+      run: |
+        if [ "${{ matrix.arch }}" == "x64" ]; then
+          echo "arch=amd64" >> "$GITHUB_ENV"
+        else
+          echo "arch=arm64" >> "$GITHUB_ENV"
+        fi
+
+    - name: Download binaries
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      with:
+        name: binaries_${{ matrix.arch }}_artifact
+        path: ./bin/
+
+    - name: Add executable permission
+      run: |
+        chmod +x ./bin/*
+
+    - name: Copy bin folder to package
+      run: |
+        cp -r ./bin/harvester ./package/
+        cp -r ./bin/harvester-webhook ./package/
+        cp -r ./bin/upgrade-helper ./package/upgrade/
+
+    - name: Read Secrets
+      uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # main
+      with:
+        secrets: |
+          secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
+          secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD ;
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      with:
+        username: ${{ env.DOCKER_USERNAME }}
+        password: ${{ env.DOCKER_PASSWORD }}
+
+    # rancher/harvester image
+    - name: docker-publish-harvester
+      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      with:
+        context: package/
+        push: true
+        platforms: linux/${{ env.arch }}
+        tags: rancher/harvester:${{ inputs.image_tag }}-${{ env.arch }}
+        file: package/Dockerfile
+        build-args: |
+          ARCH=${{ env.arch }}
+          VERSION=${{ inputs.image_tag }}
+
+    # rancher/harvester-webhook image
+    - name: docker-publish-harvester-webhook
+      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      with:
+        context: package/
+        push: true
+        platforms: linux/${{ env.arch }}
+        tags: rancher/harvester-webhook:${{ inputs.image_tag }}-${{ env.arch }}
+        file: package/Dockerfile.webhook
+        build-args: |
+          ARCH=${{ env.arch }}
+          VERSION=${{ inputs.image_tag }}
+
+    - name: generate addon manifests
+      run: make generate-addons
+
+    # rancher/harvester-upgrade image
+    - name: docker-publish-harvester-upgrade
+      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      with:
+        context: package/upgrade
+        push: true
+        platforms: linux/${{ env.arch }}
+        tags: rancher/harvester-upgrade:${{ inputs.image_tag }}-${{ env.arch }}
+        file: package/upgrade/Dockerfile
+        build-args: |
+          ARCH=${{ env.arch }}
+          VERSION=${{ inputs.image_tag }}
+          HARVESTER_INSTALLER_REF=${{ format('{0}-head', github.ref_name) }}
+
+  manifest-images:
+    name: Manifest images
+    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
+    needs: build-push-images
+    permissions:
+      contents: read
+      id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
+    steps:
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+    - name: Read Secrets
+      uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # main
+      with:
+        secrets: |
+          secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
+          secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD ;
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      with:
+        username: ${{ env.DOCKER_USERNAME }}
+        password: ${{ env.DOCKER_PASSWORD }}
+
+    - name: Create multi-arch manifests
+      run: |
+        for image in harvester harvester-webhook harvester-upgrade; do
+          docker pull --platform linux/amd64 rancher/${image}:${{ inputs.image_tag }}-amd64
+          docker pull --platform linux/arm64 rancher/${image}:${{ inputs.image_tag }}-arm64
+          docker buildx imagetools create -t rancher/${image}:${{ inputs.image_tag }} \
+            rancher/${image}:${{ inputs.image_tag }}-amd64 \
+            rancher/${image}:${{ inputs.image_tag }}-arm64
+        done
