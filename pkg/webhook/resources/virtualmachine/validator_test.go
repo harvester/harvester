@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	corefake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -1802,6 +1803,147 @@ func TestCheckTargetVolumes(t *testing.T) {
 				}
 			} else {
 				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func TestCheckShareableVolumes(t *testing.T) {
+	blockMode := corev1.PersistentVolumeBlock
+	fsMode := corev1.PersistentVolumeFilesystem
+
+	newPVC := func(name, provisioner string, accessMode corev1.PersistentVolumeAccessMode, volumeMode *corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
+		return &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        name,
+				Namespace:   "default",
+				Annotations: map[string]string{util.AnnStorageProvisioner: provisioner},
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{accessMode},
+				VolumeMode:  volumeMode,
+			},
+		}
+	}
+
+	pvcVolume := func(name, claimName string) kubevirtv1.Volume {
+		return kubevirtv1.Volume{
+			Name: name,
+			VolumeSource: kubevirtv1.VolumeSource{
+				PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+					PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{ClaimName: claimName},
+				},
+			},
+		}
+	}
+
+	// rootdisk boots (bootOrder 1), data disk carries the shareable flag
+	newVM := func(dataDisk kubevirtv1.Disk, volumes ...kubevirtv1.Volume) *kubevirtv1.VirtualMachine {
+		rootDisk := kubevirtv1.Disk{Name: "rootdisk", BootOrder: ptr.To(uint(1))}
+		return &kubevirtv1.VirtualMachine{
+			ObjectMeta: metav1.ObjectMeta{Name: "vm1", Namespace: "default"},
+			Spec: kubevirtv1.VirtualMachineSpec{
+				Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							Devices: kubevirtv1.Devices{Disks: []kubevirtv1.Disk{rootDisk, dataDisk}},
+						},
+						Volumes: append([]kubevirtv1.Volume{pvcVolume("rootdisk", "root-pvc")}, volumes...),
+					},
+				},
+			},
+		}
+	}
+
+	shareableDisk := kubevirtv1.Disk{Name: "datadisk", Shareable: ptr.To(true)}
+
+	tests := []struct {
+		name     string
+		pvc      *corev1.PersistentVolumeClaim
+		vm       *kubevirtv1.VirtualMachine
+		errorKey string
+	}{
+		{
+			name: "non-shareable disks pass",
+			vm:   newVM(kubevirtv1.Disk{Name: "datadisk"}, pvcVolume("datadisk", "data-pvc")),
+		},
+		{
+			name: "shareable RWX block third-party volume passes",
+			pvc:  newPVC("data-pvc", "some.san.csi.io", corev1.ReadWriteMany, &blockMode),
+			vm:   newVM(shareableDisk, pvcVolume("datadisk", "data-pvc")),
+		},
+		{
+			name:     "shareable PVC not found rejected (requires an existing volume)",
+			vm:       newVM(shareableDisk, pvcVolume("datadisk", "data-pvc")),
+			errorKey: "requires an existing volume",
+		},
+		{
+			name:     "shareable RWO volume rejected",
+			pvc:      newPVC("data-pvc", "some.san.csi.io", corev1.ReadWriteOnce, &blockMode),
+			vm:       newVM(shareableDisk, pvcVolume("datadisk", "data-pvc")),
+			errorKey: "ReadWriteMany",
+		},
+		{
+			name:     "shareable filesystem volume rejected",
+			pvc:      newPVC("data-pvc", "some.san.csi.io", corev1.ReadWriteMany, &fsMode),
+			vm:       newVM(shareableDisk, pvcVolume("datadisk", "data-pvc")),
+			errorKey: "volumeMode must be Block",
+		},
+		{
+			name:     "shareable Longhorn volume rejected",
+			pvc:      newPVC("data-pvc", util.CSIProvisionerLonghorn, corev1.ReadWriteMany, &blockMode),
+			vm:       newVM(shareableDisk, pvcVolume("datadisk", "data-pvc")),
+			errorKey: "provisioner other than Longhorn",
+		},
+		{
+			name: "shareable boot disk rejected",
+			pvc:  newPVC("data-pvc", "some.san.csi.io", corev1.ReadWriteMany, &blockMode),
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{Name: "vm1", Namespace: "default"},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{Disks: []kubevirtv1.Disk{{Name: "datadisk", Shareable: ptr.To(true)}}},
+							},
+							Volumes: []kubevirtv1.Volume{pvcVolume("datadisk", "data-pvc")},
+						},
+					},
+				},
+			},
+			errorKey: "boot disk",
+		},
+		{
+			name:     "shareable disk with writeback cache rejected",
+			pvc:      newPVC("data-pvc", "some.san.csi.io", corev1.ReadWriteMany, &blockMode),
+			vm:       newVM(kubevirtv1.Disk{Name: "datadisk", Shareable: ptr.To(true), Cache: kubevirtv1.CacheWriteBack}, pvcVolume("datadisk", "data-pvc")),
+			errorKey: "cache mode none",
+		},
+		{
+			name:     "shareable disk without PVC volume rejected",
+			vm:       newVM(shareableDisk, kubevirtv1.Volume{Name: "datadisk", VolumeSource: kubevirtv1.VolumeSource{ContainerDisk: &kubevirtv1.ContainerDiskSource{Image: "img"}}}),
+			errorKey: "backed by a persistent volume claim",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			harvesterFakeClientset := fake.NewSimpleClientset()
+			if tc.pvc != nil {
+				assert.NoError(t, harvesterFakeClientset.Tracker().Add(tc.pvc))
+			}
+			validator := &vmValidator{
+				pvcCache: fakeclients.PersistentVolumeClaimCache(harvesterFakeClientset.CoreV1().PersistentVolumeClaims),
+				scCache:  fakeclients.StorageClassCache(harvesterFakeClientset.StorageV1().StorageClasses),
+			}
+
+			err := validator.checkShareableVolumes(tc.vm)
+
+			if tc.errorKey != "" {
+				assert.Error(t, err, tc.name)
+				assert.Contains(t, err.Error(), tc.errorKey, tc.name)
+			} else {
+				assert.NoError(t, err, tc.name)
 			}
 		})
 	}

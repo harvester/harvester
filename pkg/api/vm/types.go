@@ -44,6 +44,7 @@ type CreateTemplateInput struct {
 type AddVolumeInput struct {
 	DiskName         string `json:"diskName"`
 	VolumeSourceName string `json:"volumeSourceName"`
+	Shareable        bool   `json:"shareable,omitempty"`
 }
 
 type RemoveVolumeInput struct {
