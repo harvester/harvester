@@ -1013,6 +1013,12 @@ func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string,
 		return err
 	}
 
+	if input.Shareable {
+		if err := virtualmachine.CheckShareableVolume(h.pvcCache, h.storageClassCache, namespace, input.VolumeSourceName); err != nil {
+			return err
+		}
+	}
+
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
 		return err
@@ -1029,6 +1035,9 @@ func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string,
 				Bus: "scsi",
 			},
 		},
+	}
+	if input.Shareable {
+		newDisk.Shareable = ptr.To(true)
 	}
 	newVol := kubevirtv1.Volume{
 		Name: input.DiskName,
