@@ -16,6 +16,7 @@ import (
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
+	vmutil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 	webhookutil "github.com/harvester/harvester/pkg/webhook/util"
@@ -71,6 +72,21 @@ func (v *volumeSnapshotValidator) Create(_ *types.Request, newObj runtime.Object
 		// resource quota is already checked in the VMBackup webhook, skip it here
 		if owner.Kind == "VirtualMachineBackup" {
 			continue
+		}
+	}
+
+	pvcName := *newVolumeSnapshot.Spec.Source.PersistentVolumeClaimName
+	attachedVMs, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(newVolumeSnapshot.Namespace, pvcName))
+	if err != nil && !apierrors.IsNotFound(err) {
+		return werror.NewInternalError(fmt.Sprintf("failed to get VM by PVC %s/%s, err: %s", newVolumeSnapshot.Namespace, pvcName, err))
+	}
+	// A shareable PVC may be written by multiple VMs concurrently, so a
+	// snapshot of it cannot be consistent.
+	for _, vm := range attachedVMs {
+		if vmutil.VMUsesPVCAsShareable(vm, pvcName) {
+			return werror.NewInvalidError(
+				fmt.Sprintf("cannot snapshot PVC %s/%s: it is attached to VM %s/%s as a shareable disk and may be written by multiple VMs concurrently", newVolumeSnapshot.Namespace, pvcName, vm.Namespace, vm.Name),
+				"spec.source.persistentVolumeClaimName")
 		}
 	}
 
