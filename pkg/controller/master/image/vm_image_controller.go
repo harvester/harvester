@@ -18,7 +18,6 @@ const (
 
 // vmImageHandler syncs status on vm image changes, and manage a storageclass & a backingimage per vm image
 type vmImageHandler struct {
-	vmiClient     ctlharvesterv1.VirtualMachineImageClient
 	vmiController ctlharvesterv1.VirtualMachineImageController
 	vmio          common.VMIOperator
 	backends      map[harvesterv1.VMIBackend]backend.Backend
@@ -27,20 +26,6 @@ type vmImageHandler struct {
 func (h *vmImageHandler) OnChanged(_ string, vmi *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
 	if vmi == nil || vmi.DeletionTimestamp != nil || harvesterv1.ImageRetryLimitExceeded.IsTrue(vmi) {
 		return vmi, nil
-	}
-
-	// Backward compatibility: ensure all images have the imageDisplayName label.
-	// New images get this label from the Mutating Webhook at creation time, but
-	// images created before this change may be missing it. On controller startup,
-	// the informer resyncs all existing resources, triggering OnChanged for each,
-	// so any old images missing the label will have it added here.
-	if vmi.Spec.DisplayName != vmi.Labels[util.LabelImageDisplayName] {
-		toUpdate := vmi.DeepCopy()
-		if toUpdate.Labels == nil {
-			toUpdate.Labels = map[string]string{}
-		}
-		toUpdate.Labels[util.LabelImageDisplayName] = vmi.Spec.DisplayName
-		return h.vmiClient.Update(toUpdate)
 	}
 
 	if h.vmio.IsImported(vmi) {
