@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Image tag to push, must start with "hotfix" (e.g. hotfix-v1.8.2-issue1234)'
+        description: 'Image tag to push, must be vX.Y.Z-hotfix* (e.g. v1.8.1-hotfix1)'
         required: true
         type: string
 
@@ -26,8 +26,8 @@ jobs:
           echo "this workflow must be dispatched on a version branch like v1.8, got: $BRANCH"
           exit 1
         fi
-        if [[ ! "$IMAGE_TAG" =~ ^hotfix[a-zA-Z0-9._-]*$ ]]; then
-          echo "image_tag must start with \"hotfix\" and be a valid image tag, got: $IMAGE_TAG"
+        if [[ ! "$IMAGE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-hotfix[a-zA-Z0-9._-]*$ ]]; then
+          echo "image_tag must be in the form vX.Y.Z-hotfix* (e.g. v1.8.1-hotfix1), got: $IMAGE_TAG"
           exit 1
         fi
 
