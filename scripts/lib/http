@@ -6,5 +6,5 @@ get_url()
   local save_to=$2
 
   echo "Download ${from} to ${save_to}..."
-  curl -sfL $from -o $save_to
+  curl -fL --no-progress-meter $from -o $save_to
 }
