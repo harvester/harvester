@@ -17,17 +17,35 @@ jobs:
     name: Validate inputs
     runs-on: ubuntu-latest
     steps:
-    - name: Validate branch and image tag
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        fetch-depth: 0 # full history and tags for the ancestor check
+
+    - name: Validate image tag
       env:
         BRANCH: ${{ github.ref_name }}
         IMAGE_TAG: ${{ inputs.image_tag }}
       run: |
+<<<<<<< HEAD
         if [[ ! "$BRANCH" =~ ^v[0-9]+\.[0-9]+$ ]]; then
           echo "this workflow must be dispatched on a version branch like v1.8, got: $BRANCH"
           exit 1
         fi
+=======
+>>>>>>> f29668ad (ci: refine the hotfix action)
         if [[ ! "$IMAGE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-hotfix[a-zA-Z0-9._-]*$ ]]; then
           echo "image_tag must be in the form vX.Y.Z-hotfix* (e.g. v1.8.1-hotfix1), got: $IMAGE_TAG"
+          exit 1
+        fi
+
+        BASE_VERSION="${IMAGE_TAG%%-hotfix*}"
+        if ! git rev-parse -q --verify "refs/tags/${BASE_VERSION}" > /dev/null; then
+          echo "tag ${BASE_VERSION} does not exist"
+          exit 1
+        fi
+        if ! git merge-base --is-ancestor "refs/tags/${BASE_VERSION}" HEAD; then
+          echo "tag ${BASE_VERSION} is not contained in branch ${BRANCH}"
           exit 1
         fi
 
