@@ -170,8 +170,12 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 
 			// Create handler
 			h := &vmImageHandler{
+<<<<<<< HEAD
 				vmiClient:     fakeclients.VirtualMachineImageClient(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
 				vmiController: fakeclients.VirtualMachineImageClient(harvFakeClient.HarvesterhciV1beta1().VirtualMachineImages),
+=======
+				vmiController: fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+>>>>>>> 2af33277 (fix(image): remove controller label sync logic)
 				vmio:          vmio,
 				backends:      backends,
 			}
