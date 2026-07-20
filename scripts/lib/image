@@ -19,7 +19,10 @@ save_image_list()
 
   case $in_file in
     http*)
-      images=$(curl -sfL $in_file)
+      if ! images=$(curl -fL --no-progress-meter $in_file); then
+        echo "Failed to download image list from ${in_file}" >&2
+        exit 1
+      fi
       ;;
     *)
       images=$(<$in_file)
