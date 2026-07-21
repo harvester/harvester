@@ -127,23 +127,7 @@ func TestBackingImageHandler_OnChanged_RetryLimitExceeded(t *testing.T) {
 					},
 				},
 			},
-			result: &lhv1beta2.BackingImage{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      testImageName,
-					Namespace: testNamespace,
-					Annotations: map[string]string{
-						util.AnnotationImageID: ref.Construct(testNamespace, testImageName),
-					},
-				},
-				Status: lhv1beta2.BackingImageStatus{
-					DiskFileStatusMap: map[string]*lhv1beta2.BackingImageDiskFileStatus{
-						"test-disk": {
-							State:   lhv1beta2.BackingImageStateFailed,
-							Message: "test error",
-						},
-					},
-				},
-			},
+			result:         nil,
 			expectedFailed: testRetry,
 			err:            nil,
 		},
@@ -159,7 +143,6 @@ func TestBackingImageHandler_OnChanged_RetryLimitExceeded(t *testing.T) {
 			vmio, err := common.GetVMIOperator(
 				fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 				fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
-				fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
 				http.Client{},
 			)
 			require.Nil(t, err, "should create VMIOperator")
