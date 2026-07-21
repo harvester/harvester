@@ -124,7 +124,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: longhorn-manager
+      longhorn.io/recovery-backend: longhorn-recovery-backend
   policyTypes:
     - Ingress
   ingress:
@@ -141,7 +141,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: longhorn-manager
+      longhorn.io/admission-webhook: longhorn-admission-webhook
   policyTypes:
     - Ingress
   ingress:
@@ -158,7 +158,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: longhorn-manager
+      longhorn.io/admission-webhook: longhorn-admission-webhook
   policyTypes:
     - Ingress
   ingress:
