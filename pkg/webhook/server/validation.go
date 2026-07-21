@@ -155,6 +155,7 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineRestore().Cache(),
 			clients.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
 			clients.LonghornFactory.Longhorn().V1beta2().Engine().Cache(),
+			clients.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache(),
