@@ -3,9 +3,11 @@ package virtualmachinebackup
 import (
 	"fmt"
 
+	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -36,6 +38,7 @@ func NewValidator(
 	vmrestores ctlharvesterv1.VirtualMachineRestoreCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	engineCache ctllonghornv1.EngineCache,
+	volumeCache ctllonghornv1.VolumeCache,
 	scCache ctlstoragev1.StorageClassCache,
 	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache,
 	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
@@ -46,6 +49,7 @@ func NewValidator(
 		vmrestores:         vmrestores,
 		pvcCache:           pvcCache,
 		engineCache:        engineCache,
+		volumeCache:        volumeCache,
 		scCache:            scCache,
 		resourceQuotaCache: resourceQuotaCache,
 		vmimCache:          vmimCache,
@@ -62,6 +66,7 @@ type virtualMachineBackupValidator struct {
 	vmrestores         ctlharvesterv1.VirtualMachineRestoreCache
 	pvcCache           ctlcorev1.PersistentVolumeClaimCache
 	engineCache        ctllonghornv1.EngineCache
+	volumeCache        ctllonghornv1.VolumeCache
 	scCache            ctlstoragev1.StorageClassCache
 	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache
 	vmimCache          ctlkubevirtv1.VirtualMachineInstanceMigrationCache
@@ -145,8 +150,12 @@ func (v *virtualMachineBackupValidator) validateVMBackupRecover(vmb *v1beta1.Vir
 	return webhookutil.IsLHBackupRelated(vmb, v.vmbr)
 }
 
-// checkBackupVolumeSnapshotClass checks if the volumeSnapshotClassName is configured for the provisioner used by the PVCs in the VirtualMachine.
-func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(vm *kubevirtv1.VirtualMachine, newVMBackup *v1beta1.VirtualMachineBackup) error {
+// checkBackupVolumeSnapshotClass checks if the volumeSnapshotClassName is
+// configured for the provisioner used by the PVCs in the VirtualMachine.
+func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(
+	vm *kubevirtv1.VirtualMachine,
+	newVMBackup *v1beta1.VirtualMachineBackup,
+) error {
 	// Load the CSI driver configuration.
 	cdc, err := util.LoadCSIDriverConfig(v.setting)
 	if err != nil {
@@ -168,12 +177,36 @@ func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(vm *kubev
 			return fmt.Errorf("failed to get PVC %s/%s: %w", pvcNamespace, pvcName, err)
 		}
 
+		if err := v.checkLonghornV2Volume(vm, pvc); err != nil {
+			return err
+		}
+
 		if err := webhookutil.ValidateProvisionerAndConfig(pvc, v.scCache, v.vmbr.GetType(newVMBackup), cdc); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (v *virtualMachineBackupValidator) checkLonghornV2Volume(
+	vm *kubevirtv1.VirtualMachine,
+	pvc *corev1.PersistentVolumeClaim,
+) error {
+	if util.GetProvisionedPVCProvisioner(pvc, v.scCache) != util.CSIProvisionerLonghorn {
+		return nil
+	}
+
+	lhVolume, err := v.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
+	if err != nil {
+		return fmt.Errorf("failed to get Longhorn volume %s for PVC %s/%s: %w", pvc.Spec.VolumeName, pvc.Namespace, pvc.Name, err)
+	}
+	if lhVolume.Spec.DataEngine != longhornv1beta2.DataEngineTypeV2 {
+		return nil
+	}
+
+	return fmt.Errorf("vm %s/%s contains Longhorn v2 volume %s from PVC %s/%s, which does not support VM backup",
+		vm.Namespace, vm.Name, lhVolume.Name, pvc.Namespace, pvc.Name)
 }
 
 func (v *virtualMachineBackupValidator) checkBackupTarget() error {
