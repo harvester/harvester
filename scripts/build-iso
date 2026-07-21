@@ -92,37 +92,20 @@ prepare_rke2_multus_bundle() {
     cache_pull_and_save "multus" "${key}" "${multus_list}" "${multus_archive}"
 }
 
-prepare_rke2_traefik_bundle() {
-    # Traefik is not part of the RKE2 core image tarball; it ships in a
-    # separate rke2-images-traefik list, so pull + save it like Multus.
-    local rke2_ver="$1" rke2_url="$2" traefik_list="$3" traefik_archive="$4"
-
-    save_image_list "rke2-images-traefik" \
-        "${rke2_url}/rke2-images-traefik.linux-${ARCH}.txt" \
-        "${traefik_list}"
-    local key
-    key=$(cache_hash "${traefik_list}")
-    cache_pull_and_save "traefik" "${key}" "${traefik_list}" "${traefik_archive}"
-}
-
 prepare_rke2_bundle() {
     echo "Preparing RKE2 images..."
     local rke2_ver="${RKE2_VERSION_NORMALIZED}"
     local rke2_url="${RKE2_IMAGE_REPO}${RKE2_VERSION}"
     local rke2_list="${BUNDLE_DIR}/harvester/images-lists/rke2-images.linux-${ARCH}-${rke2_ver}.txt"
     local rke2_archive="${BUNDLE_DIR}/harvester/images/rke2-images.linux-${ARCH}-${rke2_ver}.tar.zst"
-    local multus_list="${BUNDLE_DIR}/harvester/images-lists/rke2-images-multus.linux-${ARCH}-${rke2_ver}.txt"
-    local multus_archive="${BUNDLE_DIR}/harvester/images/rke2-images-multus.linux-${ARCH}-${rke2_ver}.tar.zst"
-    local traefik_list="${BUNDLE_DIR}/harvester/images-lists/rke2-images-traefik.linux-${ARCH}-${rke2_ver}.txt"
-    local traefik_archive="${BUNDLE_DIR}/harvester/images/rke2-images-traefik.linux-${ARCH}-${rke2_ver}.tar.zst"
+    local multus_list="${BUNDLE_DIR}/harvester/images-lists/rke2-images-multus.linux-amd64-${rke2_ver}.txt"
+    local multus_archive="${BUNDLE_DIR}/harvester/images/rke2-images-multus.linux-amd64-${rke2_ver}.tar.zst"
 
     prepare_rke2_tarball_bundle "${rke2_ver}" "${rke2_url}" "${rke2_list}" "${rke2_archive}"
     prepare_rke2_multus_bundle  "${rke2_ver}" "${rke2_url}" "${multus_list}" "${multus_archive}"
-    prepare_rke2_traefik_bundle "${rke2_ver}" "${rke2_url}" "${traefik_list}" "${traefik_archive}"
 
-    add_image_list_to_metadata "rke2" "${BUNDLE_DIR}" "${rke2_list}"    "${rke2_archive}"
-    add_image_list_to_metadata "rke2" "${BUNDLE_DIR}" "${multus_list}"  "${multus_archive}"
-    add_image_list_to_metadata "rke2" "${BUNDLE_DIR}" "${traefik_list}" "${traefik_archive}"
+    add_image_list_to_metadata "rke2" "${BUNDLE_DIR}" "${rke2_list}"   "${rke2_archive}"
+    add_image_list_to_metadata "rke2" "${BUNDLE_DIR}" "${multus_list}" "${multus_archive}"
 }
 
 prepare_harvester_bundle() {
