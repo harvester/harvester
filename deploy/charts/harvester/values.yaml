@@ -529,6 +529,10 @@ longhorn:
     jobEnabled: false
     upgradeVersionCheck: false
 
+  networkPolicies:
+    # defined in longhorn-network-policy.yaml already
+    restrictInternalTraffic: false
+
 rancherEmbedded: false
 
 webhook:
