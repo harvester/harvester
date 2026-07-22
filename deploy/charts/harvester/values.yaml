@@ -245,7 +245,7 @@ containers:
 
       ## Specify the tag of image.
       ##
-      tag: v1.9.0-rc2
+      tag: v1.9.0-rc3
 
     ## Specify whether to run in HCI mode. This option enables additional controllers.
     ## defaults to "false", this will be enabled in ISO mode installation.
@@ -430,16 +430,16 @@ harvester-network-controller:
     repository: rancher/harvester-network-controller
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v1.9.0-rc2
+    tag: v1.9.0-rc3
   helper:
     image:
       repository: rancher/harvester-network-helper
-      tag: v1.9.0-rc2
+      tag: v1.9.0-rc3
   webhook:
     image:
       repository: rancher/harvester-network-webhook
       pullPolicy: IfNotPresent
-      tag: v1.9.0-rc2
+      tag: v1.9.0-rc3
 
 harvester-networkfs-manager:
   ## Specify to install harvester networkfs manager,
@@ -450,7 +450,7 @@ harvester-networkfs-manager:
     repository: rancher/harvester-networkfs-manager
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v1.9.0-rc2
+    tag: v1.9.0-rc3
 
 harvester-node-disk-manager:
   ## Specify to install harvester node disk manager,
@@ -464,14 +464,14 @@ harvester-node-disk-manager:
     repository: rancher/harvester-node-disk-manager
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: v1.9.0-rc2
+    tag: v1.9.0-rc3
 
   webhook:
     image:
       repository: rancher/harvester-node-disk-manager-webhook
       pullPolicy: IfNotPresent
       # Overrides the image tag whose default is the chart appVersion.
-      tag: v1.9.0-rc2
+      tag: v1.9.0-rc3
 
 csi-snapshotter:
   ## Specify whether to install the csi-snapshotter
@@ -549,7 +549,7 @@ webhook:
 
     ## Specify the tag of image.
     ##
-    tag: v1.9.0-rc2
+    tag: v1.9.0-rc3
 
   httpsPort: 9443
 
@@ -563,19 +563,19 @@ webhook:
 upgrade:
   image:
     repository: rancher/harvester-upgrade
-    tag: v1.9.0-rc2
+    tag: v1.9.0-rc3
 
 harvester-load-balancer:
   enabled: false
   image:
     imagePullPolicy: Always
     repository: rancher/harvester-load-balancer
-    tag: v1.9.0-rc2
+    tag: v1.9.0-rc3
   webhook:
     image:
       imagePullPolicy: IfNotPresent
       repository: rancher/harvester-load-balancer-webhook
-      tag: v1.9.0-rc2
+      tag: v1.9.0-rc3
 
 kube-vip:
   enabled: false
@@ -600,7 +600,7 @@ support-bundle-kit:
   image:
     imagePullPolicy: IfNotPresent
     repository: rancher/support-bundle-kit
-    tag: v0.0.89
+    tag: v0.0.90
 
 generalJob:
   image:
@@ -622,12 +622,12 @@ harvester-node-manager:
   image:
     pullPolicy: IfNotPresent
     repository: rancher/harvester-node-manager
-    tag: v1.9.0-rc2
+    tag: v1.9.0-rc3
   webhook:
     image:
       pullPolicy: IfNotPresent
       repository: rancher/harvester-node-manager-webhook
-      tag: v1.9.0-rc2
+      tag: v1.9.0-rc3
 
 enableLonghornNetworkPolicy: true
 
