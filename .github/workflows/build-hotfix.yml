@@ -3,6 +3,10 @@ name: build hotfix images
 on:
   workflow_dispatch:
     inputs:
+      hotfix_base_version:
+        description: 'Base version for hotfix, must be vX.Y.Z (e.g. v1.9.1)'
+        required: true
+        type: string
       image_tag:
         description: 'Image tag to push, must be vX.Y.Z-hotfix* (e.g. v1.9.1-hotfix1)'
         required: true
@@ -21,6 +25,7 @@ jobs:
       env:
         BRANCH: ${{ github.ref_name }}
         IMAGE_TAG: ${{ inputs.image_tag }}
+        HOTFIX_BASE_VERSION: ${{ inputs.hotfix_base_version }}
       run: |
         if [[ ! "$BRANCH" =~ ^v[0-9]+\.[0-9]+$ ]]; then
           echo "this workflow must be dispatched on a version branch like v1.9, got: $BRANCH"

@@ -44,6 +44,11 @@ fi
 if [[ -z "$DIRTY" && -n "$GIT_TAG" ]]; then
     VERSION=$GIT_TAG
 
+    if [[ -n "$HOTFIX_BASE_VERSION" ]]; then
+        echo "HOTFIX_BASE_VERSION is set, overriding VERSION with HOTFIX_BASE_VERSION: $HOTFIX_BASE_VERSION"
+        VERSION="$HOTFIX_BASE_VERSION"
+    fi
+
     if [[ -z "$SPRINT_RELEASE" ]]; then
         echo "Checking minimum upgradable version, if no minimum upgradeable version, will fail with \`Error: no matches found\`"
         # Search for minimum upgradable version.
