@@ -35,7 +35,7 @@ HARVESTER_CHART_VERSION=${CHART_VERSION}
 HARVESTER_KUBEVIRT_VERSION=$(yq e '.kubevirt-operator.containers.operator.image.tag' ${TOP_DIR}/deploy/charts/harvester/values.yaml)
 HARVESTER_MIN_UPGRADABLE_VERSION=${MIN_UPGRADABLE_VERSION}
 
-BASE_OS_IMAGE="rancher/harvester-os:v1.9-20260715"
+BASE_OS_IMAGE="rancher/harvester-os:v1.9-20260722"
 HARVESTER_OS_IMAGE=rancher/harvester-os:$VERSION
 
 cd ${PACKAGE_HARVESTER_OS_DIR}
