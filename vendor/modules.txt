@@ -2549,7 +2549,7 @@ k8s.io/kubectl/pkg/validation
 ## explicit; go 1.24.0
 k8s.io/kubelet/config/v1beta1
 k8s.io/kubelet/pkg/apis/stats/v1alpha1
-# k8s.io/kubernetes v1.34.1 => k8s.io/kubernetes v1.33.7
+# k8s.io/kubernetes v1.34.2 => k8s.io/kubernetes v1.33.7
 ## explicit; go 1.24.0
 k8s.io/kubernetes/pkg/apis/rbac
 k8s.io/kubernetes/pkg/apis/rbac/v1
