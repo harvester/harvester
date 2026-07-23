@@ -8,7 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	nodeapi "github.com/harvester/harvester/pkg/api/node"
-	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/tests/framework/cluster"
 	"github.com/harvester/harvester/tests/framework/helper"
 )
@@ -94,7 +94,7 @@ var _ = Describe("verify host APIs", func() {
 						return fmt.Errorf("expected node to be unschedulable")
 					}
 
-					_, ok := retNode.Annotations[ctlnode.MaintainStatusAnnotationKey]
+					_, ok := retNode.Annotations[util.MaintainStatusAnnotationKey]
 					if !ok {
 						return fmt.Errorf("unable to find maintenance annotation")
 					}
@@ -117,7 +117,7 @@ var _ = Describe("verify host APIs", func() {
 					if !Expect(retNode.Spec.Unschedulable).To(BeEquivalentTo(false)) {
 						return false
 					}
-					return Expect(retNode.Annotations[ctlnode.MaintainStatusAnnotationKey]).To(BeEmpty())
+					return Expect(retNode.Annotations[util.MaintainStatusAnnotationKey]).To(BeEmpty())
 				}, 30*time.Second, 1*time.Second)
 
 			})
@@ -172,7 +172,7 @@ var _ = Describe("verify host APIs", func() {
 						return fmt.Errorf("expected node to be schedulable")
 					}
 
-					_, ok := retNode.Annotations[ctlnode.MaintainStatusAnnotationKey]
+					_, ok := retNode.Annotations[util.MaintainStatusAnnotationKey]
 					if ok {
 						return fmt.Errorf("should not find maintenance annotation")
 					}
