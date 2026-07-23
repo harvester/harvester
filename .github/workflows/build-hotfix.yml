@@ -100,6 +100,15 @@ jobs:
           echo "arch=arm64" >> "$GITHUB_ENV"
         fi
 
+    # base_version (e.g. v1.7.3 from v1.7.3-hotfix1) is used as the VERSION build-arg
+    # so the cluster's server-version stays at the stock release; a "-hotfix*" suffix
+    # would be treated as a semver prerelease and block future cross-version upgrades.
+    - name: Derive base version from image tag
+      env:
+        IMAGE_TAG: ${{ inputs.image_tag }}
+      run: |
+        echo "base_version=${IMAGE_TAG%%-hotfix*}" >> "$GITHUB_ENV"
+
     - name: Download binaries
       uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
       with:
@@ -151,7 +160,7 @@ jobs:
         file: package/Dockerfile
         build-args: |
           ARCH=${{ env.arch }}
-          VERSION=${{ inputs.image_tag }}
+          VERSION=${{ env.base_version }}
 
     # rancher/harvester-webhook image
     - name: docker-publish-harvester-webhook
@@ -164,7 +173,7 @@ jobs:
         file: package/Dockerfile.webhook
         build-args: |
           ARCH=${{ env.arch }}
-          VERSION=${{ inputs.image_tag }}
+          VERSION=${{ env.base_version }}
 
     # rancher/harvester-upgrade image
     - name: docker-publish-harvester-upgrade
@@ -177,7 +186,7 @@ jobs:
         file: package/upgrade/Dockerfile
         build-args: |
           ARCH=${{ env.arch }}
-          VERSION=${{ inputs.image_tag }}
+          VERSION=${{ env.base_version }}
 
   manifest-images:
     name: Manifest images
