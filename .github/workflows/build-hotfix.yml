@@ -95,9 +95,12 @@ jobs:
         fi
 
     # v1.7.3-hotfix1 -> rancher/harvester-installer:v1.7-head
-    - name: Derive harvester-installer image ref from image tag
+    - name: Derive harvester-installer image ref and base version from image tag
+      env:
+        IMAGE_TAG: ${{ inputs.image_tag }}
       run: |
         echo "installer_ref=$(echo "${{ inputs.image_tag }}" | cut -d. -f1,2)-head" >> "$GITHUB_ENV"
+        echo "base_version=$(echo "${{ inputs.image_tag }}" | cut -d- -f1)" >> "$GITHUB_ENV"
 
     - name: Download binaries
       uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -139,7 +142,7 @@ jobs:
         file: package/Dockerfile
         build-args: |
           ARCH=${{ env.arch }}
-          VERSION=${{ inputs.image_tag }}
+          VERSION=${{ env.base_version }}
 
     # rancher/harvester-webhook image
     - name: docker-publish-harvester-webhook
@@ -152,7 +155,7 @@ jobs:
         file: package/Dockerfile.webhook
         build-args: |
           ARCH=${{ env.arch }}
-          VERSION=${{ inputs.image_tag }}
+          VERSION=${{ env.base_version }}
 
     - name: generate addon manifests
       run: make generate-addons
@@ -168,7 +171,7 @@ jobs:
         file: package/upgrade/Dockerfile
         build-args: |
           ARCH=${{ env.arch }}
-          VERSION=${{ inputs.image_tag }}
+          VERSION=${{ env.base_version }}
           HARVESTER_INSTALLER_REF=${{ env.installer_ref }}
 
   manifest-images:
