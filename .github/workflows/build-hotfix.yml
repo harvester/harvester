@@ -17,17 +17,35 @@ jobs:
     name: Validate inputs
     runs-on: ubuntu-latest
     steps:
-    - name: Validate branch and image tag
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        fetch-depth: 0 # full history and tags for the ancestor check
+
+    - name: Validate image tag
       env:
         BRANCH: ${{ github.ref_name }}
         IMAGE_TAG: ${{ inputs.image_tag }}
       run: |
+<<<<<<< HEAD
         if [[ ! "$BRANCH" =~ ^v[0-9]+\.[0-9]+$ ]]; then
           echo "this workflow must be dispatched on a version branch like v1.8, got: $BRANCH"
           exit 1
         fi
+=======
+>>>>>>> f29668ad (ci: refine the hotfix action)
         if [[ ! "$IMAGE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-hotfix[a-zA-Z0-9._-]*$ ]]; then
           echo "image_tag must be in the form vX.Y.Z-hotfix* (e.g. v1.8.1-hotfix1), got: $IMAGE_TAG"
+          exit 1
+        fi
+
+        BASE_VERSION="${IMAGE_TAG%%-hotfix*}"
+        if ! git rev-parse -q --verify "refs/tags/${BASE_VERSION}" > /dev/null; then
+          echo "tag ${BASE_VERSION} does not exist"
+          exit 1
+        fi
+        if ! git merge-base --is-ancestor "refs/tags/${BASE_VERSION}" HEAD; then
+          echo "tag ${BASE_VERSION} is not contained in branch ${BRANCH}"
           exit 1
         fi
 
@@ -83,6 +101,15 @@ jobs:
           echo "arch=arm64" >> "$GITHUB_ENV"
         fi
 
+    # base_version (e.g. v1.7.3 from v1.7.3-hotfix1) is used as the VERSION build-arg
+    # so the cluster's server-version stays at the stock release; a "-hotfix*" suffix
+    # would be treated as a semver prerelease and block future cross-version upgrades.
+    - name: Derive base version from image tag
+      env:
+        IMAGE_TAG: ${{ inputs.image_tag }}
+      run: |
+        echo "base_version=${IMAGE_TAG%%-hotfix*}" >> "$GITHUB_ENV"
+
     - name: Download binaries
       uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
       with:
@@ -123,7 +150,7 @@ jobs:
         file: package/Dockerfile
         build-args: |
           ARCH=${{ env.arch }}
-          VERSION=${{ inputs.image_tag }}
+          VERSION=${{ env.base_version }}
 
     # rancher/harvester-webhook image
     - name: docker-publish-harvester-webhook
@@ -136,7 +163,7 @@ jobs:
         file: package/Dockerfile.webhook
         build-args: |
           ARCH=${{ env.arch }}
-          VERSION=${{ inputs.image_tag }}
+          VERSION=${{ env.base_version }}
 
     - name: generate addon manifests
       run: make generate-addons
@@ -152,8 +179,12 @@ jobs:
         file: package/upgrade/Dockerfile
         build-args: |
           ARCH=${{ env.arch }}
+<<<<<<< HEAD
           VERSION=${{ inputs.image_tag }}
           HARVESTER_INSTALLER_REF=${{ format('{0}-head', github.ref_name) }}
+=======
+          VERSION=${{ env.base_version }}
+>>>>>>> 1d0c19d5 (ci: correct the version in hotfix image)
 
   manifest-images:
     name: Manifest images
