@@ -102,6 +102,20 @@ func IsManagementRole(node *corev1.Node) bool {
 	return false
 }
 
+// IsOtherNodeAvailable checks to ensure there's at least one other node
+// that's not in maintenance, and isn't cordoned.
+func IsOtherNodeAvailable(nodeName string, nodeList []*corev1.Node) bool {
+	for _, node := range nodeList {
+		if node.Name == nodeName {
+			continue
+		}
+		if _, ok := node.Annotations[MaintainStatusAnnotationKey]; !ok && !node.Spec.Unschedulable {
+			return true
+		}
+	}
+	return false
+}
+
 // count the number of nodes running instance manager pod
 func CountNonWitnessHealthyNodes(nodes []*corev1.Node) int {
 	count := 0
