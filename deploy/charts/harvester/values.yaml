@@ -580,7 +580,7 @@ harvester-load-balancer:
 kube-vip:
   enabled: false
   image:
-    repository: rancher/mirrored-kube-vip-kube-vip-iptables
+    repository: ghcr.io/kube-vip/kube-vip-iptables
     tag: v1.0.4
   nodeSelector:
     node-role.kubernetes.io/control-plane: "true"
