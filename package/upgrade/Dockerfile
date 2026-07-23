@@ -4,41 +4,33 @@ FROM registry.suse.com/bci/bci-base:16.0
 ARG ARCH=amd64
 ENV ARCH=${ARCH}
 
-ARG KUBECTL_VERSION=v1.35.5
-ARG KUBECTL_SHA256_amd64=90f75ea6ecc9ea5633262e1c0b83a40560003b30fc94a04cb099404fcef0c224
-ARG KUBECTL_SHA256_arm64=ac69e06fd6860d69786692f5af1c3a1208ed54f8366a4d97ab15c172e99765ee
+ARG KUBECTL_OBS_PACKAGE=kubectl1.35
+ARG HELM_OBS_PACKAGE=helm3
 
 ARG KUBEVIRT_VERSION=v1.7.1
 ARG VIRTCTL_SHA256_amd64=e0efcfc708067fa45232f3bab9cb2de3dbcd812d4c9aab88c727025fb213079f
 ARG VIRTCTL_SHA256_arm64=7737d967bc8512abedfdaa8a61a3512f93894c12162f9dde4fab73402a4f42d5
-
-ARG YQ_VERSION=v4.52.4
-ARG YQ_SHA256_amd64=0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c
-ARG YQ_SHA256_arm64=4c2cc022a129be5cc1187959bb4b09bebc7fb543c5837b93001c68f97ce39a5d
 
 ARG WHARFIE_VERSION=v0.7.0
 ARG WHARFIE_SHA256_amd64=e5ff747b2f9f4155ce7b68917bac9dbe8a6a85727a94b0c8e6faca9252931e91
 ARG WHARFIE_SHA256_arm64=b8e02fe61d4f8cb1bd7927fd5e34b49b4dcf802c52670adfaa4527ed3d9afc41
 
 SHELL ["/bin/bash", "-c"]
-RUN zypper rm -y container-suseconnect && \
-    zypper --no-gpg-checks ref && \
-    zypper in -y curl e2fsprogs rsync awk zstd jq helm zip unzip nginx util-linux && zypper clean -a
 
-ENV KUBECTL_VERSION ${KUBECTL_VERSION}
-RUN KUBECTL_SHA256=KUBECTL_SHA256_${ARCH} && \
-    VIRTCTL_SHA256=VIRTCTL_SHA256_${ARCH} && \
-    YQ_SHA256=YQ_SHA256_${ARCH} && \
+RUN zypper addrepo --refresh https://download.opensuse.org/repositories/isv:/Rancher:/dependencies/pkgs rancher-obs-deps && \
+    zypper --gpg-auto-import-keys ref --force && \
+    zypper rm -y container-suseconnect && \
+    zypper in -y curl e2fsprogs rsync awk zstd jq zip unzip nginx util-linux && \
+    zypper in -y --from rancher-obs-deps yq ${HELM_OBS_PACKAGE} ${KUBECTL_OBS_PACKAGE} && \
+    zypper clean -a && \
+    ln -s /usr/bin/${KUBECTL_OBS_PACKAGE} /usr/bin/kubectl && \
+    ln -s /usr/bin/${HELM_OBS_PACKAGE} /usr/bin/helm
+
+RUN VIRTCTL_SHA256=VIRTCTL_SHA256_${ARCH} && \
     WHARFIE_SHA256=WHARFIE_SHA256_${ARCH} && \
-    curl -sfL https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl > /usr/bin/kubectl && \
-    echo "${!KUBECTL_SHA256}  /usr/bin/kubectl" | sha256sum -c - && \
-    chmod +x /usr/bin/kubectl && \
     curl -sfL https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/virtctl-${KUBEVIRT_VERSION}-linux-${ARCH} -o /usr/bin/virtctl && \
     echo "${!VIRTCTL_SHA256}  /usr/bin/virtctl" | sha256sum -c - && \
     chmod +x /usr/bin/virtctl && \
-    curl -sfL https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_${ARCH} -o /usr/bin/yq && \
-    echo "${!YQ_SHA256}  /usr/bin/yq" | sha256sum -c - && \
-    chmod +x /usr/bin/yq && \
     curl -sfL https://github.com/rancher/wharfie/releases/download/${WHARFIE_VERSION}/wharfie-${ARCH}  -o /usr/bin/wharfie && \
     echo "${!WHARFIE_SHA256}  /usr/bin/wharfie" | sha256sum -c - && \
     chmod +x /usr/bin/wharfie
