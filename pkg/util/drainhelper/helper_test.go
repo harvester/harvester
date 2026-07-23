@@ -12,7 +12,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/drain"
 
-	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
@@ -89,7 +88,7 @@ func Test_failsControlPlaneRequirementsHA(t *testing.T) {
 	clientset := fake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
 
 	cpNode1.Annotations = map[string]string{
-		ctlnode.MaintainStatusAnnotationKey: ctlnode.MaintainStatusRunning,
+		util.MaintainStatusAnnotationKey: util.MaintainStatusRunning,
 	}
 
 	nodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
