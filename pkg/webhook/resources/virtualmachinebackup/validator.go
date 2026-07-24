@@ -20,6 +20,7 @@ import (
 	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	vmutil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -133,6 +134,13 @@ func (v *virtualMachineBackupValidator) validateStandardBackup(vmb *v1beta1.Virt
 	// Validate VM migration.
 	if err := v.checkVMInstanceMigration(vm); err != nil {
 		return werror.NewInvalidError(err.Error(), fieldSourceName)
+	}
+	// A shareable disk may be written by multiple VMs concurrently, so a
+	// backup or snapshot of it cannot be consistent.
+	if diskName, ok := vmutil.HasShareableDisk(vm); ok {
+		return werror.NewInvalidError(
+			fmt.Sprintf("cannot back up VM %s/%s: disk %s is shareable and may be written by multiple VMs concurrently", vm.Namespace, vm.Name, diskName),
+			fieldSourceName)
 	}
 	// Check the total snapshot size.
 	if err := v.checkTotalSnapshotSize(vm); err != nil {
