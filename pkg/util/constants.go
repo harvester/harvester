@@ -146,6 +146,7 @@ const (
 	DeschedulerName                       = "descheduler"
 	PCIDevicesControllerName              = "pcidevices-controller"
 	NvidiaDriverToolkitName               = "nvidia-driver-toolkit"
+	HarvesterCSIDriverLVMName             = "harvester-csi-driver-lvm"
 	RancherMonitoringPrometheus           = "rancher-monitoring-prometheus"
 	RancherMonitoringAlertmanager         = "rancher-monitoring-alertmanager"
 	RancherMonitoring                     = "rancher-monitoring"

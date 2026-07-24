@@ -4,12 +4,15 @@ import (
 	"testing"
 
 	loggingv1 "github.com/kube-logging/logging-operator/pkg/sdk/logging/api/v1beta1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	ctrlruntimefake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -474,7 +477,7 @@ func Test_validateUpdatedAddon(t *testing.T) {
 	upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
 	fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 	fakeVMCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
-	validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, fakeVMCache, nil, nil).(*addonValidator)
+	validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, fakeVMCache, nil, nil, nil, nil, nil, nil, nil).(*addonValidator)
 
 	for _, tc := range testCases {
 		err := validator.validateUpdatedAddon(tc.newAddon, tc.oldAddon)
@@ -552,7 +555,7 @@ func Test_validateNewAddon(t *testing.T) {
 		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
 
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil, nil, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil, nil, nil, nil, nil, nil, nil, nil).(*addonValidator)
 		for _, addon := range tc.addonList {
 			err := clientset.Tracker().Add(addon)
 			assert.Nil(t, err)
@@ -914,7 +917,7 @@ func Test_validateRancherLoggingAddonWithClusterFlow(t *testing.T) {
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
 		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil, nil, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil, nil, nil, nil, nil, nil, nil, nil).(*addonValidator)
 		for _, cf := range tc.clusterFlows {
 			err := clientset.Tracker().Add(cf)
 			assert.Nil(t, err)
@@ -1196,7 +1199,7 @@ func Test_validateRancherLoggingAddonWithFlow(t *testing.T) {
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
 		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil, nil, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil, nil, nil, nil, nil, nil, nil, nil).(*addonValidator)
 		for _, cf := range tc.flows {
 			err := clientset.Tracker().Add(cf)
 			assert.Nil(t, err)
@@ -1427,7 +1430,7 @@ func Test_validateRancherLoggingWithUpgradeLog(t *testing.T) {
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
 		fakeNodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil, nil, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, fakeNodeCache, nil, nil, nil, nil, nil, nil, nil, nil).(*addonValidator)
 		for _, upgradeLog := range tc.upgradeLogs {
 			err := clientset.Tracker().Add(upgradeLog)
 			assert.Nil(t, err)
@@ -1539,7 +1542,7 @@ func Test_validateRancherLoggingWithUpgradeLogThenUpgradeAddon(t *testing.T) {
 		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
 		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil, nil, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*addonValidator)
 		for _, upgradeLog := range tc.upgradeLogs {
 			err := clientset.Tracker().Add(upgradeLog)
 			assert.Nil(t, err)
@@ -1644,7 +1647,7 @@ func Test_validateDeleteAddon(t *testing.T) {
 		fakeClusterFlowCache := fakeclients.ClusterFlowCache(clientset.LoggingV1beta1().ClusterFlows)
 		fakeClusterOutputCache := fakeclients.ClusterOutputCache(clientset.LoggingV1beta1().ClusterOutputs)
 		upgradeLogCache := fakeclients.UpgradeLogCache(clientset.HarvesterhciV1beta1().UpgradeLogs)
-		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil, nil, nil).(*addonValidator)
+		validator := NewValidator(fakeAddonCache, fakeFlowCache, fakeOutputCache, fakeClusterFlowCache, fakeClusterOutputCache, upgradeLogCache, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*addonValidator)
 
 		err := validator.Delete(nil, tc.oldAddon)
 		if tc.expectedError {
@@ -2130,6 +2133,307 @@ func Test_validateNvidiaDriverToolkitAddon(t *testing.T) {
 			err := validator.validateNvidiaDriverToolkitAddon()
 			if tc.expectedError {
 				assert.NotNil(t, err, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func Test_validateLVMAddonUpdate(t *testing.T) {
+	lvmSnapshotClassName := "lvm-snapshot"
+
+	newLVMAddon := func(enabled bool) *harvesterv1.Addon {
+		return &harvesterv1.Addon{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      util.HarvesterCSIDriverLVMName,
+				Namespace: util.HarvesterSystemNamespaceName,
+			},
+			Spec: harvesterv1.AddonSpec{
+				Enabled: enabled,
+			},
+		}
+	}
+
+	newBlockDevice := func(name string, provision bool) *unstructured.Unstructured {
+		obj := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"provision": provision,
+					"provisioner": map[string]interface{}{
+						"lvm": map[string]interface{}{
+							"vgName": "vg1",
+						},
+					},
+				},
+			},
+		}
+		obj.SetGroupVersionKind(blockDeviceGVK)
+		obj.SetName(name)
+		obj.SetNamespace(util.LonghornSystemNamespaceName)
+		return obj
+	}
+
+	testCases := []struct {
+		name                  string
+		oldAddon              *harvesterv1.Addon
+		newAddon              *harvesterv1.Addon
+		storageClasses        []*storagev1.StorageClass
+		pvcs                  []*corev1.PersistentVolumeClaim
+		volumeSnapshotClasses []*snapshotv1.VolumeSnapshotClass
+		volumeSnapshots       []*snapshotv1.VolumeSnapshot
+		volumeSnapshotContent []*snapshotv1.VolumeSnapshotContent
+		blockDevices          []*unstructured.Unstructured
+		expectedError         bool
+		expectedErrorContains []string
+	}{
+		{
+			name:          "allow disable when no lvm resources exist",
+			oldAddon:      newLVMAddon(true),
+			newAddon:      newLVMAddon(false),
+			expectedError: false,
+		},
+		{
+			name:     "allow update when addon is not being disabled",
+			oldAddon: newLVMAddon(true),
+			newAddon: newLVMAddon(true),
+			storageClasses: []*storagev1.StorageClass{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "lvm-sc",
+					},
+					Provisioner: util.CSIProvisionerLVM,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name:     "allow disable with addon managed volume snapshot class only",
+			oldAddon: newLVMAddon(true),
+			newAddon: newLVMAddon(false),
+			volumeSnapshotClasses: []*snapshotv1.VolumeSnapshotClass{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: lvmSnapshotClassName,
+						Annotations: map[string]string{
+							util.HelmReleaseNameAnnotation:      util.HarvesterCSIDriverLVMName,
+							util.HelmReleaseNamespaceAnnotation: util.HarvesterSystemNamespaceName,
+						},
+					},
+					Driver: util.CSIProvisionerLVM,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name:     "block disable with lvm storage class",
+			oldAddon: newLVMAddon(true),
+			newAddon: newLVMAddon(false),
+			storageClasses: []*storagev1.StorageClass{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "lvm-sc",
+					},
+					Provisioner: util.CSIProvisionerLVM,
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name:     "block disable with lvm pvc",
+			oldAddon: newLVMAddon(true),
+			newAddon: newLVMAddon(false),
+			pvcs: []*corev1.PersistentVolumeClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "source-pvc",
+						Namespace: "default",
+						Annotations: map[string]string{
+							util.AnnStorageProvisioner: util.CSIProvisionerLVM,
+						},
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name:     "block disable with user lvm volume snapshot class",
+			oldAddon: newLVMAddon(true),
+			newAddon: newLVMAddon(false),
+			volumeSnapshotClasses: []*snapshotv1.VolumeSnapshotClass{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "lvm-snapshot-retain",
+					},
+					Driver: util.CSIProvisionerLVM,
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name:     "block disable with lvm volume snapshot",
+			oldAddon: newLVMAddon(true),
+			newAddon: newLVMAddon(false),
+			volumeSnapshotClasses: []*snapshotv1.VolumeSnapshotClass{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: lvmSnapshotClassName,
+						Annotations: map[string]string{
+							util.HelmReleaseNameAnnotation:      util.HarvesterCSIDriverLVMName,
+							util.HelmReleaseNamespaceAnnotation: util.HarvesterSystemNamespaceName,
+						},
+					},
+					Driver: util.CSIProvisionerLVM,
+				},
+			},
+			volumeSnapshots: []*snapshotv1.VolumeSnapshot{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "source-snapshot",
+						Namespace: "default",
+					},
+					Spec: snapshotv1.VolumeSnapshotSpec{
+						VolumeSnapshotClassName: &lvmSnapshotClassName,
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name:     "block disable with lvm volume snapshot content",
+			oldAddon: newLVMAddon(true),
+			newAddon: newLVMAddon(false),
+			volumeSnapshotContent: []*snapshotv1.VolumeSnapshotContent{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "snapcontent",
+					},
+					Spec: snapshotv1.VolumeSnapshotContentSpec{
+						Driver: util.CSIProvisionerLVM,
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name:          "block disable with provisioned lvm block device",
+			oldAddon:      newLVMAddon(true),
+			newAddon:      newLVMAddon(false),
+			blockDevices:  []*unstructured.Unstructured{newBlockDevice("lvm-bd", true)},
+			expectedError: true,
+		},
+		{
+			name:     "block disable with all lvm resource types",
+			oldAddon: newLVMAddon(true),
+			newAddon: newLVMAddon(false),
+			storageClasses: []*storagev1.StorageClass{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "lvm-sc",
+					},
+					Provisioner: util.CSIProvisionerLVM,
+				},
+			},
+			pvcs: []*corev1.PersistentVolumeClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "source-pvc",
+						Namespace: "default",
+					},
+					Spec: corev1.PersistentVolumeClaimSpec{
+						StorageClassName: ptr.To("lvm-sc"),
+					},
+				},
+			},
+			volumeSnapshotClasses: []*snapshotv1.VolumeSnapshotClass{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "lvm-snapshot-retain",
+					},
+					Driver: util.CSIProvisionerLVM,
+				},
+			},
+			volumeSnapshots: []*snapshotv1.VolumeSnapshot{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "source-snapshot",
+						Namespace: "default",
+					},
+					Spec: snapshotv1.VolumeSnapshotSpec{
+						VolumeSnapshotClassName: ptr.To("lvm-snapshot-retain"),
+					},
+				},
+			},
+			volumeSnapshotContent: []*snapshotv1.VolumeSnapshotContent{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "snapcontent",
+					},
+					Spec: snapshotv1.VolumeSnapshotContentSpec{
+						Driver: util.CSIProvisionerLVM,
+					},
+				},
+			},
+			blockDevices:  []*unstructured.Unstructured{newBlockDevice("lvm-bd", true)},
+			expectedError: true,
+			expectedErrorContains: []string{
+				"StorageClass [lvm-sc]",
+				"PersistentVolumeClaim [default/source-pvc]",
+				"VolumeSnapshotClass [lvm-snapshot-retain]",
+				"VolumeSnapshot [default/source-snapshot]",
+				"VolumeSnapshotContent [snapcontent]",
+				"BlockDevice [longhorn-system/lvm-bd]",
+			},
+		},
+		{
+			name:          "allow disable with unprovisioned lvm block device",
+			oldAddon:      newLVMAddon(true),
+			newAddon:      newLVMAddon(false),
+			blockDevices:  []*unstructured.Unstructured{newBlockDevice("lvm-bd", false)},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+
+			for _, sc := range tc.storageClasses {
+				require.NoError(t, clientset.Tracker().Add(sc))
+			}
+			for _, pvc := range tc.pvcs {
+				require.NoError(t, clientset.Tracker().Add(pvc))
+			}
+			for _, volumeSnapshotClass := range tc.volumeSnapshotClasses {
+				require.NoError(t, clientset.Tracker().Add(volumeSnapshotClass))
+			}
+			for _, volumeSnapshot := range tc.volumeSnapshots {
+				require.NoError(t, clientset.Tracker().Add(volumeSnapshot))
+			}
+			for _, volumeSnapshotContent := range tc.volumeSnapshotContent {
+				require.NoError(t, clientset.Tracker().Add(volumeSnapshotContent))
+			}
+
+			builder := ctrlruntimefake.NewClientBuilder()
+			for _, blockDevice := range tc.blockDevices {
+				builder = builder.WithObjects(blockDevice)
+			}
+
+			validator := &addonValidator{
+				storageClassCache:          fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+				pvcCache:                   fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
+				volumeSnapshotCache:        fakeclients.VolumeSnapshotCache(clientset.SnapshotV1().VolumeSnapshots),
+				volumeSnapshotContentCache: fakeclients.VolumeSnapshotContentCache(clientset.SnapshotV1().VolumeSnapshotContents),
+				volumeSnapshotClassCache:   fakeclients.VolumeSnapshotClassCache(clientset.SnapshotV1().VolumeSnapshotClasses),
+				k8sClient:                  builder.Build(),
+			}
+
+			err := validator.validateLVMAddonUpdate(tc.newAddon, tc.oldAddon)
+			if tc.expectedError {
+				assert.NotNil(t, err, tc.name)
+				for _, expected := range tc.expectedErrorContains {
+					assert.Contains(t, err.Error(), expected)
+				}
 			} else {
 				assert.Nil(t, err, tc.name)
 			}
