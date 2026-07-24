@@ -2,7 +2,7 @@ rancherValues:
   image:
     pullPolicy: IfNotPresent
     repository: rancher/rancher
-    tag: v2.15.0-alpha21
+    tag: v2.15.0-rc3
   noDefaultAdmin: false
   features: multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false
   useBundledSystemChart: true
@@ -13,4 +13,4 @@ rancherValues:
     cattle:
       psp:
         enabled: false
-rancherInstallerImage: rancher/system-agent-installer-rancher:v2.15.0-alpha21
+rancherInstallerImage: rancher/system-agent-installer-rancher:v2.15.0-r3
