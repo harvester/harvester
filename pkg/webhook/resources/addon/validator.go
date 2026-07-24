@@ -3,12 +3,21 @@ package addon
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -45,34 +54,69 @@ var vgpuDeviceGVR = schema.GroupVersionResource{
 	Resource: "vgpudevices",
 }
 
-func NewValidator(addons ctlharvesterv1.AddonCache, flowCache ctlloggingv1.FlowCache, outputCache ctlloggingv1.OutputCache, clusterFlowCache ctlloggingv1.ClusterFlowCache, clusterOutputCache ctlloggingv1.ClusterOutputCache, upgradeLogCache ctlharvesterv1.UpgradeLogCache, nodeCache ctlcorev1.NodeCache, vmCache ctlkubevirtv1.VirtualMachineCache, kubeovnSubnet ctlkubeovnv1.SubnetCache, k8sClient client.Client) types.Validator {
+var (
+	storageClassGVK          = storagev1.SchemeGroupVersion.WithKind("StorageClass")
+	pvcGVK                   = corev1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")
+	volumeSnapshotGVK        = snapshotv1.SchemeGroupVersion.WithKind("VolumeSnapshot")
+	volumeSnapshotClassGVK   = snapshotv1.SchemeGroupVersion.WithKind("VolumeSnapshotClass")
+	volumeSnapshotContentGVK = snapshotv1.SchemeGroupVersion.WithKind("VolumeSnapshotContent")
+	blockDeviceGVK           = v1beta1.SchemeGroupVersion.WithKind("BlockDevice")
+)
+
+func NewValidator(
+	addons ctlharvesterv1.AddonCache,
+	flowCache ctlloggingv1.FlowCache,
+	outputCache ctlloggingv1.OutputCache,
+	clusterFlowCache ctlloggingv1.ClusterFlowCache,
+	clusterOutputCache ctlloggingv1.ClusterOutputCache,
+	upgradeLogCache ctlharvesterv1.UpgradeLogCache,
+	nodeCache ctlcorev1.NodeCache,
+	vmCache ctlkubevirtv1.VirtualMachineCache,
+	kubeovnSubnet ctlkubeovnv1.SubnetCache,
+	scCache ctlstoragev1.StorageClassCache,
+	pvcCache ctlcorev1.PersistentVolumeClaimCache,
+	vsCache ctlsnapshotv1.VolumeSnapshotCache,
+	vscCache ctlsnapshotv1.VolumeSnapshotContentCache,
+	vsClassCache ctlsnapshotv1.VolumeSnapshotClassCache,
+	k8sClient client.Client,
+) types.Validator {
 	return &addonValidator{
-		addons:             addons,
-		flowCache:          flowCache,
-		outputCache:        outputCache,
-		clusterFlowCache:   clusterFlowCache,
-		clusterOutputCache: clusterOutputCache,
-		upgradeLogCache:    upgradeLogCache,
-		nodeCache:          nodeCache,
-		vmCache:            vmCache,
-		kubeovnSubnet:      kubeovnSubnet,
-		k8sClient:          k8sClient,
+		addons:                     addons,
+		flowCache:                  flowCache,
+		outputCache:                outputCache,
+		clusterFlowCache:           clusterFlowCache,
+		clusterOutputCache:         clusterOutputCache,
+		upgradeLogCache:            upgradeLogCache,
+		nodeCache:                  nodeCache,
+		vmCache:                    vmCache,
+		kubeovnSubnet:              kubeovnSubnet,
+		storageClassCache:          scCache,
+		pvcCache:                   pvcCache,
+		volumeSnapshotCache:        vsCache,
+		volumeSnapshotContentCache: vscCache,
+		volumeSnapshotClassCache:   vsClassCache,
+		k8sClient:                  k8sClient,
 	}
 }
 
 type addonValidator struct {
 	types.DefaultValidator
 
-	addons             ctlharvesterv1.AddonCache
-	flowCache          ctlloggingv1.FlowCache
-	outputCache        ctlloggingv1.OutputCache
-	clusterFlowCache   ctlloggingv1.ClusterFlowCache
-	clusterOutputCache ctlloggingv1.ClusterOutputCache
-	upgradeLogCache    ctlharvesterv1.UpgradeLogCache
-	nodeCache          ctlcorev1.NodeCache
-	vmCache            ctlkubevirtv1.VirtualMachineCache
-	kubeovnSubnet      ctlkubeovnv1.SubnetCache
-	k8sClient          client.Client
+	addons                     ctlharvesterv1.AddonCache
+	flowCache                  ctlloggingv1.FlowCache
+	outputCache                ctlloggingv1.OutputCache
+	clusterFlowCache           ctlloggingv1.ClusterFlowCache
+	clusterOutputCache         ctlloggingv1.ClusterOutputCache
+	upgradeLogCache            ctlharvesterv1.UpgradeLogCache
+	nodeCache                  ctlcorev1.NodeCache
+	vmCache                    ctlkubevirtv1.VirtualMachineCache
+	kubeovnSubnet              ctlkubeovnv1.SubnetCache
+	storageClassCache          ctlstoragev1.StorageClassCache
+	pvcCache                   ctlcorev1.PersistentVolumeClaimCache
+	volumeSnapshotCache        ctlsnapshotv1.VolumeSnapshotCache
+	volumeSnapshotContentCache ctlsnapshotv1.VolumeSnapshotContentCache
+	volumeSnapshotClassCache   ctlsnapshotv1.VolumeSnapshotClassCache
+	k8sClient                  client.Client
 }
 
 func (v *addonValidator) Resource() types.Resource {
@@ -143,6 +187,8 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 		return v.validateNvidiaDriverToolkitAddonUpdate(newAddon, oldAddon)
 	case util.KubeOVNOperatorName:
 		return v.validateKubeOVNAddonUpdate(newAddon, oldAddon)
+	case util.HarvesterCSIDriverLVMName:
+		return v.validateLVMAddonUpdate(newAddon, oldAddon)
 	}
 
 	return nil
@@ -196,7 +242,7 @@ func (v *addonValidator) validateDeschedulerAddonUpdate(newAddon *v1beta1.Addon,
 
 func (v *addonValidator) validatePCIDevicesControllerAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
 	// not being disabled, no validation needed
-	if !oldAddon.Spec.Enabled || newAddon.Spec.Enabled {
+	if !isAddonBeingDisabled(newAddon, oldAddon) {
 		return nil
 	}
 
@@ -216,7 +262,7 @@ func (v *addonValidator) validatePCIDevicesControllerAddonUpdate(newAddon *v1bet
 
 func (v *addonValidator) validateNvidiaDriverToolkitAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
 	// not being disabled, no validation needed
-	if !oldAddon.Spec.Enabled || newAddon.Spec.Enabled {
+	if !isAddonBeingDisabled(newAddon, oldAddon) {
 		return nil
 	}
 
@@ -228,6 +274,19 @@ func (v *addonValidator) validateNvidiaDriverToolkitAddonUpdate(newAddon *v1beta
 
 	// perform validation when nvidia-driver-toolkit addon is being disabled
 	return v.validateNvidiaDriverToolkitAddon()
+}
+
+func (v *addonValidator) validateLVMAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
+	// addon not being disabled, no validation needed
+	if !isAddonBeingDisabled(newAddon, oldAddon) {
+		return nil
+	}
+
+	return v.validateDisableLVMAddon()
+}
+
+func isAddonBeingDisabled(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) bool {
+	return oldAddon.Spec.Enabled && !newAddon.Spec.Enabled
 }
 
 func validateVClusterAddon(newAddon *v1beta1.Addon) error {
@@ -425,10 +484,258 @@ func (v *addonValidator) validateNvidiaDriverToolkitAddon() error {
 	return nil
 }
 
+func (v *addonValidator) validateDisableLVMAddon() error {
+	var blockers []string
+	var storageClasses map[string]struct{}
+	var volumeSnapshotClasses map[string]struct{}
+
+	toBlocker := func(kind, listErr string, names []string, err error) (string, error) {
+		if err != nil {
+			return "", werror.NewInternalError(fmt.Sprintf("%s: %v", listErr, err))
+		}
+		if len(names) == 0 {
+			return "", nil
+		}
+		return formatLVMBlocker(kind, names), nil
+	}
+
+	checks := []func() (string, error){
+		func() (string, error) {
+			var names []string
+			var err error
+			storageClasses, names, err = v.getLVMStorageClasses()
+			return toBlocker(storageClassGVK.Kind, "failed to list storage classes", names, err)
+		},
+		func() (string, error) {
+			names, err := v.getLVMPVCs(storageClasses)
+			return toBlocker(pvcGVK.Kind, "failed to list persistent volume claims", names, err)
+		},
+		func() (string, error) {
+			var names []string
+			var err error
+			volumeSnapshotClasses, names, err = v.getLVMVolumeSnapshotClasses()
+			return toBlocker(volumeSnapshotClassGVK.Kind, "failed to list volume snapshot classes", names, err)
+		},
+		func() (string, error) {
+			names, err := v.getLVMVolumeSnapshots(volumeSnapshotClasses)
+			return toBlocker(volumeSnapshotGVK.Kind, "failed to list volume snapshots", names, err)
+		},
+		func() (string, error) {
+			names, err := v.getLVMVolumeSnapshotContents()
+			return toBlocker(volumeSnapshotContentGVK.Kind, "failed to list volume snapshot contents", names, err)
+		},
+		func() (string, error) {
+			names, err := v.getLVMBlockDevices()
+			return toBlocker(blockDeviceGVK.Kind, "failed to list block devices", names, err)
+		},
+	}
+
+	for _, check := range checks {
+		blocker, err := check()
+		if err != nil {
+			return err
+		}
+		if blocker != "" {
+			blockers = append(blockers, blocker)
+		}
+	}
+	if len(blockers) > 0 {
+		return werror.NewBadRequest(formatLVMAddonBlockersError(blockers))
+	}
+
+	return nil
+}
+
+func (v *addonValidator) getLVMStorageClasses() (map[string]struct{}, []string, error) {
+	storageClasses, err := v.storageClassCache.List(labels.Everything())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	storageClassNames := map[string]struct{}{}
+	var blockers []string
+	for _, sc := range storageClasses {
+		if sc.Provisioner != util.CSIProvisionerLVM {
+			continue
+		}
+
+		storageClassNames[sc.Name] = struct{}{}
+		if isLVMAddonHelmManaged(sc) {
+			continue
+		}
+		blockers = append(blockers, sc.Name)
+	}
+
+	sort.Strings(blockers)
+	return storageClassNames, blockers, nil
+}
+
+func (v *addonValidator) getLVMPVCs(lvmStorageClasses map[string]struct{}) ([]string, error) {
+	pvcs, err := v.pvcCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	var blockers []string
+	for _, pvc := range pvcs {
+		if isLVMPersistentVolumeClaim(pvc, lvmStorageClasses) {
+			blockers = append(blockers, objectNamespacedName(pvc))
+		}
+	}
+
+	sort.Strings(blockers)
+	return blockers, nil
+}
+
+func (v *addonValidator) getLVMVolumeSnapshotClasses() (map[string]struct{}, []string, error) {
+	volumeSnapshotClasses, err := v.volumeSnapshotClassCache.List(labels.Everything())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	volumeSnapshotClassNames := map[string]struct{}{}
+	var blockers []string
+	for _, volumeSnapshotClass := range volumeSnapshotClasses {
+		if volumeSnapshotClass.Driver != util.CSIProvisionerLVM {
+			continue
+		}
+
+		volumeSnapshotClassNames[volumeSnapshotClass.Name] = struct{}{}
+		if isLVMAddonHelmManaged(volumeSnapshotClass) {
+			continue
+		}
+		blockers = append(blockers, volumeSnapshotClass.Name)
+	}
+
+	sort.Strings(blockers)
+	return volumeSnapshotClassNames, blockers, nil
+}
+
+func (v *addonValidator) getLVMVolumeSnapshots(lvmVolumeSnapshotClasses map[string]struct{}) ([]string, error) {
+	volumeSnapshots, err := v.volumeSnapshotCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	var blockers []string
+	for _, volumeSnapshot := range volumeSnapshots {
+		if volumeSnapshot.Spec.VolumeSnapshotClassName == nil {
+			continue
+		}
+		if _, ok := lvmVolumeSnapshotClasses[*volumeSnapshot.Spec.VolumeSnapshotClassName]; ok {
+			blockers = append(blockers, objectNamespacedName(volumeSnapshot))
+		}
+	}
+
+	sort.Strings(blockers)
+	return blockers, nil
+}
+
+func (v *addonValidator) getLVMVolumeSnapshotContents() ([]string, error) {
+	volumeSnapshotContents, err := v.volumeSnapshotContentCache.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	var blockers []string
+	for _, volumeSnapshotContent := range volumeSnapshotContents {
+		if volumeSnapshotContent.Spec.Driver == util.CSIProvisionerLVM {
+			blockers = append(blockers, volumeSnapshotContent.Name)
+		}
+	}
+
+	sort.Strings(blockers)
+	return blockers, nil
+}
+
+func (v *addonValidator) getLVMBlockDevices() ([]string, error) {
+	blockDevices, err := v.listBlockDevices()
+	if err != nil {
+		return nil, err
+	}
+
+	var blockers []string
+	for _, blockDevice := range blockDevices {
+		provisioned, found, err := unstructured.NestedBool(blockDevice.Object, "spec", "provision")
+		if err != nil {
+			return nil, err
+		}
+		if !found || !provisioned {
+			continue
+		}
+
+		if _, found, err = unstructured.NestedMap(blockDevice.Object, "spec", "provisioner", "lvm"); err != nil {
+			return nil, err
+		}
+		if !found {
+			continue
+		}
+		blockers = append(blockers, objectNamespacedName(&blockDevice))
+	}
+
+	sort.Strings(blockers)
+	return blockers, nil
+}
+
+func (v *addonValidator) listBlockDevices() ([]unstructured.Unstructured, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	blockDeviceList := &unstructured.UnstructuredList{}
+	blockDeviceList.SetGroupVersionKind(blockDeviceGVK.GroupVersion().WithKind(blockDeviceGVK.Kind + "List"))
+	if err := v.k8sClient.List(ctx, blockDeviceList); err != nil {
+		if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return blockDeviceList.Items, nil
+}
+
+func isLVMPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim, lvmStorageClasses map[string]struct{}) bool {
+	if pvc.Spec.StorageClassName != nil {
+		if _, ok := lvmStorageClasses[*pvc.Spec.StorageClassName]; ok {
+			return true
+		}
+	}
+
+	if pvc.Annotations[util.AnnStorageProvisioner] == util.CSIProvisionerLVM {
+		return true
+	}
+
+	return pvc.Annotations[util.AnnBetaStorageProvisioner] == util.CSIProvisionerLVM
+}
+
+func isLVMAddonHelmManaged(obj metav1.Object) bool {
+	annotations := obj.GetAnnotations()
+	return annotations[util.HelmReleaseNameAnnotation] == util.HarvesterCSIDriverLVMName &&
+		annotations[util.HelmReleaseNamespaceAnnotation] == util.HarvesterSystemNamespaceName
+}
+
+func objectNamespacedName(obj metav1.Object) string {
+	if obj.GetNamespace() == "" {
+		return obj.GetName()
+	}
+	return fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName())
+}
+
+func formatLVMBlocker(kind string, names []string) string {
+	return fmt.Sprintf("%s %v", kind, names)
+}
+
+func formatLVMAddonBlockersError(blockers []string) string {
+	return fmt.Sprintf(
+		"%s addon cannot be disabled as LVM resources still exist: %s. Delete these resources before disabling the addon",
+		util.HarvesterCSIDriverLVMName,
+		strings.Join(blockers, "; "),
+	)
+}
+
 // restrict disabling kubeovn-operator addon when VMs are using the overlay networks provided by kubeovn.
 func (v *addonValidator) validateKubeOVNAddonUpdate(newAddon, oldAddon *v1beta1.Addon) error {
 	// addon not being disabled, no validation needed
-	if !oldAddon.Spec.Enabled || newAddon.Spec.Enabled {
+	if !isAddonBeingDisabled(newAddon, oldAddon) {
 		return nil
 	}
 
