@@ -17,10 +17,7 @@ import (
 )
 
 const (
-	maintainNodeControllerName  = "maintain-node-controller"
-	MaintainStatusAnnotationKey = "harvesterhci.io/maintain-status"
-	MaintainStatusComplete      = "completed"
-	MaintainStatusRunning       = "running"
+	maintainNodeControllerName = "maintain-node-controller"
 )
 
 // maintainNodeHandler updates maintenance status of a node in its annotations, so that we can tell whether the node is
@@ -57,7 +54,7 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 	if node == nil || node.DeletionTimestamp != nil {
 		return node, nil
 	}
-	if maintenanceStatus, ok := node.Annotations[MaintainStatusAnnotationKey]; !ok || maintenanceStatus != MaintainStatusRunning {
+	if maintenanceStatus, ok := node.Annotations[util.MaintainStatusAnnotationKey]; !ok || maintenanceStatus != util.MaintainStatusRunning {
 		return node, nil
 	}
 
@@ -110,7 +107,7 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 	}
 
 	toUpdate := node.DeepCopy()
-	toUpdate.Annotations[MaintainStatusAnnotationKey] = MaintainStatusComplete
+	toUpdate.Annotations[util.MaintainStatusAnnotationKey] = util.MaintainStatusComplete
 	return h.nodes.Update(toUpdate)
 }
 
@@ -121,7 +118,7 @@ func (h *maintainNodeHandler) OnNodeRemoved(_ string, node *corev1.Node) (*corev
 		return node, nil
 	}
 
-	if _, ok := node.Annotations[MaintainStatusAnnotationKey]; !ok {
+	if _, ok := node.Annotations[util.MaintainStatusAnnotationKey]; !ok {
 		return node, nil
 	}
 

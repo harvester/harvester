@@ -11,6 +11,8 @@ rancherVersion: {{ .RancherVersion }}
 rancherInstallerImage: rancher/system-agent-installer-rancher:{{ .RancherVersion }}
 labels:
  - harvesterhci.io/managed=true
+{{ if .Install.Cordoned }} - harvesterhci.io/install-cordoned=true
+{{ end -}}
 extraConfig:
   disable:
   - rke2-snapshot-controller
