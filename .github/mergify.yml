@@ -54,41 +54,32 @@ pull_request_rules:
       assignees:
         - "{{ author }}"
 
-- name: Automatically merge Renovate PRs
-  conditions:
-  - check-success="Build binaries (x64)"
-  - check-success="Build binaries (arm64)"
-  - author = renovate[bot]
-  - -conflict
-  actions:
-    merge:
-      method: rebase
-
 - name: Automatically merge Backport PRs
   conditions:
-  - check-success="Build binaries (x64)"
-  - check-success="Build binaries (arm64)"
+  - check-success="calling-build-factory / Build binaries (arm64)"
+  - check-success="calling-build-factory / Build binaries (arm64)"
   - author = mergify[bot]
   - -conflict
   actions:
     merge:
-      method: rebase
+      method: squash
 
 - name: Automatically approve Renovate PRs
   conditions:
-  - check-success="Build binaries (x64)"
-  - check-success="Build binaries (arm64)"
+  - check-success="calling-build-factory / Build binaries (x64)"
+  - check-success="calling-build-factory / Build binaries (arm64)"
   - author = renovate[bot]
   - -conflict
   actions:
     review:
       type: APPROVE
+      bot_account: harvesterhci-io-github-bot
 
 # Mergify can't approve its own PRs, so we need to use a bot account
 - name: Automatically approve Backport PRs
   conditions:
-  - check-success="Build binaries (x64)"
-  - check-success="Build binaries (arm64)"
+  - check-success="calling-build-factory / Build binaries (x64)"
+  - check-success="calling-build-factory / Build binaries (arm64)"
   - author = mergify[bot]
   - -conflict
   actions:
