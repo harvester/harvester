@@ -121,7 +121,8 @@ func (h *PromoteHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev1.Nod
 	// to the node's annotations.  If that annotation is present, we know the
 	// cordon has been processed and we shouldn't try to cordon that node again.
 	if installCordoned, cordonProcessed := node.Labels[util.HarvesterInstallCordonedLabel], node.Annotations[util.HarvesterInstallCordonedProcessedAnnotation]; installCordoned == "true" && cordonProcessed != "true" {
-		return h.reconcileInstallCordonedNode(node, nodeList)
+		toUpdate := reconcileInstallCordonedNode(node, nodeList)
+		return h.nodes.Update(toUpdate)
 	}
 
 	// early return if the node number not enough
@@ -149,7 +150,7 @@ func (h *PromoteHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev1.Nod
 	return node, nil
 }
 
-func (h *PromoteHandler) reconcileInstallCordonedNode(node *corev1.Node, nodeList []*corev1.Node) (*corev1.Node, error) {
+func reconcileInstallCordonedNode(node *corev1.Node, nodeList []*corev1.Node) *corev1.Node {
 	toUpdate := node.DeepCopy()
 	if !toUpdate.Spec.Unschedulable {
 		// Set the node to unschedulable if it's not the last available.
@@ -169,7 +170,7 @@ func (h *PromoteHandler) reconcileInstallCordonedNode(node *corev1.Node, nodeLis
 		toUpdate.Annotations = make(map[string]string)
 	}
 	toUpdate.Annotations[util.HarvesterInstallCordonedProcessedAnnotation] = "true"
-	return h.nodes.Update(toUpdate)
+	return toUpdate
 }
 
 // OnJobChanged
