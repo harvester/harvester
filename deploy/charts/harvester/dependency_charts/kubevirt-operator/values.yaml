@@ -76,7 +76,7 @@ containers:
     ## Specify the env.
     ##
     env: []
-    #  - name: OPERATOR_IMAGE
+    #  - name: VIRT_OPERATOR_IMAGE
     #    value: xxx
 
     ## Specify the liveness probe.

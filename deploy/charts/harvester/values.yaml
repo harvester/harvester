@@ -25,30 +25,32 @@ kubevirt-operator:
   containers:
     operator:
       image:
-        repository: registry.suse.com/suse/sles/15.7/virt-operator
-        tag: &kubevirtVersion 1.7.4-150700.3.24.2
+        repository: registry.suse.com/suse/sles/16.0/virt-operator
+        tag: &kubevirtVersion 1.8.3-2.2
     ## The following images are placeholder for images in use.
     ## They are not used by the kubevirt-operator chart.
     controller:
       image:
-        repository: registry.suse.com/suse/sles/15.7/virt-controller
+        repository: registry.suse.com/suse/sles/16.0/virt-controller
         tag: *kubevirtVersion
     handler:
       image:
-        repository: registry.suse.com/suse/sles/15.7/virt-handler
+        repository: registry.suse.com/suse/sles/16.0/virt-handler
         tag: *kubevirtVersion
     api:
       image:
-        repository: registry.suse.com/suse/sles/15.7/virt-api
+        repository: registry.suse.com/suse/sles/16.0/virt-api
         tag: *kubevirtVersion
     launcher:
       image:
-        repository: registry.suse.com/suse/sles/15.7/virt-launcher
+        repository: registry.suse.com/suse/sles/16.0/virt-launcher
         tag: *kubevirtVersion
+    ## libguestfs image is missing in the 16.0 registry, so we use the 15.7 one instead.
+    ## we will have it with kubevirt v1.8.4, so we can remove this override then.
     libguestfs: # introduced from kubevirt v0.44.0
       image:
         repository: registry.suse.com/suse/sles/15.7/libguestfs-tools
-        tag: *kubevirtVersion
+        tag: 1.7.4-150700.3.30.1
 
 ## Specify the parameters to override the sub-chart.
 ##

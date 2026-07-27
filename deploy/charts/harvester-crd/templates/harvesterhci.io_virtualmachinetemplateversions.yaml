@@ -325,15 +325,13 @@ spec:
                                         volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim.
                                         If specified, the CSI driver will create or update the volume with the attributes defined
                                         in the corresponding VolumeAttributesClass. This has a different purpose than storageClassName,
-                                        it can be changed after the claim is created. An empty string value means that no VolumeAttributesClass
-                                        will be applied to the claim but it's not allowed to reset this field to empty string once it is set.
-                                        If unspecified and the PersistentVolumeClaim is unbound, the default VolumeAttributesClass
-                                        will be set by the persistentvolume controller if it exists.
+                                        it can be changed after the claim is created. An empty string or nil value indicates that no
+                                        VolumeAttributesClass will be applied to the claim. If the claim enters an Infeasible error state,
+                                        this field can be reset to its previous value (including nil) to cancel the modification.
                                         If the resource referred to by volumeAttributesClass does not exist, this PersistentVolumeClaim will be
                                         set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource
                                         exists.
                                         More info: https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/
-                                        (Beta) Using this field requires the VolumeAttributesClass feature gate to be enabled (off by default).
                                       type: string
                                     volumeMode:
                                       description: |-
@@ -833,6 +831,12 @@ spec:
                         description: |-
                           Running state indicates the requested running state of the VirtualMachineInstance
                           mutually exclusive with Running
+                          Following are allowed values:
+                          - "Always": VMI should always be running.
+                          - "Halted": VMI should never be running.
+                          - "Manual": VMI can be started/stopped using API endpoints.
+                          - "RerunOnFailure": VMI will initially be running and restarted if a failure occurs, but will not be restarted upon successful completion.
+                          - "Once": VMI will run once and not be restarted upon completion regardless if the completion is of phase Failure or Success.
                         type: string
                       running:
                         description: |-
@@ -1549,8 +1553,8 @@ spec:
                                           most preferred is the one with the greatest sum of weights, i.e.
                                           for each node that meets all of the scheduling requirements (resource
                                           request, requiredDuringScheduling anti-affinity expressions, etc.),
-                                          compute a sum by iterating through the elements of this field and adding
-                                          "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+                                          compute a sum by iterating through the elements of this field and subtracting
+                                          "weight" from the sum if the node has pods which matches the corresponding podAffinityTerm; the
                                           node(s) with the highest sum are the most preferred.
                                         items:
                                           description: The weights of all of the matched
@@ -2626,6 +2630,11 @@ spec:
                                                 please refer to Kubevirt user guide for alternatives.
                                                 Deprecated: Removed in v1.3
                                               type: object
+                                            passtBinding:
+                                              description: InterfacePasstBinding connects
+                                                to a given network using passt usermode
+                                                networking.
+                                              type: object
                                             pciAddress:
                                               description: 'If specified, the virtual
                                                 network interface will be placed on
@@ -2956,6 +2965,9 @@ spec:
                                                     type: boolean
                                                 type: object
                                               enabled:
+                                                description: |-
+                                                  Enabled determines if the feature should be enabled or disabled on the guest.
+                                                  Defaults to true.
                                                 type: boolean
                                             type: object
                                           tlbflush:
@@ -2963,11 +2975,34 @@ spec:
                                               TLBFlush improves performances in overcommited environments. Requires vpindex.
                                               Defaults to the machine type setting.
                                             properties:
+                                              direct:
+                                                description: |-
+                                                  Direct allows sending the TLB flush command directly to the hypervisor.
+                                                  It can be useful to optimize performance in nested virtualization cases, such as Windows VBS.
+                                                properties:
+                                                  enabled:
+                                                    description: |-
+                                                      Enabled determines if the feature should be enabled or disabled on the guest.
+                                                      Defaults to true.
+                                                    type: boolean
+                                                type: object
                                               enabled:
                                                 description: |-
                                                   Enabled determines if the feature should be enabled or disabled on the guest.
                                                   Defaults to true.
                                                 type: boolean
+                                              extended:
+                                                description: Extended allows the guest
+                                                  to execute partial TLB flushes.
+                                                  It can be helpful for general purpose
+                                                  workloads.
+                                                properties:
+                                                  enabled:
+                                                    description: |-
+                                                      Enabled determines if the feature should be enabled or disabled on the guest.
+                                                      Defaults to true.
+                                                    type: boolean
+                                                type: object
                                             type: object
                                           vapic:
                                             description: |-
@@ -3252,7 +3287,46 @@ spec:
                                           The delta between MaxGuest and Guest is the amount of memory that can be hot(un)plugged.
                                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                                         x-kubernetes-int-or-string: true
+                                      reservedOverhead:
+                                        description: |-
+                                          ReservedOverhead configures the memory overhead applied to a VM
+                                          and its characteristics.
+                                        properties:
+                                          addedOverhead:
+                                            anyOf:
+                                            - type: integer
+                                            - type: string
+                                            description: |-
+                                              AddedOverhead determines the memory overhead that will be reserved
+                                              for the VM. It increases the virt-launcher pod memory limit.
+                                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                            x-kubernetes-int-or-string: true
+                                          memLock:
+                                            description: |-
+                                              RequiresLock determines whether the VM's and its overhead memory
+                                              need to be locked or not. It is a common practice to enable this
+                                              if vDPA, VFIO or any other specialized hardware that depends on
+                                              DMA is being used by the VM.
+                                              False - (Default) memory lock RLimits are not modified.
+                                              True - Memory lock RLimits will be updated to consider VM memory
+                                                     size and memory overhead
+                                            enum:
+                                            - NotRequired
+                                            - Required
+                                            type: string
+                                        type: object
                                     type: object
+                                  rebootPolicy:
+                                    description: |-
+                                      RebootPolicy specifies how the guest should behave on reboot.
+                                      Reboot (default): The guest is allowed to reboot silently.
+                                      Terminate: The VMI will be terminated on guest reboot, allowing
+                                      higher level controllers (such as the VM controller) to recreate
+                                      the VMI with any updated configuration such as boot order changes.
+                                    enum:
+                                    - Reboot
+                                    - Terminate
+                                    type: string
                                   resources:
                                     description: Resources describes the Compute Resources
                                       required by this vmi.
@@ -3335,8 +3409,14 @@ spec:
                                     format: int32
                                     type: integer
                                   guestAgentPing:
-                                    description: GuestAgentPing contacts the qemu-guest-agent
-                                      for availability checks.
+                                    description: |-
+                                      GuestAgentPing contacts the qemu-guest-agent for availability checks.
+                                      Probe failures are automatically suppressed when the guest agent is
+                                      unreachable for a non-fault reason: during live migration (guest paused
+                                      on one pod while memory is transferred) and whenever the VM is paused
+                                      for an intentional or transient reason such as a user pause, snapshot,
+                                      save, or dump. Failures are not suppressed when the VM is paused due to
+                                      a fault (IO error, crash, or postcopy failure).
                                     type: object
                                   httpGet:
                                     description: HTTPGet specifies the http request
@@ -3535,8 +3615,14 @@ spec:
                                     format: int32
                                     type: integer
                                   guestAgentPing:
-                                    description: GuestAgentPing contacts the qemu-guest-agent
-                                      for availability checks.
+                                    description: |-
+                                      GuestAgentPing contacts the qemu-guest-agent for availability checks.
+                                      Probe failures are automatically suppressed when the guest agent is
+                                      unreachable for a non-fault reason: during live migration (guest paused
+                                      on one pod while memory is transferred) and whenever the VM is paused
+                                      for an intentional or transient reason such as a user pause, snapshot,
+                                      save, or dump. Failures are not suppressed when the VM is paused due to
+                                      a fault (IO error, crash, or postcopy failure).
                                     type: object
                                   httpGet:
                                     description: HTTPGet specifies the http request
@@ -3940,6 +4026,41 @@ spec:
                                 - topologyKey
                                 - whenUnsatisfiable
                                 x-kubernetes-list-type: map
+                              utilityVolumes:
+                                description: |-
+                                  List of utility volumes that can be mounted to the vmi virt-launcher pod
+                                  without having a matching disk in the domain.
+                                  Used to collect data for various operational workflows.
+                                items:
+                                  properties:
+                                    claimName:
+                                      description: |-
+                                        claimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume.
+                                        More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
+                                      type: string
+                                    name:
+                                      description: |-
+                                        UtilityVolume's name.
+                                        Must be unique within the vmi, including regular Volumes.
+                                      type: string
+                                    readOnly:
+                                      description: |-
+                                        readOnly Will force the ReadOnly setting in VolumeMounts.
+                                        Default false.
+                                      type: boolean
+                                    type:
+                                      description: Type represents the type of the
+                                        utility volume.
+                                      type: string
+                                  required:
+                                  - claimName
+                                  - name
+                                  type: object
+                                maxItems: 256
+                                type: array
+                                x-kubernetes-list-map-keys:
+                                - name
+                                x-kubernetes-list-type: map
                               volumes:
                                 description: List of volumes that can be mounted by
                                   disks belonging to the vmi.
@@ -4114,6 +4235,36 @@ spec:
                                           type: string
                                       required:
                                       - image
+                                      type: object
+                                    containerPath:
+                                      description: |-
+                                        ContainerPath exposes a path from the virt-launcher container to the VM via virtiofs.
+                                        The path must correspond to an existing volumeMount in the compute container.
+                                      properties:
+                                        path:
+                                          description: |-
+                                            Path is the absolute path within the virt-launcher container to expose to the VM.
+                                            The path must correspond to an existing volumeMount in the compute container.
+                                          maxLength: 4096
+                                          type: string
+                                          x-kubernetes-validations:
+                                          - message: path must be absolute (start
+                                              with '/')
+                                            rule: self.startsWith('/')
+                                          - message: path must not contain '..'
+                                            rule: '!self.contains(''..'')'
+                                        readOnly:
+                                          default: true
+                                          description: |-
+                                            ReadOnly controls whether the volume is exposed as read-only to the VM.
+                                            Defaults to true. Write access is not currently supported.
+                                          type: boolean
+                                          x-kubernetes-validations:
+                                          - message: readOnly must be true, write
+                                              access is not supported
+                                            rule: self == true
+                                      required:
+                                      - path
                                       type: object
                                     dataVolume:
                                       description: |-
