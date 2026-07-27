@@ -44,6 +44,14 @@ func (ServiceAccountVolumeSource) SwaggerDoc() map[string]string {
 	}
 }
 
+func (ContainerPathVolumeSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":         "ContainerPathVolumeSource represents a path from the virt-launcher container\nto be exposed to the VM via virtiofs. The path must correspond to an existing\nvolumeMount in the virt-launcher pod's compute container.",
+		"path":     "Path is the absolute path within the virt-launcher container to expose to the VM.\nThe path must correspond to an existing volumeMount in the compute container.\n+kubebuilder:validation:MaxLength=4096\n+kubebuilder:validation:XValidation:rule=\"self.startsWith('/')\",message=\"path must be absolute (start with '/')\"\n+kubebuilder:validation:XValidation:rule=\"!self.contains('..')\",message=\"path must not contain '..'\"",
+		"readOnly": "ReadOnly controls whether the volume is exposed as read-only to the VM.\nDefaults to true. Write access is not currently supported.\n+optional\n+kubebuilder:default:=true\n+kubebuilder:validation:XValidation:rule=\"self == true\",message=\"readOnly must be true, write access is not supported\"",
+	}
+}
+
 func (DownwardMetricsVolumeSource) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"": "DownwardMetricsVolumeSource adds a very small disk to VMIs which contains a limited view of host and guest\nmetrics. The disk content is compatible with vhostmd (https://github.com/vhostmd/vhostmd) and vm-dump-metrics.",
@@ -96,6 +104,7 @@ func (DomainSpec) SwaggerDoc() map[string]string {
 		"ioThreads":       "IOThreads specifies the IOThreads options.\n+optional",
 		"chassis":         "Chassis specifies the chassis info passed to the domain.\n+optional",
 		"launchSecurity":  "Launch Security setting of the vmi.\n+optional",
+		"rebootPolicy":    "RebootPolicy specifies how the guest should behave on reboot.\nReboot (default): The guest is allowed to reboot silently.\nTerminate: The VMI will be terminated on guest reboot, allowing\nhigher level controllers (such as the VM controller) to recreate\nthe VMI with any updated configuration such as boot order changes.\n+optional",
 	}
 }
 
@@ -200,10 +209,11 @@ func (CPUFeature) SwaggerDoc() map[string]string {
 
 func (Memory) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":          "Memory allows specifying the VirtualMachineInstance memory features.",
-		"hugepages": "Hugepages allow to use hugepages for the VirtualMachineInstance instead of regular memory.\n+optional",
-		"guest":     "Guest allows to specifying the amount of memory which is visible inside the Guest OS.\nThe Guest must lie between Requests and Limits from the resources section.\nDefaults to the requested memory in the resources section if not specified.\n+ optional",
-		"maxGuest":  "MaxGuest allows to specify the maximum amount of memory which is visible inside the Guest OS.\nThe delta between MaxGuest and Guest is the amount of memory that can be hot(un)plugged.",
+		"":                 "Memory allows specifying the VirtualMachineInstance memory features.",
+		"hugepages":        "Hugepages allow to use hugepages for the VirtualMachineInstance instead of regular memory.\n+optional",
+		"guest":            "Guest allows to specifying the amount of memory which is visible inside the Guest OS.\nThe Guest must lie between Requests and Limits from the resources section.\nDefaults to the requested memory in the resources section if not specified.\n+ optional",
+		"maxGuest":         "MaxGuest allows to specify the maximum amount of memory which is visible inside the Guest OS.\nThe delta between MaxGuest and Guest is the amount of memory that can be hot(un)plugged.",
+		"reservedOverhead": "ReservedOverhead configures the memory overhead applied to a VM\nand its characteristics.\n+optional",
 	}
 }
 
@@ -212,6 +222,7 @@ func (MemoryStatus) SwaggerDoc() map[string]string {
 		"guestAtBoot":    "GuestAtBoot specifies with how much memory the VirtualMachine intiallly booted with.\n+optional",
 		"guestCurrent":   "GuestCurrent specifies how much memory is currently available for the VirtualMachine.\n+optional",
 		"guestRequested": "GuestRequested specifies how much memory was requested (hotplug) for the VirtualMachine.\n+optional",
+		"memoryOverhead": "MemoryOverhead specifies the memory overhead added by the virtualization infrastructure\nfor the virt-launcher pod.\n+optional",
 	}
 }
 
@@ -219,6 +230,13 @@ func (Hugepages) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":         "Hugepages allow to use hugepages for the VirtualMachineInstance instead of regular memory.",
 		"pageSize": "PageSize specifies the hugepage size, for x86_64 architecture valid values are 1Gi and 2Mi.",
+	}
+}
+
+func (ReservedOverhead) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"addedOverhead": "AddedOverhead determines the memory overhead that will be reserved\nfor the VM. It increases the virt-launcher pod memory limit.\n+optional",
+		"memLock":       "RequiresLock determines whether the VM's and its overhead memory\nneed to be locked or not. It is a common practice to enable this\nif vDPA, VFIO or any other specialized hardware that depends on\nDMA is being used by the VM.\nFalse - (Default) memory lock RLimits are not modified.\nTrue - Memory lock RLimits will be updated to consider VM memory\n       size and memory overhead\n+optional\n+kubebuilder:validation:Enum=NotRequired;Required",
 	}
 }
 
@@ -485,6 +503,7 @@ func (VolumeSource) SwaggerDoc() map[string]string {
 		"serviceAccount":        "ServiceAccountVolumeSource represents a reference to a service account.\nThere can only be one volume of this type!\nMore info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/\n+optional",
 		"downwardMetrics":       "DownwardMetrics adds a very small disk to VMIs which contains a limited view of host and guest\nmetrics. The disk content is compatible with vhostmd (https://github.com/vhostmd/vhostmd) and vm-dump-metrics.",
 		"memoryDump":            "MemoryDump is attached to the virt launcher and is populated with a memory dump of the vmi",
+		"containerPath":         "ContainerPath exposes a path from the virt-launcher container to the VM via virtiofs.\nThe path must correspond to an existing volumeMount in the compute container.\n+optional",
 	}
 }
 
@@ -534,6 +553,13 @@ func (ContainerDiskSource) SwaggerDoc() map[string]string {
 		"imagePullSecret": "ImagePullSecret is the name of the Docker registry secret required to pull the image. The secret must already exist.",
 		"path":            "Path defines the path to disk file in the container",
 		"imagePullPolicy": "Image pull policy.\nOne of Always, Never, IfNotPresent.\nDefaults to Always if :latest tag is specified, or IfNotPresent otherwise.\nCannot be updated.\nMore info: https://kubernetes.io/docs/concepts/containers/images#updating-images\n+optional",
+	}
+}
+
+func (UtilityVolume) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"name": "UtilityVolume's name.\nMust be unique within the vmi, including regular Volumes.",
+		"type": "Type represents the type of the utility volume.\n+optional",
 	}
 }
 
@@ -623,7 +649,9 @@ func (Features) SwaggerDoc() map[string]string {
 }
 
 func (SyNICTimer) SwaggerDoc() map[string]string {
-	return map[string]string{}
+	return map[string]string{
+		"direct": "+optional",
+	}
 }
 
 func (FeatureState) SwaggerDoc() map[string]string {
@@ -635,22 +663,26 @@ func (FeatureState) SwaggerDoc() map[string]string {
 
 func (FeatureAPIC) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"enabled":        "Enabled determines if the feature should be enabled or disabled on the guest.\nDefaults to true.\n+optional",
 		"endOfInterrupt": "EndOfInterrupt enables the end of interrupt notification in the guest.\nDefaults to false.\n+optional",
 	}
 }
 
 func (FeatureSpinlocks) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"enabled":   "Enabled determines if the feature should be enabled or disabled on the guest.\nDefaults to true.\n+optional",
 		"spinlocks": "Retries indicates the number of retries.\nMust be a value greater or equal 4096.\nDefaults to 4096.\n+optional",
 	}
 }
 
 func (FeatureVendorID) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"enabled":  "Enabled determines if the feature should be enabled or disabled on the guest.\nDefaults to true.\n+optional",
 		"vendorid": "VendorID sets the hypervisor vendor id, visible to the vmi.\nString up to twelve characters.",
+	}
+}
+
+func (TLBFlush) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"direct":   "Direct allows sending the TLB flush command directly to the hypervisor.\nIt can be useful to optimize performance in nested virtualization cases, such as Windows VBS.\n+optional",
+		"extended": "Extended allows the guest to execute partial TLB flushes. It can be helpful for general purpose workloads.\n+optional",
 	}
 }
 
@@ -785,6 +817,12 @@ func (DeprecatedInterfaceMacvtap) SwaggerDoc() map[string]string {
 func (DeprecatedInterfacePasst) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"": "DeprecatedInterfacePasst is an alias to the deprecated InterfacePasst\nDeprecated: Removed in v1.3",
+	}
+}
+
+func (InterfacePasstBinding) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "InterfacePasstBinding connects to a given network using passt usermode networking.",
 	}
 }
 
