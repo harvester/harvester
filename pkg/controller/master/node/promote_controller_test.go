@@ -790,3 +790,51 @@ func Test_selectPromoteNode(t *testing.T) {
 		})
 	}
 }
+
+func Test_reconcileInstallCordonedNode(t *testing.T) {
+	type args struct {
+		node     *corev1.Node
+		nodeList []*corev1.Node
+	}
+	tests := []struct {
+		name          string
+		args          args
+		unschedulable bool
+	}{
+		{
+			name: "one management (will not cordon)",
+			args: args{
+				node:     m1,
+				nodeList: []*corev1.Node{m1},
+			},
+			unschedulable: false,
+		},
+		{
+			name: "one management and one ready worker (will cordon worker)",
+			args: args{
+				node:     w1,
+				nodeList: []*corev1.Node{m1, w1},
+			},
+			unschedulable: true,
+		},
+		{
+			name: "one management and one cordoned worker (will not cordon management)",
+			args: args{
+				node:     m1,
+				nodeList: []*corev1.Node{m1, wo1},
+			},
+			unschedulable: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := reconcileInstallCordonedNode(tt.args.node, tt.args.nodeList)
+			if got.Annotations[util.HarvesterInstallCordonedProcessedAnnotation] != "true" {
+				t.Errorf("processed node is missing %s annotation", util.HarvesterInstallCordonedProcessedAnnotation)
+			}
+			if got.Spec.Unschedulable != tt.unschedulable {
+				t.Errorf("node.Spec.Unschedulable = %v, want %v", got.Spec.Unschedulable, tt.unschedulable)
+			}
+		})
+	}
+}
