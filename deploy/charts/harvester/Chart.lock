@@ -1,7 +1,7 @@
 dependencies:
 - name: kubevirt-operator
   repository: file://dependency_charts/kubevirt-operator
-  version: 0.6.2
+  version: 0.7.0
 - name: kubevirt
   repository: file://dependency_charts/kubevirt
   version: 0.1.0
@@ -35,5 +35,5 @@ dependencies:
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
   version: 1.10.0-dev.0
-digest: sha256:457a17bf0936ff7411ccbfacc3c0e09a2ba8bdd28b183ca41324a4e053f5937a
-generated: "2026-07-17T17:18:28.436088981+08:00"
+digest: sha256:338d72de9c065229e064e60e079b3441077b91c131c2168df89ec0f67133b142
+generated: "2026-07-28T00:46:42.199506639+08:00"
