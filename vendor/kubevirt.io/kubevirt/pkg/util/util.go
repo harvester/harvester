@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"path/filepath"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -29,6 +30,13 @@ const (
 	NonRootUID        = 107
 	NonRootUserString = "qemu"
 	RootUser          = 0
+
+	// extensive log verbosity threshold after which libvirt debug logs will be enabled
+	EXT_LOG_VERBOSITY_THRESHOLD         = 5
+	ENV_VAR_SHARED_FILESYSTEM_PATHS     = "SHARED_FILESYSTEM_PATHS"
+	ENV_VAR_LIBVIRT_DEBUG_LOGS          = "LIBVIRT_DEBUG_LOGS"
+	ENV_VAR_VIRTIOFSD_DEBUG_LOGS        = "VIRTIOFSD_DEBUG_LOGS"
+	ENV_VAR_VIRT_LAUNCHER_LOG_VERBOSITY = "VIRT_LAUNCHER_LOG_VERBOSITY"
 )
 
 func IsNonRootVMI(vmi *v1.VirtualMachineInstance) bool {
@@ -36,15 +44,6 @@ func IsNonRootVMI(vmi *v1.VirtualMachineInstance) bool {
 
 	nonRoot := vmi.Status.RuntimeUser != 0
 	return ok || nonRoot
-}
-
-func isSRIOVVmi(vmi *v1.VirtualMachineInstance) bool {
-	for _, iface := range vmi.Spec.Domain.Devices.Interfaces {
-		if iface.SRIOV != nil {
-			return true
-		}
-	}
-	return false
 }
 
 // Check if a VMI spec requests GPU
@@ -77,11 +76,32 @@ func IsHostDevVMI(vmi *v1.VirtualMachineInstance) bool {
 
 // Check if a VMI spec requests a VFIO device
 func IsVFIOVMI(vmi *v1.VirtualMachineInstance) bool {
+	return CountVFIODevices(vmi) > 0
+}
 
-	if IsHostDevVMI(vmi) || IsGPUVMI(vmi) || isSRIOVVmi(vmi) {
-		return true
+func CountVFIODevices(vmi *v1.VirtualMachineInstance) int {
+	count := len(vmi.Spec.Domain.Devices.GPUs) + len(vmi.Spec.Domain.Devices.HostDevices)
+	for _, iface := range vmi.Spec.Domain.Devices.Interfaces {
+		if iface.SRIOV != nil {
+			count++
+		}
 	}
-	return false
+	return count
+}
+
+// Check if a VMI spec requests memory overhead
+func RequiresMemoryOverheadReservation(v *v1.VirtualMachineInstance) bool {
+	return v.Spec.Domain.Memory != nil &&
+		v.Spec.Domain.Memory.ReservedOverhead != nil &&
+		v.Spec.Domain.Memory.ReservedOverhead.AddedOverhead != nil
+}
+
+// Check if a VMI spec requests locking VM's memory (e.g. for DMA)
+func RequiresLockingMemory(v *v1.VirtualMachineInstance) bool {
+	return v.Spec.Domain.Memory != nil &&
+		v.Spec.Domain.Memory.ReservedOverhead != nil &&
+		v.Spec.Domain.Memory.ReservedOverhead.MemLock != nil &&
+		*v.Spec.Domain.Memory.ReservedOverhead.MemLock == v1.MemLockRequired
 }
 
 func UseLaunchSecurity(vmi *v1.VirtualMachineInstance) bool {
@@ -194,4 +214,31 @@ func GenerateKubeVirtGroupVersionKind(obj runtime.Object) (runtime.Object, error
 	objCopy.GetObjectKind().SetGroupVersionKind(gvks[0])
 
 	return objCopy, nil
+}
+
+func PathForSwtpm(vmi *v1.VirtualMachineInstance) string {
+	swtpmPath := "/var/lib/libvirt/swtpm"
+	if IsNonRootVMI(vmi) {
+		swtpmPath = filepath.Join(VirtPrivateDir, "libvirt", "qemu", "swtpm")
+	}
+
+	return swtpmPath
+}
+
+func PathForSwtpmLocalca(vmi *v1.VirtualMachineInstance) string {
+	localCaPath := "/var/lib/swtpm-localca"
+	if IsNonRootVMI(vmi) {
+		localCaPath = filepath.Join(VirtPrivateDir, "var", "lib", "swtpm-localca")
+	}
+
+	return localCaPath
+}
+
+func PathForNVram(vmi *v1.VirtualMachineInstance) string {
+	nvramPath := "/var/lib/libvirt/qemu/nvram"
+	if IsNonRootVMI(vmi) {
+		nvramPath = filepath.Join(VirtPrivateDir, "libvirt", "qemu", "nvram")
+	}
+
+	return nvramPath
 }

@@ -17,7 +17,6 @@ limitations under the License.
 package matching
 
 import (
-	"context"
 	"fmt"
 
 	v1 "k8s.io/api/admissionregistration/v1"
@@ -45,8 +44,8 @@ type Matcher struct {
 	objectMatcher    *object.Matcher
 }
 
-func (m *Matcher) GetNamespace(ctx context.Context, name string) (*corev1.Namespace, error) {
-	return m.namespaceMatcher.GetNamespace(ctx, name)
+func (m *Matcher) GetNamespace(name string) (*corev1.Namespace, error) {
+	return m.namespaceMatcher.GetNamespace(name)
 }
 
 // NewMatcher initialize the matcher with dependencies requires

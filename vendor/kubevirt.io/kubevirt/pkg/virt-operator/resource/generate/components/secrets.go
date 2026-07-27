@@ -26,6 +26,7 @@ const (
 	KubeVirtCASecretName                              = "kubevirt-ca"
 	ExternalKubeVirtCAConfigMapName                   = "kubevirt-external-ca"
 	KubeVirtExportCASecretName                        = "kubevirt-export-ca"
+	KubeVirtBackupCASecretName                        = "kubevirt-backup-ca"
 	VirtHandlerCertSecretName                         = "kubevirt-virt-handler-certs"
 	VirtHandlerServerCertSecretName                   = "kubevirt-virt-handler-server-certs"
 	VirtHandlerMigrationClientCertSecretName          = "kubevirt-virt-handler-migration-client-certs"
@@ -36,6 +37,9 @@ const (
 	VirtExportProxyCertSecretName                     = "kubevirt-exportproxy-certs"
 	VirtSynchronizationControllerCertSecretName       = "kubevirt-synchronization-controller-certs"
 	VirtSynchronizationControllerServerCertSecretName = "kubevirt-synchronization-controller-server-certs"
+	VirtTemplateApiCertSecretName                     = "kubevirt-virt-template-api-certs"
+	VirtTemplateWebhookCertSecretName                 = "kubevirt-virt-template-webhook-certs"
+	VirtTemplateControllerMetricsCertSecretName       = "kubevirt-virt-template-controller-metrics-certs"
 	CABundleKey                                       = "ca-bundle"
 	LocalPodDNStemplateString                         = "%s.%s.pod.cluster.local"
 	CaClusterLocal                                    = "cluster.local"
@@ -51,6 +55,10 @@ var populationStrategy = map[string]CertificateCreationCallback{
 	},
 	KubeVirtExportCASecretName: func(secret *k8sv1.Secret, _ *tls.Certificate, duration time.Duration) (cert *x509.Certificate, key *ecdsa.PrivateKey) {
 		caKeyPair, _ := triple.NewCA("export.kubevirt.io", duration)
+		return caKeyPair.Cert, caKeyPair.Key
+	},
+	KubeVirtBackupCASecretName: func(secret *k8sv1.Secret, _ *tls.Certificate, duration time.Duration) (cert *x509.Certificate, key *ecdsa.PrivateKey) {
+		caKeyPair, _ := triple.NewCA("backup.kubevirt.io", duration)
 		return caKeyPair.Cert, caKeyPair.Key
 	},
 	VirtOperatorCertSecretName: func(secret *k8sv1.Secret, caCert *tls.Certificate, duration time.Duration) (cert *x509.Certificate, key *ecdsa.PrivateKey) {
@@ -205,6 +213,57 @@ var populationStrategy = map[string]CertificateCreationCallback{
 		)
 		return keyPair.Cert, keyPair.Key
 	},
+	VirtTemplateApiCertSecretName: func(secret *k8sv1.Secret, caCert *tls.Certificate, duration time.Duration) (cert *x509.Certificate, key *ecdsa.PrivateKey) {
+		caKeyPair := &triple.KeyPair{
+			Key:  caCert.PrivateKey.(*ecdsa.PrivateKey),
+			Cert: caCert.Leaf,
+		}
+		keyPair, _ := triple.NewServerKeyPair(
+			caKeyPair,
+			fmt.Sprintf(LocalPodDNStemplateString, VirtTemplateApiServiceName, secret.Namespace),
+			VirtTemplateApiServiceName,
+			secret.Namespace,
+			CaClusterLocal,
+			nil,
+			nil,
+			duration,
+		)
+		return keyPair.Cert, keyPair.Key
+	},
+	VirtTemplateWebhookCertSecretName: func(secret *k8sv1.Secret, caCert *tls.Certificate, duration time.Duration) (cert *x509.Certificate, key *ecdsa.PrivateKey) {
+		caKeyPair := &triple.KeyPair{
+			Key:  caCert.PrivateKey.(*ecdsa.PrivateKey),
+			Cert: caCert.Leaf,
+		}
+		keyPair, _ := triple.NewServerKeyPair(
+			caKeyPair,
+			fmt.Sprintf(LocalPodDNStemplateString, VirtTemplateWebhookServiceName, secret.Namespace),
+			VirtTemplateWebhookServiceName,
+			secret.Namespace,
+			CaClusterLocal,
+			nil,
+			nil,
+			duration,
+		)
+		return keyPair.Cert, keyPair.Key
+	},
+	VirtTemplateControllerMetricsCertSecretName: func(secret *k8sv1.Secret, caCert *tls.Certificate, duration time.Duration) (cert *x509.Certificate, key *ecdsa.PrivateKey) {
+		caKeyPair := &triple.KeyPair{
+			Key:  caCert.PrivateKey.(*ecdsa.PrivateKey),
+			Cert: caCert.Leaf,
+		}
+		keyPair, _ := triple.NewServerKeyPair(
+			caKeyPair,
+			fmt.Sprintf(LocalPodDNStemplateString, VirtTemplateControllerMetricsServiceName, secret.Namespace),
+			VirtTemplateControllerMetricsServiceName,
+			secret.Namespace,
+			CaClusterLocal,
+			nil,
+			nil,
+			duration,
+		)
+		return keyPair.Cert, keyPair.Key
+	},
 }
 
 func PopulateSecretWithCertificate(secret *k8sv1.Secret, caCert *tls.Certificate, duration *metav1.Duration) (err error) {
@@ -256,6 +315,20 @@ func NewCACertSecrets(operatorNamespace string) []*k8sv1.Secret {
 			},
 			Type: k8sv1.SecretTypeTLS,
 		},
+		{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Secret",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      KubeVirtBackupCASecretName,
+				Namespace: operatorNamespace,
+				Labels: map[string]string{
+					v1.ManagedByLabel: v1.ManagedByLabelOperatorValue,
+				},
+			},
+			Type: k8sv1.SecretTypeTLS,
+		},
 	}
 }
 
@@ -281,6 +354,19 @@ func NewCAConfigMaps(operatorNamespace string) []*k8sv1.ConfigMap {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      KubeVirtExportCASecretName,
+				Namespace: operatorNamespace,
+				Labels: map[string]string{
+					v1.ManagedByLabel: v1.ManagedByLabelOperatorValue,
+				},
+			},
+		},
+		{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ConfigMap",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      KubeVirtBackupCASecretName,
 				Namespace: operatorNamespace,
 				Labels: map[string]string{
 					v1.ManagedByLabel: v1.ManagedByLabelOperatorValue,
@@ -448,6 +534,53 @@ func NewCertSecrets(installNamespace string, operatorNamespace string) []*k8sv1.
 		},
 	}
 	return secrets
+}
+
+func NewVirtTemplateCertSecrets(installNamespace string) []*k8sv1.Secret {
+	return []*k8sv1.Secret{
+		{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Secret",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      VirtTemplateApiCertSecretName,
+				Namespace: installNamespace,
+				Labels: map[string]string{
+					v1.ManagedByLabel: v1.ManagedByLabelOperatorValue,
+				},
+			},
+			Type: k8sv1.SecretTypeTLS,
+		},
+		{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Secret",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      VirtTemplateWebhookCertSecretName,
+				Namespace: installNamespace,
+				Labels: map[string]string{
+					v1.ManagedByLabel: v1.ManagedByLabelOperatorValue,
+				},
+			},
+			Type: k8sv1.SecretTypeTLS,
+		},
+		{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Secret",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      VirtTemplateControllerMetricsCertSecretName,
+				Namespace: installNamespace,
+				Labels: map[string]string{
+					v1.ManagedByLabel: v1.ManagedByLabelOperatorValue,
+				},
+			},
+			Type: k8sv1.SecretTypeTLS,
+		},
+	}
 }
 
 // nextRotationDeadline returns a value for the threshold at which the

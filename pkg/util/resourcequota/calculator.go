@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	kubevirtv1 "kubevirt.io/api/core/v1"
-	kubevirtservices "kubevirt.io/kubevirt/pkg/virt-controller/services"
+	kubevirthypervisor "kubevirt.io/kubevirt/pkg/hypervisor"
 
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -21,6 +21,10 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 )
+
+// launcherHypervisorResources replaces the removed kubevirtservices.GetMemoryOverhead;
+// Harvester only runs KVM-based VMs.
+var launcherHypervisorResources = kubevirthypervisor.NewLauncherHypervisorResources(kubevirtv1.KvmHypervisorName)
 
 var resourceQuotaConversion = map[string]string{
 	"limitsCpu":       string(corev1.ResourceLimitsCPU),
@@ -205,7 +209,7 @@ func (c *Calculator) calculateVMActualOverhead(vm *kubevirtv1.VirtualMachine) *r
 		},
 	}
 
-	memoryOverhead := kubevirtservices.GetMemoryOverhead(vmi, runtime.GOARCH, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(c.settingCache))
+	memoryOverhead := launcherHypervisorResources.GetMemoryOverhead(vmi, runtime.GOARCH, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(c.settingCache))
 	return &memoryOverhead
 }
 
@@ -398,7 +402,7 @@ func CalculateScaleResourceQuotaWithVMI(
 	_, memOK := rq.Spec.Hard[corev1.ResourceLimitsMemory]
 	if !vmiLimits.Memory().IsZero() && memOK {
 		mem := vmiLimits[corev1.ResourceMemory]
-		mem.Add(kubevirtservices.GetMemoryOverhead(vmi, runtime.GOARCH, ratio))
+		mem.Add(launcherHypervisorResources.GetMemoryOverhead(vmi, runtime.GOARCH, ratio))
 		rl[corev1.ResourceLimitsMemory] = mem
 	}
 
@@ -543,7 +547,7 @@ func CalculateCompensationResourceQuotaWithVMI(
 
 	rl = corev1.ResourceList{}
 	mem := vmiLimits[corev1.ResourceMemory]
-	mem.Add(kubevirtservices.GetMemoryOverhead(vmi, runtime.GOARCH, ratio)) // add overhead
+	mem.Add(launcherHypervisorResources.GetMemoryOverhead(vmi, runtime.GOARCH, ratio)) // add overhead
 
 	// hard limit, used
 	limitMem := rq.Spec.Hard.Name(corev1.ResourceLimitsMemory, resource.BinarySI)
