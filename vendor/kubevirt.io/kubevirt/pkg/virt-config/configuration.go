@@ -39,6 +39,8 @@ import (
 
 const (
 	NodeDrainTaintDefaultKey = "kubevirt.io/drain"
+	CdiGroupName             = "cdi.kubevirt.io"
+	MonitoringGroupName      = "monitoring.coreos.com"
 )
 
 type ConfigModifiedFn func()
@@ -119,19 +121,19 @@ func (c *ClusterConfig) configUpdated(_, _ interface{}) {
 }
 
 func isDataVolumeCrd(crd *extv1.CustomResourceDefinition) bool {
-	return crd.Spec.Names.Kind == "DataVolume"
+	return crd.Spec.Names.Kind == "DataVolume" && crd.Spec.Group == CdiGroupName
 }
 
 func isDataSourceCrd(crd *extv1.CustomResourceDefinition) bool {
-	return crd.Spec.Names.Kind == "DataSource"
+	return crd.Spec.Names.Kind == "DataSource" && crd.Spec.Group == CdiGroupName
 }
 
 func isServiceMonitor(crd *extv1.CustomResourceDefinition) bool {
-	return crd.Spec.Names.Kind == "ServiceMonitor"
+	return crd.Spec.Names.Kind == "ServiceMonitor" && crd.Spec.Group == MonitoringGroupName
 }
 
 func isPrometheusRules(crd *extv1.CustomResourceDefinition) bool {
-	return crd.Spec.Names.Kind == "PrometheusRule"
+	return crd.Spec.Names.Kind == "PrometheusRule" && crd.Spec.Group == MonitoringGroupName
 }
 
 func (c *ClusterConfig) crdAddedDeleted(obj interface{}) {
@@ -166,6 +168,7 @@ func defaultClusterConfig(cpuArch string) *v1.KubeVirtConfiguration {
 	defaultUnsafeMigrationOverride := DefaultUnsafeMigrationOverride
 	progressTimeout := MigrationProgressTimeout
 	completionTimeoutPerGiB := MigrationCompletionTimeoutPerGiB
+	utilityVolumesTimeout := MigrationUtilityVolumesTimeoutSeconds
 	cpuRequestDefault := resource.MustParse(DefaultCPURequest)
 	nodeSelectorsDefault, _ := parseNodeSelectors(DefaultNodeSelectors)
 	defaultNetworkInterface := DefaultNetworkInterface
@@ -207,6 +210,7 @@ func defaultClusterConfig(cpuArch string) *v1.KubeVirtConfiguration {
 			BandwidthPerMigration:             &bandwidthPerMigrationDefault,
 			ProgressTimeout:                   &progressTimeout,
 			CompletionTimeoutPerGiB:           &completionTimeoutPerGiB,
+			UtilityVolumesTimeout:             &utilityVolumesTimeout,
 			UnsafeMigrationOverride:           &defaultUnsafeMigrationOverride,
 			AllowAutoConverge:                 &allowAutoConverge,
 			AllowPostCopy:                     &allowPostCopy,
@@ -267,6 +271,11 @@ func defaultClusterConfig(cpuArch string) *v1.KubeVirtConfiguration {
 			MaxHotplugRatio: DefaultMaxHotplugRatio,
 		},
 		VMRolloutStrategy: pointer.P(DefaultVMRolloutStrategy),
+		Hypervisors: []v1.HypervisorConfiguration{
+			{
+				Name: v1.KvmHypervisorName,
+			},
+		},
 	}
 }
 
@@ -287,9 +296,7 @@ func (c *ClusterConfig) SetConfigModifiedCallback(cb ConfigModifiedFn) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.configModifiedCallback = append(c.configModifiedCallback, cb)
-	for _, callback := range c.configModifiedCallback {
-		go callback()
-	}
+	go cb()
 }
 
 func setConfigFromKubeVirt(config *v1.KubeVirtConfiguration, kv *v1.KubeVirt) error {
