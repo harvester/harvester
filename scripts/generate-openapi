@@ -20,6 +20,7 @@ input_dirs=(
     k8s.io/apimachinery/pkg/api/errors
     github.com/openshift/api/operator/v1
     kubevirt.io/api/core/v1
+    kubevirt.io/api/backup/v1alpha1
     kubevirt.io/client-go/apis/snapshot/v1alpha1
     kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1
     kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1

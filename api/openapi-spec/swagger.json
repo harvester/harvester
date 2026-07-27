@@ -10810,6 +10810,29 @@
           }
         }
       },
+      "kubevirt.io.api.backup.v1alpha1.BackupVolumeInfo": {
+        "type": "object",
+        "required": [
+          "diskTarget",
+          "volumeName"
+        ],
+        "properties": {
+          "dataEndpoint": {
+            "type": "string"
+          },
+          "diskTarget": {
+            "type": "string",
+            "default": ""
+          },
+          "mapEndpoint": {
+            "type": "string"
+          },
+          "volumeName": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.ACPI": {
         "type": "object",
         "properties": {
@@ -11001,6 +11024,9 @@
           "state"
         ],
         "properties": {
+          "backupStatus": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachineInstanceBackupStatus"
+          },
           "state": {
             "type": "string",
             "default": ""
@@ -11152,6 +11178,21 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.ContainerPathVolumeSource": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "default": ""
+          },
+          "readOnly": {
+            "type": "boolean"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.ControllerRevisionRef": {
         "type": "object",
         "properties": {
@@ -11285,75 +11326,6 @@
       },
       "kubevirt.io.api.core.v1.DeprecatedInterfaceSlirp": {
         "type": "object"
-      },
-      "kubevirt.io.api.core.v1.DeviceAttribute": {
-        "type": "object",
-        "properties": {
-          "mDevUUID": {
-            "type": "string"
-          },
-          "pciAddress": {
-            "type": "string"
-          }
-        }
-      },
-      "kubevirt.io.api.core.v1.DeviceResourceClaimStatus": {
-        "type": "object",
-        "properties": {
-          "attributes": {
-            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeviceAttribute"
-          },
-          "name": {
-            "type": "string"
-          },
-          "resourceClaimName": {
-            "type": "string"
-          }
-        }
-      },
-      "kubevirt.io.api.core.v1.DeviceStatus": {
-        "type": "object",
-        "properties": {
-          "gpuStatuses": {
-            "type": "array",
-            "items": {
-              "default": {},
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeviceStatusInfo"
-                }
-              ]
-            },
-            "x-kubernetes-list-type": "atomic"
-          },
-          "hostDeviceStatuses": {
-            "type": "array",
-            "items": {
-              "default": {},
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeviceStatusInfo"
-                }
-              ]
-            },
-            "x-kubernetes-list-type": "atomic"
-          }
-        }
-      },
-      "kubevirt.io.api.core.v1.DeviceStatusInfo": {
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "deviceResourceClaimStatus": {
-            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeviceResourceClaimStatus"
-          },
-          "name": {
-            "type": "string",
-            "default": ""
-          }
-        }
       },
       "kubevirt.io.api.core.v1.Devices": {
         "type": "object",
@@ -11638,6 +11610,9 @@
           "memory": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.Memory"
           },
+          "rebootPolicy": {
+            "type": "string"
+          },
           "resources": {
             "default": {},
             "allOf": [
@@ -11748,7 +11723,7 @@
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.SyNICTimer"
           },
           "tlbflush": {
-            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.FeatureState"
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.TLBFlush"
           },
           "vapic": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.FeatureState"
@@ -12123,6 +12098,9 @@
           "passt": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeprecatedInterfacePasst"
           },
+          "passtBinding": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.InterfacePasstBinding"
+          },
           "pciAddress": {
             "type": "string"
           },
@@ -12155,6 +12133,9 @@
         "type": "object"
       },
       "kubevirt.io.api.core.v1.InterfaceMasquerade": {
+        "type": "object"
+      },
+      "kubevirt.io.api.core.v1.InterfacePasstBinding": {
         "type": "object"
       },
       "kubevirt.io.api.core.v1.InterfaceSRIOV": {
@@ -12276,6 +12257,9 @@
           },
           "maxGuest": {
             "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
+          },
+          "reservedOverhead": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.ReservedOverhead"
           }
         }
       },
@@ -12307,6 +12291,9 @@
             "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
           },
           "guestRequested": {
+            "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
+          },
+          "memoryOverhead": {
             "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
           }
         }
@@ -12356,6 +12343,10 @@
           },
           "unsafeMigrationOverride": {
             "type": "boolean"
+          },
+          "utilityVolumesTimeout": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -12645,6 +12636,17 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.ReservedOverhead": {
+        "type": "object",
+        "properties": {
+          "addedOverhead": {
+            "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
+          },
+          "memLock": {
+            "type": "string"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.ResourceRequirements": {
         "type": "object",
         "properties": {
@@ -12826,6 +12828,20 @@
       "kubevirt.io.api.core.v1.TDX": {
         "type": "object"
       },
+      "kubevirt.io.api.core.v1.TLBFlush": {
+        "type": "object",
+        "properties": {
+          "direct": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.FeatureState"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "extended": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.FeatureState"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.TPMDevice": {
         "type": "object",
         "properties": {
@@ -12904,6 +12920,29 @@
         "properties": {
           "secret": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.AccessCredentialSecretSource"
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.UtilityVolume": {
+        "type": "object",
+        "required": [
+          "claimName",
+          "name"
+        ],
+        "properties": {
+          "claimName": {
+            "type": "string",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "default": ""
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string"
           }
         }
       },
@@ -13035,6 +13074,44 @@
                 "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachineInstanceStatus"
               }
             ]
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.VirtualMachineInstanceBackupStatus": {
+        "type": "object",
+        "properties": {
+          "backupMsg": {
+            "type": "string"
+          },
+          "backupName": {
+            "type": "string"
+          },
+          "checkpointName": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "endTimestamp": {
+            "$ref": "#/components/schemas/k8s.io.v1.Time"
+          },
+          "failed": {
+            "type": "boolean"
+          },
+          "startTimestamp": {
+            "$ref": "#/components/schemas/k8s.io.v1.Time"
+          },
+          "volumes": {
+            "type": "array",
+            "items": {
+              "default": {},
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/kubevirt.io.api.backup.v1alpha1.BackupVolumeInfo"
+                }
+              ]
+            },
+            "x-kubernetes-list-type": "atomic"
           }
         }
       },
@@ -13397,6 +13474,9 @@
               "default": 0
             }
           },
+          "targetMemoryOverhead": {
+            "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
+          },
           "targetNode": {
             "type": "string"
           },
@@ -13723,6 +13803,21 @@
             "x-kubernetes-patch-merge-key": "topologyKey",
             "x-kubernetes-patch-strategy": "merge"
           },
+          "utilityVolumes": {
+            "type": "array",
+            "items": {
+              "default": {},
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.UtilityVolume"
+                }
+              ]
+            },
+            "x-kubernetes-list-map-keys": [
+              "name"
+            ],
+            "x-kubernetes-list-type": "map"
+          },
           "volumes": {
             "type": "array",
             "items": {
@@ -13766,9 +13861,6 @@
           },
           "currentCPUTopology": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.CPUTopology"
-          },
-          "deviceStatus": {
-            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DeviceStatus"
           },
           "evacuationNodeName": {
             "type": "string"
@@ -14164,6 +14256,9 @@
           },
           "containerDisk": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.ContainerDiskSource"
+          },
+          "containerPath": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.ContainerPathVolumeSource"
           },
           "dataVolume": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.DataVolumeSource"

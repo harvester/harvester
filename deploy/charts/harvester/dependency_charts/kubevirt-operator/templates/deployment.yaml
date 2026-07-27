@@ -71,7 +71,7 @@ spec:
 {{- if .Values.containers.operator.env }}
 {{ toYaml .Values.containers.operator.env | indent 12 }}
 {{- end }}
-            - name: OPERATOR_IMAGE
+            - name: VIRT_OPERATOR_IMAGE
               value: {{ .Values.containers.operator.image.repository }}:{{ .Values.containers.operator.image.tag }}
           ports:
             - containerPort: 8443
