@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,8 +37,8 @@ import (
 
 	v1 "kubevirt.io/api/core/v1"
 	"kubevirt.io/client-go/log"
-	clientutil "kubevirt.io/client-go/util"
 
+	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
 	"kubevirt.io/kubevirt/pkg/virt-config/featuregate"
 )
 
@@ -56,6 +57,8 @@ const (
 	GsImageEnvName                            = "GS_IMAGE"
 	PrHelperImageEnvName                      = "PR_HELPER_IMAGE"
 	SidecarShimImageEnvName                   = "SIDECAR_SHIM_IMAGE"
+	VirtTemplateApiserverImageEnvName         = "VIRT_TEMPLATE_APISERVER_IMAGE"
+	VirtTemplateControllerImageEnvName        = "VIRT_TEMPLATE_CONTROLLER_IMAGE"
 	RunbookURLTemplate                        = "RUNBOOK_URL_TEMPLATE"
 
 	KubeVirtVersionEnvName = "KUBEVIRT_VERSION"
@@ -86,6 +89,18 @@ const (
 	AdditionalPropertiesPersistentReservationEnabled = "PersistentReservationEnabled"
 
 	// lookup key in AdditionalProperties
+	AdditionalPropertiesVirtTemplateDeploymentEnabled = "VirtTemplateDeploymentEnabled"
+
+	// lookup key in AdditionalProperties
+	AdditionalPropertiesHypervisorName = "HypervisorName"
+
+	// lookup key in AdditionalProperties
+	AdditionalPropertiesExternalNetResourceInjection = "ExternalNetResourceInjection"
+
+	// lookup key in AdditionalProperties
+	AdditionalPropertiesOptOutRoleAggregation = "OptOutRoleAggregation"
+
+	// lookup key in AdditionalProperties
 	AdditionalPropertiesSynchronizationPort       = "SynchronizationPort"
 	DefaultSynchronizationPort              int32 = 9185
 
@@ -113,6 +128,22 @@ var DefaultMonitorNamespaces = []string{
 	"monitoring",           // default namespace of https://github.com/prometheus-operator/kube-prometheus
 }
 
+type ComponentImages struct {
+	VirtOperatorImage                  string `json:"virtOperatorImage,omitempty" optional:"true"`
+	VirtApiImage                       string `json:"virtApiImage,omitempty" optional:"true"`
+	VirtControllerImage                string `json:"virtControllerImage,omitempty" optional:"true"`
+	VirtHandlerImage                   string `json:"virtHandlerImage,omitempty" optional:"true"`
+	VirtLauncherImage                  string `json:"virtLauncherImage,omitempty" optional:"true"`
+	VirtExportProxyImage               string `json:"virtExportProxyImage,omitempty" optional:"true"`
+	VirtExportServerImage              string `json:"virtExportServerImage,omitempty" optional:"true"`
+	VirtSynchronizationControllerImage string `json:"virtSynchronizationControllerImage,omitempty" optional:"true"`
+	VirtTemplateApiserverImage         string `json:"virtTemplateApiserverImage,omitempty" optional:"true"`
+	VirtTemplateControllerImage        string `json:"virtTemplateControllerImage,omitempty" optional:"true"`
+	GsImage                            string `json:"GsImage,omitempty" optional:"true"`
+	PrHelperImage                      string `json:"PrHelperImage,omitempty" optional:"true"`
+	SidecarShimImage                   string `json:"SidecarShimImage,omitempty" optional:"true"`
+}
+
 type KubeVirtDeploymentConfig struct {
 	ID          string `json:"id,omitempty" optional:"true"`
 	Namespace   string `json:"namespace,omitempty" optional:"true"`
@@ -125,18 +156,7 @@ type KubeVirtDeploymentConfig struct {
 	KubeVirtVersion string `json:"kubeVirtVersion,omitempty" optional:"true"`
 
 	// the images names of every image we use
-	VirtOperatorImage                  string `json:"virtOperatorImage,omitempty" optional:"true"`
-	VirtApiImage                       string `json:"virtApiImage,omitempty" optional:"true"`
-	VirtControllerImage                string `json:"virtControllerImage,omitempty" optional:"true"`
-	VirtHandlerImage                   string `json:"virtHandlerImage,omitempty" optional:"true"`
-	VirtLauncherImage                  string `json:"virtLauncherImage,omitempty" optional:"true"`
-	VirtExportProxyImage               string `json:"virtExportProxyImage,omitempty" optional:"true"`
-	VirtExportServerImage              string `json:"virtExportServerImage,omitempty" optional:"true"`
-	VirtSynchronizationControllerImage string `json:"virtSynchronizationControllerImage,omitempty" optional:"true"`
-	GsImage                            string `json:"GsImage,omitempty" optional:"true"`
-	PrHelperImage                      string `json:"PrHelperImage,omitempty" optional:"true"`
-	SidecarShimImage                   string `json:"SidecarShimImage,omitempty" optional:"true"`
-
+	ComponentImages
 	// everything else, which can e.g. come from KubeVirt CR spec
 	AdditionalProperties map[string]string `json:"additionalProperties,omitempty" optional:"true"`
 
@@ -145,38 +165,6 @@ type KubeVirtDeploymentConfig struct {
 }
 
 var DefaultEnvVarManager EnvVarManager = EnvVarManagerImpl{}
-
-func GetConfigFromEnv() (*KubeVirtDeploymentConfig, error) {
-	return GetConfigFromEnvWithEnvVarManager(DefaultEnvVarManager)
-}
-
-func GetConfigFromEnvWithEnvVarManager(envVarManager EnvVarManager) (*KubeVirtDeploymentConfig, error) {
-	// first check if we have the new deployment config json
-	c := envVarManager.Getenv(TargetDeploymentConfig)
-	if c != "" {
-		config := &KubeVirtDeploymentConfig{}
-		if err := json.Unmarshal([]byte(c), config); err != nil {
-			return nil, err
-		}
-		return config, nil
-	}
-
-	// for backwards compatibility: check for namespace and pullpolicy from deprecated env vars
-	ns := envVarManager.Getenv(TargetInstallNamespace)
-	if ns == "" {
-		var err error
-		ns, err = clientutil.GetNamespace()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	pullPolicy := envVarManager.Getenv(TargetImagePullPolicy)
-	additionalProperties := make(map[string]string)
-	additionalProperties[AdditionalPropertiesNamePullPolicy] = pullPolicy
-
-	return getConfig("", "", ns, additionalProperties, envVarManager), nil
-}
 
 func GetTargetConfigFromKV(kv *v1.KubeVirt) *KubeVirtDeploymentConfig {
 	return GetTargetConfigFromKVWithEnvVarManager(kv, DefaultEnvVarManager)
@@ -188,11 +176,29 @@ func GetTargetConfigFromKVWithEnvVarManager(kv *v1.KubeVirt, envVarManager EnvVa
 		kv.Spec.Configuration.MigrationConfiguration.Network != nil {
 		additionalProperties[AdditionalPropertiesMigrationNetwork] = *kv.Spec.Configuration.MigrationConfiguration.Network
 	}
-	if kv.Spec.Configuration.DeveloperConfiguration != nil && len(kv.Spec.Configuration.DeveloperConfiguration.FeatureGates) > 0 {
-		for _, v := range kv.Spec.Configuration.DeveloperConfiguration.FeatureGates {
-			if v == featuregate.PersistentReservation {
-				additionalProperties[AdditionalPropertiesPersistentReservationEnabled] = ""
-			}
+
+	if isFeatureGateEnabledInKvConfig(&kv.Spec.Configuration, featuregate.PersistentReservation) {
+		additionalProperties[AdditionalPropertiesPersistentReservationEnabled] = ""
+	}
+
+	if isFeatureGateEnabledInKvConfig(&kv.Spec.Configuration, featuregate.Template) {
+		virtTemplateDeployment := kv.Spec.Configuration.VirtTemplateDeployment
+		if virtTemplateDeployment == nil || virtTemplateDeployment.Enabled == nil || *virtTemplateDeployment.Enabled {
+			additionalProperties[AdditionalPropertiesVirtTemplateDeploymentEnabled] = ""
+		}
+	}
+
+	if isFeatureGateEnabledInKvConfig(&kv.Spec.Configuration, featuregate.ExternalNetResourceInjection) {
+		additionalProperties[AdditionalPropertiesExternalNetResourceInjection] = ""
+	}
+
+	hypervisor := virtconfig.GetHypervisorFromKvConfig(&kv.Spec.Configuration, isFeatureGateEnabledInKvConfig(&kv.Spec.Configuration, featuregate.ConfigurableHypervisor))
+	additionalProperties[AdditionalPropertiesHypervisorName] = hypervisor.Name
+
+	if isFeatureGateEnabledInKvConfig(&kv.Spec.Configuration, featuregate.OptOutRoleAggregation) {
+		if kv.Spec.Configuration.RoleAggregationStrategy != nil &&
+			*kv.Spec.Configuration.RoleAggregationStrategy == v1.RoleAggregationStrategyManual {
+			additionalProperties[AdditionalPropertiesOptOutRoleAggregation] = ""
 		}
 	}
 	// don't use status.target* here, as that is always set, but we need to know if it was set by the spec and with that
@@ -204,19 +210,11 @@ func GetTargetConfigFromKVWithEnvVarManager(kv *v1.KubeVirt, envVarManager EnvVa
 		envVarManager)
 }
 
-// retrieve imagePrefix from an existing deployment config (which is stored as JSON)
-func getImagePrefixFromDeploymentConfig(deploymentConfig string) (string, bool, error) {
-	var obj interface{}
-	err := json.Unmarshal([]byte(deploymentConfig), &obj)
-	if err != nil {
-		return "", false, fmt.Errorf("unable to parse deployment config: %v", err)
+func isFeatureGateEnabledInKvConfig(kvConfig *v1.KubeVirtConfiguration, featureGate string) bool {
+	if kvConfig.DeveloperConfiguration != nil && len(kvConfig.DeveloperConfiguration.FeatureGates) > 0 {
+		return slices.Contains(kvConfig.DeveloperConfiguration.FeatureGates, featureGate)
 	}
-	for k, v := range obj.(map[string]interface{}) {
-		if k == ImagePrefixKey {
-			return v.(string), true, nil
-		}
-	}
-	return "", false, nil
+	return false
 }
 
 func getKVMapFromSpec(spec v1.KubeVirtSpec) map[string]string {
@@ -327,11 +325,13 @@ func getConfig(providedRegistry, providedTag, namespace string, additionalProper
 	exportProxyImage := envVarManager.Getenv(VirtExportProxyImageEnvName)
 	exportServerImage := envVarManager.Getenv(VirtExportServerImageEnvName)
 	synchronizationControllerImage := envVarManager.Getenv(VirtSynchronizationControllerImageEnvName)
+	virtTemplateApiserverImage := envVarManager.Getenv(VirtTemplateApiserverImageEnvName)
+	virtTemplateControllerImage := envVarManager.Getenv(VirtTemplateControllerImageEnvName)
 	GsImage := envVarManager.Getenv(GsImageEnvName)
 	PrHelperImage := envVarManager.Getenv(PrHelperImageEnvName)
 	SidecarShimImage := envVarManager.Getenv(SidecarShimImageEnvName)
 
-	return newDeploymentConfigWithTag(registry, imagePrefix, tag, namespace, operatorImage, apiImage, controllerImage, handlerImage, launcherImage, exportProxyImage, exportServerImage, synchronizationControllerImage, GsImage, PrHelperImage, SidecarShimImage, additionalProperties, passthroughEnv)
+	return newDeploymentConfigWithTag(registry, imagePrefix, tag, namespace, operatorImage, apiImage, controllerImage, handlerImage, launcherImage, exportProxyImage, exportServerImage, synchronizationControllerImage, virtTemplateApiserverImage, virtTemplateControllerImage, GsImage, PrHelperImage, SidecarShimImage, additionalProperties, passthroughEnv)
 }
 
 func VerifyEnv() error {
@@ -365,28 +365,36 @@ func GetPassthroughEnvWithEnvVarManager(envVarManager EnvVarManager) map[string]
 	return passthroughEnv
 }
 
-func newDeploymentConfigWithTag(registry, imagePrefix, tag, namespace, operatorImage, apiImage, controllerImage, handlerImage, launcherImage, exportProxyImage, exportServerImage, synchronizationControllerImage, gsImage, prHelperImage, sidecarShimImage string, kvSpec, passthroughEnv map[string]string) *KubeVirtDeploymentConfig {
+func newDeploymentConfigWithTag(registry, imagePrefix, tag, namespace, operatorImage, apiImage, controllerImage, handlerImage, launcherImage, exportProxyImage, exportServerImage, synchronizationControllerImage, virtTemplateApiserverImage, virtTemplateControllerImage, gsImage, prHelperImage, sidecarShimImage string, kvSpec, passthroughEnv map[string]string) *KubeVirtDeploymentConfig {
 	c := &KubeVirtDeploymentConfig{
-		Registry:                           registry,
-		ImagePrefix:                        imagePrefix,
-		KubeVirtVersion:                    tag,
-		VirtOperatorImage:                  operatorImage,
-		VirtApiImage:                       apiImage,
-		VirtControllerImage:                controllerImage,
-		VirtHandlerImage:                   handlerImage,
-		VirtLauncherImage:                  launcherImage,
-		VirtExportProxyImage:               exportProxyImage,
-		VirtExportServerImage:              exportServerImage,
-		VirtSynchronizationControllerImage: synchronizationControllerImage,
-		GsImage:                            gsImage,
-		PrHelperImage:                      prHelperImage,
-		SidecarShimImage:                   sidecarShimImage,
-		Namespace:                          namespace,
-		AdditionalProperties:               kvSpec,
-		PassthroughEnvVars:                 passthroughEnv,
+		Registry:        registry,
+		ImagePrefix:     imagePrefix,
+		KubeVirtVersion: tag,
+		ComponentImages: ComponentImages{
+			VirtOperatorImage:                  operatorImage,
+			VirtApiImage:                       apiImage,
+			VirtControllerImage:                controllerImage,
+			VirtHandlerImage:                   handlerImage,
+			VirtLauncherImage:                  launcherImage,
+			VirtExportProxyImage:               exportProxyImage,
+			VirtExportServerImage:              exportServerImage,
+			VirtSynchronizationControllerImage: synchronizationControllerImage,
+			VirtTemplateApiserverImage:         virtTemplateApiserverImage,
+			VirtTemplateControllerImage:        virtTemplateControllerImage,
+			GsImage:                            gsImage,
+			PrHelperImage:                      prHelperImage,
+			SidecarShimImage:                   sidecarShimImage,
+		},
+		Namespace:            namespace,
+		AdditionalProperties: kvSpec,
+		PassthroughEnvVars:   passthroughEnv,
 	}
 	c.generateInstallStrategyID()
 	return c
+}
+
+func (c *KubeVirtDeploymentConfig) GetComponentImages() ComponentImages {
+	return c.ComponentImages
 }
 
 func (c *KubeVirtDeploymentConfig) GetOperatorVersion() string {
@@ -486,7 +494,7 @@ func (c *KubeVirtDeploymentConfig) SetTargetDeploymentConfig(kv *v1.KubeVirt) er
 	return err
 }
 
-func (c *KubeVirtDeploymentConfig) SetDefaultArchitecture(kv *v1.KubeVirt) error {
+func SetDefaultArchitecture(kv *v1.KubeVirt) {
 	if kv.Spec.Configuration.ArchitectureConfiguration != nil && kv.Spec.Configuration.ArchitectureConfiguration.DefaultArchitecture != "" {
 		kv.Status.DefaultArchitecture = kv.Spec.Configuration.ArchitectureConfiguration.DefaultArchitecture
 	} else {
@@ -495,8 +503,6 @@ func (c *KubeVirtDeploymentConfig) SetDefaultArchitecture(kv *v1.KubeVirt) error
 			kv.Status.DefaultArchitecture = runtime.GOARCH
 		}
 	}
-
-	return nil
 }
 
 func (c *KubeVirtDeploymentConfig) SetObservedDeploymentConfig(kv *v1.KubeVirt) error {
@@ -532,8 +538,32 @@ func (c *KubeVirtDeploymentConfig) GetImagePullSecrets() []k8sv1.LocalObjectRefe
 	return data
 }
 
+func (c *KubeVirtDeploymentConfig) GetHypervisorName() string {
+	value, found := c.AdditionalProperties[AdditionalPropertiesHypervisorName]
+	if found {
+		return value
+	} else {
+		return v1.KvmHypervisorName
+	}
+}
+
 func (c *KubeVirtDeploymentConfig) PersistentReservationEnabled() bool {
 	_, enabled := c.AdditionalProperties[AdditionalPropertiesPersistentReservationEnabled]
+	return enabled
+}
+
+func (c *KubeVirtDeploymentConfig) VirtTemplateDeploymentEnabled() bool {
+	_, enabled := c.AdditionalProperties[AdditionalPropertiesVirtTemplateDeploymentEnabled]
+	return enabled
+}
+
+func (c *KubeVirtDeploymentConfig) ExternalNetResourceInjectionEnabled() bool {
+	_, enabled := c.AdditionalProperties[AdditionalPropertiesExternalNetResourceInjection]
+	return enabled
+}
+
+func (c *KubeVirtDeploymentConfig) OptOutRoleAggregationEnabled() bool {
+	_, enabled := c.AdditionalProperties[AdditionalPropertiesOptOutRoleAggregation]
 	return enabled
 }
 
@@ -626,19 +656,22 @@ func (c *KubeVirtDeploymentConfig) generateInstallStrategyID() {
 
 // use KubeVirtDeploymentConfig by value because we modify sth just for the ID
 func getStringFromFields(c KubeVirtDeploymentConfig) string {
-	result := ""
-
 	// image prefix might be empty. In order to get the same ID for missing and empty, remove an empty one
 	if prefix, ok := c.AdditionalProperties[ImagePrefixKey]; ok && prefix == "" {
 		delete(c.AdditionalProperties, ImagePrefixKey)
 	}
 
-	v := reflect.ValueOf(c)
+	return fieldsToString(reflect.ValueOf(c))
+}
+
+func fieldsToString(v reflect.Value) string {
+	result := ""
 	for i := 0; i < v.NumField(); i++ {
 		fieldName := v.Type().Field(i).Name
 		result += fieldName
 		field := v.Field(i)
-		if field.Type().Kind() == reflect.Map {
+		switch field.Type().Kind() {
+		case reflect.Map:
 			keys := field.MapKeys()
 			nameKeys := make(map[string]reflect.Value, len(keys))
 			names := make([]string, 0, len(keys))
@@ -657,9 +690,12 @@ func getStringFromFields(c KubeVirtDeploymentConfig) string {
 				result += name
 				result += val
 			}
-		} else {
-			value := v.Field(i).String()
-			result += value
+		case reflect.Struct:
+			result += fieldsToString(field)
+		case reflect.String:
+			result += field.String()
+		default:
+			panic(fmt.Sprintf("fieldsToString unable to handle field %s", fieldName))
 		}
 	}
 	return result
@@ -677,14 +713,14 @@ func (c *KubeVirtDeploymentConfig) GetJson() (string, error) {
 	return string(json), nil
 }
 
-func NewEnvVarMap(envMap map[string]string) *[]k8sv1.EnvVar {
+func NewEnvVarMap(envMap map[string]string) []k8sv1.EnvVar {
 	env := []k8sv1.EnvVar{}
 
 	for k, v := range envMap {
 		env = append(env, k8sv1.EnvVar{Name: k, Value: v})
 	}
 
-	return &env
+	return env
 }
 
 func IsValidLabel(label string) bool {

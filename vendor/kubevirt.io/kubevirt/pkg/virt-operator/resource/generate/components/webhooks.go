@@ -20,6 +20,7 @@ import (
 
 	migrationsv1 "kubevirt.io/api/migrations/v1alpha1"
 
+	backupv1 "kubevirt.io/api/backup/v1alpha1"
 	virtv1 "kubevirt.io/api/core/v1"
 	exportv1 "kubevirt.io/api/export/v1beta1"
 	instancetypev1beta1 "kubevirt.io/api/instancetype/v1beta1"
@@ -300,6 +301,8 @@ func NewVirtAPIValidatingWebhookConfiguration(installNamespace string) *admissio
 	migrationUpdatePath := MigrationUpdateValidatePath
 	vmSnapshotValidatePath := VMSnapshotValidatePath
 	vmRestoreValidatePath := VMRestoreValidatePath
+	vmBackupValidatePath := VMBackupValidatePath
+	vmBackupTrackerValidatePath := VMBackupTrackerValidatePath
 	vmExportValidatePath := VMExportValidatePath
 	VmInstancetypeValidatePath := VMInstancetypeValidatePath
 	VmClusterInstancetypeValidatePath := VMClusterInstancetypeValidatePath
@@ -637,6 +640,56 @@ func NewVirtAPIValidatingWebhookConfiguration(installNamespace string) *admissio
 				},
 			},
 			{
+				Name:                    "virtualmachinebackup-validator.backup.kubevirt.io",
+				AdmissionReviewVersions: []string{"v1"},
+				FailurePolicy:           &failurePolicy,
+				TimeoutSeconds:          &defaultTimeoutSeconds,
+				SideEffects:             &sideEffectNone,
+				Rules: []admissionregistrationv1.RuleWithOperations{{
+					Operations: []admissionregistrationv1.OperationType{
+						admissionregistrationv1.Create,
+						admissionregistrationv1.Update,
+					},
+					Rule: admissionregistrationv1.Rule{
+						APIGroups:   []string{backupv1.SchemeGroupVersion.Group},
+						APIVersions: []string{backupv1.SchemeGroupVersion.Version},
+						Resources:   []string{"virtualmachinebackups"},
+					},
+				}},
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					Service: &admissionregistrationv1.ServiceReference{
+						Namespace: installNamespace,
+						Name:      VirtApiServiceName,
+						Path:      &vmBackupValidatePath,
+					},
+				},
+			},
+			{
+				Name:                    "virtualmachinebackuptracker-validator.backup.kubevirt.io",
+				AdmissionReviewVersions: []string{"v1"},
+				FailurePolicy:           &failurePolicy,
+				TimeoutSeconds:          &defaultTimeoutSeconds,
+				SideEffects:             &sideEffectNone,
+				Rules: []admissionregistrationv1.RuleWithOperations{{
+					Operations: []admissionregistrationv1.OperationType{
+						admissionregistrationv1.Create,
+						admissionregistrationv1.Update,
+					},
+					Rule: admissionregistrationv1.Rule{
+						APIGroups:   []string{backupv1.SchemeGroupVersion.Group},
+						APIVersions: []string{backupv1.SchemeGroupVersion.Version},
+						Resources:   []string{"virtualmachinebackuptrackers"},
+					},
+				}},
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					Service: &admissionregistrationv1.ServiceReference{
+						Namespace: installNamespace,
+						Name:      VirtApiServiceName,
+						Path:      &vmBackupTrackerValidatePath,
+					},
+				},
+			},
+			{
 				Name:                    "virtualmachineexport-validator.export.kubevirt.io",
 				AdmissionReviewVersions: []string{"v1"},
 				FailurePolicy:           &failurePolicy,
@@ -888,6 +941,12 @@ const VirtExportProxyServiceName = "virt-exportproxy"
 
 const VirtSynchronizationControllerServiceName = "virt-synchronization-controller"
 
+const VirtTemplateApiServiceName = "virt-template-api-service"
+
+const VirtTemplateWebhookServiceName = "virt-template-webhook-service"
+
+const VirtTemplateControllerMetricsServiceName = "virt-template-controller-manager-metrics-service"
+
 const VirtAPIValidatingWebhookName = "virt-api-validator"
 
 const VirtOperatorServiceName = "kubevirt-operator-webhook"
@@ -901,6 +960,10 @@ const KubeVirtOperatorValidatingWebhookName = "virt-operator-validator"
 const VMSnapshotValidatePath = "/virtualmachinesnapshots-validate"
 
 const VMRestoreValidatePath = "/virtualmachinerestores-validate"
+
+const VMBackupValidatePath = "/virtualmachinebackups-validate"
+
+const VMBackupTrackerValidatePath = "/virtualmachinebackuptrackers-validate"
 
 const VMExportValidatePath = "/virtualmachineexports-validate"
 
@@ -921,3 +984,65 @@ const MigrationPolicyCreateValidatePath = "/migration-policy-validate-create"
 const VMCloneCreateValidatePath = "/vm-clone-validate-create"
 
 const VMCloneCreateMutatePath = "/vm-clone-mutate-create"
+
+const VirtLauncherPodMutatePath = "/virt-launcher-pod-mutate"
+
+const VirtLauncherPodMutatingWebhookName = "virt-launcher-pod-mutator"
+
+func NewVirtLauncherPodMutatingWebhookConfiguration(installNamespace string) *admissionregistrationv1.MutatingWebhookConfiguration {
+	path := VirtLauncherPodMutatePath
+	// Use Ignore so we don't block pod creation if virt-api is unavailable
+	failurePolicy := admissionregistrationv1.Ignore
+	// Reinvoke if other mutators make changes, ensuring we run after external mutators
+	reinvocationPolicy := admissionregistrationv1.IfNeededReinvocationPolicy
+
+	return &admissionregistrationv1.MutatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: admissionregistrationv1.SchemeGroupVersion.String(),
+			Kind:       "MutatingWebhookConfiguration",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: VirtLauncherPodMutatingWebhookName,
+			Labels: map[string]string{
+				virtv1.AppLabel:       VirtLauncherPodMutatingWebhookName,
+				virtv1.ManagedByLabel: virtv1.ManagedByLabelOperatorValue,
+			},
+			Annotations: map[string]string{
+				certificatesSecretAnnotationKey: VirtApiCertSecretName,
+			},
+		},
+		Webhooks: []admissionregistrationv1.MutatingWebhook{
+			{
+				Name:                    "virt-launcher-pod-mutator.kubevirt.io",
+				AdmissionReviewVersions: []string{"v1"},
+				SideEffects:             &sideEffectNone,
+				FailurePolicy:           &failurePolicy,
+				ReinvocationPolicy:      &reinvocationPolicy,
+				TimeoutSeconds:          &defaultTimeoutSeconds,
+				Rules: []admissionregistrationv1.RuleWithOperations{{
+					Operations: []admissionregistrationv1.OperationType{
+						admissionregistrationv1.Create,
+					},
+					Rule: admissionregistrationv1.Rule{
+						APIGroups:   []string{""},
+						APIVersions: []string{"v1"},
+						Resources:   []string{"pods"},
+					},
+				}},
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					Service: &admissionregistrationv1.ServiceReference{
+						Namespace: installNamespace,
+						Name:      VirtApiServiceName,
+						Path:      &path,
+					},
+				},
+				// Only match virt-launcher pods
+				ObjectSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						virtv1.AppLabel: "virt-launcher",
+					},
+				},
+			},
+		},
+	}
+}

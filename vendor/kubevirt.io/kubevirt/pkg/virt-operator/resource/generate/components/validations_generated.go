@@ -237,15 +237,13 @@ var CRDsValidation map[string]string = map[string]string{
                 volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim.
                 If specified, the CSI driver will create or update the volume with the attributes defined
                 in the corresponding VolumeAttributesClass. This has a different purpose than storageClassName,
-                it can be changed after the claim is created. An empty string value means that no VolumeAttributesClass
-                will be applied to the claim but it's not allowed to reset this field to empty string once it is set.
-                If unspecified and the PersistentVolumeClaim is unbound, the default VolumeAttributesClass
-                will be set by the persistentvolume controller if it exists.
+                it can be changed after the claim is created. An empty string or nil value indicates that no
+                VolumeAttributesClass will be applied to the claim. If the claim enters an Infeasible error state,
+                this field can be reset to its previous value (including nil) to cancel the modification.
                 If the resource referred to by volumeAttributesClass does not exist, this PersistentVolumeClaim will be
                 set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource
                 exists.
                 More info: https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/
-                (Beta) Using this field requires the VolumeAttributesClass feature gate to be enabled (off by default).
               type: string
             volumeMode:
               description: |-
@@ -322,6 +320,9 @@ var CRDsValidation map[string]string = map[string]string{
                 diskId:
                   description: DiskID provides id of a disk to be imported
                   type: string
+                insecureSkipVerify:
+                  description: InsecureSkipVerify is a flag to skip certificate verification
+                  type: boolean
                 secretRef:
                   description: SecretRef provides the secret reference needed to access
                     the ovirt-engine
@@ -1023,6 +1024,14 @@ var CRDsValidation map[string]string = map[string]string{
                     https://kubevirt.io/user-guide/operations/node_overcommit/#node-cpu-allocation-ratio
                     Defaults to 10
                   type: integer
+                disabledFeatureGates:
+                  description: |-
+                    DisabledFeatureGates specifies a list of experimental feature gates to disable.
+                    A feature gate must not appear in both FeatureGates and DisabledFeatureGates.
+                  items:
+                    type: string
+                  type: array
+                  x-kubernetes-list-type: atomic
                 diskVerification:
                   description: DiskVerification holds container disks verification
                     limits
@@ -1037,11 +1046,13 @@ var CRDsValidation map[string]string = map[string]string{
                   - memoryLimit
                   type: object
                 featureGates:
-                  description: FeatureGates is the list of experimental features to
-                    enable. Defaults to none
+                  description: |-
+                    FeatureGates specifies a list of experimental feature gates to enable. Defaults to none.
+                    A feature gate must not appear in both FeatureGates and DisabledFeatureGates.
                   items:
                     type: string
                   type: array
+                  x-kubernetes-list-type: atomic
                 logVerbosity:
                   description: LogVerbosity sets log verbosity level of  various components
                   properties:
@@ -1147,6 +1158,25 @@ var CRDsValidation map[string]string = map[string]string{
                       type: object
                   type: object
               type: object
+            hypervisors:
+              description: Hypervisors holds information regarding the hypervisor
+                configurations supported on this cluster.
+              items:
+                description: HypervisorConfiguration holds information regarding the
+                  hypervisor present on cluster nodes.
+                properties:
+                  name:
+                    description: |-
+                      Name is the name of the hypervisor.
+                      Supported values are: "kvm", "hyperv-direct".
+                    enum:
+                    - kvm
+                    - hyperv-direct
+                    type: string
+                type: object
+              maxItems: 1
+              type: array
+              x-kubernetes-list-type: atomic
             imagePullPolicy:
               description: PullPolicy describes a policy for if/when to pull a container
                 image
@@ -1258,6 +1288,12 @@ var CRDsValidation map[string]string = map[string]string{
               description: MediatedDevicesConfiguration holds information about MDEV
                 types to be defined, if available
               properties:
+                enabled:
+                  description: |-
+                    Enable the creation and removal of mediated devices by virt-handler
+                    Replaces the deprecated DisableMDEVConfiguration feature gate
+                    Defaults to true
+                  type: boolean
                 mediatedDeviceTypes:
                   items:
                     type: string
@@ -1390,8 +1426,16 @@ var CRDsValidation map[string]string = map[string]string{
                     UnsafeMigrationOverride allows live migrations to occur even if the compatibility check
                     indicates the migration will be unsafe to the guest. Defaults to false
                   type: boolean
+                utilityVolumesTimeout:
+                  description: |-
+                    UtilityVolumesTimeout is the maximum number of seconds a migration can wait in Pending state
+                    for utility volumes to be detached. If utility volumes are still present after this timeout,
+                    the migration will be marked as Failed. Defaults to 150
+                  format: int64
+                  type: integer
               type: object
             minCPUModel:
+              description: deprecated
               type: string
             network:
               description: NetworkConfiguration holds network options
@@ -1563,6 +1607,18 @@ var CRDsValidation map[string]string = map[string]string{
                   type: array
                   x-kubernetes-list-type: atomic
               type: object
+            roleAggregationStrategy:
+              description: |-
+                RoleAggregationStrategy controls whether RBAC cluster roles should be aggregated
+                to the default Kubernetes roles (admin, edit, view).
+                When set to "AggregateToDefault" (default) or not specified, the aggregate-to-* labels are added to the cluster roles.
+                When set to "Manual", the labels are not added, and roles will not be aggregated to the default roles.
+                Setting this field to "Manual" requires the OptOutRoleAggregation feature gate to be enabled.
+                This is an Alpha feature and subject to change.
+              enum:
+              - AggregateToDefault
+              - Manual
+              type: string
             seccompConfiguration:
               description: SeccompConfiguration holds Seccomp configuration for Kubevirt
                 components
@@ -1676,6 +1732,17 @@ var CRDsValidation map[string]string = map[string]string{
                   - VersionTLS12
                   - VersionTLS13
                   type: string
+              type: object
+            virtTemplateDeployment:
+              description: VirtTemplateDeployment controls the deployment of virt-template
+                components
+              nullable: true
+              properties:
+                enabled:
+                  description: Enabled controls the deployment of virt-template resources,
+                    defaults to True when feature gate is enabled.
+                  nullable: true
+                  type: boolean
               type: object
             virtualMachineInstancesPerNode:
               type: integer
@@ -2403,8 +2470,8 @@ var CRDsValidation map[string]string = map[string]string{
                             most preferred is the one with the greatest sum of weights, i.e.
                             for each node that meets all of the scheduling requirements (resource
                             request, requiredDuringScheduling anti-affinity expressions, etc.),
-                            compute a sum by iterating through the elements of this field and adding
-                            "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+                            compute a sum by iterating through the elements of this field and subtracting
+                            "weight" from the sum if the node has pods which matches the corresponding podAffinityTerm; the
                             node(s) with the highest sum are the most preferred.
                           items:
                             description: The weights of all of the matched WeightedPodAffinityTerm
@@ -3469,8 +3536,8 @@ var CRDsValidation map[string]string = map[string]string{
                             most preferred is the one with the greatest sum of weights, i.e.
                             for each node that meets all of the scheduling requirements (resource
                             request, requiredDuringScheduling anti-affinity expressions, etc.),
-                            compute a sum by iterating through the elements of this field and adding
-                            "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+                            compute a sum by iterating through the elements of this field and subtracting
+                            "weight" from the sum if the node has pods which matches the corresponding podAffinityTerm; the
                             node(s) with the highest sum are the most preferred.
                           items:
                             description: The weights of all of the matched WeightedPodAffinityTerm
@@ -4309,15 +4376,13 @@ var CRDsValidation map[string]string = map[string]string{
                           volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim.
                           If specified, the CSI driver will create or update the volume with the attributes defined
                           in the corresponding VolumeAttributesClass. This has a different purpose than storageClassName,
-                          it can be changed after the claim is created. An empty string value means that no VolumeAttributesClass
-                          will be applied to the claim but it's not allowed to reset this field to empty string once it is set.
-                          If unspecified and the PersistentVolumeClaim is unbound, the default VolumeAttributesClass
-                          will be set by the persistentvolume controller if it exists.
+                          it can be changed after the claim is created. An empty string or nil value indicates that no
+                          VolumeAttributesClass will be applied to the claim. If the claim enters an Infeasible error state,
+                          this field can be reset to its previous value (including nil) to cancel the modification.
                           If the resource referred to by volumeAttributesClass does not exist, this PersistentVolumeClaim will be
                           set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource
                           exists.
                           More info: https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/
-                          (Beta) Using this field requires the VolumeAttributesClass feature gate to be enabled (off by default).
                         type: string
                       volumeMode:
                         description: |-
@@ -4396,6 +4461,10 @@ var CRDsValidation map[string]string = map[string]string{
                           diskId:
                             description: DiskID provides id of a disk to be imported
                             type: string
+                          insecureSkipVerify:
+                            description: InsecureSkipVerify is a flag to skip certificate
+                              verification
+                            type: boolean
                           secretRef:
                             description: SecretRef provides the secret reference needed
                               to access the ovirt-engine
@@ -4780,6 +4849,12 @@ var CRDsValidation map[string]string = map[string]string{
           description: |-
             Running state indicates the requested running state of the VirtualMachineInstance
             mutually exclusive with Running
+            Following are allowed values:
+            - "Always": VMI should always be running.
+            - "Halted": VMI should never be running.
+            - "Manual": VMI can be started/stopped using API endpoints.
+            - "RerunOnFailure": VMI will initially be running and restarted if a failure occurs, but will not be restarted upon successful completion.
+            - "Once": VMI will run once and not be restarted upon completion regardless if the completion is of phase Failure or Success.
           type: string
         running:
           description: |-
@@ -5476,8 +5551,8 @@ var CRDsValidation map[string]string = map[string]string{
                             most preferred is the one with the greatest sum of weights, i.e.
                             for each node that meets all of the scheduling requirements (resource
                             request, requiredDuringScheduling anti-affinity expressions, etc.),
-                            compute a sum by iterating through the elements of this field and adding
-                            "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+                            compute a sum by iterating through the elements of this field and subtracting
+                            "weight" from the sum if the node has pods which matches the corresponding podAffinityTerm; the
                             node(s) with the highest sum are the most preferred.
                           items:
                             description: The weights of all of the matched WeightedPodAffinityTerm
@@ -6514,6 +6589,10 @@ var CRDsValidation map[string]string = map[string]string{
                                   please refer to Kubevirt user guide for alternatives.
                                   Deprecated: Removed in v1.3
                                 type: object
+                              passtBinding:
+                                description: InterfacePasstBinding connects to a given
+                                  network using passt usermode networking.
+                                type: object
                               pciAddress:
                                 description: 'If specified, the virtual network interface
                                   will be placed on the guests pci address with the
@@ -6835,6 +6914,9 @@ var CRDsValidation map[string]string = map[string]string{
                                       type: boolean
                                   type: object
                                 enabled:
+                                  description: |-
+                                    Enabled determines if the feature should be enabled or disabled on the guest.
+                                    Defaults to true.
                                   type: boolean
                               type: object
                             tlbflush:
@@ -6842,11 +6924,33 @@ var CRDsValidation map[string]string = map[string]string{
                                 TLBFlush improves performances in overcommited environments. Requires vpindex.
                                 Defaults to the machine type setting.
                               properties:
+                                direct:
+                                  description: |-
+                                    Direct allows sending the TLB flush command directly to the hypervisor.
+                                    It can be useful to optimize performance in nested virtualization cases, such as Windows VBS.
+                                  properties:
+                                    enabled:
+                                      description: |-
+                                        Enabled determines if the feature should be enabled or disabled on the guest.
+                                        Defaults to true.
+                                      type: boolean
+                                  type: object
                                 enabled:
                                   description: |-
                                     Enabled determines if the feature should be enabled or disabled on the guest.
                                     Defaults to true.
                                   type: boolean
+                                extended:
+                                  description: Extended allows the guest to execute
+                                    partial TLB flushes. It can be helpful for general
+                                    purpose workloads.
+                                  properties:
+                                    enabled:
+                                      description: |-
+                                        Enabled determines if the feature should be enabled or disabled on the guest.
+                                        Defaults to true.
+                                      type: boolean
+                                  type: object
                               type: object
                             vapic:
                               description: |-
@@ -7116,7 +7220,46 @@ var CRDsValidation map[string]string = map[string]string{
                             The delta between MaxGuest and Guest is the amount of memory that can be hot(un)plugged.
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
+                        reservedOverhead:
+                          description: |-
+                            ReservedOverhead configures the memory overhead applied to a VM
+                            and its characteristics.
+                          properties:
+                            addedOverhead:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              description: |-
+                                AddedOverhead determines the memory overhead that will be reserved
+                                for the VM. It increases the virt-launcher pod memory limit.
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            memLock:
+                              description: |-
+                                RequiresLock determines whether the VM's and its overhead memory
+                                need to be locked or not. It is a common practice to enable this
+                                if vDPA, VFIO or any other specialized hardware that depends on
+                                DMA is being used by the VM.
+                                False - (Default) memory lock RLimits are not modified.
+                                True - Memory lock RLimits will be updated to consider VM memory
+                                       size and memory overhead
+                              enum:
+                              - NotRequired
+                              - Required
+                              type: string
+                          type: object
                       type: object
+                    rebootPolicy:
+                      description: |-
+                        RebootPolicy specifies how the guest should behave on reboot.
+                        Reboot (default): The guest is allowed to reboot silently.
+                        Terminate: The VMI will be terminated on guest reboot, allowing
+                        higher level controllers (such as the VM controller) to recreate
+                        the VMI with any updated configuration such as boot order changes.
+                      enum:
+                      - Reboot
+                      - Terminate
+                      type: string
                     resources:
                       description: Resources describes the Compute Resources required
                         by this vmi.
@@ -7199,8 +7342,14 @@ var CRDsValidation map[string]string = map[string]string{
                       format: int32
                       type: integer
                     guestAgentPing:
-                      description: GuestAgentPing contacts the qemu-guest-agent for
-                        availability checks.
+                      description: |-
+                        GuestAgentPing contacts the qemu-guest-agent for availability checks.
+                        Probe failures are automatically suppressed when the guest agent is
+                        unreachable for a non-fault reason: during live migration (guest paused
+                        on one pod while memory is transferred) and whenever the VM is paused
+                        for an intentional or transient reason such as a user pause, snapshot,
+                        save, or dump. Failures are not suppressed when the VM is paused due to
+                        a fault (IO error, crash, or postcopy failure).
                       type: object
                     httpGet:
                       description: HTTPGet specifies the http request to perform.
@@ -7397,8 +7546,14 @@ var CRDsValidation map[string]string = map[string]string{
                       format: int32
                       type: integer
                     guestAgentPing:
-                      description: GuestAgentPing contacts the qemu-guest-agent for
-                        availability checks.
+                      description: |-
+                        GuestAgentPing contacts the qemu-guest-agent for availability checks.
+                        Probe failures are automatically suppressed when the guest agent is
+                        unreachable for a non-fault reason: during live migration (guest paused
+                        on one pod while memory is transferred) and whenever the VM is paused
+                        for an intentional or transient reason such as a user pause, snapshot,
+                        save, or dump. Failures are not suppressed when the VM is paused due to
+                        a fault (IO error, crash, or postcopy failure).
                       type: object
                     httpGet:
                       description: HTTPGet specifies the http request to perform.
@@ -7799,6 +7954,40 @@ var CRDsValidation map[string]string = map[string]string{
                   - topologyKey
                   - whenUnsatisfiable
                   x-kubernetes-list-type: map
+                utilityVolumes:
+                  description: |-
+                    List of utility volumes that can be mounted to the vmi virt-launcher pod
+                    without having a matching disk in the domain.
+                    Used to collect data for various operational workflows.
+                  items:
+                    properties:
+                      claimName:
+                        description: |-
+                          claimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume.
+                          More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
+                        type: string
+                      name:
+                        description: |-
+                          UtilityVolume's name.
+                          Must be unique within the vmi, including regular Volumes.
+                        type: string
+                      readOnly:
+                        description: |-
+                          readOnly Will force the ReadOnly setting in VolumeMounts.
+                          Default false.
+                        type: boolean
+                      type:
+                        description: Type represents the type of the utility volume.
+                        type: string
+                    required:
+                    - claimName
+                    - name
+                    type: object
+                  maxItems: 256
+                  type: array
+                  x-kubernetes-list-map-keys:
+                  - name
+                  x-kubernetes-list-type: map
                 volumes:
                   description: List of volumes that can be mounted by disks belonging
                     to the vmi.
@@ -7965,6 +8154,35 @@ var CRDsValidation map[string]string = map[string]string{
                             type: string
                         required:
                         - image
+                        type: object
+                      containerPath:
+                        description: |-
+                          ContainerPath exposes a path from the virt-launcher container to the VM via virtiofs.
+                          The path must correspond to an existing volumeMount in the compute container.
+                        properties:
+                          path:
+                            description: |-
+                              Path is the absolute path within the virt-launcher container to expose to the VM.
+                              The path must correspond to an existing volumeMount in the compute container.
+                            maxLength: 4096
+                            type: string
+                            x-kubernetes-validations:
+                            - message: path must be absolute (start with '/')
+                              rule: self.startsWith('/')
+                            - message: path must not contain '..'
+                              rule: '!self.contains(''..'')'
+                          readOnly:
+                            default: true
+                            description: |-
+                              ReadOnly controls whether the volume is exposed as read-only to the VM.
+                              Defaults to true. Write access is not currently supported.
+                            type: boolean
+                            x-kubernetes-validations:
+                            - message: readOnly must be true, write access is not
+                                supported
+                              rule: self == true
+                        required:
+                        - path
                         type: object
                       dataVolume:
                         description: |-
@@ -8277,6 +8495,64 @@ var CRDsValidation map[string]string = map[string]string{
           description: ChangedBlockTracking represents the status of the changedBlockTracking
           nullable: true
           properties:
+            backupStatus:
+              description: BackupStatus represents the status of vmi backup
+              nullable: true
+              properties:
+                backupMsg:
+                  description: |-
+                    BackupMsg resturns any relevant information like failure reason
+                    unfreeze failed etc...
+                  type: string
+                backupName:
+                  description: BackupName is the name of the executed backup
+                  type: string
+                checkpointName:
+                  description: CheckpointName is the name of the checkpoint created
+                    for the backup
+                  type: string
+                completed:
+                  description: Completed indicates the backup completed
+                  type: boolean
+                endTimestamp:
+                  description: EndTimestamp is the timestamp when the backup ended
+                  format: date-time
+                  type: string
+                failed:
+                  description: Failed indicates that the backup failed
+                  type: boolean
+                startTimestamp:
+                  description: StartTimestamp is the timestamp when the backup started
+                  format: date-time
+                  type: string
+                volumes:
+                  description: Volumes lists the volumes included in the backup
+                  items:
+                    description: BackupVolumeInfo contains information about a volume
+                      included in a backup
+                    properties:
+                      dataEndpoint:
+                        description: DataEndpoint is the URL of the endpoint for read
+                          for pull mode
+                        type: string
+                      diskTarget:
+                        description: DiskTarget is the disk target device name at
+                          backup time
+                        type: string
+                      mapEndpoint:
+                        description: MapEndpoint is the URL of the endpoint for map
+                          for pull mode
+                        type: string
+                      volumeName:
+                        description: VolumeName is the volume name from VMI spec
+                        type: string
+                    required:
+                    - diskTarget
+                    - volumeName
+                    type: object
+                  type: array
+                  x-kubernetes-list-type: atomic
+              type: object
             state:
               description: State represents the current CBT state
               type: string
@@ -8879,6 +9155,296 @@ var CRDsValidation map[string]string = map[string]string{
   - spec
   type: object
 `,
+	"virtualmachinebackup": `openAPIV3Schema:
+  description: VirtualMachineBackup defines the operation of backing up a VM
+  properties:
+    apiVersion:
+      description: |-
+        APIVersion defines the versioned schema of this representation of an object.
+        Servers should convert recognized schemas to the latest internal value, and
+        may reject unrecognized values.
+        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+      type: string
+    kind:
+      description: |-
+        Kind is a string value representing the REST resource this object represents.
+        Servers may infer this from the endpoint the client submits requests to.
+        Cannot be updated.
+        In CamelCase.
+        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+      type: string
+    metadata:
+      type: object
+    spec:
+      description: VirtualMachineBackupSpec is the spec for a VirtualMachineBackup
+        resource
+      properties:
+        forceFullBackup:
+          description: ForceFullBackup indicates that a full backup is desired
+          type: boolean
+        mode:
+          description: Mode specifies the way the backup output will be recieved
+          enum:
+          - Push
+          - Pull
+          type: string
+        pvcName:
+          description: |-
+            PvcName required in push mode. Specifies the name of the PVC
+            where the backup output will be stored
+          type: string
+        skipQuiesce:
+          description: SkipQuiesce indicates whether the VM's filesystem shoule not
+            be quiesced before the backup
+          type: boolean
+        source:
+          description: |-
+            Source specifies the backup source - either a VirtualMachine or a VirtualMachineBackupTracker.
+            When Kind is VirtualMachine: performs a backup of the specified VM.
+            When Kind is VirtualMachineBackupTracker: uses the tracker to get the source VM
+            and the base checkpoint for incremental backup. The tracker will be updated
+            with the new checkpoint after backup completion.
+          properties:
+            apiGroup:
+              description: |-
+                APIGroup is the group for the resource being referenced.
+                If APIGroup is not specified, the specified Kind must be in the core API group.
+                For any other third-party types, APIGroup is required.
+              type: string
+            kind:
+              description: Kind is the type of resource being referenced
+              type: string
+            name:
+              description: Name is the name of resource being referenced
+              type: string
+          required:
+          - kind
+          - name
+          type: object
+          x-kubernetes-map-type: atomic
+          x-kubernetes-validations:
+          - message: apiGroup is required
+            rule: has(self.apiGroup)
+          - message: apiGroup must be kubevirt.io or backup.kubevirt.io
+            rule: '!has(self.apiGroup) || self.apiGroup == ''kubevirt.io'' || self.apiGroup
+              == ''backup.kubevirt.io'''
+          - message: kind must be VirtualMachine for kubevirt.io or VirtualMachineBackupTracker
+              for backup.kubevirt.io
+            rule: '!has(self.apiGroup) || (self.apiGroup == ''kubevirt.io'' && self.kind
+              == ''VirtualMachine'') || (self.apiGroup == ''backup.kubevirt.io'' &&
+              self.kind == ''VirtualMachineBackupTracker'')'
+          - message: name is required
+            rule: self.name != ''
+        tokenSecretRef:
+          description: |-
+            TokenSecretRef is the name of the secret that
+            will be used to pull the backup from an associated endpoint
+          type: string
+        ttlDuration:
+          description: |-
+            TtlDuration limits the lifetime of a pull mode backup and its export
+            If this field is set, after this duration has passed from counting from CreationTimestamp,
+            the backup is eligible to be automatically considered as complete.
+            If this field is omitted, a reasonable default is applied.
+          type: string
+      required:
+      - source
+      type: object
+      x-kubernetes-validations:
+      - message: spec is immutable after creation
+        rule: self == oldSelf
+      - message: pvcName is required
+        rule: has(self.pvcName) && self.pvcName != ""
+      - message: tokenSecretRef is required when mode is Pull
+        rule: '!has(self.mode) || self.mode != ''Pull'' || (has(self.tokenSecretRef)
+          && self.tokenSecretRef != "")'
+    status:
+      description: VirtualMachineBackupStatus is the status for a VirtualMachineBackup
+        resource
+      properties:
+        checkpointName:
+          description: CheckpointName the name of the checkpoint created for the current
+            backup
+          type: string
+        conditions:
+          items:
+            description: Condition defines conditions
+            properties:
+              lastProbeTime:
+                format: date-time
+                nullable: true
+                type: string
+              lastTransitionTime:
+                format: date-time
+                nullable: true
+                type: string
+              message:
+                type: string
+              reason:
+                type: string
+              status:
+                type: string
+              type:
+                description: ConditionType is the const type for Conditions
+                type: string
+            required:
+            - status
+            - type
+            type: object
+          type: array
+          x-kubernetes-list-type: atomic
+        endpointCert:
+          description: |-
+            EndpointCert is the raw CACert that is to be used when connecting
+            to an exported backup endpoint in pull mode.
+          type: string
+        includedVolumes:
+          description: IncludedVolumes lists the volumes that were included in the
+            backup
+          items:
+            description: BackupVolumeInfo contains information about a volume included
+              in a backup
+            properties:
+              dataEndpoint:
+                description: DataEndpoint is the URL of the endpoint for read for
+                  pull mode
+                type: string
+              diskTarget:
+                description: DiskTarget is the disk target device name at backup time
+                type: string
+              mapEndpoint:
+                description: MapEndpoint is the URL of the endpoint for map for pull
+                  mode
+                type: string
+              volumeName:
+                description: VolumeName is the volume name from VMI spec
+                type: string
+            required:
+            - diskTarget
+            - volumeName
+            type: object
+          type: array
+          x-kubernetes-list-type: atomic
+        type:
+          description: Type indicates if the backup was full or incremental
+          type: string
+      type: object
+  required:
+  - spec
+  type: object
+`,
+	"virtualmachinebackuptracker": `openAPIV3Schema:
+  description: |-
+    VirtualMachineBackupTracker defines the way to track the latest checkpoint of
+    a backup solution for a vm
+  properties:
+    apiVersion:
+      description: |-
+        APIVersion defines the versioned schema of this representation of an object.
+        Servers should convert recognized schemas to the latest internal value, and
+        may reject unrecognized values.
+        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+      type: string
+    kind:
+      description: |-
+        Kind is a string value representing the REST resource this object represents.
+        Servers may infer this from the endpoint the client submits requests to.
+        Cannot be updated.
+        In CamelCase.
+        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+      type: string
+    metadata:
+      type: object
+    spec:
+      description: VirtualMachineBackupTrackerSpec is the spec for a VirtualMachineBackupTracker
+        resource
+      properties:
+        source:
+          description: Source specifies the VM that this backupTracker is associated
+            with
+          properties:
+            apiGroup:
+              description: |-
+                APIGroup is the group for the resource being referenced.
+                If APIGroup is not specified, the specified Kind must be in the core API group.
+                For any other third-party types, APIGroup is required.
+              type: string
+            kind:
+              description: Kind is the type of resource being referenced
+              type: string
+            name:
+              description: Name is the name of resource being referenced
+              type: string
+          required:
+          - kind
+          - name
+          type: object
+          x-kubernetes-map-type: atomic
+          x-kubernetes-validations:
+          - message: apiGroup must be kubevirt.io
+            rule: has(self.apiGroup) && self.apiGroup == 'kubevirt.io'
+          - message: kind must be VirtualMachine
+            rule: self.kind == 'VirtualMachine'
+          - message: name is required
+            rule: self.name != ''
+      required:
+      - source
+      type: object
+      x-kubernetes-validations:
+      - message: spec is immutable after creation
+        rule: self == oldSelf
+    status:
+      properties:
+        checkpointRedefinitionRequired:
+          description: |-
+            CheckpointRedefinitionRequired is set to true by virt-handler when the VM
+            restarts and has a checkpoint that needs to be redefined in libvirt.
+            virt-controller will process this flag, attempt redefinition, and clear it.
+          type: boolean
+        latestCheckpoint:
+          description: |-
+            LatestCheckpoint is the metadata of the checkpoint of
+            the latest performed backup
+          properties:
+            creationTime:
+              format: date-time
+              type: string
+            name:
+              type: string
+            volumes:
+              description: Volumes lists volumes and their disk targets at backup
+                time
+              items:
+                description: BackupVolumeInfo contains information about a volume
+                  included in a backup
+                properties:
+                  dataEndpoint:
+                    description: DataEndpoint is the URL of the endpoint for read
+                      for pull mode
+                    type: string
+                  diskTarget:
+                    description: DiskTarget is the disk target device name at backup
+                      time
+                    type: string
+                  mapEndpoint:
+                    description: MapEndpoint is the URL of the endpoint for map for
+                      pull mode
+                    type: string
+                  volumeName:
+                    description: VolumeName is the volume name from VMI spec
+                    type: string
+                required:
+                - diskTarget
+                - volumeName
+                type: object
+              type: array
+              x-kubernetes-list-type: atomic
+          type: object
+      type: object
+  required:
+  - spec
+  type: object
+`,
 	"virtualmachineclone": `openAPIV3Schema:
   description: VirtualMachineClone is a CRD that clones one VM into another.
   properties:
@@ -9008,6 +9574,13 @@ var CRDsValidation map[string]string = map[string]string{
               type: array
               x-kubernetes-list-type: atomic
           type: object
+        volumeNamePolicy:
+          description: VolumeNamePolicy defines how to handle volume naming during
+            the clone operation
+          enum:
+          - RandomizeNames
+          - PrefixTargetName
+          type: string
       required:
       - source
       type: object
@@ -9825,6 +10398,9 @@ var CRDsValidation map[string]string = map[string]string{
                           type: boolean
                       type: object
                     enabled:
+                      description: |-
+                        Enabled determines if the feature should be enabled or disabled on the guest.
+                        Defaults to true.
                       type: boolean
                   type: object
                 tlbflush:
@@ -9832,11 +10408,32 @@ var CRDsValidation map[string]string = map[string]string{
                     TLBFlush improves performances in overcommited environments. Requires vpindex.
                     Defaults to the machine type setting.
                   properties:
+                    direct:
+                      description: |-
+                        Direct allows sending the TLB flush command directly to the hypervisor.
+                        It can be useful to optimize performance in nested virtualization cases, such as Windows VBS.
+                      properties:
+                        enabled:
+                          description: |-
+                            Enabled determines if the feature should be enabled or disabled on the guest.
+                            Defaults to true.
+                          type: boolean
+                      type: object
                     enabled:
                       description: |-
                         Enabled determines if the feature should be enabled or disabled on the guest.
                         Defaults to true.
                       type: boolean
+                    extended:
+                      description: Extended allows the guest to execute partial TLB
+                        flushes. It can be helpful for general purpose workloads.
+                      properties:
+                        enabled:
+                          description: |-
+                            Enabled determines if the feature should be enabled or disabled on the guest.
+                            Defaults to true.
+                          type: boolean
+                      type: object
                   type: object
                 vapic:
                   description: |-
@@ -10119,6 +10716,43 @@ var CRDsValidation map[string]string = map[string]string{
               description: VirtualMachineExportLink contains a list of volumes available
                 for export, as well as the URLs to obtain these volumes
               properties:
+                backups:
+                  description: Backups is a list of available backups for the export
+                  items:
+                    description: VirtualMachineExportBackup contains the URL and available
+                      formats for the exported backup
+                    properties:
+                      endpoints:
+                        items:
+                          description: VirtualMachineExportBackupEndpoint contains
+                            the endpoint type and URL to interact with a backup export
+                          properties:
+                            endpoint:
+                              description: Endpoint is the endpoint of the backup
+                                export at the specified URL
+                              type: string
+                            url:
+                              description: Url is the url that contains the volume
+                                in the format specified
+                              type: string
+                          required:
+                          - endpoint
+                          - url
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - endpoint
+                        x-kubernetes-list-type: map
+                      name:
+                        description: Name is the name of the exported volume
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                  - name
+                  x-kubernetes-list-type: map
                 cert:
                   description: Cert is the public CA certificate base64 encoded
                   type: string
@@ -10188,6 +10822,43 @@ var CRDsValidation map[string]string = map[string]string{
               description: VirtualMachineExportLink contains a list of volumes available
                 for export, as well as the URLs to obtain these volumes
               properties:
+                backups:
+                  description: Backups is a list of available backups for the export
+                  items:
+                    description: VirtualMachineExportBackup contains the URL and available
+                      formats for the exported backup
+                    properties:
+                      endpoints:
+                        items:
+                          description: VirtualMachineExportBackupEndpoint contains
+                            the endpoint type and URL to interact with a backup export
+                          properties:
+                            endpoint:
+                              description: Endpoint is the endpoint of the backup
+                                export at the specified URL
+                              type: string
+                            url:
+                              description: Url is the url that contains the volume
+                                in the format specified
+                              type: string
+                          required:
+                          - endpoint
+                          - url
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - endpoint
+                        x-kubernetes-list-type: map
+                      name:
+                        description: Name is the name of the exported volume
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                  - name
+                  x-kubernetes-list-type: map
                 cert:
                   description: Cert is the public CA certificate base64 encoded
                   type: string
@@ -10978,8 +11649,8 @@ var CRDsValidation map[string]string = map[string]string{
                     most preferred is the one with the greatest sum of weights, i.e.
                     for each node that meets all of the scheduling requirements (resource
                     request, requiredDuringScheduling anti-affinity expressions, etc.),
-                    compute a sum by iterating through the elements of this field and adding
-                    "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+                    compute a sum by iterating through the elements of this field and subtracting
+                    "weight" from the sum if the node has pods which matches the corresponding podAffinityTerm; the
                     node(s) with the highest sum are the most preferred.
                   items:
                     description: The weights of all of the matched WeightedPodAffinityTerm
@@ -12000,6 +12671,10 @@ var CRDsValidation map[string]string = map[string]string{
                           please refer to Kubevirt user guide for alternatives.
                           Deprecated: Removed in v1.3
                         type: object
+                      passtBinding:
+                        description: InterfacePasstBinding connects to a given network
+                          using passt usermode networking.
+                        type: object
                       pciAddress:
                         description: 'If specified, the virtual network interface
                           will be placed on the guests pci address with the specified
@@ -12317,6 +12992,9 @@ var CRDsValidation map[string]string = map[string]string{
                               type: boolean
                           type: object
                         enabled:
+                          description: |-
+                            Enabled determines if the feature should be enabled or disabled on the guest.
+                            Defaults to true.
                           type: boolean
                       type: object
                     tlbflush:
@@ -12324,11 +13002,32 @@ var CRDsValidation map[string]string = map[string]string{
                         TLBFlush improves performances in overcommited environments. Requires vpindex.
                         Defaults to the machine type setting.
                       properties:
+                        direct:
+                          description: |-
+                            Direct allows sending the TLB flush command directly to the hypervisor.
+                            It can be useful to optimize performance in nested virtualization cases, such as Windows VBS.
+                          properties:
+                            enabled:
+                              description: |-
+                                Enabled determines if the feature should be enabled or disabled on the guest.
+                                Defaults to true.
+                              type: boolean
+                          type: object
                         enabled:
                           description: |-
                             Enabled determines if the feature should be enabled or disabled on the guest.
                             Defaults to true.
                           type: boolean
+                        extended:
+                          description: Extended allows the guest to execute partial
+                            TLB flushes. It can be helpful for general purpose workloads.
+                          properties:
+                            enabled:
+                              description: |-
+                                Enabled determines if the feature should be enabled or disabled on the guest.
+                                Defaults to true.
+                              type: boolean
+                          type: object
                       type: object
                     vapic:
                       description: |-
@@ -12592,7 +13291,46 @@ var CRDsValidation map[string]string = map[string]string{
                     The delta between MaxGuest and Guest is the amount of memory that can be hot(un)plugged.
                   pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                   x-kubernetes-int-or-string: true
+                reservedOverhead:
+                  description: |-
+                    ReservedOverhead configures the memory overhead applied to a VM
+                    and its characteristics.
+                  properties:
+                    addedOverhead:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: |-
+                        AddedOverhead determines the memory overhead that will be reserved
+                        for the VM. It increases the virt-launcher pod memory limit.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    memLock:
+                      description: |-
+                        RequiresLock determines whether the VM's and its overhead memory
+                        need to be locked or not. It is a common practice to enable this
+                        if vDPA, VFIO or any other specialized hardware that depends on
+                        DMA is being used by the VM.
+                        False - (Default) memory lock RLimits are not modified.
+                        True - Memory lock RLimits will be updated to consider VM memory
+                               size and memory overhead
+                      enum:
+                      - NotRequired
+                      - Required
+                      type: string
+                  type: object
               type: object
+            rebootPolicy:
+              description: |-
+                RebootPolicy specifies how the guest should behave on reboot.
+                Reboot (default): The guest is allowed to reboot silently.
+                Terminate: The VMI will be terminated on guest reboot, allowing
+                higher level controllers (such as the VM controller) to recreate
+                the VMI with any updated configuration such as boot order changes.
+              enum:
+              - Reboot
+              - Terminate
+              type: string
             resources:
               description: Resources describes the Compute Resources required by this
                 vmi.
@@ -12675,8 +13413,14 @@ var CRDsValidation map[string]string = map[string]string{
               format: int32
               type: integer
             guestAgentPing:
-              description: GuestAgentPing contacts the qemu-guest-agent for availability
-                checks.
+              description: |-
+                GuestAgentPing contacts the qemu-guest-agent for availability checks.
+                Probe failures are automatically suppressed when the guest agent is
+                unreachable for a non-fault reason: during live migration (guest paused
+                on one pod while memory is transferred) and whenever the VM is paused
+                for an intentional or transient reason such as a user pause, snapshot,
+                save, or dump. Failures are not suppressed when the VM is paused due to
+                a fault (IO error, crash, or postcopy failure).
               type: object
             httpGet:
               description: HTTPGet specifies the http request to perform.
@@ -12872,8 +13616,14 @@ var CRDsValidation map[string]string = map[string]string{
               format: int32
               type: integer
             guestAgentPing:
-              description: GuestAgentPing contacts the qemu-guest-agent for availability
-                checks.
+              description: |-
+                GuestAgentPing contacts the qemu-guest-agent for availability checks.
+                Probe failures are automatically suppressed when the guest agent is
+                unreachable for a non-fault reason: during live migration (guest paused
+                on one pod while memory is transferred) and whenever the VM is paused
+                for an intentional or transient reason such as a user pause, snapshot,
+                save, or dump. Failures are not suppressed when the VM is paused due to
+                a fault (IO error, crash, or postcopy failure).
               type: object
             httpGet:
               description: HTTPGet specifies the http request to perform.
@@ -13273,6 +14023,40 @@ var CRDsValidation map[string]string = map[string]string{
           - topologyKey
           - whenUnsatisfiable
           x-kubernetes-list-type: map
+        utilityVolumes:
+          description: |-
+            List of utility volumes that can be mounted to the vmi virt-launcher pod
+            without having a matching disk in the domain.
+            Used to collect data for various operational workflows.
+          items:
+            properties:
+              claimName:
+                description: |-
+                  claimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume.
+                  More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
+                type: string
+              name:
+                description: |-
+                  UtilityVolume's name.
+                  Must be unique within the vmi, including regular Volumes.
+                type: string
+              readOnly:
+                description: |-
+                  readOnly Will force the ReadOnly setting in VolumeMounts.
+                  Default false.
+                type: boolean
+              type:
+                description: Type represents the type of the utility volume.
+                type: string
+            required:
+            - claimName
+            - name
+            type: object
+          maxItems: 256
+          type: array
+          x-kubernetes-list-map-keys:
+          - name
+          x-kubernetes-list-type: map
         volumes:
           description: List of volumes that can be mounted by disks belonging to the
             vmi.
@@ -13435,6 +14219,34 @@ var CRDsValidation map[string]string = map[string]string{
                     type: string
                 required:
                 - image
+                type: object
+              containerPath:
+                description: |-
+                  ContainerPath exposes a path from the virt-launcher container to the VM via virtiofs.
+                  The path must correspond to an existing volumeMount in the compute container.
+                properties:
+                  path:
+                    description: |-
+                      Path is the absolute path within the virt-launcher container to expose to the VM.
+                      The path must correspond to an existing volumeMount in the compute container.
+                    maxLength: 4096
+                    type: string
+                    x-kubernetes-validations:
+                    - message: path must be absolute (start with '/')
+                      rule: self.startsWith('/')
+                    - message: path must not contain '..'
+                      rule: '!self.contains(''..'')'
+                  readOnly:
+                    default: true
+                    description: |-
+                      ReadOnly controls whether the volume is exposed as read-only to the VM.
+                      Defaults to true. Write access is not currently supported.
+                    type: boolean
+                    x-kubernetes-validations:
+                    - message: readOnly must be true, write access is not supported
+                      rule: self == true
+                required:
+                - path
                 type: object
               dataVolume:
                 description: |-
@@ -13744,6 +14556,64 @@ var CRDsValidation map[string]string = map[string]string{
           description: ChangedBlockTracking represents the status of the changedBlockTracking
           nullable: true
           properties:
+            backupStatus:
+              description: BackupStatus represents the status of vmi backup
+              nullable: true
+              properties:
+                backupMsg:
+                  description: |-
+                    BackupMsg resturns any relevant information like failure reason
+                    unfreeze failed etc...
+                  type: string
+                backupName:
+                  description: BackupName is the name of the executed backup
+                  type: string
+                checkpointName:
+                  description: CheckpointName is the name of the checkpoint created
+                    for the backup
+                  type: string
+                completed:
+                  description: Completed indicates the backup completed
+                  type: boolean
+                endTimestamp:
+                  description: EndTimestamp is the timestamp when the backup ended
+                  format: date-time
+                  type: string
+                failed:
+                  description: Failed indicates that the backup failed
+                  type: boolean
+                startTimestamp:
+                  description: StartTimestamp is the timestamp when the backup started
+                  format: date-time
+                  type: string
+                volumes:
+                  description: Volumes lists the volumes included in the backup
+                  items:
+                    description: BackupVolumeInfo contains information about a volume
+                      included in a backup
+                    properties:
+                      dataEndpoint:
+                        description: DataEndpoint is the URL of the endpoint for read
+                          for pull mode
+                        type: string
+                      diskTarget:
+                        description: DiskTarget is the disk target device name at
+                          backup time
+                        type: string
+                      mapEndpoint:
+                        description: MapEndpoint is the URL of the endpoint for map
+                          for pull mode
+                        type: string
+                      volumeName:
+                        description: VolumeName is the volume name from VMI spec
+                        type: string
+                    required:
+                    - diskTarget
+                    - volumeName
+                    type: object
+                  type: array
+                  x-kubernetes-list-type: atomic
+              type: object
             state:
               description: State represents the current CBT state
               type: string
@@ -13800,96 +14670,6 @@ var CRDsValidation map[string]string = map[string]string{
                 Must be a value greater or equal 1.
               format: int32
               type: integer
-          type: object
-        deviceStatus:
-          description: |-
-            DeviceStatus reflects the state of devices requested in spec.domain.devices. This is an optional field available
-            only when DRA feature gate is enabled
-            This field will only be populated if one of the feature-gates GPUsWithDRA or HostDevicesWithDRA is enabled.
-            This feature is in alpha.
-          properties:
-            gpuStatuses:
-              description: GPUStatuses reflects the state of GPUs requested in spec.domain.devices.gpus
-              items:
-                properties:
-                  deviceResourceClaimStatus:
-                    description: DeviceResourceClaimStatus reflects the DRA related
-                      information for the device
-                    properties:
-                      attributes:
-                        description: |-
-                          Attributes are properties of the device that could be used by kubevirt and other copmonents to learn more
-                          about the device, like pciAddress or mdevUUID
-                        properties:
-                          mDevUUID:
-                            description: MDevUUID is the mediated device uuid of the
-                              allocated device
-                            type: string
-                          pciAddress:
-                            description: PCIAddress is the PCIe bus address of the
-                              allocated device
-                            type: string
-                        type: object
-                      name:
-                        description: Name is the name of actual device on the host
-                          provisioned by the driver as reflected in resourceclaim.status
-                        type: string
-                      resourceClaimName:
-                        description: ResourceClaimName is the name of the resource
-                          claims object used to provision this resource
-                        type: string
-                    type: object
-                  name:
-                    description: Name of the device as specified in spec.domain.devices.gpus.name
-                      or spec.domain.devices.hostDevices.name
-                    type: string
-                required:
-                - name
-                type: object
-              type: array
-              x-kubernetes-list-type: atomic
-            hostDeviceStatuses:
-              description: |-
-                HostDeviceStatuses reflects the state of GPUs requested in spec.domain.devices.hostDevices
-                DRA
-              items:
-                properties:
-                  deviceResourceClaimStatus:
-                    description: DeviceResourceClaimStatus reflects the DRA related
-                      information for the device
-                    properties:
-                      attributes:
-                        description: |-
-                          Attributes are properties of the device that could be used by kubevirt and other copmonents to learn more
-                          about the device, like pciAddress or mdevUUID
-                        properties:
-                          mDevUUID:
-                            description: MDevUUID is the mediated device uuid of the
-                              allocated device
-                            type: string
-                          pciAddress:
-                            description: PCIAddress is the PCIe bus address of the
-                              allocated device
-                            type: string
-                        type: object
-                      name:
-                        description: Name is the name of actual device on the host
-                          provisioned by the driver as reflected in resourceclaim.status
-                        type: string
-                      resourceClaimName:
-                        description: ResourceClaimName is the name of the resource
-                          claims object used to provision this resource
-                        type: string
-                    type: object
-                  name:
-                    description: Name of the device as specified in spec.domain.devices.gpus.name
-                      or spec.domain.devices.hostDevices.name
-                    type: string
-                required:
-                - name
-                type: object
-              type: array
-              x-kubernetes-list-type: atomic
           type: object
         evacuationNodeName:
           description: |-
@@ -14031,6 +14811,15 @@ var CRDsValidation map[string]string = map[string]string{
               - type: string
               description: GuestRequested specifies how much memory was requested
                 (hotplug) for the VirtualMachine.
+              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+              x-kubernetes-int-or-string: true
+            memoryOverhead:
+              anyOf:
+              - type: integer
+              - type: string
+              description: |-
+                MemoryOverhead specifies the memory overhead added by the virtualization infrastructure
+                for the virt-launcher pod.
               pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
               x-kubernetes-int-or-string: true
           type: object
@@ -14260,6 +15049,13 @@ var CRDsValidation map[string]string = map[string]string{
                     UnsafeMigrationOverride allows live migrations to occur even if the compatibility check
                     indicates the migration will be unsafe to the guest. Defaults to false
                   type: boolean
+                utilityVolumesTimeout:
+                  description: |-
+                    UtilityVolumesTimeout is the maximum number of seconds a migration can wait in Pending state
+                    for utility volumes to be detached. If utility volumes are still present after this timeout,
+                    the migration will be marked as Failed. Defaults to 150
+                  format: int64
+                  type: integer
               type: object
             migrationNetworkType:
               description: The type of migration network, either 'pod' or 'migration'
@@ -14351,6 +15147,14 @@ var CRDsValidation map[string]string = map[string]string{
               description: The list of ports opened for live migration on the destination
                 node
               type: object
+            targetMemoryOverhead:
+              anyOf:
+              - type: integer
+              - type: string
+              description: TargetMemoryOverhead is the memory overhead of the target
+                virt-launcher pod
+              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+              x-kubernetes-int-or-string: true
             targetNode:
               description: The target node that the VMI is moving to
               type: string
@@ -14846,6 +15650,13 @@ var CRDsValidation map[string]string = map[string]string{
                     UnsafeMigrationOverride allows live migrations to occur even if the compatibility check
                     indicates the migration will be unsafe to the guest. Defaults to false
                   type: boolean
+                utilityVolumesTimeout:
+                  description: |-
+                    UtilityVolumesTimeout is the maximum number of seconds a migration can wait in Pending state
+                    for utility volumes to be detached. If utility volumes are still present after this timeout,
+                    the migration will be marked as Failed. Defaults to 150
+                  format: int64
+                  type: integer
               type: object
             migrationNetworkType:
               description: The type of migration network, either 'pod' or 'migration'
@@ -14937,6 +15748,14 @@ var CRDsValidation map[string]string = map[string]string{
               description: The list of ports opened for live migration on the destination
                 node
               type: object
+            targetMemoryOverhead:
+              anyOf:
+              - type: integer
+              - type: string
+              description: TargetMemoryOverhead is the memory overhead of the target
+                virt-launcher pod
+              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+              x-kubernetes-int-or-string: true
             targetNode:
               description: The target node that the VMI is moving to
               type: string
@@ -15721,6 +16540,10 @@ var CRDsValidation map[string]string = map[string]string{
                           please refer to Kubevirt user guide for alternatives.
                           Deprecated: Removed in v1.3
                         type: object
+                      passtBinding:
+                        description: InterfacePasstBinding connects to a given network
+                          using passt usermode networking.
+                        type: object
                       pciAddress:
                         description: 'If specified, the virtual network interface
                           will be placed on the guests pci address with the specified
@@ -16038,6 +16861,9 @@ var CRDsValidation map[string]string = map[string]string{
                               type: boolean
                           type: object
                         enabled:
+                          description: |-
+                            Enabled determines if the feature should be enabled or disabled on the guest.
+                            Defaults to true.
                           type: boolean
                       type: object
                     tlbflush:
@@ -16045,11 +16871,32 @@ var CRDsValidation map[string]string = map[string]string{
                         TLBFlush improves performances in overcommited environments. Requires vpindex.
                         Defaults to the machine type setting.
                       properties:
+                        direct:
+                          description: |-
+                            Direct allows sending the TLB flush command directly to the hypervisor.
+                            It can be useful to optimize performance in nested virtualization cases, such as Windows VBS.
+                          properties:
+                            enabled:
+                              description: |-
+                                Enabled determines if the feature should be enabled or disabled on the guest.
+                                Defaults to true.
+                              type: boolean
+                          type: object
                         enabled:
                           description: |-
                             Enabled determines if the feature should be enabled or disabled on the guest.
                             Defaults to true.
                           type: boolean
+                        extended:
+                          description: Extended allows the guest to execute partial
+                            TLB flushes. It can be helpful for general purpose workloads.
+                          properties:
+                            enabled:
+                              description: |-
+                                Enabled determines if the feature should be enabled or disabled on the guest.
+                                Defaults to true.
+                              type: boolean
+                          type: object
                       type: object
                     vapic:
                       description: |-
@@ -16313,7 +17160,46 @@ var CRDsValidation map[string]string = map[string]string{
                     The delta between MaxGuest and Guest is the amount of memory that can be hot(un)plugged.
                   pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                   x-kubernetes-int-or-string: true
+                reservedOverhead:
+                  description: |-
+                    ReservedOverhead configures the memory overhead applied to a VM
+                    and its characteristics.
+                  properties:
+                    addedOverhead:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: |-
+                        AddedOverhead determines the memory overhead that will be reserved
+                        for the VM. It increases the virt-launcher pod memory limit.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    memLock:
+                      description: |-
+                        RequiresLock determines whether the VM's and its overhead memory
+                        need to be locked or not. It is a common practice to enable this
+                        if vDPA, VFIO or any other specialized hardware that depends on
+                        DMA is being used by the VM.
+                        False - (Default) memory lock RLimits are not modified.
+                        True - Memory lock RLimits will be updated to consider VM memory
+                               size and memory overhead
+                      enum:
+                      - NotRequired
+                      - Required
+                      type: string
+                  type: object
               type: object
+            rebootPolicy:
+              description: |-
+                RebootPolicy specifies how the guest should behave on reboot.
+                Reboot (default): The guest is allowed to reboot silently.
+                Terminate: The VMI will be terminated on guest reboot, allowing
+                higher level controllers (such as the VM controller) to recreate
+                the VMI with any updated configuration such as boot order changes.
+              enum:
+              - Reboot
+              - Terminate
+              type: string
             resources:
               description: Resources describes the Compute Resources required by this
                 vmi.
@@ -17172,8 +18058,8 @@ var CRDsValidation map[string]string = map[string]string{
                             most preferred is the one with the greatest sum of weights, i.e.
                             for each node that meets all of the scheduling requirements (resource
                             request, requiredDuringScheduling anti-affinity expressions, etc.),
-                            compute a sum by iterating through the elements of this field and adding
-                            "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+                            compute a sum by iterating through the elements of this field and subtracting
+                            "weight" from the sum if the node has pods which matches the corresponding podAffinityTerm; the
                             node(s) with the highest sum are the most preferred.
                           items:
                             description: The weights of all of the matched WeightedPodAffinityTerm
@@ -18210,6 +19096,10 @@ var CRDsValidation map[string]string = map[string]string{
                                   please refer to Kubevirt user guide for alternatives.
                                   Deprecated: Removed in v1.3
                                 type: object
+                              passtBinding:
+                                description: InterfacePasstBinding connects to a given
+                                  network using passt usermode networking.
+                                type: object
                               pciAddress:
                                 description: 'If specified, the virtual network interface
                                   will be placed on the guests pci address with the
@@ -18531,6 +19421,9 @@ var CRDsValidation map[string]string = map[string]string{
                                       type: boolean
                                   type: object
                                 enabled:
+                                  description: |-
+                                    Enabled determines if the feature should be enabled or disabled on the guest.
+                                    Defaults to true.
                                   type: boolean
                               type: object
                             tlbflush:
@@ -18538,11 +19431,33 @@ var CRDsValidation map[string]string = map[string]string{
                                 TLBFlush improves performances in overcommited environments. Requires vpindex.
                                 Defaults to the machine type setting.
                               properties:
+                                direct:
+                                  description: |-
+                                    Direct allows sending the TLB flush command directly to the hypervisor.
+                                    It can be useful to optimize performance in nested virtualization cases, such as Windows VBS.
+                                  properties:
+                                    enabled:
+                                      description: |-
+                                        Enabled determines if the feature should be enabled or disabled on the guest.
+                                        Defaults to true.
+                                      type: boolean
+                                  type: object
                                 enabled:
                                   description: |-
                                     Enabled determines if the feature should be enabled or disabled on the guest.
                                     Defaults to true.
                                   type: boolean
+                                extended:
+                                  description: Extended allows the guest to execute
+                                    partial TLB flushes. It can be helpful for general
+                                    purpose workloads.
+                                  properties:
+                                    enabled:
+                                      description: |-
+                                        Enabled determines if the feature should be enabled or disabled on the guest.
+                                        Defaults to true.
+                                      type: boolean
+                                  type: object
                               type: object
                             vapic:
                               description: |-
@@ -18812,7 +19727,46 @@ var CRDsValidation map[string]string = map[string]string{
                             The delta between MaxGuest and Guest is the amount of memory that can be hot(un)plugged.
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
+                        reservedOverhead:
+                          description: |-
+                            ReservedOverhead configures the memory overhead applied to a VM
+                            and its characteristics.
+                          properties:
+                            addedOverhead:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              description: |-
+                                AddedOverhead determines the memory overhead that will be reserved
+                                for the VM. It increases the virt-launcher pod memory limit.
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            memLock:
+                              description: |-
+                                RequiresLock determines whether the VM's and its overhead memory
+                                need to be locked or not. It is a common practice to enable this
+                                if vDPA, VFIO or any other specialized hardware that depends on
+                                DMA is being used by the VM.
+                                False - (Default) memory lock RLimits are not modified.
+                                True - Memory lock RLimits will be updated to consider VM memory
+                                       size and memory overhead
+                              enum:
+                              - NotRequired
+                              - Required
+                              type: string
+                          type: object
                       type: object
+                    rebootPolicy:
+                      description: |-
+                        RebootPolicy specifies how the guest should behave on reboot.
+                        Reboot (default): The guest is allowed to reboot silently.
+                        Terminate: The VMI will be terminated on guest reboot, allowing
+                        higher level controllers (such as the VM controller) to recreate
+                        the VMI with any updated configuration such as boot order changes.
+                      enum:
+                      - Reboot
+                      - Terminate
+                      type: string
                     resources:
                       description: Resources describes the Compute Resources required
                         by this vmi.
@@ -18895,8 +19849,14 @@ var CRDsValidation map[string]string = map[string]string{
                       format: int32
                       type: integer
                     guestAgentPing:
-                      description: GuestAgentPing contacts the qemu-guest-agent for
-                        availability checks.
+                      description: |-
+                        GuestAgentPing contacts the qemu-guest-agent for availability checks.
+                        Probe failures are automatically suppressed when the guest agent is
+                        unreachable for a non-fault reason: during live migration (guest paused
+                        on one pod while memory is transferred) and whenever the VM is paused
+                        for an intentional or transient reason such as a user pause, snapshot,
+                        save, or dump. Failures are not suppressed when the VM is paused due to
+                        a fault (IO error, crash, or postcopy failure).
                       type: object
                     httpGet:
                       description: HTTPGet specifies the http request to perform.
@@ -19093,8 +20053,14 @@ var CRDsValidation map[string]string = map[string]string{
                       format: int32
                       type: integer
                     guestAgentPing:
-                      description: GuestAgentPing contacts the qemu-guest-agent for
-                        availability checks.
+                      description: |-
+                        GuestAgentPing contacts the qemu-guest-agent for availability checks.
+                        Probe failures are automatically suppressed when the guest agent is
+                        unreachable for a non-fault reason: during live migration (guest paused
+                        on one pod while memory is transferred) and whenever the VM is paused
+                        for an intentional or transient reason such as a user pause, snapshot,
+                        save, or dump. Failures are not suppressed when the VM is paused due to
+                        a fault (IO error, crash, or postcopy failure).
                       type: object
                     httpGet:
                       description: HTTPGet specifies the http request to perform.
@@ -19495,6 +20461,40 @@ var CRDsValidation map[string]string = map[string]string{
                   - topologyKey
                   - whenUnsatisfiable
                   x-kubernetes-list-type: map
+                utilityVolumes:
+                  description: |-
+                    List of utility volumes that can be mounted to the vmi virt-launcher pod
+                    without having a matching disk in the domain.
+                    Used to collect data for various operational workflows.
+                  items:
+                    properties:
+                      claimName:
+                        description: |-
+                          claimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume.
+                          More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
+                        type: string
+                      name:
+                        description: |-
+                          UtilityVolume's name.
+                          Must be unique within the vmi, including regular Volumes.
+                        type: string
+                      readOnly:
+                        description: |-
+                          readOnly Will force the ReadOnly setting in VolumeMounts.
+                          Default false.
+                        type: boolean
+                      type:
+                        description: Type represents the type of the utility volume.
+                        type: string
+                    required:
+                    - claimName
+                    - name
+                    type: object
+                  maxItems: 256
+                  type: array
+                  x-kubernetes-list-map-keys:
+                  - name
+                  x-kubernetes-list-type: map
                 volumes:
                   description: List of volumes that can be mounted by disks belonging
                     to the vmi.
@@ -19661,6 +20661,35 @@ var CRDsValidation map[string]string = map[string]string{
                             type: string
                         required:
                         - image
+                        type: object
+                      containerPath:
+                        description: |-
+                          ContainerPath exposes a path from the virt-launcher container to the VM via virtiofs.
+                          The path must correspond to an existing volumeMount in the compute container.
+                        properties:
+                          path:
+                            description: |-
+                              Path is the absolute path within the virt-launcher container to expose to the VM.
+                              The path must correspond to an existing volumeMount in the compute container.
+                            maxLength: 4096
+                            type: string
+                            x-kubernetes-validations:
+                            - message: path must be absolute (start with '/')
+                              rule: self.startsWith('/')
+                            - message: path must not contain '..'
+                              rule: '!self.contains(''..'')'
+                          readOnly:
+                            default: true
+                            description: |-
+                              ReadOnly controls whether the volume is exposed as read-only to the VM.
+                              Defaults to true. Write access is not currently supported.
+                            type: boolean
+                            x-kubernetes-validations:
+                            - message: readOnly must be true, write access is not
+                                supported
+                              rule: self == true
+                        required:
+                        - path
                         type: object
                       dataVolume:
                         description: |-
@@ -20922,15 +21951,13 @@ var CRDsValidation map[string]string = map[string]string{
                                   volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim.
                                   If specified, the CSI driver will create or update the volume with the attributes defined
                                   in the corresponding VolumeAttributesClass. This has a different purpose than storageClassName,
-                                  it can be changed after the claim is created. An empty string value means that no VolumeAttributesClass
-                                  will be applied to the claim but it's not allowed to reset this field to empty string once it is set.
-                                  If unspecified and the PersistentVolumeClaim is unbound, the default VolumeAttributesClass
-                                  will be set by the persistentvolume controller if it exists.
+                                  it can be changed after the claim is created. An empty string or nil value indicates that no
+                                  VolumeAttributesClass will be applied to the claim. If the claim enters an Infeasible error state,
+                                  this field can be reset to its previous value (including nil) to cancel the modification.
                                   If the resource referred to by volumeAttributesClass does not exist, this PersistentVolumeClaim will be
                                   set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource
                                   exists.
                                   More info: https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/
-                                  (Beta) Using this field requires the VolumeAttributesClass feature gate to be enabled (off by default).
                                 type: string
                               volumeMode:
                                 description: |-
@@ -21014,6 +22041,10 @@ var CRDsValidation map[string]string = map[string]string{
                                     description: DiskID provides id of a disk to be
                                       imported
                                     type: string
+                                  insecureSkipVerify:
+                                    description: InsecureSkipVerify is a flag to skip
+                                      certificate verification
+                                    type: boolean
                                   secretRef:
                                     description: SecretRef provides the secret reference
                                       needed to access the ovirt-engine
@@ -21410,6 +22441,12 @@ var CRDsValidation map[string]string = map[string]string{
                   description: |-
                     Running state indicates the requested running state of the VirtualMachineInstance
                     mutually exclusive with Running
+                    Following are allowed values:
+                    - "Always": VMI should always be running.
+                    - "Halted": VMI should never be running.
+                    - "Manual": VMI can be started/stopped using API endpoints.
+                    - "RerunOnFailure": VMI will initially be running and restarted if a failure occurs, but will not be restarted upon successful completion.
+                    - "Once": VMI will run once and not be restarted upon completion regardless if the completion is of phase Failure or Success.
                   type: string
                 running:
                   description: |-
@@ -22112,8 +23149,8 @@ var CRDsValidation map[string]string = map[string]string{
                                     most preferred is the one with the greatest sum of weights, i.e.
                                     for each node that meets all of the scheduling requirements (resource
                                     request, requiredDuringScheduling anti-affinity expressions, etc.),
-                                    compute a sum by iterating through the elements of this field and adding
-                                    "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+                                    compute a sum by iterating through the elements of this field and subtracting
+                                    "weight" from the sum if the node has pods which matches the corresponding podAffinityTerm; the
                                     node(s) with the highest sum are the most preferred.
                                   items:
                                     description: The weights of all of the matched
@@ -23170,6 +24207,11 @@ var CRDsValidation map[string]string = map[string]string{
                                           please refer to Kubevirt user guide for alternatives.
                                           Deprecated: Removed in v1.3
                                         type: object
+                                      passtBinding:
+                                        description: InterfacePasstBinding connects
+                                          to a given network using passt usermode
+                                          networking.
+                                        type: object
                                       pciAddress:
                                         description: 'If specified, the virtual network
                                           interface will be placed on the guests pci
@@ -23495,6 +24537,9 @@ var CRDsValidation map[string]string = map[string]string{
                                               type: boolean
                                           type: object
                                         enabled:
+                                          description: |-
+                                            Enabled determines if the feature should be enabled or disabled on the guest.
+                                            Defaults to true.
                                           type: boolean
                                       type: object
                                     tlbflush:
@@ -23502,11 +24547,33 @@ var CRDsValidation map[string]string = map[string]string{
                                         TLBFlush improves performances in overcommited environments. Requires vpindex.
                                         Defaults to the machine type setting.
                                       properties:
+                                        direct:
+                                          description: |-
+                                            Direct allows sending the TLB flush command directly to the hypervisor.
+                                            It can be useful to optimize performance in nested virtualization cases, such as Windows VBS.
+                                          properties:
+                                            enabled:
+                                              description: |-
+                                                Enabled determines if the feature should be enabled or disabled on the guest.
+                                                Defaults to true.
+                                              type: boolean
+                                          type: object
                                         enabled:
                                           description: |-
                                             Enabled determines if the feature should be enabled or disabled on the guest.
                                             Defaults to true.
                                           type: boolean
+                                        extended:
+                                          description: Extended allows the guest to
+                                            execute partial TLB flushes. It can be
+                                            helpful for general purpose workloads.
+                                          properties:
+                                            enabled:
+                                              description: |-
+                                                Enabled determines if the feature should be enabled or disabled on the guest.
+                                                Defaults to true.
+                                              type: boolean
+                                          type: object
                                       type: object
                                     vapic:
                                       description: |-
@@ -23786,7 +24853,46 @@ var CRDsValidation map[string]string = map[string]string{
                                     The delta between MaxGuest and Guest is the amount of memory that can be hot(un)plugged.
                                   pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                                   x-kubernetes-int-or-string: true
+                                reservedOverhead:
+                                  description: |-
+                                    ReservedOverhead configures the memory overhead applied to a VM
+                                    and its characteristics.
+                                  properties:
+                                    addedOverhead:
+                                      anyOf:
+                                      - type: integer
+                                      - type: string
+                                      description: |-
+                                        AddedOverhead determines the memory overhead that will be reserved
+                                        for the VM. It increases the virt-launcher pod memory limit.
+                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                      x-kubernetes-int-or-string: true
+                                    memLock:
+                                      description: |-
+                                        RequiresLock determines whether the VM's and its overhead memory
+                                        need to be locked or not. It is a common practice to enable this
+                                        if vDPA, VFIO or any other specialized hardware that depends on
+                                        DMA is being used by the VM.
+                                        False - (Default) memory lock RLimits are not modified.
+                                        True - Memory lock RLimits will be updated to consider VM memory
+                                               size and memory overhead
+                                      enum:
+                                      - NotRequired
+                                      - Required
+                                      type: string
+                                  type: object
                               type: object
+                            rebootPolicy:
+                              description: |-
+                                RebootPolicy specifies how the guest should behave on reboot.
+                                Reboot (default): The guest is allowed to reboot silently.
+                                Terminate: The VMI will be terminated on guest reboot, allowing
+                                higher level controllers (such as the VM controller) to recreate
+                                the VMI with any updated configuration such as boot order changes.
+                              enum:
+                              - Reboot
+                              - Terminate
+                              type: string
                             resources:
                               description: Resources describes the Compute Resources
                                 required by this vmi.
@@ -23869,8 +24975,14 @@ var CRDsValidation map[string]string = map[string]string{
                               format: int32
                               type: integer
                             guestAgentPing:
-                              description: GuestAgentPing contacts the qemu-guest-agent
-                                for availability checks.
+                              description: |-
+                                GuestAgentPing contacts the qemu-guest-agent for availability checks.
+                                Probe failures are automatically suppressed when the guest agent is
+                                unreachable for a non-fault reason: during live migration (guest paused
+                                on one pod while memory is transferred) and whenever the VM is paused
+                                for an intentional or transient reason such as a user pause, snapshot,
+                                save, or dump. Failures are not suppressed when the VM is paused due to
+                                a fault (IO error, crash, or postcopy failure).
                               type: object
                             httpGet:
                               description: HTTPGet specifies the http request to perform.
@@ -24067,8 +25179,14 @@ var CRDsValidation map[string]string = map[string]string{
                               format: int32
                               type: integer
                             guestAgentPing:
-                              description: GuestAgentPing contacts the qemu-guest-agent
-                                for availability checks.
+                              description: |-
+                                GuestAgentPing contacts the qemu-guest-agent for availability checks.
+                                Probe failures are automatically suppressed when the guest agent is
+                                unreachable for a non-fault reason: during live migration (guest paused
+                                on one pod while memory is transferred) and whenever the VM is paused
+                                for an intentional or transient reason such as a user pause, snapshot,
+                                save, or dump. Failures are not suppressed when the VM is paused due to
+                                a fault (IO error, crash, or postcopy failure).
                               type: object
                             httpGet:
                               description: HTTPGet specifies the http request to perform.
@@ -24471,6 +25589,41 @@ var CRDsValidation map[string]string = map[string]string{
                           - topologyKey
                           - whenUnsatisfiable
                           x-kubernetes-list-type: map
+                        utilityVolumes:
+                          description: |-
+                            List of utility volumes that can be mounted to the vmi virt-launcher pod
+                            without having a matching disk in the domain.
+                            Used to collect data for various operational workflows.
+                          items:
+                            properties:
+                              claimName:
+                                description: |-
+                                  claimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume.
+                                  More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
+                                type: string
+                              name:
+                                description: |-
+                                  UtilityVolume's name.
+                                  Must be unique within the vmi, including regular Volumes.
+                                type: string
+                              readOnly:
+                                description: |-
+                                  readOnly Will force the ReadOnly setting in VolumeMounts.
+                                  Default false.
+                                type: boolean
+                              type:
+                                description: Type represents the type of the utility
+                                  volume.
+                                type: string
+                            required:
+                            - claimName
+                            - name
+                            type: object
+                          maxItems: 256
+                          type: array
+                          x-kubernetes-list-map-keys:
+                          - name
+                          x-kubernetes-list-type: map
                         volumes:
                           description: List of volumes that can be mounted by disks
                             belonging to the vmi.
@@ -24638,6 +25791,35 @@ var CRDsValidation map[string]string = map[string]string{
                                     type: string
                                 required:
                                 - image
+                                type: object
+                              containerPath:
+                                description: |-
+                                  ContainerPath exposes a path from the virt-launcher container to the VM via virtiofs.
+                                  The path must correspond to an existing volumeMount in the compute container.
+                                properties:
+                                  path:
+                                    description: |-
+                                      Path is the absolute path within the virt-launcher container to expose to the VM.
+                                      The path must correspond to an existing volumeMount in the compute container.
+                                    maxLength: 4096
+                                    type: string
+                                    x-kubernetes-validations:
+                                    - message: path must be absolute (start with '/')
+                                      rule: self.startsWith('/')
+                                    - message: path must not contain '..'
+                                      rule: '!self.contains(''..'')'
+                                  readOnly:
+                                    default: true
+                                    description: |-
+                                      ReadOnly controls whether the volume is exposed as read-only to the VM.
+                                      Defaults to true. Write access is not currently supported.
+                                    type: boolean
+                                    x-kubernetes-validations:
+                                    - message: readOnly must be true, write access
+                                        is not supported
+                                      rule: self == true
+                                required:
+                                - path
                                 type: object
                               dataVolume:
                                 description: |-
@@ -25482,6 +26664,9 @@ var CRDsValidation map[string]string = map[string]string{
                           type: boolean
                       type: object
                     enabled:
+                      description: |-
+                        Enabled determines if the feature should be enabled or disabled on the guest.
+                        Defaults to true.
                       type: boolean
                   type: object
                 tlbflush:
@@ -25489,11 +26674,32 @@ var CRDsValidation map[string]string = map[string]string{
                     TLBFlush improves performances in overcommited environments. Requires vpindex.
                     Defaults to the machine type setting.
                   properties:
+                    direct:
+                      description: |-
+                        Direct allows sending the TLB flush command directly to the hypervisor.
+                        It can be useful to optimize performance in nested virtualization cases, such as Windows VBS.
+                      properties:
+                        enabled:
+                          description: |-
+                            Enabled determines if the feature should be enabled or disabled on the guest.
+                            Defaults to true.
+                          type: boolean
+                      type: object
                     enabled:
                       description: |-
                         Enabled determines if the feature should be enabled or disabled on the guest.
                         Defaults to true.
                       type: boolean
+                    extended:
+                      description: Extended allows the guest to execute partial TLB
+                        flushes. It can be helpful for general purpose workloads.
+                      properties:
+                        enabled:
+                          description: |-
+                            Enabled determines if the feature should be enabled or disabled on the guest.
+                            Defaults to true.
+                          type: boolean
+                      type: object
                   type: object
                 vapic:
                   description: |-
@@ -26289,15 +27495,13 @@ var CRDsValidation map[string]string = map[string]string{
                                       volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim.
                                       If specified, the CSI driver will create or update the volume with the attributes defined
                                       in the corresponding VolumeAttributesClass. This has a different purpose than storageClassName,
-                                      it can be changed after the claim is created. An empty string value means that no VolumeAttributesClass
-                                      will be applied to the claim but it's not allowed to reset this field to empty string once it is set.
-                                      If unspecified and the PersistentVolumeClaim is unbound, the default VolumeAttributesClass
-                                      will be set by the persistentvolume controller if it exists.
+                                      it can be changed after the claim is created. An empty string or nil value indicates that no
+                                      VolumeAttributesClass will be applied to the claim. If the claim enters an Infeasible error state,
+                                      this field can be reset to its previous value (including nil) to cancel the modification.
                                       If the resource referred to by volumeAttributesClass does not exist, this PersistentVolumeClaim will be
                                       set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource
                                       exists.
                                       More info: https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/
-                                      (Beta) Using this field requires the VolumeAttributesClass feature gate to be enabled (off by default).
                                     type: string
                                   volumeMode:
                                     description: |-
@@ -26385,6 +27589,10 @@ var CRDsValidation map[string]string = map[string]string{
                                         description: DiskID provides id of a disk
                                           to be imported
                                         type: string
+                                      insecureSkipVerify:
+                                        description: InsecureSkipVerify is a flag
+                                          to skip certificate verification
+                                        type: boolean
                                       secretRef:
                                         description: SecretRef provides the secret
                                           reference needed to access the ovirt-engine
@@ -26788,6 +27996,12 @@ var CRDsValidation map[string]string = map[string]string{
                       description: |-
                         Running state indicates the requested running state of the VirtualMachineInstance
                         mutually exclusive with Running
+                        Following are allowed values:
+                        - "Always": VMI should always be running.
+                        - "Halted": VMI should never be running.
+                        - "Manual": VMI can be started/stopped using API endpoints.
+                        - "RerunOnFailure": VMI will initially be running and restarted if a failure occurs, but will not be restarted upon successful completion.
+                        - "Once": VMI will run once and not be restarted upon completion regardless if the completion is of phase Failure or Success.
                       type: string
                     running:
                       description: |-
@@ -27500,8 +28714,8 @@ var CRDsValidation map[string]string = map[string]string{
                                         most preferred is the one with the greatest sum of weights, i.e.
                                         for each node that meets all of the scheduling requirements (resource
                                         request, requiredDuringScheduling anti-affinity expressions, etc.),
-                                        compute a sum by iterating through the elements of this field and adding
-                                        "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+                                        compute a sum by iterating through the elements of this field and subtracting
+                                        "weight" from the sum if the node has pods which matches the corresponding podAffinityTerm; the
                                         node(s) with the highest sum are the most preferred.
                                       items:
                                         description: The weights of all of the matched
@@ -28571,6 +29785,11 @@ var CRDsValidation map[string]string = map[string]string{
                                               please refer to Kubevirt user guide for alternatives.
                                               Deprecated: Removed in v1.3
                                             type: object
+                                          passtBinding:
+                                            description: InterfacePasstBinding connects
+                                              to a given network using passt usermode
+                                              networking.
+                                            type: object
                                           pciAddress:
                                             description: 'If specified, the virtual
                                               network interface will be placed on
@@ -28897,6 +30116,9 @@ var CRDsValidation map[string]string = map[string]string{
                                                   type: boolean
                                               type: object
                                             enabled:
+                                              description: |-
+                                                Enabled determines if the feature should be enabled or disabled on the guest.
+                                                Defaults to true.
                                               type: boolean
                                           type: object
                                         tlbflush:
@@ -28904,11 +30126,34 @@ var CRDsValidation map[string]string = map[string]string{
                                             TLBFlush improves performances in overcommited environments. Requires vpindex.
                                             Defaults to the machine type setting.
                                           properties:
+                                            direct:
+                                              description: |-
+                                                Direct allows sending the TLB flush command directly to the hypervisor.
+                                                It can be useful to optimize performance in nested virtualization cases, such as Windows VBS.
+                                              properties:
+                                                enabled:
+                                                  description: |-
+                                                    Enabled determines if the feature should be enabled or disabled on the guest.
+                                                    Defaults to true.
+                                                  type: boolean
+                                              type: object
                                             enabled:
                                               description: |-
                                                 Enabled determines if the feature should be enabled or disabled on the guest.
                                                 Defaults to true.
                                               type: boolean
+                                            extended:
+                                              description: Extended allows the guest
+                                                to execute partial TLB flushes. It
+                                                can be helpful for general purpose
+                                                workloads.
+                                              properties:
+                                                enabled:
+                                                  description: |-
+                                                    Enabled determines if the feature should be enabled or disabled on the guest.
+                                                    Defaults to true.
+                                                  type: boolean
+                                              type: object
                                           type: object
                                         vapic:
                                           description: |-
@@ -29189,7 +30434,46 @@ var CRDsValidation map[string]string = map[string]string{
                                         The delta between MaxGuest and Guest is the amount of memory that can be hot(un)plugged.
                                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                                       x-kubernetes-int-or-string: true
+                                    reservedOverhead:
+                                      description: |-
+                                        ReservedOverhead configures the memory overhead applied to a VM
+                                        and its characteristics.
+                                      properties:
+                                        addedOverhead:
+                                          anyOf:
+                                          - type: integer
+                                          - type: string
+                                          description: |-
+                                            AddedOverhead determines the memory overhead that will be reserved
+                                            for the VM. It increases the virt-launcher pod memory limit.
+                                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                          x-kubernetes-int-or-string: true
+                                        memLock:
+                                          description: |-
+                                            RequiresLock determines whether the VM's and its overhead memory
+                                            need to be locked or not. It is a common practice to enable this
+                                            if vDPA, VFIO or any other specialized hardware that depends on
+                                            DMA is being used by the VM.
+                                            False - (Default) memory lock RLimits are not modified.
+                                            True - Memory lock RLimits will be updated to consider VM memory
+                                                   size and memory overhead
+                                          enum:
+                                          - NotRequired
+                                          - Required
+                                          type: string
+                                      type: object
                                   type: object
+                                rebootPolicy:
+                                  description: |-
+                                    RebootPolicy specifies how the guest should behave on reboot.
+                                    Reboot (default): The guest is allowed to reboot silently.
+                                    Terminate: The VMI will be terminated on guest reboot, allowing
+                                    higher level controllers (such as the VM controller) to recreate
+                                    the VMI with any updated configuration such as boot order changes.
+                                  enum:
+                                  - Reboot
+                                  - Terminate
+                                  type: string
                                 resources:
                                   description: Resources describes the Compute Resources
                                     required by this vmi.
@@ -29272,8 +30556,14 @@ var CRDsValidation map[string]string = map[string]string{
                                   format: int32
                                   type: integer
                                 guestAgentPing:
-                                  description: GuestAgentPing contacts the qemu-guest-agent
-                                    for availability checks.
+                                  description: |-
+                                    GuestAgentPing contacts the qemu-guest-agent for availability checks.
+                                    Probe failures are automatically suppressed when the guest agent is
+                                    unreachable for a non-fault reason: during live migration (guest paused
+                                    on one pod while memory is transferred) and whenever the VM is paused
+                                    for an intentional or transient reason such as a user pause, snapshot,
+                                    save, or dump. Failures are not suppressed when the VM is paused due to
+                                    a fault (IO error, crash, or postcopy failure).
                                   type: object
                                 httpGet:
                                   description: HTTPGet specifies the http request
@@ -29472,8 +30762,14 @@ var CRDsValidation map[string]string = map[string]string{
                                   format: int32
                                   type: integer
                                 guestAgentPing:
-                                  description: GuestAgentPing contacts the qemu-guest-agent
-                                    for availability checks.
+                                  description: |-
+                                    GuestAgentPing contacts the qemu-guest-agent for availability checks.
+                                    Probe failures are automatically suppressed when the guest agent is
+                                    unreachable for a non-fault reason: during live migration (guest paused
+                                    on one pod while memory is transferred) and whenever the VM is paused
+                                    for an intentional or transient reason such as a user pause, snapshot,
+                                    save, or dump. Failures are not suppressed when the VM is paused due to
+                                    a fault (IO error, crash, or postcopy failure).
                                   type: object
                                 httpGet:
                                   description: HTTPGet specifies the http request
@@ -29877,6 +31173,41 @@ var CRDsValidation map[string]string = map[string]string{
                               - topologyKey
                               - whenUnsatisfiable
                               x-kubernetes-list-type: map
+                            utilityVolumes:
+                              description: |-
+                                List of utility volumes that can be mounted to the vmi virt-launcher pod
+                                without having a matching disk in the domain.
+                                Used to collect data for various operational workflows.
+                              items:
+                                properties:
+                                  claimName:
+                                    description: |-
+                                      claimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume.
+                                      More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
+                                    type: string
+                                  name:
+                                    description: |-
+                                      UtilityVolume's name.
+                                      Must be unique within the vmi, including regular Volumes.
+                                    type: string
+                                  readOnly:
+                                    description: |-
+                                      readOnly Will force the ReadOnly setting in VolumeMounts.
+                                      Default false.
+                                    type: boolean
+                                  type:
+                                    description: Type represents the type of the utility
+                                      volume.
+                                    type: string
+                                required:
+                                - claimName
+                                - name
+                                type: object
+                              maxItems: 256
+                              type: array
+                              x-kubernetes-list-map-keys:
+                              - name
+                              x-kubernetes-list-type: map
                             volumes:
                               description: List of volumes that can be mounted by
                                 disks belonging to the vmi.
@@ -30050,6 +31381,36 @@ var CRDsValidation map[string]string = map[string]string{
                                         type: string
                                     required:
                                     - image
+                                    type: object
+                                  containerPath:
+                                    description: |-
+                                      ContainerPath exposes a path from the virt-launcher container to the VM via virtiofs.
+                                      The path must correspond to an existing volumeMount in the compute container.
+                                    properties:
+                                      path:
+                                        description: |-
+                                          Path is the absolute path within the virt-launcher container to expose to the VM.
+                                          The path must correspond to an existing volumeMount in the compute container.
+                                        maxLength: 4096
+                                        type: string
+                                        x-kubernetes-validations:
+                                        - message: path must be absolute (start with
+                                            '/')
+                                          rule: self.startsWith('/')
+                                        - message: path must not contain '..'
+                                          rule: '!self.contains(''..'')'
+                                      readOnly:
+                                        default: true
+                                        description: |-
+                                          ReadOnly controls whether the volume is exposed as read-only to the VM.
+                                          Defaults to true. Write access is not currently supported.
+                                        type: boolean
+                                        x-kubernetes-validations:
+                                        - message: readOnly must be true, write access
+                                            is not supported
+                                          rule: self == true
+                                    required:
+                                    - path
                                     type: object
                                   dataVolume:
                                     description: |-
@@ -30374,6 +31735,69 @@ var CRDsValidation map[string]string = map[string]string{
                         changedBlockTracking
                       nullable: true
                       properties:
+                        backupStatus:
+                          description: BackupStatus represents the status of vmi backup
+                          nullable: true
+                          properties:
+                            backupMsg:
+                              description: |-
+                                BackupMsg resturns any relevant information like failure reason
+                                unfreeze failed etc...
+                              type: string
+                            backupName:
+                              description: BackupName is the name of the executed
+                                backup
+                              type: string
+                            checkpointName:
+                              description: CheckpointName is the name of the checkpoint
+                                created for the backup
+                              type: string
+                            completed:
+                              description: Completed indicates the backup completed
+                              type: boolean
+                            endTimestamp:
+                              description: EndTimestamp is the timestamp when the
+                                backup ended
+                              format: date-time
+                              type: string
+                            failed:
+                              description: Failed indicates that the backup failed
+                              type: boolean
+                            startTimestamp:
+                              description: StartTimestamp is the timestamp when the
+                                backup started
+                              format: date-time
+                              type: string
+                            volumes:
+                              description: Volumes lists the volumes included in the
+                                backup
+                              items:
+                                description: BackupVolumeInfo contains information
+                                  about a volume included in a backup
+                                properties:
+                                  dataEndpoint:
+                                    description: DataEndpoint is the URL of the endpoint
+                                      for read for pull mode
+                                    type: string
+                                  diskTarget:
+                                    description: DiskTarget is the disk target device
+                                      name at backup time
+                                    type: string
+                                  mapEndpoint:
+                                    description: MapEndpoint is the URL of the endpoint
+                                      for map for pull mode
+                                    type: string
+                                  volumeName:
+                                    description: VolumeName is the volume name from
+                                      VMI spec
+                                    type: string
+                                required:
+                                - diskTarget
+                                - volumeName
+                                type: object
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          type: object
                         state:
                           description: State represents the current CBT state
                           type: string
@@ -31186,15 +32610,13 @@ var CRDsValidation map[string]string = map[string]string{
                           volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim.
                           If specified, the CSI driver will create or update the volume with the attributes defined
                           in the corresponding VolumeAttributesClass. This has a different purpose than storageClassName,
-                          it can be changed after the claim is created. An empty string value means that no VolumeAttributesClass
-                          will be applied to the claim but it's not allowed to reset this field to empty string once it is set.
-                          If unspecified and the PersistentVolumeClaim is unbound, the default VolumeAttributesClass
-                          will be set by the persistentvolume controller if it exists.
+                          it can be changed after the claim is created. An empty string or nil value indicates that no
+                          VolumeAttributesClass will be applied to the claim. If the claim enters an Infeasible error state,
+                          this field can be reset to its previous value (including nil) to cancel the modification.
                           If the resource referred to by volumeAttributesClass does not exist, this PersistentVolumeClaim will be
                           set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource
                           exists.
                           More info: https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/
-                          (Beta) Using this field requires the VolumeAttributesClass feature gate to be enabled (off by default).
                         type: string
                       volumeMode:
                         description: |-
