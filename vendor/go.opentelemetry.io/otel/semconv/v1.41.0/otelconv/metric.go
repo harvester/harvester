@@ -122,48 +122,6 @@ var (
 	SpanSamplingResultRecordAndSample SpanSamplingResultAttr = "RECORD_AND_SAMPLE"
 )
 
-// RPCGRPCStatusCodeAttr is an attribute conforming to the rpc.grpc.status_code
-// semantic conventions. It represents the gRPC status code of the last gRPC
-// requests performed in scope of this export call.
-type RPCGRPCStatusCodeAttr int64
-
-var (
-	// RPCGRPCStatusCodeOk is the OK.
-	RPCGRPCStatusCodeOk RPCGRPCStatusCodeAttr = 0
-	// RPCGRPCStatusCodeCancelled is the CANCELLED.
-	RPCGRPCStatusCodeCancelled RPCGRPCStatusCodeAttr = 1
-	// RPCGRPCStatusCodeUnknown is the UNKNOWN.
-	RPCGRPCStatusCodeUnknown RPCGRPCStatusCodeAttr = 2
-	// RPCGRPCStatusCodeInvalidArgument is the INVALID_ARGUMENT.
-	RPCGRPCStatusCodeInvalidArgument RPCGRPCStatusCodeAttr = 3
-	// RPCGRPCStatusCodeDeadlineExceeded is the DEADLINE_EXCEEDED.
-	RPCGRPCStatusCodeDeadlineExceeded RPCGRPCStatusCodeAttr = 4
-	// RPCGRPCStatusCodeNotFound is the NOT_FOUND.
-	RPCGRPCStatusCodeNotFound RPCGRPCStatusCodeAttr = 5
-	// RPCGRPCStatusCodeAlreadyExists is the ALREADY_EXISTS.
-	RPCGRPCStatusCodeAlreadyExists RPCGRPCStatusCodeAttr = 6
-	// RPCGRPCStatusCodePermissionDenied is the PERMISSION_DENIED.
-	RPCGRPCStatusCodePermissionDenied RPCGRPCStatusCodeAttr = 7
-	// RPCGRPCStatusCodeResourceExhausted is the RESOURCE_EXHAUSTED.
-	RPCGRPCStatusCodeResourceExhausted RPCGRPCStatusCodeAttr = 8
-	// RPCGRPCStatusCodeFailedPrecondition is the FAILED_PRECONDITION.
-	RPCGRPCStatusCodeFailedPrecondition RPCGRPCStatusCodeAttr = 9
-	// RPCGRPCStatusCodeAborted is the ABORTED.
-	RPCGRPCStatusCodeAborted RPCGRPCStatusCodeAttr = 10
-	// RPCGRPCStatusCodeOutOfRange is the OUT_OF_RANGE.
-	RPCGRPCStatusCodeOutOfRange RPCGRPCStatusCodeAttr = 11
-	// RPCGRPCStatusCodeUnimplemented is the UNIMPLEMENTED.
-	RPCGRPCStatusCodeUnimplemented RPCGRPCStatusCodeAttr = 12
-	// RPCGRPCStatusCodeInternal is the INTERNAL.
-	RPCGRPCStatusCodeInternal RPCGRPCStatusCodeAttr = 13
-	// RPCGRPCStatusCodeUnavailable is the UNAVAILABLE.
-	RPCGRPCStatusCodeUnavailable RPCGRPCStatusCodeAttr = 14
-	// RPCGRPCStatusCodeDataLoss is the DATA_LOSS.
-	RPCGRPCStatusCodeDataLoss RPCGRPCStatusCodeAttr = 15
-	// RPCGRPCStatusCodeUnauthenticated is the UNAUTHENTICATED.
-	RPCGRPCStatusCodeUnauthenticated RPCGRPCStatusCodeAttr = 16
-)
-
 // SDKExporterLogExported is an instrument used to record metric values
 // conforming to the "otel.sdk.exporter.log.exported" semantic conventions. It
 // represents the number of log records for which the export has finished, either
@@ -239,6 +197,9 @@ func (m SDKExporterLogExported) Add(
 	incr int64,
 	attrs ...attribute.KeyValue,
 ) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -246,6 +207,7 @@ func (m SDKExporterLogExported) Add(
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -270,6 +232,9 @@ func (m SDKExporterLogExported) Add(
 // If no rejection reason is available, `rejected` SHOULD be used as value for
 // `error.type`.
 func (m SDKExporterLogExported) AddSet(ctx context.Context, incr int64, set attribute.Set) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -277,6 +242,7 @@ func (m SDKExporterLogExported) AddSet(ctx context.Context, incr int64, set attr
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -316,6 +282,100 @@ func (SDKExporterLogExported) AttrServerAddress(val string) attribute.KeyValue {
 // AttrServerPort returns an optional attribute for the "server.port" semantic
 // convention. It represents the server port number.
 func (SDKExporterLogExported) AttrServerPort(val int) attribute.KeyValue {
+	return attribute.Int("server.port", val)
+}
+
+// SDKExporterLogExportedObservable is an instrument used to record metric values
+// conforming to the "otel.sdk.exporter.log.exported" semantic conventions. It
+// represents the number of log records for which the export has finished, either
+// successful or failed.
+type SDKExporterLogExportedObservable struct {
+	metric.Int64ObservableCounter
+}
+
+var newSDKExporterLogExportedObservableOpts = []metric.Int64ObservableCounterOption{
+	metric.WithDescription("The number of log records for which the export has finished, either successful or failed."),
+	metric.WithUnit("{log_record}"),
+}
+
+// NewSDKExporterLogExportedObservable returns a new
+// SDKExporterLogExportedObservable instrument.
+func NewSDKExporterLogExportedObservable(
+	m metric.Meter,
+	opt ...metric.Int64ObservableCounterOption,
+) (SDKExporterLogExportedObservable, error) {
+	// Check if the meter is nil.
+	if m == nil {
+		return SDKExporterLogExportedObservable{noop.Int64ObservableCounter{}}, nil
+	}
+
+	if len(opt) == 0 {
+		opt = newSDKExporterLogExportedObservableOpts
+	} else {
+		opt = append(opt, newSDKExporterLogExportedObservableOpts...)
+	}
+
+	i, err := m.Int64ObservableCounter(
+		"otel.sdk.exporter.log.exported",
+		opt...,
+	)
+	if err != nil {
+		return SDKExporterLogExportedObservable{noop.Int64ObservableCounter{}}, err
+	}
+	return SDKExporterLogExportedObservable{i}, nil
+}
+
+// Inst returns the underlying metric instrument.
+func (m SDKExporterLogExportedObservable) Inst() metric.Int64ObservableCounter {
+	return m.Int64ObservableCounter
+}
+
+// Name returns the semantic convention name of the instrument.
+func (SDKExporterLogExportedObservable) Name() string {
+	return "otel.sdk.exporter.log.exported"
+}
+
+// Unit returns the semantic convention unit of the instrument
+func (SDKExporterLogExportedObservable) Unit() string {
+	return "{log_record}"
+}
+
+// Description returns the semantic convention description of the instrument
+func (SDKExporterLogExportedObservable) Description() string {
+	return "The number of log records for which the export has finished, either successful or failed."
+}
+
+// AttrErrorType returns an optional attribute for the "error.type" semantic
+// convention. It represents the describes a class of error the operation ended
+// with.
+func (SDKExporterLogExportedObservable) AttrErrorType(val ErrorTypeAttr) attribute.KeyValue {
+	return attribute.String("error.type", string(val))
+}
+
+// AttrComponentName returns an optional attribute for the "otel.component.name"
+// semantic convention. It represents a name uniquely identifying the instance of
+// the OpenTelemetry component within its containing SDK instance.
+func (SDKExporterLogExportedObservable) AttrComponentName(val string) attribute.KeyValue {
+	return attribute.String("otel.component.name", val)
+}
+
+// AttrComponentType returns an optional attribute for the "otel.component.type"
+// semantic convention. It represents a name identifying the type of the
+// OpenTelemetry component.
+func (SDKExporterLogExportedObservable) AttrComponentType(val ComponentTypeAttr) attribute.KeyValue {
+	return attribute.String("otel.component.type", string(val))
+}
+
+// AttrServerAddress returns an optional attribute for the "server.address"
+// semantic convention. It represents the server domain name if available without
+// reverse DNS lookup; otherwise, IP address or Unix domain socket name.
+func (SDKExporterLogExportedObservable) AttrServerAddress(val string) attribute.KeyValue {
+	return attribute.String("server.address", val)
+}
+
+// AttrServerPort returns an optional attribute for the "server.port" semantic
+// convention. It represents the server port number.
+func (SDKExporterLogExportedObservable) AttrServerPort(val int) attribute.KeyValue {
 	return attribute.Int("server.port", val)
 }
 
@@ -389,6 +449,9 @@ func (m SDKExporterLogInflight) Add(
 	incr int64,
 	attrs ...attribute.KeyValue,
 ) {
+	if !m.Int64UpDownCounter.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Int64UpDownCounter.Add(ctx, incr)
 		return
@@ -396,6 +459,7 @@ func (m SDKExporterLogInflight) Add(
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -415,6 +479,9 @@ func (m SDKExporterLogInflight) Add(
 // For successful exports, `error.type` MUST NOT be set. For failed exports,
 // `error.type` MUST contain the failure cause.
 func (m SDKExporterLogInflight) AddSet(ctx context.Context, incr int64, set attribute.Set) {
+	if !m.Int64UpDownCounter.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Int64UpDownCounter.Add(ctx, incr)
 		return
@@ -422,6 +489,7 @@ func (m SDKExporterLogInflight) AddSet(ctx context.Context, incr int64, set attr
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -454,6 +522,93 @@ func (SDKExporterLogInflight) AttrServerAddress(val string) attribute.KeyValue {
 // AttrServerPort returns an optional attribute for the "server.port" semantic
 // convention. It represents the server port number.
 func (SDKExporterLogInflight) AttrServerPort(val int) attribute.KeyValue {
+	return attribute.Int("server.port", val)
+}
+
+// SDKExporterLogInflightObservable is an instrument used to record metric values
+// conforming to the "otel.sdk.exporter.log.inflight" semantic conventions. It
+// represents the number of log records which were passed to the exporter, but
+// that have not been exported yet (neither successful, nor failed).
+type SDKExporterLogInflightObservable struct {
+	metric.Int64ObservableUpDownCounter
+}
+
+var newSDKExporterLogInflightObservableOpts = []metric.Int64ObservableUpDownCounterOption{
+	metric.WithDescription("The number of log records which were passed to the exporter, but that have not been exported yet (neither successful, nor failed)."),
+	metric.WithUnit("{log_record}"),
+}
+
+// NewSDKExporterLogInflightObservable returns a new
+// SDKExporterLogInflightObservable instrument.
+func NewSDKExporterLogInflightObservable(
+	m metric.Meter,
+	opt ...metric.Int64ObservableUpDownCounterOption,
+) (SDKExporterLogInflightObservable, error) {
+	// Check if the meter is nil.
+	if m == nil {
+		return SDKExporterLogInflightObservable{noop.Int64ObservableUpDownCounter{}}, nil
+	}
+
+	if len(opt) == 0 {
+		opt = newSDKExporterLogInflightObservableOpts
+	} else {
+		opt = append(opt, newSDKExporterLogInflightObservableOpts...)
+	}
+
+	i, err := m.Int64ObservableUpDownCounter(
+		"otel.sdk.exporter.log.inflight",
+		opt...,
+	)
+	if err != nil {
+		return SDKExporterLogInflightObservable{noop.Int64ObservableUpDownCounter{}}, err
+	}
+	return SDKExporterLogInflightObservable{i}, nil
+}
+
+// Inst returns the underlying metric instrument.
+func (m SDKExporterLogInflightObservable) Inst() metric.Int64ObservableUpDownCounter {
+	return m.Int64ObservableUpDownCounter
+}
+
+// Name returns the semantic convention name of the instrument.
+func (SDKExporterLogInflightObservable) Name() string {
+	return "otel.sdk.exporter.log.inflight"
+}
+
+// Unit returns the semantic convention unit of the instrument
+func (SDKExporterLogInflightObservable) Unit() string {
+	return "{log_record}"
+}
+
+// Description returns the semantic convention description of the instrument
+func (SDKExporterLogInflightObservable) Description() string {
+	return "The number of log records which were passed to the exporter, but that have not been exported yet (neither successful, nor failed)."
+}
+
+// AttrComponentName returns an optional attribute for the "otel.component.name"
+// semantic convention. It represents a name uniquely identifying the instance of
+// the OpenTelemetry component within its containing SDK instance.
+func (SDKExporterLogInflightObservable) AttrComponentName(val string) attribute.KeyValue {
+	return attribute.String("otel.component.name", val)
+}
+
+// AttrComponentType returns an optional attribute for the "otel.component.type"
+// semantic convention. It represents a name identifying the type of the
+// OpenTelemetry component.
+func (SDKExporterLogInflightObservable) AttrComponentType(val ComponentTypeAttr) attribute.KeyValue {
+	return attribute.String("otel.component.type", string(val))
+}
+
+// AttrServerAddress returns an optional attribute for the "server.address"
+// semantic convention. It represents the server domain name if available without
+// reverse DNS lookup; otherwise, IP address or Unix domain socket name.
+func (SDKExporterLogInflightObservable) AttrServerAddress(val string) attribute.KeyValue {
+	return attribute.String("server.address", val)
+}
+
+// AttrServerPort returns an optional attribute for the "server.port" semantic
+// convention. It represents the server port number.
+func (SDKExporterLogInflightObservable) AttrServerPort(val int) attribute.KeyValue {
 	return attribute.Int("server.port", val)
 }
 
@@ -533,6 +688,9 @@ func (m SDKExporterMetricDataPointExported) Add(
 	incr int64,
 	attrs ...attribute.KeyValue,
 ) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -540,6 +698,7 @@ func (m SDKExporterMetricDataPointExported) Add(
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -564,6 +723,9 @@ func (m SDKExporterMetricDataPointExported) Add(
 // If no rejection reason is available, `rejected` SHOULD be used as value for
 // `error.type`.
 func (m SDKExporterMetricDataPointExported) AddSet(ctx context.Context, incr int64, set attribute.Set) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -571,6 +733,7 @@ func (m SDKExporterMetricDataPointExported) AddSet(ctx context.Context, incr int
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -610,6 +773,100 @@ func (SDKExporterMetricDataPointExported) AttrServerAddress(val string) attribut
 // AttrServerPort returns an optional attribute for the "server.port" semantic
 // convention. It represents the server port number.
 func (SDKExporterMetricDataPointExported) AttrServerPort(val int) attribute.KeyValue {
+	return attribute.Int("server.port", val)
+}
+
+// SDKExporterMetricDataPointExportedObservable is an instrument used to record
+// metric values conforming to the "otel.sdk.exporter.metric_data_point.exported"
+// semantic conventions. It represents the number of metric data points for which
+// the export has finished, either successful or failed.
+type SDKExporterMetricDataPointExportedObservable struct {
+	metric.Int64ObservableCounter
+}
+
+var newSDKExporterMetricDataPointExportedObservableOpts = []metric.Int64ObservableCounterOption{
+	metric.WithDescription("The number of metric data points for which the export has finished, either successful or failed."),
+	metric.WithUnit("{data_point}"),
+}
+
+// NewSDKExporterMetricDataPointExportedObservable returns a new
+// SDKExporterMetricDataPointExportedObservable instrument.
+func NewSDKExporterMetricDataPointExportedObservable(
+	m metric.Meter,
+	opt ...metric.Int64ObservableCounterOption,
+) (SDKExporterMetricDataPointExportedObservable, error) {
+	// Check if the meter is nil.
+	if m == nil {
+		return SDKExporterMetricDataPointExportedObservable{noop.Int64ObservableCounter{}}, nil
+	}
+
+	if len(opt) == 0 {
+		opt = newSDKExporterMetricDataPointExportedObservableOpts
+	} else {
+		opt = append(opt, newSDKExporterMetricDataPointExportedObservableOpts...)
+	}
+
+	i, err := m.Int64ObservableCounter(
+		"otel.sdk.exporter.metric_data_point.exported",
+		opt...,
+	)
+	if err != nil {
+		return SDKExporterMetricDataPointExportedObservable{noop.Int64ObservableCounter{}}, err
+	}
+	return SDKExporterMetricDataPointExportedObservable{i}, nil
+}
+
+// Inst returns the underlying metric instrument.
+func (m SDKExporterMetricDataPointExportedObservable) Inst() metric.Int64ObservableCounter {
+	return m.Int64ObservableCounter
+}
+
+// Name returns the semantic convention name of the instrument.
+func (SDKExporterMetricDataPointExportedObservable) Name() string {
+	return "otel.sdk.exporter.metric_data_point.exported"
+}
+
+// Unit returns the semantic convention unit of the instrument
+func (SDKExporterMetricDataPointExportedObservable) Unit() string {
+	return "{data_point}"
+}
+
+// Description returns the semantic convention description of the instrument
+func (SDKExporterMetricDataPointExportedObservable) Description() string {
+	return "The number of metric data points for which the export has finished, either successful or failed."
+}
+
+// AttrErrorType returns an optional attribute for the "error.type" semantic
+// convention. It represents the describes a class of error the operation ended
+// with.
+func (SDKExporterMetricDataPointExportedObservable) AttrErrorType(val ErrorTypeAttr) attribute.KeyValue {
+	return attribute.String("error.type", string(val))
+}
+
+// AttrComponentName returns an optional attribute for the "otel.component.name"
+// semantic convention. It represents a name uniquely identifying the instance of
+// the OpenTelemetry component within its containing SDK instance.
+func (SDKExporterMetricDataPointExportedObservable) AttrComponentName(val string) attribute.KeyValue {
+	return attribute.String("otel.component.name", val)
+}
+
+// AttrComponentType returns an optional attribute for the "otel.component.type"
+// semantic convention. It represents a name identifying the type of the
+// OpenTelemetry component.
+func (SDKExporterMetricDataPointExportedObservable) AttrComponentType(val ComponentTypeAttr) attribute.KeyValue {
+	return attribute.String("otel.component.type", string(val))
+}
+
+// AttrServerAddress returns an optional attribute for the "server.address"
+// semantic convention. It represents the server domain name if available without
+// reverse DNS lookup; otherwise, IP address or Unix domain socket name.
+func (SDKExporterMetricDataPointExportedObservable) AttrServerAddress(val string) attribute.KeyValue {
+	return attribute.String("server.address", val)
+}
+
+// AttrServerPort returns an optional attribute for the "server.port" semantic
+// convention. It represents the server port number.
+func (SDKExporterMetricDataPointExportedObservable) AttrServerPort(val int) attribute.KeyValue {
 	return attribute.Int("server.port", val)
 }
 
@@ -685,6 +942,9 @@ func (m SDKExporterMetricDataPointInflight) Add(
 	incr int64,
 	attrs ...attribute.KeyValue,
 ) {
+	if !m.Int64UpDownCounter.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Int64UpDownCounter.Add(ctx, incr)
 		return
@@ -692,6 +952,7 @@ func (m SDKExporterMetricDataPointInflight) Add(
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -711,6 +972,9 @@ func (m SDKExporterMetricDataPointInflight) Add(
 // For successful exports, `error.type` MUST NOT be set. For failed exports,
 // `error.type` MUST contain the failure cause.
 func (m SDKExporterMetricDataPointInflight) AddSet(ctx context.Context, incr int64, set attribute.Set) {
+	if !m.Int64UpDownCounter.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Int64UpDownCounter.Add(ctx, incr)
 		return
@@ -718,6 +982,7 @@ func (m SDKExporterMetricDataPointInflight) AddSet(ctx context.Context, incr int
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -750,6 +1015,94 @@ func (SDKExporterMetricDataPointInflight) AttrServerAddress(val string) attribut
 // AttrServerPort returns an optional attribute for the "server.port" semantic
 // convention. It represents the server port number.
 func (SDKExporterMetricDataPointInflight) AttrServerPort(val int) attribute.KeyValue {
+	return attribute.Int("server.port", val)
+}
+
+// SDKExporterMetricDataPointInflightObservable is an instrument used to record
+// metric values conforming to the "otel.sdk.exporter.metric_data_point.inflight"
+// semantic conventions. It represents the number of metric data points which
+// were passed to the exporter, but that have not been exported yet (neither
+// successful, nor failed).
+type SDKExporterMetricDataPointInflightObservable struct {
+	metric.Int64ObservableUpDownCounter
+}
+
+var newSDKExporterMetricDataPointInflightObservableOpts = []metric.Int64ObservableUpDownCounterOption{
+	metric.WithDescription("The number of metric data points which were passed to the exporter, but that have not been exported yet (neither successful, nor failed)."),
+	metric.WithUnit("{data_point}"),
+}
+
+// NewSDKExporterMetricDataPointInflightObservable returns a new
+// SDKExporterMetricDataPointInflightObservable instrument.
+func NewSDKExporterMetricDataPointInflightObservable(
+	m metric.Meter,
+	opt ...metric.Int64ObservableUpDownCounterOption,
+) (SDKExporterMetricDataPointInflightObservable, error) {
+	// Check if the meter is nil.
+	if m == nil {
+		return SDKExporterMetricDataPointInflightObservable{noop.Int64ObservableUpDownCounter{}}, nil
+	}
+
+	if len(opt) == 0 {
+		opt = newSDKExporterMetricDataPointInflightObservableOpts
+	} else {
+		opt = append(opt, newSDKExporterMetricDataPointInflightObservableOpts...)
+	}
+
+	i, err := m.Int64ObservableUpDownCounter(
+		"otel.sdk.exporter.metric_data_point.inflight",
+		opt...,
+	)
+	if err != nil {
+		return SDKExporterMetricDataPointInflightObservable{noop.Int64ObservableUpDownCounter{}}, err
+	}
+	return SDKExporterMetricDataPointInflightObservable{i}, nil
+}
+
+// Inst returns the underlying metric instrument.
+func (m SDKExporterMetricDataPointInflightObservable) Inst() metric.Int64ObservableUpDownCounter {
+	return m.Int64ObservableUpDownCounter
+}
+
+// Name returns the semantic convention name of the instrument.
+func (SDKExporterMetricDataPointInflightObservable) Name() string {
+	return "otel.sdk.exporter.metric_data_point.inflight"
+}
+
+// Unit returns the semantic convention unit of the instrument
+func (SDKExporterMetricDataPointInflightObservable) Unit() string {
+	return "{data_point}"
+}
+
+// Description returns the semantic convention description of the instrument
+func (SDKExporterMetricDataPointInflightObservable) Description() string {
+	return "The number of metric data points which were passed to the exporter, but that have not been exported yet (neither successful, nor failed)."
+}
+
+// AttrComponentName returns an optional attribute for the "otel.component.name"
+// semantic convention. It represents a name uniquely identifying the instance of
+// the OpenTelemetry component within its containing SDK instance.
+func (SDKExporterMetricDataPointInflightObservable) AttrComponentName(val string) attribute.KeyValue {
+	return attribute.String("otel.component.name", val)
+}
+
+// AttrComponentType returns an optional attribute for the "otel.component.type"
+// semantic convention. It represents a name identifying the type of the
+// OpenTelemetry component.
+func (SDKExporterMetricDataPointInflightObservable) AttrComponentType(val ComponentTypeAttr) attribute.KeyValue {
+	return attribute.String("otel.component.type", string(val))
+}
+
+// AttrServerAddress returns an optional attribute for the "server.address"
+// semantic convention. It represents the server domain name if available without
+// reverse DNS lookup; otherwise, IP address or Unix domain socket name.
+func (SDKExporterMetricDataPointInflightObservable) AttrServerAddress(val string) attribute.KeyValue {
+	return attribute.String("server.address", val)
+}
+
+// AttrServerPort returns an optional attribute for the "server.port" semantic
+// convention. It represents the server port number.
+func (SDKExporterMetricDataPointInflightObservable) AttrServerPort(val int) attribute.KeyValue {
 	return attribute.Int("server.port", val)
 }
 
@@ -830,6 +1183,9 @@ func (m SDKExporterOperationDuration) Record(
 	val float64,
 	attrs ...attribute.KeyValue,
 ) {
+	if !m.Float64Histogram.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Float64Histogram.Record(ctx, val)
 		return
@@ -837,6 +1193,7 @@ func (m SDKExporterOperationDuration) Record(
 
 	o := recOptPool.Get().(*[]metric.RecordOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		recOptPool.Put(o)
 	}()
@@ -863,6 +1220,9 @@ func (m SDKExporterOperationDuration) Record(
 // [http]: https://github.com/open-telemetry/opentelemetry-proto/blob/v1.5.0/docs/specification.md#full-success-1
 // [grpc]: https://github.com/open-telemetry/opentelemetry-proto/blob/v1.5.0/docs/specification.md#full-success
 func (m SDKExporterOperationDuration) RecordSet(ctx context.Context, val float64, set attribute.Set) {
+	if !m.Float64Histogram.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Float64Histogram.Record(ctx, val)
 		return
@@ -870,6 +1230,7 @@ func (m SDKExporterOperationDuration) RecordSet(ctx context.Context, val float64
 
 	o := recOptPool.Get().(*[]metric.RecordOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		recOptPool.Put(o)
 	}()
@@ -906,11 +1267,11 @@ func (SDKExporterOperationDuration) AttrComponentType(val ComponentTypeAttr) att
 	return attribute.String("otel.component.type", string(val))
 }
 
-// AttrRPCGRPCStatusCode returns an optional attribute for the
-// "rpc.grpc.status_code" semantic convention. It represents the gRPC status code
-// of the last gRPC requests performed in scope of this export call.
-func (SDKExporterOperationDuration) AttrRPCGRPCStatusCode(val RPCGRPCStatusCodeAttr) attribute.KeyValue {
-	return attribute.Int64("rpc.grpc.status_code", int64(val))
+// AttrRPCResponseStatusCode returns an optional attribute for the
+// "rpc.response.status_code" semantic convention. It represents the gRPC status
+// code of the last gRPC request performed in scope of this export call.
+func (SDKExporterOperationDuration) AttrRPCResponseStatusCode(val string) attribute.KeyValue {
+	return attribute.String("rpc.response.status_code", val)
 }
 
 // AttrServerAddress returns an optional attribute for the "server.address"
@@ -1001,6 +1362,9 @@ func (m SDKExporterSpanExported) Add(
 	incr int64,
 	attrs ...attribute.KeyValue,
 ) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -1008,6 +1372,7 @@ func (m SDKExporterSpanExported) Add(
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -1032,6 +1397,9 @@ func (m SDKExporterSpanExported) Add(
 // If no rejection reason is available, `rejected` SHOULD be used as value for
 // `error.type`.
 func (m SDKExporterSpanExported) AddSet(ctx context.Context, incr int64, set attribute.Set) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -1039,6 +1407,7 @@ func (m SDKExporterSpanExported) AddSet(ctx context.Context, incr int64, set att
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -1078,6 +1447,100 @@ func (SDKExporterSpanExported) AttrServerAddress(val string) attribute.KeyValue 
 // AttrServerPort returns an optional attribute for the "server.port" semantic
 // convention. It represents the server port number.
 func (SDKExporterSpanExported) AttrServerPort(val int) attribute.KeyValue {
+	return attribute.Int("server.port", val)
+}
+
+// SDKExporterSpanExportedObservable is an instrument used to record metric
+// values conforming to the "otel.sdk.exporter.span.exported" semantic
+// conventions. It represents the number of spans for which the export has
+// finished, either successful or failed.
+type SDKExporterSpanExportedObservable struct {
+	metric.Int64ObservableCounter
+}
+
+var newSDKExporterSpanExportedObservableOpts = []metric.Int64ObservableCounterOption{
+	metric.WithDescription("The number of spans for which the export has finished, either successful or failed."),
+	metric.WithUnit("{span}"),
+}
+
+// NewSDKExporterSpanExportedObservable returns a new
+// SDKExporterSpanExportedObservable instrument.
+func NewSDKExporterSpanExportedObservable(
+	m metric.Meter,
+	opt ...metric.Int64ObservableCounterOption,
+) (SDKExporterSpanExportedObservable, error) {
+	// Check if the meter is nil.
+	if m == nil {
+		return SDKExporterSpanExportedObservable{noop.Int64ObservableCounter{}}, nil
+	}
+
+	if len(opt) == 0 {
+		opt = newSDKExporterSpanExportedObservableOpts
+	} else {
+		opt = append(opt, newSDKExporterSpanExportedObservableOpts...)
+	}
+
+	i, err := m.Int64ObservableCounter(
+		"otel.sdk.exporter.span.exported",
+		opt...,
+	)
+	if err != nil {
+		return SDKExporterSpanExportedObservable{noop.Int64ObservableCounter{}}, err
+	}
+	return SDKExporterSpanExportedObservable{i}, nil
+}
+
+// Inst returns the underlying metric instrument.
+func (m SDKExporterSpanExportedObservable) Inst() metric.Int64ObservableCounter {
+	return m.Int64ObservableCounter
+}
+
+// Name returns the semantic convention name of the instrument.
+func (SDKExporterSpanExportedObservable) Name() string {
+	return "otel.sdk.exporter.span.exported"
+}
+
+// Unit returns the semantic convention unit of the instrument
+func (SDKExporterSpanExportedObservable) Unit() string {
+	return "{span}"
+}
+
+// Description returns the semantic convention description of the instrument
+func (SDKExporterSpanExportedObservable) Description() string {
+	return "The number of spans for which the export has finished, either successful or failed."
+}
+
+// AttrErrorType returns an optional attribute for the "error.type" semantic
+// convention. It represents the describes a class of error the operation ended
+// with.
+func (SDKExporterSpanExportedObservable) AttrErrorType(val ErrorTypeAttr) attribute.KeyValue {
+	return attribute.String("error.type", string(val))
+}
+
+// AttrComponentName returns an optional attribute for the "otel.component.name"
+// semantic convention. It represents a name uniquely identifying the instance of
+// the OpenTelemetry component within its containing SDK instance.
+func (SDKExporterSpanExportedObservable) AttrComponentName(val string) attribute.KeyValue {
+	return attribute.String("otel.component.name", val)
+}
+
+// AttrComponentType returns an optional attribute for the "otel.component.type"
+// semantic convention. It represents a name identifying the type of the
+// OpenTelemetry component.
+func (SDKExporterSpanExportedObservable) AttrComponentType(val ComponentTypeAttr) attribute.KeyValue {
+	return attribute.String("otel.component.type", string(val))
+}
+
+// AttrServerAddress returns an optional attribute for the "server.address"
+// semantic convention. It represents the server domain name if available without
+// reverse DNS lookup; otherwise, IP address or Unix domain socket name.
+func (SDKExporterSpanExportedObservable) AttrServerAddress(val string) attribute.KeyValue {
+	return attribute.String("server.address", val)
+}
+
+// AttrServerPort returns an optional attribute for the "server.port" semantic
+// convention. It represents the server port number.
+func (SDKExporterSpanExportedObservable) AttrServerPort(val int) attribute.KeyValue {
 	return attribute.Int("server.port", val)
 }
 
@@ -1151,6 +1614,9 @@ func (m SDKExporterSpanInflight) Add(
 	incr int64,
 	attrs ...attribute.KeyValue,
 ) {
+	if !m.Int64UpDownCounter.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Int64UpDownCounter.Add(ctx, incr)
 		return
@@ -1158,6 +1624,7 @@ func (m SDKExporterSpanInflight) Add(
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -1177,6 +1644,9 @@ func (m SDKExporterSpanInflight) Add(
 // For successful exports, `error.type` MUST NOT be set. For failed exports,
 // `error.type` MUST contain the failure cause.
 func (m SDKExporterSpanInflight) AddSet(ctx context.Context, incr int64, set attribute.Set) {
+	if !m.Int64UpDownCounter.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Int64UpDownCounter.Add(ctx, incr)
 		return
@@ -1184,6 +1654,7 @@ func (m SDKExporterSpanInflight) AddSet(ctx context.Context, incr int64, set att
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -1216,6 +1687,94 @@ func (SDKExporterSpanInflight) AttrServerAddress(val string) attribute.KeyValue 
 // AttrServerPort returns an optional attribute for the "server.port" semantic
 // convention. It represents the server port number.
 func (SDKExporterSpanInflight) AttrServerPort(val int) attribute.KeyValue {
+	return attribute.Int("server.port", val)
+}
+
+// SDKExporterSpanInflightObservable is an instrument used to record metric
+// values conforming to the "otel.sdk.exporter.span.inflight" semantic
+// conventions. It represents the number of spans which were passed to the
+// exporter, but that have not been exported yet (neither successful, nor
+// failed).
+type SDKExporterSpanInflightObservable struct {
+	metric.Int64ObservableUpDownCounter
+}
+
+var newSDKExporterSpanInflightObservableOpts = []metric.Int64ObservableUpDownCounterOption{
+	metric.WithDescription("The number of spans which were passed to the exporter, but that have not been exported yet (neither successful, nor failed)."),
+	metric.WithUnit("{span}"),
+}
+
+// NewSDKExporterSpanInflightObservable returns a new
+// SDKExporterSpanInflightObservable instrument.
+func NewSDKExporterSpanInflightObservable(
+	m metric.Meter,
+	opt ...metric.Int64ObservableUpDownCounterOption,
+) (SDKExporterSpanInflightObservable, error) {
+	// Check if the meter is nil.
+	if m == nil {
+		return SDKExporterSpanInflightObservable{noop.Int64ObservableUpDownCounter{}}, nil
+	}
+
+	if len(opt) == 0 {
+		opt = newSDKExporterSpanInflightObservableOpts
+	} else {
+		opt = append(opt, newSDKExporterSpanInflightObservableOpts...)
+	}
+
+	i, err := m.Int64ObservableUpDownCounter(
+		"otel.sdk.exporter.span.inflight",
+		opt...,
+	)
+	if err != nil {
+		return SDKExporterSpanInflightObservable{noop.Int64ObservableUpDownCounter{}}, err
+	}
+	return SDKExporterSpanInflightObservable{i}, nil
+}
+
+// Inst returns the underlying metric instrument.
+func (m SDKExporterSpanInflightObservable) Inst() metric.Int64ObservableUpDownCounter {
+	return m.Int64ObservableUpDownCounter
+}
+
+// Name returns the semantic convention name of the instrument.
+func (SDKExporterSpanInflightObservable) Name() string {
+	return "otel.sdk.exporter.span.inflight"
+}
+
+// Unit returns the semantic convention unit of the instrument
+func (SDKExporterSpanInflightObservable) Unit() string {
+	return "{span}"
+}
+
+// Description returns the semantic convention description of the instrument
+func (SDKExporterSpanInflightObservable) Description() string {
+	return "The number of spans which were passed to the exporter, but that have not been exported yet (neither successful, nor failed)."
+}
+
+// AttrComponentName returns an optional attribute for the "otel.component.name"
+// semantic convention. It represents a name uniquely identifying the instance of
+// the OpenTelemetry component within its containing SDK instance.
+func (SDKExporterSpanInflightObservable) AttrComponentName(val string) attribute.KeyValue {
+	return attribute.String("otel.component.name", val)
+}
+
+// AttrComponentType returns an optional attribute for the "otel.component.type"
+// semantic convention. It represents a name identifying the type of the
+// OpenTelemetry component.
+func (SDKExporterSpanInflightObservable) AttrComponentType(val ComponentTypeAttr) attribute.KeyValue {
+	return attribute.String("otel.component.type", string(val))
+}
+
+// AttrServerAddress returns an optional attribute for the "server.address"
+// semantic convention. It represents the server domain name if available without
+// reverse DNS lookup; otherwise, IP address or Unix domain socket name.
+func (SDKExporterSpanInflightObservable) AttrServerAddress(val string) attribute.KeyValue {
+	return attribute.String("server.address", val)
+}
+
+// AttrServerPort returns an optional attribute for the "server.port" semantic
+// convention. It represents the server port number.
+func (SDKExporterSpanInflightObservable) AttrServerPort(val int) attribute.KeyValue {
 	return attribute.Int("server.port", val)
 }
 
@@ -1279,6 +1838,9 @@ func (SDKLogCreated) Description() string {
 
 // Add adds incr to the existing count for attrs.
 func (m SDKLogCreated) Add(ctx context.Context, incr int64, attrs ...attribute.KeyValue) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -1286,6 +1848,7 @@ func (m SDKLogCreated) Add(ctx context.Context, incr int64, attrs ...attribute.K
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -1296,6 +1859,9 @@ func (m SDKLogCreated) Add(ctx context.Context, incr int64, attrs ...attribute.K
 
 // AddSet adds incr to the existing count for set.
 func (m SDKLogCreated) AddSet(ctx context.Context, incr int64, set attribute.Set) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -1303,12 +1869,71 @@ func (m SDKLogCreated) AddSet(ctx context.Context, incr int64, set attribute.Set
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
 
 	*o = append(*o, metric.WithAttributeSet(set))
 	m.Int64Counter.Add(ctx, incr, *o...)
+}
+
+// SDKLogCreatedObservable is an instrument used to record metric values
+// conforming to the "otel.sdk.log.created" semantic conventions. It represents
+// the number of logs submitted to enabled SDK Loggers.
+type SDKLogCreatedObservable struct {
+	metric.Int64ObservableCounter
+}
+
+var newSDKLogCreatedObservableOpts = []metric.Int64ObservableCounterOption{
+	metric.WithDescription("The number of logs submitted to enabled SDK Loggers."),
+	metric.WithUnit("{log_record}"),
+}
+
+// NewSDKLogCreatedObservable returns a new SDKLogCreatedObservable instrument.
+func NewSDKLogCreatedObservable(
+	m metric.Meter,
+	opt ...metric.Int64ObservableCounterOption,
+) (SDKLogCreatedObservable, error) {
+	// Check if the meter is nil.
+	if m == nil {
+		return SDKLogCreatedObservable{noop.Int64ObservableCounter{}}, nil
+	}
+
+	if len(opt) == 0 {
+		opt = newSDKLogCreatedObservableOpts
+	} else {
+		opt = append(opt, newSDKLogCreatedObservableOpts...)
+	}
+
+	i, err := m.Int64ObservableCounter(
+		"otel.sdk.log.created",
+		opt...,
+	)
+	if err != nil {
+		return SDKLogCreatedObservable{noop.Int64ObservableCounter{}}, err
+	}
+	return SDKLogCreatedObservable{i}, nil
+}
+
+// Inst returns the underlying metric instrument.
+func (m SDKLogCreatedObservable) Inst() metric.Int64ObservableCounter {
+	return m.Int64ObservableCounter
+}
+
+// Name returns the semantic convention name of the instrument.
+func (SDKLogCreatedObservable) Name() string {
+	return "otel.sdk.log.created"
+}
+
+// Unit returns the semantic convention unit of the instrument
+func (SDKLogCreatedObservable) Unit() string {
+	return "{log_record}"
+}
+
+// Description returns the semantic convention description of the instrument
+func (SDKLogCreatedObservable) Description() string {
+	return "The number of logs submitted to enabled SDK Loggers."
 }
 
 // SDKMetricReaderCollectionDuration is an instrument used to record metric
@@ -1385,6 +2010,9 @@ func (m SDKMetricReaderCollectionDuration) Record(
 	val float64,
 	attrs ...attribute.KeyValue,
 ) {
+	if !m.Float64Histogram.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Float64Histogram.Record(ctx, val)
 		return
@@ -1392,6 +2020,7 @@ func (m SDKMetricReaderCollectionDuration) Record(
 
 	o := recOptPool.Get().(*[]metric.RecordOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		recOptPool.Put(o)
 	}()
@@ -1414,6 +2043,9 @@ func (m SDKMetricReaderCollectionDuration) Record(
 // while others fail. In that case `error.type` SHOULD be set to any of the
 // failure causes.
 func (m SDKMetricReaderCollectionDuration) RecordSet(ctx context.Context, val float64, set attribute.Set) {
+	if !m.Float64Histogram.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Float64Histogram.Record(ctx, val)
 		return
@@ -1421,6 +2053,7 @@ func (m SDKMetricReaderCollectionDuration) RecordSet(ctx context.Context, val fl
 
 	o := recOptPool.Get().(*[]metric.RecordOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		recOptPool.Put(o)
 	}()
@@ -1523,6 +2156,9 @@ func (m SDKProcessorLogProcessed) Add(
 	incr int64,
 	attrs ...attribute.KeyValue,
 ) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -1530,6 +2166,7 @@ func (m SDKProcessorLogProcessed) Add(
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -1552,6 +2189,9 @@ func (m SDKProcessorLogProcessed) Add(
 // considered to be processed already when it has been submitted to the exporter,
 // not when the corresponding export call has finished.
 func (m SDKProcessorLogProcessed) AddSet(ctx context.Context, incr int64, set attribute.Set) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -1559,6 +2199,7 @@ func (m SDKProcessorLogProcessed) AddSet(ctx context.Context, incr int64, set at
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -1586,6 +2227,88 @@ func (SDKProcessorLogProcessed) AttrComponentName(val string) attribute.KeyValue
 // semantic convention. It represents a name identifying the type of the
 // OpenTelemetry component.
 func (SDKProcessorLogProcessed) AttrComponentType(val ComponentTypeAttr) attribute.KeyValue {
+	return attribute.String("otel.component.type", string(val))
+}
+
+// SDKProcessorLogProcessedObservable is an instrument used to record metric
+// values conforming to the "otel.sdk.processor.log.processed" semantic
+// conventions. It represents the number of log records for which the processing
+// has finished, either successful or failed.
+type SDKProcessorLogProcessedObservable struct {
+	metric.Int64ObservableCounter
+}
+
+var newSDKProcessorLogProcessedObservableOpts = []metric.Int64ObservableCounterOption{
+	metric.WithDescription("The number of log records for which the processing has finished, either successful or failed."),
+	metric.WithUnit("{log_record}"),
+}
+
+// NewSDKProcessorLogProcessedObservable returns a new
+// SDKProcessorLogProcessedObservable instrument.
+func NewSDKProcessorLogProcessedObservable(
+	m metric.Meter,
+	opt ...metric.Int64ObservableCounterOption,
+) (SDKProcessorLogProcessedObservable, error) {
+	// Check if the meter is nil.
+	if m == nil {
+		return SDKProcessorLogProcessedObservable{noop.Int64ObservableCounter{}}, nil
+	}
+
+	if len(opt) == 0 {
+		opt = newSDKProcessorLogProcessedObservableOpts
+	} else {
+		opt = append(opt, newSDKProcessorLogProcessedObservableOpts...)
+	}
+
+	i, err := m.Int64ObservableCounter(
+		"otel.sdk.processor.log.processed",
+		opt...,
+	)
+	if err != nil {
+		return SDKProcessorLogProcessedObservable{noop.Int64ObservableCounter{}}, err
+	}
+	return SDKProcessorLogProcessedObservable{i}, nil
+}
+
+// Inst returns the underlying metric instrument.
+func (m SDKProcessorLogProcessedObservable) Inst() metric.Int64ObservableCounter {
+	return m.Int64ObservableCounter
+}
+
+// Name returns the semantic convention name of the instrument.
+func (SDKProcessorLogProcessedObservable) Name() string {
+	return "otel.sdk.processor.log.processed"
+}
+
+// Unit returns the semantic convention unit of the instrument
+func (SDKProcessorLogProcessedObservable) Unit() string {
+	return "{log_record}"
+}
+
+// Description returns the semantic convention description of the instrument
+func (SDKProcessorLogProcessedObservable) Description() string {
+	return "The number of log records for which the processing has finished, either successful or failed."
+}
+
+// AttrErrorType returns an optional attribute for the "error.type" semantic
+// convention. It represents a low-cardinality description of the failure reason.
+// SDK Batching Log Record Processors MUST use `queue_full` for log records
+// dropped due to a full queue.
+func (SDKProcessorLogProcessedObservable) AttrErrorType(val ErrorTypeAttr) attribute.KeyValue {
+	return attribute.String("error.type", string(val))
+}
+
+// AttrComponentName returns an optional attribute for the "otel.component.name"
+// semantic convention. It represents a name uniquely identifying the instance of
+// the OpenTelemetry component within its containing SDK instance.
+func (SDKProcessorLogProcessedObservable) AttrComponentName(val string) attribute.KeyValue {
+	return attribute.String("otel.component.name", val)
+}
+
+// AttrComponentType returns an optional attribute for the "otel.component.type"
+// semantic convention. It represents a name identifying the type of the
+// OpenTelemetry component.
+func (SDKProcessorLogProcessedObservable) AttrComponentType(val ComponentTypeAttr) attribute.KeyValue {
 	return attribute.String("otel.component.type", string(val))
 }
 
@@ -1810,6 +2533,9 @@ func (m SDKProcessorSpanProcessed) Add(
 	incr int64,
 	attrs ...attribute.KeyValue,
 ) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -1817,6 +2543,7 @@ func (m SDKProcessorSpanProcessed) Add(
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -1839,6 +2566,9 @@ func (m SDKProcessorSpanProcessed) Add(
 // processed already when it has been submitted to the exporter, not when the
 // corresponding export call has finished.
 func (m SDKProcessorSpanProcessed) AddSet(ctx context.Context, incr int64, set attribute.Set) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -1846,6 +2576,7 @@ func (m SDKProcessorSpanProcessed) AddSet(ctx context.Context, incr int64, set a
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -1873,6 +2604,88 @@ func (SDKProcessorSpanProcessed) AttrComponentName(val string) attribute.KeyValu
 // semantic convention. It represents a name identifying the type of the
 // OpenTelemetry component.
 func (SDKProcessorSpanProcessed) AttrComponentType(val ComponentTypeAttr) attribute.KeyValue {
+	return attribute.String("otel.component.type", string(val))
+}
+
+// SDKProcessorSpanProcessedObservable is an instrument used to record metric
+// values conforming to the "otel.sdk.processor.span.processed" semantic
+// conventions. It represents the number of spans for which the processing has
+// finished, either successful or failed.
+type SDKProcessorSpanProcessedObservable struct {
+	metric.Int64ObservableCounter
+}
+
+var newSDKProcessorSpanProcessedObservableOpts = []metric.Int64ObservableCounterOption{
+	metric.WithDescription("The number of spans for which the processing has finished, either successful or failed."),
+	metric.WithUnit("{span}"),
+}
+
+// NewSDKProcessorSpanProcessedObservable returns a new
+// SDKProcessorSpanProcessedObservable instrument.
+func NewSDKProcessorSpanProcessedObservable(
+	m metric.Meter,
+	opt ...metric.Int64ObservableCounterOption,
+) (SDKProcessorSpanProcessedObservable, error) {
+	// Check if the meter is nil.
+	if m == nil {
+		return SDKProcessorSpanProcessedObservable{noop.Int64ObservableCounter{}}, nil
+	}
+
+	if len(opt) == 0 {
+		opt = newSDKProcessorSpanProcessedObservableOpts
+	} else {
+		opt = append(opt, newSDKProcessorSpanProcessedObservableOpts...)
+	}
+
+	i, err := m.Int64ObservableCounter(
+		"otel.sdk.processor.span.processed",
+		opt...,
+	)
+	if err != nil {
+		return SDKProcessorSpanProcessedObservable{noop.Int64ObservableCounter{}}, err
+	}
+	return SDKProcessorSpanProcessedObservable{i}, nil
+}
+
+// Inst returns the underlying metric instrument.
+func (m SDKProcessorSpanProcessedObservable) Inst() metric.Int64ObservableCounter {
+	return m.Int64ObservableCounter
+}
+
+// Name returns the semantic convention name of the instrument.
+func (SDKProcessorSpanProcessedObservable) Name() string {
+	return "otel.sdk.processor.span.processed"
+}
+
+// Unit returns the semantic convention unit of the instrument
+func (SDKProcessorSpanProcessedObservable) Unit() string {
+	return "{span}"
+}
+
+// Description returns the semantic convention description of the instrument
+func (SDKProcessorSpanProcessedObservable) Description() string {
+	return "The number of spans for which the processing has finished, either successful or failed."
+}
+
+// AttrErrorType returns an optional attribute for the "error.type" semantic
+// convention. It represents a low-cardinality description of the failure reason.
+// SDK Batching Span Processors MUST use `queue_full` for spans dropped due to a
+// full queue.
+func (SDKProcessorSpanProcessedObservable) AttrErrorType(val ErrorTypeAttr) attribute.KeyValue {
+	return attribute.String("error.type", string(val))
+}
+
+// AttrComponentName returns an optional attribute for the "otel.component.name"
+// semantic convention. It represents a name uniquely identifying the instance of
+// the OpenTelemetry component within its containing SDK instance.
+func (SDKProcessorSpanProcessedObservable) AttrComponentName(val string) attribute.KeyValue {
+	return attribute.String("otel.component.name", val)
+}
+
+// AttrComponentType returns an optional attribute for the "otel.component.type"
+// semantic convention. It represents a name identifying the type of the
+// OpenTelemetry component.
+func (SDKProcessorSpanProcessedObservable) AttrComponentType(val ComponentTypeAttr) attribute.KeyValue {
 	return attribute.String("otel.component.type", string(val))
 }
 
@@ -2091,6 +2904,9 @@ func (m SDKSpanLive) Add(
 	incr int64,
 	attrs ...attribute.KeyValue,
 ) {
+	if !m.Int64UpDownCounter.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Int64UpDownCounter.Add(ctx, incr)
 		return
@@ -2098,6 +2914,7 @@ func (m SDKSpanLive) Add(
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -2114,6 +2931,9 @@ func (m SDKSpanLive) Add(
 
 // AddSet adds incr to the existing count for set.
 func (m SDKSpanLive) AddSet(ctx context.Context, incr int64, set attribute.Set) {
+	if !m.Int64UpDownCounter.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Int64UpDownCounter.Add(ctx, incr)
 		return
@@ -2121,6 +2941,7 @@ func (m SDKSpanLive) AddSet(ctx context.Context, incr int64, set attribute.Set) 
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -2133,6 +2954,72 @@ func (m SDKSpanLive) AddSet(ctx context.Context, incr int64, set attribute.Set) 
 // "otel.span.sampling_result" semantic convention. It represents the result
 // value of the sampler for this span.
 func (SDKSpanLive) AttrSpanSamplingResult(val SpanSamplingResultAttr) attribute.KeyValue {
+	return attribute.String("otel.span.sampling_result", string(val))
+}
+
+// SDKSpanLiveObservable is an instrument used to record metric values conforming
+// to the "otel.sdk.span.live" semantic conventions. It represents the number of
+// created spans with `recording=true` for which the end operation has not been
+// called yet.
+type SDKSpanLiveObservable struct {
+	metric.Int64ObservableUpDownCounter
+}
+
+var newSDKSpanLiveObservableOpts = []metric.Int64ObservableUpDownCounterOption{
+	metric.WithDescription("The number of created spans with `recording=true` for which the end operation has not been called yet."),
+	metric.WithUnit("{span}"),
+}
+
+// NewSDKSpanLiveObservable returns a new SDKSpanLiveObservable instrument.
+func NewSDKSpanLiveObservable(
+	m metric.Meter,
+	opt ...metric.Int64ObservableUpDownCounterOption,
+) (SDKSpanLiveObservable, error) {
+	// Check if the meter is nil.
+	if m == nil {
+		return SDKSpanLiveObservable{noop.Int64ObservableUpDownCounter{}}, nil
+	}
+
+	if len(opt) == 0 {
+		opt = newSDKSpanLiveObservableOpts
+	} else {
+		opt = append(opt, newSDKSpanLiveObservableOpts...)
+	}
+
+	i, err := m.Int64ObservableUpDownCounter(
+		"otel.sdk.span.live",
+		opt...,
+	)
+	if err != nil {
+		return SDKSpanLiveObservable{noop.Int64ObservableUpDownCounter{}}, err
+	}
+	return SDKSpanLiveObservable{i}, nil
+}
+
+// Inst returns the underlying metric instrument.
+func (m SDKSpanLiveObservable) Inst() metric.Int64ObservableUpDownCounter {
+	return m.Int64ObservableUpDownCounter
+}
+
+// Name returns the semantic convention name of the instrument.
+func (SDKSpanLiveObservable) Name() string {
+	return "otel.sdk.span.live"
+}
+
+// Unit returns the semantic convention unit of the instrument
+func (SDKSpanLiveObservable) Unit() string {
+	return "{span}"
+}
+
+// Description returns the semantic convention description of the instrument
+func (SDKSpanLiveObservable) Description() string {
+	return "The number of created spans with `recording=true` for which the end operation has not been called yet."
+}
+
+// AttrSpanSamplingResult returns an optional attribute for the
+// "otel.span.sampling_result" semantic convention. It represents the result
+// value of the sampler for this span.
+func (SDKSpanLiveObservable) AttrSpanSamplingResult(val SpanSamplingResultAttr) attribute.KeyValue {
 	return attribute.String("otel.span.sampling_result", string(val))
 }
 
@@ -2205,6 +3092,9 @@ func (m SDKSpanStarted) Add(
 	incr int64,
 	attrs ...attribute.KeyValue,
 ) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if len(attrs) == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -2212,6 +3102,7 @@ func (m SDKSpanStarted) Add(
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -2231,6 +3122,9 @@ func (m SDKSpanStarted) Add(
 // Implementations MUST record this metric for all spans, even for non-recording
 // ones.
 func (m SDKSpanStarted) AddSet(ctx context.Context, incr int64, set attribute.Set) {
+	if !m.Int64Counter.Enabled(ctx) {
+		return
+	}
 	if set.Len() == 0 {
 		m.Int64Counter.Add(ctx, incr)
 		return
@@ -2238,6 +3132,7 @@ func (m SDKSpanStarted) AddSet(ctx context.Context, incr int64, set attribute.Se
 
 	o := addOptPool.Get().(*[]metric.AddOption)
 	defer func() {
+		clear(*o)
 		*o = (*o)[:0]
 		addOptPool.Put(o)
 	}()
@@ -2260,5 +3155,80 @@ func (SDKSpanStarted) AttrSpanParentOrigin(val SpanParentOriginAttr) attribute.K
 // "otel.span.sampling_result" semantic convention. It represents the result
 // value of the sampler for this span.
 func (SDKSpanStarted) AttrSpanSamplingResult(val SpanSamplingResultAttr) attribute.KeyValue {
+	return attribute.String("otel.span.sampling_result", string(val))
+}
+
+// SDKSpanStartedObservable is an instrument used to record metric values
+// conforming to the "otel.sdk.span.started" semantic conventions. It represents
+// the number of created spans.
+type SDKSpanStartedObservable struct {
+	metric.Int64ObservableCounter
+}
+
+var newSDKSpanStartedObservableOpts = []metric.Int64ObservableCounterOption{
+	metric.WithDescription("The number of created spans."),
+	metric.WithUnit("{span}"),
+}
+
+// NewSDKSpanStartedObservable returns a new SDKSpanStartedObservable instrument.
+func NewSDKSpanStartedObservable(
+	m metric.Meter,
+	opt ...metric.Int64ObservableCounterOption,
+) (SDKSpanStartedObservable, error) {
+	// Check if the meter is nil.
+	if m == nil {
+		return SDKSpanStartedObservable{noop.Int64ObservableCounter{}}, nil
+	}
+
+	if len(opt) == 0 {
+		opt = newSDKSpanStartedObservableOpts
+	} else {
+		opt = append(opt, newSDKSpanStartedObservableOpts...)
+	}
+
+	i, err := m.Int64ObservableCounter(
+		"otel.sdk.span.started",
+		opt...,
+	)
+	if err != nil {
+		return SDKSpanStartedObservable{noop.Int64ObservableCounter{}}, err
+	}
+	return SDKSpanStartedObservable{i}, nil
+}
+
+// Inst returns the underlying metric instrument.
+func (m SDKSpanStartedObservable) Inst() metric.Int64ObservableCounter {
+	return m.Int64ObservableCounter
+}
+
+// Name returns the semantic convention name of the instrument.
+func (SDKSpanStartedObservable) Name() string {
+	return "otel.sdk.span.started"
+}
+
+// Unit returns the semantic convention unit of the instrument
+func (SDKSpanStartedObservable) Unit() string {
+	return "{span}"
+}
+
+// Description returns the semantic convention description of the instrument
+func (SDKSpanStartedObservable) Description() string {
+	return "The number of created spans."
+}
+
+// AttrSpanParentOrigin returns an optional attribute for the
+// "otel.span.parent.origin" semantic convention. It represents the determines
+// whether the span has a parent span, and if so, [whether it is a remote parent]
+// .
+//
+// [whether it is a remote parent]: https://opentelemetry.io/docs/specs/otel/trace/api/#isremote
+func (SDKSpanStartedObservable) AttrSpanParentOrigin(val SpanParentOriginAttr) attribute.KeyValue {
+	return attribute.String("otel.span.parent.origin", string(val))
+}
+
+// AttrSpanSamplingResult returns an optional attribute for the
+// "otel.span.sampling_result" semantic convention. It represents the result
+// value of the sampler for this span.
+func (SDKSpanStartedObservable) AttrSpanSamplingResult(val SpanSamplingResultAttr) attribute.KeyValue {
 	return attribute.String("otel.span.sampling_result", string(val))
 }
