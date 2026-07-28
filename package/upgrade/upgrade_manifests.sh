@@ -1583,6 +1583,50 @@ migrate_longhorn_v1beta1_crds() {
       -p "$(kubectl get validatingwebhookconfiguration longhorn-webhook-validator -o json | jq '.webhooks[0].rules |= map(if .apiGroups == ["longhorn.io"] and .resources == ["settings"] then .operations |= (. + ["UPDATE"] | unique) else . end)')"
 }
 
+patch_rke2_traefik_config() {
+  echo "Check and apply default rke2-traefik helm chart config"
+
+  local name="rke2-traefik"
+  local namespace="kube-system"
+  local manifest="$UPGRADE_TMP_DIR/rke2-traefik-helmchartconfig.yaml"
+
+  mkdir -p "$UPGRADE_TMP_DIR"
+
+  # 1. Prepare Manifest
+  cat > "$manifest" <<EOF
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: $name
+  namespace: $namespace
+spec:
+  valuesContent: |-
+    logs:
+      access:
+        enabled: "true"
+    additionalArguments:
+    - --entryPoints.websecure.transport.respondingTimeouts.readTimeout=30m
+    - --entryPoints.websecure.transport.respondingTimeouts.writeTimeout=30m
+EOF
+
+  # 2. Check if the resource exists
+  local EXIT_CODE=0
+  # Using a global variable to ensure EXIT_CODE is captured correctly under 'set -e'
+  rke2_traefik_chart_config_output=$(kubectl get helmchartconfig "$name" -n "$namespace" 2>&1) || EXIT_CODE=$?
+
+  if [[ $EXIT_CODE -ne 0 ]]; then
+    if [[ "$rke2_traefik_chart_config_output" == *"NotFound"* || "$rke2_traefik_chart_config_output" == *"not found"* ]]; then
+      echo "Resource '$name' not found. Creating..."
+      kubectl apply -f "$manifest"
+      return 0
+    else
+      # Catch critical errors (RBAC, API timeouts, etc.)
+      echo "CRITICAL ERROR: kubectl check failed with: $rke2_traefik_chart_config_output EXIT_CODE:$EXIT_CODE"
+      return 1
+    fi
+  fi
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -1609,3 +1653,5 @@ upgrade_addons
 upgrade_harvester_csi_rbac
 # wait fleet bundles upto 90 seconds
 wait_for_fleet_bundles 9
+# ingress will be swapped during the pre drain stage but we can apply traefik default config here
+patch_rke2_traefik_config
