@@ -42,6 +42,8 @@ const (
 	systemNamespacesSetting  = "system-namespaces"
 	tlsCNPrefix              = "listener.cattle.io/cn-"
 
+	tlsInternalCnAllowedServicesSetting = "tls-internal-cn-allowed-services"
+
 	keyKubevipRequestIP             = "kube-vip.io/requestedIP"
 	keyKubevipHwaddr                = "kube-vip.io/hwaddr"
 	keyKubevipIgnoreServiceSecurity = "kube-vip.io/ignore-service-security"
@@ -56,6 +58,8 @@ const (
 	capiControllerDeploymentNamespace = "cattle-capi-system"
 	daemonSetsController              = "daemonset-controller"
 )
+
+var traefikServiceNameWithNamespace = fmt.Sprintf("%s/%s", util.KubeSystemNamespace, traefikServiceName)
 
 type Handler struct {
 	RancherSettings          rancherv3.SettingClient

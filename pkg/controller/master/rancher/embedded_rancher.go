@@ -2,6 +2,7 @@ package rancher
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -12,8 +13,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 var UpdateRancherUISettings = map[string]string{
@@ -32,6 +35,17 @@ func (h *Handler) RancherSettingOnChange(_ string, setting *rancherv3api.Setting
 
 	if setting.Name == systemNamespacesSetting && !strings.Contains(setting.Default, "harvester-system") {
 		return h.initializeSystemNamespaces(setting)
+	}
+
+	if setting.Name == tlsInternalCnAllowedServicesSetting && !strings.Contains(setting.Value, traefikServiceNameWithNamespace) {
+		updated, err := h.initializeTlsInternalCnAllowedServices(setting)
+		if err != nil {
+			return nil, err
+		}
+		if err := h.triggerRancherRolloutRestart(); err != nil {
+			return nil, err
+		}
+		return updated, nil
 	}
 
 	for name, value := range UpdateRancherUISettings {
@@ -102,6 +116,28 @@ func (h *Handler) syncCACert(setting *rancherv3api.Setting) error {
 	caCertsCopy := setting.DeepCopy()
 	caCertsCopy.Default = cacert
 	_, err := h.RancherSettings.Update(caCertsCopy)
+	return err
+}
+
+func (h *Handler) initializeTlsInternalCnAllowedServices(setting *rancherv3api.Setting) (*rancherv3api.Setting, error) {
+	toUpdate := setting.DeepCopy()
+	toUpdate.Value = traefikServiceNameWithNamespace
+	return h.RancherSettings.Update(toUpdate)
+}
+
+func (h *Handler) triggerRancherRolloutRestart() error {
+	patch := fmt.Sprintf(`{
+		"spec": {
+			"template": {
+				"metadata": {
+					"annotations": {
+						"kubectl.kubernetes.io/restartedAt": "%s"
+					}
+				}
+			}
+		}
+	}`, time.Now().Format(time.RFC3339))
+	_, err := h.Deployments.Patch(util.CattleSystemNamespaceName, "rancher", types.StrategicMergePatchType, []byte(patch))
 	return err
 }
 
