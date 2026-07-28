@@ -56,6 +56,9 @@ var (
 	ErrMsgManagementInterfaceNotFound = "networks is deprecated, please use management_interface for new config and refer https://docs.harvesterhci.io/v1.1/install/harvester-configuration/#installmanagement_interface"
 	ErrMsgUnsupportedSchemeVersion    = "Unsupported Harvester Scheme Version %d, please use new config and refer https://docs.harvesterhci.io/v1.1/install/harvester-configuration/"
 
+	ErrMsgCordonedInvalidMode = fmt.Sprintf("install.cordoned can't be set in %s mode", config.ModeCreate)
+	ErrMsgCordonedInvalidRole = fmt.Sprintf("install.cordoned can't be set for nodes with the %s role", config.RoleWitness)
+
 	ErrContainerdRegistrySettingNotValidJSON = "could not parse containerd-registry as JSON"
 )
 
@@ -441,6 +444,15 @@ func commonCheck(cfg *config.HarvesterConfig) error {
 
 	if len(cfg.SSHAuthorizedKeys) == 0 && cfg.Password == "" {
 		return errors.New(ErrMsgNoCredentials)
+	}
+
+	if cfg.Install.Cordoned {
+		if cfg.Install.Mode == config.ModeCreate {
+			return errors.New(ErrMsgCordonedInvalidMode)
+		}
+		if cfg.Install.Role == config.RoleWitness {
+			return errors.New(ErrMsgCordonedInvalidRole)
+		}
 	}
 
 	return checkPersistentStatePaths(cfg.OS.PersistentStatePaths)
