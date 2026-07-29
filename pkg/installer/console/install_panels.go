@@ -165,6 +165,7 @@ func setPanels(c *Console) error {
 		addFooterPanel,
 		addPreflightCheckPanel,
 		addAskCreatePanel,
+		addAskIPv6Panel,
 		addAskRolePanel,
 		addDiskPanel,
 		addHostnamePanel,
@@ -869,7 +870,7 @@ func addAskCreatePanel(c *Console) error {
 			// all packages are already install
 			// configure hostname and network
 			if c.config.Install.Mode == config.ModeJoin {
-				return showRolePage(c)
+				return showIPv6Page(c)
 			}
 			if alreadyInstalled {
 				return showNetworkPage(c)
@@ -885,6 +886,14 @@ func showPasswordPage(c *Console) error {
 	return showNext(c, passwordConfirmPanel, passwordPanel)
 }
 
+func showIPv6Page(c *Console) error {
+	setLocation := createVerticalLocatorWithName(c)
+	if err := setLocation(askIPv6Panel, 3); err != nil {
+		return err
+	}
+	return showNext(c, askIPv6Panel)
+}
+
 func showRolePage(c *Console) error {
 	setLocation := createVerticalLocatorWithName(c)
 
@@ -893,6 +902,93 @@ func showRolePage(c *Console) error {
 	}
 
 	return showNext(c, askRolePanel)
+}
+
+// addAskIPv6Panel shows a Yes/No prompt for enabling IPv6 on join-mode nodes.
+// IPv6 is disabled by default; enabling it is required for dual-stack clusters.
+func addAskIPv6Panel(c *Console) error {
+	const (
+		optNo  = "no"
+		optYes = "yes"
+	)
+	var awaitingIPv6Ack bool
+
+	optionsFunc := func() ([]widgets.Option, error) {
+		return []widgets.Option{
+			{Value: optNo, Text: "No"},
+			{Value: optYes, Text: "Yes"},
+		}, nil
+	}
+
+	v, err := widgets.NewSelect(c.Gui, askIPv6Panel, "", optionsFunc)
+	if err != nil {
+		return err
+	}
+
+	v.PreShow = func() error {
+		awaitingIPv6Ack = false
+		if c.config.Install.IPv6Enabled {
+			v.Value = optYes
+		} else {
+			v.Value = optNo
+		}
+		if err := c.setContentByName(titlePanel, "Enable IPv6 on this node?"); err != nil {
+			return err
+		}
+		if err := c.setContentByName(validatorPanel, ""); err != nil {
+			return err
+		}
+		return c.setContentByName(notePanel,
+			"Note: Enabling IPv6 is required for Dual Stack (IPv4, IPv6) configurations.")
+	}
+
+	gotoPrev := func(_ *gocui.Gui, _ *gocui.View) error {
+		c.CloseElements(askIPv6Panel)
+		if err := c.setContentByName(validatorPanel, ""); err != nil {
+			return err
+		}
+		if err := c.setContentByName(notePanel, ""); err != nil {
+			return err
+		}
+		return showNext(c, askCreatePanel)
+	}
+
+	v.KeyBindings = map[gocui.Key]func(*gocui.Gui, *gocui.View) error{
+		gocui.KeyEnter: func(_ *gocui.Gui, _ *gocui.View) error {
+			selected, err := v.GetData()
+			if err != nil {
+				return err
+			}
+
+			if selected == optYes && !awaitingIPv6Ack {
+				// First Enter on "Yes": show the experimental warning in the
+				// validator panel (red) and ask the user to press Enter once more.
+				awaitingIPv6Ack = true
+				return c.setContentByName(validatorPanel,
+					"WARNING: Dual-stack networking (IPv4, IPv6) is an experimental feature "+
+						"and may behave unexpectedly in production. "+
+						"Press Enter again to confirm, or press ESC to go back.")
+			}
+
+			// Reset warning and store choice.
+			awaitingIPv6Ack = false
+			if err := c.setContentByName(validatorPanel, ""); err != nil {
+				return err
+			}
+			if err := c.setContentByName(notePanel, ""); err != nil {
+				return err
+			}
+			c.config.Install.IPv6Enabled = (selected == optYes)
+
+			if err = v.Close(); err != nil {
+				return err
+			}
+			return showRolePage(c)
+		},
+		gocui.KeyEsc: gotoPrev,
+	}
+	c.AddElement(askIPv6Panel, v)
+	return nil
 }
 
 func addAskRolePanel(c *Console) error {
@@ -919,6 +1015,10 @@ func addAskRolePanel(c *Console) error {
 	}
 	gotoPrevPage := func(_ *gocui.Gui, _ *gocui.View) error {
 		c.CloseElements(askRolePanel)
+		// In join mode the page before role is the IPv6 prompt.
+		if c.config.Install.Mode == config.ModeJoin {
+			return showIPv6Page(c)
+		}
 		return showNext(c, askCreatePanel)
 	}
 	askRoleV.PreShow = func() error {
@@ -1995,7 +2095,12 @@ func addClusterNetworkPanel(c *Console) error {
 			clusterNetworkValidatorPanel)
 	}
 
+	// awaitingDualStackAck tracks whether the user has seen the dual-stack
+	// experimental warning and needs to press Enter once more to confirm.
+	var awaitingDualStackAck bool
+
 	prevPage := func(_ *gocui.Gui, _ *gocui.View) error {
+		awaitingDualStackAck = false
 		closePage()
 		return showNetworkPage(c)
 	}
@@ -2075,9 +2180,41 @@ func addClusterNetworkPanel(c *Console) error {
 		if cidr == "" {
 			return nil
 		}
-
-		_, err := netip.ParsePrefix(cidr)
-		return err
+		parts := strings.Split(cidr, ",")
+		if len(parts) > 2 {
+			return fmt.Errorf("at most two CIDRs (IPv4,IPv6) are allowed, got %d", len(parts))
+		}
+		for _, p := range parts {
+			if _, err := netip.ParsePrefix(strings.TrimSpace(p)); err != nil {
+				return fmt.Errorf("%q is not a valid CIDR (expected e.g. 10.42.0.0/16 or fd42::/48)", strings.TrimSpace(p))
+			}
+		}
+		if len(parts) == 1 {
+			// A single CIDR must be IPv4; IPv6-only is not a supported mode.
+			single, err := netip.ParsePrefix(strings.TrimSpace(parts[0])) // already validated above
+			if err != nil {
+				return err
+			}
+			if !single.Addr().Is4() {
+				return fmt.Errorf("a single CIDR must be IPv4 (e.g. 10.42.0.0/16); for dual-stack provide IPv4,IPv6")
+			}
+		}
+		if len(parts) == 2 {
+			firstStr := strings.TrimSpace(parts[0])
+			secondStr := strings.TrimSpace(parts[1])
+			first, err := netip.ParsePrefix(firstStr)
+			if err != nil {
+				return err
+			}
+			second, err := netip.ParsePrefix(secondStr)
+			if err != nil {
+				return err
+			}
+			if !first.Addr().Is4() || second.Addr().Is4() {
+				return fmt.Errorf("dual-stack CIDRs must be in IPv4-first order (e.g. 10.42.0.0/16,fd42::/48)")
+			}
+		}
+		return nil
 	}
 
 	validateDNSIP := func(ip string) error {
@@ -2090,20 +2227,52 @@ func addClusterNetworkPanel(c *Console) error {
 			return nil
 		}
 
-		// the DNS IP address must be well-formed and within the
-		// service CIDR
-		ipAddr, err := netip.ParseAddr(ip)
-		if err != nil {
-			return fmt.Errorf("invalid cluster DNS IP: %w", err)
+		// Build a map from Is4() bool → service prefix so each DNS address
+		// can be matched to the CIDR of its own address family.
+		svcParts := strings.Split(serviceCIDR, ",")
+		svcNets := make(map[bool]netip.Prefix, len(svcParts))
+		for _, part := range svcParts {
+			part = strings.TrimSpace(part)
+			prefix, parseErr := netip.ParsePrefix(part)
+			if parseErr != nil {
+				return fmt.Errorf("to override the cluster DNS IP, the service CIDR must be valid: %w", parseErr)
+			}
+			svcNets[prefix.Addr().Is4()] = prefix
 		}
 
-		svcNet, err := netip.ParsePrefix(serviceCIDR)
-		if err != nil {
-			return fmt.Errorf("to override the cluster DNS IP, the service CIDR must be valid: %w", err)
+		// A single DNS IP must be IPv4; IPv6-only is not a supported mode.
+		if !strings.Contains(ip, ",") {
+			singleAddr, parseErr := netip.ParseAddr(strings.TrimSpace(ip))
+			if parseErr == nil && !singleAddr.Is4() {
+				return fmt.Errorf("a single DNS IP must be IPv4 (e.g. 10.53.0.10); for dual-stack provide IPv4,IPv6 (e.g. 10.53.0.10,fd53::a)")
+			}
 		}
 
-		if !svcNet.Contains(ipAddr) {
-			return fmt.Errorf("invalid cluster DNS IP: %s is not in the service CIDR %s", ip, serviceCIDR)
+		// Validate each DNS address against the service CIDR of the same family.
+		dnsParts := strings.Split(ip, ",")
+		if len(dnsParts) > 2 {
+			return fmt.Errorf("at most two DNS IPs (IPv4,IPv6) are allowed, got %d", len(dnsParts))
+		}
+		parsed := make([]netip.Addr, 0, len(dnsParts))
+		for _, part := range dnsParts {
+			part = strings.TrimSpace(part)
+			ipAddr, parseErr := netip.ParseAddr(part)
+			if parseErr != nil {
+				return fmt.Errorf("invalid cluster DNS IP: %w", parseErr)
+			}
+			svcNet, ok := svcNets[ipAddr.Is4()]
+			if !ok {
+				return fmt.Errorf("invalid cluster DNS IP: %s has no matching service CIDR for its address family", part)
+			}
+			if !svcNet.Contains(ipAddr) {
+				return fmt.Errorf("invalid cluster DNS IP: %s is not in the service CIDR %s", part, svcNet)
+			}
+			parsed = append(parsed, ipAddr)
+		}
+		if len(parsed) == 2 {
+			if !parsed[0].Is4() || parsed[1].Is4() {
+				return fmt.Errorf("dual-stack DNS IPs must be in IPv4-first order (e.g. 10.53.0.10,fd53::a)")
+			}
 		}
 
 		return nil
@@ -2121,7 +2290,9 @@ func addClusterNetworkPanel(c *Console) error {
 				clusterNetworkValidatorPanel,
 				fmt.Sprintf("Invalid pod CIDR: %s", err))
 		}
+
 		c.config.ClusterPodCIDR = podCIDR
+		awaitingDualStackAck = false
 
 		// reset any previous error in the validator panel before
 		// moving to the next panel
@@ -2143,6 +2314,7 @@ func addClusterNetworkPanel(c *Console) error {
 				fmt.Sprintf("Invalid service CIDR: %s", err))
 		}
 		c.config.ClusterServiceCIDR = serviceCIDR
+		awaitingDualStackAck = false
 
 		// reset any previous error in the validator panel before
 		// moving to the next panel
@@ -2158,11 +2330,28 @@ func addClusterNetworkPanel(c *Console) error {
 			return err
 		}
 		if err = validateDNSIP(dns); err != nil {
+			awaitingDualStackAck = false
 			return c.setContentByName(clusterNetworkValidatorPanel, err.Error())
 		}
 		c.config.ClusterDNS = dns
 
-		// reset the validator panel before moving to the next page
+		// All fields are validated. If dual-stack was configured, show an inline
+		// warning on the first Enter and require a second Enter to confirm.
+		if strings.Contains(c.config.ClusterPodCIDR, ",") {
+			if !awaitingDualStackAck {
+				awaitingDualStackAck = true
+				return c.setContentByName(clusterNetworkValidatorPanel,
+					"WARNING: Dual-stack networking (IPv4, IPv6) is an experimental feature "+
+						"and may behave unexpectedly in production. "+
+						"Press Enter again to confirm, or go back to change the configuration.")
+			}
+			// Second Enter: user confirmed, apply IPv6 and proceed.
+			awaitingDualStackAck = false
+			if err = applyKernelIPv6(true); err != nil {
+				return c.setContentByName(clusterNetworkValidatorPanel, err.Error())
+			}
+		}
+
 		if err = c.setContentByName(clusterNetworkValidatorPanel, ""); err != nil {
 			return err
 		}
@@ -2193,6 +2382,7 @@ func addClusterNetworkPanel(c *Console) error {
 	dnsInput.KeyBindings = map[gocui.Key]func(*gocui.Gui, *gocui.View) error{
 		gocui.KeyEsc: prevPage,
 		gocui.KeyArrowUp: func(_ *gocui.Gui, _ *gocui.View) error {
+			awaitingDualStackAck = false
 			return showNext(c, clusterServiceCIDRPanel)
 		},
 		gocui.KeyArrowDown: dnsConfirm,
@@ -2212,9 +2402,8 @@ func addClusterNetworkPanel(c *Console) error {
 	validatorPanel := widgets.NewPanel(c.Gui, clusterNetworkValidatorPanel)
 	validatorPanel.FgColor = gocui.ColorRed
 	validatorPanel.Focus = false
-	maxX, _ := c.Gui.Size()
-	validatorPanel.X1 = maxX / 8 * 6
-	setLocation(validatorPanel, 3)
+	validatorPanel.Wrap = true
+	setLocation(validatorPanel, 6)
 	c.AddElement(clusterNetworkValidatorPanel, validatorPanel)
 
 	return nil

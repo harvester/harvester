@@ -113,19 +113,7 @@ func applyNetworks(network config.Network, hostname string) error {
 		}
 	}
 
-	// enable IPv6 before applying NetworkManager profiles
-	for _, param := range []string{
-		config.SysctlDisableIPv6All,
-		config.SysctlDisableIPv6Default,
-		config.SysctlDisableIPv6Lo,
-	} {
-		// #nosec G204
-		if out, execErr := exec.Command("sysctl", "-w", fmt.Sprintf("%s=0", param)).CombinedOutput(); execErr != nil {
-			logrus.Warnf("Failed to enable IPv6 sysctl %s: %v (%s)", param, execErr, string(out))
-		}
-	}
-
-	err = config.UpdateManagementInterfaceConfig(network, []string{}, config.NMConnectionPath, true)
+	err = config.UpdateManagementInterfaceConfig(network, []string{}, config.NMConnectionPath, true, false)
 	if err != nil {
 		return err
 	}
@@ -280,6 +268,32 @@ func filterNICSBySession(hwDeviceMap map[string]netlink.Link, links []netlink.Li
 					break //device is already removed, no point checking for other addresses
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// applyKernelIPv6 enables (enabled=true) or disables (enabled=false) IPv6 in the
+// running kernel by writing the disable_ipv6 sysctls. Called at the cluster-CIDR
+// confirm step so the live installer session matches the chosen networking mode.
+// For dual-stack (enabled=true) any sysctl failure is returned as a hard error.
+// For IPv4-only (enabled=false) failures are logged as warnings only.
+func applyKernelIPv6(enabled bool) error {
+	value := "0"
+	if !enabled {
+		value = "1"
+	}
+	for _, param := range []string{
+		config.SysctlDisableIPv6All,
+		config.SysctlDisableIPv6Default,
+		config.SysctlDisableIPv6Lo,
+	} {
+		//nolint:gosec // G204: param and value are controlled internal strings
+		if out, execErr := exec.Command("sysctl", "-w", fmt.Sprintf("%s=%s", param, value)).CombinedOutput(); execErr != nil {
+			if enabled {
+				return fmt.Errorf("failed to enable IPv6 (%s): %v (%s)", param, execErr, string(out))
+			}
+			logrus.Warnf("Failed to disable IPv6 sysctl %s: %v (%s)", param, execErr, string(out))
 		}
 	}
 	return nil
