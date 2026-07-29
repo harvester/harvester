@@ -25,4 +25,10 @@ address1={{ .Vlan.IP }}/{{ .Vlan.SubnetMask }},{{ .Vlan.Gateway }}
 {{- end }}
 
 [ipv6]
+{{ if .IPv6Enabled -}}
+method=auto
+addr-gen-mode=eui64
+ip6-privacy=0
+{{- else -}}
 method=disabled
+{{- end }}
