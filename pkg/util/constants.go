@@ -231,6 +231,10 @@ const (
 
 	RKEControlPlaneRoleLabel = "rke.cattle.io/control-plane-role"
 
+	MaintainStatusAnnotationKey = prefix + "/maintain-status"
+	MaintainStatusComplete      = "completed"
+	MaintainStatusRunning       = "running"
+
 	LabelMaintainModeStrategy              = prefix + "/maintain-mode-strategy"
 	AnnotationMaintainModeStrategyNodeName = prefix + "/maintain-mode-strategy-node-name"
 
@@ -242,6 +246,9 @@ const (
 	HarvesterReportedConditionKey                      = prefix + "/condition"
 	HarvesterReportedConditionMessageKey               = prefix + "/condition-message"
 	ManagedTapBindingName                              = "managedtap"
+
+	HarvesterInstallCordonedLabel               = prefix + "/install-cordoned"
+	HarvesterInstallCordonedProcessedAnnotation = prefix + "/install-cordoned-processed"
 )
 
 var (

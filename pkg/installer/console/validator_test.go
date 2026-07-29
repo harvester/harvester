@@ -135,6 +135,54 @@ func TestValidateConfig(t *testing.T) {
 			},
 			errMsg: ErrMsgMgmtInterfaceNotSpecified,
 		},
+		{
+			name: "invalid create config: install.cordoned is true",
+			cfg:  createCreateConfig(),
+			preApply: func(c *config.HarvesterConfig) {
+				c.Install.Cordoned = true
+			},
+			errMsg: ErrMsgCordonedInvalidMode,
+		},
+		{
+			name: "invalid join config: install.cordoned is true for node with witness role",
+			cfg:  createJoinConfig(),
+			preApply: func(c *config.HarvesterConfig) {
+				c.Install.Cordoned = true
+				c.Install.Role = config.RoleWitness
+			},
+			errMsg: ErrMsgCordonedInvalidRole,
+		},
+		{
+			name: "valid join config: install.cordoned is true for node with no role",
+			cfg:  createJoinConfig(),
+			preApply: func(c *config.HarvesterConfig) {
+				c.Install.Cordoned = true
+			},
+		},
+		{
+			name: "valid join config: install.cordoned is true for node with default role",
+			cfg:  createJoinConfig(),
+			preApply: func(c *config.HarvesterConfig) {
+				c.Install.Cordoned = true
+				c.Install.Role = config.RoleDefault
+			},
+		},
+		{
+			name: "valid join config: install.cordoned is true for node with management role",
+			cfg:  createJoinConfig(),
+			preApply: func(c *config.HarvesterConfig) {
+				c.Install.Cordoned = true
+				c.Install.Role = config.RoleMgmt
+			},
+		},
+		{
+			name: "valid join config: install.cordoned is true for node with worker role",
+			cfg:  createJoinConfig(),
+			preApply: func(c *config.HarvesterConfig) {
+				c.Install.Cordoned = true
+				c.Install.Role = config.RoleWorker
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
