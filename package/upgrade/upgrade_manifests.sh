@@ -5,6 +5,18 @@ UPGRADE_TMP_DIR="/tmp/upgrade"
 
 source $SCRIPT_DIR/lib.sh
 
+log_warning() {
+  echo "[WARNING] $*" >&2
+}
+
+log_error() {
+  echo "[ERROR] $*" >&2
+}
+
+log_critical() {
+  echo "[CRITICAL] $*" >&2
+}
+
 # The default RKE2 failurePolicy is `reinstall`.
 # Recreating the NAD CRD can cause all VM networking to be lost.
 patch_rke2_multus_config() {
@@ -43,7 +55,7 @@ EOF
       return 0
     else
       # Catch critical errors (RBAC, API timeouts, etc.)
-      echo "CRITICAL ERROR: kubectl check failed with: $rke2_multus_chart_config_output EXIT_CODE:$EXIT_CODE"
+      log_critical "kubectl check failed with: $rke2_multus_chart_config_output EXIT_CODE:$EXIT_CODE"
       return 1
     fi
   fi
@@ -90,7 +102,7 @@ preserve_overcommit_config() {
   local setting_name="overcommit-config"
   local setting_json
   setting_json=$(kubectl get settings.harvesterhci.io "$setting_name" -o json 2>/dev/null) || {
-    echo "Warning: failed to get $setting_name setting, skipping preservation"
+    log_warning "failed to get $setting_name setting, skipping preservation"
     return 0
   }
 
@@ -106,7 +118,7 @@ preserve_overcommit_config() {
   default_value=$(echo "$setting_json" | jq -r '.default // empty')
 
   if [ -z "$default_value" ]; then
-    echo "Warning: overcommit-config has no default value, skipping preservation"
+    log_warning "overcommit-config has no default value, skipping preservation"
     return 0
   fi
 
@@ -800,7 +812,7 @@ upgrade_rancher() {
   local RANCHER_CURRENT_VERSION=$(yq -e e '.rancherImageTag' values.yaml) # if not matched, the return result is "null"
   local RANCHER_CURRENT_VERSION_NEW_MODE=$(yq -e e '.image.tag' values.yaml)
   if [[ "$RANCHER_CURRENT_VERSION" == "null" ]] && [[ "$RANCHER_CURRENT_VERSION_NEW_MODE" == "null" ]]; then
-    echo "[ERROR] Fail to get current Rancher version."
+    log_error "Fail to get current Rancher version."
     exit 1
   fi
 
@@ -1621,7 +1633,7 @@ EOF
       return 0
     else
       # Catch critical errors (RBAC, API timeouts, etc.)
-      echo "CRITICAL ERROR: kubectl check failed with: $rke2_traefik_chart_config_output EXIT_CODE:$EXIT_CODE"
+      log_critical "kubectl check failed with: $rke2_traefik_chart_config_output EXIT_CODE:$EXIT_CODE"
       return 1
     fi
   fi
@@ -1645,6 +1657,7 @@ apply_extra_nonversion_manifests
 upgrade_harvester
 sync_containerd_registry_to_rancher
 wait_longhorn_upgrade
+upgrade-helper image-volume-size-check --upgrade "$HARVESTER_UPGRADE_NAME" || log_warning "image-volume-size-check failed, continuing upgrade..."
 reuse_vlan_cn
 upgrade_monitoring
 upgrade_logging_event_audit

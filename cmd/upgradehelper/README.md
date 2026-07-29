@@ -6,6 +6,7 @@ subcommands are listed below:
 
 - vm-live-migrate-detector
 - version-guard
+- image-volume-size-check
 
 ## vm-live-migrate-detector
 
@@ -79,4 +80,26 @@ Any other upgrade paths not explicitly mentioned above are allowed.
 $ export KUBECONFIG=/tmp/kubeconfig
 
 $ upgrade-helper version-guard hvst-upgrade-gqbg5
+```
+
+## image-volume-size-check
+
+Volumes created from a VM image must not be smaller than the image's virtual size, or the guest OS can run into data integrity issues once it writes past the shrunk backing store.
+
+This subcommand scans all PVCs cluster-wide and reports the ones created from a VM image (via the `harvesterhci.io/imageId` annotation, or the image's own golden-image PVC) that are smaller than their source image's virtual size. It is read-only and never modifies any resource: PVCs can never be shrunk, and expanding an in-use volume is a decision left to the cluster operator. For each violation it also reports whether the volume is currently expandable, to help the operator decide on a fix.
+
+### Usage
+
+```shell
+$ export KUBECONFIG=/tmp/kubeconfig
+
+$ upgrade-helper image-volume-size-check
+WARN[0000] "default/test-pvc": current size is smaller than the required minimum of 10Gi; can be expanded
+INFO[0010] image volume size check completed: scanned 42, violations 1
+```
+
+If run as part of an upgrade, pass `--upgrade` to also record a summary event on the `Upgrade` CR:
+
+```shell
+$ upgrade-helper image-volume-size-check --upgrade hvst-upgrade-gqbg5
 ```
