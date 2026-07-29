@@ -11,11 +11,15 @@ import (
 	lhutil "github.com/longhorn/longhorn-manager/util"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
+	k8svolumehelpers "k8s.io/cloud-provider/volume/helpers"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 )
 
@@ -189,4 +193,62 @@ func GetSCWithSelector(scCache ctlstoragev1.StorageClassCache, selector labels.S
 	}
 
 	return scList, nil
+}
+
+// GetImageDiskSizeQuantity returns the minimum disk size a volume created
+// from the given image must have, i.e. the image's virtual size (or its
+// artifact size if larger), rounded up to whole GiB.
+func GetImageDiskSizeQuantity(image *harvesterv1.VirtualMachineImage) (*resource.Quantity, error) {
+	imgSize := max(image.Status.VirtualSize, image.Status.Size)
+	if imgSize <= 0 {
+		return resource.NewQuantity(0, resource.BinarySI), nil
+	}
+
+	imgSizeRoundUp, err := k8svolumehelpers.RoundUpToGiB(*resource.NewQuantity(imgSize, resource.BinarySI))
+	if err != nil {
+		return nil, err
+	}
+
+	return resource.NewQuantity(imgSizeRoundUp*k8svolumehelpers.GiB, resource.BinarySI), nil
+}
+
+// GetPVCSourceImage returns the VirtualMachineImage a PVC was created from,
+// if any. It recognizes two cases:
+//   - the PVC is itself the golden-image's backing PVC (marked via the
+//     goldenImage annotation, name/namespace match the image).
+//   - the PVC was created to hold a clone/import of an image (marked via the
+//     imageId annotation).
+//
+// It returns nil, nil if the PVC has no known image source, the annotation
+// is malformed, or the referenced image no longer exists.
+func GetPVCSourceImage(pvc *corev1.PersistentVolumeClaim, imageCache ctlharvesterv1.VirtualMachineImageCache) (*harvesterv1.VirtualMachineImage, error) {
+	if pvc.Annotations[AnnotationGoldenImage] == "true" {
+		image, err := imageCache.Get(pvc.Namespace, pvc.Name)
+		if err == nil {
+			return image, nil
+		}
+		if !errors.IsNotFound(err) {
+			return nil, err
+		}
+	}
+
+	imageID, ok := pvc.Annotations[AnnotationImageID]
+	if !ok {
+		return nil, nil
+	}
+
+	namespace, name, ok := SplitNamespacedName(imageID)
+	if !ok {
+		return nil, nil
+	}
+
+	image, err := imageCache.Get(namespace, name)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return image, nil
 }

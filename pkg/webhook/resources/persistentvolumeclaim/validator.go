@@ -141,6 +141,14 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 		}
 	}
 
+	// Intentionally run before the size-equality check below: the PVC's
+	// source image reference is not protected against being changed after
+	// creation, so a request that leaves the volume size untouched but
+	// switches it to a larger source image must still be caught here.
+	if err := v.checkImageSize(newPVC); err != nil {
+		return err
+	}
+
 	newQuantity := newPVC.Spec.Resources.Requests.Storage()
 	oldQuantity := oldPVC.Spec.Resources.Requests.Storage()
 	if oldQuantity.Cmp(*newQuantity) == 0 {
@@ -152,7 +160,38 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 
 func (v *pvcValidator) Create(request *types.Request, newObj runtime.Object) error {
 	newPVC := newObj.(*corev1.PersistentVolumeClaim)
-	return v.validateInternalUsage(request, newPVC)
+	if err := v.validateInternalUsage(request, newPVC); err != nil {
+		return err
+	}
+	return v.checkImageSize(newPVC)
+}
+
+// checkImageSize ensures the volume is not smaller than the virtual size of
+// the VM image it was created from, if any. A volume smaller than its
+// source image's virtual size can lead to data integrity issues once the
+// guest OS writes past the shrunk backing store.
+func (v *pvcValidator) checkImageSize(pvc *corev1.PersistentVolumeClaim) error {
+	image, err := util.GetPVCSourceImage(pvc, v.imageCache)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to get source image for PVC %q: %v", util.GetNamespacedName(pvc), err))
+	}
+	if image == nil {
+		return nil
+	}
+
+	minSize, err := util.GetImageDiskSizeQuantity(image)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to calculate the minimum size for image %q: %v", util.GetNamespacedName(image), err))
+	}
+
+	pvcSize := pvc.Spec.Resources.Requests.Storage()
+	if pvcSize.Cmp(*minSize) < 0 {
+		message := fmt.Sprintf("volume %q size (%s) must be at least %s to match the virtual size of image %q",
+			util.GetNamespacedName(pvc), pvcSize.String(), minSize.String(), util.GetNamespacedName(image))
+		return werror.NewInvalidError(message, "spec.resources.requests.storage")
+	}
+
+	return nil
 }
 
 func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) error {

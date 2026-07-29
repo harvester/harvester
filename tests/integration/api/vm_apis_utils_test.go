@@ -19,7 +19,7 @@ const (
 	testVMUpdatedCPUCore = 2
 	testVMUpdatedMemory  = "200Mi"
 
-	testVMDiskSize = "10Mi"
+	testVMDiskSize = "350Mi"
 
 	testVMInterfaceName  = "default"
 	testVMInterfaceModel = "virtio"
