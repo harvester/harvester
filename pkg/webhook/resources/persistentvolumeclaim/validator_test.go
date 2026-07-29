@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -663,6 +664,155 @@ func TestCreate(t *testing.T) {
 			}
 
 			err := validator.Create(fakeRequest, tc.pvc)
+
+			if tc.expectError {
+				assert.NotNil(t, err, tc.name)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains, tc.name)
+				}
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func TestCheckImageSize(t *testing.T) {
+	image := &harvesterv1.VirtualMachineImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-image",
+			Namespace: "default",
+		},
+		Status: harvesterv1.VirtualMachineImageStatus{
+			VirtualSize: 5 * 1024 * 1024 * 1024, // 5Gi
+		},
+	}
+
+	goldenImage := &harvesterv1.VirtualMachineImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pvc",
+			Namespace: "default",
+		},
+		Status: harvesterv1.VirtualMachineImageStatus{
+			VirtualSize: 5 * 1024 * 1024 * 1024, // 5Gi
+		},
+	}
+
+	tests := []struct {
+		name          string
+		pvc           *corev1.PersistentVolumeClaim
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "volume without image annotation is not checked",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: "default",
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse("1Gi"),
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "volume smaller than image virtual size is rejected",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationImageID: "default/test-image",
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse("1Gi"),
+						},
+					},
+				},
+			},
+			expectError:   true,
+			errorContains: "must be at least",
+		},
+		{
+			name: "volume at least as big as image virtual size is allowed",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationImageID: "default/test-image",
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse("5Gi"),
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "golden image volume smaller than image virtual size is rejected",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationGoldenImage: "true",
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse("1Gi"),
+						},
+					},
+				},
+			},
+			expectError:   true,
+			errorContains: "must be at least",
+		},
+		{
+			name: "volume referencing a non-existent image is not checked",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationImageID: "default/does-not-exist",
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse("1Gi"),
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset(image, goldenImage)
+			validator := &pvcValidator{
+				imageCache: fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+			}
+
+			err := validator.checkImageSize(tc.pvc)
 
 			if tc.expectError {
 				assert.NotNil(t, err, tc.name)
