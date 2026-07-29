@@ -537,8 +537,8 @@ github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8
 ## explicit; go 1.25.5
 github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io
 github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1
-# github.com/klauspost/compress v1.18.0
-## explicit; go 1.22
+# github.com/klauspost/compress v1.18.7
+## explicit; go 1.24
 github.com/klauspost/compress
 github.com/klauspost/compress/fse
 github.com/klauspost/compress/huff0
