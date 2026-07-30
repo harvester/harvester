@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/apiserver/pkg/urlbuilder"
 	"github.com/rancher/steve/pkg/server/router"
 	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/harvester/harvester/pkg/api/backuptarget"
@@ -38,13 +39,19 @@ type Router struct {
 	scaled     *config.Scaled
 	restConfig *rest.Config
 	options    config.Options
+	k8sClient  kubernetes.Interface
 }
 
 func NewRouter(scaled *config.Scaled, restConfig *rest.Config, options config.Options) (*Router, error) {
+	k8sClient, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return nil, err
+	}
 	return &Router{
 		scaled:     scaled,
 		restConfig: restConfig,
 		options:    options,
+		k8sClient:  k8sClient,
 	}, nil
 }
 
@@ -61,7 +68,7 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	})
 
 	// add a prefix based handler for forklift
-	forkliftProxyHandler := forkliftproxy.NewForkliftProxyHandler(r.restConfig)
+	forkliftProxyHandler := forkliftproxy.NewForkliftProxyHandler(r.k8sClient.AuthorizationV1().SubjectAccessReviews())
 	m.Path("/v1/harvester/providers/vsphere/{providerId}/{object}").Methods("GET").Handler(forkliftProxyHandler)
 
 	// Those routes should be above /v1/harvester/{type}, otherwise, the response status code would be 404

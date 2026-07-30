@@ -12,7 +12,7 @@ type Validator struct {
 }
 
 func GetValidator(vmiv common.VMIValidator) backend.Validator {
-	return &Validator{vmiv}
+	return &Validator{vmiv: vmiv}
 }
 
 func (biv *Validator) Create(request *types.Request, vmi *harvesterv1.VirtualMachineImage) error {
@@ -28,7 +28,7 @@ func (biv *Validator) Create(request *types.Request, vmi *harvesterv1.VirtualMac
 		return err
 	}
 
-	if err := biv.vmiv.CheckSecurityParameters(vmi); err != nil {
+	if err := biv.vmiv.CheckSecurityParameters(request, vmi); err != nil {
 		return err
 	}
 

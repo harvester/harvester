@@ -8,10 +8,8 @@ import (
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
-	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/validation"
 	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
@@ -34,7 +32,7 @@ type VMIValidator interface {
 	CheckDisplayName(vmi *v1beta1.VirtualMachineImage) error
 	CheckUpdateDisplayName(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
 	CheckURL(vmi *v1beta1.VirtualMachineImage) error
-	CheckSecurityParameters(vmi *v1beta1.VirtualMachineImage) error
+	CheckSecurityParameters(request *types.Request, vmi *v1beta1.VirtualMachineImage) error
 	CheckImagePVC(request *types.Request, vmi *v1beta1.VirtualMachineImage) error
 	CheckPVCInUse(vmi *v1beta1.VirtualMachineImage) error
 
@@ -55,7 +53,7 @@ type VMIValidator interface {
 type vmiValidator struct {
 	vmiCache               ctlharvesterv1.VirtualMachineImageCache
 	scCache                ctlstoragev1.StorageClassCache
-	ssar                   authorizationv1client.SelfSubjectAccessReviewInterface
+	sar                    authorizationv1client.SubjectAccessReviewInterface
 	podCache               ctlcorev1.PodCache
 	pvcCache               ctlcorev1.PersistentVolumeClaimCache
 	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache
@@ -64,15 +62,15 @@ type vmiValidator struct {
 
 func GetVMIValidator(vmiCache ctlharvesterv1.VirtualMachineImageCache,
 	scCache ctlstoragev1.StorageClassCache,
-	ssar authorizationv1client.SelfSubjectAccessReviewInterface,
 	podCache ctlcorev1.PodCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache,
-	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache) VMIValidator {
+	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
+	sar authorizationv1client.SubjectAccessReviewInterface) VMIValidator {
 	vmiv := &vmiValidator{
 		vmiCache:               vmiCache,
 		scCache:                scCache,
-		ssar:                   ssar,
+		sar:                    sar,
 		podCache:               podCache,
 		pvcCache:               pvcCache,
 		vmTemplateVersionCache: vmTemplateVersionCache,
@@ -151,7 +149,7 @@ func (v *vmiValidator) CheckURL(vmi *v1beta1.VirtualMachineImage) error {
 	return nil
 }
 
-func (v *vmiValidator) CheckSecurityParameters(vmi *v1beta1.VirtualMachineImage) error {
+func (v *vmiValidator) CheckSecurityParameters(request *types.Request, vmi *v1beta1.VirtualMachineImage) error {
 	if vmi.Spec.SourceType != v1beta1.VirtualMachineImageSourceTypeClone {
 		return nil
 	}
@@ -171,6 +169,22 @@ func (v *vmiValidator) CheckSecurityParameters(vmi *v1beta1.VirtualMachineImage)
 
 	if sp.SourceImageNamespace == "" {
 		return werror.NewInvalidError(`SourceImageNamespace is required when image source type is "clone"`, "spec.security.sourceImageName")
+	}
+
+	allowed, err := util.CheckObjectAccess(request.Context, util.ResourceAccessCheck{
+		SAR:       v.sar,
+		Username:  request.UserInfo.Username,
+		Groups:    request.UserInfo.Groups,
+		Verb:      util.VerbGet,
+		GVR:       util.VirtualMachineImageGVR,
+		Namespace: sp.SourceImageNamespace,
+		Name:      sp.SourceImageName,
+	})
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to check access to source image %s/%s: %v", sp.SourceImageNamespace, sp.SourceImageName, err))
+	}
+	if !allowed {
+		return werror.NewInvalidError(fmt.Sprintf("user %q is not allowed to access source image %s/%s", request.UserInfo.Username, sp.SourceImageNamespace, sp.SourceImageName), "")
 	}
 
 	// Check if the source image exists
@@ -222,6 +236,10 @@ func (v *vmiValidator) CheckSecurityParameters(vmi *v1beta1.VirtualMachineImage)
 		return werror.NewInvalidError(fmt.Sprintf("storage class %s is not for encryption or decryption", scName), fmt.Sprintf("spec.parameters[%s] must be true", util.LonghornOptionEncrypted))
 	}
 
+	if sc.Parameters[util.LonghornOptionBackingImageName] != "" {
+		return werror.NewInvalidError(fmt.Sprintf("storage class %s is tied to a specific backing image and cannot be used as target for clone/encrypt", scName), fmt.Sprintf("metadata.annotations[%s]", util.AnnotationStorageClassName))
+	}
+
 	return nil
 }
 
@@ -254,26 +272,20 @@ func (v *vmiValidator) CheckImagePVC(request *types.Request, vmi *v1beta1.Virtua
 		return werror.NewInvalidError(`pvcName is required when image source type is "export-from-volume"`, "spec.pvcName")
 	}
 
-	ssar, err := v.ssar.Create(request.Context, &authorizationv1.SelfSubjectAccessReview{
-		Spec: authorizationv1.SelfSubjectAccessReviewSpec{
-			ResourceAttributes: &authorizationv1.ResourceAttributes{
-				Namespace: vmi.Spec.PVCNamespace,
-				Verb:      "get",
-				Group:     "",
-				Version:   "*",
-				Resource:  "persistentvolumeclaims",
-				Name:      vmi.Spec.PVCName,
-			},
-		},
-	}, metav1.CreateOptions{})
+	allowed, err := util.CheckObjectAccess(request.Context, util.ResourceAccessCheck{
+		SAR:       v.sar,
+		Username:  request.UserInfo.Username,
+		Groups:    request.UserInfo.Groups,
+		Verb:      util.VerbGet,
+		GVR:       util.PVCGVR,
+		Namespace: vmi.Spec.PVCNamespace,
+		Name:      vmi.Spec.PVCName,
+	})
 	if err != nil {
-		message := fmt.Sprintf("failed to check user permission, error: %s", err.Error())
-		return werror.NewInvalidError(message, "")
+		return werror.NewInternalError(fmt.Sprintf("failed to check user permission for pvc %s/%s: %v", vmi.Spec.PVCNamespace, vmi.Spec.PVCName, err))
 	}
-
-	if !ssar.Status.Allowed || ssar.Status.Denied {
-		message := fmt.Sprintf("user has no permission to get the pvc resource %s/%s", vmi.Spec.PVCName, vmi.Spec.PVCNamespace)
-		return werror.NewInvalidError(message, "")
+	if !allowed {
+		return werror.NewInvalidError(fmt.Sprintf("user has no permission to get the pvc resource %s/%s", vmi.Spec.PVCNamespace, vmi.Spec.PVCName), "")
 	}
 
 	_, err = v.pvcCache.Get(vmi.Spec.PVCNamespace, vmi.Spec.PVCName)
