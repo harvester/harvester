@@ -54,13 +54,23 @@ loggingChart: ${LOGGING_VERSION}
 loggingChartHarvesterEventRouter: ${HARVESTER_EVENTROUTER_FULL_TAG}
 kubevirt: ${HARVESTER_KUBEVIRT_VERSION}
 minUpgradableVersion: '${HARVESTER_MIN_UPGRADABLE_VERSION}'
+rancherDependencies:
+  fleet:
+    chart: 110.0.0+up0.16.0
+    app: 0.16.0
+  fleet-crd:
+    chart: 110.0.0+up0.16.0
+    app: 0.16.0
+  rancher-webhook:
+    chart: 110.0.0+up0.11.0
+    app: 0.11.0
 EOF
 
 # Collect all the previous versions' image lists
 ${SCRIPTS_DIR}/archive-images-lists.sh "${TOP_DIR}/../harvester/package/upgrade-matrix.yaml" "${IMAGES_LISTS_DIR}" "${RANCHERD_IMAGES_DIR}" "${BUNDLE_DIR}/harvester/images-lists-archive" "${ARCH}"
 
 # Collect dependencies' versions
-${SCRIPTS_DIR}/collect-deps.sh harvester-release.yaml
+# ${SCRIPTS_DIR}/collect-deps.sh harvester-release.yaml
 
 echo "The harvester-release info is"
 cat ./harvester-release.yaml
