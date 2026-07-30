@@ -218,3 +218,16 @@ resources:
         - key: provisioning.cattle.io/unmanaged-system-agent
           operator: DoesNotExist
     values: {}
+- apiVersion: helm.cattle.io/v1
+  kind: HelmChartConfig
+  metadata:
+    name: rke2-traefik
+    namespace: kube-system
+  spec:
+    valuesContent: |-
+      logs:
+        access:
+          enabled: "true"
+      additionalArguments:
+      - --entryPoints.websecure.transport.respondingTimeouts.readTimeout=30m
+      - --entryPoints.websecure.transport.respondingTimeouts.writeTimeout=30m
