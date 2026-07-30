@@ -1627,6 +1627,17 @@ EOF
   fi
 }
 
+# Freeze the 'tls-rancher-internal' secret while upgrading from v1.8.x to prevent TLS certificate flapping.
+# This annotation is temporary and will be cleaned up after the upgrade finishes
+# once the Harvester controller configures the 'tls-internal-cn-allowed-services' Rancher setting.
+freeze_tls_rancher_internal() {
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.8\.[0-9]$ ]]; then
+    echo "Skip freeze tls_rancher_internal if you are not upgrade from v1.8.x, current version: $UPGRADE_PREVIOUS_VERSION"
+    return
+  fi
+  kubectl annotate secret tls-rancher-internal listener.cattle.io/static=true -n cattle-system --overwrite
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -1635,6 +1646,7 @@ preserve_overcommit_config
 pause_all_charts
 skip_restart_rancher_system_agent
 disable_kubevirt_workload_live_migration
+freeze_tls_rancher_internal
 upgrade_rancher
 patch_local_cluster_details
 update_local_rke_state_secret
