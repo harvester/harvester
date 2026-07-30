@@ -9,9 +9,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
+
+	"github.com/harvester/harvester/pkg/util"
 )
 
 const (
@@ -26,12 +26,12 @@ var (
 )
 
 type ForkliftProxyHandler struct {
-	config *rest.Config
+	sar authorizationv1client.SubjectAccessReviewInterface
 }
 
-func NewForkliftProxyHandler(config *rest.Config) *ForkliftProxyHandler {
+func NewForkliftProxyHandler(sar authorizationv1client.SubjectAccessReviewInterface) *ForkliftProxyHandler {
 	return &ForkliftProxyHandler{
-		config: config,
+		sar: sar,
 	}
 }
 
@@ -104,36 +104,27 @@ func GetOriginScheme(scheme string) string {
 	}
 }
 
-// checkServiceAccess checks if the user can access the forklift inventory service by attempting to get the service resource in Kubernetes using the user's credentials.
-// users will need access to `forklift-inventory` service in `forklift` namespace to pass this check and be able to use the proxy api.
+// checkServiceAccess checks if the user can get the forklift-inventory service.
+// Users need get access to this service in the forklift namespace to use the proxy API.
 func (f *ForkliftProxyHandler) checkServiceAccess(req *http.Request) error {
-	userConfig, err := userImpersonationConfig(f.config, req)
-	if err != nil {
-		return fmt.Errorf("failed to generate user kubeconfig: %w", err)
-	}
-
-	clientset, err := kubernetes.NewForConfig(userConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create Kubernetes clientset: %w", err)
-	}
-
-	_, err = clientset.CoreV1().Services(forkliftInventoryNamespace).Get(req.Context(), forkliftInventoryServiceName, metav1.GetOptions{})
-	return err
-}
-
-func userImpersonationConfig(restConfig *rest.Config, req *http.Request) (*rest.Config, error) {
-	userConfig := rest.CopyConfig(restConfig)
 	userName := req.Header.Get("Impersonate-User")
 	groups := req.Header.Values("Impersonate-Extra-Groups")
 	logrus.Debugf("Impersonate-User: %s, Impersonate-Extra-Groups: %v", userName, groups)
-	if userName == "" {
-		return nil, fmt.Errorf("missing required authentication headers")
-	}
 
-	logrus.Debugf("Impersonating user for api call: %s, groups: %s", userName, groups)
-	userConfig.Impersonate = rest.ImpersonationConfig{
-		UserName: userName,
-		Groups:   groups,
+	allowed, err := util.CheckObjectAccess(req.Context(), util.ResourceAccessCheck{
+		SAR:       f.sar,
+		Username:  userName,
+		Groups:    groups,
+		Verb:      util.VerbGet,
+		GVR:       util.ServiceGVR,
+		Namespace: forkliftInventoryNamespace,
+		Name:      forkliftInventoryServiceName,
+	})
+	if err != nil {
+		return err
 	}
-	return userConfig, nil
+	if !allowed {
+		return fmt.Errorf("user %q is not permitted to get service %s/%s", userName, forkliftInventoryNamespace, forkliftInventoryServiceName)
+	}
+	return nil
 }
